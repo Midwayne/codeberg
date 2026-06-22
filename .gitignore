@@ -1,0 +1,9 @@
+core/build/
+core/third_party/tree-sitter/
+core/third_party/grammars/
+models/
+*.o
+*.a
+*.so
+*.dylib
+.DS_Store

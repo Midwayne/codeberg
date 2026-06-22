@@ -1,0 +1,16 @@
+function(cberg_add_test name)
+  add_executable(${name} ${name}.c)
+  target_link_libraries(${name} PRIVATE codeberg::codeberg)
+  add_test(NAME ${name} COMMAND ${name})
+endfunction()
+
+cberg_add_test(test_smoke)
+cberg_add_test(test_chunker)
+cberg_add_test(test_chunk_table)
+cberg_add_test(test_fingerprint)
+cberg_add_test(test_watch)
+cberg_add_test(test_index)
+cberg_add_test(test_embed)
+cberg_add_test(test_search)
+
+set_tests_properties(test_embed test_search PROPERTIES SKIP_RETURN_CODE 77)

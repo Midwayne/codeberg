@@ -1,0 +1,30 @@
+[submodule "core/third_party/tree-sitter"]
+	path = core/third_party/tree-sitter
+	url = https://github.com/tree-sitter/tree-sitter
+[submodule "core/third_party/grammars/tree-sitter-go"]
+	path = core/third_party/grammars/tree-sitter-go
+	url = https://github.com/tree-sitter/tree-sitter-go
+[submodule "core/third_party/grammars/tree-sitter-c"]
+	path = core/third_party/grammars/tree-sitter-c
+	url = https://github.com/tree-sitter/tree-sitter-c
+[submodule "core/third_party/grammars/tree-sitter-javascript"]
+	path = core/third_party/grammars/tree-sitter-javascript
+	url = https://github.com/tree-sitter/tree-sitter-javascript
+[submodule "core/third_party/grammars/tree-sitter-python"]
+	path = core/third_party/grammars/tree-sitter-python
+	url = https://github.com/tree-sitter/tree-sitter-python
+[submodule "core/third_party/grammars/tree-sitter-java"]
+	path = core/third_party/grammars/tree-sitter-java
+	url = https://github.com/tree-sitter/tree-sitter-java
+[submodule "core/third_party/grammars/tree-sitter-kotlin"]
+	path = core/third_party/grammars/tree-sitter-kotlin
+	url = https://github.com/fwcd/tree-sitter-kotlin
+[submodule "core/third_party/grammars/tree-sitter-typescript"]
+	path = core/third_party/grammars/tree-sitter-typescript
+	url = https://github.com/tree-sitter/tree-sitter-typescript
+[submodule "core/third_party/usearch"]
+	path = core/third_party/usearch
+	url = https://github.com/unum-cloud/usearch
+[submodule "core/third_party/onnxruntime-extensions"]
+	path = core/third_party/onnxruntime-extensions
+	url = https://github.com/microsoft/onnxruntime-extensions

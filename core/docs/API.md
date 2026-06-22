@@ -1,0 +1,368 @@
+# Public API reference
+
+Every symbol exported from `include/codeberg/codeberg.h`. Internal helpers live in
+`src/` and are documented in [modules/](modules/).
+
+**Conventions**
+
+- Fallible functions return `cberg_status`. Out-parameters are valid only on `CBERG_OK`.
+- Opaque handles (`cberg_chunker`, `cberg_chunk_table`, `cberg_watcher`, `cberg_embedder`, `cberg_index`) are released by the matching `*_close` / `*_free` (all NULL-safe).
+- String ownership is documented per function; when in doubt, treat returned strings as borrowed unless the function name ends in `_free` or the docs say the caller must `free`.
+
+---
+
+## Status and version
+
+### `cberg_status`
+
+| Value | Meaning |
+|-------|---------|
+| `CBERG_OK` | Success |
+| `CBERG_ERR_INVALID_ARGUMENT` | NULL pointer, empty required field, out-of-range span, etc. |
+| `CBERG_ERR_INTERNAL` | Tree-sitter failure, usearch/ONNX internal error, unexpected state |
+| `CBERG_ERR_IO` | File open/load/save, inotify/FSEvents setup failure |
+| `CBERG_ERR_UNSUPPORTED_LANGUAGE` | Reserved; chunker uses window fallback instead of failing |
+| `CBERG_ERR_NOT_FOUND` | Index remove when id absent |
+| `CBERG_ERR_OUT_OF_MEMORY` | `malloc` / arena allocation failed |
+| `CBERG_ERR_TIMEOUT` | `cberg_watcher_poll` blocked and timed out (Linux inotify path) |
+| `CBERG_ERR_NOT_IMPLEMENTED` | Feature compiled out (no ONNX / no usearch) |
+
+### `cberg_status_str(cberg_status status)`
+
+Returns a short English phrase for `status`. Unknown codes return `"unknown error"`. The pointer is static/read-only; do not free.
+
+### `cberg_version(void)`
+
+Returns the library version string (from repo `VERSION`, e.g. `"v0.0.1"`). Static storage.
+
+---
+
+## Configuration
+
+### `CBERG_INDEX_ROOT_ENV`
+
+Macro: `"CODEBERG_ROOT"` — environment variable naming the codebase tree to index.
+
+### `cberg_config_index_root_env_name(void)`
+
+Returns `"CODEBERG_ROOT"`.
+
+### `cberg_config_index_root(void)`
+
+Reads `CODEBERG_ROOT` from the environment. Returns NULL if unset or empty. Pointer is process-lifetime; do not free.
+
+### `cberg_config_resolve_index_root(char *out, size_t out_cap)`
+
+Writes `realpath(CODEBERG_ROOT)` into `out`. Symlink roots are allowed. **Returns:** `CBERG_OK`, `CBERG_ERR_NOT_FOUND`, `CBERG_ERR_IO`, `CBERG_ERR_INVALID_ARGUMENT`.
+
+---
+
+## Hashing
+
+### `CBERG_HASH_LEN`
+
+`32` — size of `content_hash` arrays and fingerprint output. XXH3-128 produces 16 bytes; the implementation zero-pads the upper 16 bytes.
+
+### `cberg_hash(const void *data, size_t len, uint8_t out[CBERG_HASH_LEN])`
+
+Computes a **per-chunk content digest**: XXH3-128 over `len` bytes at `data`, written to `out` (zero-padded to 32 bytes).
+
+- `data` may be NULL only when `len == 0`.
+- Used by `cberg_chunk_list_hash_bodies` and available for standalone hashing.
+- **Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`.
+
+### `cberg_fingerprint(const char *const *keys, const uint8_t *const *hashes, size_t count, uint8_t out[CBERG_HASH_LEN])`
+
+Computes an **order-independent set fingerprint** over `(key, content_hash)` pairs:
+
+1. Sort pairs by `key` (lexicographic).
+2. Stream each `key || 0x00 || content_hash` (32 bytes) into XXH3-128.
+3. Write digest to `out` (zero-padded).
+
+- `count == 0` → all-zero `out`, `CBERG_OK`.
+- Each `keys[i]` must be non-NULL when `count > 0`.
+- **Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_OUT_OF_MEMORY`.
+
+---
+
+## Languages and chunking
+
+### `cberg_language`
+
+| Enum | Extension(s) |
+|------|----------------|
+| `CBERG_LANG_UNKNOWN` | — (window fallback) |
+| `CBERG_LANG_GO` | `.go` |
+| `CBERG_LANG_TYPESCRIPT` | `.ts`, `.tsx` |
+| `CBERG_LANG_JAVASCRIPT` | `.js`, `.jsx`, `.mjs`, `.cjs` |
+| `CBERG_LANG_C` | `.c`, `.h` |
+| `CBERG_LANG_KOTLIN` | `.kt`, `.kts` |
+| `CBERG_LANG_PYTHON` | `.py`, `.pyi` |
+| `CBERG_LANG_JAVA` | `.java` |
+
+### `cberg_language_from_path(const char *path)`
+
+Maps file extension to language. `NULL` path → `CBERG_LANG_UNKNOWN`.
+
+### `cberg_chunk_kind`
+
+`UNKNOWN`, `FUNCTION`, `METHOD`, `CLASS`, `STRUCT`, `INTERFACE`, `WINDOW` (50-line fallback windows).
+
+### `cberg_span`
+
+Byte and line range in the source buffer: `start_byte`, `end_byte`, `start_line`, `end_line` (1-based lines).
+
+### `cberg_chunk`
+
+| Field | Description |
+|-------|-------------|
+| `key` | Stable id: `"<path>::<kind>::<symbol>#<n>"` |
+| `path` | Repo-relative or caller path string |
+| `symbol` | Name node text, or NULL for windows |
+| `kind` | Chunk kind enum |
+| `span` | Location in source |
+| `content_hash` | Filled by `cberg_chunk_list_hash_bodies` |
+
+### `cberg_chunker_open(cberg_chunker **out_chunker)`
+
+Allocates a chunker with empty parser/query slots. **Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_OUT_OF_MEMORY`.
+
+### `cberg_chunker_close(cberg_chunker *chunker)`
+
+Deletes all cached tree-sitter parsers and queries; frees the chunker. NULL-safe.
+
+### `cberg_chunker_parse(cberg_chunker *chunker, cberg_language lang, const char *path, const char *src, size_t src_len, cberg_chunk_list **out_list)`
+
+Parses `src` into chunks:
+
+- Known language → tree-sitter query captures (functions, methods, types).
+- `CBERG_LANG_UNKNOWN` → 50-line sliding windows (`CBERG_CHUNK_WINDOW`).
+
+Keys, paths, and symbols in the list are arena-owned. Caller frees with `cberg_chunk_list_free`.
+
+**Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_OUT_OF_MEMORY`, `CBERG_ERR_INTERNAL`.
+
+### `cberg_chunk_list_len(const cberg_chunk_list *list)`
+
+Number of chunks. `NULL` list → `0`.
+
+### `cberg_chunk_list_at(const cberg_chunk_list *list, size_t index)`
+
+Pointer to chunk at `index`, or NULL if out of range.
+
+### `cberg_chunk_list_free(cberg_chunk_list *list)`
+
+Frees arena, chunk array, and list struct. NULL-safe.
+
+### `cberg_chunk_list_hash_bodies(const cberg_chunk_list *list, const char *src, size_t src_len)`
+
+For each chunk, hashes `src[span.start_byte:span.end_byte]` into `content_hash` via `cberg_hash`. Validates spans against `src_len`.
+
+**Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`.
+
+---
+
+## Chunk table (change tracking)
+
+### `cberg_stored_chunk`
+
+`uint64_t id` + `cberg_chunk` — id assigned at first insert, stable across content edits.
+
+### `cberg_changes`
+
+Pointers to arrays owned by the table until the next `sync` or `free`:
+
+- `added` / `added_len`
+- `modified` / `modified_len`
+- `deleted` / `deleted_len`
+
+### `cberg_chunk_table_new(void)`
+
+Allocates empty table (`next_id` starts at 1). Returns NULL on OOM.
+
+### `cberg_chunk_table_free(cberg_chunk_table *table)`
+
+Frees all stored chunks, hash map, change buffers, and table. NULL-safe.
+
+### `cberg_chunk_table_fingerprint(const cberg_chunk_table *table, uint8_t out[CBERG_HASH_LEN])`
+
+Copies last fingerprint computed by `sync`. Empty table → all-zero. NULL table/out → no-op.
+
+### `cberg_chunk_table_len(const cberg_chunk_table *table)`
+
+Current number of stored chunks. NULL → `0`.
+
+### `cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk *incoming, size_t count, cberg_changes *out_changes)`
+
+Diffs `incoming` (one file or batch) against the table:
+
+- **New key** → insert row, assign new `id`, append to `added`.
+- **Existing key, different `content_hash`** → update row in place, same `id`, append to `modified`.
+- **Existing key, same hash** → no change list entry.
+- **Keys in table not in `incoming`** (for this sync’s pre-state) → remove row, append to `deleted`.
+
+Recomputes set fingerprint. Change arrays are reused/reallocated each call.
+
+**Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_OUT_OF_MEMORY`.
+
+---
+
+## Filesystem watcher
+
+### `cberg_watch_kind`
+
+`MODIFY`, `CREATE`, `DELETE`, `RENAME`.
+
+### `cberg_watch_event`
+
+`kind` + `path` (repo-relative). Paths in poll output are strdup’d; **caller frees** each `events[i].path` after reading.
+
+### `cberg_watcher_open(const char *root, cberg_watcher **out_watcher)`
+
+Opens recursive watch on `root`. `root` must exist (`realpath` at open; `CBERG_ERR_IO`
+if missing). **Symlink roots** are supported. **Symlinks inside** the tree are followed
+when walking and registering watches. See also `CODEBERG_ROOT` / `cberg_config_*`.
+
+**Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_OUT_OF_MEMORY`, `CBERG_ERR_IO`.
+
+### `cberg_watcher_close(cberg_watcher *watcher)`
+
+Stops stream, closes inotify fd, frees dirty set and pending events. NULL-safe.
+
+### `cberg_watcher_poll(...)`
+
+Waits for backend activity, then **drains** the dirty set into `events` with accurate
+`kind` per path (platform-native flags mapped to `CBERG_WATCH_*`). Debouncing coalesces
+duplicate paths; `kind_merge` keeps DELETE, allows CREATE after DELETE (re-create before
+drain), otherwise last event wins.
+
+`events == NULL` or `cap == 0` → wait/process only, still drains dirty set (discards).
+
+**Shared drain:** `poll` and `dirty_paths` use one queue. Draining via either function
+empties the set for both.
+
+**Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_IO`, `CBERG_ERR_TIMEOUT` (Linux), `CBERG_ERR_OUT_OF_MEMORY`.
+
+### `cberg_watcher_dirty_paths(...)`
+
+Drains the same dirty set as `poll`, paths only (no kinds). `paths[i]` are transferred
+to caller — **free each** unless `paths == NULL` (count-only drain).
+
+---
+
+## Embedding
+
+Requires build with ONNX Runtime (`CBERG_WITH_ONNX`).
+
+### `cberg_embed_config`
+
+| Field | Description |
+|-------|-------------|
+| `provider` | `CBERG_EMBED_ONNX` |
+| `model_path` | Path to `model.onnx` |
+| `num_threads` | ONNX intra-op threads; `<= 0` uses all cores |
+
+Tokenizer files (`tokenizer.json`, etc.) must live in the same directory as the model.
+
+### `cberg_embedder_open(const cberg_embed_config *config, cberg_embedder **out_embedder)`
+
+Loads ONNX session and tokenizer. Discovers embedding dimension from model output shape.
+
+**Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_IO`, `CBERG_ERR_INTERNAL`, `CBERG_ERR_OUT_OF_MEMORY`, `CBERG_ERR_NOT_IMPLEMENTED`.
+
+### `cberg_embedder_dim(const cberg_embedder *embedder)`
+
+Vector dimension (768 for jina-embeddings-v2-base-code). NULL → `0`.
+
+### `cberg_embedder_embed(cberg_embedder *embedder, const char *const *texts, const size_t *text_lens, size_t count, float **out_vectors)`
+
+Embeds `count` texts. On success, `*out_vectors` is `count × dim` row-major floats (L2-normalized). Free with `cberg_vectors_free`.
+
+**Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_OUT_OF_MEMORY`, `CBERG_ERR_INTERNAL`, `CBERG_ERR_NOT_IMPLEMENTED`.
+
+### `cberg_vectors_free(float *vectors)`
+
+`free(vectors)`. NULL-safe.
+
+### `cberg_embedder_close(cberg_embedder *embedder)`
+
+Releases ONNX session, tokenizer, and embedder. NULL-safe.
+
+---
+
+## Vector index (usearch HNSW)
+
+Requires `CBERG_WITH_USEARCH` at build time.
+
+### `cberg_index_config`
+
+| Field | Default | Meaning |
+|-------|---------|---------|
+| `connectivity` | 16 | HNSW graph degree |
+| `expansion_add` | 128 | ef during insert |
+| `expansion_search` | 64 | ef during search |
+
+### `cberg_index_config_default(cberg_index_config *config)`
+
+Fills defaults. NULL-safe no-op.
+
+### `cberg_index_open(const char *path, size_t dim, const cberg_index_config *config, cberg_index **out_index)`
+
+Opens or creates cosine HNSW index at `path`. Loads existing file if present; else reserves initial capacity. `config` may be NULL for defaults.
+
+**Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_IO`, `CBERG_ERR_INTERNAL`, `CBERG_ERR_OUT_OF_MEMORY`, `CBERG_ERR_NOT_IMPLEMENTED`.
+
+### `cberg_index_add(cberg_index *index, uint64_t id, const float *vector)`
+
+Insert or **replace** vector for `id` (`dim` floats). Grows index capacity as needed.
+
+**Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_INTERNAL`.
+
+### `cberg_index_remove(cberg_index *index, uint64_t id)`
+
+Removes `id`. **Returns:** `CBERG_OK`, `CBERG_ERR_NOT_FOUND`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_INTERNAL`.
+
+### `cberg_index_search_opts`
+
+`expansion_search` — per-query ef override; `0` uses index default.
+
+### `cberg_index_search(cberg_index *index, const float *query, size_t k, const cberg_index_search_opts *opts, uint64_t *out_ids, float *out_scores, size_t *out_found)`
+
+Nearest-neighbor search. Caller supplies `out_ids` and `out_scores` buffers of length at least `k`. Writes up to `k` results; `*out_found` is actual count. Scores are **cosine similarity** (1 − distance), descending.
+
+**Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_INTERNAL`.
+
+### `cberg_index_save(cberg_index *index)`
+
+Persists index to path given at open.
+
+**Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_IO`.
+
+### `cberg_index_close(cberg_index *index)`
+
+Frees usearch index and path copy. NULL-safe.
+
+---
+
+## Semantic search
+
+### `cberg_search_config`
+
+| Field | Default | Meaning |
+|-------|---------|---------|
+| `oversample` | 4 | ef = max(min_ef, k × oversample) |
+| `min_expansion_search` | 64 | Floor for per-query ef |
+
+### `cberg_search_config_default(cberg_search_config *config)`
+
+Fills defaults.
+
+### `cberg_search_query(cberg_embedder *embedder, cberg_index *index, const char *query, size_t query_len, const cberg_search_config *config, size_t k, uint64_t *out_ids, float *out_scores, size_t *out_found)`
+
+1. Embeds query text.
+2. Runs `cberg_index_search` with raised `expansion_search` for better recall.
+3. Returns chunk ids and similarity scores.
+
+`k == 0` → `*out_found = 0`, `CBERG_OK`.
+
+**Returns:** same as embed + index search.
