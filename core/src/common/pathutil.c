@@ -1,6 +1,10 @@
 #include "pathutil.h"
 
+#include <dirent.h>
+#include <limits.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 bool cberg_path_skip_dir(const char *name) {
     if (name == NULL || name[0] == '\0') {
@@ -37,4 +41,74 @@ bool cberg_path_join(const char *root, const char *rel, char *out, size_t out_ca
     memcpy(out + at, rel, rel_len);
     out[at + rel_len] = '\0';
     return true;
+}
+
+cberg_status cberg_path_resolve(const char *path, char *out, size_t out_cap) {
+    if (path == NULL || out == NULL || out_cap == 0) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    char resolved[PATH_MAX];
+    if (realpath(path, resolved) == NULL) {
+        return CBERG_ERR_IO;
+    }
+    size_t len = strlen(resolved);
+    if (len + 1 > out_cap) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    memcpy(out, resolved, len + 1);
+    return CBERG_OK;
+}
+
+static bool dirent_dot(const char *name) {
+    return name[0] == '.' && (name[1] == '\0' || (name[1] == '.' && name[2] == '\0'));
+}
+
+cberg_status cberg_fs_walk(const char *abs, const char *rel, cberg_fs_walk_fn fn, void *ctx) {
+    if (abs == NULL || rel == NULL || fn == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+
+    cberg_status st = fn(ctx, abs, rel, CBERG_FS_DIR);
+    if (st != CBERG_OK) {
+        return st;
+    }
+
+    DIR *dir = opendir(abs);
+    if (dir == NULL) {
+        return rel[0] == '\0' ? CBERG_ERR_IO : CBERG_OK;
+    }
+
+    struct dirent *ent;
+    while ((ent = readdir(dir)) != NULL) {
+        if (dirent_dot(ent->d_name) || cberg_path_skip_dir(ent->d_name)) {
+            continue;
+        }
+        char child_abs[PATH_MAX];
+        char child_rel[PATH_MAX];
+        if (!cberg_path_join(abs, ent->d_name, child_abs, sizeof(child_abs))) {
+            continue;
+        }
+        if (!cberg_path_join(rel, ent->d_name, child_rel, sizeof(child_rel))) {
+            continue;
+        }
+        struct stat stbuf;
+        if (stat(child_abs, &stbuf) != 0) {
+            continue;
+        }
+        if (S_ISDIR(stbuf.st_mode)) {
+            st = cberg_fs_walk(child_abs, child_rel, fn, ctx);
+            if (st != CBERG_OK) {
+                closedir(dir);
+                return st;
+            }
+        } else if (S_ISREG(stbuf.st_mode)) {
+            st = fn(ctx, child_abs, child_rel, CBERG_FS_FILE);
+            if (st != CBERG_OK) {
+                closedir(dir);
+                return st;
+            }
+        }
+    }
+    closedir(dir);
+    return CBERG_OK;
 }

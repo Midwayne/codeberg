@@ -3,8 +3,8 @@
 Shared utilities used by chunking, watching, and hashing. None of these symbols are
 exported in `codeberg.h` except where noted (status, version, hash, language).
 
-**Files:** `arena.c`, `config.c`, `hash.c`, `lang.c`, `pathutil.c`, `status.c`, `version.c`  
-**Headers:** `arena.h`, `pathutil.h`  
+**Files:** `arena.c`, `config.c`, `hash.c`, `lang.c`, `pathutil.c`, `status.c`, `strutil.c`, `strmap.c`, `version.c`  
+**Headers:** `arena.h`, `pathutil.h`, `strutil.h`, `strmap.h`, `fnv.h`, `grow.h`  
 **Third-party:** `third_party/xxhash.c` (linked from CMake, not under `src/common/`)
 
 ---
@@ -121,6 +121,38 @@ Copies `len` bytes from `src` into arena memory, NUL-terminates. Returns NULL if
 
 ---
 
+## `strutil.c` / `strutil.h`
+
+### `cberg_strdup(const char *s)`
+
+Heap duplicate; NULL in → NULL out. Used by watcher, chunk table, and `cberg_strmap`.
+
+---
+
+## `strmap.c` / `strmap.h`
+
+String → `uint64_t` in-memory map (chained buckets, FNV-1a bucket index). **Not** for
+content hashing — use `cberg_hash` (XXH3) for that.
+
+### `cberg_strmap_new(bucket_count)` / `cberg_strmap_free` / `cberg_strmap_clear`
+
+### `cberg_strmap_get` / `cberg_strmap_set`
+
+Lookup and upsert. **Returns:** `CBERG_OK` or `CBERG_ERR_OUT_OF_MEMORY`.
+
+### `cberg_strmap_visit(map, fn, ctx)`
+
+Iterate all entries (used by watcher drain).
+
+---
+
+## `fnv.h` / `grow.h`
+
+`cberg_fnv1a` — fast string hash for `cberg_strmap` bucket indices only.  
+`cberg_grow_cap` — geometric capacity helper for dynamic arrays.
+
+---
+
 ## `pathutil.c` / `pathutil.h`
 
 Path helpers shared by the watcher (and any future directory walks).
@@ -139,6 +171,15 @@ NULL or empty → `false` (do not skip).
 
 Joins `root` and `rel` with `/` when needed. Writes NUL-terminated result to `out`.
 Returns `false` on NULL inputs, zero `out_cap`, or buffer overflow.
+
+### `cberg_path_resolve(path, out, out_cap)`
+
+`realpath` into `out`. **Returns:** `CBERG_OK`, `CBERG_ERR_IO`, `CBERG_ERR_INVALID_ARGUMENT`.
+
+### `cberg_fs_walk(abs, rel, fn, ctx)`
+
+Depth-first directory walk; skips dot dirs and `cberg_path_skip_dir` names. Invokes `fn`
+for each directory (pre-children) and regular file.
 
 ---
 

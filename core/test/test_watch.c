@@ -55,8 +55,61 @@ int main(void) {
     CHECK(cberg_watcher_dirty_paths(w, NULL, 0, &after_poll) == CBERG_OK, "dirty_paths after poll");
     CHECK(after_poll == 0, "dirty_paths empty after poll drained set");
 
+    f = fopen(path, "a");
+    CHECK(f != NULL, "append for discard drain");
+    fputs("// touch\n", f);
+    fclose(f);
+
+    size_t discarded = 0;
+    for (int i = 0; i < 100 && discarded == 0; i++) {
+        cberg_status st = cberg_watcher_poll(w, NULL, 0, &discarded, 200);
+        CHECK(st == CBERG_OK, "poll discard drain");
+    }
+    CHECK(discarded > 0, "discard drain counted pending paths");
+
+    for (int i = 0; i < 12; i++) {
+        char extra[512];
+        snprintf(extra, sizeof(extra), "%s/extra%d.go", dir, i);
+        f = fopen(extra, "w");
+        CHECK(f != NULL, "create extra file");
+        fputs("package main\n", f);
+        fclose(f);
+    }
+
+    cberg_watch_event small[2];
+    size_t got = 0;
+    cberg_status overflow_st = CBERG_ERR_INTERNAL;
+    for (int i = 0; i < 150; i++) {
+        overflow_st = cberg_watcher_poll(w, small, 2, &got, 300);
+        if (overflow_st == CBERG_ERR_INVALID_ARGUMENT || got > 0) {
+            break;
+        }
+        got = 0;
+    }
+    CHECK(overflow_st == CBERG_ERR_INVALID_ARGUMENT, "overflow returns INVALID_ARGUMENT");
+    CHECK(got == 0, "overflow transfers nothing");
+
+    got = 99;
+    CHECK(cberg_watcher_poll(w, small, 2, &got, 300) == CBERG_ERR_INVALID_ARGUMENT, "overflow still pending");
+    CHECK(got == 0, "small cap still transfers nothing");
+
+    cberg_watch_event all[16];
+    size_t all_got = 0;
+    for (int i = 0; i < 150 && all_got == 0; i++) {
+        CHECK(cberg_watcher_poll(w, all, 16, &all_got, 300) == CBERG_OK, "drain all after overflow");
+    }
+    CHECK(all_got > 2, "transferred all pending after retry");
+    for (size_t i = 0; i < all_got; i++) {
+        free((void *)all[i].path);
+    }
+
     cberg_watcher_close(w);
     remove(path);
+    for (int i = 0; i < 12; i++) {
+        char extra[512];
+        snprintf(extra, sizeof(extra), "%s/extra%d.go", dir, i);
+        remove(extra);
+    }
     rmdir(dir);
     return failures == 0 ? 0 : 1;
 }

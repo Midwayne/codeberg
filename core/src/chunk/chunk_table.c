@@ -4,123 +4,85 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define CBERG_MAP_INITIAL 1024
+#include "grow.h"
+#include "strmap.h"
+#include "strutil.h"
 
-typedef struct cberg_map_entry {
-    char *key;
-    size_t index;
-    struct cberg_map_entry *next;
-} cberg_map_entry;
+#define CBERG_MAP_INITIAL 1024
 
 struct cberg_chunk_table {
     cberg_stored_chunk *entries;
     size_t len;
     size_t cap;
-    cberg_map_entry **buckets;
-    size_t bucket_count;
+    cberg_strmap *key_index;
     uint64_t next_id;
     uint8_t fingerprint[CBERG_HASH_LEN];
 
     cberg_stored_chunk *added;
     size_t added_len;
+    size_t added_cap;
     cberg_stored_chunk *modified;
     size_t modified_len;
+    size_t modified_cap;
     cberg_stored_chunk *deleted;
     size_t deleted_len;
+    size_t deleted_cap;
 };
 
-static uint64_t fnv1a(const char *s) {
-    uint64_t h = 14695981039346656037ULL;
-    while (*s != '\0') {
-        h ^= (unsigned char)*s++;
-        h *= 1099511628211ULL;
-    }
-    return h;
+static void free_chunk_strings(cberg_chunk *chunk) {
+    free((void *)chunk->key);
+    free((void *)chunk->path);
+    free((void *)chunk->symbol);
 }
 
-static void map_clear(cberg_chunk_table *table) {
-    if (table->buckets == NULL) {
-        return;
+static bool map_find(const cberg_chunk_table *table, const char *key, size_t *out_index) {
+    if (table->key_index == NULL) {
+        return false;
     }
-    for (size_t i = 0; i < table->bucket_count; i++) {
-        cberg_map_entry *entry = table->buckets[i];
-        while (entry != NULL) {
-            cberg_map_entry *next = entry->next;
-            free(entry->key);
-            free(entry);
-            entry = next;
-        }
-        table->buckets[i] = NULL;
+    uint64_t index = 0;
+    if (!cberg_strmap_get(table->key_index, key, &index)) {
+        return false;
     }
+    if (out_index != NULL) {
+        *out_index = (size_t)index;
+    }
+    return true;
 }
 
-static cberg_status map_insert(cberg_chunk_table *table, const char *key, size_t index) {
-    if (table->bucket_count == 0) {
-        table->bucket_count = CBERG_MAP_INITIAL;
-        table->buckets = calloc(table->bucket_count, sizeof(cberg_map_entry *));
-        if (table->buckets == NULL) {
+static cberg_status push_change(cberg_stored_chunk **list, size_t *len, size_t *cap, cberg_stored_chunk item) {
+    size_t next_cap = cberg_grow_cap(*cap, *len + 1, 8);
+    if (next_cap != *cap) {
+        cberg_stored_chunk *grown = realloc(*list, next_cap * sizeof(cberg_stored_chunk));
+        if (grown == NULL) {
             return CBERG_ERR_OUT_OF_MEMORY;
         }
+        *list = grown;
+        *cap = next_cap;
     }
-    uint64_t h = fnv1a(key) % table->bucket_count;
-    cberg_map_entry *entry = calloc(1, sizeof(cberg_map_entry));
-    if (entry == NULL) {
-        return CBERG_ERR_OUT_OF_MEMORY;
-    }
-    entry->key = strdup(key);
-    if (entry->key == NULL) {
-        free(entry);
-        return CBERG_ERR_OUT_OF_MEMORY;
-    }
-    entry->index = index;
-    entry->next = table->buckets[h];
-    table->buckets[h] = entry;
+    (*list)[(*len)++] = item;
     return CBERG_OK;
 }
 
-static cberg_map_entry *map_find(cberg_chunk_table *table, const char *key) {
-    if (table->buckets == NULL) {
-        return NULL;
-    }
-    uint64_t h = fnv1a(key) % table->bucket_count;
-    for (cberg_map_entry *entry = table->buckets[h]; entry != NULL; entry = entry->next) {
-        if (strcmp(entry->key, key) == 0) {
-            return entry;
-        }
-    }
-    return NULL;
-}
+static cberg_status store_chunk_copy(const cberg_chunk *src, cberg_chunk *dst);
 
-static void rebuild_map(cberg_chunk_table *table) {
-    map_clear(table);
-    for (size_t i = 0; i < table->len; i++) {
-        if (map_insert(table, table->entries[i].chunk.key, i) != CBERG_OK) {
-            return;
-        }
+static cberg_status push_change_owned(cberg_stored_chunk **list, size_t *len, size_t *cap,
+                                      const cberg_stored_chunk *src) {
+    cberg_stored_chunk snap = {.id = src->id};
+    cberg_status st = store_chunk_copy(&src->chunk, &snap.chunk);
+    if (st != CBERG_OK) {
+        return st;
     }
-}
-
-static cberg_status reserve_entries(cberg_chunk_table *table, size_t want) {
-    if (want <= table->cap) {
-        return CBERG_OK;
+    st = push_change(list, len, cap, snap);
+    if (st != CBERG_OK) {
+        free_chunk_strings(&snap.chunk);
     }
-    size_t cap = table->cap == 0 ? 64 : table->cap * 2;
-    while (cap < want) {
-        cap *= 2;
-    }
-    cberg_stored_chunk *grown = realloc(table->entries, cap * sizeof(cberg_stored_chunk));
-    if (grown == NULL) {
-        return CBERG_ERR_OUT_OF_MEMORY;
-    }
-    table->entries = grown;
-    table->cap = cap;
-    return CBERG_OK;
+    return st;
 }
 
 static cberg_status store_chunk_copy(const cberg_chunk *src, cberg_chunk *dst) {
-    char *key = strdup(src->key);
-    char *path = strdup(src->path);
-    char *symbol = src->symbol != NULL ? strdup(src->symbol) : NULL;
+    char *key = cberg_strdup(src->key);
+    char *path = cberg_strdup(src->path);
+    char *symbol = src->symbol != NULL ? cberg_strdup(src->symbol) : NULL;
     if (key == NULL || path == NULL) {
         free(key);
         free(path);
@@ -136,7 +98,45 @@ static cberg_status store_chunk_copy(const cberg_chunk *src, cberg_chunk *dst) {
     return CBERG_OK;
 }
 
-static cberg_status recompute_fingerprint(cberg_chunk_table *table) {
+static cberg_status table_reserve_entries(cberg_chunk_table *table, size_t want) {
+    size_t cap = cberg_grow_cap(table->cap, want, 64);
+    if (cap == table->cap) {
+        return CBERG_OK;
+    }
+    cberg_stored_chunk *grown = realloc(table->entries, cap * sizeof(cberg_stored_chunk));
+    if (grown == NULL) {
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+    table->entries = grown;
+    table->cap = cap;
+    return CBERG_OK;
+}
+
+static cberg_status table_append(cberg_chunk_table *table, cberg_stored_chunk stored) {
+    if (table_reserve_entries(table, table->len + 1) != CBERG_OK) {
+        free_chunk_strings(&stored.chunk);
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+    size_t index = table->len;
+    table->entries[index] = stored;
+    table->len++;
+    if (table->key_index == NULL) {
+        table->key_index = cberg_strmap_new(CBERG_MAP_INITIAL);
+        if (table->key_index == NULL) {
+            table->len--;
+            free_chunk_strings(&stored.chunk);
+            return CBERG_ERR_OUT_OF_MEMORY;
+        }
+    }
+    if (cberg_strmap_set(table->key_index, stored.chunk.key, (uint64_t)index) != CBERG_OK) {
+        table->len--;
+        free_chunk_strings(&stored.chunk);
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+    return CBERG_OK;
+}
+
+static cberg_status table_recompute_fingerprint(cberg_chunk_table *table) {
     if (table->len == 0) {
         memset(table->fingerprint, 0, CBERG_HASH_LEN);
         return CBERG_OK;
@@ -158,6 +158,47 @@ static cberg_status recompute_fingerprint(cberg_chunk_table *table) {
     return st;
 }
 
+static void table_free_entry_strings(cberg_chunk_table *table) {
+    for (size_t i = 0; i < table->len; i++) {
+        free_chunk_strings(&table->entries[i].chunk);
+    }
+}
+
+static void table_free_change_lists(cberg_chunk_table *table) {
+    for (size_t i = 0; i < table->added_len; i++) {
+        free_chunk_strings(&table->added[i].chunk);
+    }
+    for (size_t i = 0; i < table->modified_len; i++) {
+        free_chunk_strings(&table->modified[i].chunk);
+    }
+    for (size_t i = 0; i < table->deleted_len; i++) {
+        free_chunk_strings(&table->deleted[i].chunk);
+    }
+    free(table->added);
+    free(table->modified);
+    free(table->deleted);
+    table->added = NULL;
+    table->modified = NULL;
+    table->deleted = NULL;
+    table->added_len = 0;
+    table->modified_len = 0;
+    table->deleted_len = 0;
+    table->added_cap = 0;
+    table->modified_cap = 0;
+    table->deleted_cap = 0;
+}
+
+static void table_discard(cberg_chunk_table *table) {
+    if (table == NULL) {
+        return;
+    }
+    table_free_entry_strings(table);
+    free(table->entries);
+    cberg_strmap_free(table->key_index);
+    table_free_change_lists(table);
+    free(table);
+}
+
 cberg_chunk_table *cberg_chunk_table_new(void) {
     cberg_chunk_table *table = calloc(1, sizeof(cberg_chunk_table));
     if (table == NULL) {
@@ -171,17 +212,10 @@ void cberg_chunk_table_free(cberg_chunk_table *table) {
     if (table == NULL) {
         return;
     }
-    map_clear(table);
-    free(table->buckets);
-    for (size_t i = 0; i < table->len; i++) {
-        free((void *)table->entries[i].chunk.key);
-        free((void *)table->entries[i].chunk.path);
-        free((void *)table->entries[i].chunk.symbol);
-    }
+    table_free_entry_strings(table);
     free(table->entries);
-    free(table->added);
-    free(table->modified);
-    free(table->deleted);
+    cberg_strmap_free(table->key_index);
+    table_free_change_lists(table);
     free(table);
 }
 
@@ -217,150 +251,133 @@ cberg_status cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk 
         return CBERG_ERR_INVALID_ARGUMENT;
     }
 
-    free(table->added);
-    free(table->modified);
-    free(table->deleted);
-    table->added = NULL;
-    table->modified = NULL;
-    table->deleted = NULL;
-    table->added_len = 0;
-    table->modified_len = 0;
-    table->deleted_len = 0;
+    cberg_chunk_table *next = calloc(1, sizeof(cberg_chunk_table));
+    if (next == NULL) {
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+    next->next_id = table->next_id;
 
     bool *seen = calloc(table->len, sizeof(bool));
     if (seen == NULL && table->len > 0) {
-        return CBERG_ERR_OUT_OF_MEMORY;
-    }
-
-    size_t add_cap = 8;
-    size_t mod_cap = 8;
-    size_t del_cap = 8;
-    table->added = calloc(add_cap, sizeof(cberg_stored_chunk));
-    table->modified = calloc(mod_cap, sizeof(cberg_stored_chunk));
-    table->deleted = calloc(del_cap, sizeof(cberg_stored_chunk));
-    if (table->added == NULL || table->modified == NULL || table->deleted == NULL) {
-        free(seen);
+        table_discard(next);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
 
     cberg_status status = CBERG_OK;
-    size_t pre_len = table->len;
 
     for (size_t i = 0; i < count; i++) {
         const cberg_chunk *inc = &incoming[i];
         if (inc->key == NULL) {
             status = CBERG_ERR_INVALID_ARGUMENT;
-            goto done;
+            goto fail;
         }
-        cberg_map_entry *prev = map_find(table, inc->key);
-        if (prev == NULL) {
-            if (reserve_entries(table, table->len + 1) != CBERG_OK) {
-                status = CBERG_ERR_OUT_OF_MEMORY;
-                goto done;
-            }
-            cberg_stored_chunk stored = {.id = table->next_id++};
-            if (store_chunk_copy(inc, &stored.chunk) != CBERG_OK) {
-                status = CBERG_ERR_OUT_OF_MEMORY;
-                goto done;
-            }
 
-            table->entries[table->len++] = stored;
-            if (map_insert(table, stored.chunk.key, table->len - 1) != CBERG_OK) {
-                status = CBERG_ERR_OUT_OF_MEMORY;
-                goto done;
+        size_t next_index = 0;
+        if (map_find(next, inc->key, &next_index)) {
+            cberg_stored_chunk *slot = &next->entries[next_index];
+            size_t live_index = 0;
+            if (map_find(table, inc->key, &live_index)) {
+                seen[live_index] = true;
             }
-
-            if (table->added_len == add_cap) {
-                add_cap *= 2;
-                cberg_stored_chunk *grown = realloc(table->added, add_cap * sizeof(cberg_stored_chunk));
-                if (grown == NULL) {
-                    status = CBERG_ERR_OUT_OF_MEMORY;
-                    goto done;
+            bool hash_changed = memcmp(slot->chunk.content_hash, inc->content_hash, CBERG_HASH_LEN) != 0;
+            free_chunk_strings(&slot->chunk);
+            status = store_chunk_copy(inc, &slot->chunk);
+            if (status != CBERG_OK) {
+                goto fail;
+            }
+            if (hash_changed) {
+                status = push_change_owned(&next->modified, &next->modified_len, &next->modified_cap, slot);
+                if (status != CBERG_OK) {
+                    goto fail;
                 }
-                table->added = grown;
             }
-            table->added[table->added_len++] = stored;
             continue;
         }
 
-        seen[prev->index] = true;
-        cberg_stored_chunk *existing = &table->entries[prev->index];
-        if (memcmp(existing->chunk.content_hash, inc->content_hash, CBERG_HASH_LEN) != 0) {
-            free((void *)existing->chunk.path);
-            free((void *)existing->chunk.symbol);
-            existing->chunk.path = strdup(inc->path);
-            existing->chunk.symbol = inc->symbol != NULL ? strdup(inc->symbol) : NULL;
-            existing->chunk.kind = inc->kind;
-            existing->chunk.span = inc->span;
-            memcpy(existing->chunk.content_hash, inc->content_hash, CBERG_HASH_LEN);
-            if (existing->chunk.path == NULL) {
-                status = CBERG_ERR_OUT_OF_MEMORY;
-                goto done;
+        size_t entry_index = 0;
+        if (!map_find(table, inc->key, &entry_index)) {
+            cberg_stored_chunk stored = {.id = next->next_id++};
+            status = store_chunk_copy(inc, &stored.chunk);
+            if (status != CBERG_OK) {
+                goto fail;
             }
+            status = table_append(next, stored);
+            if (status != CBERG_OK) {
+                goto fail;
+            }
+            status = push_change_owned(&next->added, &next->added_len, &next->added_cap, &next->entries[next->len - 1]);
+            if (status != CBERG_OK) {
+                goto fail;
+            }
+            continue;
+        }
 
-            if (table->modified_len == mod_cap) {
-                mod_cap *= 2;
-                cberg_stored_chunk *grown = realloc(table->modified, mod_cap * sizeof(cberg_stored_chunk));
-                if (grown == NULL) {
-                    status = CBERG_ERR_OUT_OF_MEMORY;
-                    goto done;
-                }
-                table->modified = grown;
+        seen[entry_index] = true;
+        const cberg_stored_chunk *existing = &table->entries[entry_index];
+        cberg_stored_chunk stored = {.id = existing->id};
+        if (memcmp(existing->chunk.content_hash, inc->content_hash, CBERG_HASH_LEN) != 0) {
+            status = store_chunk_copy(inc, &stored.chunk);
+        } else {
+            status = store_chunk_copy(&existing->chunk, &stored.chunk);
+        }
+        if (status != CBERG_OK) {
+            goto fail;
+        }
+        status = table_append(next, stored);
+        if (status != CBERG_OK) {
+            goto fail;
+        }
+        if (memcmp(existing->chunk.content_hash, inc->content_hash, CBERG_HASH_LEN) != 0) {
+            status = push_change_owned(&next->modified, &next->modified_len, &next->modified_cap,
+                                       &next->entries[next->len - 1]);
+            if (status != CBERG_OK) {
+                goto fail;
             }
-            table->modified[table->modified_len++] = *existing;
         }
     }
 
-    for (size_t i = 0; i < pre_len; i++) {
+    for (size_t i = 0; i < table->len; i++) {
         if (seen[i]) {
             continue;
         }
-        if (table->deleted_len == del_cap) {
-            del_cap *= 2;
-            cberg_stored_chunk *grown = realloc(table->deleted, del_cap * sizeof(cberg_stored_chunk));
-            if (grown == NULL) {
-                status = CBERG_ERR_OUT_OF_MEMORY;
-                goto done;
-            }
-            table->deleted = grown;
+        status = push_change_owned(&next->deleted, &next->deleted_len, &next->deleted_cap, &table->entries[i]);
+        if (status != CBERG_OK) {
+            goto fail;
         }
-        table->deleted[table->deleted_len++] = table->entries[i];
     }
 
-    if (table->deleted_len > 0) {
-        cberg_stored_chunk *kept = calloc(table->len, sizeof(cberg_stored_chunk));
-        if (kept == NULL) {
-            status = CBERG_ERR_OUT_OF_MEMORY;
-            goto done;
-        }
-        size_t kept_len = 0;
-        for (size_t i = 0; i < pre_len; i++) {
-            if (!seen[i]) {
-                free((void *)table->entries[i].chunk.key);
-                free((void *)table->entries[i].chunk.path);
-                free((void *)table->entries[i].chunk.symbol);
-                continue;
-            }
-            kept[kept_len++] = table->entries[i];
-        }
-        free(table->entries);
-        table->entries = kept;
-        table->len = kept_len;
-        table->cap = kept_len;
-        rebuild_map(table);
+    if (next->deleted_len > 1) {
+        qsort(next->deleted, next->deleted_len, sizeof(cberg_stored_chunk), compare_stored_id);
     }
 
-    if (table->deleted_len > 1) {
-        qsort(table->deleted, table->deleted_len, sizeof(cberg_stored_chunk), compare_stored_id);
-    }
-
-    status = recompute_fingerprint(table);
-
-done:
-    free(seen);
+    status = table_recompute_fingerprint(next);
     if (status != CBERG_OK) {
-        return status;
+        goto fail;
     }
+
+    table_free_entry_strings(table);
+    free(table->entries);
+    cberg_strmap_free(table->key_index);
+    table_free_change_lists(table);
+
+    table->entries = next->entries;
+    table->len = next->len;
+    table->cap = next->cap;
+    table->key_index = next->key_index;
+    table->next_id = next->next_id;
+    memcpy(table->fingerprint, next->fingerprint, CBERG_HASH_LEN);
+    table->added = next->added;
+    table->added_len = next->added_len;
+    table->added_cap = next->added_cap;
+    table->modified = next->modified;
+    table->modified_len = next->modified_len;
+    table->modified_cap = next->modified_cap;
+    table->deleted = next->deleted;
+    table->deleted_len = next->deleted_len;
+    table->deleted_cap = next->deleted_cap;
+
+    free(seen);
+    free(next);
     *out_changes = (cberg_changes){
         .added = table->added,
         .added_len = table->added_len,
@@ -370,4 +387,9 @@ done:
         .deleted_len = table->deleted_len,
     };
     return CBERG_OK;
+
+fail:
+    free(seen);
+    table_discard(next);
+    return status;
 }

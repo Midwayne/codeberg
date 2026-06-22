@@ -194,14 +194,16 @@ Current number of stored chunks. NULL → `0`.
 
 ### `cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk *incoming, size_t count, cberg_changes *out_changes)`
 
-Diffs `incoming` (one file or batch) against the table:
+Diffs `incoming` (one file or batch) against the table using atomic staging — on failure the
+table and prior change arrays are unchanged:
 
 - **New key** → insert row, assign new `id`, append to `added`.
-- **Existing key, different `content_hash`** → update row in place, same `id`, append to `modified`.
-- **Existing key, same hash** → no change list entry.
-- **Keys in table not in `incoming`** (for this sync’s pre-state) → remove row, append to `deleted`.
+- **Existing key, different `content_hash`** → update row, same `id`, append to `modified`.
+- **Existing key, same hash** → retained without a change list entry.
+- **Duplicate keys in one `incoming` batch** → later rows update the staged row (not inserted twice).
+- **Keys in table not in `incoming`** → remove row, append owned snapshot to `deleted`.
 
-Recomputes set fingerprint. Change arrays are reused/reallocated each call.
+Recomputes set fingerprint on success. Change arrays are replaced only after a successful sync.
 
 **Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_OUT_OF_MEMORY`.
 
@@ -236,10 +238,13 @@ Waits for backend activity, then **drains** the dirty set into `events` with acc
 duplicate paths; `kind_merge` keeps DELETE, allows CREATE after DELETE (re-create before
 drain), otherwise last event wins.
 
-`events == NULL` or `cap == 0` → wait/process only, still drains dirty set (discards).
+`events == NULL` with `cap == 0` → count/discard drain (clears dirty set, no path transfer).
+
+Transfer mode is all-or-nothing: if more paths are pending than `cap`, returns
+`CBERG_ERR_INVALID_ARGUMENT` without transferring or clearing.
 
 **Shared drain:** `poll` and `dirty_paths` use one queue. Draining via either function
-empties the set for both.
+empties the set for both (unless transfer overflows `cap`).
 
 **Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_IO`, `CBERG_ERR_TIMEOUT` (Linux), `CBERG_ERR_OUT_OF_MEMORY`.
 

@@ -2,8 +2,27 @@
 
 Tree-sitter chunking and in-memory incremental change tracking.
 
-**Files:** `chunker.c`, `chunk_table.c`  
-**Depends on:** `common/arena`, `common/hash`, tree-sitter + seven grammars
+**Files:** `chunker.c`, `chunk_table.c`, `chunk_keys.c`  
+**Depends on:** `common/arena`, `common/hash`, `common/strmap`, tree-sitter + seven grammars
+
+---
+
+## `chunk_keys.c` / `chunk_keys.h`
+
+Stable chunk identity strings and per-parse occurrence tracking.
+
+### `chunk_format_ident(buf, cap, path, kind, symbol)`
+
+Builds `"<path>::<kind>::<symbol>"` (empty symbol allowed).
+
+### `chunk_format_key(buf, cap, path, kind, symbol, index)`
+
+Canonical key: `"<path>::<kind>::<symbol>#<index>"`.
+
+### `chunk_occ_new` / `chunk_occ_free` / `chunk_occ_next`
+
+Heap-backed occurrence counter per `(path, kind, symbol)` using `cberg_strmap`.
+Used by tree-sitter query extraction; window chunks use a linear counter instead.
 
 ---
 
@@ -60,10 +79,10 @@ Sort comparator by `span.start_byte` (used after query extraction).
 
 Doubles `items` capacity until `>= want`. **Returns:** `CBERG_OK` or `CBERG_ERR_OUT_OF_MEMORY`.
 
-### `format_key(cberg_arena *arena, const char *path, cberg_chunk_kind kind, const char *symbol, uint32_t index, char **out_key)` — static
+### `format_key(cberg_arena *arena, ...)` — static
 
-Builds `"<path>::<kind>::<symbol>#<index>"` into arena. Empty symbol allowed. **Returns:**
-`CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT` (snprintf overflow), `CBERG_ERR_OUT_OF_MEMORY`.
+Arena-allocates the result of `chunk_format_key`. **Returns:** `CBERG_OK`,
+`CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_OUT_OF_MEMORY`.
 
 ### `list_push(...)` — static
 
@@ -128,38 +147,22 @@ In-memory store of all chunks for one indexed tree; produces add/modify/delete d
 
 ```c
 struct cberg_chunk_table {
-    cberg_stored_chunk *entries;   // dense array
+    cberg_stored_chunk *entries;
     size_t len, cap;
-    cberg_map_entry **buckets;     // FNV-1a chained hash: key → index in entries
-    size_t bucket_count;
+    cberg_strmap *key_index;       // chunk key → index in entries
     uint64_t next_id;
     uint8_t fingerprint[CBERG_HASH_LEN];
-    // last sync outputs (owned until next sync):
     cberg_stored_chunk *added, *modified, *deleted;
     size_t added_len, modified_len, deleted_len;
 };
 ```
 
-### `fnv1a(const char *s)` — static
-
-FNV-1a 64-bit hash for hash map bucket index.
-
-### `map_clear(table)` — static
-
-Frees all map entries and keys; nulls buckets.
-
-### `map_insert(table, key, index)` — static
-
-Inserts new chain head at `fnv1a(key) % bucket_count`. Lazy-allocates 1024 buckets.
-**Returns:** `CBERG_OK` or `CBERG_ERR_OUT_OF_MEMORY`.
-
-### `map_find(table, key)` — static
-
-Linear search in bucket chain; NULL if missing.
+Key lookup uses `cberg_strmap` (see `common/strmap.c`). Occurrence indices during parse
+use the same map in `chunk_keys.c`.
 
 ### `rebuild_map(table)` — static
 
-Clears map and re-inserts all `entries[i].chunk.key` → index `i` (after deletions).
+Clears `key_index` and re-inserts all keys. **Returns** `cberg_status` on failure.
 
 ### `reserve_entries(table, want)` — static
 
@@ -191,22 +194,19 @@ Sorts deleted list by stable id ascending.
 
 ### `cberg_chunk_table_sync` — public
 
-**Algorithm:**
+**Algorithm (atomic staging):**
 
-1. Free previous `added`/`modified`/`deleted` buffers; allocate fresh (cap 8, grows).
-2. `pre_len = table->len` before mutations; allocate `seen[pre_len]` bitmap.
-3. For each incoming chunk:
-   - Not in map → append entry, new id, `map_insert`, push to `added`.
-   - In map → mark `seen[index]`; if `content_hash` differs → update fields in place,
-     push to `modified` (id unchanged).
-4. For `i in 0..pre_len-1` where `!seen[i]` → push to `deleted`.
-5. If any deletions: compact `entries` (only seen rows), free removed strings,
-   `rebuild_map`.
-6. Sort `deleted` by id if length > 1.
-7. `recompute_fingerprint`.
-
-**Important:** Deletion pass only considers indices `< pre_len` so rows added in the
-same sync are not immediately deleted.
+1. Build a temporary `cberg_chunk_table` (`next`) off to the side.
+2. For each incoming chunk: look up in the **staged** table first, then the live table by key.
+   - Duplicate keys within one batch update the staged row (not inserted twice).
+   - Not found → deep-copy, new id, push to `added`.
+   - Found, hash changed → deep-copy from incoming, same id, push to `modified`.
+   - Found, hash unchanged → deep-copy from existing, same id.
+3. For each live entry not seen in incoming → deep-copy owned snapshot to `deleted`.
+4. Change lists (`added`/`modified`/`deleted`) own their chunk strings independently of `entries`.
+4. Sort `deleted` by id when length > 1; recompute fingerprint on `next`.
+5. On success: free old entries/map/change lists, swap `next` into the live table.
+6. On failure: discard `next` only; **live table and prior change arrays are unchanged**.
 
 Incoming chunks must have non-NULL `key` and valid `content_hash` (typically from
 `cberg_chunk_list_hash_bodies`).

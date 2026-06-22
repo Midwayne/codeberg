@@ -8,6 +8,8 @@
 
 #include "usearch.h"
 
+#include "strutil.h"
+
 #define INITIAL_CAPACITY 1024
 
 struct cberg_index {
@@ -24,15 +26,6 @@ static int file_exists(const char *path) {
     }
     fclose(f);
     return 1;
-}
-
-void cberg_index_config_default(cberg_index_config *config) {
-    if (config == NULL) {
-        return;
-    }
-    config->connectivity = 16;
-    config->expansion_add = 128;
-    config->expansion_search = 64;
 }
 
 cberg_status cberg_index_open(const char *path, size_t dim, const cberg_index_config *config,
@@ -84,13 +77,12 @@ cberg_status cberg_index_open(const char *path, size_t dim, const cberg_index_co
     index->idx = idx;
     index->dim = dim;
     index->expansion_search = cfg->expansion_search;
-    index->path = malloc(strlen(path) + 1);
+    index->path = cberg_strdup(path);
     if (index->path == NULL) {
         usearch_free(idx, &err);
         free(index);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
-    strcpy(index->path, path);
     *out_index = index;
     return CBERG_OK;
 }
@@ -167,6 +159,9 @@ cberg_status cberg_index_search(cberg_index *index, const float *query, size_t k
 
     if (query_ef != prev_ef) {
         usearch_change_expansion_search(index->idx, prev_ef, &err);
+        if (err != NULL) {
+            return CBERG_ERR_INTERNAL;
+        }
     }
     if (err != NULL) {
         return CBERG_ERR_INTERNAL;
@@ -199,63 +194,6 @@ void cberg_index_close(cberg_index *index) {
     usearch_free(index->idx, &err);
     free(index->path);
     free(index);
-}
-
-#else /* !CBERG_WITH_USEARCH */
-
-void cberg_index_config_default(cberg_index_config *config) {
-    if (config != NULL) {
-        config->connectivity = 16;
-        config->expansion_add = 128;
-        config->expansion_search = 64;
-    }
-}
-
-cberg_status cberg_index_open(const char *path, size_t dim, const cberg_index_config *config,
-                              cberg_index **out_index) {
-    (void)path;
-    (void)dim;
-    (void)config;
-    if (out_index != NULL) {
-        *out_index = NULL;
-    }
-    return CBERG_ERR_NOT_IMPLEMENTED;
-}
-
-cberg_status cberg_index_add(cberg_index *index, uint64_t id, const float *vector) {
-    (void)index;
-    (void)id;
-    (void)vector;
-    return CBERG_ERR_NOT_IMPLEMENTED;
-}
-
-cberg_status cberg_index_remove(cberg_index *index, uint64_t id) {
-    (void)index;
-    (void)id;
-    return CBERG_ERR_NOT_IMPLEMENTED;
-}
-
-cberg_status cberg_index_search(cberg_index *index, const float *query, size_t k, const cberg_index_search_opts *opts,
-                                uint64_t *out_ids, float *out_scores, size_t *out_found) {
-    (void)index;
-    (void)query;
-    (void)k;
-    (void)opts;
-    (void)out_ids;
-    (void)out_scores;
-    if (out_found != NULL) {
-        *out_found = 0;
-    }
-    return CBERG_ERR_NOT_IMPLEMENTED;
-}
-
-cberg_status cberg_index_save(cberg_index *index) {
-    (void)index;
-    return CBERG_ERR_NOT_IMPLEMENTED;
-}
-
-void cberg_index_close(cberg_index *index) {
-    (void)index;
 }
 
 #endif /* CBERG_WITH_USEARCH */

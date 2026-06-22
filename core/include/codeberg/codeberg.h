@@ -180,6 +180,7 @@ CBERG_API size_t cberg_chunk_table_len(const cberg_chunk_table *table);
 /*
  * Diff `incoming` against the table. IDs are stable across modifications.
  * Change arrays are owned by the table until the next sync or free.
+ * On non-OK return the table and prior change arrays are unchanged.
  */
 CBERG_API cberg_status cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk *incoming, size_t count,
                                               cberg_changes *out_changes);
@@ -212,8 +213,14 @@ CBERG_API void cberg_watcher_close(cberg_watcher *watcher);
 
 /*
  * Blocks up to `timeout_ms` (0 = non-blocking poll). Drains the debounced dirty-path
- * set into `events` (path + kind). *out_count is the number written (may be less
- * than the total pending if cap is small). Caller frees each events[i].path.
+ * set into `events` (path + kind). *out_count is the number written (or the total
+ * drained when `events` is NULL — count/discard mode). Transfer mode is all-or-nothing:
+ * if more paths are pending than `cap`, returns CBERG_ERR_INVALID_ARGUMENT, writes
+ * nothing (*out_count stays 0), and leaves the dirty set intact. Caller frees each
+ * events[i].path on success.
+ *
+ * If the watcher records an internal error (e.g. out of memory while tracking a
+ * path), subsequent poll/dirty_paths calls return that status until close.
  *
  * Shares the same dirty set as cberg_watcher_dirty_paths — do not call both expecting
  * independent queues; whichever drains first consumes all pending paths.
@@ -225,9 +232,12 @@ CBERG_API cberg_status cberg_watcher_poll(cberg_watcher *watcher, cberg_watch_ev
  * Drains the debounced dirty-path set into `paths` (repo-relative pointers only;
  * no event kind — use poll for CREATE/DELETE/RENAME/MODIFY).
  *
+ * When `paths` is NULL, discards path strings and sets *out_count to the number
+ * drained (cap is ignored). When `paths` is non-NULL, transfer is all-or-nothing
+ * (same cap overflow rules as poll).
+ *
  * Same backing set as poll: calling poll first leaves nothing for dirty_paths, and
- * vice versa. paths[i] are heap-owned; caller frees each unless only counting
- * (paths == NULL).
+ * vice versa. paths[i] are heap-owned; caller frees each.
  */
 CBERG_API cberg_status cberg_watcher_dirty_paths(cberg_watcher *watcher, const char **paths, size_t cap,
                                                    size_t *out_count);

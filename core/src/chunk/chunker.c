@@ -10,6 +10,8 @@
 #include <tree_sitter/api.h>
 
 #include "arena.h"
+#include "chunk_keys.h"
+#include "grow.h"
 
 extern const TSLanguage *tree_sitter_go(void);
 extern const TSLanguage *tree_sitter_c(void);
@@ -21,6 +23,8 @@ extern const TSLanguage *tree_sitter_typescript(void);
 
 #define CBERG_WINDOW_LINES 50
 #define CBERG_LANG_SLOTS 8
+
+_Static_assert((int)CBERG_LANG_JAVA + 1 == CBERG_LANG_SLOTS, "update CBERG_LANG_SLOTS when adding languages");
 
 typedef const TSLanguage *(*ts_language_fn)(void);
 
@@ -99,6 +103,9 @@ struct cberg_chunker {
 };
 
 static int lang_slot(cberg_language lang) {
+    if (lang <= CBERG_LANG_UNKNOWN || lang >= CBERG_LANG_SLOTS) {
+        return -1;
+    }
     return (int)lang;
 }
 
@@ -132,12 +139,9 @@ static int compare_chunks(const void *a, const void *b) {
 }
 
 static cberg_status list_reserve(cberg_chunk_list *list, size_t want) {
-    if (want <= list->cap) {
+    size_t cap = cberg_grow_cap(list->cap, want, 16);
+    if (cap == list->cap) {
         return CBERG_OK;
-    }
-    size_t cap = list->cap == 0 ? 16 : list->cap * 2;
-    while (cap < want) {
-        cap *= 2;
     }
     cberg_chunk *items = realloc(list->items, cap * sizeof(cberg_chunk));
     if (items == NULL) {
@@ -150,16 +154,10 @@ static cberg_status list_reserve(cberg_chunk_list *list, size_t want) {
 
 static cberg_status format_key(cberg_arena *arena, const char *path, cberg_chunk_kind kind, const char *symbol,
                                uint32_t index, char **out_key) {
-    char ident[1024];
-    const char *sym = symbol != NULL ? symbol : "";
-    int n = snprintf(ident, sizeof(ident), "%s::%d::%s", path, (int)kind, sym);
-    if (n < 0 || (size_t)n >= sizeof(ident)) {
-        return CBERG_ERR_INVALID_ARGUMENT;
-    }
-    char key[1100];
-    n = snprintf(key, sizeof(key), "%s#%u", ident, index);
-    if (n < 0 || (size_t)n >= sizeof(key)) {
-        return CBERG_ERR_INVALID_ARGUMENT;
+    char key[CBERG_CHUNK_KEY_MAX];
+    cberg_status st = chunk_format_key(key, sizeof(key), path, kind, symbol, index);
+    if (st != CBERG_OK) {
+        return st;
     }
     *out_key = cberg_arena_strdup(arena, key);
     return *out_key == NULL ? CBERG_ERR_OUT_OF_MEMORY : CBERG_OK;
@@ -316,6 +314,9 @@ static cberg_status window_chunk(const char *path, const char *src, size_t src_l
 static cberg_status query_chunk(cberg_chunker *ch, lang_desc desc, cberg_language lang, const char *path,
                                 const char *src, size_t src_len, cberg_chunk_list **out_list) {
     int slot = lang_slot(lang);
+    if (slot < 0) {
+        return CBERG_ERR_UNSUPPORTED_LANGUAGE;
+    }
     TSParser *parser = NULL;
     TSQuery *query = NULL;
     cberg_status status = ensure_lang(ch, lang, desc, slot, &parser, &query);
@@ -350,12 +351,13 @@ static cberg_status query_chunk(cberg_chunker *ch, lang_desc desc, cberg_languag
 
     ts_query_cursor_exec(cursor, query, ts_tree_root_node(tree));
     TSQueryMatch match;
-    typedef struct {
-        char ident[1024];
-        uint32_t count;
-    } occ_entry;
-    occ_entry occ[256];
-    size_t occ_len = 0;
+    chunk_occ_tracker *occ = NULL;
+    occ = chunk_occ_new();
+
+    if (occ == NULL) {
+        status = CBERG_ERR_OUT_OF_MEMORY;
+        goto done;
+    }
 
     while (ts_query_cursor_next_match(cursor, &match)) {
         cberg_chunk_kind kind = CBERG_CHUNK_UNKNOWN;
@@ -390,31 +392,10 @@ static cberg_status query_chunk(cberg_chunker *ch, lang_desc desc, cberg_languag
             sym_end = ts_node_end_byte(name_node);
             symbol = cberg_arena_dup(list->arena, src + sym_start, sym_end - sym_start);
         }
-        const char *sym_for_ident = symbol != NULL ? symbol : "";
-        char ident[1024];
-        int n = snprintf(ident, sizeof(ident), "%s::%d::%s", path, (int)kind, sym_for_ident);
-        if (n < 0 || (size_t)n >= sizeof(ident)) {
-            status = CBERG_ERR_INVALID_ARGUMENT;
-            goto done;
-        }
         uint32_t index = 0;
-        bool found = false;
-        for (size_t o = 0; o < occ_len; o++) {
-            if (strcmp(occ[o].ident, ident) == 0) {
-                index = occ[o].count++;
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            if (occ_len >= sizeof(occ) / sizeof(occ[0])) {
-                status = CBERG_ERR_INTERNAL;
-                goto done;
-            }
-            strcpy(occ[occ_len].ident, ident);
-            occ[occ_len].count = 1;
-            index = 0;
-            occ_len++;
+        status = chunk_occ_next(occ, path, kind, symbol, &index);
+        if (status != CBERG_OK) {
+            goto done;
         }
 
         cberg_span span = {
@@ -437,6 +418,7 @@ static cberg_status query_chunk(cberg_chunker *ch, lang_desc desc, cberg_languag
     status = CBERG_OK;
 
 done:
+    chunk_occ_free(occ);
     cberg_chunk_list_free(list);
     ts_query_cursor_delete(cursor);
     ts_tree_delete(tree);

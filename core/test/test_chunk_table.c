@@ -55,6 +55,18 @@ int main(void) {
     CHECK(ch.deleted_len == 2, "deleted all");
     CHECK(cberg_chunk_table_len(table) == 0, "empty table");
 
+    cberg_chunk_table *dup_table = cberg_chunk_table_new();
+    CHECK(dup_table != NULL, "dup table new");
+    cberg_changes dup_ch = {0};
+    cberg_chunk twice[] = {make_chunk("dup::1::X#0", 1), make_chunk("dup::1::X#0", 9)};
+    CHECK(cberg_chunk_table_sync(dup_table, twice, 2, &dup_ch) == CBERG_OK, "dup incoming");
+    CHECK(cberg_chunk_table_len(dup_table) == 1, "duplicate key not inserted twice");
+    CHECK(dup_ch.added_len == 1, "one added in duplicate new batch");
+    CHECK(dup_ch.added[0].chunk.content_hash[0] == 1, "added snapshot not mutated");
+    CHECK(dup_ch.modified_len == 1, "duplicate batch updates once");
+    CHECK(dup_ch.modified[0].chunk.content_hash[0] == 9, "modified has final hash");
+    cberg_chunk_table_free(dup_table);
+
     cberg_chunk_table_free(table);
     return failures == 0 ? 0 : 1;
 }

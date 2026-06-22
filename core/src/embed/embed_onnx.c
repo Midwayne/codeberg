@@ -199,69 +199,67 @@ static void mean_pool_row(const float *hidden, int seq_len, size_t dim, float *o
     cberg_l2_normalize(out, dim);
 }
 
+static cberg_status run_inference(onnx_impl *impl, int64_t *ids, int64_t *mask, int64_t *types, size_t batch,
+                                  int max_len, const int *seq_lens, float *out) {
+    const OrtApi *ort = impl->ort;
+    int64_t shape[2] = {(int64_t)batch, max_len};
+    size_t flat = batch * (size_t)max_len;
+    size_t bytes = flat * sizeof(int64_t);
+
+    OrtValue *inputs[8] = {0};
+    const char *input_names[8] = {0};
+    OrtValue *output = NULL;
+    cberg_status status = CBERG_ERR_INTERNAL;
+
+    for (int i = 0; i < impl->n_inputs; i++) {
+        int64_t *data = ids;
+        if (impl->input_kinds[i] == INPUT_MASK) {
+            data = mask;
+        } else if (impl->input_kinds[i] == INPUT_TYPES) {
+            data = types;
+        }
+        if (ort->CreateTensorWithDataAsOrtValue(impl->mem, data, bytes, shape, 2, ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64,
+                                                &inputs[i]) != NULL) {
+            goto cleanup;
+        }
+        input_names[i] = impl->input_names[i];
+    }
+
+    const char *output_names[1] = {impl->output_name};
+    if (ort->Run(impl->session, NULL, input_names, (const OrtValue *const *)inputs, (size_t)impl->n_inputs,
+                 output_names, 1, &output) != NULL) {
+        goto cleanup;
+    }
+
+    float *hidden = NULL;
+    if (ort->GetTensorMutableData(output, (void **)&hidden) != NULL) {
+        goto cleanup;
+    }
+
+    for (size_t b = 0; b < batch; b++) {
+        mean_pool_row(hidden + b * (size_t)max_len * impl->dim, seq_lens[b], impl->dim, out + b * impl->dim);
+    }
+    status = CBERG_OK;
+
+cleanup:
+    if (output != NULL) {
+        ort->ReleaseValue(output);
+    }
+    for (int i = 0; i < impl->n_inputs; i++) {
+        if (inputs[i] != NULL) {
+            ort->ReleaseValue(inputs[i]);
+        }
+    }
+    return status;
+}
+
 static cberg_status embed_batch(onnx_impl *impl, const char *const *texts, const size_t *lens, size_t count,
                                 float *out) {
     if (count == 0) {
         return CBERG_OK;
     }
-    if (count == 1) {
-        int64_t ids[MAX_SEQ];
-        int n = cberg_tok_encode(impl->tok, texts[0], lens[0], ids, MAX_SEQ);
-        if (n < 0) {
-            return CBERG_ERR_INTERNAL;
-        }
-        const OrtApi *ort = impl->ort;
-        int64_t mask[MAX_SEQ];
-        int64_t types[MAX_SEQ];
-        for (int i = 0; i < n; i++) {
-            mask[i] = 1;
-            types[i] = 0;
-        }
-        int64_t shape[2] = {1, n};
-        size_t bytes = (size_t)n * sizeof(int64_t);
-
-        OrtValue *inputs[8] = {0};
-        const char *input_names[8] = {0};
-        cberg_status status = CBERG_ERR_INTERNAL;
-        OrtValue *output = NULL;
-
-        for (int i = 0; i < impl->n_inputs; i++) {
-            int64_t *data = ids;
-            if (impl->input_kinds[i] == INPUT_MASK) {
-                data = mask;
-            } else if (impl->input_kinds[i] == INPUT_TYPES) {
-                data = types;
-            }
-            if (ort->CreateTensorWithDataAsOrtValue(impl->mem, data, bytes, shape, 2,
-                                                    ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64, &inputs[i]) != NULL) {
-                goto cleanup_one;
-            }
-            input_names[i] = impl->input_names[i];
-        }
-
-        const char *output_names[1] = {impl->output_name};
-        if (ort->Run(impl->session, NULL, input_names, (const OrtValue *const *)inputs, (size_t)impl->n_inputs,
-                     output_names, 1, &output) != NULL) {
-            goto cleanup_one;
-        }
-
-        float *hidden = NULL;
-        if (ort->GetTensorMutableData(output, (void **)&hidden) != NULL) {
-            goto cleanup_one;
-        }
-        mean_pool_row(hidden, n, impl->dim, out);
-        status = CBERG_OK;
-
-    cleanup_one:
-        if (output != NULL) {
-            ort->ReleaseValue(output);
-        }
-        for (int i = 0; i < impl->n_inputs; i++) {
-            if (inputs[i] != NULL) {
-                ort->ReleaseValue(inputs[i]);
-            }
-        }
-        return status;
+    if (count > MAX_BATCH) {
+        return CBERG_ERR_INVALID_ARGUMENT;
     }
 
     int64_t batch_ids[MAX_BATCH][MAX_SEQ];
@@ -276,6 +274,18 @@ static cberg_status embed_batch(onnx_impl *impl, const char *const *texts, const
         if (n > max_len) {
             max_len = n;
         }
+    }
+
+    if (count == 1) {
+        int64_t ids[MAX_SEQ] = {0};
+        int64_t mask[MAX_SEQ] = {0};
+        int64_t types[MAX_SEQ] = {0};
+        for (int s = 0; s < seq_lens[0]; s++) {
+            ids[s] = batch_ids[0][s];
+            mask[s] = 1;
+            types[s] = 0;
+        }
+        return run_inference(impl, ids, mask, types, 1, max_len, seq_lens, out);
     }
 
     size_t batch = count;
@@ -300,54 +310,7 @@ static cberg_status embed_batch(onnx_impl *impl, const char *const *texts, const
         }
     }
 
-    const OrtApi *ort = impl->ort;
-    int64_t shape[2] = {(int64_t)batch, max_len};
-    size_t bytes = flat * sizeof(int64_t);
-
-    OrtValue *inputs[8] = {0};
-    const char *input_names[8] = {0};
-    cberg_status status = CBERG_ERR_INTERNAL;
-    OrtValue *output = NULL;
-
-    for (int i = 0; i < impl->n_inputs; i++) {
-        int64_t *data = ids;
-        if (impl->input_kinds[i] == INPUT_MASK) {
-            data = mask;
-        } else if (impl->input_kinds[i] == INPUT_TYPES) {
-            data = types;
-        }
-        if (ort->CreateTensorWithDataAsOrtValue(impl->mem, data, bytes, shape, 2, ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64,
-                                                &inputs[i]) != NULL) {
-            goto cleanup_batch;
-        }
-        input_names[i] = impl->input_names[i];
-    }
-
-    const char *output_names[1] = {impl->output_name};
-    if (ort->Run(impl->session, NULL, input_names, (const OrtValue *const *)inputs, (size_t)impl->n_inputs,
-                 output_names, 1, &output) != NULL) {
-        goto cleanup_batch;
-    }
-
-    float *hidden = NULL;
-    if (ort->GetTensorMutableData(output, (void **)&hidden) != NULL) {
-        goto cleanup_batch;
-    }
-
-    for (size_t b = 0; b < batch; b++) {
-        mean_pool_row(hidden + b * (size_t)max_len * impl->dim, seq_lens[b], impl->dim, out + b * impl->dim);
-    }
-    status = CBERG_OK;
-
-cleanup_batch:
-    if (output != NULL) {
-        ort->ReleaseValue(output);
-    }
-    for (int i = 0; i < impl->n_inputs; i++) {
-        if (inputs[i] != NULL) {
-            ort->ReleaseValue(inputs[i]);
-        }
-    }
+    cberg_status status = run_inference(impl, ids, mask, types, batch, max_len, seq_lens, out);
     free(ids);
     free(mask);
     free(types);

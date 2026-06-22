@@ -60,6 +60,14 @@ cberg_add_grammar(tree-sitter-python SCANNER scanner.c)
 cberg_add_grammar(tree-sitter-kotlin SCANNER scanner.c)
 cberg_add_grammar(tree-sitter-typescript SUBDIR typescript SCANNER scanner.c)
 
+if(APPLE)
+  set(CBERG_WATCH_PLATFORM_SRC src/watch/watch_fsevents.c)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  set(CBERG_WATCH_PLATFORM_SRC src/watch/watch_inotify.c)
+else()
+  set(CBERG_WATCH_PLATFORM_SRC src/watch/watch_poll.c)
+endif()
+
 set(CBERG_SOURCES
   src/common/status.c
   src/common/version.c
@@ -68,12 +76,17 @@ set(CBERG_SOURCES
   src/common/config.c
   src/common/hash.c
   src/common/pathutil.c
+  src/common/strutil.c
+  src/common/strmap.c
   third_party/xxhash.c
+  src/chunk/chunk_keys.c
   src/chunk/chunker.c
   src/chunk/chunk_table.c
   src/watch/watch.c
+  src/watch/watch_walk.c
+  ${CBERG_WATCH_PLATFORM_SRC}
   src/embed/embed.c
-  src/search/index.c
+  src/search/index_config.c
   src/search/search.c
 )
 
@@ -128,6 +141,12 @@ if(EXISTS ${USEARCH_DIR}/c/lib.cpp)
   target_compile_options(usearch_c PRIVATE -w)
 else()
   message(FATAL_ERROR "usearch submodule missing; run: git submodule update --init --recursive")
+endif()
+
+if(CBERG_WITH_USEARCH)
+  list(APPEND CBERG_SOURCES src/search/index.c)
+else()
+  list(APPEND CBERG_SOURCES src/search/index_stub.c)
 endif()
 
 add_library(codeberg_obj OBJECT ${CBERG_SOURCES})
