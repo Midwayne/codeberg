@@ -7,3 +7,4 @@ models/
 *.so
 *.dylib
 .DS_Store
+.env
