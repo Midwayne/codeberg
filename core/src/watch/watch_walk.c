@@ -3,10 +3,9 @@
 #include "pathutil.h"
 #include "strutil.h"
 
-bool watch_skip_dir(const char *name, void *ctx) {
-    (void)ctx;
+int cberg_watch_skip_dir(const char *name) {
     if (name == NULL || name[0] == '\0') {
-        return false;
+        return 0;
     }
     static const char *const skip[] = {
         ".git", "node_modules", "vendor", ".venv", "__pycache__", ".next",
@@ -14,10 +13,15 @@ bool watch_skip_dir(const char *name, void *ctx) {
     };
     for (size_t i = 0; i < sizeof(skip) / sizeof(skip[0]); i++) {
         if (strcmp(name, skip[i]) == 0) {
-            return true;
+            return 1;
         }
     }
-    return false;
+    return 0;
+}
+
+bool watch_skip_dir(const char *name, void *ctx) {
+    (void)ctx;
+    return cberg_watch_skip_dir(name) != 0;
 }
 
 static void watch_dir_clear_slot(cberg_watch_dir *dir) {

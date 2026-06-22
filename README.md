@@ -31,7 +31,7 @@ followed — symlinked directories are walked and watched like normal directorie
 | Path | Role |
 |------|------|
 | `core/` | C library — chunking, change tracking, watching, ONNX embedding, usearch vector index ([docs](core/docs/)) |
-| `daemon/` | Optional: scheduled `git pull`, HTTP API — does not drive indexing; pull updates disk, watcher reacts |
+| `daemon/` | Go daemons: `cberg-index` indexer, `codeberg-d` HTTP + optional git pull |
 | `agent/` | Retrieval client — TBD |
 | `docs/` | Project overview and links |
 
@@ -40,6 +40,7 @@ followed — symlinked directories are walked and watched like normal directorie
 ```sh
 git submodule update --init --recursive
 make build
+make build-daemon   # cberg-index + codeberg-d (requires Go 1.22+)
 ```
 
 Optional embedding tests:

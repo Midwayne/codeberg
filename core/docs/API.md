@@ -192,6 +192,11 @@ Copies last fingerprint computed by `sync`. Empty table → all-zero. NULL table
 
 Current number of stored chunks. NULL → `0`.
 
+### `cberg_chunk_table_at(const cberg_chunk_table *table, size_t index)`
+
+Returns the stored chunk at `index`, or NULL when `table` is NULL or `index` is out of range.
+Used by the Go daemon to build incremental sync snapshots.
+
 ### `cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk *incoming, size_t count, cberg_changes *out_changes)`
 
 Diffs `incoming` (one file or batch) against the table using atomic staging — on failure the
@@ -218,6 +223,11 @@ Recomputes set fingerprint on success. Change arrays are replaced only after a s
 ### `cberg_watch_event`
 
 `kind` + `path` (repo-relative). Paths in poll output are strdup’d; **caller frees** each `events[i].path` after reading.
+
+### `cberg_watch_skip_dir(const char *name)`
+
+Returns non-zero when a directory basename should be excluded from watcher registration
+and bootstrap walks (`.git`, `node_modules`, …). NULL or empty → `0`.
 
 ### `cberg_watcher_open(const char *root, cberg_watcher **out_watcher)`
 

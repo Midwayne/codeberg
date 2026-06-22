@@ -177,6 +177,9 @@ CBERG_API void cberg_chunk_table_fingerprint(const cberg_chunk_table *table, uin
 
 CBERG_API size_t cberg_chunk_table_len(const cberg_chunk_table *table);
 
+/* Valid until the next sync on the same table. Returns NULL when out of range. */
+CBERG_API const cberg_stored_chunk *cberg_chunk_table_at(const cberg_chunk_table *table, size_t index);
+
 /*
  * Diff `incoming` against the table. IDs are stable across modifications.
  * Change arrays are owned by the table until the next sync or free.
@@ -193,6 +196,12 @@ typedef enum cberg_watch_kind {
     CBERG_WATCH_DELETE = 3,
     CBERG_WATCH_RENAME = 4,
 } cberg_watch_kind;
+
+/*
+ * Returns non-zero when a directory basename should be excluded from watcher
+ * registration and bootstrap walks (.git, node_modules, …).
+ */
+CBERG_API int cberg_watch_skip_dir(const char *name);
 
 typedef struct cberg_watch_event {
     cberg_watch_kind kind;

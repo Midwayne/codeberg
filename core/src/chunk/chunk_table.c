@@ -228,6 +228,13 @@ size_t cberg_chunk_table_len(const cberg_chunk_table *table) {
     return table == NULL ? 0 : table->len;
 }
 
+const cberg_stored_chunk *cberg_chunk_table_at(const cberg_chunk_table *table, size_t index) {
+    if (table == NULL || index >= table->len) {
+        return NULL;
+    }
+    return &table->entries[index];
+}
+
 static int compare_stored_id(const void *a, const void *b) {
     const cberg_stored_chunk *ca = a;
     const cberg_stored_chunk *cb = b;

@@ -7,7 +7,7 @@ Project-wide overview. **libcodeberg** details live under [core/docs](../core/do
 | Path                  | Role                                                            |
 | --------------------- | --------------------------------------------------------------- |
 | [core/](../core/)     | C library — chunking, change tracking, embedding, vector search |
-| [daemon/](../daemon/) | Optional scheduled `git pull`, HTTP API (planned)               |
+| [daemon/](../daemon/) | Go daemons — `cberg-index`, `codeberg-d` ([daemon/README.md](../daemon/README.md)) |
 | [agent/](../agent/)   | Retrieval client (planned)                                      |
 
 ## Core library
@@ -25,6 +25,7 @@ Project-wide overview. **libcodeberg** details live under [core/docs](../core/do
 ```sh
 git submodule update --init --recursive
 make build
+make build-daemon
 make test
 ```
 

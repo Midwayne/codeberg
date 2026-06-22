@@ -13,11 +13,13 @@ CMAKE      ?= cmake
 BUILD_TYPE ?= Release
 JOBS       ?= $(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
 
-.PHONY: build test clean rebuild submodules help check set-version
+.PHONY: build test clean rebuild submodules help check set-version build-daemon daemon-test
 
 help:
 	@echo "Codeberg core targets:"
 	@echo "  make build                Configure and compile libcodeberg"
+	@echo "  make build-daemon         Build Go daemons (cberg-index, codeberg-d)"
+	@echo "  make daemon-test          Run Go tests in daemon/"
 	@echo "  make test                 Run all core tests (ctest)"
 	@echo "  make test TEST=<name>     Run one test (test_smoke test_chunker …)"
 	@echo "  make check                build + test (pre-PR gate)"
@@ -50,6 +52,12 @@ clean:
 rebuild: clean build
 
 check: build test
+
+build-daemon: build
+	./scripts/build-daemon.sh
+
+daemon-test: build
+	./scripts/test-daemon.sh
 
 set-version:
 	./scripts/set-version.sh $(v)

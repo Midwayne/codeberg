@@ -536,7 +536,7 @@ Implemented in the same `codeberg.h` ABI. **Full API:** [API.md](API.md#embeddin
 | `cberg_embedder` | ONNX Runtime — chunk text → L2-normalized float vectors (jina-embeddings-v2-base-code, 768-dim) |
 | `cberg_index` | usearch HNSW — add / remove / search by chunk `id`; tunable connectivity and expansion factors |
 | `cberg_search_query` | Embed a query string with adaptive `expansion_search` (higher ef for better recall) |
-| `cberg-index` CLI | Planned — bootstrap walk, then watcher loop → chunk → sync → embed → index |
+| `cberg-index` CLI | Go daemon — bootstrap walk, then watcher loop → chunk → sync → embed → index |
 | Persistence | Index snapshots via `cberg_index_save`; chunk table persistence still optional |
 
 HNSW defaults: `connectivity=16`, `expansion_add=128`, `expansion_search=64`. `cberg_search_query` raises ef to `max(min_ef, k * oversample)` per query (defaults: min 64, oversample 4). ONNX embed batches up to 8 texts per inference when possible.

@@ -1,8 +1,7 @@
 # Contributing
 
 Thanks for your interest in improving Codeberg! This guide covers how to set up,
-test, and submit changes. Today the active codebase is the **C core** (`core/`);
-`daemon/` and `agent/` are placeholders.
+test, and submit changes. Today the active codebase is the **C core** (`core/`) and the **Go daemon** (`daemon/`).
 
 ## Prerequisites
 
@@ -27,7 +26,7 @@ codeberg/
 │   ├── src/             common, chunk, watch, embed, search
 │   ├── test/            ctest binaries
 │   └── docs/            architecture, API, ADRs
-├── daemon/              planned: scheduled git pull + HTTP API
+├── daemon/              Go: cberg-index + codeberg-d (CGO → libcodeberg)
 ├── agent/               planned: retrieval client
 └── docs/                project-level documentation index
 ```
