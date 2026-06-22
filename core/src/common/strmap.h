@@ -7,10 +7,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-/*
- * In-memory string -> uint64_t map (chained buckets, FNV-1a indexing).
- * For content addressing use cberg_hash (XXH3), not this structure.
- */
 typedef struct cberg_strmap cberg_strmap;
 
 typedef void (*cberg_strmap_visit_fn)(const char *key, uint64_t value, void *ctx);

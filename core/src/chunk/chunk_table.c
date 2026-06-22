@@ -63,22 +63,6 @@ static cberg_status push_change(cberg_stored_chunk **list, size_t *len, size_t *
     return CBERG_OK;
 }
 
-static cberg_status store_chunk_copy(const cberg_chunk *src, cberg_chunk *dst);
-
-static cberg_status push_change_owned(cberg_stored_chunk **list, size_t *len, size_t *cap,
-                                      const cberg_stored_chunk *src) {
-    cberg_stored_chunk snap = {.id = src->id};
-    cberg_status st = store_chunk_copy(&src->chunk, &snap.chunk);
-    if (st != CBERG_OK) {
-        return st;
-    }
-    st = push_change(list, len, cap, snap);
-    if (st != CBERG_OK) {
-        free_chunk_strings(&snap.chunk);
-    }
-    return st;
-}
-
 static cberg_status store_chunk_copy(const cberg_chunk *src, cberg_chunk *dst) {
     char *key = cberg_strdup(src->key);
     char *path = cberg_strdup(src->path);
@@ -96,6 +80,20 @@ static cberg_status store_chunk_copy(const cberg_chunk *src, cberg_chunk *dst) {
     dst->span = src->span;
     memcpy(dst->content_hash, src->content_hash, CBERG_HASH_LEN);
     return CBERG_OK;
+}
+
+static cberg_status push_change_owned(cberg_stored_chunk **list, size_t *len, size_t *cap,
+                                      const cberg_stored_chunk *src) {
+    cberg_stored_chunk snap = {.id = src->id};
+    cberg_status st = store_chunk_copy(&src->chunk, &snap.chunk);
+    if (st != CBERG_OK) {
+        return st;
+    }
+    st = push_change(list, len, cap, snap);
+    if (st != CBERG_OK) {
+        free_chunk_strings(&snap.chunk);
+    }
+    return st;
 }
 
 static cberg_status table_reserve_entries(cberg_chunk_table *table, size_t want) {
@@ -242,6 +240,83 @@ static int compare_stored_id(const void *a, const void *b) {
     return 0;
 }
 
+static cberg_status sync_apply_incoming(cberg_chunk_table *next, const cberg_chunk_table *table, const cberg_chunk *inc,
+                                        bool *seen) {
+    size_t next_index = 0;
+    if (map_find(next, inc->key, &next_index)) {
+        cberg_stored_chunk *slot = &next->entries[next_index];
+        size_t live_index = 0;
+        if (map_find(table, inc->key, &live_index)) {
+            seen[live_index] = true;
+        }
+        bool hash_changed = memcmp(slot->chunk.content_hash, inc->content_hash, CBERG_HASH_LEN) != 0;
+        free_chunk_strings(&slot->chunk);
+        cberg_status status = store_chunk_copy(inc, &slot->chunk);
+        if (status != CBERG_OK) {
+            return status;
+        }
+        if (hash_changed) {
+            return push_change_owned(&next->modified, &next->modified_len, &next->modified_cap, slot);
+        }
+        return CBERG_OK;
+    }
+
+    size_t live_index = 0;
+    if (!map_find(table, inc->key, &live_index)) {
+        cberg_stored_chunk stored = {.id = next->next_id++};
+        cberg_status status = store_chunk_copy(inc, &stored.chunk);
+        if (status != CBERG_OK) {
+            return status;
+        }
+        status = table_append(next, stored);
+        if (status != CBERG_OK) {
+            return status;
+        }
+        return push_change_owned(&next->added, &next->added_len, &next->added_cap, &next->entries[next->len - 1]);
+    }
+
+    seen[live_index] = true;
+    const cberg_stored_chunk *existing = &table->entries[live_index];
+    bool hash_changed = memcmp(existing->chunk.content_hash, inc->content_hash, CBERG_HASH_LEN) != 0;
+    cberg_stored_chunk stored = {.id = existing->id};
+    cberg_status status =
+        hash_changed ? store_chunk_copy(inc, &stored.chunk) : store_chunk_copy(&existing->chunk, &stored.chunk);
+    if (status != CBERG_OK) {
+        return status;
+    }
+    status = table_append(next, stored);
+    if (status != CBERG_OK) {
+        return status;
+    }
+    if (hash_changed) {
+        return push_change_owned(&next->modified, &next->modified_len, &next->modified_cap, &next->entries[next->len - 1]);
+    }
+    return CBERG_OK;
+}
+
+static void table_commit(cberg_chunk_table *table, cberg_chunk_table *next) {
+    table_free_entry_strings(table);
+    free(table->entries);
+    cberg_strmap_free(table->key_index);
+    table_free_change_lists(table);
+
+    table->entries = next->entries;
+    table->len = next->len;
+    table->cap = next->cap;
+    table->key_index = next->key_index;
+    table->next_id = next->next_id;
+    memcpy(table->fingerprint, next->fingerprint, CBERG_HASH_LEN);
+    table->added = next->added;
+    table->added_len = next->added_len;
+    table->added_cap = next->added_cap;
+    table->modified = next->modified;
+    table->modified_len = next->modified_len;
+    table->modified_cap = next->modified_cap;
+    table->deleted = next->deleted;
+    table->deleted_len = next->deleted_len;
+    table->deleted_cap = next->deleted_cap;
+}
+
 cberg_status cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk *incoming, size_t count,
                                     cberg_changes *out_changes) {
     if (table == NULL || out_changes == NULL) {
@@ -271,68 +346,9 @@ cberg_status cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk 
             status = CBERG_ERR_INVALID_ARGUMENT;
             goto fail;
         }
-
-        size_t next_index = 0;
-        if (map_find(next, inc->key, &next_index)) {
-            cberg_stored_chunk *slot = &next->entries[next_index];
-            size_t live_index = 0;
-            if (map_find(table, inc->key, &live_index)) {
-                seen[live_index] = true;
-            }
-            bool hash_changed = memcmp(slot->chunk.content_hash, inc->content_hash, CBERG_HASH_LEN) != 0;
-            free_chunk_strings(&slot->chunk);
-            status = store_chunk_copy(inc, &slot->chunk);
-            if (status != CBERG_OK) {
-                goto fail;
-            }
-            if (hash_changed) {
-                status = push_change_owned(&next->modified, &next->modified_len, &next->modified_cap, slot);
-                if (status != CBERG_OK) {
-                    goto fail;
-                }
-            }
-            continue;
-        }
-
-        size_t entry_index = 0;
-        if (!map_find(table, inc->key, &entry_index)) {
-            cberg_stored_chunk stored = {.id = next->next_id++};
-            status = store_chunk_copy(inc, &stored.chunk);
-            if (status != CBERG_OK) {
-                goto fail;
-            }
-            status = table_append(next, stored);
-            if (status != CBERG_OK) {
-                goto fail;
-            }
-            status = push_change_owned(&next->added, &next->added_len, &next->added_cap, &next->entries[next->len - 1]);
-            if (status != CBERG_OK) {
-                goto fail;
-            }
-            continue;
-        }
-
-        seen[entry_index] = true;
-        const cberg_stored_chunk *existing = &table->entries[entry_index];
-        cberg_stored_chunk stored = {.id = existing->id};
-        if (memcmp(existing->chunk.content_hash, inc->content_hash, CBERG_HASH_LEN) != 0) {
-            status = store_chunk_copy(inc, &stored.chunk);
-        } else {
-            status = store_chunk_copy(&existing->chunk, &stored.chunk);
-        }
+        status = sync_apply_incoming(next, table, inc, seen);
         if (status != CBERG_OK) {
             goto fail;
-        }
-        status = table_append(next, stored);
-        if (status != CBERG_OK) {
-            goto fail;
-        }
-        if (memcmp(existing->chunk.content_hash, inc->content_hash, CBERG_HASH_LEN) != 0) {
-            status = push_change_owned(&next->modified, &next->modified_len, &next->modified_cap,
-                                       &next->entries[next->len - 1]);
-            if (status != CBERG_OK) {
-                goto fail;
-            }
         }
     }
 
@@ -355,26 +371,7 @@ cberg_status cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk 
         goto fail;
     }
 
-    table_free_entry_strings(table);
-    free(table->entries);
-    cberg_strmap_free(table->key_index);
-    table_free_change_lists(table);
-
-    table->entries = next->entries;
-    table->len = next->len;
-    table->cap = next->cap;
-    table->key_index = next->key_index;
-    table->next_id = next->next_id;
-    memcpy(table->fingerprint, next->fingerprint, CBERG_HASH_LEN);
-    table->added = next->added;
-    table->added_len = next->added_len;
-    table->added_cap = next->added_cap;
-    table->modified = next->modified;
-    table->modified_len = next->modified_len;
-    table->modified_cap = next->modified_cap;
-    table->deleted = next->deleted;
-    table->deleted_len = next->deleted_len;
-    table->deleted_cap = next->deleted_cap;
+    table_commit(table, next);
 
     free(seen);
     free(next);

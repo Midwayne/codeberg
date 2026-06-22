@@ -157,16 +157,6 @@ Iterate all entries (used by watcher drain).
 
 Path helpers shared by the watcher (and any future directory walks).
 
-### `cberg_path_skip_dir(const char *name)`
-
-Returns `true` if a **single path component** `name` should be excluded from watches
-and recursive registration:
-
-`.git`, `node_modules`, `vendor`, `.venv`, `__pycache__`, `.next`, `dist`, `build`,
-`target`, `.gradle`, `.idea`, `.terraform`.
-
-NULL or empty → `false` (do not skip).
-
 ### `cberg_path_join(const char *root, const char *rel, char *out, size_t out_cap)`
 
 Joins `root` and `rel` with `/` when needed. Writes NUL-terminated result to `out`.
@@ -176,9 +166,10 @@ Returns `false` on NULL inputs, zero `out_cap`, or buffer overflow.
 
 `realpath` into `out`. **Returns:** `CBERG_OK`, `CBERG_ERR_IO`, `CBERG_ERR_INVALID_ARGUMENT`.
 
-### `cberg_fs_walk(abs, rel, fn, ctx)`
+### `cberg_fs_walk(abs, rel, fn, ctx, skip_dir, skip_ctx)`
 
-Depth-first directory walk; skips dot dirs and `cberg_path_skip_dir` names. Invokes `fn`
+Depth-first directory walk; always skips dot dirs. When `skip_dir` is non-NULL, also
+skips directory names for which `skip_dir(name, skip_ctx)` returns true. Invokes `fn`
 for each directory (pre-children) and regular file.
 
 ---

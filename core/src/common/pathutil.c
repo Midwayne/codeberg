@@ -6,22 +6,6 @@
 #include <string.h>
 #include <sys/stat.h>
 
-bool cberg_path_skip_dir(const char *name) {
-    if (name == NULL || name[0] == '\0') {
-        return false;
-    }
-    static const char *const skip[] = {
-        ".git", "node_modules", "vendor", ".venv", "__pycache__", ".next",
-        "dist", "build", "target", ".gradle", ".idea", ".terraform",
-    };
-    for (size_t i = 0; i < sizeof(skip) / sizeof(skip[0]); i++) {
-        if (strcmp(name, skip[i]) == 0) {
-            return true;
-        }
-    }
-    return false;
-}
-
 bool cberg_path_join(const char *root, const char *rel, char *out, size_t out_cap) {
     if (root == NULL || rel == NULL || out == NULL || out_cap == 0) {
         return false;
@@ -63,7 +47,8 @@ static bool dirent_dot(const char *name) {
     return name[0] == '.' && (name[1] == '\0' || (name[1] == '.' && name[2] == '\0'));
 }
 
-cberg_status cberg_fs_walk(const char *abs, const char *rel, cberg_fs_walk_fn fn, void *ctx) {
+cberg_status cberg_fs_walk(const char *abs, const char *rel, cberg_fs_walk_fn fn, void *ctx,
+                           cberg_fs_skip_dir_fn skip_dir, void *skip_ctx) {
     if (abs == NULL || rel == NULL || fn == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
@@ -80,7 +65,10 @@ cberg_status cberg_fs_walk(const char *abs, const char *rel, cberg_fs_walk_fn fn
 
     struct dirent *ent;
     while ((ent = readdir(dir)) != NULL) {
-        if (dirent_dot(ent->d_name) || cberg_path_skip_dir(ent->d_name)) {
+        if (dirent_dot(ent->d_name)) {
+            continue;
+        }
+        if (skip_dir != NULL && skip_dir(ent->d_name, skip_ctx)) {
             continue;
         }
         char child_abs[PATH_MAX];
@@ -96,7 +84,7 @@ cberg_status cberg_fs_walk(const char *abs, const char *rel, cberg_fs_walk_fn fn
             continue;
         }
         if (S_ISDIR(stbuf.st_mode)) {
-            st = cberg_fs_walk(child_abs, child_rel, fn, ctx);
+            st = cberg_fs_walk(child_abs, child_rel, fn, ctx, skip_dir, skip_ctx);
             if (st != CBERG_OK) {
                 closedir(dir);
                 return st;

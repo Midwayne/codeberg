@@ -31,7 +31,8 @@ Dirty paths are stored in a **`cberg_strmap`** (256 buckets at first use).
 | `dirs[]`, `dir_len`, `dir_cap` | All registered directories |
 | `dirty` | `cberg_strmap` of repo-relative path → `cberg_watch_kind` |
 | `error` | Sticky status (e.g. OOM); poll/dirty_paths return it until `close` |
-| **macOS:** `stream` | `FSEventStreamRef` with file-level events |
+| `mu` | Recursive mutex; serializes dirty map / dir registration vs async delivery |
+| **macOS:** `stream`, `event_queue` | FSEvents on a per-watcher serial queue; `FlushSync` in `wait` |
 | **Linux:** `inotify_fd` | Non-blocking inotify instance |
 | **fallback:** `files[]` | Per-file last `mtime` for poll scan |
 
@@ -56,8 +57,18 @@ Dirty paths are stored in a **`cberg_strmap`** (256 buckets at first use).
 
 ## `watch_walk_register(w, abs, rel)`
 
-Uses `cberg_fs_walk` to register directories (see `pathutil.c`). On registration
+Uses `cberg_fs_walk` with `watch_skip_dir` to register directories. On registration
 failure, any allocated directory slot strings are freed before returning.
+
+### `watch_skip_dir(name, ctx)`
+
+Watcher walk policy: returns true for `.git`, `node_modules`, `vendor`, `.venv`,
+`__pycache__`, `.next`, `dist`, `build`, `target`, `.gradle`, `.idea`, `.terraform`.
+
+### `watch_rel_join` / `watch_note_created_subdir`
+
+Shared helpers for building repo-relative paths and registering new subdirectories
+(used by FSEvents and inotify backends).
 
 ---
 
@@ -67,7 +78,7 @@ CMake selects exactly one of:
 
 | File | Platform | `watch_platform_wait` |
 |------|----------|------------------------|
-| `watch_fsevents.c` | macOS | `usleep(timeout)`; FSEvents callback fills dirty set asynchronously |
+| `watch_fsevents.c` | macOS | `usleep(timeout)` + `FSEventStreamFlushSync`; callback on serial queue |
 | `watch_inotify.c` | Linux | `poll` + `read` inotify; always processes kernel events |
 | `watch_poll.c` | fallback | `nanosleep` + full `cberg_fs_walk` mtime scan |
 
@@ -81,7 +92,8 @@ macOS FSEvents in `finish`, poll mtime seed in `finish`).
 
 - **New directory** (`ItemIsDir` + `ItemCreated`) → `watch_walk_register`.
 - **Removed** → `DELETE`; **Renamed** → `RENAME`; **Created** → `CREATE`; **Modified** → `MODIFY`.
-- FSEvents stream on global dispatch queue with debounce.
+- FSEvents stream on a per-watcher serial dispatch queue; `watch_platform_wait` calls
+  `FSEventStreamFlushSync` before returning. Watcher state is protected by `mu`.
 
 ### Linux (`watch_inotify.c`)
 

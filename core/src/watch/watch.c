@@ -5,9 +5,51 @@
 #include "strutil.h"
 
 #include <limits.h>
+#include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+static void watch_lock(cberg_watcher *w) {
+    pthread_mutex_lock(&w->mu);
+}
+
+static void watch_unlock(cberg_watcher *w) {
+    pthread_mutex_unlock(&w->mu);
+}
+
+static cberg_status watch_mutex_init(cberg_watcher *w) {
+    pthread_mutexattr_t attr;
+    if (pthread_mutexattr_init(&attr) != 0) {
+        return CBERG_ERR_INTERNAL;
+    }
+    if (pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE) != 0) {
+        pthread_mutexattr_destroy(&attr);
+        return CBERG_ERR_INTERNAL;
+    }
+    int rc = pthread_mutex_init(&w->mu, &attr);
+    pthread_mutexattr_destroy(&attr);
+    return rc == 0 ? CBERG_OK : CBERG_ERR_INTERNAL;
+}
+
+bool watch_rel_join(const char *parent_rel, const char *name, char *rel_out, size_t rel_cap) {
+    if (parent_rel == NULL || name == NULL || rel_out == NULL || rel_cap == 0) {
+        return false;
+    }
+    if (parent_rel[0] == '\0') {
+        size_t name_len = strlen(name);
+        if (name_len + 1 > rel_cap) {
+            return false;
+        }
+        memcpy(rel_out, name, name_len + 1);
+        return true;
+    }
+    return cberg_path_join(parent_rel, name, rel_out, rel_cap);
+}
+
+void watch_note_created_subdir(cberg_watcher *w, const char *abs, const char *rel) {
+    watch_note_error(w, watch_walk_register(w, abs, rel));
+}
 
 void watch_note_error(cberg_watcher *w, cberg_status status) {
     if (w != NULL && status != CBERG_OK && w->error == CBERG_OK) {
@@ -28,46 +70,36 @@ static cberg_watch_kind kind_merge(cberg_watch_kind existing, cberg_watch_kind i
     return incoming;
 }
 
-static bool dirty_get_kind(const cberg_strmap *dirty, const char *rel, cberg_watch_kind *out_kind) {
-    uint64_t value = 0;
-    if (!cberg_strmap_get(dirty, rel, &value)) {
-        return false;
-    }
-    *out_kind = (cberg_watch_kind)value;
-    return true;
-}
-
-static cberg_status dirty_set_kind(cberg_strmap *dirty, const char *rel, cberg_watch_kind kind) {
-    return cberg_strmap_set(dirty, rel, (uint64_t)kind);
-}
-
 cberg_status watch_dirty_add(cberg_watcher *w, const char *rel, cberg_watch_kind kind) {
     if (w == NULL || rel == NULL || rel[0] == '\0') {
         return CBERG_OK;
     }
+    watch_lock(w);
     if (w->dirty == NULL) {
         w->dirty = cberg_strmap_new(256);
         if (w->dirty == NULL) {
             watch_note_error(w, CBERG_ERR_OUT_OF_MEMORY);
+            watch_unlock(w);
             return CBERG_ERR_OUT_OF_MEMORY;
         }
     }
-    cberg_watch_kind existing = CBERG_WATCH_MODIFY;
+    uint64_t existing = 0;
     cberg_status st;
-    if (dirty_get_kind(w->dirty, rel, &existing)) {
-        st = dirty_set_kind(w->dirty, rel, kind_merge(existing, kind));
+    if (cberg_strmap_get(w->dirty, rel, &existing)) {
+        st = cberg_strmap_set(w->dirty, rel, (uint64_t)kind_merge((cberg_watch_kind)existing, kind));
     } else {
-        st = dirty_set_kind(w->dirty, rel, kind);
+        st = cberg_strmap_set(w->dirty, rel, (uint64_t)kind);
     }
     if (st != CBERG_OK) {
         watch_note_error(w, st);
     }
+    watch_unlock(w);
     return st;
 }
 
 typedef struct {
     char *path;
-    uint64_t kind;
+    cberg_watch_kind kind;
 } dirty_staged_item;
 
 typedef struct {
@@ -110,7 +142,7 @@ static void dirty_stage_visit(const char *key, uint64_t value, void *ctx_v) {
         staging->status = CBERG_ERR_OUT_OF_MEMORY;
         return;
     }
-    staging->items[staging->len++] = (dirty_staged_item){.path = path, .kind = value};
+    staging->items[staging->len++] = (dirty_staged_item){.path = path, .kind = (cberg_watch_kind)value};
 }
 
 cberg_status watch_dirty_drain(cberg_watcher *w, cberg_watch_event *events, const char **paths, size_t cap,
@@ -123,12 +155,15 @@ cberg_status watch_dirty_drain(cberg_watcher *w, cberg_watch_event *events, cons
         return CBERG_OK;
     }
 
+    watch_lock(w);
+
     bool transfer = events != NULL || paths != NULL;
     dirty_staging staging = {0};
     cberg_strmap_visit(w->dirty, dirty_stage_visit, &staging);
     if (staging.status != CBERG_OK) {
         dirty_staging_free(&staging);
         watch_note_error(w, staging.status);
+        watch_unlock(w);
         return staging.status;
     }
 
@@ -137,18 +172,20 @@ cberg_status watch_dirty_drain(cberg_watcher *w, cberg_watch_event *events, cons
         *out_count = total;
         cberg_strmap_clear(w->dirty);
         dirty_staging_free(&staging);
+        watch_unlock(w);
         return CBERG_OK;
     }
 
     if (total > cap) {
         dirty_staging_free(&staging);
+        watch_unlock(w);
         return CBERG_ERR_INVALID_ARGUMENT;
     }
 
     for (size_t i = 0; i < total; i++) {
         if (events != NULL) {
             events[i].path = staging.items[i].path;
-            events[i].kind = (cberg_watch_kind)staging.items[i].kind;
+            events[i].kind = staging.items[i].kind;
         } else {
             paths[i] = staging.items[i].path;
         }
@@ -157,6 +194,7 @@ cberg_status watch_dirty_drain(cberg_watcher *w, cberg_watch_event *events, cons
     *out_count = total;
     dirty_staging_free(&staging);
     cberg_strmap_clear(w->dirty);
+    watch_unlock(w);
     return CBERG_OK;
 }
 
@@ -218,6 +256,13 @@ cberg_status cberg_watcher_open(const char *root, cberg_watcher **out_watcher) {
         w->root[--w->root_len] = '\0';
     }
 
+    st = watch_mutex_init(w);
+    if (st != CBERG_OK) {
+        free(w->root);
+        free(w);
+        return st;
+    }
+
 #if defined(__linux__)
     w->inotify_fd = -1;
     st = watch_platform_begin(w);
@@ -257,6 +302,7 @@ void cberg_watcher_close(cberg_watcher *watcher) {
     free(watcher->dirs);
     cberg_strmap_free(watcher->dirty);
     free(watcher->root);
+    pthread_mutex_destroy(&watcher->mu);
     free(watcher);
 }
 

@@ -205,8 +205,12 @@ typedef struct cberg_watcher cberg_watcher;
  * Indexing trigger: recursively watch `root` and accumulate dirty paths.
  * `root` may be a symlink; it is resolved with realpath at open (target must exist).
  * Symlinked directories inside the tree are followed and indexed. Skips VCS metadata
- * and common dependency trees (.git, node_modules, …). New directories are registered
- * automatically.
+ * and common dependency trees (.git, node_modules, …) via the watcher walk policy.
+ * New directories are registered automatically.
+ *
+ * Thread safety: safe to call poll/dirty_paths from one thread while the platform
+ * delivers events asynchronously (macOS FSEvents). Do not call poll/dirty_paths
+ * concurrently from multiple threads.
  */
 CBERG_API cberg_status cberg_watcher_open(const char *root, cberg_watcher **out_watcher);
 CBERG_API void cberg_watcher_close(cberg_watcher *watcher);

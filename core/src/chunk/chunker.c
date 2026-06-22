@@ -152,17 +152,6 @@ static cberg_status list_reserve(cberg_chunk_list *list, size_t want) {
     return CBERG_OK;
 }
 
-static cberg_status format_key(cberg_arena *arena, const char *path, cberg_chunk_kind kind, const char *symbol,
-                               uint32_t index, char **out_key) {
-    char key[CBERG_CHUNK_KEY_MAX];
-    cberg_status st = chunk_format_key(key, sizeof(key), path, kind, symbol, index);
-    if (st != CBERG_OK) {
-        return st;
-    }
-    *out_key = cberg_arena_strdup(arena, key);
-    return *out_key == NULL ? CBERG_ERR_OUT_OF_MEMORY : CBERG_OK;
-}
-
 static cberg_status list_push(cberg_chunk_list *list, const char *path, cberg_chunk_kind kind, cberg_span span,
                               const char *symbol_src, uint32_t symbol_start, uint32_t symbol_end, uint32_t occ) {
     cberg_status st = list_reserve(list, list->len + 1);
@@ -174,9 +163,13 @@ static cberg_status list_push(cberg_chunk_list *list, const char *path, cberg_ch
     if (symbol_src != NULL && symbol_end > symbol_start) {
         symbol = cberg_arena_dup(list->arena, symbol_src + symbol_start, symbol_end - symbol_start);
     }
-    char *key = NULL;
-    st = format_key(list->arena, path, kind, symbol, occ, &key);
-    if (st != CBERG_OK || path_copy == NULL) {
+    char key_buf[CBERG_CHUNK_KEY_MAX];
+    st = chunk_format_key(key_buf, sizeof(key_buf), path, kind, symbol, occ);
+    if (st != CBERG_OK) {
+        return st;
+    }
+    char *key = cberg_arena_strdup(list->arena, key_buf);
+    if (st != CBERG_OK || path_copy == NULL || key == NULL) {
         return st != CBERG_OK ? st : CBERG_ERR_OUT_OF_MEMORY;
     }
     list->items[list->len++] = (cberg_chunk){
@@ -384,16 +377,24 @@ static cberg_status query_chunk(cberg_chunker *ch, lang_desc desc, cberg_languag
             continue;
         }
 
-        char *symbol = NULL;
+        char sym_buf[CBERG_CHUNK_IDENT_MAX];
+        const char *sym_for_occ = NULL;
         uint32_t sym_start = 0;
         uint32_t sym_end = 0;
         if (have_name) {
             sym_start = ts_node_start_byte(name_node);
             sym_end = ts_node_end_byte(name_node);
-            symbol = cberg_arena_dup(list->arena, src + sym_start, sym_end - sym_start);
+            size_t sym_len = (size_t)(sym_end - sym_start);
+            if (sym_len >= sizeof(sym_buf)) {
+                status = CBERG_ERR_INVALID_ARGUMENT;
+                goto done;
+            }
+            memcpy(sym_buf, src + sym_start, sym_len);
+            sym_buf[sym_len] = '\0';
+            sym_for_occ = sym_buf;
         }
         uint32_t index = 0;
-        status = chunk_occ_next(occ, path, kind, symbol, &index);
+        status = chunk_occ_next(occ, path, kind, sym_for_occ, &index);
         if (status != CBERG_OK) {
             goto done;
         }

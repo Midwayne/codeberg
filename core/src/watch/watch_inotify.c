@@ -38,7 +38,7 @@ static cberg_watch_dir *dir_by_wd(cberg_watcher *w, int wd) {
     return NULL;
 }
 
-static cberg_watch_kind kind_from_inotify(uint32_t mask) {
+cberg_watch_kind watch_kind_from_inotify(uint32_t mask) {
     if ((mask & (IN_MOVED_FROM | IN_MOVED_TO)) != 0) {
         return CBERG_WATCH_RENAME;
     }
@@ -113,17 +113,17 @@ cberg_status watch_platform_wait(cberg_watcher *w, int timeout_ms) {
             cberg_watch_dir *dir = dir_by_wd(w, ev->wd);
             if (dir != NULL && ev->len > 0) {
                 char rel[PATH_MAX];
-                if (dir->rel_path[0] == '\0') {
-                    snprintf(rel, sizeof(rel), "%s", ev->name);
-                } else {
-                    snprintf(rel, sizeof(rel), "%s/%s", dir->rel_path, ev->name);
+                if (!watch_rel_join(dir->rel_path, ev->name, rel, sizeof(rel))) {
+                    p += sizeof(struct inotify_event) + ev->len;
+                    continue;
                 }
                 if ((ev->mask & IN_ISDIR) != 0 && (ev->mask & IN_CREATE) != 0) {
                     char abs[PATH_MAX];
-                    cberg_path_join(dir->abs_path, ev->name, abs, sizeof(abs));
-                    watch_note_error(w, watch_walk_register(w, abs, rel));
+                    if (cberg_path_join(dir->abs_path, ev->name, abs, sizeof(abs))) {
+                        watch_note_created_subdir(w, abs, rel);
+                    }
                 }
-                watch_note_error(w, watch_dirty_add(w, rel, kind_from_inotify(ev->mask)));
+                watch_note_error(w, watch_dirty_add(w, rel, watch_kind_from_inotify(ev->mask)));
             }
             p += sizeof(struct inotify_event) + ev->len;
         }

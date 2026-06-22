@@ -3,6 +3,23 @@
 #include "pathutil.h"
 #include "strutil.h"
 
+bool watch_skip_dir(const char *name, void *ctx) {
+    (void)ctx;
+    if (name == NULL || name[0] == '\0') {
+        return false;
+    }
+    static const char *const skip[] = {
+        ".git", "node_modules", "vendor", ".venv", "__pycache__", ".next",
+        "dist", "build", "target", ".gradle", ".idea", ".terraform",
+    };
+    for (size_t i = 0; i < sizeof(skip) / sizeof(skip[0]); i++) {
+        if (strcmp(name, skip[i]) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static void watch_dir_clear_slot(cberg_watch_dir *dir) {
     free(dir->abs_path);
     free(dir->rel_path);
@@ -39,5 +56,8 @@ static cberg_status walk_register_entry(void *ctx, const char *abs, const char *
 }
 
 cberg_status watch_walk_register(cberg_watcher *w, const char *abs, const char *rel) {
-    return cberg_fs_walk(abs, rel, walk_register_entry, w);
+    pthread_mutex_lock(&w->mu);
+    cberg_status st = cberg_fs_walk(abs, rel, walk_register_entry, w, watch_skip_dir, NULL);
+    pthread_mutex_unlock(&w->mu);
+    return st;
 }

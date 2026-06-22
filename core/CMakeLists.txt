@@ -143,11 +143,7 @@ else()
   message(FATAL_ERROR "usearch submodule missing; run: git submodule update --init --recursive")
 endif()
 
-if(CBERG_WITH_USEARCH)
-  list(APPEND CBERG_SOURCES src/search/index.c)
-else()
-  list(APPEND CBERG_SOURCES src/search/index_stub.c)
-endif()
+list(APPEND CBERG_SOURCES src/search/index.c)
 
 add_library(codeberg_obj OBJECT ${CBERG_SOURCES})
 target_include_directories(codeberg_obj
@@ -199,6 +195,7 @@ foreach(lib codeberg_static codeberg_shared)
   else()
     target_link_libraries(${lib} PUBLIC "-lstdc++")
   endif()
+  target_link_libraries(${lib} PUBLIC pthread)
 endforeach()
 
 add_library(codeberg::codeberg ALIAS codeberg_static)

@@ -76,7 +76,7 @@ cberg_status watch_platform_begin(cberg_watcher *w) {
 }
 
 cberg_status watch_platform_finish(cberg_watcher *w) {
-    return cberg_fs_walk(w->root, "", poll_walk_entry, w);
+    return cberg_fs_walk(w->root, "", poll_walk_entry, w, watch_skip_dir, NULL);
 }
 
 void watch_platform_stop(cberg_watcher *w) {
@@ -98,5 +98,5 @@ cberg_status watch_platform_wait(cberg_watcher *w, int timeout_ms) {
         struct timespec ts = {.tv_sec = timeout_ms / 1000, .tv_nsec = (long)(timeout_ms % 1000) * 1000000L};
         nanosleep(&ts, NULL);
     }
-    return cberg_fs_walk(w->root, "", poll_walk_entry, w);
+    return cberg_fs_walk(w->root, "", poll_walk_entry, w, watch_skip_dir, NULL);
 }

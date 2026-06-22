@@ -5,13 +5,14 @@
 
 #include <stddef.h>
 #include <stdbool.h>
+#include <pthread.h>
 
 #include "strmap.h"
 
 #if defined(__APPLE__)
 #include <CoreServices/CoreServices.h>
+#include <dispatch/dispatch.h>
 #elif defined(__linux__)
-/* inotify fd stored in watcher */
 #else
 #include <time.h>
 #endif
@@ -35,8 +36,10 @@ struct cberg_watcher {
     size_t dir_cap;
     cberg_strmap *dirty;
     cberg_status error;
+    pthread_mutex_t mu;
 #if defined(__APPLE__)
     FSEventStreamRef stream;
+    dispatch_queue_t event_queue;
 #elif defined(__linux__)
     int inotify_fd;
 #else
@@ -48,6 +51,18 @@ struct cberg_watcher {
     size_t file_cap;
 #endif
 };
+
+bool watch_skip_dir(const char *name, void *ctx);
+
+bool watch_rel_join(const char *parent_rel, const char *name, char *rel_out, size_t rel_cap);
+void watch_note_created_subdir(cberg_watcher *w, const char *abs, const char *rel);
+
+#if defined(__APPLE__)
+cberg_watch_kind watch_kind_from_fsevents(FSEventStreamEventFlags flags);
+#elif defined(__linux__)
+#include <stdint.h>
+cberg_watch_kind watch_kind_from_inotify(uint32_t mask);
+#endif
 
 cberg_status watch_reserve_dirs(cberg_watcher *w, size_t want);
 cberg_status watch_dirty_add(cberg_watcher *w, const char *rel, cberg_watch_kind kind);
