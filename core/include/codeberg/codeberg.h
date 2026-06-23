@@ -217,7 +217,25 @@ typedef struct cberg_manifest_entry {
  */
 CBERG_API cberg_status cberg_manifest_build(const char *root, cberg_manifest **out_manifest);
 
+/*
+ * Incremental rebuild: like cberg_manifest_build, but reuses `prev`'s leaf hash
+ * for any file whose size and mtime match `prev` (stat only, no read). Only
+ * changed and new files are read and hashed; `prev` may be NULL (full build,
+ * identical to cberg_manifest_build). `prev` is read-only and not retained.
+ *
+ * Caveat: a content edit that preserves file size within the filesystem's mtime
+ * resolution can be missed (the classic stat-cache race). Pair frequent rebuilds
+ * with an occasional full build (prev = NULL) to self-heal.
+ */
+CBERG_API cberg_status cberg_manifest_rebuild(const cberg_manifest *prev, const char *root,
+                                              cberg_manifest **out_manifest);
+
 CBERG_API void cberg_manifest_free(cberg_manifest *manifest);
+
+/* Number of file bodies actually read and hashed in the build that produced this
+ * manifest; the remainder were reused from `prev`. Equals the leaf count for a
+ * full build. A rebuild of an unchanged tree returns 0. */
+CBERG_API size_t cberg_manifest_hashed_count(const cberg_manifest *manifest);
 
 /* Merkle root over the whole tree; all-zero for an empty repo. Two builds with
  * identical file contents produce equal roots. */

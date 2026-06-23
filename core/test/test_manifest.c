@@ -169,8 +169,69 @@ int main(void) {
     cberg_manifest_diff_free(&diff);
     cberg_manifest_free(em);
 
-    char cmd[1100];
-    snprintf(cmd, sizeof(cmd), "rm -rf '%s' '%s'", root, eroot);
+    /* Incremental rebuild: stat cache reuses unchanged leaf hashes. */
+    char itmpl[] = "/tmp/cberg-manifest-incr-XXXXXX";
+    char *iroot = mkdtemp(itmpl);
+    CHECK(iroot != NULL, "mkdtemp incr");
+    write_file(iroot, "a.txt", "alpha\n");
+    write_file(iroot, "dir/b.txt", "beta\n");
+    write_file(iroot, "dir/c.txt", "gamma\n");
+
+    cberg_manifest *f1 = NULL;
+    CHECK(cberg_manifest_build(iroot, &f1) == CBERG_OK, "incr full build");
+    CHECK(cberg_manifest_len(f1) == 3, "incr three leaves");
+    CHECK(cberg_manifest_hashed_count(f1) == 3, "full build hashes every file");
+    uint8_t fr1[CBERG_HASH_LEN];
+    cberg_manifest_root(f1, fr1);
+
+    /* No change → rebuild reads nothing, identical root. */
+    cberg_manifest *f2 = NULL;
+    CHECK(cberg_manifest_rebuild(f1, iroot, &f2) == CBERG_OK, "incr rebuild noop");
+    CHECK(cberg_manifest_hashed_count(f2) == 0, "noop rebuild hashes nothing");
+    uint8_t fr2[CBERG_HASH_LEN];
+    cberg_manifest_root(f2, fr2);
+    CHECK(memcmp(fr1, fr2, CBERG_HASH_LEN) == 0, "noop rebuild preserves root");
+
+    /* Modify one file (size changes) → only it is re-hashed; result matches a full build. */
+    write_file(iroot, "dir/b.txt", "beta beta beta\n");
+    cberg_manifest *f3 = NULL;
+    CHECK(cberg_manifest_rebuild(f2, iroot, &f3) == CBERG_OK, "incr rebuild modify");
+    CHECK(cberg_manifest_hashed_count(f3) == 1, "modify re-hashes exactly one file");
+    cberg_manifest *ffull = NULL;
+    CHECK(cberg_manifest_build(iroot, &ffull) == CBERG_OK, "fresh full build after modify");
+    uint8_t fr3[CBERG_HASH_LEN], frf[CBERG_HASH_LEN];
+    cberg_manifest_root(f3, fr3);
+    cberg_manifest_root(ffull, frf);
+    CHECK(memcmp(fr3, frf, CBERG_HASH_LEN) == 0, "incremental root == full-build root");
+    CHECK(memcmp(fr3, fr1, CBERG_HASH_LEN) != 0, "modify changed root");
+    CHECK(cberg_manifest_diff(f2, f3, &diff) == CBERG_OK, "diff over incremental build");
+    CHECK(diff.modified_len == 1 && has_path(diff.modified, diff.modified_len, "dir/b.txt"), "incremental diff: b.txt");
+    CHECK(diff.added_len == 0 && diff.deleted_len == 0, "incremental modify only");
+    cberg_manifest_diff_free(&diff);
+
+    /* Add a file → exactly one new hash; unchanged files reused. */
+    write_file(iroot, "dir/d.txt", "delta\n");
+    cberg_manifest *f4 = NULL;
+    CHECK(cberg_manifest_rebuild(f3, iroot, &f4) == CBERG_OK, "incr rebuild add");
+    CHECK(cberg_manifest_hashed_count(f4) == 1, "add hashes one new file");
+    CHECK(cberg_manifest_len(f4) == 4, "add grows leaf count");
+
+    /* Delete a file → no hashing at all. */
+    remove_file(iroot, "a.txt");
+    cberg_manifest *f5 = NULL;
+    CHECK(cberg_manifest_rebuild(f4, iroot, &f5) == CBERG_OK, "incr rebuild delete");
+    CHECK(cberg_manifest_hashed_count(f5) == 0, "delete hashes nothing");
+    CHECK(cberg_manifest_len(f5) == 3, "delete shrinks leaf count");
+
+    cberg_manifest_free(f1);
+    cberg_manifest_free(f2);
+    cberg_manifest_free(f3);
+    cberg_manifest_free(f4);
+    cberg_manifest_free(f5);
+    cberg_manifest_free(ffull);
+
+    char cmd[1200];
+    snprintf(cmd, sizeof(cmd), "rm -rf '%s' '%s' '%s'", root, eroot, iroot);
     if (system(cmd) != 0) {
         fprintf(stderr, "warning: cleanup failed\n");
     }

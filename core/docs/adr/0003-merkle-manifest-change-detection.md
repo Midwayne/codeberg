@@ -34,6 +34,11 @@ that does not depend on filesystem events, used **per repository**.
   the natural cross-repo prune: skip the 99 repos whose root is unchanged.
 - `cberg_manifest_diff(prev, next)` produces added / modified / deleted file
   lists, descending only into subtrees whose rollup hash differs.
+- `cberg_manifest_rebuild(prev, root)` makes the steady state cheap: each leaf
+  carries a `(size, mtime)` stat fingerprint, so a rebuild reads and hashes only
+  the files that changed and reuses prior hashes for the rest — the git-index
+  technique. A full re-read would otherwise dominate (it is I/O-bound, not
+  hash-bound).
 
 This **complements**, and does not remove, `cberg_watcher`. The watcher remains
 the low-latency path for a live working tree; the manifest is the robust,
@@ -72,6 +77,10 @@ any downstream reconcile scoped to the repository that actually changed.
   detection*, not tamper resistance: XXH3 (not SHA), a flat arena-backed tree, and
   a linear path-sorted build. It buys pruning without the cost of a cryptographic
   Merkle tree.
+- **The build, not the tree, was the cost.** The directory-rolled tree with a
+  pruned diff is already efficient; the naïve part was re-reading every file each
+  build. A stat-cache (`rebuild`) fixes that without changing the tree shape — the
+  highest-leverage "faster Merkle" change, since hashing is fast and reads are not.
 
 ## Consequences
 

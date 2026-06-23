@@ -97,6 +97,11 @@ and reconciles after missed events or downtime — see
 Use one manifest **per repo** so a change in one repo never costs work proportional to
 the others.
 
+`cberg_manifest_rebuild` makes the steady state cheap: each leaf stores a
+`(size, mtime)` stat fingerprint, so a rebuild **reads only the files that changed**
+and reuses prior hashes for the rest (the git-index technique).
+`cberg_manifest_hashed_count` reports how many files were actually read.
+
 ### Watcher selects files; diff selects chunks
 
 The watcher names **which files** to re-read. `cberg_chunk_table_sync` is still
@@ -184,7 +189,7 @@ Fallible functions return `cberg_status`. Out-parameters are valid only on `CBER
 | `cberg_chunker` | `open`, `close`, `parse` | `chunk/chunker.c` | [chunk.md](modules/chunk.md) |
 | `cberg_chunk_list` | `len`, `at`, `free`, `hash_bodies` | `chunk/chunker.c` | [chunk.md](modules/chunk.md) |
 | `cberg_chunk_table` | `new`, `free`, `sync`, `len`, `fingerprint` | `chunk/chunk_table.c` | [chunk.md](modules/chunk.md) |
-| `cberg_manifest` | `build`, `free`, `root`, `len`, `at`, `diff` | `manifest/manifest.c` | [manifest.md](modules/manifest.md) |
+| `cberg_manifest` | `build`, `rebuild`, `free`, `root`, `len`, `at`, `diff` | `manifest/manifest.c` | [manifest.md](modules/manifest.md) |
 | `cberg_watcher` | `open`, `close`, `poll`, `dirty_paths` | `watch/watch.c` | [watch.md](modules/watch.md) |
 | `cberg_embedder` | `open`, `embed`, `close` | `embed/embed.c` | [embed.md](modules/embed.md) |
 | `cberg_index` | `open`, `add`, `remove`, `search`, `save` | `search/index.c` | [search.md](modules/search.md) |
@@ -521,7 +526,7 @@ not exposed in the public header.
 | `test_smoke` | Version string |
 | `test_chunker` | Extension detection, Go symbols, window fallback |
 | `test_chunk_table` | Cold sync, modify one hash, delete all |
-| `test_manifest` | Build, root stability, add/modify/delete diff, subtree pruning, empty repo |
+| `test_manifest` | Build, root stability, add/modify/delete diff, subtree pruning, empty repo, incremental rebuild (stat-cache reuse) |
 | `test_fingerprint` | Order independence, sensitivity, empty set |
 | `test_watch` | File modify detected under temp directory |
 

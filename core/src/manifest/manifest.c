@@ -6,6 +6,11 @@
  * children's (name, hash) pairs via cberg_fingerprint. The root node's hash is
  * the Merkle root.
  *
+ * Incremental build: cberg_manifest_rebuild reuses a previous manifest's leaf
+ * hash for any file whose size and mtime are unchanged (stat only, no read), so
+ * a rebuild reads and hashes only the files that actually changed — the rest are
+ * carried over. cberg_manifest_build is the from-scratch case (prev = NULL).
+ *
  * Diff: compare two trees top-down, pruning any directory whose rollup hash is
  * unchanged — so a localized edit costs O(changed files + path depth) instead
  * of O(all files). The root-hash equality check is the O(1) "did anything
@@ -14,13 +19,22 @@
 #include "codeberg/codeberg.h"
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include "arena.h"
 #include "grow.h"
 #include "pathutil.h"
+
+/* struct stat carries mtime nanoseconds under different member names. */
+#if defined(__APPLE__)
+#define CBERG_STAT_MTIME_NS(sb) ((int64_t)(sb).st_mtimespec.tv_sec * 1000000000LL + (int64_t)(sb).st_mtimespec.tv_nsec)
+#else
+#define CBERG_STAT_MTIME_NS(sb) ((int64_t)(sb).st_mtim.tv_sec * 1000000000LL + (int64_t)(sb).st_mtim.tv_nsec)
+#endif
 
 /* A file leaf or a directory node. Directory children are sorted by strcmp on
  * name, which reproduces the order of a path-sorted leaf list (siblings never
@@ -34,25 +48,67 @@ typedef struct manifest_node {
     size_t child_len;
 } manifest_node;
 
+/* Stat fingerprint kept parallel to `entries`, used to reuse a leaf hash on
+ * rebuild without re-reading the file. */
+typedef struct {
+    uint64_t size;
+    int64_t mtime_ns;
+} manifest_meta;
+
 struct cberg_manifest {
     cberg_arena *arena;
     cberg_manifest_entry *entries; /* sorted by path; malloc-owned */
+    manifest_meta *meta;           /* parallel to entries; malloc-owned */
     size_t len;
+    size_t hashed; /* files actually read+hashed in the build that produced this */
     manifest_node *root;
     uint8_t root_hash[CBERG_HASH_LEN];
 };
 
 /* ------------------------------------------------------------------ build */
 
+/* One collected file before the tree is folded. */
 typedef struct {
-    cberg_manifest *m;
+    char *path; /* arena-owned, repo-relative */
+    uint8_t hash[CBERG_HASH_LEN];
+    manifest_meta meta;
+} build_leaf;
+
+typedef struct {
+    cberg_arena *arena;
+    const cberg_manifest *prev; /* may be NULL: full build */
+    build_leaf *leaves;
+    size_t len;
     size_t cap;
+    size_t hashed;
     cberg_status err;
 } build_ctx;
 
 static bool manifest_skip(const char *name, void *ctx) {
     (void)ctx;
     return cberg_watch_skip_dir(name) != 0;
+}
+
+/* Binary search `prev` (entries sorted by path) for `path`. */
+static bool prev_lookup(const cberg_manifest *prev, const char *path, size_t *out_index) {
+    if (prev == NULL) {
+        return false;
+    }
+    size_t lo = 0, hi = prev->len;
+    while (lo < hi) {
+        size_t mid = lo + (hi - lo) / 2;
+        int c = strcmp(prev->entries[mid].path, path);
+        if (c == 0) {
+            *out_index = mid;
+            return true;
+        }
+        if (c < 0) {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+    return false;
 }
 
 static char *read_all(const char *abs, size_t *out_len) {
@@ -86,42 +142,59 @@ static cberg_status build_visit(void *vctx, const char *abs, const char *rel, cb
     if (kind != CBERG_FS_FILE) {
         return CBERG_OK;
     }
-    size_t len = 0;
-    char *data = read_all(abs, &len);
-    if (data == NULL) {
-        return CBERG_OK; /* unreadable file: skip, not fatal */
+    struct stat sb;
+    if (stat(abs, &sb) != 0) {
+        return CBERG_OK; /* vanished between walk and stat: skip */
+    }
+    manifest_meta meta = {.size = (uint64_t)sb.st_size, .mtime_ns = CBERG_STAT_MTIME_NS(sb)};
+
+    char *path = cberg_arena_strdup(ctx->arena, rel);
+    if (path == NULL) {
+        ctx->err = CBERG_ERR_OUT_OF_MEMORY;
+        return CBERG_ERR_OUT_OF_MEMORY;
     }
 
-    cberg_manifest *m = ctx->m;
-    if (m->len + 1 > ctx->cap) {
-        size_t cap = cberg_grow_cap(ctx->cap, m->len + 1, 64);
-        cberg_manifest_entry *grown = realloc(m->entries, cap * sizeof(*grown));
+    uint8_t hash[CBERG_HASH_LEN];
+    size_t pi = 0;
+    if (prev_lookup(ctx->prev, rel, &pi) && ctx->prev->meta[pi].size == meta.size &&
+        ctx->prev->meta[pi].mtime_ns == meta.mtime_ns) {
+        memcpy(hash, ctx->prev->entries[pi].hash, CBERG_HASH_LEN); /* unchanged: reuse, no read */
+    } else {
+        size_t len = 0;
+        char *data = read_all(abs, &len);
+        if (data == NULL) {
+            return CBERG_OK; /* unreadable: skip leaf, not fatal */
+        }
+        cberg_status st = cberg_hash(data, len, hash);
+        free(data);
+        if (st != CBERG_OK) {
+            ctx->err = st;
+            return st;
+        }
+        ctx->hashed++;
+    }
+
+    if (ctx->len + 1 > ctx->cap) {
+        size_t cap = cberg_grow_cap(ctx->cap, ctx->len + 1, 64);
+        build_leaf *grown = realloc(ctx->leaves, cap * sizeof(*grown));
         if (grown == NULL) {
-            free(data);
             ctx->err = CBERG_ERR_OUT_OF_MEMORY;
             return CBERG_ERR_OUT_OF_MEMORY;
         }
-        m->entries = grown;
+        ctx->leaves = grown;
         ctx->cap = cap;
     }
-
-    cberg_manifest_entry *e = &m->entries[m->len];
-    char *path = cberg_arena_strdup(m->arena, rel);
-    cberg_status st = cberg_hash(data, len, e->hash);
-    free(data);
-    if (path == NULL || st != CBERG_OK) {
-        ctx->err = path == NULL ? CBERG_ERR_OUT_OF_MEMORY : st;
-        return ctx->err;
-    }
-    e->path = path;
-    m->len++;
+    build_leaf *bl = &ctx->leaves[ctx->len++];
+    bl->path = path;
+    bl->meta = meta;
+    memcpy(bl->hash, hash, CBERG_HASH_LEN);
     return CBERG_OK;
 }
 
-static int compare_entry_path(const void *a, const void *b) {
-    const cberg_manifest_entry *ea = a;
-    const cberg_manifest_entry *eb = b;
-    return strcmp(ea->path, eb->path);
+static int compare_leaf_path(const void *a, const void *b) {
+    const build_leaf *la = a;
+    const build_leaf *lb = b;
+    return strcmp(la->path, lb->path);
 }
 
 /* End byte offset of the path component of `rel` starting at `from` (up to the
@@ -255,7 +328,7 @@ static manifest_node *build_subtree(cberg_manifest *m, const cberg_manifest_entr
     return node;
 }
 
-cberg_status cberg_manifest_build(const char *root, cberg_manifest **out_manifest) {
+cberg_status cberg_manifest_rebuild(const cberg_manifest *prev, const char *root, cberg_manifest **out_manifest) {
     if (root == NULL || out_manifest == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
@@ -271,16 +344,35 @@ cberg_status cberg_manifest_build(const char *root, cberg_manifest **out_manifes
         return CBERG_ERR_OUT_OF_MEMORY;
     }
 
-    build_ctx ctx = {.m = m, .cap = 0, .err = CBERG_OK};
+    build_ctx ctx = {.arena = m->arena, .prev = prev};
     cberg_status st = cberg_fs_walk(root, "", build_visit, &ctx, manifest_skip, NULL);
     if (st != CBERG_OK) {
+        free(ctx.leaves);
         cberg_manifest_free(m);
         return ctx.err != CBERG_OK ? ctx.err : st;
     }
 
-    if (m->len > 1) {
-        qsort(m->entries, m->len, sizeof(*m->entries), compare_entry_path);
+    if (ctx.len > 1) {
+        qsort(ctx.leaves, ctx.len, sizeof(*ctx.leaves), compare_leaf_path);
     }
+
+    if (ctx.len > 0) {
+        m->entries = malloc(ctx.len * sizeof(*m->entries));
+        m->meta = malloc(ctx.len * sizeof(*m->meta));
+        if (m->entries == NULL || m->meta == NULL) {
+            free(ctx.leaves);
+            cberg_manifest_free(m);
+            return CBERG_ERR_OUT_OF_MEMORY;
+        }
+        for (size_t i = 0; i < ctx.len; i++) {
+            m->entries[i].path = ctx.leaves[i].path;
+            memcpy(m->entries[i].hash, ctx.leaves[i].hash, CBERG_HASH_LEN);
+            m->meta[i] = ctx.leaves[i].meta;
+        }
+    }
+    m->len = ctx.len;
+    m->hashed = ctx.hashed;
+    free(ctx.leaves);
 
     cberg_status berr = CBERG_OK;
     const char *empty = cberg_arena_strdup(m->arena, "");
@@ -299,11 +391,16 @@ cberg_status cberg_manifest_build(const char *root, cberg_manifest **out_manifes
     return CBERG_OK;
 }
 
+cberg_status cberg_manifest_build(const char *root, cberg_manifest **out_manifest) {
+    return cberg_manifest_rebuild(NULL, root, out_manifest);
+}
+
 void cberg_manifest_free(cberg_manifest *manifest) {
     if (manifest == NULL) {
         return;
     }
     free(manifest->entries);
+    free(manifest->meta);
     cberg_arena_free(manifest->arena);
     free(manifest);
 }
@@ -317,6 +414,10 @@ void cberg_manifest_root(const cberg_manifest *manifest, uint8_t out[CBERG_HASH_
 
 size_t cberg_manifest_len(const cberg_manifest *manifest) {
     return manifest == NULL ? 0 : manifest->len;
+}
+
+size_t cberg_manifest_hashed_count(const cberg_manifest *manifest) {
+    return manifest == NULL ? 0 : manifest->hashed;
 }
 
 const cberg_manifest_entry *cberg_manifest_at(const cberg_manifest *manifest, size_t index) {

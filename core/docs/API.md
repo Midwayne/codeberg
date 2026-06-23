@@ -254,9 +254,25 @@ fatal. Empty repo ⇒ zero leaves, all-zero root.
 **Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT` (NULL arg), `CBERG_ERR_IO`
 (`root` cannot be opened), `CBERG_ERR_OUT_OF_MEMORY`.
 
+### `cberg_manifest_rebuild(const cberg_manifest *prev, const char *root, cberg_manifest **out_manifest)`
+
+Incremental build. Reuses `prev`'s leaf hash for any file whose size and mtime match
+`prev` (stat only, no read); only changed and new files are read and hashed. `prev`
+may be NULL — then identical to `cberg_manifest_build`. `prev` is read-only and not
+retained. **Caveat:** a same-size edit within the filesystem's mtime resolution can be
+missed (stat-cache race); pair with an occasional full build (`prev = NULL`).
+
+**Returns:** as `cberg_manifest_build`.
+
 ### `cberg_manifest_free(cberg_manifest *manifest)`
 
 Releases the manifest (NULL-safe).
+
+### `cberg_manifest_hashed_count(const cberg_manifest *manifest)`
+
+Number of file bodies actually read and hashed in the build that produced this
+manifest; the rest were reused from `prev`. Equals the leaf count for a full build, `0`
+for a rebuild of an unchanged tree. For monitoring and tests.
 
 ### `cberg_manifest_root(const cberg_manifest *manifest, uint8_t out[CBERG_HASH_LEN])`
 

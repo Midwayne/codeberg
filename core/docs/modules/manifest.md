@@ -73,6 +73,32 @@ All nodes, names, paths, and child arrays are bump-allocated from one
 `CBERG_ERR_IO` if `root` itself cannot be opened; empty repo ⇒ zero leaves and an
 all-zero root.
 
+### Incremental rebuild — `cberg_manifest_rebuild(prev, root, &m)`
+
+The from-scratch build re-reads **every** file — its cost is `O(total bytes)` of
+I/O, dominated by reads, not by the (very fast) XXH3 hashing. The rebuild avoids
+that: each leaf stores a `manifest_meta { size, mtime_ns }` stat fingerprint, and
+on rebuild a file whose `size` **and** `mtime` match `prev` reuses `prev`'s leaf
+hash **without reading the file**. Only changed and new files are read and hashed.
+
+```
+for each file under root:
+    stat (no read)
+    if prev has this path with the same size+mtime:  reuse prev leaf hash
+    else:                                            read + hash   (count it)
+```
+
+`prev` is found by binary search over its path-sorted `entries`.
+`cberg_manifest_hashed_count` reports how many files were actually read this build
+(0 for an unchanged tree, the leaf count for a full build) — useful for monitoring
+and the test suite. `cberg_manifest_build(root)` is exactly `rebuild(NULL, root)`.
+
+This is the same stat-cache technique git uses for its index. **Caveat:** an edit
+that keeps a file's size and lands within the filesystem's mtime resolution can be
+missed (the classic "racy clean" case). Mitigate by running an occasional full
+build (`prev = NULL`); the watcher, when available, covers the live-edit path. The
+tree fold and diff are unchanged — only leaf computation became incremental.
+
 ### `build_subtree(...)` — static
 
 Builds the node for `leaves[lo, hi)` sharing a `prefix`-byte directory path. Two
@@ -132,7 +158,7 @@ releases the three arrays (not the strings).
 cberg_manifest *prev = /* last-indexed manifest for this repo */;
 
 cberg_manifest *next = NULL;
-cberg_manifest_build(repo_root, &next);
+cberg_manifest_rebuild(prev, repo_root, &next);  // reads only changed files
 
 uint8_t a[CBERG_HASH_LEN], b[CBERG_HASH_LEN];
 cberg_manifest_root(prev, a);
@@ -157,7 +183,7 @@ one of 100 repos never costs work proportional to the other 99.
 
 | Object | Lifetime | Notes |
 |--------|----------|-------|
-| `cberg_manifest` | `build` / `free` | owns one arena + flat entries array |
+| `cberg_manifest` | `build` / `rebuild` / `free` | owns one arena + flat entries and stat-meta arrays |
 | `cberg_manifest_entry*` (from `_at`) | until `free` | borrows arena strings |
 | `cberg_manifest_changes` | `diff` / `diff_free` | path arrays malloc'd; strings borrowed from the manifests |
 
