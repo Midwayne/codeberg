@@ -200,6 +200,8 @@ endforeach()
 
 add_library(codeberg::codeberg ALIAS codeberg_static)
 
+enable_testing()
+
 add_subdirectory(cmd/cberg-index)
 
 set(CBERG_PC_LIBS " -lm")
@@ -219,5 +221,4 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/libcodeberg.pc.in ${CMAKE_CURRENT_BIN
 file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/libcodeberg.pc
      INPUT ${CMAKE_CURRENT_BINARY_DIR}/libcodeberg.pc.in.tmp)
 
-enable_testing()
 add_subdirectory(test)
