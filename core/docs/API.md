@@ -296,6 +296,35 @@ path, different hash), `deleted` (only in `prev`).
 
 Frees the three path arrays (not the borrowed strings); NULL-safe.
 
+### `cberg_manifest_tracker` — incremental polling with periodic full rebuild
+
+Wraps the rolling-baseline pattern and the stat-cache self-heal policy. Owns the
+baseline manifest for one repo; **one tracker per repo**.
+
+#### `cberg_manifest_tracker_open(const char *root, size_t full_interval, cberg_manifest_tracker **out_tracker)`
+
+Builds the initial full baseline. `full_interval` = the number of consecutive
+incremental polls allowed before one is forced to be a full rebuild (self-healing the
+stat-cache race); `0` disables forced full builds. **Returns:** as
+`cberg_manifest_build`.
+
+#### `cberg_manifest_tracker_close(cberg_manifest_tracker *tracker)`
+
+Releases the tracker and its baselines (NULL-safe).
+
+#### `cberg_manifest_tracker_poll(cberg_manifest_tracker *tracker, cberg_manifest_changes *out_changes, int *out_full)`
+
+Rebuilds against the current baseline (full every `full_interval`-th poll) and reports
+changes since the previous poll. The change arrays are **owned by the tracker** and valid
+until the next poll or close — do **not** `cberg_manifest_diff_free` them. `out_full`
+(optional) receives `1` on a full rebuild else `0`. On failure the tracker is unchanged.
+**Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_IO`, `CBERG_ERR_OUT_OF_MEMORY`.
+
+#### `cberg_manifest_tracker_current(const cberg_manifest_tracker *tracker)`
+
+Current baseline manifest — e.g. to bootstrap a cold index from every file via
+`cberg_manifest_at`. Valid until the next poll or close.
+
 ---
 
 ## Filesystem watcher

@@ -179,6 +179,38 @@ one of 100 repos never costs work proportional to the other 99.
 
 ---
 
+## Tracker — incremental polling with periodic full rebuild
+
+`cberg_manifest_tracker` wraps the baseline juggling above and adds the self-heal
+policy for the stat-cache race. It owns the rolling baseline and, after
+`full_interval` consecutive incremental rebuilds, forces one full build so a
+same-size edit that slipped past the stat cache is caught no later than
+`full_interval + 1` polls. `full_interval == 0` means pure incremental.
+
+```c
+cberg_manifest_tracker *trk = NULL;
+cberg_manifest_tracker_open(repo_root, 16, &trk);   // full rebuild every 16 polls
+
+for (;;) {                                          // caller's own cadence
+    cberg_manifest_changes ch = {0};
+    int full = 0;
+    cberg_manifest_tracker_poll(trk, &ch, &full);
+    // re-chunk ch.modified ∪ ch.added; purge chunks of ch.deleted
+    // (do NOT diff_free ch — the tracker owns it)
+}
+cberg_manifest_tracker_close(trk);
+```
+
+The change arrays returned by `poll` are owned by the tracker and valid until the
+next `poll` or `close` — the same "valid until next call" contract as
+`cberg_changes`. Internally the tracker keeps **two** baselines alive (`prev` and
+`current`) so the borrowed `deleted` paths (which point into `prev`) stay valid
+until the next poll; the baseline from two polls ago is freed only after its
+change arrays are. The policy is deliberately scheduler-agnostic — no timers in
+the core — so it composes with whatever drives the polling.
+
+---
+
 ## Ownership and threading
 
 | Object | Lifetime | Notes |
@@ -186,6 +218,7 @@ one of 100 repos never costs work proportional to the other 99.
 | `cberg_manifest` | `build` / `rebuild` / `free` | owns one arena + flat entries and stat-meta arrays |
 | `cberg_manifest_entry*` (from `_at`) | until `free` | borrows arena strings |
 | `cberg_manifest_changes` | `diff` / `diff_free` | path arrays malloc'd; strings borrowed from the manifests |
+| `cberg_manifest_tracker` | `open` / `close` | owns two baselines + the last change arrays; poll output valid until next poll |
 
 Build and diff are pure over their inputs; distinct manifests can be built on
 separate threads. A single manifest is read-only after `build`.

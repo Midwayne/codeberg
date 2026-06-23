@@ -543,3 +543,103 @@ void cberg_manifest_diff_free(cberg_manifest_changes *changes) {
     free((void *)changes->deleted);
     memset(changes, 0, sizeof(*changes));
 }
+
+/* ---------------------------------------------------------------- tracker */
+
+struct cberg_manifest_tracker {
+    char *root;
+    size_t full_interval;
+    size_t since_full;              /* consecutive incremental rebuilds since the last full */
+    cberg_manifest *prev;           /* baseline before current; kept alive for deleted-path borrows */
+    cberg_manifest *current;        /* latest baseline */
+    cberg_manifest_changes changes; /* owned; borrows from prev+current; freed on next poll/close */
+    bool has_changes;
+};
+
+cberg_status cberg_manifest_tracker_open(const char *root, size_t full_interval, cberg_manifest_tracker **out_tracker) {
+    if (root == NULL || out_tracker == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    *out_tracker = NULL;
+
+    cberg_manifest_tracker *t = calloc(1, sizeof(*t));
+    if (t == NULL) {
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+    size_t n = strlen(root) + 1;
+    t->root = malloc(n);
+    if (t->root == NULL) {
+        free(t);
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+    memcpy(t->root, root, n);
+    t->full_interval = full_interval;
+
+    cberg_status st = cberg_manifest_build(root, &t->current);
+    if (st != CBERG_OK) {
+        free(t->root);
+        free(t);
+        return st;
+    }
+    *out_tracker = t;
+    return CBERG_OK;
+}
+
+void cberg_manifest_tracker_close(cberg_manifest_tracker *tracker) {
+    if (tracker == NULL) {
+        return;
+    }
+    if (tracker->has_changes) {
+        cberg_manifest_diff_free(&tracker->changes);
+    }
+    cberg_manifest_free(tracker->prev);
+    cberg_manifest_free(tracker->current);
+    free(tracker->root);
+    free(tracker);
+}
+
+cberg_status cberg_manifest_tracker_poll(cberg_manifest_tracker *tracker, cberg_manifest_changes *out_changes,
+                                         int *out_full) {
+    if (tracker == NULL || out_changes == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    bool full = tracker->full_interval > 0 && tracker->since_full >= tracker->full_interval;
+
+    cberg_manifest *next = NULL;
+    cberg_status st = full ? cberg_manifest_build(tracker->root, &next)
+                           : cberg_manifest_rebuild(tracker->current, tracker->root, &next);
+    if (st != CBERG_OK) {
+        return st; /* tracker unchanged on failure */
+    }
+
+    cberg_manifest_changes ch = {0};
+    st = cberg_manifest_diff(tracker->current, next, &ch);
+    if (st != CBERG_OK) {
+        cberg_manifest_free(next);
+        return st;
+    }
+
+    /* Rotate baselines. Free the previous poll's change arrays first; the
+     * baseline from two polls ago is then unreferenced and freed. The newly
+     * returned `ch` borrows from `current` (now `prev`) and `next` (now
+     * `current`), both kept alive until the next poll. */
+    if (tracker->has_changes) {
+        cberg_manifest_diff_free(&tracker->changes);
+    }
+    cberg_manifest_free(tracker->prev);
+    tracker->prev = tracker->current;
+    tracker->current = next;
+    tracker->changes = ch;
+    tracker->has_changes = true;
+    tracker->since_full = full ? 0 : tracker->since_full + 1;
+
+    *out_changes = ch;
+    if (out_full != NULL) {
+        *out_full = full ? 1 : 0;
+    }
+    return CBERG_OK;
+}
+
+const cberg_manifest *cberg_manifest_tracker_current(const cberg_manifest_tracker *tracker) {
+    return tracker == NULL ? NULL : tracker->current;
+}

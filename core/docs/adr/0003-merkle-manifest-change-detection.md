@@ -39,6 +39,10 @@ that does not depend on filesystem events, used **per repository**.
   the files that changed and reuses prior hashes for the rest — the git-index
   technique. A full re-read would otherwise dominate (it is I/O-bound, not
   hash-bound).
+- `cberg_manifest_tracker` owns the rolling baseline and forces a full rebuild
+  every `full_interval` polls, bounding how long a stat-cache miss (a same-size
+  edit within mtime resolution) can hide. The policy is scheduler-agnostic and
+  lives in the core, so it stays independent of the daemon.
 
 This **complements**, and does not remove, `cberg_watcher`. The watcher remains
 the low-latency path for a live working tree; the manifest is the robust,
