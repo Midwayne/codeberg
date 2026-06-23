@@ -56,7 +56,10 @@ help:
 	@echo "Variables: BUILD_TYPE=$(BUILD_TYPE)  JOBS=$(JOBS)"
 
 submodules:
-	git -C $(ROOT) submodule update --init --recursive
+	# --force materializes working trees even from a half-initialized clone
+	# (a local `git clone` can leave submodules with a gitdir but no checkout,
+	# which a plain `update` would silently no-op).
+	git -C $(ROOT) submodule update --init --recursive --force
 
 build:
 	@test -f $(CORE)/third_party/tree-sitter/lib/src/lib.c || $(MAKE) submodules
