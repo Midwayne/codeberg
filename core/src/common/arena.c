@@ -80,6 +80,13 @@ static void *arena_alloc(cberg_arena *arena, size_t size, size_t align) {
     return out;
 }
 
+void *cberg_arena_alloc(cberg_arena *arena, size_t size) {
+    if (arena == NULL) {
+        return NULL;
+    }
+    return arena_alloc(arena, size, 8);
+}
+
 char *cberg_arena_dup(cberg_arena *arena, const char *src, size_t len) {
     if (arena == NULL || src == NULL) {
         return NULL;

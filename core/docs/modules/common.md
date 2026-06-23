@@ -81,8 +81,9 @@ See [API.md](../API.md#cberg_fingerprint).
 
 ## `arena.c` / `arena.h`
 
-Bump allocator for chunk list strings (keys, paths, symbols). One arena per
-`cberg_chunk_list`; freed when the list is freed.
+Bump allocator for chunk list strings (keys, paths, symbols) and manifest tree
+nodes. One arena per `cberg_chunk_list` / `cberg_manifest`; freed when the owner is
+freed.
 
 ### Data structures
 
@@ -109,6 +110,12 @@ needed). NULL-safe.
 Allocates `size` bytes at `align` boundary from the head block. If insufficient room,
 prepends a new block (at least `CBERG_ARENA_BLOCK` or `size + align - 1`). Returns NULL
 on OOM. May recurse once if alignment pushes allocation past block end.
+
+### `cberg_arena_alloc(cberg_arena *arena, size_t size)`
+
+Raw `size`-byte allocation at 8-byte alignment (no copy, not zeroed). Returns NULL if
+`arena` is NULL or allocation fails. Used for non-string records such as manifest tree
+nodes and child-pointer arrays.
 
 ### `cberg_arena_dup(cberg_arena *arena, const char *src, size_t len)`
 

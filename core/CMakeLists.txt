@@ -82,6 +82,7 @@ set(CBERG_SOURCES
   src/chunk/chunk_keys.c
   src/chunk/chunker.c
   src/chunk/chunk_table.c
+  src/manifest/manifest.c
   src/watch/watch.c
   src/watch/watch_walk.c
   ${CBERG_WATCH_PLATFORM_SRC}

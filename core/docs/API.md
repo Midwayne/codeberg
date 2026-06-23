@@ -214,6 +214,74 @@ Recomputes set fingerprint on success. Change arrays are replaced only after a s
 
 ---
 
+## Merkle manifest (content-derived change detection)
+
+A Merkle tree over one repository's files: file bodies are XXH3-128 leaves, directory
+nodes roll up their children's `(name, hash)` pairs via `cberg_fingerprint`. Detects
+changes without filesystem-event watches — for many-repo scale where inotify watch
+counts run out, and for reconciling after missed events. Use **one manifest per repo**.
+Implementation: [modules/manifest.md](modules/manifest.md). Rationale:
+[adr/0003-merkle-manifest-change-detection.md](adr/0003-merkle-manifest-change-detection.md).
+
+### `cberg_manifest_entry`
+
+```c
+typedef struct cberg_manifest_entry {
+    const char *path;            /* repo-relative */
+    uint8_t hash[CBERG_HASH_LEN];/* XXH3-128 of the file bytes */
+} cberg_manifest_entry;
+```
+
+### `cberg_manifest_changes`
+
+```c
+typedef struct cberg_manifest_changes {
+    const char **added;    size_t added_len;     /* borrow from `next` */
+    const char **modified; size_t modified_len;  /* borrow from `next` */
+    const char **deleted;  size_t deleted_len;   /* borrow from `prev` */
+} cberg_manifest_changes;
+```
+
+Path pointers stay valid until the manifest they borrow from is freed.
+
+### `cberg_manifest_build(const char *root, cberg_manifest **out_manifest)`
+
+Walks `root` (one repo), hashing every file body into a path-sorted leaf set, then folds
+the leaves into a directory tree with rolled-up hashes. Skips dependency directories via
+the watcher walk policy (`.git`, `node_modules`, …). Unreadable files are skipped, not
+fatal. Empty repo ⇒ zero leaves, all-zero root.
+
+**Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT` (NULL arg), `CBERG_ERR_IO`
+(`root` cannot be opened), `CBERG_ERR_OUT_OF_MEMORY`.
+
+### `cberg_manifest_free(cberg_manifest *manifest)`
+
+Releases the manifest (NULL-safe).
+
+### `cberg_manifest_root(const cberg_manifest *manifest, uint8_t out[CBERG_HASH_LEN])`
+
+Writes the Merkle root. Equal roots from two builds imply identical content — the O(1)
+"did this repo change at all" gate. All-zero for an empty repo.
+
+### `cberg_manifest_len(const cberg_manifest *manifest)` / `cberg_manifest_at(const cberg_manifest *manifest, size_t index)`
+
+Flat sorted leaf access — e.g. to bootstrap a cold index from every file. `at` returns
+NULL when out of range; the pointer is valid until `free`.
+
+### `cberg_manifest_diff(const cberg_manifest *prev, const cberg_manifest *next, cberg_manifest_changes *out_changes)`
+
+File-level diff with subtree pruning: a directory whose rollup hash is unchanged is
+skipped without inspecting its files. Reports `added` (only in `next`), `modified` (same
+path, different hash), `deleted` (only in `prev`).
+
+**Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_OUT_OF_MEMORY`.
+
+### `cberg_manifest_diff_free(cberg_manifest_changes *changes)`
+
+Frees the three path arrays (not the borrowed strings); NULL-safe.
+
+---
+
 ## Filesystem watcher
 
 ### `cberg_watch_kind`

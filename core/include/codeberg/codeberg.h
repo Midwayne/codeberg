@@ -188,6 +188,64 @@ CBERG_API const cberg_stored_chunk *cberg_chunk_table_at(const cberg_chunk_table
 CBERG_API cberg_status cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk *incoming, size_t count,
                                               cberg_changes *out_changes);
 
+/* --- Merkle manifest (content-derived change detection) ----------------- */
+
+/*
+ * A Merkle tree over one repository's files. Leaves are file bodies hashed with
+ * XXH3-128; directory nodes roll up the (name, hash) pairs of their children.
+ * The root hash is a single digest over the whole tree.
+ *
+ * This detects what changed without relying on filesystem-event watches (which
+ * are bounded by inotify limits across many repos): equal root hashes mean the
+ * tree is unchanged, and the diff descends only into subtrees whose rollup hash
+ * differs. Intended for one manifest per repo; compare a freshly built manifest
+ * against the last-indexed one (e.g. after a git pull) to drive re-chunking.
+ */
+typedef struct cberg_manifest cberg_manifest;
+
+/* One file leaf: repo-relative path and the XXH3-128 hash of its bytes. */
+typedef struct cberg_manifest_entry {
+    const char *path;
+    uint8_t hash[CBERG_HASH_LEN];
+} cberg_manifest_entry;
+
+/*
+ * Walks `root` (a single repository) and builds a manifest. Skips dependency
+ * directories via the watcher walk policy (.git, node_modules, …). Unreadable
+ * files are skipped, not fatal. Leaves are sorted by repo-relative path.
+ * Returns CBERG_ERR_IO when `root` itself cannot be opened.
+ */
+CBERG_API cberg_status cberg_manifest_build(const char *root, cberg_manifest **out_manifest);
+
+CBERG_API void cberg_manifest_free(cberg_manifest *manifest);
+
+/* Merkle root over the whole tree; all-zero for an empty repo. Two builds with
+ * identical file contents produce equal roots. */
+CBERG_API void cberg_manifest_root(const cberg_manifest *manifest, uint8_t out[CBERG_HASH_LEN]);
+
+/* Flat sorted leaf access — e.g. to bootstrap a cold index from every file. */
+CBERG_API size_t cberg_manifest_len(const cberg_manifest *manifest);
+CBERG_API const cberg_manifest_entry *cberg_manifest_at(const cberg_manifest *manifest, size_t index);
+
+/*
+ * File-level diff between two manifests of the same repo. Path pointers in
+ * `added`/`modified` borrow from `next`; those in `deleted` borrow from `prev`
+ * — all valid until either manifest is freed. Subtrees whose directory rollup
+ * hash is unchanged are skipped without inspecting their files.
+ */
+typedef struct cberg_manifest_changes {
+    const char **added;
+    size_t added_len;
+    const char **modified;
+    size_t modified_len;
+    const char **deleted;
+    size_t deleted_len;
+} cberg_manifest_changes;
+
+CBERG_API cberg_status cberg_manifest_diff(const cberg_manifest *prev, const cberg_manifest *next,
+                                           cberg_manifest_changes *out_changes);
+CBERG_API void cberg_manifest_diff_free(cberg_manifest_changes *changes);
+
 /* --- Filesystem watcher ------------------------------------------------- */
 
 typedef enum cberg_watch_kind {

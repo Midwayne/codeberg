@@ -38,7 +38,8 @@ see [modules/](modules/).
 | Hash | `cberg_hash` | XXH3-128 digest of each chunk’s source bytes (zero-padded to 32 bytes) |
 | Diff | `cberg_chunk_table` | Added, modified, and deleted chunks since the last pass |
 | Summarize | `cberg_fingerprint` | Single digest over the whole chunk set |
-| Watch | `cberg_watcher` | Repo-relative paths that changed on disk |
+| Watch | `cberg_watcher` | Repo-relative paths that changed on disk (live tree) |
+| Manifest | `cberg_manifest` | Merkle tree over a repo's files; watch-free change detection at many-repo scale |
 
 The diff is the contract for downstream work: only **added** and **modified** chunks
 need embedding; **deleted** chunks need purging from the vector index (phase 2).
@@ -81,6 +82,20 @@ An optional **daemon** may run scheduled `git pull` to refresh a mirror. That wr
 files to disk; the watcher sees the same events as a local save. The daemon must not
 invoke chunk/sync on a timer — see
 [adr/0002-watcher-driven-indexing.md](adr/0002-watcher-driven-indexing.md).
+
+### Content-derived change detection (many repos)
+
+The watcher needs one OS watch per directory. Across a directory of many mirrored
+repositories that exceeds `fs.inotify.max_user_watches`, and overflowing the event
+queue drops changes silently. For that scale `cberg_manifest` provides a
+**watch-free** detector: it builds a Merkle tree over a repo's files (XXH3-128 leaf
+digests, `cberg_fingerprint` directory rollups), so an unchanged repo is dismissed by
+one root-hash compare and a localized edit is found by descending only the changed
+subtree. It **complements** the watcher (still the low-latency path for a live tree)
+and reconciles after missed events or downtime — see
+[adr/0003-merkle-manifest-change-detection.md](adr/0003-merkle-manifest-change-detection.md).
+Use one manifest **per repo** so a change in one repo never costs work proportional to
+the others.
 
 ### Watcher selects files; diff selects chunks
 
@@ -169,6 +184,7 @@ Fallible functions return `cberg_status`. Out-parameters are valid only on `CBER
 | `cberg_chunker` | `open`, `close`, `parse` | `chunk/chunker.c` | [chunk.md](modules/chunk.md) |
 | `cberg_chunk_list` | `len`, `at`, `free`, `hash_bodies` | `chunk/chunker.c` | [chunk.md](modules/chunk.md) |
 | `cberg_chunk_table` | `new`, `free`, `sync`, `len`, `fingerprint` | `chunk/chunk_table.c` | [chunk.md](modules/chunk.md) |
+| `cberg_manifest` | `build`, `free`, `root`, `len`, `at`, `diff` | `manifest/manifest.c` | [manifest.md](modules/manifest.md) |
 | `cberg_watcher` | `open`, `close`, `poll`, `dirty_paths` | `watch/watch.c` | [watch.md](modules/watch.md) |
 | `cberg_embedder` | `open`, `embed`, `close` | `embed/embed.c` | [embed.md](modules/embed.md) |
 | `cberg_index` | `open`, `add`, `remove`, `search`, `save` | `search/index.c` | [search.md](modules/search.md) |
@@ -441,6 +457,7 @@ core/
 ├── src/
 │   ├── common/           arena, hash, lang, pathutil, status, version
 │   ├── chunk/            chunker, chunk_table
+│   ├── manifest/         merkle manifest (content-derived change detection)
 │   ├── watch/            filesystem watcher
 │   ├── embed/            ONNX embedder + tokenizer
 │   └── search/           usearch index + semantic search
@@ -504,6 +521,7 @@ not exposed in the public header.
 | `test_smoke` | Version string |
 | `test_chunker` | Extension detection, Go symbols, window fallback |
 | `test_chunk_table` | Cold sync, modify one hash, delete all |
+| `test_manifest` | Build, root stability, add/modify/delete diff, subtree pruning, empty repo |
 | `test_fingerprint` | Order independence, sensitivity, empty set |
 | `test_watch` | File modify detected under temp directory |
 
