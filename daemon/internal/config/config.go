@@ -5,8 +5,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"time"
-
-	"codeberg.org/codeberg/daemon/internal/cberg"
 )
 
 const (
@@ -14,17 +12,20 @@ const (
 	EnvModel      = "CBERG_MODEL"
 	EnvIndexPath  = "CBERG_INDEX_PATH"
 	EnvPollMS     = "CBERG_POLL_MS"
+	EnvSocket     = "CBERG_SOCKET"
+	EnvIndexerBin = "CBERG_INDEX_BIN"
 	EnvHTTPPort   = "CODEBERG_HTTP_PORT"
 	EnvGitPullSec = "CODEBERG_GIT_PULL_INTERVAL_SEC"
 	EnvGitDir     = "CODEBERG_GIT_DIR"
 )
 
 type Indexer struct {
-	Root    string
-	Model   string
-	Index   string
-	Poll    time.Duration
-	Vectors bool
+	Root   string
+	Model  string
+	Index  string
+	PollMS int
+	Socket string
+	Bin    string
 }
 
 type Daemon struct {
@@ -34,40 +35,8 @@ type Daemon struct {
 	GitDir   string
 }
 
-func LoadIndexer() (Indexer, error) {
-	root := os.Getenv(EnvRoot)
-	if root == "" {
-		return Indexer{}, missing(EnvRoot)
-	}
-	resolved, err := cberg.ResolveIndexRoot()
-	if err != nil {
-		resolved, err = filepath.Abs(root)
-		if err != nil {
-			return Indexer{}, invalid(EnvRoot)
-		}
-	}
-	model := os.Getenv(EnvModel)
-	indexPath := os.Getenv(EnvIndexPath)
-	poll := 1000
-	if v := os.Getenv(EnvPollMS); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil || n < 0 {
-			return Indexer{}, invalid(EnvPollMS)
-		}
-		poll = n
-	}
-	vectors := model != "" && indexPath != ""
-	return Indexer{
-		Root:    resolved,
-		Model:   model,
-		Index:   indexPath,
-		Poll:    time.Duration(poll) * time.Millisecond,
-		Vectors: vectors,
-	}, nil
-}
-
 func LoadDaemon() (Daemon, error) {
-	idx, err := LoadIndexer()
+	idx, err := loadIndexer()
 	if err != nil {
 		return Daemon{}, err
 	}
@@ -93,6 +62,54 @@ func LoadDaemon() (Daemon, error) {
 		GitPull:  pull,
 		GitDir:   gitDir,
 	}, nil
+}
+
+func loadIndexer() (Indexer, error) {
+	root := os.Getenv(EnvRoot)
+	if root == "" {
+		return Indexer{}, missing(EnvRoot)
+	}
+	resolved, err := resolveRoot(root)
+	if err != nil {
+		return Indexer{}, invalid(EnvRoot)
+	}
+	model := os.Getenv(EnvModel)
+	indexPath := os.Getenv(EnvIndexPath)
+	poll := 1000
+	if v := os.Getenv(EnvPollMS); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 {
+			return Indexer{}, invalid(EnvPollMS)
+		}
+		poll = n
+	}
+	if poll <= 0 {
+		poll = 1000
+	}
+	socket := os.Getenv(EnvSocket)
+	if socket == "" {
+		socket = "/tmp/codeberg-index.sock"
+	}
+	return Indexer{
+		Root:   resolved,
+		Model:  model,
+		Index:  indexPath,
+		PollMS: poll,
+		Socket: socket,
+		Bin:    os.Getenv(EnvIndexerBin),
+	}, nil
+}
+
+func resolveRoot(root string) (string, error) {
+	abs, err := filepath.Abs(root)
+	if err != nil {
+		return "", err
+	}
+	real, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return abs, nil
+	}
+	return real, nil
 }
 
 func missing(name string) error {

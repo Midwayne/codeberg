@@ -26,7 +26,7 @@ codeberg/
 │   ├── src/             common, chunk, watch, embed, search
 │   ├── test/            ctest binaries
 │   └── docs/            architecture, API, ADRs
-├── daemon/              Go: cberg-index + codeberg-d (CGO → libcodeberg)
+├── daemon/              Go: codeberg-d (HTTP, tools, git pull) + C cberg-index
 ├── agent/               planned: retrieval client
 └── docs/                project-level documentation index
 ```

@@ -18,7 +18,7 @@ JOBS       ?= $(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo
 help:
 	@echo "Codeberg core targets:"
 	@echo "  make build                Configure and compile libcodeberg"
-	@echo "  make build-daemon         Build Go daemons (cberg-index, codeberg-d)"
+	@echo "  make build-daemon         Build Go codeberg-d (pure Go, no CGO)"
 	@echo "  make daemon-test          Run Go tests in daemon/"
 	@echo "  make test                 Run all core tests (ctest)"
 	@echo "  make test TEST=<name>     Run one test (test_smoke test_chunker …)"

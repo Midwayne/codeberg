@@ -200,6 +200,8 @@ endforeach()
 
 add_library(codeberg::codeberg ALIAS codeberg_static)
 
+add_subdirectory(cmd/cberg-index)
+
 set(CBERG_PC_LIBS " -lm")
 if(CBERG_WITH_ONNX)
   get_filename_component(ONNX_LIBDIR "${ONNXRUNTIME_LIB}" DIRECTORY)

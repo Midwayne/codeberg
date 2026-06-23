@@ -40,7 +40,7 @@ followed — symlinked directories are walked and watched like normal directorie
 ```sh
 git submodule update --init --recursive
 make build
-make build-daemon   # cberg-index + codeberg-d (requires Go 1.22+)
+make build-daemon   # codeberg-d (Go) + requires cberg-index from make build
 ```
 
 Optional embedding tests:

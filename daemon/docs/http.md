@@ -1,34 +1,18 @@
 # HTTP API (`codeberg-d`)
 
-Minimal JSON over `net/http`. No auth in v0.1 — bind to localhost or place behind a reverse proxy.
+Pure Go daemon. Semantic search is proxied to the C `cberg-index` process over a Unix socket.
 
-## `GET /health`
+## Endpoints
 
-```json
-{ "status": "ok", "version": "v0.1.0" }
-```
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/health` | Daemon + indexer status (`ready`, `chunks`, `version`) |
+| `GET` | `/search?q=…&k=10` | Vector search (requires `CBERG_MODEL` + `CBERG_INDEX_PATH`) |
+| `GET` | `/tools` | List registered read-only agent tools |
+| `POST` | `/tools/call` | Run a tool: `{"name":"grep","args":{…}}` |
 
-## `GET /search`
+## Tools
 
-Query parameters:
+All tools are read-only and sandboxed to `CODEBERG_ROOT`:
 
-| Param | Default | Description |
-|-------|---------|-------------|
-| `q` | — | Natural-language query (required) |
-| `k` | 10 | Number of neighbors |
-
-Response:
-
-```json
-{
-  "results": [
-    { "id": 42, "score": 0.91 }
-  ]
-}
-```
-
-Returns `503` when vector indexing is disabled or search fails.
-
-## Errors
-
-Plain-text body from `http.Error` for 4xx/5xx.
+`grep`, `glob`, `read_file`, `list_dir`, `tree`, `head`, `tail`, `wc`, `sed`, `git_log`, `git_blame`
