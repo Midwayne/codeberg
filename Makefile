@@ -39,7 +39,7 @@ help:
 	@echo "  Run (load $(ENVFILE) if present; CODEBERG_ROOT required)"
 	@echo "    make run-core             Run the C indexer (cberg-index)"
 	@echo "    make run-daemon           Run the Go daemon (codeberg-d) + HTTP"
-	@echo "    make run-agent q=\"…\"      Ask the agent, e.g. q=\"openai:gpt-4o-mini how does chunking work\""
+	@echo "    make run-agent q=\"…\"      Ask the agent (model + key from .env), e.g. q=\"how does chunking work\""
 	@echo "  Test"
 	@echo "    make test                 Run all core tests (ctest)"
 	@echo "    make test TEST=<name>     Run one test (test_smoke test_chunker …)"
@@ -100,11 +100,14 @@ run-daemon: build-daemon
 	echo "› codeberg-d  http=:$${CODEBERG_HTTP_PORT:-8080}  root=$${CODEBERG_ROOT:-<unset>}"; \
 	exec "$(BIN)/codeberg-d"
 
-# Usage: make run-agent q="[provider:model] <question>"
-#   e.g. make run-agent q="openai:gpt-4o-mini how does chunking work"
-# Talks to a running daemon at CODEBERG_DAEMON_URL (default http://127.0.0.1:8080).
-run-agent: build-agent
+# Usage: make run-agent q="<question>"
+#   Model/provider come from CODEBERG_MODEL in $(ENVFILE) (e.g. anthropic:claude-haiku-4-5),
+#   with the matching API key (ANTHROPIC_API_KEY / OPENAI_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY).
+#   Talks to a running daemon at CODEBERG_DAEMON_URL (default http://127.0.0.1:8080).
+run-agent:
+	@test -f $(AGENT)/dist/cli.js || $(MAKE) build-agent
 	@$(load_env); \
+	if [ -z "$${CODEBERG_MODEL:-}" ]; then echo "error: set CODEBERG_MODEL=provider:model in $(ENVFILE) (e.g. anthropic:claude-haiku-4-5) plus the matching API key"; exit 1; fi; \
 	cd $(AGENT) && exec node dist/cli.js $(q)
 
 set-version:
