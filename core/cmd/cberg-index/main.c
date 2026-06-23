@@ -46,7 +46,7 @@ int main(void) {
         cberg_indexer_close(&idx);
         return 1;
     }
-    fprintf(stderr, "cberg-index: bootstrap complete\n");
+    fprintf(stderr, "cberg-index: bootstrap complete: %zu chunks indexed\n", cberg_indexer_chunk_count(&idx));
 
     st = cberg_indexer_run(&idx);
     if (st != CBERG_OK && !idx.stop) {

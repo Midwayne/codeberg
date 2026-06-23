@@ -11,6 +11,8 @@
 #include <unistd.h>
 
 #define BATCH_SIZE 32
+#define PROGRESS_MIN 128  /* only show embed progress for upserts at least this large */
+#define PROGRESS_STEP 512 /* ...and roughly every this many chunks */
 
 typedef struct {
     cberg_chunk *items;
@@ -155,7 +157,6 @@ static cberg_status apply_vectors(cberg_indexer *idx, const cberg_changes *ch) {
     size_t *lens = NULL;
     uint64_t *ids = NULL;
     char **owned = NULL;
-    float *vecs = NULL;
     cberg_status st = CBERG_OK;
 
     if (upsert_len > 0) {
@@ -185,16 +186,33 @@ static cberg_status apply_vectors(cberg_indexer *idx, const cberg_changes *ch) {
             u++;
         }
 
-        st = cberg_embedder_embed(idx->embedder, texts, lens, upsert_len, &vecs);
-        if (st != CBERG_OK) {
-            goto done;
-        }
-
         size_t dim = cberg_embedder_dim(idx->embedder);
-        for (size_t i = 0; i < upsert_len; i++) {
-            st = cberg_index_add(idx->index, ids[i], vecs + i * dim);
+        int show = upsert_len >= PROGRESS_MIN;
+        size_t mark = PROGRESS_STEP;
+        for (size_t off = 0; off < upsert_len;) {
+            size_t bn = upsert_len - off;
+            if (bn > BATCH_SIZE) {
+                bn = BATCH_SIZE;
+            }
+            float *vecs = NULL;
+            st = cberg_embedder_embed(idx->embedder, texts + off, lens + off, bn, &vecs);
             if (st != CBERG_OK) {
+                cberg_vectors_free(vecs);
                 goto done;
+            }
+            for (size_t i = 0; i < bn; i++) {
+                st = cberg_index_add(idx->index, ids[off + i], vecs + i * dim);
+                if (st != CBERG_OK) {
+                    cberg_vectors_free(vecs);
+                    goto done;
+                }
+            }
+            cberg_vectors_free(vecs);
+            off += bn;
+            if (show && (off >= mark || off == upsert_len)) {
+                fprintf(stderr, "cberg-index: embedded %zu/%zu chunks (%zu%%)\n", off, upsert_len,
+                        off * 100 / upsert_len);
+                mark += PROGRESS_STEP;
             }
         }
     }
@@ -209,9 +227,6 @@ static cberg_status apply_vectors(cberg_indexer *idx, const cberg_changes *ch) {
     st = cberg_index_save(idx->index);
 
 done:
-    if (vecs != NULL) {
-        cberg_vectors_free(vecs);
-    }
     if (owned != NULL) {
         for (size_t i = 0; i < upsert_len; i++) {
             free(owned[i]);
@@ -350,7 +365,12 @@ static cberg_status sync_table(cberg_indexer *idx, chunk_batch *batch) {
             return r;
         }
         idx->ready = 1;
-        return CBERG_OK;
+    }
+    /* Live per-sync line for the watch loop; bootstrap reports via embed progress
+     * and the final "bootstrap complete" count instead. */
+    if (idx->ready && (ch.added_len != 0 || ch.modified_len != 0 || ch.deleted_len != 0)) {
+        fprintf(stderr, "cberg-index: indexed +%zu ~%zu -%zu (%zu chunks)\n", ch.added_len, ch.modified_len,
+                ch.deleted_len, cberg_chunk_table_len(idx->table));
     }
     return CBERG_OK;
 }
@@ -390,10 +410,14 @@ typedef struct {
     cberg_indexer *idx;
     chunk_batch *batch;
     cberg_status err;
+    size_t files;
 } walk_ctx;
 
 static int bootstrap_cb(const char *abs, const char *rel, void *v) {
     walk_ctx *ctx = v;
+    if (++ctx->files % 1000 == 0) {
+        fprintf(stderr, "cberg-index: scanned %zu files...\n", ctx->files);
+    }
     cberg_chunk_list *list = NULL;
     cberg_status st = parse_file(ctx->idx, abs, rel, &list);
     if (st != CBERG_OK) {
