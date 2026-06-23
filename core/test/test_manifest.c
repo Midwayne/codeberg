@@ -230,48 +230,8 @@ int main(void) {
     cberg_manifest_free(f5);
     cberg_manifest_free(ffull);
 
-    /* Tracker: incremental polling with a forced full build every 2 polls. */
-    char ttmpl[] = "/tmp/cberg-manifest-trk-XXXXXX";
-    char *troot = mkdtemp(ttmpl);
-    CHECK(troot != NULL, "mkdtemp tracker");
-    write_file(troot, "x.txt", "one\n");
-    write_file(troot, "y.txt", "two\n");
-
-    cberg_manifest_tracker *trk = NULL;
-    CHECK(cberg_manifest_tracker_open(troot, 2, &trk) == CBERG_OK, "tracker open");
-    const cberg_manifest *cur = cberg_manifest_tracker_current(trk);
-    CHECK(cur != NULL && cberg_manifest_len(cur) == 2, "tracker baseline has 2 files");
-
-    cberg_manifest_changes tc = {0};
-    int full = -1;
-
-    /* poll 1: no change, incremental. */
-    CHECK(cberg_manifest_tracker_poll(trk, &tc, &full) == CBERG_OK, "tracker poll1");
-    CHECK(full == 0, "poll1 is incremental");
-    CHECK(tc.added_len == 0 && tc.modified_len == 0 && tc.deleted_len == 0, "poll1 no changes");
-
-    /* poll 2: modify x.txt (size changes), still incremental. */
-    write_file(troot, "x.txt", "one one\n");
-    CHECK(cberg_manifest_tracker_poll(trk, &tc, &full) == CBERG_OK, "tracker poll2");
-    CHECK(full == 0, "poll2 is incremental");
-    CHECK(tc.modified_len == 1 && has_path(tc.modified, tc.modified_len, "x.txt"), "poll2 sees x.txt");
-
-    /* poll 3: forced full build after 2 incrementals; no change to report. */
-    CHECK(cberg_manifest_tracker_poll(trk, &tc, &full) == CBERG_OK, "tracker poll3");
-    CHECK(full == 1, "poll3 forces a full rebuild");
-    CHECK(tc.added_len == 0 && tc.modified_len == 0 && tc.deleted_len == 0, "poll3 no changes");
-
-    /* poll 4: counter reset → incremental again; add a file. */
-    write_file(troot, "z.txt", "three\n");
-    CHECK(cberg_manifest_tracker_poll(trk, &tc, &full) == CBERG_OK, "tracker poll4");
-    CHECK(full == 0, "poll4 is incremental after reset");
-    CHECK(tc.added_len == 1 && has_path(tc.added, tc.added_len, "z.txt"), "poll4 sees z.txt");
-    CHECK(cberg_manifest_len(cberg_manifest_tracker_current(trk)) == 3, "tracker baseline now 3 files");
-
-    cberg_manifest_tracker_close(trk);
-
     char cmd[1400];
-    snprintf(cmd, sizeof(cmd), "rm -rf '%s' '%s' '%s' '%s'", root, eroot, iroot, troot);
+    snprintf(cmd, sizeof(cmd), "rm -rf '%s' '%s' '%s'", root, eroot, iroot);
     if (system(cmd) != 0) {
         fprintf(stderr, "warning: cleanup failed\n");
     }

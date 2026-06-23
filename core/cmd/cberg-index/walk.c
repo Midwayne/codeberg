@@ -53,7 +53,7 @@ static int walk_dir(const char *root, const char *rel, walk_fn fn, void *ctx) {
         }
 
         if (S_ISDIR(st.st_mode)) {
-            if (cberg_watch_skip_dir(ent->d_name)) {
+            if (cberg_walk_skip_dir(ent->d_name)) {
                 continue;
             }
             if (walk_dir(root, child_rel, fn, ctx) != 0) {

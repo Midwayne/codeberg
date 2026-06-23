@@ -3,6 +3,8 @@
 #include "indexer.h"
 #include "walk.h"
 
+#include "fileio.h"
+
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -88,40 +90,10 @@ static int path_in_set(const char *path, char **paths, size_t count) {
     return 0;
 }
 
-static char *read_file(const char *path, size_t *out_len) {
-    FILE *f = fopen(path, "rb");
-    if (f == NULL) {
-        return NULL;
-    }
-    if (fseek(f, 0, SEEK_END) != 0) {
-        fclose(f);
-        return NULL;
-    }
-    long sz = ftell(f);
-    if (sz < 0) {
-        fclose(f);
-        return NULL;
-    }
-    if (fseek(f, 0, SEEK_SET) != 0) {
-        fclose(f);
-        return NULL;
-    }
-    char *buf = malloc((size_t)sz + 1);
-    if (buf == NULL) {
-        fclose(f);
-        return NULL;
-    }
-    size_t n = fread(buf, 1, (size_t)sz, f);
-    fclose(f);
-    buf[n] = '\0';
-    *out_len = n;
-    return buf;
-}
-
 static char *chunk_body(const cberg_indexer *idx, const cberg_stored_chunk *sc, size_t *out_len) {
     char path[4096];
     snprintf(path, sizeof(path), "%s/%s", idx->root, sc->chunk.path);
-    return read_file(path, out_len);
+    return cberg_read_file(path, out_len);
 }
 
 static cberg_status slice_text(cberg_indexer *idx, const cberg_stored_chunk *sc, const char **text, size_t *len,
@@ -378,7 +350,7 @@ static cberg_status sync_table(cberg_indexer *idx, chunk_batch *batch) {
 static cberg_status parse_file(cberg_indexer *idx, const char *abs, const char *rel, cberg_chunk_list **out) {
     *out = NULL;
     size_t len = 0;
-    char *data = read_file(abs, &len);
+    char *data = cberg_read_file(abs, &len);
     if (data == NULL) {
         return errno == ENOENT ? CBERG_OK : CBERG_ERR_IO;
     }

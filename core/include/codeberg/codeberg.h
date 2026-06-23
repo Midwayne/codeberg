@@ -211,7 +211,7 @@ typedef struct cberg_manifest_entry {
 
 /*
  * Walks `root` (a single repository) and builds a manifest. Skips dependency
- * directories via the watcher walk policy (.git, node_modules, …). Unreadable
+ * directories via cberg_walk_skip_dir (.git, node_modules, …). Unreadable
  * files are skipped, not fatal. Leaves are sorted by repo-relative path.
  * Returns CBERG_ERR_IO when `root` itself cannot be opened.
  */
@@ -264,41 +264,13 @@ CBERG_API cberg_status cberg_manifest_diff(const cberg_manifest *prev, const cbe
                                            cberg_manifest_changes *out_changes);
 CBERG_API void cberg_manifest_diff_free(cberg_manifest_changes *changes);
 
-/* --- Manifest tracker (incremental polling with periodic full rebuild) -- */
+/* --- Repository walk policy --------------------------------------------- */
 
 /*
- * Owns the rolling baseline manifest for one repo plus the rebuild policy. Each
- * poll does an incremental rebuild against the current baseline; after
- * `full_interval` consecutive incremental rebuilds, the next poll forces a full
- * build to self-heal the stat-cache race (a same-size edit landing within the
- * filesystem's mtime resolution). full_interval == 0 disables forced full builds
- * (pure incremental).
- *
- * The periodic-full-build policy lives here, in the core, independent of any
- * scheduler: a caller polls on whatever cadence it chooses and consumes the
- * reported changes.
+ * Returns non-zero when a directory basename should be excluded from repository
+ * tree walks (.git, node_modules, …). Used by the manifest, watcher, and indexer.
  */
-typedef struct cberg_manifest_tracker cberg_manifest_tracker;
-
-/* Builds the initial (full) baseline for `root`. */
-CBERG_API cberg_status cberg_manifest_tracker_open(const char *root, size_t full_interval,
-                                                   cberg_manifest_tracker **out_tracker);
-
-CBERG_API void cberg_manifest_tracker_close(cberg_manifest_tracker *tracker);
-
-/*
- * Rebuild against the current baseline and report file-level changes since the
- * previous poll (since open for the first poll). The change arrays are owned by
- * the tracker and valid until the next poll or close — do NOT pass them to
- * cberg_manifest_diff_free. `out_full` (optional) receives 1 when this poll did a
- * full rebuild, else 0. On failure the tracker is left unchanged.
- */
-CBERG_API cberg_status cberg_manifest_tracker_poll(cberg_manifest_tracker *tracker,
-                                                   cberg_manifest_changes *out_changes, int *out_full);
-
-/* Current baseline manifest — e.g. to bootstrap a cold index from every file via
- * cberg_manifest_at. Valid until the next poll or close. */
-CBERG_API const cberg_manifest *cberg_manifest_tracker_current(const cberg_manifest_tracker *tracker);
+CBERG_API int cberg_walk_skip_dir(const char *name);
 
 /* --- Filesystem watcher ------------------------------------------------- */
 
@@ -308,12 +280,6 @@ typedef enum cberg_watch_kind {
     CBERG_WATCH_DELETE = 3,
     CBERG_WATCH_RENAME = 4,
 } cberg_watch_kind;
-
-/*
- * Returns non-zero when a directory basename should be excluded from watcher
- * registration and bootstrap walks (.git, node_modules, …).
- */
-CBERG_API int cberg_watch_skip_dir(const char *name);
 
 typedef struct cberg_watch_event {
     cberg_watch_kind kind;

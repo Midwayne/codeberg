@@ -102,10 +102,9 @@ the others.
 and reuses prior hashes for the rest (the git-index technique).
 `cberg_manifest_hashed_count` reports how many files were actually read.
 
-`cberg_manifest_tracker` packages the rolling baseline plus a self-heal policy:
-after `full_interval` incremental polls it forces one full rebuild, so a same-size
-edit that slips past the stat cache is caught within a bounded number of polls. The
-policy lives in the core and carries no timers — the caller drives the cadence.
+Callers that poll on a schedule (e.g. the daemon) own the rolling baseline and
+may force an occasional full rebuild (`prev = NULL`) to self-heal the stat-cache
+race — after `N` incremental polls, or on a timer.
 
 ### Watcher selects files; diff selects chunks
 
@@ -195,7 +194,6 @@ Fallible functions return `cberg_status`. Out-parameters are valid only on `CBER
 | `cberg_chunk_list` | `len`, `at`, `free`, `hash_bodies` | `chunk/chunker.c` | [chunk.md](modules/chunk.md) |
 | `cberg_chunk_table` | `new`, `free`, `sync`, `len`, `fingerprint` | `chunk/chunk_table.c` | [chunk.md](modules/chunk.md) |
 | `cberg_manifest` | `build`, `rebuild`, `free`, `root`, `len`, `at`, `diff` | `manifest/manifest.c` | [manifest.md](modules/manifest.md) |
-| `cberg_manifest_tracker` | `open`, `close`, `poll`, `current` | `manifest/manifest.c` | [manifest.md](modules/manifest.md) |
 | `cberg_watcher` | `open`, `close`, `poll`, `dirty_paths` | `watch/watch.c` | [watch.md](modules/watch.md) |
 | `cberg_embedder` | `open`, `embed`, `close` | `embed/embed.c` | [embed.md](modules/embed.md) |
 | `cberg_index` | `open`, `add`, `remove`, `search`, `save` | `search/index.c` | [search.md](modules/search.md) |
@@ -532,7 +530,7 @@ not exposed in the public header.
 | `test_smoke` | Version string |
 | `test_chunker` | Extension detection, Go symbols, window fallback |
 | `test_chunk_table` | Cold sync, modify one hash, delete all |
-| `test_manifest` | Build, root stability, add/modify/delete diff, subtree pruning, empty repo, incremental rebuild (stat-cache reuse), tracker periodic full rebuild |
+| `test_manifest` | Build, root stability, add/modify/delete diff, subtree pruning, empty repo, incremental rebuild (stat-cache reuse) |
 | `test_fingerprint` | Order independence, sensitivity, empty set |
 | `test_watch` | File modify detected under temp directory |
 

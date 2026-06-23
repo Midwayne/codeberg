@@ -57,7 +57,7 @@ Dirty paths are stored in a **`cberg_strmap`** (256 buckets at first use).
 
 ## `watch_walk_register(w, abs, rel)`
 
-Uses `cberg_fs_walk` with `watch_skip_dir` to register directories. On registration
+Uses `cberg_fs_walk` with `watch_skip_dir` (delegates to `cberg_walk_skip_dir`) to register directories. On registration
 failure, any allocated directory slot strings are freed before returning.
 
 ### `watch_skip_dir(name, ctx)`

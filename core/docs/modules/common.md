@@ -3,8 +3,8 @@
 Shared utilities used by chunking, watching, and hashing. None of these symbols are
 exported in `codeberg.h` except where noted (status, version, hash, language).
 
-**Files:** `arena.c`, `config.c`, `hash.c`, `lang.c`, `pathutil.c`, `status.c`, `strutil.c`, `strmap.c`, `version.c`  
-**Headers:** `arena.h`, `pathutil.h`, `strutil.h`, `strmap.h`, `fnv.h`, `grow.h`  
+**Files:** `arena.c`, `config.c`, `fileio.c`, `hash.c`, `lang.c`, `pathutil.c`, `status.c`, `strutil.c`, `strmap.c`, `version.c`, `walk_policy.c`  
+**Headers:** `arena.h`, `fileio.h`, `pathutil.h`, `statutil.h`, `strutil.h`, `strmap.h`, `fnv.h`, `grow.h`, `walk_policy.h`  
 **Third-party:** `third_party/xxhash.c` (linked from CMake, not under `src/common/`)
 
 ---

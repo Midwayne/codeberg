@@ -76,6 +76,8 @@ set(CBERG_SOURCES
   src/common/config.c
   src/common/hash.c
   src/common/pathutil.c
+  src/common/walk_policy.c
+  src/common/fileio.c
   src/common/strutil.c
   src/common/strmap.c
   third_party/xxhash.c
@@ -149,8 +151,9 @@ list(APPEND CBERG_SOURCES src/search/index.c)
 add_library(codeberg_obj OBJECT ${CBERG_SOURCES})
 target_include_directories(codeberg_obj
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
-  PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/common
+  PRIVATE           ${CMAKE_CURRENT_SOURCE_DIR}/src/common
           ${CMAKE_CURRENT_SOURCE_DIR}/src/chunk
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/manifest
           ${CMAKE_CURRENT_SOURCE_DIR}/src/watch
           ${CMAKE_CURRENT_SOURCE_DIR}/src/embed
           ${CMAKE_CURRENT_SOURCE_DIR}/src/search

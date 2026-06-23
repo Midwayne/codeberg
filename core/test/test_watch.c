@@ -16,9 +16,9 @@ static int failures;
     } while (0)
 
 int main(void) {
-    CHECK(cberg_watch_skip_dir(".git") != 0, "skip .git");
-    CHECK(cberg_watch_skip_dir("node_modules") != 0, "skip node_modules");
-    CHECK(cberg_watch_skip_dir("src") == 0, "do not skip src");
+    CHECK(cberg_walk_skip_dir(".git") != 0, "skip .git");
+    CHECK(cberg_walk_skip_dir("node_modules") != 0, "skip node_modules");
+    CHECK(cberg_walk_skip_dir("src") == 0, "do not skip src");
 
     cberg_watcher *bad = NULL;
     CHECK(cberg_watcher_open("/tmp/cberg-nonexistent-root-xyz", &bad) == CBERG_ERR_IO, "bad root rejected");

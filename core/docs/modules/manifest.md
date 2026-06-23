@@ -6,7 +6,8 @@ that scales across many repositories where inotify watch counts run out.
 
 **Files:** `manifest.c`
 **Depends on:** `common/arena`, `common/hash` (`cberg_hash`, `cberg_fingerprint`),
-`common/pathutil` (`cberg_fs_walk`), `watch` (`cberg_watch_skip_dir`)
+`common/pathutil` (`cberg_fs_walk`), `common/walk_policy` (`cberg_walk_skip_dir`),
+`common/fileio` (`cberg_read_file`)
 
 ---
 
@@ -30,38 +31,45 @@ needs zero watches and survives missed events. See
 
 ## Data model
 
-A directory tree of `manifest_node`:
+A directory tree of `manifest_node` whose file leaves live only in the flat
+`cberg_manifest_entry[]`:
 
 ```c
-typedef struct manifest_node {
-    const char *name;                 // basename ("" at root), arena-owned
-    const char *path;                 // full repo-relative path, arena-owned
+typedef struct manifest_child {
+    const char *name;
     bool is_dir;
-    uint8_t hash[CBERG_HASH_LEN];     // file: body digest; dir: rollup
-    struct manifest_node **children;  // arena-owned, sorted by name (dirs only)
+    uint32_t leaf_index;       // when !is_dir — index into entries[]
+    manifest_node *dir;        // when is_dir
+} manifest_child;
+
+typedef struct manifest_node {
+    const char *name;
+    const char *path;
+    uint8_t hash[CBERG_HASH_LEN];     // directory rollup
+    manifest_child *children;
     size_t child_len;
 } manifest_node;
 ```
 
-- **Leaf hash** = `cberg_hash` (XXH3-128) over the file's bytes.
+- **Leaf hash** = `cberg_hash` (XXH3-128) over the file's bytes, stored in `entries[]`.
 - **Directory hash** = `cberg_fingerprint` over its children's `(name, hash)`
   pairs — the same order-independent rollup used by the chunk table, reused here.
 - **Root hash** = the root node's rollup. Equal roots ⇒ identical content.
 
-The manifest also keeps a flat `cberg_manifest_entry[]` (path + hash) sorted by
-path, exposed via `cberg_manifest_len` / `cberg_manifest_at` for bootstrapping a
-cold index from every file.
+The flat `cberg_manifest_entry[]` (path + hash) sorted by path is exposed via
+`cberg_manifest_len` / `cberg_manifest_at` for bootstrapping a cold index from
+every file. Parallel `manifest_meta[]` holds `(size, mtime_ns)` for incremental rebuild.
 
-All nodes, names, paths, and child arrays are bump-allocated from one
+Directory nodes, names, paths, and child arrays are bump-allocated from one
 `cberg_arena`; `cberg_manifest_free` drops the arena in one shot plus the flat
-`entries` array.
+`entries` and `meta` arrays.
 
 ---
 
 ## Build — `cberg_manifest_build(root, &m)`
 
 1. `cberg_fs_walk` the tree (skipping `.git`, `node_modules`, … via
-   `cberg_watch_skip_dir`), reading + hashing each file into a flat leaf.
+   `cberg_walk_skip_dir`), reading + hashing each file into a flat leaf.
    Unreadable files are skipped, not fatal.
 2. `qsort` leaves by repo-relative path.
 3. Fold the sorted leaves into a tree (`build_subtree`). Because leaves are
@@ -112,10 +120,10 @@ leaves sharing the same next component at `prefix`. Files are runs of one;
 directories gather every following leaf whose component matches and is followed
 by `/`. Relies on path-sort guaranteeing siblings never interleave.
 
-### `component_end` / `read_all` / `build_visit` — static
+### `component_end` / `build_visit` — static
 
-Path-component scan; whole-file read for hashing; the `cberg_fs_walk` callback
-that hashes one file into the growing leaf array.
+Path-component scan; the `cberg_fs_walk` callback that hashes one file (via
+`cberg_read_file`) into the growing leaf array.
 
 ---
 
@@ -177,37 +185,9 @@ if (memcmp(a, b, CBERG_HASH_LEN) == 0) {
 One manifest per repository keeps the diff scoped to a single repo: a change in
 one of 100 repos never costs work proportional to the other 99.
 
----
-
-## Tracker — incremental polling with periodic full rebuild
-
-`cberg_manifest_tracker` wraps the baseline juggling above and adds the self-heal
-policy for the stat-cache race. It owns the rolling baseline and, after
-`full_interval` consecutive incremental rebuilds, forces one full build so a
-same-size edit that slipped past the stat cache is caught no later than
-`full_interval + 1` polls. `full_interval == 0` means pure incremental.
-
-```c
-cberg_manifest_tracker *trk = NULL;
-cberg_manifest_tracker_open(repo_root, 16, &trk);   // full rebuild every 16 polls
-
-for (;;) {                                          // caller's own cadence
-    cberg_manifest_changes ch = {0};
-    int full = 0;
-    cberg_manifest_tracker_poll(trk, &ch, &full);
-    // re-chunk ch.modified ∪ ch.added; purge chunks of ch.deleted
-    // (do NOT diff_free ch — the tracker owns it)
-}
-cberg_manifest_tracker_close(trk);
-```
-
-The change arrays returned by `poll` are owned by the tracker and valid until the
-next `poll` or `close` — the same "valid until next call" contract as
-`cberg_changes`. Internally the tracker keeps **two** baselines alive (`prev` and
-`current`) so the borrowed `deleted` paths (which point into `prev`) stay valid
-until the next poll; the baseline from two polls ago is freed only after its
-change arrays are. The policy is deliberately scheduler-agnostic — no timers in
-the core — so it composes with whatever drives the polling.
+For scheduled polling (e.g. the daemon), the caller owns the rolling baseline and
+may force an occasional full rebuild (`cberg_manifest_build` / `rebuild(NULL, …)`)
+every N incremental polls to bound stat-cache misses.
 
 ---
 
@@ -218,7 +198,6 @@ the core — so it composes with whatever drives the polling.
 | `cberg_manifest` | `build` / `rebuild` / `free` | owns one arena + flat entries and stat-meta arrays |
 | `cberg_manifest_entry*` (from `_at`) | until `free` | borrows arena strings |
 | `cberg_manifest_changes` | `diff` / `diff_free` | path arrays malloc'd; strings borrowed from the manifests |
-| `cberg_manifest_tracker` | `open` / `close` | owns two baselines + the last change arrays; poll output valid until next poll |
 
 Build and diff are pure over their inputs; distinct manifests can be built on
 separate threads. A single manifest is read-only after `build`.

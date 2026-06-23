@@ -20,31 +20,33 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 
 #include "arena.h"
+#include "fileio.h"
 #include "grow.h"
 #include "pathutil.h"
+#include "statutil.h"
+#include "walk_policy.h"
 
-/* struct stat carries mtime nanoseconds under different member names. */
-#if defined(__APPLE__)
-#define CBERG_STAT_MTIME_NS(sb) ((int64_t)(sb).st_mtimespec.tv_sec * 1000000000LL + (int64_t)(sb).st_mtimespec.tv_nsec)
-#else
-#define CBERG_STAT_MTIME_NS(sb) ((int64_t)(sb).st_mtim.tv_sec * 1000000000LL + (int64_t)(sb).st_mtim.tv_nsec)
-#endif
+struct manifest_node;
 
-/* A file leaf or a directory node. Directory children are sorted by strcmp on
- * name, which reproduces the order of a path-sorted leaf list (siblings never
- * interleave), so two manifests can be merged child-by-child in lockstep. */
+/* One child of a directory node: either a file (index into entries[]) or a subdirectory. */
+typedef struct manifest_child {
+    const char *name; /* basename, arena-owned */
+    bool is_dir;
+    uint32_t leaf_index;       /* when !is_dir */
+    struct manifest_node *dir; /* when is_dir */
+} manifest_child;
+
+/* Directory-only tree node; file leaves live only in entries[]. */
 typedef struct manifest_node {
     const char *name; /* basename; "" for the root, arena-owned */
     const char *path; /* full repo-relative path; "" for the root, arena-owned */
-    bool is_dir;
     uint8_t hash[CBERG_HASH_LEN];
-    struct manifest_node **children; /* arena-owned, sorted by name (dirs only) */
+    manifest_child *children; /* arena-owned, sorted by name */
     size_t child_len;
 } manifest_node;
 
@@ -67,7 +69,6 @@ struct cberg_manifest {
 
 /* ------------------------------------------------------------------ build */
 
-/* One collected file before the tree is folded. */
 typedef struct {
     char *path; /* arena-owned, repo-relative */
     uint8_t hash[CBERG_HASH_LEN];
@@ -82,14 +83,16 @@ typedef struct {
     size_t cap;
     size_t hashed;
     cberg_status err;
+    const char **fp_names;
+    const uint8_t **fp_hashes;
+    size_t fp_cap;
 } build_ctx;
 
-static bool manifest_skip(const char *name, void *ctx) {
+static bool walk_skip(const char *name, void *ctx) {
     (void)ctx;
-    return cberg_watch_skip_dir(name) != 0;
+    return cberg_walk_skip_dir(name) != 0;
 }
 
-/* Binary search `prev` (entries sorted by path) for `path`. */
 static bool prev_lookup(const cberg_manifest *prev, const char *path, size_t *out_index) {
     if (prev == NULL) {
         return false;
@@ -111,32 +114,6 @@ static bool prev_lookup(const cberg_manifest *prev, const char *path, size_t *ou
     return false;
 }
 
-static char *read_all(const char *abs, size_t *out_len) {
-    FILE *f = fopen(abs, "rb");
-    if (f == NULL) {
-        return NULL;
-    }
-    if (fseek(f, 0, SEEK_END) != 0) {
-        fclose(f);
-        return NULL;
-    }
-    long size = ftell(f);
-    if (size < 0 || fseek(f, 0, SEEK_SET) != 0) {
-        fclose(f);
-        return NULL;
-    }
-    char *buf = malloc((size_t)size + 1);
-    if (buf == NULL) {
-        fclose(f);
-        return NULL;
-    }
-    size_t got = fread(buf, 1, (size_t)size, f);
-    fclose(f);
-    buf[got] = '\0';
-    *out_len = got;
-    return buf;
-}
-
 static cberg_status build_visit(void *vctx, const char *abs, const char *rel, cberg_fs_entry_kind kind) {
     build_ctx *ctx = vctx;
     if (kind != CBERG_FS_FILE) {
@@ -144,7 +121,7 @@ static cberg_status build_visit(void *vctx, const char *abs, const char *rel, cb
     }
     struct stat sb;
     if (stat(abs, &sb) != 0) {
-        return CBERG_OK; /* vanished between walk and stat: skip */
+        return CBERG_OK;
     }
     manifest_meta meta = {.size = (uint64_t)sb.st_size, .mtime_ns = CBERG_STAT_MTIME_NS(sb)};
 
@@ -158,12 +135,12 @@ static cberg_status build_visit(void *vctx, const char *abs, const char *rel, cb
     size_t pi = 0;
     if (prev_lookup(ctx->prev, rel, &pi) && ctx->prev->meta[pi].size == meta.size &&
         ctx->prev->meta[pi].mtime_ns == meta.mtime_ns) {
-        memcpy(hash, ctx->prev->entries[pi].hash, CBERG_HASH_LEN); /* unchanged: reuse, no read */
+        memcpy(hash, ctx->prev->entries[pi].hash, CBERG_HASH_LEN);
     } else {
         size_t len = 0;
-        char *data = read_all(abs, &len);
+        char *data = cberg_read_file(abs, &len);
         if (data == NULL) {
-            return CBERG_OK; /* unreadable: skip leaf, not fatal */
+            return CBERG_OK;
         }
         cberg_status st = cberg_hash(data, len, hash);
         free(data);
@@ -197,8 +174,6 @@ static int compare_leaf_path(const void *a, const void *b) {
     return strcmp(la->path, lb->path);
 }
 
-/* End byte offset of the path component of `rel` starting at `from` (up to the
- * next '/' or the string end). Sets *is_dir when a '/' follows. */
 static size_t component_end(const char *rel, size_t from, bool *is_dir) {
     size_t i = from;
     while (rel[i] != '\0' && rel[i] != '/') {
@@ -208,17 +183,11 @@ static size_t component_end(const char *rel, size_t from, bool *is_dir) {
     return i;
 }
 
-/*
- * Span of the child run starting at leaf `i`: all leaves sharing the same next
- * path component at offset `prefix`. Returns the exclusive end index; sets
- * *end to the component's end offset and *is_dir to whether it's a directory.
- * Leaves are path-sorted, so a run is contiguous.
- */
 static size_t child_run(const cberg_manifest_entry *leaves, size_t i, size_t hi, size_t prefix, size_t *end,
                         bool *is_dir) {
     *end = component_end(leaves[i].path, prefix, is_dir);
     if (!*is_dir) {
-        return i + 1; /* file: a run of one */
+        return i + 1;
     }
     size_t clen = *end - prefix;
     size_t j = i + 1;
@@ -233,13 +202,49 @@ static size_t child_run(const cberg_manifest_entry *leaves, size_t i, size_t hi,
     return j;
 }
 
-/*
- * Builds the subtree for leaves[lo, hi) that share the directory prefix of byte
- * length `prefix`. `name`/`dir_path` are this node's basename and full
- * repo-relative path ("" at the root), already arena-owned.
- */
-static manifest_node *build_subtree(cberg_manifest *m, const cberg_manifest_entry *leaves, size_t lo, size_t hi,
-                                    size_t prefix, const char *name, const char *dir_path, cberg_status *err) {
+static cberg_status fp_scratch_grow(build_ctx *ctx, size_t need) {
+    if (need <= ctx->fp_cap) {
+        return CBERG_OK;
+    }
+    size_t cap = cberg_grow_cap(ctx->fp_cap, need, 16);
+    const char **names = realloc(ctx->fp_names, cap * sizeof(*names));
+    const uint8_t **hashes = realloc(ctx->fp_hashes, cap * sizeof(*hashes));
+    if (names == NULL || hashes == NULL) {
+        free(names);
+        free(hashes);
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+    ctx->fp_names = names;
+    ctx->fp_hashes = hashes;
+    ctx->fp_cap = cap;
+    return CBERG_OK;
+}
+
+static cberg_status rollup_children(build_ctx *ctx, const cberg_manifest *m, const manifest_node *node,
+                                    uint8_t out[CBERG_HASH_LEN]) {
+    if (node->child_len == 0) {
+        memset(out, 0, CBERG_HASH_LEN);
+        return CBERG_OK;
+    }
+    cberg_status st = fp_scratch_grow(ctx, node->child_len);
+    if (st != CBERG_OK) {
+        return st;
+    }
+    for (size_t k = 0; k < node->child_len; k++) {
+        const manifest_child *ch = &node->children[k];
+        ctx->fp_names[k] = ch->name;
+        if (ch->is_dir) {
+            ctx->fp_hashes[k] = ch->dir->hash;
+        } else {
+            ctx->fp_hashes[k] = m->entries[ch->leaf_index].hash;
+        }
+    }
+    return cberg_fingerprint(ctx->fp_names, ctx->fp_hashes, node->child_len, out);
+}
+
+static manifest_node *build_subtree(build_ctx *ctx, cberg_manifest *m, const cberg_manifest_entry *leaves, size_t lo,
+                                    size_t hi, size_t prefix, const char *name, const char *dir_path,
+                                    cberg_status *err) {
     manifest_node *node = cberg_arena_alloc(m->arena, sizeof(manifest_node));
     if (node == NULL) {
         *err = CBERG_ERR_OUT_OF_MEMORY;
@@ -248,9 +253,7 @@ static manifest_node *build_subtree(cberg_manifest *m, const cberg_manifest_entr
     memset(node, 0, sizeof(*node));
     node->name = name;
     node->path = dir_path;
-    node->is_dir = true;
 
-    /* First pass: count immediate children (distinct next components). */
     size_t child_count = 0;
     for (size_t i = lo; i < hi;) {
         size_t end = 0;
@@ -259,68 +262,45 @@ static manifest_node *build_subtree(cberg_manifest *m, const cberg_manifest_entr
         child_count++;
     }
 
-    node->children = cberg_arena_alloc(m->arena, child_count * sizeof(manifest_node *));
+    node->children = cberg_arena_alloc(m->arena, child_count * sizeof(manifest_child));
     if (child_count > 0 && node->children == NULL) {
         *err = CBERG_ERR_OUT_OF_MEMORY;
         return NULL;
     }
 
-    /* Second pass: build each child. */
     size_t out = 0;
     for (size_t i = lo; i < hi;) {
         size_t end = 0;
         bool is_dir = false;
         size_t j = child_run(leaves, i, hi, prefix, &end, &is_dir);
         char *cname = cberg_arena_dup(m->arena, leaves[i].path + prefix, end - prefix);
-        char *cpath = cberg_arena_dup(m->arena, leaves[i].path, end);
-        if (cname == NULL || cpath == NULL) {
+        if (cname == NULL) {
             *err = CBERG_ERR_OUT_OF_MEMORY;
             return NULL;
         }
 
+        manifest_child *ch = &node->children[out++];
+        ch->name = cname;
+        ch->is_dir = is_dir;
+
         if (!is_dir) {
-            manifest_node *leaf = cberg_arena_alloc(m->arena, sizeof(manifest_node));
-            if (leaf == NULL) {
+            ch->leaf_index = (uint32_t)i;
+        } else {
+            char *cpath = cberg_arena_dup(m->arena, leaves[i].path, end);
+            if (cpath == NULL) {
                 *err = CBERG_ERR_OUT_OF_MEMORY;
                 return NULL;
             }
-            memset(leaf, 0, sizeof(*leaf));
-            leaf->name = cname;
-            leaf->path = cpath; /* equals leaves[i].path */
-            leaf->is_dir = false;
-            memcpy(leaf->hash, leaves[i].hash, CBERG_HASH_LEN);
-            node->children[out++] = leaf;
-        } else {
-            manifest_node *child = build_subtree(m, leaves, i, j, end + 1, cname, cpath, err);
-            if (child == NULL) {
+            ch->dir = build_subtree(ctx, m, leaves, i, j, end + 1, cname, cpath, err);
+            if (ch->dir == NULL) {
                 return NULL;
             }
-            node->children[out++] = child;
         }
         i = j;
     }
     node->child_len = out;
 
-    /* Roll up children (name, hash) pairs into this directory's hash. */
-    if (node->child_len == 0) {
-        memset(node->hash, 0, CBERG_HASH_LEN);
-        return node;
-    }
-    const char **names = malloc(node->child_len * sizeof(*names));
-    const uint8_t **hashes = malloc(node->child_len * sizeof(*hashes));
-    if (names == NULL || hashes == NULL) {
-        free(names);
-        free(hashes);
-        *err = CBERG_ERR_OUT_OF_MEMORY;
-        return NULL;
-    }
-    for (size_t k = 0; k < node->child_len; k++) {
-        names[k] = node->children[k]->name;
-        hashes[k] = node->children[k]->hash;
-    }
-    cberg_status st = cberg_fingerprint(names, hashes, node->child_len, node->hash);
-    free(names);
-    free(hashes);
+    cberg_status st = rollup_children(ctx, m, node, node->hash);
     if (st != CBERG_OK) {
         *err = st;
         return NULL;
@@ -345,9 +325,11 @@ cberg_status cberg_manifest_rebuild(const cberg_manifest *prev, const char *root
     }
 
     build_ctx ctx = {.arena = m->arena, .prev = prev};
-    cberg_status st = cberg_fs_walk(root, "", build_visit, &ctx, manifest_skip, NULL);
+    cberg_status st = cberg_fs_walk(root, "", build_visit, &ctx, walk_skip, NULL);
     if (st != CBERG_OK) {
         free(ctx.leaves);
+        free(ctx.fp_names);
+        free(ctx.fp_hashes);
         cberg_manifest_free(m);
         return ctx.err != CBERG_OK ? ctx.err : st;
     }
@@ -361,6 +343,8 @@ cberg_status cberg_manifest_rebuild(const cberg_manifest *prev, const char *root
         m->meta = malloc(ctx.len * sizeof(*m->meta));
         if (m->entries == NULL || m->meta == NULL) {
             free(ctx.leaves);
+            free(ctx.fp_names);
+            free(ctx.fp_hashes);
             cberg_manifest_free(m);
             return CBERG_ERR_OUT_OF_MEMORY;
         }
@@ -377,10 +361,14 @@ cberg_status cberg_manifest_rebuild(const cberg_manifest *prev, const char *root
     cberg_status berr = CBERG_OK;
     const char *empty = cberg_arena_strdup(m->arena, "");
     if (empty == NULL) {
+        free(ctx.fp_names);
+        free(ctx.fp_hashes);
         cberg_manifest_free(m);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
-    m->root = build_subtree(m, m->entries, 0, m->len, 0, empty, empty, &berr);
+    m->root = build_subtree(&ctx, m, m->entries, 0, m->len, 0, empty, empty, &berr);
+    free(ctx.fp_names);
+    free(ctx.fp_hashes);
     if (m->root == NULL) {
         cberg_manifest_free(m);
         return berr;
@@ -449,13 +437,15 @@ static cberg_status path_push(path_list *l, const char *path) {
     return CBERG_OK;
 }
 
-/* Push every file under `node` into `out` (used for whole added/deleted subtrees). */
-static cberg_status collect_files(const manifest_node *node, path_list *out) {
-    if (!node->is_dir) {
-        return path_push(out, node->path);
-    }
+static cberg_status collect_files(const cberg_manifest *m, const manifest_node *node, path_list *out) {
     for (size_t i = 0; i < node->child_len; i++) {
-        cberg_status st = collect_files(node->children[i], out);
+        const manifest_child *ch = &node->children[i];
+        cberg_status st;
+        if (ch->is_dir) {
+            st = collect_files(m, ch->dir, out);
+        } else {
+            st = path_push(out, m->entries[ch->leaf_index].path);
+        }
         if (st != CBERG_OK) {
             return st;
         }
@@ -463,41 +453,56 @@ static cberg_status collect_files(const manifest_node *node, path_list *out) {
     return CBERG_OK;
 }
 
-/* Diff two directory nodes for the same path. Both are dirs. */
-static cberg_status diff_node(const manifest_node *a, const manifest_node *b, path_list *added, path_list *modified,
-                              path_list *deleted) {
+static cberg_status diff_node(const cberg_manifest *prev_m, const manifest_node *a, const cberg_manifest *next_m,
+                              const manifest_node *b, path_list *added, path_list *modified, path_list *deleted) {
     if (memcmp(a->hash, b->hash, CBERG_HASH_LEN) == 0) {
-        return CBERG_OK; /* prune: identical subtree */
+        return CBERG_OK;
     }
 
     size_t i = 0, j = 0;
     while (i < a->child_len || j < b->child_len) {
-        const manifest_node *ca = i < a->child_len ? a->children[i] : NULL;
-        const manifest_node *cb = j < b->child_len ? b->children[j] : NULL;
+        const manifest_child *ca = i < a->child_len ? &a->children[i] : NULL;
+        const manifest_child *cb = j < b->child_len ? &b->children[j] : NULL;
         int cmp = ca == NULL ? 1 : cb == NULL ? -1 : strcmp(ca->name, cb->name);
 
         cberg_status st = CBERG_OK;
         if (cmp < 0) {
-            st = collect_files(ca, deleted); /* only in prev */
+            if (ca->is_dir) {
+                st = collect_files(prev_m, ca->dir, deleted);
+            } else {
+                st = path_push(deleted, prev_m->entries[ca->leaf_index].path);
+            }
             i++;
         } else if (cmp > 0) {
-            st = collect_files(cb, added); /* only in next */
+            if (cb->is_dir) {
+                st = collect_files(next_m, cb->dir, added);
+            } else {
+                st = path_push(added, next_m->entries[cb->leaf_index].path);
+            }
             j++;
         } else if (ca->is_dir && cb->is_dir) {
-            st = diff_node(ca, cb, added, modified, deleted);
+            st = diff_node(prev_m, ca->dir, next_m, cb->dir, added, modified, deleted);
             i++;
             j++;
         } else if (!ca->is_dir && !cb->is_dir) {
-            if (memcmp(ca->hash, cb->hash, CBERG_HASH_LEN) != 0) {
-                st = path_push(modified, cb->path);
+            if (memcmp(prev_m->entries[ca->leaf_index].hash, next_m->entries[cb->leaf_index].hash, CBERG_HASH_LEN) !=
+                0) {
+                st = path_push(modified, next_m->entries[cb->leaf_index].path);
             }
             i++;
             j++;
         } else {
-            /* Same name, file ↔ directory: treat as full delete + add. */
-            st = collect_files(ca, deleted);
+            if (ca->is_dir) {
+                st = collect_files(prev_m, ca->dir, deleted);
+            } else {
+                st = path_push(deleted, prev_m->entries[ca->leaf_index].path);
+            }
             if (st == CBERG_OK) {
-                st = collect_files(cb, added);
+                if (cb->is_dir) {
+                    st = collect_files(next_m, cb->dir, added);
+                } else {
+                    st = path_push(added, next_m->entries[cb->leaf_index].path);
+                }
             }
             i++;
             j++;
@@ -517,7 +522,7 @@ cberg_status cberg_manifest_diff(const cberg_manifest *prev, const cberg_manifes
     memset(out_changes, 0, sizeof(*out_changes));
 
     path_list added = {0}, modified = {0}, deleted = {0};
-    cberg_status st = diff_node(prev->root, next->root, &added, &modified, &deleted);
+    cberg_status st = diff_node(prev, prev->root, next, next->root, &added, &modified, &deleted);
     if (st != CBERG_OK) {
         free(added.items);
         free(modified.items);
@@ -542,104 +547,4 @@ void cberg_manifest_diff_free(cberg_manifest_changes *changes) {
     free((void *)changes->modified);
     free((void *)changes->deleted);
     memset(changes, 0, sizeof(*changes));
-}
-
-/* ---------------------------------------------------------------- tracker */
-
-struct cberg_manifest_tracker {
-    char *root;
-    size_t full_interval;
-    size_t since_full;              /* consecutive incremental rebuilds since the last full */
-    cberg_manifest *prev;           /* baseline before current; kept alive for deleted-path borrows */
-    cberg_manifest *current;        /* latest baseline */
-    cberg_manifest_changes changes; /* owned; borrows from prev+current; freed on next poll/close */
-    bool has_changes;
-};
-
-cberg_status cberg_manifest_tracker_open(const char *root, size_t full_interval, cberg_manifest_tracker **out_tracker) {
-    if (root == NULL || out_tracker == NULL) {
-        return CBERG_ERR_INVALID_ARGUMENT;
-    }
-    *out_tracker = NULL;
-
-    cberg_manifest_tracker *t = calloc(1, sizeof(*t));
-    if (t == NULL) {
-        return CBERG_ERR_OUT_OF_MEMORY;
-    }
-    size_t n = strlen(root) + 1;
-    t->root = malloc(n);
-    if (t->root == NULL) {
-        free(t);
-        return CBERG_ERR_OUT_OF_MEMORY;
-    }
-    memcpy(t->root, root, n);
-    t->full_interval = full_interval;
-
-    cberg_status st = cberg_manifest_build(root, &t->current);
-    if (st != CBERG_OK) {
-        free(t->root);
-        free(t);
-        return st;
-    }
-    *out_tracker = t;
-    return CBERG_OK;
-}
-
-void cberg_manifest_tracker_close(cberg_manifest_tracker *tracker) {
-    if (tracker == NULL) {
-        return;
-    }
-    if (tracker->has_changes) {
-        cberg_manifest_diff_free(&tracker->changes);
-    }
-    cberg_manifest_free(tracker->prev);
-    cberg_manifest_free(tracker->current);
-    free(tracker->root);
-    free(tracker);
-}
-
-cberg_status cberg_manifest_tracker_poll(cberg_manifest_tracker *tracker, cberg_manifest_changes *out_changes,
-                                         int *out_full) {
-    if (tracker == NULL || out_changes == NULL) {
-        return CBERG_ERR_INVALID_ARGUMENT;
-    }
-    bool full = tracker->full_interval > 0 && tracker->since_full >= tracker->full_interval;
-
-    cberg_manifest *next = NULL;
-    cberg_status st = full ? cberg_manifest_build(tracker->root, &next)
-                           : cberg_manifest_rebuild(tracker->current, tracker->root, &next);
-    if (st != CBERG_OK) {
-        return st; /* tracker unchanged on failure */
-    }
-
-    cberg_manifest_changes ch = {0};
-    st = cberg_manifest_diff(tracker->current, next, &ch);
-    if (st != CBERG_OK) {
-        cberg_manifest_free(next);
-        return st;
-    }
-
-    /* Rotate baselines. Free the previous poll's change arrays first; the
-     * baseline from two polls ago is then unreferenced and freed. The newly
-     * returned `ch` borrows from `current` (now `prev`) and `next` (now
-     * `current`), both kept alive until the next poll. */
-    if (tracker->has_changes) {
-        cberg_manifest_diff_free(&tracker->changes);
-    }
-    cberg_manifest_free(tracker->prev);
-    tracker->prev = tracker->current;
-    tracker->current = next;
-    tracker->changes = ch;
-    tracker->has_changes = true;
-    tracker->since_full = full ? 0 : tracker->since_full + 1;
-
-    *out_changes = ch;
-    if (out_full != NULL) {
-        *out_full = full ? 1 : 0;
-    }
-    return CBERG_OK;
-}
-
-const cberg_manifest *cberg_manifest_tracker_current(const cberg_manifest_tracker *tracker) {
-    return tracker == NULL ? NULL : tracker->current;
 }
