@@ -496,17 +496,31 @@ cberg_status cberg_indexer_open(cberg_indexer *idx) {
     }
 
     if (idx->vectors) {
+        struct stat mst;
+        if (stat(idx->model_path, &mst) != 0) {
+            fprintf(stderr,
+                    "cberg-index: embedding model not found: '%s'\n"
+                    "  fetch one with scripts/fetch-model.sh and point CBERG_MODEL at its .onnx,\n"
+                    "  or unset CBERG_MODEL and CBERG_INDEX_PATH to run chunk-only.\n",
+                    idx->model_path);
+            cberg_indexer_close(idx);
+            return CBERG_ERR_IO;
+        }
         cberg_embed_config ecfg = {0};
         ecfg.provider = CBERG_EMBED_ONNX;
         ecfg.model_path = idx->model_path;
         st = cberg_embedder_open(&ecfg, &idx->embedder);
         if (st != CBERG_OK) {
+            fprintf(stderr, "cberg-index: failed to load embedding model '%s': %s\n", idx->model_path,
+                    cberg_status_str(st));
             cberg_indexer_close(idx);
             return st;
         }
         size_t dim = cberg_embedder_dim(idx->embedder);
         st = cberg_index_open(idx->index_path, dim, NULL, &idx->index);
         if (st != CBERG_OK) {
+            fprintf(stderr, "cberg-index: failed to open vector index '%s': %s\n", idx->index_path,
+                    cberg_status_str(st));
             cberg_indexer_close(idx);
             return st;
         }
