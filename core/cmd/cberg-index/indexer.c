@@ -731,3 +731,99 @@ cberg_status cberg_indexer_search(cberg_indexer *idx, const char *query, size_t 
     pthread_mutex_unlock(&idx->mu);
     return st;
 }
+
+static const cberg_stored_chunk *find_chunk_by_id(cberg_indexer *idx, uint64_t id) {
+    size_t n = cberg_chunk_table_len(idx->table);
+    for (size_t i = 0; i < n; i++) {
+        const cberg_stored_chunk *sc = cberg_chunk_table_at(idx->table, i);
+        if (sc != NULL && sc->id == id) {
+            return sc;
+        }
+    }
+    return NULL;
+}
+
+static void fill_snippet(cberg_indexer *idx, const cberg_stored_chunk *sc, char *out, size_t cap) {
+    out[0] = '\0';
+    if (sc == NULL || cap == 0) {
+        return;
+    }
+    size_t blen = 0;
+    char *body = chunk_body(idx, sc, &blen);
+    if (body == NULL) {
+        return;
+    }
+    uint32_t start = sc->chunk.span.start_byte;
+    uint32_t end = sc->chunk.span.end_byte;
+    if (end > blen || start > end) {
+        free(body);
+        return;
+    }
+    size_t len = (size_t)(end - start);
+    if (len >= cap) {
+        len = cap - 1;
+    }
+    memcpy(out, body + start, len);
+    out[len] = '\0';
+    free(body);
+}
+
+cberg_status cberg_indexer_search_hits(cberg_indexer *idx, const char *query, size_t k, cberg_search_hit *hits,
+                                       size_t cap, size_t *found) {
+    if (hits == NULL || found == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    *found = 0;
+    if (cap == 0 || k == 0) {
+        return CBERG_OK;
+    }
+    if (k > cap) {
+        k = cap;
+    }
+    if (k > 64) {
+        k = 64;
+    }
+
+    pthread_mutex_lock(&idx->mu);
+    if (!idx->ready) {
+        pthread_mutex_unlock(&idx->mu);
+        return CBERG_ERR_NOT_FOUND;
+    }
+    if (!idx->vectors || idx->embedder == NULL || idx->index == NULL) {
+        pthread_mutex_unlock(&idx->mu);
+        return CBERG_ERR_NOT_IMPLEMENTED;
+    }
+
+    uint64_t ids[64];
+    float scores[64];
+    size_t n = 0;
+    cberg_status st =
+        cberg_search_query(idx->embedder, idx->index, query, strlen(query), NULL, k, ids, scores, &n);
+    if (st != CBERG_OK) {
+        pthread_mutex_unlock(&idx->mu);
+        return st;
+    }
+
+    for (size_t i = 0; i < n && *found < cap; i++) {
+        cberg_search_hit *h = &hits[*found];
+        h->id = ids[i];
+        h->score = scores[i];
+        h->path = "";
+        h->symbol = "";
+        h->start_line = 0;
+        h->end_line = 0;
+        h->snippet[0] = '\0';
+
+        const cberg_stored_chunk *sc = find_chunk_by_id(idx, ids[i]);
+        if (sc != NULL) {
+            h->path = sc->chunk.path != NULL ? sc->chunk.path : "";
+            h->symbol = sc->chunk.symbol != NULL ? sc->chunk.symbol : "";
+            h->start_line = sc->chunk.span.start_line;
+            h->end_line = sc->chunk.span.end_line;
+            fill_snippet(idx, sc, h->snippet, sizeof(h->snippet));
+        }
+        (*found)++;
+    }
+    pthread_mutex_unlock(&idx->mu);
+    return CBERG_OK;
+}

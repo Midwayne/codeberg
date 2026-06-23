@@ -31,7 +31,8 @@ followed — symlinked directories are walked and watched like normal directorie
 | Path | Role |
 |------|------|
 | `core/` | C library — chunking, change tracking, watching, ONNX embedding, usearch vector index ([docs](core/docs/)) |
-| `daemon/` | Go daemons: `cberg-index` indexer, `codeberg-d` HTTP + optional git pull |
+| `daemon/` | Go `codeberg-d` — HTTP, tools, git pull; supervises C `cberg-index` |
+| `agent/` | TypeScript ai-sdk agent (`codeberg-ask`) over the daemon API |
 | `agent/` | Retrieval client — TBD |
 | `docs/` | Project overview and links |
 

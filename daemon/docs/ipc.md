@@ -37,7 +37,7 @@ Tabs in the query should be avoided; clients may replace them with spaces.
 Response:
 
 ```json
-{"ok":true,"results":[{"id":1,"score":0.95}]}
+{"ok":true,"results":[{"id":1,"score":0.95,"path":"src/main.go","symbol":"main","start_line":10,"end_line":25,"snippet":"..."}]}
 ```
 
 Error:

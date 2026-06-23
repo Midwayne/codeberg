@@ -11,8 +11,13 @@ import (
 )
 
 type SearchResult struct {
-	ID    uint64  `json:"id"`
-	Score float32 `json:"score"`
+	ID        uint64  `json:"id"`
+	Score     float32 `json:"score"`
+	Path      string  `json:"path"`
+	Symbol    string  `json:"symbol"`
+	StartLine uint32  `json:"start_line"`
+	EndLine   uint32  `json:"end_line"`
+	Snippet   string  `json:"snippet"`
 }
 
 type Status struct {

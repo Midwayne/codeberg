@@ -1,0 +1,41 @@
+{
+  "name": "@codeberg/agent",
+  "version": "0.1.0",
+  "description": "Token-efficient code-search agent for codeberg-d via ai-sdk",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "codeberg-ask": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "ai": "^6.0.208"
+  },
+  "optionalDependencies": {
+    "@ai-sdk/anthropic": "^3.0.85",
+    "@ai-sdk/google": "^3.0.0",
+    "@ai-sdk/openai": "^3.0.73"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.8.0",
+    "vitest": "^3.0.0"
+  }
+}

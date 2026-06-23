@@ -30,6 +30,28 @@ static int write_all(int fd, const char *buf, size_t len) {
     return 0;
 }
 
+static void json_escape(const char *in, char *out, size_t cap) {
+    size_t j = 0;
+    for (size_t i = 0; in[i] != '\0' && j + 2 < cap; i++) {
+        char c = in[i];
+        if (c == '"' || c == '\\') {
+            out[j++] = '\\';
+        }
+        if (c == '\n') {
+            out[j++] = '\\';
+            c = 'n';
+        } else if (c == '\r') {
+            out[j++] = '\\';
+            c = 'r';
+        } else if (c == '\t') {
+            out[j++] = '\\';
+            c = 't';
+        }
+        out[j++] = c;
+    }
+    out[j] = '\0';
+}
+
 static void handle_client(cberg_indexer *idx, int fd) {
     char line[8192];
     ssize_t n = read(fd, line, sizeof(line) - 1);
@@ -65,25 +87,33 @@ static void handle_client(cberg_indexer *idx, int fd) {
                 k = 10;
             }
         }
-        uint64_t ids[64];
-        float scores[64];
+        cberg_search_hit hits[64];
         size_t found = 0;
         size_t want = k > 64 ? 64 : k;
-        cberg_status st = cberg_indexer_search(idx, query, want, ids, scores, &found);
+        cberg_status st = cberg_indexer_search_hits(idx, query, want, hits, 64, &found);
         if (st != CBERG_OK) {
             char resp[256];
             snprintf(resp, sizeof(resp), "{\"ok\":false,\"error\":\"%s\"}\n", cberg_status_str(st));
             write_all(fd, resp, strlen(resp));
             return;
         }
-        char resp[16384];
+        char resp[32768];
         size_t off = snprintf(resp, sizeof(resp), "{\"ok\":true,\"results\":[");
-        for (size_t i = 0; i < found && off + 64 < sizeof(resp); i++) {
+        for (size_t i = 0; i < found && off + 256 < sizeof(resp); i++) {
             if (i > 0) {
                 resp[off++] = ',';
             }
-            int w = snprintf(resp + off, sizeof(resp) - off, "{\"id\":%llu,\"score\":%.6f}",
-                             (unsigned long long)ids[i], (double)scores[i]);
+            char esc_path[512];
+            char esc_symbol[256];
+            char esc_snippet[CBERG_SNIPPET_MAX * 2];
+            json_escape(hits[i].path, esc_path, sizeof(esc_path));
+            json_escape(hits[i].symbol, esc_symbol, sizeof(esc_symbol));
+            json_escape(hits[i].snippet, esc_snippet, sizeof(esc_snippet));
+            int w = snprintf(resp + off, sizeof(resp) - off,
+                             "{\"id\":%llu,\"score\":%.6f,\"path\":\"%s\",\"symbol\":\"%s\","
+                             "\"start_line\":%u,\"end_line\":%u,\"snippet\":\"%s\"}",
+                             (unsigned long long)hits[i].id, (double)hits[i].score, esc_path, esc_symbol,
+                             hits[i].start_line, hits[i].end_line, esc_snippet);
             if (w < 0) {
                 break;
             }
