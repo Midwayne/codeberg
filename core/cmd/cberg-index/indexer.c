@@ -610,6 +610,17 @@ cberg_status cberg_indexer_open(cberg_indexer *idx) {
         }
         size_t dim = cberg_embedder_dim(idx->embedder);
         st = cberg_index_open(idx->index_path, dim, NULL, &idx->index);
+        if (st == CBERG_ERR_IO) {
+            /* The index file exists but won't load — corrupt, e.g. a save
+             * interrupted by a kill. Discard this directory's stale state (index
+             * + sidecars) and reindex from scratch rather than failing to start. */
+            fprintf(stderr, "cberg-index: vector index '%s' is unreadable; discarding and reindexing\n",
+                    idx->index_path);
+            remove(idx->index_path);
+            remove(idx->chunks_path);
+            remove(idx->manifest_path);
+            st = cberg_index_open(idx->index_path, dim, NULL, &idx->index);
+        }
         if (st != CBERG_OK) {
             fprintf(stderr, "cberg-index: failed to open vector index '%s': %s\n", idx->index_path,
                     cberg_status_str(st));

@@ -178,9 +178,22 @@ cberg_status cberg_index_save(cberg_index *index) {
     if (index == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
+    /* Write to a temp file and rename into place so a save interrupted by a
+     * crash or kill leaves the previous index intact rather than a half-written,
+     * unloadable file. */
+    char tmp[4096];
+    int n = snprintf(tmp, sizeof tmp, "%s.tmp", index->path);
+    if (n < 0 || (size_t)n >= sizeof tmp) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
     usearch_error_t err = NULL;
-    usearch_save(index->idx, index->path, &err);
+    usearch_save(index->idx, tmp, &err);
     if (err != NULL) {
+        remove(tmp);
+        return CBERG_ERR_IO;
+    }
+    if (rename(tmp, index->path) != 0) {
+        remove(tmp);
         return CBERG_ERR_IO;
     }
     return CBERG_OK;
