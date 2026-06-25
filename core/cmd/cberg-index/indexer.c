@@ -197,10 +197,17 @@ static cberg_status apply_vectors(cberg_indexer *idx, const cberg_changes *ch) {
         }
     }
 
+    int del_show = ch->deleted_len >= PROGRESS_MIN;
+    size_t del_mark = PROGRESS_STEP;
     for (size_t i = 0; i < ch->deleted_len; i++) {
         st = cberg_index_remove(idx->index, ch->deleted[i].id);
         if (st != CBERG_OK) {
             goto done;
+        }
+        if (del_show && (i + 1 >= del_mark || i + 1 == ch->deleted_len)) {
+            fprintf(stderr, "cberg-index: removed %zu/%zu chunks (%zu%%)\n", i + 1, ch->deleted_len,
+                    (i + 1) * 100 / ch->deleted_len);
+            del_mark += PROGRESS_STEP;
         }
     }
 
