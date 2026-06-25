@@ -37,7 +37,8 @@ int main(void) {
         return 1;
     }
 
-    fprintf(stderr, "cberg-index: root=%s vectors=%d socket=%s\n", idx.root, idx.vectors, idx.socket_path);
+    fprintf(stderr, "cberg-index: root=%s vectors=%d index=%s socket=%s\n", idx.root, idx.vectors,
+            idx.index_path != NULL ? idx.index_path : "(none)", idx.socket_path);
 
     st = cberg_indexer_bootstrap(&idx);
     if (st != CBERG_OK) {

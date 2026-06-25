@@ -460,6 +460,33 @@ static void refresh_manifest(cberg_indexer *idx) {
     idx->manifest = next;
 }
 
+/* 16-hex-char digest of the resolved root path: a stable per-directory tag, so
+ * each indexed tree keeps its own index + sidecars. The realpath is the
+ * directory's identity — a reverted directory hashes back to the same tag (its
+ * cached state is reused), and a different tree gets a disjoint set of files. */
+static void root_suffix(const char *root, char out[17]) {
+    static const char hex[] = "0123456789abcdef";
+    uint8_t h[CBERG_HASH_LEN];
+    if (cberg_hash(root, strlen(root), h) != CBERG_OK) {
+        memset(h, 0, sizeof(h));
+    }
+    for (size_t i = 0; i < 8; i++) {
+        out[2 * i] = hex[h[i] >> 4];
+        out[2 * i + 1] = hex[h[i] & 0x0F];
+    }
+    out[16] = '\0';
+}
+
+static char *join_str(const char *a, const char *b) {
+    size_t la = strlen(a), lb = strlen(b);
+    char *s = malloc(la + lb + 1);
+    if (s != NULL) {
+        memcpy(s, a, la);
+        memcpy(s + la, b, lb + 1);
+    }
+    return s;
+}
+
 const char *cberg_indexer_version(void) {
     return cberg_version();
 }
@@ -497,22 +524,28 @@ cberg_status cberg_indexer_open(cberg_indexer *idx) {
     if (model != NULL && model[0] != '\0' && index_path != NULL && index_path[0] != '\0') {
         idx->vectors = 1;
         idx->model_path = strdup(model);
-        idx->index_path = strdup(index_path);
-        if (idx->model_path == NULL || idx->index_path == NULL) {
+        if (idx->model_path == NULL) {
             cberg_indexer_close(idx);
             return CBERG_ERR_OUT_OF_MEMORY;
         }
-        /* Sidecars next to the vector index hold the chunk table and manifest, so
-         * a restart reuses existing embeddings and re-chunks only changed files. */
-        size_t plen = strlen(idx->index_path);
-        idx->chunks_path = malloc(plen + sizeof(".chunks"));
-        idx->manifest_path = malloc(plen + sizeof(".manifest"));
+        /* CBERG_INDEX_PATH is a base path; the actual index and its chunk-table /
+         * manifest sidecars are per-directory ("<base>.<roothash>[.chunks|.manifest]").
+         * Pointing at a different tree never reuses another tree's chunks, and
+         * reverting to a prior tree finds its embeddings still cached. */
+        char tag[18]; /* ".<16 hex>" */
+        tag[0] = '.';
+        root_suffix(idx->root, tag + 1);
+        idx->index_path = join_str(index_path, tag);
+        if (idx->index_path == NULL) {
+            cberg_indexer_close(idx);
+            return CBERG_ERR_OUT_OF_MEMORY;
+        }
+        idx->chunks_path = join_str(idx->index_path, ".chunks");
+        idx->manifest_path = join_str(idx->index_path, ".manifest");
         if (idx->chunks_path == NULL || idx->manifest_path == NULL) {
             cberg_indexer_close(idx);
             return CBERG_ERR_OUT_OF_MEMORY;
         }
-        snprintf(idx->chunks_path, plen + sizeof(".chunks"), "%s.chunks", idx->index_path);
-        snprintf(idx->manifest_path, plen + sizeof(".manifest"), "%s.manifest", idx->index_path);
     }
 
     idx->poll_ms = 1000;

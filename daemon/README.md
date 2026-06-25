@@ -30,7 +30,7 @@ Outputs: `core/build/bin/cberg-index`, `core/build/bin/codeberg-d`.
 |----------|----------|---------|
 | `CODEBERG_ROOT` | yes | Repository tree to index |
 | `CBERG_MODEL` | for vectors | Path to ONNX model |
-| `CBERG_INDEX_PATH` | for vectors | usearch index file path |
+| `CBERG_INDEX_PATH` | for vectors | usearch index **base path**; the actual index and its chunk-table/manifest sidecars are per-directory (`<base>.<roothash>[.chunks\|.manifest]`) |
 | `CBERG_POLL_MS` | no | Watcher poll timeout (default 1000) |
 | `CBERG_SOCKET` | no | Unix socket for indexer IPC (default `/tmp/codeberg-index.sock`) |
 | `CBERG_INDEX_BIN` | no | Path to `cberg-index` binary |

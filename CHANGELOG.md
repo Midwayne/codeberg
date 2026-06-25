@@ -10,12 +10,16 @@ changes may occur in minor releases and are called out explicitly.
 ### Added
 
 - **Fast restarts via persisted state** — `cberg-index` now saves the chunk table
-  and merkle manifest as sidecars next to the vector index
-  (`<index>.chunks`, `<index>.manifest`). On restart it restores them, so chunk
-  ids stay stable and the reopened index reuses existing embeddings; the manifest
-  diff re-chunks only the files that changed while the process was down. A restart
-  with no changes re-embeds nothing and reads no source files. New ABI:
-  `cberg_chunk_table_save`/`_load` and `cberg_manifest_save`/`_load`.
+  and merkle manifest as sidecars next to the vector index. On restart it restores
+  them, so chunk ids stay stable and the reopened index reuses existing embeddings;
+  the manifest diff re-chunks only the files that changed while the process was
+  down. A restart with no changes re-embeds nothing and reads no source files. New
+  ABI: `cberg_chunk_table_save`/`_load` and `cberg_manifest_save`/`_load`.
+- **Per-directory index state** — `CBERG_INDEX_PATH` is now a base path; the index
+  and its sidecars are keyed by a hash of the resolved root
+  (`<base>.<roothash>[.chunks|.manifest]`). Pointing the indexer at a different
+  tree never reuses another tree's chunks, and reverting to a prior tree finds its
+  embeddings still cached.
 
 ### Fixed
 
