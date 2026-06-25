@@ -120,18 +120,70 @@ static int find_kind(ev *e, size_t n, const char *path, cberg_watch_kind *out) {
 
 typedef struct {
     const char *dir;
+    const char *prefix;
     int start;
     int count;
-} del_job;
+} file_job;
 
-static void *del_worker(void *arg) {
-    del_job *j = arg;
+static void *create_worker(void *arg) {
+    file_job *j = arg;
     for (int i = 0; i < j->count; i++) {
         char name[64];
-        snprintf(name, sizeof(name), "race%d.go", j->start + i);
+        snprintf(name, sizeof(name), "%s%d.go", j->prefix, j->start + i);
+        write_file(j->dir, name, "package main\nfunc X(){}\n");
+    }
+    return NULL;
+}
+
+static void *update_worker(void *arg) {
+    file_job *j = arg;
+    for (int i = 0; i < j->count; i++) {
+        char name[64];
+        snprintf(name, sizeof(name), "%s%d.go", j->prefix, j->start + i);
+        write_file(j->dir, name, "package main\nfunc X(){}\nfunc Y(){}\n");
+    }
+    return NULL;
+}
+
+static void *del_worker(void *arg) {
+    file_job *j = arg;
+    for (int i = 0; i < j->count; i++) {
+        char name[64];
+        snprintf(name, sizeof(name), "%s%d.go", j->prefix, j->start + i);
         rm_file(j->dir, name);
     }
     return NULL;
+}
+
+enum { NRACE = 40, NTHREADS = 4 };
+
+/* Run `worker` on NTHREADS threads, each touching NRACE/NTHREADS files named
+ * "<prefix><i>.go", and wait for all of them. */
+static void race_run(const char *dir, const char *prefix, void *(*worker)(void *)) {
+    pthread_t th[NTHREADS];
+    file_job jobs[NTHREADS];
+    for (int t = 0; t < NTHREADS; t++) {
+        jobs[t] = (file_job){.dir = dir, .prefix = prefix, .start = t * (NRACE / NTHREADS),
+                             .count = NRACE / NTHREADS};
+        CHECK(pthread_create(&th[t], NULL, worker, &jobs[t]) == 0, "racing: spawn worker");
+    }
+    for (int t = 0; t < NTHREADS; t++) {
+        pthread_join(th[t], NULL);
+    }
+}
+
+/* Count "<prefix><i>.go" (i in [0,NRACE)) seen with kind matching want_delete. */
+static int race_seen(ev *got, size_t n, const char *prefix, int want_delete) {
+    int seen = 0;
+    for (int i = 0; i < NRACE; i++) {
+        char nm[64];
+        cberg_watch_kind k;
+        snprintf(nm, sizeof(nm), "%s%d.go", prefix, i);
+        if (find_kind(got, n, nm, &k) && ((k == CBERG_WATCH_DELETE) == (want_delete != 0))) {
+            seen++;
+        }
+    }
+    return seen;
 }
 
 int main(void) {
@@ -223,8 +275,29 @@ int main(void) {
     CHECK(find_kind(got, n, "doomed.go", &k) && k == CBERG_WATCH_DELETE, "mixed: delete is DELETE");
     free_events(got, n);
 
-    /* --- RACING: concurrent deletions from multiple threads, none lost --- */
-    enum { NRACE = 40, NTHREADS = 4 };
+    /* --- RACING CREATE: NRACE files created across NTHREADS threads --- */
+    drain(w);
+    race_run(dir, "rcreate", create_worker);
+    n = collect(w, got, 700, &err);
+    CHECK(err == CBERG_OK, "racing create: no poll error");
+    CHECK(race_seen(got, n, "rcreate", 0) == NRACE, "racing create: all concurrent creates reported (not delete)");
+    free_events(got, n);
+
+    /* --- RACING UPDATE: NRACE existing files modified concurrently --- */
+    drain(w);
+    for (int i = 0; i < NRACE; i++) {
+        char nm[64];
+        snprintf(nm, sizeof(nm), "rupdate%d.go", i);
+        write_file(dir, nm, "package main\n");
+    }
+    drain(w); /* absorb the creates */
+    race_run(dir, "rupdate", update_worker);
+    n = collect(w, got, 700, &err);
+    CHECK(err == CBERG_OK, "racing update: no poll error");
+    CHECK(race_seen(got, n, "rupdate", 0) == NRACE, "racing update: all concurrent updates reported (not delete)");
+    free_events(got, n);
+
+    /* --- RACING DELETE: NRACE existing files removed concurrently, none lost --- */
     drain(w);
     for (int i = 0; i < NRACE; i++) {
         char nm[64];
@@ -232,26 +305,10 @@ int main(void) {
         write_file(dir, nm, "package main\n");
     }
     drain(w); /* absorb the creates */
-    pthread_t th[NTHREADS];
-    del_job jobs[NTHREADS];
-    for (int t = 0; t < NTHREADS; t++) {
-        jobs[t] = (del_job){.dir = dir, .start = t * (NRACE / NTHREADS), .count = NRACE / NTHREADS};
-        CHECK(pthread_create(&th[t], NULL, del_worker, &jobs[t]) == 0, "racing: spawn deleter");
-    }
-    for (int t = 0; t < NTHREADS; t++) {
-        pthread_join(th[t], NULL);
-    }
+    race_run(dir, "race", del_worker);
     n = collect(w, got, 700, &err);
-    CHECK(err == CBERG_OK, "racing: no poll error under concurrent deletes");
-    int race_deleted = 0;
-    for (int i = 0; i < NRACE; i++) {
-        char nm[64];
-        snprintf(nm, sizeof(nm), "race%d.go", i);
-        if (find_kind(got, n, nm, &k) && k == CBERG_WATCH_DELETE) {
-            race_deleted++;
-        }
-    }
-    CHECK(race_deleted == NRACE, "racing: all concurrent deletions captured as DELETE");
+    CHECK(err == CBERG_OK, "racing delete: no poll error under concurrent deletes");
+    CHECK(race_seen(got, n, "race", 1) == NRACE, "racing delete: all concurrent deletions captured as DELETE");
     free_events(got, n);
 
     cberg_watcher_close(w);
