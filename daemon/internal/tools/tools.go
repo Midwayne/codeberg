@@ -89,7 +89,7 @@ func HTTPStatus(err error) int {
 		return http.StatusNotFound
 	case errors.Is(err, workspace.ErrEscape):
 		return http.StatusForbidden
-	case errors.Is(err, ErrInvalidArgs), errors.Is(err, ErrUnsafeSed):
+	case errors.Is(err, ErrInvalidArgs), errors.Is(err, ErrUnsafeSed), errors.Is(err, ErrUnsafePipe):
 		return http.StatusBadRequest
 	default:
 		return http.StatusInternalServerError

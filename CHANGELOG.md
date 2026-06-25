@@ -26,6 +26,15 @@ changes may occur in minor releases and are called out explicitly.
 - **Reasoning control** — `CODEBERG_REASONING` (`provider-default|none|minimal|low|
   medium|high|xhigh`) sets reasoning effort for reasoning-capable models via
   ai-sdk's standardized `reasoning` option.
+- **Daemon `pipe` tool** — runs a read-only pipeline over the repo in one call,
+  chaining `rg`/`grep` with text filters (`head`, `tail`, `wc`, `sort`, `uniq`,
+  `cut`, `tr`, `nl`, `cat`, `paste`, `sed`) using `|`, so the agent can search and
+  filter in a single round-trip instead of several tool calls. No shell is invoked:
+  the command is tokenized and each stage exec'd directly rooted at `CODEBERG_ROOT`;
+  redirection/substitution/`;`/`&` and write/exec flags (`rg --pre`, `sort -o`,
+  `sed -i`) are rejected, paths cannot escape the root, and `awk`/`xargs` are
+  excluded. Output is bounded and the run is time-limited. The agent picks it up
+  automatically via `GET /tools`.
 
 ### Changed
 

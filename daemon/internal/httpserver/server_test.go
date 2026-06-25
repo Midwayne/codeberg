@@ -100,3 +100,47 @@ func TestCallTool(t *testing.T) {
 		t.Fatalf("status %d", res.StatusCode)
 	}
 }
+
+func TestCallPipeTool(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(root+"/a.go", []byte("package main\n// TODO\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	srv := New(&fakeIndexer{status: indexctl.Status{Ready: true}}, tools.Default(workspace.New(root)))
+	ts := httptest.NewServer(srv.Handler())
+	t.Cleanup(ts.Close)
+
+	call := func(command string) *http.Response {
+		b, _ := json.Marshal(map[string]any{"name": "pipe", "args": map[string]any{"command": command}})
+		res, err := http.Post(ts.URL+"/tools/call", "application/json", bytes.NewReader(b))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res
+	}
+
+	// Happy path: a real rg | head pipeline returns the matching file.
+	res := call(`rg -l TODO --glob "*.go" | head -1`)
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("pipe status %d", res.StatusCode)
+	}
+	var body struct {
+		Result struct {
+			Stdout string `json:"stdout"`
+		} `json:"result"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Result.Stdout == "" {
+		t.Fatal("expected non-empty pipe stdout")
+	}
+
+	// Unsafe pipeline: shell redirection is rejected with 400.
+	res2 := call(`rg TODO > out`)
+	defer res2.Body.Close()
+	if res2.StatusCode != http.StatusBadRequest {
+		t.Fatalf("unsafe pipe status %d, want 400", res2.StatusCode)
+	}
+}

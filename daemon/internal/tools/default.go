@@ -13,6 +13,7 @@ func Default(ws *workspace.Workspace) *Registry {
 	r.Register(tailTool(ws))
 	r.Register(wcTool(ws))
 	r.Register(sedTool(ws))
+	r.Register(pipeTool(ws))
 	r.Register(gitLogTool(ws))
 	r.Register(gitBlameTool(ws))
 	return r

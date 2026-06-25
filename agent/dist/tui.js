@@ -97,6 +97,7 @@ Available tools:
 - read_file: read file content or a specific line range.
 - list_dir / tree: explore repository or service structure.
 - head / tail / wc: quick file inspection.
+- pipe: run a read-only shell-style pipeline in ONE call, chaining rg/grep with filters (head, tail, wc, sort, uniq, cut, tr, nl, cat, paste, sed) using "|". Prefer this to combine a search with filtering \u2014 e.g. \`rg -l 'func main' --glob '*.go' | head -20\` or \`rg TODO | wc -l\` \u2014 instead of issuing separate grep + head/wc calls. No shell is run, so redirection, ";", "&", and "$()" are rejected and paths cannot escape the repo.
 - git_log / git_blame: inspect history when ownership or recent changes matter. Read-only.
 
 General strategy:
@@ -105,7 +106,8 @@ General strategy:
 3. Use read_file to inspect surrounding code before making claims.
 4. Follow imports, function calls, client calls, repository methods, ORM models, queries, and configuration references.
 5. Search across repositories/services when the code indicates microservice boundaries or shared dependencies.
-6. Stop only when you can answer with cited evidence, or when further tracing is blocked by missing code.
+6. Prefer a single pipe call over several grep/read_file/head/wc calls when the work is expressible as a pipeline \u2014 it is faster and uses fewer tokens.
+7. Stop only when you can answer with cited evidence, or when further tracing is blocked by missing code.
 
 Data-source tracing strategy:
 When the user asks about a data source, storage location, database, table, collection, API dependency, queue, topic, producer, writer, or source of truth, do not stop at the first match.

@@ -43,9 +43,11 @@ Outputs: `core/build/bin/cberg-index`, `core/build/bin/codeberg-d`.
 Registered at `GET /tools`, invoked via `POST /tools/call`:
 
 `grep`, `glob`, `read_file`, `list_dir`, `tree`, `head`, `tail`, `wc`, `sed`,
-`git_log`, `git_blame`
+`pipe`, `git_log`, `git_blame`
 
-All tools are sandboxed to `CODEBERG_ROOT`.
+All tools are sandboxed to `CODEBERG_ROOT`. `pipe` chains `rg`/`grep` with text
+filters in one shell-free, allowlisted pipeline (e.g. `rg -l TODO | head -20`); see
+[docs/http.md](docs/http.md#pipe--read-only-pipelines).
 
 ## Run
 
