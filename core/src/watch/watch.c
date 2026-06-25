@@ -213,16 +213,26 @@ cberg_status watch_reserve_dirs(cberg_watcher *w, size_t want) {
 }
 
 bool watch_rel_from_abs(cberg_watcher *w, const char *abs, char *rel_out, size_t rel_cap) {
+    if (abs == NULL) {
+        return false;
+    }
+    /* Normalize via realpath while the path still exists. A removed or renamed
+     * file can no longer be resolved — fall back to the path the platform
+     * reported (already absolute under the watch root), so delete events are not
+     * silently dropped and their chunks actually get purged. */
     char resolved[PATH_MAX];
-    if (cberg_path_resolve(abs, resolved, sizeof(resolved)) != CBERG_OK) {
+    const char *full = abs;
+    if (cberg_path_resolve(abs, resolved, sizeof(resolved)) == CBERG_OK) {
+        full = resolved;
+    }
+    if (strncmp(full, w->root, w->root_len) != 0) {
         return false;
     }
-    if (strncmp(resolved, w->root, w->root_len) != 0) {
-        return false;
-    }
-    const char *rel = resolved + w->root_len;
+    const char *rel = full + w->root_len;
     if (rel[0] == '/') {
         rel++;
+    } else if (rel[0] != '\0') {
+        return false; /* matched only a partial path component, not the root */
     }
     if (strlen(rel) + 1 > rel_cap) {
         return false;
