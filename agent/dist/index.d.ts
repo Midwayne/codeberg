@@ -1,4 +1,4 @@
-import { LanguageModel, ModelMessage } from 'ai';
+import { LanguageModel, ModelMessage, ToolLoopAgent } from 'ai';
 
 interface SearchResult {
     id: number;
@@ -24,10 +24,21 @@ interface Prompt {
 interface Generator {
     generate(prompt: Prompt): Promise<string>;
 }
+/** Throughput/latency stats for a completed agent run, surfaced from the
+ *  ai-sdk v7 `result.finalStep.performance`. Optional: the legacy `askOnce`
+ *  path and providers that omit usage leave it undefined. */
+interface RunPerformance {
+    outputTokensPerSecond?: number;
+    responseTimeMs?: number;
+}
 interface AskResult {
     answer: string;
     sources: SearchResult[];
+    performance?: RunPerformance;
 }
+/** Reasoning-effort levels accepted by ai-sdk v7's standardized `reasoning`
+ *  option (`LanguageModelV4CallOptions['reasoning']`). */
+type ReasoningEffort = "provider-default" | "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
 interface Turn {
     role: "user" | "assistant";
     content: string;
@@ -47,6 +58,8 @@ interface AgentOptions {
     daemon: DaemonClient;
     maxSteps?: number;
     generator?: Generator;
+    /** Standardized ai-sdk v7 reasoning-effort control, applied to every run. */
+    reasoning?: ReasoningEffort;
 }
 interface AskOptions extends SearchOptions {
     messages?: ModelMessage[];
@@ -56,9 +69,16 @@ declare class Agent {
     private readonly daemon;
     private readonly maxSteps;
     private readonly generator;
+    private readonly reasoning?;
+    private loop?;
+    private sources;
     constructor(opts: AgentOptions);
     ask(question: string, opts?: AskOptions): Promise<AskResult>;
     askOnce(question: string, opts?: AskOptions): Promise<AskResult>;
+    /** The underlying ai-sdk v7 agent, for callers that drive their own loop
+     *  (e.g. `runAgentTUI`). Built lazily and cached, same instance as `ask`. */
+    toolLoopAgent(): Promise<ToolLoopAgent>;
+    private ensureLoop;
     private buildTools;
 }
 
@@ -104,7 +124,10 @@ declare function entryUsage(program: string): string;
 interface AgentConfig {
     modelSpec: string;
     daemonUrl: string;
+    reasoning?: ReasoningEffort;
 }
+/** Read CODEBERG_REASONING, accepting only the ai-sdk v7 effort levels. */
+declare function reasoningFromEnv(env?: NodeJS.ProcessEnv): ReasoningEffort | undefined;
 declare function createAgent(config: AgentConfig): Agent;
 declare function createAgentFromEntry(entry: EntryConfig): Agent;
 
@@ -139,4 +162,4 @@ declare function registerBuiltinProviders(registry: {
 
 declare function defaultProviders(): ProviderRegistry;
 
-export { AGENT_SYSTEM, Agent, type AgentConfig, type AgentOptions, type AskOptions, type AskResult, ChatSession, type ChatSessionOptions, DaemonClient, type EntryConfig, type Generator, type ModelProvider, type Prompt, ProviderRegistry, type SearchOptions, type SearchResult, type ToolSpec, type Turn, anthropicProvider, buildPrompt, createAgent, createAgentFromEntry, defaultProviders, entryUsage, formatSource, formatSources, fromAiSdk, googleProvider, openaiProvider, parseEntryArgs, registerBuiltinProviders };
+export { AGENT_SYSTEM, Agent, type AgentConfig, type AgentOptions, type AskOptions, type AskResult, ChatSession, type ChatSessionOptions, DaemonClient, type EntryConfig, type Generator, type ModelProvider, type Prompt, ProviderRegistry, type ReasoningEffort, type RunPerformance, type SearchOptions, type SearchResult, type ToolSpec, type Turn, anthropicProvider, buildPrompt, createAgent, createAgentFromEntry, defaultProviders, entryUsage, formatSource, formatSources, fromAiSdk, googleProvider, openaiProvider, parseEntryArgs, reasoningFromEnv, registerBuiltinProviders };

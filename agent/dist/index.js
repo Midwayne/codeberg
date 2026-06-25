@@ -1,10 +1,10 @@
 // src/core/agent.ts
 import {
   dynamicTool,
-  generateText as generateText2,
   jsonSchema,
   stepCountIs,
-  tool
+  tool,
+  ToolLoopAgent
 } from "ai";
 
 // src/core/generator.ts
@@ -220,31 +220,44 @@ ${lines.join("\n")}
 // src/core/agent.ts
 var DEFAULT_MAX_STEPS = 16;
 var DEFAULT_SEARCH_K = 8;
+var DEFAULT_TIMEOUT = {
+  totalMs: 3e5,
+  stepMs: 12e4,
+  chunkMs: 6e4
+};
 var Agent = class {
   model;
   daemon;
   maxSteps;
   generator;
+  reasoning;
+  // Built once on first use (tools require an async daemon round-trip), then
+  // reused across every ask instead of reconstructing the loop each call.
+  loop;
+  // Per-ask buffer of the full search hits behind the compact chunks shown to
+  // the model. Reset at the top of each `ask`; safe because asks are awaited
+  // sequentially (no concurrent runs share this Agent instance).
+  sources = [];
   constructor(opts) {
     this.model = opts.model;
     this.daemon = opts.daemon;
     this.maxSteps = opts.maxSteps ?? DEFAULT_MAX_STEPS;
     this.generator = opts.generator ?? fromAiSdk(opts.model);
+    this.reasoning = opts.reasoning;
   }
   async ask(question, opts = {}) {
-    const sources = [];
+    this.sources = [];
+    const loop = await this.ensureLoop();
     const messages = [
       ...opts.messages ?? [],
       { role: "user", content: question }
     ];
-    const { text } = await generateText2({
-      model: this.model,
-      system: AGENT_SYSTEM,
-      messages,
-      tools: await this.buildTools(opts, sources),
-      stopWhen: stepCountIs(this.maxSteps)
-    });
-    return { answer: text, sources: dedupe(sources) };
+    const result = await loop.generate({ messages });
+    return {
+      answer: result.text,
+      sources: dedupe(this.sources),
+      performance: toPerformance(result.finalStep?.performance)
+    };
   }
   async askOnce(question, opts = {}) {
     const sources = await this.daemon.search(question, {
@@ -255,7 +268,25 @@ var Agent = class {
     );
     return { answer, sources };
   }
-  async buildTools(opts, sink) {
+  /** The underlying ai-sdk v7 agent, for callers that drive their own loop
+   *  (e.g. `runAgentTUI`). Built lazily and cached, same instance as `ask`. */
+  async toolLoopAgent() {
+    return this.ensureLoop();
+  }
+  async ensureLoop() {
+    if (!this.loop) {
+      this.loop = new ToolLoopAgent({
+        model: this.model,
+        instructions: AGENT_SYSTEM,
+        tools: await this.buildTools(),
+        stopWhen: stepCountIs(this.maxSteps),
+        timeout: DEFAULT_TIMEOUT,
+        ...this.reasoning ? { reasoning: this.reasoning } : {}
+      });
+    }
+    return this.loop;
+  }
+  async buildTools() {
     const toolset = {
       search_code: tool({
         description: "Semantic code search. Returns relevant chunks with path, lines, and snippet.",
@@ -270,9 +301,9 @@ var Agent = class {
         }),
         execute: async ({ query, k }) => {
           const results = await this.daemon.search(query, {
-            k: k ?? opts.k ?? DEFAULT_SEARCH_K
+            k: k ?? DEFAULT_SEARCH_K
           });
-          sink.push(...results);
+          this.sources.push(...results);
           return results.map(toToolChunk);
         }
       })
@@ -287,6 +318,15 @@ var Agent = class {
     return toolset;
   }
 };
+function toPerformance(perf) {
+  if (!perf) {
+    return void 0;
+  }
+  return {
+    outputTokensPerSecond: perf.effectiveOutputTokensPerSecond,
+    responseTimeMs: perf.responseTimeMs
+  };
+}
 function toToolChunk(r) {
   return {
     id: r.id,
@@ -519,18 +559,33 @@ function defaultProviders() {
 }
 
 // src/core/config.ts
+var REASONING_EFFORTS = [
+  "provider-default",
+  "none",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh"
+];
+function reasoningFromEnv(env2 = process.env) {
+  const value = env2.CODEBERG_REASONING;
+  return value && REASONING_EFFORTS.includes(value) ? value : void 0;
+}
 function createAgent(config) {
   const registry = defaultProviders();
   const model = registry.resolve(config.modelSpec);
   return new Agent({
     model,
-    daemon: new DaemonClient(config.daemonUrl)
+    daemon: new DaemonClient(config.daemonUrl),
+    reasoning: config.reasoning
   });
 }
 function createAgentFromEntry(entry) {
   return createAgent({
     modelSpec: entry.modelSpec,
-    daemonUrl: entry.daemonUrl
+    daemonUrl: entry.daemonUrl,
+    reasoning: reasoningFromEnv()
   });
 }
 
@@ -584,5 +639,6 @@ export {
   googleProvider,
   openaiProvider,
   parseEntryArgs,
+  reasoningFromEnv,
   registerBuiltinProviders
 };

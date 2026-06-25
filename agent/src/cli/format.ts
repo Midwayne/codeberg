@@ -9,4 +9,22 @@ export function printResult(result: AskResult): void {
       console.error(formatSource(s));
     }
   }
+  const perf = formatPerformance(result.performance);
+  if (perf) {
+    console.error(`\n${perf}`);
+  }
+}
+
+function formatPerformance(perf: AskResult["performance"]): string | undefined {
+  if (!perf) {
+    return undefined;
+  }
+  const parts: string[] = [];
+  if (perf.outputTokensPerSecond != null) {
+    parts.push(`${perf.outputTokensPerSecond.toFixed(1)} tok/s`);
+  }
+  if (perf.responseTimeMs != null) {
+    parts.push(`${(perf.responseTimeMs / 1000).toFixed(1)}s`);
+  }
+  return parts.length > 0 ? `--- ${parts.join(" · ")} ---` : undefined;
 }

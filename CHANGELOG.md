@@ -20,6 +20,25 @@ changes may occur in minor releases and are called out explicitly.
   (`<base>.<roothash>[.chunks|.manifest]`). Pointing the indexer at a different
   tree never reuses another tree's chunks, and reverting to a prior tree finds its
   embeddings still cached.
+- **Agent run statistics** — `agent.ask` now returns `performance` (output
+  tokens/sec, response time) from ai-sdk's `finalStep.performance`, surfaced as a
+  `--- N tok/s · Ns ---` line under `codeberg-ask` answers.
+- **Reasoning control** — `CODEBERG_REASONING` (`provider-default|none|minimal|low|
+  medium|high|xhigh`) sets reasoning effort for reasoning-capable models via
+  ai-sdk's standardized `reasoning` option.
+
+### Changed
+
+- **Agent upgraded to ai-sdk v7** — the hand-rolled `generateText` + `stepCountIs`
+  tool loop is now a built-once `ToolLoopAgent` with `TimeoutConfiguration`
+  (`totalMs`/`stepMs`/`chunkMs`) bounding stalled gateways. Provider packages move
+  to their v7-compatible majors (`@ai-sdk/openai-compatible@3`, `anthropic@4`,
+  `openai@4`, `google@4`).
+- **TUI replaced with `runAgentTUI`** — the interactive `codeberg-tui` now uses
+  `@ai-sdk/tui` (streamed tool calls, collapsible reasoning, live tok/s) instead of
+  the bespoke Ink UI. The custom prompt history, `/help` `/clear` `/copy` `/quit`
+  commands, and the TUI's `--once` / seeded-question flags are dropped; the CLI
+  keeps `--once` and seeded questions.
 
 ### Fixed
 

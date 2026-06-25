@@ -4,7 +4,7 @@ export default defineConfig({
   entry: {
     index: "src/index.ts",
     cli: "src/cli/main.ts",
-    tui: "src/tui/main.tsx",
+    tui: "src/tui/main.ts",
   },
   format: ["esm"],
   dts: true,
@@ -12,14 +12,10 @@ export default defineConfig({
   target: "node22",
   external: [
     "ai",
+    "@ai-sdk/tui",
     "@ai-sdk/openai",
     "@ai-sdk/anthropic",
     "@ai-sdk/google",
-    "react",
-    "ink",
   ],
   splitting: false,
-  esbuildOptions(options) {
-    options.jsx = "automatic";
-  },
 });

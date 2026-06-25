@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 
-// src/tui/main.tsx
-import { render } from "ink";
+// src/tui/main.ts
+import { runAgentTUI } from "@ai-sdk/tui";
 
 // src/core/agent.ts
 import {
   dynamicTool,
-  generateText as generateText2,
   jsonSchema,
   stepCountIs,
-  tool
+  tool,
+  ToolLoopAgent
 } from "ai";
 
 // src/core/generator.ts
@@ -225,31 +225,44 @@ ${lines.join("\n")}
 // src/core/agent.ts
 var DEFAULT_MAX_STEPS = 16;
 var DEFAULT_SEARCH_K = 8;
+var DEFAULT_TIMEOUT = {
+  totalMs: 3e5,
+  stepMs: 12e4,
+  chunkMs: 6e4
+};
 var Agent = class {
   model;
   daemon;
   maxSteps;
   generator;
+  reasoning;
+  // Built once on first use (tools require an async daemon round-trip), then
+  // reused across every ask instead of reconstructing the loop each call.
+  loop;
+  // Per-ask buffer of the full search hits behind the compact chunks shown to
+  // the model. Reset at the top of each `ask`; safe because asks are awaited
+  // sequentially (no concurrent runs share this Agent instance).
+  sources = [];
   constructor(opts) {
     this.model = opts.model;
     this.daemon = opts.daemon;
     this.maxSteps = opts.maxSteps ?? DEFAULT_MAX_STEPS;
     this.generator = opts.generator ?? fromAiSdk(opts.model);
+    this.reasoning = opts.reasoning;
   }
   async ask(question, opts = {}) {
-    const sources = [];
+    this.sources = [];
+    const loop = await this.ensureLoop();
     const messages = [
       ...opts.messages ?? [],
       { role: "user", content: question }
     ];
-    const { text } = await generateText2({
-      model: this.model,
-      system: AGENT_SYSTEM,
-      messages,
-      tools: await this.buildTools(opts, sources),
-      stopWhen: stepCountIs(this.maxSteps)
-    });
-    return { answer: text, sources: dedupe(sources) };
+    const result = await loop.generate({ messages });
+    return {
+      answer: result.text,
+      sources: dedupe(this.sources),
+      performance: toPerformance(result.finalStep?.performance)
+    };
   }
   async askOnce(question, opts = {}) {
     const sources = await this.daemon.search(question, {
@@ -260,7 +273,25 @@ var Agent = class {
     );
     return { answer, sources };
   }
-  async buildTools(opts, sink) {
+  /** The underlying ai-sdk v7 agent, for callers that drive their own loop
+   *  (e.g. `runAgentTUI`). Built lazily and cached, same instance as `ask`. */
+  async toolLoopAgent() {
+    return this.ensureLoop();
+  }
+  async ensureLoop() {
+    if (!this.loop) {
+      this.loop = new ToolLoopAgent({
+        model: this.model,
+        instructions: AGENT_SYSTEM,
+        tools: await this.buildTools(),
+        stopWhen: stepCountIs(this.maxSteps),
+        timeout: DEFAULT_TIMEOUT,
+        ...this.reasoning ? { reasoning: this.reasoning } : {}
+      });
+    }
+    return this.loop;
+  }
+  async buildTools() {
     const toolset = {
       search_code: tool({
         description: "Semantic code search. Returns relevant chunks with path, lines, and snippet.",
@@ -275,9 +306,9 @@ var Agent = class {
         }),
         execute: async ({ query, k }) => {
           const results = await this.daemon.search(query, {
-            k: k ?? opts.k ?? DEFAULT_SEARCH_K
+            k: k ?? DEFAULT_SEARCH_K
           });
-          sink.push(...results);
+          this.sources.push(...results);
           return results.map(toToolChunk);
         }
       })
@@ -292,6 +323,15 @@ var Agent = class {
     return toolset;
   }
 };
+function toPerformance(perf) {
+  if (!perf) {
+    return void 0;
+  }
+  return {
+    outputTokensPerSecond: perf.effectiveOutputTokensPerSecond,
+    responseTimeMs: perf.responseTimeMs
+  };
+}
 function toToolChunk(r) {
   return {
     id: r.id,
@@ -480,18 +520,33 @@ function defaultProviders() {
 }
 
 // src/core/config.ts
+var REASONING_EFFORTS = [
+  "provider-default",
+  "none",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh"
+];
+function reasoningFromEnv(env2 = process.env) {
+  const value = env2.CODEBERG_REASONING;
+  return value && REASONING_EFFORTS.includes(value) ? value : void 0;
+}
 function createAgent(config) {
   const registry = defaultProviders();
   const model = registry.resolve(config.modelSpec);
   return new Agent({
     model,
-    daemon: new DaemonClient(config.daemonUrl)
+    daemon: new DaemonClient(config.daemonUrl),
+    reasoning: config.reasoning
   });
 }
-function createAgentFromEntry(entry2) {
+function createAgentFromEntry(entry) {
   return createAgent({
-    modelSpec: entry2.modelSpec,
-    daemonUrl: entry2.daemonUrl
+    modelSpec: entry.modelSpec,
+    daemonUrl: entry.daemonUrl,
+    reasoning: reasoningFromEnv()
   });
 }
 
@@ -521,565 +576,23 @@ Env: CODEBERG_DAEMON_URL (default http://127.0.0.1:8080)
 Providers: openai, anthropic, google (when API keys set)`;
 }
 
-// src/core/session.ts
-var ChatSession = class {
-  agent;
-  once;
-  turns = [];
-  listeners = /* @__PURE__ */ new Set();
-  constructor(opts) {
-    this.agent = opts.agent;
-    this.once = opts.once ?? false;
+// src/tui/main.ts
+async function main() {
+  const entry = parseEntryArgs(process.argv);
+  if (!entry) {
+    console.error(entryUsage("codeberg-tui"));
+    process.exit(1);
   }
-  get history() {
-    return this.turns;
-  }
-  subscribe(listener) {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  }
-  async ask(question) {
-    const messages = this.toMessages();
-    this.turns.push({ role: "user", content: question });
-    this.notify();
-    const result = this.once ? await this.agent.askOnce(question, { messages }) : await this.agent.ask(question, { messages });
-    this.turns.push({
-      role: "assistant",
-      content: result.answer,
-      sources: result.sources
-    });
-    this.notify();
-    return result;
-  }
-  clear() {
-    this.turns.length = 0;
-    this.notify();
-  }
-  toMessages() {
-    return this.turns.map((t) => ({ role: t.role, content: t.content }));
-  }
-  notify() {
-    for (const listener of this.listeners) {
-      listener();
-    }
-  }
-};
-
-// src/tui/app.tsx
-import { Box as Box4, Text as Text5, useInput as useInput2 } from "ink";
-
-// src/tui/components/prompt-input.tsx
-import { Text, useInput } from "ink";
-import { useEffect, useRef, useState } from "react";
-import { jsx, jsxs } from "react/jsx-runtime";
-var PASTE_START = "[200~";
-var PASTE_END = "[201~";
-function sanitizePaste(input) {
-  const stripped = input.replaceAll(PASTE_START, "").replaceAll(PASTE_END, "");
-  let out = "";
-  for (const ch of stripped) {
-    const code = ch.codePointAt(0) ?? 0;
-    if (ch === "\n" || ch === "\r" || ch === "	") {
-      out += " ";
-    } else if (code < 32 || code === 127) {
-    } else {
-      out += ch;
-    }
-  }
-  return out;
-}
-function feedPaste(buffer, input) {
-  let chunk = input;
-  if (buffer === null) {
-    const start = input.indexOf(PASTE_START);
-    if (start === -1) {
-      return { buffer: null, complete: null };
-    }
-    buffer = "";
-    chunk = input.slice(start + PASTE_START.length);
-  }
-  const end = chunk.indexOf(PASTE_END);
-  if (end === -1) {
-    return { buffer: buffer + chunk, complete: null };
-  }
-  return {
-    buffer: null,
-    complete: sanitizePaste(buffer + chunk.slice(0, end))
-  };
-}
-function PromptInput({
-  value,
-  onChange,
-  onSubmit,
-  history,
-  placeholder = "",
-  isActive = true
-}) {
-  const [cursor, setCursor] = useState(value.length);
-  const [navIndex, setNavIndex] = useState(null);
-  const [draft, setDraft] = useState("");
-  const pasteBuffer = useRef(null);
-  useEffect(() => {
-    setCursor((c) => Math.min(c, value.length));
-  }, [value]);
-  useInput(
-    (input, key) => {
-      if (pasteBuffer.current !== null || input.includes(PASTE_START)) {
-        const { buffer, complete } = feedPaste(pasteBuffer.current, input);
-        pasteBuffer.current = buffer;
-        if (complete) {
-          onChange(value.slice(0, cursor) + complete + value.slice(cursor));
-          setCursor(cursor + complete.length);
-          setNavIndex(null);
-        }
-        return;
-      }
-      if (key.upArrow) {
-        if (history.length === 0) {
-          return;
-        }
-        if (navIndex === null) {
-          setDraft(value);
-        }
-        const next = navIndex === null ? history.length - 1 : Math.max(0, navIndex - 1);
-        setNavIndex(next);
-        const recalled = history[next] ?? "";
-        onChange(recalled);
-        setCursor(recalled.length);
-        return;
-      }
-      if (key.downArrow) {
-        if (navIndex === null) {
-          return;
-        }
-        const next = navIndex + 1;
-        if (next >= history.length) {
-          setNavIndex(null);
-          onChange(draft);
-          setCursor(draft.length);
-        } else {
-          setNavIndex(next);
-          const recalled = history[next] ?? "";
-          onChange(recalled);
-          setCursor(recalled.length);
-        }
-        return;
-      }
-      if (key.return) {
-        onSubmit(value);
-        setNavIndex(null);
-        setDraft("");
-        return;
-      }
-      if (key.escape) {
-        onChange("");
-        setCursor(0);
-        setNavIndex(null);
-        return;
-      }
-      if (key.leftArrow) {
-        setCursor((c) => Math.max(0, c - 1));
-        return;
-      }
-      if (key.rightArrow) {
-        setCursor((c) => Math.min(value.length, c + 1));
-        return;
-      }
-      if (key.backspace || key.delete) {
-        if (cursor > 0) {
-          onChange(value.slice(0, cursor - 1) + value.slice(cursor));
-          setCursor(cursor - 1);
-          setNavIndex(null);
-        }
-        return;
-      }
-      if (key.ctrl || key.meta || key.tab) {
-        return;
-      }
-      const isPaste = input.length > 1 || /[\r\n]/.test(input);
-      const text = isPaste ? sanitizePaste(input) : input;
-      if (!text) {
-        return;
-      }
-      onChange(value.slice(0, cursor) + text + value.slice(cursor));
-      setCursor(cursor + text.length);
-      setNavIndex(null);
-    },
-    { isActive }
-  );
-  if (value.length === 0) {
-    return /* @__PURE__ */ jsxs(Text, { children: [
-      /* @__PURE__ */ jsx(Text, { inverse: true, children: placeholder.slice(0, 1) || " " }),
-      /* @__PURE__ */ jsx(Text, { dimColor: true, children: placeholder.slice(1) })
-    ] });
-  }
-  const safeCursor = Math.min(cursor, value.length);
-  return /* @__PURE__ */ jsxs(Text, { children: [
-    value.slice(0, safeCursor),
-    /* @__PURE__ */ jsx(Text, { inverse: true, children: value.slice(safeCursor, safeCursor + 1) || " " }),
-    value.slice(safeCursor + 1)
-  ] });
-}
-
-// src/tui/app.tsx
-import { useCallback, useEffect as useEffect2, useReducer, useRef as useRef2, useState as useState2 } from "react";
-
-// src/tui/commands.ts
-import { spawn } from "child_process";
-function copyToClipboard(text) {
-  const command = process.platform === "darwin" ? "pbcopy" : process.platform === "win32" ? "clip" : "xclip";
-  const args = process.platform === "linux" ? ["-selection", "clipboard"] : [];
-  try {
-    const child = spawn(command, args, {
-      stdio: ["pipe", "ignore", "ignore"]
-    });
-    child.on("error", () => {
-    });
-    child.stdin.end(text);
-  } catch {
-  }
-}
-var COMMANDS = {
-  "/quit": () => "exit",
-  "/exit": () => "exit",
-  "/clear": ({ session: session2, setStatus }) => {
-    session2.clear();
-    setStatus(void 0);
-    return "handled";
-  },
-  "/copy": ({ session: session2, setStatus }) => {
-    const last = [...session2.history].reverse().find((turn) => turn.role === "assistant");
-    if (!last) {
-      setStatus("nothing to copy yet");
-      return "handled";
-    }
-    copyToClipboard(last.content);
-    setStatus("copied the last answer to the clipboard");
-    return "handled";
-  },
-  "/help": ({ setStatus }) => {
-    setStatus(
-      "commands: /clear /copy /quit \xB7 \u2191/\u2193 recall prompts \xB7 Esc clears the line"
-    );
-    return "handled";
-  }
-};
-function runCommand(line, ctx) {
-  const handler = COMMANDS[line];
-  return handler ? handler(ctx) : "continue";
-}
-
-// src/tui/components/transcript.tsx
-import { Box as Box3, Static, Text as Text4 } from "ink";
-import Spinner from "ink-spinner";
-
-// src/tui/components/message.tsx
-import { Box as Box2, Text as Text3 } from "ink";
-
-// src/core/format.ts
-function formatSource(result) {
-  return `${result.path}:${result.start_line}-${result.end_line} (id=${result.id})`;
-}
-
-// src/tui/markdown.tsx
-import { highlight } from "cli-highlight";
-import { Box, Text as Text2 } from "ink";
-import { marked } from "marked";
-import { Fragment, jsx as jsx2, jsxs as jsxs2 } from "react/jsx-runtime";
-var CITATION = /\[[^\]\s]+:L?\d+(?:-\d+)?\]/;
-var CITATION_SPLIT = new RegExp(`(${CITATION.source})`, "g");
-function Markdown({ content }) {
-  const tokens = marked.lexer(content.trim());
-  return /* @__PURE__ */ jsx2(Box, { flexDirection: "column", children: tokens.map((token, i) => /* @__PURE__ */ jsx2(Block, { token }, i)) });
-}
-function Block({ token }) {
-  switch (token.type) {
-    case "heading":
-      return /* @__PURE__ */ jsx2(Box, { marginTop: 1, children: /* @__PURE__ */ jsxs2(Text2, { bold: true, color: "cyan", children: [
-        "#".repeat(token.depth),
-        " ",
-        renderInline(token.tokens)
-      ] }) });
-    case "paragraph":
-      return /* @__PURE__ */ jsx2(Text2, { wrap: "wrap", children: renderInline(token.tokens) });
-    case "code":
-      return /* @__PURE__ */ jsx2(CodeBlock, { code: token.text, lang: token.lang });
-    case "blockquote": {
-      const quote = token;
-      return /* @__PURE__ */ jsxs2(Box, { flexDirection: "row", children: [
-        /* @__PURE__ */ jsx2(Text2, { dimColor: true, children: "\u2502 " }),
-        /* @__PURE__ */ jsx2(Box, { flexDirection: "column", children: quote.tokens.map((child, i) => /* @__PURE__ */ jsx2(Block, { token: child }, i)) })
-      ] });
-    }
-    case "list": {
-      const list = token;
-      return /* @__PURE__ */ jsx2(Box, { flexDirection: "column", children: list.items.map((item, i) => {
-        const marker = list.ordered ? `${(typeof list.start === "number" ? list.start : 1) + i}. ` : "\u2022 ";
-        return /* @__PURE__ */ jsxs2(Box, { flexDirection: "row", children: [
-          /* @__PURE__ */ jsx2(Text2, { children: marker }),
-          /* @__PURE__ */ jsx2(Box, { flexDirection: "column", children: /* @__PURE__ */ jsx2(Text2, { wrap: "wrap", children: renderInline(item.tokens) }) })
-        ] }, i);
-      }) });
-    }
-    case "hr":
-      return /* @__PURE__ */ jsx2(Text2, { dimColor: true, children: "\u2500".repeat(40) });
-    case "space":
-      return null;
-    default:
-      return "text" in token && token.text ? /* @__PURE__ */ jsx2(Text2, { wrap: "wrap", children: token.text }) : null;
-  }
-}
-function CodeBlock({ code, lang }) {
-  let rendered = code;
-  try {
-    rendered = highlight(code, { language: lang || void 0, ignoreIllegals: true });
-  } catch {
-    rendered = code;
-  }
-  return /* @__PURE__ */ jsx2(
-    Box,
-    {
-      borderStyle: "round",
-      borderColor: "gray",
-      paddingX: 1,
-      flexDirection: "column",
-      children: /* @__PURE__ */ jsx2(Text2, { children: rendered.replace(/\n$/, "") })
-    }
-  );
-}
-function renderInline(tokens) {
-  if (!tokens) {
-    return null;
-  }
-  return tokens.map((token, i) => /* @__PURE__ */ jsx2(Inline, { token }, i));
-}
-function Inline({ token }) {
-  switch (token.type) {
-    case "text":
-      return token.tokens?.length ? /* @__PURE__ */ jsx2(Fragment, { children: renderInline(token.tokens) }) : /* @__PURE__ */ jsx2(PlainText, { text: token.text });
-    case "escape":
-      return /* @__PURE__ */ jsx2(PlainText, { text: token.text });
-    case "paragraph":
-      return /* @__PURE__ */ jsx2(Fragment, { children: renderInline(token.tokens) });
-    case "strong":
-      return /* @__PURE__ */ jsx2(Text2, { bold: true, children: renderInline(token.tokens) });
-    case "em":
-      return /* @__PURE__ */ jsx2(Text2, { italic: true, children: renderInline(token.tokens) });
-    case "del":
-      return /* @__PURE__ */ jsx2(Text2, { strikethrough: true, children: renderInline(token.tokens) });
-    case "codespan":
-      return /* @__PURE__ */ jsx2(Text2, { color: "yellow", children: token.text });
-    case "link":
-      return /* @__PURE__ */ jsx2(Text2, { color: "blue", underline: true, children: renderInline(token.tokens) });
-    case "br":
-      return /* @__PURE__ */ jsx2(Text2, { children: "\n" });
-    default:
-      return "text" in token ? /* @__PURE__ */ jsx2(PlainText, { text: token.text }) : null;
-  }
-}
-function PlainText({ text }) {
-  const parts = text.split(CITATION_SPLIT);
-  return parts.map(
-    (part, i) => CITATION.test(part) ? /* @__PURE__ */ jsx2(Text2, { color: "magenta", children: part }, i) : /* @__PURE__ */ jsx2(Text2, { children: part }, i)
-  );
-}
-
-// src/tui/components/message.tsx
-import { jsx as jsx3, jsxs as jsxs3 } from "react/jsx-runtime";
-function Message({ turn }) {
-  const isUser = turn.role === "user";
-  return /* @__PURE__ */ jsxs3(Box2, { flexDirection: "column", marginBottom: 1, children: [
-    /* @__PURE__ */ jsx3(Text3, { bold: true, color: isUser ? "cyan" : "green", children: isUser ? "\u25B6 you" : "\u2726 agent" }),
-    isUser ? /* @__PURE__ */ jsx3(Text3, { wrap: "wrap", children: turn.content }) : /* @__PURE__ */ jsx3(Markdown, { content: turn.content }),
-    turn.sources && turn.sources.length > 0 && /* @__PURE__ */ jsxs3(Box2, { flexDirection: "column", marginTop: 1, children: [
-      /* @__PURE__ */ jsx3(Text3, { dimColor: true, children: "sources" }),
-      turn.sources.map((s, i) => /* @__PURE__ */ jsx3(Text3, { dimColor: true, children: `[${i + 1}] ${formatSource(s)}` }, s.id))
-    ] })
-  ] });
-}
-
-// src/tui/components/transcript.tsx
-import { Fragment as Fragment2, jsx as jsx4, jsxs as jsxs4 } from "react/jsx-runtime";
-function Transcript({ history, busy, elapsed, status }) {
-  return /* @__PURE__ */ jsxs4(Fragment2, { children: [
-    /* @__PURE__ */ jsx4(Static, { items: [...history], children: (turn, index) => /* @__PURE__ */ jsx4(Message, { turn }, index) }),
-    busy && /* @__PURE__ */ jsxs4(Box3, { marginBottom: 1, children: [
-      /* @__PURE__ */ jsx4(Text4, { color: "yellow", children: /* @__PURE__ */ jsx4(Spinner, { type: "dots" }) }),
-      /* @__PURE__ */ jsx4(Text4, { dimColor: true, children: ` thinking\u2026 ${elapsed}s` })
-    ] }),
-    !busy && status && /* @__PURE__ */ jsx4(Text4, { color: "yellow", children: status })
-  ] });
-}
-
-// src/tui/history.ts
-import { mkdirSync, readFileSync, writeFileSync } from "fs";
-import { homedir } from "os";
-import { dirname, join } from "path";
-var MAX_HISTORY = 500;
-function historyFilePath(env2 = process.env) {
-  const base = env2.XDG_STATE_HOME?.trim() || join(homedir(), ".local", "state");
-  return join(base, "codeberg", "prompt-history.json");
-}
-function pushHistory(history, prompt) {
-  const trimmed = prompt.trim();
-  if (!trimmed) {
-    return [...history];
-  }
-  const next = history[history.length - 1] === trimmed ? [...history] : [...history, trimmed];
-  return next.length > MAX_HISTORY ? next.slice(next.length - MAX_HISTORY) : next;
-}
-function loadHistory() {
-  try {
-    const parsed = JSON.parse(readFileSync(historyFilePath(), "utf8"));
-    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string") : [];
-  } catch {
-    return [];
-  }
-}
-function saveHistory(history) {
-  try {
-    const file = historyFilePath();
-    mkdirSync(dirname(file), { recursive: true });
-    writeFileSync(file, JSON.stringify(history.slice(-MAX_HISTORY)), "utf8");
-  } catch {
-  }
-}
-
-// src/tui/app.tsx
-import { jsx as jsx5, jsxs as jsxs5 } from "react/jsx-runtime";
-function App({
-  session: session2,
-  modelSpec,
-  daemonUrl,
-  initialQuestion,
-  onExit
-}) {
-  const [, refresh] = useReducer((n) => n + 1, 0);
-  const [input, setInput] = useState2("");
-  const [history, setHistory] = useState2(() => loadHistory());
-  const [busy, setBusy] = useState2(false);
-  const [elapsed, setElapsed] = useState2(0);
-  const [status, setStatus] = useState2();
-  const ranInitial = useRef2(false);
-  useEffect2(() => session2.subscribe(() => refresh()), [session2]);
-  useEffect2(() => {
-    if (!busy) {
-      return;
-    }
-    const start = Date.now();
-    setElapsed(0);
-    const id = setInterval(
-      () => setElapsed(Math.floor((Date.now() - start) / 1e3)),
-      250
-    );
-    return () => clearInterval(id);
-  }, [busy]);
-  const submit = useCallback(
-    async (line) => {
-      const trimmed = line.trim();
-      if (!trimmed || busy) {
-        return;
-      }
-      const command = runCommand(trimmed, { session: session2, setStatus });
-      if (command === "exit") {
-        onExit();
-        return;
-      }
-      if (command === "handled") {
-        setInput("");
-        return;
-      }
-      setHistory((h) => {
-        const next = pushHistory(h, trimmed);
-        saveHistory(next);
-        return next;
-      });
-      setBusy(true);
-      setStatus(void 0);
-      setInput("");
-      try {
-        await session2.ask(trimmed);
-      } catch (err) {
-        setStatus(err instanceof Error ? err.message : String(err));
-      } finally {
-        setBusy(false);
-      }
-    },
-    [busy, onExit, session2]
-  );
-  useInput2((inputKey, key) => {
-    if (key.ctrl && inputKey === "c") {
-      onExit();
-    }
+  const agent = await createAgentFromEntry(entry).toolLoopAgent();
+  await runAgentTUI({
+    agent,
+    title: `codeberg \xB7 ${entry.modelSpec} \xB7 ${entry.daemonUrl}`,
+    tools: "auto-collapsed",
+    reasoning: "auto-collapsed",
+    responseStatistics: "outputTokensPerSecond"
   });
-  useEffect2(() => {
-    if (!initialQuestion || ranInitial.current) {
-      return;
-    }
-    ranInitial.current = true;
-    void submit(initialQuestion);
-  }, [initialQuestion, submit]);
-  return /* @__PURE__ */ jsxs5(Box4, { flexDirection: "column", children: [
-    /* @__PURE__ */ jsx5(
-      Transcript,
-      {
-        history: session2.history,
-        busy,
-        elapsed,
-        status
-      }
-    ),
-    /* @__PURE__ */ jsxs5(Box4, { borderStyle: "single", borderColor: "gray", paddingX: 1, children: [
-      /* @__PURE__ */ jsx5(Text5, { color: "cyan", children: "> " }),
-      /* @__PURE__ */ jsx5(
-        PromptInput,
-        {
-          value: input,
-          onChange: setInput,
-          onSubmit: submit,
-          history,
-          placeholder: busy ? "\u2026" : "ask a question or follow up"
-        }
-      )
-    ] }),
-    /* @__PURE__ */ jsxs5(Text5, { dimColor: true, children: [
-      "codeberg chat \xB7 ",
-      modelSpec,
-      " \xB7 ",
-      daemonUrl,
-      " \u2014 /help \xB7 /copy \xB7 /clear \xB7 /quit \xB7 \u2191 history \xB7 Ctrl+C exit"
-    ] })
-  ] });
 }
-
-// src/tui/main.tsx
-import { jsx as jsx6 } from "react/jsx-runtime";
-var entry = parseEntryArgs(process.argv);
-if (!entry) {
-  console.error(entryUsage("codeberg-tui"));
+main().catch((err) => {
+  console.error(err);
   process.exit(1);
-}
-var agent = createAgentFromEntry(entry);
-var session = new ChatSession({ agent, once: entry.once });
-var ESC = "\x1B";
-var BRACKETED_PASTE_ON = `${ESC}[?2004h`;
-var BRACKETED_PASTE_OFF = `${ESC}[?2004l`;
-if (process.stdout.isTTY) {
-  process.stdout.write(BRACKETED_PASTE_ON);
-  process.on("exit", () => {
-    process.stdout.write(BRACKETED_PASTE_OFF);
-  });
-}
-var { waitUntilExit } = render(
-  /* @__PURE__ */ jsx6(
-    App,
-    {
-      session,
-      modelSpec: entry.modelSpec,
-      daemonUrl: entry.daemonUrl,
-      initialQuestion: entry.question || void 0,
-      onExit: () => process.exit(0)
-    }
-  )
-);
-void waitUntilExit();
+});

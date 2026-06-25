@@ -1,9 +1,9 @@
 import {
   dynamicTool,
-  generateText,
   jsonSchema,
   stepCountIs,
   tool,
+  ToolLoopAgent,
   type ModelMessage,
   type LanguageModel,
   type ToolSet,
@@ -15,6 +15,8 @@ import { AGENT_SYSTEM, buildPrompt } from './prompt.js';
 import type {
   AskResult,
   Generator,
+  ReasoningEffort,
+  RunPerformance,
   SearchOptions,
   SearchResult,
 } from './types.js';
@@ -22,11 +24,23 @@ import type {
 const DEFAULT_MAX_STEPS = 16;
 const DEFAULT_SEARCH_K = 8;
 
+// Timeout guards (ai-sdk v7 TimeoutConfiguration). They replace the old
+// "never stream tool calls" workaround: a wedged gateway now aborts the step
+// instead of hanging the whole tool loop. `chunkMs` only bites on the streaming
+// path (the runAgentTUI TUI); the CLI runs non-streaming `generate()`.
+const DEFAULT_TIMEOUT = {
+  totalMs: 300_000,
+  stepMs: 120_000,
+  chunkMs: 60_000,
+} as const;
+
 export interface AgentOptions {
   model: LanguageModel;
   daemon: DaemonClient;
   maxSteps?: number;
   generator?: Generator;
+  /** Standardized ai-sdk v7 reasoning-effort control, applied to every run. */
+  reasoning?: ReasoningEffort;
 }
 
 export interface AskOptions extends SearchOptions {
@@ -38,32 +52,40 @@ export class Agent {
   private readonly daemon: DaemonClient;
   private readonly maxSteps: number;
   private readonly generator: Generator;
+  private readonly reasoning?: ReasoningEffort;
+
+  // Built once on first use (tools require an async daemon round-trip), then
+  // reused across every ask instead of reconstructing the loop each call.
+  private loop?: ToolLoopAgent;
+  // Per-ask buffer of the full search hits behind the compact chunks shown to
+  // the model. Reset at the top of each `ask`; safe because asks are awaited
+  // sequentially (no concurrent runs share this Agent instance).
+  private sources: SearchResult[] = [];
 
   constructor(opts: AgentOptions) {
     this.model = opts.model;
     this.daemon = opts.daemon;
     this.maxSteps = opts.maxSteps ?? DEFAULT_MAX_STEPS;
     this.generator = opts.generator ?? fromAiSdk(opts.model);
+    this.reasoning = opts.reasoning;
   }
 
   async ask(question: string, opts: AskOptions = {}): Promise<AskResult> {
-    const sources: SearchResult[] = [];
+    this.sources = [];
+    const loop = await this.ensureLoop();
     const messages: ModelMessage[] = [
       ...(opts.messages ?? []),
       { role: "user", content: question },
     ];
-    // Must be generateText, not streamText: some OpenAI-compatible gateways
-    // hang when streaming a response that contains tool calls, so the
-    // multi-step tool loop never completes. generateText returns tool calls in a
-    // single (non-streamed) response and works reliably.
-    const { text } = await generateText({
-      model: this.model,
-      system: AGENT_SYSTEM,
-      messages,
-      tools: await this.buildTools(opts, sources),
-      stopWhen: stepCountIs(this.maxSteps),
-    });
-    return { answer: text, sources: dedupe(sources) };
+    // Non-streaming `generate`: some OpenAI-compatible gateways stall mid-stream
+    // when a response carries tool calls; `generate` returns the whole step at
+    // once, and the timeout config bounds any stall.
+    const result = await loop.generate({ messages });
+    return {
+      answer: result.text,
+      sources: dedupe(this.sources),
+      performance: toPerformance(result.finalStep?.performance),
+    };
   }
 
   async askOnce(
@@ -79,10 +101,27 @@ export class Agent {
     return { answer, sources };
   }
 
-  private async buildTools(
-    opts: SearchOptions,
-    sink: SearchResult[],
-  ): Promise<ToolSet> {
+  /** The underlying ai-sdk v7 agent, for callers that drive their own loop
+   *  (e.g. `runAgentTUI`). Built lazily and cached, same instance as `ask`. */
+  async toolLoopAgent(): Promise<ToolLoopAgent> {
+    return this.ensureLoop();
+  }
+
+  private async ensureLoop(): Promise<ToolLoopAgent> {
+    if (!this.loop) {
+      this.loop = new ToolLoopAgent({
+        model: this.model,
+        instructions: AGENT_SYSTEM,
+        tools: await this.buildTools(),
+        stopWhen: stepCountIs(this.maxSteps),
+        timeout: DEFAULT_TIMEOUT,
+        ...(this.reasoning ? { reasoning: this.reasoning } : {}),
+      });
+    }
+    return this.loop;
+  }
+
+  private async buildTools(): Promise<ToolSet> {
     const toolset: ToolSet = {
       search_code: tool({
         description:
@@ -98,9 +137,11 @@ export class Agent {
         }),
         execute: async ({ query, k }) => {
           const results = await this.daemon.search(query, {
-            k: k ?? opts.k ?? DEFAULT_SEARCH_K,
+            k: k ?? DEFAULT_SEARCH_K,
           });
-          sink.push(...results);
+          // Capture the full hits for the answer's source list, but hand the
+          // model only the compact chunk shape (token-efficient).
+          this.sources.push(...results);
           return results.map(toToolChunk);
         },
       }),
@@ -116,6 +157,20 @@ export class Agent {
     }
     return toolset;
   }
+}
+
+function toPerformance(
+  perf:
+    | { effectiveOutputTokensPerSecond?: number; responseTimeMs?: number }
+    | undefined,
+): RunPerformance | undefined {
+  if (!perf) {
+    return undefined;
+  }
+  return {
+    outputTokensPerSecond: perf.effectiveOutputTokensPerSecond,
+    responseTimeMs: perf.responseTimeMs,
+  };
 }
 
 function toToolChunk(r: SearchResult): Record<string, unknown> {

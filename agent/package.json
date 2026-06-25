@@ -28,22 +28,17 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@ai-sdk/openai-compatible": "^2.0.51",
-    "ai": "^6.0.208",
-    "cli-highlight": "^2.1.11",
-    "ink": "^6.8.0",
-    "ink-spinner": "^5.0.0",
-    "marked": "^18.0.5",
-    "react": "^19.2.0"
+    "@ai-sdk/openai-compatible": "^3.0.0",
+    "@ai-sdk/tui": "^1.0.0",
+    "ai": "^7.0.0"
   },
   "optionalDependencies": {
-    "@ai-sdk/anthropic": "^3.0.85",
-    "@ai-sdk/google": "^3.0.0",
-    "@ai-sdk/openai": "^3.0.73"
+    "@ai-sdk/anthropic": "^4.0.0",
+    "@ai-sdk/google": "^4.0.0",
+    "@ai-sdk/openai": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "@types/react": "^19.2.0",
     "tsup": "^8.5.1",
     "typescript": "^5.8.0",
     "vitest": "^3.0.0"

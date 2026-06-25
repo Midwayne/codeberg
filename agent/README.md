@@ -23,14 +23,15 @@ codeberg-ask --once anthropic:claude-sonnet-4-6 "where is the main entry point?"
 
 ## TUI
 
-Interactive chat with follow-up context:
+Interactive chat, rendered by ai-sdk's `runAgentTUI` — streamed tool calls,
+collapsible reasoning, and live output-throughput stats:
 
 ```sh
 codeberg-tui anthropic:claude-sonnet-4-6
-codeberg-tui --once openai:gpt-4o-mini "where is chunking implemented?"
 ```
 
-Commands inside the TUI: `/help`, `/clear`, `/quit`.
+The TUI owns its own input and session, so the CLI-only `--once` / seeded-question
+flags do not apply here — pass just `provider:model` and chat. Exit with `Ctrl+C`.
 
 ## Layout
 
