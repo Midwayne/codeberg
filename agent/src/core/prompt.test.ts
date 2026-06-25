@@ -23,4 +23,13 @@ describe("buildPrompt", () => {
     const p = buildPrompt("anything?", []);
     expect(p.prompt).toContain("No chunks retrieved");
   });
+
+  it("includes prior conversation", () => {
+    const p = buildPrompt("follow up?", [], [
+      { role: "user", content: "first question" },
+      { role: "assistant", content: "first answer" },
+    ]);
+    expect(p.prompt).toContain("User: first question");
+    expect(p.prompt).toContain("Assistant: first answer");
+  });
 });

@@ -31,3 +31,9 @@ export interface AskResult {
   answer: string;
   sources: SearchResult[];
 }
+
+export interface Turn {
+  role: "user" | "assistant";
+  content: string;
+  sources?: SearchResult[];
+}

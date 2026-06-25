@@ -5,6 +5,7 @@ export type { ModelProvider, ProviderRegistry } from "./registry.js";
 export {
   anthropicProvider,
   googleProvider,
+  ollamaProvider,
   openaiProvider,
   registerBuiltinProviders,
 } from "./builtin.js";

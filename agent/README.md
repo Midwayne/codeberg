@@ -12,11 +12,34 @@ Requires a running `codeberg-d` with vector indexing enabled.
 
 ## CLI
 
+Single-shot questions (unchanged):
+
 ```sh
 export OPENAI_API_KEY=...
 export CODEBERG_ROOT=...
 codeberg-ask openai:gpt-4o-mini "how is authentication handled?"
 codeberg-ask --once anthropic:claude-sonnet-4-6 "where is the main entry point?"
+```
+
+## TUI
+
+Interactive chat with follow-up context:
+
+```sh
+codeberg-tui anthropic:claude-sonnet-4-6
+codeberg-tui --once openai:gpt-4o-mini "where is chunking implemented?"
+```
+
+Commands inside the TUI: `/help`, `/clear`, `/quit`.
+
+## Layout
+
+```
+src/
+  core/       agent, client, session, config
+  providers/  model registry
+  cli/        codeberg-ask
+  tui/        codeberg-tui
 ```
 
 ## Providers
@@ -28,6 +51,12 @@ Built-in (when API keys are set):
 | `openai` | `OPENAI_API_KEY` | `openai:gpt-4o-mini` |
 | `anthropic` | `ANTHROPIC_API_KEY` | `anthropic:claude-sonnet-4-6` |
 | `google` | `GOOGLE_GENERATIVE_AI_API_KEY` | `google:gemini-2.0-flash` |
+| `ollama` | _(none)_ — local; `OLLAMA_BASE_URL` optional | `ollama:qwen3.5:9b` |
+
+`ollama` targets a local [Ollama](https://ollama.com) server (OpenAI-compatible
+API at `http://localhost:11434/v1`). No key needed; pull the model first
+(`ollama pull <model>`) and use the exact tag from `ollama list`. The model must
+support tool calling for the default `agent.ask` loop — otherwise use `--once`.
 
 ### Custom provider
 
@@ -58,5 +87,6 @@ export const myProvider: ModelProvider = {
 
 ## API
 
-- `agent.ask(question)` — tool loop (default 6 steps), semantic search + daemon tools
-- `agent.askOnce(question)` — single search + one LLM call (lower token use)
+- `agent.ask(question, { messages })` — tool loop with optional prior turns
+- `agent.askOnce(question, { messages })` — single search + one LLM call
+- `ChatSession` — multi-turn wrapper that tracks history for follow-ups

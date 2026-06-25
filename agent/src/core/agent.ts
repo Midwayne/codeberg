@@ -4,16 +4,22 @@ import {
   jsonSchema,
   stepCountIs,
   tool,
+  type ModelMessage,
   type LanguageModel,
   type ToolSet,
-} from "ai";
+} from 'ai';
 
-import { DaemonClient } from "./client.js";
-import { fromAiSdk } from "./generator.js";
-import { AGENT_SYSTEM, buildPrompt } from "./prompt.js";
-import type { AskResult, Generator, SearchOptions, SearchResult } from "./types.js";
+import { DaemonClient } from './client.js';
+import { fromAiSdk } from './generator.js';
+import { AGENT_SYSTEM, buildPrompt } from './prompt.js';
+import type {
+  AskResult,
+  Generator,
+  SearchOptions,
+  SearchResult,
+} from './types.js';
 
-const DEFAULT_MAX_STEPS = 6;
+const DEFAULT_MAX_STEPS = 16;
 const DEFAULT_SEARCH_K = 8;
 
 export interface AgentOptions {
@@ -21,6 +27,10 @@ export interface AgentOptions {
   daemon: DaemonClient;
   maxSteps?: number;
   generator?: Generator;
+}
+
+export interface AskOptions extends SearchOptions {
+  messages?: ModelMessage[];
 }
 
 export class Agent {
@@ -36,23 +46,36 @@ export class Agent {
     this.generator = opts.generator ?? fromAiSdk(opts.model);
   }
 
-  async ask(question: string, opts: SearchOptions = {}): Promise<AskResult> {
+  async ask(question: string, opts: AskOptions = {}): Promise<AskResult> {
     const sources: SearchResult[] = [];
+    const messages: ModelMessage[] = [
+      ...(opts.messages ?? []),
+      { role: "user", content: question },
+    ];
+    // Must be generateText, not streamText: some OpenAI-compatible gateways
+    // hang when streaming a response that contains tool calls, so the
+    // multi-step tool loop never completes. generateText returns tool calls in a
+    // single (non-streamed) response and works reliably.
     const { text } = await generateText({
       model: this.model,
       system: AGENT_SYSTEM,
-      prompt: question,
+      messages,
       tools: await this.buildTools(opts, sources),
       stopWhen: stepCountIs(this.maxSteps),
     });
     return { answer: text, sources: dedupe(sources) };
   }
 
-  async askOnce(question: string, opts: SearchOptions = {}): Promise<AskResult> {
+  async askOnce(
+    question: string,
+    opts: AskOptions = {},
+  ): Promise<AskResult> {
     const sources = await this.daemon.search(question, {
       k: opts.k ?? DEFAULT_SEARCH_K,
     });
-    const answer = await this.generator.generate(buildPrompt(question, sources));
+    const answer = await this.generator.generate(
+      buildPrompt(question, sources, opts.messages),
+    );
     return { answer, sources };
   }
 
@@ -63,15 +86,15 @@ export class Agent {
     const toolset: ToolSet = {
       search_code: tool({
         description:
-          "Semantic code search. Returns relevant chunks with path, lines, and snippet.",
+          'Semantic code search. Returns relevant chunks with path, lines, and snippet.',
         inputSchema: jsonSchema<{ query: string; k?: number }>({
-          type: "object",
+          type: 'object',
           additionalProperties: false,
           properties: {
-            query: { type: "string" },
-            k: { type: "number", description: "max results (default 8)" },
+            query: { type: 'string' },
+            k: { type: 'number', description: 'max results (default 8)' },
           },
-          required: ["query"],
+          required: ['query'],
         }),
         execute: async ({ query, k }) => {
           const results = await this.daemon.search(query, {
@@ -87,7 +110,8 @@ export class Agent {
       toolset[spec.name] = dynamicTool({
         description: spec.description,
         inputSchema: jsonSchema(spec.schema),
-        execute: async (args) => this.daemon.callTool(spec.name, args as Record<string, unknown>),
+        execute: async (args) =>
+          this.daemon.callTool(spec.name, args as Record<string, unknown>),
       });
     }
     return toolset;

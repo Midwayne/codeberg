@@ -29,7 +29,7 @@ load_env = if [ -f "$(1)" ]; then set -a; . "$(1)"; set +a; echo "› loaded $(1
 
 .PHONY: build test clean rebuild submodules help check set-version \
         build-daemon daemon-test build-agent agent-test \
-        run-core run-index run-daemon run-agent
+        run-core run-index run-daemon run-agent run-agent-tui
 
 help:
 	@echo "Codeberg targets:"
@@ -42,6 +42,7 @@ help:
 	@echo "    make run-core             Run the C indexer (cberg-index)     [daemon/.env]"
 	@echo "    make run-daemon           Run the Go daemon (codeberg-d) + HTTP [daemon/.env]"
 	@echo "    make run-agent q=\"…\"      Ask the agent, e.g. q=\"how does chunking work\"  [agent/.env]"
+	@echo "    make run-agent-tui          Interactive agent chat (follow-ups)  [agent/.env]"
 	@echo "  Test"
 	@echo "    make test                 Run all core tests (ctest)"
 	@echo "    make test TEST=<name>     Run one test (test_smoke test_chunker …)"
@@ -114,6 +115,12 @@ run-agent:
 	@$(call load_env,$(AGENT_ENV)); \
 	if [ -z "$${CODEBERG_MODEL:-}" ]; then echo "error: set CODEBERG_MODEL=provider:model in $(AGENT_ENV) (e.g. anthropic:claude-haiku-4-5) plus the matching API key"; exit 1; fi; \
 	cd $(AGENT) && exec node dist/cli.js $(q)
+
+run-agent-tui:
+	@test -f $(AGENT)/dist/tui.js || $(MAKE) build-agent
+	@$(call load_env,$(AGENT_ENV)); \
+	if [ -z "$${CODEBERG_MODEL:-}" ]; then echo "error: set CODEBERG_MODEL=provider:model in $(AGENT_ENV) (e.g. anthropic:claude-haiku-4-5) plus the matching API key"; exit 1; fi; \
+	cd $(AGENT) && exec node dist/tui.js $(q)
 
 set-version:
 	./scripts/set-version.sh $(v)

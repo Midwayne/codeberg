@@ -54,7 +54,27 @@ export function googleProvider(): ModelProvider {
   };
 }
 
-/** Register openai, anthropic, and google when their API keys are set. */
+export function ollamaProvider(): ModelProvider {
+  // Ollama serves an OpenAI-compatible API. Default to the local daemon; the
+  // key is unused by Ollama but the OpenAI client requires a non-empty value.
+  const ollama = createOpenAI({
+    baseURL: env("OLLAMA_BASE_URL") ?? "http://localhost:11434/v1",
+    apiKey: env("OLLAMA_API_KEY") ?? "ollama",
+  });
+  return {
+    name: "ollama",
+    model(modelId: string): LanguageModel {
+      // .chat() forces the Chat Completions API; Ollama does not implement
+      // OpenAI's Responses API, which createOpenAI() would otherwise default to.
+      return ollama.chat(modelId);
+    },
+  };
+}
+
+/**
+ * Register providers whose configuration is present: openai/anthropic/google
+ * when their API keys are set, and local ollama always (it needs no API key).
+ */
 export function registerBuiltinProviders(registry: {
   register(p: ModelProvider): unknown;
 }): void {
@@ -62,10 +82,11 @@ export function registerBuiltinProviders(registry: {
     try {
       registry.register(fn());
     } catch {
-      /* key not configured */
+      /* provider not configured */
     }
   };
   tryRegister(openaiProvider);
   tryRegister(anthropicProvider);
   tryRegister(googleProvider);
+  tryRegister(ollamaProvider);
 }
