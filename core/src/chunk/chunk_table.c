@@ -1,6 +1,7 @@
 #include "codeberg/codeberg.h"
 
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -396,4 +397,196 @@ fail:
     free(seen);
     table_discard(next);
     return status;
+}
+
+/* ----------------------------------------------------------- persistence */
+
+/*
+ * On-disk snapshot of the id<->chunk mapping, so a restarted indexer can diff
+ * the repository against the chunks it already embedded instead of treating
+ * every chunk as new. Little-endian-of-the-host fixed-width fields; a magic and
+ * version guard means any mismatch (older format, different machine) reads back
+ * as NOT_FOUND and the caller falls back to a cold rebuild. NUL string length is
+ * encoded as 0xFFFFFFFF (symbol may be absent; key and path never are).
+ */
+#define CBERG_CHUNK_TABLE_MAGIC "CBT1"
+#define CBERG_CHUNK_TABLE_VERSION 1u
+#define CBERG_STR_NULL 0xFFFFFFFFu
+
+static cberg_status w_u32(FILE *f, uint32_t v) {
+    return fwrite(&v, sizeof v, 1, f) == 1 ? CBERG_OK : CBERG_ERR_IO;
+}
+static cberg_status w_u64(FILE *f, uint64_t v) {
+    return fwrite(&v, sizeof v, 1, f) == 1 ? CBERG_OK : CBERG_ERR_IO;
+}
+static cberg_status w_bytes(FILE *f, const void *p, size_t n) {
+    return n == 0 || fwrite(p, 1, n, f) == n ? CBERG_OK : CBERG_ERR_IO;
+}
+static cberg_status w_str(FILE *f, const char *s) {
+    if (s == NULL) {
+        return w_u32(f, CBERG_STR_NULL);
+    }
+    size_t n = strlen(s);
+    if (n >= CBERG_STR_NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    cberg_status st = w_u32(f, (uint32_t)n);
+    return st != CBERG_OK ? st : w_bytes(f, s, n);
+}
+
+static cberg_status r_exact(FILE *f, void *p, size_t n) {
+    return n == 0 || fread(p, 1, n, f) == n ? CBERG_OK : CBERG_ERR_IO;
+}
+static cberg_status r_u32(FILE *f, uint32_t *v) {
+    return r_exact(f, v, sizeof *v);
+}
+static cberg_status r_u64(FILE *f, uint64_t *v) {
+    return r_exact(f, v, sizeof *v);
+}
+static cberg_status r_str(FILE *f, char **out) {
+    uint32_t n = 0;
+    cberg_status st = r_u32(f, &n);
+    if (st != CBERG_OK) {
+        return st;
+    }
+    if (n == CBERG_STR_NULL) {
+        *out = NULL;
+        return CBERG_OK;
+    }
+    char *s = malloc((size_t)n + 1);
+    if (s == NULL) {
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+    st = r_exact(f, s, n);
+    if (st != CBERG_OK) {
+        free(s);
+        return st;
+    }
+    s[n] = '\0';
+    *out = s;
+    return CBERG_OK;
+}
+
+cberg_status cberg_chunk_table_save(const cberg_chunk_table *table, const char *path) {
+    if (table == NULL || path == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    char tmp[4096];
+    int n = snprintf(tmp, sizeof tmp, "%s.tmp", path);
+    if (n < 0 || (size_t)n >= sizeof tmp) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    FILE *f = fopen(tmp, "wb");
+    if (f == NULL) {
+        return CBERG_ERR_IO;
+    }
+    cberg_status st = CBERG_OK;
+    if (w_bytes(f, CBERG_CHUNK_TABLE_MAGIC, 4) != CBERG_OK || w_u32(f, CBERG_CHUNK_TABLE_VERSION) != CBERG_OK ||
+        w_u64(f, table->next_id) != CBERG_OK || w_u64(f, table->len) != CBERG_OK) {
+        st = CBERG_ERR_IO;
+        goto fail;
+    }
+    for (size_t i = 0; i < table->len; i++) {
+        const cberg_stored_chunk *sc = &table->entries[i];
+        if (w_u64(f, sc->id) != CBERG_OK || w_u32(f, (uint32_t)sc->chunk.kind) != CBERG_OK ||
+            w_u32(f, sc->chunk.span.start_byte) != CBERG_OK || w_u32(f, sc->chunk.span.end_byte) != CBERG_OK ||
+            w_u32(f, sc->chunk.span.start_line) != CBERG_OK || w_u32(f, sc->chunk.span.end_line) != CBERG_OK ||
+            w_bytes(f, sc->chunk.content_hash, CBERG_HASH_LEN) != CBERG_OK || w_str(f, sc->chunk.key) != CBERG_OK ||
+            w_str(f, sc->chunk.path) != CBERG_OK || w_str(f, sc->chunk.symbol) != CBERG_OK) {
+            st = CBERG_ERR_IO;
+            goto fail;
+        }
+    }
+    if (fflush(f) != 0) {
+        st = CBERG_ERR_IO;
+        goto fail;
+    }
+    if (fclose(f) != 0) {
+        f = NULL;
+        st = CBERG_ERR_IO;
+        goto fail;
+    }
+    if (rename(tmp, path) != 0) {
+        st = CBERG_ERR_IO;
+        remove(tmp);
+        return st;
+    }
+    return CBERG_OK;
+
+fail:
+    if (f != NULL) {
+        fclose(f);
+    }
+    remove(tmp);
+    return st;
+}
+
+cberg_status cberg_chunk_table_load(const char *path, cberg_chunk_table **out_table) {
+    if (path == NULL || out_table == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    *out_table = NULL;
+    FILE *f = fopen(path, "rb");
+    if (f == NULL) {
+        return CBERG_ERR_NOT_FOUND;
+    }
+
+    char magic[4];
+    uint32_t version = 0;
+    uint64_t next_id = 0, count = 0;
+    if (r_exact(f, magic, 4) != CBERG_OK || memcmp(magic, CBERG_CHUNK_TABLE_MAGIC, 4) != 0 ||
+        r_u32(f, &version) != CBERG_OK || version != CBERG_CHUNK_TABLE_VERSION || r_u64(f, &next_id) != CBERG_OK ||
+        r_u64(f, &count) != CBERG_OK) {
+        fclose(f);
+        return CBERG_ERR_NOT_FOUND;
+    }
+
+    cberg_chunk_table *table = cberg_chunk_table_new();
+    if (table == NULL) {
+        fclose(f);
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+
+    cberg_status st = CBERG_OK;
+    for (uint64_t i = 0; i < count; i++) {
+        cberg_stored_chunk stored = {0};
+        uint32_t kind = 0;
+        char *key = NULL, *path_str = NULL, *symbol = NULL;
+        if (r_u64(f, &stored.id) != CBERG_OK || r_u32(f, &kind) != CBERG_OK ||
+            r_u32(f, &stored.chunk.span.start_byte) != CBERG_OK ||
+            r_u32(f, &stored.chunk.span.end_byte) != CBERG_OK ||
+            r_u32(f, &stored.chunk.span.start_line) != CBERG_OK ||
+            r_u32(f, &stored.chunk.span.end_line) != CBERG_OK ||
+            r_exact(f, stored.chunk.content_hash, CBERG_HASH_LEN) != CBERG_OK || r_str(f, &key) != CBERG_OK ||
+            r_str(f, &path_str) != CBERG_OK || r_str(f, &symbol) != CBERG_OK || key == NULL || path_str == NULL) {
+            free(key);
+            free(path_str);
+            free(symbol);
+            st = CBERG_ERR_NOT_FOUND; /* truncated/corrupt -> cold start */
+            break;
+        }
+        stored.chunk.kind = (cberg_chunk_kind)kind;
+        stored.chunk.key = key;
+        stored.chunk.path = path_str;
+        stored.chunk.symbol = symbol;
+        st = table_append(table, stored); /* takes ownership; frees on failure */
+        if (st != CBERG_OK) {
+            break;
+        }
+    }
+    fclose(f);
+    if (st != CBERG_OK) {
+        cberg_chunk_table_free(table);
+        return st;
+    }
+
+    table->next_id = next_id;
+    st = table_recompute_fingerprint(table);
+    if (st != CBERG_OK) {
+        cberg_chunk_table_free(table);
+        return st;
+    }
+
+    *out_table = table;
+    return CBERG_OK;
 }

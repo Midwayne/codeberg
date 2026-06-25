@@ -11,12 +11,15 @@ typedef struct cberg_indexer {
     char *root;
     char *model_path;
     char *index_path;
+    char *chunks_path;   /* persisted chunk table (sidecar of index_path) */
+    char *manifest_path; /* persisted merkle manifest (sidecar of index_path) */
     char *socket_path;
     int poll_ms;
     int vectors;
 
     cberg_chunker *chunker;
     cberg_chunk_table *table;
+    cberg_manifest *manifest; /* change-detection baseline; NULL until bootstrap */
     cberg_watcher *watcher;
     cberg_embedder *embedder;
     cberg_index *index;

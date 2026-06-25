@@ -223,6 +223,44 @@ int main(void) {
     CHECK(cberg_manifest_hashed_count(f5) == 0, "delete hashes nothing");
     CHECK(cberg_manifest_len(f5) == 3, "delete shrinks leaf count");
 
+    /* Persistence: a saved manifest reloads into an identical baseline (same
+     * root, empty self-diff) and can serve as `prev` for an incremental rebuild
+     * that reads only the changed file — the cross-restart change-detection path. */
+    char mpath[256]; /* outside iroot, so it is never walked as a leaf */
+    snprintf(mpath, sizeof(mpath), "/tmp/cberg-manifest-save-%d.bin", (int)getpid());
+
+    cberg_manifest *missing = NULL;
+    CHECK(cberg_manifest_load("/tmp/cberg-no-such-manifest-xyz.bin", &missing) == CBERG_ERR_NOT_FOUND,
+          "absent manifest is a cold start");
+    CHECK(missing == NULL, "absent load leaves out-param NULL");
+
+    CHECK(cberg_manifest_save(f5, mpath) == CBERG_OK, "save manifest");
+    cberg_manifest *loaded = NULL;
+    CHECK(cberg_manifest_load(mpath, &loaded) == CBERG_OK, "load manifest");
+    CHECK(cberg_manifest_len(loaded) == cberg_manifest_len(f5), "loaded leaf count matches");
+    uint8_t fr5[CBERG_HASH_LEN], lr[CBERG_HASH_LEN];
+    cberg_manifest_root(f5, fr5);
+    cberg_manifest_root(loaded, lr);
+    CHECK(memcmp(fr5, lr, CBERG_HASH_LEN) == 0, "loaded root matches saved root");
+
+    CHECK(cberg_manifest_diff(f5, loaded, &diff) == CBERG_OK, "diff saved vs loaded");
+    CHECK(diff.added_len == 0 && diff.modified_len == 0 && diff.deleted_len == 0,
+          "save/load is lossless (empty self-diff)");
+    cberg_manifest_diff_free(&diff);
+
+    /* A loaded manifest is a valid `prev`: rebuild reuses its stat fingerprints. */
+    write_file(iroot, "dir/b.txt", "beta beta beta beta\n");
+    cberg_manifest *after = NULL;
+    CHECK(cberg_manifest_rebuild(loaded, iroot, &after) == CBERG_OK, "rebuild from loaded baseline");
+    CHECK(cberg_manifest_hashed_count(after) == 1, "rebuild from loaded re-hashes only the changed file");
+    CHECK(cberg_manifest_diff(loaded, after, &diff) == CBERG_OK, "diff loaded vs after");
+    CHECK(diff.modified_len == 1 && has_path(diff.modified, diff.modified_len, "dir/b.txt"),
+          "loaded baseline detects the change");
+    cberg_manifest_diff_free(&diff);
+    cberg_manifest_free(after);
+    cberg_manifest_free(loaded);
+    remove(mpath);
+
     cberg_manifest_free(f1);
     cberg_manifest_free(f2);
     cberg_manifest_free(f3);

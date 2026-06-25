@@ -16,6 +16,14 @@
 #define PROGRESS_MIN 128  /* only show embed progress for upserts at least this large */
 #define PROGRESS_STEP 512 /* ...and roughly every this many chunks */
 
+static void save_chunk_table(cberg_indexer *idx);
+static void save_state(cberg_indexer *idx);
+static void refresh_manifest(cberg_indexer *idx);
+static cberg_status apply_path_changes(cberg_indexer *idx, char **rechunk, size_t rechunk_n, char **deleted,
+                                       size_t deleted_n);
+static cberg_status walk_and_sync(cberg_indexer *idx);
+static cberg_status bootstrap_warm(cberg_indexer *idx);
+
 typedef struct {
     cberg_chunk *items;
     size_t len;
@@ -408,6 +416,50 @@ static int bootstrap_cb(const char *abs, const char *rel, void *v) {
     return 0;
 }
 
+/* ----------------------------------------------------- state persistence */
+
+static void save_chunk_table(cberg_indexer *idx) {
+    if (idx->chunks_path == NULL) {
+        return;
+    }
+    cberg_status st = cberg_chunk_table_save(idx->table, idx->chunks_path);
+    if (st != CBERG_OK) {
+        fprintf(stderr, "cberg-index: warning: could not persist chunk table: %s\n", cberg_status_str(st));
+    }
+}
+
+static void save_manifest(cberg_indexer *idx) {
+    if (idx->manifest_path == NULL || idx->manifest == NULL) {
+        return;
+    }
+    cberg_status st = cberg_manifest_save(idx->manifest, idx->manifest_path);
+    if (st != CBERG_OK) {
+        fprintf(stderr, "cberg-index: warning: could not persist manifest: %s\n", cberg_status_str(st));
+    }
+}
+
+static void save_state(cberg_indexer *idx) {
+    save_chunk_table(idx);
+    save_manifest(idx);
+}
+
+/* Rebuild the manifest baseline from the current on-disk tree (stat-only for
+ * unchanged files) so the next restart sees an accurate "what changed while we
+ * were down". Failure is non-fatal: the baseline simply stays as it was. */
+static void refresh_manifest(cberg_indexer *idx) {
+    if (idx->manifest_path == NULL) {
+        return;
+    }
+    cberg_manifest *next = NULL;
+    cberg_status st = cberg_manifest_rebuild(idx->manifest, idx->root, &next);
+    if (st != CBERG_OK) {
+        fprintf(stderr, "cberg-index: warning: could not refresh manifest: %s\n", cberg_status_str(st));
+        return;
+    }
+    cberg_manifest_free(idx->manifest);
+    idx->manifest = next;
+}
+
 const char *cberg_indexer_version(void) {
     return cberg_version();
 }
@@ -450,6 +502,17 @@ cberg_status cberg_indexer_open(cberg_indexer *idx) {
             cberg_indexer_close(idx);
             return CBERG_ERR_OUT_OF_MEMORY;
         }
+        /* Sidecars next to the vector index hold the chunk table and manifest, so
+         * a restart reuses existing embeddings and re-chunks only changed files. */
+        size_t plen = strlen(idx->index_path);
+        idx->chunks_path = malloc(plen + sizeof(".chunks"));
+        idx->manifest_path = malloc(plen + sizeof(".manifest"));
+        if (idx->chunks_path == NULL || idx->manifest_path == NULL) {
+            cberg_indexer_close(idx);
+            return CBERG_ERR_OUT_OF_MEMORY;
+        }
+        snprintf(idx->chunks_path, plen + sizeof(".chunks"), "%s.chunks", idx->index_path);
+        snprintf(idx->manifest_path, plen + sizeof(".manifest"), "%s.manifest", idx->index_path);
     }
 
     idx->poll_ms = 1000;
@@ -530,6 +593,13 @@ void cberg_indexer_close(cberg_indexer *idx) {
         return;
     }
     idx->stop = 1;
+    /* On a clean shutdown after bootstrap, refresh the baseline so the next start
+     * re-chunks nothing it doesn't have to. Skipped on early-open failures (not
+     * ready) to avoid overwriting good state with a half-built one. */
+    if (idx->ready) {
+        refresh_manifest(idx);
+        save_state(idx);
+    }
     if (idx->index != NULL) {
         cberg_index_save(idx->index);
         cberg_index_close(idx->index);
@@ -540,6 +610,9 @@ void cberg_indexer_close(cberg_indexer *idx) {
     if (idx->watcher != NULL) {
         cberg_watcher_close(idx->watcher);
     }
+    if (idx->manifest != NULL) {
+        cberg_manifest_free(idx->manifest);
+    }
     if (idx->table != NULL) {
         cberg_chunk_table_free(idx->table);
     }
@@ -549,25 +622,64 @@ void cberg_indexer_close(cberg_indexer *idx) {
     free(idx->root);
     free(idx->model_path);
     free(idx->index_path);
+    free(idx->chunks_path);
+    free(idx->manifest_path);
     free(idx->socket_path);
     pthread_mutex_destroy(&idx->mu);
     memset(idx, 0, sizeof(*idx));
 }
 
-cberg_status cberg_indexer_bootstrap(cberg_indexer *idx) {
-    pthread_mutex_lock(&idx->mu);
+/* Walk every file, chunk it, and capture a manifest baseline for next time. The
+ * caller holds idx->mu. Used both on a true cold start (empty table) and as the
+ * fallback when a chunk table was restored but no manifest was: in the latter
+ * case unchanged chunks still keep their ids, so sync re-embeds nothing. */
+static cberg_status walk_and_sync(cberg_indexer *idx) {
     chunk_batch batch;
     batch_init(&batch);
     walk_ctx ctx = {.idx = idx, .batch = &batch};
     if (cberg_walk_files(idx->root, bootstrap_cb, &ctx) != 0) {
         batch_reset(&batch);
-        pthread_mutex_unlock(&idx->mu);
         return ctx.err != CBERG_OK ? ctx.err : CBERG_ERR_IO;
     }
     cberg_status st = sync_table(idx, &batch);
     batch_reset(&batch);
+    if (st != CBERG_OK) {
+        return st;
+    }
+    if (idx->manifest_path != NULL) {
+        cberg_manifest *m = NULL;
+        if (cberg_manifest_build(idx->root, &m) == CBERG_OK) {
+            cberg_manifest_free(idx->manifest);
+            idx->manifest = m;
+        } else {
+            fprintf(stderr, "cberg-index: warning: manifest build failed; restarts will re-scan all files\n");
+        }
+    }
+    return CBERG_OK;
+}
+
+cberg_status cberg_indexer_bootstrap(cberg_indexer *idx) {
+    pthread_mutex_lock(&idx->mu);
+
+    /* Warm path first: when a prior chunk table is on disk, reuse it so unchanged
+     * chunks keep their ids (and embeddings). NOT_FOUND means there is no prior
+     * state, so fall through to a cold build. */
+    cberg_status st = CBERG_ERR_NOT_FOUND;
+    if (idx->chunks_path != NULL) {
+        st = bootstrap_warm(idx);
+        if (st != CBERG_ERR_NOT_FOUND) {
+            if (st == CBERG_OK) {
+                idx->ready = 1;
+            }
+            pthread_mutex_unlock(&idx->mu);
+            return st;
+        }
+    }
+
+    st = walk_and_sync(idx);
     if (st == CBERG_OK) {
         idx->ready = 1;
+        save_state(idx);
     }
     pthread_mutex_unlock(&idx->mu);
     return st;
@@ -594,6 +706,139 @@ static cberg_status batch_add_table_except(cberg_indexer *idx, chunk_batch *batc
         }
         batch->items[batch->len++] = sc->chunk;
     }
+    return CBERG_OK;
+}
+
+/* Re-index a set of changed paths: carry over every chunk except those of
+ * `rechunk`+`deleted`, re-chunk `rechunk` from disk, and sync the union — so only
+ * the affected files are parsed and only chunks whose content moved get
+ * re-embedded. The path arrays are borrowed (not freed). Caller holds idx->mu. */
+static cberg_status apply_path_changes(cberg_indexer *idx, char **rechunk, size_t rechunk_n, char **deleted,
+                                       size_t deleted_n) {
+    chunk_batch batch;
+    batch_init(&batch);
+
+    char **skip = NULL;
+    size_t skip_n = 0;
+    if (rechunk_n + deleted_n > 0) {
+        skip = calloc(rechunk_n + deleted_n, sizeof(*skip));
+        if (skip == NULL) {
+            return CBERG_ERR_OUT_OF_MEMORY;
+        }
+        for (size_t i = 0; i < deleted_n; i++) {
+            skip[skip_n++] = deleted[i];
+        }
+        for (size_t i = 0; i < rechunk_n; i++) {
+            skip[skip_n++] = rechunk[i];
+        }
+    }
+
+    cberg_status st = batch_add_table_except(idx, &batch, skip, skip_n);
+    if (st != CBERG_OK) {
+        goto done;
+    }
+
+    for (size_t i = 0; i < rechunk_n; i++) {
+        char abs[4096];
+        snprintf(abs, sizeof(abs), "%s/%s", idx->root, rechunk[i]);
+        cberg_chunk_list *list = NULL;
+        st = parse_file(idx, abs, rechunk[i], &list);
+        if (st != CBERG_OK) {
+            goto done;
+        }
+        if (list != NULL) {
+            st = batch_add_list(&batch, list);
+            if (st != CBERG_OK) {
+                cberg_chunk_list_free(list);
+                goto done;
+            }
+        }
+    }
+
+    st = sync_table(idx, &batch);
+
+done:
+    batch_reset(&batch);
+    free(skip);
+    return st;
+}
+
+static cberg_status bootstrap_warm(cberg_indexer *idx) {
+    cberg_chunk_table *restored = NULL;
+    cberg_status st = cberg_chunk_table_load(idx->chunks_path, &restored);
+    if (st != CBERG_OK) {
+        return st; /* NOT_FOUND -> cold start; a real error propagates */
+    }
+    cberg_chunk_table_free(idx->table);
+    idx->table = restored;
+
+    cberg_manifest *prev = NULL;
+    if (idx->manifest_path != NULL && cberg_manifest_load(idx->manifest_path, &prev) != CBERG_OK) {
+        prev = NULL;
+    }
+
+    /* Chunk table but no manifest baseline: we still avoid re-embedding (ids were
+     * restored), but must walk + re-chunk every file to learn what changed. */
+    if (prev == NULL) {
+        st = walk_and_sync(idx);
+        if (st == CBERG_OK) {
+            save_state(idx);
+        }
+        return st;
+    }
+
+    /* Manifest-driven: diff the saved tree against a fresh rebuild (stat-only for
+     * unchanged files) and re-chunk only added/modified, dropping deleted. */
+    cberg_manifest *next = NULL;
+    st = cberg_manifest_rebuild(prev, idx->root, &next);
+    if (st != CBERG_OK) {
+        cberg_manifest_free(prev);
+        return st;
+    }
+    cberg_manifest_changes diff = {0};
+    st = cberg_manifest_diff(prev, next, &diff);
+    if (st != CBERG_OK) {
+        cberg_manifest_free(prev);
+        cberg_manifest_free(next);
+        return st;
+    }
+
+    size_t rechunk_n = diff.added_len + diff.modified_len;
+    char **rechunk = NULL;
+    if (rechunk_n > 0) {
+        rechunk = malloc(rechunk_n * sizeof(*rechunk));
+        if (rechunk == NULL) {
+            cberg_manifest_diff_free(&diff);
+            cberg_manifest_free(prev);
+            cberg_manifest_free(next);
+            return CBERG_ERR_OUT_OF_MEMORY;
+        }
+        size_t r = 0;
+        for (size_t i = 0; i < diff.added_len; i++) {
+            rechunk[r++] = (char *)diff.added[i];
+        }
+        for (size_t i = 0; i < diff.modified_len; i++) {
+            rechunk[r++] = (char *)diff.modified[i];
+        }
+    }
+
+    /* diff paths borrow from prev/next; consume them before either is freed. */
+    st = apply_path_changes(idx, rechunk, rechunk_n, (char **)diff.deleted, diff.deleted_len);
+    free(rechunk);
+    if (st == CBERG_OK) {
+        fprintf(stderr, "cberg-index: warm restart: %zu added, %zu modified, %zu deleted since last run\n",
+                diff.added_len, diff.modified_len, diff.deleted_len);
+    }
+    cberg_manifest_diff_free(&diff);
+    cberg_manifest_free(prev);
+    if (st != CBERG_OK) {
+        cberg_manifest_free(next);
+        return st;
+    }
+
+    cberg_manifest_free(idx->manifest);
+    idx->manifest = next; /* the fresh tree becomes the new baseline */
+    save_state(idx);
     return CBERG_OK;
 }
 
@@ -639,75 +884,12 @@ cberg_status cberg_indexer_run(cberg_indexer *idx) {
         }
 
         pthread_mutex_lock(&idx->mu);
-        chunk_batch batch;
-        batch_init(&batch);
-
-        char **skip = calloc(rechunk_n + deleted_n, sizeof(*skip));
-        size_t skip_n = 0;
-        for (size_t i = 0; i < deleted_n; i++) {
-            skip[skip_n++] = deleted[i];
+        st = apply_path_changes(idx, rechunk, rechunk_n, deleted, deleted_n);
+        if (st == CBERG_OK) {
+            /* Persist the chunk table every sync so a restart never re-embeds the
+             * work done this session. The manifest baseline is refreshed on close. */
+            save_chunk_table(idx);
         }
-        for (size_t i = 0; i < rechunk_n; i++) {
-            skip[skip_n++] = rechunk[i];
-        }
-        st = batch_add_table_except(idx, &batch, skip, skip_n);
-        if (st != CBERG_OK) {
-            batch_reset(&batch);
-            free(skip);
-            pthread_mutex_unlock(&idx->mu);
-            for (size_t j = 0; j < rechunk_n; j++) {
-                free(rechunk[j]);
-            }
-            for (size_t j = 0; j < deleted_n; j++) {
-                free(deleted[j]);
-            }
-            free(rechunk);
-            free(deleted);
-            return st;
-        }
-
-        for (size_t i = 0; i < rechunk_n; i++) {
-            char abs[4096];
-            snprintf(abs, sizeof(abs), "%s/%s", idx->root, rechunk[i]);
-            cberg_chunk_list *list = NULL;
-            st = parse_file(idx, abs, rechunk[i], &list);
-            if (st != CBERG_OK) {
-                batch_reset(&batch);
-                free(skip);
-                pthread_mutex_unlock(&idx->mu);
-                for (size_t j = 0; j < rechunk_n; j++) {
-                    free(rechunk[j]);
-                }
-                for (size_t j = 0; j < deleted_n; j++) {
-                    free(deleted[j]);
-                }
-                free(rechunk);
-                free(deleted);
-                return st;
-            }
-            if (list != NULL) {
-                st = batch_add_list(&batch, list);
-                if (st != CBERG_OK) {
-                    cberg_chunk_list_free(list);
-                    batch_reset(&batch);
-                    free(skip);
-                    pthread_mutex_unlock(&idx->mu);
-                    for (size_t j = 0; j < rechunk_n; j++) {
-                        free(rechunk[j]);
-                    }
-                    for (size_t j = 0; j < deleted_n; j++) {
-                        free(deleted[j]);
-                    }
-                    free(rechunk);
-                    free(deleted);
-                    return st;
-                }
-            }
-        }
-
-        st = sync_table(idx, &batch);
-        batch_reset(&batch);
-        free(skip);
         pthread_mutex_unlock(&idx->mu);
 
         for (size_t i = 0; i < rechunk_n; i++) {

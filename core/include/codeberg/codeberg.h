@@ -188,6 +188,18 @@ CBERG_API const cberg_stored_chunk *cberg_chunk_table_at(const cberg_chunk_table
 CBERG_API cberg_status cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk *incoming, size_t count,
                                               cberg_changes *out_changes);
 
+/*
+ * Persist / restore the table to `path` (atomic temp+rename). Restoring keeps
+ * chunk ids stable across process restarts, so a reopened vector index reuses
+ * the embeddings it already holds instead of re-embedding every chunk: a warm
+ * start re-embeds only the chunks whose content actually changed.
+ * cberg_chunk_table_load returns CBERG_ERR_NOT_FOUND when `path` is absent or was
+ * written by an incompatible version (treat as a cold start). On OK, *out_table
+ * owns a new table; free it with cberg_chunk_table_free.
+ */
+CBERG_API cberg_status cberg_chunk_table_save(const cberg_chunk_table *table, const char *path);
+CBERG_API cberg_status cberg_chunk_table_load(const char *path, cberg_chunk_table **out_table);
+
 /* --- Merkle manifest (content-derived change detection) ----------------- */
 
 /*
@@ -263,6 +275,17 @@ typedef struct cberg_manifest_changes {
 CBERG_API cberg_status cberg_manifest_diff(const cberg_manifest *prev, const cberg_manifest *next,
                                            cberg_manifest_changes *out_changes);
 CBERG_API void cberg_manifest_diff_free(cberg_manifest_changes *changes);
+
+/*
+ * Persist / restore a manifest to `path` (atomic temp+rename). Restoring rebuilds
+ * the directory tree from the saved leaves without reading the repository, so a
+ * loaded manifest serves as the `prev` baseline for cberg_manifest_rebuild and
+ * cberg_manifest_diff after a restart — letting a process detect what changed
+ * while it was down. cberg_manifest_load returns CBERG_ERR_NOT_FOUND when `path`
+ * is absent or incompatible (treat as a cold start).
+ */
+CBERG_API cberg_status cberg_manifest_save(const cberg_manifest *manifest, const char *path);
+CBERG_API cberg_status cberg_manifest_load(const char *path, cberg_manifest **out_manifest);
 
 /* --- Repository walk policy --------------------------------------------- */
 

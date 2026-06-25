@@ -7,6 +7,21 @@ changes may occur in minor releases and are called out explicitly.
 
 ## [Unreleased]
 
+### Added
+
+- **Fast restarts via persisted state** — `cberg-index` now saves the chunk table
+  and merkle manifest as sidecars next to the vector index
+  (`<index>.chunks`, `<index>.manifest`). On restart it restores them, so chunk
+  ids stay stable and the reopened index reuses existing embeddings; the manifest
+  diff re-chunks only the files that changed while the process was down. A restart
+  with no changes re-embeds nothing and reads no source files. New ABI:
+  `cberg_chunk_table_save`/`_load` and `cberg_manifest_save`/`_load`.
+
+### Fixed
+
+- **Re-embedding the whole corpus on every restart** — the chunk table was rebuilt
+  empty at startup, so bootstrap treated every chunk as new and re-embedded it.
+
 ## [0.1.0] - 2026-06-22
 
 ### Added

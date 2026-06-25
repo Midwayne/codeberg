@@ -191,6 +191,18 @@ every N incremental polls to bound stat-cache misses.
 
 ---
 
+## Persistence
+
+`cberg_manifest_save` / `cberg_manifest_load` write and restore a manifest as a
+flat list of leaves (path, body hash, size, mtime); the directory tree is
+regenerated from the leaves on load, so it is never serialized. A loaded manifest
+is a valid `prev` baseline for `rebuild` and `diff`, which is what lets a restarted
+indexer detect everything that changed while it was down. Writes are atomic
+(temp + rename); a stale or foreign file loads back as `CBERG_ERR_NOT_FOUND`, so
+the caller falls back to a full build. `cberg_chunk_table_save` / `_load` mirror
+this for the id↔chunk mapping, keeping ids stable so reused embeddings are not
+recomputed.
+
 ## Ownership and threading
 
 | Object | Lifetime | Notes |

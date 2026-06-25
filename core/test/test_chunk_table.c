@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <unistd.h>
 
 static int failures;
 
@@ -66,6 +67,82 @@ int main(void) {
     CHECK(dup_ch.modified_len == 1, "duplicate batch updates once");
     CHECK(dup_ch.modified[0].chunk.content_hash[0] == 9, "modified has final hash");
     cberg_chunk_table_free(dup_table);
+
+    /* --- persistence: save/load round-trip keeps ids stable, so a restarted
+     *     indexer re-embeds nothing for unchanged chunks. --- */
+    char tpath[256];
+    snprintf(tpath, sizeof(tpath), "/tmp/cberg-chunktable-%d.bin", (int)getpid());
+
+    cberg_chunk_table *src = cberg_chunk_table_new();
+    cberg_changes sch = {0};
+    cberg_chunk seed[] = {make_chunk("p.go::1::A#0", 3), make_chunk("p.go::1::B#0", 4),
+                          make_chunk("p.go::1::C#0", 5)};
+    seed[1].symbol = NULL;            /* NULL symbol exercises the sentinel encoding */
+    seed[2].path = "deep/dir/q.go";   /* a path that differs from the others */
+    CHECK(cberg_chunk_table_sync(src, seed, 3, &sch) == CBERG_OK, "seed sync");
+    CHECK(cberg_chunk_table_len(src) == 3, "seed len 3");
+    uint64_t id_a = cberg_chunk_table_at(src, 0)->id;
+    uint8_t src_fp[CBERG_HASH_LEN];
+    cberg_chunk_table_fingerprint(src, src_fp);
+
+    cberg_chunk_table *missing = NULL;
+    CHECK(cberg_chunk_table_load("/tmp/cberg-no-such-table-xyz.bin", &missing) == CBERG_ERR_NOT_FOUND,
+          "absent file is a cold start");
+    CHECK(missing == NULL, "absent load leaves out-param NULL");
+
+    CHECK(cberg_chunk_table_save(src, tpath) == CBERG_OK, "save");
+
+    cberg_chunk_table *restored = NULL;
+    CHECK(cberg_chunk_table_load(tpath, &restored) == CBERG_OK, "load");
+    CHECK(restored != NULL && cberg_chunk_table_len(restored) == 3, "restored len 3");
+
+    uint8_t rfp[CBERG_HASH_LEN];
+    cberg_chunk_table_fingerprint(restored, rfp);
+    CHECK(memcmp(src_fp, rfp, CBERG_HASH_LEN) == 0, "fingerprint survives round-trip");
+
+    int ok_fields = 1, saw_null_symbol = 0;
+    for (size_t i = 0; i < cberg_chunk_table_len(restored); i++) {
+        const cberg_stored_chunk *sc = cberg_chunk_table_at(restored, i);
+        const cberg_stored_chunk *os = cberg_chunk_table_at(src, i);
+        if (sc->id != os->id || strcmp(sc->chunk.key, os->chunk.key) != 0 ||
+            strcmp(sc->chunk.path, os->chunk.path) != 0 || sc->chunk.kind != os->chunk.kind ||
+            sc->chunk.span.end_byte != os->chunk.span.end_byte ||
+            memcmp(sc->chunk.content_hash, os->chunk.content_hash, CBERG_HASH_LEN) != 0) {
+            ok_fields = 0;
+        }
+        if (sc->chunk.symbol == NULL && os->chunk.symbol == NULL) {
+            saw_null_symbol = 1;
+        }
+    }
+    CHECK(ok_fields, "ids and chunk fields preserved across load");
+    CHECK(saw_null_symbol, "NULL symbol round-trips");
+
+    /* The crux: re-syncing identical content against the restored table reports
+     * no changes, so a restart would re-embed nothing. */
+    cberg_changes rch = {0};
+    cberg_chunk again[] = {make_chunk("p.go::1::A#0", 3), make_chunk("p.go::1::B#0", 4),
+                           make_chunk("p.go::1::C#0", 5)};
+    again[1].symbol = NULL;
+    again[2].path = "deep/dir/q.go";
+    CHECK(cberg_chunk_table_sync(restored, again, 3, &rch) == CBERG_OK, "resync restored");
+    CHECK(rch.added_len == 0 && rch.modified_len == 0 && rch.deleted_len == 0,
+          "identical resync after load is a no-op");
+    CHECK(cberg_chunk_table_at(restored, 0)->id == id_a, "id stable after load+resync");
+
+    /* A genuinely new chunk gets a fresh id from the preserved next_id, never
+     * colliding with a restored id. */
+    cberg_chunk grow[] = {make_chunk("p.go::1::A#0", 3), make_chunk("p.go::1::B#0", 4),
+                          make_chunk("p.go::1::C#0", 5), make_chunk("p.go::1::D#0", 6)};
+    grow[1].symbol = NULL;
+    grow[2].path = "deep/dir/q.go";
+    cberg_changes gch = {0};
+    CHECK(cberg_chunk_table_sync(restored, grow, 4, &gch) == CBERG_OK, "add new after load");
+    CHECK(gch.added_len == 1 && gch.modified_len == 0, "exactly one new chunk after load");
+    CHECK(gch.added[0].id >= 4, "new id continues past restored ids");
+
+    cberg_chunk_table_free(restored);
+    cberg_chunk_table_free(src);
+    remove(tpath);
 
     cberg_chunk_table_free(table);
     return failures == 0 ? 0 : 1;
