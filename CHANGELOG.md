@@ -35,8 +35,20 @@ changes may occur in minor releases and are called out explicitly.
   `sed -i`) are rejected, paths cannot escape the root, and `awk`/`xargs` are
   excluded. Output is bounded and the run is time-limited. The agent picks it up
   automatically via `GET /tools`.
+- **Launcher dependency auto-install** — before building, `codeberg` now preflights
+  the build prerequisites (a C toolchain + `make`, CMake, Go ≥ 1.22, Node ≥ 22 +
+  npm, `git`, and the ONNX Runtime library) and installs the missing ones via
+  Homebrew (macOS) or apt (Linux), instead of failing deep in `make` with output
+  that never named the package. `codeberg doctor` reports the ONNX runtime too, and
+  `CODEBERG_SKIP_DEP_INSTALL=1` checks without installing. The README now documents
+  the full prerequisite list per platform.
 
 ### Changed
+
+- **Daemon health-check timeout raised 6m → 15m** — a cold first index of a large
+  tree (chunk + embed every file) routinely ran past six minutes, tripping the
+  launcher's wait and forcing a second `codeberg` run. The default is now 15
+  minutes and is overridable with `CODEBERG_HEALTH_TIMEOUT` (any Go duration).
 
 - **Agent upgraded to ai-sdk v7** — the hand-rolled `generateText` + `stepCountIs`
   tool loop is now a built-once `ToolLoopAgent` with `TimeoutConfiguration`
@@ -51,6 +63,11 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Fixed
 
+- **Agent provider packages missing at runtime** — `@ai-sdk/anthropic`, `@ai-sdk/
+  google`, and `@ai-sdk/openai` were declared as `optionalDependencies` but are
+  statically imported (and externalized from the bundle), so an install that
+  skipped optionals left the agent unable to start for those providers. They are
+  now regular `dependencies`.
 - **Re-embedding the whole corpus on every restart** — the chunk table was rebuilt
   empty at startup, so bootstrap treated every chunk as new and re-embedded it.
 

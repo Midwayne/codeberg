@@ -25,10 +25,11 @@ to launch — the daemon and the TUI — and the launcher manages both:
 
 ```
 codeberg
+  ├─ ensure deps:  cmake, go, node/npm, git, onnxruntime  (auto-install: brew/apt)
   ├─ ensure built: make build-daemon (core+daemon), make build-agent (TUI)
   ├─ ensure model: scripts/fetch-model.sh   (vector mode only)
   ├─ start codeberg-d ──spawns──▶ cberg-index      (logs: ~/.codeberg/logs)
-  ├─ poll GET /health until ready
+  ├─ poll GET /health until ready  (first cold index is slow — up to 15m)
   └─ exec  node agent/dist/tui.js   (your terminal)
         └─ on exit / SIGTERM ▶ stop daemon ▶ daemon stops the core
 ```
@@ -56,6 +57,34 @@ On the very first `codeberg`, expect a one-time build of the components and a
 chunk-only mode). Both are cached afterwards — **the model is downloaded once**
 into `~/.codeberg/models/` (not the repo), so it is reused across repo rebuilds,
 re-clones, and multiple checkouts and is **never re-pulled** while it is present.
+
+### Dependencies (auto-installed)
+
+The build needs a C toolchain + `make`, **CMake**, **Go** ≥ 1.22, **Node** ≥ 22
++ npm, `git`, and the **ONNX Runtime** library (for vector embeddings). Before
+building, the launcher checks each and installs the missing ones through the host
+package manager — **Homebrew** on macOS, **apt** on Linux (`onnxruntime` is not in
+apt; install a [release](https://github.com/microsoft/onnxruntime/releases) and
+set `ONNXRUNTIME_ROOT`). Without ONNX the core still builds chunk-only, so the
+runtime only warns; the rest are required. `codeberg doctor` lists what's present.
+
+Set `CODEBERG_SKIP_DEP_INSTALL=1` to check-and-report without installing (e.g. on
+a locked-down host where you manage packages yourself).
+
+### First index can be slow
+
+The daemon only serves `/health` after the indexer has chunked and **embedded**
+the whole tree, and a *cold* first index of a large repo can run several minutes.
+The launcher waits up to **15 minutes** (it used to be 6, which a big repo would
+blow past, forcing a second run). For an exceptionally large tree, raise it:
+
+```sh
+CODEBERG_HEALTH_TIMEOUT=30m codeberg     # any Go duration, e.g. 45m
+```
+
+Live indexing progress streams to the terminal during the wait; the full log is
+at `~/.codeberg/logs/daemon.log`. Subsequent runs warm-start from the persisted
+index and come up in seconds.
 
 ## Configuring
 
@@ -158,6 +187,7 @@ launcher/
   cmd/codeberg/main.go       CLI dispatch + flags
   internal/paths/            repo + home directory discovery
   internal/config/           four-layer config resolution + template
+  internal/deps/             toolchain/library preflight + auto-install (brew/apt)
   internal/bootstrap/        build/download components and model
   internal/run/              daemon start, /health wait, TUI, teardown
 ```

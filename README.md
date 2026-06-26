@@ -36,6 +36,34 @@ followed — symlinked directories are walked and watched like normal directorie
 | `agent/` | Retrieval client — TBD |
 | `docs/` | Project overview and links |
 
+## Prerequisites
+
+The build spans three toolchains plus a native library, so a fresh machine needs
+all of the following before `make` or the launcher can succeed. Missing any of
+them is the most common first-run failure — `make` fails deep in a configure step
+without naming the package, so install these up front:
+
+| Dependency | Why | macOS (Homebrew) | Debian/Ubuntu (apt) |
+|------------|-----|------------------|---------------------|
+| C toolchain + `make` | compile `libcodeberg` / `cberg-index` | `xcode-select --install` | `build-essential` |
+| **CMake** | configure the C core | `brew install cmake` | `cmake` |
+| **Go** ≥ 1.22 | build `codeberg-d` (daemon) | `brew install go` | `golang-go` |
+| **Node** ≥ 22 + **npm** | build & run the TypeScript agent/TUI | `brew install node` | `nodejs npm` |
+| `git` | fetch the tree-sitter submodules | `brew install git` | `git` |
+| **ONNX Runtime** | vector embeddings (omit for chunk-only) | `brew install onnxruntime` | [release tarball](https://github.com/microsoft/onnxruntime/releases) or `ONNXRUNTIME_ROOT` |
+
+The **ONNX Runtime** is a native library, not a CLI: CMake searches
+`/opt/homebrew/opt/onnxruntime`, `/usr/local`, `/opt/homebrew`, and `/usr`, or
+`ONNXRUNTIME_ROOT` if set. Without it the core still builds, but **chunk-only**
+(no vector search) — pass `--no-vector` / set `CODEBERG_VECTOR=false`. It is not
+packaged for apt, so on Linux install a release tarball and point
+`ONNXRUNTIME_ROOT` at it.
+
+> **The `codeberg` launcher installs these for you.** On first run it checks each
+> dependency and auto-installs the missing ones via Homebrew (macOS) or apt
+> (Linux) — see [`launcher/`](launcher/). Building by hand from this Makefile,
+> you install them yourself. Run `codeberg doctor` to see what's present.
+
 ## Build
 
 ```sh
