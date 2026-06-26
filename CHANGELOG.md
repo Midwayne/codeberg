@@ -35,6 +35,14 @@ changes may occur in minor releases and are called out explicitly.
   `sed -i`) are rejected, paths cannot escape the root, and `awk`/`xargs` are
   excluded. Output is bounded and the run is time-limited. The agent picks it up
   automatically via `GET /tools`.
+- **Prebuilt "dist" mode for the launcher** — `codeberg` can run from a prebuilt
+  tree instead of a source checkout: `make dist` assembles a relocatable `bin/` +
+  `libexec/` payload (binaries, agent bundle + production `node_modules`, scripts),
+  and the launcher locates it at `../libexec` relative to its own binary — so it
+  works wherever it's extracted, with no baked path (override with
+  `--dist`/`CODEBERG_DIST`). `codeberg doctor` reports which root it resolved. This
+  is the groundwork for packaged installers; the clone + `make` developer flow is
+  unchanged.
 - **Launcher dependency auto-install** — before building, `codeberg` now preflights
   the build prerequisites (a C toolchain + `make`, CMake, Go ≥ 1.22, Node ≥ 22 +
   npm, `git`, and the ONNX Runtime library) and installs the missing ones via
@@ -45,6 +53,9 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Changed
 
+- **`make build` renamed to `make build-core`** — symmetric with `build-daemon`
+  and `build-agent`. `make build` stays as a back-compat alias, so existing
+  scripts, CI, and habits keep working.
 - **Daemon health-check timeout raised 6m → 15m** — a cold first index of a large
   tree (chunk + embed every file) routinely ran past six minutes, tripping the
   launcher's wait and forcing a second `codeberg` run. The default is now 15
@@ -63,6 +74,13 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Fixed
 
+- **`codeberg uninstall` left the command on PATH** — removal only scanned a
+  hardcoded set of directories, so a `codeberg` installed anywhere else on `$PATH`
+  (e.g. `/opt/homebrew/bin`, a custom bin dir, or another checkout's symlink) was
+  silently missed. It now scans every `$PATH` directory, offers to remove a second
+  or stale codeberg it didn't launch from (auto-removed under `--yes`), and notes
+  that a just-removed command can linger in the shell's command-location cache
+  until `hash -r` / `rehash`.
 - **Agent provider packages missing at runtime** — `@ai-sdk/anthropic`, `@ai-sdk/
   google`, and `@ai-sdk/openai` were declared as `optionalDependencies` but are
   statically imported (and externalized from the bundle), so an install that
