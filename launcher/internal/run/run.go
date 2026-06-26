@@ -22,10 +22,26 @@ import (
 	"codeberg.org/codeberg/launcher/internal/config"
 )
 
-// healthDeadline bounds how long we wait for the daemon to serve /health. The
-// daemon only starts its HTTP server after the indexer reports ready, and a
-// first index of a large tree can take a while — so we are generous.
-const healthDeadline = 6 * time.Minute
+// defaultHealthDeadline bounds how long we wait for the daemon to serve
+// /health. The daemon only starts its HTTP server after the indexer reports
+// ready, and a *first* index of a large tree — parse every file, embed every
+// chunk through ONNX — routinely runs past six minutes, which used to trip the
+// old deadline and force a second `codeberg` run (the rebuilt index then warm-
+// starts). Fifteen minutes covers a cold index of a large repo; override with
+// CODEBERG_HEALTH_TIMEOUT (any Go duration, e.g. "30m") for the truly huge.
+const defaultHealthDeadline = 15 * time.Minute
+
+// healthDeadline returns the configured wait, honoring CODEBERG_HEALTH_TIMEOUT
+// when it parses as a Go duration, otherwise the default.
+func healthDeadline() time.Duration {
+	if v := os.Getenv("CODEBERG_HEALTH_TIMEOUT"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			return d
+		}
+		fmt.Fprintf(os.Stderr, "› ignoring invalid CODEBERG_HEALTH_TIMEOUT=%q (want a duration like 30m)\n", v)
+	}
+	return defaultHealthDeadline
+}
 
 // Run boots the daemon, waits for health, runs the TUI, and cleans up.
 func Run(c *config.Config) error {
@@ -179,7 +195,8 @@ func (t *startupTee) stopLive() {
 // waitHealthy polls GET <url>/health until it returns 2xx, the daemon exits, or
 // the deadline passes.
 func waitHealthy(daemonURL string, daemonStopped <-chan struct{}) error {
-	ctx, cancel := context.WithTimeout(context.Background(), healthDeadline)
+	deadline := healthDeadline()
+	ctx, cancel := context.WithTimeout(context.Background(), deadline)
 	defer cancel()
 	client := &http.Client{Timeout: 2 * time.Second}
 	url := daemonURL + "/health"
@@ -199,7 +216,8 @@ func waitHealthy(daemonURL string, daemonStopped <-chan struct{}) error {
 		case <-daemonStopped:
 			return fmt.Errorf("daemon exited before becoming healthy")
 		case <-ctx.Done():
-			return fmt.Errorf("daemon did not become healthy within %s", healthDeadline)
+			return fmt.Errorf("daemon did not become healthy within %s "+
+				"(raise it with CODEBERG_HEALTH_TIMEOUT, e.g. 30m, for a very large first index)", deadline)
 		case <-ticker.C:
 		}
 	}
