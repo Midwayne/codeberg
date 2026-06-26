@@ -29,8 +29,8 @@ type Options struct {
 func Run(c *config.Config, o Options) error {
 	p := &prompter{r: bufio.NewReader(os.Stdin), assumeYes: o.AssumeYes}
 
-	// 1. Always: remove the `codeberg` command we put on PATH.
-	removeCommand()
+	// 1. Always: remove the `codeberg` command(s) we put on PATH.
+	removeCommand(p)
 
 	// 2. The embedding model + ONNX weights the launcher downloaded.
 	modelDir := filepath.Dir(c.EmbedModel)
@@ -76,35 +76,49 @@ func Run(c *config.Config, o Options) error {
 
 // removeCommand deletes the `codeberg` symlink/binary we installed onto PATH,
 // only when it actually points at (or is) this executable.
-func removeCommand() {
+func removeCommand(p *prompter) {
 	self := resolve(selfPath())
-	found := false
+	removedAny, foundAny := false, false
 	for _, dir := range commandDirs() {
 		link := filepath.Join(dir, "codeberg")
 		fi, err := os.Lstat(link)
 		if err != nil {
 			continue
 		}
-		// A symlink we created -> resolves to our binary; or the binary itself
-		// installed as a regular file (go build -o .../bin/codeberg).
+		foundAny = true
+		// "Ours": the symlink we installed resolves to this running binary, or the
+		// binary itself was installed as a regular file (go build -o .../codeberg).
 		mine := false
 		if fi.Mode()&os.ModeSymlink != 0 {
 			mine = resolve(link) == self
 		} else if abs(link) == self {
 			mine = true
 		}
-		if mine {
-			if err := os.Remove(link); err == nil {
-				fmt.Printf("✓ removed command %s\n", link)
-				found = true
-			} else {
-				fmt.Printf("  could not remove %s: %v\n", link, err)
-			}
+		// A codeberg that isn't the one we're running from is likely a second or
+		// stale install — another checkout's build, or a Homebrew one (prefer
+		// `brew uninstall codeberg` for that). Confirm before deleting it; under
+		// --yes the confirmation is auto-granted, so `uninstall --yes` clears
+		// every codeberg on PATH.
+		if !mine && !p.confirm(fmt.Sprintf("Also remove the codeberg command at %s?", link)) {
+			fmt.Printf("  left %s in place\n", link)
+			continue
+		}
+		if err := os.Remove(link); err == nil {
+			fmt.Printf("✓ removed command %s\n", link)
+			removedAny = true
+		} else {
+			fmt.Printf("  could not remove %s: %v\n", link, err)
 		}
 	}
-	if !found {
-		fmt.Println("  no `codeberg` command found on PATH to remove (binary left in place)")
+	if !removedAny {
+		if !foundAny {
+			fmt.Println("  no `codeberg` command found on PATH to remove")
+		}
+		return
 	}
+	// A just-removed command can linger in the shell's command-location cache, so
+	// it may still appear to run until that table is refreshed.
+	fmt.Println("  if `codeberg` still runs in this shell, run `hash -r` (bash) / `rehash` (zsh) or open a new shell")
 }
 
 func offerSystemONNX(p *prompter, force bool) {
@@ -178,12 +192,26 @@ func stdinIsTTY() bool {
 
 // --- path helpers -----------------------------------------------------------
 
+// commandDirs lists every directory a `codeberg` command could live in. The
+// most important source is the live $PATH: if the user can run `codeberg`, it is
+// by definition in one of those dirs, so scanning them is what makes uninstall
+// actually find the command wherever it was installed (Homebrew's prefix, a
+// custom bin dir, …) rather than only a hardcoded few. The extra known dirs
+// cover install targets that may not be on the current PATH.
 func commandDirs() []string {
 	var dirs []string
+	if path := os.Getenv("PATH"); path != "" {
+		for _, d := range filepath.SplitList(path) {
+			if d != "" {
+				dirs = append(dirs, d)
+			}
+		}
+	}
 	if home, err := os.UserHomeDir(); err == nil {
 		dirs = append(dirs, filepath.Join(home, ".local", "bin"), filepath.Join(home, "bin"), filepath.Join(home, "go", "bin"))
 	}
-	dirs = append(dirs, "/usr/local/bin")
+	// /opt/homebrew/bin is the Apple-Silicon brew prefix (Intel uses /usr/local).
+	dirs = append(dirs, "/usr/local/bin", "/opt/homebrew/bin")
 	if gobin := goEnv("GOBIN"); gobin != "" {
 		dirs = append(dirs, gobin)
 	}
