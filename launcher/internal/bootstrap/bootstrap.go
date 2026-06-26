@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 
 	"codeberg.org/codeberg/launcher/internal/config"
+	"codeberg.org/codeberg/launcher/internal/deps"
 )
 
 // Artifacts are the on-disk products the launcher runs.
@@ -39,7 +40,18 @@ func Ensure(c *config.Config, force bool) error {
 	if c.Repo == "" {
 		return fmt.Errorf("no source checkout to build from (set CODEBERG_REPO/--repo)")
 	}
+
+	// Make sure the toolchains/libraries the Makefile shells out to exist (and
+	// auto-install the missing ones) before we invoke it — a missing cmake, Go,
+	// Node, or ONNX runtime otherwise surfaces as an opaque mid-build failure.
+	// Skip the check when nothing needs (re)building: an up-to-date tree already
+	// proved the toolchain works, so don't gate a plain run on it.
 	a := Locate(c.Repo)
+	if force || !exists(a.DaemonBin) || !exists(a.IndexBin) || !exists(a.TUIScript) {
+		if err := deps.Ensure(os.Stderr); err != nil {
+			return err
+		}
+	}
 
 	// codeberg-d + cberg-index: `make build-daemon` builds the core first if
 	// needed, then the Go daemon — so one target covers both binaries.
@@ -102,5 +114,5 @@ func makeTarget(repo, target, label string) error {
 	return nil
 }
 
-func step(msg string) { fmt.Fprintf(os.Stderr, "› %s\n", msg) }
+func step(msg string)   { fmt.Fprintf(os.Stderr, "› %s\n", msg) }
 func skip(label string) { fmt.Fprintf(os.Stderr, "✓ %s already present\n", label) }

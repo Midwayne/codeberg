@@ -23,6 +23,7 @@ import (
 	"codeberg.org/codeberg/launcher/internal/bootstrap"
 	"codeberg.org/codeberg/launcher/internal/cleanindex"
 	"codeberg.org/codeberg/launcher/internal/config"
+	"codeberg.org/codeberg/launcher/internal/deps"
 	"codeberg.org/codeberg/launcher/internal/run"
 	"codeberg.org/codeberg/launcher/internal/uninstall"
 )
@@ -333,10 +334,17 @@ func cmdDoctor(args []string) error {
 	fmt.Println("Toolchains:")
 	for _, t := range []string{"go", "node", "npm", "make", "cmake", "git"} {
 		if p, err := exec.LookPath(t); err == nil {
-			fmt.Printf("  ✓ %-6s %s\n", t, p)
+			fmt.Printf("  ✓ %-12s %s\n", t, p)
 		} else {
-			fmt.Printf("  ✘ %-6s not found\n", t)
+			fmt.Printf("  ✘ %-12s not found — `codeberg build` auto-installs it (brew/apt)\n", t)
 		}
+	}
+	// The ONNX runtime is a library, not a binary on PATH — check the way the
+	// core's CMake does, since it's what enables vector embeddings.
+	if deps.OnnxPresent() {
+		fmt.Printf("  ✓ %-12s installed (vector embeddings available)\n", "onnxruntime")
+	} else {
+		fmt.Printf("  ✘ %-12s not found — needed for vector mode; `codeberg build` installs it on macOS\n", "onnxruntime")
 	}
 
 	fmt.Println("\nComponents:")
