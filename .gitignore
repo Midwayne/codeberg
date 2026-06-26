@@ -7,3 +7,4 @@ models/
 .DS_Store
 .env
 agent/node_modules/
+launcher/bin/
