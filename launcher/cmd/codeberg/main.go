@@ -80,6 +80,7 @@ func parseShared(name string, args []string) (*config.Overrides, error) {
 	fs.StringVar(&o.Socket, "socket", "", "cberg-index IPC socket path")
 	fs.StringVar(&o.Reasoning, "reasoning", "", "reasoning effort (low|medium|high|…)")
 	fs.StringVar(&o.Repo, "repo", "", "source checkout to build/run")
+	fs.StringVar(&o.Dist, "dist", "", "prebuilt artifact dir to run (CODEBERG_DIST)")
 	fs.StringVar(&o.Home, "home", "", "managed home dir (default ~/.codeberg)")
 	fs.StringVar(&o.ConfigFile, "config", "", "config file path (default <home>/config)")
 	noVector := fs.Bool("no-vector", false, "chunk-only mode (skip embedding model)")
@@ -133,7 +134,9 @@ func cmdBuild(args []string) error {
 	if err != nil {
 		return err
 	}
-	if c.Repo == "" {
+	if _, prebuilt := c.ResolveRoot(); prebuilt {
+		fmt.Fprintln(os.Stderr, "running from a prebuilt install — nothing to build; checking the model only")
+	} else if c.Repo == "" {
 		return fmt.Errorf("no source checkout found; run inside it or pass --repo")
 	}
 	return bootstrap.Ensure(c, true)
@@ -348,17 +351,26 @@ func cmdDoctor(args []string) error {
 	}
 
 	fmt.Println("\nComponents:")
-	if c.Repo == "" {
-		fmt.Println("  ✘ source checkout: not found (set CODEBERG_REPO/--repo)")
-	} else {
+	root, prebuilt := c.ResolveRoot()
+	switch {
+	case prebuilt:
+		fmt.Printf("  ✓ prebuilt install: %s\n", root)
+	case c.Dist != "":
+		fmt.Printf("  ✘ prebuilt install: %s (incomplete — binaries missing)\n", c.Dist)
+	}
+	if c.Repo != "" {
 		fmt.Printf("  ✓ source checkout: %s\n", c.Repo)
-		a := bootstrap.Locate(c.Repo)
+	} else if !prebuilt {
+		fmt.Println("  ✘ source checkout: not found (set CODEBERG_REPO/--repo)")
+	}
+	if root != "" {
+		a := config.LocateArtifacts(root)
 		reportFile("cberg-index (core)", a.IndexBin)
 		reportFile("codeberg-d (daemon)", a.DaemonBin)
 		reportFile("agent TUI", a.TUIScript)
-		if c.Vector {
-			reportFile("embedding model", c.EmbedModel)
-		}
+	}
+	if c.Vector {
+		reportFile("embedding model", c.EmbedModel)
 	}
 
 	fmt.Println("\nResolved config:")

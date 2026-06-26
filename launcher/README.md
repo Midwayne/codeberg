@@ -43,6 +43,21 @@ cd launcher
 go build -o "$(go env GOPATH)/bin/codeberg" ./cmd/codeberg
 ```
 
+### Source checkout vs. prebuilt install
+
+The launcher runs the same two ways:
+
+- **From a source checkout** (developer flow): it finds the tree with `core/`,
+  `daemon/`, `agent/`, builds anything missing, and runs from `core/build/bin` +
+  `agent/dist`.
+- **From a prebuilt dist**: a packaged directory (`bin/codeberg` next to
+  `libexec/` holding the binaries, agent bundle + `node_modules`, and `scripts/`)
+  that `make dist` assembles. Nothing is built — it just runs. The launcher finds
+  the payload at `../libexec` relative to its own binary, so the tree works
+  wherever it's extracted; a populated dist is preferred over a checkout, and you
+  can also point at one with `--dist DIR` / `CODEBERG_DIST`. `codeberg doctor`
+  shows which it resolved. (Packaged installers will build on this later.)
+
 ## First run
 
 ```sh

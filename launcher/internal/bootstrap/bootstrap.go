@@ -1,8 +1,8 @@
-// Package bootstrap makes sure the three components and the embedding model
-// exist before a run. Today it builds from the source checkout (via the repo's
-// Makefile) and downloads the model with the repo's fetch-model.sh; each step
-// is a seam where a future "download a prebuilt release artifact" path can drop
-// in for true zero-toolchain installs and cloud deploys.
+// Package bootstrap makes sure the components and the embedding model exist
+// before a run. It works two ways: a prebuilt *dist* install (Homebrew / a
+// release tarball) ships the binaries and agent ready to run, so bootstrap just
+// fetches the model; otherwise it builds from the source checkout via the repo's
+// Makefile and downloads the model with the repo's fetch-model.sh.
 package bootstrap
 
 import (
@@ -15,28 +15,22 @@ import (
 	"codeberg.org/codeberg/launcher/internal/deps"
 )
 
-// Artifacts are the on-disk products the launcher runs.
-type Artifacts struct {
-	DaemonBin string // core/build/bin/codeberg-d
-	IndexBin  string // core/build/bin/cberg-index
-	TUIScript string // agent/dist/tui.js
-}
-
-// Locate returns the expected artifact paths for a repo (no existence check).
-func Locate(repo string) Artifacts {
-	bin := filepath.Join(repo, "core", "build", "bin")
-	return Artifacts{
-		DaemonBin: filepath.Join(bin, "codeberg-d"),
-		IndexBin:  filepath.Join(bin, "cberg-index"),
-		TUIScript: filepath.Join(repo, "agent", "dist", "tui.js"),
-	}
-}
-
 func exists(p string) bool { _, err := os.Stat(p); return err == nil }
 
 // Ensure builds/downloads whatever is missing. With force, it rebuilds the code
-// regardless (the model is only fetched when missing — it does not change).
+// regardless (the model is only fetched when missing — it does not change). When
+// running from a prebuilt dist there is nothing to build, so it only ensures the
+// model; force is ignored (reinstall the package to update a prebuilt install).
 func Ensure(c *config.Config, force bool) error {
+	root, prebuilt := c.ResolveRoot()
+	if prebuilt {
+		skip("prebuilt components")
+		if c.Vector {
+			return ensureModel(c, root)
+		}
+		return nil
+	}
+
 	if c.Repo == "" {
 		return fmt.Errorf("no source checkout to build from (set CODEBERG_REPO/--repo)")
 	}
@@ -46,7 +40,7 @@ func Ensure(c *config.Config, force bool) error {
 	// Node, or ONNX runtime otherwise surfaces as an opaque mid-build failure.
 	// Skip the check when nothing needs (re)building: an up-to-date tree already
 	// proved the toolchain works, so don't gate a plain run on it.
-	a := Locate(c.Repo)
+	a := config.LocateArtifacts(c.Repo)
 	if force || !exists(a.DaemonBin) || !exists(a.IndexBin) || !exists(a.TUIScript) {
 		if err := deps.Ensure(os.Stderr); err != nil {
 			return err
@@ -73,25 +67,25 @@ func Ensure(c *config.Config, force bool) error {
 	}
 
 	if c.Vector {
-		if err := ensureModel(c); err != nil {
-			return err
-		}
+		return ensureModel(c, c.Repo)
 	}
 	return nil
 }
 
-func ensureModel(c *config.Config) error {
+// ensureModel downloads the embedding model if absent, using the fetch-model.sh
+// that ships under root (the source checkout or the dist dir).
+func ensureModel(c *config.Config, root string) error {
 	if exists(c.EmbedModel) {
 		skip("embedding model")
 		return nil
 	}
 	step("downloading embedding model (jina-embeddings-v2-base-code, ~160MB)")
-	script := filepath.Join(c.Repo, "scripts", "fetch-model.sh")
+	script := filepath.Join(root, "scripts", "fetch-model.sh")
 	// Download into the launcher-owned model dir (the parent of EmbedModel),
 	// which lives under ~/.codeberg rather than the repo.
 	dest := filepath.Dir(c.EmbedModel)
 	cmd := exec.Command(script, dest)
-	cmd.Dir = c.Repo
+	cmd.Dir = root
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {

@@ -18,7 +18,6 @@ import (
 	"syscall"
 	"time"
 
-	"codeberg.org/codeberg/launcher/internal/bootstrap"
 	"codeberg.org/codeberg/launcher/internal/config"
 )
 
@@ -45,7 +44,10 @@ func healthDeadline() time.Duration {
 
 // Run boots the daemon, waits for health, runs the TUI, and cleans up.
 func Run(c *config.Config) error {
-	a := bootstrap.Locate(c.Repo)
+	// root is where the binaries and agent live (a prebuilt dist or the source
+	// checkout's build tree); it is also the working directory for both children.
+	root, _ := c.ResolveRoot()
+	a := config.LocateArtifacts(root)
 	if _, err := os.Stat(a.DaemonBin); err != nil {
 		return fmt.Errorf("daemon binary missing (%s); run `codeberg build`", a.DaemonBin)
 	}
@@ -75,7 +77,7 @@ func Run(c *config.Config) error {
 	// terminal only during startup — so the user watches files being chunked and
 	// embedded, without those logs corrupting the TUI once it takes over.
 	progress := newStartupTee(logFile, os.Stderr)
-	daemon, err := startDaemon(a.DaemonBin, c, progress)
+	daemon, err := startDaemon(a.DaemonBin, root, c, progress)
 	if err != nil {
 		return err
 	}
@@ -126,7 +128,7 @@ func Run(c *config.Config) error {
 	}()
 
 	tui := exec.Command(node, a.TUIScript)
-	tui.Dir = c.Repo
+	tui.Dir = root
 	tui.Env = mergeEnv(os.Environ(), c.AgentEnv())
 	tui.Stdin = os.Stdin
 	tui.Stdout = os.Stdout
@@ -146,9 +148,9 @@ func Run(c *config.Config) error {
 	return nil
 }
 
-func startDaemon(bin string, c *config.Config, out io.Writer) (*exec.Cmd, error) {
+func startDaemon(bin, root string, c *config.Config, out io.Writer) (*exec.Cmd, error) {
 	cmd := exec.Command(bin)
-	cmd.Dir = c.Repo
+	cmd.Dir = root
 	cmd.Env = mergeEnv(os.Environ(), c.DaemonEnv())
 	// Same writer for both streams: os/exec then serializes Write calls for us.
 	cmd.Stdout = out

@@ -24,22 +24,33 @@ import (
 // so a value works whether it is set in the config file, the environment, or
 // (via the matching flag) on the command line.
 const (
-	KeyRoot       = "CODEBERG_ROOT"                   // repo to index (daemon scope)
-	KeyModel      = "CODEBERG_MODEL"                  // LLM provider:model (agent scope)
-	KeyDaemonURL  = "CODEBERG_DAEMON_URL"             // agent -> daemon (agent scope)
-	KeyHTTPPort   = "CODEBERG_HTTP_PORT"              // daemon listen port (daemon scope)
-	KeyEmbedModel = "CBERG_MODEL"                     // embedding model path (daemon scope)
-	KeyIndexPath  = "CBERG_INDEX_PATH"                // vector index base path (daemon scope)
-	KeySocket     = "CBERG_SOCKET"                    // cberg-index IPC socket (daemon scope)
-	KeyPollMS     = "CBERG_POLL_MS"                   // watcher poll ms (daemon scope)
-	KeyIndexBin   = "CBERG_INDEX_BIN"                 // override cberg-index path (daemon scope)
-	KeyGitPullSec = "CODEBERG_GIT_PULL_INTERVAL_SEC"  // periodic git pull (daemon scope)
-	KeyGitDir     = "CODEBERG_GIT_DIR"                // git dir for pull (daemon scope)
+	KeyRoot       = "CODEBERG_ROOT"                  // repo to index (daemon scope)
+	KeyModel      = "CODEBERG_MODEL"                 // LLM provider:model (agent scope)
+	KeyDaemonURL  = "CODEBERG_DAEMON_URL"            // agent -> daemon (agent scope)
+	KeyHTTPPort   = "CODEBERG_HTTP_PORT"             // daemon listen port (daemon scope)
+	KeyEmbedModel = "CBERG_MODEL"                    // embedding model path (daemon scope)
+	KeyIndexPath  = "CBERG_INDEX_PATH"               // vector index base path (daemon scope)
+	KeySocket     = "CBERG_SOCKET"                   // cberg-index IPC socket (daemon scope)
+	KeyPollMS     = "CBERG_POLL_MS"                  // watcher poll ms (daemon scope)
+	KeyIndexBin   = "CBERG_INDEX_BIN"                // override cberg-index path (daemon scope)
+	KeyGitPullSec = "CODEBERG_GIT_PULL_INTERVAL_SEC" // periodic git pull (daemon scope)
+	KeyGitDir     = "CODEBERG_GIT_DIR"               // git dir for pull (daemon scope)
 	KeyReasoning  = "CODEBERG_REASONING"             // reasoning effort (agent scope)
-	KeyVector     = "CODEBERG_VECTOR"                 // "false" => chunk-only mode
-	KeyHome       = "CODEBERG_HOME"                   // launcher managed dir
-	KeyRepo       = "CODEBERG_REPO"                   // source checkout to build/run
+	KeyVector     = "CODEBERG_VECTOR"                // "false" => chunk-only mode
+	KeyHome       = "CODEBERG_HOME"                  // launcher managed dir
+	KeyRepo       = "CODEBERG_REPO"                  // source checkout to build/run
+	KeyDist       = "CODEBERG_DIST"                  // prebuilt artifact dir (installs)
 )
+
+// BuildDist is an optional compile-time default for the prebuilt artifact
+// directory, injected by packagers via the linker:
+//
+//	go build -ldflags "-X codeberg.org/codeberg/launcher/internal/config.BuildDist=/opt/homebrew/.../libexec"
+//
+// A Homebrew/release build points it at the install prefix's payload so the
+// installed `codeberg` runs without a source checkout or any build toolchain.
+// Empty in a plain `go build` — the launcher then builds from the source tree.
+var BuildDist string
 
 // passthroughKeys are provider secrets/endpoints copied straight through to the
 // agent when present (in the config file or the environment). The daemon never
@@ -55,6 +66,7 @@ var passthroughKeys = []string{
 // on the CLI" and the lower layers decide. Vector is a tri-state via pointer.
 type Overrides struct {
 	Repo       string
+	Dist       string
 	Home       string
 	ConfigFile string // explicit config path; "" => <home>/config
 
@@ -71,7 +83,8 @@ type Overrides struct {
 
 // Config is the fully-resolved configuration.
 type Config struct {
-	Repo string
+	Repo string // source checkout to build from ("" when running prebuilt)
+	Dist string // prebuilt artifact dir ("" when building from source)
 	Home string
 
 	Root       string
@@ -111,6 +124,14 @@ func Load(o Overrides) (*Config, error) {
 	// binary location.
 	repo := paths.FindRepo(firstNonEmpty(o.Repo, os.Getenv(KeyRepo), fileVals[KeyRepo]))
 
+	// Dist (a prebuilt artifact dir, as installed by Homebrew/a release tarball)
+	// follows the same CLI > env > file precedence, then a compile-time BuildDist
+	// a packager baked in, then autodetection relative to the launcher binary
+	// (the `<bin>/codeberg` + `<bin>/../libexec` install layout). When it resolves
+	// to a populated dir the launcher runs from it and skips building; otherwise
+	// it's "" and we build from the source checkout above.
+	dist := firstNonEmpty(o.Dist, os.Getenv(KeyDist), fileVals[KeyDist], BuildDist, autodetectDist())
+
 	// resolve(key, cliValue) applies precedence: CLI > env > file.
 	// (Defaults are applied per-field below, after this.)
 	resolve := func(key, cli string) string {
@@ -126,6 +147,7 @@ func Load(o Overrides) (*Config, error) {
 	c := &Config{
 		Home:        home,
 		Repo:        repo,
+		Dist:        abs(dist),
 		ConfigPath:  configPath,
 		Passthrough: map[string]string{},
 	}
@@ -181,14 +203,70 @@ func Load(o Overrides) (*Config, error) {
 	return c, nil
 }
 
+// Artifacts are the on-disk products the launcher runs, under some root — a
+// source checkout's build tree or an installed dist dir laid out the same way.
+type Artifacts struct {
+	DaemonBin string // <root>/core/build/bin/codeberg-d
+	IndexBin  string // <root>/core/build/bin/cberg-index (daemon finds it as a sibling)
+	TUIScript string // <root>/agent/dist/tui.js (node resolves node_modules up from it)
+}
+
+// LocateArtifacts returns the expected artifact paths under root (no existence
+// check). The dist layout deliberately mirrors these subpaths so an installed
+// tree and a source checkout are interchangeable here.
+func LocateArtifacts(root string) Artifacts {
+	bin := filepath.Join(root, "core", "build", "bin")
+	return Artifacts{
+		DaemonBin: filepath.Join(bin, "codeberg-d"),
+		IndexBin:  filepath.Join(bin, "cberg-index"),
+		TUIScript: filepath.Join(root, "agent", "dist", "tui.js"),
+	}
+}
+
+// autodetectDist finds a prebuilt payload installed alongside the launcher
+// binary, so a relocatable package works wherever it lands without a baked-in
+// path. The install layout is `<root>/bin/codeberg` next to
+// `<root>/libexec/<payload>`, so from the resolved binary the payload is at
+// `../libexec`. Returns "" unless that dir actually holds the artifacts — so a
+// plain `go build` of the launcher (no sibling libexec) falls through to source.
+func autodetectDist() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	if r, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = r // installed as a symlink onto PATH -> resolve to the real binary
+	}
+	cand := filepath.Clean(filepath.Join(filepath.Dir(exe), "..", "libexec"))
+	a := LocateArtifacts(cand)
+	if fileExists(a.DaemonBin) && fileExists(a.IndexBin) && fileExists(a.TUIScript) {
+		return cand
+	}
+	return ""
+}
+
+// ResolveRoot picks the directory the launcher locates binaries and the agent
+// under, and reports whether it is a prebuilt install (so no build is needed).
+// A populated Dist wins — its three artifacts must all exist — otherwise we fall
+// back to the source checkout (Repo), which may itself be "" if none was found.
+func (c *Config) ResolveRoot() (root string, prebuilt bool) {
+	if c.Dist != "" {
+		a := LocateArtifacts(c.Dist)
+		if fileExists(a.DaemonBin) && fileExists(a.IndexBin) && fileExists(a.TUIScript) {
+			return c.Dist, true
+		}
+	}
+	return c.Repo, false
+}
+
 // ValidateForRun checks the fields required to actually launch.
 func (c *Config) ValidateForRun() error {
 	var missing []string
-	if c.Repo == "" {
-		return fmt.Errorf("could not locate the codeberg source checkout — the tree with core/, daemon/ and agent/ that the launcher builds and runs.\n"+
-			"This is %s (the launcher's own source), NOT %s (the repo you want to index).\n"+
-			"Run codeberg from inside the checkout, or set it: codeberg config set %s=/path/to/codeberg  (or pass --repo).",
-			KeyRepo, KeyRoot, KeyRepo)
+	if root, _ := c.ResolveRoot(); root == "" {
+		return fmt.Errorf("could not locate codeberg's components — neither a prebuilt install (%s) nor a source checkout with core/, daemon/ and agent/ (%s).\n"+
+			"Note this is about the launcher's OWN files, NOT %s (the repo you want to index).\n"+
+			"Install via Homebrew, or run codeberg from inside a checkout / set it: codeberg config set %s=/path/to/codeberg  (or pass --repo).",
+			KeyDist, KeyRepo, KeyRoot, KeyRepo)
 	}
 	if c.Root == "" {
 		missing = append(missing, KeyRoot+" (the repository to index)")
@@ -261,6 +339,8 @@ func isFalsey(v string) bool {
 	}
 	return false
 }
+
+func fileExists(p string) bool { _, err := os.Stat(p); return err == nil }
 
 func abs(p string) string {
 	if p == "" {
