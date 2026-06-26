@@ -73,7 +73,7 @@ func parseShared(name string, args []string) (*config.Overrides, error) {
 	fs.StringVar(&o.Root, "root", "", "repository tree to index (CODEBERG_ROOT)")
 	fs.StringVar(&o.Model, "model", "", "LLM as provider:model (CODEBERG_MODEL)")
 	fs.StringVar(&o.DaemonURL, "daemon-url", "", "daemon URL the agent queries")
-	fs.StringVar(&o.HTTPPort, "port", "", "daemon HTTP port (default 8080)")
+	fs.StringVar(&o.HTTPPort, "port", "", "daemon HTTP port (default 48080)")
 	fs.StringVar(&o.EmbedModel, "embed-model", "", "embedding model .onnx path")
 	fs.StringVar(&o.IndexPath, "index-path", "", "vector index base path")
 	fs.StringVar(&o.Socket, "socket", "", "cberg-index IPC socket path")
@@ -414,7 +414,7 @@ KEY SETTINGS
   CODEBERG_ROOT     repository to index            (--root)
   CODEBERG_MODEL    LLM as provider:model          (--model)
   CODEBERG_VECTOR   false = chunk-only, skip model (--no-vector)
-  CODEBERG_HTTP_PORT  daemon port (default 8080)   (--port)
+  CODEBERG_HTTP_PORT  daemon port (default 48080)  (--port)
   CODEBERG_REASONING  reasoning effort             (--reasoning)
   ANTHROPIC_API_KEY / OPENAI_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY
 

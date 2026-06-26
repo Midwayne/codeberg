@@ -127,7 +127,10 @@ func Load(o Overrides) (*Config, error) {
 
 	c.Root = resolve(KeyRoot, o.Root)
 	c.Model = resolve(KeyModel, o.Model)
-	c.HTTPPort = firstNonEmpty(resolve(KeyHTTPPort, o.HTTPPort), "8080")
+	// Default off the crowded 8080 (used by countless dev servers) to an
+	// uncommon high port, kept below the 49152+ ephemeral range so the OS does
+	// not hand it out to transient clients.
+	c.HTTPPort = firstNonEmpty(resolve(KeyHTTPPort, o.HTTPPort), "48080")
 	c.Socket = firstNonEmpty(resolve(KeySocket, o.Socket), "/tmp/codeberg-index.sock")
 	c.PollMS = resolve(KeyPollMS, "")
 	c.IndexBin = resolve(KeyIndexBin, "")

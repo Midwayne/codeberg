@@ -23,8 +23,8 @@ const fileTemplate = `# codeberg launcher config — KEY=VALUE, '#' comments.
 # GOOGLE_GENERATIVE_AI_API_KEY=
 
 # --- optional ---------------------------------------------------------------
-# Daemon HTTP port (default 8080).
-# %s=8080
+# Daemon HTTP port (default 48080).
+# %s=48080
 # Reasoning effort: provider-default|none|minimal|low|medium|high|xhigh
 # %s=medium
 # Set to false for chunk-only mode (skips the embedding-model download).
