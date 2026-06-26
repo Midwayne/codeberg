@@ -8,3 +8,4 @@ models/
 .env
 agent/node_modules/
 launcher/bin/
+/dist/

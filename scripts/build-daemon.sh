@@ -6,7 +6,7 @@ OUT="${CORE_BUILD}/bin"
 mkdir -p "${OUT}"
 
 if [[ ! -f "${CORE_BUILD}/bin/cberg-index" ]]; then
-  make -C "${ROOT}" build
+  make -C "${ROOT}" build-core
 fi
 
 cd "${ROOT}/daemon"

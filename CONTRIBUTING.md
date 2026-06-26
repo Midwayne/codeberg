@@ -39,10 +39,10 @@ in `core/src/` and are documented under `core/docs/modules/`.
 | Command | What it does |
 | ------- | ------------ |
 | `make submodules` | `git submodule update --init --recursive` |
-| `make build` | Configure and compile `libcodeberg` |
+| `make build-core` | Configure and compile `libcodeberg` |
 | `make test` | Run all core tests (`ctest`) |
 | `make test TEST=<name>` | Run one test binary (e.g. `test_chunker`) |
-| `make check` | `build` + `test` (pre-PR gate; same as CI) |
+| `make check` | `build-core` + `test` (pre-PR gate; same as CI) |
 | `make clean` | Remove `core/build` |
 | `make set-version v=v0.2.0` | Bump `VERSION` (rebuild to propagate to the library) |
 

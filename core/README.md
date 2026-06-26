@@ -8,7 +8,7 @@
 
 ```sh
 git submodule update --init --recursive
-make build
+make build-core
 ```
 
 Artifacts: `build/libcodeberg.a`, `build/libcodeberg.pc`.

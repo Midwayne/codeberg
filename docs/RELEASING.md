@@ -13,7 +13,7 @@ release version. CMake reads it at configure time and defines `CBERG_VERSION` fo
    ```
 
    This rewrites `VERSION`. Rebuild the core so the library reports the new
-   version (`make build && make test TEST=test_smoke`).
+   version (`make build-core && make test TEST=test_smoke`).
 3. Run the full gate: `make check` (and embedding tests if the embed path changed).
 4. Commit (`chore(release): v0.2.0`) and tag:
 

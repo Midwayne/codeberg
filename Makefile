@@ -1,6 +1,6 @@
 # Codeberg — developer targets (core, daemon, agent).
 #
-#   make build              configure + compile libcodeberg + cberg-index
+#   make build-core         configure + compile libcodeberg + cberg-index
 #   make test               run all core tests (ctest)
 #   make run-core           run the C indexer (cberg-index)
 #   make run-daemon         run the Go daemon (codeberg-d)
@@ -15,6 +15,7 @@ ROOT       := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 CORE       := $(ROOT)/core
 DAEMON     := $(ROOT)/daemon
 AGENT      := $(ROOT)/agent
+LAUNCHER   := $(ROOT)/launcher
 BUILD      := $(CORE)/build
 BIN        := $(BUILD)/bin
 DAEMON_ENV ?= $(DAEMON)/.env
@@ -23,21 +24,30 @@ CMAKE      ?= cmake
 BUILD_TYPE ?= Release
 JOBS       ?= $(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
 
+# Packaging (see the `dist` target). DISTDIR is where the self-contained payload
+# is assembled. DIST_PREFIX optionally bakes an absolute payload path into the
+# launcher (for an in-place install at a known prefix); left empty the build is
+# *relocatable* — the launcher finds its payload at ../libexec relative to its
+# own binary, so an extracted tarball works wherever it lands.
+DISTDIR     ?= $(ROOT)/dist
+DIST_PREFIX ?=
+
 # $(call load_env,FILE): source FILE (if present) into the recipe shell. One
 # logical line so the exported vars survive through to the exec/run that follows.
 load_env = if [ -f "$(1)" ]; then set -a; . "$(1)"; set +a; echo "› loaded $(1)"; else echo "› no $(1); using current environment"; fi
 
-.PHONY: build test clean rebuild submodules help check set-version \
-        build-daemon daemon-test build-agent agent-test \
+.PHONY: build-core build test clean rebuild submodules help check set-version \
+        build-daemon daemon-test build-agent agent-test dist \
         run-core run-index run-daemon run-agent run-agent-tui
 
 help:
 	@echo "Codeberg targets:"
 	@echo "  Build"
-	@echo "    make build                Configure and compile libcodeberg + cberg-index"
+	@echo "    make build-core           Configure and compile libcodeberg + cberg-index"
 	@echo "    make build-daemon         Build Go codeberg-d (pure Go, no CGO)"
 	@echo "    make build-agent          Install deps and build the agent (npm)"
-	@echo "    make rebuild              clean + build"
+	@echo "    make dist [DISTDIR=...]   Assemble a self-contained install tree (packaging)"
+	@echo "    make rebuild              clean + build-core"
 	@echo "  Run"
 	@echo "    make run-core             Run the C indexer (cberg-index)     [daemon/.env]"
 	@echo "    make run-daemon           Run the Go daemon (codeberg-d) + HTTP [daemon/.env]"
@@ -48,7 +58,7 @@ help:
 	@echo "    make test TEST=<name>     Run one test (test_smoke test_chunker …)"
 	@echo "    make daemon-test          Run Go tests in daemon/"
 	@echo "    make agent-test           Run agent tests (vitest)"
-	@echo "    make check                build + test (pre-PR gate)"
+	@echo "    make check                build-core + test (pre-PR gate)"
 	@echo "  Misc"
 	@echo "    make set-version v=vX.Y.Z Bump VERSION (rebuild to propagate)"
 	@echo "    make submodules           git submodule update --init --recursive"
@@ -62,12 +72,15 @@ submodules:
 	# which a plain `update` would silently no-op).
 	git -C $(ROOT) submodule update --init --recursive --force
 
-build:
+build-core:
 	@test -f $(CORE)/third_party/tree-sitter/lib/src/lib.c || $(MAKE) submodules
 	$(CMAKE) -S $(CORE) -B $(BUILD) -DCMAKE_BUILD_TYPE=$(BUILD_TYPE)
 	$(CMAKE) --build $(BUILD) -j$(JOBS)
 
-test: build
+# Back-compat alias for the conventional `make build` (and existing scripts/CI).
+build: build-core
+
+test: build-core
 ifdef TEST
 	@test -x $(BUILD)/$(TEST) || (echo "unknown test: $(TEST)" && exit 1)
 	$(BUILD)/$(TEST)
@@ -78,14 +91,14 @@ endif
 clean:
 	rm -rf $(BUILD)
 
-rebuild: clean build
+rebuild: clean build-core
 
-check: build test
+check: build-core test
 
-build-daemon: build
+build-daemon: build-core
 	./scripts/build-daemon.sh
 
-daemon-test: build
+daemon-test: build-core
 	./scripts/test-daemon.sh
 
 build-agent:
@@ -94,9 +107,43 @@ build-agent:
 agent-test:
 	cd $(AGENT) && npm install && npm test
 
+# --- Package -----------------------------------------------------------------
+
+# `make dist` assembles a self-contained, relocatable tree the launcher runs
+# from without a source checkout or build toolchain — the groundwork a future
+# packaged installer (e.g. a Homebrew tap) builds on:
+#
+#   <DISTDIR>/bin/codeberg                                       the launcher
+#   <DISTDIR>/libexec/core/build/bin/{cberg-index,codeberg-d}    siblings; daemon finds the indexer
+#   <DISTDIR>/libexec/agent/dist/*.js + .../agent/node_modules   node resolves up from dist/
+#   <DISTDIR>/libexec/scripts/fetch-model.sh                     runtime model download
+#
+# The launcher locates its payload at ../libexec relative to its own (symlink-
+# resolved) binary, so the whole tree can be extracted anywhere — `bin/` and
+# `libexec/` just have to stay siblings.
+#
+#   make dist DISTDIR=/assemble/here [DIST_PREFIX=/baked/runtime/path]
+#
+# Note: cberg-index keeps the ONNX Runtime rpath from build time, so it expects
+# the runtime at the same prefix at runtime; a tarball for other machines would
+# additionally bundle libonnxruntime + rewrite rpath.
+dist: build-core build-daemon build-agent
+	@echo "› assembling dist into $(DISTDIR)"
+	rm -rf "$(DISTDIR)"
+	mkdir -p "$(DISTDIR)/bin" "$(DISTDIR)/libexec/core/build/bin" "$(DISTDIR)/libexec/agent" "$(DISTDIR)/libexec/scripts"
+	cp "$(BIN)/cberg-index" "$(BIN)/codeberg-d" "$(DISTDIR)/libexec/core/build/bin/"
+	cp -R "$(AGENT)/dist" "$(DISTDIR)/libexec/agent/dist"
+	cp "$(AGENT)/package.json" "$(AGENT)/package-lock.json" "$(DISTDIR)/libexec/agent/"
+	cd "$(DISTDIR)/libexec/agent" && npm ci --omit=dev --no-audit --no-fund
+	cp "$(ROOT)/scripts/fetch-model.sh" "$(DISTDIR)/libexec/scripts/"
+	cd "$(LAUNCHER)" && go build \
+	  -ldflags "-X codeberg.org/codeberg/launcher/internal/config.BuildDist=$(DIST_PREFIX)" \
+	  -o "$(DISTDIR)/bin/codeberg" ./cmd/codeberg
+	@echo "✓ dist ready — run: $(DISTDIR)/bin/codeberg"
+
 # --- Run ---------------------------------------------------------------------
 
-run-core run-index: build
+run-core run-index: build-core
 	@$(call load_env,$(DAEMON_ENV)); \
 	echo "› cberg-index  root=$${CODEBERG_ROOT:-<unset>}  socket=$${CBERG_SOCKET:-/tmp/codeberg-index.sock}"; \
 	exec "$(BIN)/cberg-index"
@@ -125,4 +172,4 @@ run-agent-tui:
 set-version:
 	./scripts/set-version.sh $(v)
 
-.DEFAULT_GOAL := build
+.DEFAULT_GOAL := build-core

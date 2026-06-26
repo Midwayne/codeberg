@@ -16,7 +16,7 @@ daemon has no CGO — it talks to the indexer over a Unix socket.
 ## Build
 
 ```sh
-make build          # libcodeberg + cberg-index (C)
+make build-core     # libcodeberg + cberg-index (C)
 make build-daemon   # codeberg-d (pure Go)
 ```
 

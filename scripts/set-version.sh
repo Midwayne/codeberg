@@ -20,4 +20,4 @@ v[0-9]*.[0-9]*.[0-9]*) ;;
 esac
 
 printf '%s\n' "$version" >"$repo_root/VERSION"
-echo "version set to $version in VERSION (run make build to propagate to libcodeberg)"
+echo "version set to $version in VERSION (run make build-core to propagate to libcodeberg)"

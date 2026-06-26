@@ -3,6 +3,14 @@
 Fast codebase indexing: parse source into semantic chunks, track changes incrementally,
 embed into vectors, and search by meaning.
 
+## Install
+
+See [Prerequisites](#prerequisites) and [Build](#build), then run via the
+[`launcher/`](launcher/) — one `codeberg` command boots the daemon, indexer, and
+chat TUI, and auto-installs missing toolchains. `make dist` assembles a portable,
+prebuilt tree the launcher can run from anywhere (`codeberg --dist DIR`); packaged
+installers (a Homebrew tap) will build on that for a later release.
+
 ## Index root
 
 The **index root** is the codebase tree Codeberg watches and indexes. It is not
@@ -68,8 +76,8 @@ packaged for apt, so on Linux install a release tarball and point
 
 ```sh
 git submodule update --init --recursive
-make build
-make build-daemon   # codeberg-d (Go) + requires cberg-index from make build
+make build-core
+make build-daemon   # codeberg-d (Go) + requires cberg-index from make build-core
 ```
 
 Optional embedding tests:

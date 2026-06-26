@@ -497,7 +497,7 @@ Headers under `src/*/` are internal to each module.
 
 ```sh
 git submodule update --init --recursive
-make build
+make build-core
 make test
 ```
 

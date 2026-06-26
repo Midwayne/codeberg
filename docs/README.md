@@ -24,7 +24,7 @@ Project-wide overview. **libcodeberg** details live under [core/docs](../core/do
 
 ```sh
 git submodule update --init --recursive
-make build
+make build-core
 make build-daemon
 make test
 ```
