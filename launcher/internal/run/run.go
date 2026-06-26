@@ -8,6 +8,7 @@ package run
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -48,9 +49,17 @@ func Run(c *config.Config) error {
 		return err
 	}
 	logPath := filepath.Join(logDir, "daemon.log")
+	logFile, err := os.Create(logPath)
+	if err != nil {
+		return err
+	}
 
 	// --- start the daemon -----------------------------------------------------
-	daemon, err := startDaemon(a.DaemonBin, c, logPath)
+	// Daemon + indexer output always goes to the log file, and is mirrored to the
+	// terminal only during startup — so the user watches files being chunked and
+	// embedded, without those logs corrupting the TUI once it takes over.
+	progress := newStartupTee(logFile, os.Stderr)
+	daemon, err := startDaemon(a.DaemonBin, c, progress)
 	if err != nil {
 		return err
 	}
@@ -73,13 +82,16 @@ func Run(c *config.Config) error {
 	go func() { _ = daemon.Wait(); close(stopped) }()
 	defer stop()
 
-	// --- wait for /health -----------------------------------------------------
-	fmt.Fprintf(os.Stderr, "› starting daemon (logs: %s)\n", logPath)
+	// --- wait for /health (indexing + embedding happen here) ------------------
+	fmt.Fprintf(os.Stderr, "› starting daemon — indexing %s\n", c.Root)
+	fmt.Fprintf(os.Stderr, "  (first run builds the index; live progress below — full log: %s)\n\n", logPath)
 	if err := waitHealthy(c.DaemonURL, stopped); err != nil {
+		progress.stopLive()
 		fmt.Fprint(os.Stderr, tailFile(logPath, 20))
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "✓ daemon ready at %s — launching chat\n\n", c.DaemonURL)
+	progress.stopLive()
+	fmt.Fprintf(os.Stderr, "\n✓ daemon ready at %s — launching chat\n\n", c.DaemonURL)
 
 	// --- run the TUI in the foreground ---------------------------------------
 	// SIGINT (Ctrl-C) is left to the TUI, which shares this terminal's process
@@ -118,24 +130,50 @@ func Run(c *config.Config) error {
 	return nil
 }
 
-func startDaemon(bin string, c *config.Config, logPath string) (*exec.Cmd, error) {
-	logFile, err := os.Create(logPath)
-	if err != nil {
-		return nil, err
-	}
+func startDaemon(bin string, c *config.Config, out io.Writer) (*exec.Cmd, error) {
 	cmd := exec.Command(bin)
 	cmd.Dir = c.Repo
 	cmd.Env = mergeEnv(os.Environ(), c.DaemonEnv())
-	cmd.Stdout = logFile
-	cmd.Stderr = logFile
+	// Same writer for both streams: os/exec then serializes Write calls for us.
+	cmd.Stdout = out
+	cmd.Stderr = out
 	// Own process group so the terminal's Ctrl-C does not reach the daemon — we
 	// manage its lifecycle explicitly.
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
-		logFile.Close()
 		return nil, fmt.Errorf("starting daemon: %w", err)
 	}
 	return cmd, nil
+}
+
+// startupTee records daemon/indexer output to the log unconditionally, and
+// mirrors it to the terminal only while "live" — i.e. during startup, so the
+// user sees indexing/embedding progress, but the stream stops before the TUI
+// owns the screen.
+type startupTee struct {
+	mu   sync.Mutex
+	log  io.Writer
+	term io.Writer
+	live bool
+}
+
+func newStartupTee(logw, termw io.Writer) *startupTee {
+	return &startupTee{log: logw, term: termw, live: true}
+}
+
+func (t *startupTee) Write(p []byte) (int, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.live {
+		_, _ = t.term.Write(p)
+	}
+	return t.log.Write(p)
+}
+
+func (t *startupTee) stopLive() {
+	t.mu.Lock()
+	t.live = false
+	t.mu.Unlock()
 }
 
 // waitHealthy polls GET <url>/health until it returns 2xx, the daemon exits, or
@@ -148,7 +186,6 @@ func waitHealthy(daemonURL string, daemonStopped <-chan struct{}) error {
 
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
-	start := time.Now()
 	for {
 		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if resp, err := client.Do(req); err == nil {
@@ -157,13 +194,11 @@ func waitHealthy(daemonURL string, daemonStopped <-chan struct{}) error {
 				return nil
 			}
 		}
-		fmt.Fprintf(os.Stderr, "\r  waiting for daemon… %ds", int(time.Since(start).Seconds()))
+		// Progress is shown by streaming the daemon/indexer log (see startupTee).
 		select {
 		case <-daemonStopped:
-			fmt.Fprintln(os.Stderr)
 			return fmt.Errorf("daemon exited before becoming healthy")
 		case <-ctx.Done():
-			fmt.Fprintln(os.Stderr)
 			return fmt.Errorf("daemon did not become healthy within %s", healthDeadline)
 		case <-ticker.C:
 		}
