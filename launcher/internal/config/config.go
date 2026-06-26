@@ -95,7 +95,6 @@ type Config struct {
 // Load resolves config across all four layers.
 func Load(o Overrides) (*Config, error) {
 	home := paths.Home(o.Home)
-	repo := paths.FindRepo(firstNonEmpty(o.Repo, os.Getenv(KeyRepo)))
 
 	configPath := o.ConfigFile
 	if configPath == "" {
@@ -105,6 +104,12 @@ func Load(o Overrides) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Repo (the source checkout) resolves like every other key: --repo flag,
+	// then CODEBERG_REPO in the environment, then in the config file; otherwise
+	// it is discovered by walking up from the cwd or the (symlink-resolved)
+	// binary location.
+	repo := paths.FindRepo(firstNonEmpty(o.Repo, os.Getenv(KeyRepo), fileVals[KeyRepo]))
 
 	// resolve(key, cliValue) applies precedence: CLI > env > file.
 	// (Defaults are applied per-field below, after this.)
@@ -180,7 +185,10 @@ func Load(o Overrides) (*Config, error) {
 func (c *Config) ValidateForRun() error {
 	var missing []string
 	if c.Repo == "" {
-		return fmt.Errorf("could not locate a codeberg source checkout; run from inside it or set %s/--repo", KeyRepo)
+		return fmt.Errorf("could not locate the codeberg source checkout — the tree with core/, daemon/ and agent/ that the launcher builds and runs.\n"+
+			"This is %s (the launcher's own source), NOT %s (the repo you want to index).\n"+
+			"Run codeberg from inside the checkout, or set it: codeberg config set %s=/path/to/codeberg  (or pass --repo).",
+			KeyRepo, KeyRoot, KeyRepo)
 	}
 	if c.Root == "" {
 		missing = append(missing, KeyRoot+" (the repository to index)")

@@ -48,6 +48,11 @@ func FindRepo(override string) string {
 		starts = append(starts, wd)
 	}
 	if exe, err := os.Executable(); err == nil {
+		// Resolve symlinks: when installed on PATH, `codeberg` is a symlink into
+		// <checkout>/launcher/bin, so the real path is what locates the checkout.
+		if resolved, rerr := filepath.EvalSymlinks(exe); rerr == nil {
+			exe = resolved
+		}
 		starts = append(starts, filepath.Dir(exe))
 	}
 	for _, start := range starts {
