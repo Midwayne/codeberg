@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"codeberg.org/codeberg/launcher/internal/bootstrap"
+	"codeberg.org/codeberg/launcher/internal/cleanindex"
 	"codeberg.org/codeberg/launcher/internal/config"
 	"codeberg.org/codeberg/launcher/internal/run"
 	"codeberg.org/codeberg/launcher/internal/uninstall"
@@ -49,6 +50,8 @@ func dispatch(args []string) error {
 		return cmdDoctor(args)
 	case "config":
 		return cmdConfig(args)
+	case "clean-index", "clean":
+		return cmdCleanIndex(args)
 	case "uninstall":
 		return cmdUninstall(args)
 	case "version", "--version", "-v":
@@ -268,6 +271,30 @@ func indexOf(s string, b byte) int {
 	return -1
 }
 
+func cmdCleanIndex(args []string) error {
+	fs := flag.NewFlagSet("clean-index", flag.ContinueOnError)
+	var home, cfg string
+	var dryRun, yes bool
+	fs.StringVar(&home, "home", "", "managed home dir (default ~/.codeberg)")
+	fs.StringVar(&cfg, "config", "", "config file path (default <home>/config)")
+	fs.BoolVar(&dryRun, "dry-run", false, "list what would be removed, delete nothing")
+	fs.BoolVar(&yes, "yes", false, "assume yes (non-interactive)")
+	fs.BoolVar(&yes, "y", false, "alias for --yes")
+	fs.Usage = func() {
+		fmt.Fprint(fs.Output(), "Usage: codeberg clean-index [--dry-run] [--yes]\n\n"+
+			"Removes cached per-directory vector index files under the index dir to\n"+
+			"reclaim space. Prunes all sets (the active repo re-embeds next run).\n")
+	}
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	c, err := config.Load(config.Overrides{Home: home, ConfigFile: cfg})
+	if err != nil {
+		return err
+	}
+	return cleanindex.Run(c, cleanindex.Options{DryRun: dryRun, AssumeYes: yes})
+}
+
 func cmdUninstall(args []string) error {
 	fs := flag.NewFlagSet("uninstall", flag.ContinueOnError)
 	var home string
@@ -352,6 +379,7 @@ USAGE
   codeberg build [flags]         (re)build/download components and the model
   codeberg doctor                check toolchains, binaries, and resolved config
   codeberg config [sub]          view/change configuration (see below)
+  codeberg clean-index [--dry-run]  prune cached per-directory vector indexes
   codeberg uninstall             remove the command; ask before deleting data
   codeberg version
   codeberg help                  show this help

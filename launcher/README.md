@@ -108,8 +108,29 @@ layers. See `codeberg help` for common workflows.
 | `codeberg doctor` | toolchain + artifact + config diagnostics |
 | `codeberg config` | print resolved config |
 | `codeberg config init` | write a starter `~/.codeberg/config` |
+| `codeberg clean-index` | prune cached per-directory vector indexes |
 | `codeberg uninstall` | remove the command; ask before deleting model/data |
 | `codeberg version` | print version |
+
+## Index storage
+
+Each indexed directory gets its **own** vector index, keyed by a hash of the
+resolved root path: the core writes `<CBERG_INDEX_PATH>.<roothash>` plus
+`.chunks`/`.manifest` sidecars under `~/.codeberg/index/`. So switching
+`--root`/`CODEBERG_ROOT` never mixes chunks between repos, and the running
+indexer only ever searches the **current** directory's index (it opens exactly
+one). Reverting to a previous root reuses its cached embeddings.
+
+Because each root keeps its files indefinitely, browsing many repos accumulates
+them. Reclaim the space any time:
+
+```sh
+codeberg clean-index --dry-run   # list cached index sets + sizes
+codeberg clean-index             # prune them (active repo re-embeds next run)
+```
+
+It prunes *all* sets (it can't single out the active one without re-deriving the
+core's XXH3 hash); the repo you next open simply rebuilds its index.
 
 ## Uninstall
 
