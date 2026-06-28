@@ -133,11 +133,14 @@ Releases session, memory, env, ORT-allocated name strings, tokenizer, struct.
 
 ### `cberg_onnx_open(cfg, out_impl, out_dim)` — internal
 
-1. `OrtGetApiBase` → create env, session options, session from `cfg->model_path`.
-2. Optional `SetIntraOpNumThreads` when `cfg->num_threads > 0`.
-3. `cberg_tok_open` on model directory.
-4. Enumerate input/output names via ORT allocator.
-5. Read output tensor shape; `dim` = last dimension size.
+1. `OrtGetApiBase` → create env and session options.
+2. Tune session options: `ORT_ENABLE_ALL` graph optimization, `ORT_SEQUENTIAL`
+   execution, `DisableMemPattern` (batch shapes vary by sequence length).
+3. `SetIntraOpNumThreads` when `cfg->num_threads > 0` (else ORT default = all cores).
+4. Apple only: append the CoreML EP when `CBERG_EMBED_COREML` is set (see Tuning).
+5. Create session from `cfg->model_path`; `cberg_tok_open` on the model directory.
+6. Enumerate input/output names via ORT allocator.
+7. Read output tensor shape; `dim` = last dimension size.
 
 **Returns:** `CBERG_OK`, `CBERG_ERR_IO` (session/tokenizer), `CBERG_ERR_INTERNAL`,
 `CBERG_ERR_OUT_OF_MEMORY`, `CBERG_ERR_INVALID_ARGUMENT`.
@@ -147,18 +150,24 @@ Releases session, memory, env, ORT-allocated name strings, tokenizer, struct.
 Averages `hidden[s * dim + d]` over `s in [0, seq_len)` into `out`, then
 `cberg_l2_normalize`.
 
-### `embed_batch(impl, texts, lens, count, out)` — static
+### `sort_indices_by_len(seq_lens, count, order)` — static
 
-- **count == 1:** single-row tensors `[1, n]` for ids/mask/types; `Run`; mean-pool.
-- **count > 1:** tokenize each row, pad to `max_len` in batch tensors `[batch, max_len]`;
-  single `Run`; mean-pool each row into `out + i * dim`.
+Counting sort of row indices by token length (ascending, stable, O(count + MAX_SEQ);
+no comparator or global state).
 
-**Returns:** `CBERG_OK` or error from tokenize/ORT.
+### `run_group(impl, tokbuf, seq_lens, order, g_start, g_count, out)` — static
+
+Embeds one length-homogeneous group: pads to the group's own longest row in
+`[g_count, max_len]` tensors, single `Run`, mean-pools each row, and scatters each
+pooled vector back to `out + order[...] * dim` (caller order).
 
 ### `cberg_onnx_embed(impl, texts, lens, count, out)` — internal
 
-Chunks `count` into batches of `MAX_BATCH`; calls `embed_batch` for each chunk.
-`out` must hold `count * dim` floats.
+Tokenizes all `count` rows up front, length-sorts them (`sort_indices_by_len`), then
+runs inference in `run_group` batches of up to `MAX_BATCH`. Each batch pads only to
+its own longest row instead of the whole call's, cutting padding compute for the
+mixed-length chunks that dominate a codebase. Results are scattered back so `out[i]`
+maps to `texts[i]`; `out` must hold `count * dim` floats.
 
 ---
 
@@ -182,3 +191,20 @@ Vectors are suitable for cosine similarity in `cberg_index` (usearch cosine metr
 
 If CMake does not find ONNX Runtime, `embed_onnx.c` and `tokenize.c` are omitted;
 `embed.c` returns `CBERG_ERR_NOT_IMPLEMENTED` for open/embed.
+
+---
+
+## Tuning (environment)
+
+Read by `cberg-index` when it opens the embedder:
+
+| Variable | Effect |
+| --- | --- |
+| `CBERG_EMBED_THREADS` | Caps ONNX intra-op threads (`cfg->num_threads`). Unset or `<= 0` uses all physical cores. |
+| `CBERG_EMBED_COREML` | Apple Silicon only. Set to a non-zero value to append the CoreML execution provider (GPU/ANE). Default (unset) is CPU. |
+
+CoreML helps fp16/fp32 models, but a heavily-quantized (int8) model partitions into
+many CPU/CoreML subgraphs and is usually **slower** than CPU due to the cross-device
+transfers — measure for your specific model before enabling. The session is always
+created with full graph optimization; CoreML (when present) runs the supported
+subgraphs and ORT falls back to CPU for the rest.
