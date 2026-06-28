@@ -6,48 +6,78 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct cberg_strmap_entry {
-    char *key;
-    uint64_t value;
-    struct cberg_strmap_entry *next;
-} cberg_strmap_entry;
+/*
+ * Open-addressing (linear-probing) string -> u64 map.
+ *
+ * Struct-of-arrays layout: a dense uint64 hash array is probed first, with the
+ * key pointers and values in parallel arrays touched only on a hash match. A
+ * lookup scans the hash array (8 bytes/slot, 8 per 64-byte cache line) until it
+ * meets the slot's full hash or an empty slot, so a miss costs a short run of
+ * contiguous reads instead of chasing per-node `next` pointers across the heap
+ * and dereferencing a separate strdup'd key on every step.
+ *
+ * hash == 0 marks an empty slot; cberg_fnv1a is nudged off 0 (hash_key) so a
+ * real key never collides with the empty sentinel. The map has no delete (only
+ * clear), so there are no tombstones and probe runs stay short. bucket_count is
+ * a power of two, so the slot index is a mask rather than a modulo. The table
+ * doubles past a 0.75 load factor — the old fixed-bucket chained map never grew,
+ * which let chains (and their O(n) lookups) grow without bound on the indexing
+ * hot path.
+ */
 
 struct cberg_strmap {
-    cberg_strmap_entry **buckets;
-    size_t bucket_count;
+    uint64_t *hashes; /* 0 == empty slot */
+    char **keys;
+    uint64_t *values;
+    size_t bucket_count; /* power of two */
+    size_t count;
 };
 
-cberg_strmap *cberg_strmap_new(size_t bucket_count) {
-    if (bucket_count == 0) {
-        bucket_count = 64;
+static size_t round_pow2(size_t n) {
+    size_t p = 64;
+    while (p < n) {
+        p <<= 1;
     }
+    return p;
+}
+
+static inline uint64_t hash_key(const char *key) {
+    uint64_t h = cberg_fnv1a(key);
+    return h + (h == 0); /* reserve 0 for the empty-slot sentinel */
+}
+
+cberg_strmap *cberg_strmap_new(size_t bucket_count) {
+    size_t cap = round_pow2(bucket_count == 0 ? 64 : bucket_count);
     cberg_strmap *map = calloc(1, sizeof(cberg_strmap));
     if (map == NULL) {
         return NULL;
     }
-    map->bucket_count = bucket_count;
-    map->buckets = calloc(bucket_count, sizeof(cberg_strmap_entry *));
-    if (map->buckets == NULL) {
+    map->hashes = calloc(cap, sizeof(uint64_t));
+    map->keys = calloc(cap, sizeof(char *));
+    map->values = calloc(cap, sizeof(uint64_t));
+    if (map->hashes == NULL || map->keys == NULL || map->values == NULL) {
+        free(map->hashes);
+        free(map->keys);
+        free(map->values);
         free(map);
         return NULL;
     }
+    map->bucket_count = cap;
     return map;
 }
 
 void cberg_strmap_clear(cberg_strmap *map) {
-    if (map == NULL || map->buckets == NULL) {
+    if (map == NULL || map->hashes == NULL) {
         return;
     }
     for (size_t i = 0; i < map->bucket_count; i++) {
-        cberg_strmap_entry *entry = map->buckets[i];
-        while (entry != NULL) {
-            cberg_strmap_entry *next = entry->next;
-            free(entry->key);
-            free(entry);
-            entry = next;
+        if (map->hashes[i] != 0) {
+            free(map->keys[i]);
+            map->keys[i] = NULL;
         }
-        map->buckets[i] = NULL;
     }
+    memset(map->hashes, 0, map->bucket_count * sizeof(uint64_t));
+    map->count = 0;
 }
 
 void cberg_strmap_free(cberg_strmap *map) {
@@ -55,62 +85,118 @@ void cberg_strmap_free(cberg_strmap *map) {
         return;
     }
     cberg_strmap_clear(map);
-    free(map->buckets);
+    free(map->hashes);
+    free(map->keys);
+    free(map->values);
     free(map);
 }
 
 bool cberg_strmap_get(const cberg_strmap *map, const char *key, uint64_t *out_value) {
-    if (map == NULL || key == NULL || map->buckets == NULL) {
+    if (map == NULL || key == NULL || map->hashes == NULL) {
         return false;
     }
-    uint64_t h = cberg_fnv1a(key) % map->bucket_count;
-    for (cberg_strmap_entry *entry = map->buckets[h]; entry != NULL; entry = entry->next) {
-        if (strcmp(entry->key, key) == 0) {
+    uint64_t h = hash_key(key);
+    size_t mask = map->bucket_count - 1;
+    size_t i = (size_t)h & mask;
+    while (map->hashes[i] != 0) {
+        if (map->hashes[i] == h && strcmp(map->keys[i], key) == 0) {
             if (out_value != NULL) {
-                *out_value = entry->value;
+                *out_value = map->values[i];
             }
             return true;
         }
+        i = (i + 1) & mask;
     }
     return false;
+}
+
+/* Reinsert every live slot into a fresh, larger SoA. Keys keep their stored
+ * hash, so no string is re-hashed and the move is a pure pointer copy. */
+static cberg_status strmap_resize(cberg_strmap *map, size_t new_count) {
+    uint64_t *hashes = calloc(new_count, sizeof(uint64_t));
+    char **keys = calloc(new_count, sizeof(char *));
+    uint64_t *values = calloc(new_count, sizeof(uint64_t));
+    if (hashes == NULL || keys == NULL || values == NULL) {
+        free(hashes);
+        free(keys);
+        free(values);
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+    size_t mask = new_count - 1;
+    for (size_t i = 0; i < map->bucket_count; i++) {
+        uint64_t h = map->hashes[i];
+        if (h == 0) {
+            continue;
+        }
+        size_t j = (size_t)h & mask;
+        while (hashes[j] != 0) {
+            j = (j + 1) & mask;
+        }
+        hashes[j] = h;
+        keys[j] = map->keys[i];
+        values[j] = map->values[i];
+    }
+    free(map->hashes);
+    free(map->keys);
+    free(map->values);
+    map->hashes = hashes;
+    map->keys = keys;
+    map->values = values;
+    map->bucket_count = new_count;
+    return CBERG_OK;
 }
 
 cberg_status cberg_strmap_set(cberg_strmap *map, const char *key, uint64_t value) {
     if (map == NULL || key == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
-    if (map->buckets == NULL) {
+    if (map->hashes == NULL) {
         return CBERG_ERR_INTERNAL;
     }
-    uint64_t h = cberg_fnv1a(key) % map->bucket_count;
-    for (cberg_strmap_entry *entry = map->buckets[h]; entry != NULL; entry = entry->next) {
-        if (strcmp(entry->key, key) == 0) {
-            entry->value = value;
+
+    uint64_t h = hash_key(key);
+    size_t mask = map->bucket_count - 1;
+    size_t i = (size_t)h & mask;
+    while (map->hashes[i] != 0) {
+        if (map->hashes[i] == h && strcmp(map->keys[i], key) == 0) {
+            map->values[i] = value;
             return CBERG_OK;
         }
+        i = (i + 1) & mask;
     }
-    cberg_strmap_entry *entry = calloc(1, sizeof(cberg_strmap_entry));
-    if (entry == NULL) {
+
+    /* New key. Grow past a 0.75 load factor before inserting so probe runs stay
+     * short, then re-probe in the resized table for the empty slot. */
+    if ((map->count + 1) * 4 >= map->bucket_count * 3) {
+        cberg_status st = strmap_resize(map, map->bucket_count * 2);
+        if (st != CBERG_OK) {
+            return st;
+        }
+        mask = map->bucket_count - 1;
+        i = (size_t)h & mask;
+        while (map->hashes[i] != 0) {
+            i = (i + 1) & mask;
+        }
+    }
+
+    char *kdup = cberg_strdup(key);
+    if (kdup == NULL) {
         return CBERG_ERR_OUT_OF_MEMORY;
     }
-    entry->key = cberg_strdup(key);
-    if (entry->key == NULL) {
-        free(entry);
-        return CBERG_ERR_OUT_OF_MEMORY;
-    }
-    entry->value = value;
-    entry->next = map->buckets[h];
-    map->buckets[h] = entry;
+    map->hashes[i] = h;
+    map->keys[i] = kdup;
+    map->values[i] = value;
+    map->count++;
     return CBERG_OK;
 }
 
 void cberg_strmap_visit(cberg_strmap *map, cberg_strmap_visit_fn fn, void *ctx) {
-    if (map == NULL || fn == NULL || map->buckets == NULL) {
+    if (map == NULL || fn == NULL || map->hashes == NULL) {
         return;
     }
     for (size_t i = 0; i < map->bucket_count; i++) {
-        for (cberg_strmap_entry *entry = map->buckets[i]; entry != NULL; entry = entry->next) {
-            fn(entry->key, entry->value, ctx);
+        if (map->hashes[i] != 0) {
+            fn(map->keys[i], map->values[i], ctx);
         }
     }
 }

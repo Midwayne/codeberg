@@ -91,7 +91,12 @@ char *cberg_arena_dup(cberg_arena *arena, const char *src, size_t len) {
     if (arena == NULL || src == NULL) {
         return NULL;
     }
-    char *out = arena_alloc(arena, len + 1, 8);
+    /* Strings have no alignment requirement; pack them at byte granularity so
+     * keys/paths/symbols and manifest node names sit densely in cache lines
+     * (the rollup and strcmp passes read them back-to-back) instead of wasting
+     * up to 7 padding bytes each. Struct allocations still go through
+     * cberg_arena_alloc at 8-byte alignment. */
+    char *out = arena_alloc(arena, len + 1, 1);
     if (out == NULL) {
         return NULL;
     }
