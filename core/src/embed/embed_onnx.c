@@ -12,7 +12,7 @@
 #include "onnxruntime_c_api.h"
 
 #define MAX_SEQ 256
-#define MAX_BATCH 8
+#define MAX_BATCH 32
 
 static void ort_discard(const OrtApi *ort, OrtStatus *status) {
     if (status != NULL) {
@@ -261,84 +261,131 @@ cleanup:
     return status;
 }
 
-static cberg_status embed_batch(onnx_impl *impl, const char *const *texts, const size_t *lens, size_t count,
-                                float *out) {
-    if (count == 0) {
-        return CBERG_OK;
+/* Counting sort of indices [0,count) by sequence length (0..MAX_SEQ), ascending and
+ * stable. Lengths are small and bounded, so this is O(count + MAX_SEQ) with no
+ * comparator or global state — portable and thread-safe. */
+static void sort_indices_by_len(const int *seq_lens, size_t count, int *order) {
+    int counts[MAX_SEQ + 1] = {0};
+    for (size_t i = 0; i < count; i++) {
+        counts[seq_lens[i]]++;
     }
-    if (count > MAX_BATCH) {
-        return CBERG_ERR_INVALID_ARGUMENT;
+    int acc = 0;
+    for (int len = 0; len <= MAX_SEQ; len++) {
+        int c = counts[len];
+        counts[len] = acc;
+        acc += c;
     }
+    for (size_t i = 0; i < count; i++) {
+        order[counts[seq_lens[i]]++] = (int)i;
+    }
+}
 
-    int64_t batch_ids[MAX_BATCH][MAX_SEQ];
-    int seq_lens[MAX_BATCH];
+/* Embed one length-homogeneous group: build padded [g_count, max_len] tensors from
+ * the pre-tokenized rows named by order[g_start..], run inference, and scatter each
+ * pooled vector back to its caller-facing slot out[order[...]*dim]. Padding tracks
+ * the group's own longest row, not the whole call's. */
+static cberg_status run_group(onnx_impl *impl, const int64_t *tokbuf, const int *seq_lens, const int *order,
+                              size_t g_start, size_t g_count, float *out) {
     int max_len = 0;
-    for (size_t b = 0; b < count; b++) {
-        int n = cberg_tok_encode(impl->tok, texts[b], lens[b], batch_ids[b], MAX_SEQ);
-        if (n < 0) {
-            return CBERG_ERR_INTERNAL;
-        }
-        seq_lens[b] = n;
+    for (size_t b = 0; b < g_count; b++) {
+        int n = seq_lens[order[g_start + b]];
         if (n > max_len) {
             max_len = n;
         }
     }
-
-    if (count == 1) {
-        int64_t ids[MAX_SEQ] = {0};
-        int64_t mask[MAX_SEQ] = {0};
-        int64_t types[MAX_SEQ] = {0};
-        for (int s = 0; s < seq_lens[0]; s++) {
-            ids[s] = batch_ids[0][s];
-            mask[s] = 1;
-            types[s] = 0;
-        }
-        return run_inference(impl, ids, mask, types, 1, max_len, seq_lens, out);
+    if (max_len == 0) {
+        max_len = 1; /* never hand ORT a zero-width tensor */
     }
 
-    size_t batch = count;
-    size_t flat = batch * (size_t)max_len;
+    size_t flat = g_count * (size_t)max_len;
     int64_t *ids = calloc(flat, sizeof(int64_t));
     int64_t *mask = calloc(flat, sizeof(int64_t));
     int64_t *types = calloc(flat, sizeof(int64_t));
-    if (ids == NULL || mask == NULL || types == NULL) {
+    float *pooled = malloc(g_count * impl->dim * sizeof(float));
+    int *glens = malloc(g_count * sizeof(int));
+    if (ids == NULL || mask == NULL || types == NULL || pooled == NULL || glens == NULL) {
         free(ids);
         free(mask);
         free(types);
+        free(pooled);
+        free(glens);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
 
-    for (size_t b = 0; b < batch; b++) {
-        int n = seq_lens[b];
+    for (size_t b = 0; b < g_count; b++) {
+        int idx = order[g_start + b];
+        int n = seq_lens[idx];
+        glens[b] = n;
+        const int64_t *src = tokbuf + (size_t)idx * MAX_SEQ;
         for (int s = 0; s < n; s++) {
             size_t off = b * (size_t)max_len + (size_t)s;
-            ids[off] = batch_ids[b][s];
-            mask[off] = 1;
-            types[off] = 0;
+            ids[off] = src[s];
+            mask[off] = 1; /* token_type stays 0 from calloc */
         }
     }
 
-    cberg_status status = run_inference(impl, ids, mask, types, batch, max_len, seq_lens, out);
+    cberg_status st = run_inference(impl, ids, mask, types, g_count, max_len, glens, pooled);
+    if (st == CBERG_OK) {
+        for (size_t b = 0; b < g_count; b++) {
+            memcpy(out + (size_t)order[g_start + b] * impl->dim, pooled + b * impl->dim, impl->dim * sizeof(float));
+        }
+    }
+
     free(ids);
     free(mask);
     free(types);
-    return status;
+    free(pooled);
+    free(glens);
+    return st;
 }
 
 cberg_status cberg_onnx_embed(void *handle, const char *const *texts, const size_t *lens, size_t count, float *out) {
     onnx_impl *impl = handle;
-    size_t offset = 0;
-    while (offset < count) {
-        size_t chunk = count - offset;
-        if (chunk > MAX_BATCH) {
-            chunk = MAX_BATCH;
-        }
-        cberg_status st =
-            embed_batch(impl, texts + offset, lens + offset, chunk, out + offset * impl->dim);
-        if (st != CBERG_OK) {
-            return st;
-        }
-        offset += chunk;
+    if (count == 0) {
+        return CBERG_OK;
     }
-    return CBERG_OK;
+
+    /* Tokenize everything up front, then sort by length so each inference batch pads
+     * to its own group's longest row instead of the whole call's. Code chunks range
+     * from one-liners to 256-token windows, so batching mixed lengths wastes compute
+     * on padding; length-homogeneous batches cut that waste. */
+    int64_t *tokbuf = malloc(count * (size_t)MAX_SEQ * sizeof(int64_t));
+    int *seq_lens = malloc(count * sizeof(int));
+    int *order = malloc(count * sizeof(int));
+    if (tokbuf == NULL || seq_lens == NULL || order == NULL) {
+        free(tokbuf);
+        free(seq_lens);
+        free(order);
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+
+    cberg_status st = CBERG_OK;
+    for (size_t i = 0; i < count; i++) {
+        int n = cberg_tok_encode(impl->tok, texts[i], lens[i], tokbuf + i * (size_t)MAX_SEQ, MAX_SEQ);
+        if (n < 0) {
+            st = CBERG_ERR_INTERNAL;
+            goto done;
+        }
+        seq_lens[i] = n;
+    }
+
+    sort_indices_by_len(seq_lens, count, order);
+
+    for (size_t g = 0; g < count;) {
+        size_t gc = count - g;
+        if (gc > MAX_BATCH) {
+            gc = MAX_BATCH;
+        }
+        st = run_group(impl, tokbuf, seq_lens, order, g, gc, out);
+        if (st != CBERG_OK) {
+            goto done;
+        }
+        g += gc;
+    }
+
+done:
+    free(tokbuf);
+    free(seq_lens);
+    free(order);
+    return st;
 }
