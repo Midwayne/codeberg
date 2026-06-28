@@ -104,21 +104,71 @@ static char *chunk_body(const cberg_indexer *idx, const cberg_stored_chunk *sc, 
     return cberg_read_file(path, out_len);
 }
 
-static cberg_status slice_text(cberg_indexer *idx, const cberg_stored_chunk *sc, const char **text, size_t *len,
-                               char **owned) {
-    size_t blen = 0;
-    *owned = chunk_body(idx, sc, &blen);
-    if (*owned == NULL) {
-        return CBERG_ERR_IO;
+/*
+ * Per-run cache of file bodies for the embed pass. Reading a chunk's whole file
+ * from disk for every chunk meant a file with M chunks was read M times; chunks
+ * of one file arrive contiguously (chunk lists are appended per file), so a body
+ * is reused while consecutive chunks share its path and re-read only when the
+ * path changes. A non-contiguous repeat simply reads the file again — still
+ * correct, just not deduped. Buffers stay live until file_cache_free because the
+ * embed pass slices directly into them.
+ */
+typedef struct {
+    const char *path; /* borrowed from the stored chunk; identifies the buffer */
+    char *data;       /* owned file body */
+    size_t len;
+} cached_body;
+
+typedef struct {
+    cached_body *items;
+    size_t len;
+    size_t cap;
+} file_cache;
+
+static void file_cache_free(file_cache *fc) {
+    for (size_t i = 0; i < fc->len; i++) {
+        free(fc->items[i].data);
+    }
+    free(fc->items);
+    fc->items = NULL;
+    fc->len = 0;
+    fc->cap = 0;
+}
+
+/* Resolve sc's chunk to a [text, len) slice of its file body, reading the file
+ * only on the first chunk of each contiguous same-file run. The slice points into
+ * a cached buffer owned by fc and stays valid until file_cache_free. */
+static cberg_status cache_slice(cberg_indexer *idx, file_cache *fc, const cberg_stored_chunk *sc, const char **text,
+                                size_t *len) {
+    cached_body *cb = (fc->len > 0 && strcmp(fc->items[fc->len - 1].path, sc->chunk.path) == 0)
+                          ? &fc->items[fc->len - 1]
+                          : NULL;
+    if (cb == NULL) {
+        if (fc->len + 1 > fc->cap) {
+            size_t cap = fc->cap == 0 ? 16 : fc->cap * 2;
+            cached_body *grown = realloc(fc->items, cap * sizeof(*grown));
+            if (grown == NULL) {
+                return CBERG_ERR_OUT_OF_MEMORY;
+            }
+            fc->items = grown;
+            fc->cap = cap;
+        }
+        size_t blen = 0;
+        char *data = chunk_body(idx, sc, &blen);
+        if (data == NULL) {
+            return CBERG_ERR_IO;
+        }
+        cb = &fc->items[fc->len++];
+        cb->path = sc->chunk.path;
+        cb->data = data;
+        cb->len = blen;
     }
     uint32_t start = sc->chunk.span.start_byte;
     uint32_t end = sc->chunk.span.end_byte;
-    if (end > blen || start > end) {
-        free(*owned);
-        *owned = NULL;
+    if (end > cb->len || start > end) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
-    *text = *owned + start;
+    *text = cb->data + start;
     *len = (size_t)(end - start);
     return CBERG_OK;
 }
@@ -136,21 +186,20 @@ static cberg_status apply_vectors(cberg_indexer *idx, const cberg_changes *ch) {
     const char **texts = NULL;
     size_t *lens = NULL;
     uint64_t *ids = NULL;
-    char **owned = NULL;
+    file_cache fc = {0};
     cberg_status st = CBERG_OK;
 
     if (upsert_len > 0) {
         texts = calloc(upsert_len, sizeof(*texts));
         lens = calloc(upsert_len, sizeof(*lens));
         ids = calloc(upsert_len, sizeof(*ids));
-        owned = calloc(upsert_len, sizeof(*owned));
-        if (texts == NULL || lens == NULL || ids == NULL || owned == NULL) {
+        if (texts == NULL || lens == NULL || ids == NULL) {
             st = CBERG_ERR_OUT_OF_MEMORY;
             goto done;
         }
         size_t u = 0;
         for (size_t i = 0; i < ch->added_len; i++) {
-            st = slice_text(idx, &ch->added[i], &texts[u], &lens[u], &owned[u]);
+            st = cache_slice(idx, &fc, &ch->added[i], &texts[u], &lens[u]);
             if (st != CBERG_OK) {
                 goto done;
             }
@@ -158,7 +207,7 @@ static cberg_status apply_vectors(cberg_indexer *idx, const cberg_changes *ch) {
             u++;
         }
         for (size_t i = 0; i < ch->modified_len; i++) {
-            st = slice_text(idx, &ch->modified[i], &texts[u], &lens[u], &owned[u]);
+            st = cache_slice(idx, &fc, &ch->modified[i], &texts[u], &lens[u]);
             if (st != CBERG_OK) {
                 goto done;
             }
@@ -214,12 +263,7 @@ static cberg_status apply_vectors(cberg_indexer *idx, const cberg_changes *ch) {
     st = cberg_index_save(idx->index);
 
 done:
-    if (owned != NULL) {
-        for (size_t i = 0; i < upsert_len; i++) {
-            free(owned[i]);
-        }
-    }
-    free(owned);
+    file_cache_free(&fc);
     free(ids);
     free(lens);
     free(texts);
@@ -252,14 +296,13 @@ static cberg_status rebuild_index(cberg_indexer *idx) {
         const char **texts = calloc(batch_n, sizeof(*texts));
         size_t *lens = calloc(batch_n, sizeof(*lens));
         uint64_t *ids = calloc(batch_n, sizeof(*ids));
-        char **owned = calloc(batch_n, sizeof(*owned));
+        file_cache fc = {0};
         size_t count = 0;
-        if (texts == NULL || lens == NULL || ids == NULL || owned == NULL) {
+        if (texts == NULL || lens == NULL || ids == NULL) {
             st = CBERG_ERR_OUT_OF_MEMORY;
             free(texts);
             free(lens);
             free(ids);
-            free(owned);
             cberg_index_close(temp_idx);
             unlink(temp);
             return st;
@@ -269,15 +312,12 @@ static cberg_status rebuild_index(cberg_indexer *idx) {
             if (sc == NULL) {
                 continue;
             }
-            st = slice_text(idx, sc, &texts[count], &lens[count], &owned[count]);
+            st = cache_slice(idx, &fc, sc, &texts[count], &lens[count]);
             if (st != CBERG_OK) {
-                for (size_t k = 0; k < count; k++) {
-                    free(owned[k]);
-                }
+                file_cache_free(&fc);
                 free(texts);
                 free(lens);
                 free(ids);
-                free(owned);
                 cberg_index_close(temp_idx);
                 unlink(temp);
                 return st;
@@ -288,12 +328,9 @@ static cberg_status rebuild_index(cberg_indexer *idx) {
         if (count > 0) {
             float *vecs = NULL;
             st = cberg_embedder_embed(idx->embedder, texts, lens, count, &vecs);
-            for (size_t k = 0; k < count; k++) {
-                free(owned[k]);
-            }
+            file_cache_free(&fc);
             free(texts);
             free(lens);
-            free(owned);
             if (st != CBERG_OK) {
                 free(ids);
                 cberg_index_close(temp_idx);
@@ -313,10 +350,10 @@ static cberg_status rebuild_index(cberg_indexer *idx) {
             cberg_vectors_free(vecs);
             free(ids);
         } else {
+            file_cache_free(&fc);
             free(texts);
             free(lens);
             free(ids);
-            free(owned);
         }
         i = end;
     }
