@@ -53,11 +53,19 @@ Built-in (when API keys are set):
 | `anthropic` | `ANTHROPIC_API_KEY` | `anthropic:claude-sonnet-4-6` |
 | `google` | `GOOGLE_GENERATIVE_AI_API_KEY` | `google:gemini-2.0-flash` |
 | `ollama` | _(none)_ — local; `OLLAMA_BASE_URL` optional | `ollama:qwen3.5:9b` |
+| `llamacpp` | _(none)_ — local; `LLAMACPP_BASE_URL` optional | `llamacpp:ornith-1.0-35b` |
 
 `ollama` targets a local [Ollama](https://ollama.com) server (OpenAI-compatible
 API at `http://localhost:11434/v1`). No key needed; pull the model first
 (`ollama pull <model>`) and use the exact tag from `ollama list`. The model must
 support tool calling for the default `agent.ask` loop — otherwise use `--once`.
+
+`llamacpp` targets a running [llama.cpp](https://github.com/ggml-org/llama.cpp)
+`llama-server` (OpenAI-compatible API, default `http://localhost:8080/v1`). No
+key needed. llama-server serves whichever model was loaded with `-m`, so the
+model id is a free-form label (`llamacpp:anything`). Set `LLAMACPP_BASE_URL` if
+you started the server on a different port (e.g. `--port 11434`). As with
+ollama, the model must support tool calling for the default `agent.ask` loop.
 
 ### Custom provider
 

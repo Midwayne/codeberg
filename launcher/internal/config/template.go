@@ -14,10 +14,11 @@ const fileTemplate = `# codeberg launcher config — KEY=VALUE, '#' comments.
 # --- required ---------------------------------------------------------------
 # Repository tree to index.
 %s=/path/to/your/repo
-# LLM the agent uses, as provider:model (anthropic, openai, google, ollama).
+# LLM the agent uses, as provider:model (anthropic, openai, google, ollama,
+# llamacpp).
 %s=anthropic:claude-haiku-4-5
 
-# API key matching the model above (ollama needs none).
+# API key matching the model above (ollama and llamacpp need none).
 # ANTHROPIC_API_KEY=
 # OPENAI_API_KEY=
 # GOOGLE_GENERATIVE_AI_API_KEY=

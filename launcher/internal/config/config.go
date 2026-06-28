@@ -60,6 +60,7 @@ var passthroughKeys = []string{
 	"OPENAI_API_KEY",
 	"GOOGLE_GENERATIVE_AI_API_KEY",
 	"OLLAMA_BASE_URL",
+	"LLAMACPP_BASE_URL",
 }
 
 // Overrides carries values from the command line. Empty string means "not set

@@ -9,6 +9,11 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Added
 
+- **llama.cpp provider** — a `llamacpp` model provider targets a local
+  `llama-server` over its OpenAI-compatible API (default
+  `http://localhost:8080/v1`, override with `LLAMACPP_BASE_URL`). Like `ollama`
+  it needs no API key; the model id is a free-form label since llama-server
+  serves whatever was loaded with `-m` (e.g. `CODEBERG_MODEL=llamacpp:my-model`).
 - **Fast restarts via persisted state** — `cberg-index` now saves the chunk table
   and merkle manifest as sidecars next to the vector index. On restart it restores
   them, so chunk ids stay stable and the reopened index reuses existing embeddings;

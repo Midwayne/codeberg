@@ -71,9 +71,28 @@ export function ollamaProvider(): ModelProvider {
   };
 }
 
+export function llamacppProvider(): ModelProvider {
+  // llama.cpp's llama-server exposes an OpenAI-compatible API at
+  // /v1/chat/completions. It serves whichever model was loaded with `-m`, so
+  // the model id is a free-form label. The OpenAI client requires a non-empty
+  // key even though llama-server ignores it unless started with --api-key.
+  const llamacpp = createOpenAI({
+    baseURL: env("LLAMACPP_BASE_URL") ?? "http://localhost:8080/v1",
+    apiKey: env("LLAMACPP_API_KEY") ?? "llama.cpp",
+  });
+  return {
+    name: "llamacpp",
+    model(modelId: string): LanguageModel {
+      // .chat() forces the Chat Completions API; llama-server does not
+      // implement OpenAI's Responses API, which createOpenAI() would default to.
+      return llamacpp.chat(modelId);
+    },
+  };
+}
+
 /**
  * Register providers whose configuration is present: openai/anthropic/google
- * when their API keys are set, and local ollama always (it needs no API key).
+ * when their API keys are set, and local ollama/llamacpp always (no API key).
  */
 export function registerBuiltinProviders(registry: {
   register(p: ModelProvider): unknown;
@@ -89,4 +108,5 @@ export function registerBuiltinProviders(registry: {
   tryRegister(anthropicProvider);
   tryRegister(googleProvider);
   tryRegister(ollamaProvider);
+  tryRegister(llamacppProvider);
 }
