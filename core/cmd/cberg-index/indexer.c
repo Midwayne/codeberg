@@ -653,6 +653,11 @@ cberg_status cberg_indexer_open(cberg_indexer *idx) {
         cberg_embed_config ecfg = {0};
         ecfg.provider = CBERG_EMBED_ONNX;
         ecfg.model_path = idx->model_path;
+        /* CBERG_EMBED_THREADS caps ONNX intra-op threads; unset or <= 0 uses all cores. */
+        const char *embed_threads = getenv("CBERG_EMBED_THREADS");
+        if (embed_threads != NULL && embed_threads[0] != '\0') {
+            ecfg.num_threads = atoi(embed_threads);
+        }
         st = cberg_embedder_open(&ecfg, &idx->embedder);
         if (st != CBERG_OK) {
             fprintf(stderr, "cberg-index: failed to load embedding model '%s': %s\n", idx->model_path,

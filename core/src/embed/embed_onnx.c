@@ -127,6 +127,14 @@ cberg_status cberg_onnx_open(const cberg_embed_config *cfg, void **out_impl, siz
     if (ort->CreateSessionOptions(&opts) != NULL) {
         goto fail;
     }
+    /* Squeeze the CPU provider: full graph optimization (constant folding + op
+     * fusion), sequential execution, and no memory-pattern planning. Batch shapes
+     * vary by sequence length, so pattern planning would re-plan on every new shape
+     * instead of helping. */
+    ort_discard(ort, ort->SetSessionGraphOptimizationLevel(opts, ORT_ENABLE_ALL));
+    ort_discard(ort, ort->SetSessionExecutionMode(opts, ORT_SEQUENTIAL));
+    ort_discard(ort, ort->DisableMemPattern(opts));
+    /* num_threads <= 0 leaves ORT's default (all physical cores). */
     if (cfg->num_threads > 0) {
         ort_discard(ort, ort->SetIntraOpNumThreads(opts, cfg->num_threads));
     }
