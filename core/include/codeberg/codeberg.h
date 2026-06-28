@@ -181,6 +181,13 @@ CBERG_API size_t cberg_chunk_table_len(const cberg_chunk_table *table);
 CBERG_API const cberg_stored_chunk *cberg_chunk_table_at(const cberg_chunk_table *table, size_t index);
 
 /*
+ * Resolve a stored chunk by its stable id in O(1) (search maps neighbor ids back
+ * to chunks). Returns NULL when no live chunk has that id. The pointer is valid
+ * until the next sync on the same table, same as cberg_chunk_table_at.
+ */
+CBERG_API const cberg_stored_chunk *cberg_chunk_table_find_by_id(const cberg_chunk_table *table, uint64_t id);
+
+/*
  * Diff `incoming` against the table. IDs are stable across modifications.
  * Change arrays are owned by the table until the next sync or free.
  * On non-OK return the table and prior change arrays are unchanged.

@@ -80,6 +80,7 @@ set(CBERG_SOURCES
   src/common/fileio.c
   src/common/strutil.c
   src/common/strmap.c
+  src/common/u64map.c
   third_party/xxhash.c
   src/chunk/chunk_keys.c
   src/chunk/chunker.c

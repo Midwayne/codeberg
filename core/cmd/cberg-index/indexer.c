@@ -976,14 +976,7 @@ cberg_status cberg_indexer_search(cberg_indexer *idx, const char *query, size_t 
 }
 
 static const cberg_stored_chunk *find_chunk_by_id(cberg_indexer *idx, uint64_t id) {
-    size_t n = cberg_chunk_table_len(idx->table);
-    for (size_t i = 0; i < n; i++) {
-        const cberg_stored_chunk *sc = cberg_chunk_table_at(idx->table, i);
-        if (sc != NULL && sc->id == id) {
-            return sc;
-        }
-    }
-    return NULL;
+    return cberg_chunk_table_find_by_id(idx->table, id);
 }
 
 static void fill_snippet(cberg_indexer *idx, const cberg_stored_chunk *sc, char *out, size_t cap) {

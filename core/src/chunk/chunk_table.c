@@ -8,6 +8,7 @@
 #include "grow.h"
 #include "strmap.h"
 #include "strutil.h"
+#include "u64map.h"
 
 #define CBERG_MAP_INITIAL 1024
 
@@ -16,6 +17,7 @@ struct cberg_chunk_table {
     size_t len;
     size_t cap;
     cberg_strmap *key_index;
+    cberg_u64map *id_index; /* chunk id -> entries[] index, for O(1) lookup by id */
     uint64_t next_id;
     uint8_t fingerprint[CBERG_HASH_LEN];
 
@@ -132,6 +134,19 @@ static cberg_status table_append(cberg_chunk_table *table, cberg_stored_chunk st
         free_chunk_strings(&stored.chunk);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
+    if (table->id_index == NULL) {
+        table->id_index = cberg_u64map_new(CBERG_MAP_INITIAL);
+        if (table->id_index == NULL) {
+            table->len--;
+            free_chunk_strings(&stored.chunk);
+            return CBERG_ERR_OUT_OF_MEMORY;
+        }
+    }
+    if (cberg_u64map_set(table->id_index, stored.id, (uint64_t)index) != CBERG_OK) {
+        table->len--;
+        free_chunk_strings(&stored.chunk);
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
     return CBERG_OK;
 }
 
@@ -194,6 +209,7 @@ static void table_discard(cberg_chunk_table *table) {
     table_free_entry_strings(table);
     free(table->entries);
     cberg_strmap_free(table->key_index);
+    cberg_u64map_free(table->id_index);
     table_free_change_lists(table);
     free(table);
 }
@@ -214,6 +230,7 @@ void cberg_chunk_table_free(cberg_chunk_table *table) {
     table_free_entry_strings(table);
     free(table->entries);
     cberg_strmap_free(table->key_index);
+    cberg_u64map_free(table->id_index);
     table_free_change_lists(table);
     free(table);
 }
@@ -231,6 +248,17 @@ size_t cberg_chunk_table_len(const cberg_chunk_table *table) {
 
 const cberg_stored_chunk *cberg_chunk_table_at(const cberg_chunk_table *table, size_t index) {
     if (table == NULL || index >= table->len) {
+        return NULL;
+    }
+    return &table->entries[index];
+}
+
+const cberg_stored_chunk *cberg_chunk_table_find_by_id(const cberg_chunk_table *table, uint64_t id) {
+    if (table == NULL || table->id_index == NULL) {
+        return NULL;
+    }
+    uint64_t index = 0;
+    if (!cberg_u64map_get(table->id_index, id, &index) || (size_t)index >= table->len) {
         return NULL;
     }
     return &table->entries[index];
@@ -306,12 +334,14 @@ static void table_commit(cberg_chunk_table *table, cberg_chunk_table *next) {
     table_free_entry_strings(table);
     free(table->entries);
     cberg_strmap_free(table->key_index);
+    cberg_u64map_free(table->id_index);
     table_free_change_lists(table);
 
     table->entries = next->entries;
     table->len = next->len;
     table->cap = next->cap;
     table->key_index = next->key_index;
+    table->id_index = next->id_index;
     table->next_id = next->next_id;
     memcpy(table->fingerprint, next->fingerprint, CBERG_HASH_LEN);
     table->added = next->added;

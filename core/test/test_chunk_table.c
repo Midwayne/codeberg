@@ -38,6 +38,14 @@ int main(void) {
     CHECK(ch.modified_len == 0, "no mod");
     CHECK(cberg_chunk_table_len(table) == 2, "len 2");
 
+    /* id -> chunk lookup resolves live ids and rejects unknown ones. */
+    const cberg_stored_chunk *e0 = cberg_chunk_table_at(table, 0);
+    const cberg_stored_chunk *e1 = cberg_chunk_table_at(table, 1);
+    uint64_t id0 = e0->id, id1 = e1->id;
+    CHECK(cberg_chunk_table_find_by_id(table, id0) == e0, "find_by_id resolves entry 0");
+    CHECK(cberg_chunk_table_find_by_id(table, id1) == e1, "find_by_id resolves entry 1");
+    CHECK(cberg_chunk_table_find_by_id(table, 999999) == NULL, "find_by_id unknown id is NULL");
+
     uint8_t fp1[CBERG_HASH_LEN];
     cberg_chunk_table_fingerprint(table, fp1);
 
@@ -51,10 +59,14 @@ int main(void) {
     cberg_chunk_table_fingerprint(table, fp2);
     CHECK(memcmp(fp1, fp2, CBERG_HASH_LEN) != 0, "fp changed");
 
+    /* id -> chunk still resolves after an in-place modify (ids are stable). */
+    CHECK(cberg_chunk_table_find_by_id(table, id0) != NULL, "find_by_id resolves after modify");
+
     cberg_chunk empty = {0};
     CHECK(cberg_chunk_table_sync(table, &empty, 0, &ch) == CBERG_OK, "sync delete all");
     CHECK(ch.deleted_len == 2, "deleted all");
     CHECK(cberg_chunk_table_len(table) == 0, "empty table");
+    CHECK(cberg_chunk_table_find_by_id(table, id0) == NULL, "find_by_id of deleted id is NULL");
 
     cberg_chunk_table *dup_table = cberg_chunk_table_new();
     CHECK(dup_table != NULL, "dup table new");
