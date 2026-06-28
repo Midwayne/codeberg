@@ -10,6 +10,9 @@
 #include "tokenize.h"
 
 #include "onnxruntime_c_api.h"
+#if defined(__APPLE__)
+#include "coreml_provider_factory.h"
+#endif
 
 #define MAX_SEQ 256
 #define MAX_BATCH 32
@@ -19,6 +22,27 @@ static void ort_discard(const OrtApi *ort, OrtStatus *status) {
         ort->ReleaseStatus(status);
     }
 }
+
+#if defined(__APPLE__)
+/* Opt-in CoreML execution provider (CBERG_EMBED_COREML). On Apple Silicon this can
+ * offload the transformer to the GPU/ANE. flags 0 = all compute units (CPU+GPU+ANE)
+ * with dynamic shapes allowed; CoreML partitions the graph and runs unsupported
+ * nodes on CPU, so an append failure simply leaves the session on CPU. Kept behind a
+ * flag because the win is model- and shape-dependent and worth measuring per model. */
+static void maybe_enable_coreml(const OrtApi *ort, OrtSessionOptions *opts) {
+    const char *want = getenv("CBERG_EMBED_COREML");
+    if (want == NULL || want[0] == '\0' || (want[0] == '0' && want[1] == '\0')) {
+        return;
+    }
+    OrtStatus *st = OrtSessionOptionsAppendExecutionProvider_CoreML(opts, COREML_FLAG_USE_NONE);
+    if (st != NULL) {
+        fprintf(stderr, "cberg-embed: CoreML EP requested (CBERG_EMBED_COREML) but unavailable; using CPU\n");
+        ort_discard(ort, st);
+    } else {
+        fprintf(stderr, "cberg-embed: CoreML execution provider enabled\n");
+    }
+}
+#endif
 
 typedef enum { INPUT_IDS, INPUT_MASK, INPUT_TYPES } input_kind;
 
@@ -138,6 +162,9 @@ cberg_status cberg_onnx_open(const cberg_embed_config *cfg, void **out_impl, siz
     if (cfg->num_threads > 0) {
         ort_discard(ort, ort->SetIntraOpNumThreads(opts, cfg->num_threads));
     }
+#if defined(__APPLE__)
+    maybe_enable_coreml(ort, opts);
+#endif
     if (ort->CreateSession(impl->env, cfg->model_path, opts, &impl->session) != NULL) {
         status = CBERG_ERR_IO;
         goto fail;
