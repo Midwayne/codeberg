@@ -250,6 +250,14 @@ static cberg_status apply_vectors(cberg_indexer *idx, const cberg_changes *ch) {
     size_t del_mark = PROGRESS_STEP;
     for (size_t i = 0; i < ch->deleted_len; i++) {
         st = cberg_index_remove(idx->index, ch->deleted[i].id);
+        if (st == CBERG_ERR_NOT_FOUND) {
+            /* Already absent — e.g. a kill let the index save outrun the chunk-table
+             * save, so on restart the table still lists an id the index dropped. The
+             * desired post-state (id gone) already holds, so treat it as done instead
+             * of escalating to a full index rebuild. In steady state every table id has
+             * an index entry, so this only fires while recovering that divergence. */
+            st = CBERG_OK;
+        }
         if (st != CBERG_OK) {
             goto done;
         }
@@ -1078,23 +1086,22 @@ cberg_status cberg_indexer_search_hits(cberg_indexer *idx, const char *query, si
     }
 
     for (size_t i = 0; i < n && *found < cap; i++) {
+        const cberg_stored_chunk *sc = find_chunk_by_id(idx, ids[i]);
+        if (sc == NULL) {
+            /* Orphaned id: a vector whose chunk is no longer in the table — e.g. a
+             * transient leftover from a kill between the index save and the chunk-
+             * table save. Skip it rather than emit an empty hit. */
+            continue;
+        }
         cberg_search_hit *h = &hits[*found];
         h->id = ids[i];
         h->score = scores[i];
-        h->path = "";
-        h->symbol = "";
-        h->start_line = 0;
-        h->end_line = 0;
+        h->path = sc->chunk.path != NULL ? sc->chunk.path : "";
+        h->symbol = sc->chunk.symbol != NULL ? sc->chunk.symbol : "";
+        h->start_line = sc->chunk.span.start_line;
+        h->end_line = sc->chunk.span.end_line;
         h->snippet[0] = '\0';
-
-        const cberg_stored_chunk *sc = find_chunk_by_id(idx, ids[i]);
-        if (sc != NULL) {
-            h->path = sc->chunk.path != NULL ? sc->chunk.path : "";
-            h->symbol = sc->chunk.symbol != NULL ? sc->chunk.symbol : "";
-            h->start_line = sc->chunk.span.start_line;
-            h->end_line = sc->chunk.span.end_line;
-            fill_snippet(idx, sc, h->snippet, sizeof(h->snippet));
-        }
+        fill_snippet(idx, sc, h->snippet, sizeof(h->snippet));
         (*found)++;
     }
     pthread_mutex_unlock(&idx->mu);
