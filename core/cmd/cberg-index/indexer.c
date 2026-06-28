@@ -4,6 +4,7 @@
 #include "walk.h"
 
 #include "fileio.h"
+#include "u64map.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -173,6 +174,144 @@ static cberg_status cache_slice(cberg_indexer *idx, file_cache *fc, const cberg_
     return CBERG_OK;
 }
 
+/*
+ * Embed `count` chunks into `index`, embedding only one representative per distinct
+ * body. Chunks that share a content_hash (byte-identical text — license headers,
+ * generated code, trivial accessors, vendored copies) are embedded once and that
+ * vector is reused for every chunk with the same body; the model is deterministic,
+ * so this is identical to embedding each separately, just without the repeat compute.
+ *
+ * Bodies pair only on a full CBERG_HASH_LEN match (the map keys on the first 8 bytes
+ * for speed, then confirms), so a 64-bit bucket collision can never share a wrong
+ * vector. Duplicates are grouped behind their representative so embedding still runs
+ * in BATCH_SIZE windows whose vectors are freed before the next — peak extra memory
+ * stays one batch, not the whole upsert.
+ *
+ * When `show`, prints embed progress against `total` as chunks are indexed, advancing
+ * *done. *out_unique (nullable) receives the count of bodies actually embedded.
+ */
+static cberg_status embed_unique(cberg_indexer *idx, cberg_index *index, const char **texts, const size_t *lens,
+                                 const uint8_t **hashes, const uint64_t *ids, size_t count, int show, size_t *done,
+                                 size_t total, size_t *out_unique) {
+    if (out_unique != NULL) {
+        *out_unique = 0;
+    }
+    if (count == 0) {
+        return CBERG_OK;
+    }
+    size_t dim = cberg_embedder_dim(idx->embedder);
+
+    cberg_u64map *seen = cberg_u64map_new(count * 2);
+    size_t *reps = malloc(count * sizeof(*reps));         /* group -> a representative item index */
+    size_t *group_of = malloc(count * sizeof(*group_of)); /* item -> its group index */
+    const char **btexts = malloc(BATCH_SIZE * sizeof(*btexts));
+    size_t *blens = malloc(BATCH_SIZE * sizeof(*blens));
+    size_t *group_start = NULL;
+    size_t *members = NULL;
+    size_t *cursor = NULL;
+    cberg_status st = CBERG_ERR_OUT_OF_MEMORY;
+    if (seen == NULL || reps == NULL || group_of == NULL || btexts == NULL || blens == NULL) {
+        goto done;
+    }
+
+    /* Pass 1: assign each item to a group keyed by its body. A 64-bit hash-prefix hit
+     * is confirmed against the full hash; a mismatch (collision) or an all-zero prefix
+     * (the map reserves key 0) just starts its own group. The map records only the
+     * first group for a prefix, so a collision leaves the original mapping intact. */
+    size_t n_groups = 0;
+    for (size_t u = 0; u < count; u++) {
+        uint64_t key;
+        memcpy(&key, hashes[u], sizeof(key));
+        uint64_t hit = 0;
+        int found = key != 0 && cberg_u64map_get(seen, key, &hit);
+        if (found && memcmp(hashes[u], hashes[reps[hit]], CBERG_HASH_LEN) == 0) {
+            group_of[u] = (size_t)hit;
+            continue;
+        }
+        if (key != 0 && !found) {
+            st = cberg_u64map_set(seen, key, n_groups);
+            if (st != CBERG_OK) {
+                goto done;
+            }
+        }
+        reps[n_groups] = u;
+        group_of[u] = n_groups;
+        n_groups++;
+    }
+
+    /* Pass 2: CSR-group the items so a representative and all its duplicates are
+     * contiguous in `members`, letting each embed batch be freed before the next. */
+    group_start = calloc(n_groups + 1, sizeof(*group_start));
+    members = malloc(count * sizeof(*members));
+    cursor = malloc(n_groups * sizeof(*cursor));
+    if (group_start == NULL || members == NULL || cursor == NULL) {
+        st = CBERG_ERR_OUT_OF_MEMORY;
+        goto done;
+    }
+    for (size_t u = 0; u < count; u++) {
+        group_start[group_of[u] + 1]++;
+    }
+    for (size_t k = 0; k < n_groups; k++) {
+        group_start[k + 1] += group_start[k];
+        cursor[k] = group_start[k];
+    }
+    for (size_t u = 0; u < count; u++) {
+        members[cursor[group_of[u]]++] = u;
+    }
+
+    size_t mark = (*done / PROGRESS_STEP + 1) * PROGRESS_STEP;
+    st = CBERG_OK;
+    for (size_t g = 0; g < n_groups;) {
+        size_t bn = n_groups - g;
+        if (bn > BATCH_SIZE) {
+            bn = BATCH_SIZE;
+        }
+        for (size_t b = 0; b < bn; b++) {
+            btexts[b] = texts[reps[g + b]];
+            blens[b] = lens[reps[g + b]];
+        }
+        float *vecs = NULL;
+        st = cberg_embedder_embed(idx->embedder, btexts, blens, bn, &vecs);
+        if (st != CBERG_OK) {
+            cberg_vectors_free(vecs);
+            goto done;
+        }
+        for (size_t b = 0; b < bn; b++) {
+            size_t k = g + b;
+            const float *v = vecs + b * dim;
+            for (size_t m = group_start[k]; m < group_start[k + 1]; m++) {
+                st = cberg_index_add(index, ids[members[m]], v);
+                if (st != CBERG_OK) {
+                    cberg_vectors_free(vecs);
+                    goto done;
+                }
+                (*done)++;
+                if (show && (*done >= mark || *done == total)) {
+                    fprintf(stderr, "cberg-index: embedded %zu/%zu chunks (%zu%%)\n", *done, total,
+                            *done * 100 / total);
+                    mark += PROGRESS_STEP;
+                }
+            }
+        }
+        cberg_vectors_free(vecs);
+        g += bn;
+    }
+    if (out_unique != NULL) {
+        *out_unique = n_groups;
+    }
+
+done:
+    cberg_u64map_free(seen);
+    free(reps);
+    free(group_of);
+    free(group_start);
+    free(members);
+    free(cursor);
+    free(btexts);
+    free(blens);
+    return st;
+}
+
 static cberg_status apply_vectors(cberg_indexer *idx, const cberg_changes *ch) {
     if (!idx->vectors || idx->embedder == NULL || idx->index == NULL) {
         return CBERG_OK;
@@ -186,6 +325,7 @@ static cberg_status apply_vectors(cberg_indexer *idx, const cberg_changes *ch) {
     const char **texts = NULL;
     size_t *lens = NULL;
     uint64_t *ids = NULL;
+    const uint8_t **hashes = NULL;
     file_cache fc = {0};
     cberg_status st = CBERG_OK;
 
@@ -193,7 +333,8 @@ static cberg_status apply_vectors(cberg_indexer *idx, const cberg_changes *ch) {
         texts = calloc(upsert_len, sizeof(*texts));
         lens = calloc(upsert_len, sizeof(*lens));
         ids = calloc(upsert_len, sizeof(*ids));
-        if (texts == NULL || lens == NULL || ids == NULL) {
+        hashes = calloc(upsert_len, sizeof(*hashes));
+        if (texts == NULL || lens == NULL || ids == NULL || hashes == NULL) {
             st = CBERG_ERR_OUT_OF_MEMORY;
             goto done;
         }
@@ -204,6 +345,7 @@ static cberg_status apply_vectors(cberg_indexer *idx, const cberg_changes *ch) {
                 goto done;
             }
             ids[u] = ch->added[i].id;
+            hashes[u] = ch->added[i].chunk.content_hash;
             u++;
         }
         for (size_t i = 0; i < ch->modified_len; i++) {
@@ -212,37 +354,24 @@ static cberg_status apply_vectors(cberg_indexer *idx, const cberg_changes *ch) {
                 goto done;
             }
             ids[u] = ch->modified[i].id;
+            hashes[u] = ch->modified[i].chunk.content_hash;
             u++;
         }
 
-        size_t dim = cberg_embedder_dim(idx->embedder);
+        /* Embed unique bodies only: code upserts carry many byte-identical chunks
+         * (license headers, generated code, trivial accessors), and identical text
+         * maps to an identical vector, so embedding one and reusing it is exact. */
         int show = upsert_len >= PROGRESS_MIN;
-        size_t mark = PROGRESS_STEP;
-        for (size_t off = 0; off < upsert_len;) {
-            size_t bn = upsert_len - off;
-            if (bn > BATCH_SIZE) {
-                bn = BATCH_SIZE;
-            }
-            float *vecs = NULL;
-            st = cberg_embedder_embed(idx->embedder, texts + off, lens + off, bn, &vecs);
-            if (st != CBERG_OK) {
-                cberg_vectors_free(vecs);
-                goto done;
-            }
-            for (size_t i = 0; i < bn; i++) {
-                st = cberg_index_add(idx->index, ids[off + i], vecs + i * dim);
-                if (st != CBERG_OK) {
-                    cberg_vectors_free(vecs);
-                    goto done;
-                }
-            }
-            cberg_vectors_free(vecs);
-            off += bn;
-            if (show && (off >= mark || off == upsert_len)) {
-                fprintf(stderr, "cberg-index: embedded %zu/%zu chunks (%zu%%)\n", off, upsert_len,
-                        off * 100 / upsert_len);
-                mark += PROGRESS_STEP;
-            }
+        size_t done_n = 0;
+        size_t unique = 0;
+        st = embed_unique(idx, idx->index, texts, lens, hashes, ids, upsert_len, show, &done_n, upsert_len,
+                          &unique);
+        if (st != CBERG_OK) {
+            goto done;
+        }
+        if (show && unique < upsert_len) {
+            fprintf(stderr, "cberg-index: reused %zu duplicate bodies (embedded %zu unique of %zu chunks)\n",
+                    upsert_len - unique, unique, upsert_len);
         }
     }
 
@@ -272,6 +401,7 @@ static cberg_status apply_vectors(cberg_indexer *idx, const cberg_changes *ch) {
 
 done:
     file_cache_free(&fc);
+    free(hashes);
     free(ids);
     free(lens);
     free(texts);
