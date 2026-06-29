@@ -3,11 +3,19 @@ import { runAgentTUI } from "@ai-sdk/tui";
 
 import { createAgentFromEntry } from "../core/config.js";
 import { entryUsage, parseEntryArgs } from "../core/entry.js";
+import { SessionStore } from "./session-store.js";
+import { wrapSessionAgent } from "./session-agent.js";
 
 // The interactive chat UI is provided by ai-sdk v7's `runAgentTUI`, which drives
 // the ToolLoopAgent itself and renders streamed tool calls, reasoning, and
 // output-throughput stats. It owns input and session state, so the legacy
 // `--once` / seeded `--question` flags do not apply here (use the CLI for those).
+//
+// `runAgentTUI` exposes no session or input hooks, so persistence and slash
+// commands are layered onto the one seam it does give us — the `agent` it calls
+// every turn. `wrapSessionAgent` rewrites that turn's prompt, answers `/help`,
+// `/sessions`, `/resume` and `/new` locally, and saves each chat under
+// ~/.codeberg/sessions so it can be resumed later.
 async function main(): Promise<void> {
   const entry = parseEntryArgs(process.argv);
   if (!entry) {
@@ -15,11 +23,15 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const agent = await createAgentFromEntry(entry).toolLoopAgent();
+  const loop = await createAgentFromEntry(entry).toolLoopAgent();
+  const agent = wrapSessionAgent(loop, {
+    store: new SessionStore(),
+    modelSpec: entry.modelSpec,
+  });
 
   await runAgentTUI({
     agent,
-    title: `codeberg · ${entry.modelSpec} · ${entry.daemonUrl}`,
+    title: `codeberg · ${entry.modelSpec} · ${entry.daemonUrl} · /help for commands`,
     tools: "auto-collapsed",
     reasoning: "auto-collapsed",
     responseStatistics: "outputTokensPerSecond",

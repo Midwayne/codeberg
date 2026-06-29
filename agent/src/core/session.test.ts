@@ -27,11 +27,11 @@ describe("ChatSession", () => {
       generate: async (p) => {
         call += 1;
         if (call === 1) {
-          expect(p.prompt).not.toContain("User:");
+          expect(p.prompt).not.toContain("<conversation>");
           return "first";
         }
-        expect(p.prompt).toContain("User: what is auth?");
-        expect(p.prompt).toContain("Assistant: first");
+        expect(p.prompt).toContain('<turn role="user">what is auth?</turn>');
+        expect(p.prompt).toContain('<turn role="assistant">first</turn>');
         return "second";
       },
     };

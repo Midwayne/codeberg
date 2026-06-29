@@ -28,6 +28,21 @@ function fromAiSdk(model) {
 }
 
 // src/core/prompt.ts
+var DATA_SOURCE_EXAMPLE = `<example>
+<question>Where do account balances come from?</question>
+<answer>
+Account balances are read from the Postgres \`balances\` table by accounts-api, but the source of truth is ledger-worker, which consumes \`transactions\` events off Kafka and upserts the rolled-up balance.
+
+Source map:
+- Entry point: BalanceController.getBalance [accounts-api/src/controller/BalanceController.java:22-40]
+- Read path: BalanceRepository.findByAccountId -> SELECT on \`balances\` [accounts-api/src/repo/BalanceRepository.java:15-31]
+- Write path / producer: TransactionConsumer -> LedgerService.applyTransaction upserts the balance [ledger-worker/src/kafka/TransactionConsumer.java:18-44] [ledger-worker/src/service/LedgerService.java:50-78]
+- Storage: Postgres \`balances\` table [ledger-worker/src/db/migrations/V3__balances.sql:1-12]
+- Other readers: reporting-api reads the same table but never writes it [reporting-api/src/repo/BalanceRepository.java:10-24]
+- Gaps: the producer of the \`transactions\` events is outside the retrieved code.
+- Confidence: High
+</answer>
+</example>`;
 var SYSTEM = `You are a precise code-search assistant.
 
 Your answers must be based ONLY on retrieved code. Every factual claim about the codebase must be supported with citations in the format [path:start-end]. If the retrieved evidence is insufficient, incomplete, ambiguous, or contradictory, say so clearly. Do not guess.
@@ -87,6 +102,9 @@ Answer format:
   - Cross-service links
   - Confidence / gaps
 - Every item in the source map must be cited.
+
+Example of a well-formed data-source answer:
+${DATA_SOURCE_EXAMPLE}
 `;
 var AGENT_SYSTEM = `You are a code-search agent. Use tools iteratively until you have enough evidence to answer, or until the maximum tool rounds are reached. Then answer with citations.
 
@@ -191,37 +209,52 @@ For data-source/source-of-truth questions:
 - Evidence chain with citations
 - Confidence level: High, Medium, or Low, based only on retrieved evidence
 
+Example of a well-formed data-source answer:
+${DATA_SOURCE_EXAMPLE}
+
 Do not guess. Do not rely on repository names, file names, or symbol names alone. Always verify with retrieved code.`;
 function buildPrompt(question, results, prior) {
-  const context = results.map((r, i) => {
+  const evidence = results.length === 0 ? "No chunks retrieved." : results.map((r, i) => {
     const loc = `${r.path}:${r.start_line}-${r.end_line}`;
     const sym = r.symbol ? ` ${r.symbol}` : "";
     return `[${i + 1}] ${loc}${sym}
 ${r.snippet}`;
   }).join("\n\n");
-  const history = formatHistory(prior);
-  const body = results.length === 0 ? `${history}No chunks retrieved.
+  const body = `${formatHistory(prior)}<retrieved_code>
+${evidence}
+</retrieved_code>
 
-Question: ${question}` : `${history}Chunks:
-
-${context}
-
-Question: ${question}`;
+<question>${question}</question>`;
   return { system: SYSTEM, prompt: body };
 }
 function formatHistory(prior) {
   if (!prior?.length) {
     return "";
   }
-  const lines = prior.filter((m) => m.role === "user" || m.role === "assistant").map((m) => {
-    const label = m.role === "user" ? "User" : "Assistant";
-    const text = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
-    return `${label}: ${text}`;
-  });
-  return `Conversation:
-${lines.join("\n")}
+  const turns = [];
+  for (const m of prior) {
+    if (m.role !== "user" && m.role !== "assistant") {
+      continue;
+    }
+    const text = textOf(m.content);
+    if (text) {
+      turns.push(`<turn role="${m.role}">${text}</turn>`);
+    }
+  }
+  if (turns.length === 0) {
+    return "";
+  }
+  return `<conversation>
+${turns.join("\n")}
+</conversation>
 
 `;
+}
+function textOf(content) {
+  if (typeof content === "string") {
+    return content;
+  }
+  return content.map((part) => part.type === "text" ? part.text : "").join("").trim();
 }
 
 // src/core/agent.ts
@@ -501,6 +534,18 @@ function ollamaProvider() {
     }
   };
 }
+function llamacppProvider() {
+  const llamacpp = createOpenAI({
+    baseURL: env("LLAMACPP_BASE_URL") ?? "http://localhost:8080/v1",
+    apiKey: env("LLAMACPP_API_KEY") ?? "llama.cpp"
+  });
+  return {
+    name: "llamacpp",
+    model(modelId) {
+      return llamacpp.chat(modelId);
+    }
+  };
+}
 function registerBuiltinProviders(registry) {
   const tryRegister = (fn) => {
     try {
@@ -512,6 +557,7 @@ function registerBuiltinProviders(registry) {
   tryRegister(anthropicProvider);
   tryRegister(googleProvider);
   tryRegister(ollamaProvider);
+  tryRegister(llamacppProvider);
 }
 
 // src/providers/index.ts
@@ -578,6 +624,344 @@ Env: CODEBERG_DAEMON_URL (default http://127.0.0.1:8080)
 Providers: openai, anthropic, google (when API keys set)`;
 }
 
+// src/tui/session-store.ts
+import { randomBytes } from "crypto";
+import { mkdir, readFile, readdir, writeFile } from "fs/promises";
+import { homedir } from "os";
+import { join } from "path";
+function home(env2 = process.env) {
+  if (env2.CODEBERG_HOME) {
+    return env2.CODEBERG_HOME;
+  }
+  return join(homedir(), ".codeberg");
+}
+function countTurns(messages) {
+  return messages.filter((m) => m.role === "user").length;
+}
+var SessionStore = class {
+  dir;
+  constructor(dir) {
+    this.dir = dir ?? join(home(), "sessions");
+  }
+  /** A short, file-safe id. Injectable in tests via `save`-provided ids. */
+  static newId() {
+    return randomBytes(3).toString("hex");
+  }
+  async save(record) {
+    await mkdir(this.dir, { recursive: true });
+    await writeFile(
+      join(this.dir, `${record.id}.json`),
+      JSON.stringify(record, null, 2),
+      "utf8"
+    );
+  }
+  async load(id) {
+    try {
+      const raw = await readFile(join(this.dir, `${id}.json`), "utf8");
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  /** All sessions, newest first. Corrupt/unreadable files are skipped. */
+  async list() {
+    let files;
+    try {
+      files = await readdir(this.dir);
+    } catch {
+      return [];
+    }
+    const summaries = [];
+    for (const file of files) {
+      if (!file.endsWith(".json")) {
+        continue;
+      }
+      const record = await this.load(file.slice(0, -".json".length));
+      if (record) {
+        summaries.push({
+          id: record.id,
+          title: record.title,
+          updatedAt: record.updatedAt,
+          turns: countTurns(record.messages)
+        });
+      }
+    }
+    return summaries.sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+  /**
+   * Resolve a user-typed id to a stored session: exact match first, then a
+   * unique prefix. Returns null when nothing matches or a prefix is ambiguous.
+   */
+  async resolve(idOrPrefix) {
+    const exact = await this.load(idOrPrefix);
+    if (exact) {
+      return exact;
+    }
+    const matches = (await this.list()).filter(
+      (s) => s.id.startsWith(idOrPrefix)
+    );
+    if (matches.length !== 1) {
+      return null;
+    }
+    return this.load(matches[0].id);
+  }
+};
+
+// src/tui/commands.ts
+var COMMANDS = [
+  { usage: "/help", summary: "show this list of commands" },
+  { usage: "/sessions", summary: "list saved chats you can resume" },
+  { usage: "/resume <id>", summary: "resume a saved chat by id" },
+  { usage: "/new", summary: "start a fresh chat (clears context)" }
+];
+function parseCommand(text) {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("/")) {
+    return null;
+  }
+  if (trimmed === "/") {
+    return { kind: "help" };
+  }
+  const [verb, ...rest] = trimmed.slice(1).split(/\s+/);
+  const arg = rest.join(" ").trim();
+  switch (verb.toLowerCase()) {
+    case "help":
+    case "?":
+      return { kind: "help" };
+    case "sessions":
+    case "list":
+      return { kind: "sessions" };
+    case "resume":
+    case "continue":
+      return { kind: "resume", arg };
+    case "new":
+    case "clear":
+      return { kind: "new" };
+    default:
+      return null;
+  }
+}
+function textOf2(message) {
+  const { content } = message;
+  if (typeof content === "string") {
+    return content;
+  }
+  return content.map((part) => part.type === "text" ? part.text : "").join("");
+}
+function stripCommandTurns(messages) {
+  const out = [];
+  for (let i = 0; i < messages.length; i++) {
+    const message = messages[i];
+    if (message.role === "user" && parseCommand(textOf2(message))) {
+      if (messages[i + 1]?.role === "assistant") {
+        i++;
+      }
+      continue;
+    }
+    out.push(message);
+  }
+  return out;
+}
+function formatHelp() {
+  const width = Math.max(...COMMANDS.map((c) => c.usage.length));
+  const lines = COMMANDS.map(
+    (c) => `  ${c.usage.padEnd(width)}  ${c.summary}`
+  );
+  return ["Commands:", ...lines].join("\n");
+}
+function formatSessionList(sessions, now = Date.now()) {
+  if (sessions.length === 0) {
+    return "No saved sessions yet. Ask a question to start one.";
+  }
+  const idWidth = Math.max(...sessions.map((s) => s.id.length));
+  const lines = sessions.map((s) => {
+    const turns = `${s.turns} turn${s.turns === 1 ? "" : "s"}`;
+    return `  ${s.id.padEnd(idWidth)}  ${quote(s.title)}  \xB7  ${relativeTime(
+      s.updatedAt,
+      now
+    )}  \xB7  ${turns}`;
+  });
+  return [
+    "Saved sessions (most recent first):",
+    "",
+    ...lines,
+    "",
+    "Type /resume <id> to continue one."
+  ].join("\n");
+}
+function quote(title) {
+  const clean = title.replace(/\s+/g, " ").trim();
+  const short = clean.length > 48 ? `${clean.slice(0, 47)}\u2026` : clean;
+  return `"${short || "(untitled)"}"`;
+}
+function relativeTime(then, now = Date.now()) {
+  const seconds = Math.max(0, Math.floor((now - then) / 1e3));
+  if (seconds < 45) {
+    return "just now";
+  }
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+  const days = Math.floor(hours / 24);
+  if (days < 7) {
+    return `${days}d ago`;
+  }
+  return new Date(then).toISOString().slice(0, 10);
+}
+function deriveTitle(messages) {
+  const firstUser = messages.find((m) => m.role === "user");
+  const text = firstUser ? textOf2(firstUser).replace(/\s+/g, " ").trim() : "";
+  if (!text) {
+    return "(untitled)";
+  }
+  return text.length > 60 ? `${text.slice(0, 59)}\u2026` : text;
+}
+
+// src/tui/session-agent.ts
+function wrapSessionAgent(loop, opts) {
+  const now = opts.now ?? (() => Date.now());
+  const newId = opts.newId ?? SessionStore.newId;
+  const state = {
+    sessionId: newId(),
+    /** History prepended to every turn after a `/resume`. */
+    resumed: [],
+    /**
+     * Index into the runner's append-only transcript before which messages are
+     * ignored. Bumped past a `/new` or `/resume` command (and the synthetic
+     * reply the runner appends right after) so earlier on-screen turns drop out
+     * of model context.
+     */
+    dropBefore: 0,
+    title: void 0,
+    createdAt: now()
+  };
+  async function runCommand(command, raw) {
+    switch (command.kind) {
+      case "help":
+        return formatHelp();
+      case "sessions":
+        return formatSessionList(await opts.store.list(), now());
+      case "new":
+        state.sessionId = newId();
+        state.resumed = [];
+        state.title = void 0;
+        state.createdAt = now();
+        state.dropBefore = raw.length + 1;
+        return "Started a fresh session. Earlier turns are no longer in context.";
+      case "resume": {
+        if (!command.arg) {
+          return "Usage: /resume <id>. Run /sessions to see saved ids.";
+        }
+        const record = await opts.store.resolve(command.arg);
+        if (!record) {
+          return `No session matches "${command.arg}". Run /sessions to see saved ids.`;
+        }
+        state.sessionId = record.id;
+        state.resumed = stripCommandTurns(record.messages);
+        state.title = record.title;
+        state.createdAt = record.createdAt;
+        state.dropBefore = raw.length + 1;
+        const turns = state.resumed.filter((m) => m.role === "user").length;
+        return `Resumed "${record.title}" \u2014 ${turns} prior turn${turns === 1 ? "" : "s"} now in context.`;
+      }
+    }
+  }
+  async function persist(messages) {
+    if (messages.length === 0) {
+      return;
+    }
+    state.title ??= deriveTitle(messages);
+    try {
+      await opts.store.save({
+        id: state.sessionId,
+        title: state.title,
+        modelSpec: opts.modelSpec,
+        createdAt: state.createdAt,
+        updatedAt: now(),
+        messages
+      });
+    } catch {
+    }
+  }
+  const streamOverride = async (params) => {
+    const raw = toModelMessages(params.prompt);
+    const last = lastUserMessage(raw);
+    const command = last ? parseCommand(textOf2(last)) : null;
+    if (command) {
+      return synthetic(await runCommand(command, raw));
+    }
+    const current = stripCommandTurns(raw.slice(state.dropBefore));
+    const effective = [...state.resumed, ...current];
+    const result = await loop.stream({
+      ...params,
+      prompt: effective
+    });
+    return teeForPersistence(result, effective, persist);
+  };
+  return new Proxy(loop, {
+    get(target, prop) {
+      if (prop === "stream") {
+        return streamOverride;
+      }
+      const value = Reflect.get(target, prop, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    }
+  });
+}
+function toModelMessages(prompt) {
+  return Array.isArray(prompt) ? prompt : [];
+}
+function lastUserMessage(messages) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === "user") {
+      return messages[i];
+    }
+  }
+  return void 0;
+}
+function synthetic(text) {
+  async function* fullStream() {
+    const id = "codeberg-command";
+    yield { type: "text-start", id };
+    yield { type: "text-delta", id, text };
+    yield { type: "text-end", id };
+    yield { type: "finish", finishReason: "stop", totalUsage: void 0 };
+  }
+  return { fullStream: fullStream() };
+}
+function teeForPersistence(result, effective, persist) {
+  const source = result.fullStream;
+  async function* observed() {
+    let text = "";
+    try {
+      for await (const part of source) {
+        if (part?.type === "text-delta" && typeof part.text === "string") {
+          text += part.text;
+        }
+        yield part;
+      }
+    } finally {
+      const messages = text ? [...effective, { role: "assistant", content: text }] : effective;
+      await persist(messages);
+    }
+  }
+  const stream = observed();
+  return new Proxy(result, {
+    get(target, prop) {
+      if (prop === "fullStream") {
+        return stream;
+      }
+      const value = Reflect.get(target, prop, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    }
+  });
+}
+
 // src/tui/main.ts
 async function main() {
   const entry = parseEntryArgs(process.argv);
@@ -585,10 +969,14 @@ async function main() {
     console.error(entryUsage("codeberg-tui"));
     process.exit(1);
   }
-  const agent = await createAgentFromEntry(entry).toolLoopAgent();
+  const loop = await createAgentFromEntry(entry).toolLoopAgent();
+  const agent = wrapSessionAgent(loop, {
+    store: new SessionStore(),
+    modelSpec: entry.modelSpec
+  });
   await runAgentTUI({
     agent,
-    title: `codeberg \xB7 ${entry.modelSpec} \xB7 ${entry.daemonUrl}`,
+    title: `codeberg \xB7 ${entry.modelSpec} \xB7 ${entry.daemonUrl} \xB7 /help for commands`,
     tools: "auto-collapsed",
     reasoning: "auto-collapsed",
     responseStatistics: "outputTokensPerSecond"

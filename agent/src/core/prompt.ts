@@ -2,6 +2,26 @@ import type { ModelMessage } from 'ai';
 
 import type { Prompt } from './types.js';
 
+// A generic distributed-systems exemplar (no proprietary names) that fixes the
+// shape of a data-source / source-of-truth answer: reader vs. writer/producer,
+// the source-map sections, explicit gaps, and a confidence level. Shared by
+// both system prompts so the format stays identical across the two paths.
+const DATA_SOURCE_EXAMPLE = `<example>
+<question>Where do account balances come from?</question>
+<answer>
+Account balances are read from the Postgres \`balances\` table by accounts-api, but the source of truth is ledger-worker, which consumes \`transactions\` events off Kafka and upserts the rolled-up balance.
+
+Source map:
+- Entry point: BalanceController.getBalance [accounts-api/src/controller/BalanceController.java:22-40]
+- Read path: BalanceRepository.findByAccountId -> SELECT on \`balances\` [accounts-api/src/repo/BalanceRepository.java:15-31]
+- Write path / producer: TransactionConsumer -> LedgerService.applyTransaction upserts the balance [ledger-worker/src/kafka/TransactionConsumer.java:18-44] [ledger-worker/src/service/LedgerService.java:50-78]
+- Storage: Postgres \`balances\` table [ledger-worker/src/db/migrations/V3__balances.sql:1-12]
+- Other readers: reporting-api reads the same table but never writes it [reporting-api/src/repo/BalanceRepository.java:10-24]
+- Gaps: the producer of the \`transactions\` events is outside the retrieved code.
+- Confidence: High
+</answer>
+</example>`;
+
 const SYSTEM = `You are a precise code-search assistant.
 
 Your answers must be based ONLY on retrieved code. Every factual claim about the codebase must be supported with citations in the format [path:start-end]. If the retrieved evidence is insufficient, incomplete, ambiguous, or contradictory, say so clearly. Do not guess.
@@ -61,6 +81,9 @@ Answer format:
   - Cross-service links
   - Confidence / gaps
 - Every item in the source map must be cited.
+
+Example of a well-formed data-source answer:
+${DATA_SOURCE_EXAMPLE}
 `;
 
 export const AGENT_SYSTEM = `You are a code-search agent. Use tools iteratively until you have enough evidence to answer, or until the maximum tool rounds are reached. Then answer with citations.
@@ -166,6 +189,9 @@ For data-source/source-of-truth questions:
 - Evidence chain with citations
 - Confidence level: High, Medium, or Low, based only on retrieved evidence
 
+Example of a well-formed data-source answer:
+${DATA_SOURCE_EXAMPLE}
+
 Do not guess. Do not rely on repository names, file names, or symbol names alone. Always verify with retrieved code.`;
 
 type Chunk = {
@@ -181,19 +207,24 @@ export function buildPrompt(
   results: Chunk[],
   prior?: ModelMessage[],
 ): Prompt {
-  const context = results
-    .map((r, i) => {
-      const loc = `${r.path}:${r.start_line}-${r.end_line}`;
-      const sym = r.symbol ? ` ${r.symbol}` : '';
-      return `[${i + 1}] ${loc}${sym}\n${r.snippet}`;
-    })
-    .join('\n\n');
-
-  const history = formatHistory(prior);
-  const body =
+  // XML tags give the model hard boundaries between prior turns, retrieved
+  // code, and the question — and keep code or question text that happens to
+  // look like an instruction from bleeding into the instruction channel.
+  const evidence =
     results.length === 0
-      ? `${history}No chunks retrieved.\n\nQuestion: ${question}`
-      : `${history}Chunks:\n\n${context}\n\nQuestion: ${question}`;
+      ? "No chunks retrieved."
+      : results
+          .map((r, i) => {
+            const loc = `${r.path}:${r.start_line}-${r.end_line}`;
+            const sym = r.symbol ? ` ${r.symbol}` : "";
+            return `[${i + 1}] ${loc}${sym}\n${r.snippet}`;
+          })
+          .join("\n\n");
+
+  const body =
+    `${formatHistory(prior)}` +
+    `<retrieved_code>\n${evidence}\n</retrieved_code>\n\n` +
+    `<question>${question}</question>`;
 
   return { system: SYSTEM, prompt: body };
 }
@@ -202,12 +233,31 @@ function formatHistory(prior?: ModelMessage[]): string {
   if (!prior?.length) {
     return "";
   }
-  const lines = prior
-    .filter((m) => m.role === "user" || m.role === "assistant")
-    .map((m) => {
-      const label = m.role === "user" ? "User" : "Assistant";
-      const text = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
-      return `${label}: ${text}`;
-    });
-  return `Conversation:\n${lines.join("\n")}\n\n`;
+  const turns: string[] = [];
+  for (const m of prior) {
+    if (m.role !== "user" && m.role !== "assistant") {
+      continue;
+    }
+    const text = textOf(m.content);
+    if (text) {
+      turns.push(`<turn role="${m.role}">${text}</turn>`);
+    }
+  }
+  if (turns.length === 0) {
+    return "";
+  }
+  return `<conversation>\n${turns.join("\n")}\n</conversation>\n\n`;
+}
+
+// ModelMessage content is a string or an array of typed parts. Keep only the
+// readable text; tool calls/results would otherwise dump as JSON noise (the
+// old behavior) and confuse the model about what was actually said.
+function textOf(content: ModelMessage["content"]): string {
+  if (typeof content === "string") {
+    return content;
+  }
+  return content
+    .map((part) => (part.type === "text" ? part.text : ""))
+    .join("")
+    .trim();
 }

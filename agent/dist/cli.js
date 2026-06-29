@@ -25,6 +25,21 @@ function fromAiSdk(model) {
 }
 
 // src/core/prompt.ts
+var DATA_SOURCE_EXAMPLE = `<example>
+<question>Where do account balances come from?</question>
+<answer>
+Account balances are read from the Postgres \`balances\` table by accounts-api, but the source of truth is ledger-worker, which consumes \`transactions\` events off Kafka and upserts the rolled-up balance.
+
+Source map:
+- Entry point: BalanceController.getBalance [accounts-api/src/controller/BalanceController.java:22-40]
+- Read path: BalanceRepository.findByAccountId -> SELECT on \`balances\` [accounts-api/src/repo/BalanceRepository.java:15-31]
+- Write path / producer: TransactionConsumer -> LedgerService.applyTransaction upserts the balance [ledger-worker/src/kafka/TransactionConsumer.java:18-44] [ledger-worker/src/service/LedgerService.java:50-78]
+- Storage: Postgres \`balances\` table [ledger-worker/src/db/migrations/V3__balances.sql:1-12]
+- Other readers: reporting-api reads the same table but never writes it [reporting-api/src/repo/BalanceRepository.java:10-24]
+- Gaps: the producer of the \`transactions\` events is outside the retrieved code.
+- Confidence: High
+</answer>
+</example>`;
 var SYSTEM = `You are a precise code-search assistant.
 
 Your answers must be based ONLY on retrieved code. Every factual claim about the codebase must be supported with citations in the format [path:start-end]. If the retrieved evidence is insufficient, incomplete, ambiguous, or contradictory, say so clearly. Do not guess.
@@ -84,6 +99,9 @@ Answer format:
   - Cross-service links
   - Confidence / gaps
 - Every item in the source map must be cited.
+
+Example of a well-formed data-source answer:
+${DATA_SOURCE_EXAMPLE}
 `;
 var AGENT_SYSTEM = `You are a code-search agent. Use tools iteratively until you have enough evidence to answer, or until the maximum tool rounds are reached. Then answer with citations.
 
@@ -188,37 +206,52 @@ For data-source/source-of-truth questions:
 - Evidence chain with citations
 - Confidence level: High, Medium, or Low, based only on retrieved evidence
 
+Example of a well-formed data-source answer:
+${DATA_SOURCE_EXAMPLE}
+
 Do not guess. Do not rely on repository names, file names, or symbol names alone. Always verify with retrieved code.`;
 function buildPrompt(question, results, prior) {
-  const context = results.map((r, i) => {
+  const evidence = results.length === 0 ? "No chunks retrieved." : results.map((r, i) => {
     const loc = `${r.path}:${r.start_line}-${r.end_line}`;
     const sym = r.symbol ? ` ${r.symbol}` : "";
     return `[${i + 1}] ${loc}${sym}
 ${r.snippet}`;
   }).join("\n\n");
-  const history = formatHistory(prior);
-  const body = results.length === 0 ? `${history}No chunks retrieved.
+  const body = `${formatHistory(prior)}<retrieved_code>
+${evidence}
+</retrieved_code>
 
-Question: ${question}` : `${history}Chunks:
-
-${context}
-
-Question: ${question}`;
+<question>${question}</question>`;
   return { system: SYSTEM, prompt: body };
 }
 function formatHistory(prior) {
   if (!prior?.length) {
     return "";
   }
-  const lines = prior.filter((m) => m.role === "user" || m.role === "assistant").map((m) => {
-    const label = m.role === "user" ? "User" : "Assistant";
-    const text = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
-    return `${label}: ${text}`;
-  });
-  return `Conversation:
-${lines.join("\n")}
+  const turns = [];
+  for (const m of prior) {
+    if (m.role !== "user" && m.role !== "assistant") {
+      continue;
+    }
+    const text = textOf(m.content);
+    if (text) {
+      turns.push(`<turn role="${m.role}">${text}</turn>`);
+    }
+  }
+  if (turns.length === 0) {
+    return "";
+  }
+  return `<conversation>
+${turns.join("\n")}
+</conversation>
 
 `;
+}
+function textOf(content) {
+  if (typeof content === "string") {
+    return content;
+  }
+  return content.map((part) => part.type === "text" ? part.text : "").join("").trim();
 }
 
 // src/core/agent.ts
@@ -498,6 +531,18 @@ function ollamaProvider() {
     }
   };
 }
+function llamacppProvider() {
+  const llamacpp = createOpenAI({
+    baseURL: env("LLAMACPP_BASE_URL") ?? "http://localhost:8080/v1",
+    apiKey: env("LLAMACPP_API_KEY") ?? "llama.cpp"
+  });
+  return {
+    name: "llamacpp",
+    model(modelId) {
+      return llamacpp.chat(modelId);
+    }
+  };
+}
 function registerBuiltinProviders(registry) {
   const tryRegister = (fn) => {
     try {
@@ -509,6 +554,7 @@ function registerBuiltinProviders(registry) {
   tryRegister(anthropicProvider);
   tryRegister(googleProvider);
   tryRegister(ollamaProvider);
+  tryRegister(llamacppProvider);
 }
 
 // src/providers/index.ts

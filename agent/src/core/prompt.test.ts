@@ -13,9 +13,10 @@ describe("buildPrompt", () => {
         snippet: "package main",
       },
     ]);
+    expect(p.prompt).toContain("<retrieved_code>");
     expect(p.prompt).toContain("[1] main.go:1-3 main");
     expect(p.prompt).toContain("package main");
-    expect(p.prompt).toContain("how does search work?");
+    expect(p.prompt).toContain("<question>how does search work?</question>");
     expect(p.system).toContain("retrieved code");
   });
 
@@ -29,7 +30,7 @@ describe("buildPrompt", () => {
       { role: "user", content: "first question" },
       { role: "assistant", content: "first answer" },
     ]);
-    expect(p.prompt).toContain("User: first question");
-    expect(p.prompt).toContain("Assistant: first answer");
+    expect(p.prompt).toContain('<turn role="user">first question</turn>');
+    expect(p.prompt).toContain('<turn role="assistant">first answer</turn>');
   });
 });
