@@ -40,7 +40,15 @@ const (
 	KeyHome       = "CODEBERG_HOME"                  // launcher managed dir
 	KeyRepo       = "CODEBERG_REPO"                  // source checkout to build/run
 	KeyDist       = "CODEBERG_DIST"                  // prebuilt artifact dir (installs)
+	KeyWeb        = "CODEBERG_WEB"                   // "true" => serve browser UI not TUI
+	KeyWebPort    = "CODEBERG_WEB_PORT"              // web UI listen port (agent scope)
 )
+
+// DefaultWebPort is the codeberg-web listen port when none is configured. It
+// mirrors the agent's own default (agent/src/web/main.ts): an uncommon high
+// port — not the much-contended 3000 — sitting just past the daemon's 48080 so
+// codeberg's two ports group together, and below the 49152+ ephemeral range.
+const DefaultWebPort = "48088"
 
 // BuildDist is an optional compile-time default for the prebuilt artifact
 // directory, injected by packagers via the linker:
@@ -80,6 +88,8 @@ type Overrides struct {
 	Socket     string
 	Reasoning  string
 	Vector     *bool
+	Web        *bool // serve the browser UI instead of the terminal TUI
+	WebPort    string
 }
 
 // Config is the fully-resolved configuration.
@@ -101,6 +111,8 @@ type Config struct {
 	GitDir     string
 	Reasoning  string
 	Vector     bool
+	Web        bool   // serve the browser UI instead of the terminal TUI
+	WebPort    string // codeberg-web listen port (used only when Web)
 
 	Passthrough map[string]string
 	ConfigPath  string // the file we read (whether or not it existed)
@@ -174,6 +186,16 @@ func Load(o Overrides) (*Config, error) {
 		c.Vector = !isFalsey(v)
 	}
 
+	// Web: serve the browser UI instead of the TUI. Default off; --web (or
+	// CODEBERG_WEB=true) turns it on. The CLI flag, when passed, wins.
+	c.Web = false
+	if o.Web != nil {
+		c.Web = *o.Web
+	} else if v := resolve(KeyWeb, ""); v != "" {
+		c.Web = !isFalsey(v)
+	}
+	c.WebPort = firstNonEmpty(resolve(KeyWebPort, o.WebPort), DefaultWebPort)
+
 	// Daemon URL defaults to the local daemon on the resolved port.
 	c.DaemonURL = firstNonEmpty(resolve(KeyDaemonURL, o.DaemonURL), "http://127.0.0.1:"+c.HTTPPort)
 
@@ -210,6 +232,7 @@ type Artifacts struct {
 	DaemonBin string // <root>/core/build/bin/codeberg-d
 	IndexBin  string // <root>/core/build/bin/cberg-index (daemon finds it as a sibling)
 	TUIScript string // <root>/agent/dist/tui.js (node resolves node_modules up from it)
+	WebScript string // <root>/agent/dist/web.js (the browser-UI server; built alongside the TUI)
 }
 
 // LocateArtifacts returns the expected artifact paths under root (no existence
@@ -221,6 +244,7 @@ func LocateArtifacts(root string) Artifacts {
 		DaemonBin: filepath.Join(bin, "codeberg-d"),
 		IndexBin:  filepath.Join(bin, "cberg-index"),
 		TUIScript: filepath.Join(root, "agent", "dist", "tui.js"),
+		WebScript: filepath.Join(root, "agent", "dist", "web.js"),
 	}
 }
 
@@ -312,6 +336,8 @@ func (c *Config) AgentEnv() map[string]string {
 		KeyDaemonURL: c.DaemonURL,
 	}
 	putIf(e, KeyReasoning, c.Reasoning)
+	// codeberg-web reads this; the TUI ignores it, so it's harmless to always set.
+	putIf(e, KeyWebPort, c.WebPort)
 	for k, v := range c.Passthrough {
 		e[k] = v
 	}

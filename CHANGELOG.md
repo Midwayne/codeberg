@@ -9,6 +9,17 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Added
 
+- **Browser chat UI from the launcher** — `codeberg --web` boots the same stack
+  but serves the chat in a browser (via `codeberg-web`) instead of the terminal
+  TUI, opening `http://127.0.0.1:48088` once the daemon is healthy. It defaults to
+  an uncommon high port (not the much-contended 3000), grouped just past the
+  daemon's 48080 and below the ephemeral range; override with `--web-port` /
+  `CODEBERG_WEB_PORT`, or make web the default with `CODEBERG_WEB=true`. The
+  launcher builds the React SPA (`make build-web-ui`) on first `--web` run so the
+  rich UI shows rather than the embedded fallback page.
+- **`launcher/update.sh`** — rebuilds the components (core+daemon, agent, web UI)
+  and relinks `codeberg` in place, so code changes take effect without an
+  uninstall/reinstall cycle.
 - **llama.cpp provider** — a `llamacpp` model provider targets a local
   `llama-server` over its OpenAI-compatible API (default
   `http://localhost:8080/v1`, override with `LLAMACPP_BASE_URL`). Like `ollama`

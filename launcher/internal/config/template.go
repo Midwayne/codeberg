@@ -26,6 +26,10 @@ const fileTemplate = `# codeberg launcher config — KEY=VALUE, '#' comments.
 # --- optional ---------------------------------------------------------------
 # Daemon HTTP port (default 48080).
 # %s=48080
+# Open the chat in a browser instead of the terminal TUI (or pass --web).
+# %s=false
+# Browser UI port when --web is used (default 48088).
+# %s=48088
 # Reasoning effort: provider-default|none|minimal|low|medium|high|xhigh
 # %s=medium
 # Set to false for chunk-only mode (skips the embedding-model download).
@@ -45,7 +49,7 @@ func InitFile(path string) (bool, error) {
 		return false, err
 	}
 	body := fmt.Sprintf(fileTemplate,
-		KeyRoot, KeyModel, KeyHTTPPort, KeyReasoning, KeyVector, KeyEmbedModel, KeyIndexPath)
+		KeyRoot, KeyModel, KeyHTTPPort, KeyWeb, KeyWebPort, KeyReasoning, KeyVector, KeyEmbedModel, KeyIndexPath)
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		return false, err
 	}
@@ -63,6 +67,8 @@ func (c *Config) Summary() string {
 		{KeyModel, orUnset(c.Model)},
 		{KeyDaemonURL, c.DaemonURL},
 		{KeyHTTPPort, c.HTTPPort},
+		{KeyWeb, fmt.Sprintf("%t", c.Web)},
+		{KeyWebPort, c.WebPort},
 		{KeyVector, fmt.Sprintf("%t", c.Vector)},
 		{KeyEmbedModel, c.EmbedModel},
 		{KeyIndexPath, c.IndexPath},

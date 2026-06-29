@@ -37,15 +37,16 @@ DIST_PREFIX ?=
 load_env = if [ -f "$(1)" ]; then set -a; . "$(1)"; set +a; echo "› loaded $(1)"; else echo "› no $(1); using current environment"; fi
 
 .PHONY: build-core build test clean rebuild submodules help check set-version \
-        build-daemon daemon-test build-agent agent-test dist \
-        run-core run-index run-daemon run-agent run-agent-tui
+        build-daemon daemon-test build-agent build-web-ui agent-test dist \
+        run-core run-index run-daemon run-agent run-agent-tui run-agent-web
 
 help:
 	@echo "Codeberg targets:"
 	@echo "  Build"
 	@echo "    make build-core           Configure and compile libcodeberg + cberg-index"
 	@echo "    make build-daemon         Build Go codeberg-d (pure Go, no CGO)"
-	@echo "    make build-agent          Install deps and build the agent (npm)"
+	@echo "    make build-agent          Install deps and build the agent (npm: TUI + web server)"
+	@echo "    make build-web-ui         Build the browser chat SPA (web-ui/dist, served by --web)"
 	@echo "    make dist [DISTDIR=...]   Assemble a self-contained install tree (packaging)"
 	@echo "    make rebuild              clean + build-core"
 	@echo "  Run"
@@ -53,6 +54,7 @@ help:
 	@echo "    make run-daemon           Run the Go daemon (codeberg-d) + HTTP [daemon/.env]"
 	@echo "    make run-agent q=\"…\"      Ask the agent, e.g. q=\"how does chunking work\"  [agent/.env]"
 	@echo "    make run-agent-tui          Interactive agent chat (follow-ups)  [agent/.env]"
+	@echo "    make run-agent-web          Serve the browser chat UI (codeberg-web)  [agent/.env]"
 	@echo "  Test"
 	@echo "    make test                 Run all core tests (ctest)"
 	@echo "    make test TEST=<name>     Run one test (test_smoke test_chunker …)"
@@ -104,6 +106,12 @@ daemon-test: build-core
 build-agent:
 	cd $(AGENT) && npm install && npm run build
 
+# The browser chat SPA served by `codeberg --web` / codeberg-web. The server
+# resolves it at agent/web-ui/dist (a sibling of agent/dist/web.js), so building
+# it here is all `--web` needs to serve the rich UI instead of the fallback page.
+build-web-ui:
+	cd $(AGENT)/web-ui && npm install && npm run build
+
 agent-test:
 	cd $(AGENT) && npm install && npm test
 
@@ -116,6 +124,7 @@ agent-test:
 #   <DISTDIR>/bin/codeberg                                       the launcher
 #   <DISTDIR>/libexec/core/build/bin/{cberg-index,codeberg-d}    siblings; daemon finds the indexer
 #   <DISTDIR>/libexec/agent/dist/*.js + .../agent/node_modules   node resolves up from dist/
+#   <DISTDIR>/libexec/agent/web-ui/dist                          browser SPA (--web; sibling of dist/web.js)
 #   <DISTDIR>/libexec/scripts/fetch-model.sh                     runtime model download
 #
 # The launcher locates its payload at ../libexec relative to its own (symlink-
@@ -127,12 +136,13 @@ agent-test:
 # Note: cberg-index keeps the ONNX Runtime rpath from build time, so it expects
 # the runtime at the same prefix at runtime; a tarball for other machines would
 # additionally bundle libonnxruntime + rewrite rpath.
-dist: build-core build-daemon build-agent
+dist: build-core build-daemon build-agent build-web-ui
 	@echo "› assembling dist into $(DISTDIR)"
 	rm -rf "$(DISTDIR)"
-	mkdir -p "$(DISTDIR)/bin" "$(DISTDIR)/libexec/core/build/bin" "$(DISTDIR)/libexec/agent" "$(DISTDIR)/libexec/scripts"
+	mkdir -p "$(DISTDIR)/bin" "$(DISTDIR)/libexec/core/build/bin" "$(DISTDIR)/libexec/agent/web-ui" "$(DISTDIR)/libexec/scripts"
 	cp "$(BIN)/cberg-index" "$(BIN)/codeberg-d" "$(DISTDIR)/libexec/core/build/bin/"
 	cp -R "$(AGENT)/dist" "$(DISTDIR)/libexec/agent/dist"
+	cp -R "$(AGENT)/web-ui/dist" "$(DISTDIR)/libexec/agent/web-ui/dist"
 	cp "$(AGENT)/package.json" "$(AGENT)/package-lock.json" "$(DISTDIR)/libexec/agent/"
 	cd "$(DISTDIR)/libexec/agent" && npm ci --omit=dev --no-audit --no-fund
 	cp "$(ROOT)/scripts/fetch-model.sh" "$(DISTDIR)/libexec/scripts/"
@@ -168,6 +178,15 @@ run-agent-tui:
 	@$(call load_env,$(AGENT_ENV)); \
 	if [ -z "$${CODEBERG_MODEL:-}" ]; then echo "error: set CODEBERG_MODEL=provider:model in $(AGENT_ENV) (e.g. anthropic:claude-haiku-4-5) plus the matching API key"; exit 1; fi; \
 	cd $(AGENT) && exec node dist/tui.js $(q)
+
+# Serve the browser chat UI. Builds the SPA too so the rich UI shows (without it
+# the server still works, falling back to an embedded page). Port: CODEBERG_WEB_PORT.
+run-agent-web:
+	@test -f $(AGENT)/dist/web.js || $(MAKE) build-agent
+	@test -f $(AGENT)/web-ui/dist/index.html || $(MAKE) build-web-ui
+	@$(call load_env,$(AGENT_ENV)); \
+	if [ -z "$${CODEBERG_MODEL:-}" ]; then echo "error: set CODEBERG_MODEL=provider:model in $(AGENT_ENV) (e.g. anthropic:claude-haiku-4-5) plus the matching API key"; exit 1; fi; \
+	cd $(AGENT) && exec node dist/web.js
 
 set-version:
 	./scripts/set-version.sh $(v)

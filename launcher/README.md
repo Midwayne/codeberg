@@ -7,7 +7,14 @@ hands the terminal to the agent TUI.
 
 ```sh
 codeberg            # boot everything, open the chat TUI
+codeberg --web      # …or open the chat in your browser instead
 ```
+
+`--web` runs the same agent behind a local HTTP server (`codeberg-web`) and opens
+the browser chat at `http://127.0.0.1:48088` — an uncommon high port (not the
+much-contended 3000), grouped just past the daemon's 48080. Override it with
+`--web-port` / `CODEBERG_WEB_PORT`, or make web the default with
+`CODEBERG_WEB=true`.
 
 ## Why it's a separate component
 
@@ -31,6 +38,7 @@ codeberg
   ├─ start codeberg-d ──spawns──▶ cberg-index      (logs: ~/.codeberg/logs)
   ├─ poll GET /health until ready  (first cold index is slow — up to 15m)
   └─ exec  node agent/dist/tui.js   (your terminal)
+        │     …or with --web: node agent/dist/web.js, then open the browser
         └─ on exit / SIGTERM ▶ stop daemon ▶ daemon stops the core
 ```
 
@@ -148,6 +156,7 @@ layers. See `codeberg help` for common workflows.
 | Command | Does |
 |---|---|
 | `codeberg` / `codeberg run` | bootstrap if needed, then boot daemon + TUI |
+| `codeberg --web` | same, but serve the browser chat UI instead of the TUI |
 | `codeberg build` | force (re)build/download of components and model |
 | `codeberg doctor` | toolchain + artifact + config diagnostics |
 | `codeberg config` | print resolved config |

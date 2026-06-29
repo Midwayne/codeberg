@@ -83,8 +83,10 @@ func parseShared(name string, args []string) (*config.Overrides, error) {
 	fs.StringVar(&o.Dist, "dist", "", "prebuilt artifact dir to run (CODEBERG_DIST)")
 	fs.StringVar(&o.Home, "home", "", "managed home dir (default ~/.codeberg)")
 	fs.StringVar(&o.ConfigFile, "config", "", "config file path (default <home>/config)")
+	fs.StringVar(&o.WebPort, "web-port", "", "web UI port (default "+config.DefaultWebPort+")")
 	noVector := fs.Bool("no-vector", false, "chunk-only mode (skip embedding model)")
 	vector := fs.Bool("vector", false, "force vector search on")
+	web := fs.Bool("web", false, "serve the browser chat UI instead of the terminal TUI")
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), "Usage: codeberg %s [flags]\n\nFlags:\n", name)
 		fs.PrintDefaults()
@@ -99,6 +101,10 @@ func parseShared(name string, args []string) (*config.Overrides, error) {
 	if *vector {
 		v := true
 		o.Vector = &v
+	}
+	if *web {
+		v := true
+		o.Web = &v
 	}
 	return o, nil
 }
@@ -368,6 +374,7 @@ func cmdDoctor(args []string) error {
 		reportFile("cberg-index (core)", a.IndexBin)
 		reportFile("codeberg-d (daemon)", a.DaemonBin)
 		reportFile("agent TUI", a.TUIScript)
+		reportFile("agent web UI (--web)", a.WebScript)
 	}
 	if c.Vector {
 		reportFile("embedding model", c.EmbedModel)
@@ -396,6 +403,7 @@ indexer), waits for it to be healthy, and opens the agent chat — like claude.
 
 USAGE
   codeberg [flags]               boot everything and open the chat TUI
+  codeberg --web [flags]         …or open the chat in a browser instead of the TUI
   codeberg build [flags]         (re)build/download components and the model
   codeberg doctor                check toolchains, binaries, and resolved config
   codeberg config [sub]          view/change configuration (see below)
@@ -435,6 +443,8 @@ KEY SETTINGS
   CODEBERG_MODEL    LLM as provider:model          (--model)
   CODEBERG_VECTOR   false = chunk-only, skip model (--no-vector)
   CODEBERG_HTTP_PORT  daemon port (default 48080)  (--port)
+  CODEBERG_WEB      true = open the browser UI      (--web)
+  CODEBERG_WEB_PORT   browser UI port (default 48088)  (--web-port)
   CODEBERG_REASONING  reasoning effort             (--reasoning)
   ANTHROPIC_API_KEY / OPENAI_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY
 

@@ -1,19 +1,22 @@
 // Package run owns process lifecycle: it starts codeberg-d (which itself spawns
 // and supervises the C cberg-index), waits for the daemon's /health to come up,
-// then hands the terminal to the Node TUI. When the TUI exits — or the launcher
-// is told to stop — it SIGTERMs the daemon, whose own shutdown tears the core
-// down with it.
+// then runs the Node front end in the foreground — the terminal TUI by default,
+// or the browser-UI server (codeberg-web) when c.Web is set. When that front end
+// exits — or the launcher is told to stop — it SIGTERMs the daemon, whose own
+// shutdown tears the core down with it.
 package run
 
 import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"syscall"
 	"time"
@@ -109,12 +112,12 @@ func Run(c *config.Config) error {
 		return err
 	}
 	progress.stopLive()
-	fmt.Fprintf(os.Stderr, "\n✓ daemon ready at %s — launching chat\n\n", c.DaemonURL)
 
-	// --- run the TUI in the foreground ---------------------------------------
-	// SIGINT (Ctrl-C) is left to the TUI, which shares this terminal's process
-	// group and uses it to interrupt generation. SIGTERM means "shut down", so
-	// we stop the daemon and let the deferred teardown finish.
+	// --- run the front end in the foreground ---------------------------------
+	// Either the terminal TUI or, with --web, the browser-UI server. Both share
+	// this terminal's process group: SIGINT (Ctrl-C) reaches the child, which
+	// uses it to interrupt generation (TUI) or to exit (web). SIGTERM means
+	// "shut down", so we stop the daemon and let the deferred teardown finish.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(sigCh)
@@ -127,25 +130,74 @@ func Run(c *config.Config) error {
 		}
 	}()
 
-	tui := exec.Command(node, a.TUIScript)
-	tui.Dir = root
-	tui.Env = mergeEnv(os.Environ(), c.AgentEnv())
-	tui.Stdin = os.Stdin
-	tui.Stdout = os.Stdout
-	tui.Stderr = os.Stderr
-	err = tui.Run()
+	label := "chat"
+	script := a.TUIScript
+	if c.Web {
+		label = "browser chat UI"
+		script = a.WebScript
+		if _, err := os.Stat(script); err != nil {
+			return fmt.Errorf("web UI server missing (%s); run `codeberg build`", script)
+		}
+		url := fmt.Sprintf("http://127.0.0.1:%s", c.WebPort)
+		fmt.Fprintf(os.Stderr, "\n✓ daemon ready — serving the chat UI at %s\n  (opening your browser; press Ctrl-C here to stop)\n\n", url)
+		// The server binds a moment after node starts, so wait for the port to
+		// accept connections before opening the browser — best effort.
+		go openBrowserWhenReady(c.WebPort)
+	} else {
+		fmt.Fprintf(os.Stderr, "\n✓ daemon ready at %s — launching chat\n\n", c.DaemonURL)
+	}
+
+	front := exec.Command(node, script)
+	front.Dir = root
+	front.Env = mergeEnv(os.Environ(), c.AgentEnv())
+	front.Stdin = os.Stdin
+	front.Stdout = os.Stdout
+	front.Stderr = os.Stderr
+	err = front.Run()
 
 	stop()
 	if err != nil {
-		// A non-zero TUI exit from Ctrl-C is normal; surface other failures.
+		// A non-zero exit from Ctrl-C is normal; surface other failures.
 		if ee, ok := err.(*exec.ExitError); ok {
 			if status, ok := ee.Sys().(syscall.WaitStatus); ok && status.Signaled() {
 				return nil
 			}
 		}
-		return fmt.Errorf("agent TUI exited: %w", err)
+		return fmt.Errorf("agent %s exited: %w", label, err)
 	}
 	return nil
+}
+
+// openBrowserWhenReady polls the local web port until it accepts a connection
+// (or a short deadline passes), then opens the default browser at that URL. It
+// is best effort: any failure just leaves the user to open the URL themselves.
+func openBrowserWhenReady(port string) {
+	addr := net.JoinHostPort("127.0.0.1", port)
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		conn, err := net.DialTimeout("tcp", addr, 500*time.Millisecond)
+		if err == nil {
+			conn.Close()
+			openBrowser("http://" + addr)
+			return
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+}
+
+// openBrowser launches the platform's default handler for url, detached, and
+// ignores the result — codeberg keeps running whether or not a browser opens.
+func openBrowser(url string) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", url)
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	default: // linux, *bsd
+		cmd = exec.Command("xdg-open", url)
+	}
+	_ = cmd.Start()
 }
 
 func startDaemon(bin, root string, c *config.Config, out io.Writer) (*exec.Cmd, error) {

@@ -33,6 +33,38 @@ codeberg-tui anthropic:claude-sonnet-4-6
 The TUI owns its own input and session, so the CLI-only `--once` / seeded-question
 flags do not apply here — pass just `provider:model` and chat. Exit with `Ctrl+C`.
 
+## Web
+
+The browser counterpart to the TUI — a React chat UI (ai-sdk `useChat` +
+[streamdown](https://github.com/vercel/streamdown)) with streaming markdown,
+syntax-highlighted code, collapsible reasoning, generic tool cards, and
+`search_code` results rendered as file cards with snippets:
+
+```sh
+cd web-ui && npm install && npm run build   # one-time: build the SPA
+codeberg-web anthropic:claude-sonnet-4-6     # → http://127.0.0.1:48088
+```
+
+Set `CODEBERG_WEB_PORT` (or `PORT`) for the port, or `CODEBERG_WEB_ROOT` to point
+at a prebuilt SPA elsewhere. Like the TUI, it ignores the `--once` /
+seeded-question flags — pass just `provider:model`.
+
+Both UIs drive the identical `toolLoopAgent()`. The route (`POST /api/chat`) is
+stateless: the browser holds the conversation and re-sends it each turn, mapping
+straight onto ai-sdk's `pipeAgentUIStreamToResponse`. If `web-ui/dist` is not
+built, the server falls back to a dependency-free single-file page, so
+`codeberg-web` still works with no frontend build at all.
+
+### Frontend dev
+
+```sh
+cd web-ui && npm run dev    # Vite on :5173, /api proxied to codeberg-web (:48088)
+```
+
+The UI is built on the same engine as Vercel's AI Elements; `web-ui/components.json`
+is included so you can `npx ai-elements@latest add <component>` to pull official
+components in.
+
 ## Layout
 
 ```
@@ -41,6 +73,8 @@ src/
   providers/  model registry
   cli/        codeberg-ask
   tui/        codeberg-tui
+  web/        codeberg-web (node:http: /api/chat + serves the SPA)
+web-ui/       React chat SPA (Vite); built to web-ui/dist, served by codeberg-web
 ```
 
 ## Providers

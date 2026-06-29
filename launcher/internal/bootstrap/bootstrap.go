@@ -41,7 +41,23 @@ func Ensure(c *config.Config, force bool) error {
 	// Skip the check when nothing needs (re)building: an up-to-date tree already
 	// proved the toolchain works, so don't gate a plain run on it.
 	a := config.LocateArtifacts(c.Repo)
-	if force || !exists(a.DaemonBin) || !exists(a.IndexBin) || !exists(a.TUIScript) {
+	// The React SPA codeberg-web serves; only built for --web. Its absence is not
+	// fatal (the server falls back to an embedded page), but with --web we build
+	// it so the rich UI shows.
+	webUIIndex := filepath.Join(c.Repo, "agent", "web-ui", "dist", "index.html")
+
+	needDaemon := force || !exists(a.DaemonBin) || !exists(a.IndexBin)
+	// The agent bundle ships both tui.js and web.js from one build, so a missing
+	// web.js (only needed for --web) also triggers an agent rebuild.
+	needAgent := force || !exists(a.TUIScript) || (c.Web && !exists(a.WebScript))
+	needWebUI := c.Web && (force || !exists(webUIIndex))
+
+	// Make sure the toolchains/libraries the Makefile shells out to exist (and
+	// auto-install the missing ones) before we invoke it — a missing cmake, Go,
+	// Node, or ONNX runtime otherwise surfaces as an opaque mid-build failure.
+	// Skip the check when nothing needs (re)building: an up-to-date tree already
+	// proved the toolchain works, so don't gate a plain run on it.
+	if needDaemon || needAgent || needWebUI {
 		if err := deps.Ensure(os.Stderr); err != nil {
 			return err
 		}
@@ -49,7 +65,7 @@ func Ensure(c *config.Config, force bool) error {
 
 	// codeberg-d + cberg-index: `make build-daemon` builds the core first if
 	// needed, then the Go daemon — so one target covers both binaries.
-	if force || !exists(a.DaemonBin) || !exists(a.IndexBin) {
+	if needDaemon {
 		if err := makeTarget(c.Repo, "build-daemon", "core + daemon"); err != nil {
 			return err
 		}
@@ -57,13 +73,22 @@ func Ensure(c *config.Config, force bool) error {
 		skip("core + daemon")
 	}
 
-	// agent/dist (the TUI bundle): `make build-agent` runs npm install + build.
-	if force || !exists(a.TUIScript) {
-		if err := makeTarget(c.Repo, "build-agent", "agent (TUI)"); err != nil {
+	// agent/dist (the TUI + web bundles): `make build-agent` runs npm install + build.
+	if needAgent {
+		if err := makeTarget(c.Repo, "build-agent", "agent (TUI + web)"); err != nil {
 			return err
 		}
 	} else {
-		skip("agent (TUI)")
+		skip("agent (TUI + web)")
+	}
+
+	// web-ui/dist (the browser SPA): `make build-web-ui` runs npm install + vite build.
+	if needWebUI {
+		if err := makeTarget(c.Repo, "build-web-ui", "agent (web UI)"); err != nil {
+			return err
+		}
+	} else if c.Web {
+		skip("agent (web UI)")
 	}
 
 	if c.Vector {
