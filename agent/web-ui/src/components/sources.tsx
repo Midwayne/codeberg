@@ -1,7 +1,7 @@
 import { FileCode, Loader2, Search } from "lucide-react";
 
 import { Response } from "@/components/response";
-import { CopyButton } from "@/components/ui";
+import { Collapsible, CopyButton } from "@/components/ui";
 import { langFromPath } from "@/lib/utils";
 import type { ToolView } from "@/components/message";
 
@@ -36,21 +36,24 @@ export function SearchResults({ part }: { part: ToolView }) {
 
   const hits: Hit[] = Array.isArray(part.output) ? (part.output as Hit[]) : [];
 
+  // Collapsible like reasoning/tool panels, but default-open: the hits are the
+  // primary surface, so folding is opt-in (handy when the agent searches many
+  // times) rather than the default. The summary keeps the count + query visible
+  // when collapsed.
   return (
-    <div className="my-2 space-y-2">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Search className="size-3.5" />
-        <span>
-          {hits.length} result{hits.length === 1 ? "" : "s"}
-          {query ? ` for “${query}”` : ""}
-        </span>
-      </div>
+    <Collapsible
+      icon={<Search className="size-3.5" />}
+      title={`${hits.length} result${hits.length === 1 ? "" : "s"}${
+        query ? ` for “${query}”` : ""
+      }`}
+      defaultOpen
+    >
       <div className="grid gap-2">
         {hits.map((hit, i) => (
           <SourceCard key={hit.id ?? i} hit={hit} />
         ))}
       </div>
-    </div>
+    </Collapsible>
   );
 }
 
