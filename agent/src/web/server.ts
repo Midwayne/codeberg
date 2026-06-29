@@ -10,11 +10,14 @@ import { extname, join, resolve, sep } from "node:path";
 import { pipeAgentUIStreamToResponse, type ToolLoopAgent } from "ai";
 
 import { CHAT_PAGE_HTML } from "./page.js";
+import { WebSessionStore, isValidSessionId } from "./sessions.js";
 
 /** The endpoint the browser chat client posts its message history to. */
 export const CHAT_PATH = "/api/chat";
 /** Lightweight metadata (active model/daemon) for the UI title bar. */
 export const META_PATH = "/api/meta";
+/** Saved-chat CRUD: list (`GET`), and load/save/delete one at `/api/sessions/<id>`. */
+export const SESSIONS_PATH = "/api/sessions";
 
 /** Streams an agent turn to a Node response, given the client's UI messages. */
 export type ChatResponder = (
@@ -39,6 +42,12 @@ export interface WebServerOptions {
    * routing without a live model.
    */
   respond?: ChatResponder;
+  /**
+   * Backs the `/api/sessions` routes that persist browser chats so they can be
+   * listed and resumed. Defaults to a `WebSessionStore` under `<CODEBERG_HOME>/
+   * web-sessions`; inject one (e.g. a temp dir) in tests.
+   */
+  sessionStore?: WebSessionStore;
 }
 
 /**
@@ -60,9 +69,10 @@ export function createRequestHandler(
         agent: opts.agent,
         uiMessages: messages,
       }));
+  const sessions = opts.sessionStore ?? new WebSessionStore();
 
   return (req, res) => {
-    route(req, res, opts, respond).catch((err: unknown) => {
+    route(req, res, opts, respond, sessions).catch((err: unknown) => {
       // `respond` writes the SSE headers itself, so only set a status if the
       // stream had not started yet.
       if (!res.headersSent) {
@@ -78,6 +88,7 @@ async function route(
   res: ServerResponse,
   opts: WebServerOptions,
   respond: ChatResponder,
+  sessions: WebSessionStore,
 ): Promise<void> {
   const path = (req.url ?? "/").split("?")[0];
 
@@ -91,6 +102,11 @@ async function route(
   if (req.method === "GET" && path === META_PATH) {
     res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
     res.end(JSON.stringify({ title: opts.title }));
+    return;
+  }
+
+  if (path === SESSIONS_PATH || path.startsWith(SESSIONS_PATH + "/")) {
+    await routeSessions(req, res, sessions, path);
     return;
   }
 
@@ -115,6 +131,74 @@ async function route(
 
   res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
   res.end("not found");
+}
+
+/**
+ * The `/api/sessions` surface: `GET /api/sessions` lists saved chats; `GET`,
+ * `PUT`, and `DELETE` on `/api/sessions/<id>` load, upsert, and remove one. The
+ * client owns the conversation and the id (so persistence is just CRUD over the
+ * store), and the id charset is validated up front against path traversal.
+ */
+async function routeSessions(
+  req: IncomingMessage,
+  res: ServerResponse,
+  store: WebSessionStore,
+  path: string,
+): Promise<void> {
+  const rest = decodeURIComponent(path.slice(SESSIONS_PATH.length).replace(/^\//, ""));
+
+  // Collection: list saved chats.
+  if (rest === "") {
+    if (req.method !== "GET") {
+      return sendText(res, 405, "method not allowed");
+    }
+    return sendJson(res, 200, await store.list());
+  }
+
+  // Item: one chat by id.
+  const id = rest;
+  if (!isValidSessionId(id)) {
+    return sendText(res, 400, "invalid session id");
+  }
+
+  switch (req.method) {
+    case "GET": {
+      const record = await store.load(id);
+      return record ? sendJson(res, 200, record) : sendText(res, 404, "not found");
+    }
+    case "PUT": {
+      const body = await readJson(req);
+      const messages = Array.isArray(body?.messages) ? body.messages : [];
+      const rawTitle = typeof body?.title === "string" ? body.title.trim() : "";
+      const now = Date.now();
+      const existing = await store.load(id);
+      await store.save({
+        id,
+        title: rawTitle || "New chat",
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+        messages,
+      });
+      return sendJson(res, 200, { ok: true });
+    }
+    case "DELETE": {
+      await store.remove(id);
+      res.writeHead(204).end();
+      return;
+    }
+    default:
+      return sendText(res, 405, "method not allowed");
+  }
+}
+
+function sendJson(res: ServerResponse, status: number, value: unknown): void {
+  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
+  res.end(JSON.stringify(value));
+}
+
+function sendText(res: ServerResponse, status: number, body: string): void {
+  res.writeHead(status, { "Content-Type": "text/plain; charset=utf-8" });
+  res.end(body);
 }
 
 /**
@@ -190,7 +274,7 @@ function contentType(file: string): string {
 
 async function readJson(
   req: IncomingMessage,
-): Promise<{ messages?: unknown } | null> {
+): Promise<Record<string, unknown> | null> {
   const chunks: Buffer[] = [];
   for await (const chunk of req) {
     chunks.push(chunk as Buffer);

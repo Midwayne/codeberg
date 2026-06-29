@@ -8,10 +8,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   CHAT_PATH,
   META_PATH,
+  SESSIONS_PATH,
   createWebServer,
   type ChatResponder,
   type WebServerOptions,
 } from "./server.js";
+import { WebSessionStore } from "./sessions.js";
 
 // `agent` is unused when `respond` is injected; cast a stub so the tests can
 // drive routing without a live model.
@@ -31,6 +33,12 @@ async function start(opts: Partial<WebServerOptions> = {}): Promise<string> {
     );
   baseUrl = `http://127.0.0.1:${port}`;
   return baseUrl;
+}
+
+function tempSessionStore(): WebSessionStore {
+  const dir = mkdtempSync(join(tmpdir(), "codeberg-web-sessions-"));
+  tempDirs.push(dir);
+  return new WebSessionStore(dir);
 }
 
 function makeStaticRoot(): string {
@@ -149,5 +157,45 @@ describe("web server", () => {
     });
 
     expect(received).toEqual([]);
+  });
+
+  it("persists, lists, resumes, and deletes chat sessions", async () => {
+    await start({ sessionStore: tempSessionStore() });
+    const url = `${baseUrl}${SESSIONS_PATH}`;
+
+    // Empty to begin with.
+    expect(await (await fetch(url)).json()).toEqual([]);
+
+    // Upsert a session (client owns id + messages).
+    const messages = [
+      { id: "1", role: "user", parts: [{ type: "text", text: "how does auth work" }] },
+      { id: "2", role: "assistant", parts: [{ type: "text", text: "via tokens" }] },
+    ];
+    const put = await fetch(`${url}/abc123`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "auth", messages }),
+    });
+    expect(put.status).toBe(200);
+
+    // It shows up in the list with a turn count.
+    const list = await (await fetch(url)).json();
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ id: "abc123", title: "auth", turns: 1 });
+
+    // Resuming returns the messages verbatim.
+    const record = await (await fetch(`${url}/abc123`)).json();
+    expect(record.messages).toEqual(messages);
+
+    // Delete removes it.
+    expect((await fetch(`${url}/abc123`, { method: "DELETE" })).status).toBe(204);
+    expect(await (await fetch(url)).json()).toEqual([]);
+  });
+
+  it("404s a missing session and 400s a traversal id", async () => {
+    await start({ sessionStore: tempSessionStore() });
+    expect((await fetch(`${baseUrl}${SESSIONS_PATH}/missing`)).status).toBe(404);
+    // encoded `../` id is rejected before it can reach the filesystem
+    expect((await fetch(`${baseUrl}${SESSIONS_PATH}/..%2f..%2fetc`)).status).toBe(400);
   });
 });

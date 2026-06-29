@@ -37,8 +37,9 @@ flags do not apply here — pass just `provider:model` and chat. Exit with `Ctrl
 
 The browser counterpart to the TUI — a React chat UI (ai-sdk `useChat` +
 [streamdown](https://github.com/vercel/streamdown)) with streaming markdown,
-syntax-highlighted code, collapsible reasoning, generic tool cards, and
-`search_code` results rendered as file cards with snippets:
+syntax-highlighted code, collapsible reasoning, generic tool cards,
+`search_code` results rendered as collapsible file cards with snippets, and a
+toggleable sidebar of saved, resumable chats:
 
 ```sh
 cd web-ui && npm install && npm run build   # one-time: build the SPA
@@ -49,11 +50,21 @@ Set `CODEBERG_WEB_PORT` (or `PORT`) for the port, or `CODEBERG_WEB_ROOT` to poin
 at a prebuilt SPA elsewhere. Like the TUI, it ignores the `--once` /
 seeded-question flags — pass just `provider:model`.
 
-Both UIs drive the identical `toolLoopAgent()`. The route (`POST /api/chat`) is
-stateless: the browser holds the conversation and re-sends it each turn, mapping
-straight onto ai-sdk's `pipeAgentUIStreamToResponse`. If `web-ui/dist` is not
-built, the server falls back to a dependency-free single-file page, so
+Both UIs drive the identical `toolLoopAgent()`. The chat route (`POST /api/chat`)
+is stateless: the browser holds the conversation and re-sends it each turn,
+mapping straight onto ai-sdk's `pipeAgentUIStreamToResponse`. If `web-ui/dist` is
+not built, the server falls back to a dependency-free single-file page, so
 `codeberg-web` still works with no frontend build at all.
+
+### Sessions
+
+Each completed turn is saved to `<CODEBERG_HOME>/web-sessions/<id>.json` (the UI
+messages verbatim, so a resume re-renders with full fidelity) via a small CRUD
+API: `GET /api/sessions` (list), and `GET`/`PUT`/`DELETE /api/sessions/<id>`. The
+sidebar lists saved chats newest-first; click one to resume, "New chat" to start
+fresh, the header button to toggle the panel. These are **separate** from the
+TUI's `/sessions` (which persists `ModelMessage`s under `…/sessions/`) — the two
+message shapes don't convert losslessly, so each surface keeps its own store.
 
 ### Frontend dev
 

@@ -1,12 +1,15 @@
-import { useChat } from "@ai-sdk/react";
+import type { UseChatHelpers } from "@ai-sdk/react";
+import type { UIMessage } from "ai";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import { Message } from "@/components/message";
 import { PromptInput } from "@/components/prompt-input";
 
-export function Chat() {
-  const { messages, sendMessage, status, stop, regenerate, error } = useChat();
+// `useChat` lives in the parent `Workspace` (which also owns session state), so
+// `Chat` is presentational over the helpers it returns.
+export function Chat({ chat }: { chat: UseChatHelpers<UIMessage> }) {
+  const { messages, sendMessage, status, stop, regenerate, error } = chat;
   const busy = status === "submitted" || status === "streaming";
 
   const bottomRef = useRef<HTMLDivElement>(null);

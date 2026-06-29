@@ -9,6 +9,15 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Added
 
+- **Saved, resumable web chats** — the browser UI persists each completed turn to
+  `<CODEBERG_HOME>/web-sessions/<id>.json` (UI messages verbatim, so a resume
+  re-renders with full fidelity) behind a small CRUD API (`GET /api/sessions`,
+  and `GET`/`PUT`/`DELETE /api/sessions/<id>`). A toggleable sidebar lists saved
+  chats newest-first to resume, delete, or start a new one. Kept separate from the
+  TUI's `ModelMessage` session store, which doesn't convert losslessly.
+- **Collapsible search results in the web UI** — `search_code` results fold into
+  the same disclosure used for reasoning and tool panels (default-open, since the
+  hits are the primary surface), with the count and query as the summary.
 - **Browser chat UI from the launcher** — `codeberg --web` boots the same stack
   but serves the chat in a browser (via `codeberg-web`) instead of the terminal
   TUI, opening `http://127.0.0.1:48088` once the daemon is healthy. It defaults to

@@ -625,11 +625,11 @@ Providers: openai, anthropic, google (when API keys set)`;
 }
 
 // src/web/server.ts
-import { readFile } from "fs/promises";
+import { readFile as readFile2 } from "fs/promises";
 import {
   createServer
 } from "http";
-import { extname, join, resolve, sep } from "path";
+import { extname, join as join2, resolve, sep } from "path";
 import { pipeAgentUIStreamToResponse } from "ai";
 
 // src/web/page.ts
@@ -806,17 +806,86 @@ function setBusy(b) { input.disabled = b; form.querySelector("button").disabled 
 </body>
 </html>`;
 
+// src/web/sessions.ts
+import { mkdir, readFile, readdir, unlink, writeFile } from "fs/promises";
+import { homedir } from "os";
+import { join } from "path";
+function isValidSessionId(id) {
+  return /^[A-Za-z0-9_-]{1,64}$/.test(id);
+}
+function home(env2 = process.env) {
+  return env2.CODEBERG_HOME ?? join(homedir(), ".codeberg");
+}
+function countTurns(messages) {
+  return messages.filter((m) => m.role === "user").length;
+}
+var WebSessionStore = class {
+  dir;
+  constructor(dir) {
+    this.dir = dir ?? join(home(), "web-sessions");
+  }
+  async save(record) {
+    await mkdir(this.dir, { recursive: true });
+    await writeFile(
+      join(this.dir, `${record.id}.json`),
+      JSON.stringify(record, null, 2),
+      "utf8"
+    );
+  }
+  async load(id) {
+    try {
+      const raw = await readFile(join(this.dir, `${id}.json`), "utf8");
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  /** All sessions, newest first. Corrupt/unreadable files are skipped. */
+  async list() {
+    let files;
+    try {
+      files = await readdir(this.dir);
+    } catch {
+      return [];
+    }
+    const summaries = [];
+    for (const file of files) {
+      if (!file.endsWith(".json")) {
+        continue;
+      }
+      const record = await this.load(file.slice(0, -".json".length));
+      if (record) {
+        summaries.push({
+          id: record.id,
+          title: record.title,
+          updatedAt: record.updatedAt,
+          turns: countTurns(record.messages)
+        });
+      }
+    }
+    return summaries.sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+  async remove(id) {
+    try {
+      await unlink(join(this.dir, `${id}.json`));
+    } catch {
+    }
+  }
+};
+
 // src/web/server.ts
 var CHAT_PATH = "/api/chat";
 var META_PATH = "/api/meta";
+var SESSIONS_PATH = "/api/sessions";
 function createRequestHandler(opts) {
   const respond = opts.respond ?? ((res, messages) => pipeAgentUIStreamToResponse({
     response: res,
     agent: opts.agent,
     uiMessages: messages
   }));
+  const sessions = opts.sessionStore ?? new WebSessionStore();
   return (req, res) => {
-    route(req, res, opts, respond).catch((err) => {
+    route(req, res, opts, respond, sessions).catch((err) => {
       if (!res.headersSent) {
         res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
       }
@@ -824,7 +893,7 @@ function createRequestHandler(opts) {
     });
   };
 }
-async function route(req, res, opts, respond) {
+async function route(req, res, opts, respond, sessions) {
   const path = (req.url ?? "/").split("?")[0];
   if (req.method === "POST" && path === CHAT_PATH) {
     const body = await readJson(req);
@@ -835,6 +904,10 @@ async function route(req, res, opts, respond) {
   if (req.method === "GET" && path === META_PATH) {
     res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
     res.end(JSON.stringify({ title: opts.title }));
+    return;
+  }
+  if (path === SESSIONS_PATH || path.startsWith(SESSIONS_PATH + "/")) {
+    await routeSessions(req, res, sessions, path);
     return;
   }
   if (path.startsWith("/api/")) {
@@ -854,6 +927,55 @@ async function route(req, res, opts, respond) {
   res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
   res.end("not found");
 }
+async function routeSessions(req, res, store, path) {
+  const rest = decodeURIComponent(path.slice(SESSIONS_PATH.length).replace(/^\//, ""));
+  if (rest === "") {
+    if (req.method !== "GET") {
+      return sendText(res, 405, "method not allowed");
+    }
+    return sendJson(res, 200, await store.list());
+  }
+  const id = rest;
+  if (!isValidSessionId(id)) {
+    return sendText(res, 400, "invalid session id");
+  }
+  switch (req.method) {
+    case "GET": {
+      const record = await store.load(id);
+      return record ? sendJson(res, 200, record) : sendText(res, 404, "not found");
+    }
+    case "PUT": {
+      const body = await readJson(req);
+      const messages = Array.isArray(body?.messages) ? body.messages : [];
+      const rawTitle = typeof body?.title === "string" ? body.title.trim() : "";
+      const now = Date.now();
+      const existing = await store.load(id);
+      await store.save({
+        id,
+        title: rawTitle || "New chat",
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+        messages
+      });
+      return sendJson(res, 200, { ok: true });
+    }
+    case "DELETE": {
+      await store.remove(id);
+      res.writeHead(204).end();
+      return;
+    }
+    default:
+      return sendText(res, 405, "method not allowed");
+  }
+}
+function sendJson(res, status, value) {
+  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
+  res.end(JSON.stringify(value));
+}
+function sendText(res, status, body) {
+  res.writeHead(status, { "Content-Type": "text/plain; charset=utf-8" });
+  res.end(body);
+}
 async function serveStatic(res, staticRoot, urlPath) {
   if (!staticRoot) {
     return false;
@@ -862,7 +984,7 @@ async function serveStatic(res, staticRoot, urlPath) {
     const file = safeJoin(staticRoot, urlPath);
     if (file) {
       try {
-        const data = await readFile(file);
+        const data = await readFile2(file);
         res.writeHead(200, {
           "Content-Type": contentType(file),
           "Cache-Control": "public, max-age=31536000, immutable"
@@ -874,7 +996,7 @@ async function serveStatic(res, staticRoot, urlPath) {
     }
   }
   try {
-    const html = await readFile(join(staticRoot, "index.html"));
+    const html = await readFile2(join2(staticRoot, "index.html"));
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
     res.end(html);
     return true;
@@ -887,7 +1009,7 @@ function createWebServer(opts) {
 }
 function safeJoin(root, urlPath) {
   const decoded = decodeURIComponent(urlPath);
-  const full = resolve(join(root, decoded));
+  const full = resolve(join2(root, decoded));
   const base = resolve(root);
   return full === base || full.startsWith(base + sep) ? full : null;
 }
