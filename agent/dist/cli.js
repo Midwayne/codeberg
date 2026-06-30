@@ -147,6 +147,137 @@ function fromAiSdk(model) {
   };
 }
 
+// src/core/hooks/enhance.ts
+var ENHANCE_RE = /^\/enhance(?:\s+|$)([\s\S]*)$/i;
+var enhancePromptHook = {
+  name: "enhance",
+  command: {
+    trigger: "/enhance",
+    title: "Enhance prompt",
+    summary: "Turn a request into an agent-ready brief",
+    description: "Searches the codebase for the impacted files, symbols, and tests, then returns a copy-pasteable brief (objective, impacted areas, guidance, verification) for a coding agent \u2014 instead of implementing the change itself.",
+    argHint: "<request>"
+  },
+  rewrite({ text }) {
+    const match = text.trim().match(ENHANCE_RE);
+    if (!match) {
+      return void 0;
+    }
+    const prompt = match[1]?.trim();
+    if (!prompt) {
+      return [
+        "The user typed /enhance without a prompt.",
+        "Ask them for the implementation request they want turned into an agent-ready brief."
+      ].join("\n");
+    }
+    return [
+      "You are running Codeberg's /enhance prompt hook.",
+      "",
+      "Goal: turn the user's rough request into a copy-pasteable brief for a coding agent/harness. Do not implement code. Use the available code-search tools first to map the impacted areas, then return only the brief.",
+      "",
+      "User request:",
+      prompt,
+      "",
+      "Return this exact Markdown structure:",
+      "",
+      "# Agent Brief",
+      "## Objective",
+      "State the requested outcome in one or two sentences.",
+      "## Impacted Areas",
+      "List concrete files, symbols, routes, APIs, tests, or docs likely affected. Include line ranges when available and a short reason for each.",
+      "## Current Behavior And Context",
+      "Summarize the relevant existing implementation discovered by search.",
+      "## Implementation Guidance",
+      "Give concise steps the coding agent should follow. Mention constraints and existing patterns to preserve.",
+      "## Verification",
+      "List targeted tests, typechecks, builds, or manual checks to run.",
+      "## Open Questions",
+      "List only blockers or ambiguity that search could not resolve. Use 'None' if there are none."
+    ].join("\n");
+  }
+};
+
+// src/core/hooks/defaults.ts
+var DEFAULT_PROMPT_HOOKS = [enhancePromptHook];
+
+// src/core/hooks/runtime.ts
+function applyPromptHooksToMessages(messages, hooks = DEFAULT_PROMPT_HOOKS) {
+  if (hooks.length === 0) {
+    return messages;
+  }
+  const index = lastUserIndex(messages);
+  if (index < 0) {
+    return messages;
+  }
+  const current = messages[index];
+  const text = messageText(current);
+  const rewritten = rewriteText(text, messages, hooks);
+  if (!rewritten || rewritten === text) {
+    return messages;
+  }
+  const next = messages.slice();
+  next[index] = { ...current, content: rewritten };
+  return next;
+}
+function applyPromptHooksToText(text, hooks = DEFAULT_PROMPT_HOOKS) {
+  if (hooks.length === 0) {
+    return text;
+  }
+  const messages = [{ role: "user", content: text }];
+  return rewriteText(text, messages, hooks) ?? text;
+}
+function wrapToolLoopAgentWithPromptHooks(loop, hooks = DEFAULT_PROMPT_HOOKS) {
+  if (hooks.length === 0) {
+    return loop;
+  }
+  return new Proxy(loop, {
+    get(target, prop) {
+      if (prop === "generate") {
+        return (params) => target.generate(rewriteParams(params, hooks));
+      }
+      if (prop === "stream") {
+        return (params) => target.stream(rewriteParams(params, hooks));
+      }
+      const value = Reflect.get(target, prop, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    }
+  });
+}
+function rewriteParams(params, hooks) {
+  if ("messages" in params && Array.isArray(params.messages)) {
+    const messages = applyPromptHooksToMessages(params.messages, hooks);
+    return messages === params.messages ? params : { ...params, messages };
+  }
+  if ("prompt" in params) {
+    if (Array.isArray(params.prompt)) {
+      const prompt = applyPromptHooksToMessages(params.prompt, hooks);
+      return prompt === params.prompt ? params : { ...params, prompt };
+    }
+    if (typeof params.prompt === "string") {
+      const prompt = applyPromptHooksToText(params.prompt, hooks);
+      return prompt === params.prompt ? params : { ...params, prompt };
+    }
+  }
+  return params;
+}
+function rewriteText(text, messages, hooks) {
+  for (const hook of hooks) {
+    const rewritten = hook.rewrite({ text, messages });
+    if (rewritten !== void 0) {
+      return rewritten;
+    }
+  }
+  return void 0;
+}
+function lastUserIndex(messages) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === "user") {
+      return i;
+    }
+  }
+  return -1;
+}
+
 // src/core/prompt.ts
 var DATA_SOURCE_EXAMPLE = `<example>
 <question>Where do account balances come from?</question>
@@ -341,6 +472,7 @@ var Agent = class {
   generator;
   reasoning;
   profile;
+  promptHooks;
   // Built once on first use (tools require an async daemon round-trip), then
   // reused across every ask instead of reconstructing the loop each call.
   loop;
@@ -358,6 +490,7 @@ var Agent = class {
     this.generator = opts.generator ?? fromAiSdk(opts.model);
     this.reasoning = opts.reasoning;
     this.profile = opts.profile ?? DEFAULT_PROFILE;
+    this.promptHooks = opts.promptHooks ?? DEFAULT_PROMPT_HOOKS;
   }
   async ask(question, opts = {}) {
     this.sources = [];
@@ -411,7 +544,7 @@ var Agent = class {
         this.profile
       );
       const prune = pruneBudget(this.profile);
-      this.loop = new ToolLoopAgent({
+      const loop = new ToolLoopAgent({
         model: this.model,
         // Cache the large, frozen system prompt instead of re-billing it on
         // every tool round and every turn.
@@ -433,6 +566,7 @@ var Agent = class {
           })
         } : void 0
       });
+      this.loop = wrapToolLoopAgentWithPromptHooks(loop, this.promptHooks);
     }
     return this.loop;
   }

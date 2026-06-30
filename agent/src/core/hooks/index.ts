@@ -1,3 +1,4 @@
+export { promptCommandCatalog } from "./catalog.js";
 export { DEFAULT_PROMPT_HOOKS } from "./defaults.js";
 export { enhancePromptHook } from "./enhance.js";
 export {
@@ -5,4 +6,4 @@ export {
   applyPromptHooksToText,
   wrapToolLoopAgentWithPromptHooks,
 } from "./runtime.js";
-export type { PromptHook, PromptHookInput } from "./types.js";
+export type { PromptCommand, PromptHook, PromptHookInput } from "./types.js";

@@ -77,7 +77,7 @@ export function Chat({ chat }: { chat: UseChatHelpers<UIMessage> }) {
             onStop={stop}
           />
           <p className="mt-2 text-center text-[11px] text-muted-foreground">
-            Enter to send · Shift+Enter for newline
+            Enter to send · Shift+Enter for newline · / for commands
           </p>
         </div>
       </div>
@@ -92,6 +92,10 @@ function Empty() {
       <p className="max-w-sm text-sm text-muted-foreground">
         Semantic code search with citations. Try “How is authentication
         handled?” or “Where is the main entry point?”
+      </p>
+      <p className="max-w-sm text-xs text-muted-foreground">
+        Tip: type <span className="font-mono text-foreground">/enhance</span> to
+        turn a rough request into an agent-ready brief.
       </p>
     </div>
   );

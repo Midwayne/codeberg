@@ -9,6 +9,7 @@ import { extname, join, resolve, sep } from "node:path";
 
 import { pipeAgentUIStreamToResponse, type ToolLoopAgent } from "ai";
 
+import { promptCommandCatalog, type PromptCommand } from "../core/hooks/index.js";
 import { CHAT_PAGE_HTML } from "./page.js";
 import { WebSessionStore, isValidSessionId } from "./sessions.js";
 
@@ -16,6 +17,8 @@ import { WebSessionStore, isValidSessionId } from "./sessions.js";
 export const CHAT_PATH = "/api/chat";
 /** Lightweight metadata (active model/daemon) for the UI title bar. */
 export const META_PATH = "/api/meta";
+/** Slash-command catalog (e.g. `/enhance`) for the composer autocomplete. */
+export const COMMANDS_PATH = "/api/commands";
 /** Saved-chat CRUD: list (`GET`), and load/save/delete one at `/api/sessions/<id>`. */
 export const SESSIONS_PATH = "/api/sessions";
 
@@ -48,6 +51,12 @@ export interface WebServerOptions {
    * web-sessions`; inject one (e.g. a temp dir) in tests.
    */
   sessionStore?: WebSessionStore;
+  /**
+   * Slash commands served at `/api/commands` for the composer autocomplete.
+   * Defaults to the built-in hook catalog, so a newly registered prompt hook
+   * shows up in the UI without any wiring here.
+   */
+  commands?: PromptCommand[];
 }
 
 /**
@@ -102,6 +111,11 @@ async function route(
   if (req.method === "GET" && path === META_PATH) {
     res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
     res.end(JSON.stringify({ title: opts.title }));
+    return;
+  }
+
+  if (req.method === "GET" && path === COMMANDS_PATH) {
+    sendJson(res, 200, opts.commands ?? promptCommandCatalog());
     return;
   }
 

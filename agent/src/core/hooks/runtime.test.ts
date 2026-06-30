@@ -47,6 +47,12 @@ describe("/enhance prompt hook", () => {
 describe("wrapToolLoopAgentWithPromptHooks", () => {
   const hook: PromptHook = {
     name: "test",
+    command: {
+      trigger: "/test",
+      title: "Test",
+      summary: "test hook",
+      description: "a hook used only in tests",
+    },
     rewrite: ({ text }) => (text === "hook me" ? "hooked" : undefined),
   };
 

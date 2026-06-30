@@ -150,6 +150,142 @@ function fromAiSdk(model) {
   };
 }
 
+// src/core/hooks/enhance.ts
+var ENHANCE_RE = /^\/enhance(?:\s+|$)([\s\S]*)$/i;
+var enhancePromptHook = {
+  name: "enhance",
+  command: {
+    trigger: "/enhance",
+    title: "Enhance prompt",
+    summary: "Turn a request into an agent-ready brief",
+    description: "Searches the codebase for the impacted files, symbols, and tests, then returns a copy-pasteable brief (objective, impacted areas, guidance, verification) for a coding agent \u2014 instead of implementing the change itself.",
+    argHint: "<request>"
+  },
+  rewrite({ text }) {
+    const match = text.trim().match(ENHANCE_RE);
+    if (!match) {
+      return void 0;
+    }
+    const prompt = match[1]?.trim();
+    if (!prompt) {
+      return [
+        "The user typed /enhance without a prompt.",
+        "Ask them for the implementation request they want turned into an agent-ready brief."
+      ].join("\n");
+    }
+    return [
+      "You are running Codeberg's /enhance prompt hook.",
+      "",
+      "Goal: turn the user's rough request into a copy-pasteable brief for a coding agent/harness. Do not implement code. Use the available code-search tools first to map the impacted areas, then return only the brief.",
+      "",
+      "User request:",
+      prompt,
+      "",
+      "Return this exact Markdown structure:",
+      "",
+      "# Agent Brief",
+      "## Objective",
+      "State the requested outcome in one or two sentences.",
+      "## Impacted Areas",
+      "List concrete files, symbols, routes, APIs, tests, or docs likely affected. Include line ranges when available and a short reason for each.",
+      "## Current Behavior And Context",
+      "Summarize the relevant existing implementation discovered by search.",
+      "## Implementation Guidance",
+      "Give concise steps the coding agent should follow. Mention constraints and existing patterns to preserve.",
+      "## Verification",
+      "List targeted tests, typechecks, builds, or manual checks to run.",
+      "## Open Questions",
+      "List only blockers or ambiguity that search could not resolve. Use 'None' if there are none."
+    ].join("\n");
+  }
+};
+
+// src/core/hooks/defaults.ts
+var DEFAULT_PROMPT_HOOKS = [enhancePromptHook];
+
+// src/core/hooks/catalog.ts
+function promptCommandCatalog(hooks = DEFAULT_PROMPT_HOOKS) {
+  return hooks.map((hook) => hook.command);
+}
+
+// src/core/hooks/runtime.ts
+function applyPromptHooksToMessages(messages, hooks = DEFAULT_PROMPT_HOOKS) {
+  if (hooks.length === 0) {
+    return messages;
+  }
+  const index = lastUserIndex(messages);
+  if (index < 0) {
+    return messages;
+  }
+  const current = messages[index];
+  const text = messageText(current);
+  const rewritten = rewriteText(text, messages, hooks);
+  if (!rewritten || rewritten === text) {
+    return messages;
+  }
+  const next = messages.slice();
+  next[index] = { ...current, content: rewritten };
+  return next;
+}
+function applyPromptHooksToText(text, hooks = DEFAULT_PROMPT_HOOKS) {
+  if (hooks.length === 0) {
+    return text;
+  }
+  const messages = [{ role: "user", content: text }];
+  return rewriteText(text, messages, hooks) ?? text;
+}
+function wrapToolLoopAgentWithPromptHooks(loop, hooks = DEFAULT_PROMPT_HOOKS) {
+  if (hooks.length === 0) {
+    return loop;
+  }
+  return new Proxy(loop, {
+    get(target, prop) {
+      if (prop === "generate") {
+        return (params) => target.generate(rewriteParams(params, hooks));
+      }
+      if (prop === "stream") {
+        return (params) => target.stream(rewriteParams(params, hooks));
+      }
+      const value = Reflect.get(target, prop, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    }
+  });
+}
+function rewriteParams(params, hooks) {
+  if ("messages" in params && Array.isArray(params.messages)) {
+    const messages = applyPromptHooksToMessages(params.messages, hooks);
+    return messages === params.messages ? params : { ...params, messages };
+  }
+  if ("prompt" in params) {
+    if (Array.isArray(params.prompt)) {
+      const prompt = applyPromptHooksToMessages(params.prompt, hooks);
+      return prompt === params.prompt ? params : { ...params, prompt };
+    }
+    if (typeof params.prompt === "string") {
+      const prompt = applyPromptHooksToText(params.prompt, hooks);
+      return prompt === params.prompt ? params : { ...params, prompt };
+    }
+  }
+  return params;
+}
+function rewriteText(text, messages, hooks) {
+  for (const hook of hooks) {
+    const rewritten = hook.rewrite({ text, messages });
+    if (rewritten !== void 0) {
+      return rewritten;
+    }
+  }
+  return void 0;
+}
+function lastUserIndex(messages) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === "user") {
+      return i;
+    }
+  }
+  return -1;
+}
+
 // src/core/prompt.ts
 var DATA_SOURCE_EXAMPLE = `<example>
 <question>Where do account balances come from?</question>
@@ -344,6 +480,7 @@ var Agent = class {
   generator;
   reasoning;
   profile;
+  promptHooks;
   // Built once on first use (tools require an async daemon round-trip), then
   // reused across every ask instead of reconstructing the loop each call.
   loop;
@@ -361,6 +498,7 @@ var Agent = class {
     this.generator = opts.generator ?? fromAiSdk(opts.model);
     this.reasoning = opts.reasoning;
     this.profile = opts.profile ?? DEFAULT_PROFILE;
+    this.promptHooks = opts.promptHooks ?? DEFAULT_PROMPT_HOOKS;
   }
   async ask(question, opts = {}) {
     this.sources = [];
@@ -414,7 +552,7 @@ var Agent = class {
         this.profile
       );
       const prune = pruneBudget(this.profile);
-      this.loop = new ToolLoopAgent({
+      const loop = new ToolLoopAgent({
         model: this.model,
         // Cache the large, frozen system prompt instead of re-billing it on
         // every tool round and every turn.
@@ -436,6 +574,7 @@ var Agent = class {
           })
         } : void 0
       });
+      this.loop = wrapToolLoopAgentWithPromptHooks(loop, this.promptHooks);
     }
     return this.loop;
   }
@@ -759,18 +898,26 @@ var CHAT_PAGE_HTML = `<!doctype html>
   .tool pre { margin: 8px 0 4px; padding: 8px; background: #0d1117; border-radius: 6px; overflow-x: auto; font-size: 12px; color: #adbac7; }
   .tool pre:empty { display: none; }
   .error { color: #f85149; padding: 8px 12px; border: 1px solid #f8514955; border-radius: 8px; }
-  form { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid #30363d; }
+  form { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid #30363d; position: relative; }
   #prompt { flex: 1; padding: 10px 12px; border-radius: 8px; border: 1px solid #30363d; background: #0d1117; color: #e6edf3; font: inherit; }
   #prompt:focus { outline: none; border-color: #1f6feb; }
   button { padding: 0 18px; border-radius: 8px; border: 1px solid #238636; background: #238636; color: white; font: inherit; cursor: pointer; }
   button:disabled { opacity: .5; cursor: default; }
+  .cmdmenu { position: absolute; left: 16px; right: 16px; bottom: calc(100% + 6px); background: #161b22; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,.45); }
+  .cmdrow { display: flex; align-items: center; gap: 8px; padding: 8px 10px; cursor: pointer; }
+  .cmdrow.active { background: #1f6feb22; }
+  .cmdtrigger { font-family: ui-monospace, monospace; color: #79c0ff; }
+  .cmdarg { font-family: ui-monospace, monospace; font-size: 12px; color: #8b949e; }
+  .cmdsummary { margin-left: auto; padding-left: 12px; font-size: 12px; color: #8b949e; }
+  .cmddesc { padding: 8px 10px; border-top: 1px solid #30363d; font-size: 12px; color: #adbac7; }
 </style>
 </head>
 <body>
 <header>{{TITLE}}</header>
 <div id="messages"></div>
 <form id="composer">
-  <input id="prompt" placeholder="Ask about the codebase\u2026" autocomplete="off" autofocus />
+  <div id="commands" class="cmdmenu" hidden></div>
+  <input id="prompt" placeholder="Ask about the codebase\u2026  (/ for commands)" autocomplete="off" autofocus />
   <button type="submit">Send</button>
 </form>
 <script>
@@ -783,12 +930,101 @@ var input = document.getElementById("prompt");
 // server's /api/chat route stays stateless.
 var history = [];
 
+// Slash-command autocomplete, fed by /api/commands (the agent's hook catalog).
+// Mirrors the React SPA: type "/" to open, arrows to move, Enter/Tab to accept,
+// Esc to dismiss, hover for the description. Accepting just inserts the trigger;
+// the command is enhanced server-side by the matching prompt hook.
+var commands = [];
+var cmdMenu = document.getElementById("commands");
+var cmd = { open: false, active: 0, matches: [] };
+
+fetch("/api/commands")
+  .then(function (r) { return r.ok ? r.json() : []; })
+  .then(function (list) { commands = Array.isArray(list) ? list : []; })
+  .catch(function () {});
+
+function cmdQuery() {
+  var m = /^\\/([a-zA-Z-]*)$/.exec(input.value);
+  return m ? m[1].toLowerCase() : null;
+}
+
+function refreshCmd() {
+  var q = cmdQuery();
+  if (q === null) return hideCmd();
+  var matches = commands.filter(function (c) {
+    return c.trigger.slice(1).toLowerCase().indexOf(q) === 0;
+  });
+  if (!matches.length) return hideCmd();
+  cmd.open = true;
+  cmd.matches = matches;
+  if (cmd.active >= matches.length) cmd.active = 0;
+  renderCmd();
+}
+
+function renderCmd() {
+  cmdMenu.textContent = "";
+  cmd.matches.forEach(function (c, i) {
+    var row = document.createElement("div");
+    row.className = "cmdrow" + (i === cmd.active ? " active" : "");
+    if (c.description) row.title = c.description;
+    var trig = document.createElement("span");
+    trig.className = "cmdtrigger";
+    trig.textContent = c.trigger;
+    row.appendChild(trig);
+    if (c.argHint) {
+      var arg = document.createElement("span");
+      arg.className = "cmdarg";
+      arg.textContent = c.argHint;
+      row.appendChild(arg);
+    }
+    var sum = document.createElement("span");
+    sum.className = "cmdsummary";
+    sum.textContent = c.summary || c.title || "";
+    row.appendChild(sum);
+    row.addEventListener("mouseenter", function () { cmd.active = i; renderCmd(); });
+    row.addEventListener("mousedown", function (e) { e.preventDefault(); acceptCmd(c); });
+    cmdMenu.appendChild(row);
+  });
+  var active = cmd.matches[cmd.active];
+  if (active && active.description) {
+    var desc = document.createElement("div");
+    desc.className = "cmddesc";
+    desc.textContent = active.description;
+    cmdMenu.appendChild(desc);
+  }
+  cmdMenu.hidden = false;
+}
+
+function hideCmd() {
+  cmd.open = false; cmd.matches = []; cmd.active = 0;
+  cmdMenu.hidden = true; cmdMenu.textContent = "";
+}
+
+function acceptCmd(c) {
+  input.value = c.trigger + " ";
+  hideCmd();
+  input.focus();
+  try { input.setSelectionRange(input.value.length, input.value.length); } catch (_) {}
+}
+
+input.addEventListener("input", function () { cmd.active = 0; refreshCmd(); });
+input.addEventListener("blur", function () { setTimeout(hideCmd, 100); });
+input.addEventListener("keydown", function (e) {
+  if (!cmd.open) return;
+  var n = cmd.matches.length;
+  if (e.key === "ArrowDown") { e.preventDefault(); cmd.active = (cmd.active + 1) % n; renderCmd(); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); cmd.active = (cmd.active - 1 + n) % n; renderCmd(); }
+  else if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); acceptCmd(cmd.matches[cmd.active]); }
+  else if (e.key === "Escape") { e.preventDefault(); hideCmd(); }
+});
+
 form.addEventListener("submit", function (e) { e.preventDefault(); send(); });
 
 function send() {
   var text = input.value.trim();
   if (!text || input.disabled) return;
   input.value = "";
+  hideCmd();
   setBusy(true);
 
   var userWrap = addMessage("user");
@@ -973,6 +1209,7 @@ var WebSessionStore = class {
 // src/web/server.ts
 var CHAT_PATH = "/api/chat";
 var META_PATH = "/api/meta";
+var COMMANDS_PATH = "/api/commands";
 var SESSIONS_PATH = "/api/sessions";
 function createRequestHandler(opts) {
   const respond = opts.respond ?? ((res, messages) => pipeAgentUIStreamToResponse({
@@ -1001,6 +1238,10 @@ async function route(req, res, opts, respond, sessions) {
   if (req.method === "GET" && path === META_PATH) {
     res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
     res.end(JSON.stringify({ title: opts.title }));
+    return;
+  }
+  if (req.method === "GET" && path === COMMANDS_PATH) {
+    sendJson(res, 200, opts.commands ?? promptCommandCatalog());
     return;
   }
   if (path === SESSIONS_PATH || path.startsWith(SESSIONS_PATH + "/")) {

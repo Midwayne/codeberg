@@ -20,7 +20,9 @@ export {
   applyPromptHooksToMessages,
   applyPromptHooksToText,
   enhancePromptHook,
+  promptCommandCatalog,
   wrapToolLoopAgentWithPromptHooks,
+  type PromptCommand,
   type PromptHook,
   type PromptHookInput,
 } from "./core/hooks/index.js";

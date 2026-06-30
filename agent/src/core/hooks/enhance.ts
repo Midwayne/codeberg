@@ -9,6 +9,16 @@ const ENHANCE_RE = /^\/enhance(?:\s+|$)([\s\S]*)$/i;
  */
 export const enhancePromptHook: PromptHook = {
   name: "enhance",
+  command: {
+    trigger: "/enhance",
+    title: "Enhance prompt",
+    summary: "Turn a request into an agent-ready brief",
+    description:
+      "Searches the codebase for the impacted files, symbols, and tests, then " +
+      "returns a copy-pasteable brief (objective, impacted areas, guidance, " +
+      "verification) for a coding agent — instead of implementing the change itself.",
+    argHint: "<request>",
+  },
   rewrite({ text }) {
     const match = text.trim().match(ENHANCE_RE);
     if (!match) {

@@ -1,4 +1,4 @@
-import { ModelMessage, LanguageModel, ToolLoopAgent, Instructions, ToolSet } from 'ai';
+import { ModelMessage, ToolLoopAgent, LanguageModel, Instructions, ToolSet } from 'ai';
 
 interface SearchResult {
     id: number;
@@ -63,6 +63,57 @@ declare class DaemonClient {
     callTool(name: string, args: Record<string, unknown>): Promise<unknown>;
 }
 
+interface PromptHookInput {
+    /** The last user message's readable text. */
+    text: string;
+    /** The full prompt/messages about to be sent to the agent. */
+    messages: readonly ModelMessage[];
+}
+/**
+ * Self-description of a hook's slash command, surfaced to UIs for autocomplete
+ * and on-hover help. Keeping this on the hook itself makes the hook the single
+ * source of truth: registering a new hook automatically lists it in every
+ * surface (web SPA, fallback page, `/api/commands`).
+ */
+interface PromptCommand {
+    /** The slash token that triggers the hook, e.g. "/enhance". */
+    trigger: string;
+    /** Short label for the autocomplete row. */
+    title: string;
+    /** One-line summary shown inline in the row. */
+    summary: string;
+    /** Longer explanation shown on hover / in the menu's detail area. */
+    description: string;
+    /** Optional argument placeholder, e.g. "<request>". */
+    argHint?: string;
+}
+interface PromptHook {
+    readonly name: string;
+    /** UI-facing metadata for the slash command that triggers this hook. */
+    readonly command: PromptCommand;
+    rewrite(input: PromptHookInput): string | undefined;
+}
+
+/**
+ * The slash-command catalog for a set of hooks — the list surfaced to UIs for
+ * autocomplete and on-hover help. Defaults to the built-in hooks so every
+ * surface stays in sync with what the agent actually runs.
+ */
+declare function promptCommandCatalog(hooks?: readonly PromptHook[]): PromptCommand[];
+
+declare const DEFAULT_PROMPT_HOOKS: readonly PromptHook[];
+
+/**
+ * `/enhance <prompt>` turns a rough user request into a copy-pasteable agent
+ * brief. It still flows through the normal tool loop, so the model can search
+ * the codebase first and include concrete impacted files/symbols/verification.
+ */
+declare const enhancePromptHook: PromptHook;
+
+declare function applyPromptHooksToMessages(messages: ModelMessage[], hooks?: readonly PromptHook[]): ModelMessage[];
+declare function applyPromptHooksToText(text: string, hooks?: readonly PromptHook[]): string;
+declare function wrapToolLoopAgentWithPromptHooks(loop: ToolLoopAgent, hooks?: readonly PromptHook[]): ToolLoopAgent;
+
 /** Per-model "memory limits" plus the prompt-caching strategy the context
  *  manager keys off. Resolved from the "provider:model" spec so every layer
  *  (history budgeting, in-loop pruning, cache hints) reasons in one model's
@@ -98,6 +149,8 @@ interface AgentOptions {
      *  history compaction, and in-loop pruning. Defaults to an uncapped,
      *  cache-less profile so callers without a spec behave as before. */
     profile?: ModelProfile;
+    /** Last-user-message rewrites such as `/enhance`. Pass [] to disable. */
+    promptHooks?: readonly PromptHook[];
 }
 declare class Agent implements Asker {
     private readonly model;
@@ -106,6 +159,7 @@ declare class Agent implements Asker {
     private readonly generator;
     private readonly reasoning?;
     private readonly profile;
+    private readonly promptHooks;
     private loop?;
     private sources;
     private readonly ledger;
@@ -256,4 +310,4 @@ declare function registerBuiltinProviders(registry: {
 
 declare function defaultProviders(): ProviderRegistry;
 
-export { AGENT_SYSTEM, Agent, type AgentConfig, type AgentOptions, type AskOptions, type AskResult, type Asker, type CacheStrategy, ChatSession, type ChatSessionOptions, DEFAULT_PROFILE, DaemonClient, type EntryConfig, EvidenceLedger, type FitOptions, type Generator, type ModelProfile, type ModelProvider, type Prompt, ProviderRegistry, type ReasoningEffort, type RunPerformance, type SearchOptions, type SearchResult, type Summarize, type ToolSpec, type Turn, anthropicProvider, cachedInstructions, createAgent, createAgentFromEntry, defaultProviders, deterministicTools, entryUsage, estimateTokens, fitHistory, formatSource, formatSources, fromAiSdk, googleProvider, historyBudget, openaiProvider, parseEntryArgs, profileFor, pruneBudget, reasoningFromEnv, registerBuiltinProviders, requestProviderOptions, totalTokens };
+export { AGENT_SYSTEM, Agent, type AgentConfig, type AgentOptions, type AskOptions, type AskResult, type Asker, type CacheStrategy, ChatSession, type ChatSessionOptions, DEFAULT_PROFILE, DEFAULT_PROMPT_HOOKS, DaemonClient, type EntryConfig, EvidenceLedger, type FitOptions, type Generator, type ModelProfile, type ModelProvider, type Prompt, type PromptCommand, type PromptHook, type PromptHookInput, ProviderRegistry, type ReasoningEffort, type RunPerformance, type SearchOptions, type SearchResult, type Summarize, type ToolSpec, type Turn, anthropicProvider, applyPromptHooksToMessages, applyPromptHooksToText, cachedInstructions, createAgent, createAgentFromEntry, defaultProviders, deterministicTools, enhancePromptHook, entryUsage, estimateTokens, fitHistory, formatSource, formatSources, fromAiSdk, googleProvider, historyBudget, openaiProvider, parseEntryArgs, profileFor, promptCommandCatalog, pruneBudget, reasoningFromEnv, registerBuiltinProviders, requestProviderOptions, totalTokens, wrapToolLoopAgentWithPromptHooks };

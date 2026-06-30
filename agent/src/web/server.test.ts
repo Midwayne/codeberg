@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   CHAT_PATH,
+  COMMANDS_PATH,
   META_PATH,
   SESSIONS_PATH,
   createWebServer,
@@ -67,6 +68,10 @@ describe("web server", () => {
     expect(body).toContain("test-title");
     expect(body).toContain('id="messages"');
     expect(body).not.toContain("{{TITLE}}");
+    // The command-menu regex must survive bundling with a single backslash, or
+    // the fallback page's "/" autocomplete silently never opens.
+    expect(body).toContain("/^\\/([a-zA-Z-]*)$/");
+    expect(body).toContain('id="commands"');
   });
 
   it("escapes the title to avoid HTML injection in the fallback page", async () => {
@@ -81,6 +86,23 @@ describe("web server", () => {
     const res = await fetch(baseUrl + META_PATH);
     expect(res.headers.get("content-type")).toContain("application/json");
     expect(await res.json()).toEqual({ title: "codeberg · m · d" });
+  });
+
+  it("serves the built-in slash-command catalog for autocomplete", async () => {
+    await start();
+    const res = await fetch(baseUrl + COMMANDS_PATH);
+    expect(res.headers.get("content-type")).toContain("application/json");
+    const commands = (await res.json()) as { trigger: string }[];
+    expect(commands.some((c) => c.trigger === "/enhance")).toBe(true);
+  });
+
+  it("serves injected commands when provided", async () => {
+    const commands = [
+      { trigger: "/x", title: "X", summary: "s", description: "d" },
+    ];
+    await start({ commands });
+    const res = await fetch(baseUrl + COMMANDS_PATH);
+    expect(await res.json()).toEqual(commands);
   });
 
   it("404s unknown API routes (any method) but serves the app for other GETs", async () => {

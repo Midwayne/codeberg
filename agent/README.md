@@ -157,3 +157,31 @@ codeberg-ask openai:gpt-4.1 "/enhance add tenant-aware search filtering"
 The hook still uses the normal code-search tool loop, then returns impacted
 files/symbols, current behavior, implementation guidance, verification, and open
 questions in an agent-friendly Markdown format.
+
+In the web UI, typing `/` opens a command autocomplete (↑/↓ to move, Enter/Tab to
+accept, Esc to dismiss, hover for the description) — the same affordance agent
+harnesses use. The menu is driven by `GET /api/commands`, which serves the hook
+catalog, so it stays in sync with whatever the agent actually runs.
+
+### Adding a command
+
+Each hook is self-describing: it carries a `command` (trigger, title, summary,
+description, optional `argHint`) alongside its `rewrite`. Register a new hook in
+`src/core/hooks/` and it automatically appears in `/api/commands` and the web
+autocomplete — no UI wiring required.
+
+```ts
+import type { PromptHook } from "@codeberg/agent";
+
+export const reviewHook: PromptHook = {
+  name: "review",
+  command: {
+    trigger: "/review",
+    title: "Review diff",
+    summary: "Summarize risk in the impacted areas",
+    description: "Searches the touched code and lists risks, edge cases, and tests to add.",
+    argHint: "<area>",
+  },
+  rewrite: ({ text }) => /* return the rewritten prompt, or undefined to skip */,
+};
+```
