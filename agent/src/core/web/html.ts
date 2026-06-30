@@ -24,7 +24,12 @@ export function htmlToText(html: string): ExtractedPage {
     .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
     .replace(/<template[\s\S]*?<\/template>/gi, " ")
     .replace(/<svg[\s\S]*?<\/svg>/gi, " ")
-    .replace(/<head[\s\S]*?<\/head>/gi, " ")
+    .replace(/<head[\s\S]*?<\/head>/gi, " ");
+
+  // Focus on the main content so the model isn't fed nav/sidebar/footer chrome.
+  body = mainContent(body);
+
+  body = body
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(BLOCK_CLOSE, "\n")
     .replace(/<[^>]+>/g, " ");
@@ -36,6 +41,30 @@ export function htmlToText(html: string): ExtractedPage {
     .trim();
 
   return { title: decodeEntities(rawTitle).replace(/\s+/g, " ").trim(), text: body };
+}
+
+/**
+ * Best-effort "main content" isolation: prefer a `<main>` region, else the
+ * largest `<article>`, else drop the common chrome elements (nav/header/footer/
+ * aside) wholesale. Heuristic — good enough to cut boilerplate from docs and
+ * articles without a DOM parser; pages with none of these are returned as-is.
+ */
+function mainContent(html: string): string {
+  const main = /<main[^>]*>([\s\S]*?)<\/main>/i.exec(html);
+  if (main && main[1] && main[1].trim()) {
+    return main[1];
+  }
+  const articles = [...html.matchAll(/<article[^>]*>([\s\S]*?)<\/article>/gi)]
+    .map((m) => m[1] ?? "")
+    .filter((a) => a.trim());
+  if (articles.length > 0) {
+    return articles.reduce((a, b) => (b.length > a.length ? b : a));
+  }
+  return html
+    .replace(/<nav[\s\S]*?<\/nav>/gi, " ")
+    .replace(/<header[\s\S]*?<\/header>/gi, " ")
+    .replace(/<footer[\s\S]*?<\/footer>/gi, " ")
+    .replace(/<aside[\s\S]*?<\/aside>/gi, " ");
 }
 
 const NAMED_ENTITIES: Record<string, string> = {

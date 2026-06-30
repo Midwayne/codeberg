@@ -39,4 +39,28 @@ describe("htmlToText", () => {
     const { text } = htmlToText("<p>a   b\t\tc</p>\n\n\n<p>d</p>");
     expect(text).toBe("a b c\n\nd");
   });
+
+  it("prefers <main> content and drops surrounding chrome", () => {
+    const { text } = htmlToText(
+      "<body><nav>Home About</nav><main><p>real content</p></main><footer>copyright</footer></body>",
+    );
+    expect(text).toContain("real content");
+    expect(text).not.toContain("Home About");
+    expect(text).not.toContain("copyright");
+  });
+
+  it("falls back to the largest <article> when there's no <main>", () => {
+    const { text } = htmlToText(
+      "<article>tiny</article><article><p>the long article body here</p></article>",
+    );
+    expect(text).toContain("the long article body here");
+    expect(text).not.toContain("tiny");
+  });
+
+  it("strips nav/header/footer when there's no main or article", () => {
+    const { text } = htmlToText(
+      "<header>site nav</header><div><p>body text</p></div><footer>legal</footer>",
+    );
+    expect(text).toBe("body text");
+  });
 });

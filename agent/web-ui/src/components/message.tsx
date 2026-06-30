@@ -1,6 +1,5 @@
 import { Brain, RefreshCw, Wrench } from "lucide-react";
 import type { UIMessage } from "ai";
-import { Streamdown } from "streamdown";
 
 import { Response } from "@/components/response";
 import { SearchResults } from "@/components/sources";
@@ -73,9 +72,9 @@ function Reasoning({ text }: { text: string }) {
   if (!text?.trim()) return null;
   return (
     <Collapsible icon={<Brain className="size-3.5" />} title="Reasoning">
-      <Streamdown className="space-y-2 text-xs leading-relaxed text-muted-foreground">
+      <Response className="space-y-2 text-xs leading-relaxed text-muted-foreground">
         {text}
-      </Streamdown>
+      </Response>
     </Collapsible>
   );
 }

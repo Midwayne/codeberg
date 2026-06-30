@@ -85,18 +85,42 @@ func Run(c *config.Config) error {
 	if err != nil {
 		return err
 	}
-	// Single, idempotent teardown: stop the managed SearXNG (if any), then
-	// SIGTERM the daemon's process group, SIGKILL if it overstays. The daemon's
-	// signal handler stops the supervisor, which interrupts cberg-index. SearXNG
-	// is a child in its own group, so this guarantees nothing is left running.
-	var searx *searxng.Manager
+	// web_search is backed by a local SearXNG the launcher owns. Bring it up in
+	// the background (concurrent with indexing) so a first-time install — git
+	// clone + pip, often minutes — never blocks startup. The handle is shared
+	// under searxMu; teardown cancels an in-flight install and stops it. Because
+	// it runs in its own process group, nothing is ever left behind.
+	var (
+		searx   *searxng.Manager
+		searxMu sync.Mutex
+	)
+	webCtx, webCancel := context.WithCancel(context.Background())
+	webDone := make(chan struct{})
+	launchWeb := c.WebUse && c.SearxngURL == ""
+	if launchWeb {
+		go bringUpSearch(webCtx, c, logFile, webDone, &searxMu, &searx)
+	} else {
+		close(webDone)
+	}
+
+	// Single, idempotent teardown: stop the managed SearXNG (cancelling an
+	// in-flight install), then SIGTERM the daemon's process group, SIGKILL if it
+	// overstays. The daemon's signal handler stops the supervisor, which
+	// interrupts cberg-index.
 	stopped := make(chan struct{})
 	var stopOnce sync.Once
 	stop := func() {
 		stopOnce.Do(func() {
+			webCancel()
+			select {
+			case <-webDone:
+			case <-time.After(3 * time.Second):
+			}
+			searxMu.Lock()
 			if searx != nil {
 				searx.Stop()
 			}
+			searxMu.Unlock()
 			pgid := -daemon.Process.Pid
 			_ = syscall.Kill(pgid, syscall.SIGTERM)
 			select {
@@ -119,21 +143,24 @@ func Run(c *config.Config) error {
 	}
 	progress.stopLive()
 
-	// --- start the managed web-search backend (best effort) -------------------
-	// web_search is backed by a local SearXNG the launcher owns. Bring it up now
-	// (it's quick relative to a cold index) and hand its URL to the agent. Any
-	// failure is non-fatal: the agent keeps fetch_url and the code tools, and
-	// web_search simply isn't offered. Skipped when web use is off or an external
-	// instance is configured (the agent gets that URL via AgentEnv).
+	// --- hand the agent the web-search URL if it came up ----------------------
+	// Give an already-installed instance a brief grace to finish starting (warm
+	// runs usually beat this), but never wait on a first-time background install:
+	// web_search simply lights up on a later run. Nothing here is fatal.
 	agentEnv := c.AgentEnv()
-	if c.WebUse && c.SearxngURL == "" && searxng.Installed(c.Home) {
-		fmt.Fprintf(os.Stderr, "› starting web search (SearXNG)…\n")
-		if m, err := searxng.Start(context.Background(), c.Home, c.SearxngPort, logFile); err != nil {
-			fmt.Fprintf(os.Stderr, "  web search unavailable: %v (fetch_url still works)\n", err)
-		} else {
-			searx = m
+	if launchWeb {
+		select {
+		case <-webDone:
+		case <-time.After(8 * time.Second):
+		}
+		searxMu.Lock()
+		m := searx
+		searxMu.Unlock()
+		if m != nil {
 			agentEnv[config.KeySearxngURL] = m.URL()
-			fmt.Fprintf(os.Stderr, "  ✓ web search ready at %s\n", m.URL())
+			fmt.Fprintf(os.Stderr, "✓ web search ready at %s\n", m.URL())
+		} else {
+			fmt.Fprintln(os.Stderr, "› web search still setting up in the background; it'll be available on a later run")
 		}
 	}
 
@@ -222,6 +249,46 @@ func openBrowser(url string) {
 		cmd = exec.Command("xdg-open", url)
 	}
 	_ = cmd.Start()
+}
+
+// bringUpSearch installs (if needed) and starts the managed SearXNG in the
+// background, publishing the running manager via mu/dst once it is ready. It is
+// best effort: any problem is logged and leaves web_search unavailable (fetch_url
+// still works). There are no interactive steps — python is auto-installed only by
+// `codeberg build`, never here under a live TUI — and the context cancels an
+// in-flight install so teardown never blocks.
+func bringUpSearch(
+	ctx context.Context,
+	c *config.Config,
+	logw io.Writer,
+	done chan<- struct{},
+	mu *sync.Mutex,
+	dst **searxng.Manager,
+) {
+	defer close(done)
+	if !searxng.Installed(c.Home) {
+		if !searxng.Available() {
+			fmt.Fprintln(os.Stderr, "› web search needs python3 — run `codeberg build` to set it up (fetch_url still works)")
+			return
+		}
+		fmt.Fprintln(os.Stderr, "› setting up web search (SearXNG) in the background — first run only")
+		if err := searxng.EnsureInstalled(ctx, c.Home, false, logw); err != nil {
+			if ctx.Err() == nil {
+				fmt.Fprintf(os.Stderr, "  web search setup skipped: %v (fetch_url still works)\n", err)
+			}
+			return
+		}
+	}
+	m, err := searxng.Start(ctx, c.Home, c.SearxngPort, logw)
+	if err != nil {
+		if ctx.Err() == nil {
+			fmt.Fprintf(os.Stderr, "  web search unavailable: %v (fetch_url still works)\n", err)
+		}
+		return
+	}
+	mu.Lock()
+	*dst = m
+	mu.Unlock()
 }
 
 func startDaemon(bin, root string, c *config.Config, out io.Writer) (*exec.Cmd, error) {

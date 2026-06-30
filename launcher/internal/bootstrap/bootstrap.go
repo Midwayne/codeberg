@@ -6,6 +6,7 @@
 package bootstrap
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -104,24 +105,37 @@ func Ensure(c *config.Config, force bool) error {
 	return nil
 }
 
-// ensureSearxng installs (or, with force, upgrades) the local SearXNG that backs
-// web_search. It is entirely best-effort: any problem is reported as a warning
-// and never fails the run, so the agent still starts with fetch_url and the
-// codebase tools. Skipped when web use is off or an external SearXNG is set.
+// ensureSearxng sets up the local SearXNG that backs web_search. On a normal run
+// it does NOT block: a first-time install (git clone + pip, often minutes) would
+// stall startup, so the run path installs it in the background instead and this
+// only reports an already-present install. `codeberg build` (force) installs or
+// upgrades synchronously — the explicit "set everything up" path, where blocking
+// and interactive python install prompts are expected. Always best-effort:
+// problems are warnings, never fatal. Skipped when web use is off or an external
+// SearXNG is configured.
 func ensureSearxng(c *config.Config, force bool) {
 	if !c.WebUse || c.SearxngURL != "" {
 		return
 	}
-	if searxng.Installed(c.Home) && !force {
+	installed := searxng.Installed(c.Home)
+	if installed && !force {
 		skip("SearXNG (web search)")
+		return
+	}
+	if !force {
+		// Defer the (slow, first-time) install to the background run path.
 		return
 	}
 	if err := deps.EnsurePython(os.Stderr); err != nil {
 		fmt.Fprintf(os.Stderr, "⚠ %v\n  web_search disabled; fetch_url and code search still work.\n", err)
 		return
 	}
-	step("installing SearXNG for web_search (managed Python venv — first run only)")
-	if err := searxng.EnsureInstalled(c.Home, force, os.Stderr); err != nil {
+	verb := "installing"
+	if installed {
+		verb = "updating"
+	}
+	step(verb + " SearXNG for web_search (managed Python venv)")
+	if err := searxng.EnsureInstalled(context.Background(), c.Home, installed, os.Stderr); err != nil {
 		fmt.Fprintf(os.Stderr, "⚠ SearXNG install failed: %v\n"+
 			"  web_search disabled; fetch_url and code search still work. "+
 			"Retry with `codeberg build`, or set CODEBERG_WEB_USE=false to silence this.\n", err)

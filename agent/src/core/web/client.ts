@@ -4,6 +4,9 @@ import type { WebConfig, WebDeps, WebPage, WebSearchResult } from "./types.js";
 
 const USER_AGENT = "codeberg-agent/0.1 (+https://codeberg.org)";
 
+/** Cap on redirect hops, each of which is re-validated against the SSRF guard. */
+const MAX_REDIRECTS = 5;
+
 const DEFAULT_DEPS: WebDeps = {
   fetchImpl: (input, init) => globalThis.fetch(input as RequestInfo, init),
 };
@@ -24,14 +27,7 @@ export async function fetchUrl(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.timeoutMs);
   try {
-    const res = await deps.fetchImpl(url, {
-      signal: controller.signal,
-      redirect: "follow",
-      headers: {
-        "user-agent": USER_AGENT,
-        accept: "text/html,application/xhtml+xml,text/plain,application/json;q=0.9,*/*;q=0.5",
-      },
-    });
+    const res = await fetchNoOpenRedirect(url, config, deps, controller.signal);
     if (!res.ok) {
       throw new Error(`fetch failed: ${res.status} ${res.statusText} for ${url}`);
     }
@@ -74,6 +70,60 @@ export async function fetchUrl(
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Fetch following redirects manually so each hop is re-checked against the SSRF
+ * guard. The default `redirect: "follow"` would let a public URL bounce to
+ * `http://169.254.169.254` or `localhost` unchecked — the dangerous request goes
+ * out before any final-URL inspection. Here every `Location` is validated with
+ * `assertFetchableUrl` *before* it is followed, so a redirect into a private or
+ * blocked host is refused instead of fetched.
+ */
+async function fetchNoOpenRedirect(
+  start: URL,
+  config: WebConfig,
+  deps: WebDeps,
+  signal: AbortSignal,
+): Promise<Response> {
+  let current = start;
+  for (let hop = 0; ; hop++) {
+    const res = await deps.fetchImpl(current, {
+      signal,
+      redirect: "manual",
+      headers: {
+        "user-agent": USER_AGENT,
+        accept: "text/html,application/xhtml+xml,text/plain,application/json;q=0.9,*/*;q=0.5",
+      },
+    });
+
+    const location = isRedirect(res.status) ? res.headers.get("location") : null;
+    if (!location) {
+      return res;
+    }
+    if (hop >= MAX_REDIRECTS) {
+      throw new Error(`too many redirects (>${MAX_REDIRECTS}) starting at ${start}`);
+    }
+    // Resolve relative redirects against the current URL, then re-validate.
+    let next: URL;
+    try {
+      next = new URL(location, current);
+    } catch {
+      throw new Error(`invalid redirect target "${location}" from ${current}`);
+    }
+    assertFetchableUrl(next.toString(), { allowPrivate: config.allowPrivate });
+    current = next;
+  }
+}
+
+function isRedirect(status: number): boolean {
+  return (
+    status === 301 ||
+    status === 302 ||
+    status === 303 ||
+    status === 307 ||
+    status === 308
+  );
 }
 
 /**

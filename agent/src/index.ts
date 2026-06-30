@@ -16,6 +16,10 @@ export {
 } from "./core/history.js";
 export { AGENT_SYSTEM, agentSystemPrompt } from "./core/prompt.js";
 export {
+  wrapToolLoopAgentWithCompaction,
+  type HistoryCompactor,
+} from "./core/compaction.js";
+export {
   assertFetchableUrl,
   fetchUrl,
   htmlToText,

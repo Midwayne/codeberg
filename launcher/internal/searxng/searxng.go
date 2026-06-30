@@ -81,8 +81,10 @@ func Installed(home string) bool {
 // EnsureInstalled installs the managed SearXNG, or upgrades it when upgrade is
 // set. It is a no-op when already installed and not upgrading. Requires git and
 // a host python3 (with venv). Returns an error the caller can downgrade to a
-// warning — install failure must never be fatal.
-func EnsureInstalled(home string, upgrade bool, w io.Writer) error {
+// warning — install failure must never be fatal. The context cancels the
+// underlying git/pip/venv subprocesses, so a background install stops promptly
+// when codeberg is torn down.
+func EnsureInstalled(ctx context.Context, home string, upgrade bool, w io.Writer) error {
 	l := layoutFor(home)
 	if Installed(home) && !upgrade {
 		return nil
@@ -102,27 +104,27 @@ func EnsureInstalled(home string, upgrade bool, w io.Writer) error {
 	// 1. Source checkout (shallow). Update it on upgrade.
 	if dirExists(l.src) {
 		if upgrade {
-			_ = exec.Command(git, "-C", l.src, "pull", "--ff-only").Run()
+			_ = exec.CommandContext(ctx, git, "-C", l.src, "pull", "--ff-only").Run()
 		}
-	} else if err := runCmd(w, l.base, git, "clone", "--depth", "1", repoURL, l.src); err != nil {
+	} else if err := runCmd(ctx, w, l.base, git, "clone", "--depth", "1", repoURL, l.src); err != nil {
 		return fmt.Errorf("cloning SearXNG: %w", err)
 	}
 
 	// 2. Virtualenv.
 	if !fileExists(l.python()) {
-		if err := runCmd(w, l.base, py, "-m", "venv", l.venv); err != nil {
+		if err := runCmd(ctx, w, l.base, py, "-m", "venv", l.venv); err != nil {
 			return fmt.Errorf("creating venv (install python3-venv?): %w", err)
 		}
 	}
 
 	// 3. Install/upgrade SearXNG and its deps into the venv.
-	_ = runCmd(w, l.base, l.python(), "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel")
+	_ = runCmd(ctx, w, l.base, l.python(), "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel")
 	args := []string{"-m", "pip", "install"}
 	if upgrade {
 		args = append(args, "--upgrade")
 	}
 	args = append(args, "-e", l.src)
-	if err := runCmd(w, l.base, l.python(), args...); err != nil {
+	if err := runCmd(ctx, w, l.base, l.python(), args...); err != nil {
 		return fmt.Errorf("pip install SearXNG: %w", err)
 	}
 
@@ -311,8 +313,8 @@ func randomSecret() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-func runCmd(w io.Writer, dir, name string, args ...string) error {
-	cmd := exec.Command(name, args...)
+func runCmd(ctx context.Context, w io.Writer, dir, name string, args ...string) error {
+	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
 	cmd.Stdout = w
 	cmd.Stderr = w
