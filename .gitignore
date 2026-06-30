@@ -7,5 +7,6 @@ models/
 .DS_Store
 .env
 agent/node_modules/
+agent/dist/
 launcher/bin/
 /dist/
