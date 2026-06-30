@@ -185,3 +185,42 @@ export const reviewHook: PromptHook = {
   rewrite: ({ text }) => /* return the rewritten prompt, or undefined to skip */,
 };
 ```
+
+## Web access
+
+For advanced analysis the agent can reach the public web with two tools, on by
+default (disable all web access with `CODEBERG_WEB_USE=false`):
+
+| Tool | Backend | Needs |
+|------|---------|-------|
+| `fetch_url` | direct http(s) fetch → readable text | nothing |
+| `web_search` | [SearXNG](https://github.com/searxng/searxng) (open-source, no API key) | a SearXNG endpoint |
+
+`fetch_url` reads a page/RFC/changelog/issue and returns extracted text (HTML is
+reduced to text; output is truncated to `CODEBERG_WEB_MAX_CHARS`). It refuses
+loopback/private hosts by default — a built-in SSRF guard — overridable with
+`CODEBERG_WEB_ALLOW_PRIVATE=1`.
+
+`web_search` queries SearXNG's JSON API and returns `{ title, url, snippet }`
+results. It is registered **only** when a SearXNG endpoint is known:
+
+- Via the `codeberg` launcher, a local SearXNG is installed and managed for you
+  (a Python venv under `~/.codeberg/searxng`), started with codeberg and stopped
+  with it — nothing is left running in the background.
+- Standalone, point at any instance with `CODEBERG_SEARXNG_URL=http://host:port`
+  (its `search.formats` must include `json`).
+
+Both degrade gracefully: with no SearXNG, `web_search` is simply absent and
+`fetch_url` plus the code tools keep working. Never send proprietary code or
+secrets to the web — the system prompt instructs the model accordingly.
+
+Programmatic use:
+
+```ts
+import { Agent, webConfigFromEnv } from "@codeberg/agent";
+
+const agent = new Agent({
+  model, daemon,
+  web: { ...webConfigFromEnv(), searxngUrl: "http://127.0.0.1:8888" },
+});
+```

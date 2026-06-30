@@ -13,6 +13,7 @@ import (
 
 	"codeberg.org/codeberg/launcher/internal/config"
 	"codeberg.org/codeberg/launcher/internal/deps"
+	"codeberg.org/codeberg/launcher/internal/searxng"
 )
 
 func exists(p string) bool { _, err := os.Stat(p); return err == nil }
@@ -26,8 +27,11 @@ func Ensure(c *config.Config, force bool) error {
 	if prebuilt {
 		skip("prebuilt components")
 		if c.Vector {
-			return ensureModel(c, root)
+			if err := ensureModel(c, root); err != nil {
+				return err
+			}
 		}
+		ensureSearxng(c, force)
 		return nil
 	}
 
@@ -92,9 +96,36 @@ func Ensure(c *config.Config, force bool) error {
 	}
 
 	if c.Vector {
-		return ensureModel(c, c.Repo)
+		if err := ensureModel(c, c.Repo); err != nil {
+			return err
+		}
 	}
+	ensureSearxng(c, force)
 	return nil
+}
+
+// ensureSearxng installs (or, with force, upgrades) the local SearXNG that backs
+// web_search. It is entirely best-effort: any problem is reported as a warning
+// and never fails the run, so the agent still starts with fetch_url and the
+// codebase tools. Skipped when web use is off or an external SearXNG is set.
+func ensureSearxng(c *config.Config, force bool) {
+	if !c.WebUse || c.SearxngURL != "" {
+		return
+	}
+	if searxng.Installed(c.Home) && !force {
+		skip("SearXNG (web search)")
+		return
+	}
+	if err := deps.EnsurePython(os.Stderr); err != nil {
+		fmt.Fprintf(os.Stderr, "⚠ %v\n  web_search disabled; fetch_url and code search still work.\n", err)
+		return
+	}
+	step("installing SearXNG for web_search (managed Python venv — first run only)")
+	if err := searxng.EnsureInstalled(c.Home, force, os.Stderr); err != nil {
+		fmt.Fprintf(os.Stderr, "⚠ SearXNG install failed: %v\n"+
+			"  web_search disabled; fetch_url and code search still work. "+
+			"Retry with `codeberg build`, or set CODEBERG_WEB_USE=false to silence this.\n", err)
+	}
 }
 
 // ensureModel downloads the embedding model if absent, using the fetch-model.sh

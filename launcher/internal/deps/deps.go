@@ -97,6 +97,36 @@ func Ensure(w io.Writer) error {
 	return nil
 }
 
+// EnsurePython makes sure a python3 is available for the SearXNG web-search
+// backend, auto-installing it via the host package manager when possible. It is
+// intentionally separate from Ensure (the build prerequisites): web search is an
+// optional runtime feature, so callers treat a returned error as advisory and
+// degrade gracefully (web_search off, everything else on).
+func EnsurePython(w io.Writer) error {
+	if hasBin("python3")() || hasBin("python")() {
+		return nil
+	}
+	pm := detectPkgManager()
+	if pm == nil || truthy(os.Getenv("CODEBERG_SKIP_DEP_INSTALL")) {
+		return errors.New("python3 not found — install Python 3 (with venv) to enable web_search")
+	}
+	pkg := "python3"
+	switch pm.name {
+	case "brew":
+		pkg = "python"
+	case "apt-get":
+		pkg = "python3-venv" // pulls python3 and the venv module Debian splits out
+	}
+	fmt.Fprintf(w, "› installing python3 (%s %s) for web_search\n", pm.name, pkg)
+	if err := pm.installPkg(w, pkg); err != nil {
+		return fmt.Errorf("python3 install failed: %w", err)
+	}
+	if !hasBin("python3")() && !hasBin("python")() {
+		return errors.New("python3 still not detected after install")
+	}
+	return nil
+}
+
 // OnnxPresent reports whether the ONNX Runtime C headers are installed where
 // core/CMakeLists.txt looks for them — i.e. whether a build will enable
 // embedding. It mirrors that file's search paths so doctor and the build agree.

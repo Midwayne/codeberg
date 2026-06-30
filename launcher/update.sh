@@ -19,6 +19,17 @@ fi
 echo "› rebuilding components (core + daemon, agent, web UI)…"
 make -C "$repo" build-daemon build-agent build-web-ui
 
+# Refresh the managed SearXNG (web_search backend) when it has been installed.
+# It lives in a Python venv under the launcher home; a plain `git pull` + editable
+# reinstall picks up upstream fixes. Best effort — never block the update on it.
+home="${CODEBERG_HOME:-$HOME/.codeberg}"
+if [ -x "$home/searxng/venv/bin/python" ] && [ -d "$home/searxng/src" ]; then
+  echo "› updating SearXNG (web search)…"
+  ( cd "$home/searxng/src" && git pull --ff-only ) || true
+  "$home/searxng/venv/bin/python" -m pip install -e "$home/searxng/src" --upgrade \
+    || echo "  (SearXNG update skipped — re-run 'codeberg build' to retry)"
+fi
+
 echo "› rebuilding and relinking the launcher…"
 "$here/install.sh"
 

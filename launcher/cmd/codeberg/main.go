@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"codeberg.org/codeberg/launcher/internal/bootstrap"
@@ -25,6 +26,7 @@ import (
 	"codeberg.org/codeberg/launcher/internal/config"
 	"codeberg.org/codeberg/launcher/internal/deps"
 	"codeberg.org/codeberg/launcher/internal/run"
+	"codeberg.org/codeberg/launcher/internal/searxng"
 	"codeberg.org/codeberg/launcher/internal/uninstall"
 )
 
@@ -378,6 +380,21 @@ func cmdDoctor(args []string) error {
 	}
 	if c.Vector {
 		reportFile("embedding model", c.EmbedModel)
+	}
+
+	fmt.Println("\nWeb search (web_search):")
+	switch {
+	case !c.WebUse:
+		fmt.Println("  • disabled (CODEBERG_WEB_USE=false) — fetch_url also off")
+	case c.SearxngURL != "":
+		fmt.Printf("  ✓ external SearXNG: %s\n", c.SearxngURL)
+	case searxng.Installed(c.Home):
+		fmt.Printf("  ✓ managed SearXNG installed (%s) — runs on :%s with codeberg\n",
+			filepath.Join(c.Home, "searxng"), c.SearxngPort)
+	case searxng.Available():
+		fmt.Println("  ✘ not installed yet — `codeberg build` (or the next run) installs it")
+	default:
+		fmt.Println("  ✘ python3 not found — install it to enable web_search (fetch_url still works)")
 	}
 
 	fmt.Println("\nResolved config:")

@@ -42,7 +42,16 @@ const (
 	KeyDist       = "CODEBERG_DIST"                  // prebuilt artifact dir (installs)
 	KeyWeb        = "CODEBERG_WEB"                   // "true" => serve browser UI not TUI
 	KeyWebPort    = "CODEBERG_WEB_PORT"              // web UI listen port (agent scope)
+	KeyWebUse     = "CODEBERG_WEB_USE"               // "false" => disable agent web tools (agent scope)
+	KeySearxngURL = "CODEBERG_SEARXNG_URL"           // external SearXNG for web_search (agent scope)
+	KeySearxngPort = "CODEBERG_SEARXNG_PORT"         // preferred port for the managed SearXNG
 )
+
+// DefaultSearxngPort is the preferred listen port for the launcher-managed
+// SearXNG (web_search backend). It groups with codeberg's other ports — the
+// daemon's 48080 and the web UI's 48088 — and the launcher falls back to a free
+// ephemeral port if it is taken.
+const DefaultSearxngPort = "48089"
 
 // DefaultWebPort is the codeberg-web listen port when none is configured. It
 // mirrors the agent's own default (agent/src/web/main.ts): an uncommon high
@@ -113,6 +122,9 @@ type Config struct {
 	Vector     bool
 	Web        bool   // serve the browser UI instead of the terminal TUI
 	WebPort    string // codeberg-web listen port (used only when Web)
+	WebUse     bool   // agent web tools (web_search + fetch_url) enabled
+	SearxngURL string // external SearXNG instance; "" => launcher manages one
+	SearxngPort string // preferred port for the managed SearXNG
 
 	Passthrough map[string]string
 	ConfigPath  string // the file we read (whether or not it existed)
@@ -195,6 +207,17 @@ func Load(o Overrides) (*Config, error) {
 		c.Web = !isFalsey(v)
 	}
 	c.WebPort = firstNonEmpty(resolve(KeyWebPort, o.WebPort), DefaultWebPort)
+
+	// Web tools (web_search + fetch_url) for the agent. On by default; disable
+	// with CODEBERG_WEB_USE=false. web_search is backed by a SearXNG instance:
+	// the launcher installs and manages a local one unless CODEBERG_SEARXNG_URL
+	// points at an existing instance.
+	c.WebUse = true
+	if v := resolve(KeyWebUse, ""); v != "" {
+		c.WebUse = !isFalsey(v)
+	}
+	c.SearxngURL = resolve(KeySearxngURL, "")
+	c.SearxngPort = firstNonEmpty(resolve(KeySearxngPort, ""), DefaultSearxngPort)
 
 	// Daemon URL defaults to the local daemon on the resolved port.
 	c.DaemonURL = firstNonEmpty(resolve(KeyDaemonURL, o.DaemonURL), "http://127.0.0.1:"+c.HTTPPort)
@@ -338,6 +361,12 @@ func (c *Config) AgentEnv() map[string]string {
 	putIf(e, KeyReasoning, c.Reasoning)
 	// codeberg-web reads this; the TUI ignores it, so it's harmless to always set.
 	putIf(e, KeyWebPort, c.WebPort)
+	// Web tools: tell the agent whether they're enabled, and point web_search at
+	// an external SearXNG when configured. A launcher-managed instance is
+	// injected at launch time by the run package (its URL isn't known until it
+	// has started), taking precedence over nothing / falling back to this.
+	e[KeyWebUse] = fmt.Sprintf("%t", c.WebUse)
+	putIf(e, KeySearxngURL, c.SearxngURL)
 	for k, v := range c.Passthrough {
 		e[k] = v
 	}

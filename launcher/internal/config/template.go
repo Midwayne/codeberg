@@ -32,6 +32,11 @@ const fileTemplate = `# codeberg launcher config — KEY=VALUE, '#' comments.
 # %s=48088
 # Reasoning effort: provider-default|none|minimal|low|medium|high|xhigh
 # %s=medium
+# Web tools for the agent (web_search + fetch_url) — on by default. Set false to
+# disable all web access. web_search uses a SearXNG instance the launcher
+# installs and runs locally; point at your own instead with CODEBERG_SEARXNG_URL.
+# %s=true
+# CODEBERG_SEARXNG_URL=http://127.0.0.1:8888
 # Set to false for chunk-only mode (skips the embedding-model download).
 # %s=true
 # Override the embedding model / vector index paths (sensible defaults otherwise).
@@ -49,7 +54,7 @@ func InitFile(path string) (bool, error) {
 		return false, err
 	}
 	body := fmt.Sprintf(fileTemplate,
-		KeyRoot, KeyModel, KeyHTTPPort, KeyWeb, KeyWebPort, KeyReasoning, KeyVector, KeyEmbedModel, KeyIndexPath)
+		KeyRoot, KeyModel, KeyHTTPPort, KeyWeb, KeyWebPort, KeyReasoning, KeyWebUse, KeyVector, KeyEmbedModel, KeyIndexPath)
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		return false, err
 	}
@@ -69,6 +74,8 @@ func (c *Config) Summary() string {
 		{KeyHTTPPort, c.HTTPPort},
 		{KeyWeb, fmt.Sprintf("%t", c.Web)},
 		{KeyWebPort, c.WebPort},
+		{KeyWebUse, fmt.Sprintf("%t", c.WebUse)},
+		{KeySearxngURL, orUnset(c.SearxngURL) + searxngManagedNote(c)},
 		{KeyVector, fmt.Sprintf("%t", c.Vector)},
 		{KeyEmbedModel, c.EmbedModel},
 		{KeyIndexPath, c.IndexPath},
@@ -104,6 +111,15 @@ func orUnset(v string) string {
 		return "<unset>"
 	}
 	return v
+}
+
+// searxngManagedNote annotates the (unset) external SearXNG URL to make clear
+// the launcher manages a local instance when web use is on and none is set.
+func searxngManagedNote(c *Config) string {
+	if c.SearxngURL == "" && c.WebUse {
+		return " (launcher-managed on :" + c.SearxngPort + ")"
+	}
+	return ""
 }
 
 // mask shows only the last 4 chars of a secret-ish value.

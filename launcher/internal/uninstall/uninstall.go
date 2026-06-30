@@ -51,9 +51,10 @@ func Run(c *config.Config, o Options) error {
 		c.ConfigPath,
 		filepath.Join(c.Home, "index"),
 		filepath.Join(c.Home, "logs"),
+		filepath.Join(c.Home, "searxng"),
 	)
 	if len(leftovers) > 0 {
-		if p.confirm(fmt.Sprintf("Remove launcher data (config, index, logs) under %s?", c.Home)) {
+		if p.confirm(fmt.Sprintf("Remove launcher data (config, index, logs, web search) under %s?", c.Home)) {
 			for _, path := range leftovers {
 				removePath(path, filepath.Base(path))
 			}

@@ -59,6 +59,7 @@ without naming the package, so install these up front:
 | **Node** ≥ 22 + **npm** | build & run the TypeScript agent/TUI | `brew install node` | `nodejs npm` |
 | `git` | fetch the tree-sitter submodules | `brew install git` | `git` |
 | **ONNX Runtime** | vector embeddings (omit for chunk-only) | `brew install onnxruntime` | [release tarball](https://github.com/microsoft/onnxruntime/releases) or `ONNXRUNTIME_ROOT` |
+| **Python 3** ≥ 3.10 _(optional)_ | web search (`web_search` via SearXNG) | `brew install python` | `python3-venv` |
 
 The **ONNX Runtime** is a native library, not a CLI: CMake searches
 `/opt/homebrew/opt/onnxruntime`, `/usr/local`, `/opt/homebrew`, and `/usr`, or
@@ -71,6 +72,14 @@ packaged for apt, so on Linux install a release tarball and point
 > dependency and auto-installs the missing ones via Homebrew (macOS) or apt
 > (Linux) — see [`launcher/`](launcher/). Building by hand from this Makefile,
 > you install them yourself. Run `codeberg doctor` to see what's present.
+
+> **Web search** is optional and on by default. On first run the launcher
+> installs a local [SearXNG](https://github.com/searxng/searxng) (open-source, no
+> API key) into a managed Python venv under `~/.codeberg/searxng` and runs it
+> only while codeberg is running — it is stopped on exit, never left in the
+> background. Disable with `CODEBERG_WEB_USE=false`, or point at your own instance
+> with `CODEBERG_SEARXNG_URL`. Without Python, `web_search` is skipped and the
+> agent's `fetch_url` still works.
 
 ## Build
 

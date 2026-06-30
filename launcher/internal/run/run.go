@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"codeberg.org/codeberg/launcher/internal/config"
+	"codeberg.org/codeberg/launcher/internal/searxng"
 )
 
 // defaultHealthDeadline bounds how long we wait for the daemon to serve
@@ -84,13 +85,18 @@ func Run(c *config.Config) error {
 	if err != nil {
 		return err
 	}
-	// Single, idempotent teardown: SIGTERM the daemon's process group, then
-	// SIGKILL if it overstays. The daemon's signal handler stops the supervisor,
-	// which interrupts cberg-index.
+	// Single, idempotent teardown: stop the managed SearXNG (if any), then
+	// SIGTERM the daemon's process group, SIGKILL if it overstays. The daemon's
+	// signal handler stops the supervisor, which interrupts cberg-index. SearXNG
+	// is a child in its own group, so this guarantees nothing is left running.
+	var searx *searxng.Manager
 	stopped := make(chan struct{})
 	var stopOnce sync.Once
 	stop := func() {
 		stopOnce.Do(func() {
+			if searx != nil {
+				searx.Stop()
+			}
 			pgid := -daemon.Process.Pid
 			_ = syscall.Kill(pgid, syscall.SIGTERM)
 			select {
@@ -112,6 +118,24 @@ func Run(c *config.Config) error {
 		return err
 	}
 	progress.stopLive()
+
+	// --- start the managed web-search backend (best effort) -------------------
+	// web_search is backed by a local SearXNG the launcher owns. Bring it up now
+	// (it's quick relative to a cold index) and hand its URL to the agent. Any
+	// failure is non-fatal: the agent keeps fetch_url and the code tools, and
+	// web_search simply isn't offered. Skipped when web use is off or an external
+	// instance is configured (the agent gets that URL via AgentEnv).
+	agentEnv := c.AgentEnv()
+	if c.WebUse && c.SearxngURL == "" && searxng.Installed(c.Home) {
+		fmt.Fprintf(os.Stderr, "› starting web search (SearXNG)…\n")
+		if m, err := searxng.Start(context.Background(), c.Home, c.SearxngPort, logFile); err != nil {
+			fmt.Fprintf(os.Stderr, "  web search unavailable: %v (fetch_url still works)\n", err)
+		} else {
+			searx = m
+			agentEnv[config.KeySearxngURL] = m.URL()
+			fmt.Fprintf(os.Stderr, "  ✓ web search ready at %s\n", m.URL())
+		}
+	}
 
 	// --- run the front end in the foreground ---------------------------------
 	// Either the terminal TUI or, with --web, the browser-UI server. Both share
@@ -149,7 +173,7 @@ func Run(c *config.Config) error {
 
 	front := exec.Command(node, script)
 	front.Dir = root
-	front.Env = mergeEnv(os.Environ(), c.AgentEnv())
+	front.Env = mergeEnv(os.Environ(), agentEnv)
 	front.Stdin = os.Stdin
 	front.Stdout = os.Stdout
 	front.Stderr = os.Stderr

@@ -6,10 +6,10 @@ import { fileURLToPath } from "url";
 // src/core/agent.ts
 import {
   dynamicTool,
-  jsonSchema,
+  jsonSchema as jsonSchema2,
   pruneMessages,
   stepCountIs,
-  tool,
+  tool as tool2,
   ToolLoopAgent
 } from "ai";
 
@@ -409,6 +409,325 @@ Example of a well-formed data-source answer:
 ${DATA_SOURCE_EXAMPLE}
 
 Do not guess. Do not rely on repository names, file names, or symbol names alone. Always verify with retrieved code.`;
+function agentSystemPrompt(web) {
+  if (!web.enabled) return AGENT_SYSTEM;
+  const lines = [
+    AGENT_SYSTEM,
+    "",
+    "Web tools (use only when the codebase alone cannot answer):"
+  ];
+  if (web.search) {
+    lines.push(
+      "- web_search: find official documentation, API references, RFCs, changelogs, or error explanations on the public web. Returns title, url, and snippet."
+    );
+  }
+  lines.push(
+    "- fetch_url: read the full text of a specific http(s) URL \u2014 a web_search result, or a link found in code, comments, or docs.",
+    "",
+    "Web strategy:",
+    "- Use the local code tools first. Reach for the web only to resolve external facts: third-party/library/framework behavior, language or stdlib semantics, protocol/spec details, version-specific changes, or an error message's documented meaning."
+  );
+  if (web.search) {
+    lines.push(
+      "- Usually web_search to locate the authoritative page, then fetch_url to read it."
+    );
+  }
+  lines.push(
+    "- Cite web sources as [title](url); keep code citations as [path:start-end]. Prefer official/primary sources.",
+    "- Never send proprietary code, secrets, or internal identifiers to the web, and never fetch private/internal hosts."
+  );
+  return lines.join("\n");
+}
+
+// src/core/web/config.ts
+var DEFAULT_MAX_BYTES = 15e5;
+var DEFAULT_MAX_CHARS = 2e4;
+var DEFAULT_TIMEOUT_MS = 15e3;
+var DEFAULT_SEARCH_COUNT = 6;
+function flag(value, fallback) {
+  if (value == null || value.trim() === "") return fallback;
+  return !/^(0|false|off|no)$/i.test(value.trim());
+}
+function positiveInt(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+}
+function webConfigFromEnv(env2 = process.env) {
+  return {
+    enabled: flag(env2.CODEBERG_WEB_USE, true),
+    searxngUrl: (env2.CODEBERG_SEARXNG_URL ?? "").trim().replace(/\/+$/, ""),
+    maxBytes: positiveInt(env2.CODEBERG_WEB_MAX_BYTES, DEFAULT_MAX_BYTES),
+    maxChars: positiveInt(env2.CODEBERG_WEB_MAX_CHARS, DEFAULT_MAX_CHARS),
+    timeoutMs: positiveInt(env2.CODEBERG_WEB_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
+    searchCount: positiveInt(env2.CODEBERG_WEB_SEARCH_COUNT, DEFAULT_SEARCH_COUNT),
+    allowPrivate: flag(env2.CODEBERG_WEB_ALLOW_PRIVATE, false)
+  };
+}
+
+// src/core/web/tools.ts
+import { jsonSchema, tool } from "ai";
+
+// src/core/web/html.ts
+var BLOCK_CLOSE = /<\/(p|div|section|article|header|footer|li|ul|ol|tr|table|h[1-6]|pre|blockquote|figure|main|nav|aside)>/gi;
+function htmlToText(html) {
+  const rawTitle = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] ?? "";
+  let body = html.replace(/<!--[\s\S]*?-->/g, " ").replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<noscript[\s\S]*?<\/noscript>/gi, " ").replace(/<template[\s\S]*?<\/template>/gi, " ").replace(/<svg[\s\S]*?<\/svg>/gi, " ").replace(/<head[\s\S]*?<\/head>/gi, " ").replace(/<br\s*\/?>/gi, "\n").replace(BLOCK_CLOSE, "\n").replace(/<[^>]+>/g, " ");
+  body = decodeEntities(body).replace(/[ \t\f\v\r]+/g, " ").replace(/ *\n */g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  return { title: decodeEntities(rawTitle).replace(/\s+/g, " ").trim(), text: body };
+}
+var NAMED_ENTITIES = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+  mdash: "\u2014",
+  ndash: "\u2013",
+  hellip: "\u2026",
+  copy: "\xA9",
+  reg: "\xAE",
+  trade: "\u2122"
+};
+function decodeEntities(input) {
+  return input.replace(/&(#x?[0-9a-f]+|[a-z][a-z0-9]*);/gi, (match, code) => {
+    if (code[0] === "#") {
+      const isHex = code[1] === "x" || code[1] === "X";
+      const cp = isHex ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10);
+      return Number.isFinite(cp) ? safeFromCodePoint(cp) : match;
+    }
+    return NAMED_ENTITIES[code.toLowerCase()] ?? match;
+  });
+}
+function safeFromCodePoint(cp) {
+  try {
+    return String.fromCodePoint(cp);
+  } catch {
+    return "";
+  }
+}
+
+// src/core/web/ssrf.ts
+import { isIP } from "net";
+var BLOCKED_HOSTNAMES = /* @__PURE__ */ new Set([
+  "metadata.google.internal",
+  "metadata.goog"
+]);
+function isPrivateHost(hostname) {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (host === "localhost" || host.endsWith(".localhost")) return true;
+  if (host.endsWith(".local")) return true;
+  const version = isIP(host);
+  if (version === 4) return isPrivateIPv4(host);
+  if (version === 6) return isPrivateIPv6(host);
+  return false;
+}
+function isPrivateIPv4(ip) {
+  const parts = ip.split(".").map(Number);
+  if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) {
+    return true;
+  }
+  const [a, b] = parts;
+  if (a === 0 || a === 10 || a === 127) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a >= 224) return true;
+  return false;
+}
+function isPrivateIPv6(ip) {
+  const host = ip.toLowerCase();
+  if (host === "::1" || host === "::") return true;
+  if (host.startsWith("fe80")) return true;
+  if (host.startsWith("fc") || host.startsWith("fd")) return true;
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(host);
+  if (mapped) return isPrivateIPv4(mapped[1]);
+  return false;
+}
+function assertFetchableUrl(raw, opts) {
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error(`invalid URL: ${raw}`);
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error(
+      `unsupported URL scheme "${url.protocol}" \u2014 only http and https are allowed`
+    );
+  }
+  if (BLOCKED_HOSTNAMES.has(url.hostname.toLowerCase())) {
+    throw new Error(`refusing to fetch blocked host ${url.hostname}`);
+  }
+  if (!opts.allowPrivate && isPrivateHost(url.hostname)) {
+    throw new Error(
+      `refusing to fetch private/loopback host ${url.hostname} (set CODEBERG_WEB_ALLOW_PRIVATE=1 to allow)`
+    );
+  }
+  return url;
+}
+
+// src/core/web/client.ts
+var USER_AGENT = "codeberg-agent/0.1 (+https://codeberg.org)";
+var DEFAULT_DEPS = {
+  fetchImpl: (input, init) => globalThis.fetch(input, init)
+};
+async function fetchUrl(rawUrl, config, deps = DEFAULT_DEPS) {
+  const url = assertFetchableUrl(rawUrl, { allowPrivate: config.allowPrivate });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+  try {
+    const res = await deps.fetchImpl(url, {
+      signal: controller.signal,
+      redirect: "follow",
+      headers: {
+        "user-agent": USER_AGENT,
+        accept: "text/html,application/xhtml+xml,text/plain,application/json;q=0.9,*/*;q=0.5"
+      }
+    });
+    if (!res.ok) {
+      throw new Error(`fetch failed: ${res.status} ${res.statusText} for ${url}`);
+    }
+    const contentType2 = (res.headers.get("content-type") ?? "").toLowerCase();
+    const finalUrl = res.url || url.toString();
+    const { body, truncated: bodyTruncated } = await readCapped(res, config.maxBytes);
+    if (contentType2.includes("html") || contentType2 === "" && /^\s*</.test(body)) {
+      const page = htmlToText(body);
+      const capped = capText(page.text, config.maxChars);
+      return {
+        url: finalUrl,
+        title: page.title,
+        text: capped.text,
+        truncated: bodyTruncated || capped.truncated
+      };
+    }
+    if (contentType2.includes("json") || contentType2.startsWith("text/") || contentType2 === "") {
+      const capped = capText(body, config.maxChars);
+      return {
+        url: finalUrl,
+        title: "",
+        text: capped.text,
+        truncated: bodyTruncated || capped.truncated
+      };
+    }
+    return {
+      url: finalUrl,
+      title: "",
+      text: `[unsupported content-type: ${contentType2 || "unknown"}]`,
+      truncated: false
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+async function searxngSearch(query, config, deps = DEFAULT_DEPS, count = config.searchCount) {
+  if (!config.searxngUrl) {
+    throw new Error(
+      "web_search is not configured \u2014 set CODEBERG_SEARXNG_URL to a SearXNG instance"
+    );
+  }
+  const url = new URL("/search", config.searxngUrl);
+  url.searchParams.set("q", query);
+  url.searchParams.set("format", "json");
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+  try {
+    const res = await deps.fetchImpl(url, {
+      signal: controller.signal,
+      headers: { accept: "application/json", "user-agent": USER_AGENT }
+    });
+    if (!res.ok) {
+      throw new Error(
+        `web search failed: ${res.status} ${res.statusText} (is the SearXNG JSON format enabled?)`
+      );
+    }
+    const data = await res.json();
+    const results = Array.isArray(data.results) ? data.results : [];
+    return results.map((r) => ({
+      title: (r.title ?? "").trim(),
+      url: (r.url ?? "").trim(),
+      snippet: (r.content ?? "").trim()
+    })).filter((r) => r.url).slice(0, count);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+async function readCapped(res, maxBytes) {
+  const stream = res.body;
+  if (stream && typeof stream.getReader === "function") {
+    const reader = stream.getReader();
+    const decoder = new TextDecoder();
+    let out = "";
+    let total = 0;
+    let truncated = false;
+    for (; ; ) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      if (total + value.byteLength > maxBytes) {
+        const remaining = Math.max(0, maxBytes - total);
+        out += decoder.decode(value.subarray(0, remaining));
+        truncated = true;
+        await reader.cancel().catch(() => {
+        });
+        break;
+      }
+      total += value.byteLength;
+      out += decoder.decode(value, { stream: true });
+    }
+    return { body: out, truncated };
+  }
+  const text = await res.text();
+  return text.length > maxBytes ? { body: text.slice(0, maxBytes), truncated: true } : { body: text, truncated: false };
+}
+function capText(text, maxChars) {
+  if (text.length <= maxChars) return { text, truncated: false };
+  return { text: `${text.slice(0, maxChars)}
+
+[truncated]`, truncated: true };
+}
+
+// src/core/web/tools.ts
+var MAX_SEARCH_COUNT = 10;
+function webTools(config, deps) {
+  if (!config.enabled) return {};
+  const tools = {
+    fetch_url: tool({
+      description: "Fetch an http(s) web page or text/JSON resource and return its readable text. Use to read external documentation, RFCs, changelogs, issue threads, or any URL found in the code or in a web_search result. Private/loopback hosts are blocked; long pages are truncated.",
+      inputSchema: jsonSchema({
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          url: { type: "string", description: "Absolute http(s) URL to fetch" }
+        },
+        required: ["url"]
+      }),
+      execute: async ({ url }) => fetchUrl(url, config, deps)
+    })
+  };
+  if (config.searxngUrl) {
+    tools.web_search = tool({
+      description: "Search the public web (via a self-hosted SearXNG instance) for documentation, API references, error explanations, specs, or library sources. Returns ranked results with title, url, and snippet \u2014 then use fetch_url to read the most relevant one.",
+      inputSchema: jsonSchema({
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          query: { type: "string", description: "Search query" },
+          count: {
+            type: "number",
+            description: `max results (default ${config.searchCount}, max ${MAX_SEARCH_COUNT})`
+          }
+        },
+        required: ["query"]
+      }),
+      execute: async ({ query, count }) => {
+        const n = Math.min(Math.max(1, count ?? config.searchCount), MAX_SEARCH_COUNT);
+        return { results: await searxngSearch(query, config, deps, n) };
+      }
+    });
+  }
+  return tools;
+}
 
 // src/providers/profiles.ts
 var ONE_MILLION = 1e6;
@@ -481,6 +800,10 @@ var Agent = class {
   reasoning;
   profile;
   promptHooks;
+  web;
+  /** System prompt for this agent — `AGENT_SYSTEM` plus a web-tools section when
+   *  web use is enabled. Computed once so the cached prefix stays byte-stable. */
+  system;
   // Built once on first use (tools require an async daemon round-trip), then
   // reused across every ask instead of reconstructing the loop each call.
   loop;
@@ -499,6 +822,11 @@ var Agent = class {
     this.reasoning = opts.reasoning;
     this.profile = opts.profile ?? DEFAULT_PROFILE;
     this.promptHooks = opts.promptHooks ?? DEFAULT_PROMPT_HOOKS;
+    this.web = opts.web ?? webConfigFromEnv();
+    this.system = agentSystemPrompt({
+      enabled: this.web.enabled,
+      search: Boolean(this.web.searxngUrl)
+    });
   }
   async ask(question, opts = {}) {
     this.sources = [];
@@ -547,7 +875,7 @@ var Agent = class {
     if (!this.loop) {
       const tools = deterministicTools(await this.buildTools());
       const providerOptions = requestProviderOptions(
-        AGENT_SYSTEM,
+        this.system,
         Object.keys(tools),
         this.profile
       );
@@ -556,7 +884,7 @@ var Agent = class {
         model: this.model,
         // Cache the large, frozen system prompt instead of re-billing it on
         // every tool round and every turn.
-        instructions: cachedInstructions(AGENT_SYSTEM, this.profile),
+        instructions: cachedInstructions(this.system, this.profile),
         tools,
         stopWhen: stepCountIs(this.maxSteps),
         timeout: DEFAULT_TIMEOUT,
@@ -580,9 +908,9 @@ var Agent = class {
   }
   async buildTools() {
     const toolset = {
-      search_code: tool({
+      search_code: tool2({
         description: "Semantic code search. Returns relevant chunks with path, lines, and snippet.",
-        inputSchema: jsonSchema({
+        inputSchema: jsonSchema2({
           type: "object",
           additionalProperties: false,
           properties: {
@@ -603,9 +931,14 @@ var Agent = class {
     for (const spec of await this.daemon.listTools()) {
       toolset[spec.name] = dynamicTool({
         description: spec.description,
-        inputSchema: jsonSchema(spec.schema),
+        inputSchema: jsonSchema2(spec.schema),
         execute: async (args) => this.daemon.callTool(spec.name, args)
       });
+    }
+    for (const [name, webTool] of Object.entries(webTools(this.web))) {
+      if (!(name in toolset)) {
+        toolset[name] = webTool;
+      }
     }
     return toolset;
   }

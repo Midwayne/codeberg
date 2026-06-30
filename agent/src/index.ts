@@ -14,7 +14,19 @@ export {
   type FitOptions,
   type Summarize,
 } from "./core/history.js";
-export { AGENT_SYSTEM } from "./core/prompt.js";
+export { AGENT_SYSTEM, agentSystemPrompt } from "./core/prompt.js";
+export {
+  assertFetchableUrl,
+  fetchUrl,
+  htmlToText,
+  searxngSearch,
+  webConfigFromEnv,
+  webTools,
+  type WebConfig,
+  type WebDeps,
+  type WebPage,
+  type WebSearchResult,
+} from "./core/web/index.js";
 export {
   DEFAULT_PROMPT_HOOKS,
   applyPromptHooksToMessages,

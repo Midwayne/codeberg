@@ -24,7 +24,10 @@ import {
   wrapToolLoopAgentWithPromptHooks,
   type PromptHook,
 } from './hooks/index.js';
-import { AGENT_SYSTEM } from './prompt.js';
+import { agentSystemPrompt } from './prompt.js';
+import { webConfigFromEnv } from './web/config.js';
+import { webTools } from './web/tools.js';
+import type { WebConfig } from './web/types.js';
 import {
   DEFAULT_PROFILE,
   historyBudget,
@@ -67,6 +70,10 @@ export interface AgentOptions {
   profile?: ModelProfile;
   /** Last-user-message rewrites such as `/enhance`. Pass [] to disable. */
   promptHooks?: readonly PromptHook[];
+  /** Web-access configuration (web_search + fetch_url). Defaults to the
+   *  environment (CODEBERG_WEB_USE on by default). Pass `{ enabled: false, … }`
+   *  to disable web tools entirely. */
+  web?: WebConfig;
 }
 
 export class Agent implements Asker {
@@ -77,6 +84,10 @@ export class Agent implements Asker {
   private readonly reasoning?: ReasoningEffort;
   private readonly profile: ModelProfile;
   private readonly promptHooks: readonly PromptHook[];
+  private readonly web: WebConfig;
+  /** System prompt for this agent — `AGENT_SYSTEM` plus a web-tools section when
+   *  web use is enabled. Computed once so the cached prefix stays byte-stable. */
+  private readonly system: string;
 
   // Built once on first use (tools require an async daemon round-trip), then
   // reused across every ask instead of reconstructing the loop each call.
@@ -97,6 +108,11 @@ export class Agent implements Asker {
     this.reasoning = opts.reasoning;
     this.profile = opts.profile ?? DEFAULT_PROFILE;
     this.promptHooks = opts.promptHooks ?? DEFAULT_PROMPT_HOOKS;
+    this.web = opts.web ?? webConfigFromEnv();
+    this.system = agentSystemPrompt({
+      enabled: this.web.enabled,
+      search: Boolean(this.web.searxngUrl),
+    });
   }
 
   async ask(question: string, opts: AskOptions = {}): Promise<AskResult> {
@@ -166,7 +182,7 @@ export class Agent implements Asker {
       // list would invalidate the prompt cache on every process.
       const tools = deterministicTools(await this.buildTools());
       const providerOptions = requestProviderOptions(
-        AGENT_SYSTEM,
+        this.system,
         Object.keys(tools),
         this.profile,
       );
@@ -175,7 +191,7 @@ export class Agent implements Asker {
         model: this.model,
         // Cache the large, frozen system prompt instead of re-billing it on
         // every tool round and every turn.
-        instructions: cachedInstructions(AGENT_SYSTEM, this.profile),
+        instructions: cachedInstructions(this.system, this.profile),
         tools,
         stopWhen: stepCountIs(this.maxSteps),
         timeout: DEFAULT_TIMEOUT,
@@ -234,6 +250,14 @@ export class Agent implements Asker {
         execute: async (args) =>
           this.daemon.callTool(spec.name, args as Record<string, unknown>),
       });
+    }
+
+    // Web tools (web_search + fetch_url) live at the agent layer, gated by
+    // config. Don't clobber a daemon tool that happens to share a name.
+    for (const [name, webTool] of Object.entries(webTools(this.web))) {
+      if (!(name in toolset)) {
+        toolset[name] = webTool;
+      }
     }
     return toolset;
   }
