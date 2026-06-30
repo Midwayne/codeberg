@@ -16,19 +16,35 @@ export {
 } from "./core/history.js";
 export { AGENT_SYSTEM, agentSystemPrompt } from "./core/prompt.js";
 export {
+  overrideLoopMethods,
+  withMessageTransforms,
+  type LoopOverrides,
+  type MessageTransform,
+} from "./core/loop.js";
+export {
   wrapToolLoopAgentWithCompaction,
   type HistoryCompactor,
 } from "./core/compaction.js";
 export {
+  collectTools,
+  daemonToolSource,
+  searchCodeSource,
+  webToolSource,
+  type SearchCodeOptions,
+  type ToolSource,
+} from "./core/tools/index.js";
+export {
   assertFetchableUrl,
   fetchUrl,
   htmlToText,
-  searxngSearch,
+  searxngProvider,
   webConfigFromEnv,
+  webSearchProviderFromConfig,
   webTools,
   type WebConfig,
   type WebDeps,
   type WebPage,
+  type WebSearchProvider,
   type WebSearchResult,
 } from "./core/web/index.js";
 export {

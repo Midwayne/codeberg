@@ -1,5 +1,6 @@
 import type { ModelMessage, ToolLoopAgent } from "ai";
 
+import { overrideLoopMethods } from "../core/loop.js";
 import { messageText } from "../core/message.js";
 import {
   type Command,
@@ -144,15 +145,7 @@ export function wrapSessionAgent(
     return teeForPersistence(result, effective, persist);
   };
 
-  return new Proxy(loop, {
-    get(target, prop) {
-      if (prop === "stream") {
-        return streamOverride;
-      }
-      const value = Reflect.get(target, prop, target);
-      return typeof value === "function" ? value.bind(target) : value;
-    },
-  }) as ToolLoopAgent;
+  return overrideLoopMethods(loop, { stream: streamOverride });
 }
 
 function toModelMessages(prompt: unknown): ModelMessage[] {

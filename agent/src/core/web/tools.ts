@@ -1,6 +1,7 @@
 import { jsonSchema, tool, type ToolSet } from "ai";
 
-import { fetchUrl, searxngSearch } from "./client.js";
+import { fetchUrl } from "./client.js";
+import { webSearchProviderFromConfig } from "./search/index.js";
 import type { WebConfig, WebDeps } from "./types.js";
 
 /** Hard ceiling on requested search results, independent of the configured default. */
@@ -34,12 +35,13 @@ export function webTools(config: WebConfig, deps?: WebDeps): ToolSet {
     }),
   };
 
-  if (config.searxngUrl) {
+  const provider = webSearchProviderFromConfig(config, deps);
+  if (provider) {
     tools.web_search = tool({
       description:
-        "Search the public web (via a self-hosted SearXNG instance) for documentation, API " +
-        "references, error explanations, specs, or library sources. Returns ranked results " +
-        "with title, url, and snippet — then use fetch_url to read the most relevant one.",
+        "Search the public web for documentation, API references, error " +
+        "explanations, specs, or library sources. Returns ranked results with " +
+        "title, url, and snippet — then use fetch_url to read the most relevant one.",
       inputSchema: jsonSchema<{ query: string; count?: number }>({
         type: "object",
         additionalProperties: false,
@@ -54,7 +56,7 @@ export function webTools(config: WebConfig, deps?: WebDeps): ToolSet {
       }),
       execute: async ({ query, count }) => {
         const n = Math.min(Math.max(1, count ?? config.searchCount), MAX_SEARCH_COUNT);
-        return { results: await searxngSearch(query, config, deps, n) };
+        return { results: await provider.search(query, { count: n }) };
       },
     });
   }

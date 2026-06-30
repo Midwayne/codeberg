@@ -1,6 +1,6 @@
 import { htmlToText } from "./html.js";
 import { assertFetchableUrl } from "./ssrf.js";
-import type { WebConfig, WebDeps, WebPage, WebSearchResult } from "./types.js";
+import type { WebConfig, WebDeps, WebPage } from "./types.js";
 
 const USER_AGENT = "codeberg-agent/0.1 (+https://codeberg.org)";
 
@@ -124,56 +124,6 @@ function isRedirect(status: number): boolean {
     status === 307 ||
     status === 308
   );
-}
-
-/**
- * Search the web via a SearXNG instance (open-source, self-hosted, no API key).
- * Requires `searxngUrl`; the instance must have the JSON output format enabled
- * (`search.formats: [html, json]` in its settings).
- */
-export async function searxngSearch(
-  query: string,
-  config: WebConfig,
-  deps: WebDeps = DEFAULT_DEPS,
-  count = config.searchCount,
-): Promise<WebSearchResult[]> {
-  if (!config.searxngUrl) {
-    throw new Error(
-      "web_search is not configured — set CODEBERG_SEARXNG_URL to a SearXNG instance",
-    );
-  }
-  const url = new URL("/search", config.searxngUrl);
-  url.searchParams.set("q", query);
-  url.searchParams.set("format", "json");
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), config.timeoutMs);
-  try {
-    const res = await deps.fetchImpl(url, {
-      signal: controller.signal,
-      headers: { accept: "application/json", "user-agent": USER_AGENT },
-    });
-    if (!res.ok) {
-      throw new Error(
-        `web search failed: ${res.status} ${res.statusText} ` +
-          "(is the SearXNG JSON format enabled?)",
-      );
-    }
-    const data = (await res.json()) as {
-      results?: Array<{ title?: string; url?: string; content?: string }>;
-    };
-    const results = Array.isArray(data.results) ? data.results : [];
-    return results
-      .map((r) => ({
-        title: (r.title ?? "").trim(),
-        url: (r.url ?? "").trim(),
-        snippet: (r.content ?? "").trim(),
-      }))
-      .filter((r) => r.url)
-      .slice(0, count);
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 /** Read a response body up to `maxBytes`, streaming when possible so an oversize

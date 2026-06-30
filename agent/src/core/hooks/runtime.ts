@@ -1,11 +1,9 @@
 import type { ModelMessage, ToolLoopAgent } from "ai";
 
+import { withMessageTransforms } from "../loop.js";
 import { messageText } from "../message.js";
 import { DEFAULT_PROMPT_HOOKS } from "./defaults.js";
 import type { PromptHook } from "./types.js";
-
-type GenerateParams = Parameters<ToolLoopAgent["generate"]>[0];
-type StreamParams = Parameters<ToolLoopAgent["stream"]>[0];
 
 export function applyPromptHooksToMessages(
   messages: ModelMessage[],
@@ -50,42 +48,11 @@ export function wrapToolLoopAgentWithPromptHooks(
   if (hooks.length === 0) {
     return loop;
   }
-
-  return new Proxy(loop, {
-    get(target, prop) {
-      if (prop === "generate") {
-        return (params: GenerateParams) => target.generate(rewriteParams(params, hooks));
-      }
-      if (prop === "stream") {
-        return (params: StreamParams) => target.stream(rewriteParams(params, hooks));
-      }
-      const value = Reflect.get(target, prop, target);
-      return typeof value === "function" ? value.bind(target) : value;
-    },
-  }) as ToolLoopAgent;
-}
-
-function rewriteParams<T extends GenerateParams | StreamParams>(
-  params: T,
-  hooks: readonly PromptHook[],
-): T {
-  if ("messages" in params && Array.isArray(params.messages)) {
-    const messages = applyPromptHooksToMessages(params.messages, hooks);
-    return messages === params.messages ? params : ({ ...params, messages } as T);
-  }
-
-  if ("prompt" in params) {
-    if (Array.isArray(params.prompt)) {
-      const prompt = applyPromptHooksToMessages(params.prompt, hooks);
-      return prompt === params.prompt ? params : ({ ...params, prompt } as T);
-    }
-    if (typeof params.prompt === "string") {
-      const prompt = applyPromptHooksToText(params.prompt, hooks);
-      return prompt === params.prompt ? params : ({ ...params, prompt } as T);
-    }
-  }
-
-  return params;
+  // A prompt hook is just a message transform: rewrite the last user message
+  // before the loop runs. Composes on the shared loop seam alongside compaction.
+  return withMessageTransforms(loop, [
+    (messages) => applyPromptHooksToMessages(messages, hooks),
+  ]);
 }
 
 function rewriteText(

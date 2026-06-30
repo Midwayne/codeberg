@@ -1,9 +1,6 @@
 import {
-  dynamicTool,
-  jsonSchema,
   pruneMessages,
   stepCountIs,
-  tool,
   ToolLoopAgent,
   type ModelMessage,
   type LanguageModel,
@@ -25,8 +22,13 @@ import {
   type PromptHook,
 } from './hooks/index.js';
 import { agentSystemPrompt } from './prompt.js';
+import {
+  collectTools,
+  daemonToolSource,
+  searchCodeSource,
+  webToolSource,
+} from './tools/index.js';
 import { webConfigFromEnv } from './web/config.js';
-import { webTools } from './web/tools.js';
 import type { WebConfig } from './web/types.js';
 import {
   DEFAULT_PROFILE,
@@ -218,48 +220,18 @@ export class Agent implements Asker {
   }
 
   private async buildTools(): Promise<ToolSet> {
-    const toolset: ToolSet = {
-      search_code: tool({
-        description:
-          'Semantic code search. Returns relevant chunks with path, lines, and snippet.',
-        inputSchema: jsonSchema<{ query: string; k?: number }>({
-          type: 'object',
-          additionalProperties: false,
-          properties: {
-            query: { type: 'string' },
-            k: { type: 'number', description: 'max results (default 8)' },
-          },
-          required: ['query'],
-        }),
-        execute: async ({ query, k }) => {
-          const results = await this.daemon.search(query, {
-            k: k ?? DEFAULT_SEARCH_K,
-          });
-          // Capture the full hits for the answer's source list, but hand the
-          // model only the compact chunk shape (token-efficient).
-          this.sources.push(...results);
-          return results.map(toToolChunk);
-        },
+    // The agent's tools come from an ordered list of sources. search_code is
+    // first so it can't be shadowed; its hits flow back through a sink (not a
+    // reach into this.sources). Adding a capability is a new source here.
+    return collectTools([
+      searchCodeSource({
+        daemon: this.daemon,
+        defaultK: DEFAULT_SEARCH_K,
+        onResults: (hits) => this.sources.push(...hits),
       }),
-    };
-
-    for (const spec of await this.daemon.listTools()) {
-      toolset[spec.name] = dynamicTool({
-        description: spec.description,
-        inputSchema: jsonSchema(spec.schema),
-        execute: async (args) =>
-          this.daemon.callTool(spec.name, args as Record<string, unknown>),
-      });
-    }
-
-    // Web tools (web_search + fetch_url) live at the agent layer, gated by
-    // config. Don't clobber a daemon tool that happens to share a name.
-    for (const [name, webTool] of Object.entries(webTools(this.web))) {
-      if (!(name in toolset)) {
-        toolset[name] = webTool;
-      }
-    }
-    return toolset;
+      daemonToolSource(this.daemon),
+      webToolSource(this.web),
+    ]);
   }
 }
 
@@ -274,16 +246,6 @@ function toPerformance(
   return {
     outputTokensPerSecond: perf.effectiveOutputTokensPerSecond,
     responseTimeMs: perf.responseTimeMs,
-  };
-}
-
-function toToolChunk(r: SearchResult): Record<string, unknown> {
-  return {
-    id: r.id,
-    path: r.path,
-    symbol: r.symbol,
-    lines: `${r.start_line}-${r.end_line}`,
-    snippet: r.snippet,
   };
 }
 
