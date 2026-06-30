@@ -9,7 +9,7 @@ import { createWebServer } from "./server.js";
 // `runAgentTUI`, it serves a chat UI over HTTP. Both drive the exact same
 // `toolLoopAgent()` — the web route just streams that agent's UI-message output
 // to a browser client that owns the conversation state. Like the TUI, the
-// CLI-only `--once` / seeded-question flags do not apply; pass `provider:model`.
+// the CLI's seeded-question flow does not apply; pass `provider:model`.
 //
 // TODO(context): the web path gets prompt caching and in-loop pruning (both ride
 // on `toolLoopAgent()`), but NOT the cross-turn history compaction the TUI wires

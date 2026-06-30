@@ -1,5 +1,6 @@
 import type { ModelMessage, ToolLoopAgent } from "ai";
 
+import { messageText } from "../core/message.js";
 import {
   type Command,
   deriveTitle,
@@ -7,7 +8,6 @@ import {
   formatSessionList,
   parseCommand,
   stripCommandTurns,
-  textOf,
 } from "./commands.js";
 import { SessionStore } from "./session-store.js";
 
@@ -125,7 +125,7 @@ export function wrapSessionAgent(
   const streamOverride = async (params: StreamParams): Promise<StreamResult> => {
     const raw = toModelMessages(params.prompt);
     const last = lastUserMessage(raw);
-    const command = last ? parseCommand(textOf(last)) : null;
+    const command = last ? parseCommand(messageText(last)) : null;
     if (command) {
       return synthetic(await runCommand(command, raw));
     }

@@ -1,5 +1,7 @@
 import type { ModelMessage } from "ai";
 
+import { messageText } from "./message.js";
+
 /** Rough token estimate. We don't ship a tokenizer (it would be provider-
  *  specific and a build-time dependency); ~4 chars/token is close enough to
  *  decide *when* to compact, which is all the budget math needs. */
@@ -7,27 +9,8 @@ export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
-/** Readable text of a message, ignoring tool-call/tool-result JSON parts —
- *  enough for budgeting and for building a summarization transcript. */
-function textOf(content: ModelMessage["content"]): string {
-  if (typeof content === "string") {
-    return content;
-  }
-  if (!Array.isArray(content)) {
-    return "";
-  }
-  return content
-    .map((part) =>
-      part && typeof part === "object" && "text" in part &&
-      typeof (part as { text: unknown }).text === "string"
-        ? (part as { text: string }).text
-        : "",
-    )
-    .join("");
-}
-
 export function messageTokens(message: ModelMessage): number {
-  return estimateTokens(textOf(message.content));
+  return estimateTokens(messageText(message));
 }
 
 export function totalTokens(messages: readonly ModelMessage[]): number {
@@ -74,7 +57,7 @@ export async function fitHistory(
 
   if (opts.summarize) {
     const transcript = older
-      .map((m) => `${m.role}: ${textOf(m.content)}`)
+      .map((m) => `${m.role}: ${messageText(m)}`)
       .join("\n");
     const summary = await opts.summarize(transcript);
     const marker: ModelMessage = {

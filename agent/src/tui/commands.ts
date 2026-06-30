@@ -1,5 +1,6 @@
 import type { ModelMessage } from "ai";
 
+import { messageText } from "../core/message.js";
 import type { SessionSummary } from "./session-store.js";
 
 /** A parsed slash command. `arg` is the trimmed remainder (e.g. a session id). */
@@ -51,17 +52,6 @@ export function parseCommand(text: string): Command | null {
   }
 }
 
-/** Flatten a model message's content to plain text (string or text parts). */
-export function textOf(message: ModelMessage): string {
-  const { content } = message;
-  if (typeof content === "string") {
-    return content;
-  }
-  return content
-    .map((part) => (part.type === "text" ? part.text : ""))
-    .join("");
-}
-
 /**
  * Drop slash-command exchanges from a transcript so they never reach the model.
  * A command is a user message that `parseCommand` recognises; its synthetic
@@ -71,7 +61,7 @@ export function stripCommandTurns(messages: ModelMessage[]): ModelMessage[] {
   const out: ModelMessage[] = [];
   for (let i = 0; i < messages.length; i++) {
     const message = messages[i]!;
-    if (message.role === "user" && parseCommand(textOf(message))) {
+    if (message.role === "user" && parseCommand(messageText(message))) {
       if (messages[i + 1]?.role === "assistant") {
         i++; // also skip the synthetic reply
       }
@@ -144,7 +134,7 @@ export function relativeTime(then: number, now: number = Date.now()): string {
 /** First user message, condensed to a one-line session title. */
 export function deriveTitle(messages: ModelMessage[]): string {
   const firstUser = messages.find((m) => m.role === "user");
-  const text = firstUser ? textOf(firstUser).replace(/\s+/g, " ").trim() : "";
+  const text = firstUser ? messageText(firstUser).replace(/\s+/g, " ").trim() : "";
   if (!text) {
     return "(untitled)";
   }

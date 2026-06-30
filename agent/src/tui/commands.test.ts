@@ -6,7 +6,6 @@ import {
   parseCommand,
   relativeTime,
   stripCommandTurns,
-  textOf,
 } from "./commands.js";
 
 describe("parseCommand", () => {
@@ -33,21 +32,6 @@ describe("parseCommand", () => {
     expect(parseCommand("/unknown")).toBeNull();
     expect(parseCommand("what is auth?")).toBeNull();
     expect(parseCommand("")).toBeNull();
-  });
-});
-
-describe("textOf", () => {
-  it("reads string and structured content", () => {
-    expect(textOf({ role: "user", content: "hi" })).toBe("hi");
-    expect(
-      textOf({
-        role: "user",
-        content: [
-          { type: "text", text: "a" },
-          { type: "text", text: "b" },
-        ],
-      }),
-    ).toBe("ab");
   });
 });
 

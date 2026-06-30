@@ -1,11 +1,7 @@
-import type { ModelMessage } from 'ai';
-
-import type { Prompt } from './types.js';
-
 // A generic distributed-systems exemplar (no proprietary names) that fixes the
 // shape of a data-source / source-of-truth answer: reader vs. writer/producer,
-// the source-map sections, explicit gaps, and a confidence level. Shared by
-// both system prompts so the format stays identical across the two paths.
+// the source-map sections, explicit gaps, and a confidence level. Pinned into
+// the agent system prompt so the answer format stays consistent.
 const DATA_SOURCE_EXAMPLE = `<example>
 <question>Where do account balances come from?</question>
 <answer>
@@ -21,70 +17,6 @@ Source map:
 - Confidence: High
 </answer>
 </example>`;
-
-const SYSTEM = `You are a precise code-search assistant.
-
-Your answers must be based ONLY on retrieved code. Every factual claim about the codebase must be supported with citations in the format [path:start-end]. If the retrieved evidence is insufficient, incomplete, ambiguous, or contradictory, say so clearly. Do not guess.
-
-Core responsibilities:
-- Answer the user's question using retrieved code evidence only.
-- Cite the exact files and line ranges that support each claim.
-- Distinguish confirmed facts from uncertainty.
-- Do not infer behavior from naming alone.
-- Do not cite irrelevant matches just because a search term appears nearby.
-
-Data-source tracing requirements:
-When the user asks where data comes from, where it is stored, what database/table/collection/topic/API backs something, or asks for "data sources", you must drill down as far as the retrieved code allows.
-
-Trace the full data path when possible:
-1. Start from the user-facing API, handler, resolver, job, UI call, or feature mentioned by the user.
-2. Follow calls through controllers, services, repositories, clients, SDKs, shared libraries, generated clients, and configuration.
-3. Identify whether the code reads from:
-   - a database table, collection, view, index, stored procedure, cache, file, queue, stream, external API, third-party SDK, or another internal service.
-4. Identify whether the code writes, inserts, updates, upserts, deletes, publishes, or syncs the data.
-5. Prefer the true producer/source-of-truth over downstream readers or consumers.
-6. If an API only reads data that another service writes, keep tracing until you find the writer/producer, or state that the writer was not found.
-7. If data crosses service boundaries, search across all relevant repositories/services, not just the first matching repository.
-8. Include schema, model, migration, ORM mapping, query, repository, config, queue/topic name, endpoint, or environment variable evidence when available.
-9. Clearly distinguish:
-   - source of truth
-   - read path
-   - write path
-   - derived/cache layer
-   - downstream consumers
-   - uncertain or unverified links
-
-Microservices guidance:
-- The same database, table, queue, event, or shared library may be used by multiple services.
-- Multiple APIs may read the same data source.
-- Do not list APIs as data sources unless the code shows that the API is the source being called.
-- Do not return unrelated APIs, handlers, files, or services just because they match the search term.
-- When multiple repositories may be involved, search broadly and then narrow using imports, clients, routes, table names, event names, config keys, and write operations.
-
-Evidence standards:
-- A read query proves a read path, not the source of truth.
-- A model/schema proves structure, not who writes the data.
-- A config key proves a configured dependency, not actual usage.
-- A route/controller proves an entry point, not the underlying data source.
-- A migration/table definition proves storage exists, not which service owns it.
-- A save/insert/update/upsert/delete/publish operation is stronger evidence of data production.
-- If the true producer cannot be found in retrieved code, explicitly say: "I found the read path, but not the writer/source-of-truth."
-
-Answer format:
-- Start with the direct answer.
-- Then provide the evidence chain with citations.
-- For data-source questions, include a concise source map:
-  - Entry point
-  - Read path
-  - Write path / producer
-  - Storage or external dependency
-  - Cross-service links
-  - Confidence / gaps
-- Every item in the source map must be cited.
-
-Example of a well-formed data-source answer:
-${DATA_SOURCE_EXAMPLE}
-`;
 
 export const AGENT_SYSTEM = `You are a code-search agent. Use tools iteratively until you have enough evidence to answer, or until the maximum tool rounds are reached. Then answer with citations.
 
@@ -193,71 +125,3 @@ Example of a well-formed data-source answer:
 ${DATA_SOURCE_EXAMPLE}
 
 Do not guess. Do not rely on repository names, file names, or symbol names alone. Always verify with retrieved code.`;
-
-type Chunk = {
-  path: string;
-  symbol: string;
-  start_line: number;
-  end_line: number;
-  snippet: string;
-};
-
-export function buildPrompt(
-  question: string,
-  results: Chunk[],
-  prior?: ModelMessage[],
-): Prompt {
-  // XML tags give the model hard boundaries between prior turns, retrieved
-  // code, and the question — and keep code or question text that happens to
-  // look like an instruction from bleeding into the instruction channel.
-  const evidence =
-    results.length === 0
-      ? "No chunks retrieved."
-      : results
-          .map((r, i) => {
-            const loc = `${r.path}:${r.start_line}-${r.end_line}`;
-            const sym = r.symbol ? ` ${r.symbol}` : "";
-            return `[${i + 1}] ${loc}${sym}\n${r.snippet}`;
-          })
-          .join("\n\n");
-
-  const body =
-    `${formatHistory(prior)}` +
-    `<retrieved_code>\n${evidence}\n</retrieved_code>\n\n` +
-    `<question>${question}</question>`;
-
-  return { system: SYSTEM, prompt: body };
-}
-
-function formatHistory(prior?: ModelMessage[]): string {
-  if (!prior?.length) {
-    return "";
-  }
-  const turns: string[] = [];
-  for (const m of prior) {
-    if (m.role !== "user" && m.role !== "assistant") {
-      continue;
-    }
-    const text = textOf(m.content);
-    if (text) {
-      turns.push(`<turn role="${m.role}">${text}</turn>`);
-    }
-  }
-  if (turns.length === 0) {
-    return "";
-  }
-  return `<conversation>\n${turns.join("\n")}\n</conversation>\n\n`;
-}
-
-// ModelMessage content is a string or an array of typed parts. Keep only the
-// readable text; tool calls/results would otherwise dump as JSON noise (the
-// old behavior) and confuse the model about what was actually said.
-function textOf(content: ModelMessage["content"]): string {
-  if (typeof content === "string") {
-    return content;
-  }
-  return content
-    .map((part) => (part.type === "text" ? part.text : ""))
-    .join("")
-    .trim();
-}

@@ -19,7 +19,7 @@ import {
 import { EvidenceLedger } from './evidence.js';
 import { fitHistory, totalTokens } from './history.js';
 import { fromAiSdk } from './generator.js';
-import { AGENT_SYSTEM, buildPrompt } from './prompt.js';
+import { AGENT_SYSTEM } from './prompt.js';
 import {
   DEFAULT_PROFILE,
   historyBudget,
@@ -27,11 +27,12 @@ import {
   type ModelProfile,
 } from '../providers/profiles.js';
 import type {
+  Asker,
+  AskOptions,
   AskResult,
   Generator,
   ReasoningEffort,
   RunPerformance,
-  SearchOptions,
   SearchResult,
 } from './types.js';
 
@@ -61,11 +62,7 @@ export interface AgentOptions {
   profile?: ModelProfile;
 }
 
-export interface AskOptions extends SearchOptions {
-  messages?: ModelMessage[];
-}
-
-export class Agent {
+export class Agent implements Asker {
   private readonly model: LanguageModel;
   private readonly daemon: DaemonClient;
   private readonly maxSteps: number;
@@ -146,19 +143,6 @@ export class Agent {
         "drop pleasantries and restated questions.",
       prompt: transcript,
     });
-  }
-
-  async askOnce(
-    question: string,
-    opts: AskOptions = {},
-  ): Promise<AskResult> {
-    const sources = await this.daemon.search(question, {
-      k: opts.k ?? DEFAULT_SEARCH_K,
-    });
-    const answer = await this.generator.generate(
-      buildPrompt(question, sources, opts.messages),
-    );
-    return { answer, sources };
   }
 
   /** The underlying ai-sdk v7 agent, for callers that drive their own loop

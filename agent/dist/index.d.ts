@@ -1,4 +1,4 @@
-import { LanguageModel, ModelMessage, ToolLoopAgent, Instructions, ToolSet } from 'ai';
+import { ModelMessage, LanguageModel, ToolLoopAgent, Instructions, ToolSet } from 'ai';
 
 interface SearchResult {
     id: number;
@@ -25,8 +25,8 @@ interface Generator {
     generate(prompt: Prompt): Promise<string>;
 }
 /** Throughput/latency stats for a completed agent run, surfaced from the
- *  ai-sdk v7 `result.finalStep.performance`. Optional: the legacy `askOnce`
- *  path and providers that omit usage leave it undefined. */
+ *  ai-sdk v7 `result.finalStep.performance`. Optional: providers that omit
+ *  usage leave it undefined. */
 interface RunPerformance {
     outputTokensPerSecond?: number;
     responseTimeMs?: number;
@@ -35,6 +35,16 @@ interface AskResult {
     answer: string;
     sources: SearchResult[];
     performance?: RunPerformance;
+}
+interface AskOptions extends SearchOptions {
+    messages?: ModelMessage[];
+}
+/** The minimal surface a conversation needs to produce an answer: ask a
+ *  question with optional prior turns, get an answer + sources back. `Agent`
+ *  satisfies it; `ChatSession` depends on this rather than the concrete agent,
+ *  so the conversation logic is testable with a fake. */
+interface Asker {
+    ask(question: string, opts?: AskOptions): Promise<AskResult>;
 }
 /** Reasoning-effort levels accepted by ai-sdk v7's standardized `reasoning`
  *  option (`LanguageModelV4CallOptions['reasoning']`). */
@@ -89,10 +99,7 @@ interface AgentOptions {
      *  cache-less profile so callers without a spec behave as before. */
     profile?: ModelProfile;
 }
-interface AskOptions extends SearchOptions {
-    messages?: ModelMessage[];
-}
-declare class Agent {
+declare class Agent implements Asker {
     private readonly model;
     private readonly daemon;
     private readonly maxSteps;
@@ -111,7 +118,6 @@ declare class Agent {
     /** Bound compactor for callers that drive the loop directly (the TUI). */
     historyCompactor(): (messages: ModelMessage[]) => Promise<ModelMessage[]>;
     private summarize;
-    askOnce(question: string, opts?: AskOptions): Promise<AskResult>;
     /** The underlying ai-sdk v7 agent, for callers that drive their own loop
      *  (e.g. `runAgentTUI`). Built lazily and cached, same instance as `ask`. */
     toolLoopAgent(): Promise<ToolLoopAgent>;
@@ -188,22 +194,12 @@ interface FitOptions {
 declare function fitHistory(messages: ModelMessage[], opts: FitOptions): Promise<ModelMessage[]>;
 
 declare const AGENT_SYSTEM = "You are a code-search agent. Use tools iteratively until you have enough evidence to answer, or until the maximum tool rounds are reached. Then answer with citations.\n\nAvailable tools:\n- search_code: semantic search. Start here for conceptual questions, feature questions, ownership questions, and data-source questions. Returns path, line range, and snippet.\n- grep: exact text or regex search over files. Use for symbols, routes, table names, config keys, queue names, event names, endpoint names, imports, and function names.\n- glob: find files by pattern.\n- read_file: read file content or a specific line range.\n- list_dir / tree: explore repository or service structure.\n- head / tail / wc: quick file inspection.\n- pipe: run a read-only shell-style pipeline in ONE call, chaining rg/grep with filters (head, tail, wc, sort, uniq, cut, tr, nl, cat, paste, sed) using \"|\". Prefer this to combine a search with filtering \u2014 e.g. `rg -l 'func main' --glob '*.go' | head -20` or `rg TODO | wc -l` \u2014 instead of issuing separate grep + head/wc calls. No shell is run, so redirection, \";\", \"&\", and \"$()\" are rejected and paths cannot escape the repo.\n- git_log / git_blame: inspect history when ownership or recent changes matter. Read-only.\n\nGeneral strategy:\n1. Start with search_code for conceptual discovery.\n2. Use grep to verify exact symbols, routes, functions, classes, table names, config keys, queue/topic names, and imports.\n3. Use read_file to inspect surrounding code before making claims.\n4. Follow imports, function calls, client calls, repository methods, ORM models, queries, and configuration references.\n5. Search across repositories/services when the code indicates microservice boundaries or shared dependencies.\n6. Prefer a single pipe call over several grep/read_file/head/wc calls when the work is expressible as a pipeline \u2014 it is faster and uses fewer tokens.\n7. Stop only when you can answer with cited evidence, or when further tracing is blocked by missing code.\n\nData-source tracing strategy:\nWhen the user asks about a data source, storage location, database, table, collection, API dependency, queue, topic, producer, writer, or source of truth, do not stop at the first match.\n\nTrace in this order where possible:\n1. Locate the relevant entry point:\n   - route\n   - controller\n   - handler\n   - resolver\n   - job\n   - worker\n   - command\n   - UI/backend caller\n2. Follow the execution path:\n   - service methods\n   - helper functions\n   - repository/DAO methods\n   - client SDKs\n   - generated clients\n   - shared libraries\n   - adapters\n3. Identify reads:\n   - SELECT/find/get/query/scan\n   - cache reads\n   - external API calls\n   - internal service calls\n   - queue/stream consumption\n4. Identify writes/producers:\n   - INSERT/save/create/update/upsert/delete\n   - ORM persistence calls\n   - database writes\n   - event publishes\n   - queue/topic producers\n   - sync/import jobs\n   - ETL pipelines\n5. Verify storage and schema:\n   - migrations\n   - ORM models\n   - schema files\n   - protobuf/OpenAPI/GraphQL definitions\n   - table/collection constants\n   - database configuration\n6. If an internal API or client is used, search for that API/client implementation in other services.\n7. If a table, collection, topic, or event is found, grep for all writers/producers across repositories.\n8. Separate readers/consumers from writers/producers.\n9. Prefer the deepest confirmed source-of-truth. If the deepest layer is an external system or missing repository, say that explicitly.\n\nRelevance rules:\n- Do not include files merely because they contain the search term.\n- Do not include unrelated APIs that happen to use the same word.\n- A consumer is not a source of truth unless the code shows it produces or persists the data.\n- A schema/model alone is not enough to prove ownership.\n- A client call proves dependency on another service, not the underlying data source.\n- A database read proves where data is read from, not where it originates.\n- A write operation is strong evidence of ownership, but still verify table, collection, topic, or model when possible.\n\nCitation rules:\n- Cite all code claims as [path:start-end].\n- Use citations from read_file or returned search results with exact line ranges.\n- Do not cite files you have not inspected enough to understand.\n- Never make uncited claims about code behavior.\n- If evidence is insufficient, say exactly what was found and what could not be verified.\n\nAnswer format:\nFor normal code questions:\n- Direct answer\n- Supporting evidence with citations\n- Gaps or uncertainty, if any\n\nFor data-source/source-of-truth questions:\n- Direct answer\n- Source map:\n  - Entry point\n  - Read path\n  - Write path / producer\n  - Storage layer\n  - External/internal service dependencies\n  - Other readers/consumers, only if relevant\n  - Gaps / uncertainty\n- Evidence chain with citations\n- Confidence level: High, Medium, or Low, based only on retrieved evidence\n\nExample of a well-formed data-source answer:\n<example>\n<question>Where do account balances come from?</question>\n<answer>\nAccount balances are read from the Postgres `balances` table by accounts-api, but the source of truth is ledger-worker, which consumes `transactions` events off Kafka and upserts the rolled-up balance.\n\nSource map:\n- Entry point: BalanceController.getBalance [accounts-api/src/controller/BalanceController.java:22-40]\n- Read path: BalanceRepository.findByAccountId -> SELECT on `balances` [accounts-api/src/repo/BalanceRepository.java:15-31]\n- Write path / producer: TransactionConsumer -> LedgerService.applyTransaction upserts the balance [ledger-worker/src/kafka/TransactionConsumer.java:18-44] [ledger-worker/src/service/LedgerService.java:50-78]\n- Storage: Postgres `balances` table [ledger-worker/src/db/migrations/V3__balances.sql:1-12]\n- Other readers: reporting-api reads the same table but never writes it [reporting-api/src/repo/BalanceRepository.java:10-24]\n- Gaps: the producer of the `transactions` events is outside the retrieved code.\n- Confidence: High\n</answer>\n</example>\n\nDo not guess. Do not rely on repository names, file names, or symbol names alone. Always verify with retrieved code.";
-type Chunk = {
-    path: string;
-    symbol: string;
-    start_line: number;
-    end_line: number;
-    snippet: string;
-};
-declare function buildPrompt(question: string, results: Chunk[], prior?: ModelMessage[]): Prompt;
 
 interface ChatSessionOptions {
-    agent: Agent;
-    once?: boolean;
+    agent: Asker;
 }
 declare class ChatSession {
     private readonly agent;
-    private readonly once;
     private readonly turns;
     private readonly listeners;
     constructor(opts: ChatSessionOptions);
@@ -216,7 +212,6 @@ declare class ChatSession {
 }
 
 interface EntryConfig {
-    once: boolean;
     modelSpec: string;
     question: string;
     daemonUrl: string;
@@ -255,14 +250,10 @@ declare class ProviderRegistry {
 declare function openaiProvider(): ModelProvider;
 declare function anthropicProvider(): ModelProvider;
 declare function googleProvider(): ModelProvider;
-/**
- * Register providers whose configuration is present: openai/anthropic/google
- * when their API keys are set, and local ollama/llamacpp always (no API key).
- */
 declare function registerBuiltinProviders(registry: {
     register(p: ModelProvider): unknown;
 }): void;
 
 declare function defaultProviders(): ProviderRegistry;
 
-export { AGENT_SYSTEM, Agent, type AgentConfig, type AgentOptions, type AskOptions, type AskResult, type CacheStrategy, ChatSession, type ChatSessionOptions, DEFAULT_PROFILE, DaemonClient, type EntryConfig, EvidenceLedger, type FitOptions, type Generator, type ModelProfile, type ModelProvider, type Prompt, ProviderRegistry, type ReasoningEffort, type RunPerformance, type SearchOptions, type SearchResult, type Summarize, type ToolSpec, type Turn, anthropicProvider, buildPrompt, cachedInstructions, createAgent, createAgentFromEntry, defaultProviders, deterministicTools, entryUsage, estimateTokens, fitHistory, formatSource, formatSources, fromAiSdk, googleProvider, historyBudget, openaiProvider, parseEntryArgs, profileFor, pruneBudget, reasoningFromEnv, registerBuiltinProviders, requestProviderOptions, totalTokens };
+export { AGENT_SYSTEM, Agent, type AgentConfig, type AgentOptions, type AskOptions, type AskResult, type Asker, type CacheStrategy, ChatSession, type ChatSessionOptions, DEFAULT_PROFILE, DaemonClient, type EntryConfig, EvidenceLedger, type FitOptions, type Generator, type ModelProfile, type ModelProvider, type Prompt, ProviderRegistry, type ReasoningEffort, type RunPerformance, type SearchOptions, type SearchResult, type Summarize, type ToolSpec, type Turn, anthropicProvider, cachedInstructions, createAgent, createAgentFromEntry, defaultProviders, deterministicTools, entryUsage, estimateTokens, fitHistory, formatSource, formatSources, fromAiSdk, googleProvider, historyBudget, openaiProvider, parseEntryArgs, profileFor, pruneBudget, reasoningFromEnv, registerBuiltinProviders, requestProviderOptions, totalTokens };

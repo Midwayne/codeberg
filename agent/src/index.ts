@@ -1,4 +1,4 @@
-export { Agent, type AgentOptions, type AskOptions } from "./core/agent.js";
+export { Agent, type AgentOptions } from "./core/agent.js";
 export {
   cachedInstructions,
   deterministicTools,
@@ -14,7 +14,7 @@ export {
   type FitOptions,
   type Summarize,
 } from "./core/history.js";
-export { AGENT_SYSTEM, buildPrompt } from "./core/prompt.js";
+export { AGENT_SYSTEM } from "./core/prompt.js";
 export { ChatSession, type ChatSessionOptions } from "./core/session.js";
 export {
   createAgent,
@@ -42,6 +42,8 @@ export {
   type ModelProfile,
 } from "./providers/profiles.js";
 export type {
+  Asker,
+  AskOptions,
   AskResult,
   Generator,
   Prompt,

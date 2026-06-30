@@ -1,22 +1,18 @@
 import type { ModelMessage } from "ai";
 
-import { Agent } from "./agent.js";
-import type { AskResult, Turn } from "./types.js";
+import type { Asker, AskResult, Turn } from "./types.js";
 
 export interface ChatSessionOptions {
-  agent: Agent;
-  once?: boolean;
+  agent: Asker;
 }
 
 export class ChatSession {
-  private readonly agent: Agent;
-  private readonly once: boolean;
+  private readonly agent: Asker;
   private readonly turns: Turn[] = [];
   private readonly listeners = new Set<() => void>();
 
   constructor(opts: ChatSessionOptions) {
     this.agent = opts.agent;
-    this.once = opts.once ?? false;
   }
 
   get history(): readonly Turn[] {
@@ -34,9 +30,7 @@ export class ChatSession {
     this.turns.push({ role: "user", content: question });
     this.notify();
 
-    const result = this.once
-      ? await this.agent.askOnce(question, { messages })
-      : await this.agent.ask(question, { messages });
+    const result = await this.agent.ask(question, { messages });
 
     this.turns.push({
       role: "assistant",

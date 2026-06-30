@@ -1,7 +1,6 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
-import type { LanguageModel } from "ai";
 
 import type { ModelProvider } from "./registry.js";
 
@@ -10,103 +9,101 @@ function env(name: string): string | undefined {
   return v && v.length > 0 ? v : undefined;
 }
 
-export function openaiProvider(): ModelProvider {
-  const apiKey = env("OPENAI_API_KEY");
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is required for the openai provider");
+/** Read a required API key, failing with a consistent message. The failure is
+ *  caught by `registerBuiltinProviders`, so an unconfigured provider is skipped
+ *  rather than crashing startup. */
+function requireEnv(name: string, provider: string): string {
+  const value = env(name);
+  if (!value) {
+    throw new Error(`${name} is required for the ${provider} provider`);
   }
-  const openai = createOpenAI({ apiKey });
-  return {
-    name: "openai",
-    model(modelId: string): LanguageModel {
-      return openai(modelId);
-    },
-  };
+  return value;
+}
+
+export function openaiProvider(): ModelProvider {
+  const openai = createOpenAI({ apiKey: requireEnv("OPENAI_API_KEY", "openai") });
+  return { name: "openai", model: (id) => openai(id) };
 }
 
 export function anthropicProvider(): ModelProvider {
-  const apiKey = env("ANTHROPIC_API_KEY");
-  if (!apiKey) {
-    throw new Error("ANTHROPIC_API_KEY is required for the anthropic provider");
-  }
-  const anthropic = createAnthropic({ apiKey });
-  return {
-    name: "anthropic",
-    model(modelId: string): LanguageModel {
-      return anthropic(modelId);
-    },
-  };
+  const anthropic = createAnthropic({
+    apiKey: requireEnv("ANTHROPIC_API_KEY", "anthropic"),
+  });
+  return { name: "anthropic", model: (id) => anthropic(id) };
 }
 
 export function googleProvider(): ModelProvider {
-  const apiKey = env("GOOGLE_GENERATIVE_AI_API_KEY");
-  if (!apiKey) {
-    throw new Error(
-      "GOOGLE_GENERATIVE_AI_API_KEY is required for the google provider",
-    );
-  }
-  const google = createGoogleGenerativeAI({ apiKey });
-  return {
-    name: "google",
-    model(modelId: string): LanguageModel {
-      return google(modelId);
-    },
-  };
-}
-
-export function ollamaProvider(): ModelProvider {
-  // Ollama serves an OpenAI-compatible API. Default to the local daemon; the
-  // key is unused by Ollama but the OpenAI client requires a non-empty value.
-  const ollama = createOpenAI({
-    baseURL: env("OLLAMA_BASE_URL") ?? "http://localhost:11434/v1",
-    apiKey: env("OLLAMA_API_KEY") ?? "ollama",
+  const google = createGoogleGenerativeAI({
+    apiKey: requireEnv("GOOGLE_GENERATIVE_AI_API_KEY", "google"),
   });
-  return {
-    name: "ollama",
-    model(modelId: string): LanguageModel {
-      // .chat() forces the Chat Completions API; Ollama does not implement
-      // OpenAI's Responses API, which createOpenAI() would otherwise default to.
-      return ollama.chat(modelId);
-    },
-  };
-}
-
-export function llamacppProvider(): ModelProvider {
-  // llama.cpp's llama-server exposes an OpenAI-compatible API at
-  // /v1/chat/completions. It serves whichever model was loaded with `-m`, so
-  // the model id is a free-form label. The OpenAI client requires a non-empty
-  // key even though llama-server ignores it unless started with --api-key.
-  const llamacpp = createOpenAI({
-    baseURL: env("LLAMACPP_BASE_URL") ?? "http://localhost:8080/v1",
-    apiKey: env("LLAMACPP_API_KEY") ?? "llama.cpp",
-  });
-  return {
-    name: "llamacpp",
-    model(modelId: string): LanguageModel {
-      // .chat() forces the Chat Completions API; llama-server does not
-      // implement OpenAI's Responses API, which createOpenAI() would default to.
-      return llamacpp.chat(modelId);
-    },
-  };
+  return { name: "google", model: (id) => google(id) };
 }
 
 /**
- * Register providers whose configuration is present: openai/anthropic/google
- * when their API keys are set, and local ollama/llamacpp always (no API key).
+ * ollama and llamacpp both serve an OpenAI-compatible Chat Completions API and
+ * differ only in default endpoint and key. `.chat()` forces Chat Completions —
+ * neither implements OpenAI's Responses API, which `createOpenAI()` would
+ * otherwise default to. The key is unused by the servers, but the client
+ * requires a non-empty value.
  */
+function openAICompatible(opts: {
+  name: string;
+  baseURLEnv: string;
+  baseURLDefault: string;
+  keyEnv: string;
+  keyDefault: string;
+}): ModelProvider {
+  const client = createOpenAI({
+    baseURL: env(opts.baseURLEnv) ?? opts.baseURLDefault,
+    apiKey: env(opts.keyEnv) ?? opts.keyDefault,
+  });
+  return { name: opts.name, model: (id) => client.chat(id) };
+}
+
+export function ollamaProvider(): ModelProvider {
+  return openAICompatible({
+    name: "ollama",
+    baseURLEnv: "OLLAMA_BASE_URL",
+    baseURLDefault: "http://localhost:11434/v1",
+    keyEnv: "OLLAMA_API_KEY",
+    keyDefault: "ollama",
+  });
+}
+
+export function llamacppProvider(): ModelProvider {
+  // llama-server serves whichever model was loaded with `-m`, so the model id is
+  // a free-form label.
+  return openAICompatible({
+    name: "llamacpp",
+    baseURLEnv: "LLAMACPP_BASE_URL",
+    baseURLDefault: "http://localhost:8080/v1",
+    keyEnv: "LLAMACPP_API_KEY",
+    keyDefault: "llama.cpp",
+  });
+}
+
+/**
+ * Every built-in provider factory. The external ones (openai/anthropic/google)
+ * throw without their API key and are skipped; the local ones always register.
+ * Add a provider by writing its factory and appending it here — registration is
+ * the single loop below.
+ */
+const BUILTIN: ReadonlyArray<() => ModelProvider> = [
+  openaiProvider,
+  anthropicProvider,
+  googleProvider,
+  ollamaProvider,
+  llamacppProvider,
+];
+
 export function registerBuiltinProviders(registry: {
   register(p: ModelProvider): unknown;
 }): void {
-  const tryRegister = (fn: () => ModelProvider) => {
+  for (const make of BUILTIN) {
     try {
-      registry.register(fn());
+      registry.register(make());
     } catch {
-      /* provider not configured */
+      /* provider not configured (missing API key) */
     }
-  };
-  tryRegister(openaiProvider);
-  tryRegister(anthropicProvider);
-  tryRegister(googleProvider);
-  tryRegister(ollamaProvider);
-  tryRegister(llamacppProvider);
+  }
 }

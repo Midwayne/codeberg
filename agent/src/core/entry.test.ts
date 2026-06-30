@@ -9,23 +9,18 @@ describe("parseEntryArgs", () => {
       {},
     );
     expect(entry).toEqual({
-      once: false,
       modelSpec: "openai:gpt-4o-mini",
       question: "how does auth work",
       daemonUrl: "http://127.0.0.1:8080",
     });
   });
 
-  it("honors --once and env overrides", () => {
-    const entry = parseEntryArgs(
-      ["node", "cli", "--once", "anthropic:claude"],
-      {
-        CODEBERG_MODEL: "openai:gpt-4o",
-        CODEBERG_QUESTION: "from env",
-        CODEBERG_DAEMON_URL: "http://localhost:9000",
-      },
-    );
-    expect(entry?.once).toBe(true);
+  it("honors env overrides", () => {
+    const entry = parseEntryArgs(["node", "cli", "anthropic:claude"], {
+      CODEBERG_MODEL: "openai:gpt-4o",
+      CODEBERG_QUESTION: "from env",
+      CODEBERG_DAEMON_URL: "http://localhost:9000",
+    });
     expect(entry?.modelSpec).toBe("openai:gpt-4o");
     expect(entry?.question).toBe("from env");
     expect(entry?.daemonUrl).toBe("http://localhost:9000");

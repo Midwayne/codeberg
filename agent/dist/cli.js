@@ -83,23 +83,21 @@ var EvidenceLedger = class {
   }
 };
 
+// src/core/message.ts
+function messageText(message) {
+  const { content } = message;
+  if (typeof content === "string") {
+    return content;
+  }
+  return content.map((part) => part.type === "text" ? part.text : "").join("");
+}
+
 // src/core/history.ts
 function estimateTokens(text) {
   return Math.ceil(text.length / 4);
 }
-function textOf(content) {
-  if (typeof content === "string") {
-    return content;
-  }
-  if (!Array.isArray(content)) {
-    return "";
-  }
-  return content.map(
-    (part) => part && typeof part === "object" && "text" in part && typeof part.text === "string" ? part.text : ""
-  ).join("");
-}
 function messageTokens(message) {
-  return estimateTokens(textOf(message.content));
+  return estimateTokens(messageText(message));
 }
 function totalTokens(messages) {
   return messages.reduce((sum, m) => sum + messageTokens(m), 0);
@@ -117,7 +115,7 @@ async function fitHistory(messages, opts) {
     return messages;
   }
   if (opts.summarize) {
-    const transcript = older.map((m) => `${m.role}: ${textOf(m.content)}`).join("\n");
+    const transcript = older.map((m) => `${m.role}: ${messageText(m)}`).join("\n");
     const summary = await opts.summarize(transcript);
     const marker2 = {
       role: "user",
@@ -165,69 +163,6 @@ Source map:
 - Confidence: High
 </answer>
 </example>`;
-var SYSTEM = `You are a precise code-search assistant.
-
-Your answers must be based ONLY on retrieved code. Every factual claim about the codebase must be supported with citations in the format [path:start-end]. If the retrieved evidence is insufficient, incomplete, ambiguous, or contradictory, say so clearly. Do not guess.
-
-Core responsibilities:
-- Answer the user's question using retrieved code evidence only.
-- Cite the exact files and line ranges that support each claim.
-- Distinguish confirmed facts from uncertainty.
-- Do not infer behavior from naming alone.
-- Do not cite irrelevant matches just because a search term appears nearby.
-
-Data-source tracing requirements:
-When the user asks where data comes from, where it is stored, what database/table/collection/topic/API backs something, or asks for "data sources", you must drill down as far as the retrieved code allows.
-
-Trace the full data path when possible:
-1. Start from the user-facing API, handler, resolver, job, UI call, or feature mentioned by the user.
-2. Follow calls through controllers, services, repositories, clients, SDKs, shared libraries, generated clients, and configuration.
-3. Identify whether the code reads from:
-   - a database table, collection, view, index, stored procedure, cache, file, queue, stream, external API, third-party SDK, or another internal service.
-4. Identify whether the code writes, inserts, updates, upserts, deletes, publishes, or syncs the data.
-5. Prefer the true producer/source-of-truth over downstream readers or consumers.
-6. If an API only reads data that another service writes, keep tracing until you find the writer/producer, or state that the writer was not found.
-7. If data crosses service boundaries, search across all relevant repositories/services, not just the first matching repository.
-8. Include schema, model, migration, ORM mapping, query, repository, config, queue/topic name, endpoint, or environment variable evidence when available.
-9. Clearly distinguish:
-   - source of truth
-   - read path
-   - write path
-   - derived/cache layer
-   - downstream consumers
-   - uncertain or unverified links
-
-Microservices guidance:
-- The same database, table, queue, event, or shared library may be used by multiple services.
-- Multiple APIs may read the same data source.
-- Do not list APIs as data sources unless the code shows that the API is the source being called.
-- Do not return unrelated APIs, handlers, files, or services just because they match the search term.
-- When multiple repositories may be involved, search broadly and then narrow using imports, clients, routes, table names, event names, config keys, and write operations.
-
-Evidence standards:
-- A read query proves a read path, not the source of truth.
-- A model/schema proves structure, not who writes the data.
-- A config key proves a configured dependency, not actual usage.
-- A route/controller proves an entry point, not the underlying data source.
-- A migration/table definition proves storage exists, not which service owns it.
-- A save/insert/update/upsert/delete/publish operation is stronger evidence of data production.
-- If the true producer cannot be found in retrieved code, explicitly say: "I found the read path, but not the writer/source-of-truth."
-
-Answer format:
-- Start with the direct answer.
-- Then provide the evidence chain with citations.
-- For data-source questions, include a concise source map:
-  - Entry point
-  - Read path
-  - Write path / producer
-  - Storage or external dependency
-  - Cross-service links
-  - Confidence / gaps
-- Every item in the source map must be cited.
-
-Example of a well-formed data-source answer:
-${DATA_SOURCE_EXAMPLE}
-`;
 var AGENT_SYSTEM = `You are a code-search agent. Use tools iteratively until you have enough evidence to answer, or until the maximum tool rounds are reached. Then answer with citations.
 
 Available tools:
@@ -335,49 +270,6 @@ Example of a well-formed data-source answer:
 ${DATA_SOURCE_EXAMPLE}
 
 Do not guess. Do not rely on repository names, file names, or symbol names alone. Always verify with retrieved code.`;
-function buildPrompt(question, results, prior) {
-  const evidence = results.length === 0 ? "No chunks retrieved." : results.map((r, i) => {
-    const loc = `${r.path}:${r.start_line}-${r.end_line}`;
-    const sym = r.symbol ? ` ${r.symbol}` : "";
-    return `[${i + 1}] ${loc}${sym}
-${r.snippet}`;
-  }).join("\n\n");
-  const body = `${formatHistory(prior)}<retrieved_code>
-${evidence}
-</retrieved_code>
-
-<question>${question}</question>`;
-  return { system: SYSTEM, prompt: body };
-}
-function formatHistory(prior) {
-  if (!prior?.length) {
-    return "";
-  }
-  const turns = [];
-  for (const m of prior) {
-    if (m.role !== "user" && m.role !== "assistant") {
-      continue;
-    }
-    const text = textOf2(m.content);
-    if (text) {
-      turns.push(`<turn role="${m.role}">${text}</turn>`);
-    }
-  }
-  if (turns.length === 0) {
-    return "";
-  }
-  return `<conversation>
-${turns.join("\n")}
-</conversation>
-
-`;
-}
-function textOf2(content) {
-  if (typeof content === "string") {
-    return content;
-  }
-  return content.map((part) => part.type === "text" ? part.text : "").join("").trim();
-}
 
 // src/providers/profiles.ts
 var ONE_MILLION = 1e6;
@@ -504,15 +396,6 @@ var Agent = class {
       system: "Summarize this code-search conversation for an agent that will continue it. Preserve every concrete finding: file paths, line ranges, symbols, data sources, and unresolved questions. Be terse; drop pleasantries and restated questions.",
       prompt: transcript
     });
-  }
-  async askOnce(question, opts = {}) {
-    const sources = await this.daemon.search(question, {
-      k: opts.k ?? DEFAULT_SEARCH_K
-    });
-    const answer = await this.generator.generate(
-      buildPrompt(question, sources, opts.messages)
-    );
-    return { answer, sources };
   }
   /** The underlying ai-sdk v7 agent, for callers that drive their own loop
    *  (e.g. `runAgentTUI`). Built lazily and cached, same instance as `ask`. */
@@ -708,83 +591,68 @@ function env(name) {
   const v = process.env[name];
   return v && v.length > 0 ? v : void 0;
 }
-function openaiProvider() {
-  const apiKey = env("OPENAI_API_KEY");
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is required for the openai provider");
+function requireEnv(name, provider) {
+  const value = env(name);
+  if (!value) {
+    throw new Error(`${name} is required for the ${provider} provider`);
   }
-  const openai = createOpenAI({ apiKey });
-  return {
-    name: "openai",
-    model(modelId) {
-      return openai(modelId);
-    }
-  };
+  return value;
+}
+function openaiProvider() {
+  const openai = createOpenAI({ apiKey: requireEnv("OPENAI_API_KEY", "openai") });
+  return { name: "openai", model: (id) => openai(id) };
 }
 function anthropicProvider() {
-  const apiKey = env("ANTHROPIC_API_KEY");
-  if (!apiKey) {
-    throw new Error("ANTHROPIC_API_KEY is required for the anthropic provider");
-  }
-  const anthropic = createAnthropic({ apiKey });
-  return {
-    name: "anthropic",
-    model(modelId) {
-      return anthropic(modelId);
-    }
-  };
+  const anthropic = createAnthropic({
+    apiKey: requireEnv("ANTHROPIC_API_KEY", "anthropic")
+  });
+  return { name: "anthropic", model: (id) => anthropic(id) };
 }
 function googleProvider() {
-  const apiKey = env("GOOGLE_GENERATIVE_AI_API_KEY");
-  if (!apiKey) {
-    throw new Error(
-      "GOOGLE_GENERATIVE_AI_API_KEY is required for the google provider"
-    );
-  }
-  const google = createGoogleGenerativeAI({ apiKey });
-  return {
-    name: "google",
-    model(modelId) {
-      return google(modelId);
-    }
-  };
+  const google = createGoogleGenerativeAI({
+    apiKey: requireEnv("GOOGLE_GENERATIVE_AI_API_KEY", "google")
+  });
+  return { name: "google", model: (id) => google(id) };
+}
+function openAICompatible(opts) {
+  const client = createOpenAI({
+    baseURL: env(opts.baseURLEnv) ?? opts.baseURLDefault,
+    apiKey: env(opts.keyEnv) ?? opts.keyDefault
+  });
+  return { name: opts.name, model: (id) => client.chat(id) };
 }
 function ollamaProvider() {
-  const ollama = createOpenAI({
-    baseURL: env("OLLAMA_BASE_URL") ?? "http://localhost:11434/v1",
-    apiKey: env("OLLAMA_API_KEY") ?? "ollama"
-  });
-  return {
+  return openAICompatible({
     name: "ollama",
-    model(modelId) {
-      return ollama.chat(modelId);
-    }
-  };
+    baseURLEnv: "OLLAMA_BASE_URL",
+    baseURLDefault: "http://localhost:11434/v1",
+    keyEnv: "OLLAMA_API_KEY",
+    keyDefault: "ollama"
+  });
 }
 function llamacppProvider() {
-  const llamacpp = createOpenAI({
-    baseURL: env("LLAMACPP_BASE_URL") ?? "http://localhost:8080/v1",
-    apiKey: env("LLAMACPP_API_KEY") ?? "llama.cpp"
-  });
-  return {
+  return openAICompatible({
     name: "llamacpp",
-    model(modelId) {
-      return llamacpp.chat(modelId);
-    }
-  };
+    baseURLEnv: "LLAMACPP_BASE_URL",
+    baseURLDefault: "http://localhost:8080/v1",
+    keyEnv: "LLAMACPP_API_KEY",
+    keyDefault: "llama.cpp"
+  });
 }
+var BUILTIN = [
+  openaiProvider,
+  anthropicProvider,
+  googleProvider,
+  ollamaProvider,
+  llamacppProvider
+];
 function registerBuiltinProviders(registry) {
-  const tryRegister = (fn) => {
+  for (const make of BUILTIN) {
     try {
-      registry.register(fn());
+      registry.register(make());
     } catch {
     }
-  };
-  tryRegister(openaiProvider);
-  tryRegister(anthropicProvider);
-  tryRegister(googleProvider);
-  tryRegister(ollamaProvider);
-  tryRegister(llamacppProvider);
+  }
 }
 
 // src/providers/index.ts
@@ -831,16 +699,13 @@ function createAgentFromEntry(entry) {
 // src/core/entry.ts
 var DEFAULT_DAEMON_URL = "http://127.0.0.1:8080";
 function parseEntryArgs(argv, env2 = process.env) {
-  const args = argv.slice(2);
-  const once = args[0] === "--once";
-  const rest = once ? args.slice(1) : args;
+  const rest = argv.slice(2);
   const modelSpec = env2.CODEBERG_MODEL ?? rest[0] ?? "";
   const question = env2.CODEBERG_QUESTION ?? (modelSpec === rest[0] ? rest.slice(1).join(" ") : rest.join(" "));
   if (!modelSpec.includes(":")) {
     return null;
   }
   return {
-    once,
     modelSpec,
     question,
     daemonUrl: env2.CODEBERG_DAEMON_URL ?? DEFAULT_DAEMON_URL
@@ -848,7 +713,6 @@ function parseEntryArgs(argv, env2 = process.env) {
 }
 function entryUsage(program) {
   return `Usage: ${program} [provider:model] <question>
-       ${program} --once [provider:model] <question>
 Env: CODEBERG_DAEMON_URL (default http://127.0.0.1:8080)
      CODEBERG_MODEL=openai:gpt-4o-mini
 Providers: openai, anthropic, google (when API keys set)`;
@@ -857,12 +721,10 @@ Providers: openai, anthropic, google (when API keys set)`;
 // src/core/session.ts
 var ChatSession = class {
   agent;
-  once;
   turns = [];
   listeners = /* @__PURE__ */ new Set();
   constructor(opts) {
     this.agent = opts.agent;
-    this.once = opts.once ?? false;
   }
   get history() {
     return this.turns;
@@ -875,7 +737,7 @@ var ChatSession = class {
     const messages = this.toMessages();
     this.turns.push({ role: "user", content: question });
     this.notify();
-    const result = this.once ? await this.agent.askOnce(question, { messages }) : await this.agent.ask(question, { messages });
+    const result = await this.agent.ask(question, { messages });
     this.turns.push({
       role: "assistant",
       content: result.answer,
@@ -939,13 +801,7 @@ async function main() {
     console.error(entryUsage("codeberg-ask"));
     process.exit(1);
   }
-  const session = new ChatSession({
-    agent: createAgentFromEntry(entry),
-    // Preserve current behavior: always use the multi-step `ask` flow,
-    // ignoring `--once` (askOnce) as the pre-TUI CLI did.
-    // once: entry.once,
-    once: false
-  });
+  const session = new ChatSession({ agent: createAgentFromEntry(entry) });
   const result = await session.ask(entry.question);
   printResult(result);
 }

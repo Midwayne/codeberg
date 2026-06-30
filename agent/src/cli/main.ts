@@ -11,13 +11,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const session = new ChatSession({
-    agent: createAgentFromEntry(entry),
-    // Preserve current behavior: always use the multi-step `ask` flow,
-    // ignoring `--once` (askOnce) as the pre-TUI CLI did.
-    // once: entry.once,
-    once: false,
-  });
+  const session = new ChatSession({ agent: createAgentFromEntry(entry) });
   const result = await session.ask(entry.question);
   printResult(result);
 }

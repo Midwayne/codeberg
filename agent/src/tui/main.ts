@@ -8,8 +8,8 @@ import { wrapSessionAgent } from "./session-agent.js";
 
 // The interactive chat UI is provided by ai-sdk v7's `runAgentTUI`, which drives
 // the ToolLoopAgent itself and renders streamed tool calls, reasoning, and
-// output-throughput stats. It owns input and session state, so the legacy
-// `--once` / seeded `--question` flags do not apply here (use the CLI for those).
+// output-throughput stats. It owns input and session state, so the CLI's
+// seeded-question flow does not apply here — pass only `provider:model`.
 //
 // `runAgentTUI` exposes no session or input hooks, so persistence and slash
 // commands are layered onto the one seam it does give us — the `agent` it calls
