@@ -144,3 +144,16 @@ export const myProvider: ModelProvider = {
 - `agent.ask(question, { messages })` — tool loop with optional prior turns
 - `agent.askOnce(question, { messages })` — single search + one LLM call
 - `ChatSession` — multi-turn wrapper that tracks history for follow-ups
+
+## Prompt hooks
+
+Prefix a request with `/enhance` to get a copy-pasteable agent brief instead of
+an implementation answer:
+
+```sh
+codeberg-ask openai:gpt-4.1 "/enhance add tenant-aware search filtering"
+```
+
+The hook still uses the normal code-search tool loop, then returns impacted
+files/symbols, current behavior, implementation guidance, verification, and open
+questions in an agent-friendly Markdown format.

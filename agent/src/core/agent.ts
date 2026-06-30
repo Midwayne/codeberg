@@ -19,6 +19,11 @@ import {
 import { EvidenceLedger } from './evidence.js';
 import { fitHistory, totalTokens } from './history.js';
 import { fromAiSdk } from './generator.js';
+import {
+  DEFAULT_PROMPT_HOOKS,
+  wrapToolLoopAgentWithPromptHooks,
+  type PromptHook,
+} from './hooks/index.js';
 import { AGENT_SYSTEM } from './prompt.js';
 import {
   DEFAULT_PROFILE,
@@ -60,6 +65,8 @@ export interface AgentOptions {
    *  history compaction, and in-loop pruning. Defaults to an uncapped,
    *  cache-less profile so callers without a spec behave as before. */
   profile?: ModelProfile;
+  /** Last-user-message rewrites such as `/enhance`. Pass [] to disable. */
+  promptHooks?: readonly PromptHook[];
 }
 
 export class Agent implements Asker {
@@ -69,6 +76,7 @@ export class Agent implements Asker {
   private readonly generator: Generator;
   private readonly reasoning?: ReasoningEffort;
   private readonly profile: ModelProfile;
+  private readonly promptHooks: readonly PromptHook[];
 
   // Built once on first use (tools require an async daemon round-trip), then
   // reused across every ask instead of reconstructing the loop each call.
@@ -88,6 +96,7 @@ export class Agent implements Asker {
     this.generator = opts.generator ?? fromAiSdk(opts.model);
     this.reasoning = opts.reasoning;
     this.profile = opts.profile ?? DEFAULT_PROFILE;
+    this.promptHooks = opts.promptHooks ?? DEFAULT_PROMPT_HOOKS;
   }
 
   async ask(question: string, opts: AskOptions = {}): Promise<AskResult> {
@@ -162,7 +171,7 @@ export class Agent implements Asker {
         this.profile,
       );
       const prune = pruneBudget(this.profile);
-      this.loop = new ToolLoopAgent({
+      const loop = new ToolLoopAgent({
         model: this.model,
         // Cache the large, frozen system prompt instead of re-billing it on
         // every tool round and every turn.
@@ -187,6 +196,7 @@ export class Agent implements Asker {
               }
             : undefined,
       });
+      this.loop = wrapToolLoopAgentWithPromptHooks(loop, this.promptHooks);
     }
     return this.loop;
   }

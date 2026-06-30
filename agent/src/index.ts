@@ -15,6 +15,15 @@ export {
   type Summarize,
 } from "./core/history.js";
 export { AGENT_SYSTEM } from "./core/prompt.js";
+export {
+  DEFAULT_PROMPT_HOOKS,
+  applyPromptHooksToMessages,
+  applyPromptHooksToText,
+  enhancePromptHook,
+  wrapToolLoopAgentWithPromptHooks,
+  type PromptHook,
+  type PromptHookInput,
+} from "./core/hooks/index.js";
 export { ChatSession, type ChatSessionOptions } from "./core/session.js";
 export {
   createAgent,
