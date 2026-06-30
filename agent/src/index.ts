@@ -1,6 +1,19 @@
 export { Agent, type AgentOptions, type AskOptions } from "./core/agent.js";
+export {
+  cachedInstructions,
+  deterministicTools,
+  requestProviderOptions,
+} from "./core/cache.js";
 export { DaemonClient } from "./core/client.js";
+export { EvidenceLedger } from "./core/evidence.js";
 export { fromAiSdk } from "./core/generator.js";
+export {
+  estimateTokens,
+  fitHistory,
+  totalTokens,
+  type FitOptions,
+  type Summarize,
+} from "./core/history.js";
 export { AGENT_SYSTEM, buildPrompt } from "./core/prompt.js";
 export { ChatSession, type ChatSessionOptions } from "./core/session.js";
 export {
@@ -20,6 +33,14 @@ export {
   registerBuiltinProviders,
   type ModelProvider,
 } from "./providers/index.js";
+export {
+  DEFAULT_PROFILE,
+  historyBudget,
+  profileFor,
+  pruneBudget,
+  type CacheStrategy,
+  type ModelProfile,
+} from "./providers/profiles.js";
 export type {
   AskResult,
   Generator,

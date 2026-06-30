@@ -1,6 +1,7 @@
 import {
   dynamicTool,
   jsonSchema,
+  pruneMessages,
   stepCountIs,
   tool,
   ToolLoopAgent,
@@ -10,8 +11,21 @@ import {
 } from 'ai';
 
 import { DaemonClient } from './client.js';
+import {
+  cachedInstructions,
+  deterministicTools,
+  requestProviderOptions,
+} from './cache.js';
+import { EvidenceLedger } from './evidence.js';
+import { fitHistory, totalTokens } from './history.js';
 import { fromAiSdk } from './generator.js';
 import { AGENT_SYSTEM, buildPrompt } from './prompt.js';
+import {
+  DEFAULT_PROFILE,
+  historyBudget,
+  pruneBudget,
+  type ModelProfile,
+} from '../providers/profiles.js';
 import type {
   AskResult,
   Generator,
@@ -41,6 +55,10 @@ export interface AgentOptions {
   generator?: Generator;
   /** Standardized ai-sdk v7 reasoning-effort control, applied to every run. */
   reasoning?: ReasoningEffort;
+  /** Memory-limit + caching profile for the model. Drives prompt caching,
+   *  history compaction, and in-loop pruning. Defaults to an uncapped,
+   *  cache-less profile so callers without a spec behave as before. */
+  profile?: ModelProfile;
 }
 
 export interface AskOptions extends SearchOptions {
@@ -53,6 +71,7 @@ export class Agent {
   private readonly maxSteps: number;
   private readonly generator: Generator;
   private readonly reasoning?: ReasoningEffort;
+  private readonly profile: ModelProfile;
 
   // Built once on first use (tools require an async daemon round-trip), then
   // reused across every ask instead of reconstructing the loop each call.
@@ -61,6 +80,9 @@ export class Agent {
   // the model. Reset at the top of each `ask`; safe because asks are awaited
   // sequentially (no concurrent runs share this Agent instance).
   private sources: SearchResult[] = [];
+  // Conversation-lifetime index of everything retrieved, injected each turn so
+  // the model needn't re-search. Persists across asks (unlike `sources`).
+  private readonly ledger = new EvidenceLedger();
 
   constructor(opts: AgentOptions) {
     this.model = opts.model;
@@ -68,24 +90,62 @@ export class Agent {
     this.maxSteps = opts.maxSteps ?? DEFAULT_MAX_STEPS;
     this.generator = opts.generator ?? fromAiSdk(opts.model);
     this.reasoning = opts.reasoning;
+    this.profile = opts.profile ?? DEFAULT_PROFILE;
   }
 
   async ask(question: string, opts: AskOptions = {}): Promise<AskResult> {
     this.sources = [];
     const loop = await this.ensureLoop();
+    // Keep the transcript under the model's memory limit: summarize older turns
+    // once they exceed the history budget, leaving the recent turns verbatim.
+    const history = await this.compactHistory(opts.messages ?? []);
+    // Inject what we've already found, just before the new question, so the
+    // model can cite prior evidence without re-searching. Placed at the tail so
+    // the (cacheable) historical prefix stays stable across turns.
+    const ledger = this.ledger.render();
     const messages: ModelMessage[] = [
-      ...(opts.messages ?? []),
+      ...history,
+      ...(ledger ? [{ role: "user" as const, content: ledger }] : []),
       { role: "user", content: question },
     ];
     // Non-streaming `generate`: some OpenAI-compatible gateways stall mid-stream
     // when a response carries tool calls; `generate` returns the whole step at
     // once, and the timeout config bounds any stall.
     const result = await loop.generate({ messages });
+    const sources = dedupe(this.sources);
+    // Carry this turn's findings into the next turn's ledger.
+    this.ledger.add(sources);
     return {
       answer: result.text,
-      sources: dedupe(this.sources),
+      sources,
       performance: toPerformance(result.finalStep?.performance),
     };
+  }
+
+  /** Compact a transcript to fit this model's history budget, summarizing the
+   *  overflow with the model itself. Exposed so the TUI session wrapper can
+   *  apply the same policy to its own (separately driven) transcript. */
+  async compactHistory(messages: ModelMessage[]): Promise<ModelMessage[]> {
+    return fitHistory(messages, {
+      budget: historyBudget(this.profile),
+      summarize: (transcript) => this.summarize(transcript),
+    });
+  }
+
+  /** Bound compactor for callers that drive the loop directly (the TUI). */
+  historyCompactor(): (messages: ModelMessage[]) => Promise<ModelMessage[]> {
+    return (messages) => this.compactHistory(messages);
+  }
+
+  private async summarize(transcript: string): Promise<string> {
+    return this.generator.generate({
+      system:
+        "Summarize this code-search conversation for an agent that will " +
+        "continue it. Preserve every concrete finding: file paths, line " +
+        "ranges, symbols, data sources, and unresolved questions. Be terse; " +
+        "drop pleasantries and restated questions.",
+      prompt: transcript,
+    });
   }
 
   async askOnce(
@@ -109,13 +169,39 @@ export class Agent {
 
   private async ensureLoop(): Promise<ToolLoopAgent> {
     if (!this.loop) {
+      // Sort tools so the system+tools prefix is byte-stable — a reordered tool
+      // list would invalidate the prompt cache on every process.
+      const tools = deterministicTools(await this.buildTools());
+      const providerOptions = requestProviderOptions(
+        AGENT_SYSTEM,
+        Object.keys(tools),
+        this.profile,
+      );
+      const prune = pruneBudget(this.profile);
       this.loop = new ToolLoopAgent({
         model: this.model,
-        instructions: AGENT_SYSTEM,
-        tools: await this.buildTools(),
+        // Cache the large, frozen system prompt instead of re-billing it on
+        // every tool round and every turn.
+        instructions: cachedInstructions(AGENT_SYSTEM, this.profile),
+        tools,
         stopWhen: stepCountIs(this.maxSteps),
         timeout: DEFAULT_TIMEOUT,
+        ...(providerOptions ? { providerOptions } : {}),
         ...(this.reasoning ? { reasoning: this.reasoning } : {}),
+        // Context editing for the in-flight loop: once accumulated tool results
+        // cross the high-water mark, clear the older ones (keeping the two most
+        // recent messages intact) so a deep, tool-heavy ask can't blow the
+        // window. The cleared pairs are dropped together, never half-removed.
+        prepareStep: ({ messages }) =>
+          totalTokens(messages) > prune
+            ? {
+                messages: pruneMessages({
+                  messages,
+                  toolCalls: "before-last-2-messages",
+                  emptyMessages: "remove",
+                }),
+              }
+            : undefined,
       });
     }
     return this.loop;

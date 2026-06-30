@@ -1,6 +1,7 @@
 import { Agent } from "./agent.js";
 import { DaemonClient } from "./client.js";
 import { defaultProviders } from "../providers/index.js";
+import { profileFor } from "../providers/profiles.js";
 import type { EntryConfig } from "./entry.js";
 import type { ReasoningEffort } from "./types.js";
 
@@ -37,6 +38,9 @@ export function createAgent(config: AgentConfig): Agent {
     model,
     daemon: new DaemonClient(config.daemonUrl),
     reasoning: config.reasoning,
+    // Resolve the model's memory limit + caching strategy from the same spec so
+    // the agent budgets context and marks the cache prefix correctly.
+    profile: profileFor(config.modelSpec),
   });
 }
 

@@ -11,6 +11,16 @@ import { createWebServer } from "./server.js";
 // to a browser client that owns the conversation state. Like the TUI, the
 // CLI-only `--once` / seeded-question flags do not apply; pass `provider:model`.
 //
+// TODO(context): the web path gets prompt caching and in-loop pruning (both ride
+// on `toolLoopAgent()`), but NOT the cross-turn history compaction the TUI wires
+// via `compactor`, nor the evidence ledger from `Agent.ask`. Both fight this
+// path's stateless design: the route streams UI-messages through
+// `pipeAgentUIStreamToResponse`, so compaction would need UI<->model message
+// conversion, and the conversation-lifetime ledger can't hang off the single
+// shared agent without bleeding evidence across conversations (the UI switches
+// between saved sessions). Low priority — only bites a small-window local model
+// over a long web chat; until then, size the window with CODEBERG_CONTEXT_WINDOW.
+//
 // The port defaults to an uncommon high one (rather than the much-contended
 // 3000) so it rarely collides with another dev server, while staying below the
 // 49152+ ephemeral range so the OS won't have handed it to a transient client.

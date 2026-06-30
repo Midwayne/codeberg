@@ -23,10 +23,14 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const loop = await createAgentFromEntry(entry).toolLoopAgent();
+  const core = createAgentFromEntry(entry);
+  const loop = await core.toolLoopAgent();
   const agent = wrapSessionAgent(loop, {
     store: new SessionStore(),
     modelSpec: entry.modelSpec,
+    // Same memory-limit-aware compaction the CLI path uses, applied to the
+    // TUI's separately-driven transcript.
+    compactor: core.historyCompactor(),
   });
 
   await runAgentTUI({

@@ -7,10 +7,135 @@ import { fileURLToPath } from "url";
 import {
   dynamicTool,
   jsonSchema,
+  pruneMessages,
   stepCountIs,
   tool,
   ToolLoopAgent
 } from "ai";
+
+// src/core/cache.ts
+function stableKey(parts) {
+  const joined = parts.join("|");
+  let h = 2166136261;
+  for (let i = 0; i < joined.length; i++) {
+    h ^= joined.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(36);
+}
+function cachedInstructions(system, profile) {
+  if (profile.cache === "anthropic") {
+    return {
+      role: "system",
+      content: system,
+      providerOptions: {
+        anthropic: { cacheControl: { type: "ephemeral", ttl: "1h" } }
+      }
+    };
+  }
+  return system;
+}
+function requestProviderOptions(system, toolNames, profile) {
+  if (profile.cache === "openai") {
+    return {
+      openai: {
+        promptCacheKey: `codeberg-${stableKey([system, ...toolNames])}`,
+        promptCacheRetention: "24h"
+      }
+    };
+  }
+  return void 0;
+}
+function deterministicTools(tools) {
+  const sorted = {};
+  for (const name of Object.keys(tools).sort()) {
+    sorted[name] = tools[name];
+  }
+  return sorted;
+}
+
+// src/core/evidence.ts
+var EvidenceLedger = class {
+  // Insertion-ordered: a Map preserves first-seen order, newest at the end.
+  seen = /* @__PURE__ */ new Map();
+  max;
+  constructor(max = 40) {
+    this.max = max;
+  }
+  add(results) {
+    for (const r of results) {
+      if (!this.seen.has(r.id)) {
+        this.seen.set(r.id, r);
+      }
+    }
+  }
+  get size() {
+    return this.seen.size;
+  }
+  /** One line per chunk (path:lines symbol), most recent first. Bounded to
+   *  `max` rows. Returns null when empty so callers can skip injection. */
+  render() {
+    if (this.seen.size === 0) {
+      return null;
+    }
+    const rows = [...this.seen.values()].slice(-this.max).reverse().map((r) => {
+      const sym = r.symbol ? ` ${r.symbol}` : "";
+      return `- ${r.path}:${r.start_line}-${r.end_line}${sym}`;
+    });
+    return "<evidence_ledger>\nCode already retrieved this conversation (reference it directly; search again only if you need fresh content):\n" + rows.join("\n") + "\n</evidence_ledger>";
+  }
+};
+
+// src/core/history.ts
+function estimateTokens(text) {
+  return Math.ceil(text.length / 4);
+}
+function textOf(content) {
+  if (typeof content === "string") {
+    return content;
+  }
+  if (!Array.isArray(content)) {
+    return "";
+  }
+  return content.map(
+    (part) => part && typeof part === "object" && "text" in part && typeof part.text === "string" ? part.text : ""
+  ).join("");
+}
+function messageTokens(message) {
+  return estimateTokens(textOf(message.content));
+}
+function totalTokens(messages) {
+  return messages.reduce((sum, m) => sum + messageTokens(m), 0);
+}
+var DEFAULT_KEEP_RECENT = 6;
+async function fitHistory(messages, opts) {
+  if (totalTokens(messages) <= opts.budget) {
+    return messages;
+  }
+  const keepRecent = opts.keepRecent ?? DEFAULT_KEEP_RECENT;
+  const split = Math.max(0, messages.length - keepRecent);
+  const older = messages.slice(0, split);
+  const recent = messages.slice(split);
+  if (older.length === 0) {
+    return messages;
+  }
+  if (opts.summarize) {
+    const transcript = older.map((m) => `${m.role}: ${textOf(m.content)}`).join("\n");
+    const summary = await opts.summarize(transcript);
+    const marker2 = {
+      role: "user",
+      content: `<conversation_summary>
+${summary}
+</conversation_summary>`
+    };
+    return fitHistory([marker2, ...recent], { ...opts, summarize: void 0 });
+  }
+  const marker = {
+    role: "user",
+    content: `[${older.length} earlier message(s) omitted to fit the context window]`
+  };
+  return [marker, ...recent];
+}
 
 // src/core/generator.ts
 import { generateText } from "ai";
@@ -236,7 +361,7 @@ function formatHistory(prior) {
     if (m.role !== "user" && m.role !== "assistant") {
       continue;
     }
-    const text = textOf(m.content);
+    const text = textOf2(m.content);
     if (text) {
       turns.push(`<turn role="${m.role}">${text}</turn>`);
     }
@@ -250,11 +375,66 @@ ${turns.join("\n")}
 
 `;
 }
-function textOf(content) {
+function textOf2(content) {
   if (typeof content === "string") {
     return content;
   }
   return content.map((part) => part.type === "text" ? part.text : "").join("").trim();
+}
+
+// src/providers/profiles.ts
+var ONE_MILLION = 1e6;
+function windowFor(provider, modelId) {
+  const id = modelId.toLowerCase();
+  switch (provider) {
+    case "anthropic":
+      return id.includes("haiku") ? 2e5 : ONE_MILLION;
+    case "google":
+      return ONE_MILLION;
+    case "openai":
+      return /gpt-4\.1|gpt-5|(^|[^a-z])o\d/.test(id) ? ONE_MILLION : 128e3;
+    case "ollama":
+    case "llamacpp":
+      return 8192;
+    default:
+      return 32e3;
+  }
+}
+function cacheFor(provider) {
+  switch (provider) {
+    case "anthropic":
+      return "anthropic";
+    // ollama / llamacpp speak the OpenAI wire format; the cache key is harmless
+    // to them and they reuse a matching prompt prefix on their own.
+    case "openai":
+    case "ollama":
+    case "llamacpp":
+      return "openai";
+    default:
+      return "none";
+  }
+}
+function profileFor(spec, env2 = process.env) {
+  const sep2 = spec.indexOf(":");
+  const provider = sep2 > 0 ? spec.slice(0, sep2) : "";
+  const modelId = sep2 > 0 ? spec.slice(sep2 + 1) : spec;
+  const override = Number(env2.CODEBERG_CONTEXT_WINDOW);
+  const contextWindow = Number.isFinite(override) && override > 0 ? Math.floor(override) : windowFor(provider, modelId);
+  return { provider, modelId, contextWindow, cache: cacheFor(provider) };
+}
+var DEFAULT_PROFILE = {
+  provider: "",
+  modelId: "",
+  contextWindow: ONE_MILLION,
+  cache: "none"
+};
+var HISTORY_BUDGET_FRACTION = 0.5;
+var PRUNE_BUDGET_FRACTION = 0.6;
+function historyBudget(profile) {
+  return Math.floor(profile.contextWindow * HISTORY_BUDGET_FRACTION);
+}
+function pruneBudget(profile) {
+  return Math.floor(profile.contextWindow * PRUNE_BUDGET_FRACTION);
 }
 
 // src/core/agent.ts
@@ -271,6 +451,7 @@ var Agent = class {
   maxSteps;
   generator;
   reasoning;
+  profile;
   // Built once on first use (tools require an async daemon round-trip), then
   // reused across every ask instead of reconstructing the loop each call.
   loop;
@@ -278,26 +459,54 @@ var Agent = class {
   // the model. Reset at the top of each `ask`; safe because asks are awaited
   // sequentially (no concurrent runs share this Agent instance).
   sources = [];
+  // Conversation-lifetime index of everything retrieved, injected each turn so
+  // the model needn't re-search. Persists across asks (unlike `sources`).
+  ledger = new EvidenceLedger();
   constructor(opts) {
     this.model = opts.model;
     this.daemon = opts.daemon;
     this.maxSteps = opts.maxSteps ?? DEFAULT_MAX_STEPS;
     this.generator = opts.generator ?? fromAiSdk(opts.model);
     this.reasoning = opts.reasoning;
+    this.profile = opts.profile ?? DEFAULT_PROFILE;
   }
   async ask(question, opts = {}) {
     this.sources = [];
     const loop = await this.ensureLoop();
+    const history = await this.compactHistory(opts.messages ?? []);
+    const ledger = this.ledger.render();
     const messages = [
-      ...opts.messages ?? [],
+      ...history,
+      ...ledger ? [{ role: "user", content: ledger }] : [],
       { role: "user", content: question }
     ];
     const result = await loop.generate({ messages });
+    const sources = dedupe(this.sources);
+    this.ledger.add(sources);
     return {
       answer: result.text,
-      sources: dedupe(this.sources),
+      sources,
       performance: toPerformance(result.finalStep?.performance)
     };
+  }
+  /** Compact a transcript to fit this model's history budget, summarizing the
+   *  overflow with the model itself. Exposed so the TUI session wrapper can
+   *  apply the same policy to its own (separately driven) transcript. */
+  async compactHistory(messages) {
+    return fitHistory(messages, {
+      budget: historyBudget(this.profile),
+      summarize: (transcript) => this.summarize(transcript)
+    });
+  }
+  /** Bound compactor for callers that drive the loop directly (the TUI). */
+  historyCompactor() {
+    return (messages) => this.compactHistory(messages);
+  }
+  async summarize(transcript) {
+    return this.generator.generate({
+      system: "Summarize this code-search conversation for an agent that will continue it. Preserve every concrete finding: file paths, line ranges, symbols, data sources, and unresolved questions. Be terse; drop pleasantries and restated questions.",
+      prompt: transcript
+    });
   }
   async askOnce(question, opts = {}) {
     const sources = await this.daemon.search(question, {
@@ -315,13 +524,34 @@ var Agent = class {
   }
   async ensureLoop() {
     if (!this.loop) {
+      const tools = deterministicTools(await this.buildTools());
+      const providerOptions = requestProviderOptions(
+        AGENT_SYSTEM,
+        Object.keys(tools),
+        this.profile
+      );
+      const prune = pruneBudget(this.profile);
       this.loop = new ToolLoopAgent({
         model: this.model,
-        instructions: AGENT_SYSTEM,
-        tools: await this.buildTools(),
+        // Cache the large, frozen system prompt instead of re-billing it on
+        // every tool round and every turn.
+        instructions: cachedInstructions(AGENT_SYSTEM, this.profile),
+        tools,
         stopWhen: stepCountIs(this.maxSteps),
         timeout: DEFAULT_TIMEOUT,
-        ...this.reasoning ? { reasoning: this.reasoning } : {}
+        ...providerOptions ? { providerOptions } : {},
+        ...this.reasoning ? { reasoning: this.reasoning } : {},
+        // Context editing for the in-flight loop: once accumulated tool results
+        // cross the high-water mark, clear the older ones (keeping the two most
+        // recent messages intact) so a deep, tool-heavy ask can't blow the
+        // window. The cleared pairs are dropped together, never half-removed.
+        prepareStep: ({ messages }) => totalTokens(messages) > prune ? {
+          messages: pruneMessages({
+            messages,
+            toolCalls: "before-last-2-messages",
+            emptyMessages: "remove"
+          })
+        } : void 0
       });
     }
     return this.loop;
@@ -587,7 +817,10 @@ function createAgent(config) {
   return new Agent({
     model,
     daemon: new DaemonClient(config.daemonUrl),
-    reasoning: config.reasoning
+    reasoning: config.reasoning,
+    // Resolve the model's memory limit + caching strategy from the same spec so
+    // the agent budgets context and marks the cache prefix correctly.
+    profile: profileFor(config.modelSpec)
   });
 }
 function createAgentFromEntry(entry) {

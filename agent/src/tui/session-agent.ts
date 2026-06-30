@@ -15,6 +15,10 @@ export interface SessionAgentOptions {
   store: SessionStore;
   /** Recorded on each session for display; not used to drive the model. */
   modelSpec: string;
+  /** Compacts the transcript to fit the model's context window before it's sent
+   *  (the full transcript is still persisted for resume). Optional: without it
+   *  the transcript is sent as-is, the prior behaviour. */
+  compactor?: (messages: ModelMessage[]) => Promise<ModelMessage[]>;
   /** Injectable clock/id for deterministic tests. */
   now?: () => number;
   newId?: () => string;
@@ -128,11 +132,14 @@ export function wrapSessionAgent(
 
     const current = stripCommandTurns(raw.slice(state.dropBefore));
     const effective = [...state.resumed, ...current];
+    // Send a budgeted view to the model (older turns summarized once they
+    // exceed the window), but persist the full transcript so resume is lossless.
+    const sent = opts.compactor ? await opts.compactor(effective) : effective;
     // The runner always calls us with the `prompt` form of the params union;
     // swap in our rewritten history (the cast re-narrows that union).
     const result = await loop.stream({
       ...params,
-      prompt: effective,
+      prompt: sent,
     } as StreamParams);
     return teeForPersistence(result, effective, persist);
   };
