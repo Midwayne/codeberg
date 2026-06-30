@@ -44,6 +44,7 @@ type layout struct {
 	venv     string // python virtualenv
 	settings string // generated settings.yml
 	secret   string // persistent secret_key
+	ready    string // marker written once deps are installed
 }
 
 func layoutFor(home string) layout {
@@ -54,6 +55,7 @@ func layoutFor(home string) layout {
 		venv:     filepath.Join(base, "venv"),
 		settings: filepath.Join(base, "settings.yml"),
 		secret:   filepath.Join(base, "secret"),
+		ready:    filepath.Join(base, ".ready"),
 	}
 }
 
@@ -72,10 +74,13 @@ func hostPython() (string, bool) {
 // Available reports whether SearXNG could be installed here (a host python exists).
 func Available() bool { _, ok := hostPython(); return ok }
 
-// Installed reports whether the managed venv + source checkout are present.
+// Installed reports whether the managed install is complete: the venv and source
+// checkout exist AND the dependencies finished installing (the `.ready` marker).
+// A half-finished install — e.g. the checkout cloned but `pip install` failed —
+// reports false so the next run retries it.
 func Installed(home string) bool {
 	l := layoutFor(home)
-	return fileExists(l.python()) && dirExists(l.src)
+	return fileExists(l.python()) && dirExists(l.src) && fileExists(l.ready)
 }
 
 // EnsureInstalled installs the managed SearXNG, or upgrades it when upgrade is
@@ -117,19 +122,28 @@ func EnsureInstalled(ctx context.Context, home string, upgrade bool, w io.Writer
 		}
 	}
 
-	// 3. Install/upgrade SearXNG and its deps into the venv.
+	// 3. Install SearXNG's runtime dependencies into the venv.
+	//
+	// We deliberately do NOT `pip install -e .`. SearXNG's setup.py imports the
+	// package at build time (`from searx import get_setting`), and the package's
+	// __init__ imports msgspec — but under PEP 517 build isolation msgspec isn't
+	// in the throwaway build env yet, so the editable build dies with
+	// "No module named 'msgspec'". Instead we install requirements.txt and run
+	// `python -m searx.webapp` from the checkout (searx resolves from the working
+	// directory) — exactly SearXNG's own from-source dev mode.
 	_ = runCmd(ctx, w, l.base, l.python(), "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel")
-	args := []string{"-m", "pip", "install"}
-	if upgrade {
-		args = append(args, "--upgrade")
-	}
-	args = append(args, "-e", l.src)
-	if err := runCmd(ctx, w, l.base, l.python(), args...); err != nil {
-		return fmt.Errorf("pip install SearXNG: %w", err)
+	if err := runCmd(ctx, w, l.base, l.python(), "-m", "pip", "install", "-r", filepath.Join(l.src, "requirements.txt")); err != nil {
+		return fmt.Errorf("pip install SearXNG requirements: %w", err)
 	}
 
 	// 4. Persist a stable secret so generated settings are deterministic.
 	if _, err := ensureSecret(l); err != nil {
+		return err
+	}
+
+	// 5. Mark the install complete so Installed() reports true (and a failed run
+	// above leaves no marker, so the next run retries).
+	if err := os.WriteFile(l.ready, []byte("ok\n"), 0o644); err != nil {
 		return err
 	}
 	return nil
