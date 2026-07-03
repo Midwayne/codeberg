@@ -69,6 +69,7 @@ func (c *Config) Summary() string {
 		{"home", c.Home},
 		{"config file", c.ConfigPath},
 		{KeyRoot, orUnset(c.Root)},
+		{KeyAll, fmt.Sprintf("%t", c.All)},
 		{KeyModel, orUnset(c.Model)},
 		{KeyDaemonURL, c.DaemonURL},
 		{KeyHTTPPort, c.HTTPPort},
@@ -80,6 +81,12 @@ func (c *Config) Summary() string {
 		{KeyEmbedModel, c.EmbedModel},
 		{KeyIndexPath, c.IndexPath},
 		{KeySocket, c.Socket},
+	}
+	if len(c.Repos) > 0 {
+		rows = append(rows, [2]string{KeyReposSel, strings.Join(c.Repos, ",")})
+	}
+	if c.NoIndex {
+		rows = append(rows, [2]string{KeyNoIndex, "true"})
 	}
 	if c.Reasoning != "" {
 		rows = append(rows, [2]string{KeyReasoning, c.Reasoning})

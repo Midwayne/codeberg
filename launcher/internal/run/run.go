@@ -17,6 +17,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -35,15 +36,21 @@ import (
 const defaultHealthDeadline = 15 * time.Minute
 
 // healthDeadline returns the configured wait, honoring CODEBERG_HEALTH_TIMEOUT
-// when it parses as a Go duration, otherwise the default.
-func healthDeadline() time.Duration {
+// when it parses as a Go duration, otherwise the default scaled by how many
+// repos this run indexes — a first `--all` may cold-index several trees back
+// to back through one embedder.
+func healthDeadline(repos int) time.Duration {
 	if v := os.Getenv("CODEBERG_HEALTH_TIMEOUT"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil && d > 0 {
 			return d
 		}
 		fmt.Fprintf(os.Stderr, "› ignoring invalid CODEBERG_HEALTH_TIMEOUT=%q (want a duration like 30m)\n", v)
 	}
-	return defaultHealthDeadline
+	d := defaultHealthDeadline
+	if scaled := time.Duration(repos) * 5 * time.Minute; scaled > d {
+		d = scaled
+	}
+	return d
 }
 
 // Run boots the daemon, waits for health, runs the TUI, and cleans up.
@@ -134,9 +141,23 @@ func Run(c *config.Config) error {
 	defer stop()
 
 	// --- wait for /health (indexing + embedding happen here) ------------------
-	fmt.Fprintf(os.Stderr, "› starting daemon — indexing %s\n", c.Root)
-	fmt.Fprintf(os.Stderr, "  (first run builds the index; live progress below — full log: %s)\n\n", logPath)
-	if err := waitHealthy(c.DaemonURL, stopped); err != nil {
+	if c.All || len(c.Repos) > 0 || len(c.Roots) > 1 {
+		keys := make([]string, 0, len(c.Roots))
+		for _, r := range c.Roots {
+			keys = append(keys, r.Key)
+		}
+		fmt.Fprintf(os.Stderr, "› starting daemon — indexing %d repo(s): %s\n", len(c.Roots), strings.Join(keys, ", "))
+	} else if len(c.Roots) == 1 {
+		fmt.Fprintf(os.Stderr, "› starting daemon — indexing %s\n", c.Roots[0].Root)
+	} else {
+		fmt.Fprintf(os.Stderr, "› starting daemon — indexing %s\n", c.Root)
+	}
+	if c.NoIndex {
+		fmt.Fprintf(os.Stderr, "  (--no-index: nothing registered or written; semantic search is off this run — full log: %s)\n\n", logPath)
+	} else {
+		fmt.Fprintf(os.Stderr, "  (first run builds the index; live progress below — full log: %s)\n\n", logPath)
+	}
+	if err := waitHealthy(c.DaemonURL, stopped, len(c.Roots)); err != nil {
 		progress.stopLive()
 		fmt.Fprint(os.Stderr, tailFile(logPath, 20))
 		return err
@@ -339,8 +360,8 @@ func (t *startupTee) stopLive() {
 
 // waitHealthy polls GET <url>/health until it returns 2xx, the daemon exits, or
 // the deadline passes.
-func waitHealthy(daemonURL string, daemonStopped <-chan struct{}) error {
-	deadline := healthDeadline()
+func waitHealthy(daemonURL string, daemonStopped <-chan struct{}, repos int) error {
+	deadline := healthDeadline(repos)
 	ctx, cancel := context.WithTimeout(context.Background(), deadline)
 	defer cancel()
 	client := &http.Client{Timeout: 2 * time.Second}

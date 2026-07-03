@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -51,6 +52,15 @@ func (s *Supervisor) spawn(ctx context.Context, bin string) error {
 		config.EnvSocket+"="+s.cfg.Socket,
 		fmt.Sprintf("%s=%d", config.EnvPollMS, s.cfg.PollMS),
 	)
+	// Multi-root mode: hand the engine the full key\tpath record set (it
+	// prefers CODEBERG_ROOTS; the single CODEBERG_ROOT above is the fallback).
+	if len(s.cfg.Roots) > 1 || (len(s.cfg.Roots) == 1 && s.cfg.DefaultKey == "") {
+		records := make([]string, 0, len(s.cfg.Roots))
+		for _, r := range s.cfg.Roots {
+			records = append(records, r.Key+"\t"+r.Path)
+		}
+		cmd.Env = append(cmd.Env, config.EnvRoots+"="+strings.Join(records, "\n"))
+	}
 	if s.cfg.Model != "" {
 		cmd.Env = append(cmd.Env, config.EnvModel+"="+s.cfg.Model)
 	}

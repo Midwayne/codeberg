@@ -4,6 +4,7 @@ import "codeberg.org/codeberg/daemon/internal/workspace"
 
 func Default(ws *workspace.Workspace) *Registry {
 	r := NewRegistry()
+	r.Register(reposTool(ws))
 	r.Register(grepTool(ws))
 	r.Register(globTool(ws))
 	r.Register(readFileTool(ws))

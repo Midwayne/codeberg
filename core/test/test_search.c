@@ -86,6 +86,26 @@ int main(void) {
     CHECK(ids[0] == 1 || ids[0] == 2, "top hit is an addition function");
     CHECK(scores[0] >= scores[1], "scores descending");
 
+    /* cberg_search_vector with a pre-embedded query must match
+     * cberg_search_query exactly (it is the same path minus the embed). */
+    const char *qtexts[1] = {query};
+    size_t qlens[1] = {strlen(query)};
+    float *qvec = NULL;
+    st = cberg_embedder_embed(emb, qtexts, qlens, 1, &qvec);
+    CHECK(st == CBERG_OK && qvec != NULL, "query embeds");
+    if (qvec != NULL) {
+        uint64_t vids[2];
+        float vscores[2];
+        size_t vfound = 0;
+        st = cberg_search_vector(idx, qvec, NULL, 2, vids, vscores, &vfound);
+        CHECK(st == CBERG_OK && vfound == found, "vector search finds the same count");
+        for (size_t i = 0; i < vfound && i < found; i++) {
+            CHECK(vids[i] == ids[i], "vector search matches query search ids");
+            CHECK(vscores[i] == scores[i], "vector search matches query search scores");
+        }
+        cberg_vectors_free(qvec);
+    }
+
     cberg_index_close(idx);
     cberg_embedder_close(emb);
     remove(path);

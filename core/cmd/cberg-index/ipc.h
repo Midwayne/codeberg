@@ -5,7 +5,7 @@
 
 typedef struct cberg_ipc_server cberg_ipc_server;
 
-int cberg_ipc_start(cberg_indexer *idx, cberg_ipc_server **out);
+int cberg_ipc_start(cberg_engine *eng, cberg_ipc_server **out);
 void cberg_ipc_stop(cberg_ipc_server *srv);
 
 #endif

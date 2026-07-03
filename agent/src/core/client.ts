@@ -9,6 +9,9 @@ export class DaemonClient {
     if (opts.k != null) {
       url.searchParams.set("k", String(opts.k));
     }
+    if (opts.repo) {
+      url.searchParams.set("repo", opts.repo);
+    }
     const res = await fetch(url);
     if (!res.ok) {
       throw new Error(`search failed: ${res.status} ${await res.text()}`);
@@ -49,6 +52,7 @@ export class DaemonClient {
 function normalizeHit(r: SearchResult): SearchResult {
   return {
     id: Number(r.id),
+    ...(r.repo ? { repo: r.repo } : {}),
     path: r.path ?? "",
     symbol: r.symbol ?? "",
     start_line: Number(r.start_line ?? 0),

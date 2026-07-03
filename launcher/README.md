@@ -94,6 +94,15 @@ runtime only warns; the rest are required. `codeberg doctor` lists what's presen
 Set `CODEBERG_SKIP_DEP_INSTALL=1` to check-and-report without installing (e.g. on
 a locked-down host where you manage packages yourself).
 
+`web_search` needs a separate, optional Python 3 preflight (`deps.EnsurePython`,
+only run when web tools are enabled): it checks for a *working pip*, not just a
+`python3` binary — on Debian/Ubuntu, `python3-venv` alone leaves `ensurepip`
+without its bundled wheels, so a venv built from the bare system python3 has no
+pip until `python3-pip` is installed too. The launcher installs both on apt
+hosts automatically; Homebrew's `python` formula bundles pip already. See the
+[repo README's prerequisites table](../README.md#prerequisites) for the full
+dependency list.
+
 ### First index can be slow
 
 The daemon only serves `/health` after the indexer has chunked and **embedded**
@@ -113,8 +122,8 @@ index and come up in seconds.
 
 Config is resolved from four layers, **highest precedence first**:
 
-1. CLI flags (`--root`, `--model`, `--port`, `--no-vector`, …)
-2. process environment (`CODEBERG_ROOT`, `CODEBERG_MODEL`, `ANTHROPIC_API_KEY`, …)
+1. CLI flags (`--root`, `--all`, `--repos`, `--no-index`, `--model`, `--port`, `--no-vector`, …)
+2. process environment (`CODEBERG_ROOT`, `CODEBERG_ALL`, `CODEBERG_REPOS`, `CODEBERG_NO_INDEX`, `CODEBERG_MODEL`, `ANTHROPIC_API_KEY`, …)
 3. `~/.codeberg/config` (KEY=VALUE; same names as the env vars)
 4. built-in defaults
 
@@ -156,7 +165,12 @@ layers. See `codeberg help` for common workflows.
 | Command | Does |
 |---|---|
 | `codeberg` / `codeberg run` | bootstrap if needed, then boot daemon + TUI |
+| `codeberg <dir>` | shorthand for `--root <dir>`; also registers the repo |
+| `codeberg --all` | search every registered repo, combined |
+| `codeberg --repos a,b` | search a chosen subset of dirs/keys, combined |
+| `codeberg --no-index` | one-off run: register nothing, build no vector index |
 | `codeberg --web` | same, but serve the browser chat UI instead of the TUI |
+| `codeberg repos` | list registered repos (what `--all` searches) |
 | `codeberg build` | force (re)build/download of components and model |
 | `codeberg doctor` | toolchain + artifact + config diagnostics |
 | `codeberg config` | print resolved config |
@@ -165,14 +179,36 @@ layers. See `codeberg help` for common workflows.
 | `codeberg uninstall` | remove the command; ask before deleting model/data |
 | `codeberg version` | print version |
 
+## Multi-repo search
+
+Every directory you index (without `--no-index`) is remembered in
+`~/.codeberg/repos`, so a later `codeberg --all` can search all of them
+combined — or `codeberg --repos a,b` a chosen subset by directory path or repo
+key. `--no-index` runs a directory as a one-off: nothing is registered and no
+vector index is built (file tools and chat still work; semantic search does
+not). See [docs/multi-repo.md](../docs/multi-repo.md) for the full picture —
+registry format, repo keys, how cross-repo search ranking and startup timing
+work, and the underlying architecture.
+
+```sh
+codeberg ~/proj-a               # index + register
+codeberg ~/proj-b               # index + register another
+codeberg --all                  # search both combined
+codeberg --repos proj-a,proj-b  # same two, named explicitly
+codeberg ~/scratch --no-index   # try a directory without registering it
+codeberg repos                  # see what's registered
+```
+
 ## Index storage
 
 Each indexed directory gets its **own** vector index, keyed by a hash of the
 resolved root path: the core writes `<CBERG_INDEX_PATH>.<roothash>` plus
 `.chunks`/`.manifest` sidecars under `~/.codeberg/index/`. So switching
-`--root`/`CODEBERG_ROOT` never mixes chunks between repos, and the running
-indexer only ever searches the **current** directory's index (it opens exactly
-one). Reverting to a previous root reuses its cached embeddings.
+`--root`/`CODEBERG_ROOT` never mixes chunks between repos. In `--all`/`--repos`
+mode, one `cberg-index` process opens **one index per served repo** (sharing a
+single embedding model) rather than the one this section originally described
+for single-root mode — see [docs/multi-repo.md](../docs/multi-repo.md#architecture-implementation-notes).
+Reverting to a previous root reuses its cached embeddings.
 
 Because each root keeps its files indefinitely, browsing many repos accumulates
 them. Reclaim the space any time:
@@ -210,6 +246,7 @@ the launcher's own assets, for scripts), `--home DIR`, `--remove-system-onnx`.
 launcher/
   cmd/codeberg/main.go       CLI dispatch + flags
   internal/paths/            repo + home directory discovery
+  internal/registry/         ~/.codeberg/repos — remembers every indexed repo
   internal/config/           four-layer config resolution + template
   internal/deps/             toolchain/library preflight + auto-install (brew/apt)
   internal/bootstrap/        build/download components and model

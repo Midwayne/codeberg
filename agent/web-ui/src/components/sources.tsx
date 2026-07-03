@@ -7,6 +7,7 @@ import type { ToolView } from "@/components/message";
 
 interface Hit {
   id?: number | string;
+  repo?: string;
   path?: string;
   symbol?: string;
   lines?: string;
@@ -64,6 +65,11 @@ function SourceCard({ hit }: { hit: Hit }) {
     <div className="overflow-hidden rounded-lg border border-border bg-card">
       <div className="flex items-center gap-2 border-b border-border px-3 py-1.5 text-xs">
         <FileCode className="size-3.5 shrink-0 text-muted-foreground" />
+        {hit.repo && (
+          <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-muted-foreground">
+            {hit.repo}
+          </span>
+        )}
         <span className="truncate font-mono text-foreground" title={path}>
           {path}
         </span>

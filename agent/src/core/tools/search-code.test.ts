@@ -50,4 +50,17 @@ describe("searchCodeSource", () => {
     await run((await source.tools()).search_code, { query: "q", k: 3 });
     expect(daemon.search).toHaveBeenCalledWith("q", { k: 3 });
   });
+
+  it("scopes to a repo and surfaces repo keys in the chunks", async () => {
+    const tagged: SearchResult = { ...hit(1), repo: "alpha" };
+    const daemon = { search: vi.fn(async () => [tagged]) } as unknown as DaemonClient;
+    const source = searchCodeSource({ daemon, defaultK: 8, onResults: () => {} });
+
+    const out = await run((await source.tools()).search_code, { query: "q", repo: "alpha" });
+
+    expect(daemon.search).toHaveBeenCalledWith("q", { k: 8, repo: "alpha" });
+    expect(out).toEqual([
+      { id: 1, repo: "alpha", path: "f1.ts", symbol: "s1", lines: "1-2", snippet: "code" },
+    ]);
+  });
 });

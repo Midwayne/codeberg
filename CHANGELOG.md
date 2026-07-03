@@ -9,6 +9,25 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Added
 
+- **Multi-repo search (`codeberg --all`)** — every root you run codeberg against
+  is remembered in `~/.codeberg/repos` (list with `codeberg repos`), and
+  `codeberg --all [--web]` boots one daemon over all of them: a single
+  `cberg-index` process shares one embedding model across per-repo chunk
+  tables/watchers/vector indexes, warm-starting each repo from its existing
+  `<base>.<roothash>` files. Searches fan out across ready repos and merge by
+  score — or scope to one with `search_code`'s new `repo` arg / `GET
+  /search?repo=key` — and results, the evidence ledger, and the web UI's source
+  cards now carry the repo key. `codeberg <dir>` works as a shorthand for
+  `--root <dir>` and registers the repo; file tools' previously-ignored `repo`
+  parameter now resolves against the served repos (new `repos` tool lists them).
+  Single-repo behavior and on-disk index layout are unchanged.
+- **`--repos` and `--no-index`** — `codeberg --repos <dir|key>,…` serves a chosen
+  set of directories and/or registered repo keys together (a scoped `--all`;
+  directories get registered like any run). `--no-index` makes any run a
+  one-off: nothing is added to the registry and no vector index is built or
+  reused — file tools and chat work over the root(s), semantic search is off
+  for that session, and nothing lands on disk. Both compose with `--web`, and
+  are also settable as `CODEBERG_REPOS` / `CODEBERG_NO_INDEX`.
 - **Saved, resumable web chats** — the browser UI persists each completed turn to
   `<CODEBERG_HOME>/web-sessions/<id>.json` (UI messages verbatim, so a resume
   re-renders with full fidelity) behind a small CRUD API (`GET /api/sessions`,
@@ -93,12 +112,27 @@ changes may occur in minor releases and are called out explicitly.
   `openai@4`, `google@4`).
 - **TUI replaced with `runAgentTUI`** — the interactive `codeberg-tui` now uses
   `@ai-sdk/tui` (streamed tool calls, collapsible reasoning, live tok/s) instead of
-  the bespoke Ink UI. The custom prompt history, `/help` `/clear` `/copy` `/quit`
-  commands, and the TUI's `--once` / seeded-question flags are dropped; the CLI
-  keeps `--once` and seeded questions.
+  the bespoke Ink UI. The custom prompt history and the old `/help` `/clear`
+  `/copy` `/quit` commands are dropped; `runAgentTUI` exposes no command hooks
+  of its own, so persistent sessions and a new `/help` `/sessions` `/resume`
+  `/new` set are layered back on by wrapping the agent it drives (see
+  [agent/README.md](agent/README.md#session-commands)). Neither the TUI nor
+  the CLI take a seeded-question flag — the CLI is single-shot by construction
+  (`codeberg-ask [provider:model] <question>`) and the TUI is always
+  interactive.
 
 ### Fixed
 
+- **`web_search` setup could fail silently on Debian/Ubuntu with a bare `python3`
+  binary check** — the dependency preflight only confirmed `python3`/`python`
+  was on PATH, but Debian/Ubuntu strip `ensurepip`'s bundled wheels from the
+  base `python3` package, so a venv built from it has no pip until
+  `python3-pip` is installed too; `python3-venv` alone is not sufficient. The
+  managed SearXNG install would then fail deep in `pip install SearXNG
+  requirements` with a confusing error. `deps.EnsurePython` now checks for a
+  *working* pip (`python3 -m pip --version`) and installs `python3-pip`
+  automatically on apt hosts; the README's prerequisites table lists both
+  packages.
 - **`codeberg uninstall` left the command on PATH** — removal only scanned a
   hardcoded set of directories, so a `codeberg` installed anywhere else on `$PATH`
   (e.g. `/opt/homebrew/bin`, a custom bin dir, or another checkout's symlink) was

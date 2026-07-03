@@ -3,9 +3,10 @@ import { describe, expect, it } from "vitest";
 import { EvidenceLedger } from "./evidence.js";
 import type { SearchResult } from "./types.js";
 
-function hit(id: number, path: string, symbol = ""): SearchResult {
+function hit(id: number, path: string, symbol = "", repo?: string): SearchResult {
   return {
     id,
+    ...(repo ? { repo } : {}),
     path,
     symbol,
     start_line: 1,
@@ -42,5 +43,15 @@ describe("EvidenceLedger", () => {
     ledger.add([hit(1, "a"), hit(2, "b"), hit(3, "c")]);
     const rows = ledger.render()!.split("\n").filter((l) => l.startsWith("- "));
     expect(rows).toHaveLength(2);
+  });
+
+  it("keeps same-id hits from different repos distinct", () => {
+    // Chunk ids restart at 1 per repo, so (repo, id) is the identity.
+    const ledger = new EvidenceLedger();
+    ledger.add([hit(1, "a.go", "", "alpha"), hit(1, "b.go", "", "beta")]);
+    expect(ledger.size).toBe(2);
+    const out = ledger.render()!;
+    expect(out).toContain("[alpha] a.go:1-9");
+    expect(out).toContain("[beta] b.go:1-9");
   });
 });

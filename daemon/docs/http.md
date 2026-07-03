@@ -2,20 +2,29 @@
 
 Pure Go daemon. Semantic search is proxied to the C `cberg-index` process over a Unix socket.
 
+The daemon serves one or more repos (`CODEBERG_ROOTS` records, or the single
+`CODEBERG_ROOT`). Each repo has a stable key; search results and grep/glob hits
+carry it, and tools accept it as `repo`.
+
 ## Endpoints
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| `GET` | `/health` | Daemon + indexer status (`ready`, `chunks`, `version`) |
-| `GET` | `/search?q=…&k=10` | Vector search (requires `CBERG_MODEL` + `CBERG_INDEX_PATH`) |
+| `GET` | `/health` | Daemon + indexer status (`ready`, `chunks`, `version`, per-repo `repos`) |
+| `GET` | `/search?q=…&k=10[&repo=key]` | Vector search — all repos merged by score, or one repo when `repo` is set |
 | `GET` | `/tools` | List registered read-only agent tools |
 | `POST` | `/tools/call` | Run a tool: `{"name":"grep","args":{…}}` |
 
 ## Tools
 
-All tools are read-only and sandboxed to `CODEBERG_ROOT`:
+All tools are read-only and sandboxed to their repo's root:
 
-`grep`, `glob`, `read_file`, `list_dir`, `tree`, `head`, `tail`, `wc`, `sed`, `pipe`, `git_log`, `git_blame`
+`repos`, `grep`, `glob`, `read_file`, `list_dir`, `tree`, `head`, `tail`, `wc`, `sed`, `pipe`, `git_log`, `git_blame`
+
+`repos` lists the served repositories (key + root). The other tools take an
+optional `repo` key: with a single served repo it defaults to that repo; in
+multi-repo (`--all`) mode the key is required and an unhelpful value returns
+the available keys in the error.
 
 ### `pipe` — read-only pipelines
 

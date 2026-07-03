@@ -13,6 +13,7 @@ import (
 type SearchResult struct {
 	ID        uint64  `json:"id"`
 	Score     float32 `json:"score"`
+	Repo      string  `json:"repo"`
 	Path      string  `json:"path"`
 	Symbol    string  `json:"symbol"`
 	StartLine uint32  `json:"start_line"`
@@ -20,10 +21,19 @@ type SearchResult struct {
 	Snippet   string  `json:"snippet"`
 }
 
+// RepoStatus is one repo's slice of the indexer status. A repo that failed to
+// bootstrap stays Ready=false while its siblings serve searches.
+type RepoStatus struct {
+	Key    string `json:"key"`
+	Ready  bool   `json:"ready"`
+	Chunks int    `json:"chunks"`
+}
+
 type Status struct {
-	Ready   bool   `json:"ready"`
-	Chunks  int    `json:"chunks"`
-	Version string `json:"version"`
+	Ready   bool         `json:"ready"`
+	Chunks  int          `json:"chunks"`
+	Version string       `json:"version"`
+	Repos   []RepoStatus `json:"repos"`
 }
 
 type Client struct {
@@ -36,11 +46,12 @@ func NewClient(socket string) *Client {
 
 func (c *Client) Status(ctx context.Context) (Status, error) {
 	var out struct {
-		OK      bool   `json:"ok"`
-		Ready   bool   `json:"ready"`
-		Chunks  int    `json:"chunks"`
-		Version string `json:"version"`
-		Error   string `json:"error"`
+		OK      bool         `json:"ok"`
+		Ready   bool         `json:"ready"`
+		Chunks  int          `json:"chunks"`
+		Version string       `json:"version"`
+		Repos   []RepoStatus `json:"repos"`
+		Error   string       `json:"error"`
 	}
 	if err := c.roundTrip(ctx, "status", &out); err != nil {
 		return Status{}, err
@@ -48,11 +59,16 @@ func (c *Client) Status(ctx context.Context) (Status, error) {
 	if !out.OK {
 		return Status{}, fmt.Errorf("indexer: %s", out.Error)
 	}
-	return Status{Ready: out.Ready, Chunks: out.Chunks, Version: out.Version}, nil
+	return Status{Ready: out.Ready, Chunks: out.Chunks, Version: out.Version, Repos: out.Repos}, nil
 }
 
-func (c *Client) Search(ctx context.Context, query string, k int) ([]SearchResult, error) {
+// Search queries the indexer, scoped to one repo key or across every repo
+// when repo is "" (results carry their repo and merge by score).
+func (c *Client) Search(ctx context.Context, query string, k int, repo string) ([]SearchResult, error) {
 	line := fmt.Sprintf("search\t%s\t%d", strings.ReplaceAll(query, "\t", " "), k)
+	if repo != "" {
+		line += "\t" + strings.ReplaceAll(repo, "\t", " ")
+	}
 	var out struct {
 		OK      bool           `json:"ok"`
 		Results []SearchResult `json:"results"`

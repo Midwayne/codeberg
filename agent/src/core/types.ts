@@ -2,6 +2,9 @@ import type { ModelMessage } from "ai";
 
 export interface SearchResult {
   id: number;
+  /** Repo key the hit came from (multi-repo runs); "" or absent on older daemons.
+   *  Chunk ids are only unique per repo, so identity is (repo, id). */
+  repo?: string;
   path: string;
   symbol: string;
   start_line: number;
@@ -18,6 +21,8 @@ export interface ToolSpec {
 
 export interface SearchOptions {
   k?: number;
+  /** Restrict the search to one repo key; omit to search every indexed repo. */
+  repo?: string;
 }
 
 export interface Prompt {

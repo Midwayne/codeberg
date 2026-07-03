@@ -250,11 +250,13 @@ function toPerformance(
 }
 
 function dedupe(results: SearchResult[]): SearchResult[] {
-  const seen = new Set<number>();
+  // (repo, id) is the identity: chunk ids restart at 1 per repo.
+  const seen = new Set<string>();
   const out: SearchResult[] = [];
   for (const r of results) {
-    if (!seen.has(r.id)) {
-      seen.add(r.id);
+    const key = `${r.repo ?? ""}#${r.id}`;
+    if (!seen.has(key)) {
+      seen.add(key);
       out.push(r);
     }
   }

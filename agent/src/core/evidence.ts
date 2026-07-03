@@ -9,7 +9,9 @@ import type { SearchResult } from "./types.js";
  */
 export class EvidenceLedger {
   // Insertion-ordered: a Map preserves first-seen order, newest at the end.
-  private readonly seen = new Map<number, SearchResult>();
+  // Keyed by (repo, id): chunk ids restart at 1 per repo, so the bare id
+  // would collapse distinct hits from different repos in --all runs.
+  private readonly seen = new Map<string, SearchResult>();
   private readonly max: number;
 
   constructor(max = 40) {
@@ -18,8 +20,9 @@ export class EvidenceLedger {
 
   add(results: readonly SearchResult[]): void {
     for (const r of results) {
-      if (!this.seen.has(r.id)) {
-        this.seen.set(r.id, r);
+      const key = `${r.repo ?? ""}#${r.id}`;
+      if (!this.seen.has(key)) {
+        this.seen.set(key, r);
       }
     }
   }
@@ -28,8 +31,8 @@ export class EvidenceLedger {
     return this.seen.size;
   }
 
-  /** One line per chunk (path:lines symbol), most recent first. Bounded to
-   *  `max` rows. Returns null when empty so callers can skip injection. */
+  /** One line per chunk ([repo] path:lines symbol), most recent first. Bounded
+   *  to `max` rows. Returns null when empty so callers can skip injection. */
   render(): string | null {
     if (this.seen.size === 0) {
       return null;
@@ -38,8 +41,9 @@ export class EvidenceLedger {
       .slice(-this.max)
       .reverse()
       .map((r) => {
+        const repo = r.repo ? `[${r.repo}] ` : "";
         const sym = r.symbol ? ` ${r.symbol}` : "";
-        return `- ${r.path}:${r.start_line}-${r.end_line}${sym}`;
+        return `- ${repo}${r.path}:${r.start_line}-${r.end_line}${sym}`;
       });
     return (
       "<evidence_ledger>\n" +

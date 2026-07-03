@@ -27,19 +27,22 @@ export function searchCodeSource(opts: SearchCodeOptions): ToolSource {
     tools: (): ToolSet => ({
       search_code: tool({
         description:
-          "Semantic code search. Returns relevant chunks with path, lines, and snippet.",
-        inputSchema: jsonSchema<{ query: string; k?: number }>({
+          "Semantic code search. Returns relevant chunks with path, lines, and snippet. " +
+          "Searches every indexed repo unless `repo` narrows it to one (keys via the repos tool).",
+        inputSchema: jsonSchema<{ query: string; k?: number; repo?: string }>({
           type: "object",
           additionalProperties: false,
           properties: {
             query: { type: "string" },
             k: { type: "number", description: "max results (default 8)" },
+            repo: { type: "string", description: "restrict to one repo key (optional)" },
           },
           required: ["query"],
         }),
-        execute: async ({ query, k }) => {
+        execute: async ({ query, k, repo }) => {
           const results = await opts.daemon.search(query, {
             k: k ?? opts.defaultK,
+            repo,
           });
           opts.onResults(results);
           return results.map(toToolChunk);
@@ -52,6 +55,8 @@ export function searchCodeSource(opts: SearchCodeOptions): ToolSource {
 function toToolChunk(r: SearchResult): Record<string, unknown> {
   return {
     id: r.id,
+    // The repo key lets the model pass matching `repo` args to read_file/grep.
+    ...(r.repo ? { repo: r.repo } : {}),
     path: r.path,
     symbol: r.symbol,
     lines: `${r.start_line}-${r.end_line}`,

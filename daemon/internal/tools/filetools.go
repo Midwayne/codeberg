@@ -6,6 +6,21 @@ import (
 	"codeberg.org/codeberg/daemon/internal/workspace"
 )
 
+func reposTool(ws *workspace.Workspace) Tool {
+	const schema = `{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {}
+}`
+	type args struct{}
+	return New("repos",
+		"List the indexed repositories (key + root). Pass a key as `repo` to other tools.",
+		schema,
+		func(_ context.Context, _ args) (any, error) {
+			return ws.Repos(), nil
+		})
+}
+
 func grepTool(ws *workspace.Workspace) Tool {
 	const schema = `{
   "type": "object",
@@ -13,7 +28,7 @@ func grepTool(ws *workspace.Workspace) Tool {
   "properties": {
     "pattern": {"type": "string", "description": "literal text or regex to search for"},
     "literal": {"type": "boolean", "description": "fixed-string match (default false = regex)"},
-    "repo": {"type": "string", "description": "repo key (default root)"},
+    "repo": {"type": "string", "description": "repo key (see the repos tool; default = the single indexed repo)"},
     "path_glob": {"type": "string", "description": "restrict to files matching this glob"},
     "limit": {"type": "integer", "description": "max matches"}
   },

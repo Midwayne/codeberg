@@ -1,7 +1,8 @@
 import type { SearchResult } from "./types.js";
 
 export function formatSource(result: SearchResult): string {
-  return `${result.path}:${result.start_line}-${result.end_line} (id=${result.id})`;
+  const repo = result.repo ? `[${result.repo}] ` : "";
+  return `${repo}${result.path}:${result.start_line}-${result.end_line} (id=${result.id})`;
 }
 
 export function formatSources(results: readonly SearchResult[]): string[] {

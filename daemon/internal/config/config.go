@@ -1,14 +1,17 @@
 package config
 
 import (
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
 const (
 	EnvRoot       = "CODEBERG_ROOT"
+	EnvRoots      = "CODEBERG_ROOTS"
 	EnvModel      = "CBERG_MODEL"
 	EnvIndexPath  = "CBERG_INDEX_PATH"
 	EnvPollMS     = "CBERG_POLL_MS"
@@ -19,20 +22,36 @@ const (
 	EnvGitDir     = "CODEBERG_GIT_DIR"
 )
 
+// RepoRoot is one served repository: a stable human-facing key (the launcher
+// registry's identity, also used by the C engine in search results and by the
+// agent's `repo` tool arguments) and its resolved absolute root.
+type RepoRoot struct {
+	Key  string
+	Path string
+}
+
 type Indexer struct {
-	Root   string
-	Model  string
-	Index  string
-	PollMS int
-	Socket string
-	Bin    string
+	// Root is the first (or only) root — kept for single-root consumers like
+	// the git-pull default and the CODEBERG_ROOT env forwarded to the C engine.
+	Root string
+	// Roots is every repository served this run. Single-root mode holds one
+	// entry keyed by the root's basename.
+	Roots []RepoRoot
+	// DefaultKey is the repo tools fall back to when no repo is named: the
+	// single root's key, or "" in --all mode (where a repo must be explicit).
+	DefaultKey string
+	Model      string
+	Index      string
+	PollMS     int
+	Socket     string
+	Bin        string
 }
 
 type Daemon struct {
 	Indexer
 	HTTPPort string
 	GitPull  time.Duration
-	GitDir   string
+	GitDirs  []string
 }
 
 func LoadDaemon() (Daemon, error) {
@@ -44,9 +63,13 @@ func LoadDaemon() (Daemon, error) {
 	if port == "" {
 		port = "8080"
 	}
-	gitDir := os.Getenv(EnvGitDir)
-	if gitDir == "" {
-		gitDir = idx.Root
+	gitDirs := make([]string, 0, len(idx.Roots))
+	if dir := os.Getenv(EnvGitDir); dir != "" {
+		gitDirs = append(gitDirs, dir)
+	} else {
+		for _, r := range idx.Roots {
+			gitDirs = append(gitDirs, r.Path)
+		}
 	}
 	var pull time.Duration
 	if v := os.Getenv(EnvGitPullSec); v != "" {
@@ -60,18 +83,14 @@ func LoadDaemon() (Daemon, error) {
 		Indexer:  idx,
 		HTTPPort: port,
 		GitPull:  pull,
-		GitDir:   gitDir,
+		GitDirs:  gitDirs,
 	}, nil
 }
 
 func loadIndexer() (Indexer, error) {
-	root := os.Getenv(EnvRoot)
-	if root == "" {
-		return Indexer{}, missing(EnvRoot)
-	}
-	resolved, err := resolveRoot(root)
+	roots, defaultKey, err := loadRoots()
 	if err != nil {
-		return Indexer{}, invalid(EnvRoot)
+		return Indexer{}, err
 	}
 	model := os.Getenv(EnvModel)
 	indexPath := os.Getenv(EnvIndexPath)
@@ -91,13 +110,63 @@ func loadIndexer() (Indexer, error) {
 		socket = "/tmp/codeberg-index.sock"
 	}
 	return Indexer{
-		Root:   resolved,
-		Model:  model,
-		Index:  indexPath,
-		PollMS: poll,
-		Socket: socket,
-		Bin:    os.Getenv(EnvIndexerBin),
+		Root:       roots[0].Path,
+		Roots:      roots,
+		DefaultKey: defaultKey,
+		Model:      model,
+		Index:      indexPath,
+		PollMS:     poll,
+		Socket:     socket,
+		Bin:        os.Getenv(EnvIndexerBin),
 	}, nil
+}
+
+// loadRoots resolves the served repos. CODEBERG_ROOTS ("<key>\t<path>" records,
+// newline-separated — the same shape the launcher registry stores) wins and
+// means multi-repo mode (no default repo); CODEBERG_ROOT alone is single-root
+// mode with the basename as both key and default. Dead or malformed records are
+// skipped with a log line, mirroring the C engine, so one deleted tree does not
+// take the daemon down.
+func loadRoots() ([]RepoRoot, string, error) {
+	if raw := os.Getenv(EnvRoots); raw != "" {
+		var roots []RepoRoot
+		for _, line := range strings.Split(raw, "\n") {
+			key, path, ok := strings.Cut(line, "\t")
+			if !ok || key == "" || path == "" {
+				continue
+			}
+			resolved, err := resolveRoot(path)
+			if err != nil {
+				log.Printf("skipping repo %q: unresolvable root %q", key, path)
+				continue
+			}
+			if _, err := os.Stat(resolved); err != nil {
+				log.Printf("skipping repo %q: missing root %q", key, resolved)
+				continue
+			}
+			roots = append(roots, RepoRoot{Key: key, Path: resolved})
+		}
+		if len(roots) == 0 {
+			return nil, "", invalid(EnvRoots)
+		}
+		// A lone record keeps a default repo (tools may omit `repo`); with
+		// several repos there is no sensible default, so repo must be explicit.
+		if len(roots) == 1 {
+			return roots, roots[0].Key, nil
+		}
+		return roots, "", nil
+	}
+
+	root := os.Getenv(EnvRoot)
+	if root == "" {
+		return nil, "", missing(EnvRoot)
+	}
+	resolved, err := resolveRoot(root)
+	if err != nil {
+		return nil, "", invalid(EnvRoot)
+	}
+	key := filepath.Base(resolved)
+	return []RepoRoot{{Key: key, Path: resolved}}, key, nil
 }
 
 func resolveRoot(root string) (string, error) {

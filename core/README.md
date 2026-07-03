@@ -33,7 +33,14 @@ src/search/   usearch index + query search
 | Watcher | `cberg_watcher_*` | Filesystem events — the indexing trigger |
 | Embedder | `cberg_embedder_*` | ONNX jina embeddings (optional at build time) |
 | Vector index | `cberg_index_*` | usearch HNSW cosine search by chunk id |
-| Search | `cberg_search_query` | Embed query text + nearest-neighbor lookup |
+| Search | `cberg_search_query`, `cberg_search_vector` | Embed query text (or reuse an embedding) + nearest-neighbor lookup |
+
+This library indexes and searches **one** root at a time — `cberg_search_vector`
+exists so a caller can embed a query once and search it against several
+indexes. Serving *multiple* roots from one process (one shared embedder, N
+per-root indexes, merged search) is the `cberg-index` command's job, not the
+library's: see [ADR 0004](docs/adr/0004-multi-root-engine.md) and
+[../docs/multi-repo.md](../docs/multi-repo.md).
 
 ### Optional ONNX model (embedding tests)
 

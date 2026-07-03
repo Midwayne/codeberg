@@ -4,6 +4,7 @@
 #include "walk.h"
 
 #include "fileio.h"
+#include "pathutil.h"
 #include "u64map.h"
 
 #include <errno.h>
@@ -11,19 +12,32 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 #define BATCH_SIZE 32
 #define PROGRESS_MIN 128  /* only show embed progress for upserts at least this large */
 #define PROGRESS_STEP 512 /* ...and roughly every this many chunks */
 
-static void save_chunk_table(cberg_indexer *idx);
-static void save_state(cberg_indexer *idx);
-static void refresh_manifest(cberg_indexer *idx);
-static cberg_status apply_path_changes(cberg_indexer *idx, char **rechunk, size_t rechunk_n, char **deleted,
+static void save_chunk_table(cberg_repo *r);
+static void save_state(cberg_repo *r);
+static void refresh_manifest(cberg_repo *r);
+static cberg_status apply_path_changes(cberg_repo *r, char **rechunk, size_t rechunk_n, char **deleted,
                                        size_t deleted_n);
-static cberg_status walk_and_sync(cberg_indexer *idx);
-static cberg_status bootstrap_warm(cberg_indexer *idx);
+static cberg_status walk_and_sync(cberg_repo *r);
+static cberg_status bootstrap_warm(cberg_repo *r);
+
+/* The single choke point for the shared embedder: the ONNX session is not
+ * thread-safe, and both the indexing (main) thread and the IPC search thread
+ * embed. Callers must NOT hold embed_mu already; holding a repo->mu is fine
+ * (lock order repo->mu -> embed_mu). */
+static cberg_status engine_embed(cberg_engine *eng, const char *const *texts, const size_t *lens, size_t count,
+                                 float **out_vectors) {
+    pthread_mutex_lock(&eng->embed_mu);
+    cberg_status st = cberg_embedder_embed(eng->embedder, texts, lens, count, out_vectors);
+    pthread_mutex_unlock(&eng->embed_mu);
+    return st;
+}
 
 typedef struct {
     cberg_chunk *items;
@@ -99,9 +113,9 @@ static int path_in_set(const char *path, char **paths, size_t count) {
     return 0;
 }
 
-static char *chunk_body(const cberg_indexer *idx, const cberg_stored_chunk *sc, size_t *out_len) {
+static char *chunk_body(const cberg_repo *r, const cberg_stored_chunk *sc, size_t *out_len) {
     char path[4096];
-    snprintf(path, sizeof(path), "%s/%s", idx->root, sc->chunk.path);
+    snprintf(path, sizeof(path), "%s/%s", r->root, sc->chunk.path);
     return cberg_read_file(path, out_len);
 }
 
@@ -139,7 +153,7 @@ static void file_cache_free(file_cache *fc) {
 /* Resolve sc's chunk to a [text, len) slice of its file body, reading the file
  * only on the first chunk of each contiguous same-file run. The slice points into
  * a cached buffer owned by fc and stays valid until file_cache_free. */
-static cberg_status cache_slice(cberg_indexer *idx, file_cache *fc, const cberg_stored_chunk *sc, const char **text,
+static cberg_status cache_slice(cberg_repo *r, file_cache *fc, const cberg_stored_chunk *sc, const char **text,
                                 size_t *len) {
     cached_body *cb = (fc->len > 0 && strcmp(fc->items[fc->len - 1].path, sc->chunk.path) == 0)
                           ? &fc->items[fc->len - 1]
@@ -155,7 +169,7 @@ static cberg_status cache_slice(cberg_indexer *idx, file_cache *fc, const cberg_
             fc->cap = cap;
         }
         size_t blen = 0;
-        char *data = chunk_body(idx, sc, &blen);
+        char *data = chunk_body(r, sc, &blen);
         if (data == NULL) {
             return CBERG_ERR_IO;
         }
@@ -189,8 +203,11 @@ static cberg_status cache_slice(cberg_indexer *idx, file_cache *fc, const cberg_
  *
  * When `show`, prints embed progress against `total` as chunks are indexed, advancing
  * *done. *out_unique (nullable) receives the count of bodies actually embedded.
+ *
+ * The embed lock is taken per batch (inside engine_embed), not around the whole
+ * upsert, so a concurrent search query waits at most one batch.
  */
-static cberg_status embed_unique(cberg_indexer *idx, cberg_index *index, const char **texts, const size_t *lens,
+static cberg_status embed_unique(cberg_repo *r, cberg_index *index, const char **texts, const size_t *lens,
                                  const uint8_t **hashes, const uint64_t *ids, size_t count, int show, size_t *done,
                                  size_t total, size_t *out_unique) {
     if (out_unique != NULL) {
@@ -199,7 +216,7 @@ static cberg_status embed_unique(cberg_indexer *idx, cberg_index *index, const c
     if (count == 0) {
         return CBERG_OK;
     }
-    size_t dim = cberg_embedder_dim(idx->embedder);
+    size_t dim = cberg_embedder_dim(r->eng->embedder);
 
     cberg_u64map *seen = cberg_u64map_new(count * 2);
     size_t *reps = malloc(count * sizeof(*reps));         /* group -> a representative item index */
@@ -271,7 +288,7 @@ static cberg_status embed_unique(cberg_indexer *idx, cberg_index *index, const c
             blens[b] = lens[reps[g + b]];
         }
         float *vecs = NULL;
-        st = cberg_embedder_embed(idx->embedder, btexts, blens, bn, &vecs);
+        st = engine_embed(r->eng, btexts, blens, bn, &vecs);
         if (st != CBERG_OK) {
             cberg_vectors_free(vecs);
             goto done;
@@ -287,7 +304,7 @@ static cberg_status embed_unique(cberg_indexer *idx, cberg_index *index, const c
                 }
                 (*done)++;
                 if (show && (*done >= mark || *done == total)) {
-                    fprintf(stderr, "cberg-index: embedded %zu/%zu chunks (%zu%%)\n", *done, total,
+                    fprintf(stderr, "cberg-index[%s]: embedded %zu/%zu chunks (%zu%%)\n", r->key, *done, total,
                             *done * 100 / total);
                     mark += PROGRESS_STEP;
                 }
@@ -312,14 +329,14 @@ done:
     return st;
 }
 
-static cberg_status apply_vectors(cberg_indexer *idx, const cberg_changes *ch) {
-    if (!idx->vectors || idx->embedder == NULL || idx->index == NULL) {
+static cberg_status apply_vectors(cberg_repo *r, const cberg_changes *ch) {
+    if (!r->eng->vectors || r->eng->embedder == NULL || r->index == NULL) {
         return CBERG_OK;
     }
 
     size_t upsert_len = ch->added_len + ch->modified_len;
     if (upsert_len == 0 && ch->deleted_len == 0) {
-        return cberg_index_save(idx->index);
+        return cberg_index_save(r->index);
     }
 
     const char **texts = NULL;
@@ -340,7 +357,7 @@ static cberg_status apply_vectors(cberg_indexer *idx, const cberg_changes *ch) {
         }
         size_t u = 0;
         for (size_t i = 0; i < ch->added_len; i++) {
-            st = cache_slice(idx, &fc, &ch->added[i], &texts[u], &lens[u]);
+            st = cache_slice(r, &fc, &ch->added[i], &texts[u], &lens[u]);
             if (st != CBERG_OK) {
                 goto done;
             }
@@ -349,7 +366,7 @@ static cberg_status apply_vectors(cberg_indexer *idx, const cberg_changes *ch) {
             u++;
         }
         for (size_t i = 0; i < ch->modified_len; i++) {
-            st = cache_slice(idx, &fc, &ch->modified[i], &texts[u], &lens[u]);
+            st = cache_slice(r, &fc, &ch->modified[i], &texts[u], &lens[u]);
             if (st != CBERG_OK) {
                 goto done;
             }
@@ -364,21 +381,20 @@ static cberg_status apply_vectors(cberg_indexer *idx, const cberg_changes *ch) {
         int show = upsert_len >= PROGRESS_MIN;
         size_t done_n = 0;
         size_t unique = 0;
-        st = embed_unique(idx, idx->index, texts, lens, hashes, ids, upsert_len, show, &done_n, upsert_len,
-                          &unique);
+        st = embed_unique(r, r->index, texts, lens, hashes, ids, upsert_len, show, &done_n, upsert_len, &unique);
         if (st != CBERG_OK) {
             goto done;
         }
         if (show && unique < upsert_len) {
-            fprintf(stderr, "cberg-index: reused %zu duplicate bodies (embedded %zu unique of %zu chunks)\n",
-                    upsert_len - unique, unique, upsert_len);
+            fprintf(stderr, "cberg-index[%s]: reused %zu duplicate bodies (embedded %zu unique of %zu chunks)\n",
+                    r->key, upsert_len - unique, unique, upsert_len);
         }
     }
 
     int del_show = ch->deleted_len >= PROGRESS_MIN;
     size_t del_mark = PROGRESS_STEP;
     for (size_t i = 0; i < ch->deleted_len; i++) {
-        st = cberg_index_remove(idx->index, ch->deleted[i].id);
+        st = cberg_index_remove(r->index, ch->deleted[i].id);
         if (st == CBERG_ERR_NOT_FOUND) {
             /* Already absent — e.g. a kill let the index save outrun the chunk-table
              * save, so on restart the table still lists an id the index dropped. The
@@ -391,13 +407,13 @@ static cberg_status apply_vectors(cberg_indexer *idx, const cberg_changes *ch) {
             goto done;
         }
         if (del_show && (i + 1 >= del_mark || i + 1 == ch->deleted_len)) {
-            fprintf(stderr, "cberg-index: removed %zu/%zu chunks (%zu%%)\n", i + 1, ch->deleted_len,
+            fprintf(stderr, "cberg-index[%s]: removed %zu/%zu chunks (%zu%%)\n", r->key, i + 1, ch->deleted_len,
                     (i + 1) * 100 / ch->deleted_len);
             del_mark += PROGRESS_STEP;
         }
     }
 
-    st = cberg_index_save(idx->index);
+    st = cberg_index_save(r->index);
 
 done:
     file_cache_free(&fc);
@@ -408,23 +424,23 @@ done:
     return st;
 }
 
-static cberg_status rebuild_index(cberg_indexer *idx) {
-    if (!idx->vectors || idx->embedder == NULL || idx->index == NULL) {
+static cberg_status rebuild_index(cberg_repo *r) {
+    if (!r->eng->vectors || r->eng->embedder == NULL || r->index == NULL) {
         return CBERG_OK;
     }
 
     char temp[4096];
-    snprintf(temp, sizeof(temp), "%s.rebuild", idx->index_path);
+    snprintf(temp, sizeof(temp), "%s.rebuild", r->index_path);
     unlink(temp);
 
-    size_t dim = cberg_embedder_dim(idx->embedder);
+    size_t dim = cberg_embedder_dim(r->eng->embedder);
     cberg_index *temp_idx = NULL;
     cberg_status st = cberg_index_open(temp, dim, NULL, &temp_idx);
     if (st != CBERG_OK) {
         return st;
     }
 
-    size_t n = cberg_chunk_table_len(idx->table);
+    size_t n = cberg_chunk_table_len(r->table);
     for (size_t i = 0; i < n;) {
         size_t end = i + BATCH_SIZE;
         if (end > n) {
@@ -446,11 +462,11 @@ static cberg_status rebuild_index(cberg_indexer *idx) {
             return st;
         }
         for (size_t j = i; j < end; j++) {
-            const cberg_stored_chunk *sc = cberg_chunk_table_at(idx->table, j);
+            const cberg_stored_chunk *sc = cberg_chunk_table_at(r->table, j);
             if (sc == NULL) {
                 continue;
             }
-            st = cache_slice(idx, &fc, sc, &texts[count], &lens[count]);
+            st = cache_slice(r, &fc, sc, &texts[count], &lens[count]);
             if (st != CBERG_OK) {
                 file_cache_free(&fc);
                 free(texts);
@@ -465,7 +481,7 @@ static cberg_status rebuild_index(cberg_indexer *idx) {
         }
         if (count > 0) {
             float *vecs = NULL;
-            st = cberg_embedder_embed(idx->embedder, texts, lens, count, &vecs);
+            st = engine_embed(r->eng, texts, lens, count, &vecs);
             file_cache_free(&fc);
             free(texts);
             free(lens);
@@ -503,41 +519,41 @@ static cberg_status rebuild_index(cberg_indexer *idx) {
         return st;
     }
 
-    cberg_index_close(idx->index);
-    idx->index = NULL;
-    if (rename(temp, idx->index_path) != 0) {
+    cberg_index_close(r->index);
+    r->index = NULL;
+    if (rename(temp, r->index_path) != 0) {
         st = CBERG_ERR_IO;
-        cberg_index_open(idx->index_path, dim, NULL, &idx->index);
+        cberg_index_open(r->index_path, dim, NULL, &r->index);
         return st;
     }
-    return cberg_index_open(idx->index_path, dim, NULL, &idx->index);
+    return cberg_index_open(r->index_path, dim, NULL, &r->index);
 }
 
-static cberg_status sync_table(cberg_indexer *idx, chunk_batch *batch) {
+static cberg_status sync_table(cberg_repo *r, chunk_batch *batch) {
     cberg_changes ch = {0};
-    cberg_status st = cberg_chunk_table_sync(idx->table, batch->items, batch->len, &ch);
+    cberg_status st = cberg_chunk_table_sync(r->table, batch->items, batch->len, &ch);
     if (st != CBERG_OK) {
         return st;
     }
-    st = apply_vectors(idx, &ch);
+    st = apply_vectors(r, &ch);
     if (st != CBERG_OK) {
-        idx->ready = 0;
-        cberg_status r = rebuild_index(idx);
-        if (r != CBERG_OK) {
-            return r;
+        r->ready = 0;
+        cberg_status rb = rebuild_index(r);
+        if (rb != CBERG_OK) {
+            return rb;
         }
-        idx->ready = 1;
+        r->ready = 1;
     }
     /* Live per-sync line for the watch loop; bootstrap reports via embed progress
      * and the final "bootstrap complete" count instead. */
-    if (idx->ready && (ch.added_len != 0 || ch.modified_len != 0 || ch.deleted_len != 0)) {
-        fprintf(stderr, "cberg-index: indexed +%zu ~%zu -%zu (%zu chunks)\n", ch.added_len, ch.modified_len,
-                ch.deleted_len, cberg_chunk_table_len(idx->table));
+    if (r->ready && (ch.added_len != 0 || ch.modified_len != 0 || ch.deleted_len != 0)) {
+        fprintf(stderr, "cberg-index[%s]: indexed +%zu ~%zu -%zu (%zu chunks)\n", r->key, ch.added_len,
+                ch.modified_len, ch.deleted_len, cberg_chunk_table_len(r->table));
     }
     return CBERG_OK;
 }
 
-static cberg_status parse_file(cberg_indexer *idx, const char *abs, const char *rel, cberg_chunk_list **out) {
+static cberg_status parse_file(cberg_repo *r, const char *abs, const char *rel, cberg_chunk_list **out) {
     *out = NULL;
     size_t len = 0;
     char *data = cberg_read_file(abs, &len);
@@ -550,7 +566,7 @@ static cberg_status parse_file(cberg_indexer *idx, const char *abs, const char *
         return CBERG_OK;
     }
     cberg_chunk_list *list = NULL;
-    cberg_status st = cberg_chunker_parse(idx->chunker, lang, rel, data, len, &list);
+    cberg_status st = cberg_chunker_parse(r->eng->chunker, lang, rel, data, len, &list);
     if (st != CBERG_OK) {
         free(data);
         return st;
@@ -569,7 +585,7 @@ static cberg_status parse_file(cberg_indexer *idx, const char *abs, const char *
 }
 
 typedef struct {
-    cberg_indexer *idx;
+    cberg_repo *repo;
     chunk_batch *batch;
     cberg_status err;
     size_t files;
@@ -578,10 +594,10 @@ typedef struct {
 static int bootstrap_cb(const char *abs, const char *rel, void *v) {
     walk_ctx *ctx = v;
     if (++ctx->files % 1000 == 0) {
-        fprintf(stderr, "cberg-index: scanned %zu files...\n", ctx->files);
+        fprintf(stderr, "cberg-index[%s]: scanned %zu files...\n", ctx->repo->key, ctx->files);
     }
     cberg_chunk_list *list = NULL;
-    cberg_status st = parse_file(ctx->idx, abs, rel, &list);
+    cberg_status st = parse_file(ctx->repo, abs, rel, &list);
     if (st != CBERG_OK) {
         ctx->err = st;
         return -1;
@@ -600,46 +616,47 @@ static int bootstrap_cb(const char *abs, const char *rel, void *v) {
 
 /* ----------------------------------------------------- state persistence */
 
-static void save_chunk_table(cberg_indexer *idx) {
-    if (idx->chunks_path == NULL) {
+static void save_chunk_table(cberg_repo *r) {
+    if (r->chunks_path == NULL) {
         return;
     }
-    cberg_status st = cberg_chunk_table_save(idx->table, idx->chunks_path);
+    cberg_status st = cberg_chunk_table_save(r->table, r->chunks_path);
     if (st != CBERG_OK) {
-        fprintf(stderr, "cberg-index: warning: could not persist chunk table: %s\n", cberg_status_str(st));
+        fprintf(stderr, "cberg-index[%s]: warning: could not persist chunk table: %s\n", r->key,
+                cberg_status_str(st));
     }
 }
 
-static void save_manifest(cberg_indexer *idx) {
-    if (idx->manifest_path == NULL || idx->manifest == NULL) {
+static void save_manifest(cberg_repo *r) {
+    if (r->manifest_path == NULL || r->manifest == NULL) {
         return;
     }
-    cberg_status st = cberg_manifest_save(idx->manifest, idx->manifest_path);
+    cberg_status st = cberg_manifest_save(r->manifest, r->manifest_path);
     if (st != CBERG_OK) {
-        fprintf(stderr, "cberg-index: warning: could not persist manifest: %s\n", cberg_status_str(st));
+        fprintf(stderr, "cberg-index[%s]: warning: could not persist manifest: %s\n", r->key, cberg_status_str(st));
     }
 }
 
-static void save_state(cberg_indexer *idx) {
-    save_chunk_table(idx);
-    save_manifest(idx);
+static void save_state(cberg_repo *r) {
+    save_chunk_table(r);
+    save_manifest(r);
 }
 
 /* Rebuild the manifest baseline from the current on-disk tree (stat-only for
  * unchanged files) so the next restart sees an accurate "what changed while we
  * were down". Failure is non-fatal: the baseline simply stays as it was. */
-static void refresh_manifest(cberg_indexer *idx) {
-    if (idx->manifest_path == NULL) {
+static void refresh_manifest(cberg_repo *r) {
+    if (r->manifest_path == NULL) {
         return;
     }
     cberg_manifest *next = NULL;
-    cberg_status st = cberg_manifest_rebuild(idx->manifest, idx->root, &next);
+    cberg_status st = cberg_manifest_rebuild(r->manifest, r->root, &next);
     if (st != CBERG_OK) {
-        fprintf(stderr, "cberg-index: warning: could not refresh manifest: %s\n", cberg_status_str(st));
+        fprintf(stderr, "cberg-index[%s]: warning: could not refresh manifest: %s\n", r->key, cberg_status_str(st));
         return;
     }
-    cberg_manifest_free(idx->manifest);
-    idx->manifest = next;
+    cberg_manifest_free(r->manifest);
+    r->manifest = next;
 }
 
 /* 16-hex-char digest of the resolved root path: a stable per-directory tag, so
@@ -673,253 +690,370 @@ const char *cberg_indexer_version(void) {
     return cberg_version();
 }
 
-size_t cberg_indexer_chunk_count(cberg_indexer *idx) {
-    pthread_mutex_lock(&idx->mu);
-    size_t n = cberg_chunk_table_len(idx->table);
-    pthread_mutex_unlock(&idx->mu);
+size_t cberg_repo_chunk_count(cberg_repo *r) {
+    pthread_mutex_lock(&r->mu);
+    size_t n = cberg_chunk_table_len(r->table);
+    pthread_mutex_unlock(&r->mu);
     return n;
 }
 
-cberg_status cberg_indexer_open(cberg_indexer *idx) {
-    memset(idx, 0, sizeof(*idx));
-    pthread_mutex_init(&idx->mu, NULL);
+int cberg_repo_ready(cberg_repo *r) {
+    pthread_mutex_lock(&r->mu);
+    int ready = r->ready;
+    pthread_mutex_unlock(&r->mu);
+    return ready;
+}
 
-    const char *root = getenv("CODEBERG_ROOT");
-    if (root == NULL || root[0] == '\0') {
-        return CBERG_ERR_NOT_FOUND;
+size_t cberg_engine_chunk_count(cberg_engine *eng) {
+    size_t total = 0;
+    for (size_t i = 0; i < eng->repos_len; i++) {
+        total += cberg_repo_chunk_count(eng->repos[i]);
     }
+    return total;
+}
 
-    char resolved[4096];
-    if (cberg_config_resolve_index_root(resolved, sizeof(resolved)) != CBERG_OK) {
-        if (realpath(root, resolved) == NULL) {
-            return CBERG_ERR_INVALID_ARGUMENT;
+/* -------------------------------------------------------- engine lifecycle */
+
+static void repo_close(cberg_repo *r) {
+    if (r == NULL) {
+        return;
+    }
+    /* On a clean shutdown after bootstrap, refresh the baseline so the next start
+     * re-chunks nothing it doesn't have to. Skipped on early-open failures (not
+     * ready) to avoid overwriting good state with a half-built one. */
+    if (r->ready) {
+        refresh_manifest(r);
+        save_state(r);
+    }
+    if (r->index != NULL) {
+        cberg_index_save(r->index);
+        cberg_index_close(r->index);
+    }
+    if (r->watcher != NULL) {
+        cberg_watcher_close(r->watcher);
+    }
+    if (r->manifest != NULL) {
+        cberg_manifest_free(r->manifest);
+    }
+    if (r->table != NULL) {
+        cberg_chunk_table_free(r->table);
+    }
+    free(r->key);
+    free(r->root);
+    free(r->index_path);
+    free(r->chunks_path);
+    free(r->manifest_path);
+    pthread_mutex_destroy(&r->mu);
+    free(r);
+}
+
+/* Open one repo under the engine: per-root chunk table, watcher, and (in vector
+ * mode) the "<base>.<roothash>" index + sidecars — the exact single-root layout,
+ * so existing on-disk indexes stay valid. `root` must already be resolved. */
+static cberg_status engine_add_repo(cberg_engine *eng, const char *key, const char *root) {
+    for (size_t i = 0; i < eng->repos_len; i++) {
+        if (strcmp(eng->repos[i]->root, root) == 0 || strcmp(eng->repos[i]->key, key) == 0) {
+            fprintf(stderr, "cberg-index: warning: duplicate root or key '%s' ignored\n", key);
+            return CBERG_OK;
         }
     }
-    idx->root = strdup(resolved);
-    if (idx->root == NULL) {
-        cberg_indexer_close(idx);
+
+    cberg_repo *r = calloc(1, sizeof(*r));
+    if (r == NULL) {
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+    pthread_mutex_init(&r->mu, NULL);
+    r->eng = eng;
+    r->key = strdup(key);
+    r->root = strdup(root);
+    if (r->key == NULL || r->root == NULL) {
+        repo_close(r);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
 
-    const char *model = getenv("CBERG_MODEL");
-    const char *index_path = getenv("CBERG_INDEX_PATH");
-    if (model != NULL && model[0] != '\0' && index_path != NULL && index_path[0] != '\0') {
-        idx->vectors = 1;
-        idx->model_path = strdup(model);
-        if (idx->model_path == NULL) {
-            cberg_indexer_close(idx);
-            return CBERG_ERR_OUT_OF_MEMORY;
-        }
+    r->table = cberg_chunk_table_new();
+    if (r->table == NULL) {
+        repo_close(r);
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+    cberg_status st = cberg_watcher_open(r->root, &r->watcher);
+    if (st != CBERG_OK) {
+        repo_close(r);
+        return st;
+    }
+
+    if (eng->vectors) {
         /* CBERG_INDEX_PATH is a base path; the actual index and its chunk-table /
          * manifest sidecars are per-directory ("<base>.<roothash>[.chunks|.manifest]").
          * Pointing at a different tree never reuses another tree's chunks, and
          * reverting to a prior tree finds its embeddings still cached. */
         char tag[18]; /* ".<16 hex>" */
         tag[0] = '.';
-        root_suffix(idx->root, tag + 1);
-        idx->index_path = join_str(index_path, tag);
-        if (idx->index_path == NULL) {
-            cberg_indexer_close(idx);
+        root_suffix(r->root, tag + 1);
+        r->index_path = join_str(eng->index_base, tag);
+        if (r->index_path == NULL) {
+            repo_close(r);
             return CBERG_ERR_OUT_OF_MEMORY;
         }
-        idx->chunks_path = join_str(idx->index_path, ".chunks");
-        idx->manifest_path = join_str(idx->index_path, ".manifest");
-        if (idx->chunks_path == NULL || idx->manifest_path == NULL) {
-            cberg_indexer_close(idx);
+        r->chunks_path = join_str(r->index_path, ".chunks");
+        r->manifest_path = join_str(r->index_path, ".manifest");
+        if (r->chunks_path == NULL || r->manifest_path == NULL) {
+            repo_close(r);
+            return CBERG_ERR_OUT_OF_MEMORY;
+        }
+
+        size_t dim = cberg_embedder_dim(eng->embedder);
+        st = cberg_index_open(r->index_path, dim, NULL, &r->index);
+        if (st == CBERG_ERR_IO) {
+            /* The index file exists but won't load — corrupt, e.g. a save
+             * interrupted by a kill. Discard this directory's stale state (index
+             * + sidecars) and reindex from scratch rather than failing to start. */
+            fprintf(stderr, "cberg-index[%s]: vector index '%s' is unreadable; discarding and reindexing\n", r->key,
+                    r->index_path);
+            remove(r->index_path);
+            remove(r->chunks_path);
+            remove(r->manifest_path);
+            st = cberg_index_open(r->index_path, dim, NULL, &r->index);
+        }
+        if (st != CBERG_OK) {
+            fprintf(stderr, "cberg-index[%s]: failed to open vector index '%s': %s\n", r->key, r->index_path,
+                    cberg_status_str(st));
+            repo_close(r);
+            return st;
+        }
+    }
+
+    cberg_repo **grown = realloc(eng->repos, (eng->repos_len + 1) * sizeof(*grown));
+    if (grown == NULL) {
+        repo_close(r);
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+    eng->repos = grown;
+    eng->repos[eng->repos_len++] = r;
+    return CBERG_OK;
+}
+
+/* Resolve the roots to serve: CODEBERG_ROOTS ("<key>\t<path>" per line) wins;
+ * CODEBERG_ROOT alone is the single-root fallback with key = basename. A root
+ * that fails to resolve is skipped with a warning — a registry entry whose tree
+ * was deleted must not keep every other repo from indexing. */
+static cberg_status open_repos_from_env(cberg_engine *eng) {
+    const char *roots = getenv("CODEBERG_ROOTS");
+    if (roots != NULL && roots[0] != '\0') {
+        char *dup = strdup(roots);
+        if (dup == NULL) {
+            return CBERG_ERR_OUT_OF_MEMORY;
+        }
+        char *save = NULL;
+        for (char *line = strtok_r(dup, "\n", &save); line != NULL; line = strtok_r(NULL, "\n", &save)) {
+            char *tab = strchr(line, '\t');
+            if (tab == NULL || tab == line || tab[1] == '\0') {
+                continue; /* malformed record */
+            }
+            *tab = '\0';
+            const char *key = line;
+            const char *path = tab + 1;
+            char resolved[4096];
+            if (cberg_path_resolve(path, resolved, sizeof(resolved)) != CBERG_OK) {
+                fprintf(stderr, "cberg-index: warning: skipping repo '%s': unresolvable root '%s'\n", key, path);
+                continue;
+            }
+            cberg_status st = engine_add_repo(eng, key, resolved);
+            if (st != CBERG_OK) {
+                free(dup);
+                return st;
+            }
+        }
+        free(dup);
+        if (eng->repos_len == 0) {
+            fprintf(stderr, "cberg-index: no usable roots in CODEBERG_ROOTS\n");
+            return CBERG_ERR_NOT_FOUND;
+        }
+        return CBERG_OK;
+    }
+
+    const char *root = getenv("CODEBERG_ROOT");
+    if (root == NULL || root[0] == '\0') {
+        return CBERG_ERR_NOT_FOUND;
+    }
+    char resolved[4096];
+    if (cberg_config_resolve_index_root(resolved, sizeof(resolved)) != CBERG_OK) {
+        if (realpath(root, resolved) == NULL) {
+            return CBERG_ERR_INVALID_ARGUMENT;
+        }
+    }
+    const char *base = strrchr(resolved, '/');
+    base = (base != NULL && base[1] != '\0') ? base + 1 : "root";
+    return engine_add_repo(eng, base, resolved);
+}
+
+cberg_status cberg_engine_open(cberg_engine *eng) {
+    memset(eng, 0, sizeof(*eng));
+    pthread_mutex_init(&eng->embed_mu, NULL);
+
+    const char *model = getenv("CBERG_MODEL");
+    const char *index_path = getenv("CBERG_INDEX_PATH");
+    if (model != NULL && model[0] != '\0' && index_path != NULL && index_path[0] != '\0') {
+        eng->vectors = 1;
+        eng->model_path = strdup(model);
+        eng->index_base = strdup(index_path);
+        if (eng->model_path == NULL || eng->index_base == NULL) {
+            cberg_engine_close(eng);
             return CBERG_ERR_OUT_OF_MEMORY;
         }
     }
 
-    idx->poll_ms = 1000;
+    eng->poll_ms = 1000;
     const char *poll = getenv("CBERG_POLL_MS");
     if (poll != NULL && poll[0] != '\0') {
-        idx->poll_ms = atoi(poll);
-        if (idx->poll_ms < 0) {
+        eng->poll_ms = atoi(poll);
+        if (eng->poll_ms < 0) {
+            cberg_engine_close(eng);
             return CBERG_ERR_INVALID_ARGUMENT;
         }
     }
-    if (idx->poll_ms <= 0) {
-        idx->poll_ms = 1000;
+    if (eng->poll_ms <= 0) {
+        eng->poll_ms = 1000;
     }
 
     const char *sock = getenv("CBERG_SOCKET");
     if (sock != NULL && sock[0] != '\0') {
-        idx->socket_path = strdup(sock);
+        eng->socket_path = strdup(sock);
     } else {
-        idx->socket_path = strdup("/tmp/codeberg-index.sock");
+        eng->socket_path = strdup("/tmp/codeberg-index.sock");
     }
-    if (idx->socket_path == NULL) {
-        cberg_indexer_close(idx);
+    if (eng->socket_path == NULL) {
+        cberg_engine_close(eng);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
 
-    cberg_status st = cberg_chunker_open(&idx->chunker);
+    cberg_status st = cberg_chunker_open(&eng->chunker);
     if (st != CBERG_OK) {
-        cberg_indexer_close(idx);
-        return st;
-    }
-    idx->table = cberg_chunk_table_new();
-    if (idx->table == NULL) {
-        cberg_indexer_close(idx);
-        return CBERG_ERR_OUT_OF_MEMORY;
-    }
-    st = cberg_watcher_open(idx->root, &idx->watcher);
-    if (st != CBERG_OK) {
-        cberg_indexer_close(idx);
+        cberg_engine_close(eng);
         return st;
     }
 
-    if (idx->vectors) {
+    if (eng->vectors) {
         struct stat mst;
-        if (stat(idx->model_path, &mst) != 0) {
+        if (stat(eng->model_path, &mst) != 0) {
             fprintf(stderr,
                     "cberg-index: embedding model not found: '%s'\n"
                     "  fetch one with scripts/fetch-model.sh and point CBERG_MODEL at its .onnx,\n"
                     "  or unset CBERG_MODEL and CBERG_INDEX_PATH to run chunk-only.\n",
-                    idx->model_path);
-            cberg_indexer_close(idx);
+                    eng->model_path);
+            cberg_engine_close(eng);
             return CBERG_ERR_IO;
         }
         cberg_embed_config ecfg = {0};
         ecfg.provider = CBERG_EMBED_ONNX;
-        ecfg.model_path = idx->model_path;
+        ecfg.model_path = eng->model_path;
         /* CBERG_EMBED_THREADS caps ONNX intra-op threads; unset or <= 0 uses all cores. */
         const char *embed_threads = getenv("CBERG_EMBED_THREADS");
         if (embed_threads != NULL && embed_threads[0] != '\0') {
             ecfg.num_threads = atoi(embed_threads);
         }
-        st = cberg_embedder_open(&ecfg, &idx->embedder);
+        st = cberg_embedder_open(&ecfg, &eng->embedder);
         if (st != CBERG_OK) {
-            fprintf(stderr, "cberg-index: failed to load embedding model '%s': %s\n", idx->model_path,
+            fprintf(stderr, "cberg-index: failed to load embedding model '%s': %s\n", eng->model_path,
                     cberg_status_str(st));
-            cberg_indexer_close(idx);
-            return st;
-        }
-        size_t dim = cberg_embedder_dim(idx->embedder);
-        st = cberg_index_open(idx->index_path, dim, NULL, &idx->index);
-        if (st == CBERG_ERR_IO) {
-            /* The index file exists but won't load — corrupt, e.g. a save
-             * interrupted by a kill. Discard this directory's stale state (index
-             * + sidecars) and reindex from scratch rather than failing to start. */
-            fprintf(stderr, "cberg-index: vector index '%s' is unreadable; discarding and reindexing\n",
-                    idx->index_path);
-            remove(idx->index_path);
-            remove(idx->chunks_path);
-            remove(idx->manifest_path);
-            st = cberg_index_open(idx->index_path, dim, NULL, &idx->index);
-        }
-        if (st != CBERG_OK) {
-            fprintf(stderr, "cberg-index: failed to open vector index '%s': %s\n", idx->index_path,
-                    cberg_status_str(st));
-            cberg_indexer_close(idx);
+            cberg_engine_close(eng);
             return st;
         }
     }
 
+    st = open_repos_from_env(eng);
+    if (st != CBERG_OK) {
+        cberg_engine_close(eng);
+        return st;
+    }
     return CBERG_OK;
 }
 
-void cberg_indexer_close(cberg_indexer *idx) {
-    if (idx == NULL) {
+void cberg_engine_close(cberg_engine *eng) {
+    if (eng == NULL) {
         return;
     }
-    idx->stop = 1;
-    /* On a clean shutdown after bootstrap, refresh the baseline so the next start
-     * re-chunks nothing it doesn't have to. Skipped on early-open failures (not
-     * ready) to avoid overwriting good state with a half-built one. */
-    if (idx->ready) {
-        refresh_manifest(idx);
-        save_state(idx);
+    eng->stop = 1;
+    for (size_t i = 0; i < eng->repos_len; i++) {
+        repo_close(eng->repos[i]);
     }
-    if (idx->index != NULL) {
-        cberg_index_save(idx->index);
-        cberg_index_close(idx->index);
+    free(eng->repos);
+    if (eng->embedder != NULL) {
+        cberg_embedder_close(eng->embedder);
     }
-    if (idx->embedder != NULL) {
-        cberg_embedder_close(idx->embedder);
+    if (eng->chunker != NULL) {
+        cberg_chunker_close(eng->chunker);
     }
-    if (idx->watcher != NULL) {
-        cberg_watcher_close(idx->watcher);
-    }
-    if (idx->manifest != NULL) {
-        cberg_manifest_free(idx->manifest);
-    }
-    if (idx->table != NULL) {
-        cberg_chunk_table_free(idx->table);
-    }
-    if (idx->chunker != NULL) {
-        cberg_chunker_close(idx->chunker);
-    }
-    free(idx->root);
-    free(idx->model_path);
-    free(idx->index_path);
-    free(idx->chunks_path);
-    free(idx->manifest_path);
-    free(idx->socket_path);
-    pthread_mutex_destroy(&idx->mu);
-    memset(idx, 0, sizeof(*idx));
+    free(eng->model_path);
+    free(eng->index_base);
+    free(eng->socket_path);
+    pthread_mutex_destroy(&eng->embed_mu);
+    memset(eng, 0, sizeof(*eng));
 }
 
+/* ------------------------------------------------------------- bootstrap */
+
 /* Walk every file, chunk it, and capture a manifest baseline for next time. The
- * caller holds idx->mu. Used both on a true cold start (empty table) and as the
+ * caller holds r->mu. Used both on a true cold start (empty table) and as the
  * fallback when a chunk table was restored but no manifest was: in the latter
  * case unchanged chunks still keep their ids, so sync re-embeds nothing. */
-static cberg_status walk_and_sync(cberg_indexer *idx) {
+static cberg_status walk_and_sync(cberg_repo *r) {
     chunk_batch batch;
     batch_init(&batch);
-    walk_ctx ctx = {.idx = idx, .batch = &batch};
-    if (cberg_walk_files(idx->root, bootstrap_cb, &ctx) != 0) {
+    walk_ctx ctx = {.repo = r, .batch = &batch};
+    if (cberg_walk_files(r->root, bootstrap_cb, &ctx) != 0) {
         batch_reset(&batch);
         return ctx.err != CBERG_OK ? ctx.err : CBERG_ERR_IO;
     }
-    cberg_status st = sync_table(idx, &batch);
+    cberg_status st = sync_table(r, &batch);
     batch_reset(&batch);
     if (st != CBERG_OK) {
         return st;
     }
-    if (idx->manifest_path != NULL) {
+    if (r->manifest_path != NULL) {
         cberg_manifest *m = NULL;
-        if (cberg_manifest_build(idx->root, &m) == CBERG_OK) {
-            cberg_manifest_free(idx->manifest);
-            idx->manifest = m;
+        if (cberg_manifest_build(r->root, &m) == CBERG_OK) {
+            cberg_manifest_free(r->manifest);
+            r->manifest = m;
         } else {
-            fprintf(stderr, "cberg-index: warning: manifest build failed; restarts will re-scan all files\n");
+            fprintf(stderr, "cberg-index[%s]: warning: manifest build failed; restarts will re-scan all files\n",
+                    r->key);
         }
     }
     return CBERG_OK;
 }
 
-cberg_status cberg_indexer_bootstrap(cberg_indexer *idx) {
-    pthread_mutex_lock(&idx->mu);
+cberg_status cberg_repo_bootstrap(cberg_repo *r) {
+    pthread_mutex_lock(&r->mu);
 
     /* Warm path first: when a prior chunk table is on disk, reuse it so unchanged
      * chunks keep their ids (and embeddings). NOT_FOUND means there is no prior
      * state, so fall through to a cold build. */
     cberg_status st = CBERG_ERR_NOT_FOUND;
-    if (idx->chunks_path != NULL) {
-        st = bootstrap_warm(idx);
+    if (r->chunks_path != NULL) {
+        st = bootstrap_warm(r);
         if (st != CBERG_ERR_NOT_FOUND) {
             if (st == CBERG_OK) {
-                idx->ready = 1;
+                r->ready = 1;
             }
-            pthread_mutex_unlock(&idx->mu);
+            pthread_mutex_unlock(&r->mu);
             return st;
         }
     }
 
-    st = walk_and_sync(idx);
+    st = walk_and_sync(r);
     if (st == CBERG_OK) {
-        idx->ready = 1;
-        save_state(idx);
+        r->ready = 1;
+        save_state(r);
     }
-    pthread_mutex_unlock(&idx->mu);
+    pthread_mutex_unlock(&r->mu);
     return st;
 }
 
-static cberg_status batch_add_table_except(cberg_indexer *idx, chunk_batch *batch, char **skip, size_t skip_n) {
-    size_t n = cberg_chunk_table_len(idx->table);
+static cberg_status batch_add_table_except(cberg_repo *r, chunk_batch *batch, char **skip, size_t skip_n) {
+    size_t n = cberg_chunk_table_len(r->table);
     for (size_t i = 0; i < n; i++) {
-        const cberg_stored_chunk *sc = cberg_chunk_table_at(idx->table, i);
+        const cberg_stored_chunk *sc = cberg_chunk_table_at(r->table, i);
         if (sc == NULL) {
             continue;
         }
@@ -943,8 +1077,8 @@ static cberg_status batch_add_table_except(cberg_indexer *idx, chunk_batch *batc
 /* Re-index a set of changed paths: carry over every chunk except those of
  * `rechunk`+`deleted`, re-chunk `rechunk` from disk, and sync the union — so only
  * the affected files are parsed and only chunks whose content moved get
- * re-embedded. The path arrays are borrowed (not freed). Caller holds idx->mu. */
-static cberg_status apply_path_changes(cberg_indexer *idx, char **rechunk, size_t rechunk_n, char **deleted,
+ * re-embedded. The path arrays are borrowed (not freed). Caller holds r->mu. */
+static cberg_status apply_path_changes(cberg_repo *r, char **rechunk, size_t rechunk_n, char **deleted,
                                        size_t deleted_n) {
     chunk_batch batch;
     batch_init(&batch);
@@ -964,16 +1098,16 @@ static cberg_status apply_path_changes(cberg_indexer *idx, char **rechunk, size_
         }
     }
 
-    cberg_status st = batch_add_table_except(idx, &batch, skip, skip_n);
+    cberg_status st = batch_add_table_except(r, &batch, skip, skip_n);
     if (st != CBERG_OK) {
         goto done;
     }
 
     for (size_t i = 0; i < rechunk_n; i++) {
         char abs[4096];
-        snprintf(abs, sizeof(abs), "%s/%s", idx->root, rechunk[i]);
+        snprintf(abs, sizeof(abs), "%s/%s", r->root, rechunk[i]);
         cberg_chunk_list *list = NULL;
-        st = parse_file(idx, abs, rechunk[i], &list);
+        st = parse_file(r, abs, rechunk[i], &list);
         if (st != CBERG_OK) {
             goto done;
         }
@@ -986,7 +1120,7 @@ static cberg_status apply_path_changes(cberg_indexer *idx, char **rechunk, size_
         }
     }
 
-    st = sync_table(idx, &batch);
+    st = sync_table(r, &batch);
 
 done:
     batch_reset(&batch);
@@ -994,26 +1128,26 @@ done:
     return st;
 }
 
-static cberg_status bootstrap_warm(cberg_indexer *idx) {
+static cberg_status bootstrap_warm(cberg_repo *r) {
     cberg_chunk_table *restored = NULL;
-    cberg_status st = cberg_chunk_table_load(idx->chunks_path, &restored);
+    cberg_status st = cberg_chunk_table_load(r->chunks_path, &restored);
     if (st != CBERG_OK) {
         return st; /* NOT_FOUND -> cold start; a real error propagates */
     }
-    cberg_chunk_table_free(idx->table);
-    idx->table = restored;
+    cberg_chunk_table_free(r->table);
+    r->table = restored;
 
     cberg_manifest *prev = NULL;
-    if (idx->manifest_path != NULL && cberg_manifest_load(idx->manifest_path, &prev) != CBERG_OK) {
+    if (r->manifest_path != NULL && cberg_manifest_load(r->manifest_path, &prev) != CBERG_OK) {
         prev = NULL;
     }
 
     /* Chunk table but no manifest baseline: we still avoid re-embedding (ids were
      * restored), but must walk + re-chunk every file to learn what changed. */
     if (prev == NULL) {
-        st = walk_and_sync(idx);
+        st = walk_and_sync(r);
         if (st == CBERG_OK) {
-            save_state(idx);
+            save_state(r);
         }
         return st;
     }
@@ -1021,7 +1155,7 @@ static cberg_status bootstrap_warm(cberg_indexer *idx) {
     /* Manifest-driven: diff the saved tree against a fresh rebuild (stat-only for
      * unchanged files) and re-chunk only added/modified, dropping deleted. */
     cberg_manifest *next = NULL;
-    st = cberg_manifest_rebuild(prev, idx->root, &next);
+    st = cberg_manifest_rebuild(prev, r->root, &next);
     if (st != CBERG_OK) {
         cberg_manifest_free(prev);
         return st;
@@ -1044,21 +1178,21 @@ static cberg_status bootstrap_warm(cberg_indexer *idx) {
             cberg_manifest_free(next);
             return CBERG_ERR_OUT_OF_MEMORY;
         }
-        size_t r = 0;
+        size_t rn = 0;
         for (size_t i = 0; i < diff.added_len; i++) {
-            rechunk[r++] = (char *)diff.added[i];
+            rechunk[rn++] = (char *)diff.added[i];
         }
         for (size_t i = 0; i < diff.modified_len; i++) {
-            rechunk[r++] = (char *)diff.modified[i];
+            rechunk[rn++] = (char *)diff.modified[i];
         }
     }
 
     /* diff paths borrow from prev/next; consume them before either is freed. */
-    st = apply_path_changes(idx, rechunk, rechunk_n, (char **)diff.deleted, diff.deleted_len);
+    st = apply_path_changes(r, rechunk, rechunk_n, (char **)diff.deleted, diff.deleted_len);
     free(rechunk);
     if (st == CBERG_OK) {
-        fprintf(stderr, "cberg-index: warm restart: %zu added, %zu modified, %zu deleted since last run\n",
-                diff.added_len, diff.modified_len, diff.deleted_len);
+        fprintf(stderr, "cberg-index[%s]: warm restart: %zu added, %zu modified, %zu deleted since last run\n",
+                r->key, diff.added_len, diff.modified_len, diff.deleted_len);
     }
     cberg_manifest_diff_free(&diff);
     cberg_manifest_free(prev);
@@ -1067,105 +1201,124 @@ static cberg_status bootstrap_warm(cberg_indexer *idx) {
         return st;
     }
 
-    cberg_manifest_free(idx->manifest);
-    idx->manifest = next; /* the fresh tree becomes the new baseline */
-    save_state(idx);
+    cberg_manifest_free(r->manifest);
+    r->manifest = next; /* the fresh tree becomes the new baseline */
+    save_state(r);
     return CBERG_OK;
 }
 
-cberg_status cberg_indexer_run(cberg_indexer *idx) {
-    for (;;) {
-        if (idx->stop) {
-            return CBERG_OK;
-        }
+/* -------------------------------------------------------------- watch loop */
 
-        cberg_watch_event events[256];
-        size_t count = 0;
-        cberg_status st = cberg_watcher_poll(idx->watcher, events, 256, &count, idx->poll_ms);
-        if (st == CBERG_ERR_TIMEOUT) {
-            continue;
-        }
-        if (st != CBERG_OK) {
-            return st;
-        }
-        if (count == 0) {
-            continue;
-        }
+/* Drain one repo's watcher (non-blocking) and apply any changes. */
+static cberg_status repo_step(cberg_repo *r, size_t *out_events) {
+    *out_events = 0;
 
-        char **rechunk = calloc(count, sizeof(*rechunk));
-        char **deleted = calloc(count, sizeof(*deleted));
-        size_t rechunk_n = 0;
-        size_t deleted_n = 0;
-        if (rechunk == NULL || deleted == NULL) {
-            free(rechunk);
-            free(deleted);
-            for (size_t i = 0; i < count; i++) {
-                free((void *)events[i].path);
-            }
-            return CBERG_ERR_OUT_OF_MEMORY;
-        }
+    cberg_watch_event events[256];
+    size_t count = 0;
+    cberg_status st = cberg_watcher_poll(r->watcher, events, 256, &count, 0);
+    if (st == CBERG_ERR_TIMEOUT) {
+        return CBERG_OK;
+    }
+    if (st != CBERG_OK) {
+        return st;
+    }
+    if (count == 0) {
+        return CBERG_OK;
+    }
 
-        for (size_t i = 0; i < count; i++) {
-            if (events[i].kind == CBERG_WATCH_DELETE) {
-                deleted[deleted_n++] = strdup(events[i].path);
-            } else {
-                rechunk[rechunk_n++] = strdup(events[i].path);
-            }
-            free((void *)events[i].path);
-        }
-
-        pthread_mutex_lock(&idx->mu);
-        st = apply_path_changes(idx, rechunk, rechunk_n, deleted, deleted_n);
-        if (st == CBERG_OK) {
-            /* Persist the chunk table every sync so a restart never re-embeds the
-             * work done this session. The manifest baseline is refreshed on close. */
-            save_chunk_table(idx);
-        }
-        pthread_mutex_unlock(&idx->mu);
-
-        for (size_t i = 0; i < rechunk_n; i++) {
-            free(rechunk[i]);
-        }
-        for (size_t i = 0; i < deleted_n; i++) {
-            free(deleted[i]);
-        }
+    char **rechunk = calloc(count, sizeof(*rechunk));
+    char **deleted = calloc(count, sizeof(*deleted));
+    size_t rechunk_n = 0;
+    size_t deleted_n = 0;
+    if (rechunk == NULL || deleted == NULL) {
         free(rechunk);
         free(deleted);
-
-        if (st != CBERG_OK) {
-            return st;
+        for (size_t i = 0; i < count; i++) {
+            free((void *)events[i].path);
         }
+        return CBERG_ERR_OUT_OF_MEMORY;
     }
-}
 
-cberg_status cberg_indexer_search(cberg_indexer *idx, const char *query, size_t k, uint64_t *ids, float *scores,
-                                  size_t *found) {
-    pthread_mutex_lock(&idx->mu);
-    if (!idx->ready) {
-        pthread_mutex_unlock(&idx->mu);
-        return CBERG_ERR_NOT_FOUND;
+    for (size_t i = 0; i < count; i++) {
+        if (events[i].kind == CBERG_WATCH_DELETE) {
+            deleted[deleted_n++] = strdup(events[i].path);
+        } else {
+            rechunk[rechunk_n++] = strdup(events[i].path);
+        }
+        free((void *)events[i].path);
     }
-    if (!idx->vectors || idx->embedder == NULL || idx->index == NULL) {
-        pthread_mutex_unlock(&idx->mu);
-        return CBERG_ERR_NOT_IMPLEMENTED;
+
+    pthread_mutex_lock(&r->mu);
+    st = apply_path_changes(r, rechunk, rechunk_n, deleted, deleted_n);
+    if (st == CBERG_OK) {
+        /* Persist the chunk table every sync so a restart never re-embeds the
+         * work done this session. The manifest baseline is refreshed on close. */
+        save_chunk_table(r);
     }
-    cberg_status st =
-        cberg_search_query(idx->embedder, idx->index, query, strlen(query), NULL, k, ids, scores, found);
-    pthread_mutex_unlock(&idx->mu);
+    pthread_mutex_unlock(&r->mu);
+
+    for (size_t i = 0; i < rechunk_n; i++) {
+        free(rechunk[i]);
+    }
+    for (size_t i = 0; i < deleted_n; i++) {
+        free(deleted[i]);
+    }
+    free(rechunk);
+    free(deleted);
+
+    if (st == CBERG_OK) {
+        *out_events = count;
+    }
     return st;
 }
 
-static const cberg_stored_chunk *find_chunk_by_id(cberg_indexer *idx, uint64_t id) {
-    return cberg_chunk_table_find_by_id(idx->table, id);
+cberg_status cberg_engine_step(cberg_engine *eng, size_t *out_events) {
+    size_t total = 0;
+    for (size_t i = 0; i < eng->repos_len; i++) {
+        if (eng->stop) {
+            break;
+        }
+        size_t n = 0;
+        cberg_status st = repo_step(eng->repos[i], &n);
+        if (st != CBERG_OK) {
+            return st;
+        }
+        total += n;
+    }
+    if (out_events != NULL) {
+        *out_events = total;
+    }
+    return CBERG_OK;
 }
 
-static void fill_snippet(cberg_indexer *idx, const cberg_stored_chunk *sc, char *out, size_t cap) {
+cberg_status cberg_engine_run(cberg_engine *eng) {
+    for (;;) {
+        if (eng->stop) {
+            return CBERG_OK;
+        }
+        size_t handled = 0;
+        cberg_status st = cberg_engine_step(eng, &handled);
+        if (st != CBERG_OK) {
+            return st;
+        }
+        if (handled == 0) {
+            /* Idle: every watcher was drained non-blocking, so pace the loop.
+             * A signal interrupts the sleep and the stop check runs first. */
+            struct timespec ts = {.tv_sec = eng->poll_ms / 1000, .tv_nsec = (long)(eng->poll_ms % 1000) * 1000000L};
+            nanosleep(&ts, NULL);
+        }
+    }
+}
+
+/* ------------------------------------------------------------------ search */
+
+static void fill_snippet(cberg_repo *r, const cberg_stored_chunk *sc, char *out, size_t cap) {
     out[0] = '\0';
     if (sc == NULL || cap == 0) {
         return;
     }
     size_t blen = 0;
-    char *body = chunk_body(idx, sc, &blen);
+    char *body = chunk_body(r, sc, &blen);
     if (body == NULL) {
         return;
     }
@@ -1184,9 +1337,65 @@ static void fill_snippet(cberg_indexer *idx, const cberg_stored_chunk *sc, char 
     free(body);
 }
 
-cberg_status cberg_indexer_search_hits(cberg_indexer *idx, const char *query, size_t k, cberg_search_hit *hits,
-                                       size_t cap, size_t *found) {
-    if (hits == NULL || found == NULL) {
+/* Search one repo with an already-embedded query, copying chunk metadata into
+ * hits while r->mu is held. NOT_FOUND when the repo is not ready yet. */
+static cberg_status repo_search_hits(cberg_repo *r, const float *vec, size_t k, cberg_engine_hit *hits, size_t cap,
+                                     size_t *found) {
+    *found = 0;
+    pthread_mutex_lock(&r->mu);
+    if (!r->ready || r->index == NULL) {
+        pthread_mutex_unlock(&r->mu);
+        return CBERG_ERR_NOT_FOUND;
+    }
+
+    uint64_t ids[64];
+    float scores[64];
+    size_t n = 0;
+    cberg_status st = cberg_search_vector(r->index, vec, NULL, k, ids, scores, &n);
+    if (st != CBERG_OK) {
+        pthread_mutex_unlock(&r->mu);
+        return st;
+    }
+
+    for (size_t i = 0; i < n && *found < cap; i++) {
+        const cberg_stored_chunk *sc = cberg_chunk_table_find_by_id(r->table, ids[i]);
+        if (sc == NULL) {
+            /* Orphaned id: a vector whose chunk is no longer in the table — e.g. a
+             * transient leftover from a kill between the index save and the chunk-
+             * table save. Skip it rather than emit an empty hit. */
+            continue;
+        }
+        cberg_engine_hit *h = &hits[*found];
+        h->id = ids[i];
+        h->score = scores[i];
+        h->repo = r->key;
+        snprintf(h->path, sizeof(h->path), "%s", sc->chunk.path != NULL ? sc->chunk.path : "");
+        snprintf(h->symbol, sizeof(h->symbol), "%s", sc->chunk.symbol != NULL ? sc->chunk.symbol : "");
+        h->start_line = sc->chunk.span.start_line;
+        h->end_line = sc->chunk.span.end_line;
+        h->snippet[0] = '\0';
+        fill_snippet(r, sc, h->snippet, sizeof(h->snippet));
+        (*found)++;
+    }
+    pthread_mutex_unlock(&r->mu);
+    return CBERG_OK;
+}
+
+static int hit_score_desc(const void *a, const void *b) {
+    float sa = ((const cberg_engine_hit *)a)->score;
+    float sb = ((const cberg_engine_hit *)b)->score;
+    if (sa > sb) {
+        return -1;
+    }
+    if (sa < sb) {
+        return 1;
+    }
+    return 0;
+}
+
+cberg_status cberg_engine_search_hits(cberg_engine *eng, const char *query, const char *repo_key, size_t k,
+                                      cberg_engine_hit *hits, size_t cap, size_t *found) {
+    if (hits == NULL || found == NULL || query == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     *found = 0;
@@ -1199,46 +1408,75 @@ cberg_status cberg_indexer_search_hits(cberg_indexer *idx, const char *query, si
     if (k > 64) {
         k = 64;
     }
-
-    pthread_mutex_lock(&idx->mu);
-    if (!idx->ready) {
-        pthread_mutex_unlock(&idx->mu);
-        return CBERG_ERR_NOT_FOUND;
-    }
-    if (!idx->vectors || idx->embedder == NULL || idx->index == NULL) {
-        pthread_mutex_unlock(&idx->mu);
+    if (!eng->vectors || eng->embedder == NULL) {
         return CBERG_ERR_NOT_IMPLEMENTED;
     }
+    if (repo_key != NULL && repo_key[0] == '\0') {
+        repo_key = NULL;
+    }
 
-    uint64_t ids[64];
-    float scores[64];
-    size_t n = 0;
-    cberg_status st =
-        cberg_search_query(idx->embedder, idx->index, query, strlen(query), NULL, k, ids, scores, &n);
+    cberg_repo *only = NULL;
+    if (repo_key != NULL) {
+        for (size_t i = 0; i < eng->repos_len; i++) {
+            if (strcmp(eng->repos[i]->key, repo_key) == 0) {
+                only = eng->repos[i];
+                break;
+            }
+        }
+        if (only == NULL) {
+            return CBERG_ERR_NOT_FOUND;
+        }
+    }
+
+    /* Embed the query once (under embed_mu alone — never while holding a repo
+     * lock), then vector-search each target index. */
+    const char *texts[1] = {query};
+    size_t lens[1] = {strlen(query)};
+    float *vec = NULL;
+    cberg_status st = engine_embed(eng, texts, lens, 1, &vec);
     if (st != CBERG_OK) {
-        pthread_mutex_unlock(&idx->mu);
         return st;
     }
 
-    for (size_t i = 0; i < n && *found < cap; i++) {
-        const cberg_stored_chunk *sc = find_chunk_by_id(idx, ids[i]);
-        if (sc == NULL) {
-            /* Orphaned id: a vector whose chunk is no longer in the table — e.g. a
-             * transient leftover from a kill between the index save and the chunk-
-             * table save. Skip it rather than emit an empty hit. */
-            continue;
-        }
-        cberg_search_hit *h = &hits[*found];
-        h->id = ids[i];
-        h->score = scores[i];
-        h->path = sc->chunk.path != NULL ? sc->chunk.path : "";
-        h->symbol = sc->chunk.symbol != NULL ? sc->chunk.symbol : "";
-        h->start_line = sc->chunk.span.start_line;
-        h->end_line = sc->chunk.span.end_line;
-        h->snippet[0] = '\0';
-        fill_snippet(idx, sc, h->snippet, sizeof(h->snippet));
-        (*found)++;
+    if (only != NULL) {
+        st = repo_search_hits(only, vec, k, hits, cap, found);
+        cberg_vectors_free(vec);
+        return st;
     }
-    pthread_mutex_unlock(&idx->mu);
+
+    cberg_engine_hit *all = malloc(eng->repos_len * k * sizeof(*all));
+    if (all == NULL) {
+        cberg_vectors_free(vec);
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+    size_t n = 0;
+    size_t searched = 0;
+    st = CBERG_OK;
+    for (size_t i = 0; i < eng->repos_len; i++) {
+        size_t got = 0;
+        cberg_status rst = repo_search_hits(eng->repos[i], vec, k, all + n, k, &got);
+        if (rst == CBERG_OK) {
+            n += got;
+            searched++;
+        } else if (rst != CBERG_ERR_NOT_FOUND) {
+            st = rst; /* a real search failure; not-ready repos are just skipped */
+            break;
+        }
+    }
+    cberg_vectors_free(vec);
+    if (st != CBERG_OK) {
+        free(all);
+        return st;
+    }
+    if (searched == 0) {
+        free(all);
+        return CBERG_ERR_NOT_FOUND;
+    }
+
+    qsort(all, n, sizeof(*all), hit_score_desc);
+    for (size_t i = 0; i < n && *found < k; i++) {
+        hits[(*found)++] = all[i];
+    }
+    free(all);
     return CBERG_OK;
 }

@@ -437,6 +437,15 @@ CBERG_API cberg_status cberg_search_query(cberg_embedder *embedder, cberg_index 
                                           size_t query_len, const cberg_search_config *config, size_t k,
                                           uint64_t *out_ids, float *out_scores, size_t *out_found);
 
+/*
+ * Searches the index for `k` neighbors of an already-embedded query vector
+ * (same scoring and ef policy as cberg_search_query). Lets one query embedding
+ * be searched against several indexes without re-paying the embed.
+ */
+CBERG_API cberg_status cberg_search_vector(cberg_index *index, const float *query_vec,
+                                           const cberg_search_config *config, size_t k, uint64_t *out_ids,
+                                           float *out_scores, size_t *out_found);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif

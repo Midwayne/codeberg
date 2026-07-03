@@ -12,7 +12,7 @@ import (
 
 type Indexer interface {
 	Status(ctx context.Context) (indexctl.Status, error)
-	Search(ctx context.Context, query string, k int) ([]indexctl.SearchResult, error)
+	Search(ctx context.Context, query string, k int, repo string) ([]indexctl.SearchResult, error)
 }
 
 type Server struct {
@@ -39,12 +39,16 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
-	writeJSON(w, map[string]any{
+	body := map[string]any{
 		"status":  "ok",
 		"ready":   st.Ready,
 		"chunks":  st.Chunks,
 		"version": st.Version,
-	})
+	}
+	if len(st.Repos) > 0 {
+		body["repos"] = st.Repos
+	}
+	writeJSON(w, body)
 }
 
 func (s *Server) search(w http.ResponseWriter, r *http.Request) {
@@ -62,7 +66,7 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request) {
 		}
 		k = n
 	}
-	results, err := s.idx.Search(r.Context(), q, k)
+	results, err := s.idx.Search(r.Context(), q, k, r.URL.Query().Get("repo"))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return

@@ -25,6 +25,7 @@ import (
 	"codeberg.org/codeberg/launcher/internal/cleanindex"
 	"codeberg.org/codeberg/launcher/internal/config"
 	"codeberg.org/codeberg/launcher/internal/deps"
+	"codeberg.org/codeberg/launcher/internal/registry"
 	"codeberg.org/codeberg/launcher/internal/run"
 	"codeberg.org/codeberg/launcher/internal/searxng"
 	"codeberg.org/codeberg/launcher/internal/uninstall"
@@ -55,6 +56,8 @@ func dispatch(args []string) error {
 		return cmdConfig(args)
 	case "clean-index", "clean":
 		return cmdCleanIndex(args)
+	case "repos":
+		return cmdRepos(args)
 	case "uninstall":
 		return cmdUninstall(args)
 	case "version", "--version", "-v":
@@ -64,6 +67,10 @@ func dispatch(args []string) error {
 		usage(os.Stdout)
 		return nil
 	default:
+		// `codeberg <dir>` runs against that directory, like `--root <dir>`.
+		if fi, err := os.Stat(cmd); err == nil && fi.IsDir() {
+			return cmdRun(append([]string{"--root", cmd}, args...))
+		}
 		usage(os.Stderr)
 		return fmt.Errorf("unknown command %q", cmd)
 	}
@@ -74,6 +81,7 @@ func parseShared(name string, args []string) (*config.Overrides, error) {
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	o := &config.Overrides{}
 	fs.StringVar(&o.Root, "root", "", "repository tree to index (CODEBERG_ROOT)")
+	fs.StringVar(&o.Repos, "repos", "", "comma-separated dirs or repo keys to serve together (CODEBERG_REPOS)")
 	fs.StringVar(&o.Model, "model", "", "LLM as provider:model (CODEBERG_MODEL)")
 	fs.StringVar(&o.DaemonURL, "daemon-url", "", "daemon URL the agent queries")
 	fs.StringVar(&o.HTTPPort, "port", "", "daemon HTTP port (default 48080)")
@@ -89,6 +97,8 @@ func parseShared(name string, args []string) (*config.Overrides, error) {
 	noVector := fs.Bool("no-vector", false, "chunk-only mode (skip embedding model)")
 	vector := fs.Bool("vector", false, "force vector search on")
 	web := fs.Bool("web", false, "serve the browser chat UI instead of the terminal TUI")
+	all := fs.Bool("all", false, "search across every previously indexed repo (see `codeberg repos`)")
+	noIndex := fs.Bool("no-index", false, "one-off run: register nothing, build no vector index (search off)")
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), "Usage: codeberg %s [flags]\n\nFlags:\n", name)
 		fs.PrintDefaults()
@@ -108,6 +118,14 @@ func parseShared(name string, args []string) (*config.Overrides, error) {
 		v := true
 		o.Web = &v
 	}
+	if *all {
+		v := true
+		o.All = &v
+	}
+	if *noIndex {
+		v := true
+		o.NoIndex = &v
+	}
 	return o, nil
 }
 
@@ -124,8 +142,55 @@ func cmdRun(args []string) error {
 	if created, _ := config.InitFile(c.ConfigPath); created {
 		fmt.Fprintf(os.Stderr, "› wrote a starter config at %s\n", c.ConfigPath)
 	}
+	if c.All && len(c.Repos) > 0 {
+		return fmt.Errorf("--all already serves every registered repo; use --repos to pick a subset instead")
+	}
+	if (c.All || len(c.Repos) > 0) && o.Root != "" {
+		return fmt.Errorf("--root names a single repo; drop it when using --all/--repos")
+	}
 	if err := c.ValidateForRun(); err != nil {
 		return err
+	}
+	switch {
+	case c.All:
+		entries, err := registry.Load(c.Home)
+		if err != nil {
+			return err
+		}
+		for _, e := range entries {
+			if fi, statErr := os.Stat(e.Root); statErr != nil || !fi.IsDir() {
+				fmt.Fprintf(os.Stderr, "warning: skipping %s — %s no longer exists\n", e.Key, e.Root)
+				continue
+			}
+			c.Roots = append(c.Roots, e)
+		}
+		if len(c.Roots) == 0 {
+			return fmt.Errorf("no repos registered yet — run `codeberg <dir>` (or --root <dir>) first, then `codeberg --all`")
+		}
+	case len(c.Repos) > 0:
+		// A chosen set of dirs and/or registered keys. Dirs are registered like
+		// any other run, unless --no-index makes this a leave-no-trace session.
+		roots, err := registry.Select(c.Home, c.Repos, !c.NoIndex)
+		if err != nil {
+			return err
+		}
+		c.Roots = roots
+	case c.NoIndex:
+		// One-off single root: resolve it (reusing a registered key if the
+		// path happens to be known) without writing to the registry.
+		roots, err := registry.Select(c.Home, []string{c.Root}, false)
+		if err != nil {
+			return err
+		}
+		c.Roots = roots
+	default:
+		// Remember this root so `codeberg --all` can search every repo ever indexed.
+		e, err := registry.Upsert(c.Home, c.Root)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not update the repo registry: %v\n", err)
+			e = registry.Entry{Key: filepath.Base(c.Root), Root: c.Root}
+		}
+		c.Roots = []registry.Entry{e}
 	}
 	if err := bootstrap.Ensure(c, false); err != nil {
 		return err
@@ -307,6 +372,43 @@ func cmdCleanIndex(args []string) error {
 	return cleanindex.Run(c, cleanindex.Options{DryRun: dryRun, AssumeYes: yes})
 }
 
+func cmdRepos(args []string) error {
+	fs := flag.NewFlagSet("repos", flag.ContinueOnError)
+	var home string
+	fs.StringVar(&home, "home", "", "managed home dir (default ~/.codeberg)")
+	fs.Usage = func() {
+		fmt.Fprint(fs.Output(), "Usage: codeberg repos\n\n"+
+			"Lists every repository codeberg has indexed (the set `--all` searches).\n"+
+			"Repos register automatically on each run; edit "+
+			"the registry file to drop one.\n")
+	}
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	c, err := config.Load(config.Overrides{Home: home})
+	if err != nil {
+		return err
+	}
+	entries, err := registry.Load(c.Home)
+	if err != nil {
+		return err
+	}
+	if len(entries) == 0 {
+		fmt.Printf("no repos registered yet — run `codeberg --root <dir>` (or `codeberg <dir>`) first\n")
+		return nil
+	}
+	for _, e := range entries {
+		mark := "✓"
+		if fi, err := os.Stat(e.Root); err != nil || !fi.IsDir() {
+			mark = "✘"
+		}
+		fmt.Printf("  %s %-24s %s\n", mark, e.Key, e.Root)
+	}
+	fmt.Printf("\n%d repo(s) in %s — `codeberg --all` searches the ✓ ones combined\n",
+		len(entries), registry.Path(c.Home))
+	return nil
+}
+
 func cmdUninstall(args []string) error {
 	fs := flag.NewFlagSet("uninstall", flag.ContinueOnError)
 	var home string
@@ -420,10 +522,15 @@ indexer), waits for it to be healthy, and opens the agent chat — like claude.
 
 USAGE
   codeberg [flags]               boot everything and open the chat TUI
+  codeberg <dir>                 index/search that directory (same as --root <dir>)
+  codeberg --all [flags]         search every previously indexed repo combined
+  codeberg --repos a,b [flags]   serve a chosen set of dirs and/or repo keys
+  codeberg --no-index [flags]    one-off run: register nothing, build no index
   codeberg --web [flags]         …or open the chat in a browser instead of the TUI
   codeberg build [flags]         (re)build/download components and the model
   codeberg doctor                check toolchains, binaries, and resolved config
   codeberg config [sub]          view/change configuration (see below)
+  codeberg repos                 list registered repos (what --all will search)
   codeberg clean-index [--dry-run]  prune cached per-directory vector indexes
   codeberg uninstall             remove the command; ask before deleting data
   codeberg version
@@ -451,12 +558,18 @@ COMMON TASKS
                       CODEBERG_MODEL=anthropic:claude-haiku-4-5 \
                       ANTHROPIC_API_KEY=sk-ant-… ; codeberg
   Switch model:     codeberg config set CODEBERG_MODEL=openai:gpt-4o ; codeberg
-  Index another repo: codeberg --root ~/other            (one-off override)
+  Index another repo: codeberg ~/other                   (registers it too)
+  Search all repos: codeberg --all      (everything ever indexed; see: codeberg repos)
+  A chosen subset:  codeberg --repos ~/proj-a,api        (dirs and/or repo keys)
+  Leave no trace:   codeberg ~/scratch --no-index        (not registered, no index)
   No embeddings:    codeberg config set CODEBERG_VECTOR=false ; codeberg
   What's installed: codeberg doctor
 
 KEY SETTINGS
   CODEBERG_ROOT     repository to index            (--root)
+  CODEBERG_ALL      true = search all registered repos (--all)
+  CODEBERG_REPOS    comma-separated dirs/keys to serve (--repos)
+  CODEBERG_NO_INDEX true = register nothing, no index  (--no-index)
   CODEBERG_MODEL    LLM as provider:model          (--model)
   CODEBERG_VECTOR   false = chunk-only, skip model (--no-vector)
   CODEBERG_HTTP_PORT  daemon port (default 48080)  (--port)

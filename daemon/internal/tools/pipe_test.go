@@ -89,7 +89,7 @@ func TestPipeToolEndToEnd(t *testing.T) {
 	mustWrite(t, dir, "b.go", "package b\n// TODO: b\n")
 	mustWrite(t, dir, "c.txt", "no todo here\n")
 
-	tool := pipeTool(workspace.New(dir))
+	tool := pipeTool(wsSingle(dir))
 
 	// rg lists the two .go files with TODO; head keeps the first one.
 	out := callPipe(t, tool, `rg -l TODO --glob "*.go" | head -1`)
@@ -112,7 +112,7 @@ func TestPipeToolEndToEnd(t *testing.T) {
 }
 
 func TestPipeToolRejectsUnsafe(t *testing.T) {
-	tool := pipeTool(workspace.New(t.TempDir()))
+	tool := pipeTool(wsSingle(t.TempDir()))
 	_, err := tool.Call(context.Background(), mustArgs(t, `cat /etc/passwd`))
 	if !errors.Is(err, workspace.ErrEscape) {
 		t.Fatalf("absolute path: got %v", err)

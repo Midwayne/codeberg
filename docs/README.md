@@ -8,7 +8,17 @@ Project-wide overview. **libcodeberg** details live under [core/docs](../core/do
 | --------------------- | --------------------------------------------------------------- |
 | [core/](../core/)     | C library — chunking, change tracking, embedding, vector search |
 | [daemon/](../daemon/) | Go daemons — `cberg-index`, `codeberg-d` ([daemon/README.md](../daemon/README.md)) |
-| [agent/](../agent/)   | Retrieval client (planned)                                      |
+| [agent/](../agent/)   | TypeScript ai-sdk agent (chat TUI + browser UI) over the daemon API |
+| [launcher/](../launcher/) | Standalone `codeberg` CLI — boots the stack, resolves config, manages the repo registry ([launcher/README.md](../launcher/README.md)) |
+
+## Multi-repo search
+
+| Document | Description |
+|----------|-------------|
+| [multi-repo.md](multi-repo.md) | Indexing/searching multiple repos — `--all`, `--repos`, `--no-index`, the repo registry, and the underlying architecture |
+| [core/docs/adr/0004-multi-root-engine.md](../core/docs/adr/0004-multi-root-engine.md) | ADR: one process, one shared embedder, per-root state |
+| [daemon/docs/ipc.md](../daemon/docs/ipc.md) | `cberg-index` ↔ `codeberg-d` wire protocol (repo-scoped search, per-repo status) |
+| [daemon/docs/http.md](../daemon/docs/http.md) | Daemon HTTP API and agent tools, including `repos` and the `repo` argument |
 
 ## Core library
 
@@ -29,7 +39,9 @@ make build-daemon
 make test
 ```
 
-Set **`CODEBERG_ROOT`** to the codebase tree you index (see [../README.md](../README.md)).
+Set **`CODEBERG_ROOT`** to the codebase tree you index, or **`CODEBERG_ROOTS`**
+to serve several at once (see [../README.md](../README.md) and
+[multi-repo.md](multi-repo.md)).
 
 ## Project governance
 

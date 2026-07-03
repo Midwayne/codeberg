@@ -2,58 +2,106 @@
 #define CBERG_INDEXER_H
 
 #include <pthread.h>
+#include <signal.h>
 #include <stddef.h>
 #include <stdint.h>
 
 #include "codeberg/codeberg.h"
 
-typedef struct cberg_indexer {
-    char *root;
-    char *model_path;
-    char *index_path;
+/*
+ * One cberg-index process serves N repository roots. The engine owns the
+ * process-wide pieces — the (expensive, non-thread-safe) ONNX embedder, the
+ * chunker, the IPC socket — and each root gets its own cberg_repo with an
+ * independent chunk table, manifest, watcher, and vector index, so a repo's
+ * warm start and on-disk layout are exactly what the single-root build wrote.
+ *
+ * Threading: bootstrap and the watch loop run on the main thread; the IPC
+ * thread only searches. Every embedder call goes through the engine's
+ * embed_mu; per-repo state is guarded by that repo's mu. Lock order is
+ * strictly repo->mu -> embed_mu (indexing) or each alone (search embeds the
+ * query under embed_mu only, then takes one repo->mu at a time) — never
+ * embed_mu -> repo->mu.
+ */
+
+typedef struct cberg_engine cberg_engine;
+
+typedef struct cberg_repo {
+    cberg_engine *eng; /* back-pointer for the shared embedder/chunker */
+    char *key;         /* human-facing repo identity (registry key / basename) */
+    char *root;        /* resolved absolute root */
+
+    char *index_path;    /* per-root "<base>.<roothash>" (NULL in chunk-only mode) */
     char *chunks_path;   /* persisted chunk table (sidecar of index_path) */
     char *manifest_path; /* persisted merkle manifest (sidecar of index_path) */
-    char *socket_path;
-    int poll_ms;
-    int vectors;
 
-    cberg_chunker *chunker;
     cberg_chunk_table *table;
     cberg_manifest *manifest; /* change-detection baseline; NULL until bootstrap */
     cberg_watcher *watcher;
-    cberg_embedder *embedder;
     cberg_index *index;
 
     pthread_mutex_t mu;
     int ready;
-    int stop;
-} cberg_indexer;
+} cberg_repo;
 
-cberg_status cberg_indexer_open(cberg_indexer *idx);
-void cberg_indexer_close(cberg_indexer *idx);
+struct cberg_engine {
+    char *model_path;
+    char *index_base; /* CBERG_INDEX_PATH as configured; per-root paths derive from it */
+    char *socket_path;
+    int poll_ms;
+    int vectors;
 
-cberg_status cberg_indexer_bootstrap(cberg_indexer *idx);
-cberg_status cberg_indexer_run(cberg_indexer *idx);
+    cberg_chunker *chunker;   /* main (bootstrap/watch) thread only */
+    cberg_embedder *embedder; /* ONE per process; call only via engine_embed */
+    pthread_mutex_t embed_mu; /* serializes every cberg_embedder_embed call */
 
-cberg_status cberg_indexer_search(cberg_indexer *idx, const char *query, size_t k, uint64_t *ids, float *scores,
-                                  size_t *found);
+    cberg_repo **repos;
+    size_t repos_len;
+
+    volatile sig_atomic_t stop;
+    volatile sig_atomic_t bootstrapped; /* all repos attempted (some may have failed) */
+};
+
+/* Opens the engine from the environment: CODEBERG_ROOTS ("<key>\t<path>"
+ * records, newline-separated) or the single-root CODEBERG_ROOT fallback
+ * (key = basename). Unresolvable roots are skipped with a warning. */
+cberg_status cberg_engine_open(cberg_engine *eng);
+void cberg_engine_close(cberg_engine *eng);
+
+cberg_status cberg_repo_bootstrap(cberg_repo *r);
+
+/* One non-blocking pass over every repo's watcher, applying any pending
+ * changes. *out_events (nullable) receives the number of events handled. */
+cberg_status cberg_engine_step(cberg_engine *eng, size_t *out_events);
+
+/* The watch loop: step until stop, sleeping poll_ms between idle passes. */
+cberg_status cberg_engine_run(cberg_engine *eng);
+
+size_t cberg_repo_chunk_count(cberg_repo *r);
+int cberg_repo_ready(cberg_repo *r);
+size_t cberg_engine_chunk_count(cberg_engine *eng);
+const char *cberg_indexer_version(void);
 
 #define CBERG_SNIPPET_MAX 400
 
-typedef struct cberg_search_hit {
+/* A search hit resolved to its chunk metadata. path/symbol/snippet are copied
+ * out while the repo lock is held (the table may mutate after return); repo
+ * borrows the engine-owned key, stable for the engine's lifetime. */
+typedef struct cberg_engine_hit {
     uint64_t id;
     float score;
-    const char *path;
-    const char *symbol;
+    const char *repo;
+    char path[512];
+    char symbol[256];
     uint32_t start_line;
     uint32_t end_line;
     char snippet[CBERG_SNIPPET_MAX];
-} cberg_search_hit;
+} cberg_engine_hit;
 
-cberg_status cberg_indexer_search_hits(cberg_indexer *idx, const char *query, size_t k, cberg_search_hit *hits,
-                                       size_t cap, size_t *found);
-
-size_t cberg_indexer_chunk_count(cberg_indexer *idx);
-const char *cberg_indexer_version(void);
+/* Searches one repo (repo_key) or all of them (repo_key NULL or ""), embedding
+ * the query once and merging per-repo neighbors by score, best-first. Repos
+ * still bootstrapping are skipped in the all-repos case (partial results); an
+ * unknown repo_key — or no searchable repo at all — is CBERG_ERR_NOT_FOUND. */
+cberg_status cberg_engine_search_hits(cberg_engine *eng, const char *query, const char *repo_key, size_t k,
+                                      cberg_engine_hit *hits, size_t cap, size_t *found);
 
 #endif

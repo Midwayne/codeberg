@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"codeberg.org/codeberg/launcher/internal/paths"
+	"codeberg.org/codeberg/launcher/internal/registry"
 )
 
 // Canonical keys. These match the env var names the components already read,
@@ -25,6 +26,10 @@ import (
 // (via the matching flag) on the command line.
 const (
 	KeyRoot       = "CODEBERG_ROOT"                  // repo to index (daemon scope)
+	KeyRoots      = "CODEBERG_ROOTS"                 // key\tpath records of every served repo (daemon scope)
+	KeyAll        = "CODEBERG_ALL"                   // "true" => serve every registered repo
+	KeyReposSel   = "CODEBERG_REPOS"                 // comma-separated dirs/keys to serve together
+	KeyNoIndex    = "CODEBERG_NO_INDEX"              // "true" => register nothing, build no vector index
 	KeyModel      = "CODEBERG_MODEL"                 // LLM provider:model (agent scope)
 	KeyDaemonURL  = "CODEBERG_DAEMON_URL"            // agent -> daemon (agent scope)
 	KeyHTTPPort   = "CODEBERG_HTTP_PORT"             // daemon listen port (daemon scope)
@@ -89,6 +94,7 @@ type Overrides struct {
 	ConfigFile string // explicit config path; "" => <home>/config
 
 	Root       string
+	Repos      string // comma-separated dirs/keys to serve together (--repos)
 	Model      string
 	DaemonURL  string
 	HTTPPort   string
@@ -98,6 +104,8 @@ type Overrides struct {
 	Reasoning  string
 	Vector     *bool
 	Web        *bool // serve the browser UI instead of the terminal TUI
+	All        *bool // serve every registered repo instead of one root
+	NoIndex    *bool // one-off run: register nothing, build no vector index
 	WebPort    string
 }
 
@@ -108,6 +116,10 @@ type Config struct {
 	Home string
 
 	Root       string
+	All        bool             // serve every registered repo (--all)
+	Repos      []string         // explicit dirs/keys to serve together (--repos)
+	NoIndex    bool             // one-off run: register nothing, build no vector index
+	Roots      []registry.Entry // the repos this run serves; filled by cmdRun
 	Model      string
 	DaemonURL  string
 	HTTPPort   string
@@ -207,6 +219,33 @@ func Load(o Overrides) (*Config, error) {
 		c.Web = !isFalsey(v)
 	}
 	c.WebPort = firstNonEmpty(resolve(KeyWebPort, o.WebPort), DefaultWebPort)
+
+	// All: serve every registered repo combined instead of a single root.
+	// Default off; --all (or CODEBERG_ALL=true) turns it on. Under --all any
+	// configured CODEBERG_ROOT is simply ignored — the registry is the source.
+	c.All = false
+	if o.All != nil {
+		c.All = *o.All
+	} else if v := resolve(KeyAll, ""); v != "" {
+		c.All = !isFalsey(v)
+	}
+
+	// Repos: an explicit set of dirs/keys to serve together — --all scoped to
+	// a chosen few. Comma-separated; resolved against the registry in cmdRun.
+	c.Repos = splitList(resolve(KeyReposSel, o.Repos))
+
+	// NoIndex: a one-off session. Nothing is added to the repo registry and no
+	// vector index is built or reused — which means semantic search is off for
+	// the run (file tools and chat still work), and nothing lands on disk.
+	c.NoIndex = false
+	if o.NoIndex != nil {
+		c.NoIndex = *o.NoIndex
+	} else if v := resolve(KeyNoIndex, ""); v != "" {
+		c.NoIndex = !isFalsey(v)
+	}
+	if c.NoIndex {
+		c.Vector = false
+	}
 
 	// Web tools (web_search + fetch_url) for the agent. On by default; disable
 	// with CODEBERG_WEB_USE=false. web_search is backed by a SearXNG instance:
@@ -316,7 +355,10 @@ func (c *Config) ValidateForRun() error {
 			"Install via Homebrew, or run codeberg from inside a checkout / set it: codeberg config set %s=/path/to/codeberg  (or pass --repo).",
 			KeyDist, KeyRepo, KeyRoot, KeyRepo)
 	}
-	if c.Root == "" {
+	if c.All || len(c.Repos) > 0 {
+		// --all / --repos take their roots from the registry (resolved in
+		// cmdRun); CODEBERG_ROOT is not required and, if configured, ignored.
+	} else if c.Root == "" {
 		missing = append(missing, KeyRoot+" (the repository to index)")
 	} else if fi, err := os.Stat(c.Root); err != nil || !fi.IsDir() {
 		return fmt.Errorf("%s is not a directory: %s", KeyRoot, c.Root)
@@ -334,12 +376,24 @@ func (c *Config) ValidateForRun() error {
 }
 
 // DaemonEnv builds the environment overlay for codeberg-d. The daemon forwards
-// CODEBERG_ROOT/CBERG_* to the C cberg-index when it spawns it.
+// CODEBERG_ROOT(S)/CBERG_* to the C cberg-index when it spawns it.
 func (c *Config) DaemonEnv() map[string]string {
 	e := map[string]string{
-		KeyRoot:     c.Root,
 		KeyHTTPPort: c.HTTPPort,
 		KeySocket:   c.Socket,
+	}
+	// The registry-keyed record set is what the daemon and C engine prefer; the
+	// single CODEBERG_ROOT stays alongside it as the compat fallback (and is
+	// omitted under --all, where no one root is "the" root).
+	if len(c.Roots) > 0 {
+		records := make([]string, 0, len(c.Roots))
+		for _, r := range c.Roots {
+			records = append(records, r.Key+"\t"+r.Root)
+		}
+		e[KeyRoots] = strings.Join(records, "\n")
+	}
+	if !c.All && len(c.Repos) == 0 && c.Root != "" {
+		e[KeyRoot] = c.Root
 	}
 	if c.Vector {
 		e[KeyEmbedModel] = c.EmbedModel
@@ -386,6 +440,18 @@ func firstNonEmpty(vals ...string) string {
 		}
 	}
 	return ""
+}
+
+// splitList parses a comma-separated flag/env value into trimmed, non-empty
+// items.
+func splitList(v string) []string {
+	var out []string
+	for _, item := range strings.Split(v, ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			out = append(out, item)
+		}
+	}
+	return out
 }
 
 func isFalsey(v string) bool {

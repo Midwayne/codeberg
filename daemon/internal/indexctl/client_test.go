@@ -41,9 +41,9 @@ func TestClientStatusAndSearch(t *testing.T) {
 	sock := startMockIndexer(t, func(line string) []byte {
 		switch {
 		case strings.HasPrefix(line, "status"):
-			return []byte(`{"ok":true,"ready":true,"chunks":3,"version":"v0.1.0"}` + "\n")
+			return []byte(`{"ok":true,"ready":true,"chunks":3,"version":"v0.1.0","repos":[{"key":"alpha","ready":true,"chunks":2},{"key":"beta","ready":false,"chunks":1}]}` + "\n")
 		case strings.HasPrefix(line, "search\t"):
-			return []byte(`{"ok":true,"results":[{"id":1,"score":0.9,"path":"a.go","symbol":"Fn","start_line":1,"end_line":2,"snippet":"func Fn(){}"}]}` + "\n")
+			return []byte(`{"ok":true,"results":[{"id":1,"score":0.9,"repo":"alpha","path":"a.go","symbol":"Fn","start_line":1,"end_line":2,"snippet":"func Fn(){}"}]}` + "\n")
 		default:
 			return []byte(`{"ok":false,"error":"unknown"}` + "\n")
 		}
@@ -60,12 +60,15 @@ func TestClientStatusAndSearch(t *testing.T) {
 	if !st.Ready || st.Chunks != 3 || st.Version != "v0.1.0" {
 		t.Fatalf("status: %+v", st)
 	}
+	if len(st.Repos) != 2 || st.Repos[0].Key != "alpha" || st.Repos[1].Ready {
+		t.Fatalf("per-repo status: %+v", st.Repos)
+	}
 
-	hits, err := c.Search(ctx, "add function", 5)
+	hits, err := c.Search(ctx, "add function", 5, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(hits) != 1 || hits[0].Path != "a.go" || hits[0].Snippet == "" {
+	if len(hits) != 1 || hits[0].Path != "a.go" || hits[0].Repo != "alpha" || hits[0].Snippet == "" {
 		t.Fatalf("search: %+v", hits)
 	}
 }
@@ -78,12 +81,28 @@ func TestClientSearchEscapesTabs(t *testing.T) {
 	})
 
 	c := NewClient(sock)
-	_, err := c.Search(context.Background(), "a\tb", 3)
+	_, err := c.Search(context.Background(), "a\tb", 3, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if gotLine != "search\ta b\t3\n" {
 		t.Fatalf("query tab not sanitized: %q", gotLine)
+	}
+}
+
+func TestClientSearchRepoScoped(t *testing.T) {
+	var gotLine string
+	sock := startMockIndexer(t, func(line string) []byte {
+		gotLine = line
+		return []byte(`{"ok":true,"results":[]}` + "\n")
+	})
+
+	c := NewClient(sock)
+	if _, err := c.Search(context.Background(), "q", 3, "beta"); err != nil {
+		t.Fatal(err)
+	}
+	if gotLine != "search\tq\t3\tbeta\n" {
+		t.Fatalf("repo not appended: %q", gotLine)
 	}
 }
 

@@ -35,20 +35,45 @@ var (
 	errStopWalk = errors.New("stop walk")
 )
 
+// RepoInfo is one repository the workspace serves: its stable key (what tools
+// pass as `repo` and search results carry) and the absolute root it names.
+type RepoInfo struct {
+	Key  string `json:"key"`
+	Root string `json:"root"`
+}
+
 type Workspace struct {
-	root       string
+	repos      []RepoInfo
+	byKey      map[string]string
+	defaultKey string
 	maxMatches int
 	maxFiles   int
 	maxBytes   int
 }
 
-func New(root string) *Workspace {
+// New builds a workspace over one or more repos. defaultKey names the repo
+// used when a tool omits `repo` — the single root's key in single-repo mode,
+// or "" in --all mode, where every call must name its repo.
+func New(repos []RepoInfo, defaultKey string) *Workspace {
+	byKey := make(map[string]string, len(repos))
+	for _, r := range repos {
+		byKey[r.Key] = r.Root
+	}
 	return &Workspace{
-		root:       root,
+		repos:      repos,
+		byKey:      byKey,
+		defaultKey: defaultKey,
 		maxMatches: defaultMaxMatches,
 		maxFiles:   defaultMaxFiles,
 		maxBytes:   defaultMaxBytes,
 	}
+}
+
+// Repos lists the served repositories in configuration order.
+func (w *Workspace) Repos() []RepoInfo {
+	out := make([]RepoInfo, len(w.repos))
+	copy(out, w.repos)
+	return out
 }
 
 type GrepMatch struct {
@@ -81,8 +106,36 @@ type TreeNode struct {
 	Depth int    `json:"depth"`
 }
 
-func (w *Workspace) rootFor(_ string) (string, error) {
-	return w.root, nil
+// resolveKey canonicalizes a tool's `repo` argument. "" (and the legacy alias
+// "root") means the default repo; in --all mode there is no default, so the
+// error lists what is available. The returned key is what results should carry.
+func (w *Workspace) resolveKey(repo string) (string, error) {
+	if repo == "" || repo == "root" {
+		if w.defaultKey == "" {
+			return "", fmt.Errorf("%w: repo required (available: %s)", ErrNotFound, strings.Join(w.keys(), ", "))
+		}
+		return w.defaultKey, nil
+	}
+	if _, ok := w.byKey[repo]; !ok {
+		return "", fmt.Errorf("%w: unknown repo %q (available: %s)", ErrNotFound, repo, strings.Join(w.keys(), ", "))
+	}
+	return repo, nil
+}
+
+func (w *Workspace) keys() []string {
+	keys := make([]string, len(w.repos))
+	for i, r := range w.repos {
+		keys[i] = r.Key
+	}
+	return keys
+}
+
+func (w *Workspace) rootFor(repo string) (string, error) {
+	key, err := w.resolveKey(repo)
+	if err != nil {
+		return "", err
+	}
+	return w.byKey[key], nil
 }
 
 func (w *Workspace) Grep(ctx context.Context, pattern string, literal bool, repo, pathGlob string, limit int) ([]GrepMatch, error) {
@@ -92,10 +145,11 @@ func (w *Workspace) Grep(ctx context.Context, pattern string, literal bool, repo
 	if limit <= 0 || limit > w.maxMatches {
 		limit = w.maxMatches
 	}
-	dir, err := w.rootFor(repo)
+	key, err := w.resolveKey(repo)
 	if err != nil {
 		return nil, err
 	}
+	dir := w.byKey[key]
 	if _, statErr := os.Stat(dir); statErr != nil {
 		return nil, fmt.Errorf("%w: repo", ErrNotFound)
 	}
@@ -104,7 +158,7 @@ func (w *Workspace) Grep(ctx context.Context, pattern string, literal bool, repo
 		return nil, err
 	}
 	for i := range hits {
-		hits[i].Repo = repo
+		hits[i].Repo = key
 	}
 	return hits, nil
 }
@@ -166,14 +220,11 @@ func (w *Workspace) Glob(_ context.Context, pattern, repo string, limit int) ([]
 	if limit <= 0 || limit > w.maxFiles {
 		limit = w.maxFiles
 	}
-	dir, err := w.rootFor(repo)
+	repoKey, err := w.resolveKey(repo)
 	if err != nil {
 		return nil, err
 	}
-	repoKey := repo
-	if repoKey == "" {
-		repoKey = "root"
-	}
+	dir := w.byKey[repoKey]
 	fsys := os.DirFS(dir)
 	ms, globErr := doublestar.Glob(fsys, pattern, doublestar.WithFilesOnly())
 	if globErr != nil {

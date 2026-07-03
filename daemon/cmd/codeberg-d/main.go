@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -18,7 +19,20 @@ import (
 	"codeberg.org/codeberg/daemon/internal/workspace"
 )
 
-const startupTimeout = 5 * time.Minute
+const startupTimeoutPerRepo = 5 * time.Minute
+
+// startupTimeout scales with repo count — a first `--all` run may cold-index
+// several repos back to back through one embedder — but stays bounded.
+func startupTimeout(repos int) time.Duration {
+	if repos < 1 {
+		repos = 1
+	}
+	d := time.Duration(repos) * startupTimeoutPerRepo
+	if max := 60 * time.Minute; d > max {
+		return max
+	}
+	return d
+}
 
 func main() {
 	cfg, err := config.LoadDaemon()
@@ -36,7 +50,7 @@ func main() {
 	defer sup.Stop()
 
 	idx := indexctl.NewClient(cfg.Socket)
-	readyCtx, readyCancel := context.WithTimeout(ctx, startupTimeout)
+	readyCtx, readyCancel := context.WithTimeout(ctx, startupTimeout(len(cfg.Roots)))
 	st, err := indexctl.WaitReady(readyCtx, idx)
 	readyCancel()
 	if err != nil {
@@ -44,12 +58,18 @@ func main() {
 	}
 	log.Printf("indexer ready: %d chunks, version %s", st.Chunks, st.Version)
 
-	go gitpull.Run(ctx, cfg.GitDir, cfg.GitPull)
+	go gitpull.Run(ctx, cfg.GitDirs, cfg.GitPull)
 
-	ws := workspace.New(cfg.Root)
+	repos := make([]workspace.RepoInfo, 0, len(cfg.Roots))
+	roots := make([]string, 0, len(cfg.Roots))
+	for _, r := range cfg.Roots {
+		repos = append(repos, workspace.RepoInfo{Key: r.Key, Root: r.Path})
+		roots = append(roots, r.Key+"="+r.Path)
+	}
+	ws := workspace.New(repos, cfg.DefaultKey)
 	srv := httpserver.New(idx, tools.Default(ws))
 
-	log.Printf("codeberg-d: root=%s http=:%s socket=%s", cfg.Root, cfg.HTTPPort, cfg.Socket)
+	log.Printf("codeberg-d: roots=[%s] http=:%s socket=%s", strings.Join(roots, " "), cfg.HTTPPort, cfg.Socket)
 	httpSrv := &http.Server{Addr: ":" + cfg.HTTPPort, Handler: srv.Handler()}
 	go func() {
 		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {

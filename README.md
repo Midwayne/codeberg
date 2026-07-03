@@ -11,10 +11,11 @@ chat TUI, and auto-installs missing toolchains. `make dist` assembles a portable
 prebuilt tree the launcher can run from anywhere (`codeberg --dist DIR`); packaged
 installers (a Homebrew tap) will build on that for a later release.
 
-## Index root
+## Index root(s)
 
-The **index root** is the codebase tree Codeberg watches and indexes. It is not
-hardcoded — configure it with the `CODEBERG_ROOT` environment variable:
+The **index root** is the codebase tree Codeberg watches and indexes. At the
+library/daemon level it's not hardcoded — configure one with the
+`CODEBERG_ROOT` environment variable:
 
 ```sh
 export CODEBERG_ROOT=/path/to/your/repository
@@ -22,27 +23,35 @@ export CODEBERG_ROOT=/path/to/your/repository
 
 | Variable | Purpose |
 |----------|---------|
-| `CODEBERG_ROOT` | Absolute or relative path to the repository / workspace to index |
+| `CODEBERG_ROOT` | Absolute or relative path to the repository / workspace to index (single root) |
+| `CODEBERG_ROOTS` | `key\tpath` records, newline-separated — every repo to serve (multi-repo; supersedes `CODEBERG_ROOT`) |
 
-Library helpers (for daemons and future CLI tools):
+Library helpers (for daemons and CLI tools):
 
 - `cberg_config_index_root()` — read `CODEBERG_ROOT` from the environment
 - `cberg_config_resolve_index_root(buf, cap)` — `realpath` into `buf` (validates the path exists)
 - `cberg_watcher_open(root, …)` — pass the same path when opening the filesystem watcher
 
-**Symlinks:** `CODEBERG_ROOT` may point at a symlink; the watcher resolves it at
-open time and indexes the target tree. Symbolic links **inside** the tree are
+**Symlinks:** a root may point at a symlink; the watcher resolves it at open
+time and indexes the target tree. Symbolic links **inside** the tree are
 followed — symlinked directories are walked and watched like normal directories.
+
+**Multiple repos:** the launcher remembers every root you index and can search
+across all (or a chosen subset) of them combined —
+`codeberg <dir>` to index one, then `codeberg --all` or
+`codeberg --repos a,b`. See [docs/multi-repo.md](docs/multi-repo.md) for the
+full picture and [launcher/README.md](launcher/README.md#multi-repo-search)
+for the CLI-level walkthrough.
 
 ## Layout
 
 | Path | Role |
 |------|------|
 | `core/` | C library — chunking, change tracking, watching, ONNX embedding, usearch vector index ([docs](core/docs/)) |
-| `daemon/` | Go `codeberg-d` — HTTP, tools, git pull; supervises C `cberg-index` |
-| `agent/` | TypeScript ai-sdk agent (`codeberg-ask`) over the daemon API |
-| `agent/` | Retrieval client — TBD |
-| `docs/` | Project overview and links |
+| `daemon/` | Go `codeberg-d` — HTTP, tools, git pull; supervises C `cberg-index` ([docs](daemon/README.md)) |
+| `agent/` | TypeScript ai-sdk agent — chat TUI + browser UI — over the daemon API ([docs](agent/README.md)) |
+| `launcher/` | Standalone `codeberg` CLI — boots the stack, resolves config, manages the repo registry ([docs](launcher/README.md)) |
+| `docs/` | Project overview, multi-repo guide, and links |
 
 ## Prerequisites
 
@@ -59,7 +68,7 @@ without naming the package, so install these up front:
 | **Node** ≥ 22 + **npm** | build & run the TypeScript agent/TUI | `brew install node` | `nodejs npm` |
 | `git` | fetch the tree-sitter submodules | `brew install git` | `git` |
 | **ONNX Runtime** | vector embeddings (omit for chunk-only) | `brew install onnxruntime` | [release tarball](https://github.com/microsoft/onnxruntime/releases) or `ONNXRUNTIME_ROOT` |
-| **Python 3** ≥ 3.10 _(optional)_ | web search (`web_search` via SearXNG) | `brew install python` | `python3-venv` |
+| **Python 3** ≥ 3.10 _(optional)_ | web search (`web_search` via SearXNG) | `brew install python` | `python3-venv python3-pip` |
 
 The **ONNX Runtime** is a native library, not a CLI: CMake searches
 `/opt/homebrew/opt/onnxruntime`, `/usr/local`, `/opt/homebrew`, and `/usr`, or
@@ -67,6 +76,15 @@ The **ONNX Runtime** is a native library, not a CLI: CMake searches
 (no vector search) — pass `--no-vector` / set `CODEBERG_VECTOR=false`. It is not
 packaged for apt, so on Linux install a release tarball and point
 `ONNXRUNTIME_ROOT` at it.
+
+**Python needs both packages on Debian/Ubuntu.** `python3-venv` alone is not
+enough: Debian strips `ensurepip`'s bundled wheels from the base `python3`
+package, so a venv created from it has **no pip** until `python3-pip` is also
+installed system-wide (it supplies the wheels `ensurepip` bootstraps from).
+Missing this shows up as `pip install SearXNG requirements` failing during
+`codeberg build`/first run. The launcher's dependency preflight
+(`deps.EnsurePython`) checks for a *working* pip, not just the `python3`
+binary, and installs `python3-pip` automatically on apt hosts.
 
 > **The `codeberg` launcher installs these for you.** On first run it checks each
 > dependency and auto-installs the missing ones via Homebrew (macOS) or apt
