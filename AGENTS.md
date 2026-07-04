@@ -117,3 +117,38 @@ tests and skip vector indexing.
   requires search, embedding, or agent integration.
 - Submodule grammars under `core/third_party/grammars/` are fetched by
   `make submodules` — do not vendor them manually.
+
+### Toolchain gotchas (non-Dockerfile VMs)
+
+Some cloud VMs ship **Clang as the default `cc`/`c++`**, which breaks CMake with
+`cannot find -lstdc++` when it selects the GCC 14 toolchain without
+`libstdc++-14-dev`. Force GCC for the C core:
+
+```bash
+CC=gcc CXX=g++ make build
+```
+
+The committed `.cursor/Dockerfile` uses plain Ubuntu 24.04 where defaults are GCC,
+so this usually only affects ad-hoc VMs.
+
+**Agent build:** `npm ci` / `npm install` in `agent/` can omit the Rollup native
+optional dependency (`@rollup/rollup-linux-x64-gnu`). If `tsup` fails with that
+module missing, install it after `npm ci`:
+
+```bash
+cd agent && npm ci && npm install @rollup/rollup-linux-x64-gnu --no-save && npm run build
+```
+
+`make agent-test` runs `npm install` first and may hit the same issue; run
+`npm test` directly once `node_modules` is fixed.
+
+### Running the daemon (chunk-only demo)
+
+```bash
+export CODEBERG_ROOT="$(git rev-parse --show-toplevel)"
+make run-daemon   # background in tmux; indexes CODEBERG_ROOT
+curl -s http://127.0.0.1:8080/health
+curl -s -X POST http://127.0.0.1:8080/tools/call \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"grep","args":{"pattern":"chunking","literal":true,"limit":3}}'
+```
