@@ -7,6 +7,6 @@ root="$(git rev-parse --show-toplevel)"
 cd "$root"
 
 make submodules
-make build
+CC=gcc CXX=g++ make build
 make build-daemon
-make build-agent
+cd agent && npm ci && npm install @rollup/rollup-linux-x64-gnu --no-save && npm run build

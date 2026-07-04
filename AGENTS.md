@@ -96,20 +96,73 @@ make run-daemon
 make run-agent q="where is chunking implemented?"
 ```
 
-### Embedding / ONNX tests (optional)
+### Embedding / ONNX (optional)
 
-Core tests run without ONNX. Embedding tests (`test_embed`) skip when
-`CBERG_TEST_MODEL` is unset. To run them in cloud:
+Core tests and the daemon work without ONNX (chunk-only mode). To enable local
+embedding and vector search you need **two things**: the ONNX Runtime C library
+and the **jina-embeddings-v2-base-code** model.
+
+**1. Install ONNX Runtime (Linux cloud VM)**
+
+There is no apt package; download a release tarball and unpack under `/opt`:
+
+```bash
+ORT_VERSION=1.20.1
+sudo mkdir -p /opt/onnxruntime
+curl -fSL "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-linux-x64-${ORT_VERSION}.tgz" \
+  | sudo tar -xz -C /opt/onnxruntime --strip-components=1
+export LD_LIBRARY_PATH="/opt/onnxruntime/lib:${LD_LIBRARY_PATH:-}"
+```
+
+CMake looks for headers/libs via `-DONNXRUNTIME_ROOT=/opt/onnxruntime` (not the
+shell env var alone).
+
+**2. Download the embedding model (~160 MB int8 quantized)**
 
 ```bash
 scripts/fetch-model.sh
-export CBERG_TEST_MODEL=models/jina-embeddings-v2-base-code/model.onnx
-make test TEST=test_embed
+# => models/jina-embeddings-v2-base-code/model.onnx + tokenizer files
 ```
 
-ONNX Runtime is not preinstalled in the cloud image. Install it only when the
-task touches `core/src/embed/` or embedding tests; otherwise rely on chunk-only
-tests and skip vector indexing.
+**3. Rebuild the C core with ONNX enabled**
+
+```bash
+CC=gcc CXX=g++ cmake -S core -B core/build -DCMAKE_BUILD_TYPE=Release \
+  -DONNXRUNTIME_ROOT=/opt/onnxruntime
+cmake --build core/build -j$(nproc)
+make build-daemon   # picks up the new cberg-index
+```
+
+**4. Run embedding tests**
+
+```bash
+export CBERG_TEST_MODEL=models/jina-embeddings-v2-base-code/model.onnx
+export LD_LIBRARY_PATH="/opt/onnxruntime/lib:${LD_LIBRARY_PATH:-}"
+./core/build/test/test_embed    # ok - embed
+./core/build/test/test_search   # ok - search
+```
+
+**5. Run the daemon with vector search**
+
+Set in `daemon/.env` or the shell before `make run-daemon`:
+
+```bash
+export CODEBERG_ROOT="$(git rev-parse --show-toplevel)"
+export CBERG_MODEL=models/jina-embeddings-v2-base-code/model.onnx
+export CBERG_INDEX_PATH=/tmp/codeberg.usearch
+export LD_LIBRARY_PATH="/opt/onnxruntime/lib:${LD_LIBRARY_PATH:-}"
+make run-daemon
+```
+
+First cold index with embeddings is slow (this repo ~12k chunks can take several
+minutes on CPU). Poll `GET /health` until `"ready": true`, then:
+
+```bash
+curl -s "http://127.0.0.1:8080/search?q=chunking&k=3"
+```
+
+ONNX is optional in cloud: skip steps 1–5 unless the task touches
+`core/src/embed/`, vector search, or embedding tests.
 
 ### What to skip in cloud
 
@@ -117,3 +170,38 @@ tests and skip vector indexing.
   requires search, embedding, or agent integration.
 - Submodule grammars under `core/third_party/grammars/` are fetched by
   `make submodules` — do not vendor them manually.
+
+### Toolchain gotchas (non-Dockerfile VMs)
+
+Some cloud VMs ship **Clang as the default `cc`/`c++`**, which breaks CMake with
+`cannot find -lstdc++` when it selects the GCC 14 toolchain without
+`libstdc++-14-dev`. Force GCC for the C core:
+
+```bash
+CC=gcc CXX=g++ make build
+```
+
+The committed `.cursor/Dockerfile` uses plain Ubuntu 24.04 where defaults are GCC,
+so this usually only affects ad-hoc VMs.
+
+**Agent build:** `npm ci` / `npm install` in `agent/` can omit the Rollup native
+optional dependency (`@rollup/rollup-linux-x64-gnu`). If `tsup` fails with that
+module missing, install it after `npm ci`:
+
+```bash
+cd agent && npm ci && npm install @rollup/rollup-linux-x64-gnu --no-save && npm run build
+```
+
+`make agent-test` runs `npm install` first and may hit the same issue; run
+`npm test` directly once `node_modules` is fixed.
+
+### Running the daemon (chunk-only demo)
+
+```bash
+export CODEBERG_ROOT="$(git rev-parse --show-toplevel)"
+make run-daemon   # background in tmux; indexes CODEBERG_ROOT
+curl -s http://127.0.0.1:8080/health
+curl -s -X POST http://127.0.0.1:8080/tools/call \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"grep","args":{"pattern":"chunking","literal":true,"limit":3}}'
+```
