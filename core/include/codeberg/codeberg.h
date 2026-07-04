@@ -114,12 +114,12 @@ typedef struct cberg_span {
 } cberg_span;
 
 typedef struct cberg_chunk {
+    uint8_t content_hash[CBERG_HASH_LEN];
+    cberg_span span;
+    cberg_chunk_kind kind;
     const char *key; /* stable identity: "<path>::<kind>::<symbol>#<n>" */
     const char *path;
     const char *symbol; /* may be NULL */
-    cberg_chunk_kind kind;
-    cberg_span span;
-    uint8_t content_hash[CBERG_HASH_LEN];
 } cberg_chunk;
 
 typedef struct cberg_chunk_list cberg_chunk_list;
@@ -224,8 +224,8 @@ typedef struct cberg_manifest cberg_manifest;
 
 /* One file leaf: repo-relative path and the XXH3-128 hash of its bytes. */
 typedef struct cberg_manifest_entry {
-    const char *path;
     uint8_t hash[CBERG_HASH_LEN];
+    const char *path;
 } cberg_manifest_entry;
 
 /*

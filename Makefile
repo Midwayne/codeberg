@@ -36,7 +36,7 @@ DIST_PREFIX ?=
 # logical line so the exported vars survive through to the exec/run that follows.
 load_env = if [ -f "$(1)" ]; then set -a; . "$(1)"; set +a; echo "› loaded $(1)"; else echo "› no $(1); using current environment"; fi
 
-.PHONY: build-core build test clean rebuild submodules help check set-version \
+.PHONY: build-core build test bench clean rebuild submodules help check set-version \
         build-daemon daemon-test build-agent build-web-ui agent-test dist \
         run-core run-index run-daemon run-agent run-agent-tui run-agent-web
 
@@ -56,6 +56,7 @@ help:
 	@echo "    make run-agent-tui          Interactive agent chat (follow-ups)  [agent/.env]"
 	@echo "    make run-agent-web          Serve the browser chat UI (codeberg-web)  [agent/.env]"
 	@echo "  Test"
+	@echo "    make bench                Run core micro-benchmarks (strmap, u64map, chunk_table)"
 	@echo "    make test                 Run all core tests (ctest)"
 	@echo "    make test TEST=<name>     Run one test (test_smoke test_chunker …)"
 	@echo "    make daemon-test          Run Go tests in daemon/"
@@ -81,6 +82,12 @@ build-core:
 
 # Back-compat alias for the conventional `make build` (and existing scripts/CI).
 build: build-core
+
+bench: build-core
+	@for b in bench_strmap bench_u64map bench_chunk_table; do \
+	  echo "=== $$b ==="; \
+	  $(BUILD)/bench/$$b || exit 1; \
+	done
 
 test: build-core
 ifdef TEST

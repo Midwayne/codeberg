@@ -1,14 +1,22 @@
 #include "codeberg/codeberg.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "cacheline.h"
 #include "grow.h"
 #include "strmap.h"
 #include "strutil.h"
 #include "u64map.h"
+
+_Static_assert(offsetof(cberg_chunk, content_hash) == 0, "content_hash leads cberg_chunk for cache-line compares");
+_Static_assert(offsetof(cberg_chunk, content_hash) + CBERG_HASH_LEN <= CBERG_CACHE_LINE,
+               "content_hash fits in one cache line");
+_Static_assert(offsetof(cberg_stored_chunk, chunk.content_hash) + CBERG_HASH_LEN <= CBERG_CACHE_LINE,
+               "stored id + content_hash fit in one cache line");
 
 #define CBERG_MAP_INITIAL 1024
 

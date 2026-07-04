@@ -10,8 +10,9 @@
 /*
  * Open-addressing uint64 -> uint64 map. Internal to the library (not exported).
  * Key 0 is reserved as the empty-slot sentinel; callers must not store key 0
- * (cberg_u64map_set rejects it). Used for the chunk table's id -> entry index so
- * a search can resolve a result id to its chunk in O(1) instead of scanning.
+ * (cberg_u64map_set rejects it). Each slot is a {key, value} pair (16 bytes,
+ * 4 pairs per 64-byte cache line). Used for the chunk table's id -> entry index
+ * so a search can resolve a result id to its chunk in O(1) instead of scanning.
  */
 typedef struct cberg_u64map cberg_u64map;
 
