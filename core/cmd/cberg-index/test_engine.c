@@ -5,6 +5,7 @@
 #include "indexer.h"
 #include "ipc.h"
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -69,6 +70,9 @@ static int ipc_roundtrip(const char *socket_path, const char *req, char *resp, s
     if (fd < 0) {
         return -1;
     }
+    struct timeval tv = {.tv_sec = 5, .tv_usec = 0};
+    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
     struct sockaddr_un addr;
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;

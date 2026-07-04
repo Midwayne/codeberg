@@ -4,6 +4,7 @@
 #include "indexer.h"
 
 #include <errno.h>
+#include <poll.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -146,6 +147,11 @@ static void handle_search(cberg_engine *eng, int fd, char *args) {
 }
 
 static void handle_client(cberg_engine *eng, int fd) {
+    struct pollfd pfd = {.fd = fd, .events = POLLIN};
+    int pr = poll(&pfd, 1, 5000);
+    if (pr <= 0) {
+        return;
+    }
     char line[8192];
     ssize_t n = read(fd, line, sizeof(line) - 1);
     if (n <= 0) {
@@ -178,12 +184,30 @@ static void *ipc_thread(void *arg) {
         if (srv->eng->stop) {
             break;
         }
-        int client = accept(srv->listen_fd, NULL, NULL);
-        if (client < 0) {
+        int listen_fd = srv->listen_fd;
+        if (listen_fd < 0) {
+            break;
+        }
+        struct pollfd pfd = {.fd = listen_fd, .events = POLLIN};
+        int pr = poll(&pfd, 1, 200);
+        if (pr < 0) {
             if (errno == EINTR) {
                 continue;
             }
             break;
+        }
+        if (pr == 0) {
+            continue;
+        }
+        int client = accept(listen_fd, NULL, NULL);
+        if (client < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            if (srv->eng->stop || srv->listen_fd < 0) {
+                break;
+            }
+            continue;
         }
         handle_client(srv->eng, client);
         close(client);
@@ -238,7 +262,12 @@ void cberg_ipc_stop(cberg_ipc_server *srv) {
         return;
     }
     srv->eng->stop = 1;
-    close(srv->listen_fd);
+    int fd = srv->listen_fd;
+    srv->listen_fd = -1;
+    if (fd >= 0) {
+        shutdown(fd, SHUT_RDWR);
+        close(fd);
+    }
     pthread_join(srv->thread, NULL);
     unlink(srv->eng->socket_path);
     free(srv);

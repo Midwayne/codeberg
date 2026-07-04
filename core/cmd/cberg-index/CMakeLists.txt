@@ -22,3 +22,4 @@ target_include_directories(test_cberg_engine PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/../../src/common)
 target_link_libraries(test_cberg_engine PRIVATE codeberg::codeberg)
 add_test(NAME test_cberg_engine COMMAND test_cberg_engine)
+set_tests_properties(test_cberg_engine PROPERTIES TIMEOUT 60)

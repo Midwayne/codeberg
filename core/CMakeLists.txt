@@ -227,3 +227,4 @@ file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/libcodeberg.pc
      INPUT ${CMAKE_CURRENT_BINARY_DIR}/libcodeberg.pc.in.tmp)
 
 add_subdirectory(test)
+add_subdirectory(bench)
