@@ -38,6 +38,13 @@ struct cberg_chunk_table {
     cberg_stored_chunk *deleted;
     size_t deleted_len;
     size_t deleted_cap;
+
+    /* Reused across sync/fingerprint to avoid per-call calloc churn. */
+    bool *sync_seen;
+    size_t sync_seen_cap;
+    const char **fp_keys;
+    const uint8_t **fp_hashes;
+    size_t fp_scratch_cap;
 };
 
 static void free_chunk_strings(cberg_chunk *chunk) {
@@ -93,18 +100,65 @@ static cberg_status store_chunk_copy(const cberg_chunk *src, cberg_chunk *dst) {
     return CBERG_OK;
 }
 
-static cberg_status push_change_owned(cberg_stored_chunk **list, size_t *len, size_t *cap,
-                                      const cberg_stored_chunk *src) {
-    cberg_stored_chunk snap = {.id = src->id};
-    cberg_status st = store_chunk_copy(&src->chunk, &snap.chunk);
-    if (st != CBERG_OK) {
-        return st;
+static void store_chunk_move(cberg_chunk *src, cberg_chunk *dst) {
+    *dst = *src;
+    src->key = NULL;
+    src->path = NULL;
+    src->symbol = NULL;
+}
+
+static void table_free_scratch(cberg_chunk_table *table) {
+    free(table->sync_seen);
+    free(table->fp_keys);
+    free(table->fp_hashes);
+    table->sync_seen = NULL;
+    table->fp_keys = NULL;
+    table->fp_hashes = NULL;
+    table->sync_seen_cap = 0;
+    table->fp_scratch_cap = 0;
+}
+
+static void table_adopt_scratch(cberg_chunk_table *dst, cberg_chunk_table *src) {
+    if (src->fp_scratch_cap > dst->fp_scratch_cap) {
+        free(dst->fp_keys);
+        free(dst->fp_hashes);
+        dst->fp_keys = src->fp_keys;
+        dst->fp_hashes = src->fp_hashes;
+        dst->fp_scratch_cap = src->fp_scratch_cap;
+        src->fp_keys = NULL;
+        src->fp_hashes = NULL;
+        src->fp_scratch_cap = 0;
     }
-    st = push_change(list, len, cap, snap);
-    if (st != CBERG_OK) {
-        free_chunk_strings(&snap.chunk);
+}
+
+static cberg_status table_ensure_seen(cberg_chunk_table *table, size_t len) {
+    if (len <= table->sync_seen_cap) {
+        return CBERG_OK;
     }
-    return st;
+    bool *grown = realloc(table->sync_seen, len * sizeof(bool));
+    if (grown == NULL && len > 0) {
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+    table->sync_seen = grown;
+    table->sync_seen_cap = len;
+    return CBERG_OK;
+}
+
+static cberg_status table_ensure_fp_scratch(cberg_chunk_table *table, size_t len) {
+    if (len <= table->fp_scratch_cap) {
+        return CBERG_OK;
+    }
+    const char **keys = realloc(table->fp_keys, len * sizeof(char *));
+    const uint8_t **hash_ptrs = realloc(table->fp_hashes, len * sizeof(uint8_t *));
+    if ((keys == NULL || hash_ptrs == NULL) && len > 0) {
+        free(keys);
+        free(hash_ptrs);
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+    table->fp_keys = keys;
+    table->fp_hashes = hash_ptrs;
+    table->fp_scratch_cap = len;
+    return CBERG_OK;
 }
 
 static cberg_status table_reserve_entries(cberg_chunk_table *table, size_t want) {
@@ -119,6 +173,33 @@ static cberg_status table_reserve_entries(cberg_chunk_table *table, size_t want)
     table->entries = grown;
     table->cap = cap;
     return CBERG_OK;
+}
+
+static cberg_status table_init_for_sync(cberg_chunk_table *next, size_t est_len) {
+    if (table_reserve_entries(next, est_len) != CBERG_OK) {
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+    size_t map_buckets = cberg_round_pow2(est_len < 64 ? 64 : (est_len * 4 + 2) / 3);
+    next->key_index = cberg_strmap_new(map_buckets);
+    next->id_index = cberg_u64map_new(map_buckets);
+    if (next->key_index == NULL || next->id_index == NULL) {
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+    return CBERG_OK;
+}
+
+static cberg_status push_change_owned(cberg_stored_chunk **list, size_t *len, size_t *cap,
+                                      const cberg_stored_chunk *src) {
+    cberg_stored_chunk snap = {.id = src->id};
+    cberg_status st = store_chunk_copy(&src->chunk, &snap.chunk);
+    if (st != CBERG_OK) {
+        return st;
+    }
+    st = push_change(list, len, cap, snap);
+    if (st != CBERG_OK) {
+        free_chunk_strings(&snap.chunk);
+    }
+    return st;
 }
 
 static cberg_status table_append(cberg_chunk_table *table, cberg_stored_chunk stored) {
@@ -163,21 +244,15 @@ static cberg_status table_recompute_fingerprint(cberg_chunk_table *table) {
         memset(table->fingerprint, 0, CBERG_HASH_LEN);
         return CBERG_OK;
     }
-    const char **keys = calloc(table->len, sizeof(char *));
-    const uint8_t **hash_ptrs = calloc(table->len, sizeof(uint8_t *));
-    if (keys == NULL || hash_ptrs == NULL) {
-        free(keys);
-        free(hash_ptrs);
-        return CBERG_ERR_OUT_OF_MEMORY;
+    cberg_status st = table_ensure_fp_scratch(table, table->len);
+    if (st != CBERG_OK) {
+        return st;
     }
     for (size_t i = 0; i < table->len; i++) {
-        keys[i] = table->entries[i].chunk.key;
-        hash_ptrs[i] = table->entries[i].chunk.content_hash;
+        table->fp_keys[i] = table->entries[i].chunk.key;
+        table->fp_hashes[i] = table->entries[i].chunk.content_hash;
     }
-    cberg_status st = cberg_fingerprint(keys, hash_ptrs, table->len, table->fingerprint);
-    free(hash_ptrs);
-    free(keys);
-    return st;
+    return cberg_fingerprint(table->fp_keys, table->fp_hashes, table->len, table->fingerprint);
 }
 
 static void table_free_entry_strings(cberg_chunk_table *table) {
@@ -219,6 +294,7 @@ static void table_discard(cberg_chunk_table *table) {
     cberg_strmap_free(table->key_index);
     cberg_u64map_free(table->id_index);
     table_free_change_lists(table);
+    table_free_scratch(table);
     free(table);
 }
 
@@ -240,6 +316,7 @@ void cberg_chunk_table_free(cberg_chunk_table *table) {
     cberg_strmap_free(table->key_index);
     cberg_u64map_free(table->id_index);
     table_free_change_lists(table);
+    table_free_scratch(table);
     free(table);
 }
 
@@ -320,11 +397,16 @@ static cberg_status sync_apply_incoming(cberg_chunk_table *next, const cberg_chu
     }
 
     seen[live_index] = true;
-    const cberg_stored_chunk *existing = &table->entries[live_index];
+    cberg_stored_chunk *existing = &table->entries[live_index];
     bool hash_changed = memcmp(existing->chunk.content_hash, inc->content_hash, CBERG_HASH_LEN) != 0;
     cberg_stored_chunk stored = {.id = existing->id};
-    cberg_status status =
-        hash_changed ? store_chunk_copy(inc, &stored.chunk) : store_chunk_copy(&existing->chunk, &stored.chunk);
+    cberg_status status;
+    if (hash_changed) {
+        status = store_chunk_copy(inc, &stored.chunk);
+    } else {
+        store_chunk_move(&existing->chunk, &stored.chunk);
+        status = CBERG_OK;
+    }
     if (status != CBERG_OK) {
         return status;
     }
@@ -361,6 +443,7 @@ static void table_commit(cberg_chunk_table *table, cberg_chunk_table *next) {
     table->deleted = next->deleted;
     table->deleted_len = next->deleted_len;
     table->deleted_cap = next->deleted_cap;
+    table_adopt_scratch(table, next);
 }
 
 cberg_status cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk *incoming, size_t count,
@@ -378,13 +461,23 @@ cberg_status cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk 
     }
     next->next_id = table->next_id;
 
-    bool *seen = calloc(table->len, sizeof(bool));
-    if (seen == NULL && table->len > 0) {
+    cberg_status status = CBERG_OK;
+    size_t est_len = table->len + count;
+    status = table_init_for_sync(next, est_len);
+    if (status != CBERG_OK) {
         table_discard(next);
-        return CBERG_ERR_OUT_OF_MEMORY;
+        return status;
     }
 
-    cberg_status status = CBERG_OK;
+    status = table_ensure_seen(table, table->len);
+    if (status != CBERG_OK) {
+        table_discard(next);
+        return status;
+    }
+    if (table->len > 0) {
+        memset(table->sync_seen, 0, table->len * sizeof(bool));
+    }
+    bool *seen = table->sync_seen;
 
     for (size_t i = 0; i < count; i++) {
         const cberg_chunk *inc = &incoming[i];
@@ -419,7 +512,7 @@ cberg_status cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk 
 
     table_commit(table, next);
 
-    free(seen);
+    table_free_scratch(next);
     free(next);
     *out_changes = (cberg_changes){
         .added = table->added,
@@ -432,7 +525,6 @@ cberg_status cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk 
     return CBERG_OK;
 
 fail:
-    free(seen);
     table_discard(next);
     return status;
 }

@@ -1,6 +1,7 @@
 #include "u64map.h"
 
 #include "cacheline.h"
+#include "grow.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -28,14 +29,6 @@ struct cberg_u64map {
     size_t count;
 };
 
-static size_t round_pow2(size_t n) {
-    size_t p = 64;
-    while (p < n) {
-        p <<= 1;
-    }
-    return p;
-}
-
 /* Mix the key before masking: chunk ids are sequential, and the low bits of
  * sequential keys would cluster badly under linear probing modulo a power of two.
  * splitmix64 finalizer scatters them across the table. */
@@ -49,7 +42,7 @@ static inline uint64_t mix64(uint64_t x) {
 }
 
 cberg_u64map *cberg_u64map_new(size_t bucket_count) {
-    size_t cap = round_pow2(bucket_count == 0 ? 64 : bucket_count);
+    size_t cap = cberg_round_pow2(bucket_count == 0 ? 64 : bucket_count);
     cberg_u64map *map = calloc(1, sizeof(cberg_u64map));
     if (map == NULL) {
         return NULL;

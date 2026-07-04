@@ -83,6 +83,16 @@ int main(void) {
         snprintf(label, sizeof label, "chunk_table inc sync %zu", n);
         cberg_bench_report(label, &t, n);
 
+        /* No-op resync: all hashes unchanged — exercises move-not-copy fast path. */
+        cberg_bench_start(&t);
+        if (cberg_chunk_table_sync(table, incoming.chunks, n, &ch) != CBERG_OK) {
+            fprintf(stderr, "no-change sync failed (%zu)\n", n);
+            return 1;
+        }
+        cberg_bench_stop(&t);
+        snprintf(label, sizeof label, "chunk_table noop sync %zu", n);
+        cberg_bench_report(label, &t, n);
+
         const cberg_stored_chunk *mid = cberg_chunk_table_at(table, n / 2);
         if (mid == NULL) {
             fprintf(stderr, "missing mid entry\n");

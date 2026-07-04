@@ -14,4 +14,13 @@ static inline size_t cberg_grow_cap(size_t cap, size_t want, size_t initial) {
     return next;
 }
 
+/* Smallest power of two >= n (minimum 64). Used for open-addressing map buckets. */
+static inline size_t cberg_round_pow2(size_t n) {
+    size_t p = 64;
+    while (p < n) {
+        p <<= 1;
+    }
+    return p;
+}
+
 #endif /* CBERG_GROW_H */

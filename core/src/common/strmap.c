@@ -2,6 +2,7 @@
 
 #include "cacheline.h"
 #include "fnv.h"
+#include "grow.h"
 #include "strutil.h"
 
 #include <stdlib.h>
@@ -36,14 +37,6 @@ struct cberg_strmap {
     size_t count;
 };
 
-static size_t round_pow2(size_t n) {
-    size_t p = 64;
-    while (p < n) {
-        p <<= 1;
-    }
-    return p;
-}
-
 static inline uint64_t hash_key(const char *key) {
     uint64_t h = cberg_fnv1a(key);
     return h + (h == 0); /* reserve 0 for the empty-slot sentinel */
@@ -75,7 +68,7 @@ static cberg_status strmap_alloc_buckets(size_t cap, uint64_t **hashes, char ***
 }
 
 cberg_strmap *cberg_strmap_new(size_t bucket_count) {
-    size_t cap = round_pow2(bucket_count == 0 ? 64 : bucket_count);
+    size_t cap = cberg_round_pow2(bucket_count == 0 ? 64 : bucket_count);
     cberg_strmap *map = calloc(1, sizeof(cberg_strmap));
     if (map == NULL) {
         return NULL;
