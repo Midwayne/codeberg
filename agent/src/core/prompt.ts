@@ -31,7 +31,7 @@ Available tools:
 - search: same as search_code but exposed via the daemon tool registry (use search_code when available).
 - grep: exact text or regex search over files. Use for symbols, routes, table names, config keys, queue names, event names, endpoint names, imports, and function names.
 - glob: find files by pattern.
-- read_file: read file content or a specific line range (use when get_chunk is unavailable).
+- read_file: read file content or a specific line range — use when you need lines outside indexed chunk boundaries or get_chunk's span is insufficient for the question.
 - list_dir / tree: explore repository or service structure.
 - head / tail / wc: quick file inspection.
 - pipe: run a read-only shell-style pipeline in ONE call, chaining rg/grep with filters (head, tail, wc, sort, uniq, cut, tr, nl, cat, paste, sed) using "|". Prefer this to combine a search with filtering — e.g. \`rg -l 'func main' --glob '*.go' | head -20\` or \`rg TODO | wc -l\` — instead of issuing separate grep + head/wc calls. No shell is run, so redirection, ";", "&", and "$()" are rejected and paths cannot escape the repo.
@@ -43,7 +43,7 @@ General strategy:
 3. Use find_symbol for known symbol names; use grep to verify exact strings, routes, and imports.
 4. After search_code hits, prefer get_chunk(repo, id) over read_file for the full chunk body.
 5. Use file_outline to orient in an unfamiliar file before deep reading.
-6. Use read_file only when you need lines outside a chunk boundary or get_chunk is unavailable.
+6. Use read_file when you need surrounding context, imports, or lines outside the chunk get_chunk returned — not only as a last resort.
 7. Follow imports, function calls, client calls, repository methods, ORM models, queries, and configuration references.
 8. Search across repositories/services when the code indicates microservice boundaries or shared dependencies.
 9. Prefer a single pipe call over several grep/read_file/head/wc calls when the work is expressible as a pipeline.
