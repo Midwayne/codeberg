@@ -38,7 +38,11 @@ Outputs: `core/build/bin/cberg-index`, `core/build/bin/codeberg-d`.
 | `CODEBERG_ROOT` | yes¹ | Repository tree to index (single-repo mode) |
 | `CODEBERG_ROOTS` | yes¹ | `key\tpath` records, newline-separated — every repo to serve (multi-repo mode; supersedes `CODEBERG_ROOT` when set) |
 | `CBERG_MODEL` | for vectors | Path to ONNX model |
-| `CBERG_INDEX_PATH` | for vectors | usearch index **base path**; the actual index and its chunk-table/manifest sidecars are per-repo (`<base>.<roothash>[.chunks\|.manifest]`) |
+| `CBERG_INDEX_PATH` | for vectors | Index **base path**; per-repo sidecars at `<base>.<roothash>[.chunks\|.manifest]` |
+| `CBERG_INDEX_BACKEND` | no | `usearch` (default), `qdrant`, or `pgvector` (`postgres` alias) |
+| `CBERG_VECTORDB_URL` | for `qdrant` | Qdrant REST base URL |
+| `CBERG_VECTORDB_API_KEY` | no | Qdrant API key (cloud) |
+| `CBERG_POSTGRES_URL` | for `pgvector` | PostgreSQL connection string (pgvector extension) |
 | `CBERG_POLL_MS` | no | Watcher poll timeout (default 1000) |
 | `CBERG_SOCKET` | no | Unix socket for indexer IPC (default `/tmp/codeberg-index.sock`) |
 | `CBERG_INDEX_BIN` | no | Path to `cberg-index` binary |
@@ -47,6 +51,9 @@ Outputs: `core/build/bin/cberg-index`, `core/build/bin/codeberg-d`.
 | `CODEBERG_GIT_DIR` | no | Git repo(s) for pull (default: every served root with a `.git`) |
 
 ¹ Exactly one of `CODEBERG_ROOT` / `CODEBERG_ROOTS` is required.
+
+Vector backend setup (Qdrant, pgvector, schemas, Docker):
+[core/docs/VECTOR_INDEX_PROVIDERS.md](../core/docs/VECTOR_INDEX_PROVIDERS.md).
 
 ## Agent tools (read-only)
 
