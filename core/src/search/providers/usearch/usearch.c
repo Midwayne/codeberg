@@ -15,6 +15,7 @@
 typedef struct usearch_backend {
     usearch_index_t idx;
     size_t dim;
+    size_t expansion_search;
     char *path;
 } usearch_backend;
 
@@ -98,7 +99,7 @@ static cberg_status usearch_backend_search(void *impl, const float *query, size_
     *out_found = 0;
     usearch_error_t err = NULL;
 
-    if (expansion_search > 0) {
+    if (expansion_search > 0 && expansion_search != b->expansion_search) {
         usearch_change_expansion_search(b->idx, expansion_search, &err);
         if (err != NULL) {
             return CBERG_ERR_INTERNAL;
@@ -106,6 +107,13 @@ static cberg_status usearch_backend_search(void *impl, const float *query, size_
     }
 
     size_t found = usearch_search(b->idx, query, usearch_scalar_f32_k, k, out_ids, out_scores, &err);
+
+    if (expansion_search > 0 && expansion_search != b->expansion_search) {
+        usearch_change_expansion_search(b->idx, b->expansion_search, &err);
+        if (err != NULL) {
+            return CBERG_ERR_INTERNAL;
+        }
+    }
     if (err != NULL) {
         return CBERG_ERR_INTERNAL;
     }
@@ -196,7 +204,7 @@ static cberg_status usearch_open(const char *path, size_t dim, const cberg_index
         usearch_load(idx, path, &err);
         if (err != NULL) {
             usearch_free(idx, &err);
-            return CBERG_ERR_IO;
+            return CBERG_ERR_CORRUPT;
         }
     } else {
         usearch_reserve(idx, INITIAL_CAPACITY, &err);
@@ -213,6 +221,7 @@ static cberg_status usearch_open(const char *path, size_t dim, const cberg_index
     }
     b->idx = idx;
     b->dim = dim;
+    b->expansion_search = cfg->expansion_search;
     b->path = cberg_strdup(path);
     if (b->path == NULL) {
         usearch_backend_destroy(b);

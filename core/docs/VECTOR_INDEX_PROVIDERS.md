@@ -277,12 +277,15 @@ recomputed.
 
 ### Corrupt-index recovery
 
-On startup, if `cberg_index_open` returns `CBERG_ERR_IO` (corrupt usearch
-file, unreachable remote DB, dimension mismatch), `cberg-index`:
+On startup, if `cberg_index_open` returns `CBERG_ERR_CORRUPT` (corrupt usearch
+file or remote dimension mismatch), `cberg-index`:
 
 1. Logs a warning and calls `cberg_index_wipe` for that repo.
 2. Deletes `<index_path>.chunks` and `<index_path>.manifest`.
 3. Reopens the index and cold-reindexes from the repository.
+
+Transient `CBERG_ERR_IO` (database or Qdrant unreachable at startup) does **not**
+trigger wipe — sidecars are preserved until the service is reachable again.
 
 | Backend | `cberg_index_wipe` action |
 |---------|---------------------------|

@@ -10,6 +10,7 @@ static const char *const STATUS_STRINGS[] = {
     [CBERG_ERR_OUT_OF_MEMORY] = "out of memory",
     [CBERG_ERR_TIMEOUT] = "timeout",
     [CBERG_ERR_NOT_IMPLEMENTED] = "not implemented",
+    [CBERG_ERR_CORRUPT] = "corrupt or incompatible index",
 };
 
 const char *cberg_status_str(cberg_status status) {

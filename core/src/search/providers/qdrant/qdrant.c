@@ -99,6 +99,32 @@ static cberg_status qdrant_delete_collection(qdrant_backend *b) {
     return CBERG_OK;
 }
 
+static cberg_status qdrant_check_collection_dim(qdrant_backend *b) {
+    char suffix[512];
+    snprintf(suffix, sizeof suffix, "collections/%s", b->collection);
+    int status = 0;
+    char *body = NULL;
+    cberg_status st = qdrant_request(b, "GET", suffix, NULL, 0, &status, &body);
+    if (st != CBERG_OK) {
+        return st;
+    }
+    if (status == 404) {
+        free(body);
+        return CBERG_ERR_NOT_FOUND;
+    }
+    if (status < 200 || status >= 300) {
+        free(body);
+        return CBERG_ERR_IO;
+    }
+    int dim = 0;
+    if (json_find_int(body, "size", &dim) != 0 || (size_t)dim != b->dim) {
+        free(body);
+        return CBERG_ERR_CORRUPT;
+    }
+    free(body);
+    return CBERG_OK;
+}
+
 static cberg_status qdrant_create_collection(qdrant_backend *b) {
     char suffix[512];
     snprintf(suffix, sizeof suffix, "collections/%s", b->collection);
@@ -110,7 +136,7 @@ static cberg_status qdrant_create_collection(qdrant_backend *b) {
         return st;
     }
     if (status == 409) {
-        return CBERG_OK;
+        return qdrant_check_collection_dim(b);
     }
     if (status < 200 || status >= 300) {
         return CBERG_ERR_IO;
@@ -119,29 +145,11 @@ static cberg_status qdrant_create_collection(qdrant_backend *b) {
 }
 
 static cberg_status qdrant_validate_collection(qdrant_backend *b) {
-    char suffix[512];
-    snprintf(suffix, sizeof suffix, "collections/%s", b->collection);
-    int status = 0;
-    char *body = NULL;
-    cberg_status st = qdrant_request(b, "GET", suffix, NULL, 0, &status, &body);
-    if (st != CBERG_OK) {
-        return st;
-    }
-    if (status == 404) {
-        free(body);
+    cberg_status st = qdrant_check_collection_dim(b);
+    if (st == CBERG_ERR_NOT_FOUND) {
         return qdrant_create_collection(b);
     }
-    if (status < 200 || status >= 300) {
-        free(body);
-        return CBERG_ERR_IO;
-    }
-    int dim = 0;
-    if (json_find_int(body, "size", &dim) != 0 || (size_t)dim != b->dim) {
-        free(body);
-        return CBERG_ERR_IO;
-    }
-    free(body);
-    return CBERG_OK;
+    return st;
 }
 
 static cberg_status qdrant_backend_add(void *impl, uint64_t id, const float *vector, size_t dim) {
@@ -191,7 +199,12 @@ static cberg_status qdrant_backend_add(void *impl, uint64_t id, const float *vec
     return CBERG_OK;
 }
 
-static int qdrant_point_exists(qdrant_backend *b, uint64_t id) {
+static cberg_status qdrant_point_exists(qdrant_backend *b, uint64_t id, int *out_exists) {
+    if (out_exists == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    *out_exists = 0;
+
     char suffix[512];
     snprintf(suffix, sizeof suffix, "collections/%s/points", b->collection);
     char body[64];
@@ -200,13 +213,20 @@ static int qdrant_point_exists(qdrant_backend *b, uint64_t id) {
     int status = 0;
     char *resp = NULL;
     cberg_status st = qdrant_request(b, "POST", suffix, body, strlen(body), &status, &resp);
-    if (st != CBERG_OK || status < 200 || status >= 300 || resp == NULL) {
+    if (st != CBERG_OK) {
         free(resp);
-        return 0;
+        return st;
     }
-    int exists = strstr(resp, "\"id\":") != NULL;
+    if (status < 200 || status >= 300) {
+        free(resp);
+        return CBERG_ERR_IO;
+    }
+    if (resp == NULL) {
+        return CBERG_ERR_IO;
+    }
+    *out_exists = strstr(resp, "\"id\":") != NULL;
     free(resp);
-    return exists;
+    return CBERG_OK;
 }
 
 static cberg_status qdrant_backend_remove(void *impl, uint64_t id) {
@@ -214,7 +234,12 @@ static cberg_status qdrant_backend_remove(void *impl, uint64_t id) {
     if (b == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
-    if (!qdrant_point_exists(b, id)) {
+    int exists = 0;
+    cberg_status st = qdrant_point_exists(b, id, &exists);
+    if (st != CBERG_OK) {
+        return st;
+    }
+    if (!exists) {
         return CBERG_ERR_NOT_FOUND;
     }
     char suffix[512];
@@ -222,7 +247,7 @@ static cberg_status qdrant_backend_remove(void *impl, uint64_t id) {
     char body[64];
     snprintf(body, sizeof body, "{\"points\":[%llu]}", (unsigned long long)id);
     int status = 0;
-    cberg_status st = qdrant_request(b, "POST", suffix, body, strlen(body), &status, NULL);
+    st = qdrant_request(b, "POST", suffix, body, strlen(body), &status, NULL);
     if (st != CBERG_OK) {
         return st;
     }
@@ -259,7 +284,27 @@ static cberg_status qdrant_backend_search(void *impl, const float *query, size_t
         if (i > 0) {
             pos += (size_t)snprintf(body + pos, body_cap - pos, ",");
         }
+        if (pos + 32 >= body_cap) {
+            size_t new_cap = body_cap * 2;
+            char *grown = realloc(body, new_cap);
+            if (grown == NULL) {
+                free(body);
+                return CBERG_ERR_OUT_OF_MEMORY;
+            }
+            body = grown;
+            body_cap = new_cap;
+        }
         pos += (size_t)snprintf(body + pos, body_cap - pos, "%.9g", query[i]);
+    }
+    if (pos + 64 >= body_cap) {
+        size_t new_cap = body_cap + 64;
+        char *grown = realloc(body, new_cap);
+        if (grown == NULL) {
+            free(body);
+            return CBERG_ERR_OUT_OF_MEMORY;
+        }
+        body = grown;
+        body_cap = new_cap;
     }
     pos += (size_t)snprintf(body + pos, body_cap - pos, "],\"limit\":%zu,\"with_payload\":false}", k);
 

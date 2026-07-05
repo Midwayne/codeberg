@@ -8,8 +8,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#define SKIP 77
-
 static int failures;
 
 #define CHECK(cond, msg)                                                    \
@@ -38,16 +36,25 @@ static void test_provider_names(void) {
     CHECK(cberg_index_provider_from_name("pgvector", &p) == CBERG_OK && p == CBERG_INDEX_PGVECTOR, "parse pgvector");
     CHECK(cberg_index_provider_from_name("postgres", &p) == CBERG_OK && p == CBERG_INDEX_PGVECTOR, "parse postgres alias");
     CHECK(cberg_index_provider_from_name("unknown", &p) == CBERG_ERR_INVALID_ARGUMENT, "reject unknown backend");
+    CHECK(strcmp(cberg_status_str(CBERG_ERR_CORRUPT), "corrupt or incompatible index") == 0, "corrupt status string");
 }
 
-static int run_backend(const char *name, const cberg_index_config *cfg) {
+static int run_backend(const char *name, const cberg_index_config *cfg, size_t dim) {
+    char label[64];
+    snprintf(label, sizeof label, "%s-%zu", name, dim);
     char *path = unique_path(name);
     if (path == NULL) {
         fprintf(stderr, "FAIL: out of memory for path\n");
         return 1;
     }
-    int n = index_provider_harness_run(name, cfg, path);
+    int n = index_provider_harness_run(label, cfg, path, dim);
     free(path);
+    return n;
+}
+
+static int run_backend_dims(const char *name, const cberg_index_config *cfg) {
+    int n = run_backend(name, cfg, 4);
+    n += run_backend(name, cfg, 768);
     return n;
 }
 
@@ -56,7 +63,7 @@ int main(void) {
 
     cberg_index_config usearch_cfg;
     cberg_index_config_default(&usearch_cfg);
-    failures += run_backend("usearch", &usearch_cfg);
+    failures += run_backend_dims("usearch", &usearch_cfg);
 
     const char *qdrant_url = getenv("CBERG_TEST_QDRANT_URL");
     if (qdrant_url != NULL && qdrant_url[0] != '\0') {
@@ -65,7 +72,7 @@ int main(void) {
         qdrant_cfg.provider = CBERG_INDEX_QDRANT;
         qdrant_cfg.vectordb_url = qdrant_url;
         qdrant_cfg.vectordb_api_key = getenv("CBERG_TEST_QDRANT_API_KEY");
-        failures += run_backend("qdrant", &qdrant_cfg);
+        failures += run_backend_dims("qdrant", &qdrant_cfg);
     } else {
         printf("skip - qdrant (set CBERG_TEST_QDRANT_URL)\n");
     }
@@ -76,7 +83,7 @@ int main(void) {
         cberg_index_config_default(&pg_cfg);
         pg_cfg.provider = CBERG_INDEX_PGVECTOR;
         pg_cfg.postgres_url = postgres_url;
-        failures += run_backend("pgvector", &pg_cfg);
+        failures += run_backend_dims("pgvector", &pg_cfg);
     } else {
         printf("skip - pgvector (set CBERG_TEST_POSTGRES_URL)\n");
     }

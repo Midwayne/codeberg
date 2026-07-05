@@ -39,6 +39,8 @@ typedef enum cberg_status {
     CBERG_ERR_OUT_OF_MEMORY = 6,
     CBERG_ERR_TIMEOUT = 7,
     CBERG_ERR_NOT_IMPLEMENTED = 8,
+    /* Index snapshot exists but is incompatible or unreadable (safe to wipe/rebuild). */
+    CBERG_ERR_CORRUPT = 9,
 } cberg_status;
 
 CBERG_API const char *cberg_status_str(cberg_status status);
@@ -424,6 +426,10 @@ CBERG_API cberg_status cberg_index_provider_from_name(const char *name, cberg_in
  * Remote providers (qdrant, pgvector): `path` identifies the collection/table;
  * vectors live at `config->vectordb_url` or `config->postgres_url`. Chunk
  * sidecars still use `path` as a local identity.
+ *
+ * Returns `CBERG_ERR_CORRUPT` when an on-disk usearch file or remote
+ * collection/table exists but cannot be loaded (dimension mismatch, bad file).
+ * Transient connectivity failures return `CBERG_ERR_IO` without implying corruption.
  */
 CBERG_API cberg_status cberg_index_open(const char *path, size_t dim, const cberg_index_config *config,
                                         cberg_index **out_index);

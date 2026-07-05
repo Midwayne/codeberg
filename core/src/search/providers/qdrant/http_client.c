@@ -236,6 +236,19 @@ static cberg_status read_http_response(int fd, cberg_http_response *out_resp) {
     return CBERG_OK;
 }
 
+static cberg_status write_all(int fd, const void *data, size_t len) {
+    const char *buf = data;
+    size_t sent = 0;
+    while (sent < len) {
+        ssize_t n = write(fd, buf + sent, len - sent);
+        if (n <= 0) {
+            return CBERG_ERR_IO;
+        }
+        sent += (size_t)n;
+    }
+    return CBERG_OK;
+}
+
 cberg_status cberg_http_request(const char *method, const char *url, const char *api_key, const char *content_type,
                                 const char *body, size_t body_len, cberg_http_response *out_resp) {
     if (method == NULL || url == NULL || out_resp == NULL) {
@@ -278,13 +291,11 @@ cberg_status cberg_http_request(const char *method, const char *url, const char 
     }
     if (body != NULL && body_len > 0) {
         int n = snprintf(req + hdr, sizeof req - (size_t)hdr, "Content-Length: %zu\r\n\r\n", body_len);
-        if (n < 0 || (size_t)hdr + (size_t)n + body_len >= sizeof req) {
+        if (n < 0 || (size_t)hdr + (size_t)n >= sizeof req) {
             close(fd);
             return CBERG_ERR_INVALID_ARGUMENT;
         }
         hdr += n;
-        memcpy(req + hdr, body, body_len);
-        hdr += (int)body_len;
     } else {
         int n = snprintf(req + hdr, sizeof req - (size_t)hdr, "Content-Length: 0\r\n\r\n");
         if (n < 0 || (size_t)hdr + (size_t)n >= sizeof req) {
@@ -294,17 +305,20 @@ cberg_status cberg_http_request(const char *method, const char *url, const char 
         hdr += n;
     }
 
-    size_t sent = 0;
-    while (sent < (size_t)hdr) {
-        ssize_t n = write(fd, req + sent, (size_t)hdr - sent);
-        if (n <= 0) {
+    cberg_status st = write_all(fd, req, (size_t)hdr);
+    if (st != CBERG_OK) {
+        close(fd);
+        return st;
+    }
+    if (body != NULL && body_len > 0) {
+        st = write_all(fd, body, body_len);
+        if (st != CBERG_OK) {
             close(fd);
-            return CBERG_ERR_IO;
+            return st;
         }
-        sent += (size_t)n;
     }
 
-    cberg_status st = read_http_response(fd, out_resp);
+    st = read_http_response(fd, out_resp);
     close(fd);
     return st;
 }

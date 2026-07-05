@@ -832,15 +832,27 @@ static cberg_status engine_add_repo(cberg_engine *eng, const char *key, const ch
 
         size_t dim = cberg_embedder_dim(eng->embedder);
         st = cberg_index_open(r->index_path, dim, &eng->index_cfg, &r->index);
-        if (st == CBERG_ERR_IO) {
-            /* The index exists but won't load — corrupt local file, unreachable
-             * vectordb, or a dimension mismatch. Discard this directory's stale
-             * state (index + sidecars) and reindex from scratch. */
-            fprintf(stderr, "cberg-index[%s]: vector index '%s' is unreadable; discarding and reindexing\n", r->key,
-                    r->index_path);
-            cberg_index_wipe(r->index_path, dim, &eng->index_cfg);
-            remove(r->chunks_path);
-            remove(r->manifest_path);
+        if (st == CBERG_ERR_CORRUPT) {
+            /* Corrupt on-disk usearch file or remote collection/table with wrong
+             * dimension — wipe vectors and sidecars, then cold-reindex. Transient
+             * I/O (DB down, network) returns CBERG_ERR_IO and is not wiped here. */
+            fprintf(stderr, "cberg-index[%s]: vector index '%s' is corrupt or incompatible; discarding and reindexing\n",
+                    r->key, r->index_path);
+            cberg_status wipe_st = cberg_index_wipe(r->index_path, dim, &eng->index_cfg);
+            if (wipe_st != CBERG_OK) {
+                fprintf(stderr, "cberg-index[%s]: failed to wipe vector index '%s': %s\n", r->key, r->index_path,
+                        cberg_status_str(wipe_st));
+                repo_close(r);
+                return wipe_st;
+            }
+            if (remove(r->chunks_path) != 0 && errno != ENOENT) {
+                repo_close(r);
+                return CBERG_ERR_IO;
+            }
+            if (remove(r->manifest_path) != 0 && errno != ENOENT) {
+                repo_close(r);
+                return CBERG_ERR_IO;
+            }
             st = cberg_index_open(r->index_path, dim, &eng->index_cfg, &r->index);
         }
         if (st != CBERG_OK) {

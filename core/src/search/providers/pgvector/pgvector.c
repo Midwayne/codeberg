@@ -12,12 +12,43 @@
 
 typedef struct pgvector_backend {
     PGconn *conn;
+    char *conninfo;
     char *table;
+    char *table_ident;
     size_t dim;
 } pgvector_backend;
 
-static cberg_status pg_exec_ok(PGconn *conn, const char *sql) {
-    PGresult *res = PQexec(conn, sql);
+static PGconn *pgvector_connect(const char *conninfo) {
+    PGconn *conn = PQconnectdb(conninfo);
+    if (conn == NULL || PQstatus(conn) != CONNECTION_OK) {
+        if (conn != NULL) {
+            PQfinish(conn);
+        }
+        return NULL;
+    }
+    return conn;
+}
+
+static cberg_status pgvector_ensure_conn(pgvector_backend *b) {
+    if (b == NULL || b->conninfo == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    if (b->conn != NULL && PQstatus(b->conn) == CONNECTION_OK) {
+        return CBERG_OK;
+    }
+    if (b->conn != NULL) {
+        PQreset(b->conn);
+        if (PQstatus(b->conn) == CONNECTION_OK) {
+            return CBERG_OK;
+        }
+        PQfinish(b->conn);
+        b->conn = NULL;
+    }
+    b->conn = pgvector_connect(b->conninfo);
+    return b->conn != NULL ? CBERG_OK : CBERG_ERR_IO;
+}
+
+static cberg_status pg_exec_result(PGresult *res) {
     if (res == NULL) {
         return CBERG_ERR_IO;
     }
@@ -30,6 +61,15 @@ static cberg_status pg_exec_ok(PGconn *conn, const char *sql) {
     return CBERG_OK;
 }
 
+static cberg_status pg_exec(pgvector_backend *b, const char *sql) {
+    cberg_status st = pgvector_ensure_conn(b);
+    if (st != CBERG_OK) {
+        return st;
+    }
+    PGresult *res = PQexec(b->conn, sql);
+    return pg_exec_result(res);
+}
+
 static void pgvector_backend_destroy(void *impl) {
     pgvector_backend *b = impl;
     if (b == NULL) {
@@ -38,22 +78,28 @@ static void pgvector_backend_destroy(void *impl) {
     if (b->conn != NULL) {
         PQfinish(b->conn);
     }
+    free(b->conninfo);
     free(b->table);
+    free(b->table_ident);
     free(b);
 }
 
 static cberg_status pgvector_ensure_schema(pgvector_backend *b) {
-    cberg_status st = pg_exec_ok(b->conn, "CREATE EXTENSION IF NOT EXISTS vector");
+    cberg_status st = pg_exec(b, "CREATE EXTENSION IF NOT EXISTS vector");
     if (st != CBERG_OK) {
         return st;
     }
 
-    char exists_sql[768];
+    char exists_sql[1024];
     snprintf(exists_sql, sizeof exists_sql,
-             "SELECT atttypmod FROM pg_attribute a "
+             "SELECT a.atttypmod FROM pg_attribute a "
              "JOIN pg_class c ON c.oid = a.attrelid "
-             "WHERE c.relname = '%s' AND a.attname = 'embedding' AND NOT a.attisdropped",
+             "WHERE c.oid = to_regclass('%s') AND a.attname = 'embedding' AND NOT a.attisdropped",
              b->table);
+    cberg_status conn_st = pgvector_ensure_conn(b);
+    if (conn_st != CBERG_OK) {
+        return conn_st;
+    }
     PGresult *res = PQexec(b->conn, exists_sql);
     if (res == NULL) {
         return CBERG_ERR_IO;
@@ -63,7 +109,7 @@ static cberg_status pgvector_ensure_schema(pgvector_backend *b) {
         int typmod = atoi(PQgetvalue(res, 0, 0));
         PQclear(res);
         if (typmod > 0 && (size_t)typmod != b->dim) {
-            return CBERG_ERR_IO;
+            return CBERG_ERR_CORRUPT;
         }
         return CBERG_OK;
     }
@@ -71,9 +117,8 @@ static cberg_status pgvector_ensure_schema(pgvector_backend *b) {
 
     char create_sql[512];
     snprintf(create_sql, sizeof create_sql,
-             "CREATE TABLE IF NOT EXISTS %s (id BIGINT PRIMARY KEY, embedding vector(%zu))",
-             b->table, b->dim);
-    return pg_exec_ok(b->conn, create_sql);
+             "CREATE TABLE IF NOT EXISTS %s (id BIGINT PRIMARY KEY, embedding vector(%zu))", b->table_ident, b->dim);
+    return pg_exec(b, create_sql);
 }
 
 static cberg_status pgvector_backend_add(void *impl, uint64_t id, const float *vector, size_t dim) {
@@ -85,16 +130,24 @@ static cberg_status pgvector_backend_add(void *impl, uint64_t id, const float *v
     if (literal == NULL) {
         return CBERG_ERR_OUT_OF_MEMORY;
     }
-    char sql[8192];
-    int n = snprintf(sql, sizeof sql,
+    size_t need = strlen(b->table_ident) + strlen(literal) + 128;
+    char *sql = malloc(need);
+    if (sql == NULL) {
+        free(literal);
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+    int n = snprintf(sql, need,
                      "INSERT INTO %s (id, embedding) VALUES (%llu, '%s'::vector) "
                      "ON CONFLICT (id) DO UPDATE SET embedding = EXCLUDED.embedding",
-                     b->table, (unsigned long long)id, literal);
+                     b->table_ident, (unsigned long long)id, literal);
     free(literal);
-    if (n < 0 || (size_t)n >= sizeof sql) {
+    if (n < 0 || (size_t)n >= need) {
+        free(sql);
         return CBERG_ERR_INVALID_ARGUMENT;
     }
-    return pg_exec_ok(b->conn, sql);
+    cberg_status st = pg_exec(b, sql);
+    free(sql);
+    return st;
 }
 
 static cberg_status pgvector_backend_remove(void *impl, uint64_t id) {
@@ -103,7 +156,11 @@ static cberg_status pgvector_backend_remove(void *impl, uint64_t id) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     char sql[256];
-    snprintf(sql, sizeof sql, "DELETE FROM %s WHERE id = %llu", b->table, (unsigned long long)id);
+    snprintf(sql, sizeof sql, "DELETE FROM %s WHERE id = %llu", b->table_ident, (unsigned long long)id);
+    cberg_status conn_st = pgvector_ensure_conn(b);
+    if (conn_st != CBERG_OK) {
+        return conn_st;
+    }
     PGresult *res = PQexec(b->conn, sql);
     if (res == NULL) {
         return CBERG_ERR_IO;
@@ -132,17 +189,29 @@ static cberg_status pgvector_backend_search(void *impl, const float *query, size
     if (literal == NULL) {
         return CBERG_ERR_OUT_OF_MEMORY;
     }
-    char sql[8192];
-    int n = snprintf(sql, sizeof sql,
+    size_t need = strlen(b->table_ident) + strlen(literal) * 2 + 128;
+    char *sql = malloc(need);
+    if (sql == NULL) {
+        free(literal);
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+    int n = snprintf(sql, need,
                      "SELECT id, 1 - (embedding <=> '%s'::vector) AS score "
                      "FROM %s ORDER BY embedding <=> '%s'::vector LIMIT %zu",
-                     literal, b->table, literal, k);
+                     literal, b->table_ident, literal, k);
     free(literal);
-    if (n < 0 || (size_t)n >= sizeof sql) {
+    if (n < 0 || (size_t)n >= need) {
+        free(sql);
         return CBERG_ERR_INVALID_ARGUMENT;
     }
 
+    cberg_status conn_st = pgvector_ensure_conn(b);
+    if (conn_st != CBERG_OK) {
+        free(sql);
+        return conn_st;
+    }
     PGresult *res = PQexec(b->conn, sql);
+    free(sql);
     if (res == NULL || PQresultStatus(res) != PGRES_TUPLES_OK) {
         PQclear(res);
         return CBERG_ERR_IO;
@@ -170,19 +239,8 @@ static cberg_status pgvector_backend_clear(void *impl) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     char sql[256];
-    snprintf(sql, sizeof sql, "TRUNCATE %s", b->table);
-    return pg_exec_ok(b->conn, sql);
-}
-
-static PGconn *pgvector_connect(const char *conninfo) {
-    PGconn *conn = PQconnectdb(conninfo);
-    if (conn == NULL || PQstatus(conn) != CONNECTION_OK) {
-        if (conn != NULL) {
-            PQfinish(conn);
-        }
-        return NULL;
-    }
-    return conn;
+    snprintf(sql, sizeof sql, "TRUNCATE %s", b->table_ident);
+    return pg_exec(b, sql);
 }
 
 static cberg_status pgvector_open(const char *path, size_t dim, const cberg_index_config *config,
@@ -199,15 +257,22 @@ static cberg_status pgvector_open(const char *path, size_t dim, const cberg_inde
     }
     b->dim = dim;
     b->table = cberg_provider_name_from_path(path);
-    if (b->table == NULL) {
+    b->conninfo = cberg_strdup(config->postgres_url);
+    if (b->table == NULL || b->conninfo == NULL) {
         pgvector_backend_destroy(b);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
 
-    b->conn = pgvector_connect(config->postgres_url);
+    b->conn = pgvector_connect(b->conninfo);
     if (b->conn == NULL) {
         pgvector_backend_destroy(b);
         return CBERG_ERR_IO;
+    }
+
+    b->table_ident = PQescapeIdentifier(b->conn, b->table, strlen(b->table));
+    if (b->table_ident == NULL) {
+        pgvector_backend_destroy(b);
+        return CBERG_ERR_OUT_OF_MEMORY;
     }
 
     cberg_status st = pgvector_ensure_schema(b);
@@ -241,11 +306,17 @@ static cberg_status pgvector_wipe(const char *path, size_t dim, const cberg_inde
         free(table);
         return CBERG_ERR_IO;
     }
-    char sql[256];
-    snprintf(sql, sizeof sql, "DROP TABLE IF EXISTS %s", table);
-    cberg_status st = pg_exec_ok(conn, sql);
-    PQfinish(conn);
+    char *table_ident = PQescapeIdentifier(conn, table, strlen(table));
     free(table);
+    if (table_ident == NULL) {
+        PQfinish(conn);
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+    char sql[256];
+    snprintf(sql, sizeof sql, "DROP TABLE IF EXISTS %s", table_ident);
+    cberg_status st = pg_exec_result(PQexec(conn, sql));
+    PQfreemem(table_ident);
+    PQfinish(conn);
     return st;
 }
 

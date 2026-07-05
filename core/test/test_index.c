@@ -15,7 +15,7 @@ int main(void) {
         remove(path);
     }
 
-    int failures = index_provider_harness_run("usearch", NULL, path);
+    int failures = index_provider_harness_run("usearch", NULL, path, 4);
     if (failures == 0) {
         printf("ok - index\n");
         return 0;

@@ -26,6 +26,7 @@ Every symbol exported from `include/codeberg/codeberg.h`. Internal helpers live 
 | `CBERG_ERR_OUT_OF_MEMORY` | `malloc` / arena allocation failed |
 | `CBERG_ERR_TIMEOUT` | `cberg_watcher_poll` blocked and timed out (Linux inotify path) |
 | `CBERG_ERR_NOT_IMPLEMENTED` | Feature compiled out (no ONNX / no usearch) |
+| `CBERG_ERR_CORRUPT` | Vector index snapshot unreadable or dimension mismatch — safe to wipe and rebuild |
 
 ### `cberg_status_str(cberg_status status)`
 

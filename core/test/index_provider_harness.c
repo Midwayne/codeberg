@@ -5,8 +5,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#define DIM 4
-
 static int failures;
 
 #define CHECK(cond, msg)                                                                               \
@@ -19,18 +17,41 @@ static int failures;
 
 static const char *label;
 
-int index_provider_harness_run(const char *test_label, const cberg_index_config *cfg, const char *path) {
+static float *unit_vector(size_t dim, size_t axis) {
+    float *v = calloc(dim, sizeof(float));
+    if (v != NULL && axis < dim) {
+        v[axis] = 1.0f;
+    }
+    return v;
+}
+
+int index_provider_harness_run(const char *test_label, const cberg_index_config *cfg, const char *path, size_t dim) {
     label = test_label;
     failures = 0;
 
-    float v10[DIM] = {1, 0, 0, 0};
-    float v20[DIM] = {0, 1, 0, 0};
-    float v30[DIM] = {0, 0, 1, 0};
+    if (dim == 0) {
+        fprintf(stderr, "FAIL [%s]: dim must be > 0\n", label);
+        return 1;
+    }
+
+    float *v10 = unit_vector(dim, 0);
+    float *v20 = unit_vector(dim, dim > 1 ? 1 : 0);
+    float *v30 = unit_vector(dim, dim > 2 ? 2 : 0);
+    if (v10 == NULL || v20 == NULL || v30 == NULL) {
+        free(v10);
+        free(v20);
+        free(v30);
+        fprintf(stderr, "FAIL [%s]: out of memory for test vectors\n", label);
+        return 1;
+    }
 
     cberg_index *idx = NULL;
-    cberg_status st = cberg_index_open(path, DIM, cfg, &idx);
+    cberg_status st = cberg_index_open(path, dim, cfg, &idx);
     CHECK(st == CBERG_OK && idx != NULL, "index opens");
     if (idx == NULL) {
+        free(v10);
+        free(v20);
+        free(v30);
         return failures > 0 ? failures : 1;
     }
 
@@ -38,21 +59,42 @@ int index_provider_harness_run(const char *test_label, const cberg_index_config 
     CHECK(cberg_index_add(idx, 20, v20) == CBERG_OK, "add 20");
     CHECK(cberg_index_add(idx, 30, v30) == CBERG_OK, "add 30");
 
-    uint64_t ids[3];
-    float scores[3];
+    uint64_t *ids = calloc(dim > 3 ? dim : 3, sizeof(uint64_t));
+    float *scores = calloc(dim > 3 ? dim : 3, sizeof(float));
+    float *query = calloc(dim, sizeof(float));
+    if (ids == NULL || scores == NULL || query == NULL) {
+        cberg_index_close(idx);
+        free(v10);
+        free(v20);
+        free(v30);
+        free(ids);
+        free(scores);
+        free(query);
+        return failures > 0 ? failures : 1;
+    }
+    if (dim > 0) {
+        query[0] = 0.9f;
+    }
+    if (dim > 1) {
+        query[1] = 0.1f;
+    }
+
     size_t found = 0;
-    float query[DIM] = {0.9f, 0.1f, 0.0f, 0.0f};
     st = cberg_index_search(idx, query, 2, NULL, ids, scores, &found);
     CHECK(st == CBERG_OK, "search ok");
     CHECK(found >= 1, "search found results");
     CHECK(found >= 1 && ids[0] == 10, "nearest to v10 is id 10");
     CHECK(found >= 2 && scores[0] >= scores[1], "scores descending");
 
-    float v10b[DIM] = {0, 0, 0, 1};
-    CHECK(cberg_index_add(idx, 10, v10b) == CBERG_OK, "replace 10");
-    float query_w[DIM] = {0, 0, 0, 1};
-    st = cberg_index_search(idx, query_w, 1, NULL, ids, scores, &found);
-    CHECK(st == CBERG_OK && found >= 1 && ids[0] == 10, "replaced vector searchable");
+    float *v10b = unit_vector(dim, dim - 1);
+    if (v10b != NULL) {
+        CHECK(cberg_index_add(idx, 10, v10b) == CBERG_OK, "replace 10");
+        st = cberg_index_search(idx, v10b, 1, NULL, ids, scores, &found);
+        CHECK(st == CBERG_OK && found >= 1 && ids[0] == 10, "replaced vector searchable");
+        free(v10b);
+    } else {
+        CHECK(0, "replace vector alloc");
+    }
 
     CHECK(cberg_index_remove(idx, 20) == CBERG_OK, "remove 20");
     CHECK(cberg_index_remove(idx, 20) == CBERG_ERR_NOT_FOUND, "remove absent -> NOT_FOUND");
@@ -62,7 +104,7 @@ int index_provider_harness_run(const char *test_label, const cberg_index_config 
     idx = NULL;
 
     cberg_index *idx2 = NULL;
-    st = cberg_index_open(path, DIM, cfg, &idx2);
+    st = cberg_index_open(path, dim, cfg, &idx2);
     CHECK(st == CBERG_OK && idx2 != NULL, "reopen after save");
     if (idx2 != NULL) {
         st = cberg_index_search(idx2, v30, 1, NULL, ids, scores, &found);
@@ -74,8 +116,8 @@ int index_provider_harness_run(const char *test_label, const cberg_index_config 
         idx2 = NULL;
     }
 
-    CHECK(cberg_index_wipe(path, DIM, cfg) == CBERG_OK, "wipe");
-    st = cberg_index_open(path, DIM, cfg, &idx);
+    CHECK(cberg_index_wipe(path, dim, cfg) == CBERG_OK, "wipe");
+    st = cberg_index_open(path, dim, cfg, &idx);
     CHECK(st == CBERG_OK && idx != NULL, "reopen after wipe");
     if (idx != NULL) {
         CHECK(cberg_index_add(idx, 99, v10) == CBERG_OK, "add after wipe");
@@ -87,6 +129,13 @@ int index_provider_harness_run(const char *test_label, const cberg_index_config 
     if (cfg != NULL && cfg->provider == CBERG_INDEX_USEARCH) {
         remove(path);
     }
+
+    free(v10);
+    free(v20);
+    free(v30);
+    free(ids);
+    free(scores);
+    free(query);
 
     return failures;
 }
