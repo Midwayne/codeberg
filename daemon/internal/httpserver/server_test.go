@@ -18,6 +18,7 @@ type fakeIndexer struct {
 	status  indexctl.Status
 	hits    []indexctl.SearchResult
 	gotOpts indexctl.SearchOptions
+	getChunk func(context.Context, string, uint64) (indexctl.ChunkDetail, error)
 }
 
 func (f *fakeIndexer) Status(context.Context) (indexctl.Status, error) {
@@ -29,7 +30,10 @@ func (f *fakeIndexer) Search(_ context.Context, opts indexctl.SearchOptions) ([]
 	return f.hits, nil
 }
 
-func (f *fakeIndexer) GetChunk(context.Context, string, uint64) (indexctl.ChunkDetail, error) {
+func (f *fakeIndexer) GetChunk(ctx context.Context, repo string, id uint64) (indexctl.ChunkDetail, error) {
+	if f.getChunk != nil {
+		return f.getChunk(ctx, repo, id)
+	}
 	return indexctl.ChunkDetail{}, nil
 }
 
@@ -192,6 +196,85 @@ func TestCallPipeTool(t *testing.T) {
 	defer res2.Body.Close()
 	if res2.StatusCode != http.StatusBadRequest {
 		t.Fatalf("unsafe pipe status %d, want 400", res2.StatusCode)
+	}
+}
+
+func TestSearchInvalidMinScore(t *testing.T) {
+	idx := &fakeIndexer{}
+	ws := testutil.WsSingle(t.TempDir())
+	srv := New(idx, tools.Default(ws, idx))
+	ts := httptest.NewServer(srv.Handler())
+	t.Cleanup(ts.Close)
+
+	res, err := http.Get(ts.URL + "/search?q=test&min_score=not-a-number")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status %d", res.StatusCode)
+	}
+	var body struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Code != "INVALID_MIN_SCORE" {
+		t.Fatalf("code %q", body.Code)
+	}
+}
+
+func TestCallToolForbiddenPath(t *testing.T) {
+	root := t.TempDir()
+	idx := &fakeIndexer{status: indexctl.Status{Ready: true}}
+	ws := testutil.WsSingle(root)
+	srv := New(idx, tools.Default(ws, idx))
+	ts := httptest.NewServer(srv.Handler())
+	t.Cleanup(ts.Close)
+
+	payload := map[string]any{"name": "read_file", "args": map[string]any{"path": "../etc/passwd"}}
+	b, _ := json.Marshal(payload)
+	res, err := http.Post(ts.URL+"/tools/call", "application/json", bytes.NewReader(b))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusForbidden {
+		t.Fatalf("status %d want 403", res.StatusCode)
+	}
+}
+
+func TestCallToolGetChunk(t *testing.T) {
+	idx := &fakeIndexer{
+		status: indexctl.Status{Ready: true},
+	}
+	idx.getChunk = func(_ context.Context, repo string, id uint64) (indexctl.ChunkDetail, error) {
+		return indexctl.ChunkDetail{ID: id, Repo: repo, Path: "a.go", Body: "func main(){}"}, nil
+	}
+	ws := testutil.WsSingle(t.TempDir())
+	srv := New(idx, tools.Default(ws, idx))
+	ts := httptest.NewServer(srv.Handler())
+	t.Cleanup(ts.Close)
+
+	payload := map[string]any{"name": "get_chunk", "args": map[string]any{"repo": "main", "id": 42}}
+	b, _ := json.Marshal(payload)
+	res, err := http.Post(ts.URL+"/tools/call", "application/json", bytes.NewReader(b))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status %d", res.StatusCode)
+	}
+	var body struct {
+		Result indexctl.ChunkDetail `json:"result"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Result.ID != 42 || body.Result.Body == "" {
+		t.Fatalf("get_chunk result: %+v", body.Result)
 	}
 }
 

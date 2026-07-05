@@ -42,6 +42,32 @@ describe("DaemonClient", () => {
     ]);
   });
 
+  it("search forwards filter query params and normalizes repo", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      expect(url.searchParams.get("q")).toBe("auth");
+      expect(url.searchParams.get("k")).toBe("5");
+      expect(url.searchParams.get("repo")).toBe("alpha");
+      expect(url.searchParams.get("path_glob")).toBe("daemon/*");
+      expect(url.searchParams.get("kind")).toBe("function");
+      expect(url.searchParams.get("min_score")).toBe("0.8");
+      return Response.json({
+        results: [{ id: 1, repo: "alpha", path: "a.go", score: 0.9, start_line: 1, end_line: 2 }],
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new DaemonClient("http://127.0.0.1:8080");
+    const hits = await client.search("auth", {
+      k: 5,
+      repo: "alpha",
+      path_glob: "daemon/*",
+      kind: "function",
+      min_score: 0.8,
+    });
+    expect(hits[0]?.repo).toBe("alpha");
+  });
+
   it("listTools maps specs", async () => {
     vi.stubGlobal(
       "fetch",

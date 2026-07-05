@@ -63,4 +63,21 @@ describe("searchCodeSource", () => {
       { id: 1, repo: "alpha", path: "f1.ts", symbol: "s1", lines: "1-2", score: 1, snippet: "code" },
     ]);
   });
+
+  it("forwards search filters to the daemon", async () => {
+    const daemon = { search: vi.fn(async () => []) } as unknown as DaemonClient;
+    const source = searchCodeSource({ daemon, defaultK: 8, onResults: () => {} });
+    await run((await source.tools()).search_code, {
+      query: "auth",
+      path_glob: "daemon/*",
+      kind: "function",
+      min_score: 0.7,
+    });
+    expect(daemon.search).toHaveBeenCalledWith("auth", {
+      k: 8,
+      path_glob: "daemon/*",
+      kind: "function",
+      min_score: 0.7,
+    });
+  });
 });
