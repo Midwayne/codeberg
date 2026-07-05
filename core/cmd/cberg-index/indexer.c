@@ -976,10 +976,10 @@ cberg_status cberg_engine_open(cberg_engine *eng) {
     }
 
     if (eng->vectors) {
-        eng->compact_enabled = 1;
+        eng->compact_enabled = 0;
         const char *compact = getenv("CBERG_INDEX_COMPACT");
-        if (compact != NULL && (compact[0] == '0' || compact[0] == 'n' || compact[0] == 'N')) {
-            eng->compact_enabled = 0;
+        if (compact != NULL && compact[0] != '\0' && compact[0] != '0' && compact[0] != 'n' && compact[0] != 'N') {
+            eng->compact_enabled = 1;
         }
         eng->compact_idle_ms = 60000;
         const char *idle = getenv("CBERG_INDEX_COMPACT_IDLE_MS");

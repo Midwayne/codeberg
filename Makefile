@@ -56,7 +56,7 @@ help:
 	@echo "    make run-agent-tui          Interactive agent chat (follow-ups)  [agent/.env]"
 	@echo "    make run-agent-web          Serve the browser chat UI (codeberg-web)  [agent/.env]"
 	@echo "  Test"
-	@echo "    make bench                Run core micro-benchmarks (strmap, u64map, chunk_table, fingerprint)"
+	@echo "    make bench                Run core micro-benchmarks (strmap, u64map, chunk_table, fingerprint, search)"
 	@echo "    make test                 Run all core tests (ctest)"
 	@echo "    make test TEST=<name>     Run one test (test_smoke test_chunker …)"
 	@echo "    make daemon-test          Run Go tests in daemon/"
@@ -84,7 +84,7 @@ build-core:
 build: build-core
 
 bench: build-core
-	@for b in bench_strmap bench_u64map bench_chunk_table bench_fingerprint; do \
+	@for b in bench_strmap bench_u64map bench_chunk_table bench_fingerprint bench_search; do \
 	  echo "=== $$b ==="; \
 	  $(BUILD)/bench/$$b || exit 1; \
 	done
