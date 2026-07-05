@@ -1,4 +1,5 @@
-#include "index_internal.h"
+#include "../provider.h"
+#include "../common.h"
 
 #ifdef CBERG_WITH_USEARCH
 
@@ -164,8 +165,8 @@ static cberg_status usearch_backend_clear(void *impl) {
     return CBERG_OK;
 }
 
-cberg_status cberg_index_usearch_open(const char *path, size_t dim, const cberg_index_config *config,
-                                      cberg_index_backend **out_backend) {
+static cberg_status usearch_open(const char *path, size_t dim, const cberg_index_config *config,
+                                 cberg_index_backend **out_backend) {
     if (path == NULL || dim == 0 || out_backend == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
@@ -218,26 +219,39 @@ cberg_status cberg_index_usearch_open(const char *path, size_t dim, const cberg_
         return CBERG_ERR_OUT_OF_MEMORY;
     }
 
-    cberg_index_backend *backend = calloc(1, sizeof(*backend));
+    cberg_index_backend *backend =
+        cberg_index_backend_new(b, usearch_backend_destroy, usearch_backend_add, usearch_backend_remove,
+                                usearch_backend_search, usearch_backend_save, usearch_backend_clear);
     if (backend == NULL) {
         usearch_backend_destroy(b);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
-    backend->impl = b;
-    backend->destroy = usearch_backend_destroy;
-    backend->add = usearch_backend_add;
-    backend->remove = usearch_backend_remove;
-    backend->search = usearch_backend_search;
-    backend->save = usearch_backend_save;
-    backend->clear = usearch_backend_clear;
     *out_backend = backend;
     return CBERG_OK;
 }
 
+static cberg_status usearch_wipe(const char *path, size_t dim, const cberg_index_config *config) {
+    (void)dim;
+    (void)config;
+    if (path == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    remove(path);
+    return CBERG_OK;
+}
+
+const cberg_index_provider_ops cberg_usearch_provider = {
+    .id = CBERG_INDEX_USEARCH,
+    .name = "usearch",
+    .rebuild_inplace = 0,
+    .open = usearch_open,
+    .wipe = usearch_wipe,
+};
+
 #else /* !CBERG_WITH_USEARCH */
 
-cberg_status cberg_index_usearch_open(const char *path, size_t dim, const cberg_index_config *config,
-                                      cberg_index_backend **out_backend) {
+static cberg_status usearch_open(const char *path, size_t dim, const cberg_index_config *config,
+                                 cberg_index_backend **out_backend) {
     (void)path;
     (void)dim;
     (void)config;
@@ -246,5 +260,20 @@ cberg_status cberg_index_usearch_open(const char *path, size_t dim, const cberg_
     }
     return CBERG_ERR_NOT_IMPLEMENTED;
 }
+
+static cberg_status usearch_wipe(const char *path, size_t dim, const cberg_index_config *config) {
+    (void)path;
+    (void)dim;
+    (void)config;
+    return CBERG_ERR_NOT_IMPLEMENTED;
+}
+
+const cberg_index_provider_ops cberg_usearch_provider = {
+    .id = CBERG_INDEX_USEARCH,
+    .name = "usearch",
+    .rebuild_inplace = 0,
+    .open = usearch_open,
+    .wipe = usearch_wipe,
+};
 
 #endif /* CBERG_WITH_USEARCH */

@@ -52,6 +52,7 @@ struct cberg_engine {
     cberg_index_config index_cfg;
     char *vectordb_url;
     char *vectordb_api_key;
+    char *postgres_url;
 
     cberg_chunker *chunker;   /* main (bootstrap/watch) thread only */
     cberg_embedder *embedder; /* ONE per process; call only via engine_embed */

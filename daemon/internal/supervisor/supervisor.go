@@ -73,6 +73,9 @@ func (s *Supervisor) spawn(ctx context.Context, bin string) error {
 	if s.cfg.VectorDBKey != "" {
 		cmd.Env = append(cmd.Env, config.EnvVectorDBKey+"="+s.cfg.VectorDBKey)
 	}
+	if s.cfg.PostgresURL != "" {
+		cmd.Env = append(cmd.Env, config.EnvPostgresURL+"="+s.cfg.PostgresURL)
+	}
 
 	s.cmd = cmd
 	return cmd.Start()

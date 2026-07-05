@@ -396,12 +396,14 @@ typedef struct cberg_index cberg_index;
 typedef enum cberg_index_provider {
     CBERG_INDEX_USEARCH = 0,
     CBERG_INDEX_QDRANT = 1,
+    CBERG_INDEX_PGVECTOR = 2,
 } cberg_index_provider;
 
 typedef struct cberg_index_config {
     cberg_index_provider provider;
     const char *vectordb_url;     /* Qdrant: base URL, e.g. https://host:6333 */
     const char *vectordb_api_key; /* Qdrant: optional api-key header */
+    const char *postgres_url;     /* pgvector: libpq connection string */
     size_t connectivity;          /* usearch HNSW graph degree (default 16) */
     size_t expansion_add;         /* usearch ef during insert (default 128) */
     size_t expansion_search;      /* usearch ef during search (default 64) */
@@ -411,10 +413,17 @@ typedef struct cberg_index_config {
 CBERG_API void cberg_index_config_default(cberg_index_config *config);
 
 /*
+ * Parses a backend name from CBERG_INDEX_BACKEND (usearch, qdrant, pgvector; postgres
+ * is an alias for pgvector). Returns CBERG_ERR_INVALID_ARGUMENT when unknown.
+ */
+CBERG_API cberg_status cberg_index_provider_from_name(const char *name, cberg_index_provider *out_provider);
+
+/*
  * Opens a cosine vector index of dimension `dim` keyed by `path`.
  * usearch: `path` is the on-disk index file (created if absent).
- * Qdrant: `path` identifies the collection (derived name); vectors live in
- * `config->vectordb_url`. Chunk sidecars still use `path` as a local identity.
+ * Remote providers (qdrant, pgvector): `path` identifies the collection/table;
+ * vectors live at `config->vectordb_url` or `config->postgres_url`. Chunk
+ * sidecars still use `path` as a local identity.
  */
 CBERG_API cberg_status cberg_index_open(const char *path, size_t dim, const cberg_index_config *config,
                                         cberg_index **out_index);

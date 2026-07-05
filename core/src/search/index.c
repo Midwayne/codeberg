@@ -1,21 +1,11 @@
 #include "codeberg/codeberg.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "index_internal.h"
+#include "providers/provider.h"
+#include "providers/registry.h"
 #include "strutil.h"
-
-void cberg_index_backend_close(cberg_index_backend *backend) {
-    if (backend == NULL) {
-        return;
-    }
-    if (backend->destroy != NULL) {
-        backend->destroy(backend->impl);
-    }
-    free(backend);
-}
 
 cberg_status cberg_index_open(const char *path, size_t dim, const cberg_index_config *config, cberg_index **out_index) {
     if (path == NULL || dim == 0 || out_index == NULL) {
@@ -28,17 +18,7 @@ cberg_status cberg_index_open(const char *path, size_t dim, const cberg_index_co
     const cberg_index_config *cfg = config != NULL ? config : &defaults;
 
     cberg_index_backend *backend = NULL;
-    cberg_status st;
-    switch (cfg->provider) {
-    case CBERG_INDEX_USEARCH:
-        st = cberg_index_usearch_open(path, dim, cfg, &backend);
-        break;
-    case CBERG_INDEX_QDRANT:
-        st = cberg_index_qdrant_open(path, dim, cfg, &backend);
-        break;
-    default:
-        return CBERG_ERR_INVALID_ARGUMENT;
-    }
+    cberg_status st = cberg_index_provider_open(cfg->provider, path, dim, cfg, &backend);
     if (st != CBERG_OK) {
         return st;
     }
@@ -109,15 +89,19 @@ cberg_status cberg_index_wipe(const char *path, size_t dim, const cberg_index_co
     cberg_index_config defaults;
     cberg_index_config_default(&defaults);
     const cberg_index_config *cfg = config != NULL ? config : &defaults;
-    switch (cfg->provider) {
-    case CBERG_INDEX_USEARCH:
-        remove(path);
-        return CBERG_OK;
-    case CBERG_INDEX_QDRANT:
-        return cberg_index_qdrant_wipe(path, cfg);
-    default:
+    return cberg_index_provider_wipe(cfg->provider, path, dim, cfg);
+}
+
+cberg_status cberg_index_provider_from_name(const char *name, cberg_index_provider *out_provider) {
+    if (out_provider == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
+    int id = cberg_index_provider_parse(name);
+    if (id < 0) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    *out_provider = (cberg_index_provider)id;
+    return CBERG_OK;
 }
 
 void cberg_index_close(cberg_index *index) {

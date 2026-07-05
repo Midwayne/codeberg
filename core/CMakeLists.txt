@@ -147,14 +147,31 @@ else()
   message(FATAL_ERROR "usearch submodule missing; run: git submodule update --init --recursive")
 endif()
 
-list(APPEND CBERG_SOURCES src/search/index.c src/search/index_usearch.c src/search/index_qdrant.c src/search/http_client.c)
+list(APPEND CBERG_SOURCES
+  src/search/index.c
+  src/search/providers/provider.c
+  src/search/providers/common.c
+  src/search/providers/registry.c
+  src/search/providers/usearch/usearch.c
+  src/search/providers/qdrant/qdrant.c
+  src/search/providers/qdrant/http_client.c
+  src/search/providers/pgvector/pgvector.c
+)
 
 find_package(CURL)
 if(CURL_FOUND)
   set(CBERG_WITH_CURL ON)
-  message(STATUS "codeberg: libcurl enabled for vectordb HTTPS (${CURL_LIBRARIES})")
+  message(STATUS "codeberg: libcurl enabled for qdrant HTTPS (${CURL_LIBRARIES})")
 else()
-  message(STATUS "codeberg: libcurl not found; vectordb backend supports http:// only")
+  message(STATUS "codeberg: libcurl not found; qdrant backend supports http:// only")
+endif()
+
+find_package(PostgreSQL)
+if(PostgreSQL_FOUND)
+  set(CBERG_WITH_PGVECTOR ON)
+  message(STATUS "codeberg: pgvector backend enabled (${PostgreSQL_LIBRARIES})")
+else()
+  message(STATUS "codeberg: PostgreSQL/libpq not found; pgvector backend disabled")
 endif()
 
 add_library(codeberg_obj OBJECT ${CBERG_SOURCES})
@@ -186,6 +203,11 @@ if(CBERG_WITH_CURL)
   target_link_libraries(codeberg_obj PUBLIC ${CURL_LIBRARIES})
   target_include_directories(codeberg_obj PRIVATE ${CURL_INCLUDE_DIRS})
 endif()
+if(CBERG_WITH_PGVECTOR)
+  target_compile_definitions(codeberg_obj PRIVATE CBERG_WITH_PGVECTOR)
+  target_link_libraries(codeberg_obj PUBLIC PostgreSQL::PostgreSQL)
+  target_include_directories(codeberg_obj PRIVATE ${PostgreSQL_INCLUDE_DIRS})
+endif()
 
 set(CBERG_ALL_OBJECTS
   $<TARGET_OBJECTS:codeberg_obj>
@@ -210,6 +232,9 @@ foreach(lib codeberg_static codeberg_shared)
   endif()
   if(CBERG_WITH_CURL)
     target_link_libraries(${lib} PUBLIC ${CURL_LIBRARIES})
+  endif()
+  if(CBERG_WITH_PGVECTOR)
+    target_link_libraries(${lib} PUBLIC PostgreSQL::PostgreSQL)
   endif()
   if(APPLE)
     target_link_libraries(${lib} PUBLIC "-framework CoreServices" "-lc++")

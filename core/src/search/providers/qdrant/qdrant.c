@@ -1,4 +1,5 @@
-#include "index_internal.h"
+#include "../provider.h"
+#include "../common.h"
 
 #include "http_client.h"
 
@@ -6,7 +7,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "codeberg/codeberg.h"
 #include "strutil.h"
 
 typedef struct qdrant_backend {
@@ -31,25 +31,6 @@ static char *join_url(const char *base, const char *suffix) {
         snprintf(out, need, "%s/%s", base, suffix);
     }
     return out;
-}
-
-static char *collection_name_from_path(const char *path) {
-    static const char hex[] = "0123456789abcdef";
-    uint8_t h[CBERG_HASH_LEN];
-    if (cberg_hash(path, strlen(path), h) != CBERG_OK) {
-        memset(h, 0, sizeof(h));
-    }
-    char *name = malloc(26);
-    if (name == NULL) {
-        return NULL;
-    }
-    memcpy(name, "codeberg_", 9);
-    for (size_t i = 0; i < 8; i++) {
-        name[9 + 2 * i] = hex[h[i] >> 4];
-        name[9 + 2 * i + 1] = hex[h[i] & 0x0F];
-    }
-    name[25] = '\0';
-    return name;
 }
 
 static int json_find_int(const char *body, const char *key, int *out) {
@@ -78,7 +59,7 @@ static void qdrant_backend_destroy(void *impl) {
 }
 
 static cberg_status qdrant_request(qdrant_backend *b, const char *method, const char *suffix, const char *body,
-                                   size_t body_len, int *out_status, char **out_body, size_t *out_body_len) {
+                                   size_t body_len, int *out_status, char **out_body) {
     char *url = join_url(b->base_url, suffix);
     if (url == NULL) {
         return CBERG_ERR_OUT_OF_MEMORY;
@@ -98,9 +79,6 @@ static cberg_status qdrant_request(qdrant_backend *b, const char *method, const 
     } else {
         free(resp.body);
     }
-    if (out_body_len != NULL) {
-        *out_body_len = resp.body_len;
-    }
     return CBERG_OK;
 }
 
@@ -108,7 +86,7 @@ static cberg_status qdrant_delete_collection(qdrant_backend *b) {
     char suffix[512];
     snprintf(suffix, sizeof suffix, "collections/%s", b->collection);
     int status = 0;
-    cberg_status st = qdrant_request(b, "DELETE", suffix, NULL, 0, &status, NULL, NULL);
+    cberg_status st = qdrant_request(b, "DELETE", suffix, NULL, 0, &status, NULL);
     if (st != CBERG_OK) {
         return st;
     }
@@ -125,11 +103,9 @@ static cberg_status qdrant_create_collection(qdrant_backend *b) {
     char suffix[512];
     snprintf(suffix, sizeof suffix, "collections/%s", b->collection);
     char body[256];
-    snprintf(body, sizeof body,
-             "{\"vectors\":{\"size\":%zu,\"distance\":\"Cosine\"}}",
-             b->dim);
+    snprintf(body, sizeof body, "{\"vectors\":{\"size\":%zu,\"distance\":\"Cosine\"}}", b->dim);
     int status = 0;
-    cberg_status st = qdrant_request(b, "PUT", suffix, body, strlen(body), &status, NULL, NULL);
+    cberg_status st = qdrant_request(b, "PUT", suffix, body, strlen(body), &status, NULL);
     if (st != CBERG_OK) {
         return st;
     }
@@ -147,7 +123,7 @@ static cberg_status qdrant_validate_collection(qdrant_backend *b) {
     snprintf(suffix, sizeof suffix, "collections/%s", b->collection);
     int status = 0;
     char *body = NULL;
-    cberg_status st = qdrant_request(b, "GET", suffix, NULL, 0, &status, &body, NULL);
+    cberg_status st = qdrant_request(b, "GET", suffix, NULL, 0, &status, &body);
     if (st != CBERG_OK) {
         return st;
     }
@@ -204,7 +180,7 @@ static cberg_status qdrant_backend_add(void *impl, uint64_t id, const float *vec
     pos += (size_t)snprintf(body + pos, vec_cap - pos, "]}]}");
 
     int status = 0;
-    cberg_status st = qdrant_request(b, "PUT", suffix, body, pos, &status, NULL, NULL);
+    cberg_status st = qdrant_request(b, "PUT", suffix, body, pos, &status, NULL);
     free(body);
     if (st != CBERG_OK) {
         return st;
@@ -225,7 +201,7 @@ static cberg_status qdrant_backend_remove(void *impl, uint64_t id) {
     char body[64];
     snprintf(body, sizeof body, "{\"points\":[%llu]}", (unsigned long long)id);
     int status = 0;
-    cberg_status st = qdrant_request(b, "POST", suffix, body, strlen(body), &status, NULL, NULL);
+    cberg_status st = qdrant_request(b, "POST", suffix, body, strlen(body), &status, NULL);
     if (st != CBERG_OK) {
         return st;
     }
@@ -268,7 +244,7 @@ static cberg_status qdrant_backend_search(void *impl, const float *query, size_t
 
     int status = 0;
     char *resp_body = NULL;
-    cberg_status st = qdrant_request(b, "POST", suffix, body, pos, &status, &resp_body, NULL);
+    cberg_status st = qdrant_request(b, "POST", suffix, body, pos, &status, &resp_body);
     free(body);
     if (st != CBERG_OK) {
         return st;
@@ -291,8 +267,7 @@ static cberg_status qdrant_backend_search(void *impl, const float *query, size_t
         if (sscanf(id_key + 5, "%llu", &rid) != 1) {
             break;
         }
-        const char *sp = score_key + 8;
-        if (sscanf(sp, "%f", &score) != 1) {
+        if (sscanf(score_key + 8, "%f", &score) != 1) {
             break;
         }
         out_ids[found] = (uint64_t)rid;
@@ -322,8 +297,8 @@ static cberg_status qdrant_backend_clear(void *impl) {
     return qdrant_create_collection(b);
 }
 
-cberg_status cberg_index_qdrant_open(const char *path, size_t dim, const cberg_index_config *config,
-                                     cberg_index_backend **out_backend) {
+static cberg_status qdrant_open(const char *path, size_t dim, const cberg_index_config *config,
+                                cberg_index_backend **out_backend) {
     if (path == NULL || dim == 0 || config == NULL || config->vectordb_url == NULL || config->vectordb_url[0] == '\0' ||
         out_backend == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
@@ -342,7 +317,7 @@ cberg_status cberg_index_qdrant_open(const char *path, size_t dim, const cberg_i
     }
     b->dim = dim;
     b->base_url = cberg_strdup(config->vectordb_url);
-    b->collection = collection_name_from_path(path);
+    b->collection = cberg_provider_name_from_path(path);
     if (config->vectordb_api_key != NULL && config->vectordb_api_key[0] != '\0') {
         b->api_key = cberg_strdup(config->vectordb_api_key);
     }
@@ -357,30 +332,26 @@ cberg_status cberg_index_qdrant_open(const char *path, size_t dim, const cberg_i
         return st;
     }
 
-    cberg_index_backend *backend = calloc(1, sizeof(*backend));
+    cberg_index_backend *backend =
+        cberg_index_backend_new(b, qdrant_backend_destroy, qdrant_backend_add, qdrant_backend_remove,
+                                qdrant_backend_search, qdrant_backend_save, qdrant_backend_clear);
     if (backend == NULL) {
         qdrant_backend_destroy(b);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
-    backend->impl = b;
-    backend->destroy = qdrant_backend_destroy;
-    backend->add = qdrant_backend_add;
-    backend->remove = qdrant_backend_remove;
-    backend->search = qdrant_backend_search;
-    backend->save = qdrant_backend_save;
-    backend->clear = qdrant_backend_clear;
     *out_backend = backend;
     return CBERG_OK;
 }
 
-cberg_status cberg_index_qdrant_wipe(const char *path, const cberg_index_config *config) {
+static cberg_status qdrant_wipe(const char *path, size_t dim, const cberg_index_config *config) {
+    (void)dim;
     if (path == NULL || config == NULL || config->vectordb_url == NULL || config->vectordb_url[0] == '\0') {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     qdrant_backend b = {0};
     b.base_url = (char *)config->vectordb_url;
     b.api_key = (char *)(config->vectordb_api_key != NULL ? config->vectordb_api_key : "");
-    b.collection = collection_name_from_path(path);
+    b.collection = cberg_provider_name_from_path(path);
     if (b.collection == NULL) {
         return CBERG_ERR_OUT_OF_MEMORY;
     }
@@ -388,3 +359,11 @@ cberg_status cberg_index_qdrant_wipe(const char *path, const cberg_index_config 
     free(b.collection);
     return st;
 }
+
+const cberg_index_provider_ops cberg_qdrant_provider = {
+    .id = CBERG_INDEX_QDRANT,
+    .name = "qdrant",
+    .rebuild_inplace = 1,
+    .open = qdrant_open,
+    .wipe = qdrant_wipe,
+};

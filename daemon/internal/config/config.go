@@ -19,6 +19,7 @@ const (
 	EnvIndexBackend = "CBERG_INDEX_BACKEND"
 	EnvVectorDBURL  = "CBERG_VECTORDB_URL"
 	EnvVectorDBKey  = "CBERG_VECTORDB_API_KEY"
+	EnvPostgresURL  = "CBERG_POSTGRES_URL"
 	EnvPollMS     = "CBERG_POLL_MS"
 	EnvSocket     = "CBERG_SOCKET"
 	EnvIndexerBin = "CBERG_INDEX_BIN"
@@ -41,6 +42,7 @@ type Indexer struct {
 	IndexBackend string
 	VectorDBURL  string
 	VectorDBKey  string
+	PostgresURL  string
 	PollMS     int
 	Socket     string
 	Bin        string
@@ -96,6 +98,7 @@ func loadIndexer() (Indexer, error) {
 	indexBackend := os.Getenv(EnvIndexBackend)
 	vectorDBURL := os.Getenv(EnvVectorDBURL)
 	vectorDBKey := os.Getenv(EnvVectorDBKey)
+	postgresURL := os.Getenv(EnvPostgresURL)
 	poll := 1000
 	if v := os.Getenv(EnvPollMS); v != "" {
 		n, err := strconv.Atoi(v)
@@ -120,6 +123,7 @@ func loadIndexer() (Indexer, error) {
 		IndexBackend: indexBackend,
 		VectorDBURL:  vectorDBURL,
 		VectorDBKey:  vectorDBKey,
+		PostgresURL:  postgresURL,
 		PollMS:     poll,
 		Socket:     socket,
 		Bin:        os.Getenv(EnvIndexerBin),

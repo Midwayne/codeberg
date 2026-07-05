@@ -437,7 +437,7 @@ static cberg_status rebuild_index(cberg_repo *r) {
     cberg_index *temp_idx = NULL;
     char temp[4096] = {0};
 
-    if (cfg->provider == CBERG_INDEX_QDRANT) {
+    if (cfg->provider != CBERG_INDEX_USEARCH) {
         cberg_status st = cberg_index_clear(r->index);
         if (st != CBERG_OK) {
             return st;
@@ -536,7 +536,7 @@ static cberg_status rebuild_index(cberg_repo *r) {
         i = end;
     }
 
-    if (cfg->provider == CBERG_INDEX_QDRANT) {
+    if (cfg->provider != CBERG_INDEX_USEARCH) {
         return cberg_index_save(r->index);
     }
 
@@ -931,7 +931,19 @@ cberg_status cberg_engine_open(cberg_engine *eng) {
         }
         cberg_index_config_default(&eng->index_cfg);
         const char *backend = getenv("CBERG_INDEX_BACKEND");
-        if (backend != NULL && strcasecmp(backend, "qdrant") == 0) {
+        if (backend != NULL && backend[0] != '\0') {
+            cberg_index_provider provider;
+            if (cberg_index_provider_from_name(backend, &provider) != CBERG_OK) {
+                fprintf(stderr,
+                        "cberg-index: unknown CBERG_INDEX_BACKEND '%s' "
+                        "(use: usearch, qdrant, pgvector, postgres)\n",
+                        backend);
+                cberg_engine_close(eng);
+                return CBERG_ERR_INVALID_ARGUMENT;
+            }
+            eng->index_cfg.provider = provider;
+        }
+        if (eng->index_cfg.provider == CBERG_INDEX_QDRANT) {
             const char *url = getenv("CBERG_VECTORDB_URL");
             if (url == NULL || url[0] == '\0') {
                 fprintf(stderr,
@@ -953,9 +965,23 @@ cberg_status cberg_engine_open(cberg_engine *eng) {
                     return CBERG_ERR_OUT_OF_MEMORY;
                 }
             }
-            eng->index_cfg.provider = CBERG_INDEX_QDRANT;
             eng->index_cfg.vectordb_url = eng->vectordb_url;
             eng->index_cfg.vectordb_api_key = eng->vectordb_api_key;
+        } else if (eng->index_cfg.provider == CBERG_INDEX_PGVECTOR) {
+            const char *url = getenv("CBERG_POSTGRES_URL");
+            if (url == NULL || url[0] == '\0') {
+                fprintf(stderr,
+                        "cberg-index: CBERG_POSTGRES_URL is required when CBERG_INDEX_BACKEND=pgvector\n"
+                        "  e.g. CBERG_POSTGRES_URL=postgresql://user:pass@host:5432/dbname\n");
+                cberg_engine_close(eng);
+                return CBERG_ERR_INVALID_ARGUMENT;
+            }
+            eng->postgres_url = strdup(url);
+            if (eng->postgres_url == NULL) {
+                cberg_engine_close(eng);
+                return CBERG_ERR_OUT_OF_MEMORY;
+            }
+            eng->index_cfg.postgres_url = eng->postgres_url;
         }
     }
 
@@ -1044,6 +1070,7 @@ void cberg_engine_close(cberg_engine *eng) {
     free(eng->index_base);
     free(eng->vectordb_url);
     free(eng->vectordb_api_key);
+    free(eng->postgres_url);
     free(eng->socket_path);
     pthread_mutex_destroy(&eng->embed_mu);
     memset(eng, 0, sizeof(*eng));
