@@ -431,15 +431,26 @@ static cberg_status rebuild_index(cberg_repo *r) {
         return CBERG_OK;
     }
 
-    char temp[4096];
-    snprintf(temp, sizeof(temp), "%s.rebuild", r->index_path);
-    unlink(temp);
-
     size_t dim = cberg_embedder_dim(r->eng->embedder);
+    const cberg_index_config *cfg = &r->eng->index_cfg;
+    cberg_index *target = r->index;
     cberg_index *temp_idx = NULL;
-    cberg_status st = cberg_index_open(temp, dim, NULL, &temp_idx);
-    if (st != CBERG_OK) {
-        return st;
+    char temp[4096] = {0};
+
+    if (cfg->provider == CBERG_INDEX_QDRANT) {
+        cberg_status st = cberg_index_clear(r->index);
+        if (st != CBERG_OK) {
+            return st;
+        }
+    } else {
+        snprintf(temp, sizeof(temp), "%s.rebuild", r->index_path);
+        unlink(temp);
+
+        cberg_status st = cberg_index_open(temp, dim, cfg, &temp_idx);
+        if (st != CBERG_OK) {
+            return st;
+        }
+        target = temp_idx;
     }
 
     size_t n = cberg_chunk_table_len(r->table);
@@ -454,13 +465,18 @@ static cberg_status rebuild_index(cberg_repo *r) {
         uint64_t *ids = calloc(batch_n, sizeof(*ids));
         file_cache fc = {0};
         size_t count = 0;
+        cberg_status st;
         if (texts == NULL || lens == NULL || ids == NULL) {
             st = CBERG_ERR_OUT_OF_MEMORY;
             free(texts);
             free(lens);
             free(ids);
-            cberg_index_close(temp_idx);
-            unlink(temp);
+            if (temp_idx != NULL) {
+                cberg_index_close(temp_idx);
+                if (temp[0] != '\0') {
+                    unlink(temp);
+                }
+            }
             return st;
         }
         for (size_t j = i; j < end; j++) {
@@ -474,8 +490,10 @@ static cberg_status rebuild_index(cberg_repo *r) {
                 free(texts);
                 free(lens);
                 free(ids);
-                cberg_index_close(temp_idx);
-                unlink(temp);
+                if (temp_idx != NULL) {
+                    cberg_index_close(temp_idx);
+                    unlink(temp);
+                }
                 return st;
             }
             ids[count] = sc->id;
@@ -489,17 +507,21 @@ static cberg_status rebuild_index(cberg_repo *r) {
             free(lens);
             if (st != CBERG_OK) {
                 free(ids);
-                cberg_index_close(temp_idx);
-                unlink(temp);
+                if (temp_idx != NULL) {
+                    cberg_index_close(temp_idx);
+                    unlink(temp);
+                }
                 return st;
             }
             for (size_t k = 0; k < count; k++) {
-                st = cberg_index_add(temp_idx, ids[k], vecs + k * dim);
+                st = cberg_index_add(target, ids[k], vecs + k * dim);
                 if (st != CBERG_OK) {
                     cberg_vectors_free(vecs);
                     free(ids);
-                    cberg_index_close(temp_idx);
-                    unlink(temp);
+                    if (temp_idx != NULL) {
+                        cberg_index_close(temp_idx);
+                        unlink(temp);
+                    }
                     return st;
                 }
             }
@@ -514,7 +536,11 @@ static cberg_status rebuild_index(cberg_repo *r) {
         i = end;
     }
 
-    st = cberg_index_save(temp_idx);
+    if (cfg->provider == CBERG_INDEX_QDRANT) {
+        return cberg_index_save(r->index);
+    }
+
+    cberg_status st = cberg_index_save(temp_idx);
     cberg_index_close(temp_idx);
     if (st != CBERG_OK) {
         unlink(temp);
@@ -525,10 +551,10 @@ static cberg_status rebuild_index(cberg_repo *r) {
     r->index = NULL;
     if (rename(temp, r->index_path) != 0) {
         st = CBERG_ERR_IO;
-        cberg_index_open(r->index_path, dim, NULL, &r->index);
+        cberg_index_open(r->index_path, dim, cfg, &r->index);
         return st;
     }
-    return cberg_index_open(r->index_path, dim, NULL, &r->index);
+    return cberg_index_open(r->index_path, dim, cfg, &r->index);
 }
 
 static cberg_status sync_table(cberg_repo *r, chunk_batch *batch) {
@@ -805,17 +831,17 @@ static cberg_status engine_add_repo(cberg_engine *eng, const char *key, const ch
         }
 
         size_t dim = cberg_embedder_dim(eng->embedder);
-        st = cberg_index_open(r->index_path, dim, NULL, &r->index);
+        st = cberg_index_open(r->index_path, dim, &eng->index_cfg, &r->index);
         if (st == CBERG_ERR_IO) {
-            /* The index file exists but won't load — corrupt, e.g. a save
-             * interrupted by a kill. Discard this directory's stale state (index
-             * + sidecars) and reindex from scratch rather than failing to start. */
+            /* The index exists but won't load — corrupt local file, unreachable
+             * vectordb, or a dimension mismatch. Discard this directory's stale
+             * state (index + sidecars) and reindex from scratch. */
             fprintf(stderr, "cberg-index[%s]: vector index '%s' is unreadable; discarding and reindexing\n", r->key,
                     r->index_path);
-            remove(r->index_path);
+            cberg_index_wipe(r->index_path, dim, &eng->index_cfg);
             remove(r->chunks_path);
             remove(r->manifest_path);
-            st = cberg_index_open(r->index_path, dim, NULL, &r->index);
+            st = cberg_index_open(r->index_path, dim, &eng->index_cfg, &r->index);
         }
         if (st != CBERG_OK) {
             fprintf(stderr, "cberg-index[%s]: failed to open vector index '%s': %s\n", r->key, r->index_path,
@@ -903,6 +929,34 @@ cberg_status cberg_engine_open(cberg_engine *eng) {
             cberg_engine_close(eng);
             return CBERG_ERR_OUT_OF_MEMORY;
         }
+        cberg_index_config_default(&eng->index_cfg);
+        const char *backend = getenv("CBERG_INDEX_BACKEND");
+        if (backend != NULL && strcasecmp(backend, "qdrant") == 0) {
+            const char *url = getenv("CBERG_VECTORDB_URL");
+            if (url == NULL || url[0] == '\0') {
+                fprintf(stderr,
+                        "cberg-index: CBERG_VECTORDB_URL is required when CBERG_INDEX_BACKEND=qdrant\n"
+                        "  e.g. CBERG_VECTORDB_URL=https://your-cluster.qdrant.io\n");
+                cberg_engine_close(eng);
+                return CBERG_ERR_INVALID_ARGUMENT;
+            }
+            eng->vectordb_url = strdup(url);
+            if (eng->vectordb_url == NULL) {
+                cberg_engine_close(eng);
+                return CBERG_ERR_OUT_OF_MEMORY;
+            }
+            const char *api_key = getenv("CBERG_VECTORDB_API_KEY");
+            if (api_key != NULL && api_key[0] != '\0') {
+                eng->vectordb_api_key = strdup(api_key);
+                if (eng->vectordb_api_key == NULL) {
+                    cberg_engine_close(eng);
+                    return CBERG_ERR_OUT_OF_MEMORY;
+                }
+            }
+            eng->index_cfg.provider = CBERG_INDEX_QDRANT;
+            eng->index_cfg.vectordb_url = eng->vectordb_url;
+            eng->index_cfg.vectordb_api_key = eng->vectordb_api_key;
+        }
     }
 
     eng->poll_ms = 1000;
@@ -988,6 +1042,8 @@ void cberg_engine_close(cberg_engine *eng) {
     }
     free(eng->model_path);
     free(eng->index_base);
+    free(eng->vectordb_url);
+    free(eng->vectordb_api_key);
     free(eng->socket_path);
     pthread_mutex_destroy(&eng->embed_mu);
     memset(eng, 0, sizeof(*eng));

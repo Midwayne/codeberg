@@ -1,35 +1,23 @@
 #include "codeberg/codeberg.h"
 
-#ifdef CBERG_WITH_USEARCH
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "usearch.h"
-
+#include "index_internal.h"
 #include "strutil.h"
 
-#define INITIAL_CAPACITY 1024
-
-struct cberg_index {
-    usearch_index_t idx;
-    size_t dim;
-    size_t expansion_search;
-    char *path;
-};
-
-static int file_exists(const char *path) {
-    FILE *f = fopen(path, "rb");
-    if (f == NULL) {
-        return 0;
+void cberg_index_backend_close(cberg_index_backend *backend) {
+    if (backend == NULL) {
+        return;
     }
-    fclose(f);
-    return 1;
+    if (backend->destroy != NULL) {
+        backend->destroy(backend->impl);
+    }
+    free(backend);
 }
 
-cberg_status cberg_index_open(const char *path, size_t dim, const cberg_index_config *config,
-                              cberg_index **out_index) {
+cberg_status cberg_index_open(const char *path, size_t dim, const cberg_index_config *config, cberg_index **out_index) {
     if (path == NULL || dim == 0 || out_index == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
@@ -39,48 +27,34 @@ cberg_status cberg_index_open(const char *path, size_t dim, const cberg_index_co
     cberg_index_config_default(&defaults);
     const cberg_index_config *cfg = config != NULL ? config : &defaults;
 
-    usearch_init_options_t opts;
-    memset(&opts, 0, sizeof(opts));
-    opts.metric_kind = usearch_metric_cos_k;
-    opts.quantization = usearch_scalar_f32_k;
-    opts.dimensions = dim;
-    opts.connectivity = cfg->connectivity;
-    opts.expansion_add = cfg->expansion_add;
-    opts.expansion_search = cfg->expansion_search;
-    opts.multi = false;
-
-    usearch_error_t err = NULL;
-    usearch_index_t idx = usearch_init(&opts, &err);
-    if (err != NULL || idx == NULL) {
-        return CBERG_ERR_INTERNAL;
+    cberg_index_backend *backend = NULL;
+    cberg_status st;
+    switch (cfg->provider) {
+    case CBERG_INDEX_USEARCH:
+        st = cberg_index_usearch_open(path, dim, cfg, &backend);
+        break;
+    case CBERG_INDEX_QDRANT:
+        st = cberg_index_qdrant_open(path, dim, cfg, &backend);
+        break;
+    default:
+        return CBERG_ERR_INVALID_ARGUMENT;
     }
-
-    if (file_exists(path)) {
-        usearch_load(idx, path, &err);
-        if (err != NULL) {
-            usearch_free(idx, &err);
-            return CBERG_ERR_IO;
-        }
-    } else {
-        usearch_reserve(idx, INITIAL_CAPACITY, &err);
-        if (err != NULL) {
-            usearch_free(idx, &err);
-            return CBERG_ERR_INTERNAL;
-        }
+    if (st != CBERG_OK) {
+        return st;
     }
 
     cberg_index *index = calloc(1, sizeof(*index));
     if (index == NULL) {
-        usearch_free(idx, &err);
+        cberg_index_backend_close(backend);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
-    index->idx = idx;
+    index->provider = cfg->provider;
     index->dim = dim;
     index->expansion_search = cfg->expansion_search;
     index->path = cberg_strdup(path);
+    index->backend = backend;
     if (index->path == NULL) {
-        usearch_free(idx, &err);
-        free(index);
+        cberg_index_close(index);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
     *out_index = index;
@@ -88,125 +62,69 @@ cberg_status cberg_index_open(const char *path, size_t dim, const cberg_index_co
 }
 
 cberg_status cberg_index_add(cberg_index *index, uint64_t id, const float *vector) {
-    if (index == NULL || vector == NULL) {
+    if (index == NULL || index->backend == NULL || vector == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
-    usearch_error_t err = NULL;
-
-    if (usearch_contains(index->idx, id, &err)) {
-        usearch_remove(index->idx, id, &err);
-        if (err != NULL) {
-            return CBERG_ERR_INTERNAL;
-        }
-    }
-
-    size_t size = usearch_size(index->idx, &err);
-    size_t capacity = usearch_capacity(index->idx, &err);
-    if (err != NULL) {
-        return CBERG_ERR_INTERNAL;
-    }
-    if (size >= capacity) {
-        size_t grown = capacity == 0 ? INITIAL_CAPACITY : capacity * 2;
-        usearch_reserve(index->idx, grown, &err);
-        if (err != NULL) {
-            return CBERG_ERR_INTERNAL;
-        }
-    }
-
-    usearch_add(index->idx, id, vector, usearch_scalar_f32_k, &err);
-    if (err != NULL) {
-        return CBERG_ERR_INTERNAL;
-    }
-    return CBERG_OK;
+    return index->backend->add(index->backend->impl, id, vector, index->dim);
 }
 
 cberg_status cberg_index_remove(cberg_index *index, uint64_t id) {
-    if (index == NULL) {
+    if (index == NULL || index->backend == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
-    usearch_error_t err = NULL;
-    if (!usearch_contains(index->idx, id, &err)) {
-        return CBERG_ERR_NOT_FOUND;
-    }
-    usearch_remove(index->idx, id, &err);
-    if (err != NULL) {
-        return CBERG_ERR_INTERNAL;
-    }
-    return CBERG_OK;
+    return index->backend->remove(index->backend->impl, id);
 }
 
 cberg_status cberg_index_search(cberg_index *index, const float *query, size_t k, const cberg_index_search_opts *opts,
                                 uint64_t *out_ids, float *out_scores, size_t *out_found) {
-    if (index == NULL || query == NULL || out_ids == NULL || out_scores == NULL || out_found == NULL) {
+    if (index == NULL || index->backend == NULL || query == NULL || out_ids == NULL || out_scores == NULL ||
+        out_found == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
-    *out_found = 0;
-    usearch_error_t err = NULL;
-
-    size_t prev_ef = index->expansion_search;
-    size_t query_ef = prev_ef;
+    size_t ef = index->expansion_search;
     if (opts != NULL && opts->expansion_search > 0) {
-        query_ef = opts->expansion_search;
+        ef = opts->expansion_search;
     }
-    if (query_ef != prev_ef) {
-        usearch_change_expansion_search(index->idx, query_ef, &err);
-        if (err != NULL) {
-            return CBERG_ERR_INTERNAL;
-        }
-    }
-
-    size_t found = usearch_search(index->idx, query, usearch_scalar_f32_k, k, out_ids, out_scores, &err);
-
-    if (query_ef != prev_ef) {
-        usearch_change_expansion_search(index->idx, prev_ef, &err);
-        if (err != NULL) {
-            return CBERG_ERR_INTERNAL;
-        }
-    }
-    if (err != NULL) {
-        return CBERG_ERR_INTERNAL;
-    }
-
-    for (size_t i = 0; i < found; i++) {
-        out_scores[i] = 1.0f - out_scores[i];
-    }
-    *out_found = found;
-    return CBERG_OK;
+    return index->backend->search(index->backend->impl, query, index->dim, k, ef, out_ids, out_scores, out_found);
 }
 
 cberg_status cberg_index_save(cberg_index *index) {
-    if (index == NULL) {
+    if (index == NULL || index->backend == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
-    /* Write to a temp file and rename into place so a save interrupted by a
-     * crash or kill leaves the previous index intact rather than a half-written,
-     * unloadable file. */
-    char tmp[4096];
-    int n = snprintf(tmp, sizeof tmp, "%s.tmp", index->path);
-    if (n < 0 || (size_t)n >= sizeof tmp) {
+    return index->backend->save(index->backend->impl);
+}
+
+cberg_status cberg_index_clear(cberg_index *index) {
+    if (index == NULL || index->backend == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
-    usearch_error_t err = NULL;
-    usearch_save(index->idx, tmp, &err);
-    if (err != NULL) {
-        remove(tmp);
-        return CBERG_ERR_IO;
+    return index->backend->clear(index->backend->impl);
+}
+
+cberg_status cberg_index_wipe(const char *path, size_t dim, const cberg_index_config *config) {
+    if (path == NULL || dim == 0) {
+        return CBERG_ERR_INVALID_ARGUMENT;
     }
-    if (rename(tmp, index->path) != 0) {
-        remove(tmp);
-        return CBERG_ERR_IO;
+    cberg_index_config defaults;
+    cberg_index_config_default(&defaults);
+    const cberg_index_config *cfg = config != NULL ? config : &defaults;
+    switch (cfg->provider) {
+    case CBERG_INDEX_USEARCH:
+        remove(path);
+        return CBERG_OK;
+    case CBERG_INDEX_QDRANT:
+        return cberg_index_qdrant_wipe(path, cfg);
+    default:
+        return CBERG_ERR_INVALID_ARGUMENT;
     }
-    return CBERG_OK;
 }
 
 void cberg_index_close(cberg_index *index) {
     if (index == NULL) {
         return;
     }
-    usearch_error_t err = NULL;
-    usearch_free(index->idx, &err);
+    cberg_index_backend_close(index->backend);
     free(index->path);
     free(index);
 }
-
-#endif /* CBERG_WITH_USEARCH */

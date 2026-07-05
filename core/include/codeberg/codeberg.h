@@ -389,20 +389,33 @@ CBERG_API cberg_status cberg_embedder_embed(cberg_embedder *embedder, const char
 CBERG_API void cberg_vectors_free(float *vectors);
 CBERG_API void cberg_embedder_close(cberg_embedder *embedder);
 
-/* --- Vector index (usearch HNSW) ---------------------------------------- */
+/* --- Vector index ------------------------------------------------------- */
 
 typedef struct cberg_index cberg_index;
 
+typedef enum cberg_index_provider {
+    CBERG_INDEX_USEARCH = 0,
+    CBERG_INDEX_QDRANT = 1,
+} cberg_index_provider;
+
 typedef struct cberg_index_config {
-    size_t connectivity;      /* HNSW graph degree (default 16) */
-    size_t expansion_add;     /* ef during insert (default 128) */
-    size_t expansion_search;  /* ef during search (default 64) */
+    cberg_index_provider provider;
+    const char *vectordb_url;     /* Qdrant: base URL, e.g. https://host:6333 */
+    const char *vectordb_api_key; /* Qdrant: optional api-key header */
+    size_t connectivity;          /* usearch HNSW graph degree (default 16) */
+    size_t expansion_add;         /* usearch ef during insert (default 128) */
+    size_t expansion_search;      /* usearch ef during search (default 64) */
 } cberg_index_config;
 
-/* Fills defaults; pass the result to cberg_index_open (config may be NULL). */
+/* Fills defaults (provider = usearch); pass the result to cberg_index_open (config may be NULL). */
 CBERG_API void cberg_index_config_default(cberg_index_config *config);
 
-/* Opens (creating if absent) an HNSW cosine index of dimension `dim` at `path`. */
+/*
+ * Opens a cosine vector index of dimension `dim` keyed by `path`.
+ * usearch: `path` is the on-disk index file (created if absent).
+ * Qdrant: `path` identifies the collection (derived name); vectors live in
+ * `config->vectordb_url`. Chunk sidecars still use `path` as a local identity.
+ */
 CBERG_API cberg_status cberg_index_open(const char *path, size_t dim, const cberg_index_config *config,
                                         cberg_index **out_index);
 
@@ -418,6 +431,17 @@ CBERG_API cberg_status cberg_index_search(cberg_index *index, const float *query
                                           size_t *out_found);
 
 CBERG_API cberg_status cberg_index_save(cberg_index *index);
+
+/* Drops every stored vector while keeping the index open (rebuild helper). */
+CBERG_API cberg_status cberg_index_clear(cberg_index *index);
+
+/*
+ * Removes all vectors for `path` without keeping a handle open. usearch deletes
+ * the on-disk file; Qdrant drops the remote collection. Used during corrupt-index
+ * recovery before a clean reopen.
+ */
+CBERG_API cberg_status cberg_index_wipe(const char *path, size_t dim, const cberg_index_config *config);
+
 CBERG_API void cberg_index_close(cberg_index *index);
 
 /* --- Semantic search (embed query + nearest neighbors) -------------------- */

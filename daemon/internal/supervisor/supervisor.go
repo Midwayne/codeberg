@@ -64,6 +64,15 @@ func (s *Supervisor) spawn(ctx context.Context, bin string) error {
 	if s.cfg.Index != "" {
 		cmd.Env = append(cmd.Env, config.EnvIndexPath+"="+s.cfg.Index)
 	}
+	if s.cfg.IndexBackend != "" {
+		cmd.Env = append(cmd.Env, config.EnvIndexBackend+"="+s.cfg.IndexBackend)
+	}
+	if s.cfg.VectorDBURL != "" {
+		cmd.Env = append(cmd.Env, config.EnvVectorDBURL+"="+s.cfg.VectorDBURL)
+	}
+	if s.cfg.VectorDBKey != "" {
+		cmd.Env = append(cmd.Env, config.EnvVectorDBKey+"="+s.cfg.VectorDBKey)
+	}
 
 	s.cmd = cmd
 	return cmd.Start()

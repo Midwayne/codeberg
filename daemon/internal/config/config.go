@@ -16,6 +16,9 @@ const (
 	EnvRoots      = "CODEBERG_ROOTS"
 	EnvModel      = "CBERG_MODEL"
 	EnvIndexPath  = "CBERG_INDEX_PATH"
+	EnvIndexBackend = "CBERG_INDEX_BACKEND"
+	EnvVectorDBURL  = "CBERG_VECTORDB_URL"
+	EnvVectorDBKey  = "CBERG_VECTORDB_API_KEY"
 	EnvPollMS     = "CBERG_POLL_MS"
 	EnvSocket     = "CBERG_SOCKET"
 	EnvIndexerBin = "CBERG_INDEX_BIN"
@@ -35,6 +38,9 @@ type Indexer struct {
 	DefaultKey string
 	Model      string
 	Index      string
+	IndexBackend string
+	VectorDBURL  string
+	VectorDBKey  string
 	PollMS     int
 	Socket     string
 	Bin        string
@@ -87,6 +93,9 @@ func loadIndexer() (Indexer, error) {
 	}
 	model := os.Getenv(EnvModel)
 	indexPath := os.Getenv(EnvIndexPath)
+	indexBackend := os.Getenv(EnvIndexBackend)
+	vectorDBURL := os.Getenv(EnvVectorDBURL)
+	vectorDBKey := os.Getenv(EnvVectorDBKey)
 	poll := 1000
 	if v := os.Getenv(EnvPollMS); v != "" {
 		n, err := strconv.Atoi(v)
@@ -108,6 +117,9 @@ func loadIndexer() (Indexer, error) {
 		DefaultKey: defaultKey,
 		Model:      model,
 		Index:      indexPath,
+		IndexBackend: indexBackend,
+		VectorDBURL:  vectorDBURL,
+		VectorDBKey:  vectorDBKey,
 		PollMS:     poll,
 		Socket:     socket,
 		Bin:        os.Getenv(EnvIndexerBin),

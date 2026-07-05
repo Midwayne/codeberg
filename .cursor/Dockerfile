@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     cmake \
     curl \
     git \
+    libcurl4-openssl-dev \
     ninja-build \
     pkg-config \
     && rm -rf /var/lib/apt/lists/*

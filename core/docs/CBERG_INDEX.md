@@ -17,7 +17,10 @@ full indexing loop for one or many repository roots in a single process. The Go
 | `CODEBERG_ROOT` | yes¹ | Single repository root (key = basename) |
 | `CODEBERG_ROOTS` | yes¹ | `key\tpath` records, newline-separated (multi-repo; supersedes `CODEBERG_ROOT`) |
 | `CBERG_MODEL` | for vectors | Path to ONNX `model.onnx` |
-| `CBERG_INDEX_PATH` | for vectors | **Base** path for per-repo index files |
+| `CBERG_INDEX_PATH` | for vectors | **Base** path for per-repo index files and local sidecars |
+| `CBERG_INDEX_BACKEND` | no | `usearch` (default) or `qdrant` for remote vector storage |
+| `CBERG_VECTORDB_URL` | for `qdrant` | Qdrant base URL, e.g. `https://cluster.qdrant.io` |
+| `CBERG_VECTORDB_API_KEY` | no | Qdrant API key (cloud) |
 | `CBERG_SOCKET` | no | Unix socket for IPC (default `/tmp/codeberg-index.sock`) |
 | `CBERG_POLL_MS` | no | Watcher idle sleep between steps (default 1000) |
 | `CBERG_EMBED_THREADS` | no | ONNX intra-op thread cap (inherited env) |
