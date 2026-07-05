@@ -14,6 +14,7 @@ describe("daemonToolSource", () => {
     const daemon = {
       listTools: vi.fn(async () => [
         { name: "grep", description: "exact search", schema: { type: "object" } },
+        { name: "search", description: "vector search", schema: { type: "object" } },
         { name: "read_file", description: "read", schema: { type: "object" } },
       ]),
       callTool: vi.fn(async () => ({ ok: true })),

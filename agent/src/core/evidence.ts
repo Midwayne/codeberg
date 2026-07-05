@@ -1,4 +1,4 @@
-import type { SearchResult } from "./types.js";
+import { chunkKey, type SearchResult } from "./types.js";
 
 /**
  * A running ledger of code the agent has already retrieved this conversation,
@@ -20,7 +20,7 @@ export class EvidenceLedger {
 
   add(results: readonly SearchResult[]): void {
     for (const r of results) {
-      const key = `${r.repo ?? ""}#${r.id}`;
+      const key = chunkKey(r);
       if (!this.seen.has(key)) {
         this.seen.set(key, r);
       }

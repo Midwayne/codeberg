@@ -34,7 +34,7 @@ func Run(ctx context.Context, dir string, args ...string) (string, error) {
 	return buf.String(), nil
 }
 
-// ParseLog splits git log --oneline output into commit lines.
+// ParseLog splits git log output into non-empty lines.
 func ParseLog(out string) []string {
 	lines := strings.Split(strings.TrimSpace(out), "\n")
 	if len(lines) == 1 && lines[0] == "" {
@@ -42,4 +42,18 @@ func ParseLog(out string) []string {
 	}
 
 	return lines
+}
+
+// ParseLogFields splits formatted log lines on fieldSep into field slices.
+func ParseLogFields(out, fieldSep string, fieldCount int) [][]string {
+	var rows [][]string
+	for _, line := range ParseLog(out) {
+		f := strings.Split(line, fieldSep)
+		if len(f) != fieldCount {
+			continue
+		}
+		rows = append(rows, f)
+	}
+
+	return rows
 }

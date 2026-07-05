@@ -376,7 +376,7 @@ func (w *Workspace) Tree(repo, path string, maxDepth int) ([]TreeNode, error) {
 		}
 		relBase, _ := filepath.Rel(base, p)
 		depth := strings.Count(relBase, string(filepath.Separator)) + 1
-		if d.IsDir() && d.Name() == ".git" {
+		if d.IsDir() && SkipDir(d.Name()) {
 			return fs.SkipDir
 		}
 		relRoot, _ := filepath.Rel(realRoot, p)

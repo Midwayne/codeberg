@@ -6,37 +6,12 @@ import (
 	"slices"
 	"testing"
 
-	"codeberg.org/codeberg/daemon/internal/indexctl"
+	"codeberg.org/codeberg/daemon/internal/testutil"
 	"codeberg.org/codeberg/daemon/internal/workspace"
 )
 
-type stubIndexer struct{}
-
-func (stubIndexer) Status(context.Context) (indexctl.Status, error) {
-	return indexctl.Status{Ready: true}, nil
-}
-
-func (stubIndexer) Search(context.Context, indexctl.SearchOptions) ([]indexctl.SearchResult, error) {
-	return nil, nil
-}
-func (stubIndexer) GetChunk(context.Context, string, uint64) (indexctl.ChunkDetail, error) {
-	return indexctl.ChunkDetail{}, nil
-}
-func (stubIndexer) FindSymbol(context.Context, indexctl.SymbolOptions) ([]indexctl.SearchResult, error) {
-	return nil, nil
-}
-func (stubIndexer) FileOutline(context.Context, string, string) ([]indexctl.SearchResult, error) {
-	return nil, nil
-}
-
-// wsSingle builds a one-repo workspace the way single-root mode does: the
-// repo's key doubles as the default, so tools may omit `repo`.
-func wsSingle(root string) *workspace.Workspace {
-	return workspace.New([]workspace.RepoInfo{{Key: "main", Root: root}}, "main")
-}
-
 func TestDefaultRegistry(t *testing.T) {
-	reg := Default(wsSingle(t.TempDir()), stubIndexer{})
+	reg := Default(testutil.WsSingle(t.TempDir()), testutil.StubIndexer{})
 	names := make([]string, len(reg.List()))
 	for i, sp := range reg.List() {
 		names[i] = sp.Name
@@ -58,7 +33,7 @@ func TestReposTool(t *testing.T) {
 		{Key: "alpha", Root: rootA},
 		{Key: "beta", Root: rootB},
 	}, "")
-	reg := Default(ws, stubIndexer{})
+	reg := Default(ws, testutil.StubIndexer{})
 
 	out, err := reg.Call(context.Background(), "repos", json.RawMessage(`{}`))
 	if err != nil {
@@ -68,4 +43,8 @@ func TestReposTool(t *testing.T) {
 	if !ok || len(repos) != 2 || repos[0].Key != "alpha" || repos[1].Key != "beta" {
 		t.Fatalf("repos: %+v", out)
 	}
+}
+
+func wsSingle(root string) *workspace.Workspace {
+	return testutil.WsSingle(root)
 }

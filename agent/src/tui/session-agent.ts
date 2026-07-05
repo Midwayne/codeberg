@@ -1,7 +1,7 @@
 import type { ModelMessage, ToolLoopAgent } from "ai";
 
 import { overrideLoopMethods } from "../core/loop.js";
-import { messageText } from "../core/message.js";
+import { lastUserMessage, messageText } from "../core/message.js";
 import {
   type Command,
   deriveTitle,
@@ -150,15 +150,6 @@ export function wrapSessionAgent(
 
 function toModelMessages(prompt: unknown): ModelMessage[] {
   return Array.isArray(prompt) ? (prompt as ModelMessage[]) : [];
-}
-
-function lastUserMessage(messages: ModelMessage[]): ModelMessage | undefined {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i]!.role === "user") {
-      return messages[i];
-    }
-  }
-  return undefined;
 }
 
 /**

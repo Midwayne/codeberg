@@ -1,8 +1,9 @@
 import { mkdir, readFile, readdir, unlink, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
 
 import type { UIMessage } from "ai";
+
+import { codebergHome } from "../core/paths.js";
 
 /** One persisted browser chat — UI messages verbatim, so a resume re-renders
  *  with full fidelity (tool cards, reasoning, citations). */
@@ -32,9 +33,8 @@ export function isValidSessionId(id: string): boolean {
   return /^[A-Za-z0-9_-]{1,64}$/.test(id);
 }
 
-/** Mirrors the launcher's Go `paths.Home`: honour CODEBERG_HOME, else ~/.codeberg. */
 function home(env: NodeJS.ProcessEnv = process.env): string {
-  return env.CODEBERG_HOME ?? join(homedir(), ".codeberg");
+  return codebergHome(env);
 }
 
 function countTurns(messages: UIMessage[]): number {

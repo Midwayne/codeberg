@@ -12,7 +12,7 @@ type statusResponse struct {
 	Error          string       `json:"error"`
 }
 
-type searchResponse struct {
+type hitsResponse struct {
 	OK      bool           `json:"ok"`
 	Results []SearchResult `json:"results"`
 	Error   string         `json:"error"`
@@ -35,16 +35,4 @@ type chunkResponse struct {
 	OK    bool         `json:"ok"`
 	Chunk chunkPayload `json:"chunk"`
 	Error string       `json:"error"`
-}
-
-type symbolResponse struct {
-	OK      bool           `json:"ok"`
-	Results []SearchResult `json:"results"`
-	Error   string         `json:"error"`
-}
-
-type outlineResponse struct {
-	OK      bool           `json:"ok"`
-	Results []SearchResult `json:"results"`
-	Error   string         `json:"error"`
 }

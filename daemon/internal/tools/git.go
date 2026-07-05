@@ -3,7 +3,6 @@ package tools
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"codeberg.org/codeberg/daemon/internal/git"
 	"codeberg.org/codeberg/daemon/internal/workspace"
@@ -66,7 +65,14 @@ func gitLogTool(ws *workspace.Workspace) Tool {
 				return nil, err
 			}
 
-			return parseLog(out), nil
+			var commits []commit
+			for _, f := range git.ParseLogFields(out, logFieldSep, logFieldCount) {
+				commits = append(commits, commit{
+					Hash: f[0], Author: f[1], Date: f[2], Subject: f[3],
+				})
+			}
+
+			return commits, nil
 		})
 }
 
@@ -122,21 +128,4 @@ func gitBlameTool(ws *workspace.Workspace) Tool {
 
 			return gitBlameResult{Blame: out, Truncated: truncated}, nil
 		})
-}
-
-func parseLog(out string) []commit {
-	var commits []commit
-
-	for _, line := range git.ParseLog(out) {
-		f := strings.Split(line, logFieldSep)
-		if len(f) != logFieldCount {
-			continue
-		}
-
-		commits = append(commits, commit{
-			Hash: f[0], Author: f[1], Date: f[2], Subject: f[3],
-		})
-	}
-
-	return commits
 }

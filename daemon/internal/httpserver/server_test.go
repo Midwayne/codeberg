@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"codeberg.org/codeberg/daemon/internal/indexctl"
+	"codeberg.org/codeberg/daemon/internal/testutil"
 	"codeberg.org/codeberg/daemon/internal/tools"
-	"codeberg.org/codeberg/daemon/internal/workspace"
 )
 
 type fakeIndexer struct {
@@ -41,10 +41,6 @@ func (f *fakeIndexer) FileOutline(context.Context, string, string) ([]indexctl.S
 	return nil, nil
 }
 
-func wsSingle(root string) *workspace.Workspace {
-	return workspace.New([]workspace.RepoInfo{{Key: "main", Root: root}}, "main")
-}
-
 func TestHealthAndSearch(t *testing.T) {
 	idx := &fakeIndexer{
 		status: indexctl.Status{
@@ -58,7 +54,7 @@ func TestHealthAndSearch(t *testing.T) {
 			ID: 1, Score: 0.5, Repo: "main", Path: "main.go", StartLine: 1, EndLine: 10, Snippet: "package main",
 		}},
 	}
-	ws := wsSingle(t.TempDir())
+	ws := testutil.WsSingle(t.TempDir())
 	srv := New(idx, tools.Default(ws, idx))
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
@@ -106,7 +102,7 @@ func TestHealthAndSearch(t *testing.T) {
 
 func TestSearchMissingQuery(t *testing.T) {
 	idx := &fakeIndexer{}
-	ws := wsSingle(t.TempDir())
+	ws := testutil.WsSingle(t.TempDir())
 	srv := New(idx, tools.Default(ws, idx))
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
@@ -138,7 +134,7 @@ func TestCallTool(t *testing.T) {
 		t.Fatal(err)
 	}
 	idx := &fakeIndexer{status: indexctl.Status{Ready: true}}
-	ws := wsSingle(root)
+	ws := testutil.WsSingle(root)
 	srv := New(idx, tools.Default(ws, idx))
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
@@ -161,7 +157,7 @@ func TestCallPipeTool(t *testing.T) {
 		t.Fatal(err)
 	}
 	idx := &fakeIndexer{status: indexctl.Status{Ready: true}}
-	ws := wsSingle(root)
+	ws := testutil.WsSingle(root)
 	srv := New(idx, tools.Default(ws, idx))
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
@@ -201,7 +197,7 @@ func TestCallPipeTool(t *testing.T) {
 
 func TestSearchToolRegistered(t *testing.T) {
 	idx := &fakeIndexer{status: indexctl.Status{Ready: true}}
-	ws := wsSingle(t.TempDir())
+	ws := testutil.WsSingle(t.TempDir())
 	srv := New(idx, tools.Default(ws, idx))
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)

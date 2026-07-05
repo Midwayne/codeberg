@@ -1,8 +1,6 @@
 package indexctl
 
-import (
-	"context"
-)
+import "context"
 
 // Client talks to cberg-index over a Unix domain socket.
 type Client struct {
@@ -32,15 +30,7 @@ func (c *Client) Status(ctx context.Context) (Status, error) {
 }
 
 func (c *Client) Search(ctx context.Context, opts SearchOptions) ([]SearchResult, error) {
-	var out searchResponse
-	if err := roundTrip(ctx, c.socket, encodeSearch(opts), &out); err != nil {
-		return nil, err
-	}
-	if !out.OK {
-		return nil, mapIndexerError(out.Error)
-	}
-
-	return out.Results, nil
+	return roundHits(ctx, c.socket, encodeSearch(opts))
 }
 
 func (c *Client) GetChunk(ctx context.Context, repo string, id uint64) (ChunkDetail, error) {
@@ -56,20 +46,16 @@ func (c *Client) GetChunk(ctx context.Context, repo string, id uint64) (ChunkDet
 }
 
 func (c *Client) FindSymbol(ctx context.Context, opts SymbolOptions) ([]SearchResult, error) {
-	var out symbolResponse
-	if err := roundTrip(ctx, c.socket, encodeSymbol(opts), &out); err != nil {
-		return nil, err
-	}
-	if !out.OK {
-		return nil, mapIndexerError(out.Error)
-	}
-
-	return out.Results, nil
+	return roundHits(ctx, c.socket, encodeSymbol(opts))
 }
 
 func (c *Client) FileOutline(ctx context.Context, repo, path string) ([]SearchResult, error) {
-	var out outlineResponse
-	if err := roundTrip(ctx, c.socket, encodeOutline(repo, path), &out); err != nil {
+	return roundHits(ctx, c.socket, encodeOutline(repo, path))
+}
+
+func roundHits(ctx context.Context, socket, req string) ([]SearchResult, error) {
+	var out hitsResponse
+	if err := roundTrip(ctx, socket, req, &out); err != nil {
 		return nil, err
 	}
 	if !out.OK {

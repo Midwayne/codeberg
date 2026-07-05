@@ -32,11 +32,9 @@ func headTool(ws *workspace.Workspace) Tool {
 			if n <= 0 {
 				n = defaultHeadTail
 			}
-			if n > len(lines) {
-				n = len(lines)
-			}
 
-			return headTailResult{Content: strings.Join(lines[:n], "\n"), Lines: n}, nil
+			sliced, count := sliceLines(lines, n, false)
+			return headTailResult{Content: strings.Join(sliced, "\n"), Lines: count}, nil
 		})
 }
 
@@ -63,11 +61,9 @@ func tailTool(ws *workspace.Workspace) Tool {
 			if n <= 0 {
 				n = defaultHeadTail
 			}
-			if n > len(lines) {
-				n = len(lines)
-			}
 
-			return headTailResult{Content: strings.Join(lines[len(lines)-n:], "\n"), Lines: n}, nil
+			sliced, count := sliceLines(lines, n, true)
+			return headTailResult{Content: strings.Join(sliced, "\n"), Lines: count}, nil
 		})
 }
 
@@ -101,6 +97,16 @@ func wcTool(ws *workspace.Workspace) Tool {
 				Bytes: len(data),
 			}, nil
 		})
+}
+
+func sliceLines(lines []string, n int, fromEnd bool) ([]string, int) {
+	if n > len(lines) {
+		n = len(lines)
+	}
+	if fromEnd {
+		return lines[len(lines)-n:], n
+	}
+	return lines[:n], n
 }
 
 func readLines(ws *workspace.Workspace, repo, path string) ([]string, error) {

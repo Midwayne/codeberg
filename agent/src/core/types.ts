@@ -13,6 +13,11 @@ export interface SearchResult {
   snippet: string;
 }
 
+/** Stable chunk identity: ids restart at 1 per repo in multi-repo runs. */
+export function chunkKey(r: Pick<SearchResult, "repo" | "id">): string {
+  return `${r.repo ?? ""}#${r.id}`;
+}
+
 export interface ToolSpec {
   name: string;
   description: string;

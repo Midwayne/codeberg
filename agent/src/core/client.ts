@@ -78,12 +78,12 @@ export class DaemonClient {
 
   async listTools(): Promise<ToolSpec[]> {
     const res = await fetch(new URL("/tools", this.baseUrl));
-    if (!res.ok) {
-      throw new Error(`list tools failed: ${res.status}`);
-    }
     const body = (await res.json()) as {
       tools: { name: string; description: string; schema: Record<string, unknown> }[];
-    };
+    } & DaemonErrorBody;
+    if (!res.ok) {
+      throw parseError(res.status, body);
+    }
     return body.tools.map((t) => ({
       name: t.name,
       description: t.description,
