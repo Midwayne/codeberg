@@ -155,6 +155,7 @@ list(APPEND CBERG_SOURCES
   src/search/providers/usearch/usearch.c
   src/search/providers/qdrant/qdrant.c
   src/search/providers/qdrant/http_client.c
+  src/search/providers/qdrant/json_mini.c
   src/search/providers/pgvector/pgvector.c
 )
 

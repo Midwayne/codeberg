@@ -25,6 +25,50 @@ static float *unit_vector(size_t dim, size_t axis) {
     return v;
 }
 
+int index_provider_test_usearch_expansion_restore(void) {
+    const char *label = "usearch-expansion";
+    int local_failures = 0;
+#define ECHECK(cond, msg)                                                                              \
+    do {                                                                                               \
+        if (!(cond)) {                                                                                 \
+            fprintf(stderr, "FAIL [%s]: %s (%s:%d)\n", label, msg, __FILE__, __LINE__);               \
+            local_failures++;                                                                          \
+        }                                                                                              \
+    } while (0)
+
+    char path[] = "/tmp/cberg_expansion_XXXXXX";
+    int fd = mkstemp(path);
+    if (fd >= 0) {
+        close(fd);
+        remove(path);
+    }
+
+    cberg_index_config cfg;
+    cberg_index_config_default(&cfg);
+    cfg.expansion_search = 64;
+
+    cberg_index *idx = NULL;
+    ECHECK(cberg_index_open(path, 4, &cfg, &idx) == CBERG_OK && idx != NULL, "open");
+
+    if (idx != NULL) {
+        float v[4] = {1, 0, 0, 0};
+        ECHECK(cberg_index_add(idx, 1, v) == CBERG_OK, "add");
+        cberg_index_search_opts high = {.expansion_search = 256};
+        uint64_t ids[1];
+        float scores[1];
+        size_t found = 0;
+        ECHECK(cberg_index_search(idx, v, 1, &high, ids, scores, &found) == CBERG_OK, "high-ef search");
+        size_t ef = 0;
+        ECHECK(cberg_usearch_index_active_expansion(idx, &ef) == CBERG_OK, "read ef");
+        ECHECK(ef == cfg.expansion_search, "expansion_search restored after query");
+        cberg_index_close(idx);
+    }
+
+    remove(path);
+    return local_failures;
+#undef ECHECK
+}
+
 int index_provider_harness_run(const char *test_label, const cberg_index_config *cfg, const char *path, size_t dim) {
     label = test_label;
     failures = 0;

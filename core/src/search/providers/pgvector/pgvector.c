@@ -84,6 +84,14 @@ static void pgvector_backend_destroy(void *impl) {
     free(b);
 }
 
+static cberg_status pgvector_ensure_hnsw(pgvector_backend *b) {
+    char sql[512];
+    snprintf(sql, sizeof sql,
+             "CREATE INDEX IF NOT EXISTS %s_embedding_hnsw ON %s USING hnsw (embedding vector_cosine_ops)",
+             b->table, b->table_ident);
+    return pg_exec(b, sql);
+}
+
 static cberg_status pgvector_ensure_schema(pgvector_backend *b) {
     cberg_status st = pg_exec(b, "CREATE EXTENSION IF NOT EXISTS vector");
     if (st != CBERG_OK) {
@@ -111,14 +119,18 @@ static cberg_status pgvector_ensure_schema(pgvector_backend *b) {
         if (typmod > 0 && (size_t)typmod != b->dim) {
             return CBERG_ERR_CORRUPT;
         }
-        return CBERG_OK;
+        return pgvector_ensure_hnsw(b);
     }
     PQclear(res);
 
     char create_sql[512];
     snprintf(create_sql, sizeof create_sql,
              "CREATE TABLE IF NOT EXISTS %s (id BIGINT PRIMARY KEY, embedding vector(%zu))", b->table_ident, b->dim);
-    return pg_exec(b, create_sql);
+    st = pg_exec(b, create_sql);
+    if (st != CBERG_OK) {
+        return st;
+    }
+    return pgvector_ensure_hnsw(b);
 }
 
 static cberg_status pgvector_backend_add(void *impl, uint64_t id, const float *vector, size_t dim) {

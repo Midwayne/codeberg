@@ -426,6 +426,21 @@ done:
     return st;
 }
 
+static int vector_status_retriable(cberg_status st) {
+    return st == CBERG_ERR_IO || st == CBERG_ERR_TIMEOUT;
+}
+
+static cberg_status apply_vectors_with_retry(cberg_repo *r, const cberg_changes *ch) {
+    cberg_status st = apply_vectors(r, ch);
+    for (int attempt = 0; st != CBERG_OK && vector_status_retriable(st) && attempt < 3; attempt++) {
+        fprintf(stderr, "cberg-index[%s]: vector apply failed (%s); retry %d/3\n", r->key, cberg_status_str(st),
+                attempt + 1);
+        usleep((useconds_t)(100000u * (unsigned)(attempt + 1)));
+        st = apply_vectors(r, ch);
+    }
+    return st;
+}
+
 static cberg_status rebuild_index(cberg_repo *r) {
     if (!r->eng->vectors || r->eng->embedder == NULL || r->index == NULL) {
         return CBERG_OK;
@@ -563,9 +578,13 @@ static cberg_status sync_table(cberg_repo *r, chunk_batch *batch) {
     if (st != CBERG_OK) {
         return st;
     }
-    st = apply_vectors(r, &ch);
+    st = apply_vectors_with_retry(r, &ch);
     if (st != CBERG_OK) {
         r->ready = 0;
+        if (vector_status_retriable(st)) {
+            fprintf(stderr, "cberg-index[%s]: vector apply still failing after retries (%s); rebuilding index\n",
+                    r->key, cberg_status_str(st));
+        }
         cberg_status rb = rebuild_index(r);
         if (rb != CBERG_OK) {
             return rb;

@@ -102,6 +102,7 @@ loop until SIGINT/SIGTERM:
     for each repo:
         poll watcher → dirty paths
         re-chunk dirty files → sync → embed added∪modified, remove deleted ids
+        (transient vector I/O errors retry up to 3× before full index rebuild)
         save sidecars (chunk table, manifest, index)
     sleep poll_ms when idle
 ```

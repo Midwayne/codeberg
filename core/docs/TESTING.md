@@ -25,8 +25,9 @@ make check                   # build + test (CI gate)
 | `test_manifest` | `test/` | Merkle build, diff, incremental rebuild |
 | `test_watch` | `test/` | Dirty path on file write |
 | `test_watch_events` | `test/` | Delete-before-drain (macOS FSEvents regression) |
-| `test_index` | `test/` | usearch add/remove/search/save (via shared harness) |
-| `test_index_providers` | `test/` | usearch + optional qdrant/pgvector when env set |
+| `test_index` | `test/` | usearch harness + `expansion_search` restore test |
+| `test_qdrant_json` | `test/` | Qdrant REST JSON parser (`json_mini`) |
+| `test_index_providers` | `test/` | usearch + optional qdrant/pgvector at dim 4 and 768 |
 | `test_embed` | `test/` | ONNX embedding pipeline |
 | `test_search` | `test/` | `cberg_search_query` end-to-end |
 | `test_cberg_walk` | `cmd/cberg-index/` | Walk policy, skip directories |

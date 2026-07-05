@@ -1,6 +1,8 @@
 #include "../provider.h"
 #include "../common.h"
 
+#include "json_mini.h"
+
 #include "http_client.h"
 
 #include <stdio.h>
@@ -31,20 +33,6 @@ static char *join_url(const char *base, const char *suffix) {
         snprintf(out, need, "%s/%s", base, suffix);
     }
     return out;
-}
-
-static int json_find_int(const char *body, const char *key, int *out) {
-    char pattern[64];
-    snprintf(pattern, sizeof pattern, "\"%s\":", key);
-    const char *p = strstr(body, pattern);
-    if (p == NULL) {
-        return -1;
-    }
-    p += strlen(pattern);
-    while (*p == ' ' || *p == '\t') {
-        p++;
-    }
-    return sscanf(p, "%d", out) == 1 ? 0 : -1;
 }
 
 static void qdrant_backend_destroy(void *impl) {
@@ -117,7 +105,7 @@ static cberg_status qdrant_check_collection_dim(qdrant_backend *b) {
         return CBERG_ERR_IO;
     }
     int dim = 0;
-    if (json_find_int(body, "size", &dim) != 0 || (size_t)dim != b->dim) {
+    if (cberg_json_qdrant_collection_dim(body, &dim) != 0 || (size_t)dim != b->dim) {
         free(body);
         return CBERG_ERR_CORRUPT;
     }
@@ -224,7 +212,7 @@ static cberg_status qdrant_point_exists(qdrant_backend *b, uint64_t id, int *out
     if (resp == NULL) {
         return CBERG_ERR_IO;
     }
-    *out_exists = strstr(resp, "\"id\":") != NULL;
+    *out_exists = cberg_json_qdrant_points_nonempty(resp);
     free(resp);
     return CBERG_OK;
 }
@@ -320,29 +308,11 @@ static cberg_status qdrant_backend_search(void *impl, const float *query, size_t
         return CBERG_ERR_IO;
     }
 
-    size_t found = 0;
-    const char *cursor = resp_body;
-    while (found < k) {
-        const char *id_key = strstr(cursor, "\"id\":");
-        const char *score_key = id_key != NULL ? strstr(id_key, "\"score\":") : NULL;
-        if (id_key == NULL || score_key == NULL) {
-            break;
-        }
-        unsigned long long rid = 0;
-        float score = 0.0f;
-        if (sscanf(id_key + 5, "%llu", &rid) != 1) {
-            break;
-        }
-        if (sscanf(score_key + 8, "%f", &score) != 1) {
-            break;
-        }
-        out_ids[found] = (uint64_t)rid;
-        out_scores[found] = score;
-        found++;
-        cursor = score_key + 8;
+    if (cberg_json_parse_qdrant_hits(resp_body, k, out_ids, out_scores, out_found) != 0) {
+        free(resp_body);
+        return CBERG_ERR_IO;
     }
     free(resp_body);
-    *out_found = found;
     return CBERG_OK;
 }
 

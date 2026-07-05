@@ -21,6 +21,9 @@ cberg_add_test(test_watch_events)
 cberg_add_test(test_index)
 target_link_libraries(test_index PRIVATE index_provider_harness)
 
+cberg_add_test(test_qdrant_json)
+target_include_directories(test_qdrant_json PRIVATE ${CMAKE_SOURCE_DIR}/src/search/providers/qdrant)
+
 add_executable(test_index_providers test_index_providers.c)
 target_link_libraries(test_index_providers PRIVATE codeberg::codeberg index_provider_harness)
 add_test(NAME test_index_providers COMMAND test_index_providers)

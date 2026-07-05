@@ -16,6 +16,7 @@ int main(void) {
     }
 
     int failures = index_provider_harness_run("usearch", NULL, path, 4);
+    failures += index_provider_test_usearch_expansion_restore();
     if (failures == 0) {
         printf("ok - index\n");
         return 0;

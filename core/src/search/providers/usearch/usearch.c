@@ -257,6 +257,16 @@ const cberg_index_provider_ops cberg_usearch_provider = {
     .wipe = usearch_wipe,
 };
 
+cberg_status cberg_usearch_index_active_expansion(const cberg_index *index, size_t *out) {
+    if (index == NULL || out == NULL || index->provider != CBERG_INDEX_USEARCH || index->backend == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    usearch_backend *b = index->backend->impl;
+    usearch_error_t err = NULL;
+    *out = usearch_expansion_search(b->idx, &err);
+    return err != NULL ? CBERG_ERR_INTERNAL : CBERG_OK;
+}
+
 #else /* !CBERG_WITH_USEARCH */
 
 static cberg_status usearch_open(const char *path, size_t dim, const cberg_index_config *config,
@@ -284,5 +294,11 @@ const cberg_index_provider_ops cberg_usearch_provider = {
     .open = usearch_open,
     .wipe = usearch_wipe,
 };
+
+cberg_status cberg_usearch_index_active_expansion(const cberg_index *index, size_t *out) {
+    (void)index;
+    (void)out;
+    return CBERG_ERR_NOT_IMPLEMENTED;
+}
 
 #endif /* CBERG_WITH_USEARCH */

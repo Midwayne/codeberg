@@ -63,6 +63,7 @@ int main(void) {
 
     cberg_index_config usearch_cfg;
     cberg_index_config_default(&usearch_cfg);
+    failures += index_provider_test_usearch_expansion_restore();
     failures += run_backend_dims("usearch", &usearch_cfg);
 
     const char *qdrant_url = getenv("CBERG_TEST_QDRANT_URL");

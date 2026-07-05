@@ -228,16 +228,16 @@ CREATE TABLE IF NOT EXISTS codeberg_<16hex> (
 Writes use `INSERT ... ON CONFLICT (id) DO UPDATE`. Search orders by cosine
 distance (`<=>` operator) and returns `1 - distance` as the score.
 
-If a table exists with a **different `vector(dim)`**, open fails and triggers
-recovery.
-
-**Indexes:** Codeberg does not create an HNSW or IVFFlat index on pgvector
-tables today. Search is an ordered sequential scan — fine for development and
-moderate corpora; for large production indexes, add an index manually:
+On table create (or when an existing compatible table is opened), Codeberg also
+creates a cosine HNSW index:
 
 ```sql
-CREATE INDEX ON codeberg_<16hex> USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS codeberg_<16hex>_embedding_hnsw
+  ON codeberg_<16hex> USING hnsw (embedding vector_cosine_ops);
 ```
+
+If a table exists with a **different `vector(dim)`**, open fails and triggers
+recovery.
 
 ---
 
@@ -304,6 +304,12 @@ After bootstrap, the watch loop applies chunk diffs:
 - **deleted** → remove vector by chunk id
 - **save** → usearch flushes to disk; Qdrant/pgvector are no-ops (already persisted)
 
+When a vector upsert/delete fails with a **transient** error (`CBERG_ERR_IO` or
+`CBERG_ERR_TIMEOUT` — e.g. brief Qdrant or Postgres outage), `cberg-index`
+retries the same diff up to **three times** with backoff (100 ms, 200 ms, 300 ms)
+before falling back to a full `rebuild_index`. Corrupt or incompatible indexes
+(`CBERG_ERR_CORRUPT`) skip retries and rebuild immediately.
+
 ### usearch-only tuning
 
 `cberg_index_config` HNSW fields apply only to usearch:
@@ -314,8 +320,15 @@ After bootstrap, the watch loop applies chunk diffs:
 | `expansion_add` | 128 | insert quality (efConstruction) |
 | `expansion_search` | 64 | query efSearch baseline |
 
-`cberg_search_query` temporarily raises `expansion_search` for semantic search.
-Remote backends ignore per-query expansion today.
+`cberg_search_query` temporarily raises `expansion_search` for semantic search,
+then restores the index default — remote backends ignore per-query expansion.
+
+### Qdrant response parsing
+
+The Qdrant backend uses a small JSON helper (`providers/qdrant/json_mini.c`) to
+parse collection metadata and search hits by path (e.g.
+`result.config.params.vectors.size`) instead of ad-hoc string scans. Unit tests:
+`test_qdrant_json`.
 
 ---
 
@@ -324,7 +337,8 @@ Remote backends ignore per-query expansion today.
 ### Unit / harness
 
 ```sh
-make test TEST=test_index          # usearch only
+make test TEST=test_index          # usearch harness + expansion_search restore
+make test TEST=test_qdrant_json    # Qdrant JSON parser
 ```
 
 ### All providers (integration)

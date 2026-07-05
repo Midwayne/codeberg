@@ -99,6 +99,9 @@ Metric: **cosine** (`usearch_metric_cos_k`). Vectors: `float32`, single-threaded
 REST API to Qdrant. Collection per repo: `codeberg_<16hex>` from hash of
 `path`. Creates collection on first open (cosine, model dimension).
 
+Response bodies are parsed with `json_mini.c` (path-based JSON navigation for
+collection metadata and `result[]` search hits).
+
 - **save:** no-op (vectors persisted on upsert)
 - **clear:** delete + recreate collection
 - **wipe:** delete collection
@@ -120,8 +123,8 @@ CREATE TABLE codeberg_<16hex> (
 );
 ```
 
-Search: `ORDER BY embedding <=> query LIMIT k`. No HNSW index created by
-Codeberg (sequential scan).
+Search: `ORDER BY embedding <=> query LIMIT k` using an auto-created HNSW index
+(`<table>_embedding_hnsw`, cosine ops).
 
 Requires `config->postgres_url` and `CBERG_WITH_PGVECTOR` build.
 
