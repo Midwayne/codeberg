@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"codeberg.org/codeberg/daemon/internal/bootstrap"
 	"codeberg.org/codeberg/daemon/internal/config"
 	"codeberg.org/codeberg/daemon/internal/gitpull"
 	"codeberg.org/codeberg/daemon/internal/httpserver"
@@ -18,21 +19,6 @@ import (
 	"codeberg.org/codeberg/daemon/internal/tools"
 	"codeberg.org/codeberg/daemon/internal/workspace"
 )
-
-const startupTimeoutPerRepo = 5 * time.Minute
-
-// startupTimeout scales with repo count — a first `--all` run may cold-index
-// several repos back to back through one embedder — but stays bounded.
-func startupTimeout(repos int) time.Duration {
-	if repos < 1 {
-		repos = 1
-	}
-	d := time.Duration(repos) * startupTimeoutPerRepo
-	if max := 60 * time.Minute; d > max {
-		return max
-	}
-	return d
-}
 
 func main() {
 	cfg, err := config.LoadDaemon()
@@ -51,8 +37,8 @@ func main() {
 
 	idx := indexctl.NewClient(cfg.Socket)
 
-	readyCtx, readyCancel := context.WithTimeout(ctx, startupTimeout(len(cfg.Roots)))
-	st, err := indexctl.WaitReady(readyCtx, idx)
+	readyCtx, readyCancel := context.WithTimeout(ctx, bootstrap.StartupTimeout(len(cfg.Roots)))
+	st, err := bootstrap.WaitIndexer(readyCtx, idx)
 	readyCancel()
 	if err != nil {
 		log.Fatalf("indexer not ready: %v", err)
@@ -64,8 +50,8 @@ func main() {
 	repos := make([]workspace.RepoInfo, 0, len(cfg.Roots))
 	roots := make([]string, 0, len(cfg.Roots))
 	for _, r := range cfg.Roots {
-		repos = append(repos, workspace.RepoInfo{Key: r.Key, Root: r.Path})
-		roots = append(roots, r.Key+"="+r.Path)
+		repos = append(repos, workspace.RepoInfo{Key: r.Key, Root: r.Root})
+		roots = append(roots, r.Key+"="+r.Root)
 	}
 
 	ws := workspace.New(repos, cfg.DefaultKey)

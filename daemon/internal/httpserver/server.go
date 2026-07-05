@@ -1,9 +1,7 @@
 package httpserver
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strconv"
 
@@ -11,21 +9,12 @@ import (
 	"codeberg.org/codeberg/daemon/internal/tools"
 )
 
-// Indexer is the subset of indexctl the HTTP server needs.
-type Indexer interface {
-	Status(ctx context.Context) (indexctl.Status, error)
-	Search(ctx context.Context, opts indexctl.SearchOptions) ([]indexctl.SearchResult, error)
-	GetChunk(ctx context.Context, repo string, id uint64) (indexctl.ChunkDetail, error)
-	FindSymbol(ctx context.Context, opts indexctl.SymbolOptions) ([]indexctl.SearchResult, error)
-	FileOutline(ctx context.Context, repo, path string) ([]indexctl.SearchResult, error)
-}
-
 type Server struct {
-	idx   Indexer
+	idx   indexctl.Indexer
 	tools *tools.Registry
 }
 
-func New(idx Indexer, reg *tools.Registry) *Server {
+func New(idx indexctl.Indexer, reg *tools.Registry) *Server {
 	return &Server{idx: idx, tools: reg}
 }
 
@@ -42,7 +31,7 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	st, err := s.idx.Status(r.Context())
 	if err != nil {
-		writeError(w, err)
+		writeMappedError(w, err)
 		return
 	}
 
@@ -96,7 +85,7 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request) {
 		MinScore: minScore,
 	})
 	if err != nil {
-		writeError(w, err)
+		writeMappedError(w, err)
 		return
 	}
 
@@ -120,57 +109,9 @@ func (s *Server) callTool(w http.ResponseWriter, r *http.Request) {
 
 	result, err := s.tools.Call(r.Context(), req.Name, req.Args)
 	if err != nil {
-		writeToolError(w, err)
+		writeMappedError(w, err)
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"result": result})
-}
-
-func errorBody(code, message string) map[string]any {
-	return map[string]any{"ok": false, "code": code, "message": message}
-}
-
-func writeError(w http.ResponseWriter, err error) {
-	status := indexctl.HTTPStatus(err)
-
-	var ie *indexctl.IndexerError
-	if errors.As(err, &ie) {
-		writeJSON(w, status, errorBody(ie.Code, ie.Message))
-		return
-	}
-
-	writeJSON(w, status, errorBody("INDEXER_ERROR", err.Error()))
-}
-
-func writeToolError(w http.ResponseWriter, err error) {
-	var ie *indexctl.IndexerError
-	if errors.As(err, &ie) {
-		writeJSON(w, indexctl.HTTPStatus(err), errorBody(ie.Code, ie.Message))
-		return
-	}
-
-	status := tools.HTTPStatus(err)
-	msg := err.Error()
-	code := "TOOL_ERROR"
-
-	switch status {
-	case http.StatusNotFound:
-		code = "NOT_FOUND"
-	case http.StatusForbidden:
-		code = "FORBIDDEN"
-	case http.StatusBadRequest:
-		code = "INVALID_ARGS"
-	}
-
-	writeJSON(w, status, errorBody(code, msg))
-}
-
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	_ = enc.Encode(v)
 }

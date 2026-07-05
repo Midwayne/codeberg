@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"codeberg.org/codeberg/daemon/internal/domain"
 )
 
 const (
@@ -22,21 +24,15 @@ const (
 	EnvGitDir     = "CODEBERG_GIT_DIR"
 )
 
-// RepoRoot is one served repository: a stable human-facing key (the launcher
-// registry's identity, also used by the C engine in search results and by the
-// agent's `repo` tool arguments) and its resolved absolute root.
-type RepoRoot struct {
-	Key  string
-	Path string
-}
+// RepoRoot is an alias for domain.Repo kept for callers outside this package.
+type RepoRoot = domain.Repo
 
 type Indexer struct {
 	// Root is the first (or only) root — kept for single-root consumers like
 	// the git-pull default and the CODEBERG_ROOT env forwarded to the C engine.
 	Root string
-	// Roots is every repository served this run. Single-root mode holds one
-	// entry keyed by the root's basename.
-	Roots []RepoRoot
+	// Roots is every repository served this run.
+	Roots []domain.Repo
 	// DefaultKey is the repo tools fall back to when no repo is named: the
 	// single root's key, or "" in --all mode (where a repo must be explicit).
 	DefaultKey string
@@ -68,7 +64,7 @@ func LoadDaemon() (Daemon, error) {
 		gitDirs = append(gitDirs, dir)
 	} else {
 		for _, r := range idx.Roots {
-			gitDirs = append(gitDirs, r.Path)
+			gitDirs = append(gitDirs, r.Root)
 		}
 	}
 	var pull time.Duration
@@ -110,7 +106,7 @@ func loadIndexer() (Indexer, error) {
 		socket = "/tmp/codeberg-index.sock"
 	}
 	return Indexer{
-		Root:       roots[0].Path,
+		Root:       roots[0].Root,
 		Roots:      roots,
 		DefaultKey: defaultKey,
 		Model:      model,
@@ -127,9 +123,9 @@ func loadIndexer() (Indexer, error) {
 // mode with the basename as both key and default. Dead or malformed records are
 // skipped with a log line, mirroring the C engine, so one deleted tree does not
 // take the daemon down.
-func loadRoots() ([]RepoRoot, string, error) {
+func loadRoots() ([]domain.Repo, string, error) {
 	if raw := os.Getenv(EnvRoots); raw != "" {
-		var roots []RepoRoot
+		var roots []domain.Repo
 
 		for _, line := range strings.Split(raw, "\n") {
 			key, path, ok := strings.Cut(line, "\t")
@@ -147,7 +143,7 @@ func loadRoots() ([]RepoRoot, string, error) {
 				continue
 			}
 
-			roots = append(roots, RepoRoot{Key: key, Path: resolved})
+			roots = append(roots, domain.Repo{Key: key, Root: resolved})
 		}
 
 		if len(roots) == 0 {
@@ -174,7 +170,7 @@ func loadRoots() ([]RepoRoot, string, error) {
 	}
 
 	key := filepath.Base(resolved)
-	return []RepoRoot{{Key: key, Path: resolved}}, key, nil
+	return []domain.Repo{{Key: key, Root: resolved}}, key, nil
 }
 
 func resolveRoot(root string) (string, error) {

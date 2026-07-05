@@ -15,6 +15,8 @@ import (
 	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
+
+	"codeberg.org/codeberg/daemon/internal/domain"
 )
 
 const (
@@ -35,12 +37,8 @@ var (
 	errStopWalk = errors.New("stop walk")
 )
 
-// RepoInfo is one repository the workspace serves: its stable key (what tools
-// pass as `repo` and search results carry) and the absolute root it names.
-type RepoInfo struct {
-	Key  string `json:"key"`
-	Root string `json:"root"`
-}
+// RepoInfo is one repository the workspace serves.
+type RepoInfo = domain.Repo
 
 type Workspace struct {
 	repos      []RepoInfo

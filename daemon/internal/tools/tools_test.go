@@ -12,6 +12,10 @@ import (
 
 type stubIndexer struct{}
 
+func (stubIndexer) Status(context.Context) (indexctl.Status, error) {
+	return indexctl.Status{Ready: true}, nil
+}
+
 func (stubIndexer) Search(context.Context, indexctl.SearchOptions) ([]indexctl.SearchResult, error) {
 	return nil, nil
 }

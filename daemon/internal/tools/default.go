@@ -1,10 +1,11 @@
 package tools
 
 import (
+	"codeberg.org/codeberg/daemon/internal/indexctl"
 	"codeberg.org/codeberg/daemon/internal/workspace"
 )
 
-func Default(ws *workspace.Workspace, idx Indexer) *Registry {
+func Default(ws *workspace.Workspace, idx indexctl.Indexer) *Registry {
 	r := NewRegistry()
 	r.Register(reposTool(ws))
 	registerIndexTools(r, idx, ws)

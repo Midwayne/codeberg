@@ -5,9 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
-
-	"codeberg.org/codeberg/daemon/internal/workspace"
 )
 
 var (
@@ -81,17 +78,4 @@ func (r *Registry) Call(ctx context.Context, name string, args json.RawMessage) 
 		return nil, fmt.Errorf("%w: %q", ErrUnknownTool, name)
 	}
 	return t.Call(ctx, args)
-}
-
-func HTTPStatus(err error) int {
-	switch {
-	case errors.Is(err, ErrUnknownTool), errors.Is(err, workspace.ErrNotFound):
-		return http.StatusNotFound
-	case errors.Is(err, workspace.ErrEscape):
-		return http.StatusForbidden
-	case errors.Is(err, ErrInvalidArgs), errors.Is(err, ErrUnsafeSed), errors.Is(err, ErrUnsafePipe):
-		return http.StatusBadRequest
-	default:
-		return http.StatusInternalServerError
-	}
 }

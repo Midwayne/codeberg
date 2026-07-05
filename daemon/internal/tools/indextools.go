@@ -3,21 +3,13 @@ package tools
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"codeberg.org/codeberg/daemon/internal/indexctl"
+	"codeberg.org/codeberg/daemon/internal/search"
 	"codeberg.org/codeberg/daemon/internal/workspace"
 )
 
-// Indexer is the subset of indexctl used by search-related tools.
-type Indexer interface {
-	Search(ctx context.Context, opts indexctl.SearchOptions) ([]indexctl.SearchResult, error)
-	GetChunk(ctx context.Context, repo string, id uint64) (indexctl.ChunkDetail, error)
-	FindSymbol(ctx context.Context, opts indexctl.SymbolOptions) ([]indexctl.SearchResult, error)
-	FileOutline(ctx context.Context, repo, path string) ([]indexctl.SearchResult, error)
-}
-
-func registerIndexTools(r *Registry, idx Indexer, ws *workspace.Workspace) {
+func registerIndexTools(r *Registry, idx indexctl.Indexer, ws *workspace.Workspace) {
 	r.Register(searchTool(idx))
 	r.Register(getChunkTool(idx))
 	r.Register(findSymbolTool(idx))
@@ -26,7 +18,7 @@ func registerIndexTools(r *Registry, idx Indexer, ws *workspace.Workspace) {
 	r.Register(findReferencesTool(ws))
 }
 
-func searchTool(idx Indexer) Tool {
+func searchTool(idx indexctl.Indexer) Tool {
 	const schema = `{
   "type": "object",
   "additionalProperties": false,
@@ -56,7 +48,7 @@ func searchTool(idx Indexer) Tool {
 		})
 }
 
-func getChunkTool(idx Indexer) Tool {
+func getChunkTool(idx indexctl.Indexer) Tool {
 	const schema = `{
   "type": "object",
   "additionalProperties": false,
@@ -75,7 +67,7 @@ func getChunkTool(idx Indexer) Tool {
 		})
 }
 
-func findSymbolTool(idx Indexer) Tool {
+func findSymbolTool(idx indexctl.Indexer) Tool {
 	const schema = `{
   "type": "object",
   "additionalProperties": false,
@@ -101,7 +93,7 @@ func findSymbolTool(idx Indexer) Tool {
 		})
 }
 
-func fileOutlineTool(idx Indexer) Tool {
+func fileOutlineTool(idx indexctl.Indexer) Tool {
 	const schema = `{
   "type": "object",
   "additionalProperties": false,
@@ -120,7 +112,7 @@ func fileOutlineTool(idx Indexer) Tool {
 		})
 }
 
-func hybridSearchTool(idx Indexer, ws *workspace.Workspace) Tool {
+func hybridSearchTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
 	const schema = `{
   "type": "object",
   "additionalProperties": false,
@@ -152,32 +144,20 @@ func hybridSearchTool(idx Indexer, ws *workspace.Workspace) Tool {
 				return nil, err
 			}
 
-			terms := significantTerms(a.Query)
-			out := make([]hybridRanked, 0, len(candidates))
-
-			for _, hit := range candidates {
-				boost := 0
-				if len(terms) > 0 {
-					for _, term := range terms {
-						matches, gerr := ws.Grep(ctx, term, true, hit.Repo, hit.Path, 3)
-						if gerr == nil && len(matches) > 0 {
-							boost++
-						}
-					}
+			ranked, err := search.Hybrid(ctx, candidates, a.Query, func(ctx context.Context, term, repo, path string) (bool, error) {
+				matches, gerr := ws.Grep(ctx, term, true, repo, path, 3)
+				if gerr != nil {
+					return false, gerr
 				}
-
-				final := hit.Score + float32(boost)*0.05
-				out = append(out, hybridRanked{Hit: hit, GrepBoost: boost, FinalScore: final})
+				return len(matches) > 0, nil
+			}, k)
+			if err != nil {
+				return nil, err
 			}
 
-			for i := 1; i < len(out); i++ {
-				for j := i; j > 0 && out[j].FinalScore > out[j-1].FinalScore; j-- {
-					out[j], out[j-1] = out[j-1], out[j]
-				}
-			}
-
-			if len(out) > k {
-				out = out[:k]
+			out := make([]hybridRanked, len(ranked))
+			for i, h := range ranked {
+				out[i] = hybridRanked{Hit: h.Hit, GrepBoost: h.GrepBoost, FinalScore: h.FinalScore}
 			}
 
 			return out, nil
@@ -206,41 +186,7 @@ func findReferencesTool(ws *workspace.Workspace) Tool {
 				limit = 50
 			}
 
-			pattern := fmt.Sprintf(`\b%s\b`, regexpQuote(a.Symbol))
+			pattern := fmt.Sprintf(`\b%s\b`, search.RegexpQuote(a.Symbol))
 			return ws.Grep(ctx, pattern, false, a.Repo, a.PathGlob, limit)
 		})
-}
-
-func significantTerms(query string) []string {
-	stop := map[string]bool{
-		"the": true, "a": true, "an": true, "is": true, "are": true, "was": true,
-		"where": true, "how": true, "what": true, "which": true, "does": true,
-		"do": true, "in": true, "of": true, "to": true, "for": true, "and": true,
-		"or": true, "with": true, "from": true, "by": true, "on": true, "at": true,
-	}
-
-	var terms []string
-	for _, w := range strings.Fields(strings.ToLower(query)) {
-		w = strings.Trim(w, ".,;:!?\"'()[]{}")
-		if len(w) < 3 || stop[w] {
-			continue
-		}
-		terms = append(terms, w)
-	}
-
-	return terms
-}
-
-func regexpQuote(s string) string {
-	const specials = `\.+*?()|[]{}^$`
-	var b strings.Builder
-
-	for _, r := range s {
-		if strings.ContainsRune(specials, r) {
-			b.WriteByte('\\')
-		}
-		b.WriteRune(r)
-	}
-
-	return b.String()
 }

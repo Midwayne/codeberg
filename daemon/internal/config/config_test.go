@@ -41,7 +41,7 @@ func TestLoadDaemonDefaults(t *testing.T) {
 	if cfg.Root != wantRoot {
 		t.Fatalf("root: got %q want %q", cfg.Root, wantRoot)
 	}
-	if len(cfg.Roots) != 1 || cfg.Roots[0].Path != wantRoot {
+	if len(cfg.Roots) != 1 || cfg.Roots[0].Root != wantRoot {
 		t.Fatalf("roots: got %+v", cfg.Roots)
 	}
 	if want := filepath.Base(wantRoot); cfg.DefaultKey != want || cfg.Roots[0].Key != want {
@@ -81,7 +81,7 @@ func TestLoadDaemonMultiRoots(t *testing.T) {
 	if cfg.DefaultKey != "" {
 		t.Fatalf("multi-root mode must have no default repo, got %q", cfg.DefaultKey)
 	}
-	if cfg.Root != cfg.Roots[0].Path {
+	if cfg.Root != cfg.Roots[0].Root {
 		t.Fatalf("Root should be the first root, got %q", cfg.Root)
 	}
 	if len(cfg.GitDirs) != 2 {

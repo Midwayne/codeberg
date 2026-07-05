@@ -9,11 +9,12 @@ import (
 	"strings"
 	"testing"
 
+	"codeberg.org/codeberg/daemon/internal/subprocess"
 	"codeberg.org/codeberg/daemon/internal/workspace"
 )
 
 func TestTokenizePipeline(t *testing.T) {
-	stages, err := tokenizePipeline(`rg -l 'func main' --glob "*.go" | head -20`)
+	stages, err := subprocess.TokenizePipeline(`rg -l 'func main' --glob "*.go" | head -20`)
 	if err != nil {
 		t.Fatalf("tokenize: %v", err)
 	}
@@ -39,10 +40,10 @@ func TestTokenizeRejectsShellOperators(t *testing.T) {
 		"rg `whoami`",
 		`rg foo & rg bar`,
 		`rg foo < in`,
-		`rg foo || rg bar`, // empty stage between the two pipes
+		`rg foo || rg bar`,
 		``,
 	} {
-		if _, err := tokenizePipeline(cmd); err == nil {
+		if _, err := subprocess.TokenizePipeline(cmd); err == nil {
 			t.Fatalf("expected rejection for %q", cmd)
 		}
 	}
@@ -72,7 +73,7 @@ func TestValidateStage(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			err := validateStage(tc.argv)
+			err := subprocess.ValidateStage(tc.argv)
 			if tc.ok && err != nil {
 				t.Fatalf("want ok, got %v", err)
 			}
@@ -91,7 +92,6 @@ func TestPipeToolEndToEnd(t *testing.T) {
 
 	tool := pipeTool(wsSingle(dir))
 
-	// rg lists the two .go files with TODO; head keeps the first one.
 	out := callPipe(t, tool, `rg -l TODO --glob "*.go" | head -1`)
 	lines := nonEmptyLines(out.Stdout)
 	if len(lines) != 1 {
@@ -104,7 +104,6 @@ func TestPipeToolEndToEnd(t *testing.T) {
 		t.Fatal("unexpected truncation")
 	}
 
-	// No match: rg exits 1, which is tolerated and yields empty stdout.
 	empty := callPipe(t, tool, `rg ZZZ_NOPE | wc -l`)
 	if got := strings.TrimSpace(empty.Stdout); got != "0" {
 		t.Fatalf("wc on no-match = %q, want 0", got)

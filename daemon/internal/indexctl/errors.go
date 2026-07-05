@@ -3,7 +3,6 @@ package indexctl
 import (
 	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 )
 
@@ -38,28 +37,13 @@ func mapIndexerError(msg string) error {
 	case "timeout":
 		code = "TIMEOUT"
 	}
+
 	return &IndexerError{Code: code, Message: msg}
 }
 
-// HTTPStatus maps indexer errors to HTTP status codes.
-func HTTPStatus(err error) int {
+// AsIndexerError returns the IndexerError if err wraps one.
+func AsIndexerError(err error) (*IndexerError, bool) {
 	var ie *IndexerError
-	if errors.As(err, &ie) {
-		switch ie.Code {
-		case "NOT_IMPLEMENTED":
-			return http.StatusNotImplemented
-		case "NOT_FOUND":
-			return http.StatusNotFound
-		case "INVALID_ARGUMENT":
-			return http.StatusBadRequest
-		case "TIMEOUT":
-			return http.StatusGatewayTimeout
-		default:
-			return http.StatusServiceUnavailable
-		}
-	}
-	if strings.Contains(err.Error(), "indexer connect:") {
-		return http.StatusServiceUnavailable
-	}
-	return http.StatusServiceUnavailable
+	ok := errors.As(err, &ie)
+	return ie, ok
 }

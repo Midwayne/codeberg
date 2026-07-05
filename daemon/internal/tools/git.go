@@ -2,12 +2,10 @@ package tools
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"os"
-	"os/exec"
 	"strings"
 
+	"codeberg.org/codeberg/daemon/internal/git"
 	"codeberg.org/codeberg/daemon/internal/workspace"
 )
 
@@ -52,7 +50,7 @@ func gitLogTool(ws *workspace.Workspace) Tool {
 			}
 
 			gitArgs := []string{
-				"-C", root, "log", "--no-color", fmt.Sprintf("--max-count=%d", limit),
+				"log", "--no-color", fmt.Sprintf("--max-count=%d", limit),
 				"--date=short", "--pretty=format:%H" + logFieldSep + "%an" + logFieldSep + "%ad" + logFieldSep + "%s",
 			}
 			if a.Path != "" {
@@ -63,7 +61,7 @@ func gitLogTool(ws *workspace.Workspace) Tool {
 				gitArgs = append(gitArgs, "--", rel)
 			}
 
-			out, err := runGit(ctx, gitArgs...)
+			out, err := git.Run(ctx, root, gitArgs...)
 			if err != nil {
 				return nil, err
 			}
@@ -102,7 +100,7 @@ func gitBlameTool(ws *workspace.Workspace) Tool {
 				return nil, fmt.Errorf("%w: git_blame requires a file path", ErrInvalidArgs)
 			}
 
-			gitArgs := []string{"-C", root, "blame"}
+			gitArgs := []string{"blame"}
 			if a.StartLine > 0 {
 				span := fmt.Sprintf("%d", a.StartLine)
 				if a.EndLine >= a.StartLine {
@@ -112,7 +110,7 @@ func gitBlameTool(ws *workspace.Workspace) Tool {
 			}
 			gitArgs = append(gitArgs, "--", rel)
 
-			out, err := runGit(ctx, gitArgs...)
+			out, err := git.Run(ctx, root, gitArgs...)
 			if err != nil {
 				return nil, err
 			}
@@ -129,11 +127,7 @@ func gitBlameTool(ws *workspace.Workspace) Tool {
 func parseLog(out string) []commit {
 	var commits []commit
 
-	for _, line := range strings.Split(strings.TrimRight(out, "\n"), "\n") {
-		if line == "" {
-			continue
-		}
-
+	for _, line := range git.ParseLog(out) {
 		f := strings.Split(line, logFieldSep)
 		if len(f) != logFieldCount {
 			continue
@@ -145,20 +139,4 @@ func parseLog(out string) []commit {
 	}
 
 	return commits
-}
-
-func runGit(ctx context.Context, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", args...)
-	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
-
-	out, err := cmd.Output()
-	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			return "", fmt.Errorf("codeberg: git: %w: %s", err, strings.TrimSpace(string(exitErr.Stderr)))
-		}
-		return "", fmt.Errorf("codeberg: git: %w", err)
-	}
-
-	return string(out), nil
 }
