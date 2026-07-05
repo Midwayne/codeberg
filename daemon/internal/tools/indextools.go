@@ -121,13 +121,15 @@ func hybridSearchTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
     "query": {"type": "string", "description": "natural-language search query"},
     "k": {"type": "integer", "description": "max results (default 8)"},
     "repo": {"type": "string", "description": "restrict to one repo key"},
-    "path_glob": {"type": "string", "description": "fnmatch glob on chunk paths"}
+    "path_glob": {"type": "string", "description": "fnmatch glob on chunk paths"},
+    "kind": {"type": "string", "description": "chunk kind: function, method, class, struct, interface, window"},
+    "min_score": {"type": "number", "description": "minimum similarity score (0-1)"}
   },
   "required": ["query"]
 }`
 
 	return New("hybrid_search",
-		"Vector search candidates reranked by grep verification of query terms in hit files.",
+		"Vector search candidates reranked by grep verification of query terms in hit chunks.",
 		schema,
 		func(ctx context.Context, a hybridSearchArgs) (any, error) {
 			k := a.K
@@ -140,6 +142,8 @@ func hybridSearchTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
 				K:        k * 2,
 				Repo:     a.Repo,
 				PathGlob: a.PathGlob,
+				Kind:     a.Kind,
+				MinScore: a.MinScore,
 			})
 			if err != nil {
 				return nil, err

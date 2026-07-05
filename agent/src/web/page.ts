@@ -35,6 +35,13 @@ export const CHAT_PAGE_HTML = `<!doctype html>
   .tool summary { cursor: pointer; color: #d29922; font-family: ui-monospace, monospace; font-size: 13px; }
   .tool pre { margin: 8px 0 4px; padding: 8px; background: #0d1117; border-radius: 6px; overflow-x: auto; font-size: 12px; color: #adbac7; }
   .tool pre:empty { display: none; }
+  .hit { margin: 6px 0; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; background: #161b22; }
+  .hit-hd { display: flex; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid #30363d; font-family: ui-monospace, monospace; font-size: 12px; }
+  .hit-repo { color: #8b949e; background: #21262d; padding: 1px 6px; border-radius: 4px; }
+  .hit-path { color: #e6edf3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hit-lines { color: #8b949e; }
+  .hit-snippet { margin: 0; padding: 8px 10px; font-size: 12px; white-space: pre-wrap; color: #adbac7; }
+  .grep-line { padding: 4px 10px; font-family: ui-monospace, monospace; font-size: 12px; border-top: 1px solid #21262d; color: #adbac7; }
   .error { color: #f85149; padding: 8px 12px; border: 1px solid #f8514955; border-radius: 8px; }
   form { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid #30363d; position: relative; }
   #prompt { flex: 1; padding: 10px 12px; border-radius: 8px; border: 1px solid #30363d; background: #0d1117; color: #e6edf3; font: inherit; }
@@ -199,12 +206,19 @@ function streamTurn(wrap, collected) {
         case "tool-input-start":
         case "tool-input-available": {
           var t = tools[c.toolCallId] || (tools[c.toolCallId] = tool(wrap));
-          if (c.toolName) t.summary.textContent = "\\uD83D\\uDD27 " + c.toolName;
+          if (c.toolName) {
+            t.name = c.toolName;
+            t.summary.textContent = "\\uD83D\\uDD27 " + c.toolName;
+          }
           if (c.input !== undefined) t.input.textContent = pretty(c.input);
           break;
         }
         case "tool-output-available":
-          if (tools[c.toolCallId]) tools[c.toolCallId].output.textContent = pretty(c.output); break;
+          if (tools[c.toolCallId]) {
+            var tc = tools[c.toolCallId];
+            renderToolOutput(tc, c.output);
+          }
+          break;
         case "tool-output-error":
           if (tools[c.toolCallId]) tools[c.toolCallId].output.textContent = "error: " + c.errorText; break;
         case "error": block(wrap, "error").textContent = c.errorText || "stream error"; break;
@@ -258,13 +272,79 @@ function block(wrap, cls) {
 function tool(wrap) {
   var d = document.createElement("details");
   d.className = "tool";
+  d.open = true;
   var s = document.createElement("summary");
   s.textContent = "\\uD83D\\uDD27 tool";
+  var body = document.createElement("div");
   var inp = document.createElement("pre");
-  var out = document.createElement("pre");
+  var out = document.createElement("div");
   d.appendChild(s); d.appendChild(inp); d.appendChild(out);
   wrap.appendChild(d);
-  return { summary: s, input: inp, output: out };
+  return { summary: s, input: inp, output: out, name: "tool" };
+}
+
+function renderToolOutput(tc, output) {
+  tc.output.textContent = "";
+  var name = tc.name || "tool";
+  if (name === "search_code" || name === "find_symbol" || name === "file_outline") {
+    renderHits(tc.output, Array.isArray(output) ? output : []);
+    return;
+  }
+  if (name === "hybrid_search" && Array.isArray(output)) {
+    renderHits(tc.output, output.map(function (r) { return r && r.hit ? r.hit : null; }).filter(Boolean));
+    return;
+  }
+  if ((name === "grep" || name === "find_references") && Array.isArray(output)) {
+    output.forEach(function (m) {
+      var card = document.createElement("div");
+      card.className = "hit";
+      var hd = document.createElement("div");
+      hd.className = "hit-hd";
+      if (m.repo) { var repo = document.createElement("span"); repo.className = "hit-repo"; repo.textContent = m.repo; hd.appendChild(repo); }
+      var path = document.createElement("span"); path.className = "hit-path"; path.textContent = m.path || ""; hd.appendChild(path);
+      if (m.line) { var ln = document.createElement("span"); ln.className = "hit-lines"; ln.textContent = ":" + m.line; hd.appendChild(ln); }
+      card.appendChild(hd);
+      if (m.text) { var tx = document.createElement("div"); tx.className = "grep-line"; tx.textContent = m.text; card.appendChild(tx); }
+      tc.output.appendChild(card);
+    });
+    return;
+  }
+  if (name === "get_chunk" && output && typeof output === "object") {
+    renderHits(tc.output, [output]);
+    return;
+  }
+  if ((name === "read_file" || name === "head" || name === "tail") && output) {
+    var pre = document.createElement("pre");
+    pre.className = "hit-snippet";
+    pre.textContent = typeof output === "string" ? output : (output.content || pretty(output));
+    tc.output.appendChild(pre);
+    return;
+  }
+  var fallback = document.createElement("pre");
+  fallback.textContent = pretty(output);
+  tc.output.appendChild(fallback);
+}
+
+function renderHits(container, hits) {
+  hits.forEach(function (h) {
+    if (!h || !h.path) return;
+    var card = document.createElement("div");
+    card.className = "hit";
+    var hd = document.createElement("div");
+    hd.className = "hit-hd";
+    if (h.repo) { var repo = document.createElement("span"); repo.className = "hit-repo"; repo.textContent = h.repo; hd.appendChild(repo); }
+    var path = document.createElement("span"); path.className = "hit-path"; path.textContent = h.path; hd.appendChild(path);
+    if (h.start_line) {
+      var ln = document.createElement("span"); ln.className = "hit-lines";
+      ln.textContent = ":" + h.start_line + "-" + (h.end_line || h.start_line);
+      hd.appendChild(ln);
+    }
+    card.appendChild(hd);
+    if (h.symbol) { var sym = document.createElement("div"); sym.className = "grep-line"; sym.textContent = h.symbol; card.appendChild(sym); }
+    var snip = h.snippet || h.body;
+    if (snip) { var pre = document.createElement("pre"); pre.className = "hit-snippet"; pre.textContent = snip; card.appendChild(pre); }
+    container.appendChild(card);
+  });
 }
 
 function pretty(v) {

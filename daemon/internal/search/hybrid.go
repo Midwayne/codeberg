@@ -25,7 +25,19 @@ var stopWords = map[string]bool{
 	"or": true, "with": true, "from": true, "by": true, "on": true, "at": true,
 }
 
-// Hybrid reranks vector candidates by boosting scores when query terms appear in hit files.
+func termBoost(lower string, terms []string) int {
+	boost := 0
+	for _, term := range terms {
+		if strings.Contains(lower, term) {
+			boost++
+		}
+	}
+	return boost
+}
+
+// Hybrid reranks vector candidates by boosting scores when query terms appear in
+// the hit chunk (snippet, symbol, path) and, when that yields no signal, in the
+// full file as a fallback.
 func Hybrid(ctx context.Context, candidates []indexctl.SearchResult, query string, read ContentReader, k int) ([]HybridHit, error) {
 	terms := SignificantTerms(query)
 	out := make([]HybridHit, 0, len(candidates))
@@ -35,21 +47,21 @@ func Hybrid(ctx context.Context, candidates []indexctl.SearchResult, query strin
 		boost := 0
 
 		if len(terms) > 0 {
-			key := hit.Repo + "\x00" + hit.Path
-			lower, ok := contentCache[key]
-			if !ok {
-				body, err := read(ctx, hit.Repo, hit.Path)
-				if err != nil {
-					return nil, err
-				}
-				lower = strings.ToLower(string(body))
-				contentCache[key] = lower
-			}
+			chunkText := strings.ToLower(strings.Join([]string{hit.Path, hit.Symbol, hit.Snippet}, "\n"))
+			boost = termBoost(chunkText, terms)
 
-			for _, term := range terms {
-				if strings.Contains(lower, term) {
-					boost++
+			if boost == 0 && read != nil {
+				key := hit.Repo + "\x00" + hit.Path
+				lower, ok := contentCache[key]
+				if !ok {
+					body, err := read(ctx, hit.Repo, hit.Path)
+					if err != nil {
+						return nil, err
+					}
+					lower = strings.ToLower(string(body))
+					contentCache[key] = lower
 				}
+				boost = termBoost(lower, terms)
 			}
 		}
 

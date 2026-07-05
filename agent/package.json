@@ -6,6 +6,7 @@
   "type": "module",
   "bin": {
     "codeberg-ask": "./dist/cli.js",
+    "codeberg-search": "./dist/search-cli.js",
     "codeberg-tui": "./dist/tui.js",
     "codeberg-web": "./dist/web.js"
   },

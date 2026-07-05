@@ -1527,6 +1527,13 @@ static void fill_snippet(cberg_repo *r, const cberg_stored_chunk *sc, char *out,
     free(body);
 }
 
+#define CBERG_FILTER_FETCH_MAX 256
+
+static int search_filters_active(const cberg_search_filters *filters) {
+    return filters != NULL &&
+           (filters->path_glob != NULL || filters->kind >= 0 || filters->min_score > 0.0f);
+}
+
 /* Search one repo with an already-embedded query, copying chunk metadata into
  * hits while r->mu is held. NOT_FOUND when the repo is not ready yet. */
 static cberg_status repo_search_hits(cberg_repo *r, const float *vec, size_t k, const cberg_search_filters *filters, cberg_engine_hit *hits, size_t cap, size_t *found) {
@@ -1537,18 +1544,32 @@ static cberg_status repo_search_hits(cberg_repo *r, const float *vec, size_t k, 
         return CBERG_ERR_NOT_FOUND;
     }
 
+    const int filtered = search_filters_active(filters);
     size_t fetch = k;
-    if (filters != NULL && (filters->path_glob != NULL || filters->kind >= 0 || filters->min_score > 0.0f)) {
-        fetch = 64;
-    }
-    if (fetch > 64) {
+    if (filtered) {
+        /* Oversample ANN candidates when post-filters may reject most neighbors. */
+        fetch = k * 8;
+        if (fetch < 64) {
+            fetch = 64;
+        }
+        if (fetch > CBERG_FILTER_FETCH_MAX) {
+            fetch = CBERG_FILTER_FETCH_MAX;
+        }
+    } else if (fetch > 64) {
         fetch = 64;
     }
 
-    uint64_t ids[64];
-    float scores[64];
+    uint64_t ids[CBERG_FILTER_FETCH_MAX];
+    float scores[CBERG_FILTER_FETCH_MAX];
+    cberg_search_config search_cfg;
+    cberg_search_config_default(&search_cfg);
+    if (filtered) {
+        search_cfg.oversample = 8;
+        search_cfg.min_expansion_search = 128;
+    }
+
     size_t n = 0;
-    cberg_status st = cberg_search_vector(r->index, vec, NULL, fetch, ids, scores, &n);
+    cberg_status st = cberg_search_vector(r->index, vec, filtered ? &search_cfg : NULL, fetch, ids, scores, &n);
     if (st != CBERG_OK) {
         pthread_mutex_unlock(&r->mu);
         return st;

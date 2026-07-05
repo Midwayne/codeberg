@@ -13,9 +13,13 @@ export interface SearchResult {
   snippet: string;
 }
 
-/** Stable chunk identity: ids restart at 1 per repo in multi-repo runs. */
-export function chunkKey(r: Pick<SearchResult, 'repo' | 'id'>): string {
-  return `${r.repo ?? ''}#${r.id}`;
+/** Stable chunk identity: ids restart at 1 per repo in multi-repo runs. Grep hits
+ *  use id=0 and fall back to path:line. */
+export function chunkKey(r: Pick<SearchResult, 'repo' | 'id' | 'path' | 'start_line'>): string {
+  if (r.id > 0) {
+    return `${r.repo ?? ''}#${r.id}`;
+  }
+  return `${r.repo ?? ''}@${r.path}:${r.start_line}`;
 }
 
 export interface ToolSpec {

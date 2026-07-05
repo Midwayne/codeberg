@@ -99,10 +99,12 @@ type fileOutlineArgs struct {
 }
 
 type hybridSearchArgs struct {
-	Query    string `json:"query"`
-	K        int    `json:"k"`
-	Repo     string `json:"repo"`
-	PathGlob string `json:"path_glob"`
+	Query    string  `json:"query"`
+	K        int     `json:"k"`
+	Repo     string  `json:"repo"`
+	PathGlob string  `json:"path_glob"`
+	Kind     string  `json:"kind"`
+	MinScore float32 `json:"min_score"`
 }
 
 type findReferencesArgs struct {

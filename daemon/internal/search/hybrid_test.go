@@ -26,8 +26,8 @@ func TestSignificantTerms(t *testing.T) {
 
 func TestHybridReranksByTermPresence(t *testing.T) {
 	candidates := []indexctl.SearchResult{
-		{ID: 1, Score: 0.95, Repo: "main", Path: "a.go"},
-		{ID: 2, Score: 0.90, Repo: "main", Path: "b.go"},
+		{ID: 1, Score: 0.95, Repo: "main", Path: "a.go", Snippet: "unrelated code"},
+		{ID: 2, Score: 0.90, Repo: "main", Path: "b.go", Snippet: "authentication handler implementation"},
 	}
 
 	reads := 0
@@ -63,8 +63,8 @@ func TestHybridReranksByTermPresence(t *testing.T) {
 
 func TestHybridReadsEachFileOnce(t *testing.T) {
 	candidates := []indexctl.SearchResult{
-		{ID: 1, Score: 0.9, Repo: "main", Path: "dup.go"},
-		{ID: 2, Score: 0.8, Repo: "main", Path: "dup.go"},
+		{ID: 1, Score: 0.9, Repo: "main", Path: "dup.go", Snippet: "plain"},
+		{ID: 2, Score: 0.8, Repo: "main", Path: "dup.go", Snippet: "plain"},
 	}
 
 	reads := 0
