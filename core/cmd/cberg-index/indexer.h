@@ -82,6 +82,13 @@ size_t cberg_engine_chunk_count(cberg_engine *eng);
 const char *cberg_indexer_version(void);
 
 #define CBERG_SNIPPET_MAX 400
+#define CBERG_CHUNK_BODY_MAX 65536
+
+typedef struct cberg_search_filters {
+    const char *path_glob; /* fnmatch on chunk.path; NULL/empty = any */
+    int kind;              /* cberg_chunk_kind, or -1 for any */
+    float min_score;       /* 0 = any */
+} cberg_search_filters;
 
 /* A search hit resolved to its chunk metadata. path/symbol/snippet are copied
  * out while the repo lock is held (the table may mutate after return); repo
@@ -100,8 +107,39 @@ typedef struct cberg_engine_hit {
 /* Searches one repo (repo_key) or all of them (repo_key NULL or ""), embedding
  * the query once and merging per-repo neighbors by score, best-first. Repos
  * still bootstrapping are skipped in the all-repos case (partial results); an
- * unknown repo_key — or no searchable repo at all — is CBERG_ERR_NOT_FOUND. */
+ * unknown repo_key — or no searchable repo at all — is CBERG_ERR_NOT_FOUND.
+ * filters may be NULL; when set, hits are post-filtered and over-fetched. */
 cberg_status cberg_engine_search_hits(cberg_engine *eng, const char *query, const char *repo_key, size_t k,
-                                      cberg_engine_hit *hits, size_t cap, size_t *found);
+                                      const cberg_search_filters *filters, cberg_engine_hit *hits, size_t cap,
+                                      size_t *found);
+
+typedef struct cberg_engine_chunk_detail {
+    uint64_t id;
+    const char *repo;
+    char path[512];
+    char symbol[256];
+    char kind[32];
+    uint32_t start_line;
+    uint32_t end_line;
+    char snippet[CBERG_SNIPPET_MAX];
+    char *body; /* malloc'd; caller frees via cberg_engine_chunk_detail_free */
+    size_t body_len;
+    int truncated;
+} cberg_engine_chunk_detail;
+
+void cberg_engine_chunk_detail_free(cberg_engine_chunk_detail *d);
+
+/* Fetch a stored chunk by (repo_key, id). body is the indexed chunk text. */
+cberg_status cberg_engine_get_chunk(cberg_engine *eng, const char *repo_key, uint64_t id,
+                                    cberg_engine_chunk_detail *out);
+
+/* Scan the chunk table for symbol name matches (case-insensitive substring).
+ * Does not require vector indexing. */
+cberg_status cberg_engine_find_symbol(cberg_engine *eng, const char *name, const char *repo_key, int kind,
+                                      size_t limit, cberg_engine_hit *hits, size_t cap, size_t *found);
+
+/* Return every indexed chunk in a file, sorted by start_line. */
+cberg_status cberg_engine_file_outline(cberg_engine *eng, const char *repo_key, const char *path,
+                                       cberg_engine_hit *hits, size_t cap, size_t *found);
 
 #endif

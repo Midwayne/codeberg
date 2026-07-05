@@ -17,18 +17,28 @@ import (
 type fakeIndexer struct {
 	status   indexctl.Status
 	hits     []indexctl.SearchResult
-	gotRepo  string
-	gotQuery string
+	gotOpts  indexctl.SearchOptions
 }
 
 func (f *fakeIndexer) Status(context.Context) (indexctl.Status, error) {
 	return f.status, nil
 }
 
-func (f *fakeIndexer) Search(_ context.Context, query string, _ int, repo string) ([]indexctl.SearchResult, error) {
-	f.gotQuery = query
-	f.gotRepo = repo
+func (f *fakeIndexer) Search(_ context.Context, opts indexctl.SearchOptions) ([]indexctl.SearchResult, error) {
+	f.gotOpts = opts
 	return f.hits, nil
+}
+
+func (f *fakeIndexer) GetChunk(context.Context, string, uint64) (indexctl.ChunkDetail, error) {
+	return indexctl.ChunkDetail{}, nil
+}
+
+func (f *fakeIndexer) FindSymbol(context.Context, indexctl.SymbolOptions) ([]indexctl.SearchResult, error) {
+	return nil, nil
+}
+
+func (f *fakeIndexer) FileOutline(context.Context, string, string) ([]indexctl.SearchResult, error) {
+	return nil, nil
 }
 
 func wsSingle(root string) *workspace.Workspace {
@@ -37,14 +47,19 @@ func wsSingle(root string) *workspace.Workspace {
 
 func TestHealthAndSearch(t *testing.T) {
 	idx := &fakeIndexer{
-		status: indexctl.Status{Ready: true, Chunks: 2, Version: "v0.1.0",
-			Repos: []indexctl.RepoStatus{{Key: "main", Ready: true, Chunks: 2}}},
+		status: indexctl.Status{
+			Ready:          true,
+			Chunks:         2,
+			Version:        "v0.1.0",
+			VectorsEnabled: true,
+			Repos:          []indexctl.RepoStatus{{Key: "main", Ready: true, Chunks: 2}},
+		},
 		hits: []indexctl.SearchResult{{
 			ID: 1, Score: 0.5, Repo: "main", Path: "main.go", StartLine: 1, EndLine: 10, Snippet: "package main",
 		}},
 	}
 	ws := wsSingle(t.TempDir())
-	srv := New(idx, tools.Default(ws))
+	srv := New(idx, tools.Default(ws, idx))
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 
@@ -57,16 +72,20 @@ func TestHealthAndSearch(t *testing.T) {
 		t.Fatalf("health status %d", res.StatusCode)
 	}
 	var health struct {
-		Repos []indexctl.RepoStatus `json:"repos"`
+		VectorsEnabled bool                    `json:"vectors_enabled"`
+		Repos          []indexctl.RepoStatus   `json:"repos"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&health); err != nil {
 		t.Fatal(err)
+	}
+	if !health.VectorsEnabled {
+		t.Fatal("expected vectors_enabled true")
 	}
 	if len(health.Repos) != 1 || health.Repos[0].Key != "main" {
 		t.Fatalf("health repos: %+v", health.Repos)
 	}
 
-	res2, err := http.Get(ts.URL + "/search?q=main&k=5&repo=main")
+	res2, err := http.Get(ts.URL + "/search?q=main&k=5&repo=main&path_glob=*.go")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,13 +99,15 @@ func TestHealthAndSearch(t *testing.T) {
 	if len(body.Results) != 1 || body.Results[0].Path != "main.go" || body.Results[0].Repo != "main" {
 		t.Fatalf("results: %+v", body.Results)
 	}
-	if idx.gotRepo != "main" {
-		t.Fatalf("repo param not plumbed to indexer, got %q", idx.gotRepo)
+	if idx.gotOpts.Repo != "main" || idx.gotOpts.PathGlob != "*.go" {
+		t.Fatalf("search opts not plumbed: %+v", idx.gotOpts)
 	}
 }
 
 func TestSearchMissingQuery(t *testing.T) {
-	srv := New(&fakeIndexer{}, tools.Default(wsSingle(t.TempDir())))
+	idx := &fakeIndexer{}
+	ws := wsSingle(t.TempDir())
+	srv := New(idx, tools.Default(ws, idx))
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 
@@ -98,6 +119,17 @@ func TestSearchMissingQuery(t *testing.T) {
 	if res.StatusCode != http.StatusBadRequest {
 		t.Fatalf("status %d", res.StatusCode)
 	}
+	var body struct {
+		OK      bool   `json:"ok"`
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Code != "MISSING_QUERY" {
+		t.Fatalf("code %q", body.Code)
+	}
 }
 
 func TestCallTool(t *testing.T) {
@@ -105,8 +137,9 @@ func TestCallTool(t *testing.T) {
 	if err := os.WriteFile(root+"/hello.txt", []byte("hi"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	idx := &fakeIndexer{status: indexctl.Status{Ready: true}}
 	ws := wsSingle(root)
-	srv := New(&fakeIndexer{status: indexctl.Status{Ready: true}}, tools.Default(ws))
+	srv := New(idx, tools.Default(ws, idx))
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 
@@ -127,7 +160,9 @@ func TestCallPipeTool(t *testing.T) {
 	if err := os.WriteFile(root+"/a.go", []byte("package main\n// TODO\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	srv := New(&fakeIndexer{status: indexctl.Status{Ready: true}}, tools.Default(wsSingle(root)))
+	idx := &fakeIndexer{status: indexctl.Status{Ready: true}}
+	ws := wsSingle(root)
+	srv := New(idx, tools.Default(ws, idx))
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 
@@ -140,7 +175,6 @@ func TestCallPipeTool(t *testing.T) {
 		return res
 	}
 
-	// Happy path: a real rg | head pipeline returns the matching file.
 	res := call(`rg -l TODO --glob "*.go" | head -1`)
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
@@ -158,10 +192,41 @@ func TestCallPipeTool(t *testing.T) {
 		t.Fatal("expected non-empty pipe stdout")
 	}
 
-	// Unsafe pipeline: shell redirection is rejected with 400.
 	res2 := call(`rg TODO > out`)
 	defer res2.Body.Close()
 	if res2.StatusCode != http.StatusBadRequest {
 		t.Fatalf("unsafe pipe status %d, want 400", res2.StatusCode)
+	}
+}
+
+func TestSearchToolRegistered(t *testing.T) {
+	idx := &fakeIndexer{status: indexctl.Status{Ready: true}}
+	ws := wsSingle(t.TempDir())
+	srv := New(idx, tools.Default(ws, idx))
+	ts := httptest.NewServer(srv.Handler())
+	t.Cleanup(ts.Close)
+
+	res, err := http.Get(ts.URL + "/tools")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	var body struct {
+		Tools []struct {
+			Name string `json:"name"`
+		} `json:"tools"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, tool := range body.Tools {
+		if tool.Name == "search" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("search tool not registered")
 	}
 }

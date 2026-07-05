@@ -6,8 +6,24 @@ import (
 	"slices"
 	"testing"
 
+	"codeberg.org/codeberg/daemon/internal/indexctl"
 	"codeberg.org/codeberg/daemon/internal/workspace"
 )
+
+type stubIndexer struct{}
+
+func (stubIndexer) Search(context.Context, indexctl.SearchOptions) ([]indexctl.SearchResult, error) {
+	return nil, nil
+}
+func (stubIndexer) GetChunk(context.Context, string, uint64) (indexctl.ChunkDetail, error) {
+	return indexctl.ChunkDetail{}, nil
+}
+func (stubIndexer) FindSymbol(context.Context, indexctl.SymbolOptions) ([]indexctl.SearchResult, error) {
+	return nil, nil
+}
+func (stubIndexer) FileOutline(context.Context, string, string) ([]indexctl.SearchResult, error) {
+	return nil, nil
+}
 
 // wsSingle builds a one-repo workspace the way single-root mode does: the
 // repo's key doubles as the default, so tools may omit `repo`.
@@ -16,12 +32,15 @@ func wsSingle(root string) *workspace.Workspace {
 }
 
 func TestDefaultRegistry(t *testing.T) {
-	reg := Default(wsSingle(t.TempDir()))
+	reg := Default(wsSingle(t.TempDir()), stubIndexer{})
 	names := make([]string, len(reg.List()))
 	for i, sp := range reg.List() {
 		names[i] = sp.Name
 	}
-	want := []string{"repos", "grep", "glob", "read_file", "list_dir", "tree", "head", "tail", "wc", "sed", "pipe", "git_log", "git_blame"}
+	want := []string{
+		"repos", "search", "get_chunk", "find_symbol", "file_outline", "hybrid_search", "find_references",
+		"grep", "glob", "read_file", "list_dir", "tree", "head", "tail", "wc", "sed", "pipe", "git_log", "git_blame",
+	}
 	for _, name := range want {
 		if !slices.Contains(names, name) {
 			t.Fatalf("missing tool %q in %v", name, names)
@@ -35,7 +54,7 @@ func TestReposTool(t *testing.T) {
 		{Key: "alpha", Root: rootA},
 		{Key: "beta", Root: rootB},
 	}, "")
-	reg := Default(ws)
+	reg := Default(ws, stubIndexer{})
 
 	out, err := reg.Call(context.Background(), "repos", json.RawMessage(`{}`))
 	if err != nil {

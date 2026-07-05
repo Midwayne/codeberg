@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -30,10 +31,11 @@ type RepoStatus struct {
 }
 
 type Status struct {
-	Ready   bool         `json:"ready"`
-	Chunks  int          `json:"chunks"`
-	Version string       `json:"version"`
-	Repos   []RepoStatus `json:"repos"`
+	Ready           bool         `json:"ready"`
+	Chunks          int          `json:"chunks"`
+	Version         string       `json:"version"`
+	VectorsEnabled  bool         `json:"vectors_enabled"`
+	Repos           []RepoStatus `json:"repos"`
 }
 
 type Client struct {
@@ -46,29 +48,47 @@ func NewClient(socket string) *Client {
 
 func (c *Client) Status(ctx context.Context) (Status, error) {
 	var out struct {
-		OK      bool         `json:"ok"`
-		Ready   bool         `json:"ready"`
-		Chunks  int          `json:"chunks"`
-		Version string       `json:"version"`
-		Repos   []RepoStatus `json:"repos"`
-		Error   string       `json:"error"`
+		OK              bool         `json:"ok"`
+		Ready           bool         `json:"ready"`
+		Chunks          int          `json:"chunks"`
+		Version         string       `json:"version"`
+		VectorsEnabled  bool         `json:"vectors_enabled"`
+		Repos           []RepoStatus `json:"repos"`
+		Error           string       `json:"error"`
 	}
 	if err := c.roundTrip(ctx, "status", &out); err != nil {
 		return Status{}, err
 	}
 	if !out.OK {
-		return Status{}, fmt.Errorf("indexer: %s", out.Error)
+		return Status{}, mapIndexerError(out.Error)
 	}
-	return Status{Ready: out.Ready, Chunks: out.Chunks, Version: out.Version, Repos: out.Repos}, nil
+	return Status{
+		Ready:          out.Ready,
+		Chunks:         out.Chunks,
+		Version:        out.Version,
+		VectorsEnabled: out.VectorsEnabled,
+		Repos:          out.Repos,
+	}, nil
 }
 
-// Search queries the indexer, scoped to one repo key or across every repo
-// when repo is "" (results carry their repo and merge by score).
-func (c *Client) Search(ctx context.Context, query string, k int, repo string) ([]SearchResult, error) {
-	line := fmt.Sprintf("search\t%s\t%d", strings.ReplaceAll(query, "\t", " "), k)
-	if repo != "" {
-		line += "\t" + strings.ReplaceAll(repo, "\t", " ")
+// Search queries the indexer with optional filters.
+func (c *Client) Search(ctx context.Context, opts SearchOptions) ([]SearchResult, error) {
+	k := opts.K
+	if k <= 0 {
+		k = 10
 	}
+	hasFilters := opts.PathGlob != "" || opts.Kind != "" || opts.MinScore > 0
+	fields := []string{sanitizeTab(opts.Query), strconv.Itoa(k)}
+	if opts.Repo != "" || hasFilters {
+		fields = append(fields, sanitizeTab(opts.Repo))
+	}
+	if hasFilters {
+		fields = append(fields, sanitizeTab(opts.PathGlob), sanitizeTab(opts.Kind))
+		if opts.MinScore > 0 {
+			fields = append(fields, fmt.Sprintf("%.6f", opts.MinScore))
+		}
+	}
+	line := "search\t" + strings.Join(fields, "\t")
 	var out struct {
 		OK      bool           `json:"ok"`
 		Results []SearchResult `json:"results"`
@@ -78,9 +98,89 @@ func (c *Client) Search(ctx context.Context, query string, k int, repo string) (
 		return nil, err
 	}
 	if !out.OK {
-		return nil, fmt.Errorf("indexer: %s", out.Error)
+		return nil, mapIndexerError(out.Error)
 	}
 	return out.Results, nil
+}
+
+func (c *Client) GetChunk(ctx context.Context, repo string, id uint64) (ChunkDetail, error) {
+	line := fmt.Sprintf("chunk\t%s\t%d", sanitizeTab(repo), id)
+	var out struct {
+		OK    bool `json:"ok"`
+		Chunk struct {
+			ID         uint64 `json:"id"`
+			Repo       string `json:"repo"`
+			Path       string `json:"path"`
+			Symbol     string `json:"symbol"`
+			Kind       string `json:"kind"`
+			StartLine  uint32 `json:"start_line"`
+			EndLine    uint32 `json:"end_line"`
+			Snippet    string `json:"snippet"`
+			Body       string `json:"body"`
+			Truncated  bool   `json:"truncated"`
+		} `json:"chunk"`
+		Error string `json:"error"`
+	}
+	if err := c.roundTrip(ctx, line, &out); err != nil {
+		return ChunkDetail{}, err
+	}
+	if !out.OK {
+		return ChunkDetail{}, mapIndexerError(out.Error)
+	}
+	return ChunkDetail{
+		ID:        out.Chunk.ID,
+		Repo:      out.Chunk.Repo,
+		Path:      out.Chunk.Path,
+		Symbol:    out.Chunk.Symbol,
+		Kind:      out.Chunk.Kind,
+		StartLine: out.Chunk.StartLine,
+		EndLine:   out.Chunk.EndLine,
+		Snippet:   out.Chunk.Snippet,
+		Body:      out.Chunk.Body,
+		Truncated: out.Chunk.Truncated,
+	}, nil
+}
+
+func (c *Client) FindSymbol(ctx context.Context, opts SymbolOptions) ([]SearchResult, error) {
+	limit := opts.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	line := fmt.Sprintf("symbol\t%s\t%s\t%s\t%d",
+		sanitizeTab(opts.Name), sanitizeTab(opts.Repo), sanitizeTab(opts.Kind), limit)
+
+	var out struct {
+		OK      bool           `json:"ok"`
+		Results []SearchResult `json:"results"`
+		Error   string         `json:"error"`
+	}
+	if err := c.roundTrip(ctx, line, &out); err != nil {
+		return nil, err
+	}
+	if !out.OK {
+		return nil, mapIndexerError(out.Error)
+	}
+	return out.Results, nil
+}
+
+func (c *Client) FileOutline(ctx context.Context, repo, path string) ([]SearchResult, error) {
+	line := fmt.Sprintf("outline\t%s\t%s", sanitizeTab(repo), sanitizeTab(path))
+	var out struct {
+		OK      bool           `json:"ok"`
+		Results []SearchResult `json:"results"`
+		Error   string         `json:"error"`
+	}
+	if err := c.roundTrip(ctx, line, &out); err != nil {
+		return nil, err
+	}
+	if !out.OK {
+		return nil, mapIndexerError(out.Error)
+	}
+	return out.Results, nil
+}
+
+func sanitizeTab(s string) string {
+	return strings.ReplaceAll(s, "\t", " ")
 }
 
 func (c *Client) roundTrip(ctx context.Context, req string, dest any) error {

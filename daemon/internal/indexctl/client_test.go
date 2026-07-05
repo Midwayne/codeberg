@@ -64,7 +64,7 @@ func TestClientStatusAndSearch(t *testing.T) {
 		t.Fatalf("per-repo status: %+v", st.Repos)
 	}
 
-	hits, err := c.Search(ctx, "add function", 5, "")
+	hits, err := c.Search(ctx, SearchOptions{Query: "add function", K: 5})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestClientSearchEscapesTabs(t *testing.T) {
 	})
 
 	c := NewClient(sock)
-	_, err := c.Search(context.Background(), "a\tb", 3, "")
+	_, err := c.Search(context.Background(), SearchOptions{Query: "a\tb", K: 3})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +98,7 @@ func TestClientSearchRepoScoped(t *testing.T) {
 	})
 
 	c := NewClient(sock)
-	if _, err := c.Search(context.Background(), "q", 3, "beta"); err != nil {
+	if _, err := c.Search(context.Background(), SearchOptions{Query: "q", K: 3, Repo: "beta"}); err != nil {
 		t.Fatal(err)
 	}
 	if gotLine != "search\tq\t3\tbeta\n" {

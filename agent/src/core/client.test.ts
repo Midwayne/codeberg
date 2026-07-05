@@ -67,4 +67,43 @@ describe("DaemonClient", () => {
     const out = await client.callTool("read_file", { path: "x" });
     expect(out).toEqual({ content: "hi" });
   });
+
+  it("search throws structured DaemonError", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json(
+          { ok: false, code: "NOT_IMPLEMENTED", message: "not implemented" },
+          { status: 501 },
+        ),
+      ),
+    );
+
+    const client = new DaemonClient("http://127.0.0.1:8080");
+    await expect(client.search("q")).rejects.toMatchObject({
+      code: "NOT_IMPLEMENTED",
+      status: 501,
+    });
+  });
+
+  it("waitReady polls until ready", async () => {
+    let calls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        calls++;
+        return Response.json({
+          ready: calls >= 2,
+          chunks: 1,
+          version: "v0",
+          vectors_enabled: false,
+        });
+      }),
+    );
+
+    const client = new DaemonClient("http://127.0.0.1:8080");
+    const h = await client.waitReady(5000);
+    expect(h.ready).toBe(true);
+    expect(calls).toBeGreaterThanOrEqual(2);
+  });
 });

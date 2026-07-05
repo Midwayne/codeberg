@@ -180,6 +180,11 @@ export class Agent implements Asker {
 
   private async ensureLoop(): Promise<ToolLoopAgent> {
     if (!this.loop) {
+      try {
+        await this.daemon.waitReady(30_000);
+      } catch {
+        // Grep/read tools still work while the indexer warms; search may 503.
+      }
       // Sort tools so the system+tools prefix is byte-stable — a reordered tool
       // list would invalidate the prompt cache on every process.
       const tools = deterministicTools(await this.buildTools());

@@ -29,20 +29,36 @@ export function searchCodeSource(opts: SearchCodeOptions): ToolSource {
         description:
           "Semantic code search. Returns relevant chunks with path, lines, and snippet. " +
           "Searches every indexed repo unless `repo` narrows it to one (keys via the repos tool).",
-        inputSchema: jsonSchema<{ query: string; k?: number; repo?: string }>({
+        inputSchema: jsonSchema<{
+          query: string;
+          k?: number;
+          repo?: string;
+          path_glob?: string;
+          kind?: string;
+          min_score?: number;
+        }>({
           type: "object",
           additionalProperties: false,
           properties: {
             query: { type: "string" },
             k: { type: "number", description: "max results (default 8)" },
             repo: { type: "string", description: "restrict to one repo key (optional)" },
+            path_glob: { type: "string", description: "fnmatch glob on chunk paths" },
+            kind: {
+              type: "string",
+              description: "chunk kind: function, method, class, struct, interface, window",
+            },
+            min_score: { type: "number", description: "minimum similarity score (0-1)" },
           },
           required: ["query"],
         }),
-        execute: async ({ query, k, repo }) => {
+        execute: async ({ query, k, repo, path_glob, kind, min_score }) => {
           const results = await opts.daemon.search(query, {
             k: k ?? opts.defaultK,
             repo,
+            path_glob,
+            kind,
+            min_score,
           });
           opts.onResults(results);
           return results.map(toToolChunk);
@@ -55,11 +71,12 @@ export function searchCodeSource(opts: SearchCodeOptions): ToolSource {
 function toToolChunk(r: SearchResult): Record<string, unknown> {
   return {
     id: r.id,
-    // The repo key lets the model pass matching `repo` args to read_file/grep.
+    // The repo key lets the model pass matching `repo` args to read_file/grep/get_chunk.
     ...(r.repo ? { repo: r.repo } : {}),
     path: r.path,
     symbol: r.symbol,
     lines: `${r.start_line}-${r.end_line}`,
+    score: r.score,
     snippet: r.snippet,
   };
 }

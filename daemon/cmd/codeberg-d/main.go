@@ -67,7 +67,7 @@ func main() {
 		roots = append(roots, r.Key+"="+r.Path)
 	}
 	ws := workspace.New(repos, cfg.DefaultKey)
-	srv := httpserver.New(idx, tools.Default(ws))
+	srv := httpserver.New(idx, tools.Default(ws, idx))
 
 	log.Printf("codeberg-d: roots=[%s] http=:%s socket=%s", strings.Join(roots, " "), cfg.HTTPPort, cfg.Socket)
 	httpSrv := &http.Server{Addr: ":" + cfg.HTTPPort, Handler: srv.Handler()}
