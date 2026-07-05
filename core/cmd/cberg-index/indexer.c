@@ -8,9 +8,11 @@
 #include "u64map.h"
 
 #include <errno.h>
+#include <fnmatch.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
@@ -1312,6 +1314,82 @@ cberg_status cberg_engine_run(cberg_engine *eng) {
 
 /* ------------------------------------------------------------------ search */
 
+static const char *kind_str(cberg_chunk_kind k) {
+    switch (k) {
+    case CBERG_CHUNK_FUNCTION:
+        return "function";
+    case CBERG_CHUNK_METHOD:
+        return "method";
+    case CBERG_CHUNK_CLASS:
+        return "class";
+    case CBERG_CHUNK_STRUCT:
+        return "struct";
+    case CBERG_CHUNK_INTERFACE:
+        return "interface";
+    case CBERG_CHUNK_WINDOW:
+        return "window";
+    case CBERG_CHUNK_UNKNOWN:
+    default:
+        return "unknown";
+    }
+}
+
+static int parse_kind(const char *s) {
+    if (s == NULL || s[0] == '\0') {
+        return -1;
+    }
+    if (strcasecmp(s, "function") == 0) {
+        return CBERG_CHUNK_FUNCTION;
+    }
+    if (strcasecmp(s, "method") == 0) {
+        return CBERG_CHUNK_METHOD;
+    }
+    if (strcasecmp(s, "class") == 0) {
+        return CBERG_CHUNK_CLASS;
+    }
+    if (strcasecmp(s, "struct") == 0) {
+        return CBERG_CHUNK_STRUCT;
+    }
+    if (strcasecmp(s, "interface") == 0) {
+        return CBERG_CHUNK_INTERFACE;
+    }
+    if (strcasecmp(s, "window") == 0) {
+        return CBERG_CHUNK_WINDOW;
+    }
+    return -1;
+}
+
+static int chunk_passes_filters(const cberg_stored_chunk *sc, float score, const cberg_search_filters *f) {
+    if (f == NULL) {
+        return 1;
+    }
+    if (f->min_score > 0.0f && score < f->min_score) {
+        return 0;
+    }
+    if (f->kind >= 0 && (int)sc->chunk.kind != f->kind) {
+        return 0;
+    }
+    if (f->path_glob != NULL && f->path_glob[0] != '\0') {
+        const char *path = sc->chunk.path != NULL ? sc->chunk.path : "";
+        if (fnmatch(f->path_glob, path, FNM_PATHNAME) != 0) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static cberg_repo *find_repo(cberg_engine *eng, const char *repo_key) {
+    if (repo_key == NULL || repo_key[0] == '\0') {
+        return NULL;
+    }
+    for (size_t i = 0; i < eng->repos_len; i++) {
+        if (strcmp(eng->repos[i]->key, repo_key) == 0) {
+            return eng->repos[i];
+        }
+    }
+    return NULL;
+}
+
 static void fill_snippet(cberg_repo *r, const cberg_stored_chunk *sc, char *out, size_t cap) {
     out[0] = '\0';
     if (sc == NULL || cap == 0) {
@@ -1339,8 +1417,8 @@ static void fill_snippet(cberg_repo *r, const cberg_stored_chunk *sc, char *out,
 
 /* Search one repo with an already-embedded query, copying chunk metadata into
  * hits while r->mu is held. NOT_FOUND when the repo is not ready yet. */
-static cberg_status repo_search_hits(cberg_repo *r, const float *vec, size_t k, cberg_engine_hit *hits, size_t cap,
-                                     size_t *found) {
+static cberg_status repo_search_hits(cberg_repo *r, const float *vec, size_t k, const cberg_search_filters *filters,
+                                     cberg_engine_hit *hits, size_t cap, size_t *found) {
     *found = 0;
     pthread_mutex_lock(&r->mu);
     if (!r->ready || r->index == NULL) {
@@ -1348,10 +1426,18 @@ static cberg_status repo_search_hits(cberg_repo *r, const float *vec, size_t k, 
         return CBERG_ERR_NOT_FOUND;
     }
 
+    size_t fetch = k;
+    if (filters != NULL && (filters->path_glob != NULL || filters->kind >= 0 || filters->min_score > 0.0f)) {
+        fetch = 64;
+    }
+    if (fetch > 64) {
+        fetch = 64;
+    }
+
     uint64_t ids[64];
     float scores[64];
     size_t n = 0;
-    cberg_status st = cberg_search_vector(r->index, vec, NULL, k, ids, scores, &n);
+    cberg_status st = cberg_search_vector(r->index, vec, NULL, fetch, ids, scores, &n);
     if (st != CBERG_OK) {
         pthread_mutex_unlock(&r->mu);
         return st;
@@ -1360,9 +1446,9 @@ static cberg_status repo_search_hits(cberg_repo *r, const float *vec, size_t k, 
     for (size_t i = 0; i < n && *found < cap; i++) {
         const cberg_stored_chunk *sc = cberg_chunk_table_find_by_id(r->table, ids[i]);
         if (sc == NULL) {
-            /* Orphaned id: a vector whose chunk is no longer in the table — e.g. a
-             * transient leftover from a kill between the index save and the chunk-
-             * table save. Skip it rather than emit an empty hit. */
+            continue;
+        }
+        if (!chunk_passes_filters(sc, scores[i], filters)) {
             continue;
         }
         cberg_engine_hit *h = &hits[*found];
@@ -1376,6 +1462,9 @@ static cberg_status repo_search_hits(cberg_repo *r, const float *vec, size_t k, 
         h->snippet[0] = '\0';
         fill_snippet(r, sc, h->snippet, sizeof(h->snippet));
         (*found)++;
+        if (*found >= k) {
+            break;
+        }
     }
     pthread_mutex_unlock(&r->mu);
     return CBERG_OK;
@@ -1393,8 +1482,21 @@ static int hit_score_desc(const void *a, const void *b) {
     return 0;
 }
 
+static int hit_line_asc(const void *a, const void *b) {
+    uint32_t la = ((const cberg_engine_hit *)a)->start_line;
+    uint32_t lb = ((const cberg_engine_hit *)b)->start_line;
+    if (la < lb) {
+        return -1;
+    }
+    if (la > lb) {
+        return 1;
+    }
+    return 0;
+}
+
 cberg_status cberg_engine_search_hits(cberg_engine *eng, const char *query, const char *repo_key, size_t k,
-                                      cberg_engine_hit *hits, size_t cap, size_t *found) {
+                                      const cberg_search_filters *filters, cberg_engine_hit *hits, size_t cap,
+                                      size_t *found) {
     if (hits == NULL || found == NULL || query == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
@@ -1415,17 +1517,9 @@ cberg_status cberg_engine_search_hits(cberg_engine *eng, const char *query, cons
         repo_key = NULL;
     }
 
-    cberg_repo *only = NULL;
-    if (repo_key != NULL) {
-        for (size_t i = 0; i < eng->repos_len; i++) {
-            if (strcmp(eng->repos[i]->key, repo_key) == 0) {
-                only = eng->repos[i];
-                break;
-            }
-        }
-        if (only == NULL) {
-            return CBERG_ERR_NOT_FOUND;
-        }
+    cberg_repo *only = find_repo(eng, repo_key);
+    if (repo_key != NULL && only == NULL) {
+        return CBERG_ERR_NOT_FOUND;
     }
 
     /* Embed the query once (under embed_mu alone — never while holding a repo
@@ -1439,7 +1533,7 @@ cberg_status cberg_engine_search_hits(cberg_engine *eng, const char *query, cons
     }
 
     if (only != NULL) {
-        st = repo_search_hits(only, vec, k, hits, cap, found);
+        st = repo_search_hits(only, vec, k, filters, hits, cap, found);
         cberg_vectors_free(vec);
         return st;
     }
@@ -1454,7 +1548,7 @@ cberg_status cberg_engine_search_hits(cberg_engine *eng, const char *query, cons
     st = CBERG_OK;
     for (size_t i = 0; i < eng->repos_len; i++) {
         size_t got = 0;
-        cberg_status rst = repo_search_hits(eng->repos[i], vec, k, all + n, k, &got);
+        cberg_status rst = repo_search_hits(eng->repos[i], vec, k, filters, all + n, k, &got);
         if (rst == CBERG_OK) {
             n += got;
             searched++;
@@ -1479,4 +1573,221 @@ cberg_status cberg_engine_search_hits(cberg_engine *eng, const char *query, cons
     }
     free(all);
     return CBERG_OK;
+}
+
+void cberg_engine_chunk_detail_free(cberg_engine_chunk_detail *d) {
+    if (d == NULL) {
+        return;
+    }
+    free(d->body);
+    d->body = NULL;
+    d->body_len = 0;
+}
+
+static cberg_status fill_chunk_detail(cberg_repo *r, const cberg_stored_chunk *sc, cberg_engine_chunk_detail *out) {
+    memset(out, 0, sizeof(*out));
+    out->id = sc->id;
+    out->repo = r->key;
+    snprintf(out->path, sizeof(out->path), "%s", sc->chunk.path != NULL ? sc->chunk.path : "");
+    snprintf(out->symbol, sizeof(out->symbol), "%s", sc->chunk.symbol != NULL ? sc->chunk.symbol : "");
+    snprintf(out->kind, sizeof(out->kind), "%s", kind_str(sc->chunk.kind));
+    out->start_line = sc->chunk.span.start_line;
+    out->end_line = sc->chunk.span.end_line;
+    fill_snippet(r, sc, out->snippet, sizeof(out->snippet));
+
+    size_t blen = 0;
+    char *file = chunk_body(r, sc, &blen);
+    if (file == NULL) {
+        return CBERG_ERR_IO;
+    }
+    uint32_t start = sc->chunk.span.start_byte;
+    uint32_t end = sc->chunk.span.end_byte;
+    if (end > blen || start > end) {
+        free(file);
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    size_t len = (size_t)(end - start);
+    out->truncated = len > CBERG_CHUNK_BODY_MAX ? 1 : 0;
+    if (len > CBERG_CHUNK_BODY_MAX) {
+        len = CBERG_CHUNK_BODY_MAX;
+    }
+    out->body = malloc(len + 1);
+    if (out->body == NULL) {
+        free(file);
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+    memcpy(out->body, file + start, len);
+    out->body[len] = '\0';
+    out->body_len = len;
+    free(file);
+    return CBERG_OK;
+}
+
+cberg_status cberg_engine_get_chunk(cberg_engine *eng, const char *repo_key, uint64_t id,
+                                    cberg_engine_chunk_detail *out) {
+    if (eng == NULL || repo_key == NULL || out == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    cberg_repo *r = find_repo(eng, repo_key);
+    if (r == NULL) {
+        return CBERG_ERR_NOT_FOUND;
+    }
+    cberg_status st;
+    pthread_mutex_lock(&r->mu);
+    if (!r->ready) {
+        pthread_mutex_unlock(&r->mu);
+        return CBERG_ERR_NOT_FOUND;
+    }
+    const cberg_stored_chunk *sc = cberg_chunk_table_find_by_id(r->table, id);
+    if (sc == NULL) {
+        pthread_mutex_unlock(&r->mu);
+        return CBERG_ERR_NOT_FOUND;
+    }
+    st = fill_chunk_detail(r, sc, out);
+    pthread_mutex_unlock(&r->mu);
+    return st;
+}
+
+static int symbol_matches(const char *symbol, const char *name) {
+    if (symbol == NULL || name == NULL || name[0] == '\0') {
+        return 0;
+    }
+    if (strcasecmp(symbol, name) == 0) {
+        return 1;
+    }
+    /* Case-insensitive substring for partial matches. */
+    size_t nlen = strlen(name);
+    for (const char *p = symbol; *p != '\0'; p++) {
+        if (strncasecmp(p, name, nlen) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static cberg_status repo_find_symbol(cberg_repo *r, const char *name, int kind, size_t limit, cberg_engine_hit *hits,
+                                     size_t cap, size_t *found) {
+    *found = 0;
+    pthread_mutex_lock(&r->mu);
+    if (!r->ready) {
+        pthread_mutex_unlock(&r->mu);
+        return CBERG_ERR_NOT_FOUND;
+    }
+    size_t n = cberg_chunk_table_len(r->table);
+    for (size_t i = 0; i < n && *found < cap && *found < limit; i++) {
+        const cberg_stored_chunk *sc = cberg_chunk_table_at(r->table, i);
+        if (sc == NULL) {
+            continue;
+        }
+        if (kind >= 0 && (int)sc->chunk.kind != kind) {
+            continue;
+        }
+        if (!symbol_matches(sc->chunk.symbol, name)) {
+            continue;
+        }
+        cberg_engine_hit *h = &hits[*found];
+        h->id = sc->id;
+        h->score = 1.0f;
+        h->repo = r->key;
+        snprintf(h->path, sizeof(h->path), "%s", sc->chunk.path != NULL ? sc->chunk.path : "");
+        snprintf(h->symbol, sizeof(h->symbol), "%s", sc->chunk.symbol != NULL ? sc->chunk.symbol : "");
+        h->start_line = sc->chunk.span.start_line;
+        h->end_line = sc->chunk.span.end_line;
+        h->snippet[0] = '\0';
+        fill_snippet(r, sc, h->snippet, sizeof(h->snippet));
+        (*found)++;
+    }
+    pthread_mutex_unlock(&r->mu);
+    return CBERG_OK;
+}
+
+cberg_status cberg_engine_find_symbol(cberg_engine *eng, const char *name, const char *repo_key, int kind,
+                                      size_t limit, cberg_engine_hit *hits, size_t cap, size_t *found) {
+    if (eng == NULL || name == NULL || hits == NULL || found == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    *found = 0;
+    if (cap == 0 || limit == 0) {
+        return CBERG_OK;
+    }
+    if (limit > cap) {
+        limit = cap;
+    }
+    if (limit > 64) {
+        limit = 64;
+    }
+    if (repo_key != NULL && repo_key[0] == '\0') {
+        repo_key = NULL;
+    }
+
+    if (repo_key != NULL) {
+        cberg_repo *r = find_repo(eng, repo_key);
+        if (r == NULL) {
+            return CBERG_ERR_NOT_FOUND;
+        }
+        return repo_find_symbol(r, name, kind, limit, hits, cap, found);
+    }
+
+    size_t searched = 0;
+    for (size_t i = 0; i < eng->repos_len && *found < limit; i++) {
+        size_t got = 0;
+        cberg_status st = repo_find_symbol(eng->repos[i], name, kind, limit - *found, hits + *found, cap - *found,
+                                           &got);
+        if (st == CBERG_OK) {
+            *found += got;
+            searched++;
+        } else if (st != CBERG_ERR_NOT_FOUND) {
+            return st;
+        }
+    }
+    if (searched == 0) {
+        return CBERG_ERR_NOT_FOUND;
+    }
+    return CBERG_OK;
+}
+
+static cberg_status repo_file_outline(cberg_repo *r, const char *path, cberg_engine_hit *hits, size_t cap,
+                                      size_t *found) {
+    *found = 0;
+    pthread_mutex_lock(&r->mu);
+    if (!r->ready) {
+        pthread_mutex_unlock(&r->mu);
+        return CBERG_ERR_NOT_FOUND;
+    }
+    size_t n = cberg_chunk_table_len(r->table);
+    for (size_t i = 0; i < n && *found < cap; i++) {
+        const cberg_stored_chunk *sc = cberg_chunk_table_at(r->table, i);
+        if (sc == NULL || sc->chunk.path == NULL || strcmp(sc->chunk.path, path) != 0) {
+            continue;
+        }
+        cberg_engine_hit *h = &hits[*found];
+        h->id = sc->id;
+        h->score = 1.0f;
+        h->repo = r->key;
+        snprintf(h->path, sizeof(h->path), "%s", sc->chunk.path);
+        snprintf(h->symbol, sizeof(h->symbol), "%s", sc->chunk.symbol != NULL ? sc->chunk.symbol : "");
+        h->start_line = sc->chunk.span.start_line;
+        h->end_line = sc->chunk.span.end_line;
+        h->snippet[0] = '\0';
+        fill_snippet(r, sc, h->snippet, sizeof(h->snippet));
+        (*found)++;
+    }
+    pthread_mutex_unlock(&r->mu);
+    if (*found == 0) {
+        return CBERG_ERR_NOT_FOUND;
+    }
+    qsort(hits, *found, sizeof(*hits), hit_line_asc);
+    return CBERG_OK;
+}
+
+cberg_status cberg_engine_file_outline(cberg_engine *eng, const char *repo_key, const char *path,
+                                       cberg_engine_hit *hits, size_t cap, size_t *found) {
+    if (eng == NULL || repo_key == NULL || path == NULL || hits == NULL || found == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    cberg_repo *r = find_repo(eng, repo_key);
+    if (r == NULL) {
+        return CBERG_ERR_NOT_FOUND;
+    }
+    return repo_file_outline(r, path, hits, cap, found);
 }

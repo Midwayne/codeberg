@@ -1,7 +1,54 @@
 import type { SearchOptions, SearchResult, ToolSpec } from "./types.js";
 
+export interface DaemonHealth {
+  ready: boolean;
+  chunks: number;
+  version: string;
+  vectors_enabled: boolean;
+  repos?: { key: string; ready: boolean; chunks: number }[];
+}
+
+export interface DaemonErrorBody {
+  ok: false;
+  code: string;
+  message: string;
+}
+
+export class DaemonError extends Error {
+  constructor(
+    readonly code: string,
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "DaemonError";
+  }
+}
+
 export class DaemonClient {
   constructor(private readonly baseUrl: string) {}
+
+  async health(): Promise<DaemonHealth> {
+    const res = await fetch(new URL("/health", this.baseUrl));
+    const body = (await res.json()) as DaemonHealth & DaemonErrorBody;
+    if (!res.ok) {
+      throw parseError(res.status, body);
+    }
+    return body;
+  }
+
+  /** Poll /health until the indexer is ready or timeoutMs elapses. */
+  async waitReady(timeoutMs = 60_000): Promise<DaemonHealth> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const h = await this.health();
+      if (h.ready) {
+        return h;
+      }
+      await sleep(250);
+    }
+    throw new DaemonError("NOT_READY", "daemon indexer not ready", 503);
+  }
 
   async search(query: string, opts: SearchOptions = {}): Promise<SearchResult[]> {
     const url = new URL("/search", this.baseUrl);
@@ -12,22 +59,31 @@ export class DaemonClient {
     if (opts.repo) {
       url.searchParams.set("repo", opts.repo);
     }
-    const res = await fetch(url);
-    if (!res.ok) {
-      throw new Error(`search failed: ${res.status} ${await res.text()}`);
+    if (opts.path_glob) {
+      url.searchParams.set("path_glob", opts.path_glob);
     }
-    const body = (await res.json()) as { results: SearchResult[] };
+    if (opts.kind) {
+      url.searchParams.set("kind", opts.kind);
+    }
+    if (opts.min_score != null) {
+      url.searchParams.set("min_score", String(opts.min_score));
+    }
+    const res = await fetch(url);
+    const body = (await res.json()) as { results: SearchResult[] } & DaemonErrorBody;
+    if (!res.ok) {
+      throw parseError(res.status, body);
+    }
     return body.results.map(normalizeHit);
   }
 
   async listTools(): Promise<ToolSpec[]> {
     const res = await fetch(new URL("/tools", this.baseUrl));
-    if (!res.ok) {
-      throw new Error(`list tools failed: ${res.status}`);
-    }
     const body = (await res.json()) as {
       tools: { name: string; description: string; schema: Record<string, unknown> }[];
-    };
+    } & DaemonErrorBody;
+    if (!res.ok) {
+      throw parseError(res.status, body);
+    }
     return body.tools.map((t) => ({
       name: t.name,
       description: t.description,
@@ -41,12 +97,19 @@ export class DaemonClient {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, args }),
     });
+    const body = (await res.json()) as { result: unknown } & DaemonErrorBody;
     if (!res.ok) {
-      throw new Error(`tool ${name} failed: ${res.status} ${await res.text()}`);
+      throw parseError(res.status, body);
     }
-    const body = (await res.json()) as { result: unknown };
     return body.result;
   }
+}
+
+function parseError(status: number, body: DaemonErrorBody | { message?: string }): DaemonError {
+  if ("code" in body && body.code) {
+    return new DaemonError(body.code, body.message, status);
+  }
+  return new DaemonError("DAEMON_ERROR", String(body.message ?? status), status);
 }
 
 function normalizeHit(r: SearchResult): SearchResult {
@@ -60,4 +123,8 @@ function normalizeHit(r: SearchResult): SearchResult {
     score: Number(r.score ?? 0),
     snippet: r.snippet ?? "",
   };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

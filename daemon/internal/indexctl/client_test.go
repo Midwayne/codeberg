@@ -1,4 +1,4 @@
-package indexctl
+package indexctl_test
 
 import (
 	"context"
@@ -8,6 +8,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"codeberg.org/codeberg/daemon/internal/bootstrap"
+	"codeberg.org/codeberg/daemon/internal/indexctl"
 )
 
 func startMockIndexer(t *testing.T, handler func(req string) []byte) string {
@@ -49,7 +52,7 @@ func TestClientStatusAndSearch(t *testing.T) {
 		}
 	})
 
-	c := NewClient(sock)
+	c := indexctl.NewClient(sock)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
@@ -64,7 +67,7 @@ func TestClientStatusAndSearch(t *testing.T) {
 		t.Fatalf("per-repo status: %+v", st.Repos)
 	}
 
-	hits, err := c.Search(ctx, "add function", 5, "")
+	hits, err := c.Search(ctx, indexctl.SearchOptions{Query: "add function", K: 5})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,9 +83,8 @@ func TestClientSearchEscapesTabs(t *testing.T) {
 		return []byte(`{"ok":true,"results":[]}` + "\n")
 	})
 
-	c := NewClient(sock)
-	_, err := c.Search(context.Background(), "a\tb", 3, "")
-	if err != nil {
+	c := indexctl.NewClient(sock)
+	if _, err := c.Search(context.Background(), indexctl.SearchOptions{Query: "a\tb", K: 3}); err != nil {
 		t.Fatal(err)
 	}
 	if gotLine != "search\ta b\t3\n" {
@@ -97,8 +99,8 @@ func TestClientSearchRepoScoped(t *testing.T) {
 		return []byte(`{"ok":true,"results":[]}` + "\n")
 	})
 
-	c := NewClient(sock)
-	if _, err := c.Search(context.Background(), "q", 3, "beta"); err != nil {
+	c := indexctl.NewClient(sock)
+	if _, err := c.Search(context.Background(), indexctl.SearchOptions{Query: "q", K: 3, Repo: "beta"}); err != nil {
 		t.Fatal(err)
 	}
 	if gotLine != "search\tq\t3\tbeta\n" {
@@ -106,7 +108,7 @@ func TestClientSearchRepoScoped(t *testing.T) {
 	}
 }
 
-func TestWaitReady(t *testing.T) {
+func TestWaitIndexer(t *testing.T) {
 	ready := false
 	sock := startMockIndexer(t, func(string) []byte {
 		resp := map[string]any{"ok": true, "ready": ready, "chunks": 0, "version": "v0"}
@@ -117,10 +119,10 @@ func TestWaitReady(t *testing.T) {
 		return append(b, '\n')
 	})
 
-	c := NewClient(sock)
+	c := indexctl.NewClient(sock)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	st, err := WaitReady(ctx, c)
+	st, err := bootstrap.WaitIndexer(ctx, c)
 	if err != nil {
 		t.Fatal(err)
 	}

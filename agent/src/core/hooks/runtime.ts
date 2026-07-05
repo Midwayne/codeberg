@@ -1,7 +1,7 @@
 import type { ModelMessage, ToolLoopAgent } from "ai";
 
 import { withMessageTransforms } from "../loop.js";
-import { messageText } from "../message.js";
+import { messageText, lastUserMessageIndex } from "../message.js";
 import { DEFAULT_PROMPT_HOOKS } from "./defaults.js";
 import type { PromptHook } from "./types.js";
 
@@ -13,7 +13,7 @@ export function applyPromptHooksToMessages(
     return messages;
   }
 
-  const index = lastUserIndex(messages);
+  const index = lastUserMessageIndex(messages);
   if (index < 0) {
     return messages;
   }
@@ -34,11 +34,15 @@ export function applyPromptHooksToText(
   text: string,
   hooks: readonly PromptHook[] = DEFAULT_PROMPT_HOOKS,
 ): string {
-  if (hooks.length === 0) {
+  const out = applyPromptHooksToMessages(
+    [{ role: "user", content: text }],
+    hooks,
+  );
+  const index = lastUserMessageIndex(out);
+  if (index < 0) {
     return text;
   }
-  const messages: ModelMessage[] = [{ role: "user", content: text }];
-  return rewriteText(text, messages, hooks) ?? text;
+  return messageText(out[index]!);
 }
 
 export function wrapToolLoopAgentWithPromptHooks(
@@ -67,13 +71,4 @@ function rewriteText(
     }
   }
   return undefined;
-}
-
-function lastUserIndex(messages: readonly ModelMessage[]): number {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i]?.role === "user") {
-      return i;
-    }
-  }
-  return -1;
 }

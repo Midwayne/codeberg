@@ -39,8 +39,8 @@ describe("searchCodeSource", () => {
     expect(daemon.search).toHaveBeenCalledWith("auth", { k: 8 });
     expect(captured).toEqual(hits); // sink got the full hits
     expect(out).toEqual([
-      { id: 1, path: "f1.ts", symbol: "s1", lines: "1-2", snippet: "code" },
-      { id: 2, path: "f2.ts", symbol: "s2", lines: "1-2", snippet: "code" },
+      { id: 1, path: "f1.ts", symbol: "s1", lines: "1-2", score: 1, snippet: "code" },
+      { id: 2, path: "f2.ts", symbol: "s2", lines: "1-2", score: 1, snippet: "code" },
     ]); // model gets only compact chunks
   });
 
@@ -60,7 +60,7 @@ describe("searchCodeSource", () => {
 
     expect(daemon.search).toHaveBeenCalledWith("q", { k: 8, repo: "alpha" });
     expect(out).toEqual([
-      { id: 1, repo: "alpha", path: "f1.ts", symbol: "s1", lines: "1-2", snippet: "code" },
+      { id: 1, repo: "alpha", path: "f1.ts", symbol: "s1", lines: "1-2", score: 1, snippet: "code" },
     ]);
   });
 });

@@ -7,7 +7,7 @@ import {
   type ToolSet,
 } from 'ai';
 
-import { DaemonClient } from './client.js';
+import { DaemonClient, DaemonError } from './client.js';
 import {
   cachedInstructions,
   deterministicTools,
@@ -44,6 +44,7 @@ import type {
   ReasoningEffort,
   RunPerformance,
   SearchResult,
+  chunkKey,
 } from './types.js';
 
 const DEFAULT_MAX_STEPS = 16;
@@ -180,6 +181,13 @@ export class Agent implements Asker {
 
   private async ensureLoop(): Promise<ToolLoopAgent> {
     if (!this.loop) {
+      try {
+        await this.daemon.waitReady(30_000);
+      } catch (err) {
+        if (!(err instanceof DaemonError && err.code === "NOT_READY")) {
+          throw err;
+        }
+      }
       // Sort tools so the system+tools prefix is byte-stable — a reordered tool
       // list would invalidate the prompt cache on every process.
       const tools = deterministicTools(await this.buildTools());
@@ -250,11 +258,10 @@ function toPerformance(
 }
 
 function dedupe(results: SearchResult[]): SearchResult[] {
-  // (repo, id) is the identity: chunk ids restart at 1 per repo.
   const seen = new Set<string>();
   const out: SearchResult[] = [];
   for (const r of results) {
-    const key = `${r.repo ?? ""}#${r.id}`;
+    const key = chunkKey(r);
     if (!seen.has(key)) {
       seen.add(key);
       out.push(r);

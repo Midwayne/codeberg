@@ -1,9 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
 
 import type { ModelMessage } from "ai";
+
+import { codebergHome } from "../core/paths.js";
 
 /** One persisted chat, replayed into model context when resumed. */
 export interface SessionRecord {
@@ -25,15 +26,8 @@ export interface SessionSummary {
   turns: number;
 }
 
-/**
- * The managed directory for codeberg state. Mirrors the launcher's Go
- * `paths.Home`: honour CODEBERG_HOME, else ~/.codeberg.
- */
 function home(env: NodeJS.ProcessEnv = process.env): string {
-  if (env.CODEBERG_HOME) {
-    return env.CODEBERG_HOME;
-  }
-  return join(homedir(), ".codeberg");
+  return codebergHome(env);
 }
 
 /** Count user turns in a record, for the `/sessions` listing. */

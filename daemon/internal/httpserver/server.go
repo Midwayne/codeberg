@@ -1,7 +1,6 @@
 package httpserver
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -10,17 +9,12 @@ import (
 	"codeberg.org/codeberg/daemon/internal/tools"
 )
 
-type Indexer interface {
-	Status(ctx context.Context) (indexctl.Status, error)
-	Search(ctx context.Context, query string, k int, repo string) ([]indexctl.SearchResult, error)
-}
-
 type Server struct {
-	idx   Indexer
+	idx   indexctl.Indexer
 	tools *tools.Registry
 }
 
-func New(idx Indexer, reg *tools.Registry) *Server {
+func New(idx indexctl.Indexer, reg *tools.Registry) *Server {
 	return &Server{idx: idx, tools: reg}
 }
 
@@ -30,78 +24,94 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /search", s.search)
 	mux.HandleFunc("GET /tools", s.listTools)
 	mux.HandleFunc("POST /tools/call", s.callTool)
+
 	return mux
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	st, err := s.idx.Status(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		writeMappedError(w, err)
 		return
 	}
+
 	body := map[string]any{
-		"status":  "ok",
-		"ready":   st.Ready,
-		"chunks":  st.Chunks,
-		"version": st.Version,
+		"status":          "ok",
+		"ready":           st.Ready,
+		"chunks":          st.Chunks,
+		"version":         st.Version,
+		"vectors_enabled": st.VectorsEnabled,
 	}
 	if len(st.Repos) > 0 {
 		body["repos"] = st.Repos
 	}
-	writeJSON(w, body)
+
+	writeJSON(w, http.StatusOK, body)
 }
 
 func (s *Server) search(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	if q == "" {
-		http.Error(w, "missing q", http.StatusBadRequest)
+		writeJSON(w, http.StatusBadRequest, errorBody("MISSING_QUERY", "missing q"))
 		return
 	}
+
 	k := 10
 	if v := r.URL.Query().Get("k"); v != "" {
 		n, err := strconv.Atoi(v)
 		if err != nil || n <= 0 {
-			http.Error(w, "invalid k", http.StatusBadRequest)
+			writeJSON(w, http.StatusBadRequest, errorBody("INVALID_K", "invalid k"))
 			return
 		}
 		k = n
 	}
-	results, err := s.idx.Search(r.Context(), q, k, r.URL.Query().Get("repo"))
+
+	var minScore float32
+	if v := r.URL.Query().Get("min_score"); v != "" {
+		f, err := strconv.ParseFloat(v, 32)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, errorBody("INVALID_MIN_SCORE", "invalid min_score"))
+			return
+		}
+		minScore = float32(f)
+	}
+
+	results, err := s.idx.Search(r.Context(), indexctl.SearchOptions{
+		Query:    q,
+		K:        k,
+		Repo:     r.URL.Query().Get("repo"),
+		PathGlob: r.URL.Query().Get("path_glob"),
+		Kind:     r.URL.Query().Get("kind"),
+		MinScore: minScore,
+	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		writeMappedError(w, err)
 		return
 	}
-	writeJSON(w, map[string]any{"results": results})
+
+	writeJSON(w, http.StatusOK, map[string]any{"results": results})
 }
 
 func (s *Server) listTools(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, map[string]any{"tools": s.tools.List()})
+	writeJSON(w, http.StatusOK, map[string]any{"tools": s.tools.List()})
 }
 
 func (s *Server) callTool(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Name string          `json:"name"`
-		Args json.RawMessage `json:"args"`
-	}
+	var req toolCallRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+		writeJSON(w, http.StatusBadRequest, errorBody("INVALID_JSON", "invalid json"))
 		return
 	}
 	if req.Name == "" {
-		http.Error(w, "missing name", http.StatusBadRequest)
+		writeJSON(w, http.StatusBadRequest, errorBody("MISSING_NAME", "missing name"))
 		return
 	}
+
 	result, err := s.tools.Call(r.Context(), req.Name, req.Args)
 	if err != nil {
-		http.Error(w, err.Error(), tools.HTTPStatus(err))
+		writeMappedError(w, err)
 		return
 	}
-	writeJSON(w, map[string]any{"result": result})
-}
 
-func writeJSON(w http.ResponseWriter, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	_ = enc.Encode(v)
+	writeJSON(w, http.StatusOK, map[string]any{"result": result})
 }

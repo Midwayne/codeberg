@@ -204,4 +204,10 @@ curl -s http://127.0.0.1:8080/health
 curl -s -X POST http://127.0.0.1:8080/tools/call \
   -H 'Content-Type: application/json' \
   -d '{"name":"grep","args":{"pattern":"chunking","literal":true,"limit":3}}'
+curl -s -X POST http://127.0.0.1:8080/tools/call \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"find_symbol","args":{"name":"cberg_chunker_open"}}'
 ```
+
+Daemon HTTP API and tool reference: `daemon/docs/http.md`. Indexer IPC:
+`daemon/docs/ipc.md`.

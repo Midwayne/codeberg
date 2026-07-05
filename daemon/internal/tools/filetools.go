@@ -12,11 +12,11 @@ func reposTool(ws *workspace.Workspace) Tool {
   "additionalProperties": false,
   "properties": {}
 }`
-	type args struct{}
+
 	return New("repos",
 		"List the indexed repositories (key + root). Pass a key as `repo` to other tools.",
 		schema,
-		func(_ context.Context, _ args) (any, error) {
+		func(_ context.Context, _ reposArgs) (any, error) {
 			return ws.Repos(), nil
 		})
 }
@@ -34,17 +34,11 @@ func grepTool(ws *workspace.Workspace) Tool {
   },
   "required": ["pattern"]
 }`
-	type args struct {
-		Pattern  string `json:"pattern"`
-		Literal  bool   `json:"literal"`
-		Repo     string `json:"repo"`
-		PathGlob string `json:"path_glob"`
-		Limit    int    `json:"limit"`
-	}
+
 	return New("grep",
 		"Literal/regex search over real files; returns repo/path/line matches.",
 		schema,
-		func(ctx context.Context, a args) (any, error) {
+		func(ctx context.Context, a grepArgs) (any, error) {
 			return ws.Grep(ctx, a.Pattern, a.Literal, a.Repo, a.PathGlob, a.Limit)
 		})
 }
@@ -60,15 +54,11 @@ func globTool(ws *workspace.Workspace) Tool {
   },
   "required": ["pattern"]
 }`
-	type args struct {
-		Pattern string `json:"pattern"`
-		Repo    string `json:"repo"`
-		Limit   int    `json:"limit"`
-	}
+
 	return New("glob",
 		"Find files by glob pattern (supports **).",
 		schema,
-		func(ctx context.Context, a args) (any, error) {
+		func(ctx context.Context, a globArgs) (any, error) {
 			return ws.Glob(ctx, a.Pattern, a.Repo, a.Limit)
 		})
 }
@@ -85,16 +75,11 @@ func readFileTool(ws *workspace.Workspace) Tool {
   },
   "required": ["path"]
 }`
-	type args struct {
-		Repo      string `json:"repo"`
-		Path      string `json:"path"`
-		StartLine uint32 `json:"start_line"`
-		EndLine   uint32 `json:"end_line"`
-	}
+
 	return New("read_file",
 		"Read a file, optionally a line range.",
 		schema,
-		func(_ context.Context, a args) (any, error) {
+		func(_ context.Context, a readFileArgs) (any, error) {
 			return ws.ReadFile(a.Repo, a.Path, a.StartLine, a.EndLine)
 		})
 }
@@ -108,14 +93,11 @@ func listDirTool(ws *workspace.Workspace) Tool {
     "path": {"type": "string", "description": "repo-relative dir (omit for root)"}
   }
 }`
-	type args struct {
-		Repo string `json:"repo"`
-		Path string `json:"path"`
-	}
+
 	return New("list_dir",
 		"List a directory's immediate entries.",
 		schema,
-		func(_ context.Context, a args) (any, error) {
+		func(_ context.Context, a listDirArgs) (any, error) {
 			return ws.ListDir(a.Repo, a.Path)
 		})
 }
@@ -130,15 +112,11 @@ func treeTool(ws *workspace.Workspace) Tool {
     "max_depth": {"type": "integer", "description": "recursion depth (default 3)"}
   }
 }`
-	type args struct {
-		Repo     string `json:"repo"`
-		Path     string `json:"path"`
-		MaxDepth int    `json:"max_depth"`
-	}
+
 	return New("tree",
 		"Recursive directory tree of a repo subpath (bounded depth).",
 		schema,
-		func(_ context.Context, a args) (any, error) {
+		func(_ context.Context, a treeArgs) (any, error) {
 			return ws.Tree(a.Repo, a.Path, a.MaxDepth)
 		})
 }

@@ -13,6 +13,11 @@ export interface SearchResult {
   snippet: string;
 }
 
+/** Stable chunk identity: ids restart at 1 per repo in multi-repo runs. */
+export function chunkKey(r: Pick<SearchResult, "repo" | "id">): string {
+  return `${r.repo ?? ""}#${r.id}`;
+}
+
 export interface ToolSpec {
   name: string;
   description: string;
@@ -23,6 +28,12 @@ export interface SearchOptions {
   k?: number;
   /** Restrict the search to one repo key; omit to search every indexed repo. */
   repo?: string;
+  /** fnmatch glob on chunk paths, e.g. daemon/* */
+  path_glob?: string;
+  /** chunk kind: function, method, class, struct, interface, window */
+  kind?: string;
+  /** minimum similarity score (0-1) */
+  min_score?: number;
 }
 
 export interface Prompt {

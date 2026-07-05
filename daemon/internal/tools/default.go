@@ -1,10 +1,14 @@
 package tools
 
-import "codeberg.org/codeberg/daemon/internal/workspace"
+import (
+	"codeberg.org/codeberg/daemon/internal/indexctl"
+	"codeberg.org/codeberg/daemon/internal/workspace"
+)
 
-func Default(ws *workspace.Workspace) *Registry {
+func Default(ws *workspace.Workspace, idx indexctl.Indexer) *Registry {
 	r := NewRegistry()
 	r.Register(reposTool(ws))
+	registerIndexTools(r, idx, ws)
 	r.Register(grepTool(ws))
 	r.Register(globTool(ws))
 	r.Register(readFileTool(ws))

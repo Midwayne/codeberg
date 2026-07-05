@@ -2,12 +2,9 @@ package tools
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"os"
-	"os/exec"
-	"strings"
 
+	"codeberg.org/codeberg/daemon/internal/git"
 	"codeberg.org/codeberg/daemon/internal/workspace"
 )
 
@@ -36,25 +33,23 @@ func gitLogTool(ws *workspace.Workspace) Tool {
     "limit": {"type": "integer", "description": "max commits (default 20)"}
   }
 }`
-	type args struct {
-		Repo  string `json:"repo"`
-		Path  string `json:"path"`
-		Limit int    `json:"limit"`
-	}
+
 	return New("git_log",
 		"Recent commits (hash, author, date, subject) for a repo or path.",
 		schema,
-		func(ctx context.Context, a args) (any, error) {
+		func(ctx context.Context, a gitLogArgs) (any, error) {
 			root, err := ws.RepoRoot(a.Repo)
 			if err != nil {
 				return nil, err
 			}
+
 			limit := a.Limit
 			if limit <= 0 || limit > maxGitLogLimit {
 				limit = defaultGitLogLimit
 			}
+
 			gitArgs := []string{
-				"-C", root, "log", "--no-color", fmt.Sprintf("--max-count=%d", limit),
+				"log", "--no-color", fmt.Sprintf("--max-count=%d", limit),
 				"--date=short", "--pretty=format:%H" + logFieldSep + "%an" + logFieldSep + "%ad" + logFieldSep + "%s",
 			}
 			if a.Path != "" {
@@ -64,11 +59,20 @@ func gitLogTool(ws *workspace.Workspace) Tool {
 				}
 				gitArgs = append(gitArgs, "--", rel)
 			}
-			out, err := runGit(ctx, gitArgs...)
+
+			out, err := git.Run(ctx, root, gitArgs...)
 			if err != nil {
 				return nil, err
 			}
-			return parseLog(out), nil
+
+			var commits []commit
+			for _, f := range git.ParseLogFields(out, logFieldSep, logFieldCount) {
+				commits = append(commits, commit{
+					Hash: f[0], Author: f[1], Date: f[2], Subject: f[3],
+				})
+			}
+
+			return commits, nil
 		})
 }
 
@@ -84,20 +88,16 @@ func gitBlameTool(ws *workspace.Workspace) Tool {
   },
   "required": ["path"]
 }`
-	type args struct {
-		Repo      string `json:"repo"`
-		Path      string `json:"path"`
-		StartLine int    `json:"start_line"`
-		EndLine   int    `json:"end_line"`
-	}
+
 	return New("git_blame",
 		"Per-line authorship for a file or line range.",
 		schema,
-		func(ctx context.Context, a args) (any, error) {
+		func(ctx context.Context, a gitBlameArgs) (any, error) {
 			root, err := ws.RepoRoot(a.Repo)
 			if err != nil {
 				return nil, err
 			}
+
 			rel, err := workspace.SafeRel(a.Path)
 			if err != nil {
 				return nil, err
@@ -105,7 +105,8 @@ func gitBlameTool(ws *workspace.Workspace) Tool {
 			if rel == "." {
 				return nil, fmt.Errorf("%w: git_blame requires a file path", ErrInvalidArgs)
 			}
-			gitArgs := []string{"-C", root, "blame"}
+
+			gitArgs := []string{"blame"}
 			if a.StartLine > 0 {
 				span := fmt.Sprintf("%d", a.StartLine)
 				if a.EndLine >= a.StartLine {
@@ -114,43 +115,17 @@ func gitBlameTool(ws *workspace.Workspace) Tool {
 				gitArgs = append(gitArgs, "-L", span)
 			}
 			gitArgs = append(gitArgs, "--", rel)
-			out, err := runGit(ctx, gitArgs...)
+
+			out, err := git.Run(ctx, root, gitArgs...)
 			if err != nil {
 				return nil, err
 			}
+
 			truncated := false
 			if len(out) > maxBlameOutput {
 				out, truncated = out[:maxBlameOutput], true
 			}
-			return map[string]any{"blame": out, "truncated": truncated}, nil
+
+			return gitBlameResult{Blame: out, Truncated: truncated}, nil
 		})
-}
-
-func parseLog(out string) []commit {
-	var commits []commit
-	for _, line := range strings.Split(strings.TrimRight(out, "\n"), "\n") {
-		if line == "" {
-			continue
-		}
-		f := strings.Split(line, logFieldSep)
-		if len(f) != logFieldCount {
-			continue
-		}
-		commits = append(commits, commit{Hash: f[0], Author: f[1], Date: f[2], Subject: f[3]})
-	}
-	return commits
-}
-
-func runGit(ctx context.Context, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", args...)
-	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
-	out, err := cmd.Output()
-	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			return "", fmt.Errorf("codeberg: git: %w: %s", err, strings.TrimSpace(string(exitErr.Stderr)))
-		}
-		return "", fmt.Errorf("codeberg: git: %w", err)
-	}
-	return string(out), nil
 }
