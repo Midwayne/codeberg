@@ -3,8 +3,8 @@
 Shared utilities used by chunking, watching, and hashing. None of these symbols are
 exported in `codeberg.h` except where noted (status, version, hash, language).
 
-**Files:** `arena.c`, `config.c`, `fileio.c`, `hash.c`, `lang.c`, `pathutil.c`, `status.c`, `strutil.c`, `strmap.c`, `version.c`, `walk_policy.c`  
-**Headers:** `arena.h`, `fileio.h`, `pathutil.h`, `statutil.h`, `strutil.h`, `strmap.h`, `fnv.h`, `grow.h`, `walk_policy.h`  
+**Files:** `arena.c`, `config.c`, `fileio.c`, `hash.c`, `lang.c`, `pathutil.c`, `status.c`, `strutil.c`, `strmap.c`, `u64map.c`, `version.c`, `walk_policy.c`  
+**Headers:** `arena.h`, `fileio.h`, `pathutil.h`, `statutil.h`, `strutil.h`, `strmap.h`, `u64map.h`, `fnv.h`, `grow.h`, `walk_policy.h`  
 **Third-party:** `third_party/xxhash.c` (linked from CMake, not under `src/common/`)
 
 ---
@@ -157,6 +157,37 @@ Iterate all entries (used by watcher drain).
 
 `cberg_fnv1a` — fast string hash for `cberg_strmap` bucket indices only.  
 `cberg_grow_cap` — geometric capacity helper for dynamic arrays.
+
+---
+
+## `u64map.c` / `u64map.h`
+
+Open-addressing `uint64_t` → `uint64_t` map. Internal only (not in `codeberg.h`).
+
+- **Key 0 is reserved** as the empty-slot sentinel — `cberg_u64map_set` rejects key 0.
+- Used by `cberg_chunk_table` for id → entry index (`find_by_id` in O(1)).
+- 16-byte slots (4 pairs per 64-byte cache line).
+
+### `cberg_u64map_new` / `cberg_u64map_free` / `cberg_u64map_get` / `cberg_u64map_set`
+
+---
+
+## `fileio.c` / `fileio.h`
+
+### `cberg_read_file(const char *path, size_t *out_len)`
+
+Reads an entire file into a malloc'd buffer. NUL-terminates at `buf[*out_len]`.
+Returns NULL on failure; caller frees. Used by chunker callers and tests.
+
+---
+
+## `walk_policy.c` / `walk_policy.h`
+
+### `cberg_walk_skip_dir(const char *name)` — public (via `codeberg.h`)
+
+Returns non-zero for dependency/build directory basenames (`.git`, `node_modules`,
+`vendor`, `.venv`, `__pycache__`, `.next`, `dist`, `build`, `target`, `.gradle`,
+`.idea`, `.terraform`). Shared by manifest, watcher, and indexer walks.
 
 ---
 

@@ -22,9 +22,9 @@ Phase 1 already ships:
 - Order-independent set fingerprint (`cberg_fingerprint`, XXH3 over sorted pairs)
 - Recursive filesystem watching (`cberg_watcher`)
 
-Phase 2 extends the same library with ONNX embedding and a usearch HNSW index. A
-small CLI (`cberg-index`) will link the static library and run the full watch → chunk
-→ diff → embed → index loop.
+Phase 2 extends the same library with ONNX embedding and a usearch HNSW index. The
+`cberg-index` CLI links the static library and runs the full watch → chunk → diff →
+embed → index loop (shipped; see [0004-multi-root-engine.md](0004-multi-root-engine.md)).
 
 Higher-level repo directories (`daemon/`, `agent/`) are separate concerns — HTTP API,
 retrieval clients, and optional scheduled `git pull`. They do not trigger indexing;

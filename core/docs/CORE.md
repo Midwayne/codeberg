@@ -192,12 +192,12 @@ Fallible functions return `cberg_status`. Out-parameters are valid only on `CBER
 |--------|---------------|--------|--------|
 | `cberg_chunker` | `open`, `close`, `parse` | `chunk/chunker.c` | [chunk.md](modules/chunk.md) |
 | `cberg_chunk_list` | `len`, `at`, `free`, `hash_bodies` | `chunk/chunker.c` | [chunk.md](modules/chunk.md) |
-| `cberg_chunk_table` | `new`, `free`, `sync`, `len`, `fingerprint` | `chunk/chunk_table.c` | [chunk.md](modules/chunk.md) |
-| `cberg_manifest` | `build`, `rebuild`, `free`, `root`, `len`, `at`, `diff` | `manifest/manifest.c` | [manifest.md](modules/manifest.md) |
+| `cberg_chunk_table` | `new`, `free`, `sync`, `find_by_id`, `save`, `load`, `len`, `fingerprint` | `chunk/chunk_table.c` | [chunk.md](modules/chunk.md) |
+| `cberg_manifest` | `build`, `rebuild`, `save`, `load`, `free`, `root`, `len`, `at`, `diff` | `manifest/manifest.c` | [manifest.md](modules/manifest.md) |
 | `cberg_watcher` | `open`, `close`, `poll`, `dirty_paths` | `watch/watch.c` | [watch.md](modules/watch.md) |
 | `cberg_embedder` | `open`, `embed`, `close` | `embed/embed.c` | [embed.md](modules/embed.md) |
 | `cberg_index` | `open`, `add`, `remove`, `search`, `save` | `search/index.c` | [search.md](modules/search.md) |
-| — | `cberg_search_query` | `search/search.c` | [search.md](modules/search.md) |
+| — | `cberg_search_query`, `cberg_search_vector` | `search/search.c` | [search.md](modules/search.md) |
 | — | `cberg_config_*` (`CODEBERG_ROOT`) | `common/config.c` | [common.md](modules/common.md) |
 | — | `cberg_hash`, `cberg_fingerprint` | `common/hash.c` | [common.md](modules/common.md) |
 | — | `cberg_language_from_path` | `common/lang.c` | [common.md](modules/common.md) |
@@ -297,29 +297,25 @@ developer edits a function body.
 
 ### Sync
 
-`cberg_chunk_table_sync(table, incoming, count, &changes)`:
+`cberg_chunk_table_sync(table, incoming, count, &changes)` uses **atomic staging**
+(see [modules/chunk.md](modules/chunk.md)):
 
 ```
-pre_len = table.len at entry
-allocate seen[0 .. pre_len)
-
+build temporary table `next` off to the side
 for each incoming chunk:
-    if key ∉ map:
-        insert → changes.added, new id
-    else:
-        seen[index] = true
-        if content_hash changed:
-            update row → changes.modified
-
-for i in 0 .. pre_len:
-    if not seen[i]:
-        remove row → changes.deleted
-
-recompute fingerprint
+    look up key in staged table, then live table
+    new key        → insert with new id → changes.added
+    hash changed   → update row, same id → changes.modified
+    hash unchanged → copy existing row (no change list entry)
+    duplicate keys in one batch → later row wins in staged table
+for each live row not present in incoming:
+    remove → changes.deleted (owned snapshot)
+on success: swap `next` into live table, recompute fingerprint
+on failure: discard `next` only — live table unchanged
 ```
 
-The `pre_len` bound ensures rows inserted during this pass are not treated as
-deletions in the same call.
+Incoming chunks must have non-NULL `key` and valid `content_hash` (typically from
+`cberg_chunk_list_hash_bodies`).
 
 ### Change output
 
@@ -339,8 +335,19 @@ sorted by `id` for deterministic purge order.
 
 ### Persistence
 
-Phase 1 is in-memory only. A future persistence layer will snapshot the same key → id
-→ hash mapping without changing the sync contract.
+Three on-disk artifacts support **warm start** across process restarts:
+
+| Artifact | API | Purpose |
+|----------|-----|---------|
+| Chunk table | `cberg_chunk_table_save` / `load` | Stable chunk ids and content hashes |
+| Merkle manifest | `cberg_manifest_save` / `load` | Baseline for watch-free change detection |
+| Vector index | `cberg_index_save` | HNSW vectors keyed by chunk id |
+
+All writes use atomic temp+rename. `*_load` returns `CBERG_ERR_NOT_FOUND` when the
+file is absent or an incompatible version — treat as cold start and rebuild.
+Restored chunk ids must match the index file so unchanged chunks skip re-embedding.
+
+Sidecar paths and multi-repo layout: [CBERG_INDEX.md](CBERG_INDEX.md).
 
 ---
 
@@ -456,6 +463,31 @@ loop:
 This is the only ongoing indexing driver. After a daemon `git pull`, files change on
 disk and the watcher delivers the same dirty paths as a local edit.
 
+### Manifest reconcile (many-repo / missed events)
+
+For deployments where filesystem watches are impractical or events may be missed,
+poll the manifest on a schedule:
+
+```
+manifest_prev ← load from disk or NULL on first run
+manifest_next ← cberg_manifest_rebuild(manifest_prev, root)
+if root(manifest_prev) == root(manifest_next):
+    no file-level changes — skip re-chunking
+else:
+    diff(manifest_prev, manifest_next) → added, modified, deleted paths
+    for each affected path:
+        read → parse → hash_bodies → merge into incoming[]
+    sync(table, incoming) → changes
+    → (phase 2) embed added ∪ modified, purge deleted ids
+manifest_prev ← manifest_next
+save manifest and chunk table sidecars
+```
+
+Pair frequent `rebuild` with an occasional full build (`prev = NULL`) to heal
+stat-cache races (same-size edit within mtime resolution). The watcher remains the
+low-latency path for a live tree; manifest polling complements it — see
+[adr/0003-merkle-manifest-change-detection.md](adr/0003-merkle-manifest-change-detection.md).
+
 ---
 
 ## 10. Source layout
@@ -477,6 +509,8 @@ core/
 │   ├── onnxruntime-extensions/
 │   └── xxhash.c
 ├── test/
+├── cmd/cberg-index/      multi-root indexer binary (see CBERG_INDEX.md)
+├── bench/                microbenchmarks (strmap, u64map, chunk_table, fingerprint)
 ├── CMakeLists.txt
 └── libcodeberg.pc.in
 ```
@@ -523,16 +557,25 @@ not exposed in the public header.
 
 ## 12. Testing
 
-`core/test/` — CTest binaries:
+`core/test/` — CTest binaries. Full guide: [TESTING.md](TESTING.md).
 
 | Test | Covers |
 |------|--------|
-| `test_smoke` | Version string |
+| `test_smoke` | Version string, status strings |
+| `test_hash` | `cberg_hash` digest |
+| `test_lang` | Extension → language mapping |
+| `test_config` | `CODEBERG_ROOT` resolution |
 | `test_chunker` | Extension detection, Go symbols, window fallback |
-| `test_chunk_table` | Cold sync, modify one hash, delete all |
-| `test_manifest` | Build, root stability, add/modify/delete diff, subtree pruning, empty repo, incremental rebuild (stat-cache reuse) |
+| `test_chunk_table` | Cold sync, modify one hash, delete all, save/load |
+| `test_manifest` | Build, root stability, add/modify/delete diff, subtree pruning, empty repo, incremental rebuild |
 | `test_fingerprint` | Order independence, sensitivity, empty set |
 | `test_watch` | File modify detected under temp directory |
+| `test_watch_events` | Delete-before-drain regression (macOS FSEvents) |
+| `test_index` | usearch add/search/save |
+| `test_embed` | ONNX embed (needs `CBERG_TEST_MODEL`; SKIP 77 without) |
+| `test_search` | End-to-end semantic query (needs model; SKIP 77 without) |
+| `test_cberg_walk` | Walk policy and skip dirs (`cmd/cberg-index/`) |
+| `test_cberg_engine` | Multi-root engine integration (`cmd/cberg-index/`) |
 
 ```sh
 cd core/build && ctest --output-on-failure
@@ -563,8 +606,9 @@ Implemented in the same `codeberg.h` ABI. **Full API:** [API.md](API.md#embeddin
 | `cberg_embedder` | ONNX Runtime — chunk text → L2-normalized float vectors (jina-embeddings-v2-base-code, 768-dim) |
 | `cberg_index` | usearch HNSW — add / remove / search by chunk `id`; tunable connectivity and expansion factors |
 | `cberg_search_query` | Embed a query string with adaptive `expansion_search` (higher ef for better recall) |
+| `cberg_search_vector` | Search with a precomputed query vector (multi-index callers) |
 | `cberg-index` CLI | C binary — bootstrap walk, then watcher loop → chunk → sync → embed → index |
-| Persistence | Index snapshots via `cberg_index_save`; chunk table persistence still optional |
+| Persistence | Chunk table, manifest, and index snapshots via `*_save` / `*_load`; see [CBERG_INDEX.md](CBERG_INDEX.md) |
 
 HNSW defaults: `connectivity=16`, `expansion_add=128`, `expansion_search=64`. `cberg_search_query` raises ef to `max(min_ef, k * oversample)` per query (defaults: min 64, oversample 4). ONNX embed batches up to 8 texts per inference when possible.
 

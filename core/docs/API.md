@@ -22,7 +22,7 @@ Every symbol exported from `include/codeberg/codeberg.h`. Internal helpers live 
 | `CBERG_ERR_INTERNAL` | Tree-sitter failure, usearch/ONNX internal error, unexpected state |
 | `CBERG_ERR_IO` | File open/load/save, inotify/FSEvents setup failure |
 | `CBERG_ERR_UNSUPPORTED_LANGUAGE` | Reserved; chunker uses window fallback instead of failing |
-| `CBERG_ERR_NOT_FOUND` | Index remove when id absent |
+| `CBERG_ERR_NOT_FOUND` | Index remove when id absent; `*_load` when snapshot missing or incompatible version; `cberg_config_resolve_index_root` when `CODEBERG_ROOT` unset or path missing |
 | `CBERG_ERR_OUT_OF_MEMORY` | `malloc` / arena allocation failed |
 | `CBERG_ERR_TIMEOUT` | `cberg_watcher_poll` blocked and timed out (Linux inotify path) |
 | `CBERG_ERR_NOT_IMPLEMENTED` | Feature compiled out (no ONNX / no usearch) |
@@ -197,6 +197,13 @@ Current number of stored chunks. NULL → `0`.
 Returns the stored chunk at `index`, or NULL when `table` is NULL or `index` is out of range.
 Used by the Go daemon to build incremental sync snapshots.
 
+### `cberg_chunk_table_find_by_id(const cberg_chunk_table *table, uint64_t id)`
+
+Resolves a stored chunk by its stable `id` in O(1) via the internal id→index map.
+Returns NULL when no live row has that id. Pointer valid until the next `sync` on the
+same table (same lifetime as `cberg_chunk_table_at`). Use after vector search to map
+neighbor ids back to chunk text.
+
 ### `cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk *incoming, size_t count, cberg_changes *out_changes)`
 
 Diffs `incoming` (one file or batch) against the table using atomic staging — on failure the
@@ -211,6 +218,23 @@ table and prior change arrays are unchanged:
 Recomputes set fingerprint on success. Change arrays are replaced only after a successful sync.
 
 **Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_OUT_OF_MEMORY`.
+
+### `cberg_chunk_table_save(const cberg_chunk_table *table, const char *path)`
+
+Persists the table to `path` (atomic write via temp file + rename). Format: magic
+`CBT1`, version 1 — see [CBERG_INDEX.md](CBERG_INDEX.md#on-disk-artifacts).
+
+**Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_IO`.
+
+### `cberg_chunk_table_load(const char *path, cberg_chunk_table **out_table)`
+
+Restores a table from `path`. On success `*out_table` is owned by the caller;
+free with `cberg_chunk_table_free`. Restored ids match the saved snapshot so a
+reopened vector index can warm-start without re-embedding unchanged chunks.
+
+**Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_IO`,
+`CBERG_ERR_OUT_OF_MEMORY`, `CBERG_ERR_NOT_FOUND` (missing or incompatible file —
+treat as cold start).
 
 ---
 
@@ -295,6 +319,23 @@ path, different hash), `deleted` (only in `prev`).
 ### `cberg_manifest_diff_free(cberg_manifest_changes *changes)`
 
 Frees the three path arrays (not the borrowed strings); NULL-safe.
+
+### `cberg_manifest_save(const cberg_manifest *manifest, const char *path)`
+
+Persists manifest leaves to `path` (atomic temp+rename). Format: magic `CBMF`,
+version 1 — see [CBERG_INDEX.md](CBERG_INDEX.md#on-disk-artifacts).
+
+**Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_IO`.
+
+### `cberg_manifest_load(const char *path, cberg_manifest **out_manifest)`
+
+Restores a manifest without re-reading the repository. A loaded manifest can
+serve as the `prev` baseline for `cberg_manifest_rebuild` and `cberg_manifest_diff`
+after a process restart.
+
+**Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_IO`,
+`CBERG_ERR_OUT_OF_MEMORY`, `CBERG_ERR_NOT_FOUND` (missing or incompatible file —
+treat as cold start).
 
 ---
 
@@ -470,3 +511,16 @@ Fills defaults.
 `k == 0` → `*out_found = 0`, `CBERG_OK`.
 
 **Returns:** same as embed + index search.
+
+### `cberg_search_vector(cberg_index *index, const float *query_vec, const cberg_search_config *config, size_t k, uint64_t *out_ids, float *out_scores, size_t *out_found)`
+
+Nearest-neighbor search using a **precomputed** query vector (`dim` floats,
+L2-normalized like embedder output). Skips the ONNX embed step — use when one
+query embedding must be searched against several indexes (multi-repo `cberg-index`
+merges per-repo hits after a single embed). Applies the same `expansion_search`
+policy as `cberg_search_query` via `config` (NULL → defaults).
+
+`k == 0` → `*out_found = 0`, `CBERG_OK`.
+
+**Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_INTERNAL`,
+`CBERG_ERR_NOT_IMPLEMENTED`.

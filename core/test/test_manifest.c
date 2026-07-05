@@ -259,6 +259,15 @@ int main(void) {
     cberg_manifest_diff_free(&diff);
     cberg_manifest_free(after);
     cberg_manifest_free(loaded);
+
+    /* corrupt manifest snapshot is rejected cleanly */
+    FILE *badf = fopen(mpath, "wb");
+    CHECK(badf != NULL, "open corrupt manifest path");
+    fwrite("CBMF", 1, 4, badf);
+    fclose(badf);
+    cberg_manifest *corrupt = NULL;
+    CHECK(cberg_manifest_load(mpath, &corrupt) == CBERG_ERR_NOT_FOUND, "truncated manifest rejected");
+    CHECK(corrupt == NULL, "corrupt manifest load leaves NULL");
     remove(mpath);
 
     cberg_manifest_free(f1);

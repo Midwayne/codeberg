@@ -141,6 +141,22 @@ int main(void) {
           "identical resync after load is a no-op");
     CHECK(cberg_chunk_table_at(restored, 0)->id == id_a, "id stable after load+resync");
 
+    /* find_by_id works on restored table with stable ids */
+    const cberg_stored_chunk *by_id = cberg_chunk_table_find_by_id(restored, id_a);
+    CHECK(by_id != NULL, "find_by_id after load");
+    CHECK(by_id->id == id_a, "find_by_id returns correct id");
+    CHECK(strcmp(by_id->chunk.key, cberg_chunk_table_at(restored, 0)->chunk.key) == 0,
+          "find_by_id key matches loaded row");
+
+    /* corrupt snapshot is a cold start, not a crash */
+    FILE *badf = fopen(tpath, "wb");
+    CHECK(badf != NULL, "open corrupt path");
+    fwrite("CBT1", 1, 4, badf);
+    fclose(badf);
+    cberg_chunk_table *corrupt = NULL;
+    CHECK(cberg_chunk_table_load(tpath, &corrupt) == CBERG_ERR_NOT_FOUND, "truncated load rejected");
+    CHECK(corrupt == NULL, "corrupt load leaves NULL");
+
     /* A genuinely new chunk gets a fresh id from the preserved next_id, never
      * colliding with a restored id. */
     cberg_chunk grow[] = {make_chunk("p.go::1::A#0", 3), make_chunk("p.go::1::B#0", 4),

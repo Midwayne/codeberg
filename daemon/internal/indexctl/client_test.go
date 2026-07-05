@@ -108,6 +108,42 @@ func TestClientSearchRepoScoped(t *testing.T) {
 	}
 }
 
+func TestClientGetChunk(t *testing.T) {
+	sock := startMockIndexer(t, func(line string) []byte {
+		if strings.HasPrefix(line, "chunk\t") {
+			return []byte(`{"ok":true,"chunk":{"id":5,"repo":"alpha","path":"a.go","body":"func Fn(){}","truncated":false}}` + "\n")
+		}
+		return []byte(`{"ok":false,"error":"unknown"}` + "\n")
+	})
+
+	c := indexctl.NewClient(sock)
+	detail, err := c.GetChunk(context.Background(), "alpha", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detail.ID != 5 || detail.Body != "func Fn(){}" || detail.Repo != "alpha" {
+		t.Fatalf("chunk: %+v", detail)
+	}
+}
+
+func TestClientSearchWithFilters(t *testing.T) {
+	var gotLine string
+	sock := startMockIndexer(t, func(line string) []byte {
+		gotLine = line
+		return []byte(`{"ok":true,"results":[]}` + "\n")
+	})
+
+	c := indexctl.NewClient(sock)
+	if _, err := c.Search(context.Background(), indexctl.SearchOptions{
+		Query: "auth", K: 5, Repo: "alpha", PathGlob: "daemon/*", Kind: "function", MinScore: 0.8,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if gotLine != "search\tauth\t5\talpha\tdaemon/*\tfunction\t0.800000\n" {
+		t.Fatalf("filter wire: %q", gotLine)
+	}
+}
+
 func TestWaitIndexer(t *testing.T) {
 	ready := false
 	sock := startMockIndexer(t, func(string) []byte {

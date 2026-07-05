@@ -16,11 +16,13 @@ Artifacts: `build/libcodeberg.a`, `build/libcodeberg.pc`.
 ### Source layout
 
 ```
-src/common/   shared utilities (arena, hash/xxhash, pathutil, …)
+src/common/   shared utilities (arena, hash/xxhash, pathutil, u64map, …)
 src/chunk/    tree-sitter chunker + chunk table
+src/manifest/ merkle manifest (watch-free change detection)
 src/watch/    filesystem watcher
 src/embed/    ONNX embedder + tokenizer
 src/search/   usearch index + query search
+cmd/cberg-index/  multi-root indexer binary
 ```
 
 ## Modules
@@ -30,6 +32,7 @@ src/search/   usearch index + query search
 | Chunker | `cberg_chunker_*` | Tree-sitter parsing into functions, types, etc. |
 | Chunk table | `cberg_chunk_table_*` | Incremental add/modify/delete diff with stable ids |
 | Fingerprint | `cberg_fingerprint` | Whole-set change summary |
+| Manifest | `cberg_manifest_*` | Merkle tree for watch-free / many-repo change detection |
 | Watcher | `cberg_watcher_*` | Filesystem events — the indexing trigger |
 | Embedder | `cberg_embedder_*` | ONNX jina embeddings (optional at build time) |
 | Vector index | `cberg_index_*` | usearch HNSW cosine search by chunk id |

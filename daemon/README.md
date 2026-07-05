@@ -50,10 +50,27 @@ Outputs: `core/build/bin/cberg-index`, `core/build/bin/codeberg-d`.
 
 ## Agent tools (read-only)
 
-Registered at `GET /tools`, invoked via `POST /tools/call`:
+Registered at `GET /tools`, invoked via `POST /tools/call`. Full schemas and limits:
+[docs/http.md](docs/http.md).
 
-`repos`, `grep`, `glob`, `read_file`, `list_dir`, `tree`, `head`, `tail`, `wc`,
-`sed`, `pipe`, `git_log`, `git_blame`
+### Index and search
+
+`search`, `get_chunk`, `find_symbol`, `file_outline`, `hybrid_search`, `find_references`
+
+`find_symbol`, `file_outline`, and `get_chunk` work in **chunk-only mode** (no ONNX).
+`search` and `hybrid_search` require `vectors_enabled`.
+
+### Repo metadata
+
+`repos` — lists served repositories (key + root). Other tools accept optional `repo`.
+
+### File, tree, and transform
+
+`grep`, `glob`, `read_file`, `list_dir`, `tree`, `head`, `tail`, `wc`, `sed`, `pipe`
+
+### Git
+
+`git_log`, `git_blame`
 
 `repos` lists the served repositories (key + root) — the values every other
 tool's optional `repo` argument accepts. With a single served repo, `repo` may
@@ -89,13 +106,21 @@ curl 'http://localhost:8080/search?q=add+function&k=5&repo=api'   # just api
 
 ```
 daemon/
-├── cmd/codeberg-d/      HTTP + git pull + tool harness
-├── internal/workspace/  sandboxed, multi-repo file/git primitives
-├── internal/tools/      read-only agent tool registry (incl. `repos`)
-├── internal/indexctl/   Unix socket client to cberg-index
-├── internal/supervisor/ spawns and restarts cberg-index
-├── internal/gitpull/    periodic `git pull` across every served root
-└── internal/httpserver/ JSON API
+├── cmd/codeberg-d/       HTTP + git pull + tool harness
+├── docs/                 http.md, ipc.md, architecture.md
+├── internal/
+│   ├── bootstrap/        startup readiness polling
+│   ├── config/           env parsing (roots, socket, git pull)
+│   ├── domain/           Repo{Key, Root}
+│   ├── git/              git subprocess helper
+│   ├── gitpull/          periodic git pull
+│   ├── httpserver/       JSON HTTP API
+│   ├── indexctl/         Unix socket client to cberg-index
+│   ├── search/           hybrid vector + lexical reranking
+│   ├── subprocess/       safe pipe tool (allowlist, no shell)
+│   ├── supervisor/       spawn and restart cberg-index
+│   ├── tools/            read-only agent tool registry
+│   └── workspace/        sandboxed, multi-repo file/git primitives
 ```
 
-Core indexer: `core/cmd/cberg-index/`
+Core indexer: `core/cmd/cberg-index/` — [core/docs/CBERG_INDEX.md](../core/docs/CBERG_INDEX.md)

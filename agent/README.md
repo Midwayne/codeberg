@@ -8,7 +8,9 @@ Token-efficient code-search agent over `codeberg-d`, built with [ai-sdk](https:/
 cd agent && npm install && npm run build
 ```
 
-Requires a running `codeberg-d` with vector indexing enabled.
+Requires a running `codeberg-d`. Semantic search (`search_code`) needs vector indexing
+(`CBERG_MODEL` + `CBERG_INDEX_PATH` on the daemon); file and chunk tools work in
+chunk-only mode.
 
 ## Environment variables
 
@@ -217,6 +219,77 @@ export const reviewHook: PromptHook = {
   rewrite: ({ text }) => /* return the rewritten prompt, or undefined to skip */,
 };
 ```
+
+## Architecture
+
+```mermaid
+flowchart TB
+  subgraph entry [Entry points]
+    CLI[codeberg-ask]
+    TUI[codeberg-tui]
+    WEB[codeberg-web]
+  end
+
+  subgraph bootstrap [Bootstrap]
+    ENTRY[parseEntryArgs]
+    CFG[createAgentFromEntry]
+    PROV[ProviderRegistry]
+  end
+
+  subgraph core [Agent core]
+    AGENT[Agent]
+    LOOP[ToolLoopAgent]
+    TOOLS[collectTools]
+    DC[DaemonClient]
+  end
+
+  CLI --> ENTRY --> CFG --> AGENT
+  TUI --> ENTRY --> CFG --> AGENT
+  WEB --> ENTRY --> CFG --> AGENT
+  CFG --> PROV
+  AGENT --> LOOP
+  AGENT --> TOOLS --> DC
+  DC --> DAEMON[codeberg-d HTTP]
+```
+
+All three binaries share `createAgentFromEntry` → `Agent` → `ToolLoopAgent`, then
+apply surface-specific wrappers:
+
+| Surface | Wrapper | Notable behavior |
+|---------|---------|------------------|
+| CLI (`codeberg-ask`) | `ChatSession.ask` | Non-streaming `generate`; cross-turn evidence ledger |
+| TUI (`codeberg-tui`) | `wrapSessionAgent` | Streaming; `/sessions` slash commands; `~/.codeberg/sessions/` |
+| Web (`codeberg-web`) | `wrapToolLoopAgentWithCompaction` | SSE `/api/chat`; `~/.codeberg/web-sessions/`; no evidence ledger |
+
+**Tool sources** merge in order (`collectTools`) — first wins. Built-in `search_code`
+always registers before the daemon bridge so daemon `search` cannot shadow it.
+
+**Context management:** 50% history budget compaction before each turn; 60% in-loop
+tool-result pruning; optional prompt caching (Anthropic/OpenAI). Override window with
+`CODEBERG_CONTEXT_WINDOW`.
+
+**Chunk-only daemon:** file tools (`grep`, `find_symbol`, …) work without vectors;
+`search_code` needs `vectors_enabled: true` on `GET /health`.
+
+## Development
+
+```sh
+make build-agent          # npm install + tsup bundles
+make build-web-ui         # Vite build → web-ui/dist
+make agent-test           # vitest in agent/
+cd agent && npm run typecheck
+```
+
+Run locally (daemon must be up — `make run-daemon`):
+
+```sh
+make run-agent q="where is chunking implemented?"
+make run-agent-tui
+make run-agent-web        # serves web-ui + API on CODEBERG_WEB_PORT (48088)
+cd agent/web-ui && npm run dev   # hot reload; proxies API to 48088
+```
+
+See [web-ui/README.md](web-ui/README.md) for the React SPA.
 
 ## Layout
 

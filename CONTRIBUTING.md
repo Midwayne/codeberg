@@ -1,7 +1,8 @@
 # Contributing
 
 Thanks for your interest in improving Codeberg! This guide covers how to set up,
-test, and submit changes. Today the active codebase is the **C core** (`core/`) and the **Go daemon** (`daemon/`).
+test, and submit changes across the **C core** (`core/`), **Go daemon** (`daemon/`),
+and **TypeScript agent** (`agent/`).
 
 ## Prerequisites
 
@@ -23,11 +24,11 @@ codeberg/
 ├── VERSION              # single source of truth for release version
 ├── core/                # libcodeberg (CMake)
 │   ├── include/codeberg/  public C ABI
-│   ├── src/             common, chunk, watch, embed, search
+│   ├── src/             common, chunk, manifest, watch, embed, search
 │   ├── test/            ctest binaries
 │   └── docs/            architecture, API, ADRs
 ├── daemon/              Go: codeberg-d (HTTP, tools, git pull) + C cberg-index
-├── agent/               planned: retrieval client
+├── agent/               TypeScript agent — codeberg-ask, codeberg-tui, codeberg-web
 └── docs/                project-level documentation index
 ```
 
@@ -43,6 +44,10 @@ in `core/src/` and are documented under `core/docs/modules/`.
 | `make test` | Run all core tests (`ctest`) |
 | `make test TEST=<name>` | Run one test binary (e.g. `test_chunker`) |
 | `make check` | `build-core` + `test` (pre-PR gate; same as CI) |
+| `make build-daemon` | Build `codeberg-d` (requires `cberg-index`) |
+| `make daemon-test` | `go test ./...` in `daemon/` |
+| `make build-agent` | Build agent binaries + web UI |
+| `make agent-test` | Vitest in `agent/` |
 | `make clean` | Remove `core/build` |
 | `make set-version v=v0.2.0` | Bump `VERSION` (rebuild to propagate to the library) |
 
