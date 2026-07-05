@@ -31,22 +31,8 @@ func pipeTool(ws *workspace.Workspace) Tool {
 				return nil, err
 			}
 
-			res, err := subprocess.RunPipeline(ctx, root, a.Command)
-			if err != nil {
-				return nil, err
-			}
-
-			return toPipeResult(res), nil
+			return subprocess.RunPipeline(ctx, root, a.Command)
 		})
-}
-
-func toPipeResult(r subprocess.Result) pipeResult {
-	return pipeResult{
-		Command:   r.Command,
-		Stdout:    r.Stdout,
-		Truncated: r.Truncated,
-		ExitCodes: r.ExitCodes,
-	}
 }
 
 // ErrUnsafePipe is returned when a pipeline uses a disallowed command or operator.

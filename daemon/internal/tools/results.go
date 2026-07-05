@@ -1,7 +1,5 @@
 package tools
 
-import "codeberg.org/codeberg/daemon/internal/indexctl"
-
 // Tool result structs returned to agents via POST /tools/call.
 
 type headTailResult struct {
@@ -23,17 +21,4 @@ type sedResult struct {
 type gitBlameResult struct {
 	Blame     string `json:"blame"`
 	Truncated bool   `json:"truncated"`
-}
-
-type pipeResult struct {
-	Command   string `json:"command"`
-	Stdout    string `json:"stdout"`
-	Truncated bool   `json:"truncated"`
-	ExitCodes []int  `json:"exit_codes"`
-}
-
-type hybridRanked struct {
-	Hit        indexctl.SearchResult `json:"hit"`
-	GrepBoost  int                   `json:"grep_boost"`
-	FinalScore float32               `json:"final_score"`
 }

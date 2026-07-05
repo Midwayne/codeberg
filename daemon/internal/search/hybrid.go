@@ -2,6 +2,7 @@ package search
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	"codeberg.org/codeberg/daemon/internal/indexctl"
@@ -9,29 +10,44 @@ import (
 
 // HybridHit is a vector hit reranked with a lexical grep boost.
 type HybridHit struct {
-	Hit        indexctl.SearchResult
-	GrepBoost  int
-	FinalScore float32
+	Hit        indexctl.SearchResult `json:"hit"`
+	GrepBoost  int                   `json:"grep_boost"`
+	FinalScore float32               `json:"final_score"`
 }
 
-// TermMatcher returns true when term appears in the given file.
-type TermMatcher func(ctx context.Context, term, repo, path string) (bool, error)
+// ContentReader loads repo-relative file bytes for hybrid term checks.
+type ContentReader func(ctx context.Context, repo, path string) ([]byte, error)
 
-// Hybrid reranks vector candidates by boosting scores when query terms grep-match hit files.
-func Hybrid(ctx context.Context, candidates []indexctl.SearchResult, query string, match TermMatcher, k int) ([]HybridHit, error) {
+var stopWords = map[string]bool{
+	"the": true, "a": true, "an": true, "is": true, "are": true, "was": true,
+	"where": true, "how": true, "what": true, "which": true, "does": true,
+	"do": true, "in": true, "of": true, "to": true, "for": true, "and": true,
+	"or": true, "with": true, "from": true, "by": true, "on": true, "at": true,
+}
+
+// Hybrid reranks vector candidates by boosting scores when query terms appear in hit files.
+func Hybrid(ctx context.Context, candidates []indexctl.SearchResult, query string, read ContentReader, k int) ([]HybridHit, error) {
 	terms := SignificantTerms(query)
 	out := make([]HybridHit, 0, len(candidates))
+	contentCache := make(map[string]string)
 
 	for _, hit := range candidates {
 		boost := 0
 
 		if len(terms) > 0 {
-			for _, term := range terms {
-				ok, err := match(ctx, term, hit.Repo, hit.Path)
+			key := hit.Repo + "\x00" + hit.Path
+			lower, ok := contentCache[key]
+			if !ok {
+				body, err := read(ctx, hit.Repo, hit.Path)
 				if err != nil {
 					return nil, err
 				}
-				if ok {
+				lower = strings.ToLower(string(body))
+				contentCache[key] = lower
+			}
+
+			for _, term := range terms {
+				if strings.Contains(lower, term) {
 					boost++
 				}
 			}
@@ -41,11 +57,16 @@ func Hybrid(ctx context.Context, candidates []indexctl.SearchResult, query strin
 		out = append(out, HybridHit{Hit: hit, GrepBoost: boost, FinalScore: final})
 	}
 
-	for i := 1; i < len(out); i++ {
-		for j := i; j > 0 && out[j].FinalScore > out[j-1].FinalScore; j-- {
-			out[j], out[j-1] = out[j-1], out[j]
+	slices.SortFunc(out, func(a, b HybridHit) int {
+		switch {
+		case a.FinalScore > b.FinalScore:
+			return -1
+		case a.FinalScore < b.FinalScore:
+			return 1
+		default:
+			return 0
 		}
-	}
+	})
 
 	if k > 0 && len(out) > k {
 		out = out[:k]
@@ -56,36 +77,14 @@ func Hybrid(ctx context.Context, candidates []indexctl.SearchResult, query strin
 
 // SignificantTerms extracts searchable tokens from a natural-language query.
 func SignificantTerms(query string) []string {
-	stop := map[string]bool{
-		"the": true, "a": true, "an": true, "is": true, "are": true, "was": true,
-		"where": true, "how": true, "what": true, "which": true, "does": true,
-		"do": true, "in": true, "of": true, "to": true, "for": true, "and": true,
-		"or": true, "with": true, "from": true, "by": true, "on": true, "at": true,
-	}
-
 	var terms []string
 	for _, w := range strings.Fields(strings.ToLower(query)) {
 		w = strings.Trim(w, ".,;:!?\"'()[]{}")
-		if len(w) < 3 || stop[w] {
+		if len(w) < 3 || stopWords[w] {
 			continue
 		}
 		terms = append(terms, w)
 	}
 
 	return terms
-}
-
-// RegexpQuote escapes a string for use in a literal grep pattern.
-func RegexpQuote(s string) string {
-	const specials = `\.+*?()|[]{}^$`
-	var b strings.Builder
-
-	for _, r := range s {
-		if strings.ContainsRune(specials, r) {
-			b.WriteByte('\\')
-		}
-		b.WriteRune(r)
-	}
-
-	return b.String()
 }

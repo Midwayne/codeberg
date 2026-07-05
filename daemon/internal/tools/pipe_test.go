@@ -122,7 +122,7 @@ func TestPipeToolRejectsUnsafe(t *testing.T) {
 	}
 }
 
-func callPipe(t *testing.T, tool Tool, command string) pipeResult {
+func callPipe(t *testing.T, tool Tool, command string) subprocess.Result {
 	t.Helper()
 
 	res, err := tool.Call(context.Background(), mustArgs(t, command))
@@ -130,7 +130,7 @@ func callPipe(t *testing.T, tool Tool, command string) pipeResult {
 		t.Fatalf("pipe %q: %v", command, err)
 	}
 
-	out, ok := res.(pipeResult)
+	out, ok := res.(subprocess.Result)
 	if !ok {
 		t.Fatalf("result type %T", res)
 	}

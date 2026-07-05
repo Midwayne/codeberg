@@ -24,9 +24,6 @@ const (
 	EnvGitDir     = "CODEBERG_GIT_DIR"
 )
 
-// RepoRoot is an alias for domain.Repo kept for callers outside this package.
-type RepoRoot = domain.Repo
-
 type Indexer struct {
 	// Root is the first (or only) root — kept for single-root consumers like
 	// the git-pull default and the CODEBERG_ROOT env forwarded to the C engine.

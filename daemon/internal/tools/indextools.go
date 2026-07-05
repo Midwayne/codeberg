@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"regexp"
 
 	"codeberg.org/codeberg/daemon/internal/indexctl"
 	"codeberg.org/codeberg/daemon/internal/search"
@@ -144,23 +145,9 @@ func hybridSearchTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
 				return nil, err
 			}
 
-			ranked, err := search.Hybrid(ctx, candidates, a.Query, func(ctx context.Context, term, repo, path string) (bool, error) {
-				matches, gerr := ws.Grep(ctx, term, true, repo, path, 3)
-				if gerr != nil {
-					return false, gerr
-				}
-				return len(matches) > 0, nil
+			return search.Hybrid(ctx, candidates, a.Query, func(ctx context.Context, repo, path string) ([]byte, error) {
+				return ws.ReadRaw(repo, path)
 			}, k)
-			if err != nil {
-				return nil, err
-			}
-
-			out := make([]hybridRanked, len(ranked))
-			for i, h := range ranked {
-				out[i] = hybridRanked{Hit: h.Hit, GrepBoost: h.GrepBoost, FinalScore: h.FinalScore}
-			}
-
-			return out, nil
 		})
 }
 
@@ -186,7 +173,7 @@ func findReferencesTool(ws *workspace.Workspace) Tool {
 				limit = 50
 			}
 
-			pattern := fmt.Sprintf(`\b%s\b`, search.RegexpQuote(a.Symbol))
+			pattern := fmt.Sprintf(`\b%s\b`, regexp.QuoteMeta(a.Symbol))
 			return ws.Grep(ctx, pattern, false, a.Repo, a.PathGlob, limit)
 		})
 }

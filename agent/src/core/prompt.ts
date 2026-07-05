@@ -28,7 +28,6 @@ Available tools:
 - file_outline: list indexed chunks in a file (functions, classes, methods) with line ranges.
 - hybrid_search: vector search reranked by grep verification of query terms in hit files.
 - find_references: find usages of a symbol via word-boundary grep.
-- search: same as search_code but exposed via the daemon tool registry (use search_code when available).
 - grep: exact text or regex search over files. Use for symbols, routes, table names, config keys, queue names, event names, endpoint names, imports, and function names.
 - glob: find files by pattern.
 - read_file: read file content or a specific line range — use when you need lines outside indexed chunk boundaries or get_chunk's span is insufficient for the question.
