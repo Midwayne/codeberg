@@ -1,6 +1,7 @@
 # HTTP API (`codeberg-d`)
 
-Pure Go daemon. Semantic search is proxied to the C `cberg-index` process over a Unix socket.
+Pure Go daemon. Semantic search and chunk-index operations are proxied to the
+C `cberg-index` process over a Unix socket.
 
 The daemon serves one or more repos (`CODEBERG_ROOTS` records, or the single
 `CODEBERG_ROOT`). Each repo has a stable key; search results and grep/glob hits
@@ -10,26 +11,102 @@ carry it, and tools accept it as `repo`.
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| `GET` | `/health` | Daemon + indexer status (`ready`, `chunks`, `version`, per-repo `repos`) |
-| `GET` | `/search?q=…&k=10[&repo=key]` | Vector search — all repos merged by score, or one repo when `repo` is set |
+| `GET` | `/health` | Daemon + indexer status |
+| `GET` | `/search` | Vector search (see [Search](#search) below) |
 | `GET` | `/tools` | List registered read-only agent tools |
 | `POST` | `/tools/call` | Run a tool: `{"name":"grep","args":{…}}` |
 
+### `GET /health`
+
+```json
+{
+  "status": "ok",
+  "ready": true,
+  "chunks": 12345,
+  "version": "0.1.0",
+  "vectors_enabled": true,
+  "repos": [{"key": "codeberg", "ready": true, "chunks": 12345}]
+}
+```
+
+- `ready` — bootstrap finished and at least one repo is searchable.
+- `vectors_enabled` — `CBERG_MODEL` + `CBERG_INDEX_PATH` are configured; when
+  `false`, vector search returns `501 NOT_IMPLEMENTED` but chunk-only tools
+  (`find_symbol`, `file_outline`, `get_chunk`) still work.
+
+### Search
+
+```
+GET /search?q=<query>&k=10[&repo=<key>][&path_glob=<glob>][&kind=<kind>][&min_score=<0-1>]
+```
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `q` | _(required)_ | Natural-language query |
+| `k` | `10` | Max results |
+| `repo` | all ready repos | Restrict to one repo key |
+| `path_glob` | — | fnmatch glob on chunk paths (e.g. `daemon/*`) |
+| `kind` | — | Chunk kind: `function`, `method`, `class`, `struct`, `interface`, `window` |
+| `min_score` | — | Minimum similarity score (0–1) |
+
+Response:
+
+```json
+{"results": [{"id": 1, "score": 0.9, "repo": "codeberg", "path": "src/main.go", "symbol": "main", "start_line": 10, "end_line": 25, "snippet": "..."}]}
+```
+
+### Errors
+
+Failed requests return structured JSON:
+
+```json
+{"ok": false, "code": "NOT_FOUND", "message": "indexer: not found (NOT_FOUND)"}
+```
+
+Common codes: `MISSING_QUERY`, `INVALID_K`, `NOT_IMPLEMENTED`, `NOT_FOUND`,
+`INVALID_ARGS`, `FORBIDDEN`, `INTERNAL`.
+
 ## Tools
 
-All tools are read-only and sandboxed to their repo's root:
+All tools are read-only and sandboxed to their repo's root.
 
-`repos`, `grep`, `glob`, `read_file`, `list_dir`, `tree`, `head`, `tail`, `wc`, `sed`, `pipe`, `git_log`, `git_blame`
+### Index and search tools
 
-`repos` lists the served repositories (key + root). The other tools take an
-optional `repo` key: with a single served repo it defaults to that repo; in
-multi-repo (`--all`) mode the key is required and an unhelpful value returns
-the available keys in the error.
+| Tool | Purpose |
+|------|---------|
+| `search` | Semantic vector search (same as `GET /search`) |
+| `get_chunk` | Full indexed chunk body for a `(repo, id)` hit |
+| `find_symbol` | Case-insensitive symbol lookup in the chunk table |
+| `file_outline` | Indexed chunks in a file with line ranges |
+| `hybrid_search` | Vector search reranked by query-term presence in hit files |
+| `find_references` | Word-boundary grep for symbol usages |
+
+`find_symbol`, `file_outline`, and `get_chunk` work in **chunk-only mode**
+(without ONNX / vector indexing). `search` and `hybrid_search` require
+`vectors_enabled`.
+
+### File and repo tools
+
+| Tool | Purpose |
+|------|---------|
+| `repos` | List served repositories (key + root) |
+| `grep` | Regex or literal search over files |
+| `glob` | Find files by pattern |
+| `read_file` | Read file content or a line range |
+| `list_dir` | List one directory |
+| `tree` | Directory tree (skips `.git`, `node_modules`, `vendor`, etc.) |
+| `head` / `tail` / `wc` | Quick file inspection |
+| `sed` | Read-only sed script via stdin |
+| `pipe` | Read-only pipeline (see below) |
+| `git_log` / `git_blame` | Git history and per-line authorship |
+
+`repos` lists the served repositories. Other tools take an optional `repo` key:
+with a single served repo it defaults to that repo; in multi-repo (`--all`) mode
+the key is required and an invalid value returns the available keys in the error.
 
 ### `pipe` — read-only pipelines
 
-Runs a chained pipeline over the repo in one call, so the agent can combine search
-and filtering without multiple round-trips:
+Runs a chained pipeline over the repo in one call:
 
 ```json
 {"name":"pipe","args":{"command":"rg -l 'func main' --glob '*.go' | head -20"}}
@@ -37,7 +114,7 @@ and filtering without multiple round-trips:
 
 Returns `{"command", "stdout", "truncated", "exit_codes"}`. **No shell is invoked** —
 the command is tokenized (quote-aware), split on `|`, and each stage is exec'd
-directly with `Dir = CODEBERG_ROOT`. Therefore:
+directly with `Dir` set to the repo root. Therefore:
 
 - **Allowed commands:** `rg`, `grep`, `head`, `tail`, `wc`, `sort`, `uniq`, `cut`,
   `tr`, `nl`, `cat`, `paste`, `sed` (read-only script, as the `sed` tool). `awk` and
@@ -48,3 +125,13 @@ directly with `Dir = CODEBERG_ROOT`. Therefore:
 - **Rejected (403):** absolute paths or `..` traversal in any argument.
 - Output is capped (`truncated` flag); the run has a timeout; a stage exiting nonzero
   (e.g. `rg` finding nothing) is reported in `exit_codes`, not an error.
+
+## Agent integration
+
+The TypeScript agent bridges daemon tools via `daemonToolSource`, but **hides**
+the daemon `search` tool because the built-in `search_code` tool already wraps
+`GET /search` with a compact result shape and evidence-ledger capture. All
+other daemon tools (including `get_chunk`, `hybrid_search`, etc.) are available
+to the model automatically.
+
+See [agent/README.md](../../agent/README.md) for the recommended search workflow.

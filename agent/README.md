@@ -298,7 +298,46 @@ daemon serves more than one repo, omitted in single-repo setups. Pass a
 `repo` filter to `search_code` (or to `DaemonClient.search(query, { repo })`)
 to scope a query to one repo instead of searching all of them. Chunk ids are
 only unique **within** a repo, so treat `(repo, id)` as a hit's identity —
-`EvidenceLedger` and the built-in dedupe already do.
+`chunkKey()` in `types.ts`, `EvidenceLedger`, and the built-in dedupe all use
+this composite key.
+
+### Search workflow
+
+The agent prompt recommends a chunk-first strategy:
+
+1. **`search_code`** (built-in) — semantic vector search via `GET /search`.
+   Returns path, symbol, lines, score, and snippet. Supports `repo`, `path_glob`,
+   `kind`, and `min_score` filters. Results are captured in the evidence ledger.
+2. **`get_chunk`** (daemon) — fetch the full indexed chunk body for a hit's
+   `(repo, id)`. Prefer this over `read_file` right after search — chunk
+   boundaries are exact.
+3. **`read_file`** (daemon) — use when you need surrounding context, imports,
+   or lines outside the chunk `get_chunk` returned.
+4. **`find_symbol`** (daemon) — exact symbol lookup when you know the name;
+   works without vector search.
+5. **`file_outline`** (daemon) — orient in an unfamiliar file before deep reading.
+6. **`hybrid_search`** (daemon) — vector candidates reranked by lexical term
+   matches in hit files.
+7. **`find_references`** (daemon) — word-boundary grep for symbol usages.
+
+The daemon also exposes a `search` tool identical to `GET /search`, but the
+agent **hides** it from the tool bridge because `search_code` already wraps
+vector search with a compact shape and ledger integration.
+
+### Daemon client
+
+`DaemonClient` methods:
+
+| Method | Endpoint | Notes |
+|--------|----------|-------|
+| `health()` | `GET /health` | Includes `vectors_enabled` |
+| `waitReady(ms)` | polls `health()` | Throws `DaemonError` code `NOT_READY` on timeout |
+| `search(q, opts)` | `GET /search` | `opts`: `k`, `repo`, `path_glob`, `kind`, `min_score` |
+| `listTools()` | `GET /tools` | Structured errors via `DaemonError` |
+| `callTool(name, args)` | `POST /tools/call` | Any daemon tool |
+
+On startup the agent calls `waitReady(30_000)` and continues if the indexer is
+still warming (`NOT_READY` only); other errors (network, 500) propagate.
 
 ## Web access
 

@@ -9,7 +9,65 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Added
 
-- **Multi-repo search (`codeberg --all`)** — every root you run codeberg against
+- **Index-aware search tools** — six new daemon tools over the chunk index and
+  vector search, exposed via `POST /tools/call` and bridged to the agent
+  (except `search`, which is hidden from the agent bridge because `search_code`
+  already covers vector search with a compact shape):
+  - `search` — semantic vector search (same engine as `GET /search`)
+  - `get_chunk` — full indexed chunk body by `(repo, id)` from a search hit
+  - `find_symbol` — case-insensitive exact symbol lookup in the chunk table
+    (works without vector search)
+  - `file_outline` — indexed chunks in a file with line ranges
+  - `hybrid_search` — vector candidates reranked by lexical term matches in
+    hit files (one file read per unique path, not per term)
+  - `find_references` — word-boundary grep for symbol usages across the repo
+- **C indexer IPC** — new commands `chunk`, `symbol`, and `outline`; extended
+  `search` with optional `path_glob`, `kind`, and `min_score` filters;
+  `status` now reports `vectors_enabled`.
+- **Search filters on HTTP** — `GET /search` accepts `path_glob`, `kind`, and
+  `min_score` query parameters alongside existing `q`, `k`, and `repo`.
+- **Structured daemon errors** — failed `/search` and `/tools/call` responses
+  return `{"ok":false,"code":"…","message":"…"}` with stable machine-readable
+  codes (`NOT_FOUND`, `INVALID_ARGS`, `NOT_IMPLEMENTED`, etc.).
+- **Agent search improvements** — `search_code` exposes `score` and supports
+  `path_glob`, `kind`, and `min_score`; `DaemonClient.waitReady()` polls until
+  the indexer is ready; `DaemonError` carries HTTP status and error codes from
+  the daemon.
+- **Agent prompt strategy** — documents chunk-first workflow (`search_code` →
+  `get_chunk` → `read_file` when chunk span is insufficient), symbol lookup,
+  hybrid search, and reference finding.
+
+### Changed
+
+- **Daemon package layout** — responsibilities split for clarity:
+  - `bootstrap` — startup timeout and indexer readiness polling
+  - `domain` — shared `Repo{Key, Root}` type
+  - `indexctl` — `Indexer` interface; IPC split into `wire.go` + `transport.go`
+  - `subprocess` — safe pipeline and sed script validation/execution
+  - `search` — hybrid reranking helpers
+  - `git` — git subprocess runner
+  - `httpserver` — centralized HTTP error mapping and response helpers
+  - `testutil` — shared daemon test fixtures
+- **Go idiomatic cleanup** — tool arg/result structs hoisted to package level;
+  blank lines between logical blocks in methods; typed result structs instead of
+  `map[string]any`.
+- **Agent deduplication** — shared `chunkKey()`, `codebergHome()`, and
+  `lastUserMessage*` helpers; `listTools` uses `DaemonError` like other client
+  methods; startup only swallows `NOT_READY` from `waitReady` (other errors
+  propagate).
+- **`workspace.Tree` skip list** — aligned with C `cberg_walk_skip_dir`
+  (`.git`, `node_modules`, `vendor`, `build`, etc., not just `.git`).
+- **Compact JSON** — daemon HTTP responses no longer pretty-print every payload.
+- **Core tests** — `core/test/test_common.h` added for shared `CHECK` macro
+  (migration of individual test files pending).
+
+### Fixed
+
+- **Hybrid search performance** — reranking reads each hit file once (content
+  cache) instead of spawning `rg` per candidate × query term.
+- **Misplaced grep in hybrid** — term matching uses file content reads scoped
+  to the hit path, not `path_glob` passed where a file path was expected.
+
   is remembered in `~/.codeberg/repos` (list with `codeberg repos`), and
   `codeberg --all [--web]` boots one daemon over all of them: a single
   `cberg-index` process shares one embedding model across per-repo chunk

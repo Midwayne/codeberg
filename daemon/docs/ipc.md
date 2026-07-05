@@ -26,26 +26,35 @@ status
 Response:
 
 ```json
-{"ok":true,"ready":true,"chunks":42,"version":"0.1.0",
+{"ok":true,"ready":true,"chunks":42,"version":"0.1.0","vectors_enabled":true,
  "repos":[{"key":"codeberg","ready":true,"chunks":42}]}
 ```
 
-`ready` is true once the bootstrap pass finished and at least one repo is
-searchable; a repo that failed to bootstrap stays `ready:false` in `repos`
-without holding the whole daemon unhealthy.
+- `ready` — bootstrap finished and at least one repo is searchable; a repo that
+  failed to bootstrap stays `ready:false` in `repos` without holding the whole
+  daemon unhealthy.
+- `vectors_enabled` — `CBERG_MODEL` and `CBERG_INDEX_PATH` are set.
 
 ### `search`
 
-Request (tab-separated; the repo field is optional):
+Request (tab-separated fields):
 
 ```
-search\t<query>\t<k>[\t<repo>]
+search\t<query>\t<k>[\t<repo>[\t<path_glob>[\t<kind>[\t<min_score>]]]]
 ```
 
-Tabs in the query should be avoided; clients may replace them with spaces.
-Without a repo the search fans out across every ready repo — the query is
-embedded once, each repo's index is searched, and hits merge by score. An
-unknown repo key errors with `not found`.
+| Field | Required | Description |
+|-------|----------|-------------|
+| query | yes | Natural-language query (tabs replaced with spaces) |
+| k | no | Max results (default 10) |
+| repo | no | Restrict to one repo key |
+| path_glob | no | fnmatch glob on chunk paths |
+| kind | no | Chunk kind filter (`function`, `method`, `class`, `struct`, `interface`, `window`) |
+| min_score | no | Minimum similarity score (float) |
+
+Without `repo`, search fans out across every ready repo — the query is embedded
+once, each repo's index is searched, and hits merge by score. An unknown repo
+key errors with `not found`.
 
 Response:
 
@@ -53,14 +62,60 @@ Response:
 {"ok":true,"results":[{"id":1,"score":0.95,"repo":"codeberg","path":"src/main.go","symbol":"main","start_line":10,"end_line":25,"snippet":"..."}]}
 ```
 
-Error:
+### `chunk`
+
+Fetch the full indexed chunk body.
+
+Request:
+
+```
+chunk\t<repo>\t<id>
+```
+
+Response:
+
+```json
+{"ok":true,"chunk":{"id":1,"repo":"codeberg","path":"src/main.go","symbol":"main","kind":"function","start_line":10,"end_line":25,"snippet":"...","body":"...","truncated":false}}
+```
+
+### `symbol`
+
+Case-insensitive symbol lookup in the chunk table (no vector search required).
+
+Request:
+
+```
+symbol\t<name>[\t<repo>[\t<kind>[\t<limit>]]]
+```
+
+Response: same `results` array shape as `search`.
+
+### `outline`
+
+List indexed chunks in one file.
+
+Request:
+
+```
+outline\t<repo>\t<path>
+```
+
+Response: same `results` array shape as `search` (one entry per chunk in the file).
+
+## Errors
 
 ```json
 {"ok":false,"error":"not found"}
 ```
 
+Common error strings map to daemon HTTP codes: `not implemented`, `not found`,
+`invalid argument`, `internal error`, `i/o error`, `out of memory`, `timeout`.
+
 ## Notes
 
-- Search requires vector indexing (`CBERG_MODEL` + `CBERG_INDEX_PATH`).
+- Vector search (`search`) requires `CBERG_MODEL` + `CBERG_INDEX_PATH`.
+- `chunk`, `symbol`, and `outline` work in chunk-only mode.
 - Results are capped at 64 per request in the C indexer.
 - Repos still bootstrapping are skipped in all-repo searches (partial results).
+
+Go client: `daemon/internal/indexctl/` (`Client` implements the `Indexer` interface).
