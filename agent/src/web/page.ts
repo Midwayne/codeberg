@@ -272,7 +272,7 @@ function block(wrap, cls) {
 function tool(wrap) {
   var d = document.createElement("details");
   d.className = "tool";
-  d.open = true;
+  d.open = false;
   var s = document.createElement("summary");
   s.textContent = "\\uD83D\\uDD27 tool";
   var body = document.createElement("div");

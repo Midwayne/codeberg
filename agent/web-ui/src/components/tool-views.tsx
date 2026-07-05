@@ -188,7 +188,6 @@ function ChunkDetail({ part }: { part: ToolView }) {
       icon={<FileCode className="size-3.5" />}
       title="Chunk"
       hits={[{ ...hit, snippet: body }]}
-      defaultOpen
     />
   );
 }
@@ -208,7 +207,6 @@ function GrepResults({ title, part }: { title: string; part: ToolView }) {
     <Collapsible
       icon={<Search className="size-3.5" />}
       title={`${matches.length} ${title.toLowerCase()} match${matches.length === 1 ? '' : 's'}${pattern ? ` for “${pattern}”` : ''}`}
-      defaultOpen
     >
       <div className="grid gap-2">
         {matches.map((m, i) => (
@@ -266,7 +264,6 @@ function FileContent({ part }: { part: ToolView }) {
           {range}
         </span>
       }
-      defaultOpen
     >
       <div className="text-xs">
         <Response>{`\`\`\`${lang}\n${content}\n\`\`\``}</Response>
@@ -284,7 +281,6 @@ function FileList({ title, part }: { title: string; part: ToolView }) {
     <Collapsible
       icon={<FolderTree className="size-3.5" />}
       title={`${items.length} ${title} result${items.length === 1 ? '' : 's'}`}
-      defaultOpen
     >
       <ul className="max-h-64 space-y-1 overflow-y-auto font-mono text-xs">
         {items.map((item, i) => (
@@ -303,7 +299,7 @@ function ReposList({ part }: { part: ToolView }) {
   }
   const repos = Array.isArray(part.output) ? part.output : [];
   return (
-    <Collapsible icon={<FolderTree className="size-3.5" />} title={`${repos.length} repos`} defaultOpen>
+    <Collapsible icon={<FolderTree className="size-3.5" />} title={`${repos.length} repos`}>
       <ul className="space-y-1 text-xs">
         {repos.map((r, i) => {
           const row = r as { key?: string; root?: string };
@@ -339,7 +335,7 @@ function TextOutput({ title, part }: { title: string; part: ToolView }) {
   );
 
   return (
-    <Collapsible icon={icon} title={<span className="font-mono">{title}</span>} defaultOpen>
+    <Collapsible icon={icon} title={<span className="font-mono">{title}</span>}>
       <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-background p-2 font-mono text-xs text-foreground/80">
         {text}
       </pre>
@@ -365,15 +361,13 @@ function HitList({
   icon,
   title,
   hits,
-  defaultOpen = true,
 }: {
   icon: ReactNode;
   title: string;
   hits: Hit[];
-  defaultOpen?: boolean;
 }) {
   return (
-    <Collapsible icon={icon} title={title} defaultOpen={defaultOpen}>
+    <Collapsible icon={icon} title={title}>
       <div className="grid gap-2">
         {hits.map((hit, i) => (
           <SourceCard key={hit.id ?? i} hit={hit} />
