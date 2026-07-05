@@ -304,10 +304,11 @@ After bootstrap, the watch loop applies chunk diffs:
 - **deleted** → remove vector by chunk id
 - **save** → usearch flushes to disk; Qdrant/pgvector are no-ops (already persisted)
 
-When a vector upsert/delete fails with a **transient** error (`CBERG_ERR_IO` or
-`CBERG_ERR_TIMEOUT` — e.g. brief Qdrant or Postgres outage), `cberg-index`
-retries the same diff up to **three times** with backoff (100 ms, 200 ms, 300 ms)
-before falling back to a full `rebuild_index`. Corrupt or incompatible indexes
+When a vector upsert/delete fails with a **transient** error (`CBERG_ERR_IO`,
+`CBERG_ERR_TIMEOUT`, or `CBERG_ERR_INTERNAL` — e.g. brief Qdrant/Postgres outage or
+ONNX blip), `cberg-index` retries the same diff up to **three times** with backoff
+(100 ms, 200 ms, 300 ms) before falling back to a full `rebuild_index` (which is
+also retried up to three times on transient errors). Corrupt or incompatible indexes
 (`CBERG_ERR_CORRUPT`) skip retries and rebuild immediately.
 
 ### usearch-only tuning

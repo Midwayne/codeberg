@@ -4,6 +4,7 @@
 #ifdef CBERG_WITH_PGVECTOR
 
 #include <libpq-fe.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -133,6 +134,40 @@ static cberg_status pgvector_ensure_schema(pgvector_backend *b) {
     return pgvector_ensure_hnsw(b);
 }
 
+/* Formats SQL into a heap buffer, doubling capacity until the string fits. */
+static char *pgvector_sql_format(const char *fmt, ...) {
+    size_t cap = 256;
+    char *sql = malloc(cap);
+    if (sql == NULL) {
+        return NULL;
+    }
+    for (;;) {
+        va_list ap;
+        va_start(ap, fmt);
+        int n = vsnprintf(sql, cap, fmt, ap);
+        va_end(ap);
+        if (n < 0) {
+            free(sql);
+            return NULL;
+        }
+        if ((size_t)n < cap) {
+            return sql;
+        }
+        size_t grown_cap = cap * 2;
+        if (grown_cap <= cap) {
+            free(sql);
+            return NULL;
+        }
+        cap = grown_cap;
+        char *grown = realloc(sql, cap);
+        if (grown == NULL) {
+            free(sql);
+            return NULL;
+        }
+        sql = grown;
+    }
+}
+
 static cberg_status pgvector_backend_add(void *impl, uint64_t id, const float *vector, size_t dim) {
     pgvector_backend *b = impl;
     if (b == NULL || vector == NULL || dim != b->dim) {
@@ -142,20 +177,13 @@ static cberg_status pgvector_backend_add(void *impl, uint64_t id, const float *v
     if (literal == NULL) {
         return CBERG_ERR_OUT_OF_MEMORY;
     }
-    size_t need = strlen(b->table_ident) + strlen(literal) + 128;
-    char *sql = malloc(need);
-    if (sql == NULL) {
-        free(literal);
-        return CBERG_ERR_OUT_OF_MEMORY;
-    }
-    int n = snprintf(sql, need,
-                     "INSERT INTO %s (id, embedding) VALUES (%llu, '%s'::vector) "
-                     "ON CONFLICT (id) DO UPDATE SET embedding = EXCLUDED.embedding",
-                     b->table_ident, (unsigned long long)id, literal);
+    char *sql = pgvector_sql_format(
+        "INSERT INTO %s (id, embedding) VALUES (%llu, '%s'::vector) "
+        "ON CONFLICT (id) DO UPDATE SET embedding = EXCLUDED.embedding",
+        b->table_ident, (unsigned long long)id, literal);
     free(literal);
-    if (n < 0 || (size_t)n >= need) {
-        free(sql);
-        return CBERG_ERR_INVALID_ARGUMENT;
+    if (sql == NULL) {
+        return CBERG_ERR_OUT_OF_MEMORY;
     }
     cberg_status st = pg_exec(b, sql);
     free(sql);
@@ -201,20 +229,12 @@ static cberg_status pgvector_backend_search(void *impl, const float *query, size
     if (literal == NULL) {
         return CBERG_ERR_OUT_OF_MEMORY;
     }
-    size_t need = strlen(b->table_ident) + strlen(literal) * 2 + 128;
-    char *sql = malloc(need);
-    if (sql == NULL) {
-        free(literal);
-        return CBERG_ERR_OUT_OF_MEMORY;
-    }
-    int n = snprintf(sql, need,
-                     "SELECT id, 1 - (embedding <=> '%s'::vector) AS score "
-                     "FROM %s ORDER BY embedding <=> '%s'::vector LIMIT %zu",
-                     literal, b->table_ident, literal, k);
+    char *sql = pgvector_sql_format("SELECT id, 1 - (embedding <=> '%s'::vector) AS score "
+                                    "FROM %s ORDER BY embedding <=> '%s'::vector LIMIT %zu",
+                                    literal, b->table_ident, literal, k);
     free(literal);
-    if (n < 0 || (size_t)n >= need) {
-        free(sql);
-        return CBERG_ERR_INVALID_ARGUMENT;
+    if (sql == NULL) {
+        return CBERG_ERR_OUT_OF_MEMORY;
     }
 
     cberg_status conn_st = pgvector_ensure_conn(b);
