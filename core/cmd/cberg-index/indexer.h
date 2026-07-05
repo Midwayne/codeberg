@@ -41,6 +41,9 @@ typedef struct cberg_repo {
 
     pthread_mutex_t mu;
     int ready;
+
+    size_t changes_since_compact; /* vector adds+mods+deletes since last compact */
+    unsigned idle_polls;          /* consecutive idle watch cycles with pending changes */
 } cberg_repo;
 
 struct cberg_engine {
@@ -49,6 +52,10 @@ struct cberg_engine {
     char *socket_path;
     int poll_ms;
     int vectors;
+
+    int compact_enabled;       /* CBERG_INDEX_COMPACT (default on when vectors enabled) */
+    int compact_idle_ms;       /* idle time before compacting after mutations */
+    size_t compact_min_changes; /* minimum vector mutations since last compact */
 
     cberg_chunker *chunker;   /* main (bootstrap/watch) thread only */
     cberg_embedder *embedder; /* ONE per process; call only via engine_embed */

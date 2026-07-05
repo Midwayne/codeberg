@@ -418,6 +418,11 @@ CBERG_API cberg_status cberg_index_search(cberg_index *index, const float *query
                                           size_t *out_found);
 
 CBERG_API cberg_status cberg_index_save(cberg_index *index);
+
+/* Reorders HNSW nodes and vector storage for better search cache locality.
+ * Expensive (O(N) graph work); run after bulk indexing or during idle windows. */
+CBERG_API cberg_status cberg_index_compact(cberg_index *index);
+
 CBERG_API void cberg_index_close(cberg_index *index);
 
 /* --- Semantic search (embed query + nearest neighbors) -------------------- */

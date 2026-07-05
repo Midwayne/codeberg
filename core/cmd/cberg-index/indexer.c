@@ -529,6 +529,63 @@ static cberg_status rebuild_index(cberg_repo *r) {
     return cberg_index_open(r->index_path, dim, NULL, &r->index);
 }
 
+/* Caller must hold r->mu. Reorders the HNSW graph for better search locality. */
+static cberg_status repo_compact(cberg_repo *r) {
+    if (!r->eng->vectors || r->index == NULL) {
+        return CBERG_OK;
+    }
+    size_t chunks = cberg_chunk_table_len(r->table);
+    fprintf(stderr, "cberg-index[%s]: compacting vector index (%zu chunks)...\n", r->key, chunks);
+    cberg_status st = cberg_index_compact(r->index);
+    if (st != CBERG_OK) {
+        return st;
+    }
+    st = cberg_index_save(r->index);
+    if (st == CBERG_OK) {
+        r->changes_since_compact = 0;
+        r->idle_polls = 0;
+        fprintf(stderr, "cberg-index[%s]: compact complete\n", r->key);
+    }
+    return st;
+}
+
+static void maybe_repo_compact_after_bootstrap(cberg_repo *r) {
+    if (!r->eng->compact_enabled || r->index == NULL) {
+        return;
+    }
+    cberg_status st = repo_compact(r);
+    if (st != CBERG_OK) {
+        fprintf(stderr, "cberg-index[%s]: warning: compact after bootstrap failed: %s\n", r->key,
+                cberg_status_str(st));
+    }
+}
+
+static void engine_idle_compact(cberg_engine *eng) {
+    if (!eng->compact_enabled) {
+        return;
+    }
+    unsigned needed = (unsigned)(eng->compact_idle_ms / eng->poll_ms);
+    if (needed < 1) {
+        needed = 1;
+    }
+    for (size_t i = 0; i < eng->repos_len; i++) {
+        cberg_repo *r = eng->repos[i];
+        if (!r->ready || r->index == NULL || r->changes_since_compact == 0) {
+            continue;
+        }
+        r->idle_polls++;
+        if (r->changes_since_compact < eng->compact_min_changes || r->idle_polls < needed) {
+            continue;
+        }
+        pthread_mutex_lock(&r->mu);
+        cberg_status st = repo_compact(r);
+        pthread_mutex_unlock(&r->mu);
+        if (st != CBERG_OK) {
+            fprintf(stderr, "cberg-index[%s]: warning: idle compact failed: %s\n", r->key, cberg_status_str(st));
+        }
+    }
+}
+
 static cberg_status sync_table(cberg_repo *r, chunk_batch *batch) {
     cberg_changes ch = {0};
     cberg_status st = cberg_chunk_table_sync(r->table, batch->items, batch->len, &ch);
@@ -549,6 +606,8 @@ static cberg_status sync_table(cberg_repo *r, chunk_batch *batch) {
     if (r->ready && (ch.added_len != 0 || ch.modified_len != 0 || ch.deleted_len != 0)) {
         fprintf(stderr, "cberg-index[%s]: indexed +%zu ~%zu -%zu (%zu chunks)\n", r->key, ch.added_len,
                 ch.modified_len, ch.deleted_len, cberg_chunk_table_len(r->table));
+        r->changes_since_compact += ch.added_len + ch.modified_len + ch.deleted_len;
+        r->idle_polls = 0;
     }
     return CBERG_OK;
 }
@@ -916,6 +975,34 @@ cberg_status cberg_engine_open(cberg_engine *eng) {
         eng->poll_ms = 1000;
     }
 
+    if (eng->vectors) {
+        eng->compact_enabled = 1;
+        const char *compact = getenv("CBERG_INDEX_COMPACT");
+        if (compact != NULL && (compact[0] == '0' || compact[0] == 'n' || compact[0] == 'N')) {
+            eng->compact_enabled = 0;
+        }
+        eng->compact_idle_ms = 60000;
+        const char *idle = getenv("CBERG_INDEX_COMPACT_IDLE_MS");
+        if (idle != NULL && idle[0] != '\0') {
+            int ms = atoi(idle);
+            if (ms < 0) {
+                cberg_engine_close(eng);
+                return CBERG_ERR_INVALID_ARGUMENT;
+            }
+            eng->compact_idle_ms = ms;
+        }
+        eng->compact_min_changes = 100;
+        const char *min_changes = getenv("CBERG_INDEX_COMPACT_MIN_CHANGES");
+        if (min_changes != NULL && min_changes[0] != '\0') {
+            long n = strtol(min_changes, NULL, 10);
+            if (n < 0) {
+                cberg_engine_close(eng);
+                return CBERG_ERR_INVALID_ARGUMENT;
+            }
+            eng->compact_min_changes = (size_t)n;
+        }
+    }
+
     const char *sock = getenv("CBERG_SOCKET");
     if (sock != NULL && sock[0] != '\0') {
         eng->socket_path = strdup(sock);
@@ -1035,6 +1122,7 @@ cberg_status cberg_repo_bootstrap(cberg_repo *r) {
         if (st != CBERG_ERR_NOT_FOUND) {
             if (st == CBERG_OK) {
                 r->ready = 1;
+                maybe_repo_compact_after_bootstrap(r);
             }
             pthread_mutex_unlock(&r->mu);
             return st;
@@ -1045,6 +1133,7 @@ cberg_status cberg_repo_bootstrap(cberg_repo *r) {
     if (st == CBERG_OK) {
         r->ready = 1;
         save_state(r);
+        maybe_repo_compact_after_bootstrap(r);
     }
     pthread_mutex_unlock(&r->mu);
     return st;
@@ -1302,6 +1391,7 @@ cberg_status cberg_engine_run(cberg_engine *eng) {
             return st;
         }
         if (handled == 0) {
+            engine_idle_compact(eng);
             /* Idle: every watcher was drained non-blocking, so pace the loop.
              * A signal interrupts the sleep and the stop check runs first. */
             struct timespec ts = {.tv_sec = eng->poll_ms / 1000, .tv_nsec = (long)(eng->poll_ms % 1000) * 1000000L};

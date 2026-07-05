@@ -61,6 +61,10 @@ int main(void) {
     CHECK(cberg_index_remove(idx, 20) == CBERG_OK, "remove 20");
     CHECK(cberg_index_remove(idx, 20) == CBERG_ERR_NOT_FOUND, "removing absent id -> NOT_FOUND");
 
+    CHECK(cberg_index_compact(idx) == CBERG_OK, "compact");
+    st = cberg_index_search(idx, query, 2, NULL, ids, scores, &found);
+    CHECK(st == CBERG_OK && found >= 1, "search ok after compact");
+
     CHECK(cberg_index_save(idx) == CBERG_OK, "save");
     cberg_index_close(idx);
 

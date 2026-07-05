@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "usearch.h"
+#include "codeberg/usearch_ext.h"
 
 #include "strutil.h"
 
@@ -171,6 +172,18 @@ cberg_status cberg_index_search(cberg_index *index, const float *query, size_t k
         out_scores[i] = 1.0f - out_scores[i];
     }
     *out_found = found;
+    return CBERG_OK;
+}
+
+cberg_status cberg_index_compact(cberg_index *index) {
+    if (index == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    usearch_error_t err = NULL;
+    usearch_compact(index->idx, 0, &err);
+    if (err != NULL) {
+        return CBERG_ERR_INTERNAL;
+    }
     return CBERG_OK;
 }
 
