@@ -420,6 +420,9 @@ CBERG_API void cberg_index_config_default(cberg_index_config *config);
  */
 CBERG_API cberg_status cberg_index_provider_from_name(const char *name, cberg_index_provider *out_provider);
 
+/* Non-zero when full rebuild clears and repopulates in place (remote backends); zero for usearch temp-file swap. */
+CBERG_API int cberg_index_provider_rebuild_inplace(cberg_index_provider provider);
+
 /*
  * Opens a cosine vector index of dimension `dim` keyed by `path`.
  * usearch: `path` is the on-disk index file (created if absent).

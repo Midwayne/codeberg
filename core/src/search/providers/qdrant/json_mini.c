@@ -179,7 +179,7 @@ static const char *json_object_find(const char *obj, const char *key) {
     }
 }
 
-const char *cberg_json_get_path(const char *root, const char *path) {
+static const char *cberg_json_get_path(const char *root, const char *path) {
     if (root == NULL || path == NULL || path[0] == '\0') {
         return NULL;
     }

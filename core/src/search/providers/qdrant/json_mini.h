@@ -10,7 +10,6 @@
  */
 
 /* Navigates dotted paths (e.g. "result.config.params.vectors") to a value start. */
-const char *cberg_json_get_path(const char *root, const char *path);
 
 /* Reads a JSON number at `p` (after optional whitespace). */
 int cberg_json_read_int(const char *p, int *out);

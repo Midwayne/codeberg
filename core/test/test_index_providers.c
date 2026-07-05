@@ -2,21 +2,12 @@
 
 #include "codeberg/codeberg.h"
 #include "index_provider_harness.h"
+#include "test_common.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
-static int failures;
-
-#define CHECK(cond, msg)                                                    \
-    do {                                                                    \
-        if (!(cond)) {                                                      \
-            fprintf(stderr, "FAIL: %s (%s:%d)\n", msg, __FILE__, __LINE__); \
-            failures++;                                                     \
-        }                                                                   \
-    } while (0)
 
 static char *unique_path(const char *prefix) {
     char tmpl[256];

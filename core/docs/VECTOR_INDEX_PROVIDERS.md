@@ -85,7 +85,7 @@ The daemon forwards these to `cberg-index` unchanged. The C API mirrors them in
 | **Best for** | Single machine, zero deps | Managed vector DB, horizontal scale | Existing Postgres ops, SQL tooling |
 | **Build deps** | vendored usearch | libcurl for `https://` | libpq + pgvector extension |
 | **Incremental updates** | add/remove + periodic save | REST upsert/delete | SQL upsert/delete |
-| **HNSW tuning** | `connectivity`, `expansion_*` in config | Qdrant defaults | sequential scan (no HNSW index yet) |
+| **HNSW tuning** | `connectivity`, `expansion_*` in config | Qdrant defaults | auto HNSW index on open |
 | **Multi-repo** | one file per repo | one collection per repo | one table per repo |
 
 ---
@@ -375,7 +375,7 @@ Qdrant and pgvector). See [TESTING.md](TESTING.md).
 | `NOT_IMPLEMENTED` on pgvector | built without libpq | install libpq-dev, rebuild |
 | `vector index ... unreadable; discarding` | corrupt file, DB down, dim mismatch | fix infra; allow reindex |
 | pgvector `CREATE EXTENSION` fails | insufficient DB privileges | pre-create extension as superuser |
-| Slow pgvector search at scale | no ANN index | add HNSW/IVFFlat index manually |
+| Slow pgvector search at scale | missing or building HNSW index | wait for index build; verify `<table>_embedding_hnsw` exists |
 
 ---
 

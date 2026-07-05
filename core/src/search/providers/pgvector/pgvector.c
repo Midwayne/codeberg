@@ -134,7 +134,6 @@ static cberg_status pgvector_ensure_schema(pgvector_backend *b) {
     return pgvector_ensure_hnsw(b);
 }
 
-/* Formats SQL into a heap buffer, doubling capacity until the string fits. */
 static char *pgvector_sql_format(const char *fmt, ...) {
     size_t cap = 256;
     char *sql = malloc(cap);

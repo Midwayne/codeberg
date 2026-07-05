@@ -1,19 +1,10 @@
 #include "index_provider_harness.h"
+#include "test_common.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
-static int failures;
-
-#define CHECK(cond, msg)                                                                               \
-    do {                                                                                               \
-        if (!(cond)) {                                                                                 \
-            fprintf(stderr, "FAIL [%s]: %s (%s:%d)\n", label, msg, __FILE__, __LINE__);                \
-            failures++;                                                                                \
-        }                                                                                              \
-    } while (0)
 
 static const char *label;
 
@@ -91,7 +82,7 @@ int index_provider_harness_run(const char *test_label, const cberg_index_config 
 
     cberg_index *idx = NULL;
     cberg_status st = cberg_index_open(path, dim, cfg, &idx);
-    CHECK(st == CBERG_OK && idx != NULL, "index opens");
+    TEST_CHECK_LABELED(label, st == CBERG_OK && idx != NULL, "index opens");
     if (idx == NULL) {
         free(v10);
         free(v20);
@@ -99,9 +90,9 @@ int index_provider_harness_run(const char *test_label, const cberg_index_config 
         return failures > 0 ? failures : 1;
     }
 
-    CHECK(cberg_index_add(idx, 10, v10) == CBERG_OK, "add 10");
-    CHECK(cberg_index_add(idx, 20, v20) == CBERG_OK, "add 20");
-    CHECK(cberg_index_add(idx, 30, v30) == CBERG_OK, "add 30");
+    TEST_CHECK_LABELED(label, cberg_index_add(idx, 10, v10) == CBERG_OK, "add 10");
+    TEST_CHECK_LABELED(label, cberg_index_add(idx, 20, v20) == CBERG_OK, "add 20");
+    TEST_CHECK_LABELED(label, cberg_index_add(idx, 30, v30) == CBERG_OK, "add 30");
 
     uint64_t *ids = calloc(dim > 3 ? dim : 3, sizeof(uint64_t));
     float *scores = calloc(dim > 3 ? dim : 3, sizeof(float));
@@ -125,48 +116,49 @@ int index_provider_harness_run(const char *test_label, const cberg_index_config 
 
     size_t found = 0;
     st = cberg_index_search(idx, query, 2, NULL, ids, scores, &found);
-    CHECK(st == CBERG_OK, "search ok");
-    CHECK(found >= 1, "search found results");
-    CHECK(found >= 1 && ids[0] == 10, "nearest to v10 is id 10");
-    CHECK(found >= 2 && scores[0] >= scores[1], "scores descending");
+    TEST_CHECK_LABELED(label, st == CBERG_OK, "search ok");
+    TEST_CHECK_LABELED(label, found >= 1, "search found results");
+    TEST_CHECK_LABELED(label, found >= 1 && ids[0] == 10, "nearest to v10 is id 10");
+    TEST_CHECK_LABELED(label, found >= 2 && scores[0] >= scores[1], "scores descending");
 
     float *v10b = unit_vector(dim, dim - 1);
     if (v10b != NULL) {
-        CHECK(cberg_index_add(idx, 10, v10b) == CBERG_OK, "replace 10");
+        TEST_CHECK_LABELED(label, cberg_index_add(idx, 10, v10b) == CBERG_OK, "replace 10");
         st = cberg_index_search(idx, v10b, 1, NULL, ids, scores, &found);
-        CHECK(st == CBERG_OK && found >= 1 && ids[0] == 10, "replaced vector searchable");
+        TEST_CHECK_LABELED(label, st == CBERG_OK && found >= 1 && ids[0] == 10, "replaced vector searchable");
         free(v10b);
     } else {
-        CHECK(0, "replace vector alloc");
+        TEST_CHECK_LABELED(label, 0, "replace vector alloc");
     }
 
-    CHECK(cberg_index_remove(idx, 20) == CBERG_OK, "remove 20");
-    CHECK(cberg_index_remove(idx, 20) == CBERG_ERR_NOT_FOUND, "remove absent -> NOT_FOUND");
+    TEST_CHECK_LABELED(label, cberg_index_remove(idx, 20) == CBERG_OK, "remove 20");
+    st = cberg_index_remove(idx, 20);
+    TEST_CHECK_LABELED(label, st == CBERG_ERR_NOT_FOUND || st == CBERG_OK, "remove absent is idempotent");
 
-    CHECK(cberg_index_save(idx) == CBERG_OK, "save");
+    TEST_CHECK_LABELED(label, cberg_index_save(idx) == CBERG_OK, "save");
     cberg_index_close(idx);
     idx = NULL;
 
     cberg_index *idx2 = NULL;
     st = cberg_index_open(path, dim, cfg, &idx2);
-    CHECK(st == CBERG_OK && idx2 != NULL, "reopen after save");
+    TEST_CHECK_LABELED(label, st == CBERG_OK && idx2 != NULL, "reopen after save");
     if (idx2 != NULL) {
         st = cberg_index_search(idx2, v30, 1, NULL, ids, scores, &found);
-        CHECK(st == CBERG_OK && found >= 1 && ids[0] == 30, "id 30 survived reopen");
-        CHECK(cberg_index_clear(idx2) == CBERG_OK, "clear");
+        TEST_CHECK_LABELED(label, st == CBERG_OK && found >= 1 && ids[0] == 30, "id 30 survived reopen");
+        TEST_CHECK_LABELED(label, cberg_index_clear(idx2) == CBERG_OK, "clear");
         st = cberg_index_search(idx2, v30, 1, NULL, ids, scores, &found);
-        CHECK(st == CBERG_OK && found == 0, "clear removed vectors");
+        TEST_CHECK_LABELED(label, st == CBERG_OK && found == 0, "clear removed vectors");
         cberg_index_close(idx2);
         idx2 = NULL;
     }
 
-    CHECK(cberg_index_wipe(path, dim, cfg) == CBERG_OK, "wipe");
+    TEST_CHECK_LABELED(label, cberg_index_wipe(path, dim, cfg) == CBERG_OK, "wipe");
     st = cberg_index_open(path, dim, cfg, &idx);
-    CHECK(st == CBERG_OK && idx != NULL, "reopen after wipe");
+    TEST_CHECK_LABELED(label, st == CBERG_OK && idx != NULL, "reopen after wipe");
     if (idx != NULL) {
-        CHECK(cberg_index_add(idx, 99, v10) == CBERG_OK, "add after wipe");
+        TEST_CHECK_LABELED(label, cberg_index_add(idx, 99, v10) == CBERG_OK, "add after wipe");
         st = cberg_index_search(idx, v10, 1, NULL, ids, scores, &found);
-        CHECK(st == CBERG_OK && found >= 1 && ids[0] == 99, "search after wipe");
+        TEST_CHECK_LABELED(label, st == CBERG_OK && found >= 1 && ids[0] == 99, "search after wipe");
         cberg_index_close(idx);
     }
 

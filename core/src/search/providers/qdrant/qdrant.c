@@ -149,34 +149,25 @@ static cberg_status qdrant_backend_add(void *impl, uint64_t id, const float *vec
     char suffix[512];
     snprintf(suffix, sizeof suffix, "collections/%s/points?wait=true", b->collection);
 
-    size_t vec_cap = dim * 16 + 64;
-    char *body = malloc(vec_cap);
-    if (body == NULL) {
+    char *vec_lit = cberg_provider_vector_literal(vector, dim);
+    if (vec_lit == NULL) {
         return CBERG_ERR_OUT_OF_MEMORY;
     }
-    size_t pos = 0;
-    pos += (size_t)snprintf(body + pos, vec_cap - pos, "{\"points\":[{\"id\":%llu,\"vector\":[",
-                            (unsigned long long)id);
-    for (size_t i = 0; i < dim; i++) {
-        if (i > 0) {
-            pos += (size_t)snprintf(body + pos, vec_cap - pos, ",");
-        }
-        pos += (size_t)snprintf(body + pos, vec_cap - pos, "%.9g", vector[i]);
-        if (pos + 32 >= vec_cap) {
-            size_t new_cap = vec_cap * 2;
-            char *grown = realloc(body, new_cap);
-            if (grown == NULL) {
-                free(body);
-                return CBERG_ERR_OUT_OF_MEMORY;
-            }
-            body = grown;
-            vec_cap = new_cap;
-        }
+    size_t body_cap = strlen(vec_lit) + 64;
+    char *body = malloc(body_cap);
+    if (body == NULL) {
+        free(vec_lit);
+        return CBERG_ERR_OUT_OF_MEMORY;
     }
-    pos += (size_t)snprintf(body + pos, vec_cap - pos, "]}]}");
+    int n = snprintf(body, body_cap, "{\"points\":[{\"id\":%llu,\"vector\":%s}]}", (unsigned long long)id, vec_lit);
+    free(vec_lit);
+    if (n < 0 || (size_t)n >= body_cap) {
+        free(body);
+        return CBERG_ERR_INTERNAL;
+    }
 
     int status = 0;
-    cberg_status st = qdrant_request(b, "PUT", suffix, body, pos, &status, NULL);
+    cberg_status st = qdrant_request(b, "PUT", suffix, body, (size_t)n, &status, NULL);
     free(body);
     if (st != CBERG_OK) {
         return st;
@@ -187,55 +178,17 @@ static cberg_status qdrant_backend_add(void *impl, uint64_t id, const float *vec
     return CBERG_OK;
 }
 
-static cberg_status qdrant_point_exists(qdrant_backend *b, uint64_t id, int *out_exists) {
-    if (out_exists == NULL) {
-        return CBERG_ERR_INVALID_ARGUMENT;
-    }
-    *out_exists = 0;
-
-    char suffix[512];
-    snprintf(suffix, sizeof suffix, "collections/%s/points", b->collection);
-    char body[64];
-    snprintf(body, sizeof body, "{\"ids\":[%llu],\"with_payload\":false,\"with_vector\":false}",
-             (unsigned long long)id);
-    int status = 0;
-    char *resp = NULL;
-    cberg_status st = qdrant_request(b, "POST", suffix, body, strlen(body), &status, &resp);
-    if (st != CBERG_OK) {
-        free(resp);
-        return st;
-    }
-    if (status < 200 || status >= 300) {
-        free(resp);
-        return CBERG_ERR_IO;
-    }
-    if (resp == NULL) {
-        return CBERG_ERR_IO;
-    }
-    *out_exists = cberg_json_qdrant_points_nonempty(resp);
-    free(resp);
-    return CBERG_OK;
-}
-
 static cberg_status qdrant_backend_remove(void *impl, uint64_t id) {
     qdrant_backend *b = impl;
     if (b == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
-    }
-    int exists = 0;
-    cberg_status st = qdrant_point_exists(b, id, &exists);
-    if (st != CBERG_OK) {
-        return st;
-    }
-    if (!exists) {
-        return CBERG_ERR_NOT_FOUND;
     }
     char suffix[512];
     snprintf(suffix, sizeof suffix, "collections/%s/points/delete?wait=true", b->collection);
     char body[64];
     snprintf(body, sizeof body, "{\"points\":[%llu]}", (unsigned long long)id);
     int status = 0;
-    st = qdrant_request(b, "POST", suffix, body, strlen(body), &status, NULL);
+    cberg_status st = qdrant_request(b, "POST", suffix, body, strlen(body), &status, NULL);
     if (st != CBERG_OK) {
         return st;
     }
@@ -261,44 +214,26 @@ static cberg_status qdrant_backend_search(void *impl, const float *query, size_t
     char suffix[512];
     snprintf(suffix, sizeof suffix, "collections/%s/points/search", b->collection);
 
-    size_t body_cap = dim * 16 + 128;
-    char *body = malloc(body_cap);
-    if (body == NULL) {
+    char *vec_lit = cberg_provider_vector_literal(query, dim);
+    if (vec_lit == NULL) {
         return CBERG_ERR_OUT_OF_MEMORY;
     }
-    size_t pos = 0;
-    pos += (size_t)snprintf(body + pos, body_cap - pos, "{\"vector\":[");
-    for (size_t i = 0; i < dim; i++) {
-        if (i > 0) {
-            pos += (size_t)snprintf(body + pos, body_cap - pos, ",");
-        }
-        if (pos + 32 >= body_cap) {
-            size_t new_cap = body_cap * 2;
-            char *grown = realloc(body, new_cap);
-            if (grown == NULL) {
-                free(body);
-                return CBERG_ERR_OUT_OF_MEMORY;
-            }
-            body = grown;
-            body_cap = new_cap;
-        }
-        pos += (size_t)snprintf(body + pos, body_cap - pos, "%.9g", query[i]);
+    size_t body_cap = strlen(vec_lit) + 96;
+    char *body = malloc(body_cap);
+    if (body == NULL) {
+        free(vec_lit);
+        return CBERG_ERR_OUT_OF_MEMORY;
     }
-    if (pos + 64 >= body_cap) {
-        size_t new_cap = body_cap + 64;
-        char *grown = realloc(body, new_cap);
-        if (grown == NULL) {
-            free(body);
-            return CBERG_ERR_OUT_OF_MEMORY;
-        }
-        body = grown;
-        body_cap = new_cap;
+    int n = snprintf(body, body_cap, "{\"vector\":%s,\"limit\":%zu,\"with_payload\":false}", vec_lit, k);
+    free(vec_lit);
+    if (n < 0 || (size_t)n >= body_cap) {
+        free(body);
+        return CBERG_ERR_INTERNAL;
     }
-    pos += (size_t)snprintf(body + pos, body_cap - pos, "],\"limit\":%zu,\"with_payload\":false}", k);
 
     int status = 0;
     char *resp_body = NULL;
-    cberg_status st = qdrant_request(b, "POST", suffix, body, pos, &status, &resp_body);
+    cberg_status st = qdrant_request(b, "POST", suffix, body, (size_t)n, &status, &resp_body);
     free(body);
     if (st != CBERG_OK) {
         return st;

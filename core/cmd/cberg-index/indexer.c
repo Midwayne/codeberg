@@ -436,26 +436,26 @@ static void vector_retry_backoff(int attempt) {
     usleep((useconds_t)(100000u * (unsigned)(attempt + 1)));
 }
 
-static cberg_status apply_vectors_with_retry(cberg_repo *r, const cberg_changes *ch) {
-    cberg_status st = apply_vectors(r, ch);
+typedef cberg_status (*vector_retry_fn)(cberg_repo *r, void *ctx);
+
+static cberg_status with_vector_retry(cberg_repo *r, const char *op_name, vector_retry_fn fn, void *ctx) {
+    cberg_status st = fn(r, ctx);
     for (int attempt = 0; st != CBERG_OK && vector_status_retriable(st) && attempt < 3; attempt++) {
-        fprintf(stderr, "cberg-index[%s]: vector apply failed (%s); retry %d/3\n", r->key, cberg_status_str(st),
+        fprintf(stderr, "cberg-index[%s]: %s failed (%s); retry %d/3\n", r->key, op_name, cberg_status_str(st),
                 attempt + 1);
         vector_retry_backoff(attempt);
-        st = apply_vectors(r, ch);
+        st = fn(r, ctx);
     }
     return st;
 }
 
-static cberg_status rebuild_index_with_retry(cberg_repo *r) {
-    cberg_status st = rebuild_index(r);
-    for (int attempt = 0; st != CBERG_OK && vector_status_retriable(st) && attempt < 3; attempt++) {
-        fprintf(stderr, "cberg-index[%s]: index rebuild failed (%s); retry %d/3\n", r->key, cberg_status_str(st),
-                attempt + 1);
-        vector_retry_backoff(attempt);
-        st = rebuild_index(r);
-    }
-    return st;
+static cberg_status apply_vectors_op(cberg_repo *r, void *ctx) {
+    return apply_vectors(r, ctx);
+}
+
+static cberg_status rebuild_index_op(cberg_repo *r, void *ctx) {
+    (void)ctx;
+    return rebuild_index(r);
 }
 
 static cberg_status rebuild_index(cberg_repo *r) {
@@ -469,7 +469,7 @@ static cberg_status rebuild_index(cberg_repo *r) {
     cberg_index *temp_idx = NULL;
     char temp[4096] = {0};
 
-    if (cfg->provider != CBERG_INDEX_USEARCH) {
+    if (cberg_index_provider_rebuild_inplace(cfg->provider)) {
         cberg_status st = cberg_index_clear(r->index);
         if (st != CBERG_OK) {
             return st;
@@ -568,7 +568,7 @@ static cberg_status rebuild_index(cberg_repo *r) {
         i = end;
     }
 
-    if (cfg->provider != CBERG_INDEX_USEARCH) {
+    if (cberg_index_provider_rebuild_inplace(cfg->provider)) {
         return cberg_index_save(r->index);
     }
 
@@ -595,14 +595,14 @@ static cberg_status sync_table(cberg_repo *r, chunk_batch *batch) {
     if (st != CBERG_OK) {
         return st;
     }
-    st = apply_vectors_with_retry(r, &ch);
+    st = with_vector_retry(r, "vector apply", apply_vectors_op, &ch);
     if (st != CBERG_OK) {
         r->ready = 0;
         if (vector_status_retriable(st)) {
             fprintf(stderr, "cberg-index[%s]: vector apply still failing after retries (%s); rebuilding index\n",
                     r->key, cberg_status_str(st));
         }
-        cberg_status rb = rebuild_index_with_retry(r);
+        cberg_status rb = with_vector_retry(r, "index rebuild", rebuild_index_op, NULL);
         if (rb != CBERG_OK) {
             return rb;
         }
