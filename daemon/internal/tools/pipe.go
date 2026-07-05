@@ -59,10 +59,7 @@ func pipeTool(ws *workspace.Workspace) Tool {
   },
   "required": ["command"]
 }`
-	type args struct {
-		Command string `json:"command"`
-		Repo    string `json:"repo"`
-	}
+
 	return New("pipe",
 		"Run a read-only pipeline over the repo in ONE call, chaining rg/grep with text "+
 			"filters (head, tail, wc, sort, uniq, cut, tr, nl, cat, paste, sed) using '|'. "+
@@ -70,20 +67,23 @@ func pipeTool(ws *workspace.Workspace) Tool {
 			"invoked: redirection, command substitution, ';' and '&' are rejected, and paths "+
 			"cannot escape the repo. Prefer this over several grep/read_file calls.",
 		schema,
-		func(ctx context.Context, a args) (any, error) {
+		func(ctx context.Context, a pipeArgs) (any, error) {
 			stages, err := tokenizePipeline(a.Command)
 			if err != nil {
 				return nil, err
 			}
+
 			for _, st := range stages {
 				if err := validateStage(st); err != nil {
 					return nil, err
 				}
 			}
+
 			root, err := ws.RepoRoot(a.Repo)
 			if err != nil {
 				return nil, err
 			}
+
 			return runPipeline(ctx, root, a.Command, stages)
 		})
 }
@@ -275,7 +275,7 @@ func validateSedArgs(args []string) error {
 // (bounded) stdout as the next stage's stdin. Every stage runs rooted at the repo
 // with a scrubbed environment; a nonzero exit (e.g. rg's exit 1 for "no matches")
 // is recorded but tolerated, matching grepRoot.
-func runPipeline(ctx context.Context, root, command string, stages [][]string) (any, error) {
+func runPipeline(ctx context.Context, root, command string, stages [][]string) (pipeResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, pipeTimeout)
 	defer cancel()
 
@@ -301,9 +301,9 @@ func runPipeline(ctx context.Context, root, command string, stages [][]string) (
 			var exitErr *exec.ExitError
 			if !errors.As(err, &exitErr) {
 				if ctx.Err() == context.DeadlineExceeded {
-					return nil, fmt.Errorf("codeberg: pipe: timed out after %s", pipeTimeout)
+					return pipeResult{}, fmt.Errorf("codeberg: pipe: timed out after %s", pipeTimeout)
 				}
-				return nil, fmt.Errorf("codeberg: pipe: %s: %w", st[0], err)
+				return pipeResult{}, fmt.Errorf("codeberg: pipe: %s: %w", st[0], err)
 			}
 		}
 		exitCodes[i] = exitCodeOf(err)
@@ -311,11 +311,11 @@ func runPipeline(ctx context.Context, root, command string, stages [][]string) (
 		stream = buf.Bytes()
 	}
 
-	return map[string]any{
-		"command":    command,
-		"stdout":     string(stream),
-		"truncated":  truncated,
-		"exit_codes": exitCodes,
+	return pipeResult{
+		Command:   command,
+		Stdout:    string(stream),
+		Truncated: truncated,
+		ExitCodes: exitCodes,
 	}, nil
 }
 
@@ -323,10 +323,12 @@ func exitCodeOf(err error) int {
 	if err == nil {
 		return 0
 	}
+
 	var exitErr *exec.ExitError
 	if errors.As(err, &exitErr) {
 		return exitErr.ExitCode()
 	}
+
 	return -1
 }
 

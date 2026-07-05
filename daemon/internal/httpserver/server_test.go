@@ -15,9 +15,9 @@ import (
 )
 
 type fakeIndexer struct {
-	status   indexctl.Status
-	hits     []indexctl.SearchResult
-	gotOpts  indexctl.SearchOptions
+	status  indexctl.Status
+	hits    []indexctl.SearchResult
+	gotOpts indexctl.SearchOptions
 }
 
 func (f *fakeIndexer) Status(context.Context) (indexctl.Status, error) {
@@ -72,8 +72,8 @@ func TestHealthAndSearch(t *testing.T) {
 		t.Fatalf("health status %d", res.StatusCode)
 	}
 	var health struct {
-		VectorsEnabled bool                    `json:"vectors_enabled"`
-		Repos          []indexctl.RepoStatus   `json:"repos"`
+		VectorsEnabled bool                  `json:"vectors_enabled"`
+		Repos          []indexctl.RepoStatus `json:"repos"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&health); err != nil {
 		t.Fatal(err)

@@ -93,20 +93,20 @@ func TestPipeToolEndToEnd(t *testing.T) {
 
 	// rg lists the two .go files with TODO; head keeps the first one.
 	out := callPipe(t, tool, `rg -l TODO --glob "*.go" | head -1`)
-	lines := nonEmptyLines(out["stdout"].(string))
+	lines := nonEmptyLines(out.Stdout)
 	if len(lines) != 1 {
 		t.Fatalf("stdout lines = %v, want 1", lines)
 	}
 	if !strings.HasSuffix(lines[0], ".go") {
 		t.Fatalf("unexpected file %q", lines[0])
 	}
-	if out["truncated"].(bool) {
+	if out.Truncated {
 		t.Fatal("unexpected truncation")
 	}
 
 	// No match: rg exits 1, which is tolerated and yields empty stdout.
 	empty := callPipe(t, tool, `rg ZZZ_NOPE | wc -l`)
-	if got := strings.TrimSpace(empty["stdout"].(string)); got != "0" {
+	if got := strings.TrimSpace(empty.Stdout); got != "0" {
 		t.Fatalf("wc on no-match = %q, want 0", got)
 	}
 }
@@ -123,17 +123,20 @@ func TestPipeToolRejectsUnsafe(t *testing.T) {
 	}
 }
 
-func callPipe(t *testing.T, tool Tool, command string) map[string]any {
+func callPipe(t *testing.T, tool Tool, command string) pipeResult {
 	t.Helper()
+
 	res, err := tool.Call(context.Background(), mustArgs(t, command))
 	if err != nil {
 		t.Fatalf("pipe %q: %v", command, err)
 	}
-	m, ok := res.(map[string]any)
+
+	out, ok := res.(pipeResult)
 	if !ok {
 		t.Fatalf("result type %T", res)
 	}
-	return m
+
+	return out
 }
 
 func mustArgs(t *testing.T, command string) json.RawMessage {

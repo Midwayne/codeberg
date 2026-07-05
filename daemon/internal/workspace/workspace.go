@@ -142,24 +142,30 @@ func (w *Workspace) Grep(ctx context.Context, pattern string, literal bool, repo
 	if pattern == "" {
 		return nil, fmt.Errorf("codeberg: grep: empty pattern")
 	}
+
 	if limit <= 0 || limit > w.maxMatches {
 		limit = w.maxMatches
 	}
+
 	key, err := w.resolveKey(repo)
 	if err != nil {
 		return nil, err
 	}
+
 	dir := w.byKey[key]
 	if _, statErr := os.Stat(dir); statErr != nil {
 		return nil, fmt.Errorf("%w: repo", ErrNotFound)
 	}
+
 	hits, err := grepRoot(ctx, dir, pattern, literal, pathGlob, limit)
 	if err != nil {
 		return nil, err
 	}
+
 	for i := range hits {
 		hits[i].Repo = key
 	}
+
 	return hits, nil
 }
 
@@ -175,6 +181,7 @@ func grepRoot(ctx context.Context, dir, pattern string, literal bool, pathGlob s
 
 	cmd := exec.CommandContext(ctx, "rg", args...)
 	cmd.Dir = dir
+
 	out, err := cmd.Output()
 	if err != nil {
 		var exitErr *exec.ExitError
@@ -187,6 +194,7 @@ func grepRoot(ctx context.Context, dir, pattern string, literal bool, pathGlob s
 	var matches []GrepMatch
 	sc := bufio.NewScanner(bytes.NewReader(out))
 	sc.Buffer(make([]byte, 0, scanBufInit), scanBufMax)
+
 	for sc.Scan() {
 		m, ok := parseGrep(sc.Text())
 		if !ok {
@@ -197,6 +205,7 @@ func grepRoot(ctx context.Context, dir, pattern string, literal bool, pathGlob s
 			break
 		}
 	}
+
 	return matches, sc.Err()
 }
 
@@ -246,10 +255,12 @@ func (w *Workspace) ReadFile(repo, path string, startLine, endLine uint32) (File
 	if err != nil {
 		return FileContent{}, err
 	}
+
 	full, err := resolve(root, path)
 	if err != nil {
 		return FileContent{}, err
 	}
+
 	data, err := os.ReadFile(full)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -257,12 +268,15 @@ func (w *Workspace) ReadFile(repo, path string, startLine, endLine uint32) (File
 		}
 		return FileContent{}, fmt.Errorf("codeberg: read file: %w", err)
 	}
+
 	lines := strings.Split(string(data), "\n")
 	total := uint32(len(lines))
+
 	start := startLine
 	if start == 0 {
 		start = 1
 	}
+
 	end := endLine
 	if end == 0 || end > total {
 		end = total
@@ -273,10 +287,12 @@ func (w *Workspace) ReadFile(repo, path string, startLine, endLine uint32) (File
 	if end < start {
 		end = start
 	}
+
 	content := strings.Join(lines[start-1:end], "\n")
 	if len(content) > w.maxBytes {
 		content = content[:w.maxBytes]
 	}
+
 	return FileContent{Content: content, StartLine: start, EndLine: end, TotalLines: total}, nil
 }
 

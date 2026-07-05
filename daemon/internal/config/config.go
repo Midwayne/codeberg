@@ -130,11 +130,13 @@ func loadIndexer() (Indexer, error) {
 func loadRoots() ([]RepoRoot, string, error) {
 	if raw := os.Getenv(EnvRoots); raw != "" {
 		var roots []RepoRoot
+
 		for _, line := range strings.Split(raw, "\n") {
 			key, path, ok := strings.Cut(line, "\t")
 			if !ok || key == "" || path == "" {
 				continue
 			}
+
 			resolved, err := resolveRoot(path)
 			if err != nil {
 				log.Printf("skipping repo %q: unresolvable root %q", key, path)
@@ -144,16 +146,20 @@ func loadRoots() ([]RepoRoot, string, error) {
 				log.Printf("skipping repo %q: missing root %q", key, resolved)
 				continue
 			}
+
 			roots = append(roots, RepoRoot{Key: key, Path: resolved})
 		}
+
 		if len(roots) == 0 {
 			return nil, "", invalid(EnvRoots)
 		}
+
 		// A lone record keeps a default repo (tools may omit `repo`); with
 		// several repos there is no sensible default, so repo must be explicit.
 		if len(roots) == 1 {
 			return roots, roots[0].Key, nil
 		}
+
 		return roots, "", nil
 	}
 
@@ -161,10 +167,12 @@ func loadRoots() ([]RepoRoot, string, error) {
 	if root == "" {
 		return nil, "", missing(EnvRoot)
 	}
+
 	resolved, err := resolveRoot(root)
 	if err != nil {
 		return nil, "", invalid(EnvRoot)
 	}
+
 	key := filepath.Base(resolved)
 	return []RepoRoot{{Key: key, Path: resolved}}, key, nil
 }

@@ -50,6 +50,7 @@ func main() {
 	defer sup.Stop()
 
 	idx := indexctl.NewClient(cfg.Socket)
+
 	readyCtx, readyCancel := context.WithTimeout(ctx, startupTimeout(len(cfg.Roots)))
 	st, err := indexctl.WaitReady(readyCtx, idx)
 	readyCancel()
@@ -66,10 +67,12 @@ func main() {
 		repos = append(repos, workspace.RepoInfo{Key: r.Key, Root: r.Path})
 		roots = append(roots, r.Key+"="+r.Path)
 	}
+
 	ws := workspace.New(repos, cfg.DefaultKey)
 	srv := httpserver.New(idx, tools.Default(ws, idx))
 
 	log.Printf("codeberg-d: roots=[%s] http=:%s socket=%s", strings.Join(roots, " "), cfg.HTTPPort, cfg.Socket)
+
 	httpSrv := &http.Server{Addr: ":" + cfg.HTTPPort, Handler: srv.Handler()}
 	go func() {
 		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -79,6 +82,7 @@ func main() {
 	}()
 
 	<-ctx.Done()
+
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 	_ = httpSrv.Shutdown(shutdownCtx)

@@ -40,19 +40,12 @@ func searchTool(idx Indexer) Tool {
   },
   "required": ["query"]
 }`
-	type args struct {
-		Query    string  `json:"query"`
-		K        int     `json:"k"`
-		Repo     string  `json:"repo"`
-		PathGlob string  `json:"path_glob"`
-		Kind     string  `json:"kind"`
-		MinScore float32 `json:"min_score"`
-	}
+
 	return New("search",
 		"Semantic vector search over indexed code chunks. Returns path, symbol, lines, score, and snippet.",
 		schema,
-		func(ctx context.Context, a args) (any, error) {
-			results, err := idx.Search(ctx, indexctl.SearchOptions{
+		func(ctx context.Context, a searchArgs) (any, error) {
+			return idx.Search(ctx, indexctl.SearchOptions{
 				Query:    a.Query,
 				K:        a.K,
 				Repo:     a.Repo,
@@ -60,10 +53,6 @@ func searchTool(idx Indexer) Tool {
 				Kind:     a.Kind,
 				MinScore: a.MinScore,
 			})
-			if err != nil {
-				return nil, err
-			}
-			return results, nil
 		})
 }
 
@@ -77,14 +66,11 @@ func getChunkTool(idx Indexer) Tool {
   },
   "required": ["repo", "id"]
 }`
-	type args struct {
-		Repo string `json:"repo"`
-		ID   uint64 `json:"id"`
-	}
+
 	return New("get_chunk",
 		"Fetch the full indexed chunk body for a search hit (repo + id). Prefer over read_file after search_code.",
 		schema,
-		func(ctx context.Context, a args) (any, error) {
+		func(ctx context.Context, a getChunkArgs) (any, error) {
 			return idx.GetChunk(ctx, a.Repo, a.ID)
 		})
 }
@@ -101,16 +87,11 @@ func findSymbolTool(idx Indexer) Tool {
   },
   "required": ["name"]
 }`
-	type args struct {
-		Name  string `json:"name"`
-		Repo  string `json:"repo"`
-		Kind  string `json:"kind"`
-		Limit int    `json:"limit"`
-	}
+
 	return New("find_symbol",
 		"Exact symbol lookup in the chunk index (case-insensitive). Works without vector search.",
 		schema,
-		func(ctx context.Context, a args) (any, error) {
+		func(ctx context.Context, a findSymbolArgs) (any, error) {
 			return idx.FindSymbol(ctx, indexctl.SymbolOptions{
 				Name:  a.Name,
 				Repo:  a.Repo,
@@ -130,14 +111,11 @@ func fileOutlineTool(idx Indexer) Tool {
   },
   "required": ["repo", "path"]
 }`
-	type args struct {
-		Repo string `json:"repo"`
-		Path string `json:"path"`
-	}
+
 	return New("file_outline",
 		"List indexed chunks (functions, classes, etc.) in a file with line ranges.",
 		schema,
-		func(ctx context.Context, a args) (any, error) {
+		func(ctx context.Context, a fileOutlineArgs) (any, error) {
 			return idx.FileOutline(ctx, a.Repo, a.Path)
 		})
 }
@@ -154,20 +132,16 @@ func hybridSearchTool(idx Indexer, ws *workspace.Workspace) Tool {
   },
   "required": ["query"]
 }`
-	type args struct {
-		Query    string `json:"query"`
-		K        int    `json:"k"`
-		Repo     string `json:"repo"`
-		PathGlob string `json:"path_glob"`
-	}
+
 	return New("hybrid_search",
 		"Vector search candidates reranked by grep verification of query terms in hit files.",
 		schema,
-		func(ctx context.Context, a args) (any, error) {
+		func(ctx context.Context, a hybridSearchArgs) (any, error) {
 			k := a.K
 			if k <= 0 {
 				k = 8
 			}
+
 			candidates, err := idx.Search(ctx, indexctl.SearchOptions{
 				Query:    a.Query,
 				K:        k * 2,
@@ -177,13 +151,10 @@ func hybridSearchTool(idx Indexer, ws *workspace.Workspace) Tool {
 			if err != nil {
 				return nil, err
 			}
+
 			terms := significantTerms(a.Query)
-			type ranked struct {
-				Hit        indexctl.SearchResult `json:"hit"`
-				GrepBoost  int                   `json:"grep_boost"`
-				FinalScore float32               `json:"final_score"`
-			}
-			out := make([]ranked, 0, len(candidates))
+			out := make([]hybridRanked, 0, len(candidates))
+
 			for _, hit := range candidates {
 				boost := 0
 				if len(terms) > 0 {
@@ -194,18 +165,21 @@ func hybridSearchTool(idx Indexer, ws *workspace.Workspace) Tool {
 						}
 					}
 				}
+
 				final := hit.Score + float32(boost)*0.05
-				out = append(out, ranked{Hit: hit, GrepBoost: boost, FinalScore: final})
+				out = append(out, hybridRanked{Hit: hit, GrepBoost: boost, FinalScore: final})
 			}
-			// Sort by final score descending (simple insertion sort for small k).
+
 			for i := 1; i < len(out); i++ {
 				for j := i; j > 0 && out[j].FinalScore > out[j-1].FinalScore; j-- {
 					out[j], out[j-1] = out[j-1], out[j]
 				}
 			}
+
 			if len(out) > k {
 				out = out[:k]
 			}
+
 			return out, nil
 		})
 }
@@ -222,20 +196,16 @@ func findReferencesTool(ws *workspace.Workspace) Tool {
   },
   "required": ["symbol"]
 }`
-	type args struct {
-		Symbol   string `json:"symbol"`
-		Repo     string `json:"repo"`
-		PathGlob string `json:"path_glob"`
-		Limit    int    `json:"limit"`
-	}
+
 	return New("find_references",
 		"Find usages of a symbol via word-boundary grep across the repo.",
 		schema,
-		func(ctx context.Context, a args) (any, error) {
+		func(ctx context.Context, a findReferencesArgs) (any, error) {
 			limit := a.Limit
 			if limit <= 0 {
 				limit = 50
 			}
+
 			pattern := fmt.Sprintf(`\b%s\b`, regexpQuote(a.Symbol))
 			return ws.Grep(ctx, pattern, false, a.Repo, a.PathGlob, limit)
 		})
@@ -248,6 +218,7 @@ func significantTerms(query string) []string {
 		"do": true, "in": true, "of": true, "to": true, "for": true, "and": true,
 		"or": true, "with": true, "from": true, "by": true, "on": true, "at": true,
 	}
+
 	var terms []string
 	for _, w := range strings.Fields(strings.ToLower(query)) {
 		w = strings.Trim(w, ".,;:!?\"'()[]{}")
@@ -256,17 +227,20 @@ func significantTerms(query string) []string {
 		}
 		terms = append(terms, w)
 	}
+
 	return terms
 }
 
 func regexpQuote(s string) string {
 	const specials = `\.+*?()|[]{}^$`
 	var b strings.Builder
+
 	for _, r := range s {
 		if strings.ContainsRune(specials, r) {
 			b.WriteByte('\\')
 		}
 		b.WriteRune(r)
 	}
+
 	return b.String()
 }
