@@ -1,13 +1,13 @@
-import type { ModelMessage, ToolLoopAgent } from "ai";
+import type { ModelMessage, ToolLoopAgent } from 'ai';
 
-type StreamParams = Parameters<ToolLoopAgent["stream"]>[0];
-type GenerateParams = Parameters<ToolLoopAgent["generate"]>[0];
+type StreamParams = Parameters<ToolLoopAgent['stream']>[0];
+type GenerateParams = Parameters<ToolLoopAgent['generate']>[0];
 type CallParams = StreamParams | GenerateParams;
 
 /** Replacement implementations for a wrapped loop's two call methods. */
 export interface LoopOverrides {
-  stream?: (params: StreamParams) => ReturnType<ToolLoopAgent["stream"]>;
-  generate?: (params: GenerateParams) => ReturnType<ToolLoopAgent["generate"]>;
+  stream?: (params: StreamParams) => ReturnType<ToolLoopAgent['stream']>;
+  generate?: (params: GenerateParams) => ReturnType<ToolLoopAgent['generate']>;
 }
 
 /**
@@ -17,23 +17,20 @@ export interface LoopOverrides {
  * the TUI session adapter — all need exactly this Proxy + binding dance, so it
  * lives here once. A fix to "how a loop is wrapped" lands in one spot.
  */
-export function overrideLoopMethods(
-  loop: ToolLoopAgent,
-  overrides: LoopOverrides,
-): ToolLoopAgent {
+export function overrideLoopMethods(loop: ToolLoopAgent, overrides: LoopOverrides): ToolLoopAgent {
   if (!overrides.stream && !overrides.generate) {
     return loop;
   }
   return new Proxy(loop, {
     get(target, prop) {
-      if (prop === "stream" && overrides.stream) {
+      if (prop === 'stream' && overrides.stream) {
         return overrides.stream;
       }
-      if (prop === "generate" && overrides.generate) {
+      if (prop === 'generate' && overrides.generate) {
         return overrides.generate;
       }
       const value = Reflect.get(target, prop, target);
-      return typeof value === "function" ? value.bind(target) : value;
+      return typeof value === 'function' ? value.bind(target) : value;
     },
   }) as ToolLoopAgent;
 }
@@ -77,20 +74,17 @@ export function withMessageTransforms(
 }
 
 function readMessages(params: CallParams): ModelMessage[] | null {
-  if ("messages" in params && Array.isArray(params.messages)) {
+  if ('messages' in params && Array.isArray(params.messages)) {
     return params.messages;
   }
-  if ("prompt" in params && Array.isArray(params.prompt)) {
+  if ('prompt' in params && Array.isArray(params.prompt)) {
     return params.prompt;
   }
   return null;
 }
 
-function writeMessages<T extends CallParams>(
-  params: T,
-  messages: ModelMessage[],
-): T {
-  if ("messages" in params && Array.isArray(params.messages)) {
+function writeMessages<T extends CallParams>(params: T, messages: ModelMessage[]): T {
+  if ('messages' in params && Array.isArray(params.messages)) {
     return { ...params, messages } as T;
   }
   return { ...params, prompt: messages } as T;

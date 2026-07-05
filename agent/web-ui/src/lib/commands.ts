@@ -10,7 +10,7 @@ export interface PromptCommand {
 /** The available slash commands, or an empty list on any network/parse error. */
 export async function listCommands(): Promise<PromptCommand[]> {
   try {
-    const res = await fetch("/api/commands");
+    const res = await fetch('/api/commands');
     return res.ok ? ((await res.json()) as PromptCommand[]) : [];
   } catch {
     return [];
@@ -29,11 +29,6 @@ export function commandQuery(text: string): string | null {
 }
 
 /** Commands whose trigger starts with the typed query, in catalog order. */
-export function matchCommands(
-  commands: PromptCommand[],
-  query: string,
-): PromptCommand[] {
-  return commands.filter((c) =>
-    c.trigger.slice(1).toLowerCase().startsWith(query),
-  );
+export function matchCommands(commands: PromptCommand[], query: string): PromptCommand[] {
+  return commands.filter((c) => c.trigger.slice(1).toLowerCase().startsWith(query));
 }

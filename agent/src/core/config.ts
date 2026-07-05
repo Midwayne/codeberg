@@ -1,9 +1,9 @@
-import { Agent } from "./agent.js";
-import { DaemonClient } from "./client.js";
-import { defaultProviders } from "../providers/index.js";
-import { profileFor } from "../providers/profiles.js";
-import type { EntryConfig } from "./entry.js";
-import type { ReasoningEffort } from "./types.js";
+import { Agent } from './agent.js';
+import { DaemonClient } from './client.js';
+import { defaultProviders } from '../providers/index.js';
+import { profileFor } from '../providers/profiles.js';
+import type { EntryConfig } from './entry.js';
+import type { ReasoningEffort } from './types.js';
 
 export interface AgentConfig {
   modelSpec: string;
@@ -12,13 +12,13 @@ export interface AgentConfig {
 }
 
 const REASONING_EFFORTS: readonly ReasoningEffort[] = [
-  "provider-default",
-  "none",
-  "minimal",
-  "low",
-  "medium",
-  "high",
-  "xhigh",
+  'provider-default',
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
 ];
 
 /** Read CODEBERG_REASONING, accepting only the ai-sdk v7 effort levels. */

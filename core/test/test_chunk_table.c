@@ -1,8 +1,8 @@
 #include "codeberg/codeberg.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <stdint.h>
 #include <unistd.h>
 
 static int failures;
@@ -87,10 +87,9 @@ int main(void) {
 
     cberg_chunk_table *src = cberg_chunk_table_new();
     cberg_changes sch = {0};
-    cberg_chunk seed[] = {make_chunk("p.go::1::A#0", 3), make_chunk("p.go::1::B#0", 4),
-                          make_chunk("p.go::1::C#0", 5)};
-    seed[1].symbol = NULL;            /* NULL symbol exercises the sentinel encoding */
-    seed[2].path = "deep/dir/q.go";   /* a path that differs from the others */
+    cberg_chunk seed[] = {make_chunk("p.go::1::A#0", 3), make_chunk("p.go::1::B#0", 4), make_chunk("p.go::1::C#0", 5)};
+    seed[1].symbol = NULL;          /* NULL symbol exercises the sentinel encoding */
+    seed[2].path = "deep/dir/q.go"; /* a path that differs from the others */
     CHECK(cberg_chunk_table_sync(src, seed, 3, &sch) == CBERG_OK, "seed sync");
     CHECK(cberg_chunk_table_len(src) == 3, "seed len 3");
     uint64_t id_a = cberg_chunk_table_at(src, 0)->id;
@@ -132,8 +131,7 @@ int main(void) {
     /* The crux: re-syncing identical content against the restored table reports
      * no changes, so a restart would re-embed nothing. */
     cberg_changes rch = {0};
-    cberg_chunk again[] = {make_chunk("p.go::1::A#0", 3), make_chunk("p.go::1::B#0", 4),
-                           make_chunk("p.go::1::C#0", 5)};
+    cberg_chunk again[] = {make_chunk("p.go::1::A#0", 3), make_chunk("p.go::1::B#0", 4), make_chunk("p.go::1::C#0", 5)};
     again[1].symbol = NULL;
     again[2].path = "deep/dir/q.go";
     CHECK(cberg_chunk_table_sync(restored, again, 3, &rch) == CBERG_OK, "resync restored");
@@ -159,8 +157,7 @@ int main(void) {
 
     /* A genuinely new chunk gets a fresh id from the preserved next_id, never
      * colliding with a restored id. */
-    cberg_chunk grow[] = {make_chunk("p.go::1::A#0", 3), make_chunk("p.go::1::B#0", 4),
-                          make_chunk("p.go::1::C#0", 5), make_chunk("p.go::1::D#0", 6)};
+    cberg_chunk grow[] = {make_chunk("p.go::1::A#0", 3), make_chunk("p.go::1::B#0", 4), make_chunk("p.go::1::C#0", 5), make_chunk("p.go::1::D#0", 6)};
     grow[1].symbol = NULL;
     grow[2].path = "deep/dir/q.go";
     cberg_changes gch = {0};

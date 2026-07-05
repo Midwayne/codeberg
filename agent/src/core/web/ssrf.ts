@@ -1,20 +1,17 @@
-import { isIP } from "node:net";
+import { isIP } from 'node:net';
 
 /**
  * Cloud metadata endpoints that must never be fetched. 169.254.169.254 is also
  * caught by the link-local rule, but cloud DNS names are not, so block them by
  * name too.
  */
-const BLOCKED_HOSTNAMES = new Set([
-  "metadata.google.internal",
-  "metadata.goog",
-]);
+const BLOCKED_HOSTNAMES = new Set(['metadata.google.internal', 'metadata.goog']);
 
 /** True when a hostname/IP is loopback, link-local, or RFC-1918 private. */
 export function isPrivateHost(hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/^\[|\]$/g, ""); // strip IPv6 brackets
-  if (host === "localhost" || host.endsWith(".localhost")) return true;
-  if (host.endsWith(".local")) return true; // mDNS / Bonjour
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, ''); // strip IPv6 brackets
+  if (host === 'localhost' || host.endsWith('.localhost')) return true;
+  if (host.endsWith('.local')) return true; // mDNS / Bonjour
   const version = isIP(host);
   if (version === 4) return isPrivateIPv4(host);
   if (version === 6) return isPrivateIPv6(host);
@@ -22,11 +19,8 @@ export function isPrivateHost(hostname: string): boolean {
 }
 
 function isPrivateIPv4(ip: string): boolean {
-  const parts = ip.split(".").map(Number);
-  if (
-    parts.length !== 4 ||
-    parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)
-  ) {
+  const parts = ip.split('.').map(Number);
+  if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) {
     return true; // malformed — treat as unsafe
   }
   const [a, b] = parts as [number, number, number, number];
@@ -40,9 +34,9 @@ function isPrivateIPv4(ip: string): boolean {
 
 function isPrivateIPv6(ip: string): boolean {
   const host = ip.toLowerCase();
-  if (host === "::1" || host === "::") return true; // loopback / unspecified
-  if (host.startsWith("fe80")) return true; // link-local
-  if (host.startsWith("fc") || host.startsWith("fd")) return true; // unique-local
+  if (host === '::1' || host === '::') return true; // loopback / unspecified
+  if (host.startsWith('fe80')) return true; // link-local
+  if (host.startsWith('fc') || host.startsWith('fd')) return true; // unique-local
   const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(host); // IPv4-mapped
   if (mapped) return isPrivateIPv4(mapped[1]!);
   return false;
@@ -53,20 +47,15 @@ function isPrivateIPv6(ip: string): boolean {
  * metadata hosts, and (unless `allowPrivate`) no loopback/private targets.
  * Throws a clear, model-readable error; returns the parsed URL on success.
  */
-export function assertFetchableUrl(
-  raw: string,
-  opts: { allowPrivate: boolean },
-): URL {
+export function assertFetchableUrl(raw: string, opts: { allowPrivate: boolean }): URL {
   let url: URL;
   try {
     url = new URL(raw);
   } catch {
     throw new Error(`invalid URL: ${raw}`);
   }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error(
-      `unsupported URL scheme "${url.protocol}" — only http and https are allowed`,
-    );
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error(`unsupported URL scheme "${url.protocol}" — only http and https are allowed`);
   }
   if (BLOCKED_HOSTNAMES.has(url.hostname.toLowerCase())) {
     throw new Error(`refusing to fetch blocked host ${url.hostname}`);

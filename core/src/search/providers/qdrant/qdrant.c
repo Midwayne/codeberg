@@ -1,5 +1,5 @@
-#include "../provider.h"
 #include "../common.h"
+#include "../provider.h"
 
 #include "json_mini.h"
 
@@ -46,8 +46,7 @@ static void qdrant_backend_destroy(void *impl) {
     free(b);
 }
 
-static cberg_status qdrant_request(qdrant_backend *b, const char *method, const char *suffix, const char *body,
-                                   size_t body_len, int *out_status, char **out_body) {
+static cberg_status qdrant_request(qdrant_backend *b, const char *method, const char *suffix, const char *body, size_t body_len, int *out_status, char **out_body) {
     char *url = join_url(b->base_url, suffix);
     if (url == NULL) {
         return CBERG_ERR_OUT_OF_MEMORY;
@@ -201,9 +200,7 @@ static cberg_status qdrant_backend_remove(void *impl, uint64_t id) {
     return CBERG_OK;
 }
 
-static cberg_status qdrant_backend_search(void *impl, const float *query, size_t dim, size_t k,
-                                          size_t expansion_search, uint64_t *out_ids, float *out_scores,
-                                          size_t *out_found) {
+static cberg_status qdrant_backend_search(void *impl, const float *query, size_t dim, size_t k, size_t expansion_search, uint64_t *out_ids, float *out_scores, size_t *out_found) {
     (void)expansion_search;
     qdrant_backend *b = impl;
     if (b == NULL || query == NULL || dim != b->dim || out_ids == NULL || out_scores == NULL || out_found == NULL) {
@@ -268,8 +265,7 @@ static cberg_status qdrant_backend_clear(void *impl) {
     return qdrant_create_collection(b);
 }
 
-static cberg_status qdrant_open(const char *path, size_t dim, const cberg_index_config *config,
-                                cberg_index_backend **out_backend) {
+static cberg_status qdrant_open(const char *path, size_t dim, const cberg_index_config *config, cberg_index_backend **out_backend) {
     if (path == NULL || dim == 0 || config == NULL || config->vectordb_url == NULL || config->vectordb_url[0] == '\0' ||
         out_backend == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
@@ -304,8 +300,7 @@ static cberg_status qdrant_open(const char *path, size_t dim, const cberg_index_
     }
 
     cberg_index_backend *backend =
-        cberg_index_backend_new(b, qdrant_backend_destroy, qdrant_backend_add, qdrant_backend_remove,
-                                qdrant_backend_search, qdrant_backend_save, qdrant_backend_clear);
+        cberg_index_backend_new(b, qdrant_backend_destroy, qdrant_backend_add, qdrant_backend_remove, qdrant_backend_search, qdrant_backend_save, qdrant_backend_clear);
     if (backend == NULL) {
         qdrant_backend_destroy(b);
         return CBERG_ERR_OUT_OF_MEMORY;

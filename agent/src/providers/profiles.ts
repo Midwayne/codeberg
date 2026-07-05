@@ -7,7 +7,7 @@
  *  llamacpp servers, where the window is whatever was loaded (`-c`, modelfile)
  *  and a wrong guess means silent truncation. */
 
-export type CacheStrategy = "anthropic" | "openai" | "none";
+export type CacheStrategy = 'anthropic' | 'openai' | 'none';
 
 export interface ModelProfile {
   provider: string;
@@ -23,17 +23,17 @@ const ONE_MILLION = 1_000_000;
 function windowFor(provider: string, modelId: string): number {
   const id = modelId.toLowerCase();
   switch (provider) {
-    case "anthropic":
+    case 'anthropic':
       // Current Claude models are 1M except Haiku (200K).
-      return id.includes("haiku") ? 200_000 : ONE_MILLION;
-    case "google":
+      return id.includes('haiku') ? 200_000 : ONE_MILLION;
+    case 'google':
       // Gemini 1.5 / 2.x are 1M+.
       return ONE_MILLION;
-    case "openai":
+    case 'openai':
       // gpt-4.1 / gpt-5 / o-series are 1M; the 4o family sits at ~128K.
       return /gpt-4\.1|gpt-5|(^|[^a-z])o\d/.test(id) ? ONE_MILLION : 128_000;
-    case "ollama":
-    case "llamacpp":
+    case 'ollama':
+    case 'llamacpp':
       // Local servers: the window is whatever was loaded. Assume a small
       // default and rely on CODEBERG_CONTEXT_WINDOW to widen it.
       return 8_192;
@@ -44,41 +44,36 @@ function windowFor(provider: string, modelId: string): number {
 
 function cacheFor(provider: string): CacheStrategy {
   switch (provider) {
-    case "anthropic":
-      return "anthropic";
+    case 'anthropic':
+      return 'anthropic';
     // ollama / llamacpp speak the OpenAI wire format; the cache key is harmless
     // to them and they reuse a matching prompt prefix on their own.
-    case "openai":
-    case "ollama":
-    case "llamacpp":
-      return "openai";
+    case 'openai':
+    case 'ollama':
+    case 'llamacpp':
+      return 'openai';
     default:
-      return "none";
+      return 'none';
   }
 }
 
-export function profileFor(
-  spec: string,
-  env: NodeJS.ProcessEnv = process.env,
-): ModelProfile {
-  const sep = spec.indexOf(":");
-  const provider = sep > 0 ? spec.slice(0, sep) : "";
+export function profileFor(spec: string, env: NodeJS.ProcessEnv = process.env): ModelProfile {
+  const sep = spec.indexOf(':');
+  const provider = sep > 0 ? spec.slice(0, sep) : '';
   const modelId = sep > 0 ? spec.slice(sep + 1) : spec;
   const override = Number(env.CODEBERG_CONTEXT_WINDOW);
   const contextWindow =
-    Number.isFinite(override) && override > 0
-      ? Math.floor(override)
-      : windowFor(provider, modelId);
+    Number.isFinite(override) && override > 0 ? Math.floor(override) : windowFor(provider, modelId);
   return { provider, modelId, contextWindow, cache: cacheFor(provider) };
 }
 
 /** A permissive profile for callers that don't resolve a spec (tests, the
  *  legacy single-shot path): no caching, effectively unbounded budget. */
 export const DEFAULT_PROFILE: ModelProfile = {
-  provider: "",
-  modelId: "",
+  provider: '',
+  modelId: '',
   contextWindow: ONE_MILLION,
-  cache: "none",
+  cache: 'none',
 };
 
 /** Fraction of the window the conversation transcript may occupy before

@@ -1,10 +1,10 @@
-import { dynamicTool, jsonSchema, type ToolSet } from "ai";
+import { dynamicTool, jsonSchema, type ToolSet } from 'ai';
 
-import type { DaemonClient } from "../client.js";
-import type { ToolSource } from "./source.js";
+import type { DaemonClient } from '../client.js';
+import type { ToolSource } from './source.js';
 
 /** Daemon tools bridged elsewhere — omit to avoid duplicate/conflicting schemas. */
-const HIDDEN_DAEMON_TOOLS = new Set(["search"]);
+const HIDDEN_DAEMON_TOOLS = new Set(['search']);
 
 /**
  * Every tool the daemon advertises over `/tools`, bridged to ai-sdk dynamic
@@ -14,7 +14,7 @@ const HIDDEN_DAEMON_TOOLS = new Set(["search"]);
  */
 export function daemonToolSource(daemon: DaemonClient): ToolSource {
   return {
-    name: "daemon",
+    name: 'daemon',
     tools: async (): Promise<ToolSet> => {
       const set: ToolSet = {};
       for (const spec of await daemon.listTools()) {
@@ -24,8 +24,7 @@ export function daemonToolSource(daemon: DaemonClient): ToolSource {
         set[spec.name] = dynamicTool({
           description: spec.description,
           inputSchema: jsonSchema(spec.schema),
-          execute: async (args) =>
-            daemon.callTool(spec.name, args as Record<string, unknown>),
+          execute: async (args) => daemon.callTool(spec.name, args as Record<string, unknown>),
         });
       }
       return set;

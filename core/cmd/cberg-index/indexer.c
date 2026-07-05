@@ -24,8 +24,7 @@
 static void save_chunk_table(cberg_repo *r);
 static void save_state(cberg_repo *r);
 static void refresh_manifest(cberg_repo *r);
-static cberg_status apply_path_changes(cberg_repo *r, char **rechunk, size_t rechunk_n, char **deleted,
-                                       size_t deleted_n);
+static cberg_status apply_path_changes(cberg_repo *r, char **rechunk, size_t rechunk_n, char **deleted, size_t deleted_n);
 static cberg_status walk_and_sync(cberg_repo *r);
 static cberg_status bootstrap_warm(cberg_repo *r);
 
@@ -33,8 +32,7 @@ static cberg_status bootstrap_warm(cberg_repo *r);
  * thread-safe, and both the indexing (main) thread and the IPC search thread
  * embed. Callers must NOT hold embed_mu already; holding a repo->mu is fine
  * (lock order repo->mu -> embed_mu). */
-static cberg_status engine_embed(cberg_engine *eng, const char *const *texts, const size_t *lens, size_t count,
-                                 float **out_vectors) {
+static cberg_status engine_embed(cberg_engine *eng, const char *const *texts, const size_t *lens, size_t count, float **out_vectors) {
     pthread_mutex_lock(&eng->embed_mu);
     cberg_status st = cberg_embedder_embed(eng->embedder, texts, lens, count, out_vectors);
     pthread_mutex_unlock(&eng->embed_mu);
@@ -155,8 +153,7 @@ static void file_cache_free(file_cache *fc) {
 /* Resolve sc's chunk to a [text, len) slice of its file body, reading the file
  * only on the first chunk of each contiguous same-file run. The slice points into
  * a cached buffer owned by fc and stays valid until file_cache_free. */
-static cberg_status cache_slice(cberg_repo *r, file_cache *fc, const cberg_stored_chunk *sc, const char **text,
-                                size_t *len) {
+static cberg_status cache_slice(cberg_repo *r, file_cache *fc, const cberg_stored_chunk *sc, const char **text, size_t *len) {
     cached_body *cb = (fc->len > 0 && strcmp(fc->items[fc->len - 1].path, sc->chunk.path) == 0)
                           ? &fc->items[fc->len - 1]
                           : NULL;
@@ -209,9 +206,7 @@ static cberg_status cache_slice(cberg_repo *r, file_cache *fc, const cberg_store
  * The embed lock is taken per batch (inside engine_embed), not around the whole
  * upsert, so a concurrent search query waits at most one batch.
  */
-static cberg_status embed_unique(cberg_repo *r, cberg_index *index, const char **texts, const size_t *lens,
-                                 const uint8_t **hashes, const uint64_t *ids, size_t count, int show, size_t *done,
-                                 size_t total, size_t *out_unique) {
+static cberg_status embed_unique(cberg_repo *r, cberg_index *index, const char **texts, const size_t *lens, const uint8_t **hashes, const uint64_t *ids, size_t count, int show, size_t *done, size_t total, size_t *out_unique) {
     if (out_unique != NULL) {
         *out_unique = 0;
     }
@@ -306,8 +301,7 @@ static cberg_status embed_unique(cberg_repo *r, cberg_index *index, const char *
                 }
                 (*done)++;
                 if (show && (*done >= mark || *done == total)) {
-                    fprintf(stderr, "cberg-index[%s]: embedded %zu/%zu chunks (%zu%%)\n", r->key, *done, total,
-                            *done * 100 / total);
+                    fprintf(stderr, "cberg-index[%s]: embedded %zu/%zu chunks (%zu%%)\n", r->key, *done, total, *done * 100 / total);
                     mark += PROGRESS_STEP;
                 }
             }
@@ -388,8 +382,7 @@ static cberg_status apply_vectors(cberg_repo *r, const cberg_changes *ch) {
             goto done;
         }
         if (show && unique < upsert_len) {
-            fprintf(stderr, "cberg-index[%s]: reused %zu duplicate bodies (embedded %zu unique of %zu chunks)\n",
-                    r->key, upsert_len - unique, unique, upsert_len);
+            fprintf(stderr, "cberg-index[%s]: reused %zu duplicate bodies (embedded %zu unique of %zu chunks)\n", r->key, upsert_len - unique, unique, upsert_len);
         }
     }
 
@@ -409,8 +402,7 @@ static cberg_status apply_vectors(cberg_repo *r, const cberg_changes *ch) {
             goto done;
         }
         if (del_show && (i + 1 >= del_mark || i + 1 == ch->deleted_len)) {
-            fprintf(stderr, "cberg-index[%s]: removed %zu/%zu chunks (%zu%%)\n", r->key, i + 1, ch->deleted_len,
-                    (i + 1) * 100 / ch->deleted_len);
+            fprintf(stderr, "cberg-index[%s]: removed %zu/%zu chunks (%zu%%)\n", r->key, i + 1, ch->deleted_len, (i + 1) * 100 / ch->deleted_len);
             del_mark += PROGRESS_STEP;
         }
     }
@@ -441,8 +433,7 @@ typedef cberg_status (*vector_retry_fn)(cberg_repo *r, void *ctx);
 static cberg_status with_vector_retry(cberg_repo *r, const char *op_name, vector_retry_fn fn, void *ctx) {
     cberg_status st = fn(r, ctx);
     for (int attempt = 0; st != CBERG_OK && vector_status_retriable(st) && attempt < 3; attempt++) {
-        fprintf(stderr, "cberg-index[%s]: %s failed (%s); retry %d/3\n", r->key, op_name, cberg_status_str(st),
-                attempt + 1);
+        fprintf(stderr, "cberg-index[%s]: %s failed (%s); retry %d/3\n", r->key, op_name, cberg_status_str(st), attempt + 1);
         vector_retry_backoff(attempt);
         st = fn(r, ctx);
     }
@@ -599,8 +590,7 @@ static cberg_status sync_table(cberg_repo *r, chunk_batch *batch) {
     if (st != CBERG_OK) {
         r->ready = 0;
         if (vector_status_retriable(st)) {
-            fprintf(stderr, "cberg-index[%s]: vector apply still failing after retries (%s); rebuilding index\n",
-                    r->key, cberg_status_str(st));
+            fprintf(stderr, "cberg-index[%s]: vector apply still failing after retries (%s); rebuilding index\n", r->key, cberg_status_str(st));
         }
         cberg_status rb = with_vector_retry(r, "index rebuild", rebuild_index_op, NULL);
         if (rb != CBERG_OK) {
@@ -611,8 +601,7 @@ static cberg_status sync_table(cberg_repo *r, chunk_batch *batch) {
     /* Live per-sync line for the watch loop; bootstrap reports via embed progress
      * and the final "bootstrap complete" count instead. */
     if (r->ready && (ch.added_len != 0 || ch.modified_len != 0 || ch.deleted_len != 0)) {
-        fprintf(stderr, "cberg-index[%s]: indexed +%zu ~%zu -%zu (%zu chunks)\n", r->key, ch.added_len,
-                ch.modified_len, ch.deleted_len, cberg_chunk_table_len(r->table));
+        fprintf(stderr, "cberg-index[%s]: indexed +%zu ~%zu -%zu (%zu chunks)\n", r->key, ch.added_len, ch.modified_len, ch.deleted_len, cberg_chunk_table_len(r->table));
     }
     return CBERG_OK;
 }
@@ -686,8 +675,7 @@ static void save_chunk_table(cberg_repo *r) {
     }
     cberg_status st = cberg_chunk_table_save(r->table, r->chunks_path);
     if (st != CBERG_OK) {
-        fprintf(stderr, "cberg-index[%s]: warning: could not persist chunk table: %s\n", r->key,
-                cberg_status_str(st));
+        fprintf(stderr, "cberg-index[%s]: warning: could not persist chunk table: %s\n", r->key, cberg_status_str(st));
     }
 }
 
@@ -872,12 +860,10 @@ static cberg_status engine_add_repo(cberg_engine *eng, const char *key, const ch
             /* Corrupt on-disk usearch file or remote collection/table with wrong
              * dimension — wipe vectors and sidecars, then cold-reindex. Transient
              * I/O (DB down, network) returns CBERG_ERR_IO and is not wiped here. */
-            fprintf(stderr, "cberg-index[%s]: vector index '%s' is corrupt or incompatible; discarding and reindexing\n",
-                    r->key, r->index_path);
+            fprintf(stderr, "cberg-index[%s]: vector index '%s' is corrupt or incompatible; discarding and reindexing\n", r->key, r->index_path);
             cberg_status wipe_st = cberg_index_wipe(r->index_path, dim, &eng->index_cfg);
             if (wipe_st != CBERG_OK) {
-                fprintf(stderr, "cberg-index[%s]: failed to wipe vector index '%s': %s\n", r->key, r->index_path,
-                        cberg_status_str(wipe_st));
+                fprintf(stderr, "cberg-index[%s]: failed to wipe vector index '%s': %s\n", r->key, r->index_path, cberg_status_str(wipe_st));
                 repo_close(r);
                 return wipe_st;
             }
@@ -892,8 +878,7 @@ static cberg_status engine_add_repo(cberg_engine *eng, const char *key, const ch
             st = cberg_index_open(r->index_path, dim, &eng->index_cfg, &r->index);
         }
         if (st != CBERG_OK) {
-            fprintf(stderr, "cberg-index[%s]: failed to open vector index '%s': %s\n", r->key, r->index_path,
-                    cberg_status_str(st));
+            fprintf(stderr, "cberg-index[%s]: failed to open vector index '%s': %s\n", r->key, r->index_path, cberg_status_str(st));
             repo_close(r);
             return st;
         }
@@ -1084,8 +1069,7 @@ cberg_status cberg_engine_open(cberg_engine *eng) {
         }
         st = cberg_embedder_open(&ecfg, &eng->embedder);
         if (st != CBERG_OK) {
-            fprintf(stderr, "cberg-index: failed to load embedding model '%s': %s\n", eng->model_path,
-                    cberg_status_str(st));
+            fprintf(stderr, "cberg-index: failed to load embedding model '%s': %s\n", eng->model_path, cberg_status_str(st));
             cberg_engine_close(eng);
             return st;
         }
@@ -1149,8 +1133,7 @@ static cberg_status walk_and_sync(cberg_repo *r) {
             cberg_manifest_free(r->manifest);
             r->manifest = m;
         } else {
-            fprintf(stderr, "cberg-index[%s]: warning: manifest build failed; restarts will re-scan all files\n",
-                    r->key);
+            fprintf(stderr, "cberg-index[%s]: warning: manifest build failed; restarts will re-scan all files\n", r->key);
         }
     }
     return CBERG_OK;
@@ -1211,8 +1194,7 @@ static cberg_status batch_add_table_except(cberg_repo *r, chunk_batch *batch, ch
  * `rechunk`+`deleted`, re-chunk `rechunk` from disk, and sync the union — so only
  * the affected files are parsed and only chunks whose content moved get
  * re-embedded. The path arrays are borrowed (not freed). Caller holds r->mu. */
-static cberg_status apply_path_changes(cberg_repo *r, char **rechunk, size_t rechunk_n, char **deleted,
-                                       size_t deleted_n) {
+static cberg_status apply_path_changes(cberg_repo *r, char **rechunk, size_t rechunk_n, char **deleted, size_t deleted_n) {
     chunk_batch batch;
     batch_init(&batch);
 
@@ -1324,8 +1306,7 @@ static cberg_status bootstrap_warm(cberg_repo *r) {
     st = apply_path_changes(r, rechunk, rechunk_n, (char **)diff.deleted, diff.deleted_len);
     free(rechunk);
     if (st == CBERG_OK) {
-        fprintf(stderr, "cberg-index[%s]: warm restart: %zu added, %zu modified, %zu deleted since last run\n",
-                r->key, diff.added_len, diff.modified_len, diff.deleted_len);
+        fprintf(stderr, "cberg-index[%s]: warm restart: %zu added, %zu modified, %zu deleted since last run\n", r->key, diff.added_len, diff.modified_len, diff.deleted_len);
     }
     cberg_manifest_diff_free(&diff);
     cberg_manifest_free(prev);
@@ -1548,8 +1529,7 @@ static void fill_snippet(cberg_repo *r, const cberg_stored_chunk *sc, char *out,
 
 /* Search one repo with an already-embedded query, copying chunk metadata into
  * hits while r->mu is held. NOT_FOUND when the repo is not ready yet. */
-static cberg_status repo_search_hits(cberg_repo *r, const float *vec, size_t k, const cberg_search_filters *filters,
-                                     cberg_engine_hit *hits, size_t cap, size_t *found) {
+static cberg_status repo_search_hits(cberg_repo *r, const float *vec, size_t k, const cberg_search_filters *filters, cberg_engine_hit *hits, size_t cap, size_t *found) {
     *found = 0;
     pthread_mutex_lock(&r->mu);
     if (!r->ready || r->index == NULL) {
@@ -1625,9 +1605,7 @@ static int hit_line_asc(const void *a, const void *b) {
     return 0;
 }
 
-cberg_status cberg_engine_search_hits(cberg_engine *eng, const char *query, const char *repo_key, size_t k,
-                                      const cberg_search_filters *filters, cberg_engine_hit *hits, size_t cap,
-                                      size_t *found) {
+cberg_status cberg_engine_search_hits(cberg_engine *eng, const char *query, const char *repo_key, size_t k, const cberg_search_filters *filters, cberg_engine_hit *hits, size_t cap, size_t *found) {
     if (hits == NULL || found == NULL || query == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
@@ -1754,8 +1732,7 @@ static cberg_status fill_chunk_detail(cberg_repo *r, const cberg_stored_chunk *s
     return CBERG_OK;
 }
 
-cberg_status cberg_engine_get_chunk(cberg_engine *eng, const char *repo_key, uint64_t id,
-                                    cberg_engine_chunk_detail *out) {
+cberg_status cberg_engine_get_chunk(cberg_engine *eng, const char *repo_key, uint64_t id, cberg_engine_chunk_detail *out) {
     if (eng == NULL || repo_key == NULL || out == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
@@ -1796,8 +1773,7 @@ static int symbol_matches(const char *symbol, const char *name) {
     return 0;
 }
 
-static cberg_status repo_find_symbol(cberg_repo *r, const char *name, int kind, size_t limit, cberg_engine_hit *hits,
-                                     size_t cap, size_t *found) {
+static cberg_status repo_find_symbol(cberg_repo *r, const char *name, int kind, size_t limit, cberg_engine_hit *hits, size_t cap, size_t *found) {
     *found = 0;
     pthread_mutex_lock(&r->mu);
     if (!r->ready) {
@@ -1832,8 +1808,7 @@ static cberg_status repo_find_symbol(cberg_repo *r, const char *name, int kind, 
     return CBERG_OK;
 }
 
-cberg_status cberg_engine_find_symbol(cberg_engine *eng, const char *name, const char *repo_key, int kind,
-                                      size_t limit, cberg_engine_hit *hits, size_t cap, size_t *found) {
+cberg_status cberg_engine_find_symbol(cberg_engine *eng, const char *name, const char *repo_key, int kind, size_t limit, cberg_engine_hit *hits, size_t cap, size_t *found) {
     if (eng == NULL || name == NULL || hits == NULL || found == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
@@ -1862,8 +1837,7 @@ cberg_status cberg_engine_find_symbol(cberg_engine *eng, const char *name, const
     size_t searched = 0;
     for (size_t i = 0; i < eng->repos_len && *found < limit; i++) {
         size_t got = 0;
-        cberg_status st = repo_find_symbol(eng->repos[i], name, kind, limit - *found, hits + *found, cap - *found,
-                                           &got);
+        cberg_status st = repo_find_symbol(eng->repos[i], name, kind, limit - *found, hits + *found, cap - *found, &got);
         if (st == CBERG_OK) {
             *found += got;
             searched++;
@@ -1877,8 +1851,7 @@ cberg_status cberg_engine_find_symbol(cberg_engine *eng, const char *name, const
     return CBERG_OK;
 }
 
-static cberg_status repo_file_outline(cberg_repo *r, const char *path, cberg_engine_hit *hits, size_t cap,
-                                      size_t *found) {
+static cberg_status repo_file_outline(cberg_repo *r, const char *path, cberg_engine_hit *hits, size_t cap, size_t *found) {
     *found = 0;
     pthread_mutex_lock(&r->mu);
     if (!r->ready) {
@@ -1911,8 +1884,7 @@ static cberg_status repo_file_outline(cberg_repo *r, const char *path, cberg_eng
     return CBERG_OK;
 }
 
-cberg_status cberg_engine_file_outline(cberg_engine *eng, const char *repo_key, const char *path,
-                                       cberg_engine_hit *hits, size_t cap, size_t *found) {
+cberg_status cberg_engine_file_outline(cberg_engine *eng, const char *repo_key, const char *path, cberg_engine_hit *hits, size_t cap, size_t *found) {
     if (eng == NULL || repo_key == NULL || path == NULL || hits == NULL || found == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }

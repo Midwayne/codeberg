@@ -55,8 +55,7 @@ cberg_status cberg_index_remove(cberg_index *index, uint64_t id) {
     return index->backend->remove(index->backend->impl, id);
 }
 
-cberg_status cberg_index_search(cberg_index *index, const float *query, size_t k, const cberg_index_search_opts *opts,
-                                uint64_t *out_ids, float *out_scores, size_t *out_found) {
+cberg_status cberg_index_search(cberg_index *index, const float *query, size_t k, const cberg_index_search_opts *opts, uint64_t *out_ids, float *out_scores, size_t *out_found) {
     if (index == NULL || index->backend == NULL || query == NULL || out_ids == NULL || out_scores == NULL ||
         out_found == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;

@@ -45,8 +45,7 @@ int cberg_index_provider_parse(const char *name) {
     return ops == NULL ? -1 : (int)ops->id;
 }
 
-cberg_status cberg_index_provider_open(cberg_index_provider id, const char *path, size_t dim,
-                                       const cberg_index_config *config, cberg_index_backend **out) {
+cberg_status cberg_index_provider_open(cberg_index_provider id, const char *path, size_t dim, const cberg_index_config *config, cberg_index_backend **out) {
     const cberg_index_provider_ops *ops = cberg_index_provider_get(id);
     if (ops == NULL || ops->open == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
@@ -54,8 +53,7 @@ cberg_status cberg_index_provider_open(cberg_index_provider id, const char *path
     return ops->open(path, dim, config, out);
 }
 
-cberg_status cberg_index_provider_wipe(cberg_index_provider id, const char *path, size_t dim,
-                                       const cberg_index_config *config) {
+cberg_status cberg_index_provider_wipe(cberg_index_provider id, const char *path, size_t dim, const cberg_index_config *config) {
     const cberg_index_provider_ops *ops = cberg_index_provider_get(id);
     if (ops == NULL || ops->wipe == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;

@@ -142,36 +142,27 @@ Do not guess. Do not rely on repository names, file names, or symbol names alone
  * and the `web_search` line appears only when a search backend is configured —
  * so the model is never told about a tool that isn't registered.
  */
-export function agentSystemPrompt(web: {
-  enabled: boolean;
-  search: boolean;
-}): string {
+export function agentSystemPrompt(web: { enabled: boolean; search: boolean }): string {
   if (!web.enabled) return AGENT_SYSTEM;
 
-  const lines = [
-    AGENT_SYSTEM,
-    "",
-    "Web tools (use only when the codebase alone cannot answer):",
-  ];
+  const lines = [AGENT_SYSTEM, '', 'Web tools (use only when the codebase alone cannot answer):'];
   if (web.search) {
     lines.push(
-      "- web_search: find official documentation, API references, RFCs, changelogs, or error explanations on the public web. Returns title, url, and snippet.",
+      '- web_search: find official documentation, API references, RFCs, changelogs, or error explanations on the public web. Returns title, url, and snippet.',
     );
   }
   lines.push(
-    "- fetch_url: read the full text of a specific http(s) URL — a web_search result, or a link found in code, comments, or docs.",
-    "",
-    "Web strategy:",
+    '- fetch_url: read the full text of a specific http(s) URL — a web_search result, or a link found in code, comments, or docs.',
+    '',
+    'Web strategy:',
     "- Use the local code tools first. Reach for the web only to resolve external facts: third-party/library/framework behavior, language or stdlib semantics, protocol/spec details, version-specific changes, or an error message's documented meaning.",
   );
   if (web.search) {
-    lines.push(
-      "- Usually web_search to locate the authoritative page, then fetch_url to read it.",
-    );
+    lines.push('- Usually web_search to locate the authoritative page, then fetch_url to read it.');
   }
   lines.push(
-    "- Cite web sources as [title](url); keep code citations as [path:start-end]. Prefer official/primary sources.",
-    "- Never send proprietary code, secrets, or internal identifiers to the web, and never fetch private/internal hosts.",
+    '- Cite web sources as [title](url); keep code citations as [path:start-end]. Prefer official/primary sources.',
+    '- Never send proprietary code, secrets, or internal identifiers to the web, and never fetch private/internal hosts.',
   );
-  return lines.join("\n");
+  return lines.join('\n');
 }

@@ -31,8 +31,7 @@ static int compare_leaf_keys(const void *a, const void *b) {
     return strcmp(la->key, lb->key);
 }
 
-cberg_status cberg_fingerprint(const char *const *keys, const uint8_t *const *hashes, size_t count,
-                               uint8_t out[CBERG_HASH_LEN]) {
+cberg_status cberg_fingerprint(const char *const *keys, const uint8_t *const *hashes, size_t count, uint8_t out[CBERG_HASH_LEN]) {
     if (out == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }

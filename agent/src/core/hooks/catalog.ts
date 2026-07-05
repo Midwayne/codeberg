@@ -1,5 +1,5 @@
-import { DEFAULT_PROMPT_HOOKS } from "./defaults.js";
-import type { PromptCommand, PromptHook } from "./types.js";
+import { DEFAULT_PROMPT_HOOKS } from './defaults.js';
+import type { PromptCommand, PromptHook } from './types.js';
 
 /**
  * The slash-command catalog for a set of hooks — the list surfaced to UIs for

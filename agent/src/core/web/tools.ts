@@ -1,8 +1,8 @@
-import { jsonSchema, tool, type ToolSet } from "ai";
+import { jsonSchema, tool, type ToolSet } from 'ai';
 
-import { fetchUrl } from "./client.js";
-import { webSearchProviderFromConfig } from "./search/index.js";
-import type { WebConfig, WebDeps } from "./types.js";
+import { fetchUrl } from './client.js';
+import { webSearchProviderFromConfig } from './search/index.js';
+import type { WebConfig, WebDeps } from './types.js';
 
 /** Hard ceiling on requested search results, independent of the configured default. */
 const MAX_SEARCH_COUNT = 10;
@@ -19,17 +19,17 @@ export function webTools(config: WebConfig, deps?: WebDeps): ToolSet {
   const tools: ToolSet = {
     fetch_url: tool({
       description:
-        "Fetch an http(s) web page or text/JSON resource and return its readable text. " +
-        "Use to read external documentation, RFCs, changelogs, issue threads, or any URL " +
-        "found in the code or in a web_search result. Private/loopback hosts are blocked; " +
-        "long pages are truncated.",
+        'Fetch an http(s) web page or text/JSON resource and return its readable text. ' +
+        'Use to read external documentation, RFCs, changelogs, issue threads, or any URL ' +
+        'found in the code or in a web_search result. Private/loopback hosts are blocked; ' +
+        'long pages are truncated.',
       inputSchema: jsonSchema<{ url: string }>({
-        type: "object",
+        type: 'object',
         additionalProperties: false,
         properties: {
-          url: { type: "string", description: "Absolute http(s) URL to fetch" },
+          url: { type: 'string', description: 'Absolute http(s) URL to fetch' },
         },
-        required: ["url"],
+        required: ['url'],
       }),
       execute: async ({ url }) => fetchUrl(url, config, deps),
     }),
@@ -39,20 +39,20 @@ export function webTools(config: WebConfig, deps?: WebDeps): ToolSet {
   if (provider) {
     tools.web_search = tool({
       description:
-        "Search the public web for documentation, API references, error " +
-        "explanations, specs, or library sources. Returns ranked results with " +
-        "title, url, and snippet — then use fetch_url to read the most relevant one.",
+        'Search the public web for documentation, API references, error ' +
+        'explanations, specs, or library sources. Returns ranked results with ' +
+        'title, url, and snippet — then use fetch_url to read the most relevant one.',
       inputSchema: jsonSchema<{ query: string; count?: number }>({
-        type: "object",
+        type: 'object',
         additionalProperties: false,
         properties: {
-          query: { type: "string", description: "Search query" },
+          query: { type: 'string', description: 'Search query' },
           count: {
-            type: "number",
+            type: 'number',
             description: `max results (default ${config.searchCount}, max ${MAX_SEARCH_COUNT})`,
           },
         },
-        required: ["query"],
+        required: ['query'],
       }),
       execute: async ({ query, count }) => {
         const n = Math.min(Math.max(1, count ?? config.searchCount), MAX_SEARCH_COUNT);

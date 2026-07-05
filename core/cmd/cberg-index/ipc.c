@@ -67,18 +67,17 @@ static void handle_status(cberg_engine *eng, int fd) {
     int ready = eng->bootstrapped && ready_repos > 0;
 
     char resp[8192];
-    size_t off = (size_t)snprintf(resp, sizeof(resp),
-                                  "{\"ok\":true,\"ready\":%s,\"chunks\":%zu,\"version\":\"%s\","
-                                  "\"vectors_enabled\":%s,\"repos\":[",
-                                  ready ? "true" : "false", cberg_engine_chunk_count(eng), cberg_indexer_version(),
+    size_t off = (size_t)snprintf(resp, sizeof(resp), "{\"ok\":true,\"ready\":%s,\"chunks\":%zu,\"version\":\"%s\","
+                                                      "\"vectors_enabled\":%s,\"repos\":[",
+                                  ready ? "true" : "false",
+                                  cberg_engine_chunk_count(eng),
+                                  cberg_indexer_version(),
                                   eng->vectors ? "true" : "false");
     for (size_t i = 0; i < eng->repos_len && off + 512 < sizeof(resp); i++) {
         cberg_repo *r = eng->repos[i];
         char esc_key[256];
         json_escape(r->key, esc_key, sizeof(esc_key));
-        int w = snprintf(resp + off, sizeof(resp) - off, "%s{\"key\":\"%s\",\"ready\":%s,\"chunks\":%zu}",
-                         i > 0 ? "," : "", esc_key, cberg_repo_ready(r) ? "true" : "false",
-                         cberg_repo_chunk_count(r));
+        int w = snprintf(resp + off, sizeof(resp) - off, "%s{\"key\":\"%s\",\"ready\":%s,\"chunks\":%zu}", i > 0 ? "," : "", esc_key, cberg_repo_ready(r) ? "true" : "false", cberg_repo_chunk_count(r));
         if (w < 0) {
             break;
         }
@@ -137,11 +136,16 @@ static void write_hit_json(char *resp, size_t cap, size_t *off, const cberg_engi
     json_escape(h->path, esc_path, sizeof(esc_path));
     json_escape(h->symbol, esc_symbol, sizeof(esc_symbol));
     json_escape(h->snippet, esc_snippet, sizeof(esc_snippet));
-    int w = snprintf(resp + *off, cap - *off,
-                     "{\"id\":%llu,\"score\":%.6f,\"repo\":\"%s\",\"path\":\"%s\",\"symbol\":\"%s\","
-                     "\"start_line\":%u,\"end_line\":%u,\"snippet\":\"%s\"}",
-                     (unsigned long long)h->id, (double)h->score, esc_repo, esc_path, esc_symbol, h->start_line,
-                     h->end_line, esc_snippet);
+    int w = snprintf(resp + *off, cap - *off, "{\"id\":%llu,\"score\":%.6f,\"repo\":\"%s\",\"path\":\"%s\",\"symbol\":\"%s\","
+                                              "\"start_line\":%u,\"end_line\":%u,\"snippet\":\"%s\"}",
+                     (unsigned long long)h->id,
+                     (double)h->score,
+                     esc_repo,
+                     esc_path,
+                     esc_symbol,
+                     h->start_line,
+                     h->end_line,
+                     esc_snippet);
     if (w > 0) {
         *off += (size_t)w;
     }
@@ -246,12 +250,19 @@ static void handle_chunk(cberg_engine *eng, int fd, char *args) {
     json_escape(detail.body != NULL ? detail.body : "", esc_body, (detail.body_len + 1) * 2);
 
     char resp[131072];
-    snprintf(resp, sizeof(resp),
-             "{\"ok\":true,\"chunk\":{\"id\":%llu,\"repo\":\"%s\",\"path\":\"%s\",\"symbol\":\"%s\","
-             "\"kind\":\"%s\",\"start_line\":%u,\"end_line\":%u,\"snippet\":\"%s\",\"body\":\"%s\","
-             "\"truncated\":%s}}\n",
-             (unsigned long long)detail.id, esc_repo, esc_path, esc_symbol, esc_kind, detail.start_line,
-             detail.end_line, esc_snippet, esc_body, detail.truncated ? "true" : "false");
+    snprintf(resp, sizeof(resp), "{\"ok\":true,\"chunk\":{\"id\":%llu,\"repo\":\"%s\",\"path\":\"%s\",\"symbol\":\"%s\","
+                                 "\"kind\":\"%s\",\"start_line\":%u,\"end_line\":%u,\"snippet\":\"%s\",\"body\":\"%s\","
+                                 "\"truncated\":%s}}\n",
+             (unsigned long long)detail.id,
+             esc_repo,
+             esc_path,
+             esc_symbol,
+             esc_kind,
+             detail.start_line,
+             detail.end_line,
+             esc_snippet,
+             esc_body,
+             detail.truncated ? "true" : "false");
     free(esc_body);
     cberg_engine_chunk_detail_free(&detail);
     write_all(fd, resp, strlen(resp));

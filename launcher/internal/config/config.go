@@ -25,31 +25,31 @@ import (
 // so a value works whether it is set in the config file, the environment, or
 // (via the matching flag) on the command line.
 const (
-	KeyRoot       = "CODEBERG_ROOT"                  // repo to index (daemon scope)
-	KeyRoots      = "CODEBERG_ROOTS"                 // key\tpath records of every served repo (daemon scope)
-	KeyAll        = "CODEBERG_ALL"                   // "true" => serve every registered repo
-	KeyReposSel   = "CODEBERG_REPOS"                 // comma-separated dirs/keys to serve together
-	KeyNoIndex    = "CODEBERG_NO_INDEX"              // "true" => register nothing, build no vector index
-	KeyModel      = "CODEBERG_MODEL"                 // LLM provider:model (agent scope)
-	KeyDaemonURL  = "CODEBERG_DAEMON_URL"            // agent -> daemon (agent scope)
-	KeyHTTPPort   = "CODEBERG_HTTP_PORT"             // daemon listen port (daemon scope)
-	KeyEmbedModel = "CBERG_MODEL"                    // embedding model path (daemon scope)
-	KeyIndexPath  = "CBERG_INDEX_PATH"               // vector index base path (daemon scope)
-	KeySocket     = "CBERG_SOCKET"                   // cberg-index IPC socket (daemon scope)
-	KeyPollMS     = "CBERG_POLL_MS"                  // watcher poll ms (daemon scope)
-	KeyIndexBin   = "CBERG_INDEX_BIN"                // override cberg-index path (daemon scope)
-	KeyGitPullSec = "CODEBERG_GIT_PULL_INTERVAL_SEC" // periodic git pull (daemon scope)
-	KeyGitDir     = "CODEBERG_GIT_DIR"               // git dir for pull (daemon scope)
-	KeyReasoning  = "CODEBERG_REASONING"             // reasoning effort (agent scope)
-	KeyVector     = "CODEBERG_VECTOR"                // "false" => chunk-only mode
-	KeyHome       = "CODEBERG_HOME"                  // launcher managed dir
-	KeyRepo       = "CODEBERG_REPO"                  // source checkout to build/run
-	KeyDist       = "CODEBERG_DIST"                  // prebuilt artifact dir (installs)
-	KeyWeb        = "CODEBERG_WEB"                   // "true" => serve browser UI not TUI
-	KeyWebPort    = "CODEBERG_WEB_PORT"              // web UI listen port (agent scope)
-	KeyWebUse     = "CODEBERG_WEB_USE"               // "false" => disable agent web tools (agent scope)
-	KeySearxngURL = "CODEBERG_SEARXNG_URL"           // external SearXNG for web_search (agent scope)
-	KeySearxngPort = "CODEBERG_SEARXNG_PORT"         // preferred port for the managed SearXNG
+	KeyRoot        = "CODEBERG_ROOT"                  // repo to index (daemon scope)
+	KeyRoots       = "CODEBERG_ROOTS"                 // key\tpath records of every served repo (daemon scope)
+	KeyAll         = "CODEBERG_ALL"                   // "true" => serve every registered repo
+	KeyReposSel    = "CODEBERG_REPOS"                 // comma-separated dirs/keys to serve together
+	KeyNoIndex     = "CODEBERG_NO_INDEX"              // "true" => register nothing, build no vector index
+	KeyModel       = "CODEBERG_MODEL"                 // LLM provider:model (agent scope)
+	KeyDaemonURL   = "CODEBERG_DAEMON_URL"            // agent -> daemon (agent scope)
+	KeyHTTPPort    = "CODEBERG_HTTP_PORT"             // daemon listen port (daemon scope)
+	KeyEmbedModel  = "CBERG_MODEL"                    // embedding model path (daemon scope)
+	KeyIndexPath   = "CBERG_INDEX_PATH"               // vector index base path (daemon scope)
+	KeySocket      = "CBERG_SOCKET"                   // cberg-index IPC socket (daemon scope)
+	KeyPollMS      = "CBERG_POLL_MS"                  // watcher poll ms (daemon scope)
+	KeyIndexBin    = "CBERG_INDEX_BIN"                // override cberg-index path (daemon scope)
+	KeyGitPullSec  = "CODEBERG_GIT_PULL_INTERVAL_SEC" // periodic git pull (daemon scope)
+	KeyGitDir      = "CODEBERG_GIT_DIR"               // git dir for pull (daemon scope)
+	KeyReasoning   = "CODEBERG_REASONING"             // reasoning effort (agent scope)
+	KeyVector      = "CODEBERG_VECTOR"                // "false" => chunk-only mode
+	KeyHome        = "CODEBERG_HOME"                  // launcher managed dir
+	KeyRepo        = "CODEBERG_REPO"                  // source checkout to build/run
+	KeyDist        = "CODEBERG_DIST"                  // prebuilt artifact dir (installs)
+	KeyWeb         = "CODEBERG_WEB"                   // "true" => serve browser UI not TUI
+	KeyWebPort     = "CODEBERG_WEB_PORT"              // web UI listen port (agent scope)
+	KeyWebUse      = "CODEBERG_WEB_USE"               // "false" => disable agent web tools (agent scope)
+	KeySearxngURL  = "CODEBERG_SEARXNG_URL"           // external SearXNG for web_search (agent scope)
+	KeySearxngPort = "CODEBERG_SEARXNG_PORT"          // preferred port for the managed SearXNG
 )
 
 // DefaultSearxngPort is the preferred listen port for the launcher-managed
@@ -115,27 +115,27 @@ type Config struct {
 	Dist string // prebuilt artifact dir ("" when building from source)
 	Home string
 
-	Root       string
-	All        bool             // serve every registered repo (--all)
-	Repos      []string         // explicit dirs/keys to serve together (--repos)
-	NoIndex    bool             // one-off run: register nothing, build no vector index
-	Roots      []registry.Entry // the repos this run serves; filled by cmdRun
-	Model      string
-	DaemonURL  string
-	HTTPPort   string
-	EmbedModel string
-	IndexPath  string
-	Socket     string
-	PollMS     string
-	IndexBin   string
-	GitPullSec string
-	GitDir     string
-	Reasoning  string
-	Vector     bool
-	Web        bool   // serve the browser UI instead of the terminal TUI
-	WebPort    string // codeberg-web listen port (used only when Web)
-	WebUse     bool   // agent web tools (web_search + fetch_url) enabled
-	SearxngURL string // external SearXNG instance; "" => launcher manages one
+	Root        string
+	All         bool             // serve every registered repo (--all)
+	Repos       []string         // explicit dirs/keys to serve together (--repos)
+	NoIndex     bool             // one-off run: register nothing, build no vector index
+	Roots       []registry.Entry // the repos this run serves; filled by cmdRun
+	Model       string
+	DaemonURL   string
+	HTTPPort    string
+	EmbedModel  string
+	IndexPath   string
+	Socket      string
+	PollMS      string
+	IndexBin    string
+	GitPullSec  string
+	GitDir      string
+	Reasoning   string
+	Vector      bool
+	Web         bool   // serve the browser UI instead of the terminal TUI
+	WebPort     string // codeberg-web listen port (used only when Web)
+	WebUse      bool   // agent web tools (web_search + fetch_url) enabled
+	SearxngURL  string // external SearXNG instance; "" => launcher manages one
 	SearxngPort string // preferred port for the managed SearXNG
 
 	Passthrough map[string]string

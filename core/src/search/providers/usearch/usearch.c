@@ -1,5 +1,5 @@
-#include "../provider.h"
 #include "../common.h"
+#include "../provider.h"
 
 #ifdef CBERG_WITH_USEARCH
 
@@ -89,9 +89,7 @@ static cberg_status usearch_backend_remove(void *impl, uint64_t id) {
     return CBERG_OK;
 }
 
-static cberg_status usearch_backend_search(void *impl, const float *query, size_t dim, size_t k,
-                                           size_t expansion_search, uint64_t *out_ids, float *out_scores,
-                                           size_t *out_found) {
+static cberg_status usearch_backend_search(void *impl, const float *query, size_t dim, size_t k, size_t expansion_search, uint64_t *out_ids, float *out_scores, size_t *out_found) {
     usearch_backend *b = impl;
     if (b == NULL || query == NULL || dim != b->dim || out_ids == NULL || out_scores == NULL || out_found == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
@@ -173,8 +171,7 @@ static cberg_status usearch_backend_clear(void *impl) {
     return CBERG_OK;
 }
 
-static cberg_status usearch_open(const char *path, size_t dim, const cberg_index_config *config,
-                                 cberg_index_backend **out_backend) {
+static cberg_status usearch_open(const char *path, size_t dim, const cberg_index_config *config, cberg_index_backend **out_backend) {
     if (path == NULL || dim == 0 || out_backend == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
@@ -229,8 +226,7 @@ static cberg_status usearch_open(const char *path, size_t dim, const cberg_index
     }
 
     cberg_index_backend *backend =
-        cberg_index_backend_new(b, usearch_backend_destroy, usearch_backend_add, usearch_backend_remove,
-                                usearch_backend_search, usearch_backend_save, usearch_backend_clear);
+        cberg_index_backend_new(b, usearch_backend_destroy, usearch_backend_add, usearch_backend_remove, usearch_backend_search, usearch_backend_save, usearch_backend_clear);
     if (backend == NULL) {
         usearch_backend_destroy(b);
         return CBERG_ERR_OUT_OF_MEMORY;
@@ -269,8 +265,7 @@ cberg_status cberg_usearch_index_active_expansion(const cberg_index *index, size
 
 #else /* !CBERG_WITH_USEARCH */
 
-static cberg_status usearch_open(const char *path, size_t dim, const cberg_index_config *config,
-                                 cberg_index_backend **out_backend) {
+static cberg_status usearch_open(const char *path, size_t dim, const cberg_index_config *config, cberg_index_backend **out_backend) {
     (void)path;
     (void)dim;
     (void)config;

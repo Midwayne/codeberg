@@ -8,11 +8,7 @@ import {
 } from 'ai';
 
 import { DaemonClient, DaemonError } from './client.js';
-import {
-  cachedInstructions,
-  deterministicTools,
-  requestProviderOptions,
-} from './cache.js';
+import { cachedInstructions, deterministicTools, requestProviderOptions } from './cache.js';
 import { EvidenceLedger } from './evidence.js';
 import { fitHistory, totalTokens } from './history.js';
 import { fromAiSdk } from './generator.js';
@@ -22,12 +18,7 @@ import {
   type PromptHook,
 } from './hooks/index.js';
 import { agentSystemPrompt } from './prompt.js';
-import {
-  collectTools,
-  daemonToolSource,
-  searchCodeSource,
-  webToolSource,
-} from './tools/index.js';
+import { collectTools, daemonToolSource, searchCodeSource, webToolSource } from './tools/index.js';
 import { webConfigFromEnv } from './web/config.js';
 import type { WebConfig } from './web/types.js';
 import {
@@ -130,8 +121,8 @@ export class Agent implements Asker {
     const ledger = this.ledger.render();
     const messages: ModelMessage[] = [
       ...history,
-      ...(ledger ? [{ role: "user" as const, content: ledger }] : []),
-      { role: "user", content: question },
+      ...(ledger ? [{ role: 'user' as const, content: ledger }] : []),
+      { role: 'user', content: question },
     ];
     // Non-streaming `generate`: some OpenAI-compatible gateways stall mid-stream
     // when a response carries tool calls; `generate` returns the whole step at
@@ -165,10 +156,10 @@ export class Agent implements Asker {
   private async summarize(transcript: string): Promise<string> {
     return this.generator.generate({
       system:
-        "Summarize this code-search conversation for an agent that will " +
-        "continue it. Preserve every concrete finding: file paths, line " +
-        "ranges, symbols, data sources, and unresolved questions. Be terse; " +
-        "drop pleasantries and restated questions.",
+        'Summarize this code-search conversation for an agent that will ' +
+        'continue it. Preserve every concrete finding: file paths, line ' +
+        'ranges, symbols, data sources, and unresolved questions. Be terse; ' +
+        'drop pleasantries and restated questions.',
       prompt: transcript,
     });
   }
@@ -184,18 +175,14 @@ export class Agent implements Asker {
       try {
         await this.daemon.waitReady(30_000);
       } catch (err) {
-        if (!(err instanceof DaemonError && err.code === "NOT_READY")) {
+        if (!(err instanceof DaemonError && err.code === 'NOT_READY')) {
           throw err;
         }
       }
       // Sort tools so the system+tools prefix is byte-stable — a reordered tool
       // list would invalidate the prompt cache on every process.
       const tools = deterministicTools(await this.buildTools());
-      const providerOptions = requestProviderOptions(
-        this.system,
-        Object.keys(tools),
-        this.profile,
-      );
+      const providerOptions = requestProviderOptions(this.system, Object.keys(tools), this.profile);
       const prune = pruneBudget(this.profile);
       const loop = new ToolLoopAgent({
         model: this.model,
@@ -216,8 +203,8 @@ export class Agent implements Asker {
             ? {
                 messages: pruneMessages({
                   messages,
-                  toolCalls: "before-last-2-messages",
-                  emptyMessages: "remove",
+                  toolCalls: 'before-last-2-messages',
+                  emptyMessages: 'remove',
                 }),
               }
             : undefined,
@@ -244,9 +231,7 @@ export class Agent implements Asker {
 }
 
 function toPerformance(
-  perf:
-    | { effectiveOutputTokensPerSecond?: number; responseTimeMs?: number }
-    | undefined,
+  perf: { effectiveOutputTokensPerSecond?: number; responseTimeMs?: number } | undefined,
 ): RunPerformance | undefined {
   if (!perf) {
     return undefined;

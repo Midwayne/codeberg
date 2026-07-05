@@ -13,12 +13,12 @@ static int failures;
         }                                                                   \
     } while (0)
 
-#define TEST_CHECK_LABELED(lbl, cond, msg)                                               \
-    do {                                                                                  \
-        if (!(cond)) {                                                                    \
-            fprintf(stderr, "FAIL [%s]: %s (%s:%d)\n", lbl, msg, __FILE__, __LINE__);   \
-            failures++;                                                                   \
-        }                                                                                 \
+#define TEST_CHECK_LABELED(lbl, cond, msg)                                            \
+    do {                                                                              \
+        if (!(cond)) {                                                                \
+            fprintf(stderr, "FAIL [%s]: %s (%s:%d)\n", lbl, msg, __FILE__, __LINE__); \
+            failures++;                                                               \
+        }                                                                             \
     } while (0)
 
 #define TEST_MAIN_RETURN return failures == 0 ? 0 : 1;

@@ -24,8 +24,7 @@ cberg_watch_kind watch_kind_from_fsevents(FSEventStreamEventFlags flags) {
     return CBERG_WATCH_MODIFY;
 }
 
-static void fsevents_callback(ConstFSEventStreamRef stream_ref, void *client_info, size_t num_events, void *event_paths,
-                              const FSEventStreamEventFlags event_flags[], const FSEventStreamEventId event_ids[]) {
+static void fsevents_callback(ConstFSEventStreamRef stream_ref, void *client_info, size_t num_events, void *event_paths, const FSEventStreamEventFlags event_flags[], const FSEventStreamEventId event_ids[]) {
     (void)stream_ref;
     (void)event_ids;
     cberg_watcher *w = client_info;
@@ -64,10 +63,7 @@ cberg_status watch_platform_finish(cberg_watcher *w) {
     }
     CFArrayRef paths = CFArrayCreate(kCFAllocatorDefault, (const void **)&path, 1, &kCFTypeArrayCallBacks);
     FSEventStreamContext ctx = {.info = w};
-    w->stream = FSEventStreamCreate(NULL, &fsevents_callback, &ctx, paths, kFSEventStreamEventIdSinceNow,
-                                    (CFAbsoluteTime)CBERG_WATCH_DEBOUNCE_MS / 1000.0,
-                                    kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagWatchRoot |
-                                        kFSEventStreamCreateFlagNoDefer);
+    w->stream = FSEventStreamCreate(NULL, &fsevents_callback, &ctx, paths, kFSEventStreamEventIdSinceNow, (CFAbsoluteTime)CBERG_WATCH_DEBOUNCE_MS / 1000.0, kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagWatchRoot | kFSEventStreamCreateFlagNoDefer);
     CFRelease(paths);
     CFRelease(path);
     if (w->stream == NULL) {

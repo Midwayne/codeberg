@@ -46,8 +46,7 @@ static size_t curl_write(void *ptr, size_t size, size_t nmemb, void *userdata) {
     return add;
 }
 
-cberg_status cberg_http_request(const char *method, const char *url, const char *api_key, const char *content_type,
-                                const char *body, size_t body_len, cberg_http_response *out_resp) {
+cberg_status cberg_http_request(const char *method, const char *url, const char *api_key, const char *content_type, const char *body, size_t body_len, cberg_http_response *out_resp) {
     if (method == NULL || url == NULL || out_resp == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
@@ -249,8 +248,7 @@ static cberg_status write_all(int fd, const void *data, size_t len) {
     return CBERG_OK;
 }
 
-cberg_status cberg_http_request(const char *method, const char *url, const char *api_key, const char *content_type,
-                                const char *body, size_t body_len, cberg_http_response *out_resp) {
+cberg_status cberg_http_request(const char *method, const char *url, const char *api_key, const char *content_type, const char *body, size_t body_len, cberg_http_response *out_resp) {
     if (method == NULL || url == NULL || out_resp == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
@@ -267,8 +265,7 @@ cberg_status cberg_http_request(const char *method, const char *url, const char 
     }
 
     char req[8192];
-    int hdr = snprintf(req, sizeof req, "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n", method, parsed.path,
-                       parsed.host);
+    int hdr = snprintf(req, sizeof req, "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n", method, parsed.path, parsed.host);
     if (hdr < 0 || (size_t)hdr >= sizeof req) {
         close(fd);
         return CBERG_ERR_INVALID_ARGUMENT;

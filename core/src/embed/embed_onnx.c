@@ -44,7 +44,9 @@ static void maybe_enable_coreml(const OrtApi *ort, OrtSessionOptions *opts) {
 }
 #endif
 
-typedef enum { INPUT_IDS, INPUT_MASK, INPUT_TYPES } input_kind;
+typedef enum { INPUT_IDS,
+               INPUT_MASK,
+               INPUT_TYPES } input_kind;
 
 typedef struct {
     const OrtApi *ort;
@@ -234,8 +236,7 @@ static void mean_pool_row(const float *hidden, int seq_len, size_t dim, float *o
     cberg_l2_normalize(out, dim);
 }
 
-static cberg_status run_inference(onnx_impl *impl, int64_t *ids, int64_t *mask, int64_t *types, size_t batch,
-                                  int max_len, const int *seq_lens, float *out) {
+static cberg_status run_inference(onnx_impl *impl, int64_t *ids, int64_t *mask, int64_t *types, size_t batch, int max_len, const int *seq_lens, float *out) {
     const OrtApi *ort = impl->ort;
     int64_t shape[2] = {(int64_t)batch, max_len};
     size_t flat = batch * (size_t)max_len;
@@ -253,16 +254,14 @@ static cberg_status run_inference(onnx_impl *impl, int64_t *ids, int64_t *mask, 
         } else if (impl->input_kinds[i] == INPUT_TYPES) {
             data = types;
         }
-        if (ort->CreateTensorWithDataAsOrtValue(impl->mem, data, bytes, shape, 2, ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64,
-                                                &inputs[i]) != NULL) {
+        if (ort->CreateTensorWithDataAsOrtValue(impl->mem, data, bytes, shape, 2, ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64, &inputs[i]) != NULL) {
             goto cleanup;
         }
         input_names[i] = impl->input_names[i];
     }
 
     const char *output_names[1] = {impl->output_name};
-    if (ort->Run(impl->session, NULL, input_names, (const OrtValue *const *)inputs, (size_t)impl->n_inputs,
-                 output_names, 1, &output) != NULL) {
+    if (ort->Run(impl->session, NULL, input_names, (const OrtValue *const *)inputs, (size_t)impl->n_inputs, output_names, 1, &output) != NULL) {
         goto cleanup;
     }
 
@@ -311,8 +310,7 @@ static void sort_indices_by_len(const int *seq_lens, size_t count, int *order) {
  * the pre-tokenized rows named by order[g_start..], run inference, and scatter each
  * pooled vector back to its caller-facing slot out[order[...]*dim]. Padding tracks
  * the group's own longest row, not the whole call's. */
-static cberg_status run_group(onnx_impl *impl, const int64_t *tokbuf, const int *seq_lens, const int *order,
-                              size_t g_start, size_t g_count, float *out) {
+static cberg_status run_group(onnx_impl *impl, const int64_t *tokbuf, const int *seq_lens, const int *order, size_t g_start, size_t g_count, float *out) {
     int max_len = 0;
     for (size_t b = 0; b < g_count; b++) {
         int n = seq_lens[order[g_start + b]];

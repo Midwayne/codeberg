@@ -1,8 +1,8 @@
-import type { ToolSet } from "ai";
+import type { ToolSet } from 'ai';
 
-import { webTools } from "../web/tools.js";
-import type { WebConfig } from "../web/types.js";
-import type { ToolSource } from "./source.js";
+import { webTools } from '../web/tools.js';
+import type { WebConfig } from '../web/types.js';
+import type { ToolSource } from './source.js';
 
 /**
  * The agent's web tools (`web_search` + `fetch_url`), as a tool source. Gating —
@@ -11,7 +11,7 @@ import type { ToolSource } from "./source.js";
  */
 export function webToolSource(config: WebConfig): ToolSource {
   return {
-    name: "web",
+    name: 'web',
     tools: (): ToolSet => webTools(config),
   };
 }

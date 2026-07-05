@@ -67,8 +67,7 @@ size_t cberg_embedder_dim(const cberg_embedder *embedder) {
     return embedder == NULL ? 0 : embedder->dim;
 }
 
-cberg_status cberg_embedder_embed(cberg_embedder *embedder, const char *const *texts, const size_t *text_lens,
-                                  size_t count, float **out_vectors) {
+cberg_status cberg_embedder_embed(cberg_embedder *embedder, const char *const *texts, const size_t *text_lens, size_t count, float **out_vectors) {
     if (embedder == NULL || texts == NULL || text_lens == NULL || out_vectors == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }

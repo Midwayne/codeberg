@@ -194,8 +194,7 @@ static size_t component_end(const char *rel, size_t from, bool *is_dir) {
     return i;
 }
 
-static size_t child_run(const cberg_manifest_entry *leaves, size_t i, size_t hi, size_t prefix, size_t *end,
-                        bool *is_dir) {
+static size_t child_run(const cberg_manifest_entry *leaves, size_t i, size_t hi, size_t prefix, size_t *end, bool *is_dir) {
     *end = component_end(leaves[i].path, prefix, is_dir);
     if (!*is_dir) {
         return i + 1;
@@ -231,8 +230,7 @@ static cberg_status fp_scratch_grow(build_ctx *ctx, size_t need) {
     return CBERG_OK;
 }
 
-static cberg_status rollup_children(build_ctx *ctx, const cberg_manifest *m, const manifest_node *node,
-                                    uint8_t out[CBERG_HASH_LEN]) {
+static cberg_status rollup_children(build_ctx *ctx, const cberg_manifest *m, const manifest_node *node, uint8_t out[CBERG_HASH_LEN]) {
     if (node->child_len == 0) {
         memset(out, 0, CBERG_HASH_LEN);
         return CBERG_OK;
@@ -253,9 +251,7 @@ static cberg_status rollup_children(build_ctx *ctx, const cberg_manifest *m, con
     return cberg_fingerprint(ctx->fp_names, ctx->fp_hashes, node->child_len, out);
 }
 
-static manifest_node *build_subtree(build_ctx *ctx, cberg_manifest *m, const cberg_manifest_entry *leaves, size_t lo,
-                                    size_t hi, size_t prefix, const char *name, const char *dir_path,
-                                    cberg_status *err) {
+static manifest_node *build_subtree(build_ctx *ctx, cberg_manifest *m, const cberg_manifest_entry *leaves, size_t lo, size_t hi, size_t prefix, const char *name, const char *dir_path, cberg_status *err) {
     manifest_node *node = cberg_arena_alloc(m->arena, sizeof(manifest_node));
     if (node == NULL) {
         *err = CBERG_ERR_OUT_OF_MEMORY;
@@ -473,8 +469,7 @@ static cberg_status collect_files(const cberg_manifest *m, const manifest_node *
     return CBERG_OK;
 }
 
-static cberg_status diff_node(const cberg_manifest *prev_m, const manifest_node *a, const cberg_manifest *next_m,
-                              const manifest_node *b, path_list *added, path_list *modified, path_list *deleted) {
+static cberg_status diff_node(const cberg_manifest *prev_m, const manifest_node *a, const cberg_manifest *next_m, const manifest_node *b, path_list *added, path_list *modified, path_list *deleted) {
     if (memcmp(a->hash, b->hash, CBERG_HASH_LEN) == 0) {
         return CBERG_OK;
     }
@@ -483,7 +478,8 @@ static cberg_status diff_node(const cberg_manifest *prev_m, const manifest_node 
     while (i < a->child_len || j < b->child_len) {
         const manifest_child *ca = i < a->child_len ? &a->children[i] : NULL;
         const manifest_child *cb = j < b->child_len ? &b->children[j] : NULL;
-        int cmp = ca == NULL ? 1 : cb == NULL ? -1 : strcmp(ca->name, cb->name);
+        int cmp = ca == NULL ? 1 : cb == NULL ? -1
+                                              : strcmp(ca->name, cb->name);
 
         cberg_status st = CBERG_OK;
         if (cmp < 0) {
@@ -505,8 +501,7 @@ static cberg_status diff_node(const cberg_manifest *prev_m, const manifest_node 
             i++;
             j++;
         } else if (!ca->is_dir && !cb->is_dir) {
-            if (memcmp(prev_m->entries[ca->u.leaf_index].hash, next_m->entries[cb->u.leaf_index].hash,
-                       CBERG_HASH_LEN) != 0) {
+            if (memcmp(prev_m->entries[ca->u.leaf_index].hash, next_m->entries[cb->u.leaf_index].hash, CBERG_HASH_LEN) != 0) {
                 st = path_push(modified, next_m->entries[cb->u.leaf_index].path);
             }
             i++;
@@ -534,8 +529,7 @@ static cberg_status diff_node(const cberg_manifest *prev_m, const manifest_node 
     return CBERG_OK;
 }
 
-cberg_status cberg_manifest_diff(const cberg_manifest *prev, const cberg_manifest *next,
-                                 cberg_manifest_changes *out_changes) {
+cberg_status cberg_manifest_diff(const cberg_manifest *prev, const cberg_manifest *next, cberg_manifest_changes *out_changes) {
     if (prev == NULL || next == NULL || out_changes == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }

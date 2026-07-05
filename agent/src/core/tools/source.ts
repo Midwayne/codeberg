@@ -1,4 +1,4 @@
-import type { ToolSet } from "ai";
+import type { ToolSet } from 'ai';
 
 /**
  * A named origin of agent tools. The Agent composes an ordered list of sources
@@ -16,9 +16,7 @@ export interface ToolSource {
  * a core tool. This is the single place that defines the agent's tool-merge
  * policy.
  */
-export async function collectTools(
-  sources: readonly ToolSource[],
-): Promise<ToolSet> {
+export async function collectTools(sources: readonly ToolSource[]): Promise<ToolSet> {
   const out: ToolSet = {};
   for (const source of sources) {
     const set = await source.tools();

@@ -265,8 +265,7 @@ static int json_object_read_key(const char *obj, const char *key, const char **o
     return 0;
 }
 
-int cberg_json_parse_qdrant_hits(const char *body, size_t k, uint64_t *out_ids, float *out_scores,
-                                 size_t *out_found) {
+int cberg_json_parse_qdrant_hits(const char *body, size_t k, uint64_t *out_ids, float *out_scores, size_t *out_found) {
     if (body == NULL || out_ids == NULL || out_scores == NULL || out_found == NULL) {
         return -1;
     }

@@ -10,8 +10,7 @@ void cberg_search_config_default(cberg_search_config *config) {
     config->min_expansion_search = 64;
 }
 
-cberg_status cberg_search_vector(cberg_index *index, const float *query_vec, const cberg_search_config *config,
-                                 size_t k, uint64_t *out_ids, float *out_scores, size_t *out_found) {
+cberg_status cberg_search_vector(cberg_index *index, const float *query_vec, const cberg_search_config *config, size_t k, uint64_t *out_ids, float *out_scores, size_t *out_found) {
     if (index == NULL || query_vec == NULL || out_ids == NULL || out_scores == NULL || out_found == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
@@ -34,9 +33,7 @@ cberg_status cberg_search_vector(cberg_index *index, const float *query_vec, con
     return cberg_index_search(index, query_vec, k, &opts, out_ids, out_scores, out_found);
 }
 
-cberg_status cberg_search_query(cberg_embedder *embedder, cberg_index *index, const char *query, size_t query_len,
-                                const cberg_search_config *config, size_t k, uint64_t *out_ids, float *out_scores,
-                                size_t *out_found) {
+cberg_status cberg_search_query(cberg_embedder *embedder, cberg_index *index, const char *query, size_t query_len, const cberg_search_config *config, size_t k, uint64_t *out_ids, float *out_scores, size_t *out_found) {
     if (embedder == NULL || index == NULL || query == NULL || out_ids == NULL || out_scores == NULL ||
         out_found == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;

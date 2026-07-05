@@ -1,6 +1,6 @@
-import { generateText, type LanguageModel } from "ai";
+import { generateText, type LanguageModel } from 'ai';
 
-import type { Generator, Prompt } from "./types.js";
+import type { Generator, Prompt } from './types.js';
 
 export function fromAiSdk(model: LanguageModel): Generator {
   return {

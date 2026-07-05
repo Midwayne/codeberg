@@ -1,32 +1,24 @@
-import { readFile } from "node:fs/promises";
-import {
-  createServer,
-  type IncomingMessage,
-  type Server,
-  type ServerResponse,
-} from "node:http";
-import { extname, join, resolve, sep } from "node:path";
+import { readFile } from 'node:fs/promises';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { extname, join, resolve, sep } from 'node:path';
 
-import { pipeAgentUIStreamToResponse, type ToolLoopAgent } from "ai";
+import { pipeAgentUIStreamToResponse, type ToolLoopAgent } from 'ai';
 
-import { promptCommandCatalog, type PromptCommand } from "../core/hooks/index.js";
-import { CHAT_PAGE_HTML } from "./page.js";
-import { WebSessionStore, isValidSessionId } from "./sessions.js";
+import { promptCommandCatalog, type PromptCommand } from '../core/hooks/index.js';
+import { CHAT_PAGE_HTML } from './page.js';
+import { WebSessionStore, isValidSessionId } from './sessions.js';
 
 /** The endpoint the browser chat client posts its message history to. */
-export const CHAT_PATH = "/api/chat";
+export const CHAT_PATH = '/api/chat';
 /** Lightweight metadata (active model/daemon) for the UI title bar. */
-export const META_PATH = "/api/meta";
+export const META_PATH = '/api/meta';
 /** Slash-command catalog (e.g. `/enhance`) for the composer autocomplete. */
-export const COMMANDS_PATH = "/api/commands";
+export const COMMANDS_PATH = '/api/commands';
 /** Saved-chat CRUD: list (`GET`), and load/save/delete one at `/api/sessions/<id>`. */
-export const SESSIONS_PATH = "/api/sessions";
+export const SESSIONS_PATH = '/api/sessions';
 
 /** Streams an agent turn to a Node response, given the client's UI messages. */
-export type ChatResponder = (
-  res: ServerResponse,
-  messages: unknown[],
-) => Promise<void>;
+export type ChatResponder = (res: ServerResponse, messages: unknown[]) => Promise<void>;
 
 export interface WebServerOptions {
   /** The ai-sdk agent driving each turn — the same one `runAgentTUI` uses. */
@@ -85,7 +77,7 @@ export function createRequestHandler(
       // `respond` writes the SSE headers itself, so only set a status if the
       // stream had not started yet.
       if (!res.headersSent) {
-        res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
       }
       res.end(`internal error: ${String(err)}`);
     });
@@ -99,52 +91,52 @@ async function route(
   respond: ChatResponder,
   sessions: WebSessionStore,
 ): Promise<void> {
-  const path = (req.url ?? "/").split("?")[0];
+  const path = (req.url ?? '/').split('?')[0];
 
-  if (req.method === "POST" && path === CHAT_PATH) {
+  if (req.method === 'POST' && path === CHAT_PATH) {
     const body = await readJson(req);
     const messages = Array.isArray(body?.messages) ? body.messages : [];
     await respond(res, messages);
     return;
   }
 
-  if (req.method === "GET" && path === META_PATH) {
-    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+  if (req.method === 'GET' && path === META_PATH) {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({ title: opts.title }));
     return;
   }
 
-  if (req.method === "GET" && path === COMMANDS_PATH) {
+  if (req.method === 'GET' && path === COMMANDS_PATH) {
     sendJson(res, 200, opts.commands ?? promptCommandCatalog());
     return;
   }
 
-  if (path === SESSIONS_PATH || path.startsWith(SESSIONS_PATH + "/")) {
+  if (path === SESSIONS_PATH || path.startsWith(SESSIONS_PATH + '/')) {
     await routeSessions(req, res, sessions, path);
     return;
   }
 
   // Unknown API routes 404 rather than falling through to the SPA, so a bad
   // method or path doesn't silently return HTML.
-  if (path.startsWith("/api/")) {
-    res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
-    res.end("not found");
+  if (path.startsWith('/api/')) {
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('not found');
     return;
   }
 
-  if (req.method === "GET") {
+  if (req.method === 'GET') {
     if (await serveStatic(res, opts.staticRoot, path)) {
       return;
     }
     // Fallback: the embedded dependency-free page (no build needed).
-    const html = CHAT_PAGE_HTML.replaceAll("{{TITLE}}", escapeHtml(opts.title));
-    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    const html = CHAT_PAGE_HTML.replaceAll('{{TITLE}}', escapeHtml(opts.title));
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(html);
     return;
   }
 
-  res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
-  res.end("not found");
+  res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+  res.end('not found');
 }
 
 /**
@@ -159,12 +151,12 @@ async function routeSessions(
   store: WebSessionStore,
   path: string,
 ): Promise<void> {
-  const rest = decodeURIComponent(path.slice(SESSIONS_PATH.length).replace(/^\//, ""));
+  const rest = decodeURIComponent(path.slice(SESSIONS_PATH.length).replace(/^\//, ''));
 
   // Collection: list saved chats.
-  if (rest === "") {
-    if (req.method !== "GET") {
-      return sendText(res, 405, "method not allowed");
+  if (rest === '') {
+    if (req.method !== 'GET') {
+      return sendText(res, 405, 'method not allowed');
     }
     return sendJson(res, 200, await store.list());
   }
@@ -172,46 +164,46 @@ async function routeSessions(
   // Item: one chat by id.
   const id = rest;
   if (!isValidSessionId(id)) {
-    return sendText(res, 400, "invalid session id");
+    return sendText(res, 400, 'invalid session id');
   }
 
   switch (req.method) {
-    case "GET": {
+    case 'GET': {
       const record = await store.load(id);
-      return record ? sendJson(res, 200, record) : sendText(res, 404, "not found");
+      return record ? sendJson(res, 200, record) : sendText(res, 404, 'not found');
     }
-    case "PUT": {
+    case 'PUT': {
       const body = await readJson(req);
       const messages = Array.isArray(body?.messages) ? body.messages : [];
-      const rawTitle = typeof body?.title === "string" ? body.title.trim() : "";
+      const rawTitle = typeof body?.title === 'string' ? body.title.trim() : '';
       const now = Date.now();
       const existing = await store.load(id);
       await store.save({
         id,
-        title: rawTitle || "New chat",
+        title: rawTitle || 'New chat',
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
         messages,
       });
       return sendJson(res, 200, { ok: true });
     }
-    case "DELETE": {
+    case 'DELETE': {
       await store.remove(id);
       res.writeHead(204).end();
       return;
     }
     default:
-      return sendText(res, 405, "method not allowed");
+      return sendText(res, 405, 'method not allowed');
   }
 }
 
 function sendJson(res: ServerResponse, status: number, value: unknown): void {
-  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(value));
 }
 
 function sendText(res: ServerResponse, status: number, body: string): void {
-  res.writeHead(status, { "Content-Type": "text/plain; charset=utf-8" });
+  res.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8' });
   res.end(body);
 }
 
@@ -229,14 +221,14 @@ async function serveStatic(
     return false;
   }
 
-  if (urlPath !== "/") {
+  if (urlPath !== '/') {
     const file = safeJoin(staticRoot, urlPath);
     if (file) {
       try {
         const data = await readFile(file);
         res.writeHead(200, {
-          "Content-Type": contentType(file),
-          "Cache-Control": "public, max-age=31536000, immutable",
+          'Content-Type': contentType(file),
+          'Cache-Control': 'public, max-age=31536000, immutable',
         });
         res.end(data);
         return true;
@@ -247,8 +239,8 @@ async function serveStatic(
   }
 
   try {
-    const html = await readFile(join(staticRoot, "index.html"));
-    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    const html = await readFile(join(staticRoot, 'index.html'));
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(html);
     return true;
   } catch {
@@ -270,25 +262,23 @@ function safeJoin(root: string, urlPath: string): string | null {
 }
 
 const CONTENT_TYPES: Record<string, string> = {
-  ".html": "text/html; charset=utf-8",
-  ".js": "text/javascript; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".svg": "image/svg+xml",
-  ".png": "image/png",
-  ".ico": "image/x-icon",
-  ".woff2": "font/woff2",
-  ".woff": "font/woff",
-  ".map": "application/json; charset=utf-8",
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
+  '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
+  '.map': 'application/json; charset=utf-8',
 };
 
 function contentType(file: string): string {
-  return CONTENT_TYPES[extname(file).toLowerCase()] ?? "application/octet-stream";
+  return CONTENT_TYPES[extname(file).toLowerCase()] ?? 'application/octet-stream';
 }
 
-async function readJson(
-  req: IncomingMessage,
-): Promise<Record<string, unknown> | null> {
+async function readJson(req: IncomingMessage): Promise<Record<string, unknown> | null> {
   const chunks: Buffer[] = [];
   for await (const chunk of req) {
     chunks.push(chunk as Buffer);
@@ -297,7 +287,7 @@ async function readJson(
     return null;
   }
   try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
   } catch {
     return null;
   }
@@ -305,8 +295,8 @@ async function readJson(
 
 function escapeHtml(s: string): string {
   return s
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
 }

@@ -155,7 +155,8 @@ static void *del_worker(void *arg) {
     return NULL;
 }
 
-enum { NRACE = 40, NTHREADS = 4 };
+enum { NRACE = 40,
+       NTHREADS = 4 };
 
 /* Run `worker` on NTHREADS threads, each touching NRACE/NTHREADS files named
  * "<prefix><i>.go", and wait for all of them. */
@@ -163,8 +164,7 @@ static void race_run(const char *dir, const char *prefix, void *(*worker)(void *
     pthread_t th[NTHREADS];
     file_job jobs[NTHREADS];
     for (int t = 0; t < NTHREADS; t++) {
-        jobs[t] = (file_job){.dir = dir, .prefix = prefix, .start = t * (NRACE / NTHREADS),
-                             .count = NRACE / NTHREADS};
+        jobs[t] = (file_job){.dir = dir, .prefix = prefix, .start = t * (NRACE / NTHREADS), .count = NRACE / NTHREADS};
         CHECK(pthread_create(&th[t], NULL, worker, &jobs[t]) == 0, "racing: spawn worker");
     }
     for (int t = 0; t < NTHREADS; t++) {
@@ -265,9 +265,9 @@ int main(void) {
     write_file(dir, "keep.go", "package main\nfunc K(){}\n");
     write_file(dir, "doomed.go", "package main\nfunc D(){}\n");
     drain(w);
-    write_file(dir, "fresh.go", "package main\nfunc F(){}\n");                /* create */
-    write_file(dir, "keep.go", "package main\nfunc K(){}\nfunc K2(){}\n");    /* modify */
-    rm_file(dir, "doomed.go");                                               /* delete */
+    write_file(dir, "fresh.go", "package main\nfunc F(){}\n");             /* create */
+    write_file(dir, "keep.go", "package main\nfunc K(){}\nfunc K2(){}\n"); /* modify */
+    rm_file(dir, "doomed.go");                                             /* delete */
     n = collect(w, got, 700, &err);
     CHECK(err == CBERG_OK, "mixed: no poll error");
     CHECK(find_kind(got, n, "fresh.go", &k) && k != CBERG_WATCH_DELETE, "mixed: create not delete");

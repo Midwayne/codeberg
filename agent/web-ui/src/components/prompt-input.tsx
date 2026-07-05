@@ -1,14 +1,10 @@
-import { ArrowUp, Square } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowUp, Square } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { CommandMenu } from "@/components/command-menu";
-import {
-  commandQuery,
-  matchCommands,
-  type PromptCommand,
-} from "@/lib/commands";
-import { useCommands } from "@/lib/use-commands";
-import { cn } from "@/lib/utils";
+import { CommandMenu } from '@/components/command-menu';
+import { commandQuery, matchCommands, type PromptCommand } from '@/lib/commands';
+import { useCommands } from '@/lib/use-commands';
+import { cn } from '@/lib/utils';
 
 const MAX_HEIGHT = 200;
 
@@ -30,7 +26,7 @@ export function PromptInput({
   onSend: (text: string) => void;
   onStop: () => void;
 }) {
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const [dismissed, setDismissed] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -46,7 +42,7 @@ export function PromptInput({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    el.style.height = "auto";
+    el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, MAX_HEIGHT)}px`;
   }, [value]);
 
@@ -59,7 +55,7 @@ export function PromptInput({
     const text = value.trim();
     if (!text || busy) return;
     onSend(text);
-    setValue("");
+    setValue('');
     setDismissed(false);
   }
 
@@ -77,28 +73,28 @@ export function PromptInput({
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (menuOpen) {
-      if (e.key === "ArrowDown") {
+      if (e.key === 'ArrowDown') {
         e.preventDefault();
         setActiveIndex((i) => (i + 1) % matches.length);
         return;
       }
-      if (e.key === "ArrowUp") {
+      if (e.key === 'ArrowUp') {
         e.preventDefault();
         setActiveIndex((i) => (i - 1 + matches.length) % matches.length);
         return;
       }
-      if (e.key === "Enter" || e.key === "Tab") {
+      if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault();
         accept(matches[Math.min(activeIndex, matches.length - 1)]);
         return;
       }
-      if (e.key === "Escape") {
+      if (e.key === 'Escape') {
         e.preventDefault();
         setDismissed(true);
         return;
       }
     }
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       submit();
     }
@@ -144,8 +140,8 @@ export function PromptInput({
           aria-label="Send"
           title="Send"
           className={cn(
-            "inline-flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-opacity",
-            "hover:opacity-90 disabled:opacity-30",
+            'inline-flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-opacity',
+            'hover:opacity-90 disabled:opacity-30',
           )}
         >
           <ArrowUp className="size-4" />

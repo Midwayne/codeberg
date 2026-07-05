@@ -1,12 +1,10 @@
-import type { ModelMessage, ToolLoopAgent } from "ai";
+import type { ModelMessage, ToolLoopAgent } from 'ai';
 
-import { withMessageTransforms } from "./loop.js";
+import { withMessageTransforms } from './loop.js';
 
 /** Compacts a transcript to the model's history budget (summarizing the
  *  overflow). Same shape as `Agent.historyCompactor()`. */
-export type HistoryCompactor = (
-  messages: ModelMessage[],
-) => Promise<ModelMessage[]>;
+export type HistoryCompactor = (messages: ModelMessage[]) => Promise<ModelMessage[]>;
 
 /**
  * Wrap a `ToolLoopAgent` so each call's transcript is compacted to the model's

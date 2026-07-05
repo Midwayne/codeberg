@@ -3,9 +3,9 @@
 
 #include "codeberg/codeberg.h"
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdbool.h>
 
 typedef struct cberg_strmap cberg_strmap;
 

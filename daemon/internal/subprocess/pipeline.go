@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	maxOutput   = 256 * 1024
-	runTimeout  = 15 * time.Second
+	maxOutput  = 256 * 1024
+	runTimeout = 15 * time.Second
 )
 
 // Result is the output of a validated read-only pipeline.

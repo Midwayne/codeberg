@@ -1,5 +1,5 @@
-#include "../provider.h"
 #include "../common.h"
+#include "../provider.h"
 
 #ifdef CBERG_WITH_PGVECTOR
 
@@ -87,9 +87,7 @@ static void pgvector_backend_destroy(void *impl) {
 
 static cberg_status pgvector_ensure_hnsw(pgvector_backend *b) {
     char sql[512];
-    snprintf(sql, sizeof sql,
-             "CREATE INDEX IF NOT EXISTS %s_embedding_hnsw ON %s USING hnsw (embedding vector_cosine_ops)",
-             b->table, b->table_ident);
+    snprintf(sql, sizeof sql, "CREATE INDEX IF NOT EXISTS %s_embedding_hnsw ON %s USING hnsw (embedding vector_cosine_ops)", b->table, b->table_ident);
     return pg_exec(b, sql);
 }
 
@@ -100,10 +98,9 @@ static cberg_status pgvector_ensure_schema(pgvector_backend *b) {
     }
 
     char exists_sql[1024];
-    snprintf(exists_sql, sizeof exists_sql,
-             "SELECT a.atttypmod FROM pg_attribute a "
-             "JOIN pg_class c ON c.oid = a.attrelid "
-             "WHERE c.oid = to_regclass('%s') AND a.attname = 'embedding' AND NOT a.attisdropped",
+    snprintf(exists_sql, sizeof exists_sql, "SELECT a.atttypmod FROM pg_attribute a "
+                                            "JOIN pg_class c ON c.oid = a.attrelid "
+                                            "WHERE c.oid = to_regclass('%s') AND a.attname = 'embedding' AND NOT a.attisdropped",
              b->table);
     cberg_status conn_st = pgvector_ensure_conn(b);
     if (conn_st != CBERG_OK) {
@@ -125,8 +122,7 @@ static cberg_status pgvector_ensure_schema(pgvector_backend *b) {
     PQclear(res);
 
     char create_sql[512];
-    snprintf(create_sql, sizeof create_sql,
-             "CREATE TABLE IF NOT EXISTS %s (id BIGINT PRIMARY KEY, embedding vector(%zu))", b->table_ident, b->dim);
+    snprintf(create_sql, sizeof create_sql, "CREATE TABLE IF NOT EXISTS %s (id BIGINT PRIMARY KEY, embedding vector(%zu))", b->table_ident, b->dim);
     st = pg_exec(b, create_sql);
     if (st != CBERG_OK) {
         return st;
@@ -179,7 +175,9 @@ static cberg_status pgvector_backend_add(void *impl, uint64_t id, const float *v
     char *sql = pgvector_sql_format(
         "INSERT INTO %s (id, embedding) VALUES (%llu, '%s'::vector) "
         "ON CONFLICT (id) DO UPDATE SET embedding = EXCLUDED.embedding",
-        b->table_ident, (unsigned long long)id, literal);
+        b->table_ident,
+        (unsigned long long)id,
+        literal);
     free(literal);
     if (sql == NULL) {
         return CBERG_ERR_OUT_OF_MEMORY;
@@ -214,9 +212,7 @@ static cberg_status pgvector_backend_remove(void *impl, uint64_t id) {
     return n == 0 ? CBERG_ERR_NOT_FOUND : CBERG_OK;
 }
 
-static cberg_status pgvector_backend_search(void *impl, const float *query, size_t dim, size_t k,
-                                            size_t expansion_search, uint64_t *out_ids, float *out_scores,
-                                            size_t *out_found) {
+static cberg_status pgvector_backend_search(void *impl, const float *query, size_t dim, size_t k, size_t expansion_search, uint64_t *out_ids, float *out_scores, size_t *out_found) {
     (void)expansion_search;
     pgvector_backend *b = impl;
     if (b == NULL || query == NULL || dim != b->dim || out_ids == NULL || out_scores == NULL || out_found == NULL) {
@@ -230,7 +226,10 @@ static cberg_status pgvector_backend_search(void *impl, const float *query, size
     }
     char *sql = pgvector_sql_format("SELECT id, 1 - (embedding <=> '%s'::vector) AS score "
                                     "FROM %s ORDER BY embedding <=> '%s'::vector LIMIT %zu",
-                                    literal, b->table_ident, literal, k);
+                                    literal,
+                                    b->table_ident,
+                                    literal,
+                                    k);
     free(literal);
     if (sql == NULL) {
         return CBERG_ERR_OUT_OF_MEMORY;
@@ -274,8 +273,7 @@ static cberg_status pgvector_backend_clear(void *impl) {
     return pg_exec(b, sql);
 }
 
-static cberg_status pgvector_open(const char *path, size_t dim, const cberg_index_config *config,
-                                  cberg_index_backend **out_backend) {
+static cberg_status pgvector_open(const char *path, size_t dim, const cberg_index_config *config, cberg_index_backend **out_backend) {
     if (path == NULL || dim == 0 || config == NULL || config->postgres_url == NULL ||
         config->postgres_url[0] == '\0' || out_backend == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
@@ -313,8 +311,7 @@ static cberg_status pgvector_open(const char *path, size_t dim, const cberg_inde
     }
 
     cberg_index_backend *backend =
-        cberg_index_backend_new(b, pgvector_backend_destroy, pgvector_backend_add, pgvector_backend_remove,
-                                pgvector_backend_search, pgvector_backend_save, pgvector_backend_clear);
+        cberg_index_backend_new(b, pgvector_backend_destroy, pgvector_backend_add, pgvector_backend_remove, pgvector_backend_search, pgvector_backend_save, pgvector_backend_clear);
     if (backend == NULL) {
         pgvector_backend_destroy(b);
         return CBERG_ERR_OUT_OF_MEMORY;
@@ -361,8 +358,7 @@ const cberg_index_provider_ops cberg_pgvector_provider = {
 
 #else /* !CBERG_WITH_PGVECTOR */
 
-static cberg_status pgvector_open(const char *path, size_t dim, const cberg_index_config *config,
-                                  cberg_index_backend **out_backend) {
+static cberg_status pgvector_open(const char *path, size_t dim, const cberg_index_config *config, cberg_index_backend **out_backend) {
     (void)path;
     (void)dim;
     (void)config;

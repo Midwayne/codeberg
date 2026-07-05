@@ -19,12 +19,12 @@ static float *unit_vector(size_t dim, size_t axis) {
 int index_provider_test_usearch_expansion_restore(void) {
     const char *label = "usearch-expansion";
     int local_failures = 0;
-#define ECHECK(cond, msg)                                                                              \
-    do {                                                                                               \
-        if (!(cond)) {                                                                                 \
-            fprintf(stderr, "FAIL [%s]: %s (%s:%d)\n", label, msg, __FILE__, __LINE__);               \
-            local_failures++;                                                                          \
-        }                                                                                              \
+#define ECHECK(cond, msg)                                                               \
+    do {                                                                                \
+        if (!(cond)) {                                                                  \
+            fprintf(stderr, "FAIL [%s]: %s (%s:%d)\n", label, msg, __FILE__, __LINE__); \
+            local_failures++;                                                           \
+        }                                                                               \
     } while (0)
 
     char path[] = "/tmp/cberg_expansion_XXXXXX";

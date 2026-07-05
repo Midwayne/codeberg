@@ -1,4 +1,4 @@
-import type { SearchOptions, SearchResult, ToolSpec } from "./types.js";
+import type { SearchOptions, SearchResult, ToolSpec } from './types.js';
 
 export interface DaemonHealth {
   ready: boolean;
@@ -21,7 +21,7 @@ export class DaemonError extends Error {
     readonly status: number,
   ) {
     super(message);
-    this.name = "DaemonError";
+    this.name = 'DaemonError';
   }
 }
 
@@ -29,7 +29,7 @@ export class DaemonClient {
   constructor(private readonly baseUrl: string) {}
 
   async health(): Promise<DaemonHealth> {
-    const res = await fetch(new URL("/health", this.baseUrl));
+    const res = await fetch(new URL('/health', this.baseUrl));
     const body = (await res.json()) as DaemonHealth & DaemonErrorBody;
     if (!res.ok) {
       throw parseError(res.status, body);
@@ -47,29 +47,31 @@ export class DaemonClient {
       }
       await sleep(250);
     }
-    throw new DaemonError("NOT_READY", "daemon indexer not ready", 503);
+    throw new DaemonError('NOT_READY', 'daemon indexer not ready', 503);
   }
 
   async search(query: string, opts: SearchOptions = {}): Promise<SearchResult[]> {
-    const url = new URL("/search", this.baseUrl);
-    url.searchParams.set("q", query);
+    const url = new URL('/search', this.baseUrl);
+    url.searchParams.set('q', query);
     if (opts.k != null) {
-      url.searchParams.set("k", String(opts.k));
+      url.searchParams.set('k', String(opts.k));
     }
     if (opts.repo) {
-      url.searchParams.set("repo", opts.repo);
+      url.searchParams.set('repo', opts.repo);
     }
     if (opts.path_glob) {
-      url.searchParams.set("path_glob", opts.path_glob);
+      url.searchParams.set('path_glob', opts.path_glob);
     }
     if (opts.kind) {
-      url.searchParams.set("kind", opts.kind);
+      url.searchParams.set('kind', opts.kind);
     }
     if (opts.min_score != null) {
-      url.searchParams.set("min_score", String(opts.min_score));
+      url.searchParams.set('min_score', String(opts.min_score));
     }
     const res = await fetch(url);
-    const body = (await res.json()) as { results: SearchResult[] } & DaemonErrorBody;
+    const body = (await res.json()) as {
+      results: SearchResult[];
+    } & DaemonErrorBody;
     if (!res.ok) {
       throw parseError(res.status, body);
     }
@@ -77,9 +79,13 @@ export class DaemonClient {
   }
 
   async listTools(): Promise<ToolSpec[]> {
-    const res = await fetch(new URL("/tools", this.baseUrl));
+    const res = await fetch(new URL('/tools', this.baseUrl));
     const body = (await res.json()) as {
-      tools: { name: string; description: string; schema: Record<string, unknown> }[];
+      tools: {
+        name: string;
+        description: string;
+        schema: Record<string, unknown>;
+      }[];
     } & DaemonErrorBody;
     if (!res.ok) {
       throw parseError(res.status, body);
@@ -92,9 +98,9 @@ export class DaemonClient {
   }
 
   async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
-    const res = await fetch(new URL("/tools/call", this.baseUrl), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    const res = await fetch(new URL('/tools/call', this.baseUrl), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, args }),
     });
     const body = (await res.json()) as { result: unknown } & DaemonErrorBody;
@@ -106,22 +112,22 @@ export class DaemonClient {
 }
 
 function parseError(status: number, body: DaemonErrorBody | { message?: string }): DaemonError {
-  if ("code" in body && body.code) {
+  if ('code' in body && body.code) {
     return new DaemonError(body.code, body.message, status);
   }
-  return new DaemonError("DAEMON_ERROR", String(body.message ?? status), status);
+  return new DaemonError('DAEMON_ERROR', String(body.message ?? status), status);
 }
 
 function normalizeHit(r: SearchResult): SearchResult {
   return {
     id: Number(r.id),
     ...(r.repo ? { repo: r.repo } : {}),
-    path: r.path ?? "",
-    symbol: r.symbol ?? "",
+    path: r.path ?? '',
+    symbol: r.symbol ?? '',
     start_line: Number(r.start_line ?? 0),
     end_line: Number(r.end_line ?? 0),
     score: Number(r.score ?? 0),
-    snippet: r.snippet ?? "",
+    snippet: r.snippet ?? '',
   };
 }
 

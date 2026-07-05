@@ -1,9 +1,9 @@
-import { FileCode, Loader2, Search } from "lucide-react";
+import { FileCode, Loader2, Search } from 'lucide-react';
 
-import { Response } from "@/components/response";
-import { Collapsible, CopyButton } from "@/components/ui";
-import { langFromPath } from "@/lib/utils";
-import type { ToolView } from "@/components/message";
+import { Response } from '@/components/response';
+import { Collapsible, CopyButton } from '@/components/ui';
+import { langFromPath } from '@/lib/utils';
+import type { ToolView } from '@/components/message';
 
 interface Hit {
   id?: number | string;
@@ -22,15 +22,15 @@ interface Hit {
  */
 export function SearchResults({ part }: { part: ToolView }) {
   const query =
-    part.input && typeof part.input === "object"
+    part.input && typeof part.input === 'object'
       ? (part.input as { query?: string }).query
       : undefined;
 
-  if (part.state !== "output-available") {
+  if (part.state !== 'output-available') {
     return (
       <div className="my-2 flex items-center gap-2 text-xs text-muted-foreground">
         <Loader2 className="size-3.5 animate-spin" />
-        <span>Searching{query ? ` for “${query}”` : ""}…</span>
+        <span>Searching{query ? ` for “${query}”` : ''}…</span>
       </div>
     );
   }
@@ -44,8 +44,8 @@ export function SearchResults({ part }: { part: ToolView }) {
   return (
     <Collapsible
       icon={<Search className="size-3.5" />}
-      title={`${hits.length} result${hits.length === 1 ? "" : "s"}${
-        query ? ` for “${query}”` : ""
+      title={`${hits.length} result${hits.length === 1 ? '' : 's'}${
+        query ? ` for “${query}”` : ''
       }`}
       defaultOpen
     >
@@ -59,7 +59,7 @@ export function SearchResults({ part }: { part: ToolView }) {
 }
 
 function SourceCard({ hit }: { hit: Hit }) {
-  const path = hit.path ?? "";
+  const path = hit.path ?? '';
   const lang = langFromPath(path);
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card">
@@ -85,9 +85,7 @@ function SourceCard({ hit }: { hit: Hit }) {
         />
       </div>
       {hit.symbol && (
-        <div className="px-3 pt-2 font-mono text-xs text-muted-foreground">
-          {hit.symbol}
-        </div>
+        <div className="px-3 pt-2 font-mono text-xs text-muted-foreground">{hit.symbol}</div>
       )}
       {hit.snippet && (
         <div className="px-3 py-2 text-xs">

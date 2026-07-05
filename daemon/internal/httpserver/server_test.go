@@ -15,9 +15,9 @@ import (
 )
 
 type fakeIndexer struct {
-	status  indexctl.Status
-	hits    []indexctl.SearchResult
-	gotOpts indexctl.SearchOptions
+	status   indexctl.Status
+	hits     []indexctl.SearchResult
+	gotOpts  indexctl.SearchOptions
 	getChunk func(context.Context, string, uint64) (indexctl.ChunkDetail, error)
 }
 

@@ -188,8 +188,7 @@ static cberg_status table_init_for_sync(cberg_chunk_table *next, size_t est_len)
     return CBERG_OK;
 }
 
-static cberg_status push_change_owned(cberg_stored_chunk **list, size_t *len, size_t *cap,
-                                      const cberg_stored_chunk *src) {
+static cberg_status push_change_owned(cberg_stored_chunk **list, size_t *len, size_t *cap, const cberg_stored_chunk *src) {
     cberg_stored_chunk snap = {.id = src->id};
     cberg_status st = store_chunk_copy(&src->chunk, &snap.chunk);
     if (st != CBERG_OK) {
@@ -361,8 +360,7 @@ static int compare_stored_id(const void *a, const void *b) {
     return 0;
 }
 
-static cberg_status sync_apply_incoming(cberg_chunk_table *next, const cberg_chunk_table *table, const cberg_chunk *inc,
-                                        bool *seen) {
+static cberg_status sync_apply_incoming(cberg_chunk_table *next, const cberg_chunk_table *table, const cberg_chunk *inc, bool *seen) {
     size_t next_index = 0;
     if (map_find(next, inc->key, &next_index)) {
         cberg_stored_chunk *slot = &next->entries[next_index];
@@ -446,8 +444,7 @@ static void table_commit(cberg_chunk_table *table, cberg_chunk_table *next) {
     table_adopt_scratch(table, next);
 }
 
-cberg_status cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk *incoming, size_t count,
-                                    cberg_changes *out_changes) {
+cberg_status cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk *incoming, size_t count, cberg_changes *out_changes) {
     if (table == NULL || out_changes == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }

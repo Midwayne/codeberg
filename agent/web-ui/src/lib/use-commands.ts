@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 
-import { listCommands, type PromptCommand } from "@/lib/commands";
+import { listCommands, type PromptCommand } from '@/lib/commands';
 
 /** Loads the server's slash-command catalog once for the composer autocomplete. */
 export function useCommands(): PromptCommand[] {

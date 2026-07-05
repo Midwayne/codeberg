@@ -40,8 +40,7 @@ int main(void) {
     fprintf(stderr, "cberg-index: %zu root(s) vectors=%d socket=%s\n", eng.repos_len, eng.vectors, eng.socket_path);
     for (size_t i = 0; i < eng.repos_len; i++) {
         cberg_repo *r = eng.repos[i];
-        fprintf(stderr, "cberg-index[%s]: root=%s index=%s\n", r->key, r->root,
-                r->index_path != NULL ? r->index_path : "(none)");
+        fprintf(stderr, "cberg-index[%s]: root=%s index=%s\n", r->key, r->root, r->index_path != NULL ? r->index_path : "(none)");
     }
 
     /* Bootstrap repos sequentially — the shared embedder is the throughput
@@ -57,8 +56,7 @@ int main(void) {
             continue;
         }
         ok++;
-        fprintf(stderr, "cberg-index[%s]: bootstrap complete: %zu chunks indexed\n", r->key,
-                cberg_repo_chunk_count(r));
+        fprintf(stderr, "cberg-index[%s]: bootstrap complete: %zu chunks indexed\n", r->key, cberg_repo_chunk_count(r));
     }
     if (ok == 0 && !eng.stop) {
         fprintf(stderr, "cberg-index: bootstrap: no repo could be indexed\n");
@@ -68,8 +66,7 @@ int main(void) {
     }
     eng.bootstrapped = 1;
     if (eng.repos_len > 1) {
-        fprintf(stderr, "cberg-index: bootstrap complete: %zu chunks across %zu/%zu repos\n",
-                cberg_engine_chunk_count(&eng), ok, eng.repos_len);
+        fprintf(stderr, "cberg-index: bootstrap complete: %zu chunks across %zu/%zu repos\n", cberg_engine_chunk_count(&eng), ok, eng.repos_len);
     }
 
     st = cberg_engine_run(&eng);
