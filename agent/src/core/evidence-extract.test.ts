@@ -51,4 +51,14 @@ describe('extractEvidence', () => {
   it('returns empty for unknown tools', () => {
     expect(extractEvidence('read_file', { content: 'x' })).toEqual([]);
   });
+
+  it('caps bulk grep matches', () => {
+    const rows = Array.from({ length: 50 }, (_, i) => ({
+      repo: 'main',
+      path: `f${i}.go`,
+      line: i + 1,
+      text: 'hit',
+    }));
+    expect(extractEvidence('grep', rows)).toHaveLength(20);
+  });
 });

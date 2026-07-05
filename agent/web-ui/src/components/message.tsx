@@ -1,9 +1,10 @@
-import { RefreshCw } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { Brain, RefreshCw } from 'lucide-react';
 import type { UIMessage } from 'ai';
 
 import { Response } from '@/components/response';
 import { ToolViewRouter } from '@/components/tool-views';
-import { CopyButton, IconButton } from '@/components/ui';
+import { Collapsible, CopyButton, IconButton } from '@/components/ui';
 import { cn } from '@/lib/utils';
 
 type AnyPart = UIMessage['parts'][number];
@@ -61,9 +62,11 @@ function Part({ part }: { part: AnyPart }) {
 function Reasoning({ text }: { text: string }) {
   if (!text?.trim()) return null;
   return (
-    <div className="rounded-lg border border-border px-3 py-2 text-xs leading-relaxed text-muted-foreground italic">
-      {text}
-    </div>
+    <Collapsible icon={<Brain className="size-3.5" />} title="Reasoning">
+      <Response className="space-y-2 text-xs leading-relaxed text-muted-foreground">
+        {text}
+      </Response>
+    </Collapsible>
   );
 }
 

@@ -39,16 +39,18 @@ src/
     workspace.tsx   useChat + session sidebar + auto-save
     chat.tsx        message list, prompt input, hook autocomplete
     message.tsx     renders text, reasoning, tool parts
-    sources.tsx     search_code hit cards (repo, path, lines, score)
+    tool-views.tsx  rich cards for daemon tools (search, grep, files, git, …)
   lib/
+    tool-hit.ts     normalize compact search_code / daemon hit shapes
     sessions.ts     CRUD client for /api/sessions/*
     commands.ts     fetches /api/commands for hook autocomplete
 ```
 
 ## Tool rendering
 
-- **`search_code`** — custom source cards in `sources.tsx` (path, symbol, snippet).
-- **Other daemon tools** — generic JSON tool cards in `message.tsx`.
+- **Search/index tools** — `search_code`, `hybrid_search`, `find_symbol`, `file_outline`, `get_chunk` show path, lines, snippet cards (collapsed by default).
+- **Lexical tools** — `grep`, `find_references` show match rows.
+- **File/repo tools** — `read_file`, `glob`, `tree`, `repos`, etc. have tailored views; unknown tools fall back to JSON.
 - **Reasoning** — collapsible when the model emits reasoning parts.
 
 ## Environment

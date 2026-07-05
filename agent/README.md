@@ -56,6 +56,20 @@ CODEBERG_MODEL=anthropic:claude-sonnet-4-6 CODEBERG_QUESTION="where is the main 
 argv (env wins over the positional argument). `provider:model` must contain a
 `:`; missing it, or an empty question, prints usage and exits 1.
 
+### Direct search (no LLM)
+
+`codeberg-search` queries the daemon's vector index directly — useful for quick
+lookups and scripting:
+
+```sh
+codeberg-search "how is chunking implemented?" --k 5
+codeberg-search authentication --kind function --path-glob 'daemon/*'
+codeberg-search "error handling" --hybrid --json
+```
+
+Options: `--repo`, `--path-glob`, `--kind`, `--min-score`, `--hybrid`,
+`--json`, `--daemon`. Requires a running `codeberg-d` with vector search enabled.
+
 ## TUI
 
 Interactive chat, rendered by ai-sdk's `runAgentTUI` — streamed tool calls,

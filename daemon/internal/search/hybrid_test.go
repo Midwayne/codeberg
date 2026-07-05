@@ -61,6 +61,21 @@ func TestHybridReranksByTermPresence(t *testing.T) {
 	}
 }
 
+func TestHybridIgnoresPathOnlyTermMatch(t *testing.T) {
+	candidates := []indexctl.SearchResult{
+		{ID: 1, Score: 0.95, Repo: "main", Path: "authentication.go", Snippet: "unrelated"},
+		{ID: 2, Score: 0.85, Repo: "main", Path: "other.go", Snippet: "authentication handler"},
+	}
+
+	out, err := Hybrid(context.Background(), candidates, "authentication handler", nil, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out[0].Hit.ID != 2 {
+		t.Fatalf("path-only match must not boost: %+v", out)
+	}
+}
+
 func TestHybridReadsEachFileOnce(t *testing.T) {
 	candidates := []indexctl.SearchResult{
 		{ID: 1, Score: 0.9, Repo: "main", Path: "dup.go", Snippet: "plain"},

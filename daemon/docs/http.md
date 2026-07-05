@@ -127,12 +127,13 @@ All tools are read-only and sandboxed to their repo's root.
 | `get_chunk` | Full indexed chunk body for a `(repo, id)` hit |
 | `find_symbol` | Case-insensitive symbol lookup in the chunk table |
 | `file_outline` | Indexed chunks in a file with line ranges |
-| `hybrid_search` | Vector search reranked by query-term presence in hit files |
+| `hybrid_search` | Vector search reranked by query-term presence in hit chunks |
 | `find_references` | Word-boundary grep for symbol usages |
 
-`hybrid_search` fetches `2×k` vector candidates, then adds **+0.05** per significant
-query term (length ≥ 3, stop words removed) found in the hit file body. Results are
-sorted by `final_score` and truncated to `k`.
+`hybrid_search` accepts the same filters as `search` (`repo`, `path_glob`, `kind`,
+`min_score`). It fetches `2×k` vector candidates, scores query terms against chunk
+snippet/symbol text (falling back to the full file when needed), adds **+0.05** per
+matching term, sorts by `final_score`, and truncates to `k`.
 
 `find_references` uses a word-boundary regex over `rg` — symbol must match as a
 whole token.

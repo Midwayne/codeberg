@@ -1,21 +1,39 @@
+import { normalizeSearchHit } from './search-hit.js';
 import type { SearchResult } from './types.js';
+
+/** Max citeable rows per tool — avoids flooding CLI sources from bulk grep/outline. */
+const EVIDENCE_LIMITS: Partial<Record<string, number>> = {
+  grep: 20,
+  find_references: 20,
+  file_outline: 32,
+};
 
 /** Pull citeable code locations from a daemon tool result for sources/ledger. */
 export function extractEvidence(toolName: string, output: unknown): SearchResult[] {
+  let hits: SearchResult[];
   switch (toolName) {
     case 'hybrid_search':
-      return extractHybridHits(output);
+      hits = extractHybridHits(output);
+      break;
     case 'find_symbol':
     case 'file_outline':
-      return extractSearchHits(output);
+      hits = extractSearchHits(output);
+      break;
     case 'get_chunk':
-      return extractChunkDetail(output);
+      hits = extractChunkDetail(output);
+      break;
     case 'grep':
     case 'find_references':
-      return extractGrepMatches(output);
+      hits = extractGrepMatches(output);
+      break;
     default:
       return [];
   }
+  const limit = EVIDENCE_LIMITS[toolName];
+  if (limit != null && hits.length > limit) {
+    return hits.slice(0, limit);
+  }
+  return hits;
 }
 
 function extractHybridHits(output: unknown): SearchResult[] {
@@ -27,7 +45,7 @@ function extractHybridHits(output: unknown): SearchResult[] {
       if (!row || typeof row !== 'object' || !('hit' in row)) {
         return null;
       }
-      return normalizeHit((row as { hit: unknown }).hit);
+      return normalizeSearchHit((row as { hit: unknown }).hit);
     })
     .filter((h): h is SearchResult => h != null);
 }
@@ -36,11 +54,11 @@ function extractSearchHits(output: unknown): SearchResult[] {
   if (!Array.isArray(output)) {
     return [];
   }
-  return output.map(normalizeHit).filter((h): h is SearchResult => h != null);
+  return output.map(normalizeSearchHit).filter((h): h is SearchResult => h != null);
 }
 
 function extractChunkDetail(output: unknown): SearchResult[] {
-  const hit = normalizeHit(output);
+  const hit = normalizeSearchHit(output);
   return hit ? [hit] : [];
 }
 
@@ -71,28 +89,4 @@ function extractGrepMatches(output: unknown): SearchResult[] {
     });
   }
   return out;
-}
-
-function normalizeHit(raw: unknown): SearchResult | null {
-  if (!raw || typeof raw !== 'object') {
-    return null;
-  }
-  const r = raw as Record<string, unknown>;
-  const path = typeof r.path === 'string' ? r.path : '';
-  if (!path) {
-    return null;
-  }
-  const id = Number(r.id ?? 0);
-  const start = Number(r.start_line ?? 0);
-  const end = Number(r.end_line ?? start);
-  return {
-    id,
-    ...(typeof r.repo === 'string' && r.repo ? { repo: r.repo } : {}),
-    path,
-    symbol: typeof r.symbol === 'string' ? r.symbol : '',
-    start_line: start,
-    end_line: end,
-    score: Number(r.score ?? 1),
-    snippet: typeof r.snippet === 'string' ? r.snippet : typeof r.body === 'string' ? r.body.slice(0, 400) : '',
-  };
 }

@@ -5,6 +5,22 @@ import type { SearchOptions } from '../core/types.js';
 
 const DEFAULT_DAEMON_URL = 'http://127.0.0.1:8080';
 
+const VALUE_FLAGS = new Set([
+  '--daemon',
+  '--k',
+  '--repo',
+  '--path-glob',
+  '--kind',
+  '--min-score',
+]);
+
+export class SearchCliError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SearchCliError';
+  }
+}
+
 export interface SearchCliOptions extends SearchOptions {
   daemonUrl: string;
   query: string;
@@ -12,13 +28,36 @@ export interface SearchCliOptions extends SearchOptions {
   json?: boolean;
 }
 
+function requireValue(flag: string, value: string | undefined): string {
+  if (value == null || value.trim() === '') {
+    throw new SearchCliError(`${flag} requires a value`);
+  }
+  return value;
+}
+
+function parsePositiveInt(flag: string, raw: string): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
+    throw new SearchCliError(`${flag} must be a positive integer`);
+  }
+  return n;
+}
+
+function parseScore(flag: string, raw: string): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0 || n > 1) {
+    throw new SearchCliError(`${flag} must be a number between 0 and 1`);
+  }
+  return n;
+}
+
 export function parseSearchArgs(
   argv: string[],
   env: NodeJS.ProcessEnv = process.env,
-): SearchCliOptions | null {
+): SearchCliOptions | 'help' {
   const args = argv.slice(2);
   if (args.length === 0 || args[0] === '--help' || args[0] === '-h') {
-    return null;
+    return 'help';
   }
 
   let daemonUrl = env.CODEBERG_DAEMON_URL ?? DEFAULT_DAEMON_URL;
@@ -33,39 +72,54 @@ export function parseSearchArgs(
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
-    switch (arg) {
-      case '--daemon':
-        daemonUrl = args[++i] ?? '';
-        break;
-      case '--k':
-        k = Number(args[++i]);
-        break;
-      case '--repo':
-        repo = args[++i];
-        break;
-      case '--path-glob':
-        path_glob = args[++i];
-        break;
-      case '--kind':
-        kind = args[++i];
-        break;
-      case '--min-score':
-        min_score = Number(args[++i]);
-        break;
-      case '--hybrid':
-        hybrid = true;
-        break;
-      case '--json':
-        json = true;
-        break;
-      default:
-        queryParts.push(arg);
+    if (arg === '--hybrid') {
+      hybrid = true;
+      continue;
     }
+    if (arg === '--json') {
+      json = true;
+      continue;
+    }
+    if (VALUE_FLAGS.has(arg)) {
+      const raw = requireValue(arg, args[++i]);
+      switch (arg) {
+        case '--daemon':
+          daemonUrl = raw;
+          break;
+        case '--k':
+          k = parsePositiveInt(arg, raw);
+          break;
+        case '--repo':
+          repo = raw;
+          break;
+        case '--path-glob':
+          path_glob = raw;
+          break;
+        case '--kind':
+          kind = raw;
+          break;
+        case '--min-score':
+          min_score = parseScore(arg, raw);
+          break;
+        default: {
+          const _never: never = arg;
+          throw new SearchCliError(`unknown flag: ${_never}`);
+        }
+      }
+      continue;
+    }
+    if (arg.startsWith('--')) {
+      throw new SearchCliError(`unknown option: ${arg}`);
+    }
+    queryParts.push(arg);
   }
 
   const query = queryParts.join(' ').trim();
   if (!query) {
-    return null;
+    throw new SearchCliError('query is required');
+  }
+  if (!daemonUrl.trim()) {
+    throw new SearchCliError('--daemon requires a non-empty URL');
   }
 
   return { daemonUrl, query, k, repo, path_glob, kind, min_score, hybrid, json };
@@ -86,6 +140,7 @@ export function searchUsage(program: string): string {
     '  --hybrid           rerank with lexical boost (daemon hybrid_search tool)\n' +
     '  --json             print raw JSON\n' +
     '  --daemon <url>     daemon base URL (default http://127.0.0.1:8080)\n' +
+    '  -h, --help         show this help\n' +
     '\n' +
     'Env: CODEBERG_DAEMON_URL\n' +
     '\n' +

@@ -13,21 +13,10 @@ import {
 import { Response } from '@/components/response';
 import type { ToolView } from '@/components/message';
 import { Collapsible, CopyButton } from '@/components/ui';
+import { normalizeToolHit, type ToolHit } from '@/lib/tool-hit';
 import { langFromPath } from '@/lib/utils';
 
-interface Hit {
-  id?: number | string;
-  repo?: string;
-  path?: string;
-  symbol?: string;
-  lines?: string;
-  start_line?: number;
-  end_line?: number;
-  score?: number;
-  snippet?: string;
-  body?: string;
-  kind?: string;
-}
+type Hit = ToolHit;
 
 interface GrepMatch {
   repo?: string;
@@ -148,7 +137,7 @@ function HybridSearchResults({ part }: { part: ToolView }) {
       if (!hit) return null;
       const boost = Number((row as { grep_boost?: number }).grep_boost ?? 0);
       const score = Number((row as { final_score?: number }).final_score ?? hit.score ?? 0);
-      return { ...hit, score, snippet: hit.snippet + (boost > 0 ? `\n// lexical boost: +${boost}` : '') };
+      return { ...hit, score, grep_boost: boost > 0 ? boost : undefined };
     })
     .filter((h): h is Hit => h != null);
   return (
@@ -405,6 +394,9 @@ function SourceCard({ hit }: { hit: Hit }) {
         {hit.score != null && (
           <span className="shrink-0 text-muted-foreground">{hit.score.toFixed(3)}</span>
         )}
+        {hit.grep_boost != null && hit.grep_boost > 0 && (
+          <span className="shrink-0 text-muted-foreground">+{hit.grep_boost} lex</span>
+        )}
         <CopyButton
           text={lines ? `${path}:${lines}` : path}
           className="ml-auto shrink-0"
@@ -448,40 +440,22 @@ function inputQuery(part: ToolView): string | undefined {
 
 function normalizeHits(output: unknown): Hit[] {
   if (!Array.isArray(output)) return [];
-  return output.map(normalizeHit).filter((h): h is Hit => h != null);
+  return output.map(normalizeToolHit).filter((h): h is Hit => h != null);
 }
 
 function normalizeHit(raw: unknown): Hit | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const r = raw as Record<string, unknown>;
-  const path = typeof r.path === 'string' ? r.path : '';
-  if (!path) return null;
-  return {
-    id: r.id as number | string | undefined,
-    repo: typeof r.repo === 'string' ? r.repo : undefined,
-    path,
-    symbol: typeof r.symbol === 'string' ? r.symbol : undefined,
-    kind: typeof r.kind === 'string' ? r.kind : undefined,
-    start_line: Number(r.start_line ?? 0) || undefined,
-    end_line: Number(r.end_line ?? 0) || undefined,
-    lines:
-      r.start_line != null
-        ? `${r.start_line}-${r.end_line ?? r.start_line}`
-        : undefined,
-    score: r.score != null ? Number(r.score) : undefined,
-    snippet:
-      typeof r.snippet === 'string'
-        ? r.snippet
-        : typeof r.body === 'string'
-          ? r.body.slice(0, 400)
-          : undefined,
-  };
+  return normalizeToolHit(raw);
 }
 
 function formatListItem(item: unknown): string {
   if (typeof item === 'string') return item;
   if (!item || typeof item !== 'object') return String(item);
   const o = item as Record<string, unknown>;
+  if (typeof o.path === 'string' && typeof o.depth === 'number') {
+    const indent = '  '.repeat(Math.max(0, Number(o.depth)));
+    const suffix = o.is_dir ? '/' : '';
+    return `${indent}${o.path}${suffix}`;
+  }
   if (typeof o.path === 'string') {
     const repo = typeof o.repo === 'string' && o.repo ? `[${o.repo}] ` : '';
     return `${repo}${o.path}`;

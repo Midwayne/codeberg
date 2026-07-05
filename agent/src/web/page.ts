@@ -328,15 +328,19 @@ function renderToolOutput(tc, output) {
 function renderHits(container, hits) {
   hits.forEach(function (h) {
     if (!h || !h.path) return;
+    var lines = h.lines;
+    if (!lines && h.start_line) {
+      lines = h.start_line + "-" + (h.end_line || h.start_line);
+    }
     var card = document.createElement("div");
     card.className = "hit";
     var hd = document.createElement("div");
     hd.className = "hit-hd";
     if (h.repo) { var repo = document.createElement("span"); repo.className = "hit-repo"; repo.textContent = h.repo; hd.appendChild(repo); }
     var path = document.createElement("span"); path.className = "hit-path"; path.textContent = h.path; hd.appendChild(path);
-    if (h.start_line) {
+    if (lines) {
       var ln = document.createElement("span"); ln.className = "hit-lines";
-      ln.textContent = ":" + h.start_line + "-" + (h.end_line || h.start_line);
+      ln.textContent = ":" + lines;
       hd.appendChild(ln);
     }
     card.appendChild(hd);

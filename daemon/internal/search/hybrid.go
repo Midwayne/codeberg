@@ -47,7 +47,7 @@ func Hybrid(ctx context.Context, candidates []indexctl.SearchResult, query strin
 		boost := 0
 
 		if len(terms) > 0 {
-			chunkText := strings.ToLower(strings.Join([]string{hit.Path, hit.Symbol, hit.Snippet}, "\n"))
+			chunkText := strings.ToLower(strings.Join([]string{hit.Symbol, hit.Snippet}, "\n"))
 			boost = termBoost(chunkText, terms)
 
 			if boost == 0 && read != nil {
