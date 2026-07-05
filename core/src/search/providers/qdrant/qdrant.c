@@ -191,10 +191,31 @@ static cberg_status qdrant_backend_add(void *impl, uint64_t id, const float *vec
     return CBERG_OK;
 }
 
+static int qdrant_point_exists(qdrant_backend *b, uint64_t id) {
+    char suffix[512];
+    snprintf(suffix, sizeof suffix, "collections/%s/points", b->collection);
+    char body[64];
+    snprintf(body, sizeof body, "{\"ids\":[%llu],\"with_payload\":false,\"with_vector\":false}",
+             (unsigned long long)id);
+    int status = 0;
+    char *resp = NULL;
+    cberg_status st = qdrant_request(b, "POST", suffix, body, strlen(body), &status, &resp);
+    if (st != CBERG_OK || status < 200 || status >= 300 || resp == NULL) {
+        free(resp);
+        return 0;
+    }
+    int exists = strstr(resp, "\"id\":") != NULL;
+    free(resp);
+    return exists;
+}
+
 static cberg_status qdrant_backend_remove(void *impl, uint64_t id) {
     qdrant_backend *b = impl;
     if (b == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    if (!qdrant_point_exists(b, id)) {
+        return CBERG_ERR_NOT_FOUND;
     }
     char suffix[512];
     snprintf(suffix, sizeof suffix, "collections/%s/points/delete?wait=true", b->collection);

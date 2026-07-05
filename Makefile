@@ -97,6 +97,11 @@ else
 	cd $(BUILD) && ctest --output-on-failure
 endif
 
+.PHONY: test-index-providers
+test-index-providers: build-core
+	chmod +x scripts/test-index-providers.sh
+	./scripts/test-index-providers.sh
+
 clean:
 	rm -rf $(BUILD)
 
