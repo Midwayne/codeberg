@@ -13,6 +13,9 @@ a result's identity.
 
 One request per connection, newline-terminated line in, one JSON line out.
 
+The Go client (`internal/indexctl`) opens a **new Unix socket connection per request**
+(5 s dial timeout). There is no connection pooling.
+
 ## Commands
 
 ### `status`

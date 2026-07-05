@@ -109,7 +109,14 @@ Orchestrates embed + search for natural-language queries.
 4. `cberg_index_search` with `cberg_index_search_opts { .expansion_search = ef }`.
 5. `cberg_vectors_free` query vector.
 
-Does not interpret ids — caller maps chunk ids back to stored chunks / source text.
+Does not interpret ids — caller maps chunk ids back to stored chunks via
+`cberg_chunk_table_find_by_id`.
+
+### `cberg_search_vector` — public
+
+Same as steps 3–4 above but takes a **precomputed** `query_vec` (`dim` floats).
+Skips embed — used by multi-repo `cberg-index` to search several indexes after one
+query embedding. `config` may be NULL for defaults.
 
 ---
 
@@ -127,10 +134,24 @@ for (i = 0; i < changes.deleted_len; i++)
 cberg_index_save(index);  // optional persistence
 ```
 
-Query path:
+Query path (single index):
 
 ```c
 cberg_search_query(embedder, index, "how is auth handled?", len, NULL, 10, ids, scores, &found);
+for (size_t i = 0; i < found; i++) {
+    const cberg_stored_chunk *c = cberg_chunk_table_find_by_id(table, ids[i]);
+    /* c->path, c->symbol, snippet from source */
+}
+```
+
+Multi-index path (embed once, search many):
+
+```c
+float *vec;
+cberg_embedder_embed(embedder, &query, &qlen, 1, &vec);
+for each repo index:
+    cberg_search_vector(index, vec, NULL, k, ids, scores, &found);
+cberg_vectors_free(vec);
 ```
 
 ---

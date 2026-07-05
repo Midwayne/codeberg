@@ -9,7 +9,7 @@ embeds vectors, and exposes search via a Go daemon and TypeScript agent.
 |------|------|
 | `core/` | C library — chunking, watching, embedding, vector search |
 | `daemon/` | Go `codeberg-d` — HTTP API, agent tools, supervises `cberg-index` |
-| `agent/` | TypeScript agent (`codeberg-ask`, `codeberg-tui`) over the daemon API |
+| `agent/` | TypeScript agent (`codeberg-ask`, `codeberg-tui`, `codeberg-web`) over the daemon API |
 
 The public C ABI is in `core/include/codeberg/codeberg.h`. Never hardcode repository
 paths — use `CODEBERG_ROOT` or `cberg_config_*` helpers.
@@ -59,6 +59,7 @@ export CODEBERG_ROOT="$(git rev-parse --show-toplevel)"
 | `CBERG_MODEL` | For vector search | Path to ONNX embedding model |
 | `CBERG_INDEX_PATH` | For vector search | usearch index file path |
 | `CODEBERG_HTTP_PORT` | No | Daemon HTTP port (default `8080`) |
+| `CODEBERG_WEB_PORT` | No | Browser UI port for `make run-agent-web` (default `48088`) |
 | `CODEBERG_MODEL` (agent) | For `make run-agent` | Provider:model, e.g. `anthropic:claude-haiku-4-5` |
 | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_GENERATIVE_AI_API_KEY` | For agent LLM calls | Matching provider API key |
 

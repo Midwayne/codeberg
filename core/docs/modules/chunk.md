@@ -150,6 +150,7 @@ struct cberg_chunk_table {
     cberg_stored_chunk *entries;
     size_t len, cap;
     cberg_strmap *key_index;       // chunk key → index in entries
+    cberg_u64map *id_index;        // stable chunk id → index in entries
     uint64_t next_id;
     uint8_t fingerprint[CBERG_HASH_LEN];
     cberg_stored_chunk *added, *modified, *deleted;
@@ -157,8 +158,8 @@ struct cberg_chunk_table {
 };
 ```
 
-Key lookup uses `cberg_strmap` (see `common/strmap.c`). Occurrence indices during parse
-use the same map in `chunk_keys.c`.
+Key lookup uses `cberg_strmap` (see `common/strmap.c`). Id lookup uses `cberg_u64map`
+(see `common/u64map.c`) for O(1) `find_by_id` after vector search.
 
 ### `rebuild_map(table)` — static
 
@@ -210,6 +211,16 @@ Sorts deleted list by stable id ascending.
 
 Incoming chunks must have non-NULL `key` and valid `content_hash` (typically from
 `cberg_chunk_list_hash_bodies`).
+
+### `cberg_chunk_table_find_by_id` — public
+
+O(1) lookup via `id_index`. Returns NULL when id not present. Pointer valid until
+next `sync` (same as `cberg_chunk_table_at`).
+
+### `cberg_chunk_table_save` / `cberg_chunk_table_load` — public
+
+Atomic persistence (magic `CBT1`, version 1). Load restores stable ids for warm start
+with a matching vector index. See [API.md](../API.md) and [CBERG_INDEX.md](../CBERG_INDEX.md).
 
 ---
 

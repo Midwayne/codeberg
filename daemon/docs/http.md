@@ -63,8 +63,57 @@ Failed requests return structured JSON:
 {"ok": false, "code": "NOT_FOUND", "message": "indexer: not found (NOT_FOUND)"}
 ```
 
-Common codes: `MISSING_QUERY`, `INVALID_K`, `NOT_IMPLEMENTED`, `NOT_FOUND`,
-`INVALID_ARGS`, `FORBIDDEN`, `INTERNAL`.
+| HTTP | Code | Typical cause |
+|------|------|---------------|
+| 400 | `MISSING_QUERY` | `/search` without `q` |
+| 400 | `INVALID_K` | `/search` with bad `k` |
+| 400 | `INVALID_ARGS` | Tool args failed JSON schema or validation |
+| 400 | `UNSAFE_PIPE` / `UNSAFE_SED` | Disallowed pipeline or sed script |
+| 403 | `FORBIDDEN` | Path escapes repo sandbox |
+| 404 | `NOT_FOUND` | Unknown tool, missing chunk/id, indexer not found |
+| 501 | `NOT_IMPLEMENTED` | Vector search when `vectors_enabled` is false |
+| 500 | `INTERNAL_ERROR` | Unexpected server or indexer failure |
+| 500 | `IO_ERROR` | Filesystem or indexer I/O |
+| 504 | `TIMEOUT` | Subprocess or indexer timeout |
+
+Successful tool calls return HTTP 200 with `{"result": …}` even when a subprocess
+stage exits nonzero (e.g. `rg` finding nothing) — check `exit_codes` in pipe results.
+
+### `GET /tools`
+
+Lists registered tools with JSON Schema metadata:
+
+```json
+{
+  "tools": [
+    {
+      "name": "grep",
+      "description": "Search file contents with ripgrep",
+      "inputSchema": { "type": "object", "properties": { ... } }
+    }
+  ]
+}
+```
+
+### `POST /tools/call`
+
+Request:
+
+```json
+{"name": "grep", "args": {"pattern": "chunking", "literal": true, "limit": 5}}
+```
+
+Success:
+
+```json
+{"result": { ... }}
+```
+
+Error (same envelope as other endpoints):
+
+```json
+{"ok": false, "code": "INVALID_ARGS", "message": "..."}
+```
 
 ## Tools
 
@@ -80,6 +129,13 @@ All tools are read-only and sandboxed to their repo's root.
 | `file_outline` | Indexed chunks in a file with line ranges |
 | `hybrid_search` | Vector search reranked by query-term presence in hit files |
 | `find_references` | Word-boundary grep for symbol usages |
+
+`hybrid_search` fetches `2×k` vector candidates, then adds **+0.05** per significant
+query term (length ≥ 3, stop words removed) found in the hit file body. Results are
+sorted by `final_score` and truncated to `k`.
+
+`find_references` uses a word-boundary regex over `rg` — symbol must match as a
+whole token.
 
 `find_symbol`, `file_outline`, and `get_chunk` work in **chunk-only mode**
 (without ONNX / vector indexing). `search` and `hybrid_search` require
@@ -125,6 +181,19 @@ directly with `Dir` set to the repo root. Therefore:
 - **Rejected (403):** absolute paths or `..` traversal in any argument.
 - Output is capped (`truncated` flag); the run has a timeout; a stage exiting nonzero
   (e.g. `rg` finding nothing) is reported in `exit_codes`, not an error.
+
+### Workspace limits
+
+| Tool / area | Limit |
+|-------------|-------|
+| `grep` | 200 matches (default) |
+| `glob` | 500 files |
+| `read_file` | 64 KiB returned content; 4 MiB raw read cap |
+| `git_log` | 20–200 entries |
+| `git_blame` | 128 KiB output |
+| `sed` | 64 KiB output |
+| `tree` | depth 3, 2000 entries; skips `.git`, `node_modules`, etc. |
+| `pipe` | 256 KiB stdout, 15 s timeout |
 
 ## Agent integration
 

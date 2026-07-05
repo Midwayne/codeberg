@@ -20,6 +20,22 @@ Project-wide overview. **libcodeberg** details live under [core/docs](../core/do
 | [daemon/docs/ipc.md](../daemon/docs/ipc.md) | `cberg-index` ↔ `codeberg-d` wire protocol (repo-scoped search, per-repo status) |
 | [daemon/docs/http.md](../daemon/docs/http.md) | Daemon HTTP API and agent tools, including `repos` and the `repo` argument |
 
+## Daemon
+
+| Document | Description |
+|----------|-------------|
+| [daemon/README.md](../daemon/README.md) | Build, config, tools overview |
+| [daemon/docs/architecture.md](../daemon/docs/architecture.md) | Startup flow, package graph, security |
+| [daemon/docs/http.md](../daemon/docs/http.md) | HTTP API and agent tools |
+| [daemon/docs/ipc.md](../daemon/docs/ipc.md) | Unix socket protocol to `cberg-index` |
+
+## Agent
+
+| Document | Description |
+|----------|-------------|
+| [agent/README.md](../agent/README.md) | CLI, TUI, web UI, providers, daemon client |
+| [agent/web-ui/README.md](../agent/web-ui/README.md) | React chat SPA development |
+
 ## Core library
 
 | Document | Description |
@@ -27,6 +43,8 @@ Project-wide overview. **libcodeberg** details live under [core/docs](../core/do
 | [core/docs/README.md](../core/docs/README.md) | Documentation index |
 | [core/docs/CORE.md](../core/docs/CORE.md) | Architecture and design |
 | [core/docs/API.md](../core/docs/API.md) | Complete public API (every `codeberg.h` function) |
+| [core/docs/CBERG_INDEX.md](../core/docs/CBERG_INDEX.md) | `cberg-index` binary — env, lifecycle, on-disk layout |
+| [core/docs/TESTING.md](../core/docs/TESTING.md) | CTest binaries and ONNX test setup |
 | [core/docs/modules/](../core/docs/modules/) | Implementation reference (every source function) |
 | [core/docs/adr/](../core/docs/adr/) | Architecture decision records |
 
