@@ -4,6 +4,7 @@ export default defineConfig({
   entry: {
     index: 'src/index.ts',
     cli: 'src/cli/main.ts',
+    'search-cli': 'src/cli/search-main.ts',
     tui: 'src/tui/main.ts',
     web: 'src/web/main.ts',
   },

@@ -1527,6 +1527,22 @@ static void fill_snippet(cberg_repo *r, const cberg_stored_chunk *sc, char *out,
     free(body);
 }
 
+#define CBERG_FILTER_FETCH_MAX 256
+
+static int search_filters_active(const cberg_search_filters *filters) {
+    return filters != NULL &&
+           (filters->path_glob != NULL || filters->kind >= 0 || filters->min_score > 0.0f);
+}
+
+static int hit_id_seen(const uint64_t *seen, size_t seen_len, uint64_t id) {
+    for (size_t i = 0; i < seen_len; i++) {
+        if (seen[i] == id) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 /* Search one repo with an already-embedded query, copying chunk metadata into
  * hits while r->mu is held. NOT_FOUND when the repo is not ready yet. */
 static cberg_status repo_search_hits(cberg_repo *r, const float *vec, size_t k, const cberg_search_filters *filters, cberg_engine_hit *hits, size_t cap, size_t *found) {
@@ -1537,46 +1553,66 @@ static cberg_status repo_search_hits(cberg_repo *r, const float *vec, size_t k, 
         return CBERG_ERR_NOT_FOUND;
     }
 
-    size_t fetch = k;
-    if (filters != NULL && (filters->path_glob != NULL || filters->kind >= 0 || filters->min_score > 0.0f)) {
-        fetch = 64;
-    }
-    if (fetch > 64) {
-        fetch = 64;
+    const int filtered = search_filters_active(filters);
+    size_t fetch = filtered ? 64 : k;
+
+    uint64_t ids[CBERG_FILTER_FETCH_MAX];
+    float scores[CBERG_FILTER_FETCH_MAX];
+    uint64_t seen_ids[CBERG_FILTER_FETCH_MAX];
+    size_t seen_len = 0;
+    cberg_search_config search_cfg;
+    cberg_search_config_default(&search_cfg);
+    if (filtered) {
+        search_cfg.oversample = 8;
+        search_cfg.min_expansion_search = 128;
     }
 
-    uint64_t ids[64];
-    float scores[64];
-    size_t n = 0;
-    cberg_status st = cberg_search_vector(r->index, vec, NULL, fetch, ids, scores, &n);
-    if (st != CBERG_OK) {
-        pthread_mutex_unlock(&r->mu);
-        return st;
-    }
+    for (;;) {
+        size_t n = 0;
+        cberg_status st = cberg_search_vector(r->index, vec, filtered ? &search_cfg : NULL, fetch, ids, scores, &n);
+        if (st != CBERG_OK) {
+            pthread_mutex_unlock(&r->mu);
+            return st;
+        }
 
-    for (size_t i = 0; i < n && *found < cap; i++) {
-        const cberg_stored_chunk *sc = cberg_chunk_table_find_by_id(r->table, ids[i]);
-        if (sc == NULL) {
-            continue;
+        for (size_t i = 0; i < n && *found < k && *found < cap; i++) {
+            if (hit_id_seen(seen_ids, seen_len, ids[i])) {
+                continue;
+            }
+            if (seen_len < CBERG_FILTER_FETCH_MAX) {
+                seen_ids[seen_len++] = ids[i];
+            }
+
+            const cberg_stored_chunk *sc = cberg_chunk_table_find_by_id(r->table, ids[i]);
+            if (sc == NULL) {
+                continue;
+            }
+            if (!chunk_passes_filters(sc, scores[i], filters)) {
+                continue;
+            }
+            cberg_engine_hit *h = &hits[*found];
+            h->id = ids[i];
+            h->score = scores[i];
+            h->repo = r->key;
+            snprintf(h->path, sizeof(h->path), "%s", sc->chunk.path != NULL ? sc->chunk.path : "");
+            snprintf(h->symbol, sizeof(h->symbol), "%s", sc->chunk.symbol != NULL ? sc->chunk.symbol : "");
+            h->start_line = sc->chunk.span.start_line;
+            h->end_line = sc->chunk.span.end_line;
+            h->snippet[0] = '\0';
+            fill_snippet(r, sc, h->snippet, sizeof(h->snippet));
+            (*found)++;
         }
-        if (!chunk_passes_filters(sc, scores[i], filters)) {
-            continue;
-        }
-        cberg_engine_hit *h = &hits[*found];
-        h->id = ids[i];
-        h->score = scores[i];
-        h->repo = r->key;
-        snprintf(h->path, sizeof(h->path), "%s", sc->chunk.path != NULL ? sc->chunk.path : "");
-        snprintf(h->symbol, sizeof(h->symbol), "%s", sc->chunk.symbol != NULL ? sc->chunk.symbol : "");
-        h->start_line = sc->chunk.span.start_line;
-        h->end_line = sc->chunk.span.end_line;
-        h->snippet[0] = '\0';
-        fill_snippet(r, sc, h->snippet, sizeof(h->snippet));
-        (*found)++;
-        if (*found >= k) {
+
+        if (*found >= k || !filtered) {
             break;
         }
+        if (n < fetch || fetch >= CBERG_FILTER_FETCH_MAX) {
+            break;
+        }
+        size_t next = fetch * 2;
+        fetch = next > CBERG_FILTER_FETCH_MAX ? CBERG_FILTER_FETCH_MAX : next;
     }
+
     pthread_mutex_unlock(&r->mu);
     return CBERG_OK;
 }

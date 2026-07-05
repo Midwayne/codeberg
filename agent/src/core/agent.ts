@@ -10,6 +10,7 @@ import {
 import { DaemonClient, DaemonError } from './client.js';
 import { cachedInstructions, deterministicTools, requestProviderOptions } from './cache.js';
 import { EvidenceLedger } from './evidence.js';
+import { extractEvidence } from './evidence-extract.js';
 import { fitHistory, totalTokens } from './history.js';
 import { fromAiSdk } from './generator.js';
 import {
@@ -27,15 +28,15 @@ import {
   pruneBudget,
   type ModelProfile,
 } from '../providers/profiles.js';
-import type {
-  Asker,
-  AskOptions,
-  AskResult,
-  Generator,
-  ReasoningEffort,
-  RunPerformance,
-  SearchResult,
+import {
   chunkKey,
+  type Asker,
+  type AskOptions,
+  type AskResult,
+  type Generator,
+  type ReasoningEffort,
+  type RunPerformance,
+  type SearchResult,
 } from './types.js';
 
 const DEFAULT_MAX_STEPS = 16;
@@ -224,7 +225,15 @@ export class Agent implements Asker {
         defaultK: DEFAULT_SEARCH_K,
         onResults: (hits) => this.sources.push(...hits),
       }),
-      daemonToolSource(this.daemon),
+      daemonToolSource({
+        daemon: this.daemon,
+        onToolResult: (name, output) => {
+          const hits = extractEvidence(name, output);
+          if (hits.length > 0) {
+            this.sources.push(...hits);
+          }
+        },
+      }),
       webToolSource(this.web),
     ]);
   }

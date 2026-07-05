@@ -57,4 +57,13 @@ describe('EvidenceLedger', () => {
     expect(out).toContain('[alpha] a.go:1-9');
     expect(out).toContain('[beta] b.go:1-9');
   });
+
+  it('dedupes grep hits by path and line when id is zero', () => {
+    const ledger = new EvidenceLedger();
+    ledger.add([
+      { id: 0, repo: 'main', path: 'a.go', symbol: '', start_line: 10, end_line: 10, score: 1, snippet: 'x' },
+      { id: 0, repo: 'main', path: 'a.go', symbol: '', start_line: 10, end_line: 10, score: 1, snippet: 'x' },
+    ]);
+    expect(ledger.size).toBe(1);
+  });
 });

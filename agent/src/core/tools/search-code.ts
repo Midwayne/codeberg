@@ -1,5 +1,6 @@
 import { jsonSchema, tool, type ToolSet } from 'ai';
 
+import { formatLineRange } from '../search-hit.js';
 import type { DaemonClient } from '../client.js';
 import type { SearchResult } from '../types.js';
 import type { ToolSource } from './source.js';
@@ -84,7 +85,7 @@ function toToolChunk(r: SearchResult): Record<string, unknown> {
     ...(r.repo ? { repo: r.repo } : {}),
     path: r.path,
     symbol: r.symbol,
-    lines: `${r.start_line}-${r.end_line}`,
+    lines: formatLineRange(r),
     score: r.score,
     snippet: r.snippet,
   };

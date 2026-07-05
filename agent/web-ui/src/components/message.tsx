@@ -1,9 +1,10 @@
-import { Brain, RefreshCw, Wrench } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { Brain, RefreshCw } from 'lucide-react';
 import type { UIMessage } from 'ai';
 
 import { Response } from '@/components/response';
-import { SearchResults } from '@/components/sources';
-import { Badge, Collapsible, CopyButton, IconButton } from '@/components/ui';
+import { ToolViewRouter } from '@/components/tool-views';
+import { Collapsible, CopyButton, IconButton } from '@/components/ui';
 import { cn } from '@/lib/utils';
 
 type AnyPart = UIMessage['parts'][number];
@@ -52,11 +53,8 @@ function Part({ part }: { part: AnyPart }) {
   if (part.type === 'reasoning') {
     return <Reasoning text={part.text} />;
   }
-  if (part.type === 'tool-search_code') {
-    return <SearchResults part={part as unknown as ToolView} />;
-  }
   if (part.type === 'dynamic-tool' || part.type.startsWith('tool-')) {
-    return <ToolCard part={part as unknown as ToolView} />;
+    return <ToolViewRouter part={part as unknown as ToolView} />;
   }
   return null;
 }
@@ -69,53 +67,6 @@ function Reasoning({ text }: { text: string }) {
         {text}
       </Response>
     </Collapsible>
-  );
-}
-
-function ToolCard({ part }: { part: ToolView }) {
-  const name =
-    part.type === 'dynamic-tool' ? (part.toolName ?? 'tool') : part.type.slice('tool-'.length);
-  return (
-    <Collapsible
-      icon={<Wrench className="size-3.5" />}
-      title={<span className="font-mono">{name}</span>}
-      badge={<StateBadge state={part.state} />}
-    >
-      <div className="space-y-2">
-        {part.input !== undefined && <Json label="input" value={part.input} />}
-        {part.output !== undefined && <Json label="output" value={part.output} />}
-        {part.errorText && <div className="text-xs text-destructive">{part.errorText}</div>}
-      </div>
-    </Collapsible>
-  );
-}
-
-function StateBadge({ state }: { state?: string }) {
-  if (!state) return null;
-  const done = state === 'output-available';
-  const failed = state === 'output-error';
-  return (
-    <Badge
-      className={cn(
-        done && 'bg-emerald-500/15 text-emerald-500',
-        failed && 'bg-destructive/15 text-destructive',
-        !done && !failed && 'bg-muted text-muted-foreground',
-      )}
-    >
-      {state.replace('output-', '').replace('input-', '')}
-    </Badge>
-  );
-}
-
-function Json({ label, value }: { label: string; value: unknown }) {
-  const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
-  return (
-    <div>
-      <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <pre className="overflow-x-auto rounded-md bg-background p-2 font-mono text-xs text-foreground/80">
-        {text}
-      </pre>
-    </div>
   );
 }
 

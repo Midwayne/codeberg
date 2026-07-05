@@ -1,3 +1,5 @@
+import { formatSource } from './format.js';
+import { normalizeSearchHit } from './search-hit.js';
 import type { SearchOptions, SearchResult, ToolSpec } from './types.js';
 
 export interface DaemonHealth {
@@ -75,7 +77,9 @@ export class DaemonClient {
     if (!res.ok) {
       throw parseError(res.status, body);
     }
-    return body.results.map(normalizeHit);
+    return body.results
+      .map((r) => normalizeSearchHit(r))
+      .filter((r): r is SearchResult => r != null);
   }
 
   async listTools(): Promise<ToolSpec[]> {
@@ -116,19 +120,6 @@ function parseError(status: number, body: DaemonErrorBody | { message?: string }
     return new DaemonError(body.code, body.message, status);
   }
   return new DaemonError('DAEMON_ERROR', String(body.message ?? status), status);
-}
-
-function normalizeHit(r: SearchResult): SearchResult {
-  return {
-    id: Number(r.id),
-    ...(r.repo ? { repo: r.repo } : {}),
-    path: r.path ?? '',
-    symbol: r.symbol ?? '',
-    start_line: Number(r.start_line ?? 0),
-    end_line: Number(r.end_line ?? 0),
-    score: Number(r.score ?? 0),
-    snippet: r.snippet ?? '',
-  };
 }
 
 function sleep(ms: number): Promise<void> {

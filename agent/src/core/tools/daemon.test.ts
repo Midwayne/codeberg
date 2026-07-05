@@ -39,11 +39,16 @@ describe('daemonToolSource', () => {
       callTool: vi.fn(async () => ({ ok: true })),
     } as unknown as DaemonClient;
 
-    const set = await daemonToolSource(daemon).tools();
+    const captured: string[] = [];
+    const set = await daemonToolSource({
+      daemon,
+      onToolResult: (name) => captured.push(name),
+    }).tools();
     expect(Object.keys(set).sort()).toEqual(['get_chunk', 'grep', 'hybrid_search', 'read_file']);
 
     const out = await run(set.grep, { pattern: 'x' });
     expect(daemon.callTool).toHaveBeenCalledWith('grep', { pattern: 'x' });
     expect(out).toEqual({ ok: true });
+    expect(captured).toEqual(['grep']);
   });
 });
