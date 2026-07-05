@@ -21,6 +21,11 @@ export function parseLineRange(
   return { start_line: start, end_line: end };
 }
 
+/** Format `path:start-end` for display and compact tool output. */
+export function formatLineRange(hit: Pick<SearchResult, 'start_line' | 'end_line'>): string {
+  return `${hit.start_line}-${hit.end_line}`;
+}
+
 /** Normalize daemon or compact tool hit shapes into SearchResult. */
 export function normalizeSearchHit(raw: unknown): SearchResult | null {
   if (!raw || typeof raw !== 'object') {

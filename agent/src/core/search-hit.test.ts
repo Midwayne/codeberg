@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizeSearchHit, parseLineRange } from './search-hit.js';
+import { formatLineRange, normalizeSearchHit, parseLineRange } from './search-hit.js';
 
 describe('parseLineRange', () => {
   it('parses compact lines string', () => {
@@ -9,6 +9,12 @@ describe('parseLineRange', () => {
 
   it('falls back to numeric fields', () => {
     expect(parseLineRange(undefined, 3, 7)).toEqual({ start_line: 3, end_line: 7 });
+  });
+});
+
+describe('formatLineRange', () => {
+  it('formats start-end', () => {
+    expect(formatLineRange({ start_line: 3, end_line: 7 })).toBe('3-7');
   });
 });
 

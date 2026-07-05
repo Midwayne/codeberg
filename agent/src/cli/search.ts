@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { DaemonClient, DaemonError } from '../core/client.js';
-import { formatSource } from '../core/format.js';
+import { extractHybridHits } from '../core/evidence-extract.js';
+import { formatScoredSource, formatSource } from '../core/format.js';
 import type { SearchOptions } from '../core/types.js';
 
 const DEFAULT_DAEMON_URL = 'http://127.0.0.1:8080';
@@ -170,42 +171,35 @@ export async function runSearch(opts: SearchCliOptions): Promise<void> {
     min_score: opts.min_score,
   };
 
-  if (opts.json) {
-    if (opts.hybrid) {
-      const out = await client.callTool('hybrid_search', {
-        query: opts.query,
-        ...searchOpts,
-      });
+  const hybridArgs = {
+    query: opts.query,
+    ...searchOpts,
+  };
+
+  if (opts.hybrid) {
+    const out = await client.callTool('hybrid_search', hybridArgs);
+    if (opts.json) {
       console.log(JSON.stringify(out, null, 2));
       return;
     }
-    const results = await client.search(opts.query, searchOpts);
-    console.log(JSON.stringify({ results }, null, 2));
-    return;
-  }
-
-  if (opts.hybrid) {
-    const out = (await client.callTool('hybrid_search', {
-      query: opts.query,
-      ...searchOpts,
-    })) as Array<{ hit: Record<string, unknown>; grep_boost: number; final_score: number }>;
-    if (!Array.isArray(out) || out.length === 0) {
+    const hits = extractHybridHits(out);
+    if (hits.length === 0) {
       console.log('No results.');
       return;
     }
-    for (const row of out) {
-      const h = row.hit;
-      const repo = typeof h.repo === 'string' && h.repo ? `[${h.repo}] ` : '';
-      const sym = typeof h.symbol === 'string' && h.symbol ? ` ${h.symbol}` : '';
-      const lines = `${h.start_line}-${h.end_line}`;
-      console.log(
-        `${repo}${h.path}:${lines}${sym}  score=${Number(row.final_score).toFixed(3)} boost=${row.grep_boost}`,
-      );
-      if (typeof h.snippet === 'string' && h.snippet) {
-        console.log(h.snippet);
+    for (const hit of hits) {
+      console.log(formatScoredSource(hit, hit.grep_boost));
+      if (hit.snippet) {
+        console.log(hit.snippet);
       }
       console.log('');
     }
+    return;
+  }
+
+  if (opts.json) {
+    const results = await client.search(opts.query, searchOpts);
+    console.log(JSON.stringify({ results }, null, 2));
     return;
   }
 

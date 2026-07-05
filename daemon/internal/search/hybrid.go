@@ -36,7 +36,7 @@ func termBoost(lower string, terms []string) int {
 }
 
 // Hybrid reranks vector candidates by boosting scores when query terms appear in
-// the hit chunk (snippet, symbol, path) and, when that yields no signal, in the
+// the hit chunk (snippet and symbol) and, when that yields no signal, in the
 // full file as a fallback.
 func Hybrid(ctx context.Context, candidates []indexctl.SearchResult, query string, read ContentReader, k int) ([]HybridHit, error) {
 	terms := SignificantTerms(query)

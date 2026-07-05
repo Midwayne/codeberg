@@ -215,13 +215,6 @@ export class Agent implements Asker {
     return this.loop;
   }
 
-  private recordEvidence(toolName: string, output: unknown): void {
-    const hits = extractEvidence(toolName, output);
-    if (hits.length > 0) {
-      this.sources.push(...hits);
-    }
-  }
-
   private async buildTools(): Promise<ToolSet> {
     // The agent's tools come from an ordered list of sources. search_code is
     // first so it can't be shadowed; its hits flow back through a sink (not a
@@ -234,7 +227,12 @@ export class Agent implements Asker {
       }),
       daemonToolSource({
         daemon: this.daemon,
-        onToolResult: (name, output) => this.recordEvidence(name, output),
+        onToolResult: (name, output) => {
+          const hits = extractEvidence(name, output);
+          if (hits.length > 0) {
+            this.sources.push(...hits);
+          }
+        },
       }),
       webToolSource(this.web),
     ]);

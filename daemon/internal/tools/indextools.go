@@ -131,7 +131,7 @@ func hybridSearchTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
 	return New("hybrid_search",
 		"Vector search candidates reranked by grep verification of query terms in hit chunks.",
 		schema,
-		func(ctx context.Context, a hybridSearchArgs) (any, error) {
+		func(ctx context.Context, a searchArgs) (any, error) {
 			k := a.K
 			if k <= 0 {
 				k = 8

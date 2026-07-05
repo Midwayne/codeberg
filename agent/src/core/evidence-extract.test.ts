@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { extractEvidence } from './evidence-extract.js';
 
 describe('extractEvidence', () => {
-  it('extracts hybrid_search hits', () => {
+  it('extracts hybrid_search hits with final_score', () => {
     const hits = extractEvidence('hybrid_search', [
       {
         hit: {
@@ -13,15 +13,14 @@ describe('extractEvidence', () => {
           symbol: 'Foo',
           start_line: 10,
           end_line: 20,
-          score: 0.9,
+          score: 0.5,
           snippet: 'func Foo()',
         },
         grep_boost: 2,
-        final_score: 1.0,
+        final_score: 0.95,
       },
     ]);
-    expect(hits).toHaveLength(1);
-    expect(hits[0]?.path).toBe('a.go');
+    expect(hits[0]?.score).toBe(0.95);
   });
 
   it('extracts grep matches as line references', () => {

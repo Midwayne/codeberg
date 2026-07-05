@@ -8,27 +8,11 @@ const EVIDENCE_LIMITS: Partial<Record<string, number>> = {
   file_outline: 32,
 };
 
+export type HybridHit = SearchResult & { grep_boost?: number };
+
 /** Pull citeable code locations from a daemon tool result for sources/ledger. */
 export function extractEvidence(toolName: string, output: unknown): SearchResult[] {
-  let hits: SearchResult[];
-  switch (toolName) {
-    case 'hybrid_search':
-      hits = extractHybridHits(output);
-      break;
-    case 'find_symbol':
-    case 'file_outline':
-      hits = extractSearchHits(output);
-      break;
-    case 'get_chunk':
-      hits = extractChunkDetail(output);
-      break;
-    case 'grep':
-    case 'find_references':
-      hits = extractGrepMatches(output);
-      break;
-    default:
-      return [];
-  }
+  const hits = extractToolHits(toolName, output);
   const limit = EVIDENCE_LIMITS[toolName];
   if (limit != null && hits.length > limit) {
     return hits.slice(0, limit);
@@ -36,33 +20,61 @@ export function extractEvidence(toolName: string, output: unknown): SearchResult
   return hits;
 }
 
-function extractHybridHits(output: unknown): SearchResult[] {
+export function extractToolHits(toolName: string, output: unknown): SearchResult[] {
+  switch (toolName) {
+    case 'hybrid_search':
+      return extractHybridHits(output);
+    case 'find_symbol':
+    case 'file_outline':
+      return extractSearchHits(output);
+    case 'get_chunk':
+      return extractChunkDetail(output);
+    case 'grep':
+    case 'find_references':
+      return extractGrepMatches(output);
+    default:
+      return [];
+  }
+}
+
+export function extractHybridHits(output: unknown): HybridHit[] {
   if (!Array.isArray(output)) {
     return [];
   }
-  return output
-    .map((row) => {
-      if (!row || typeof row !== 'object' || !('hit' in row)) {
-        return null;
-      }
-      return normalizeSearchHit((row as { hit: unknown }).hit);
-    })
-    .filter((h): h is SearchResult => h != null);
+  const out: HybridHit[] = [];
+  for (const row of output) {
+    if (!row || typeof row !== 'object' || !('hit' in row)) {
+      continue;
+    }
+    const hit = normalizeSearchHit((row as { hit: unknown }).hit);
+    if (!hit) {
+      continue;
+    }
+    const r = row as { final_score?: number; grep_boost?: number };
+    const finalScore = Number(r.final_score);
+    const boost = Number(r.grep_boost ?? 0);
+    out.push({
+      ...hit,
+      score: Number.isFinite(finalScore) ? finalScore : hit.score,
+      ...(boost > 0 ? { grep_boost: boost } : {}),
+    });
+  }
+  return out;
 }
 
-function extractSearchHits(output: unknown): SearchResult[] {
+export function extractSearchHits(output: unknown): SearchResult[] {
   if (!Array.isArray(output)) {
     return [];
   }
   return output.map(normalizeSearchHit).filter((h): h is SearchResult => h != null);
 }
 
-function extractChunkDetail(output: unknown): SearchResult[] {
+export function extractChunkDetail(output: unknown): SearchResult[] {
   const hit = normalizeSearchHit(output);
   return hit ? [hit] : [];
 }
 
-function extractGrepMatches(output: unknown): SearchResult[] {
+export function extractGrepMatches(output: unknown): SearchResult[] {
   if (!Array.isArray(output)) {
     return [];
   }

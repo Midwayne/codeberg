@@ -1555,9 +1555,6 @@ static cberg_status repo_search_hits(cberg_repo *r, const float *vec, size_t k, 
 
     const int filtered = search_filters_active(filters);
     size_t fetch = filtered ? 64 : k;
-    if (!filtered && fetch > 64) {
-        fetch = 64;
-    }
 
     uint64_t ids[CBERG_FILTER_FETCH_MAX];
     float scores[CBERG_FILTER_FETCH_MAX];

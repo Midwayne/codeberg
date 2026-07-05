@@ -41,7 +41,6 @@ src/
     message.tsx     renders text, reasoning, tool parts
     tool-views.tsx  rich cards for daemon tools (search, grep, files, git, …)
   lib/
-    tool-hit.ts     normalize compact search_code / daemon hit shapes
     sessions.ts     CRUD client for /api/sessions/*
     commands.ts     fetches /api/commands for hook autocomplete
 ```

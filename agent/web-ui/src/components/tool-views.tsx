@@ -13,17 +13,17 @@ import {
 import { Response } from '@/components/response';
 import type { ToolView } from '@/components/message';
 import { Collapsible, CopyButton } from '@/components/ui';
-import { normalizeToolHit, type ToolHit } from '@/lib/tool-hit';
+import {
+  extractGrepMatches,
+  extractHybridHits,
+  extractSearchHits,
+  type HybridHit,
+} from '@agent/core/evidence-extract.js';
+import { formatLineRange, normalizeSearchHit } from '@agent/core/search-hit.js';
+import type { SearchResult } from '@agent/core/types.js';
 import { langFromPath } from '@/lib/utils';
 
-type Hit = ToolHit;
-
-interface GrepMatch {
-  repo?: string;
-  path?: string;
-  line?: number;
-  text?: string;
-}
+type DisplayHit = SearchResult | HybridHit;
 
 /** Dispatch to a rich renderer when we know the tool shape; otherwise JSON. */
 export function ToolViewRouter({ part }: { part: ToolView }) {
@@ -114,7 +114,7 @@ export function SearchResults({ part }: { part: ToolView }) {
   if (part.state !== 'output-available') {
     return <ToolPending name="search_code" part={part} />;
   }
-  const hits = normalizeHits(part.output);
+  const hits = extractSearchHits(part.output);
   return (
     <HitList
       icon={<Search className="size-3.5" />}
@@ -126,20 +126,7 @@ export function SearchResults({ part }: { part: ToolView }) {
 
 function HybridSearchResults({ part }: { part: ToolView }) {
   const query = inputQuery(part);
-  if (part.state !== 'output-available') {
-    return <ToolPending name="hybrid_search" part={part} />;
-  }
-  const rows = Array.isArray(part.output) ? part.output : [];
-  const hits = rows
-    .map((row) => {
-      if (!row || typeof row !== 'object' || !('hit' in row)) return null;
-      const hit = normalizeHit((row as { hit: unknown }).hit);
-      if (!hit) return null;
-      const boost = Number((row as { grep_boost?: number }).grep_boost ?? 0);
-      const score = Number((row as { final_score?: number }).final_score ?? hit.score ?? 0);
-      return { ...hit, score, grep_boost: boost > 0 ? boost : undefined };
-    })
-    .filter((h): h is Hit => h != null);
+  const hits = extractHybridHits(part.output);
   return (
     <HitList
       icon={<FileSearch className="size-3.5" />}
@@ -150,10 +137,7 @@ function HybridSearchResults({ part }: { part: ToolView }) {
 }
 
 function ChunkHits({ title, part }: { title: string; part: ToolView }) {
-  if (part.state !== 'output-available') {
-    return <ToolPending name={title.toLowerCase()} part={part} />;
-  }
-  const hits = normalizeHits(part.output);
+  const hits = extractSearchHits(part.output);
   return (
     <HitList
       icon={<FileCode className="size-3.5" />}
@@ -164,28 +148,18 @@ function ChunkHits({ title, part }: { title: string; part: ToolView }) {
 }
 
 function ChunkDetail({ part }: { part: ToolView }) {
-  if (part.state !== 'output-available') {
-    return <ToolPending name="get_chunk" part={part} />;
-  }
-  const hit = normalizeHit(part.output);
+  const hit = normalizeSearchHit(part.output);
   if (!hit) return <GenericTool part={part} name="get_chunk" />;
   const body = typeof (part.output as { body?: string })?.body === 'string'
     ? (part.output as { body: string }).body
     : hit.snippet;
   return (
-    <HitList
-      icon={<FileCode className="size-3.5" />}
-      title="Chunk"
-      hits={[{ ...hit, snippet: body }]}
-    />
+    <HitList icon={<FileCode className="size-3.5" />} title="Chunk" hits={[{ ...hit, snippet: body }]} />
   );
 }
 
 function GrepResults({ title, part }: { title: string; part: ToolView }) {
-  if (part.state !== 'output-available') {
-    return <ToolPending name={title.toLowerCase()} part={part} />;
-  }
-  const matches: GrepMatch[] = Array.isArray(part.output) ? (part.output as GrepMatch[]) : [];
+  const hits = extractGrepMatches(part.output);
   const pattern =
     part.input && typeof part.input === 'object'
       ? ((part.input as { pattern?: string; symbol?: string }).pattern ??
@@ -193,45 +167,15 @@ function GrepResults({ title, part }: { title: string; part: ToolView }) {
       : undefined;
 
   return (
-    <Collapsible
+    <HitList
       icon={<Search className="size-3.5" />}
-      title={`${matches.length} ${title.toLowerCase()} match${matches.length === 1 ? '' : 's'}${pattern ? ` for “${pattern}”` : ''}`}
-    >
-      <div className="grid gap-2">
-        {matches.map((m, i) => (
-          <div key={i} className="overflow-hidden rounded-lg border border-border bg-card">
-            <div className="flex items-center gap-2 border-b border-border px-3 py-1.5 text-xs">
-              {m.repo && (
-                <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-muted-foreground">
-                  {m.repo}
-                </span>
-              )}
-              <span className="truncate font-mono">{m.path}</span>
-              {m.line != null && (
-                <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-muted-foreground">
-                  :{m.line}
-                </span>
-              )}
-              <CopyButton
-                text={m.path && m.line ? `${m.path}:${m.line}` : (m.path ?? '')}
-                className="ml-auto shrink-0"
-                label="Copy"
-              />
-            </div>
-            {m.text && (
-              <div className="px-3 py-2 font-mono text-xs text-foreground/90">{m.text}</div>
-            )}
-          </div>
-        ))}
-      </div>
-    </Collapsible>
+      title={`${hits.length} ${title.toLowerCase()} match${hits.length === 1 ? '' : 's'}${pattern ? ` for “${pattern}”` : ''}`}
+      hits={hits}
+    />
   );
 }
 
 function FileContent({ part }: { part: ToolView }) {
-  if (part.state !== 'output-available') {
-    return <ToolPending name="read_file" part={part} />;
-  }
   const out = part.output as { content?: string; start_line?: number; end_line?: number } | string;
   const content = typeof out === 'string' ? out : (out.content ?? '');
   const path =
@@ -262,9 +206,6 @@ function FileContent({ part }: { part: ToolView }) {
 }
 
 function FileList({ title, part }: { title: string; part: ToolView }) {
-  if (part.state !== 'output-available') {
-    return <ToolPending name={title} part={part} />;
-  }
   const items = Array.isArray(part.output) ? part.output : [];
   return (
     <Collapsible
@@ -283,9 +224,6 @@ function FileList({ title, part }: { title: string; part: ToolView }) {
 }
 
 function ReposList({ part }: { part: ToolView }) {
-  if (part.state !== 'output-available') {
-    return <ToolPending name="repos" part={part} />;
-  }
   const repos = Array.isArray(part.output) ? part.output : [];
   return (
     <Collapsible icon={<FolderTree className="size-3.5" />} title={`${repos.length} repos`}>
@@ -305,9 +243,6 @@ function ReposList({ part }: { part: ToolView }) {
 }
 
 function TextOutput({ title, part }: { title: string; part: ToolView }) {
-  if (part.state !== 'output-available') {
-    return <ToolPending name={title} part={part} />;
-  }
   const out = part.output;
   const text =
     typeof out === 'string'
@@ -353,27 +288,23 @@ function HitList({
 }: {
   icon: ReactNode;
   title: string;
-  hits: Hit[];
+  hits: DisplayHit[];
 }) {
   return (
     <Collapsible icon={icon} title={title}>
       <div className="grid gap-2">
         {hits.map((hit, i) => (
-          <SourceCard key={hit.id ?? i} hit={hit} />
+          <SourceCard key={`${hit.repo ?? ''}:${hit.path}:${hit.start_line}:${i}`} hit={hit} />
         ))}
       </div>
     </Collapsible>
   );
 }
 
-function SourceCard({ hit }: { hit: Hit }) {
-  const path = hit.path ?? '';
+function SourceCard({ hit }: { hit: DisplayHit }) {
+  const path = hit.path;
   const lang = langFromPath(path);
-  const lines =
-    hit.lines ??
-    (hit.start_line != null
-      ? `${hit.start_line}-${hit.end_line ?? hit.start_line}`
-      : undefined);
+  const lines = formatLineRange(hit);
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card">
       <div className="flex items-center gap-2 border-b border-border px-3 py-1.5 text-xs">
@@ -406,11 +337,6 @@ function SourceCard({ hit }: { hit: Hit }) {
       {hit.symbol && (
         <div className="px-3 pt-2 font-mono text-xs text-muted-foreground">{hit.symbol}</div>
       )}
-      {hit.kind && (
-        <div className="px-3 pt-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-          {hit.kind}
-        </div>
-      )}
       {hit.snippet && (
         <div className="px-3 py-2 text-xs">
           <Response>{`\`\`\`${lang}\n${hit.snippet}\n\`\`\``}</Response>
@@ -436,15 +362,6 @@ function inputQuery(part: ToolView): string | undefined {
   return part.input && typeof part.input === 'object'
     ? (part.input as { query?: string }).query
     : undefined;
-}
-
-function normalizeHits(output: unknown): Hit[] {
-  if (!Array.isArray(output)) return [];
-  return output.map(normalizeToolHit).filter((h): h is Hit => h != null);
-}
-
-function normalizeHit(raw: unknown): Hit | null {
-  return normalizeToolHit(raw);
 }
 
 function formatListItem(item: unknown): string {

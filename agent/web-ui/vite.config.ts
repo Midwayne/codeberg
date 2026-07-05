@@ -10,7 +10,10 @@ import { fileURLToPath, URL } from 'node:url';
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
-    alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      '@agent/core': fileURLToPath(new URL('../src/core', import.meta.url)),
+    },
   },
   server: {
     proxy: { '/api': 'http://127.0.0.1:48088' },

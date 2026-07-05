@@ -98,15 +98,6 @@ type fileOutlineArgs struct {
 	Path string `json:"path"`
 }
 
-type hybridSearchArgs struct {
-	Query    string  `json:"query"`
-	K        int     `json:"k"`
-	Repo     string  `json:"repo"`
-	PathGlob string  `json:"path_glob"`
-	Kind     string  `json:"kind"`
-	MinScore float32 `json:"min_score"`
-}
-
 type findReferencesArgs struct {
 	Symbol   string `json:"symbol"`
 	Repo     string `json:"repo"`
