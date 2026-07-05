@@ -1,10 +1,10 @@
-import { randomBytes } from "node:crypto";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { randomBytes } from 'node:crypto';
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
-import type { ModelMessage } from "ai";
+import type { ModelMessage } from 'ai';
 
-import { codebergHome } from "../core/paths.js";
+import { codebergHome } from '../core/paths.js';
 
 /** One persisted chat, replayed into model context when resumed. */
 export interface SessionRecord {
@@ -32,7 +32,7 @@ function home(env: NodeJS.ProcessEnv = process.env): string {
 
 /** Count user turns in a record, for the `/sessions` listing. */
 function countTurns(messages: ModelMessage[]): number {
-  return messages.filter((m) => m.role === "user").length;
+  return messages.filter((m) => m.role === 'user').length;
 }
 
 /**
@@ -45,26 +45,22 @@ export class SessionStore {
   private readonly dir: string;
 
   constructor(dir?: string) {
-    this.dir = dir ?? join(home(), "sessions");
+    this.dir = dir ?? join(home(), 'sessions');
   }
 
   /** A short, file-safe id. Injectable in tests via `save`-provided ids. */
   static newId(): string {
-    return randomBytes(3).toString("hex");
+    return randomBytes(3).toString('hex');
   }
 
   async save(record: SessionRecord): Promise<void> {
     await mkdir(this.dir, { recursive: true });
-    await writeFile(
-      join(this.dir, `${record.id}.json`),
-      JSON.stringify(record, null, 2),
-      "utf8",
-    );
+    await writeFile(join(this.dir, `${record.id}.json`), JSON.stringify(record, null, 2), 'utf8');
   }
 
   async load(id: string): Promise<SessionRecord | null> {
     try {
-      const raw = await readFile(join(this.dir, `${id}.json`), "utf8");
+      const raw = await readFile(join(this.dir, `${id}.json`), 'utf8');
       return JSON.parse(raw) as SessionRecord;
     } catch {
       return null;
@@ -82,10 +78,10 @@ export class SessionStore {
 
     const summaries: SessionSummary[] = [];
     for (const file of files) {
-      if (!file.endsWith(".json")) {
+      if (!file.endsWith('.json')) {
         continue;
       }
-      const record = await this.load(file.slice(0, -".json".length));
+      const record = await this.load(file.slice(0, -'.json'.length));
       if (record) {
         summaries.push({
           id: record.id,
@@ -107,9 +103,7 @@ export class SessionStore {
     if (exact) {
       return exact;
     }
-    const matches = (await this.list()).filter((s) =>
-      s.id.startsWith(idOrPrefix),
-    );
+    const matches = (await this.list()).filter((s) => s.id.startsWith(idOrPrefix));
     if (matches.length !== 1) {
       return null;
     }

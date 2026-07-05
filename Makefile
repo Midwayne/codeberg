@@ -37,7 +37,7 @@ DIST_PREFIX ?=
 load_env = if [ -f "$(1)" ]; then set -a; . "$(1)"; set +a; echo "› loaded $(1)"; else echo "› no $(1); using current environment"; fi
 
 .PHONY: build-core build test bench clean rebuild submodules help check set-version \
-        build-daemon daemon-test build-agent build-web-ui agent-test dist \
+        build-daemon daemon-test build-agent build-web-ui agent-test dist format \
         run-core run-index run-daemon run-agent run-agent-tui run-agent-web
 
 help:
@@ -62,6 +62,7 @@ help:
 	@echo "    make daemon-test          Run Go tests in daemon/"
 	@echo "    make agent-test           Run agent tests (vitest)"
 	@echo "    make check                build-core + test (pre-PR gate)"
+	@echo "    make format               clang-format (C), gofmt (Go), prettier (TS)"
 	@echo "  Misc"
 	@echo "    make set-version v=vX.Y.Z Bump VERSION (rebuild to propagate)"
 	@echo "    make submodules           git submodule update --init --recursive"
@@ -97,12 +98,21 @@ else
 	cd $(BUILD) && ctest --output-on-failure
 endif
 
+.PHONY: test-index-providers
+test-index-providers: build-core
+	chmod +x scripts/test-index-providers.sh
+	./scripts/test-index-providers.sh
+
 clean:
 	rm -rf $(BUILD)
 
 rebuild: clean build-core
 
 check: build-core test
+
+format:
+	chmod +x scripts/format.sh
+	./scripts/format.sh
 
 build-daemon: build-core
 	./scripts/build-daemon.sh

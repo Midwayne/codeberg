@@ -1,8 +1,8 @@
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createOpenAI } from "@ai-sdk/openai";
+import { createAnthropic } from '@ai-sdk/anthropic';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { createOpenAI } from '@ai-sdk/openai';
 
-import type { ModelProvider } from "./registry.js";
+import type { ModelProvider } from './registry.js';
 
 function env(name: string): string | undefined {
   const v = process.env[name];
@@ -21,22 +21,24 @@ function requireEnv(name: string, provider: string): string {
 }
 
 export function openaiProvider(): ModelProvider {
-  const openai = createOpenAI({ apiKey: requireEnv("OPENAI_API_KEY", "openai") });
-  return { name: "openai", model: (id) => openai(id) };
+  const openai = createOpenAI({
+    apiKey: requireEnv('OPENAI_API_KEY', 'openai'),
+  });
+  return { name: 'openai', model: (id) => openai(id) };
 }
 
 export function anthropicProvider(): ModelProvider {
   const anthropic = createAnthropic({
-    apiKey: requireEnv("ANTHROPIC_API_KEY", "anthropic"),
+    apiKey: requireEnv('ANTHROPIC_API_KEY', 'anthropic'),
   });
-  return { name: "anthropic", model: (id) => anthropic(id) };
+  return { name: 'anthropic', model: (id) => anthropic(id) };
 }
 
 export function googleProvider(): ModelProvider {
   const google = createGoogleGenerativeAI({
-    apiKey: requireEnv("GOOGLE_GENERATIVE_AI_API_KEY", "google"),
+    apiKey: requireEnv('GOOGLE_GENERATIVE_AI_API_KEY', 'google'),
   });
-  return { name: "google", model: (id) => google(id) };
+  return { name: 'google', model: (id) => google(id) };
 }
 
 /**
@@ -62,11 +64,11 @@ function openAICompatible(opts: {
 
 export function ollamaProvider(): ModelProvider {
   return openAICompatible({
-    name: "ollama",
-    baseURLEnv: "OLLAMA_BASE_URL",
-    baseURLDefault: "http://localhost:11434/v1",
-    keyEnv: "OLLAMA_API_KEY",
-    keyDefault: "ollama",
+    name: 'ollama',
+    baseURLEnv: 'OLLAMA_BASE_URL',
+    baseURLDefault: 'http://localhost:11434/v1',
+    keyEnv: 'OLLAMA_API_KEY',
+    keyDefault: 'ollama',
   });
 }
 
@@ -74,11 +76,11 @@ export function llamacppProvider(): ModelProvider {
   // llama-server serves whichever model was loaded with `-m`, so the model id is
   // a free-form label.
   return openAICompatible({
-    name: "llamacpp",
-    baseURLEnv: "LLAMACPP_BASE_URL",
-    baseURLDefault: "http://localhost:8080/v1",
-    keyEnv: "LLAMACPP_API_KEY",
-    keyDefault: "llama.cpp",
+    name: 'llamacpp',
+    baseURLEnv: 'LLAMACPP_BASE_URL',
+    baseURLDefault: 'http://localhost:8080/v1',
+    keyEnv: 'LLAMACPP_API_KEY',
+    keyDefault: 'llama.cpp',
   });
 }
 
@@ -96,9 +98,7 @@ const BUILTIN: ReadonlyArray<() => ModelProvider> = [
   llamacppProvider,
 ];
 
-export function registerBuiltinProviders(registry: {
-  register(p: ModelProvider): unknown;
-}): void {
+export function registerBuiltinProviders(registry: { register(p: ModelProvider): unknown }): void {
   for (const make of BUILTIN) {
     try {
       registry.register(make());

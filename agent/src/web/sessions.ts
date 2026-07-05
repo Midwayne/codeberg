@@ -1,9 +1,9 @@
-import { mkdir, readFile, readdir, unlink, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, readdir, unlink, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
-import type { UIMessage } from "ai";
+import type { UIMessage } from 'ai';
 
-import { codebergHome } from "../core/paths.js";
+import { codebergHome } from '../core/paths.js';
 
 /** One persisted browser chat — UI messages verbatim, so a resume re-renders
  *  with full fidelity (tool cards, reasoning, citations). */
@@ -38,7 +38,7 @@ function home(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 function countTurns(messages: UIMessage[]): number {
-  return messages.filter((m) => m.role === "user").length;
+  return messages.filter((m) => m.role === 'user').length;
 }
 
 /**
@@ -55,21 +55,17 @@ export class WebSessionStore {
   private readonly dir: string;
 
   constructor(dir?: string) {
-    this.dir = dir ?? join(home(), "web-sessions");
+    this.dir = dir ?? join(home(), 'web-sessions');
   }
 
   async save(record: WebSessionRecord): Promise<void> {
     await mkdir(this.dir, { recursive: true });
-    await writeFile(
-      join(this.dir, `${record.id}.json`),
-      JSON.stringify(record, null, 2),
-      "utf8",
-    );
+    await writeFile(join(this.dir, `${record.id}.json`), JSON.stringify(record, null, 2), 'utf8');
   }
 
   async load(id: string): Promise<WebSessionRecord | null> {
     try {
-      const raw = await readFile(join(this.dir, `${id}.json`), "utf8");
+      const raw = await readFile(join(this.dir, `${id}.json`), 'utf8');
       return JSON.parse(raw) as WebSessionRecord;
     } catch {
       return null;
@@ -87,10 +83,10 @@ export class WebSessionStore {
 
     const summaries: WebSessionSummary[] = [];
     for (const file of files) {
-      if (!file.endsWith(".json")) {
+      if (!file.endsWith('.json')) {
         continue;
       }
-      const record = await this.load(file.slice(0, -".json".length));
+      const record = await this.load(file.slice(0, -'.json'.length));
       if (record) {
         summaries.push({
           id: record.id,

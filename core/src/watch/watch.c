@@ -145,8 +145,7 @@ static void dirty_stage_visit(const char *key, uint64_t value, void *ctx_v) {
     staging->items[staging->len++] = (dirty_staged_item){.path = path, .kind = (cberg_watch_kind)value};
 }
 
-cberg_status watch_dirty_drain(cberg_watcher *w, cberg_watch_event *events, const char **paths, size_t cap,
-                               size_t *out_count) {
+cberg_status watch_dirty_drain(cberg_watcher *w, cberg_watch_event *events, const char **paths, size_t cap, size_t *out_count) {
     if (out_count == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
@@ -326,8 +325,7 @@ cberg_status watcher_check_error(cberg_watcher *watcher) {
     return CBERG_OK;
 }
 
-cberg_status cberg_watcher_poll(cberg_watcher *watcher, cberg_watch_event *events, size_t cap, size_t *out_count,
-                                int timeout_ms) {
+cberg_status cberg_watcher_poll(cberg_watcher *watcher, cberg_watch_event *events, size_t cap, size_t *out_count, int timeout_ms) {
     if (out_count == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }

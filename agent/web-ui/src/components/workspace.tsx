@@ -1,16 +1,10 @@
-import { useChat } from "@ai-sdk/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useChat } from '@ai-sdk/react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { Chat } from "@/components/chat";
-import { SessionSidebar } from "@/components/session-sidebar";
-import { useSessions } from "@/lib/use-sessions";
-import {
-  deleteSession,
-  deriveTitle,
-  loadSession,
-  newSessionId,
-  saveSession,
-} from "@/lib/sessions";
+import { Chat } from '@/components/chat';
+import { SessionSidebar } from '@/components/session-sidebar';
+import { useSessions } from '@/lib/use-sessions';
+import { deleteSession, deriveTitle, loadSession, newSessionId, saveSession } from '@/lib/sessions';
 
 /**
  * Owns the chat and its persistence. `useChat` lives here (not in `Chat`) so the
@@ -25,14 +19,14 @@ export function Workspace({ sidebarOpen }: { sidebarOpen: boolean }) {
 
   // Signature of the last conversation we persisted, so the save effect skips
   // re-writing an unchanged turn (notably the one we just resumed).
-  const savedSig = useRef("");
+  const savedSig = useRef('');
   const signature = (id: string, msgs: { id: string }[]) =>
-    `${id}:${msgs.length}:${msgs.at(-1)?.id ?? ""}`;
+    `${id}:${msgs.length}:${msgs.at(-1)?.id ?? ''}`;
 
   // Persist once a turn settles (status back to "ready") and there's something
   // to save. PUT is idempotent, so the dedupe is just to avoid needless writes.
   useEffect(() => {
-    if (chat.status !== "ready" || chat.messages.length === 0) return;
+    if (chat.status !== 'ready' || chat.messages.length === 0) return;
     const sig = signature(sessionId, chat.messages);
     if (sig === savedSig.current) return;
     savedSig.current = sig;
@@ -60,7 +54,7 @@ export function Workspace({ sidebarOpen }: { sidebarOpen: boolean }) {
   const startNew = useCallback(() => {
     chat.setMessages([]);
     setSessionId(newSessionId());
-    savedSig.current = "";
+    savedSig.current = '';
   }, [chat]);
 
   const remove = useCallback(

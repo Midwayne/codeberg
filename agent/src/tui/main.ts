@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-import { runAgentTUI } from "@ai-sdk/tui";
+import { runAgentTUI } from '@ai-sdk/tui';
 
-import { createAgentFromEntry } from "../core/config.js";
-import { entryUsage, parseEntryArgs } from "../core/entry.js";
-import { SessionStore } from "./session-store.js";
-import { wrapSessionAgent } from "./session-agent.js";
+import { createAgentFromEntry } from '../core/config.js';
+import { entryUsage, parseEntryArgs } from '../core/entry.js';
+import { SessionStore } from './session-store.js';
+import { wrapSessionAgent } from './session-agent.js';
 
 // The interactive chat UI is provided by ai-sdk v7's `runAgentTUI`, which drives
 // the ToolLoopAgent itself and renders streamed tool calls, reasoning, and
@@ -19,7 +19,7 @@ import { wrapSessionAgent } from "./session-agent.js";
 async function main(): Promise<void> {
   const entry = parseEntryArgs(process.argv);
   if (!entry) {
-    console.error(entryUsage("codeberg-tui"));
+    console.error(entryUsage('codeberg-tui'));
     process.exit(1);
   }
 
@@ -36,9 +36,9 @@ async function main(): Promise<void> {
   await runAgentTUI({
     agent,
     title: `codeberg · ${entry.modelSpec} · ${entry.daemonUrl} · /help for commands`,
-    tools: "auto-collapsed",
-    reasoning: "auto-collapsed",
-    responseStatistics: "outputTokensPerSecond",
+    tools: 'auto-collapsed',
+    reasoning: 'auto-collapsed',
+    responseStatistics: 'outputTokensPerSecond',
   });
 }
 

@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-import { createAgentFromEntry } from "../core/config.js";
-import { entryUsage, parseEntryArgs } from "../core/entry.js";
-import { ChatSession } from "../core/session.js";
-import { printResult } from "./format.js";
+import { createAgentFromEntry } from '../core/config.js';
+import { entryUsage, parseEntryArgs } from '../core/entry.js';
+import { ChatSession } from '../core/session.js';
+import { printResult } from './format.js';
 
 async function main(): Promise<void> {
   const entry = parseEntryArgs(process.argv);
   if (!entry?.question) {
-    console.error(entryUsage("codeberg-ask"));
+    console.error(entryUsage('codeberg-ask'));
     process.exit(1);
   }
 

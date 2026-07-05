@@ -114,8 +114,10 @@ static cberg_chunk_kind kind_from_capture(const char *name, uint32_t len) {
         const char *name;
         cberg_chunk_kind kind;
     } kinds[] = {
-        {"function", CBERG_CHUNK_FUNCTION}, {"method", CBERG_CHUNK_METHOD},
-        {"class", CBERG_CHUNK_CLASS},         {"struct", CBERG_CHUNK_STRUCT},
+        {"function", CBERG_CHUNK_FUNCTION},
+        {"method", CBERG_CHUNK_METHOD},
+        {"class", CBERG_CHUNK_CLASS},
+        {"struct", CBERG_CHUNK_STRUCT},
         {"interface", CBERG_CHUNK_INTERFACE},
     };
     for (size_t i = 0; i < sizeof(kinds) / sizeof(kinds[0]); i++) {
@@ -152,8 +154,7 @@ static cberg_status list_reserve(cberg_chunk_list *list, size_t want) {
     return CBERG_OK;
 }
 
-static cberg_status list_push(cberg_chunk_list *list, const char *path, cberg_chunk_kind kind, cberg_span span,
-                              const char *symbol_src, uint32_t symbol_start, uint32_t symbol_end, uint32_t occ) {
+static cberg_status list_push(cberg_chunk_list *list, const char *path, cberg_chunk_kind kind, cberg_span span, const char *symbol_src, uint32_t symbol_start, uint32_t symbol_end, uint32_t occ) {
     cberg_status st = list_reserve(list, list->len + 1);
     if (st != CBERG_OK) {
         return st;
@@ -219,8 +220,7 @@ void cberg_chunker_close(cberg_chunker *chunker) {
     free(chunker);
 }
 
-static cberg_status ensure_lang(cberg_chunker *ch, cberg_language lang, lang_desc desc, int slot, TSParser **out_parser,
-                                TSQuery **out_query) {
+static cberg_status ensure_lang(cberg_chunker *ch, cberg_language lang, lang_desc desc, int slot, TSParser **out_parser, TSQuery **out_query) {
     if (ch->parsers[slot] == NULL) {
         ch->parsers[slot] = ts_parser_new();
         if (ch->parsers[slot] == NULL) {
@@ -304,8 +304,7 @@ static cberg_status window_chunk(const char *path, const char *src, size_t src_l
     return CBERG_OK;
 }
 
-static cberg_status query_chunk(cberg_chunker *ch, lang_desc desc, cberg_language lang, const char *path,
-                                const char *src, size_t src_len, cberg_chunk_list **out_list) {
+static cberg_status query_chunk(cberg_chunker *ch, lang_desc desc, cberg_language lang, const char *path, const char *src, size_t src_len, cberg_chunk_list **out_list) {
     int slot = lang_slot(lang);
     if (slot < 0) {
         return CBERG_ERR_UNSUPPORTED_LANGUAGE;
@@ -426,8 +425,7 @@ done:
     return status;
 }
 
-cberg_status cberg_chunker_parse(cberg_chunker *chunker, cberg_language lang, const char *path, const char *src,
-                               size_t src_len, cberg_chunk_list **out_list) {
+cberg_status cberg_chunker_parse(cberg_chunker *chunker, cberg_language lang, const char *path, const char *src, size_t src_len, cberg_chunk_list **out_list) {
     if (out_list == NULL || chunker == NULL || path == NULL || src == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }

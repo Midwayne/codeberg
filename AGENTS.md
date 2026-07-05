@@ -57,7 +57,11 @@ export CODEBERG_ROOT="$(git rev-parse --show-toplevel)"
 |----------|----------|---------|
 | `CODEBERG_ROOT` | For daemon/agent runs | Repository tree to index |
 | `CBERG_MODEL` | For vector search | Path to ONNX embedding model |
-| `CBERG_INDEX_PATH` | For vector search | usearch index file path |
+| `CBERG_INDEX_PATH` | For vector search | usearch index base path (local sidecars + default vector store) |
+| `CBERG_INDEX_BACKEND` | No | `usearch` (default), `qdrant`, or `pgvector` (`postgres` alias) — see `core/docs/VECTOR_INDEX_PROVIDERS.md` |
+| `CBERG_VECTORDB_URL` | For `qdrant` backend | Qdrant base URL, e.g. `https://cluster.qdrant.io` |
+| `CBERG_VECTORDB_API_KEY` | No | Qdrant API key (cloud) |
+| `CBERG_POSTGRES_URL` | For `pgvector` backend | PostgreSQL connection string (requires pgvector extension) |
 | `CODEBERG_HTTP_PORT` | No | Daemon HTTP port (default `8080`) |
 | `CODEBERG_WEB_PORT` | No | Browser UI port for `make run-agent-web` (default `48088`) |
 | `CODEBERG_MODEL` (agent) | For `make run-agent` | Provider:model, e.g. `anthropic:claude-haiku-4-5` |

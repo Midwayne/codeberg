@@ -15,32 +15,35 @@ export interface ExtractedPage {
  * the model without pulling in a parser dependency.
  */
 export function htmlToText(html: string): ExtractedPage {
-  const rawTitle = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] ?? "";
+  const rawTitle = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] ?? '';
 
   let body = html
-    .replace(/<!--[\s\S]*?-->/g, " ")
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
-    .replace(/<template[\s\S]*?<\/template>/gi, " ")
-    .replace(/<svg[\s\S]*?<\/svg>/gi, " ")
-    .replace(/<head[\s\S]*?<\/head>/gi, " ");
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
+    .replace(/<template[\s\S]*?<\/template>/gi, ' ')
+    .replace(/<svg[\s\S]*?<\/svg>/gi, ' ')
+    .replace(/<head[\s\S]*?<\/head>/gi, ' ');
 
   // Focus on the main content so the model isn't fed nav/sidebar/footer chrome.
   body = mainContent(body);
 
   body = body
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(BLOCK_CLOSE, "\n")
-    .replace(/<[^>]+>/g, " ");
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(BLOCK_CLOSE, '\n')
+    .replace(/<[^>]+>/g, ' ');
 
   body = decodeEntities(body)
-    .replace(/[ \t\f\v\r]+/g, " ")
-    .replace(/ *\n */g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t\f\v\r]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
 
-  return { title: decodeEntities(rawTitle).replace(/\s+/g, " ").trim(), text: body };
+  return {
+    title: decodeEntities(rawTitle).replace(/\s+/g, ' ').trim(),
+    text: body,
+  };
 }
 
 /**
@@ -55,37 +58,37 @@ function mainContent(html: string): string {
     return main[1];
   }
   const articles = [...html.matchAll(/<article[^>]*>([\s\S]*?)<\/article>/gi)]
-    .map((m) => m[1] ?? "")
+    .map((m) => m[1] ?? '')
     .filter((a) => a.trim());
   if (articles.length > 0) {
     return articles.reduce((a, b) => (b.length > a.length ? b : a));
   }
   return html
-    .replace(/<nav[\s\S]*?<\/nav>/gi, " ")
-    .replace(/<header[\s\S]*?<\/header>/gi, " ")
-    .replace(/<footer[\s\S]*?<\/footer>/gi, " ")
-    .replace(/<aside[\s\S]*?<\/aside>/gi, " ");
+    .replace(/<nav[\s\S]*?<\/nav>/gi, ' ')
+    .replace(/<header[\s\S]*?<\/header>/gi, ' ')
+    .replace(/<footer[\s\S]*?<\/footer>/gi, ' ')
+    .replace(/<aside[\s\S]*?<\/aside>/gi, ' ');
 }
 
 const NAMED_ENTITIES: Record<string, string> = {
-  amp: "&",
-  lt: "<",
-  gt: ">",
+  amp: '&',
+  lt: '<',
+  gt: '>',
   quot: '"',
   apos: "'",
-  nbsp: " ",
-  mdash: "—",
-  ndash: "–",
-  hellip: "…",
-  copy: "©",
-  reg: "®",
-  trade: "™",
+  nbsp: ' ',
+  mdash: '—',
+  ndash: '–',
+  hellip: '…',
+  copy: '©',
+  reg: '®',
+  trade: '™',
 };
 
 function decodeEntities(input: string): string {
   return input.replace(/&(#x?[0-9a-f]+|[a-z][a-z0-9]*);/gi, (match, code: string) => {
-    if (code[0] === "#") {
-      const isHex = code[1] === "x" || code[1] === "X";
+    if (code[0] === '#') {
+      const isHex = code[1] === 'x' || code[1] === 'X';
       const cp = isHex ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10);
       return Number.isFinite(cp) ? safeFromCodePoint(cp) : match;
     }
@@ -97,6 +100,6 @@ function safeFromCodePoint(cp: number): string {
   try {
     return String.fromCodePoint(cp);
   } catch {
-    return "";
+    return '';
   }
 }

@@ -1,4 +1,4 @@
-import type { ModelMessage } from "ai";
+import type { ModelMessage } from 'ai';
 
 export interface PromptHookInput {
   /** The last user message's readable text. */

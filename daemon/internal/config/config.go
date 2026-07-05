@@ -12,16 +12,20 @@ import (
 )
 
 const (
-	EnvRoot       = "CODEBERG_ROOT"
-	EnvRoots      = "CODEBERG_ROOTS"
-	EnvModel      = "CBERG_MODEL"
-	EnvIndexPath  = "CBERG_INDEX_PATH"
-	EnvPollMS     = "CBERG_POLL_MS"
-	EnvSocket     = "CBERG_SOCKET"
-	EnvIndexerBin = "CBERG_INDEX_BIN"
-	EnvHTTPPort   = "CODEBERG_HTTP_PORT"
-	EnvGitPullSec = "CODEBERG_GIT_PULL_INTERVAL_SEC"
-	EnvGitDir     = "CODEBERG_GIT_DIR"
+	EnvRoot         = "CODEBERG_ROOT"
+	EnvRoots        = "CODEBERG_ROOTS"
+	EnvModel        = "CBERG_MODEL"
+	EnvIndexPath    = "CBERG_INDEX_PATH"
+	EnvIndexBackend = "CBERG_INDEX_BACKEND"
+	EnvVectorDBURL  = "CBERG_VECTORDB_URL"
+	EnvVectorDBKey  = "CBERG_VECTORDB_API_KEY"
+	EnvPostgresURL  = "CBERG_POSTGRES_URL"
+	EnvPollMS       = "CBERG_POLL_MS"
+	EnvSocket       = "CBERG_SOCKET"
+	EnvIndexerBin   = "CBERG_INDEX_BIN"
+	EnvHTTPPort     = "CODEBERG_HTTP_PORT"
+	EnvGitPullSec   = "CODEBERG_GIT_PULL_INTERVAL_SEC"
+	EnvGitDir       = "CODEBERG_GIT_DIR"
 )
 
 type Indexer struct {
@@ -32,12 +36,16 @@ type Indexer struct {
 	Roots []domain.Repo
 	// DefaultKey is the repo tools fall back to when no repo is named: the
 	// single root's key, or "" in --all mode (where a repo must be explicit).
-	DefaultKey string
-	Model      string
-	Index      string
-	PollMS     int
-	Socket     string
-	Bin        string
+	DefaultKey   string
+	Model        string
+	Index        string
+	IndexBackend string
+	VectorDBURL  string
+	VectorDBKey  string
+	PostgresURL  string
+	PollMS       int
+	Socket       string
+	Bin          string
 }
 
 type Daemon struct {
@@ -87,6 +95,10 @@ func loadIndexer() (Indexer, error) {
 	}
 	model := os.Getenv(EnvModel)
 	indexPath := os.Getenv(EnvIndexPath)
+	indexBackend := os.Getenv(EnvIndexBackend)
+	vectorDBURL := os.Getenv(EnvVectorDBURL)
+	vectorDBKey := os.Getenv(EnvVectorDBKey)
+	postgresURL := os.Getenv(EnvPostgresURL)
 	poll := 1000
 	if v := os.Getenv(EnvPollMS); v != "" {
 		n, err := strconv.Atoi(v)
@@ -103,14 +115,18 @@ func loadIndexer() (Indexer, error) {
 		socket = "/tmp/codeberg-index.sock"
 	}
 	return Indexer{
-		Root:       roots[0].Root,
-		Roots:      roots,
-		DefaultKey: defaultKey,
-		Model:      model,
-		Index:      indexPath,
-		PollMS:     poll,
-		Socket:     socket,
-		Bin:        os.Getenv(EnvIndexerBin),
+		Root:         roots[0].Root,
+		Roots:        roots,
+		DefaultKey:   defaultKey,
+		Model:        model,
+		Index:        indexPath,
+		IndexBackend: indexBackend,
+		VectorDBURL:  vectorDBURL,
+		VectorDBKey:  vectorDBKey,
+		PostgresURL:  postgresURL,
+		PollMS:       poll,
+		Socket:       socket,
+		Bin:          os.Getenv(EnvIndexerBin),
 	}, nil
 }
 

@@ -9,6 +9,7 @@ Complete reference for the C indexing core.
 | [CORE.md](CORE.md) | Everyone | Architecture, design principles, end-to-end flows, build |
 | [API.md](API.md) | Integrators | Every public function in `codeberg.h` |
 | [CBERG_INDEX.md](CBERG_INDEX.md) | Operators | `cberg-index` binary — env, lifecycle, on-disk layout |
+| [VECTOR_INDEX_PROVIDERS.md](VECTOR_INDEX_PROVIDERS.md) | Operators | usearch, Qdrant, pgvector — setup, schemas, ops |
 | [TESTING.md](TESTING.md) | Contributors | CTest binaries, SKIP 77, ONNX setup |
 | [modules/](modules/) | Contributors | Every source file and internal function |
 

@@ -7,8 +7,7 @@ int main(void) {
     const char *version = cberg_version();
     printf("codeberg %s\n", version);
     if (!version || version[0] != 'v') {
-        fprintf(stderr, "FAIL: version should match VERSION file (vX.Y.Z), got %s\n",
-                version ? version : "(null)");
+        fprintf(stderr, "FAIL: version should match VERSION file (vX.Y.Z), got %s\n", version ? version : "(null)");
         return 1;
     }
     if (strcmp(cberg_config_index_root_env_name(), "CODEBERG_ROOT") != 0) {

@@ -1,7 +1,7 @@
-import type { ModelMessage, ToolLoopAgent } from "ai";
+import type { ModelMessage, ToolLoopAgent } from 'ai';
 
-import { overrideLoopMethods } from "../core/loop.js";
-import { lastUserMessage, messageText } from "../core/message.js";
+import { overrideLoopMethods } from '../core/loop.js';
+import { lastUserMessage, messageText } from '../core/message.js';
 import {
   type Command,
   deriveTitle,
@@ -9,8 +9,8 @@ import {
   formatSessionList,
   parseCommand,
   stripCommandTurns,
-} from "./commands.js";
-import { SessionStore } from "./session-store.js";
+} from './commands.js';
+import { SessionStore } from './session-store.js';
 
 export interface SessionAgentOptions {
   store: SessionStore;
@@ -25,8 +25,8 @@ export interface SessionAgentOptions {
   newId?: () => string;
 }
 
-type StreamParams = Parameters<ToolLoopAgent["stream"]>[0];
-type StreamResult = Awaited<ReturnType<ToolLoopAgent["stream"]>>;
+type StreamParams = Parameters<ToolLoopAgent['stream']>[0];
+type StreamResult = Awaited<ReturnType<ToolLoopAgent['stream']>>;
 
 /**
  * Wrap a `ToolLoopAgent` so the sealed `runAgentTUI` gains persistent,
@@ -45,10 +45,7 @@ type StreamResult = Awaited<ReturnType<ToolLoopAgent["stream"]>>;
  * The TUI's own scrollback is untouched; we only change what the model sees
  * and what we persist.
  */
-export function wrapSessionAgent(
-  loop: ToolLoopAgent,
-  opts: SessionAgentOptions,
-): ToolLoopAgent {
+export function wrapSessionAgent(loop: ToolLoopAgent, opts: SessionAgentOptions): ToolLoopAgent {
   const now = opts.now ?? (() => Date.now());
   const newId = opts.newId ?? SessionStore.newId;
 
@@ -69,23 +66,23 @@ export function wrapSessionAgent(
 
   async function runCommand(command: Command, raw: ModelMessage[]): Promise<string> {
     switch (command.kind) {
-      case "help":
+      case 'help':
         return formatHelp();
 
-      case "sessions":
+      case 'sessions':
         return formatSessionList(await opts.store.list(), now());
 
-      case "new":
+      case 'new':
         state.sessionId = newId();
         state.resumed = [];
         state.title = undefined;
         state.createdAt = now();
         state.dropBefore = raw.length + 1; // skip this command and its reply
-        return "Started a fresh session. Earlier turns are no longer in context.";
+        return 'Started a fresh session. Earlier turns are no longer in context.';
 
-      case "resume": {
+      case 'resume': {
         if (!command.arg) {
-          return "Usage: /resume <id>. Run /sessions to see saved ids.";
+          return 'Usage: /resume <id>. Run /sessions to see saved ids.';
         }
         const record = await opts.store.resolve(command.arg);
         if (!record) {
@@ -96,9 +93,9 @@ export function wrapSessionAgent(
         state.title = record.title;
         state.createdAt = record.createdAt;
         state.dropBefore = raw.length + 1;
-        const turns = state.resumed.filter((m) => m.role === "user").length;
+        const turns = state.resumed.filter((m) => m.role === 'user').length;
         return `Resumed "${record.title}" — ${turns} prior turn${
-          turns === 1 ? "" : "s"
+          turns === 1 ? '' : 's'
         } now in context.`;
       }
     }
@@ -159,11 +156,11 @@ function toModelMessages(prompt: unknown): ModelMessage[] {
  */
 function synthetic(text: string): StreamResult {
   async function* fullStream(): AsyncGenerator<unknown> {
-    const id = "codeberg-command";
-    yield { type: "text-start", id };
-    yield { type: "text-delta", id, text };
-    yield { type: "text-end", id };
-    yield { type: "finish", finishReason: "stop", totalUsage: undefined };
+    const id = 'codeberg-command';
+    yield { type: 'text-start', id };
+    yield { type: 'text-delta', id, text };
+    yield { type: 'text-end', id };
+    yield { type: 'finish', finishReason: 'stop', totalUsage: undefined };
   }
   return { fullStream: fullStream() } as unknown as StreamResult;
 }
@@ -183,17 +180,17 @@ function teeForPersistence(
   }>;
 
   async function* observed(): AsyncGenerator<unknown> {
-    let text = "";
+    let text = '';
     try {
       for await (const part of source) {
-        if (part?.type === "text-delta" && typeof part.text === "string") {
+        if (part?.type === 'text-delta' && typeof part.text === 'string') {
           text += part.text;
         }
         yield part;
       }
     } finally {
       const messages = text
-        ? [...effective, { role: "assistant", content: text } as ModelMessage]
+        ? [...effective, { role: 'assistant', content: text } as ModelMessage]
         : effective;
       // Awaited within the generator's completion, so the turn is on disk
       // before the stream reports done (`persist` swallows its own errors).
@@ -204,11 +201,11 @@ function teeForPersistence(
   const stream = observed();
   return new Proxy(result as object, {
     get(target, prop) {
-      if (prop === "fullStream") {
+      if (prop === 'fullStream') {
         return stream;
       }
       const value = Reflect.get(target, prop, target);
-      return typeof value === "function" ? value.bind(target) : value;
+      return typeof value === 'function' ? value.bind(target) : value;
     },
   }) as StreamResult;
 }

@@ -1,8 +1,8 @@
-import { jsonSchema, tool, type ToolSet } from "ai";
+import { jsonSchema, tool, type ToolSet } from 'ai';
 
-import type { DaemonClient } from "../client.js";
-import type { SearchResult } from "../types.js";
-import type { ToolSource } from "./source.js";
+import type { DaemonClient } from '../client.js';
+import type { SearchResult } from '../types.js';
+import type { ToolSource } from './source.js';
 
 export interface SearchCodeOptions {
   daemon: DaemonClient;
@@ -23,12 +23,12 @@ export interface SearchCodeOptions {
  */
 export function searchCodeSource(opts: SearchCodeOptions): ToolSource {
   return {
-    name: "search_code",
+    name: 'search_code',
     tools: (): ToolSet => ({
       search_code: tool({
         description:
-          "Semantic code search. Returns relevant chunks with path, lines, and snippet. " +
-          "Searches every indexed repo unless `repo` narrows it to one (keys via the repos tool).",
+          'Semantic code search. Returns relevant chunks with path, lines, and snippet. ' +
+          'Searches every indexed repo unless `repo` narrows it to one (keys via the repos tool).',
         inputSchema: jsonSchema<{
           query: string;
           k?: number;
@@ -37,20 +37,29 @@ export function searchCodeSource(opts: SearchCodeOptions): ToolSource {
           kind?: string;
           min_score?: number;
         }>({
-          type: "object",
+          type: 'object',
           additionalProperties: false,
           properties: {
-            query: { type: "string" },
-            k: { type: "number", description: "max results (default 8)" },
-            repo: { type: "string", description: "restrict to one repo key (optional)" },
-            path_glob: { type: "string", description: "fnmatch glob on chunk paths" },
-            kind: {
-              type: "string",
-              description: "chunk kind: function, method, class, struct, interface, window",
+            query: { type: 'string' },
+            k: { type: 'number', description: 'max results (default 8)' },
+            repo: {
+              type: 'string',
+              description: 'restrict to one repo key (optional)',
             },
-            min_score: { type: "number", description: "minimum similarity score (0-1)" },
+            path_glob: {
+              type: 'string',
+              description: 'fnmatch glob on chunk paths',
+            },
+            kind: {
+              type: 'string',
+              description: 'chunk kind: function, method, class, struct, interface, window',
+            },
+            min_score: {
+              type: 'number',
+              description: 'minimum similarity score (0-1)',
+            },
           },
-          required: ["query"],
+          required: ['query'],
         }),
         execute: async ({ query, k, repo, path_glob, kind, min_score }) => {
           const results = await opts.daemon.search(query, {

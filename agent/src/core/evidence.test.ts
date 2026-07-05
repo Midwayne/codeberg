@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 
-import { EvidenceLedger } from "./evidence.js";
-import type { SearchResult } from "./types.js";
+import { EvidenceLedger } from './evidence.js';
+import type { SearchResult } from './types.js';
 
-function hit(id: number, path: string, symbol = "", repo?: string): SearchResult {
+function hit(id: number, path: string, symbol = '', repo?: string): SearchResult {
   return {
     id,
     ...(repo ? { repo } : {}),
@@ -12,46 +12,49 @@ function hit(id: number, path: string, symbol = "", repo?: string): SearchResult
     start_line: 1,
     end_line: 9,
     score: 1,
-    snippet: "",
+    snippet: '',
   };
 }
 
-describe("EvidenceLedger", () => {
-  it("is empty until something is added", () => {
+describe('EvidenceLedger', () => {
+  it('is empty until something is added', () => {
     const ledger = new EvidenceLedger();
     expect(ledger.size).toBe(0);
     expect(ledger.render()).toBeNull();
   });
 
-  it("dedupes by chunk id across adds", () => {
+  it('dedupes by chunk id across adds', () => {
     const ledger = new EvidenceLedger();
-    ledger.add([hit(1, "a.go"), hit(2, "b.go")]);
-    ledger.add([hit(1, "a.go"), hit(3, "c.go")]);
+    ledger.add([hit(1, 'a.go'), hit(2, 'b.go')]);
+    ledger.add([hit(1, 'a.go'), hit(3, 'c.go')]);
     expect(ledger.size).toBe(3);
   });
 
-  it("renders one cited line per chunk, most recent first", () => {
+  it('renders one cited line per chunk, most recent first', () => {
     const ledger = new EvidenceLedger();
-    ledger.add([hit(1, "a.go", "Foo"), hit(2, "b.go")]);
+    ledger.add([hit(1, 'a.go', 'Foo'), hit(2, 'b.go')]);
     const out = ledger.render()!;
-    expect(out).toContain("<evidence_ledger>");
-    expect(out.indexOf("b.go:1-9")).toBeLessThan(out.indexOf("a.go:1-9 Foo"));
+    expect(out).toContain('<evidence_ledger>');
+    expect(out.indexOf('b.go:1-9')).toBeLessThan(out.indexOf('a.go:1-9 Foo'));
   });
 
-  it("bounds the rendered rows to its max", () => {
+  it('bounds the rendered rows to its max', () => {
     const ledger = new EvidenceLedger(2);
-    ledger.add([hit(1, "a"), hit(2, "b"), hit(3, "c")]);
-    const rows = ledger.render()!.split("\n").filter((l) => l.startsWith("- "));
+    ledger.add([hit(1, 'a'), hit(2, 'b'), hit(3, 'c')]);
+    const rows = ledger
+      .render()!
+      .split('\n')
+      .filter((l) => l.startsWith('- '));
     expect(rows).toHaveLength(2);
   });
 
-  it("keeps same-id hits from different repos distinct", () => {
+  it('keeps same-id hits from different repos distinct', () => {
     // Chunk ids restart at 1 per repo, so (repo, id) is the identity.
     const ledger = new EvidenceLedger();
-    ledger.add([hit(1, "a.go", "", "alpha"), hit(1, "b.go", "", "beta")]);
+    ledger.add([hit(1, 'a.go', '', 'alpha'), hit(1, 'b.go', '', 'beta')]);
     expect(ledger.size).toBe(2);
     const out = ledger.render()!;
-    expect(out).toContain("[alpha] a.go:1-9");
-    expect(out).toContain("[beta] b.go:1-9");
+    expect(out).toContain('[alpha] a.go:1-9');
+    expect(out).toContain('[beta] b.go:1-9');
   });
 });

@@ -4,6 +4,10 @@ function(cberg_add_test name)
   add_test(NAME ${name} COMMAND ${name})
 endfunction()
 
+add_library(index_provider_harness STATIC index_provider_harness.c)
+target_link_libraries(index_provider_harness PUBLIC codeberg::codeberg)
+target_include_directories(index_provider_harness PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
 cberg_add_test(test_smoke)
 cberg_add_test(test_chunker)
 cberg_add_test(test_chunk_table)
@@ -15,6 +19,14 @@ cberg_add_test(test_config)
 cberg_add_test(test_watch)
 cberg_add_test(test_watch_events)
 cberg_add_test(test_index)
+target_link_libraries(test_index PRIVATE index_provider_harness)
+
+cberg_add_test(test_qdrant_json)
+target_include_directories(test_qdrant_json PRIVATE ${CMAKE_SOURCE_DIR}/src/search/providers/qdrant)
+
+add_executable(test_index_providers test_index_providers.c)
+target_link_libraries(test_index_providers PRIVATE codeberg::codeberg index_provider_harness)
+add_test(NAME test_index_providers COMMAND test_index_providers)
 cberg_add_test(test_embed)
 cberg_add_test(test_search)
 

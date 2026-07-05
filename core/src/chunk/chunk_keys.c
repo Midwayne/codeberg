@@ -39,8 +39,7 @@ cberg_status chunk_format_ident(char *buf, size_t cap, const char *path, cberg_c
     return CBERG_OK;
 }
 
-cberg_status chunk_format_key(char *buf, size_t cap, const char *path, cberg_chunk_kind kind, const char *symbol,
-                              uint32_t index) {
+cberg_status chunk_format_key(char *buf, size_t cap, const char *path, cberg_chunk_kind kind, const char *symbol, uint32_t index) {
     char ident[CBERG_CHUNK_IDENT_MAX];
     cberg_status st = chunk_format_ident(ident, sizeof(ident), path, kind, symbol);
     if (st != CBERG_OK) {
@@ -53,8 +52,7 @@ cberg_status chunk_format_key(char *buf, size_t cap, const char *path, cberg_chu
     return CBERG_OK;
 }
 
-cberg_status chunk_occ_next(chunk_occ_tracker *tracker, const char *path, cberg_chunk_kind kind, const char *symbol,
-                            uint32_t *out_index) {
+cberg_status chunk_occ_next(chunk_occ_tracker *tracker, const char *path, cberg_chunk_kind kind, const char *symbol, uint32_t *out_index) {
     if (tracker == NULL || path == NULL || out_index == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }

@@ -1,7 +1,7 @@
-import { MessageSquarePlus, Trash2 } from "lucide-react";
+import { MessageSquarePlus, Trash2 } from 'lucide-react';
 
-import type { SessionSummary } from "@/lib/sessions";
-import { cn, timeAgo } from "@/lib/utils";
+import type { SessionSummary } from '@/lib/sessions';
+import { cn, timeAgo } from '@/lib/utils';
 
 /**
  * The saved-chats panel: a "New chat" button over a newest-first list. Clicking
@@ -45,8 +45,8 @@ export function SessionSidebar({
               <li key={s.id}>
                 <div
                   className={cn(
-                    "group/sess flex items-center gap-1 rounded-md pr-1 text-xs transition-colors hover:bg-accent",
-                    s.id === currentId && "bg-accent",
+                    'group/sess flex items-center gap-1 rounded-md pr-1 text-xs transition-colors hover:bg-accent',
+                    s.id === currentId && 'bg-accent',
                   )}
                 >
                   <button
@@ -57,7 +57,8 @@ export function SessionSidebar({
                   >
                     <div className="truncate text-foreground">{s.title}</div>
                     <div className="truncate text-[10px] text-muted-foreground">
-                      {timeAgo(s.updatedAt)} · {s.turns} turn{s.turns === 1 ? "" : "s"}
+                      {timeAgo(s.updatedAt)} · {s.turns} turn
+                      {s.turns === 1 ? '' : 's'}
                     </div>
                   </button>
                   <button

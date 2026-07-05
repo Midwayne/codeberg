@@ -47,8 +47,7 @@ static bool dirent_dot(const char *name) {
     return name[0] == '.' && (name[1] == '\0' || (name[1] == '.' && name[2] == '\0'));
 }
 
-cberg_status cberg_fs_walk(const char *abs, const char *rel, cberg_fs_walk_fn fn, void *ctx,
-                           cberg_fs_skip_dir_fn skip_dir, void *skip_ctx) {
+cberg_status cberg_fs_walk(const char *abs, const char *rel, cberg_fs_walk_fn fn, void *ctx, cberg_fs_skip_dir_fn skip_dir, void *skip_ctx) {
     if (abs == NULL || rel == NULL || fn == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }

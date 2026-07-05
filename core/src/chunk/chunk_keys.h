@@ -15,9 +15,7 @@ chunk_occ_tracker *chunk_occ_new(void);
 void chunk_occ_free(chunk_occ_tracker *tracker);
 
 cberg_status chunk_format_ident(char *buf, size_t cap, const char *path, cberg_chunk_kind kind, const char *symbol);
-cberg_status chunk_format_key(char *buf, size_t cap, const char *path, cberg_chunk_kind kind, const char *symbol,
-                              uint32_t index);
-cberg_status chunk_occ_next(chunk_occ_tracker *tracker, const char *path, cberg_chunk_kind kind, const char *symbol,
-                            uint32_t *out_index);
+cberg_status chunk_format_key(char *buf, size_t cap, const char *path, cberg_chunk_kind kind, const char *symbol, uint32_t index);
+cberg_status chunk_occ_next(chunk_occ_tracker *tracker, const char *path, cberg_chunk_kind kind, const char *symbol, uint32_t *out_index);
 
 #endif /* CBERG_CHUNK_KEYS_H */

@@ -25,7 +25,9 @@ make check                   # build + test (CI gate)
 | `test_manifest` | `test/` | Merkle build, diff, incremental rebuild |
 | `test_watch` | `test/` | Dirty path on file write |
 | `test_watch_events` | `test/` | Delete-before-drain (macOS FSEvents regression) |
-| `test_index` | `test/` | usearch add/remove/search/save |
+| `test_index` | `test/` | usearch harness + `expansion_search` restore test |
+| `test_qdrant_json` | `test/` | Qdrant REST JSON parser (`json_mini`) |
+| `test_index_providers` | `test/` | usearch + optional qdrant/pgvector at dim 4 and 768 |
 | `test_embed` | `test/` | ONNX embedding pipeline |
 | `test_search` | `test/` | `cberg_search_query` end-to-end |
 | `test_cberg_walk` | `cmd/cberg-index/` | Walk policy, skip directories |
@@ -38,6 +40,8 @@ make check                   # build + test (CI gate)
 | Variable | Tests | Purpose |
 |----------|-------|---------|
 | `CBERG_TEST_MODEL` | `test_embed`, `test_search` | Path to ONNX `model.onnx` |
+| `CBERG_TEST_QDRANT_URL` | `test_index_providers` | Qdrant base URL (e.g. `http://127.0.0.1:6333`) |
+| `CBERG_TEST_POSTGRES_URL` | `test_index_providers` | PostgreSQL URL with pgvector extension |
 | `LD_LIBRARY_PATH` | ONNX tests | Directory containing `libonnxruntime.so` |
 | `CODEBERG_ROOT` | Some integration tests | Index root when exercising config helpers |
 
@@ -56,7 +60,20 @@ make test TEST=test_embed
 make test TEST=test_search
 ```
 
-Build with ONNX enabled: pass `-DONNXRUNTIME_ROOT=...` to CMake (see
+### Index provider integration
+
+`test_index_providers` always runs the usearch suite. Qdrant and pgvector run when
+`CBERG_TEST_QDRANT_URL` and `CBERG_TEST_POSTGRES_URL` are set (otherwise those
+sections are skipped with a message).
+
+```sh
+make test-index-providers   # starts Docker qdrant + pgvector when URLs unset
+# or with existing services:
+export CBERG_TEST_QDRANT_URL=http://127.0.0.1:6333
+export CBERG_TEST_POSTGRES_URL=postgresql://postgres:test@127.0.0.1:5432/codeberg
+make test TEST=test_index_providers
+```
+ pass `-DONNXRUNTIME_ROOT=...` to CMake (see
 [AGENTS.md](../../AGENTS.md) or root [README.md](../../README.md)).
 
 ---

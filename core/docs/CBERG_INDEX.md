@@ -17,7 +17,11 @@ full indexing loop for one or many repository roots in a single process. The Go
 | `CODEBERG_ROOT` | yes¹ | Single repository root (key = basename) |
 | `CODEBERG_ROOTS` | yes¹ | `key\tpath` records, newline-separated (multi-repo; supersedes `CODEBERG_ROOT`) |
 | `CBERG_MODEL` | for vectors | Path to ONNX `model.onnx` |
-| `CBERG_INDEX_PATH` | for vectors | **Base** path for per-repo index files |
+| `CBERG_INDEX_PATH` | for vectors | **Base** path for per-repo index files and local sidecars |
+| `CBERG_INDEX_BACKEND` | no | `usearch` (default), `qdrant`, or `pgvector` (`postgres` alias) — see [VECTOR_INDEX_PROVIDERS.md](VECTOR_INDEX_PROVIDERS.md) |
+| `CBERG_VECTORDB_URL` | for `qdrant` | Qdrant base URL, e.g. `https://cluster.qdrant.io` |
+| `CBERG_VECTORDB_API_KEY` | no | Qdrant API key (cloud) |
+| `CBERG_POSTGRES_URL` | for `pgvector` | PostgreSQL connection string (pgvector extension required) |
 | `CBERG_SOCKET` | no | Unix socket for IPC (default `/tmp/codeberg-index.sock`) |
 | `CBERG_POLL_MS` | no | Watcher idle sleep between steps (default 1000) |
 | `CBERG_EMBED_THREADS` | no | ONNX intra-op thread cap (inherited env) |
@@ -98,6 +102,7 @@ loop until SIGINT/SIGTERM:
     for each repo:
         poll watcher → dirty paths
         re-chunk dirty files → sync → embed added∪modified, remove deleted ids
+        (transient vector I/O errors retry up to 3× before full index rebuild)
         save sidecars (chunk table, manifest, index)
     sleep poll_ms when idle
 ```
@@ -113,19 +118,28 @@ index, merges results.
 ## On-disk artifacts
 
 Given `CBERG_INDEX_PATH=/tmp/codeberg.usearch` and a repo root, paths derive from
-a hash of the resolved root:
+a hash of the resolved root (`<index_path> = <base>.<roothash>`):
 
 | File | Contents | Magic |
 |------|----------|-------|
-| `<base>.<roothash>` | usearch HNSW index (vectors by chunk id) | usearch format |
-| `<base>.<roothash>.chunks` | Serialized chunk table (ids, keys, hashes) | `CBT1` v1 |
-| `<base>.<roothash>.manifest` | Serialized manifest leaves | `CBMF` v1 |
+| `<index_path>` | usearch HNSW index when `CBERG_INDEX_BACKEND=usearch` | usearch format |
+| `<index_path>.chunks` | Serialized chunk table (ids, keys, hashes) — **all backends** | `CBT1` v1 |
+| `<index_path>.manifest` | Serialized manifest leaves — **all backends** | `CBMF` v1 |
+
+With `qdrant` or `pgvector`, vectors live in a remote collection/table named
+`codeberg_<16hex>` (derived from `<index_path>`). Chunk sidecars stay local.
+Full setup, schemas, and server instructions:
+[VECTOR_INDEX_PROVIDERS.md](VECTOR_INDEX_PROVIDERS.md).
 
 Changing `CODEBERG_ROOT` to a different tree produces a different `<roothash>` —
 caches never collide. Reverting to a prior root reuses its sidecars for warm start.
 
 `cberg_chunk_table_save` / `load` and `cberg_manifest_save` / `load` use atomic
 temp+rename. Incompatible versions return `CBERG_ERR_NOT_FOUND` → cold rebuild.
+
+If the vector index cannot be opened (`CBERG_ERR_IO` — corrupt file, unreachable
+remote DB, dimension mismatch), `cberg-index` wipes the index, deletes sidecars,
+and cold-reindexes. See [VECTOR_INDEX_PROVIDERS.md](VECTOR_INDEX_PROVIDERS.md#corrupt-index-recovery).
 
 ---
 

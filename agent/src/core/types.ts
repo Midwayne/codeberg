@@ -1,4 +1,4 @@
-import type { ModelMessage } from "ai";
+import type { ModelMessage } from 'ai';
 
 export interface SearchResult {
   id: number;
@@ -14,8 +14,8 @@ export interface SearchResult {
 }
 
 /** Stable chunk identity: ids restart at 1 per repo in multi-repo runs. */
-export function chunkKey(r: Pick<SearchResult, "repo" | "id">): string {
-  return `${r.repo ?? ""}#${r.id}`;
+export function chunkKey(r: Pick<SearchResult, 'repo' | 'id'>): string {
+  return `${r.repo ?? ''}#${r.id}`;
 }
 
 export interface ToolSpec {
@@ -74,16 +74,16 @@ export interface Asker {
 /** Reasoning-effort levels accepted by ai-sdk v7's standardized `reasoning`
  *  option (`LanguageModelV4CallOptions['reasoning']`). */
 export type ReasoningEffort =
-  | "provider-default"
-  | "none"
-  | "minimal"
-  | "low"
-  | "medium"
-  | "high"
-  | "xhigh";
+  | 'provider-default'
+  | 'none'
+  | 'minimal'
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'xhigh';
 
 export interface Turn {
-  role: "user" | "assistant";
+  role: 'user' | 'assistant';
   content: string;
   sources?: SearchResult[];
 }

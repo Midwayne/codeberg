@@ -1,5 +1,5 @@
-import type { WebConfig, WebDeps, WebSearchResult } from "../types.js";
-import { searxngProvider } from "./searxng.js";
+import type { WebConfig, WebDeps, WebSearchResult } from '../types.js';
+import { searxngProvider } from './searxng.js';
 
 /**
  * A backend the `web_search` tool can query. This mirrors the model-provider

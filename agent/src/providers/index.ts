@@ -1,7 +1,7 @@
-import { ProviderRegistry } from "./registry.js";
-import { registerBuiltinProviders } from "./builtin.js";
+import { ProviderRegistry } from './registry.js';
+import { registerBuiltinProviders } from './builtin.js';
 
-export type { ModelProvider, ProviderRegistry } from "./registry.js";
+export type { ModelProvider, ProviderRegistry } from './registry.js';
 export {
   anthropicProvider,
   googleProvider,
@@ -9,7 +9,7 @@ export {
   ollamaProvider,
   openaiProvider,
   registerBuiltinProviders,
-} from "./builtin.js";
+} from './builtin.js';
 
 export function defaultProviders(): ProviderRegistry {
   const registry = new ProviderRegistry();

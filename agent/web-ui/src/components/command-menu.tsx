@@ -1,7 +1,7 @@
-import { CornerDownLeft } from "lucide-react";
+import { CornerDownLeft } from 'lucide-react';
 
-import type { PromptCommand } from "@/lib/commands";
-import { cn } from "@/lib/utils";
+import type { PromptCommand } from '@/lib/commands';
+import { cn } from '@/lib/utils';
 
 /**
  * Slash-command autocomplete shown above the composer. Presentational: the
@@ -47,24 +47,18 @@ export function CommandMenu({
                   onSelect(command);
                 }}
                 className={cn(
-                  "flex w-full items-center gap-2 px-3 py-2 text-left text-sm",
-                  selected ? "bg-accent" : "hover:bg-accent/60",
+                  'flex w-full items-center gap-2 px-3 py-2 text-left text-sm',
+                  selected ? 'bg-accent' : 'hover:bg-accent/60',
                 )}
               >
-                <span className="font-mono text-foreground">
-                  {command.trigger}
-                </span>
+                <span className="font-mono text-foreground">{command.trigger}</span>
                 {command.argHint && (
-                  <span className="font-mono text-xs text-muted-foreground">
-                    {command.argHint}
-                  </span>
+                  <span className="font-mono text-xs text-muted-foreground">{command.argHint}</span>
                 )}
                 <span className="ml-auto truncate pl-3 text-xs text-muted-foreground">
                   {command.summary}
                 </span>
-                {selected && (
-                  <CornerDownLeft className="size-3.5 shrink-0 text-muted-foreground" />
-                )}
+                {selected && <CornerDownLeft className="size-3.5 shrink-0 text-muted-foreground" />}
               </button>
             </li>
           );
@@ -73,8 +67,7 @@ export function CommandMenu({
 
       {active && (
         <div className="border-t border-border bg-card/50 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-          <span className="font-medium text-foreground">{active.title}</span>{" "}
-          — {active.description}
+          <span className="font-medium text-foreground">{active.title}</span> — {active.description}
         </div>
       )}
     </div>

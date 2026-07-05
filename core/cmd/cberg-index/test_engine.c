@@ -118,8 +118,7 @@ int main(void) {
     setenv("CBERG_POLL_MS", "50", 1);
 
     char roots[2048];
-    snprintf(roots, sizeof(roots), "alpha\t%s\nbeta\t%s\ndead\t/cberg/definitely/missing\nmalformed-no-tab\n",
-             root_a, root_b);
+    snprintf(roots, sizeof(roots), "alpha\t%s\nbeta\t%s\ndead\t/cberg/definitely/missing\nmalformed-no-tab\n", root_a, root_b);
     setenv("CODEBERG_ROOTS", roots, 1);
 
     cberg_engine eng;

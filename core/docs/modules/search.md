@@ -1,95 +1,132 @@
 # Module: `src/search/`
 
-Approximate nearest-neighbor index (usearch HNSW) and high-level semantic search.
+Approximate nearest-neighbor vector index and high-level semantic search.
 
-**Files:** `index.c`, `search.c`  
-**Build flag:** `CBERG_WITH_USEARCH` (vendored `third_party/usearch`)  
+**Files:** `index.c`, `search.c`, `providers/`  
+**Build flags:** `CBERG_WITH_USEARCH` (vendored usearch), optional `CBERG_WITH_CURL`
+(Qdrant HTTPS), `CBERG_WITH_PGVECTOR` (libpq)  
 **Depends on:** `embed/` for `cberg_search_query`
 
 Index keys are **`uint64_t` chunk ids** from `cberg_chunk_table` — not chunk keys.
+
+**Operator docs:** [VECTOR_INDEX_PROVIDERS.md](../VECTOR_INDEX_PROVIDERS.md) —
+backend choice, env vars, remote schemas, server setup.
+
+---
+
+## Architecture
+
+```
+index.c              public cberg_index_* facade
+providers/
+  registry.c         dispatch by CBERG_INDEX_BACKEND name
+  common.c           codeberg_<16hex> collection/table naming
+  usearch/usearch.c  local HNSW file
+  qdrant/            REST client (http_client.c + qdrant.c)
+  pgvector/          libpq SQL backend
+search.c             embed + search orchestration
+```
+
+`cberg_index_open` selects a backend from `cberg_index_config.provider` (or env
+via `cberg_index_provider_from_name`). Chunk sidecars always use the local
+`<index_path>`; remote backends store vectors at `vectordb_url` or
+`postgres_url`.
 
 ---
 
 ## `index.c`
 
-### `cberg_index` (when usearch enabled)
+Thin wrapper around `cberg_index_backend` vtable (`providers/provider.h`).
+
+### `cberg_index_open` — public
+
+1. Merge `config` with defaults (`cberg_index_config_default`).
+2. `cberg_index_provider_open` → backend-specific open.
+3. Heap-alloc `cberg_index` wrapper.
+
+**usearch:** loads or creates file at `path`.  
+**qdrant / pgvector:** `path` identifies collection/table name; connection URL in config.
+
+### `cberg_index_add` / `remove` / `search` / `save`
+
+Delegate to backend. All backends use **cosine** distance; search scores are
+`1.0 - distance` (similarity, best-first).
+
+**Replace semantics on add:** if id exists, remove then insert (chunk re-embed).
+
+### `cberg_index_clear` — public
+
+Drop all vectors in place (rebuild helper). usearch clears graph; Qdrant
+recreates collection; pgvector `TRUNCATE`s table.
+
+### `cberg_index_wipe` — public
+
+Remove all vectors for `path` without an open handle. Used during corrupt-index
+recovery in `cberg-index`.
+
+### `cberg_index_close` — public
+
+Backend destroy + free wrapper.
+
+---
+
+## usearch backend (`providers/usearch/usearch.c`)
 
 ```c
 struct cberg_index {
     usearch_index_t idx;
     size_t dim;
-    size_t expansion_search;  // cached default for restore after per-query override
-    char *path;               // persistence path
+    size_t expansion_search;
+    char *path;
 };
 ```
 
-Metric: **cosine** (`usearch_metric_cos_k`). Vectors: `float32`, single-threaded index
-(`multi = false`).
+Metric: **cosine** (`usearch_metric_cos_k`). Vectors: `float32`, single-threaded.
 
-`INITIAL_CAPACITY` = 1024 for first `usearch_reserve`.
+| Parameter | Default | Effect |
+|-----------|---------|--------|
+| `connectivity` | 16 | HNSW graph degree |
+| `expansion_add` | 128 | efConstruction |
+| `expansion_search` | 64 | efSearch baseline |
 
-### `file_exists(path)` — static
-
-Probe fopen read mode for load vs create decision.
-
-### `cberg_index_config_default` — public
-
-Sets connectivity 16, expansion_add 128, expansion_search 64.
-
-### `cberg_index_open` — public
-
-1. Merge `config` with defaults.
-2. `usearch_init` with HNSW options.
-3. If `path` exists → `usearch_load`; else `usearch_reserve(1024)`.
-4. Heap-alloc wrapper; copy path string.
-
-**Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_IO` (load fail),
-`CBERG_ERR_INTERNAL`, `CBERG_ERR_OUT_OF_MEMORY`.
-
-Without usearch: stubs return `CBERG_ERR_NOT_IMPLEMENTED`.
-
-### `cberg_index_add` — public
-
-**Replace semantics:**
-
-1. If `usearch_contains(id)` → `usearch_remove(id)`.
-2. If `size >= capacity` → double reserve.
-3. `usearch_add(id, vector, f32)`.
-
-Chunk re-embed on modify uses same id → old vector replaced.
-
-### `cberg_index_remove` — public
-
-`usearch_remove` if present; else `CBERG_ERR_NOT_FOUND`.
-
-### `cberg_index_search` — public
-
-1. Optionally `usearch_change_expansion_search` when `opts->expansion_search > 0`.
-2. `usearch_search` → fills `out_ids` and distances in `out_scores`.
-3. Restores previous expansion_search if changed.
-4. Converts distance to **similarity**: `score = 1.0f - distance` (cosine).
-
-`*out_found` ≤ `k`; may be less if index has fewer vectors.
-
-### `cberg_index_save` — public
-
-`usearch_save(idx, path)`.
-
-### `cberg_index_close` — public
-
-`usearch_free`, free path and struct.
+`cberg_index_search` can override `expansion_search` per query via
+`cberg_index_search_opts`.
 
 ---
 
-## HNSW tuning
+## Qdrant backend (`providers/qdrant/`)
 
-| Parameter | When applied | Effect |
-|-----------|--------------|--------|
-| `connectivity` | Index creation | Graph degree (quality vs memory) |
-| `expansion_add` | Insert | efConstruction — recall of graph links |
-| `expansion_search` | Query | efSearch — candidate list size during search |
+REST API to Qdrant. Collection per repo: `codeberg_<16hex>` from hash of
+`path`. Creates collection on first open (cosine, model dimension).
 
-`cberg_search_query` temporarily raises `expansion_search` for query embed path only.
+Response bodies are parsed with `json_mini.c` (path-based JSON navigation for
+collection metadata and `result[]` search hits).
+
+- **save:** no-op (vectors persisted on upsert)
+- **clear:** delete + recreate collection
+- **wipe:** delete collection
+
+Requires `config->vectordb_url`. Optional `vectordb_api_key` for cloud.
+`https://` needs libcurl at build time.
+
+---
+
+## pgvector backend (`providers/pgvector/pgvector.c`)
+
+libpq SQL backend. Table per repo: `codeberg_<16hex>`. Auto-creates extension
+and table on open.
+
+```sql
+CREATE TABLE codeberg_<16hex> (
+  id BIGINT PRIMARY KEY,
+  embedding vector(<dim>)
+);
+```
+
+Search: `ORDER BY embedding <=> query LIMIT k` using an auto-created HNSW index
+(`<table>_embedding_hnsw`, cosine ops).
+
+Requires `config->postgres_url` and `CBERG_WITH_PGVECTOR` build.
 
 ---
 
@@ -97,26 +134,17 @@ Chunk re-embed on modify uses same id → old vector replaced.
 
 Orchestrates embed + search for natural-language queries.
 
-### `cberg_search_config_default` — public
-
-`oversample = 4`, `min_expansion_search = 64`.
-
 ### `cberg_search_query` — public
 
-1. Validate pointers; `k == 0` → empty result.
-2. `cberg_embedder_embed` on single query string (`query_len` may omit NUL terminator).
-3. Compute `ef = max(min_expansion_search, k * oversample)`.
-4. `cberg_index_search` with `cberg_index_search_opts { .expansion_search = ef }`.
-5. `cberg_vectors_free` query vector.
-
-Does not interpret ids — caller maps chunk ids back to stored chunks via
-`cberg_chunk_table_find_by_id`.
+1. `cberg_embedder_embed` on query string.
+2. Compute `ef = max(min_expansion_search, k * oversample)`.
+3. `cberg_index_search` with expansion override (usearch only).
+4. Free query vector.
 
 ### `cberg_search_vector` — public
 
-Same as steps 3–4 above but takes a **precomputed** `query_vec` (`dim` floats).
-Skips embed — used by multi-repo `cberg-index` to search several indexes after one
-query embedding. `config` may be NULL for defaults.
+Same as step 3 but takes a precomputed query vector — used by multi-repo
+`cberg-index` IPC (embed once, search each repo).
 
 ---
 
@@ -131,33 +159,13 @@ for (i = 0; i < changes.modified_len; i++)
     embed body → cberg_index_add(index, changes.modified[i].id, vec);
 for (i = 0; i < changes.deleted_len; i++)
     cberg_index_remove(index, changes.deleted[i].id);
-cberg_index_save(index);  // optional persistence
-```
-
-Query path (single index):
-
-```c
-cberg_search_query(embedder, index, "how is auth handled?", len, NULL, 10, ids, scores, &found);
-for (size_t i = 0; i < found; i++) {
-    const cberg_stored_chunk *c = cberg_chunk_table_find_by_id(table, ids[i]);
-    /* c->path, c->symbol, snippet from source */
-}
-```
-
-Multi-index path (embed once, search many):
-
-```c
-float *vec;
-cberg_embedder_embed(embedder, &query, &qlen, 1, &vec);
-for each repo index:
-    cberg_search_vector(index, vec, NULL, k, ids, scores, &found);
-cberg_vectors_free(vec);
+cberg_index_save(index);  // usearch only; no-op for remote backends
 ```
 
 ---
 
-## Stub build (no usearch)
+## Stub builds
 
-All `cberg_index_*` mutating/search functions return `CBERG_ERR_NOT_IMPLEMENTED`.
-`cberg_index_config_default` still fills defaults. `cberg_search_query` fails at
-`cberg_index_search` if index cannot be opened.
+Without usearch: local index stubs return `CBERG_ERR_NOT_IMPLEMENTED`.  
+Without libcurl: Qdrant `https://` returns `NOT_IMPLEMENTED`.  
+Without libpq: pgvector returns `NOT_IMPLEMENTED`.

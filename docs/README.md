@@ -44,6 +44,7 @@ Project-wide overview. **libcodeberg** details live under [core/docs](../core/do
 | [core/docs/CORE.md](../core/docs/CORE.md) | Architecture and design |
 | [core/docs/API.md](../core/docs/API.md) | Complete public API (every `codeberg.h` function) |
 | [core/docs/CBERG_INDEX.md](../core/docs/CBERG_INDEX.md) | `cberg-index` binary — env, lifecycle, on-disk layout |
+| [core/docs/VECTOR_INDEX_PROVIDERS.md](../core/docs/VECTOR_INDEX_PROVIDERS.md) | Vector backends — usearch, Qdrant, pgvector setup and schemas |
 | [core/docs/TESTING.md](../core/docs/TESTING.md) | CTest binaries and ONNX test setup |
 | [core/docs/modules/](../core/docs/modules/) | Implementation reference (every source function) |
 | [core/docs/adr/](../core/docs/adr/) | Architecture decision records |

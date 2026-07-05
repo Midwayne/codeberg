@@ -1,4 +1,4 @@
-import { chunkKey, type SearchResult } from "./types.js";
+import { chunkKey, type SearchResult } from './types.js';
 
 /**
  * A running ledger of code the agent has already retrieved this conversation,
@@ -41,16 +41,16 @@ export class EvidenceLedger {
       .slice(-this.max)
       .reverse()
       .map((r) => {
-        const repo = r.repo ? `[${r.repo}] ` : "";
-        const sym = r.symbol ? ` ${r.symbol}` : "";
+        const repo = r.repo ? `[${r.repo}] ` : '';
+        const sym = r.symbol ? ` ${r.symbol}` : '';
         return `- ${repo}${r.path}:${r.start_line}-${r.end_line}${sym}`;
       });
     return (
-      "<evidence_ledger>\n" +
-      "Code already retrieved this conversation " +
-      "(reference it directly; search again only if you need fresh content):\n" +
-      rows.join("\n") +
-      "\n</evidence_ledger>"
+      '<evidence_ledger>\n' +
+      'Code already retrieved this conversation ' +
+      '(reference it directly; search again only if you need fresh content):\n' +
+      rows.join('\n') +
+      '\n</evidence_ledger>'
     );
   }
 }

@@ -3,9 +3,9 @@
 
 #include "codeberg/codeberg.h"
 
-#include <stddef.h>
-#include <stdbool.h>
 #include <pthread.h>
+#include <stdbool.h>
+#include <stddef.h>
 
 #include "strmap.h"
 
@@ -66,8 +66,7 @@ cberg_watch_kind watch_kind_from_inotify(uint32_t mask);
 
 cberg_status watch_reserve_dirs(cberg_watcher *w, size_t want);
 cberg_status watch_dirty_add(cberg_watcher *w, const char *rel, cberg_watch_kind kind);
-cberg_status watch_dirty_drain(cberg_watcher *w, cberg_watch_event *events, const char **paths, size_t cap,
-                               size_t *out_count);
+cberg_status watch_dirty_drain(cberg_watcher *w, cberg_watch_event *events, const char **paths, size_t cap, size_t *out_count);
 bool watch_rel_from_abs(cberg_watcher *w, const char *abs, char *rel_out, size_t rel_cap);
 void watch_note_error(cberg_watcher *w, cberg_status status);
 cberg_status watcher_check_error(cberg_watcher *w);

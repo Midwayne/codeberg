@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-import { fileURLToPath } from "node:url";
+import { fileURLToPath } from 'node:url';
 
-import { createAgentFromEntry } from "../core/config.js";
-import { wrapToolLoopAgentWithCompaction } from "../core/compaction.js";
-import { entryUsage, parseEntryArgs } from "../core/entry.js";
-import { createWebServer } from "./server.js";
+import { createAgentFromEntry } from '../core/config.js';
+import { wrapToolLoopAgentWithCompaction } from '../core/compaction.js';
+import { entryUsage, parseEntryArgs } from '../core/entry.js';
+import { createWebServer } from './server.js';
 
 // The browser counterpart to `codeberg-tui`: instead of ai-sdk's terminal
 // `runAgentTUI`, it serves a chat UI over HTTP. Both drive the exact same
@@ -28,19 +28,19 @@ import { createWebServer } from "./server.js";
 // It sits just past the daemon's 48080 so codeberg's two ports group together.
 // Override with CODEBERG_WEB_PORT (the launcher sets it) or PORT.
 const DEFAULT_PORT = 48088;
-const HOST = "127.0.0.1";
+const HOST = '127.0.0.1';
 
 // The built React SPA lives at `web-ui/dist`, one level up from this bundle
 // (`dist/web.js`). Override with CODEBERG_WEB_ROOT; if it is unbuilt, the server
 // falls back to the embedded dependency-free page.
 function defaultStaticRoot(): string {
-  return fileURLToPath(new URL("../web-ui/dist", import.meta.url));
+  return fileURLToPath(new URL('../web-ui/dist', import.meta.url));
 }
 
 async function main(): Promise<void> {
   const entry = parseEntryArgs(process.argv);
   if (!entry) {
-    console.error(entryUsage("codeberg-web"));
+    console.error(entryUsage('codeberg-web'));
     process.exit(1);
   }
 
@@ -55,9 +55,7 @@ async function main(): Promise<void> {
     staticRoot: process.env.CODEBERG_WEB_ROOT ?? defaultStaticRoot(),
   });
 
-  const port = Number(
-    process.env.CODEBERG_WEB_PORT ?? process.env.PORT ?? DEFAULT_PORT,
-  );
+  const port = Number(process.env.CODEBERG_WEB_PORT ?? process.env.PORT ?? DEFAULT_PORT);
   server.listen(port, HOST, () => {
     console.error(`codeberg-web listening on http://${HOST}:${port}`);
   });

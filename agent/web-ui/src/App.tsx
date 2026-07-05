@@ -1,14 +1,14 @@
-import { PanelLeft } from "lucide-react";
-import { useEffect, useState } from "react";
+import { PanelLeft } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
-import { Workspace } from "@/components/workspace";
+import { Workspace } from '@/components/workspace';
 
 export function App() {
   // The server exposes the active model/daemon at /api/meta for the title bar.
-  const [subtitle, setSubtitle] = useState("");
+  const [subtitle, setSubtitle] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   useEffect(() => {
-    fetch("/api/meta")
+    fetch('/api/meta')
       .then((r) => (r.ok ? r.json() : null))
       .then((m: { title?: string } | null) => {
         if (m?.title) setSubtitle(m.title);
@@ -23,7 +23,7 @@ export function App() {
           <button
             type="button"
             onClick={() => setSidebarOpen((o) => !o)}
-            aria-label={sidebarOpen ? "Hide chats" : "Show chats"}
+            aria-label={sidebarOpen ? 'Hide chats' : 'Show chats'}
             aria-pressed={sidebarOpen}
             title="Toggle chats"
             className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
@@ -31,11 +31,7 @@ export function App() {
             <PanelLeft className="size-4" />
           </button>
           <span className="font-semibold">codeberg</span>
-          {subtitle && (
-            <span className="truncate text-xs text-muted-foreground">
-              {subtitle}
-            </span>
-          )}
+          {subtitle && <span className="truncate text-xs text-muted-foreground">{subtitle}</span>}
         </div>
       </header>
       <Workspace sidebarOpen={sidebarOpen} />

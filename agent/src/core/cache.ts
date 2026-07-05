@@ -1,11 +1,11 @@
-import type { Instructions, ToolSet } from "ai";
+import type { Instructions, ToolSet } from 'ai';
 
-import type { ModelProfile } from "../providers/profiles.js";
+import type { ModelProfile } from '../providers/profiles.js';
 
 /** FNV-1a over the cacheable prefix -> a short, stable id used as OpenAI's
  *  promptCacheKey so repeated requests route to the same cache shard. */
 function stableKey(parts: string[]): string {
-  const joined = parts.join("|");
+  const joined = parts.join('|');
   let h = 2166136261;
   for (let i = 0; i < joined.length; i++) {
     h ^= joined.charCodeAt(i);
@@ -23,16 +23,13 @@ function stableKey(parts: string[]): string {
  * Either way the prompt text is byte-identical across calls - the precondition
  * for any prefix cache to hit.
  */
-export function cachedInstructions(
-  system: string,
-  profile: ModelProfile,
-): Instructions {
-  if (profile.cache === "anthropic") {
+export function cachedInstructions(system: string, profile: ModelProfile): Instructions {
+  if (profile.cache === 'anthropic') {
     return {
-      role: "system",
+      role: 'system',
       content: system,
       providerOptions: {
-        anthropic: { cacheControl: { type: "ephemeral", ttl: "1h" } },
+        anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } },
       },
     };
   }
@@ -50,11 +47,11 @@ export function requestProviderOptions(
   toolNames: string[],
   profile: ModelProfile,
 ): Record<string, Record<string, string>> | undefined {
-  if (profile.cache === "openai") {
+  if (profile.cache === 'openai') {
     return {
       openai: {
         promptCacheKey: `codeberg-${stableKey([system, ...toolNames])}`,
-        promptCacheRetention: "24h",
+        promptCacheRetention: '24h',
       },
     };
   }

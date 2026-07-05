@@ -19,7 +19,6 @@ typedef cberg_status (*cberg_fs_walk_fn)(void *ctx, const char *abs, const char 
 
 typedef bool (*cberg_fs_skip_dir_fn)(const char *name, void *ctx);
 
-cberg_status cberg_fs_walk(const char *abs, const char *rel, cberg_fs_walk_fn fn, void *ctx,
-                           cberg_fs_skip_dir_fn skip_dir, void *skip_ctx);
+cberg_status cberg_fs_walk(const char *abs, const char *rel, cberg_fs_walk_fn fn, void *ctx, cberg_fs_skip_dir_fn skip_dir, void *skip_ctx);
 
 #endif /* CBERG_PATHUTIL_H */

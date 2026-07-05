@@ -1,6 +1,6 @@
-import type { ModelMessage } from "ai";
+import type { ModelMessage } from 'ai';
 
-import type { Asker, AskResult, Turn } from "./types.js";
+import type { Asker, AskResult, Turn } from './types.js';
 
 export interface ChatSessionOptions {
   agent: Asker;
@@ -27,13 +27,13 @@ export class ChatSession {
   async ask(question: string): Promise<AskResult> {
     const messages = this.toMessages();
     // Show the user's turn immediately, before the (possibly slow) request.
-    this.turns.push({ role: "user", content: question });
+    this.turns.push({ role: 'user', content: question });
     this.notify();
 
     const result = await this.agent.ask(question, { messages });
 
     this.turns.push({
-      role: "assistant",
+      role: 'assistant',
       content: result.answer,
       sources: result.sources,
     });

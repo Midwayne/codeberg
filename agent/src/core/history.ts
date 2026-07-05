@@ -1,6 +1,6 @@
-import type { ModelMessage } from "ai";
+import type { ModelMessage } from 'ai';
 
-import { messageText } from "./message.js";
+import { messageText } from './message.js';
 
 /** Rough token estimate. We don't ship a tokenizer (it would be provider-
  *  specific and a build-time dependency); ~4 chars/token is close enough to
@@ -56,12 +56,10 @@ export async function fitHistory(
   }
 
   if (opts.summarize) {
-    const transcript = older
-      .map((m) => `${m.role}: ${messageText(m)}`)
-      .join("\n");
+    const transcript = older.map((m) => `${m.role}: ${messageText(m)}`).join('\n');
     const summary = await opts.summarize(transcript);
     const marker: ModelMessage = {
-      role: "user",
+      role: 'user',
       content: `<conversation_summary>\n${summary}\n</conversation_summary>`,
     };
     // The summary + recent turns may still overflow; recurse without the
@@ -70,7 +68,7 @@ export async function fitHistory(
   }
 
   const marker: ModelMessage = {
-    role: "user",
+    role: 'user',
     content: `[${older.length} earlier message(s) omitted to fit the context window]`,
   };
   return [marker, ...recent];

@@ -1,8 +1,8 @@
-import { htmlToText } from "./html.js";
-import { assertFetchableUrl } from "./ssrf.js";
-import type { WebConfig, WebDeps, WebPage } from "./types.js";
+import { htmlToText } from './html.js';
+import { assertFetchableUrl } from './ssrf.js';
+import type { WebConfig, WebDeps, WebPage } from './types.js';
 
-const USER_AGENT = "codeberg-agent/0.1 (+https://codeberg.org)";
+const USER_AGENT = 'codeberg-agent/0.1 (+https://codeberg.org)';
 
 /** Cap on redirect hops, each of which is re-validated against the SSRF guard. */
 const MAX_REDIRECTS = 5;
@@ -32,11 +32,11 @@ export async function fetchUrl(
       throw new Error(`fetch failed: ${res.status} ${res.statusText} for ${url}`);
     }
 
-    const contentType = (res.headers.get("content-type") ?? "").toLowerCase();
+    const contentType = (res.headers.get('content-type') ?? '').toLowerCase();
     const finalUrl = res.url || url.toString();
     const { body, truncated: bodyTruncated } = await readCapped(res, config.maxBytes);
 
-    if (contentType.includes("html") || (contentType === "" && /^\s*</.test(body))) {
+    if (contentType.includes('html') || (contentType === '' && /^\s*</.test(body))) {
       const page = htmlToText(body);
       const capped = capText(page.text, config.maxChars);
       return {
@@ -47,15 +47,11 @@ export async function fetchUrl(
       };
     }
 
-    if (
-      contentType.includes("json") ||
-      contentType.startsWith("text/") ||
-      contentType === ""
-    ) {
+    if (contentType.includes('json') || contentType.startsWith('text/') || contentType === '') {
       const capped = capText(body, config.maxChars);
       return {
         url: finalUrl,
-        title: "",
+        title: '',
         text: capped.text,
         truncated: bodyTruncated || capped.truncated,
       };
@@ -63,8 +59,8 @@ export async function fetchUrl(
 
     return {
       url: finalUrl,
-      title: "",
-      text: `[unsupported content-type: ${contentType || "unknown"}]`,
+      title: '',
+      text: `[unsupported content-type: ${contentType || 'unknown'}]`,
       truncated: false,
     };
   } finally {
@@ -90,14 +86,14 @@ async function fetchNoOpenRedirect(
   for (let hop = 0; ; hop++) {
     const res = await deps.fetchImpl(current, {
       signal,
-      redirect: "manual",
+      redirect: 'manual',
       headers: {
-        "user-agent": USER_AGENT,
-        accept: "text/html,application/xhtml+xml,text/plain,application/json;q=0.9,*/*;q=0.5",
+        'user-agent': USER_AGENT,
+        accept: 'text/html,application/xhtml+xml,text/plain,application/json;q=0.9,*/*;q=0.5',
       },
     });
 
-    const location = isRedirect(res.status) ? res.headers.get("location") : null;
+    const location = isRedirect(res.status) ? res.headers.get('location') : null;
     if (!location) {
       return res;
     }
@@ -117,13 +113,7 @@ async function fetchNoOpenRedirect(
 }
 
 function isRedirect(status: number): boolean {
-  return (
-    status === 301 ||
-    status === 302 ||
-    status === 303 ||
-    status === 307 ||
-    status === 308
-  );
+  return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
 }
 
 /** Read a response body up to `maxBytes`, streaming when possible so an oversize
@@ -137,10 +127,10 @@ async function readCapped(
   maxBytes: number,
 ): Promise<{ body: string; truncated: boolean }> {
   const stream = res.body;
-  if (stream && typeof stream.getReader === "function") {
+  if (stream && typeof stream.getReader === 'function') {
     const reader = stream.getReader();
     const decoder = new TextDecoder();
-    let out = "";
+    let out = '';
     let total = 0;
     let truncated = false;
     for (;;) {

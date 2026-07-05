@@ -1,9 +1,9 @@
-import type { ModelMessage, ToolLoopAgent } from "ai";
+import type { ModelMessage, ToolLoopAgent } from 'ai';
 
-import { withMessageTransforms } from "../loop.js";
-import { messageText, lastUserMessageIndex } from "../message.js";
-import { DEFAULT_PROMPT_HOOKS } from "./defaults.js";
-import type { PromptHook } from "./types.js";
+import { withMessageTransforms } from '../loop.js';
+import { messageText, lastUserMessageIndex } from '../message.js';
+import { DEFAULT_PROMPT_HOOKS } from './defaults.js';
+import type { PromptHook } from './types.js';
 
 export function applyPromptHooksToMessages(
   messages: ModelMessage[],
@@ -34,10 +34,7 @@ export function applyPromptHooksToText(
   text: string,
   hooks: readonly PromptHook[] = DEFAULT_PROMPT_HOOKS,
 ): string {
-  const out = applyPromptHooksToMessages(
-    [{ role: "user", content: text }],
-    hooks,
-  );
+  const out = applyPromptHooksToMessages([{ role: 'user', content: text }], hooks);
   const index = lastUserMessageIndex(out);
   if (index < 0) {
     return text;
@@ -54,9 +51,7 @@ export function wrapToolLoopAgentWithPromptHooks(
   }
   // A prompt hook is just a message transform: rewrite the last user message
   // before the loop runs. Composes on the shared loop seam alongside compaction.
-  return withMessageTransforms(loop, [
-    (messages) => applyPromptHooksToMessages(messages, hooks),
-  ]);
+  return withMessageTransforms(loop, [(messages) => applyPromptHooksToMessages(messages, hooks)]);
 }
 
 function rewriteText(

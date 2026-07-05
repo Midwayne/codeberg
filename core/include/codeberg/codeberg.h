@@ -39,6 +39,8 @@ typedef enum cberg_status {
     CBERG_ERR_OUT_OF_MEMORY = 6,
     CBERG_ERR_TIMEOUT = 7,
     CBERG_ERR_NOT_IMPLEMENTED = 8,
+    /* Index snapshot exists but is incompatible or unreadable (safe to wipe/rebuild). */
+    CBERG_ERR_CORRUPT = 9,
 } cberg_status;
 
 CBERG_API const char *cberg_status_str(cberg_status status);
@@ -78,8 +80,7 @@ CBERG_API cberg_status cberg_hash(const void *data, size_t len, uint8_t out[CBER
  * Order-independent set fingerprint over (key, content_hash) pairs.
  * Sorts keys, streams key || 0x00 || content_hash into XXH3-128.
  */
-CBERG_API cberg_status cberg_fingerprint(const char *const *keys, const uint8_t *const *hashes, size_t count,
-                                         uint8_t out[CBERG_HASH_LEN]);
+CBERG_API cberg_status cberg_fingerprint(const char *const *keys, const uint8_t *const *hashes, size_t count, uint8_t out[CBERG_HASH_LEN]);
 
 /* --- Languages & chunking ----------------------------------------------- */
 
@@ -138,8 +139,7 @@ CBERG_API void cberg_chunker_close(cberg_chunker *chunker);
  * languages, falls back to fixed-size line windows. Symbol strings and keys
  * are owned by the returned list.
  */
-CBERG_API cberg_status cberg_chunker_parse(cberg_chunker *chunker, cberg_language lang, const char *path,
-                                            const char *src, size_t src_len, cberg_chunk_list **out_list);
+CBERG_API cberg_status cberg_chunker_parse(cberg_chunker *chunker, cberg_language lang, const char *path, const char *src, size_t src_len, cberg_chunk_list **out_list);
 
 CBERG_API size_t cberg_chunk_list_len(const cberg_chunk_list *list);
 CBERG_API const cberg_chunk *cberg_chunk_list_at(const cberg_chunk_list *list, size_t index);
@@ -192,8 +192,7 @@ CBERG_API const cberg_stored_chunk *cberg_chunk_table_find_by_id(const cberg_chu
  * Change arrays are owned by the table until the next sync or free.
  * On non-OK return the table and prior change arrays are unchanged.
  */
-CBERG_API cberg_status cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk *incoming, size_t count,
-                                              cberg_changes *out_changes);
+CBERG_API cberg_status cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk *incoming, size_t count, cberg_changes *out_changes);
 
 /*
  * Persist / restore the table to `path` (atomic temp+rename). Restoring keeps
@@ -246,8 +245,7 @@ CBERG_API cberg_status cberg_manifest_build(const char *root, cberg_manifest **o
  * resolution can be missed (the classic stat-cache race). Pair frequent rebuilds
  * with an occasional full build (prev = NULL) to self-heal.
  */
-CBERG_API cberg_status cberg_manifest_rebuild(const cberg_manifest *prev, const char *root,
-                                              cberg_manifest **out_manifest);
+CBERG_API cberg_status cberg_manifest_rebuild(const cberg_manifest *prev, const char *root, cberg_manifest **out_manifest);
 
 CBERG_API void cberg_manifest_free(cberg_manifest *manifest);
 
@@ -279,8 +277,7 @@ typedef struct cberg_manifest_changes {
     size_t deleted_len;
 } cberg_manifest_changes;
 
-CBERG_API cberg_status cberg_manifest_diff(const cberg_manifest *prev, const cberg_manifest *next,
-                                           cberg_manifest_changes *out_changes);
+CBERG_API cberg_status cberg_manifest_diff(const cberg_manifest *prev, const cberg_manifest *next, cberg_manifest_changes *out_changes);
 CBERG_API void cberg_manifest_diff_free(cberg_manifest_changes *changes);
 
 /*
@@ -346,8 +343,7 @@ CBERG_API void cberg_watcher_close(cberg_watcher *watcher);
  * Shares the same dirty set as cberg_watcher_dirty_paths — do not call both expecting
  * independent queues; whichever drains first consumes all pending paths.
  */
-CBERG_API cberg_status cberg_watcher_poll(cberg_watcher *watcher, cberg_watch_event *events, size_t cap,
-                                          size_t *out_count, int timeout_ms);
+CBERG_API cberg_status cberg_watcher_poll(cberg_watcher *watcher, cberg_watch_event *events, size_t cap, size_t *out_count, int timeout_ms);
 
 /*
  * Drains the debounced dirty-path set into `paths` (repo-relative pointers only;
@@ -360,8 +356,7 @@ CBERG_API cberg_status cberg_watcher_poll(cberg_watcher *watcher, cberg_watch_ev
  * Same backing set as poll: calling poll first leaves nothing for dirty_paths, and
  * vice versa. paths[i] are heap-owned; caller frees each.
  */
-CBERG_API cberg_status cberg_watcher_dirty_paths(cberg_watcher *watcher, const char **paths, size_t cap,
-                                                   size_t *out_count);
+CBERG_API cberg_status cberg_watcher_dirty_paths(cberg_watcher *watcher, const char **paths, size_t cap, size_t *out_count);
 
 /* --- Embedding ---------------------------------------------------------- */
 
@@ -384,27 +379,54 @@ CBERG_API size_t cberg_embedder_dim(const cberg_embedder *embedder);
  * Embeds `count` texts. On success writes a contiguous count*dim float array to
  * *out_vectors (row-major); free with cberg_vectors_free.
  */
-CBERG_API cberg_status cberg_embedder_embed(cberg_embedder *embedder, const char *const *texts,
-                                            const size_t *text_lens, size_t count, float **out_vectors);
+CBERG_API cberg_status cberg_embedder_embed(cberg_embedder *embedder, const char *const *texts, const size_t *text_lens, size_t count, float **out_vectors);
 CBERG_API void cberg_vectors_free(float *vectors);
 CBERG_API void cberg_embedder_close(cberg_embedder *embedder);
 
-/* --- Vector index (usearch HNSW) ---------------------------------------- */
+/* --- Vector index ------------------------------------------------------- */
 
 typedef struct cberg_index cberg_index;
 
+typedef enum cberg_index_provider {
+    CBERG_INDEX_USEARCH = 0,
+    CBERG_INDEX_QDRANT = 1,
+    CBERG_INDEX_PGVECTOR = 2,
+} cberg_index_provider;
+
 typedef struct cberg_index_config {
-    size_t connectivity;      /* HNSW graph degree (default 16) */
-    size_t expansion_add;     /* ef during insert (default 128) */
-    size_t expansion_search;  /* ef during search (default 64) */
+    cberg_index_provider provider;
+    const char *vectordb_url;     /* Qdrant: base URL, e.g. https://host:6333 */
+    const char *vectordb_api_key; /* Qdrant: optional api-key header */
+    const char *postgres_url;     /* pgvector: libpq connection string */
+    size_t connectivity;          /* usearch HNSW graph degree (default 16) */
+    size_t expansion_add;         /* usearch ef during insert (default 128) */
+    size_t expansion_search;      /* usearch ef during search (default 64) */
 } cberg_index_config;
 
-/* Fills defaults; pass the result to cberg_index_open (config may be NULL). */
+/* Fills defaults (provider = usearch); pass the result to cberg_index_open (config may be NULL). */
 CBERG_API void cberg_index_config_default(cberg_index_config *config);
 
-/* Opens (creating if absent) an HNSW cosine index of dimension `dim` at `path`. */
-CBERG_API cberg_status cberg_index_open(const char *path, size_t dim, const cberg_index_config *config,
-                                        cberg_index **out_index);
+/*
+ * Parses a backend name from CBERG_INDEX_BACKEND (usearch, qdrant, pgvector; postgres
+ * is an alias for pgvector). Returns CBERG_ERR_INVALID_ARGUMENT when unknown.
+ */
+CBERG_API cberg_status cberg_index_provider_from_name(const char *name, cberg_index_provider *out_provider);
+
+/* Non-zero when full rebuild clears and repopulates in place (remote backends); zero for usearch temp-file swap. */
+CBERG_API int cberg_index_provider_rebuild_inplace(cberg_index_provider provider);
+
+/*
+ * Opens a cosine vector index of dimension `dim` keyed by `path`.
+ * usearch: `path` is the on-disk index file (created if absent).
+ * Remote providers (qdrant, pgvector): `path` identifies the collection/table;
+ * vectors live at `config->vectordb_url` or `config->postgres_url`. Chunk
+ * sidecars still use `path` as a local identity.
+ *
+ * Returns `CBERG_ERR_CORRUPT` when an on-disk usearch file or remote
+ * collection/table exists but cannot be loaded (dimension mismatch, bad file).
+ * Transient connectivity failures return `CBERG_ERR_IO` without implying corruption.
+ */
+CBERG_API cberg_status cberg_index_open(const char *path, size_t dim, const cberg_index_config *config, cberg_index **out_index);
 
 CBERG_API cberg_status cberg_index_add(cberg_index *index, uint64_t id, const float *vector);
 CBERG_API cberg_status cberg_index_remove(cberg_index *index, uint64_t id);
@@ -413,17 +435,26 @@ typedef struct cberg_index_search_opts {
     size_t expansion_search; /* 0 = use index default */
 } cberg_index_search_opts;
 
-CBERG_API cberg_status cberg_index_search(cberg_index *index, const float *query, size_t k,
-                                          const cberg_index_search_opts *opts, uint64_t *out_ids, float *out_scores,
-                                          size_t *out_found);
+CBERG_API cberg_status cberg_index_search(cberg_index *index, const float *query, size_t k, const cberg_index_search_opts *opts, uint64_t *out_ids, float *out_scores, size_t *out_found);
 
 CBERG_API cberg_status cberg_index_save(cberg_index *index);
+
+/* Drops every stored vector while keeping the index open (rebuild helper). */
+CBERG_API cberg_status cberg_index_clear(cberg_index *index);
+
+/*
+ * Removes all vectors for `path` without keeping a handle open. usearch deletes
+ * the on-disk file; Qdrant drops the remote collection. Used during corrupt-index
+ * recovery before a clean reopen.
+ */
+CBERG_API cberg_status cberg_index_wipe(const char *path, size_t dim, const cberg_index_config *config);
+
 CBERG_API void cberg_index_close(cberg_index *index);
 
 /* --- Semantic search (embed query + nearest neighbors) -------------------- */
 
 typedef struct cberg_search_config {
-    size_t oversample;          /* search ef multiplier: max(min_ef, k * oversample); default 4 */
+    size_t oversample;           /* search ef multiplier: max(min_ef, k * oversample); default 4 */
     size_t min_expansion_search; /* floor for per-query ef; default 64 */
 } cberg_search_config;
 
@@ -433,18 +464,14 @@ CBERG_API void cberg_search_config_default(cberg_search_config *config);
  * Embeds `query`/`query_len`, then searches the index for `k` neighbors.
  * Scores are cosine similarity (1 minus distance), best-first.
  */
-CBERG_API cberg_status cberg_search_query(cberg_embedder *embedder, cberg_index *index, const char *query,
-                                          size_t query_len, const cberg_search_config *config, size_t k,
-                                          uint64_t *out_ids, float *out_scores, size_t *out_found);
+CBERG_API cberg_status cberg_search_query(cberg_embedder *embedder, cberg_index *index, const char *query, size_t query_len, const cberg_search_config *config, size_t k, uint64_t *out_ids, float *out_scores, size_t *out_found);
 
 /*
  * Searches the index for `k` neighbors of an already-embedded query vector
  * (same scoring and ef policy as cberg_search_query). Lets one query embedding
  * be searched against several indexes without re-paying the embed.
  */
-CBERG_API cberg_status cberg_search_vector(cberg_index *index, const float *query_vec,
-                                           const cberg_search_config *config, size_t k, uint64_t *out_ids,
-                                           float *out_scores, size_t *out_found);
+CBERG_API cberg_status cberg_search_vector(cberg_index *index, const float *query_vec, const cberg_search_config *config, size_t k, uint64_t *out_ids, float *out_scores, size_t *out_found);
 
 #ifdef __cplusplus
 } /* extern "C" */

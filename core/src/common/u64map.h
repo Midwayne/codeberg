@@ -3,9 +3,9 @@
 
 #include "codeberg/codeberg.h"
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdbool.h>
 
 /*
  * Open-addressing uint64 -> uint64 map. Internal to the library (not exported).
