@@ -22,9 +22,6 @@ int cberg_json_read_double(const char *p, double *out);
  */
 int cberg_json_parse_qdrant_hits(const char *body, size_t k, uint64_t *out_ids, float *out_scores, size_t *out_found);
 
-/* True when result is a non-empty array of point objects. */
-int cberg_json_qdrant_points_nonempty(const char *body);
-
 /* Reads collection vector size from GET /collections/{name} body. */
 int cberg_json_qdrant_collection_dim(const char *body, int *out_dim);
 

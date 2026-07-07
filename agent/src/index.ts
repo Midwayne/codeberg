@@ -59,7 +59,7 @@ export {
   type AgentConfig,
 } from './core/config.js';
 export { entryUsage, parseEntryArgs, type EntryConfig } from './core/entry.js';
-export { formatSource, formatSources } from './core/format.js';
+export { formatSource } from './core/format.js';
 export {
   anthropicProvider,
   defaultProviders,

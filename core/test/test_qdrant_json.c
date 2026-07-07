@@ -34,17 +34,9 @@ static void test_search_hits(void) {
     CHECK(scores[0] > scores[1], "hit scores");
 }
 
-static void test_points_nonempty(void) {
-    static const char empty[] = "{\"result\":[]}";
-    static const char nonempty[] = "{\"result\":[{\"id\":1}]}";
-    CHECK(cberg_json_qdrant_points_nonempty(empty) == 0, "empty points");
-    CHECK(cberg_json_qdrant_points_nonempty(nonempty) == 1, "nonempty points");
-}
-
 int main(void) {
     test_collection_dim();
     test_search_hits();
-    test_points_nonempty();
     if (failures == 0) {
         printf("ok - qdrant json\n");
         return 0;
