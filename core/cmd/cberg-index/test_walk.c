@@ -1,4 +1,6 @@
-#include "walk.h"
+#include "codeberg/codeberg.h"
+
+#include "pathutil.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -64,7 +66,7 @@ int main(void) {
     fputs("module.exports = {}\n", f);
     fclose(f);
 
-    CHECK(cberg_walk_files(root, on_file, NULL) == 0, "walk ok");
+    CHECK(cberg_fs_walk_files(root, on_file, NULL) == 0, "walk ok");
     CHECK(file_count == 2, "only non-skipped files");
 
     snprintf(path, sizeof(path), "%s/src/keep.go", root);

@@ -57,13 +57,11 @@ Dirty paths are stored in a **`cberg_strmap`** (256 buckets at first use).
 
 ## `watch_walk_register(w, abs, rel)`
 
-Uses `cberg_fs_walk` with `watch_skip_dir` (delegates to `cberg_walk_skip_dir`) to register directories. On registration
+Uses `cberg_fs_walk` with `cberg_walk_skip_dir_cb` to register directories. On registration
 failure, any allocated directory slot strings are freed before returning.
 
-### `watch_skip_dir(name, ctx)`
-
-Watcher walk policy: returns true for `.git`, `node_modules`, `vendor`, `.venv`,
-`__pycache__`, `.next`, `dist`, `build`, `target`, `.gradle`, `.idea`, `.terraform`.
+Skip policy is shared with the indexer and manifest via `configs/walk_skip_dirs.txt`
+(see `cberg_walk_skip_dir` in `common/walk_policy.c`).
 
 ### `watch_rel_join` / `watch_note_created_subdir`
 

@@ -2,15 +2,8 @@ export { Agent, type AgentOptions } from './core/agent.js';
 export { cachedInstructions, deterministicTools, requestProviderOptions } from './core/cache.js';
 export { DaemonClient } from './core/client.js';
 export { EvidenceLedger } from './core/evidence.js';
-export { fromAiSdk } from './core/generator.js';
-export {
-  estimateTokens,
-  fitHistory,
-  totalTokens,
-  type FitOptions,
-  type Summarize,
-} from './core/history.js';
-export { AGENT_SYSTEM, agentSystemPrompt } from './core/prompt.js';
+export { fitHistory, totalTokens, type FitOptions, type Summarize } from './core/history.js';
+export { agentSystemPrompt } from './core/prompt.js';
 export {
   overrideLoopMethods,
   withMessageTransforms,
@@ -42,9 +35,6 @@ export {
 } from './core/web/index.js';
 export {
   DEFAULT_PROMPT_HOOKS,
-  applyPromptHooksToMessages,
-  applyPromptHooksToText,
-  enhancePromptHook,
   promptCommandCatalog,
   wrapToolLoopAgentWithPromptHooks,
   type PromptCommand,
@@ -52,23 +42,10 @@ export {
   type PromptHookInput,
 } from './core/hooks/index.js';
 export { ChatSession, type ChatSessionOptions } from './core/session.js';
-export {
-  createAgent,
-  createAgentFromEntry,
-  reasoningFromEnv,
-  type AgentConfig,
-} from './core/config.js';
+export { createAgentFromEntry } from './core/config.js';
 export { entryUsage, parseEntryArgs, type EntryConfig } from './core/entry.js';
 export { formatSource } from './core/format.js';
-export {
-  anthropicProvider,
-  defaultProviders,
-  googleProvider,
-  openaiProvider,
-  ProviderRegistry,
-  registerBuiltinProviders,
-  type ModelProvider,
-} from './providers/index.js';
+export { ProviderRegistry, type ModelProvider } from './providers/index.js';
 export {
   DEFAULT_PROFILE,
   historyBudget,

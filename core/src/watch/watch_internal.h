@@ -52,8 +52,6 @@ struct cberg_watcher {
 #endif
 };
 
-bool watch_skip_dir(const char *name, void *ctx);
-
 bool watch_rel_join(const char *parent_rel, const char *name, char *rel_out, size_t rel_cap);
 void watch_note_created_subdir(cberg_watcher *w, const char *abs, const char *rel);
 

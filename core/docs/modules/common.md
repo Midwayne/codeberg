@@ -185,15 +185,23 @@ Returns NULL on failure; caller frees. Used by chunker callers and tests.
 
 ### `cberg_walk_skip_dir(const char *name)` — public (via `codeberg.h`)
 
-Returns non-zero for dependency/build directory basenames (`.git`, `node_modules`,
-`vendor`, `.venv`, `__pycache__`, `.next`, `dist`, `build`, `target`, `.gradle`,
-`.idea`, `.terraform`). Shared by manifest, watcher, and indexer walks.
+Returns non-zero for dependency/build directory basenames listed in
+`configs/walk_skip_dirs.txt`. Shared by manifest, watcher, and indexer walks.
+
+### `cberg_walk_skip_dir_cb(name, ctx)`
+
+`cberg_fs_walk` skip callback wrapping `cberg_walk_skip_dir`.
 
 ---
 
 ## `pathutil.c` / `pathutil.h`
 
 Path helpers shared by the watcher (and any future directory walks).
+
+### `cberg_fs_walk_files(root, fn, ctx)`
+
+File-only tree walk using `lstat` (no symlink follow) and `cberg_walk_skip_dir` on
+directories. Used by the indexer bootstrap scan.
 
 ### `cberg_path_join(const char *root, const char *rel, char *out, size_t out_cap)`
 

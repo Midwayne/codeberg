@@ -38,7 +38,7 @@ load_env = if [ -f "$(1)" ]; then set -a; . "$(1)"; set +a; echo "› loaded $(1
 
 .PHONY: build-core build test bench clean rebuild submodules help check set-version \
         build-daemon daemon-test build-agent build-web-ui agent-test dist format \
-        run-core run-index run-daemon run-agent run-agent-tui run-agent-web
+        run-core run-index run-daemon run-agent run-agent-tui run-agent-web gen-walk-skip
 
 help:
 	@echo "Codeberg targets:"
@@ -64,6 +64,7 @@ help:
 	@echo "    make check                build-core + test (pre-PR gate)"
 	@echo "    make format               clang-format (C), gofmt (Go), prettier (TS)"
 	@echo "  Misc"
+	@echo "    make gen-walk-skip          Regenerate C/Go skip-dir tables from configs/walk_skip_dirs.txt"
 	@echo "    make set-version v=vX.Y.Z Bump VERSION (rebuild to propagate)"
 	@echo "    make submodules           git submodule update --init --recursive"
 	@echo "    make clean                Remove $(BUILD)"
@@ -204,6 +205,9 @@ run-agent-web:
 	@$(call load_env,$(AGENT_ENV)); \
 	if [ -z "$${CODEBERG_MODEL:-}" ]; then echo "error: set CODEBERG_MODEL=provider:model in $(AGENT_ENV) (e.g. anthropic:claude-haiku-4-5) plus the matching API key"; exit 1; fi; \
 	cd $(AGENT) && exec node dist/web.js
+
+gen-walk-skip:
+	./scripts/gen-walk-skip.sh
 
 set-version:
 	./scripts/set-version.sh $(v)

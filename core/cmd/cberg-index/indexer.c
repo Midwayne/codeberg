@@ -1,7 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "indexer.h"
-#include "walk.h"
 
 #include "fileio.h"
 #include "pathutil.h"
@@ -1118,7 +1117,7 @@ static cberg_status walk_and_sync(cberg_repo *r) {
     chunk_batch batch;
     batch_init(&batch);
     walk_ctx ctx = {.repo = r, .batch = &batch};
-    if (cberg_walk_files(r->root, bootstrap_cb, &ctx) != 0) {
+    if (cberg_fs_walk_files(r->root, bootstrap_cb, &ctx) != 0) {
         batch_reset(&batch);
         return ctx.err != CBERG_OK ? ctx.err : CBERG_ERR_IO;
     }
