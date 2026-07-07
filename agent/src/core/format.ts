@@ -15,7 +15,3 @@ export function formatScoredSource(result: SearchResult, boost?: number): string
   const boostStr = boost != null && boost > 0 ? ` boost=${boost}` : '';
   return `${formatSource(result)}${sym}  score=${result.score.toFixed(3)}${boostStr}`;
 }
-
-export function formatSources(results: readonly SearchResult[]): string[] {
-  return results.map(formatSource);
-}

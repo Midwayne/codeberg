@@ -3,6 +3,7 @@
 #include "grow.h"
 #include "pathutil.h"
 #include "strutil.h"
+#include "walk_policy.h"
 
 #include <dirent.h>
 #include <stdlib.h>
@@ -76,7 +77,7 @@ cberg_status watch_platform_begin(cberg_watcher *w) {
 }
 
 cberg_status watch_platform_finish(cberg_watcher *w) {
-    return cberg_fs_walk(w->root, "", poll_walk_entry, w, watch_skip_dir, NULL);
+    return cberg_fs_walk(w->root, "", poll_walk_entry, w, cberg_walk_skip_dir_cb, NULL);
 }
 
 void watch_platform_stop(cberg_watcher *w) {
@@ -98,5 +99,5 @@ cberg_status watch_platform_wait(cberg_watcher *w, int timeout_ms) {
         struct timespec ts = {.tv_sec = timeout_ms / 1000, .tv_nsec = (long)(timeout_ms % 1000) * 1000000L};
         nanosleep(&ts, NULL);
     }
-    return cberg_fs_walk(w->root, "", poll_walk_entry, w, watch_skip_dir, NULL);
+    return cberg_fs_walk(w->root, "", poll_walk_entry, w, cberg_walk_skip_dir_cb, NULL);
 }

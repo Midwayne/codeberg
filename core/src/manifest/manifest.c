@@ -99,11 +99,6 @@ typedef struct {
     size_t fp_cap;
 } build_ctx;
 
-static bool walk_skip(const char *name, void *ctx) {
-    (void)ctx;
-    return cberg_walk_skip_dir(name) != 0;
-}
-
 static bool prev_lookup(const cberg_manifest *prev, const char *path, size_t *out_index) {
     if (prev == NULL) {
         return false;
@@ -352,7 +347,7 @@ cberg_status cberg_manifest_rebuild(const cberg_manifest *prev, const char *root
     }
 
     build_ctx ctx = {.arena = m->arena, .prev = prev};
-    cberg_status st = cberg_fs_walk(root, "", build_visit, &ctx, walk_skip, NULL);
+    cberg_status st = cberg_fs_walk(root, "", build_visit, &ctx, cberg_walk_skip_dir_cb, NULL);
     if (st != CBERG_OK) {
         free(ctx.leaves);
         free(ctx.fp_names);

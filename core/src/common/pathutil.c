@@ -1,10 +1,14 @@
 #include "pathutil.h"
 
 #include <dirent.h>
+#include <errno.h>
 #include <limits.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+
+#include "walk_policy.h"
 
 bool cberg_path_join(const char *root, const char *rel, char *out, size_t out_cap) {
     if (root == NULL || rel == NULL || out == NULL || out_cap == 0) {
@@ -98,4 +102,84 @@ cberg_status cberg_fs_walk(const char *abs, const char *rel, cberg_fs_walk_fn fn
     }
     closedir(dir);
     return CBERG_OK;
+}
+
+static bool dirent_is_dot(const char *name) {
+    return name[0] == '.' && (name[1] == '\0' || (name[1] == '.' && name[2] == '\0'));
+}
+
+static int walk_files_dir(const char *root, const char *rel, cberg_walk_files_fn fn, void *ctx) {
+    char dirpath[PATH_MAX];
+    if (rel[0] == '\0') {
+        snprintf(dirpath, sizeof(dirpath), "%s", root);
+    } else {
+        snprintf(dirpath, sizeof(dirpath), "%s/%s", root, rel);
+    }
+
+    DIR *d = opendir(dirpath);
+    if (d == NULL) {
+        if (errno == ENOENT) {
+            return 0;
+        }
+        return -1;
+    }
+
+    struct dirent *ent;
+    while ((ent = readdir(d)) != NULL) {
+        if (dirent_is_dot(ent->d_name)) {
+            continue;
+        }
+
+        char child_rel[PATH_MAX];
+        if (rel[0] == '\0') {
+            snprintf(child_rel, sizeof(child_rel), "%s", ent->d_name);
+        } else {
+            snprintf(child_rel, sizeof(child_rel), "%s/%s", rel, ent->d_name);
+        }
+
+        char abspath[PATH_MAX];
+        if (!cberg_path_join(root, child_rel, abspath, sizeof(abspath))) {
+            closedir(d);
+            return -1;
+        }
+
+        struct stat st;
+        if (lstat(abspath, &st) != 0) {
+            if (errno == ENOENT) {
+                continue;
+            }
+            closedir(d);
+            return -1;
+        }
+
+        if (S_ISDIR(st.st_mode)) {
+            if (cberg_walk_skip_dir(ent->d_name)) {
+                continue;
+            }
+            if (walk_files_dir(root, child_rel, fn, ctx) != 0) {
+                closedir(d);
+                return -1;
+            }
+            continue;
+        }
+
+        if (!S_ISREG(st.st_mode)) {
+            continue;
+        }
+
+        if (fn(abspath, child_rel, ctx) != 0) {
+            closedir(d);
+            return -1;
+        }
+    }
+
+    closedir(d);
+    return 0;
+}
+
+int cberg_fs_walk_files(const char *root, cberg_walk_files_fn fn, void *ctx) {
+    if (root == NULL || fn == NULL) {
+        return -1;
+    }
+    return walk_files_dir(root, "", fn, ctx);
 }

@@ -329,19 +329,6 @@ int cberg_json_parse_qdrant_hits(const char *body, size_t k, uint64_t *out_ids, 
     return 0;
 }
 
-int cberg_json_qdrant_points_nonempty(const char *body) {
-    const char *result = json_object_find(body, "result");
-    if (result == NULL) {
-        return 0;
-    }
-    result = json_skip_ws(result);
-    if (result == NULL || *result != '[') {
-        return 0;
-    }
-    result = json_skip_ws(result + 1);
-    return result != NULL && *result != ']';
-}
-
 int cberg_json_qdrant_collection_dim(const char *body, int *out_dim) {
     if (body == NULL || out_dim == NULL) {
         return -1;

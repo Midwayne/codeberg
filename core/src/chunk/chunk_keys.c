@@ -30,7 +30,7 @@ void chunk_occ_free(chunk_occ_tracker *tracker) {
     free(tracker);
 }
 
-cberg_status chunk_format_ident(char *buf, size_t cap, const char *path, cberg_chunk_kind kind, const char *symbol) {
+static cberg_status chunk_format_ident(char *buf, size_t cap, const char *path, cberg_chunk_kind kind, const char *symbol) {
     const char *sym = symbol != NULL ? symbol : "";
     int n = snprintf(buf, cap, "%s::%d::%s", path, (int)kind, sym);
     if (n < 0 || (size_t)n >= cap) {

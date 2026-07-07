@@ -1,13 +1,10 @@
 #include "watch_internal.h"
 
+#include <stdlib.h>
+
 #include "pathutil.h"
 #include "strutil.h"
 #include "walk_policy.h"
-
-bool watch_skip_dir(const char *name, void *ctx) {
-    (void)ctx;
-    return cberg_walk_skip_dir(name) != 0;
-}
 
 static void watch_dir_clear_slot(cberg_watch_dir *dir) {
     free(dir->abs_path);
@@ -46,7 +43,7 @@ static cberg_status walk_register_entry(void *ctx, const char *abs, const char *
 
 cberg_status watch_walk_register(cberg_watcher *w, const char *abs, const char *rel) {
     pthread_mutex_lock(&w->mu);
-    cberg_status st = cberg_fs_walk(abs, rel, walk_register_entry, w, watch_skip_dir, NULL);
+    cberg_status st = cberg_fs_walk(abs, rel, walk_register_entry, w, cberg_walk_skip_dir_cb, NULL);
     pthread_mutex_unlock(&w->mu);
     return st;
 }

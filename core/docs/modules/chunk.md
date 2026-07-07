@@ -11,10 +11,6 @@ Tree-sitter chunking and in-memory incremental change tracking.
 
 Stable chunk identity strings and per-parse occurrence tracking.
 
-### `chunk_format_ident(buf, cap, path, kind, symbol)`
-
-Builds `"<path>::<kind>::<symbol>"` (empty symbol allowed).
-
 ### `chunk_format_key(buf, cap, path, kind, symbol, index)`
 
 Canonical key: `"<path>::<kind>::<symbol>#<index>"`.
