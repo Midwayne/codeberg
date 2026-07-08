@@ -20,11 +20,13 @@ extern const TSLanguage *tree_sitter_javascript(void);
 extern const TSLanguage *tree_sitter_python(void);
 extern const TSLanguage *tree_sitter_kotlin(void);
 extern const TSLanguage *tree_sitter_typescript(void);
+extern const TSLanguage *tree_sitter_rust(void);
+extern const TSLanguage *tree_sitter_ruby(void);
 
 #define CBERG_WINDOW_LINES 50
-#define CBERG_LANG_SLOTS 8
+#define CBERG_LANG_SLOTS 10
 
-_Static_assert((int)CBERG_LANG_JAVA + 1 == CBERG_LANG_SLOTS, "update CBERG_LANG_SLOTS when adding languages");
+_Static_assert((int)CBERG_LANG_RUBY + 1 == CBERG_LANG_SLOTS, "update CBERG_LANG_SLOTS when adding languages");
 
 typedef const TSLanguage *(*ts_language_fn)(void);
 
@@ -68,6 +70,18 @@ static const char *const KOTLIN_QUERY =
     "(function_declaration (simple_identifier) @name) @function\n"
     "(class_declaration (type_identifier) @name) @class\n";
 
+static const char *const RUST_QUERY =
+    "(function_item name: (identifier) @name) @function\n"
+    "(struct_item name: (type_identifier) @name) @struct\n"
+    "(enum_item name: (type_identifier) @name) @struct\n"
+    "(trait_item name: (type_identifier) @name) @interface\n";
+
+static const char *const RUBY_QUERY =
+    "(method name: (identifier) @name) @method\n"
+    "(singleton_method name: (identifier) @name) @method\n"
+    "(class name: (constant) @name) @class\n"
+    "(module name: (constant) @name) @class\n";
+
 static lang_desc descriptor_for(cberg_language lang) {
     switch (lang) {
     case CBERG_LANG_GO:
@@ -84,6 +98,10 @@ static lang_desc descriptor_for(cberg_language lang) {
         return (lang_desc){tree_sitter_java, JAVA_QUERY};
     case CBERG_LANG_KOTLIN:
         return (lang_desc){tree_sitter_kotlin, KOTLIN_QUERY};
+    case CBERG_LANG_RUST:
+        return (lang_desc){tree_sitter_rust, RUST_QUERY};
+    case CBERG_LANG_RUBY:
+        return (lang_desc){tree_sitter_ruby, RUBY_QUERY};
     default:
         return (lang_desc){NULL, NULL};
     }

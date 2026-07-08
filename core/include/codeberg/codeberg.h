@@ -93,6 +93,8 @@ typedef enum cberg_language {
     CBERG_LANG_KOTLIN,
     CBERG_LANG_PYTHON,
     CBERG_LANG_JAVA,
+    CBERG_LANG_RUST,
+    CBERG_LANG_RUBY,
 } cberg_language;
 
 CBERG_API cberg_language cberg_language_from_path(const char *path);

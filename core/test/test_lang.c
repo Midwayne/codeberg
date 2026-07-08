@@ -22,6 +22,10 @@ int main(void) {
     CHECK(cberg_language_from_path("Main.java") == CBERG_LANG_JAVA, "java");
     CHECK(cberg_language_from_path("app.py") == CBERG_LANG_PYTHON, "py");
     CHECK(cberg_language_from_path("App.kt") == CBERG_LANG_KOTLIN, "kt");
+    CHECK(cberg_language_from_path("main.rs") == CBERG_LANG_RUST, "rs");
+    CHECK(cberg_language_from_path("app.rb") == CBERG_LANG_RUBY, "rb");
+    CHECK(cberg_language_from_path("build.rake") == CBERG_LANG_RUBY, "rake");
+    CHECK(cberg_language_from_path("demo.gemspec") == CBERG_LANG_RUBY, "gemspec");
     CHECK(cberg_language_from_path("README.md") == CBERG_LANG_UNKNOWN, "unknown");
     return failures == 0 ? 0 : 1;
 }

@@ -29,6 +29,10 @@ cberg_language cberg_language_from_path(const char *path) {
         {"py", CBERG_LANG_PYTHON},
         {"pyi", CBERG_LANG_PYTHON},
         {"java", CBERG_LANG_JAVA},
+        {"rs", CBERG_LANG_RUST},
+        {"rb", CBERG_LANG_RUBY},
+        {"rake", CBERG_LANG_RUBY},
+        {"gemspec", CBERG_LANG_RUBY},
     };
     for (size_t i = 0; i < sizeof(table) / sizeof(table[0]); i++) {
         if (strcmp(ext, table[i].ext) == 0) {

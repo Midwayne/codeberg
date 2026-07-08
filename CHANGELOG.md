@@ -9,6 +9,14 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Added
 
+- **Rust and Ruby chunking** — new vendored grammars `tree-sitter-rust`
+  (v0.24.0) and `tree-sitter-ruby` (v0.23.1) with symbol-aware queries:
+  Rust functions (including those in `impl` blocks), structs, enums (as
+  `struct`), and traits (as `interface`); Ruby methods, singleton methods,
+  classes, and modules (as `class`). Extensions `.rs`, `.rb`, `.rake`, and
+  `.gemspec` now index as symbols instead of being skipped. Run
+  `git submodule update --init --recursive` after pulling.
+
 - **Index-aware search tools** — six new daemon tools over the chunk index and
   vector search, exposed via `POST /tools/call` and bridged to the agent
   (except `search`, which is hidden from the agent bridge because `search_code`
