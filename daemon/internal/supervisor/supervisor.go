@@ -52,7 +52,6 @@ func (s *Supervisor) spawn(ctx context.Context, bin string) error {
 	return cmd.Start()
 }
 
-// indexerEnv builds the cberg-index subprocess environment from cfg.
 func indexerEnv(cfg config.Indexer) []string {
 	env := []string{
 		config.EnvRoot + "=" + cfg.Root,

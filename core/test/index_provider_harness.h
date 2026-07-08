@@ -22,4 +22,7 @@ cberg_status cberg_usearch_index_stored_quant(const cberg_index *index, cberg_in
 /* Verifies usearch restores default expansion_search after a high-ef query. */
 int index_provider_test_usearch_expansion_restore(void);
 
+void test_temp_path(char *path, size_t cap, const char *template);
+char *test_unique_path(const char *prefix);
+
 #endif /* INDEX_PROVIDER_HARNESS_H */

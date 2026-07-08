@@ -134,6 +134,11 @@ func TestLoadDaemonIndexQuant(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv(EnvRoot, root)
 	t.Setenv(EnvRoots, "")
+	t.Setenv(EnvHTTPPort, "")
+	t.Setenv(EnvSocket, "")
+	t.Setenv(EnvPollMS, "")
+	t.Setenv(EnvGitPullSec, "")
+	t.Setenv(EnvGitDir, "")
 	t.Setenv(EnvIndexQuant, "F32")
 
 	cfg, err := LoadDaemon()

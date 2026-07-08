@@ -1,6 +1,7 @@
 package supervisor
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -22,7 +23,7 @@ func TestIndexerEnvForwardsIndexQuant(t *testing.T) {
 	}
 
 	env := indexerEnv(cfg)
-	if !hasEnv(env, config.EnvIndexQuant+"=f32") {
+	if !slices.Contains(env, config.EnvIndexQuant+"=f32") {
 		t.Fatalf("expected %s forwarded, got %v", config.EnvIndexQuant, env)
 	}
 }
@@ -37,25 +38,9 @@ func TestIndexerEnvOmitsEmptyIndexQuant(t *testing.T) {
 	}
 
 	env := indexerEnv(cfg)
-	if hasEnvPrefix(env, config.EnvIndexQuant+"=") {
-		t.Fatalf("did not expect %s when unset, got %v", config.EnvIndexQuant, env)
-	}
-}
-
-func hasEnv(env []string, want string) bool {
 	for _, e := range env {
-		if e == want {
-			return true
+		if strings.HasPrefix(e, config.EnvIndexQuant+"=") {
+			t.Fatalf("did not expect %s when unset, got %v", config.EnvIndexQuant, env)
 		}
 	}
-	return false
-}
-
-func hasEnvPrefix(env []string, prefix string) bool {
-	for _, e := range env {
-		if strings.HasPrefix(e, prefix) {
-			return true
-		}
-	}
-	return false
 }
