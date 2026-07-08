@@ -1439,6 +1439,8 @@ static const char *kind_str(cberg_chunk_kind k) {
         return "interface";
     case CBERG_CHUNK_WINDOW:
         return "window";
+    case CBERG_CHUNK_KEY:
+        return "key";
     case CBERG_CHUNK_UNKNOWN:
     default:
         return "unknown";
@@ -1466,6 +1468,9 @@ static int parse_kind(const char *s) {
     }
     if (strcasecmp(s, "window") == 0) {
         return CBERG_CHUNK_WINDOW;
+    }
+    if (strcasecmp(s, "key") == 0) {
+        return CBERG_CHUNK_KEY;
     }
     return -1;
 }

@@ -9,6 +9,16 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Added
 
+- **Config-file indexing (YAML, TOML, JSON)** — `.yaml`/`.yml`, `.toml`, and
+  `.json` files are now chunked and indexed (previously skipped entirely).
+  Structural chunkers split them at top-level entries: YAML column-0 keys,
+  TOML `[table]` / `[[array-of-tables]]` headers, and JSON root-object keys
+  (bracket- and string-aware), each chunk named after its key. Content before
+  the first entry is an unnamed preamble; entries longer than 200 lines
+  continue as extra chunks under the same symbol (lock files); non-object JSON
+  roots fall back to window chunks. New chunk kind `key` (accepted by the
+  `kind` filter on `/search` and the search tools).
+
 - **Index-aware search tools** — six new daemon tools over the chunk index and
   vector search, exposed via `POST /tools/call` and bridged to the agent
   (except `search`, which is hidden from the agent bridge because `search_code`

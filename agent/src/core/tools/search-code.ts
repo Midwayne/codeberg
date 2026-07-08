@@ -53,7 +53,7 @@ export function searchCodeSource(opts: SearchCodeOptions): ToolSource {
             },
             kind: {
               type: 'string',
-              description: 'chunk kind: function, method, class, struct, interface, window',
+              description: 'chunk kind: function, method, class, struct, interface, window, key',
             },
             min_score: {
               type: 'number',
