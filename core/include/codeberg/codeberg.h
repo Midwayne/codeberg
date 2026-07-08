@@ -423,7 +423,7 @@ CBERG_API cberg_status cberg_index_provider_from_name(const char *name, cberg_in
 
 /*
  * Parses a quantization name from CBERG_INDEX_QUANT (f32, i8; int8 is an alias
- * for i8). Returns CBERG_ERR_INVALID_ARGUMENT when unknown.
+ * for i8; matching is case-insensitive). Returns CBERG_ERR_INVALID_ARGUMENT when unknown.
  */
 CBERG_API cberg_status cberg_index_quant_from_name(const char *name, cberg_index_quant *out_quant);
 

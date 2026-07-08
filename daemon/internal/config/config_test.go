@@ -129,3 +129,18 @@ func TestLoadDaemonGitPull(t *testing.T) {
 		t.Fatalf("git pull: got %v", cfg.GitPull)
 	}
 }
+
+func TestLoadDaemonIndexQuant(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv(EnvRoot, root)
+	t.Setenv(EnvRoots, "")
+	t.Setenv(EnvIndexQuant, "F32")
+
+	cfg, err := LoadDaemon()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.IndexQuant != "F32" {
+		t.Fatalf("index quant: got %q want %q", cfg.IndexQuant, "F32")
+	}
+}

@@ -31,6 +31,8 @@ static int test_quant_from_name(void) {
     QCHECK(cberg_index_quant_from_name("f32", &quant) == CBERG_OK && quant == CBERG_QUANT_F32, "f32 parses");
     QCHECK(cberg_index_quant_from_name("i8", &quant) == CBERG_OK && quant == CBERG_QUANT_I8, "i8 parses");
     QCHECK(cberg_index_quant_from_name("int8", &quant) == CBERG_OK && quant == CBERG_QUANT_I8, "int8 alias parses");
+    QCHECK(cberg_index_quant_from_name("F32", &quant) == CBERG_OK && quant == CBERG_QUANT_F32, "F32 case-insensitive");
+    QCHECK(cberg_index_quant_from_name("I8", &quant) == CBERG_OK && quant == CBERG_QUANT_I8, "I8 case-insensitive");
     QCHECK(cberg_index_quant_from_name("f16", &quant) == CBERG_ERR_INVALID_ARGUMENT, "unknown name rejected");
     QCHECK(cberg_index_quant_from_name(NULL, &quant) == CBERG_ERR_INVALID_ARGUMENT, "NULL name rejected");
     QCHECK(cberg_index_quant_from_name("i8", NULL) == CBERG_ERR_INVALID_ARGUMENT, "NULL out rejected");
@@ -85,6 +87,106 @@ static int test_quant_reopen_across_kinds(void) {
 #undef MCHECK
 }
 
+/* usearch v2.25.3's built-in i8 cosine returns distance 0 for orthogonal
+ * vectors; the corrected metric must not rank an orthogonal neighbor as the
+ * top hit when searching for an exact match. */
+static int test_i8_orthogonal_ranking(void) {
+    int failures = 0;
+#define OCHECK(cond, msg)                                                          \
+    do {                                                                           \
+        if (!(cond)) {                                                             \
+            fprintf(stderr, "FAIL [i8-ortho]: %s (%s:%d)\n", msg, __FILE__, __LINE__); \
+            failures++;                                                            \
+        }                                                                          \
+    } while (0)
+
+    char path[64];
+    temp_index_path(path, sizeof path, "/tmp/cberg_ortho_XXXXXX");
+
+    cberg_index_config cfg;
+    cberg_index_config_default(&cfg);
+    cfg.quantization = CBERG_QUANT_I8;
+
+    cberg_index *idx = NULL;
+    OCHECK(cberg_index_open(path, 4, &cfg, &idx) == CBERG_OK && idx != NULL, "open i8");
+    if (idx != NULL) {
+        float a[4] = {1, 0, 0, 0};
+        float b[4] = {0, 1, 0, 0};
+        OCHECK(cberg_index_add(idx, 1, a) == CBERG_OK, "add axis-a");
+        OCHECK(cberg_index_add(idx, 2, b) == CBERG_OK, "add axis-b (orthogonal)");
+
+        uint64_t ids[2];
+        float scores[2];
+        size_t found = 0;
+        OCHECK(cberg_index_search(idx, a, 1, NULL, ids, scores, &found) == CBERG_OK && found >= 1 && ids[0] == 1,
+               "self-match beats orthogonal neighbor");
+        cberg_index_close(idx);
+    }
+
+    remove(path);
+    return failures;
+#undef OCHECK
+}
+
+/* clear() must honor the loaded file's scalar kind, not the config knob. */
+static int test_quant_clear_honors_loaded_kind(void) {
+    int failures = 0;
+#define CCHECK(cond, msg)                                                          \
+    do {                                                                           \
+        if (!(cond)) {                                                             \
+            fprintf(stderr, "FAIL [quant-clear]: %s (%s:%d)\n", msg, __FILE__, __LINE__); \
+            failures++;                                                            \
+        }                                                                          \
+    } while (0)
+
+    char path[64];
+    temp_index_path(path, sizeof path, "/tmp/cberg_qclear_XXXXXX");
+
+    cberg_index_config cfg;
+    cberg_index_config_default(&cfg);
+    cfg.quantization = CBERG_QUANT_F32;
+
+    cberg_index *idx = NULL;
+    CCHECK(cberg_index_open(path, 4, &cfg, &idx) == CBERG_OK && idx != NULL, "open f32");
+    if (idx != NULL) {
+        float v[4] = {1, 0, 0, 0};
+        CCHECK(cberg_index_add(idx, 7, v) == CBERG_OK, "add under f32");
+        CCHECK(cberg_index_save(idx) == CBERG_OK, "save f32 file");
+        cberg_index_close(idx);
+        idx = NULL;
+
+        cfg.quantization = CBERG_QUANT_I8;
+        CCHECK(cberg_index_open(path, 4, &cfg, &idx) == CBERG_OK && idx != NULL, "reopen f32 file with i8 config");
+        if (idx != NULL) {
+            cberg_index_quant stored = CBERG_QUANT_I8;
+            CCHECK(cberg_usearch_index_stored_quant(idx, &stored) == CBERG_OK && stored == CBERG_QUANT_F32,
+                   "loaded f32 file keeps f32 scalar kind under i8 config");
+            CCHECK(cberg_index_clear(idx) == CBERG_OK, "clear loaded f32 index");
+            stored = CBERG_QUANT_I8;
+            CCHECK(cberg_usearch_index_stored_quant(idx, &stored) == CBERG_OK && stored == CBERG_QUANT_F32,
+                   "clear keeps loaded f32 scalar kind");
+            CCHECK(cberg_index_add(idx, 9, v) == CBERG_OK, "add after clear");
+            CCHECK(cberg_index_save(idx) == CBERG_OK, "save after clear");
+            cberg_index_close(idx);
+            idx = NULL;
+
+            CCHECK(cberg_index_open(path, 4, &cfg, &idx) == CBERG_OK && idx != NULL, "reopen after clear");
+            if (idx != NULL) {
+                uint64_t ids[1];
+                float scores[1];
+                size_t found = 0;
+                CCHECK(cberg_index_search(idx, v, 1, NULL, ids, scores, &found) == CBERG_OK && found >= 1 && ids[0] == 9,
+                       "vector searchable after clear kept f32 kind");
+                cberg_index_close(idx);
+            }
+        }
+    }
+
+    remove(path);
+    return failures;
+#undef CCHECK
+}
+
 int main(void) {
     char path[64];
     temp_index_path(path, sizeof path, "/tmp/cberg_index_XXXXXX");
@@ -108,6 +210,8 @@ int main(void) {
 
     failures += test_quant_from_name();
     failures += test_quant_reopen_across_kinds();
+    failures += test_i8_orthogonal_ranking();
+    failures += test_quant_clear_honors_loaded_kind();
 
     if (failures == 0) {
         printf("ok - index\n");

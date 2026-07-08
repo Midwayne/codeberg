@@ -194,6 +194,7 @@ static cberg_status usearch_backend_clear(void *impl) {
     }
     usearch_error_t err = NULL;
     usearch_free(b->idx, &err);
+    b->idx = NULL;
     usearch_init_options_t opts;
     memset(&opts, 0, sizeof(opts));
     opts.metric_kind = usearch_metric_cos_k;
@@ -205,10 +206,14 @@ static cberg_status usearch_backend_clear(void *impl) {
         return CBERG_ERR_INTERNAL;
     }
     if (b->quantization == usearch_scalar_i8_k && !install_i8_cos_metric(b->idx, b->dim)) {
+        usearch_free(b->idx, &err);
+        b->idx = NULL;
         return CBERG_ERR_INTERNAL;
     }
     usearch_reserve(b->idx, INITIAL_CAPACITY, &err);
     if (err != NULL) {
+        usearch_free(b->idx, &err);
+        b->idx = NULL;
         return CBERG_ERR_INTERNAL;
     }
     remove(b->path);
@@ -281,7 +286,7 @@ static cberg_status usearch_open(const char *path, size_t dim, const cberg_index
     b->idx = idx;
     b->dim = dim;
     b->expansion_search = cfg->expansion_search;
-    b->quantization = quant_scalar_kind(cfg->quantization);
+    b->quantization = opts.quantization;
     b->path = cberg_strdup(path);
     if (b->path == NULL) {
         usearch_backend_destroy(b);
@@ -326,6 +331,15 @@ cberg_status cberg_usearch_index_active_expansion(const cberg_index *index, size
     return err != NULL ? CBERG_ERR_INTERNAL : CBERG_OK;
 }
 
+cberg_status cberg_usearch_index_stored_quant(const cberg_index *index, cberg_index_quant *out) {
+    if (index == NULL || out == NULL || index->provider != CBERG_INDEX_USEARCH || index->backend == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    usearch_backend *b = index->backend->impl;
+    *out = b->quantization == usearch_scalar_i8_k ? CBERG_QUANT_I8 : CBERG_QUANT_F32;
+    return CBERG_OK;
+}
+
 #else /* !CBERG_WITH_USEARCH */
 
 static cberg_status usearch_open(const char *path, size_t dim, const cberg_index_config *config, cberg_index_backend **out_backend) {
@@ -354,6 +368,12 @@ const cberg_index_provider_ops cberg_usearch_provider = {
 };
 
 cberg_status cberg_usearch_index_active_expansion(const cberg_index *index, size_t *out) {
+    (void)index;
+    (void)out;
+    return CBERG_ERR_NOT_IMPLEMENTED;
+}
+
+cberg_status cberg_usearch_index_stored_quant(const cberg_index *index, cberg_index_quant *out) {
     (void)index;
     (void)out;
     return CBERG_ERR_NOT_IMPLEMENTED;
