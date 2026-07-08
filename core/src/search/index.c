@@ -103,6 +103,21 @@ cberg_status cberg_index_provider_from_name(const char *name, cberg_index_provid
     return CBERG_OK;
 }
 
+cberg_status cberg_index_quant_from_name(const char *name, cberg_index_quant *out_quant) {
+    if (name == NULL || out_quant == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    if (strcmp(name, "f32") == 0) {
+        *out_quant = CBERG_QUANT_F32;
+        return CBERG_OK;
+    }
+    if (strcmp(name, "i8") == 0 || strcmp(name, "int8") == 0) {
+        *out_quant = CBERG_QUANT_I8;
+        return CBERG_OK;
+    }
+    return CBERG_ERR_INVALID_ARGUMENT;
+}
+
 void cberg_index_close(cberg_index *index) {
     if (index == NULL) {
         return;

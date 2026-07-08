@@ -393,6 +393,11 @@ typedef enum cberg_index_provider {
     CBERG_INDEX_PGVECTOR = 2,
 } cberg_index_provider;
 
+typedef enum cberg_index_quant {
+    CBERG_QUANT_F32 = 0,
+    CBERG_QUANT_I8 = 1,
+} cberg_index_quant;
+
 typedef struct cberg_index_config {
     cberg_index_provider provider;
     const char *vectordb_url;     /* Qdrant: base URL, e.g. https://host:6333 */
@@ -401,6 +406,10 @@ typedef struct cberg_index_config {
     size_t connectivity;          /* usearch HNSW graph degree (default 16) */
     size_t expansion_add;         /* usearch ef during insert (default 128) */
     size_t expansion_search;      /* usearch ef during search (default 64) */
+    cberg_index_quant quantization; /* usearch stored scalar kind (default i8);
+                                       inputs stay f32, usearch casts on store.
+                                       Applies when the index file is created —
+                                       an existing file keeps its saved kind. */
 } cberg_index_config;
 
 /* Fills defaults (provider = usearch); pass the result to cberg_index_open (config may be NULL). */
@@ -411,6 +420,12 @@ CBERG_API void cberg_index_config_default(cberg_index_config *config);
  * is an alias for pgvector). Returns CBERG_ERR_INVALID_ARGUMENT when unknown.
  */
 CBERG_API cberg_status cberg_index_provider_from_name(const char *name, cberg_index_provider *out_provider);
+
+/*
+ * Parses a quantization name from CBERG_INDEX_QUANT (f32, i8; int8 is an alias
+ * for i8). Returns CBERG_ERR_INVALID_ARGUMENT when unknown.
+ */
+CBERG_API cberg_status cberg_index_quant_from_name(const char *name, cberg_index_quant *out_quant);
 
 /* Non-zero when full rebuild clears and repopulates in place (remote backends); zero for usearch temp-file swap. */
 CBERG_API int cberg_index_provider_rebuild_inplace(cberg_index_provider provider);

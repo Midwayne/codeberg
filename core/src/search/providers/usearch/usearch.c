@@ -3,6 +3,8 @@
 
 #ifdef CBERG_WITH_USEARCH
 
+#include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,8 +18,47 @@ typedef struct usearch_backend {
     usearch_index_t idx;
     size_t dim;
     size_t expansion_search;
+    usearch_scalar_kind_t quantization;
     char *path;
 } usearch_backend;
+
+static usearch_scalar_kind_t quant_scalar_kind(cberg_index_quant quant) {
+    return quant == CBERG_QUANT_I8 ? usearch_scalar_i8_k : usearch_scalar_f32_k;
+}
+
+/*
+ * usearch v2.25.3's built-in i8 cosine (metric_cos_i8_t) returns distance 0 —
+ * a perfect match — whenever the integer dot product is exactly 0, i.e. for
+ * orthogonal vectors; the zero guard belongs on the norms (as in the f32
+ * template). Until upstream ships a fix, i8 indexes get this corrected metric,
+ * registered through usearch_change_metric with the dimension as the callback
+ * state (stateful metrics are invoked as f(a, b, state)).
+ */
+static usearch_distance_t i8_cos_checked(size_t a_ptr, size_t b_ptr, size_t dim) {
+    const int8_t *a = (const int8_t *)a_ptr;
+    const int8_t *b = (const int8_t *)b_ptr;
+    int32_t ab = 0, a2 = 0, b2 = 0;
+    for (size_t i = 0; i < dim; i++) {
+        int16_t ai = a[i];
+        int16_t bi = b[i];
+        ab += (int32_t)(ai * bi);
+        a2 += (int32_t)(ai * ai);
+        b2 += (int32_t)(bi * bi);
+    }
+    if (a2 == 0 && b2 == 0) {
+        return 0.0f;
+    }
+    if (a2 == 0 || b2 == 0) {
+        return 1.0f;
+    }
+    return 1.0f - (usearch_distance_t)ab / (sqrtf((float)a2) * sqrtf((float)b2));
+}
+
+static int install_i8_cos_metric(usearch_index_t idx, size_t dim) {
+    usearch_error_t err = NULL;
+    usearch_change_metric(idx, (usearch_metric_t)i8_cos_checked, (void *)dim, usearch_metric_cos_k, &err);
+    return err == NULL;
+}
 
 static int file_exists(const char *path) {
     FILE *f = fopen(path, "rb");
@@ -156,11 +197,14 @@ static cberg_status usearch_backend_clear(void *impl) {
     usearch_init_options_t opts;
     memset(&opts, 0, sizeof(opts));
     opts.metric_kind = usearch_metric_cos_k;
-    opts.quantization = usearch_scalar_f32_k;
+    opts.quantization = b->quantization;
     opts.dimensions = b->dim;
     opts.multi = false;
     b->idx = usearch_init(&opts, &err);
     if (err != NULL || b->idx == NULL) {
+        return CBERG_ERR_INTERNAL;
+    }
+    if (b->quantization == usearch_scalar_i8_k && !install_i8_cos_metric(b->idx, b->dim)) {
         return CBERG_ERR_INTERNAL;
     }
     usearch_reserve(b->idx, INITIAL_CAPACITY, &err);
@@ -184,7 +228,7 @@ static cberg_status usearch_open(const char *path, size_t dim, const cberg_index
     usearch_init_options_t opts;
     memset(&opts, 0, sizeof(opts));
     opts.metric_kind = usearch_metric_cos_k;
-    opts.quantization = usearch_scalar_f32_k;
+    opts.quantization = quant_scalar_kind(cfg->quantization);
     opts.dimensions = dim;
     opts.connectivity = cfg->connectivity;
     opts.expansion_add = cfg->expansion_add;
@@ -192,12 +236,25 @@ static cberg_status usearch_open(const char *path, size_t dim, const cberg_index
     opts.multi = false;
 
     usearch_error_t err = NULL;
+    int loading = file_exists(path);
+    if (loading) {
+        /* An existing file keeps its saved scalar kind; the config only
+         * applies to newly created indexes (migration = rebuild). */
+        usearch_init_options_t meta;
+        memset(&meta, 0, sizeof(meta));
+        usearch_metadata(path, &meta, &err);
+        if (err != NULL) {
+            return CBERG_ERR_CORRUPT;
+        }
+        opts.quantization = meta.quantization;
+    }
+
     usearch_index_t idx = usearch_init(&opts, &err);
     if (err != NULL || idx == NULL) {
         return CBERG_ERR_INTERNAL;
     }
 
-    if (file_exists(path)) {
+    if (loading) {
         usearch_load(idx, path, &err);
         if (err != NULL) {
             usearch_free(idx, &err);
@@ -211,6 +268,11 @@ static cberg_status usearch_open(const char *path, size_t dim, const cberg_index
         }
     }
 
+    if (opts.quantization == usearch_scalar_i8_k && !install_i8_cos_metric(idx, dim)) {
+        usearch_free(idx, &err);
+        return CBERG_ERR_INTERNAL;
+    }
+
     usearch_backend *b = calloc(1, sizeof(*b));
     if (b == NULL) {
         usearch_free(idx, &err);
@@ -219,6 +281,7 @@ static cberg_status usearch_open(const char *path, size_t dim, const cberg_index
     b->idx = idx;
     b->dim = dim;
     b->expansion_search = cfg->expansion_search;
+    b->quantization = quant_scalar_kind(cfg->quantization);
     b->path = cberg_strdup(path);
     if (b->path == NULL) {
         usearch_backend_destroy(b);

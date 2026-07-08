@@ -19,6 +19,7 @@ full indexing loop for one or many repository roots in a single process. The Go
 | `CBERG_MODEL` | for vectors | Path to ONNX `model.onnx` |
 | `CBERG_INDEX_PATH` | for vectors | **Base** path for per-repo index files and local sidecars |
 | `CBERG_INDEX_BACKEND` | no | `usearch` (default), `qdrant`, or `pgvector` (`postgres` alias) — see [VECTOR_INDEX_PROVIDERS.md](VECTOR_INDEX_PROVIDERS.md) |
+| `CBERG_INDEX_QUANT` | no | usearch stored scalar kind: `i8` (default, ~3.5× smaller index) or `f32` (`int8` = `i8`). Applies when an index file is created; existing files keep their saved kind until rebuilt |
 | `CBERG_VECTORDB_URL` | for `qdrant` | Qdrant base URL, e.g. `https://cluster.qdrant.io` |
 | `CBERG_VECTORDB_API_KEY` | no | Qdrant API key (cloud) |
 | `CBERG_POSTGRES_URL` | for `pgvector` | PostgreSQL connection string (pgvector extension required) |
