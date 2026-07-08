@@ -10,7 +10,7 @@ import (
 	"codeberg.org/codeberg/daemon/internal/workspace"
 )
 
-const chunkKindDescription = "chunk kind: function, method, class, struct, interface, window, section"
+const chunkKindFilterDesc = "chunk kind: function, method, class, struct, interface, window, section, key"
 
 func registerIndexTools(r *Registry, idx indexctl.Indexer, ws *workspace.Workspace) {
 	r.Register(searchTool(idx))
@@ -30,7 +30,7 @@ func searchTool(idx indexctl.Indexer) Tool {
     "k": {"type": "integer", "description": "max results (default 10)"},
     "repo": {"type": "string", "description": "restrict to one repo key"},
     "path_glob": {"type": "string", "description": "fnmatch glob on chunk paths, e.g. daemon/*"},
-    "kind": {"type": "string", "description": "` + chunkKindDescription + `"},
+    "kind": {"type": "string", "description": "` + chunkKindFilterDesc + `"},
     "min_score": {"type": "number", "description": "minimum similarity score (0-1)"}
   },
   "required": ["query"]
@@ -124,7 +124,7 @@ func hybridSearchTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
     "k": {"type": "integer", "description": "max results (default 8)"},
     "repo": {"type": "string", "description": "restrict to one repo key"},
     "path_glob": {"type": "string", "description": "fnmatch glob on chunk paths"},
-    "kind": {"type": "string", "description": "` + chunkKindDescription + `"},
+    "kind": {"type": "string", "description": "` + chunkKindFilterDesc + `"},
     "min_score": {"type": "number", "description": "minimum similarity score (0-1)"}
   },
   "required": ["query"]

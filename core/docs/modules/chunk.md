@@ -34,6 +34,24 @@ Turns source text into `cberg_chunk` records with stable keys and byte spans.
 | `CBERG_LANG_SLOTS` | 8 | Tree-sitter parser/query cache slots (grammar-backed languages only) |
 | `CBERG_MD_SECTION_MAX_LINES` | 200 | Max lines per markdown section chunk before continuation |
 | `CBERG_MD_TITLE_MAX` | 120 | Max bytes stored per heading title in breadcrumbs |
+| `CBERG_CFG_CHUNK_MAX_LINES` | 200 | Line count per config key continuation (lock files) |
+
+### Config formats (YAML / TOML / JSON)
+
+No tree-sitter grammar. `cberg_chunker_parse` routes `CBERG_LANG_YAML`, `CBERG_LANG_TOML`, and
+`CBERG_LANG_JSON` to `config_chunk` before the tree-sitter path.
+
+| Format | Boundary | Chunk kind |
+|--------|----------|------------|
+| YAML | Column-0 `key:` lines (colon + space/tab/EOL; quotes/comments respected) | `CBERG_CHUNK_KEY` |
+| TOML | `[table]` / `[[array-of-tables]]` headers | `CBERG_CHUNK_KEY` |
+| JSON | Root-object keys (string-aware; JSONC `//` and `/* */` comments skipped) | `CBERG_CHUNK_KEY` |
+
+Content before the first boundary is an unnamed preamble chunk. Entries longer than
+`CBERG_CFG_CHUNK_MAX_LINES` continue as additional chunks under the same symbol (occurrence
+index). Non-object JSON roots, parse failures, and empty structured results fall back to
+`window_chunk`. Trailing non-whitespace after a valid JSON root object is emitted as one
+unnamed chunk. Config symbols use `CBERG_CHUNK_IDENT_MAX` (same as code chunks).
 
 ### Tree-sitter queries (static strings)
 
@@ -63,8 +81,9 @@ Switch mapping language enum → `lang_desc`. Unknown → `{ NULL, NULL }`.
 
 ### `lang_slot(cberg_language lang)` — static
 
-Returns `(int)lang` as cache index for grammar-backed languages. `CBERG_LANG_MARKDOWN`
-and `CBERG_LANG_UNKNOWN` are outside the slot range.
+Returns `(int)lang` as cache index for grammar-backed languages. `CBERG_LANG_MARKDOWN`,
+config languages (`YAML`, `TOML`, `JSON`), and `CBERG_LANG_UNKNOWN` are outside the slot
+range.
 
 ### `kind_from_capture(const char *name, uint32_t len)` — static
 
@@ -78,15 +97,17 @@ Sort comparator by `span.start_byte` (used after query extraction).
 
 Doubles `items` capacity until `>= want`. **Returns:** `CBERG_OK` or `CBERG_ERR_OUT_OF_MEMORY`.
 
-### `format_key(cberg_arena *arena, ...)` — static
-
-Arena-allocates the result of `chunk_format_key`. **Returns:** `CBERG_OK`,
-`CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_OUT_OF_MEMORY`.
-
 ### `list_push(...)` — static
 
-Appends one chunk: copies path/symbol to arena, formats key, sets span/kind.
+Appends one chunk: copies path/symbol to arena via `chunk_format_key`, sets span/kind.
 Increments list length. **Returns:** status from reserve/format.
+
+### `config_chunk` / `cfg_line_chunks` / `cfg_emit` / `json_object_chunks` — static
+
+Structural chunkers for YAML, TOML, and JSON (see **Config formats** above). YAML/TOML use
+line boundaries (`yaml_key_line`, `toml_table_line`); JSON uses `json_skip_ws` (JSONC comments)
+and `json_skip_string`. Shared helpers: `cfg_copy_sym`, `cfg_flush_section`, `cfg_span_blank`.
+Falls back to `window_chunk` when JSON parsing fails or no chunks are produced.
 
 ### `cberg_chunker_open` — public
 
@@ -135,7 +156,7 @@ leading spaces) are recognized.
 2. `ts_query_cursor_exec` over compiled query.
 3. For each match: read `@function`/`@method`/… node and optional `@name`.
 4. Deduplicate keys: same `(path, kind, symbol)` gets incrementing `#n` suffix via
-   local `occ_entry` table (max 256 distinct idents per file).
+   `chunk_occ_next` (`chunk_keys.c`).
 5. Sort chunks by start byte.
 
 **Returns:** `CBERG_OK` or error; on error frees partial list.
@@ -143,6 +164,7 @@ leading spaces) are recognized.
 ### `cberg_chunker_parse` — public
 
 - `CBERG_LANG_MARKDOWN` → `markdown_chunk` (heading sections).
+- `CBERG_LANG_YAML` / `CBERG_LANG_TOML` / `CBERG_LANG_JSON` → `config_chunk` (structural key chunks).
 - `CBERG_LANG_UNKNOWN` → `window_chunk`.
 - Else `descriptor_for`; if no language → window chunk.
 - Else `query_chunk`.

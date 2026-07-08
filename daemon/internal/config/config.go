@@ -17,6 +17,7 @@ const (
 	EnvModel        = "CBERG_MODEL"
 	EnvIndexPath    = "CBERG_INDEX_PATH"
 	EnvIndexBackend = "CBERG_INDEX_BACKEND"
+	EnvIndexQuant   = "CBERG_INDEX_QUANT"
 	EnvVectorDBURL  = "CBERG_VECTORDB_URL"
 	EnvVectorDBKey  = "CBERG_VECTORDB_API_KEY"
 	EnvPostgresURL  = "CBERG_POSTGRES_URL"
@@ -40,6 +41,7 @@ type Indexer struct {
 	Model        string
 	Index        string
 	IndexBackend string
+	IndexQuant   string
 	VectorDBURL  string
 	VectorDBKey  string
 	PostgresURL  string
@@ -96,6 +98,7 @@ func loadIndexer() (Indexer, error) {
 	model := os.Getenv(EnvModel)
 	indexPath := os.Getenv(EnvIndexPath)
 	indexBackend := os.Getenv(EnvIndexBackend)
+	indexQuant := os.Getenv(EnvIndexQuant)
 	vectorDBURL := os.Getenv(EnvVectorDBURL)
 	vectorDBKey := os.Getenv(EnvVectorDBKey)
 	postgresURL := os.Getenv(EnvPostgresURL)
@@ -121,6 +124,7 @@ func loadIndexer() (Indexer, error) {
 		Model:        model,
 		Index:        indexPath,
 		IndexBackend: indexBackend,
+		IndexQuant:   indexQuant,
 		VectorDBURL:  vectorDBURL,
 		VectorDBKey:  vectorDBKey,
 		PostgresURL:  postgresURL,

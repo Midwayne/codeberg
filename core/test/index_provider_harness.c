@@ -8,6 +8,28 @@
 
 static const char *label;
 
+void test_temp_path(char *path, size_t cap, const char *template) {
+    if (path != template) {
+        snprintf(path, cap, "%s", template);
+    }
+    int fd = mkstemp(path);
+    if (fd >= 0) {
+        close(fd);
+        remove(path);
+    }
+}
+
+char *test_unique_path(const char *prefix) {
+    char tmpl[256];
+    snprintf(tmpl, sizeof tmpl, "/tmp/%s_XXXXXX", prefix);
+    int fd = mkstemp(tmpl);
+    if (fd >= 0) {
+        close(fd);
+        remove(tmpl);
+    }
+    return strdup(tmpl);
+}
+
 static float *unit_vector(size_t dim, size_t axis) {
     float *v = calloc(dim, sizeof(float));
     if (v != NULL && axis < dim) {
@@ -17,47 +39,35 @@ static float *unit_vector(size_t dim, size_t axis) {
 }
 
 int index_provider_test_usearch_expansion_restore(void) {
-    const char *label = "usearch-expansion";
-    int local_failures = 0;
-#define ECHECK(cond, msg)                                                               \
-    do {                                                                                \
-        if (!(cond)) {                                                                  \
-            fprintf(stderr, "FAIL [%s]: %s (%s:%d)\n", label, msg, __FILE__, __LINE__); \
-            local_failures++;                                                           \
-        }                                                                               \
-    } while (0)
+    const char *test_label = "usearch-expansion";
+    int base = failures;
 
     char path[] = "/tmp/cberg_expansion_XXXXXX";
-    int fd = mkstemp(path);
-    if (fd >= 0) {
-        close(fd);
-        remove(path);
-    }
+    test_temp_path(path, sizeof path, path);
 
     cberg_index_config cfg;
     cberg_index_config_default(&cfg);
     cfg.expansion_search = 64;
 
     cberg_index *idx = NULL;
-    ECHECK(cberg_index_open(path, 4, &cfg, &idx) == CBERG_OK && idx != NULL, "open");
+    TEST_CHECK_LABELED(test_label, cberg_index_open(path, 4, &cfg, &idx) == CBERG_OK && idx != NULL, "open");
 
     if (idx != NULL) {
         float v[4] = {1, 0, 0, 0};
-        ECHECK(cberg_index_add(idx, 1, v) == CBERG_OK, "add");
+        TEST_CHECK_LABELED(test_label, cberg_index_add(idx, 1, v) == CBERG_OK, "add");
         cberg_index_search_opts high = {.expansion_search = 256};
         uint64_t ids[1];
         float scores[1];
         size_t found = 0;
-        ECHECK(cberg_index_search(idx, v, 1, &high, ids, scores, &found) == CBERG_OK, "high-ef search");
+        TEST_CHECK_LABELED(test_label, cberg_index_search(idx, v, 1, &high, ids, scores, &found) == CBERG_OK, "high-ef search");
         size_t ef = 0;
-        ECHECK(cberg_usearch_index_active_expansion(idx, &ef) == CBERG_OK, "read ef");
-        ECHECK(ef == cfg.expansion_search, "expansion_search restored after query");
+        TEST_CHECK_LABELED(test_label, cberg_usearch_index_active_expansion(idx, &ef) == CBERG_OK, "read ef");
+        TEST_CHECK_LABELED(test_label, ef == cfg.expansion_search, "expansion_search restored after query");
         cberg_index_close(idx);
     }
 
     remove(path);
-    return local_failures;
-#undef ECHECK
+    return failures - base;
 }
 
 int index_provider_harness_run(const char *test_label, const cberg_index_config *cfg, const char *path, size_t dim) {

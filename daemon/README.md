@@ -40,6 +40,7 @@ Outputs: `core/build/bin/cberg-index`, `core/build/bin/codeberg-d`.
 | `CBERG_MODEL` | for vectors | Path to ONNX model |
 | `CBERG_INDEX_PATH` | for vectors | Index **base path**; per-repo sidecars at `<base>.<roothash>[.chunks\|.manifest]` |
 | `CBERG_INDEX_BACKEND` | no | `usearch` (default), `qdrant`, or `pgvector` (`postgres` alias) |
+| `CBERG_INDEX_QUANT` | no | usearch stored scalar kind: `i8` (default) or `f32` (forwarded to `cberg-index`) |
 | `CBERG_VECTORDB_URL` | for `qdrant` | Qdrant REST base URL |
 | `CBERG_VECTORDB_API_KEY` | no | Qdrant API key (cloud) |
 | `CBERG_POSTGRES_URL` | for `pgvector` | PostgreSQL connection string (pgvector extension) |

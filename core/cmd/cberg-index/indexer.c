@@ -975,6 +975,19 @@ cberg_status cberg_engine_open(cberg_engine *eng) {
             }
             eng->index_cfg.provider = provider;
         }
+        const char *quant = getenv("CBERG_INDEX_QUANT");
+        if (quant != NULL && quant[0] != '\0') {
+            cberg_index_quant quantization;
+            if (cberg_index_quant_from_name(quant, &quantization) != CBERG_OK) {
+                fprintf(stderr,
+                        "cberg-index: unknown CBERG_INDEX_QUANT '%s' "
+                        "(use: f32, i8)\n",
+                        quant);
+                cberg_engine_close(eng);
+                return CBERG_ERR_INVALID_ARGUMENT;
+            }
+            eng->index_cfg.quantization = quantization;
+        }
         if (eng->index_cfg.provider == CBERG_INDEX_QDRANT) {
             const char *url = getenv("CBERG_VECTORDB_URL");
             if (url == NULL || url[0] == '\0') {
@@ -1441,6 +1454,8 @@ static const char *kind_str(cberg_chunk_kind k) {
         return "window";
     case CBERG_CHUNK_SECTION:
         return "section";
+    case CBERG_CHUNK_KEY:
+        return "key";
     case CBERG_CHUNK_UNKNOWN:
     default:
         return "unknown";
@@ -1471,6 +1486,9 @@ int cberg_index_parse_kind(const char *s) {
     }
     if (strcasecmp(s, "section") == 0) {
         return CBERG_CHUNK_SECTION;
+    }
+    if (strcasecmp(s, "key") == 0) {
+        return CBERG_CHUNK_KEY;
     }
     return -1;
 }
