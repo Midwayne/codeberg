@@ -31,7 +31,25 @@ Turns source text into `cberg_chunk` records with stable keys and byte spans.
 | Name | Value | Role |
 |------|-------|------|
 | `CBERG_WINDOW_LINES` | 50 | Line count per fallback window |
-| `CBERG_LANG_SLOTS` | 8 | Parser/query cache slots (one per enum value) |
+| `CBERG_CFG_CHUNK_MAX_LINES` | 200 | Line count per config key continuation (lock files) |
+| `CBERG_LANG_SLOTS` | 8 | Tree-sitter parser/query cache slots (languages with grammars only) |
+
+### Config formats (YAML / TOML / JSON)
+
+No tree-sitter grammar. `cberg_chunker_parse` routes `CBERG_LANG_YAML`, `CBERG_LANG_TOML`, and
+`CBERG_LANG_JSON` to `config_chunk` before the tree-sitter path.
+
+| Format | Boundary | Chunk kind |
+|--------|----------|------------|
+| YAML | Column-0 `key:` lines (colon + space/tab/EOL; quotes/comments respected) | `CBERG_CHUNK_KEY` |
+| TOML | `[table]` / `[[array-of-tables]]` headers | `CBERG_CHUNK_KEY` |
+| JSON | Root-object keys (string-aware; JSONC `//` and `/* */` comments skipped) | `CBERG_CHUNK_KEY` |
+
+Content before the first boundary is an unnamed preamble chunk. Entries longer than
+`CBERG_CFG_CHUNK_MAX_LINES` continue as additional chunks under the same symbol (occurrence
+index). Non-object JSON roots, parse failures, and empty structured results fall back to
+`window_chunk`. Trailing non-whitespace after a valid JSON root object is emitted as one
+unnamed chunk. Config symbols use `CBERG_CHUNK_IDENT_MAX` (same as code chunks).
 
 ### Tree-sitter queries (static strings)
 
@@ -61,7 +79,8 @@ Switch mapping language enum → `lang_desc`. Unknown → `{ NULL, NULL }`.
 
 ### `lang_slot(cberg_language lang)` — static
 
-Returns `(int)lang` as cache index (enum values align with slots).
+Returns `(int)lang` as cache index for tree-sitter languages (`GO` … `JAVA`). Config
+languages (`YAML`, `TOML`, `JSON`) are outside the slot range and use `config_chunk`.
 
 ### `kind_from_capture(const char *name, uint32_t len)` — static
 
@@ -121,6 +140,7 @@ chunks every 50 lines (plus tail). Symbols NULL. Keys use `#<occurrence>`.
 
 ### `cberg_chunker_parse` — public
 
+- `CBERG_LANG_YAML` / `CBERG_LANG_TOML` / `CBERG_LANG_JSON` → `config_chunk` (structural key chunks).
 - `CBERG_LANG_UNKNOWN` → `window_chunk`.
 - Else `descriptor_for`; if no language → window chunk.
 - Else `query_chunk`.

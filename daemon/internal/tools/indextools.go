@@ -28,7 +28,7 @@ func searchTool(idx indexctl.Indexer) Tool {
     "k": {"type": "integer", "description": "max results (default 10)"},
     "repo": {"type": "string", "description": "restrict to one repo key"},
     "path_glob": {"type": "string", "description": "fnmatch glob on chunk paths, e.g. daemon/*"},
-    "kind": {"type": "string", "description": "chunk kind: function, method, class, struct, interface, window"},
+    "kind": {"type": "string", "description": "chunk kind: function, method, class, struct, interface, window, key"},
     "min_score": {"type": "number", "description": "minimum similarity score (0-1)"}
   },
   "required": ["query"]
@@ -122,7 +122,7 @@ func hybridSearchTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
     "k": {"type": "integer", "description": "max results (default 8)"},
     "repo": {"type": "string", "description": "restrict to one repo key"},
     "path_glob": {"type": "string", "description": "fnmatch glob on chunk paths"},
-    "kind": {"type": "string", "description": "chunk kind: function, method, class, struct, interface, window"},
+    "kind": {"type": "string", "description": "chunk kind: function, method, class, struct, interface, window, key"},
     "min_score": {"type": "number", "description": "minimum similarity score (0-1)"}
   },
   "required": ["query"]

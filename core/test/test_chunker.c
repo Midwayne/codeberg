@@ -23,6 +23,17 @@ static const cberg_chunk *find_symbol(const cberg_chunk_list *list, const char *
     return NULL;
 }
 
+static size_t count_symbol(const cberg_chunk_list *list, const char *symbol) {
+    size_t n = 0;
+    for (size_t i = 0; i < cberg_chunk_list_len(list); i++) {
+        const cberg_chunk *c = cberg_chunk_list_at(list, i);
+        if (c != NULL && c->symbol != NULL && strcmp(c->symbol, symbol) == 0) {
+            n++;
+        }
+    }
+    return n;
+}
+
 static void test_go(cberg_chunker *ch) {
     const char *src = "package main\n\n"
                       "func Add(a, b int) int {\n"
@@ -143,6 +154,96 @@ static void test_json(cberg_chunker *ch) {
     cberg_chunk_list_free(list);
 }
 
+static void test_json_jsonc(cberg_chunker *ch) {
+    const char *src = "{\n"
+                      "  // compiler options\n"
+                      "  \"compilerOptions\": {\n"
+                      "    \"strict\": true\n"
+                      "  },\n"
+                      "  /* include globs */\n"
+                      "  \"include\": [\"src\"]\n"
+                      "}\n";
+    cberg_chunk_list *list = NULL;
+    CHECK(cberg_chunker_parse(ch, CBERG_LANG_JSON, "tsconfig.json", src, strlen(src), &list) == CBERG_OK, "jsonc parse");
+    CHECK(cberg_chunk_list_len(list) == 2, "jsonc chunk count");
+    CHECK(find_symbol(list, "compilerOptions") != NULL, "jsonc compilerOptions");
+    CHECK(find_symbol(list, "include") != NULL, "jsonc include");
+    cberg_chunk_list_free(list);
+}
+
+static void test_json_empty_object(cberg_chunker *ch) {
+    const char *src = "{}";
+    cberg_chunk_list *list = NULL;
+    CHECK(cberg_chunker_parse(ch, CBERG_LANG_JSON, "empty.json", src, strlen(src), &list) == CBERG_OK, "json empty parse");
+    CHECK(cberg_chunk_list_len(list) == 1, "json empty window fallback");
+    CHECK(cberg_chunk_list_at(list, 0)->kind == CBERG_CHUNK_WINDOW, "json empty window kind");
+    cberg_chunk_list_free(list);
+}
+
+static void test_json_trailing(cberg_chunker *ch) {
+    const char *src = "{ \"a\": 1 } trailing garbage\n";
+    cberg_chunk_list *list = NULL;
+    CHECK(cberg_chunker_parse(ch, CBERG_LANG_JSON, "trail.json", src, strlen(src), &list) == CBERG_OK, "json trailing parse");
+    CHECK(cberg_chunk_list_len(list) == 2, "json trailing chunk count");
+    CHECK(find_symbol(list, "a") != NULL, "json trailing key");
+    const cberg_chunk *tail = cberg_chunk_list_at(list, 1);
+    CHECK(tail != NULL && tail->kind == CBERG_CHUNK_KEY && tail->symbol == NULL, "json trailing unnamed");
+    cberg_chunk_list_free(list);
+}
+
+static void test_json_malformed(cberg_chunker *ch) {
+    const char *src = "{ foo: 1 }\n";
+    cberg_chunk_list *list = NULL;
+    CHECK(cberg_chunker_parse(ch, CBERG_LANG_JSON, "bad.json", src, strlen(src), &list) == CBERG_OK, "json malformed parse");
+    CHECK(cberg_chunk_list_len(list) == 1, "json malformed window fallback");
+    CHECK(cberg_chunk_list_at(list, 0)->kind == CBERG_CHUNK_WINDOW, "json malformed window kind");
+    cberg_chunk_list_free(list);
+}
+
+static void test_json_line_split(cberg_chunker *ch) {
+    char buf[16384];
+    size_t off = (size_t)snprintf(buf, sizeof(buf), "{\n  \"big\": [\n");
+    for (int n = 0; n < 210; n++) {
+        off += (size_t)snprintf(buf + off, sizeof(buf) - off, "    %d,\n", n);
+    }
+    off += (size_t)snprintf(buf + off, sizeof(buf) - off, "    0\n  ]\n}\n");
+
+    cberg_chunk_list *list = NULL;
+    CHECK(cberg_chunker_parse(ch, CBERG_LANG_JSON, "lock.json", buf, strlen(buf), &list) == CBERG_OK, "json line split parse");
+    CHECK(count_symbol(list, "big") >= 2, "json big key split into multiple chunks");
+    cberg_chunk_list_free(list);
+}
+
+static void test_json_long_key(cberg_chunker *ch) {
+    char k1[151];
+    char k2[151];
+    memset(k1, 'a', 150);
+    k1[150] = '\0';
+    memcpy(k2, k1, 149);
+    k2[149] = 'b';
+    k2[150] = '\0';
+
+    char src[512];
+    snprintf(src, sizeof(src), "{ \"%s\": 1, \"%s\": 2 }\n", k1, k2);
+
+    cberg_chunk_list *list = NULL;
+    CHECK(cberg_chunker_parse(ch, CBERG_LANG_JSON, "long.json", src, strlen(src), &list) == CBERG_OK, "json long key parse");
+    CHECK(find_symbol(list, k1) != NULL, "json long key first");
+    CHECK(find_symbol(list, k2) != NULL, "json long key second");
+    cberg_chunk_list_free(list);
+}
+
+static void test_yaml_flow_style(cberg_chunker *ch) {
+    const char *src = "inline:{ nested: true }\n"
+                      "normal:\n"
+                      "  value: 1\n";
+    cberg_chunk_list *list = NULL;
+    CHECK(cberg_chunker_parse(ch, CBERG_LANG_YAML, "flow.yaml", src, strlen(src), &list) == CBERG_OK, "yaml flow parse");
+    CHECK(find_symbol(list, "inline:{ nested: true }") == NULL, "yaml flow not a key boundary");
+    CHECK(find_symbol(list, "normal") != NULL, "yaml normal key");
+    cberg_chunk_list_free(list);
+}
+
 int main(void) {
     CHECK(cberg_language_from_path("a.go") == CBERG_LANG_GO, "lang go");
     CHECK(cberg_language_from_path("config.yaml") == CBERG_LANG_YAML, "lang yaml");
@@ -156,6 +257,13 @@ int main(void) {
     test_yaml(ch);
     test_toml(ch);
     test_json(ch);
+    test_json_jsonc(ch);
+    test_json_empty_object(ch);
+    test_json_trailing(ch);
+    test_json_malformed(ch);
+    test_json_line_split(ch);
+    test_json_long_key(ch);
+    test_yaml_flow_style(ch);
     cberg_chunker_close(ch);
     return failures == 0 ? 0 : 1;
 }
