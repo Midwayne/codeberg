@@ -10,7 +10,7 @@ import (
 	"codeberg.org/codeberg/daemon/internal/workspace"
 )
 
-const chunkKindFilterDesc = "chunk kind: function, method, class, struct, interface, window, key"
+const chunkKindFilterDesc = "chunk kind: function, method, class, struct, interface, window, section, key"
 
 func registerIndexTools(r *Registry, idx indexctl.Indexer, ws *workspace.Workspace) {
 	r.Register(searchTool(idx))
@@ -22,7 +22,7 @@ func registerIndexTools(r *Registry, idx indexctl.Indexer, ws *workspace.Workspa
 }
 
 func searchTool(idx indexctl.Indexer) Tool {
-	const schema = `{
+	schema := `{
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -71,13 +71,13 @@ func getChunkTool(idx indexctl.Indexer) Tool {
 }
 
 func findSymbolTool(idx indexctl.Indexer) Tool {
-	const schema = `{
+	schema := `{
   "type": "object",
   "additionalProperties": false,
   "properties": {
     "name": {"type": "string", "description": "symbol name to find"},
     "repo": {"type": "string", "description": "restrict to one repo key"},
-    "kind": {"type": "string", "description": "chunk kind filter"},
+    "kind": {"type": "string", "description": "` + chunkKindDescription + `"},
     "limit": {"type": "integer", "description": "max results (default 20)"}
   },
   "required": ["name"]
@@ -116,7 +116,7 @@ func fileOutlineTool(idx indexctl.Indexer) Tool {
 }
 
 func hybridSearchTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
-	const schema = `{
+	schema := `{
   "type": "object",
   "additionalProperties": false,
   "properties": {

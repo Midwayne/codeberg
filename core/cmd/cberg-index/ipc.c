@@ -87,34 +87,6 @@ static void handle_status(cberg_engine *eng, int fd) {
     write_all(fd, resp, strlen(resp));
 }
 
-static int parse_kind_field(const char *s) {
-    if (s == NULL || s[0] == '\0') {
-        return -1;
-    }
-    if (strcasecmp(s, "function") == 0) {
-        return CBERG_CHUNK_FUNCTION;
-    }
-    if (strcasecmp(s, "method") == 0) {
-        return CBERG_CHUNK_METHOD;
-    }
-    if (strcasecmp(s, "class") == 0) {
-        return CBERG_CHUNK_CLASS;
-    }
-    if (strcasecmp(s, "struct") == 0) {
-        return CBERG_CHUNK_STRUCT;
-    }
-    if (strcasecmp(s, "interface") == 0) {
-        return CBERG_CHUNK_INTERFACE;
-    }
-    if (strcasecmp(s, "window") == 0) {
-        return CBERG_CHUNK_WINDOW;
-    }
-    if (strcasecmp(s, "key") == 0) {
-        return CBERG_CHUNK_KEY;
-    }
-    return -1;
-}
-
 static char *next_field(char **cursor) {
     if (cursor == NULL || *cursor == NULL || **cursor == '\0') {
         return NULL;
@@ -185,7 +157,7 @@ static void handle_search(cberg_engine *eng, int fd, char *args) {
 
     cberg_search_filters filters = {0};
     filters.path_glob = path_glob;
-    filters.kind = parse_kind_field(kind_str);
+    filters.kind = cberg_index_parse_kind(kind_str);
     if (min_score_str != NULL && min_score_str[0] != '\0') {
         filters.min_score = (float)atof(min_score_str);
     }
@@ -297,7 +269,7 @@ static void handle_symbol(cberg_engine *eng, int fd, char *args) {
     cberg_engine_hit hits[64];
     size_t found = 0;
     cberg_status st =
-        cberg_engine_find_symbol(eng, name, repo, parse_kind_field(kind_str), limit, hits, 64, &found);
+        cberg_engine_find_symbol(eng, name, repo, cberg_index_parse_kind(kind_str), limit, hits, 64, &found);
     if (st != CBERG_OK) {
         char resp[256];
         snprintf(resp, sizeof(resp), "{\"ok\":false,\"error\":\"%s\"}\n", cberg_status_str(st));

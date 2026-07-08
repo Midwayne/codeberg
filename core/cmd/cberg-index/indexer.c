@@ -1452,6 +1452,8 @@ static const char *kind_str(cberg_chunk_kind k) {
         return "interface";
     case CBERG_CHUNK_WINDOW:
         return "window";
+    case CBERG_CHUNK_SECTION:
+        return "section";
     case CBERG_CHUNK_KEY:
         return "key";
     case CBERG_CHUNK_UNKNOWN:
@@ -1460,7 +1462,7 @@ static const char *kind_str(cberg_chunk_kind k) {
     }
 }
 
-static int parse_kind(const char *s) {
+int cberg_index_parse_kind(const char *s) {
     if (s == NULL || s[0] == '\0') {
         return -1;
     }
@@ -1481,6 +1483,9 @@ static int parse_kind(const char *s) {
     }
     if (strcasecmp(s, "window") == 0) {
         return CBERG_CHUNK_WINDOW;
+    }
+    if (strcasecmp(s, "section") == 0) {
+        return CBERG_CHUNK_SECTION;
     }
     if (strcasecmp(s, "key") == 0) {
         return CBERG_CHUNK_KEY;

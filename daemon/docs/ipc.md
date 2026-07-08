@@ -52,7 +52,7 @@ search\t<query>\t<k>[\t<repo>[\t<path_glob>[\t<kind>[\t<min_score>]]]]
 | k | no | Max results (default 10) |
 | repo | no | Restrict to one repo key |
 | path_glob | no | fnmatch glob on chunk paths |
-| kind | no | Chunk kind filter (`function`, `method`, `class`, `struct`, `interface`, `window`) |
+| kind | no | Chunk kind filter (`function`, `method`, `class`, `struct`, `interface`, `window`, `section`) |
 | min_score | no | Minimum similarity score (float) |
 
 Without `repo`, search fans out across every ready repo — the query is embedded

@@ -141,4 +141,7 @@ cberg_status cberg_engine_find_symbol(cberg_engine *eng, const char *name, const
 /* Return every indexed chunk in a file, sorted by start_line. */
 cberg_status cberg_engine_file_outline(cberg_engine *eng, const char *repo_key, const char *path, cberg_engine_hit *hits, size_t cap, size_t *found);
 
+/* Map kind filter string to cberg_chunk_kind, or -1 when unset/unknown. */
+int cberg_index_parse_kind(const char *s);
+
 #endif

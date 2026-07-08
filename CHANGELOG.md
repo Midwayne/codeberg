@@ -9,6 +9,14 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Added
 
+- **Markdown indexing** — `.md`/`.markdown` files are now chunked and indexed
+  (previously skipped entirely). A heading-aware chunker splits documents into
+  sections: each chunk runs from an ATX heading to the next heading, its symbol
+  is the heading breadcrumb (`Install > Prerequisites`), content before the
+  first heading is an unnamed preamble section, `#` inside fenced code blocks
+  does not split, and sections longer than 200 lines continue as extra chunks
+  under the same symbol. New chunk kind `section` (accepted by the `kind`
+  filter on `/search` and the search tools).
 - **Config-file indexing (YAML, TOML, JSON)** — `.yaml`/`.yml`, `.toml`, and
   `.json` files are now chunked and indexed (previously skipped entirely).
   Structural chunkers split them at top-level entries: YAML column-0 keys,

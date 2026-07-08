@@ -31,8 +31,10 @@ Turns source text into `cberg_chunk` records with stable keys and byte spans.
 | Name | Value | Role |
 |------|-------|------|
 | `CBERG_WINDOW_LINES` | 50 | Line count per fallback window |
+| `CBERG_LANG_SLOTS` | 8 | Tree-sitter parser/query cache slots (grammar-backed languages only) |
+| `CBERG_MD_SECTION_MAX_LINES` | 200 | Max lines per markdown section chunk before continuation |
+| `CBERG_MD_TITLE_MAX` | 120 | Max bytes stored per heading title in breadcrumbs |
 | `CBERG_CFG_CHUNK_MAX_LINES` | 200 | Line count per config key continuation (lock files) |
-| `CBERG_LANG_SLOTS` | 8 | Tree-sitter parser/query cache slots (languages with grammars only) |
 
 ### Config formats (YAML / TOML / JSON)
 
@@ -71,7 +73,7 @@ Capture names map to `cberg_chunk_kind` via `kind_from_capture`.
 
 - **`lang_desc`** — `TSLanguage* (*)()` + query string.
 - **`cberg_chunk_list`** — `{ arena, items[], len, cap }` (opaque in public API).
-- **`cberg_chunker`** — `{ parsers[8], queries[8], query_lang[8] }`.
+- **`cberg_chunker`** — `{ parsers[8], queries[8], query_lang[8] }` (markdown uses a separate line chunker).
 
 ### `descriptor_for(cberg_language lang)` — static
 
@@ -79,8 +81,9 @@ Switch mapping language enum → `lang_desc`. Unknown → `{ NULL, NULL }`.
 
 ### `lang_slot(cberg_language lang)` — static
 
-Returns `(int)lang` as cache index for tree-sitter languages (`GO` … `JAVA`). Config
-languages (`YAML`, `TOML`, `JSON`) are outside the slot range and use `config_chunk`.
+Returns `(int)lang` as cache index for grammar-backed languages. `CBERG_LANG_MARKDOWN`,
+config languages (`YAML`, `TOML`, `JSON`), and `CBERG_LANG_UNKNOWN` are outside the slot
+range.
 
 ### `kind_from_capture(const char *name, uint32_t len)` — static
 
@@ -129,6 +132,24 @@ query if language at slot changed. **Returns:** `CBERG_OK`, `CBERG_ERR_OUT_OF_ME
 Fallback for unknown languages: scans `src` for newlines, emits `CBERG_CHUNK_WINDOW`
 chunks every 50 lines (plus tail). Symbols NULL. Keys use `#<occurrence>`.
 
+### `markdown_chunk(path, src, src_len, out_list)` — static
+
+Heading-aware chunker for `.md`/`.markdown` (no tree-sitter). Emits `CBERG_CHUNK_SECTION`
+chunks:
+
+- Each section runs from an ATX heading (`#` … `######`) to the line before the next
+  heading (any level). Symbol is the breadcrumb of enclosing headings
+  (`Install > Prerequisites`).
+- Content before the first heading is an unnamed preamble section (skipped when
+  whitespace-only).
+- `#` inside fenced code blocks (`` ``` `` / `~~~`) does not split.
+- Sections longer than `CBERG_MD_SECTION_MAX_LINES` continue as extra chunks under the
+  same symbol; `chunk_occ_next` assigns `#0`, `#1`, …
+
+**Not supported (v1):** setext headings (`Title\n===`), headings inside blockquotes or
+list items (`> # Title`), and HTML blocks. Only ATX headings at line start (up to three
+leading spaces) are recognized.
+
 ### `query_chunk(ch, desc, lang, path, src, src_len, out_list)` — static
 
 1. `ensure_lang` → parse with `ts_parser_parse_string`.
@@ -142,6 +163,7 @@ chunks every 50 lines (plus tail). Symbols NULL. Keys use `#<occurrence>`.
 
 ### `cberg_chunker_parse` — public
 
+- `CBERG_LANG_MARKDOWN` → `markdown_chunk` (heading sections).
 - `CBERG_LANG_YAML` / `CBERG_LANG_TOML` / `CBERG_LANG_JSON` → `config_chunk` (structural key chunks).
 - `CBERG_LANG_UNKNOWN` → `window_chunk`.
 - Else `descriptor_for`; if no language → window chunk.

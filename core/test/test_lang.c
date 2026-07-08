@@ -22,10 +22,12 @@ int main(void) {
     CHECK(cberg_language_from_path("Main.java") == CBERG_LANG_JAVA, "java");
     CHECK(cberg_language_from_path("app.py") == CBERG_LANG_PYTHON, "py");
     CHECK(cberg_language_from_path("App.kt") == CBERG_LANG_KOTLIN, "kt");
+    CHECK(cberg_language_from_path("README.md") == CBERG_LANG_MARKDOWN, "md");
+    CHECK(cberg_language_from_path("doc.markdown") == CBERG_LANG_MARKDOWN, "markdown");
     CHECK(cberg_language_from_path("config.yaml") == CBERG_LANG_YAML, "yaml");
     CHECK(cberg_language_from_path("config.yml") == CBERG_LANG_YAML, "yml");
     CHECK(cberg_language_from_path("Cargo.toml") == CBERG_LANG_TOML, "toml");
     CHECK(cberg_language_from_path("package.json") == CBERG_LANG_JSON, "json");
-    CHECK(cberg_language_from_path("README.md") == CBERG_LANG_UNKNOWN, "unknown");
+    CHECK(cberg_language_from_path("photo.png") == CBERG_LANG_UNKNOWN, "unknown");
     return failures == 0 ? 0 : 1;
 }

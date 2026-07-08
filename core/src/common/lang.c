@@ -29,6 +29,8 @@ cberg_language cberg_language_from_path(const char *path) {
         {"py", CBERG_LANG_PYTHON},
         {"pyi", CBERG_LANG_PYTHON},
         {"java", CBERG_LANG_JAVA},
+        {"md", CBERG_LANG_MARKDOWN},
+        {"markdown", CBERG_LANG_MARKDOWN},
         {"yaml", CBERG_LANG_YAML},
         {"yml", CBERG_LANG_YAML},
         {"toml", CBERG_LANG_TOML},
