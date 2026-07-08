@@ -23,9 +23,11 @@ extern const TSLanguage *tree_sitter_kotlin(void);
 extern const TSLanguage *tree_sitter_typescript(void);
 
 #define CBERG_WINDOW_LINES 50
+/* Tree-sitter parser/query cache slots (one per grammar-backed language). */
 #define CBERG_LANG_SLOTS 8
 
-_Static_assert((int)CBERG_LANG_JAVA + 1 == CBERG_LANG_SLOTS, "update CBERG_LANG_SLOTS when adding languages");
+_Static_assert((int)CBERG_LANG_JAVA + 1 == CBERG_LANG_SLOTS, "update CBERG_LANG_SLOTS when adding tree-sitter languages");
+_Static_assert((int)CBERG_LANG_MARKDOWN == CBERG_LANG_SLOTS, "CBERG_LANG_MARKDOWN must stay outside parser slots");
 
 typedef const TSLanguage *(*ts_language_fn)(void);
 

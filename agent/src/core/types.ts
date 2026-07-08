@@ -34,7 +34,7 @@ export interface SearchOptions {
   repo?: string;
   /** fnmatch glob on chunk paths, e.g. daemon/* */
   path_glob?: string;
-  /** chunk kind: function, method, class, struct, interface, window */
+  /** chunk kind: function, method, class, struct, interface, window, section */
   kind?: string;
   /** minimum similarity score (0-1) */
   min_score?: number;

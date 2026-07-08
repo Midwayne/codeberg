@@ -100,6 +100,7 @@ Computes an **order-independent set fingerprint** over `(key, content_hash)` pai
 | `CBERG_LANG_KOTLIN` | `.kt`, `.kts` |
 | `CBERG_LANG_PYTHON` | `.py`, `.pyi` |
 | `CBERG_LANG_JAVA` | `.java` |
+| `CBERG_LANG_MARKDOWN` | `.md`, `.markdown` |
 
 ### `cberg_language_from_path(const char *path)`
 
@@ -107,7 +108,8 @@ Maps file extension to language. `NULL` path → `CBERG_LANG_UNKNOWN`.
 
 ### `cberg_chunk_kind`
 
-`UNKNOWN`, `FUNCTION`, `METHOD`, `CLASS`, `STRUCT`, `INTERFACE`, `WINDOW` (50-line fallback windows).
+`UNKNOWN`, `FUNCTION`, `METHOD`, `CLASS`, `STRUCT`, `INTERFACE`, `WINDOW` (50-line fallback windows),
+`SECTION` (markdown heading sections; symbol is a breadcrumb like `Install > Usage`).
 
 ### `cberg_span`
 
@@ -119,7 +121,7 @@ Byte and line range in the source buffer: `start_byte`, `end_byte`, `start_line`
 |-------|-------------|
 | `key` | Stable id: `"<path>::<kind>::<symbol>#<n>"` |
 | `path` | Repo-relative or caller path string |
-| `symbol` | Name node text, or NULL for windows |
+| `symbol` | Name node text, breadcrumb for markdown sections, or NULL for windows |
 | `kind` | Chunk kind enum |
 | `span` | Location in source |
 | `content_hash` | Filled by `cberg_chunk_list_hash_bodies` |
@@ -136,6 +138,7 @@ Deletes all cached tree-sitter parsers and queries; frees the chunker. NULL-safe
 
 Parses `src` into chunks:
 
+- `CBERG_LANG_MARKDOWN` → heading-aware sections (`CBERG_CHUNK_SECTION`).
 - Known language → tree-sitter query captures (functions, methods, types).
 - `CBERG_LANG_UNKNOWN` → 50-line sliding windows (`CBERG_CHUNK_WINDOW`).
 

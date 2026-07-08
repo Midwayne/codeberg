@@ -23,6 +23,17 @@ static const cberg_chunk *find_symbol(const cberg_chunk_list *list, const char *
     return NULL;
 }
 
+static size_t count_symbol(const cberg_chunk_list *list, const char *symbol) {
+    size_t n = 0;
+    for (size_t i = 0; i < cberg_chunk_list_len(list); i++) {
+        const cberg_chunk *c = cberg_chunk_list_at(list, i);
+        if (c != NULL && c->symbol != NULL && strcmp(c->symbol, symbol) == 0) {
+            n++;
+        }
+    }
+    return n;
+}
+
 static void test_go(cberg_chunker *ch) {
     const char *src = "package main\n\n"
                       "func Add(a, b int) int {\n"
@@ -103,6 +114,45 @@ static void test_markdown(cberg_chunker *ch) {
     cberg_chunk_list_free(list);
 }
 
+static void test_markdown_long_section(cberg_chunker *ch) {
+    char buf[8192];
+    size_t off = 0;
+    off += (size_t)snprintf(buf + off, sizeof(buf) - off, "# Long Section\n");
+    for (int i = 0; i < 200; i++) {
+        off += (size_t)snprintf(buf + off, sizeof(buf) - off, "line %d\n", i);
+    }
+
+    cberg_chunk_list *list = NULL;
+    CHECK(cberg_chunker_parse(ch, CBERG_LANG_MARKDOWN, "long.md", buf, off, &list) == CBERG_OK, "md long parse");
+    CHECK(list != NULL, "md long list");
+    CHECK(count_symbol(list, "Long Section") == 2, "md long section split count");
+
+    const cberg_chunk *first = find_symbol(list, "Long Section");
+    CHECK(first != NULL && first->kind == CBERG_CHUNK_SECTION, "md long first kind");
+    CHECK(first != NULL && first->span.start_line == 1, "md long first start");
+    CHECK(first != NULL && first->span.end_line == 200, "md long first end");
+    CHECK(first != NULL && first->key != NULL && strstr(first->key, "#0") != NULL, "md long key #0");
+
+    const cberg_chunk *second = NULL;
+    int seen_first = 0;
+    for (size_t i = 0; i < cberg_chunk_list_len(list); i++) {
+        const cberg_chunk *c = cberg_chunk_list_at(list, i);
+        if (c != NULL && c->symbol != NULL && strcmp(c->symbol, "Long Section") == 0) {
+            if (seen_first) {
+                second = c;
+                break;
+            }
+            seen_first = 1;
+        }
+    }
+    CHECK(second != NULL && second->kind == CBERG_CHUNK_SECTION, "md long second kind");
+    CHECK(second != NULL && second->span.start_line == 201, "md long second start");
+    CHECK(second != NULL && second->key != NULL && strstr(second->key, "#1") != NULL, "md long key #1");
+
+    cberg_chunk_list_free(list);
+    (void)ch;
+}
+
 static void test_markdown_no_headings(cberg_chunker *ch) {
     const char *src = "just prose\nwith no headings\n";
     cberg_chunk_list *list = NULL;
@@ -127,6 +177,7 @@ int main(void) {
     test_go(ch);
     test_window(ch);
     test_markdown(ch);
+    test_markdown_long_section(ch);
     test_markdown_no_headings(ch);
     cberg_chunker_close(ch);
     return failures == 0 ? 0 : 1;
