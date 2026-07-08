@@ -59,6 +59,8 @@ cberg_add_grammar(tree-sitter-javascript SCANNER scanner.c)
 cberg_add_grammar(tree-sitter-python SCANNER scanner.c)
 cberg_add_grammar(tree-sitter-kotlin SCANNER scanner.c)
 cberg_add_grammar(tree-sitter-typescript SUBDIR typescript SCANNER scanner.c)
+cberg_add_grammar(tree-sitter-rust SCANNER scanner.c)
+cberg_add_grammar(tree-sitter-ruby SCANNER scanner.c)
 
 if(APPLE)
   set(CBERG_WATCH_PLATFORM_SRC src/watch/watch_fsevents.c)

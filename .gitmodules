@@ -28,3 +28,9 @@
 [submodule "core/third_party/onnxruntime-extensions"]
 	path = core/third_party/onnxruntime-extensions
 	url = https://github.com/microsoft/onnxruntime-extensions
+[submodule "core/third_party/grammars/tree-sitter-rust"]
+	path = core/third_party/grammars/tree-sitter-rust
+	url = https://github.com/tree-sitter/tree-sitter-rust
+[submodule "core/third_party/grammars/tree-sitter-ruby"]
+	path = core/third_party/grammars/tree-sitter-ruby
+	url = https://github.com/tree-sitter/tree-sitter-ruby

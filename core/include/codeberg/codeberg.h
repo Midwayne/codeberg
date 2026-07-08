@@ -93,6 +93,8 @@ typedef enum cberg_language {
     CBERG_LANG_KOTLIN,
     CBERG_LANG_PYTHON,
     CBERG_LANG_JAVA,
+    CBERG_LANG_RUST,
+    CBERG_LANG_RUBY,
     CBERG_LANG_MARKDOWN, /* heading-aware line chunker, no tree-sitter parser */
     CBERG_LANG_YAML, /* config formats use line/token chunkers, no tree-sitter */
     CBERG_LANG_TOML,

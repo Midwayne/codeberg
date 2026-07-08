@@ -336,8 +336,78 @@ static void test_markdown_no_headings(cberg_chunker *ch) {
     cberg_chunk_list_free(list);
 }
 
+static void test_rust(cberg_chunker *ch) {
+    const char *src = "pub fn add(a: i32, b: i32) -> i32 {\n"
+                      "    a + b\n"
+                      "}\n"
+                      "\n"
+                      "pub struct Point {\n"
+                      "    x: i32,\n"
+                      "}\n"
+                      "\n"
+                      "pub enum Shape {\n"
+                      "    Circle,\n"
+                      "}\n"
+                      "\n"
+                      "pub trait Area {\n"
+                      "    fn area(&self) -> f64;\n"
+                      "}\n"
+                      "\n"
+                      "impl Point {\n"
+                      "    fn norm(&self) -> i32 {\n"
+                      "        self.x\n"
+                      "    }\n"
+                      "}\n";
+    cberg_chunk_list *list = NULL;
+    CHECK(cberg_chunker_parse(ch, CBERG_LANG_RUST, "lib.rs", src, strlen(src), &list) == CBERG_OK, "rust parse");
+    const cberg_chunk *add = find_symbol(list, "add");
+    CHECK(add != NULL && add->kind == CBERG_CHUNK_FUNCTION, "rust fn");
+    CHECK(add != NULL && add->span.start_line == 1 && add->span.end_line == 3, "rust fn span");
+    const cberg_chunk *point = find_symbol(list, "Point");
+    CHECK(point != NULL && point->kind == CBERG_CHUNK_STRUCT, "rust struct");
+    const cberg_chunk *shape = find_symbol(list, "Shape");
+    CHECK(shape != NULL && shape->kind == CBERG_CHUNK_STRUCT, "rust enum");
+    const cberg_chunk *area = find_symbol(list, "Area");
+    CHECK(area != NULL && area->kind == CBERG_CHUNK_INTERFACE, "rust trait");
+    /* Functions inside impl blocks are captured too. */
+    const cberg_chunk *norm = find_symbol(list, "norm");
+    CHECK(norm != NULL && norm->kind == CBERG_CHUNK_FUNCTION, "rust impl fn");
+    CHECK(cberg_chunk_list_hash_bodies(list, src, strlen(src)) == CBERG_OK, "rust hash");
+    cberg_chunk_list_free(list);
+}
+
+static void test_ruby(cberg_chunker *ch) {
+    const char *src = "module Billing\n"
+                      "  class Invoice\n"
+                      "    def total\n"
+                      "      42\n"
+                      "    end\n"
+                      "\n"
+                      "    def self.build\n"
+                      "      new\n"
+                      "    end\n"
+                      "  end\n"
+                      "end\n";
+    cberg_chunk_list *list = NULL;
+    CHECK(cberg_chunker_parse(ch, CBERG_LANG_RUBY, "billing.rb", src, strlen(src), &list) == CBERG_OK, "ruby parse");
+    const cberg_chunk *mod = find_symbol(list, "Billing");
+    CHECK(mod != NULL && mod->kind == CBERG_CHUNK_CLASS, "ruby module");
+    CHECK(mod != NULL && mod->span.start_line == 1 && mod->span.end_line == 11, "ruby module span");
+    const cberg_chunk *cls = find_symbol(list, "Invoice");
+    CHECK(cls != NULL && cls->kind == CBERG_CHUNK_CLASS, "ruby class");
+    const cberg_chunk *total = find_symbol(list, "total");
+    CHECK(total != NULL && total->kind == CBERG_CHUNK_METHOD, "ruby method");
+    CHECK(total != NULL && total->span.start_line == 3 && total->span.end_line == 5, "ruby method span");
+    const cberg_chunk *build = find_symbol(list, "build");
+    CHECK(build != NULL && build->kind == CBERG_CHUNK_METHOD, "ruby singleton method");
+    CHECK(cberg_chunk_list_hash_bodies(list, src, strlen(src)) == CBERG_OK, "ruby hash");
+    cberg_chunk_list_free(list);
+}
+
 int main(void) {
     CHECK(cberg_language_from_path("a.go") == CBERG_LANG_GO, "lang go");
+    CHECK(cberg_language_from_path("lib.rs") == CBERG_LANG_RUST, "lang rust");
+    CHECK(cberg_language_from_path("app.rb") == CBERG_LANG_RUBY, "lang ruby");
     CHECK(cberg_language_from_path("README.md") == CBERG_LANG_MARKDOWN, "lang md");
     CHECK(cberg_language_from_path("doc.markdown") == CBERG_LANG_MARKDOWN, "lang markdown");
     CHECK(cberg_language_from_path("config.yaml") == CBERG_LANG_YAML, "lang yaml");
@@ -348,6 +418,8 @@ int main(void) {
     CHECK(cberg_chunker_open(&ch) == CBERG_OK, "chunker open");
     test_go(ch);
     test_window(ch);
+    test_rust(ch);
+    test_ruby(ch);
     test_markdown(ch);
     test_markdown_long_section(ch);
     test_markdown_no_headings(ch);

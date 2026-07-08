@@ -9,6 +9,13 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Added
 
+- **Rust and Ruby chunking** — new vendored grammars `tree-sitter-rust`
+  (v0.24.0) and `tree-sitter-ruby` (v0.23.1) with symbol-aware queries:
+  Rust functions (including those in `impl` blocks), structs, enums (as
+  `struct`), and traits (as `interface`); Ruby methods, singleton methods,
+  classes, and modules (as `class`). Extensions `.rs`, `.rb`, `.rake`, and
+  `.gemspec` now index as symbols instead of being skipped. Run
+  `git submodule update --init --recursive` after pulling.
 - **Markdown indexing** — `.md`/`.markdown` files are now chunked and indexed
   (previously skipped entirely). A heading-aware chunker splits documents into
   sections: each chunk runs from an ATX heading to the next heading, its symbol
