@@ -11,4 +11,5 @@ void cberg_index_config_default(cberg_index_config *config) {
     config->connectivity = 16;
     config->expansion_add = 128;
     config->expansion_search = 64;
+    config->quantization = CBERG_QUANT_I8;
 }

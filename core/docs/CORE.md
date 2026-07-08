@@ -245,6 +245,15 @@ Files with no grammar match are split into **50-line windows** (`CBERG_WINDOW_LI
 Kind is `CBERG_CHUNK_WINDOW`; symbol is `NULL`. This keeps prose, config, and
 generated blobs searchable at reasonable granularity.
 
+### Markdown sections
+
+`.md` and `.markdown` files use a **heading-aware line chunker** (no tree-sitter).
+Kind is `CBERG_CHUNK_SECTION`; symbol is a breadcrumb of ATX headings
+(`Install > Prerequisites`). Sections longer than 200 lines split into continuation
+chunks under the same symbol (`#0`, `#1`, …). Only ATX headings are recognized —
+not setext headings or headings inside blockquotes/lists. See
+[modules/chunk.md](modules/chunk.md#markdown_chunkpath-src-src_len-out_list--static).
+
 ### Stable keys
 
 ```

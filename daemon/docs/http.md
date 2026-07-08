@@ -46,7 +46,7 @@ GET /search?q=<query>&k=10[&repo=<key>][&path_glob=<glob>][&kind=<kind>][&min_sc
 | `k` | `10` | Max results |
 | `repo` | all ready repos | Restrict to one repo key |
 | `path_glob` | — | fnmatch glob on chunk paths (e.g. `daemon/*`) |
-| `kind` | — | Chunk kind: `function`, `method`, `class`, `struct`, `interface`, `window` |
+| `kind` | — | Chunk kind: `function`, `method`, `class`, `struct`, `interface`, `window`, `section`, `key` |
 | `min_score` | — | Minimum similarity score (0–1) |
 
 Response:

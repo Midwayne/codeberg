@@ -33,6 +33,12 @@ cberg_language cberg_language_from_path(const char *path) {
         {"rb", CBERG_LANG_RUBY},
         {"rake", CBERG_LANG_RUBY},
         {"gemspec", CBERG_LANG_RUBY},
+        {"md", CBERG_LANG_MARKDOWN},
+        {"markdown", CBERG_LANG_MARKDOWN},
+        {"yaml", CBERG_LANG_YAML},
+        {"yml", CBERG_LANG_YAML},
+        {"toml", CBERG_LANG_TOML},
+        {"json", CBERG_LANG_JSON},
     };
     for (size_t i = 0; i < sizeof(table) / sizeof(table[0]); i++) {
         if (strcmp(ext, table[i].ext) == 0) {

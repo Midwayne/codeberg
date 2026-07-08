@@ -81,10 +81,15 @@ struct cberg_index {
 };
 ```
 
-Metric: **cosine** (`usearch_metric_cos_k`). Vectors: `float32`, single-threaded.
+Metric: **cosine** (`usearch_metric_cos_k`). Query vectors are `float32`; stored
+vectors default to **int8** (`CBERG_QUANT_I8`) for smaller indexes and faster
+search. Set `CBERG_INDEX_QUANT=f32` when building a new index if you need
+bit-exact f32 ranking (higher recall@k at the cost of ~3.5× larger files). An
+existing file keeps its saved scalar kind until a full rebuild.
 
 | Parameter | Default | Effect |
 |-----------|---------|--------|
+| `quantization` | `i8` | Stored scalar kind (`f32` or `i8`) for new index files |
 | `connectivity` | 16 | HNSW graph degree |
 | `expansion_add` | 128 | efConstruction |
 | `expansion_search` | 64 | efSearch baseline |
