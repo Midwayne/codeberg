@@ -93,6 +93,9 @@ typedef enum cberg_language {
     CBERG_LANG_KOTLIN,
     CBERG_LANG_PYTHON,
     CBERG_LANG_JAVA,
+    CBERG_LANG_YAML, /* config formats use line/token chunkers, no tree-sitter */
+    CBERG_LANG_TOML,
+    CBERG_LANG_JSON,
 } cberg_language;
 
 CBERG_API cberg_language cberg_language_from_path(const char *path);
@@ -105,6 +108,7 @@ typedef enum cberg_chunk_kind {
     CBERG_CHUNK_STRUCT,
     CBERG_CHUNK_INTERFACE,
     CBERG_CHUNK_WINDOW,
+    CBERG_CHUNK_KEY, /* top-level config entry: YAML key, TOML table, JSON key */
 } cberg_chunk_kind;
 
 typedef struct cberg_span {

@@ -9,6 +9,15 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Added
 
+- **Config-file indexing (YAML, TOML, JSON)** — `.yaml`/`.yml`, `.toml`, and
+  `.json` files are now chunked and indexed (previously skipped entirely).
+  Structural chunkers split them at top-level entries: YAML column-0 keys,
+  TOML `[table]` / `[[array-of-tables]]` headers, and JSON root-object keys
+  (bracket- and string-aware), each chunk named after its key. Content before
+  the first entry is an unnamed preamble; entries longer than 200 lines
+  continue as extra chunks under the same symbol (lock files); non-object JSON
+  roots fall back to window chunks. New chunk kind `key` (accepted by the
+  `kind` filter on `/search` and the search tools).
 - **int8 vector quantization (usearch)** — stored vectors now quantize to
   int8 by default (`CBERG_INDEX_QUANT=i8`; set `f32` to opt out). New
   `quantization` field on `cberg_index_config` with

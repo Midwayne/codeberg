@@ -109,6 +109,9 @@ static int parse_kind_field(const char *s) {
     if (strcasecmp(s, "window") == 0) {
         return CBERG_CHUNK_WINDOW;
     }
+    if (strcasecmp(s, "key") == 0) {
+        return CBERG_CHUNK_KEY;
+    }
     return -1;
 }
 
