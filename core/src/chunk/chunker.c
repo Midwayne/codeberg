@@ -171,8 +171,8 @@ static cberg_status list_push(cberg_chunk_list *list, const char *path, cberg_ch
         return st;
     }
     char *key = cberg_arena_strdup(list->arena, key_buf);
-    if (st != CBERG_OK || path_copy == NULL || key == NULL) {
-        return st != CBERG_OK ? st : CBERG_ERR_OUT_OF_MEMORY;
+    if (path_copy == NULL || key == NULL) {
+        return CBERG_ERR_OUT_OF_MEMORY;
     }
     list->items[list->len++] = (cberg_chunk){
         .key = key,
@@ -308,7 +308,6 @@ static cberg_status window_chunk(const char *path, const char *src, size_t src_l
 /* --- Config files (YAML / TOML / JSON) ----------------------------------- */
 
 #define CBERG_CFG_CHUNK_MAX_LINES 200
-#define CBERG_CFG_SYM_MAX 120
 
 typedef struct {
     cberg_chunk_list *list;
@@ -466,6 +465,22 @@ static int toml_table_line(const char *line, size_t len, size_t *sym_start, size
     return 1;
 }
 
+static void cfg_copy_sym(char *dst, const char *src, size_t off, size_t len) {
+    size_t copy = len < CBERG_CHUNK_IDENT_MAX - 1 ? len : CBERG_CHUNK_IDENT_MAX - 1;
+    memcpy(dst, src + off, copy);
+    dst[copy] = '\0';
+}
+
+static cberg_status cfg_flush_section(cfg_ctx *ctx, int have_sym, const char *sym, size_t start, size_t end, uint32_t start_line) {
+    if (have_sym) {
+        return cfg_emit(ctx, sym, start, end, start_line);
+    }
+    if (!cfg_span_blank(ctx->src, start, end)) {
+        return cfg_emit(ctx, NULL, start, end, start_line);
+    }
+    return CBERG_OK;
+}
+
 typedef int (*cfg_boundary_fn)(const char *line, size_t len, size_t *sym_start, size_t *sym_len);
 
 /*
@@ -474,7 +489,7 @@ typedef int (*cfg_boundary_fn)(const char *line, size_t len, size_t *sym_start, 
  */
 static cberg_status cfg_line_chunks(cfg_ctx *ctx, size_t src_len, cfg_boundary_fn boundary) {
     const char *src = ctx->src;
-    char sym[CBERG_CFG_SYM_MAX];
+    char sym[CBERG_CHUNK_IDENT_MAX];
     int have = 0;
     size_t sec_start = 0;
     uint32_t sec_line = 1;
@@ -497,17 +512,11 @@ static cberg_status cfg_line_chunks(cfg_ctx *ctx, size_t src_len, cfg_boundary_f
         size_t ss = 0;
         size_t sl = 0;
         if (boundary(src + line_start, parse_len, &ss, &sl)) {
-            if (have) {
-                st = cfg_emit(ctx, sym, sec_start, line_start, sec_line);
-            } else if (!cfg_span_blank(src, sec_start, line_start)) {
-                st = cfg_emit(ctx, NULL, sec_start, line_start, sec_line);
-            }
+            st = cfg_flush_section(ctx, have, sym, sec_start, line_start, sec_line);
             if (st != CBERG_OK) {
                 return st;
             }
-            size_t copy = sl < sizeof(sym) - 1 ? sl : sizeof(sym) - 1;
-            memcpy(sym, src + line_start + ss, copy);
-            sym[copy] = '\0';
+            cfg_copy_sym(sym, src, line_start + ss, sl);
             have = 1;
             sec_start = line_start;
             sec_line = line_no;
@@ -516,12 +525,7 @@ static cberg_status cfg_line_chunks(cfg_ctx *ctx, size_t src_len, cfg_boundary_f
     }
 
     if (sec_start < src_len) {
-        if (have) {
-            return cfg_emit(ctx, sym, sec_start, src_len, sec_line);
-        }
-        if (!cfg_span_blank(src, sec_start, src_len)) {
-            return cfg_emit(ctx, NULL, sec_start, src_len, sec_line);
-        }
+        return cfg_flush_section(ctx, have, sym, sec_start, src_len, sec_line);
     }
     return CBERG_OK;
 }
@@ -532,7 +536,11 @@ static size_t json_skip_string(const char *s, size_t len, size_t i, uint32_t *li
     while (i < len) {
         char c = s[i];
         if (c == '\\') {
-            i += 2;
+            if (i + 1 < len) {
+                i += 2;
+            } else {
+                i = len;
+            }
             continue;
         }
         if (c == '\n') {
@@ -546,22 +554,54 @@ static size_t json_skip_string(const char *s, size_t len, size_t i, uint32_t *li
     return len;
 }
 
+/* Skips whitespace, optional commas, and JSONC line/block comments. */
+static size_t json_skip_ws(const char *s, size_t len, size_t i, uint32_t *line, int skip_comma) {
+    for (;;) {
+        while (i < len && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r' || (skip_comma && s[i] == ','))) {
+            if (s[i] == '\n') {
+                (*line)++;
+            }
+            i++;
+        }
+        if (i + 1 < len && s[i] == '/' && s[i + 1] == '/') {
+            i += 2;
+            while (i < len && s[i] != '\n') {
+                i++;
+            }
+            continue;
+        }
+        if (i + 1 < len && s[i] == '/' && s[i + 1] == '*') {
+            i += 2;
+            while (i + 1 < len && !(s[i] == '*' && s[i + 1] == '/')) {
+                if (s[i] == '\n') {
+                    (*line)++;
+                }
+                i++;
+            }
+            if (i + 1 < len) {
+                i += 2;
+            } else {
+                i = len;
+            }
+            continue;
+        }
+        break;
+    }
+    return i;
+}
+
 /*
  * Chunks a root JSON object into one chunk per top-level key (span = key
  * through its value, bracket- and string-aware). Sets *out_handled = 0 when
- * the root is not an object so the caller can fall back to window chunks.
- * On malformed input the unparsed remainder becomes one unnamed chunk.
+ * the root is not an object or parsing fails so the caller can fall back to
+ * window chunks. JSONC comments are skipped; trailing non-whitespace after the
+ * root object is emitted as one unnamed chunk.
  */
 static cberg_status json_object_chunks(cfg_ctx *ctx, size_t len, int *out_handled) {
     const char *s = ctx->src;
     size_t i = 0;
     uint32_t line = 1;
-    while (i < len && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r')) {
-        if (s[i] == '\n') {
-            line++;
-        }
-        i++;
-    }
+    i = json_skip_ws(s, len, i, &line, 0);
     if (i >= len || s[i] != '{') {
         *out_handled = 0;
         return CBERG_OK;
@@ -569,39 +609,36 @@ static cberg_status json_object_chunks(cfg_ctx *ctx, size_t len, int *out_handle
     *out_handled = 1;
     i++;
 
-    char sym[CBERG_CFG_SYM_MAX];
+    char sym[CBERG_CHUNK_IDENT_MAX];
     for (;;) {
-        while (i < len && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r' || s[i] == ',')) {
-            if (s[i] == '\n') {
-                line++;
-            }
-            i++;
-        }
+        i = json_skip_ws(s, len, i, &line, 1);
         if (i >= len || s[i] == '}') {
+            if (i < len && s[i] == '}') {
+                i++;
+            }
+            i = json_skip_ws(s, len, i, &line, 0);
+            if (i < len && !cfg_span_blank(s, i, len)) {
+                return cfg_emit(ctx, NULL, i, len, line);
+            }
             return CBERG_OK;
         }
         if (s[i] != '"') {
-            return cfg_emit(ctx, NULL, i, len, line);
+            *out_handled = 0;
+            return CBERG_OK;
         }
 
         size_t key_byte = i;
         uint32_t key_line = line;
         size_t txt_start = i + 1;
         size_t key_end = json_skip_string(s, len, i, &line);
-        size_t txt_end = key_end > txt_start ? key_end - 1 : txt_start;
-        size_t copy = txt_end - txt_start < sizeof(sym) - 1 ? txt_end - txt_start : sizeof(sym) - 1;
-        memcpy(sym, s + txt_start, copy);
-        sym[copy] = '\0';
+        size_t txt_len = key_end > txt_start ? key_end - 1 - txt_start : 0;
+        cfg_copy_sym(sym, s, txt_start, txt_len);
         i = key_end;
 
-        while (i < len && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r')) {
-            if (s[i] == '\n') {
-                line++;
-            }
-            i++;
-        }
+        i = json_skip_ws(s, len, i, &line, 0);
         if (i >= len || s[i] != ':') {
-            return cfg_emit(ctx, NULL, key_byte, len, key_line);
+            *out_handled = 0;
+            return CBERG_OK;
         }
         i++;
 
@@ -661,9 +698,9 @@ static cberg_status config_chunk(cberg_language lang, const char *path, const ch
 
     cfg_ctx ctx = {.list = list, .occ = occ, .path = path, .src = src};
     cberg_status st;
-    int handled = 1;
+    int json_handled = 1;
     if (lang == CBERG_LANG_JSON) {
-        st = json_object_chunks(&ctx, src_len, &handled);
+        st = json_object_chunks(&ctx, src_len, &json_handled);
     } else {
         st = cfg_line_chunks(&ctx, src_len, lang == CBERG_LANG_TOML ? toml_table_line : yaml_key_line);
     }
@@ -673,7 +710,7 @@ static cberg_status config_chunk(cberg_language lang, const char *path, const ch
         cberg_chunk_list_free(list);
         return st;
     }
-    if (!handled) {
+    if ((lang == CBERG_LANG_JSON && !json_handled) || list->len == 0) {
         cberg_chunk_list_free(list);
         return window_chunk(path, src, src_len, out_list);
     }
