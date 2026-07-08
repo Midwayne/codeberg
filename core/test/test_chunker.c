@@ -1,17 +1,8 @@
 #include "codeberg/codeberg.h"
+#include "test_common.h"
 
 #include <stdio.h>
 #include <string.h>
-
-static int failures;
-
-#define CHECK(cond, msg)                                                    \
-    do {                                                                    \
-        if (!(cond)) {                                                      \
-            fprintf(stderr, "FAIL: %s (%s:%d)\n", msg, __FILE__, __LINE__); \
-            failures++;                                                     \
-        }                                                                   \
-    } while (0)
 
 static const cberg_chunk *find_symbol(const cberg_chunk_list *list, const char *symbol) {
     for (size_t i = 0; i < cberg_chunk_list_len(list); i++) {
@@ -21,17 +12,6 @@ static const cberg_chunk *find_symbol(const cberg_chunk_list *list, const char *
         }
     }
     return NULL;
-}
-
-static size_t count_symbol(const cberg_chunk_list *list, const char *symbol) {
-    size_t n = 0;
-    for (size_t i = 0; i < cberg_chunk_list_len(list); i++) {
-        const cberg_chunk *c = cberg_chunk_list_at(list, i);
-        if (c != NULL && c->symbol != NULL && strcmp(c->symbol, symbol) == 0) {
-            n++;
-        }
-    }
-    return n;
 }
 
 static void test_go(cberg_chunker *ch) {
@@ -77,7 +57,6 @@ static void test_yaml(cberg_chunker *ch) {
     CHECK(cberg_chunker_parse(ch, CBERG_LANG_YAML, "config.yaml", src, strlen(src), &list) == CBERG_OK, "yaml parse");
     CHECK(cberg_chunk_list_len(list) == 4, "yaml chunk count");
 
-    /* Leading comments before the first key form an unnamed preamble. */
     const cberg_chunk *pre = cberg_chunk_list_at(list, 0);
     CHECK(pre != NULL && pre->kind == CBERG_CHUNK_KEY && pre->symbol == NULL, "yaml preamble");
 
@@ -85,7 +64,6 @@ static void test_yaml(cberg_chunker *ch) {
     CHECK(server != NULL && server->kind == CBERG_CHUNK_KEY, "yaml server");
     CHECK(server != NULL && server->span.start_line == 3 && server->span.end_line == 5, "yaml server span");
 
-    /* Nested `url:` is indented, so it stays inside the database chunk. */
     const cberg_chunk *db = find_symbol(list, "database");
     CHECK(db != NULL && db->span.start_line == 6 && db->span.end_line == 7, "yaml database span");
     CHECK(find_symbol(list, "url") == NULL, "yaml nested key not split");
@@ -107,7 +85,6 @@ static void test_toml(cberg_chunker *ch) {
     CHECK(cberg_chunker_parse(ch, CBERG_LANG_TOML, "config.toml", src, strlen(src), &list) == CBERG_OK, "toml parse");
     CHECK(cberg_chunk_list_len(list) == 3, "toml chunk count");
 
-    /* Root keys before the first table form an unnamed preamble. */
     const cberg_chunk *pre = cberg_chunk_list_at(list, 0);
     CHECK(pre != NULL && pre->kind == CBERG_CHUNK_KEY && pre->symbol == NULL, "toml preamble");
     CHECK(pre != NULL && pre->span.start_line == 1, "toml preamble line");
@@ -115,7 +92,6 @@ static void test_toml(cberg_chunker *ch) {
     const cberg_chunk *server = find_symbol(list, "server");
     CHECK(server != NULL && server->span.start_line == 3 && server->span.end_line == 5, "toml table span");
 
-    /* [[array-of-tables]] strips both bracket pairs. */
     const cberg_chunk *peers = find_symbol(list, "peers");
     CHECK(peers != NULL && peers->span.start_line == 6 && peers->span.end_line == 7, "toml array table");
     cberg_chunk_list_free(list);
@@ -137,7 +113,6 @@ static void test_json(cberg_chunker *ch) {
     CHECK(name != NULL && name->kind == CBERG_CHUNK_KEY, "json name");
     CHECK(name != NULL && name->span.start_line == 2 && name->span.end_line == 2, "json name span");
 
-    /* Object values span until their closing brace; the nested key does not split. */
     const cberg_chunk *scripts = find_symbol(list, "scripts");
     CHECK(scripts != NULL && scripts->span.start_line == 3 && scripts->span.end_line == 5, "json scripts span");
     CHECK(find_symbol(list, "build") == NULL, "json nested key not split");
@@ -145,13 +120,26 @@ static void test_json(cberg_chunker *ch) {
     CHECK(find_symbol(list, "list") != NULL, "json array value");
     CHECK(cberg_chunk_list_hash_bodies(list, src, strlen(src)) == CBERG_OK, "json hash");
     cberg_chunk_list_free(list);
+}
 
-    /* Non-object roots fall back to window chunks. */
-    const char *arr = "[1, 2, 3]\n";
-    CHECK(cberg_chunker_parse(ch, CBERG_LANG_JSON, "data.json", arr, strlen(arr), &list) == CBERG_OK, "json array parse");
-    CHECK(cberg_chunk_list_len(list) == 1, "json array one chunk");
-    CHECK(cberg_chunk_list_at(list, 0)->kind == CBERG_CHUNK_WINDOW, "json array window kind");
-    cberg_chunk_list_free(list);
+static void test_json_window_fallback(cberg_chunker *ch) {
+    static const struct {
+        const char *src;
+        const char *path;
+        const char *label;
+    } cases[] = {
+        {"[1, 2, 3]\n", "data.json", "json array"},
+        {"{}", "empty.json", "json empty"},
+        {"{ foo: 1 }\n", "bad.json", "json malformed"},
+    };
+
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        cberg_chunk_list *list = NULL;
+        CHECK(cberg_chunker_parse(ch, CBERG_LANG_JSON, cases[i].path, cases[i].src, strlen(cases[i].src), &list) == CBERG_OK, cases[i].label);
+        CHECK(cberg_chunk_list_len(list) == 1, "json window count");
+        CHECK(cberg_chunk_list_at(list, 0)->kind == CBERG_CHUNK_WINDOW, "json window kind");
+        cberg_chunk_list_free(list);
+    }
 }
 
 static void test_json_jsonc(cberg_chunker *ch) {
@@ -171,15 +159,6 @@ static void test_json_jsonc(cberg_chunker *ch) {
     cberg_chunk_list_free(list);
 }
 
-static void test_json_empty_object(cberg_chunker *ch) {
-    const char *src = "{}";
-    cberg_chunk_list *list = NULL;
-    CHECK(cberg_chunker_parse(ch, CBERG_LANG_JSON, "empty.json", src, strlen(src), &list) == CBERG_OK, "json empty parse");
-    CHECK(cberg_chunk_list_len(list) == 1, "json empty window fallback");
-    CHECK(cberg_chunk_list_at(list, 0)->kind == CBERG_CHUNK_WINDOW, "json empty window kind");
-    cberg_chunk_list_free(list);
-}
-
 static void test_json_trailing(cberg_chunker *ch) {
     const char *src = "{ \"a\": 1 } trailing garbage\n";
     cberg_chunk_list *list = NULL;
@@ -188,15 +167,6 @@ static void test_json_trailing(cberg_chunker *ch) {
     CHECK(find_symbol(list, "a") != NULL, "json trailing key");
     const cberg_chunk *tail = cberg_chunk_list_at(list, 1);
     CHECK(tail != NULL && tail->kind == CBERG_CHUNK_KEY && tail->symbol == NULL, "json trailing unnamed");
-    cberg_chunk_list_free(list);
-}
-
-static void test_json_malformed(cberg_chunker *ch) {
-    const char *src = "{ foo: 1 }\n";
-    cberg_chunk_list *list = NULL;
-    CHECK(cberg_chunker_parse(ch, CBERG_LANG_JSON, "bad.json", src, strlen(src), &list) == CBERG_OK, "json malformed parse");
-    CHECK(cberg_chunk_list_len(list) == 1, "json malformed window fallback");
-    CHECK(cberg_chunk_list_at(list, 0)->kind == CBERG_CHUNK_WINDOW, "json malformed window kind");
     cberg_chunk_list_free(list);
 }
 
@@ -210,7 +180,14 @@ static void test_json_line_split(cberg_chunker *ch) {
 
     cberg_chunk_list *list = NULL;
     CHECK(cberg_chunker_parse(ch, CBERG_LANG_JSON, "lock.json", buf, strlen(buf), &list) == CBERG_OK, "json line split parse");
-    CHECK(count_symbol(list, "big") >= 2, "json big key split into multiple chunks");
+    size_t big_chunks = 0;
+    for (size_t i = 0; i < cberg_chunk_list_len(list); i++) {
+        const cberg_chunk *c = cberg_chunk_list_at(list, i);
+        if (c != NULL && c->symbol != NULL && strcmp(c->symbol, "big") == 0) {
+            big_chunks++;
+        }
+    }
+    CHECK(big_chunks >= 2, "json big key split into multiple chunks");
     cberg_chunk_list_free(list);
 }
 
@@ -257,13 +234,12 @@ int main(void) {
     test_yaml(ch);
     test_toml(ch);
     test_json(ch);
+    test_json_window_fallback(ch);
     test_json_jsonc(ch);
-    test_json_empty_object(ch);
     test_json_trailing(ch);
-    test_json_malformed(ch);
     test_json_line_split(ch);
     test_json_long_key(ch);
     test_yaml_flow_style(ch);
     cberg_chunker_close(ch);
-    return failures == 0 ? 0 : 1;
+    TEST_MAIN_RETURN
 }
