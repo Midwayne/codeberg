@@ -1447,7 +1447,7 @@ static const char *kind_str(cberg_chunk_kind k) {
     }
 }
 
-static int parse_kind(const char *s) {
+int cberg_index_parse_kind(const char *s) {
     if (s == NULL || s[0] == '\0') {
         return -1;
     }

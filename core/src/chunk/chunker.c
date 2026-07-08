@@ -23,9 +23,11 @@ extern const TSLanguage *tree_sitter_kotlin(void);
 extern const TSLanguage *tree_sitter_typescript(void);
 
 #define CBERG_WINDOW_LINES 50
+/* Tree-sitter parser/query cache slots (one per grammar-backed language). */
 #define CBERG_LANG_SLOTS 8
 
-_Static_assert((int)CBERG_LANG_JAVA + 1 == CBERG_LANG_SLOTS, "update CBERG_LANG_SLOTS when adding languages");
+_Static_assert((int)CBERG_LANG_JAVA + 1 == CBERG_LANG_SLOTS, "update CBERG_LANG_SLOTS when adding tree-sitter languages");
+_Static_assert((int)CBERG_LANG_MARKDOWN == CBERG_LANG_SLOTS, "CBERG_LANG_MARKDOWN must stay outside parser slots");
 
 typedef const TSLanguage *(*ts_language_fn)(void);
 
@@ -171,8 +173,8 @@ static cberg_status list_push(cberg_chunk_list *list, const char *path, cberg_ch
         return st;
     }
     char *key = cberg_arena_strdup(list->arena, key_buf);
-    if (st != CBERG_OK || path_copy == NULL || key == NULL) {
-        return st != CBERG_OK ? st : CBERG_ERR_OUT_OF_MEMORY;
+    if (path_copy == NULL || key == NULL) {
+        return CBERG_ERR_OUT_OF_MEMORY;
     }
     list->items[list->len++] = (cberg_chunk){
         .key = key,
@@ -362,7 +364,7 @@ static int md_heading_level(const char *line, size_t len, size_t *out_start, siz
 }
 
 /* Length of a ``` / ~~~ fence run (>= 3, up to 3 leading spaces), else 0. */
-static size_t md_fence_run(const char *line, size_t len, char *out_ch) {
+static size_t md_fence_run(const char *line, size_t len, char *out_ch, size_t *out_start) {
     size_t i = 0;
     while (i < len && i < 3 && line[i] == ' ') {
         i++;
@@ -378,21 +380,21 @@ static size_t md_fence_run(const char *line, size_t len, char *out_ch) {
     if (run < 3) {
         return 0;
     }
+    if (out_start != NULL) {
+        *out_start = i;
+    }
     *out_ch = c;
     return run;
 }
 
 static int md_fence_close(const char *line, size_t len, char fence_ch, size_t fence_len) {
     char c = 0;
-    size_t run = md_fence_run(line, len, &c);
+    size_t fence_start = 0;
+    size_t run = md_fence_run(line, len, &c, &fence_start);
     if (run < fence_len || c != fence_ch) {
         return 0;
     }
-    size_t i = 0;
-    while (i < len && i < 3 && line[i] == ' ') {
-        i++;
-    }
-    for (size_t j = i + run; j < len; j++) {
+    for (size_t j = fence_start + run; j < len; j++) {
         if (line[j] != ' ' && line[j] != '\t') {
             return 0;
         }
@@ -400,30 +402,21 @@ static int md_fence_close(const char *line, size_t len, char fence_ch, size_t fe
     return 1;
 }
 
-static int md_span_blank(const char *src, size_t start, size_t end) {
-    for (size_t i = start; i < end; i++) {
-        char c = src[i];
-        if (c != ' ' && c != '\t' && c != '\n' && c != '\r') {
-            return 0;
-        }
-    }
-    return 1;
-}
-
-static void md_build_crumb(const md_heading *stack, int depth, char *out, size_t cap) {
+static size_t md_build_crumb(const md_heading *stack, int depth, char *out, size_t cap) {
     out[0] = '\0';
     size_t used = 0;
     for (int i = 0; i < depth; i++) {
         int n = snprintf(out + used, cap - used, "%s%s", i > 0 ? " > " : "", stack[i].title);
         if (n < 0 || (size_t)n >= cap - used) {
-            return;
+            return used;
         }
         used += (size_t)n;
     }
+    return used;
 }
 
-static cberg_status md_emit(cberg_chunk_list *list, chunk_occ_tracker *occ, const char *path, const char *crumb, uint32_t start_byte, uint32_t end_byte, uint32_t start_line, uint32_t end_line) {
-    const char *sym = (crumb != NULL && crumb[0] != '\0') ? crumb : NULL;
+static cberg_status md_emit(cberg_chunk_list *list, chunk_occ_tracker *occ, const char *path, const char *crumb, size_t crumb_len, uint32_t start_byte, uint32_t end_byte, uint32_t start_line, uint32_t end_line) {
+    const char *sym = (crumb != NULL && crumb_len > 0) ? crumb : NULL;
     uint32_t index = 0;
     cberg_status st = chunk_occ_next(occ, path, CBERG_CHUNK_SECTION, sym, &index);
     if (st != CBERG_OK) {
@@ -435,7 +428,7 @@ static cberg_status md_emit(cberg_chunk_list *list, chunk_occ_tracker *occ, cons
         .start_line = start_line,
         .end_line = end_line,
     };
-    return list_push(list, path, CBERG_CHUNK_SECTION, span, sym, 0, sym != NULL ? (uint32_t)strlen(sym) : 0, index);
+    return list_push(list, path, CBERG_CHUNK_SECTION, span, sym, 0, sym != NULL ? (uint32_t)crumb_len : 0, index);
 }
 
 /*
@@ -465,9 +458,9 @@ static cberg_status markdown_chunk(const char *path, const char *src, size_t src
     md_heading stack[CBERG_MD_MAX_DEPTH];
     int depth = 0;
     char crumb[CBERG_CHUNK_IDENT_MAX];
-    crumb[0] = '\0';
+    size_t crumb_len = 0;
 
-    int have_section = 0; /* 0 until the first heading: the preamble */
+    int sec_has_content = 0;
     uint32_t sec_start_byte = 0;
     uint32_t sec_start_line = 1;
     uint32_t sec_lines = 0;
@@ -481,10 +474,8 @@ static cberg_status markdown_chunk(const char *path, const char *src, size_t src
     while (pos < src_len) {
         line_no++;
         size_t line_start = pos;
-        size_t nl = pos;
-        while (nl < src_len && src[nl] != '\n') {
-            nl++;
-        }
+        const char *nl_ptr = memchr(src + pos, '\n', src_len - pos);
+        size_t nl = nl_ptr != NULL ? (size_t)(nl_ptr - src) : src_len;
         size_t parse_len = nl - line_start;
         if (parse_len > 0 && src[line_start + parse_len - 1] == '\r') {
             parse_len--;
@@ -499,7 +490,7 @@ static cberg_status markdown_chunk(const char *path, const char *src, size_t src
                 in_fence = 0;
             }
         } else {
-            size_t run = md_fence_run(line, parse_len, &fence_ch);
+            size_t run = md_fence_run(line, parse_len, &fence_ch, NULL);
             if (run > 0) {
                 in_fence = 1;
                 fence_len = run;
@@ -509,10 +500,10 @@ static cberg_status markdown_chunk(const char *path, const char *src, size_t src
         }
 
         if (heading > 0) {
-            if (have_section) {
-                st = md_emit(list, occ, path, crumb, sec_start_byte, (uint32_t)line_start, sec_start_line, line_no - 1);
-            } else if (!md_span_blank(src, sec_start_byte, line_start)) {
-                st = md_emit(list, occ, path, NULL, sec_start_byte, (uint32_t)line_start, sec_start_line, line_no - 1);
+            if (depth > 0) {
+                st = md_emit(list, occ, path, crumb, crumb_len, sec_start_byte, (uint32_t)line_start, sec_start_line, line_no - 1);
+            } else if (sec_has_content) {
+                st = md_emit(list, occ, path, NULL, 0, sec_start_byte, (uint32_t)line_start, sec_start_line, line_no - 1);
             }
             if (st != CBERG_OK) {
                 goto fail;
@@ -525,18 +516,26 @@ static cberg_status markdown_chunk(const char *path, const char *src, size_t src
             size_t copy = title_len < CBERG_MD_TITLE_MAX - 1 ? title_len : CBERG_MD_TITLE_MAX - 1;
             memcpy(h->title, line + title_start, copy);
             h->title[copy] = '\0';
-            md_build_crumb(stack, depth, crumb, sizeof(crumb));
+            crumb_len = md_build_crumb(stack, depth, crumb, sizeof(crumb));
 
-            have_section = 1;
+            sec_has_content = 0;
             sec_start_byte = (uint32_t)line_start;
             sec_start_line = line_no;
             sec_lines = 0;
         }
 
+        for (size_t bi = line_start; bi < line_start + parse_len; bi++) {
+            char c = src[bi];
+            if (c != ' ' && c != '\t' && c != '\r') {
+                sec_has_content = 1;
+                break;
+            }
+        }
+
         sec_lines++;
         size_t line_end = nl < src_len ? nl + 1 : src_len;
         if (sec_lines >= CBERG_MD_SECTION_MAX_LINES) {
-            st = md_emit(list, occ, path, have_section ? crumb : NULL, sec_start_byte, (uint32_t)line_end, sec_start_line, line_no);
+            st = md_emit(list, occ, path, depth > 0 ? crumb : NULL, depth > 0 ? crumb_len : 0, sec_start_byte, (uint32_t)line_end, sec_start_line, line_no);
             if (st != CBERG_OK) {
                 goto fail;
             }
@@ -548,10 +547,10 @@ static cberg_status markdown_chunk(const char *path, const char *src, size_t src
     }
 
     if (sec_start_byte < src_len) {
-        if (have_section) {
-            st = md_emit(list, occ, path, crumb, sec_start_byte, (uint32_t)src_len, sec_start_line, line_no);
-        } else if (!md_span_blank(src, sec_start_byte, src_len)) {
-            st = md_emit(list, occ, path, NULL, sec_start_byte, (uint32_t)src_len, sec_start_line, line_no);
+        if (depth > 0) {
+            st = md_emit(list, occ, path, crumb, crumb_len, sec_start_byte, (uint32_t)src_len, sec_start_line, line_no);
+        } else if (sec_has_content) {
+            st = md_emit(list, occ, path, NULL, 0, sec_start_byte, (uint32_t)src_len, sec_start_line, line_no);
         }
         if (st != CBERG_OK) {
             goto fail;

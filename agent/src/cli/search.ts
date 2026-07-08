@@ -136,7 +136,7 @@ export function searchUsage(program: string): string {
     '  --k <n>            max results (default 10)\n' +
     '  --repo <key>       restrict to one repo\n' +
     '  --path-glob <glob> fnmatch on chunk paths\n' +
-    '  --kind <kind>      function, method, class, struct, interface, window\n' +
+    '  --kind <kind>      function, method, class, struct, interface, window, section\n' +
     '  --min-score <0-1>  minimum similarity score\n' +
     '  --hybrid           rerank with lexical boost (daemon hybrid_search tool)\n' +
     '  --json             print raw JSON\n' +
