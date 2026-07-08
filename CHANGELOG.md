@@ -18,6 +18,22 @@ changes may occur in minor releases and are called out explicitly.
   continue as extra chunks under the same symbol (lock files); non-object JSON
   roots fall back to window chunks. New chunk kind `key` (accepted by the
   `kind` filter on `/search` and the search tools).
+- **int8 vector quantization (usearch)** — stored vectors now quantize to
+  int8 by default (`CBERG_INDEX_QUANT=i8`; set `f32` to opt out). New
+  `quantization` field on `cberg_index_config` with
+  `cberg_index_quant_from_name()`; the daemon forwards `CBERG_INDEX_QUANT` to
+  `cberg-index`. Embeddings are L2-normalized, so int8's [-1,1] range is safe.
+  Benchmarked at 50k×768 synthetic clustered vectors: ~3.5× smaller index files
+  (46 MB vs 161 MB), ~3× faster inserts, ~2× faster search, recall@1 unchanged
+  (1.0), recall@10 0.88 vs exact-f32 where the swapped items are near-ties
+  (mean true-cosine loss 6e-4). **Existing f32 index files keep working** —
+  a file's saved scalar kind wins on load; it adopts int8 on the next full
+  rebuild. For new indexes where recall@k matters more than disk/CPU, set
+  `CBERG_INDEX_QUANT=f32` before the first index build.
+- **usearch i8 cosine bug workaround** — usearch v2.25.3's built-in i8 cosine
+  metric returns distance 0 (a perfect match) for orthogonal vectors (the zero
+  guard tests the dot product instead of the norms). i8 indexes register a
+  corrected metric via `usearch_change_metric`.
 
 - **Index-aware search tools** — six new daemon tools over the chunk index and
   vector search, exposed via `POST /tools/call` and bridged to the agent

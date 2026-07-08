@@ -2,6 +2,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 #include "providers/provider.h"
 #include "providers/registry.h"
@@ -101,6 +102,21 @@ cberg_status cberg_index_provider_from_name(const char *name, cberg_index_provid
     }
     *out_provider = (cberg_index_provider)id;
     return CBERG_OK;
+}
+
+cberg_status cberg_index_quant_from_name(const char *name, cberg_index_quant *out_quant) {
+    if (name == NULL || out_quant == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    if (strcasecmp(name, "f32") == 0) {
+        *out_quant = CBERG_QUANT_F32;
+        return CBERG_OK;
+    }
+    if (strcasecmp(name, "i8") == 0 || strcasecmp(name, "int8") == 0) {
+        *out_quant = CBERG_QUANT_I8;
+        return CBERG_OK;
+    }
+    return CBERG_ERR_INVALID_ARGUMENT;
 }
 
 void cberg_index_close(cberg_index *index) {

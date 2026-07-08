@@ -975,6 +975,19 @@ cberg_status cberg_engine_open(cberg_engine *eng) {
             }
             eng->index_cfg.provider = provider;
         }
+        const char *quant = getenv("CBERG_INDEX_QUANT");
+        if (quant != NULL && quant[0] != '\0') {
+            cberg_index_quant quantization;
+            if (cberg_index_quant_from_name(quant, &quantization) != CBERG_OK) {
+                fprintf(stderr,
+                        "cberg-index: unknown CBERG_INDEX_QUANT '%s' "
+                        "(use: f32, i8)\n",
+                        quant);
+                cberg_engine_close(eng);
+                return CBERG_ERR_INVALID_ARGUMENT;
+            }
+            eng->index_cfg.quantization = quantization;
+        }
         if (eng->index_cfg.provider == CBERG_INDEX_QDRANT) {
             const char *url = getenv("CBERG_VECTORDB_URL");
             if (url == NULL || url[0] == '\0') {

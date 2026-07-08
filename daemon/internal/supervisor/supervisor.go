@@ -46,39 +46,48 @@ func (s *Supervisor) spawn(ctx context.Context, bin string) error {
 	cmd := exec.CommandContext(ctx, bin)
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
-	cmd.Env = append(os.Environ(),
-		config.EnvRoot+"="+s.cfg.Root,
-		config.EnvSocket+"="+s.cfg.Socket,
-		fmt.Sprintf("%s=%d", config.EnvPollMS, s.cfg.PollMS),
-	)
-
-	// Multi-root mode: hand the engine the full key\tpath record set (it
-	// prefers CODEBERG_ROOTS; the single CODEBERG_ROOT above is the fallback).
-	if len(s.cfg.Roots) > 1 || (len(s.cfg.Roots) == 1 && s.cfg.DefaultKey == "") {
-		cmd.Env = append(cmd.Env, config.EnvRoots+"="+config.FormatRoots(s.cfg.Roots))
-	}
-
-	if s.cfg.Model != "" {
-		cmd.Env = append(cmd.Env, config.EnvModel+"="+s.cfg.Model)
-	}
-	if s.cfg.Index != "" {
-		cmd.Env = append(cmd.Env, config.EnvIndexPath+"="+s.cfg.Index)
-	}
-	if s.cfg.IndexBackend != "" {
-		cmd.Env = append(cmd.Env, config.EnvIndexBackend+"="+s.cfg.IndexBackend)
-	}
-	if s.cfg.VectorDBURL != "" {
-		cmd.Env = append(cmd.Env, config.EnvVectorDBURL+"="+s.cfg.VectorDBURL)
-	}
-	if s.cfg.VectorDBKey != "" {
-		cmd.Env = append(cmd.Env, config.EnvVectorDBKey+"="+s.cfg.VectorDBKey)
-	}
-	if s.cfg.PostgresURL != "" {
-		cmd.Env = append(cmd.Env, config.EnvPostgresURL+"="+s.cfg.PostgresURL)
-	}
+	cmd.Env = append(os.Environ(), indexerEnv(s.cfg)...)
 
 	s.cmd = cmd
 	return cmd.Start()
+}
+
+func indexerEnv(cfg config.Indexer) []string {
+	env := []string{
+		config.EnvRoot + "=" + cfg.Root,
+		config.EnvSocket + "=" + cfg.Socket,
+		fmt.Sprintf("%s=%d", config.EnvPollMS, cfg.PollMS),
+	}
+
+	// Multi-root mode: hand the engine the full key\tpath record set (it
+	// prefers CODEBERG_ROOTS; the single CODEBERG_ROOT above is the fallback).
+	if len(cfg.Roots) > 1 || (len(cfg.Roots) == 1 && cfg.DefaultKey == "") {
+		env = append(env, config.EnvRoots+"="+config.FormatRoots(cfg.Roots))
+	}
+
+	if cfg.Model != "" {
+		env = append(env, config.EnvModel+"="+cfg.Model)
+	}
+	if cfg.Index != "" {
+		env = append(env, config.EnvIndexPath+"="+cfg.Index)
+	}
+	if cfg.IndexBackend != "" {
+		env = append(env, config.EnvIndexBackend+"="+cfg.IndexBackend)
+	}
+	if cfg.IndexQuant != "" {
+		env = append(env, config.EnvIndexQuant+"="+cfg.IndexQuant)
+	}
+	if cfg.VectorDBURL != "" {
+		env = append(env, config.EnvVectorDBURL+"="+cfg.VectorDBURL)
+	}
+	if cfg.VectorDBKey != "" {
+		env = append(env, config.EnvVectorDBKey+"="+cfg.VectorDBKey)
+	}
+	if cfg.PostgresURL != "" {
+		env = append(env, config.EnvPostgresURL+"="+cfg.PostgresURL)
+	}
+
+	return env
 }
 
 func (s *Supervisor) watch(ctx context.Context, bin string) {
