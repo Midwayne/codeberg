@@ -93,6 +93,7 @@ typedef enum cberg_language {
     CBERG_LANG_KOTLIN,
     CBERG_LANG_PYTHON,
     CBERG_LANG_JAVA,
+    CBERG_LANG_MARKDOWN, /* heading-aware line chunker, no tree-sitter parser */
 } cberg_language;
 
 CBERG_API cberg_language cberg_language_from_path(const char *path);
@@ -105,6 +106,7 @@ typedef enum cberg_chunk_kind {
     CBERG_CHUNK_STRUCT,
     CBERG_CHUNK_INTERFACE,
     CBERG_CHUNK_WINDOW,
+    CBERG_CHUNK_SECTION, /* markdown heading section; symbol = "H1 > H2 > …" breadcrumb */
 } cberg_chunk_kind;
 
 typedef struct cberg_span {
