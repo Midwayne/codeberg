@@ -19,7 +19,8 @@ changes may occur in minor releases and are called out explicitly.
   (1.0), recall@10 0.88 vs exact-f32 where the swapped items are near-ties
   (mean true-cosine loss 6e-4). **Existing f32 index files keep working** —
   a file's saved scalar kind wins on load; it adopts int8 on the next full
-  rebuild.
+  rebuild. For new indexes where recall@k matters more than disk/CPU, set
+  `CBERG_INDEX_QUANT=f32` before the first index build.
 - **usearch i8 cosine bug workaround** — usearch v2.25.3's built-in i8 cosine
   metric returns distance 0 (a perfect match) for orthogonal vectors (the zero
   guard tests the dot product instead of the norms). i8 indexes register a

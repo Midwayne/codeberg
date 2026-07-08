@@ -9,17 +9,6 @@
 #include <string.h>
 #include <unistd.h>
 
-static char *unique_path(const char *prefix) {
-    char tmpl[256];
-    snprintf(tmpl, sizeof tmpl, "/tmp/%s_XXXXXX", prefix);
-    int fd = mkstemp(tmpl);
-    if (fd >= 0) {
-        close(fd);
-        remove(tmpl);
-    }
-    return strdup(tmpl);
-}
-
 static void test_provider_names(void) {
     cberg_index_provider p;
     CHECK(cberg_index_provider_from_name("usearch", &p) == CBERG_OK && p == CBERG_INDEX_USEARCH, "parse usearch");
@@ -33,7 +22,7 @@ static void test_provider_names(void) {
 static int run_backend(const char *name, const cberg_index_config *cfg, size_t dim) {
     char label[64];
     snprintf(label, sizeof label, "%s-%zu", name, dim);
-    char *path = unique_path(name);
+    char *path = test_unique_path(name);
     if (path == NULL) {
         fprintf(stderr, "FAIL: out of memory for path\n");
         return 1;

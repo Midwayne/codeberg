@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "strutil.h"
 #include "usearch.h"
@@ -24,6 +25,10 @@ typedef struct usearch_backend {
 
 static usearch_scalar_kind_t quant_scalar_kind(cberg_index_quant quant) {
     return quant == CBERG_QUANT_I8 ? usearch_scalar_i8_k : usearch_scalar_f32_k;
+}
+
+static cberg_index_quant scalar_kind_to_quant(usearch_scalar_kind_t kind) {
+    return kind == usearch_scalar_i8_k ? CBERG_QUANT_I8 : CBERG_QUANT_F32;
 }
 
 /*
@@ -51,7 +56,7 @@ static usearch_distance_t i8_cos_checked(size_t a_ptr, size_t b_ptr, size_t dim)
     if (a2 == 0 || b2 == 0) {
         return 1.0f;
     }
-    return 1.0f - (usearch_distance_t)ab / (sqrtf((float)a2) * sqrtf((float)b2));
+    return 1.0f - (usearch_distance_t)ab / sqrtf((float)a2 * (float)b2);
 }
 
 static int install_i8_cos_metric(usearch_index_t idx, size_t dim) {
@@ -61,12 +66,7 @@ static int install_i8_cos_metric(usearch_index_t idx, size_t dim) {
 }
 
 static int file_exists(const char *path) {
-    FILE *f = fopen(path, "rb");
-    if (f == NULL) {
-        return 0;
-    }
-    fclose(f);
-    return 1;
+    return access(path, F_OK) == 0;
 }
 
 static void usearch_backend_destroy(void *impl) {
@@ -194,6 +194,7 @@ static cberg_status usearch_backend_clear(void *impl) {
     }
     usearch_error_t err = NULL;
     usearch_free(b->idx, &err);
+    b->idx = NULL;
     usearch_init_options_t opts;
     memset(&opts, 0, sizeof(opts));
     opts.metric_kind = usearch_metric_cos_k;
@@ -205,14 +206,19 @@ static cberg_status usearch_backend_clear(void *impl) {
         return CBERG_ERR_INTERNAL;
     }
     if (b->quantization == usearch_scalar_i8_k && !install_i8_cos_metric(b->idx, b->dim)) {
-        return CBERG_ERR_INTERNAL;
+        goto clear_fail;
     }
     usearch_reserve(b->idx, INITIAL_CAPACITY, &err);
     if (err != NULL) {
-        return CBERG_ERR_INTERNAL;
+        goto clear_fail;
     }
     remove(b->path);
     return CBERG_OK;
+
+clear_fail:
+    usearch_free(b->idx, &err);
+    b->idx = NULL;
+    return CBERG_ERR_INTERNAL;
 }
 
 static cberg_status usearch_open(const char *path, size_t dim, const cberg_index_config *config, cberg_index_backend **out_backend) {
@@ -281,7 +287,7 @@ static cberg_status usearch_open(const char *path, size_t dim, const cberg_index
     b->idx = idx;
     b->dim = dim;
     b->expansion_search = cfg->expansion_search;
-    b->quantization = quant_scalar_kind(cfg->quantization);
+    b->quantization = opts.quantization;
     b->path = cberg_strdup(path);
     if (b->path == NULL) {
         usearch_backend_destroy(b);
@@ -326,6 +332,15 @@ cberg_status cberg_usearch_index_active_expansion(const cberg_index *index, size
     return err != NULL ? CBERG_ERR_INTERNAL : CBERG_OK;
 }
 
+cberg_status cberg_usearch_index_stored_quant(const cberg_index *index, cberg_index_quant *out) {
+    if (index == NULL || out == NULL || index->provider != CBERG_INDEX_USEARCH || index->backend == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    usearch_backend *b = index->backend->impl;
+    *out = scalar_kind_to_quant(b->quantization);
+    return CBERG_OK;
+}
+
 #else /* !CBERG_WITH_USEARCH */
 
 static cberg_status usearch_open(const char *path, size_t dim, const cberg_index_config *config, cberg_index_backend **out_backend) {
@@ -354,6 +369,12 @@ const cberg_index_provider_ops cberg_usearch_provider = {
 };
 
 cberg_status cberg_usearch_index_active_expansion(const cberg_index *index, size_t *out) {
+    (void)index;
+    (void)out;
+    return CBERG_ERR_NOT_IMPLEMENTED;
+}
+
+cberg_status cberg_usearch_index_stored_quant(const cberg_index *index, cberg_index_quant *out) {
     (void)index;
     (void)out;
     return CBERG_ERR_NOT_IMPLEMENTED;

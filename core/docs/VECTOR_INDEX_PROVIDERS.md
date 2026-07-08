@@ -70,7 +70,7 @@ Copy any of the above into `daemon/.env` — see
 | `CBERG_MODEL` | all | yes (for vectors) | Path to ONNX `model.onnx` |
 | `CBERG_INDEX_PATH` | all | yes (for vectors) | **Base** path for per-repo index identity and local sidecars |
 | `CBERG_INDEX_BACKEND` | all | no | `usearch` (default), `qdrant`, `pgvector` (`postgres` alias) |
-| `CBERG_INDEX_QUANT` | usearch | no | Stored scalar kind: `i8` (default) or `f32` (`int8` = `i8`). New index files only; an existing file keeps its saved kind until rebuilt |
+| `CBERG_INDEX_QUANT` | usearch | no | Stored scalar kind: `i8` (default) or `f32` (`int8` = `i8`; case-insensitive). New index files only; an existing file keeps its saved kind until rebuilt. Use `f32` when recall@k on fresh indexes matters more than disk/CPU |
 | `CBERG_VECTORDB_URL` | qdrant | yes | Qdrant REST base URL (no trailing path) |
 | `CBERG_VECTORDB_API_KEY` | qdrant | no | Sent as `api-key` header (Qdrant Cloud) |
 | `CBERG_POSTGRES_URL` | pgvector | yes | libpq connection string |
