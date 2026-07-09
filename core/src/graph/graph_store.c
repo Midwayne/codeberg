@@ -561,12 +561,25 @@ static cberg_status file_undo_begin(cberg_graph *graph, const char *path, file_u
 }
 
 static void file_undo_abort(cberg_graph *graph, file_undo *u) {
-    /* Kill partial rebuild slots appended after the mark (apply is exclusive). */
+    /* Kill partial rebuild slots appended after the mark (apply is exclusive).
+     * graph_add_node overwrote node_by_id for any id that was re-inserted; those
+     * map entries still point at the dead rebuild slots until we re-point them
+     * at the revived prior indexes below. Brand-new ids (e.g. MODULE nodes from
+     * ensure_module_node) are soft-cleared (value 0) so lookups miss until a
+     * later insert. Name/path/ref chains keep dead heads but walkers skip dead
+     * slots, so prior live entries remain reachable. */
     for (size_t i = u->nodes_mark; i < graph->nodes_len; i++) {
         graph_node_rec *rec = &graph->nodes[i];
         if (!rec->dead) {
             rec->dead = 1;
             graph->nodes_dead++;
+        }
+        if (rec->pub.id != 0) {
+            uint64_t idx1 = 0;
+            if (cberg_u64map_get(graph->node_by_id, rec->pub.id, &idx1) && idx1 == (uint64_t)i + 1) {
+                /* Value 0: node_rec_by_id treats idx1==0 as missing. */
+                (void)cberg_u64map_set(graph->node_by_id, rec->pub.id, 0);
+            }
         }
     }
     for (size_t i = u->refs_mark; i < graph->refs_len; i++) {
@@ -577,11 +590,14 @@ static void file_undo_abort(cberg_graph *graph, file_undo *u) {
         }
     }
     for (size_t i = 0; i < u->node_len; i++) {
-        graph_node_rec *rec = &graph->nodes[u->node_idx[i]];
+        uint32_t idx = u->node_idx[i];
+        graph_node_rec *rec = &graph->nodes[idx];
         if (rec->dead) {
             rec->dead = 0;
             graph->nodes_dead--;
         }
+        /* Best-effort: OOM here leaves id lookup broken until compact rebuilds. */
+        (void)cberg_u64map_set(graph->node_by_id, rec->pub.id, (uint64_t)idx + 1);
     }
     for (size_t i = 0; i < u->ref_len; i++) {
         graph_ref_rec *rec = &graph->refs[u->ref_idx[i]];
