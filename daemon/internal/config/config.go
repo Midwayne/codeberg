@@ -189,7 +189,8 @@ func loadRoots() ([]domain.Repo, string, error) {
 	}
 
 	var roots []domain.Repo
-	taken := map[string]bool{}
+	takenKey := map[string]bool{}
+	seenRoot := map[string]bool{}
 	for _, path := range paths {
 		resolved, err := resolveRoot(path)
 		if err != nil {
@@ -198,9 +199,16 @@ func loadRoots() ([]domain.Repo, string, error) {
 		if fi, err := os.Stat(resolved); err != nil || !fi.IsDir() {
 			return nil, "", invalid(EnvRoot)
 		}
-		key := deriveRepoKey(resolved, taken)
-		taken[key] = true
+		if seenRoot[resolved] {
+			continue // CODEBERG_ROOT=/a,/a → one repo
+		}
+		seenRoot[resolved] = true
+		key := deriveRepoKey(resolved, takenKey)
+		takenKey[key] = true
 		roots = append(roots, domain.Repo{Key: key, Root: resolved})
+	}
+	if len(roots) == 0 {
+		return nil, "", invalid(EnvRoot)
 	}
 	if len(roots) == 1 {
 		return roots, roots[0].Key, nil

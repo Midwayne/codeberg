@@ -145,6 +145,24 @@ func TestLoadDaemonEmptyCommaSeparatedRoot(t *testing.T) {
 	}
 }
 
+func TestLoadDaemonDuplicateCommaPathsCollapse(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv(EnvRoot, root+","+root)
+	t.Setenv(EnvRoots, "")
+	t.Setenv(EnvGitDir, "")
+
+	cfg, err := LoadDaemon()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Roots) != 1 {
+		t.Fatalf("duplicate paths must collapse to one root, got %+v", cfg.Roots)
+	}
+	if cfg.DefaultKey == "" {
+		t.Fatal("single unique root must keep a default key")
+	}
+}
+
 func TestLoadDaemonCommaSeparatedRootKeyCollision(t *testing.T) {
 	base := t.TempDir()
 	rootA := filepath.Join(base, "p1", "api")
