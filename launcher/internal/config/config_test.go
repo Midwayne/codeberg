@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"codeberg.org/codeberg/launcher/internal/registry"
@@ -154,5 +155,39 @@ func TestValidateForRunReposSkipsRoot(t *testing.T) {
 	c := &Config{Dist: dist, Model: "anthropic:claude", Repos: []string{"a"}}
 	if err := c.ValidateForRun(); err != nil {
 		t.Fatalf("--repos must not require a root: %v", err)
+	}
+}
+
+func TestInitFileWritesEmbeddedExample(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config")
+	created, err := InitFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !created {
+		t.Fatal("InitFile should create a new file")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(data)
+	for _, want := range []string{
+		"CODEBERG_ROOT=",
+		"CODEBERG_MODEL=",
+		"CBERG_INDEX_PATH",
+		"CODEBERG_WEB_USE",
+		"daemon/.env.example",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("init template missing %q", want)
+		}
+	}
+	again, err := InitFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again {
+		t.Fatal("InitFile must not overwrite an existing file")
 	}
 }

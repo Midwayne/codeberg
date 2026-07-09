@@ -1,0 +1,188 @@
+# codeberg launcher config — KEY=VALUE, '#' comments, optional `export ` prefix.
+# Copy to ~/.codeberg/config (`codeberg config init` does this) and edit.
+#
+# Precedence (highest first): CLI flags > process environment > this file > defaults.
+# The launcher injects daemon-scope and agent-scope vars into the right child
+# process; codeberg-d never receives the LLM API key.
+#
+# Direct development without the launcher:
+#   daemon/.env.example  — run `make run-daemon` / codeberg-d
+#   agent/.env.example   — run `make run-agent` / codeberg-tui / codeberg-web
+#
+# Keys marked "env only" are not read from this file by the launcher today; export
+# them in the shell (or use daemon/.env / agent/.env when running components alone).
+
+# =============================================================================
+# Required (launcher)
+# =============================================================================
+
+# Repository tree to index (single-repo mode).
+CODEBERG_ROOT=/path/to/your/repo
+
+# LLM the agent uses, as provider:model.
+# Providers: anthropic, openai, google, ollama (local), llamacpp (local).
+CODEBERG_MODEL=anthropic:claude-haiku-4-5
+
+# API key matching CODEBERG_MODEL (ollama and llamacpp need none).
+# ANTHROPIC_API_KEY=
+# OPENAI_API_KEY=
+# GOOGLE_GENERATIVE_AI_API_KEY=
+
+# =============================================================================
+# Launcher paths (optional)
+# =============================================================================
+
+# Managed data directory (config, models, index, logs). Default: ~/.codeberg
+# CODEBERG_HOME=~/.codeberg
+
+# Source checkout to build from when not using a prebuilt install.
+# CODEBERG_REPO=/path/to/codeberg
+
+# Prebuilt artifact directory (Homebrew / release layout). Overrides build-from-source.
+# CODEBERG_DIST=/opt/homebrew/libexec/codeberg
+
+# =============================================================================
+# Repository selection (optional — usually set via CLI instead)
+# =============================================================================
+
+# Serve every repo registered with `codeberg <dir>` (multi-repo combined search).
+# CODEBERG_ALL=false
+
+# Comma-separated subset of registered dirs/keys to serve together.
+# CODEBERG_REPOS=proj-a,proj-b
+
+# One-off run: register nothing, build no vector index (file tools + chat only).
+# CODEBERG_NO_INDEX=false
+
+# Multi-repo record set for codeberg-d / cberg-index (key<TAB>path per line).
+# Normally built by the launcher from the registry — set manually only for advanced setups.
+# env only:
+# CODEBERG_ROOTS=$'api\t/path/to/api\nfrontend\t/path/to/frontend'
+
+# =============================================================================
+# Daemon / HTTP (daemon scope)
+# =============================================================================
+
+# Daemon HTTP listen port (default 48080 via launcher; 8080 when running codeberg-d alone).
+# CODEBERG_HTTP_PORT=48080
+
+# Unix socket for cberg-index IPC (default /tmp/codeberg-index.sock).
+# CBERG_SOCKET=/tmp/codeberg-index.sock
+
+# Path to cberg-index binary (default: beside codeberg-d or on PATH).
+# CBERG_INDEX_BIN=/path/to/cberg-index
+
+# Filesystem watcher poll interval in milliseconds (default 1000).
+# CBERG_POLL_MS=1000
+
+# Periodic git pull for mirror refresh; 0 or unset = disabled.
+# CODEBERG_GIT_PULL_INTERVAL_SEC=300
+
+# Git repo for pull (default: every served root that contains a .git directory).
+# CODEBERG_GIT_DIR=/path/to/repo
+
+# =============================================================================
+# Vector search / embeddings (daemon scope — omit for chunk-only mode)
+# =============================================================================
+
+# Set false to skip embedding-model download and disable semantic search.
+# CODEBERG_VECTOR=true
+
+# Path to ONNX embedding model (default under CODEBERG_HOME/models/…).
+# CBERG_MODEL=/abs/path/to/jina-embeddings-v2-base-code/model.onnx
+
+# Vector index base path; per-repo sidecars at <base>.<roothash>[.chunks|.manifest].
+# Default under CODEBERG_HOME/index/codeberg.usearch.
+# CBERG_INDEX_PATH=/abs/path/to/codeberg.usearch
+
+# usearch stored scalar kind for new index files: i8 (default) or f32.
+# env only (export when using codeberg, or set in daemon/.env):
+# CBERG_INDEX_QUANT=i8
+# CBERG_INDEX_QUANT=f32
+
+# Remote vector storage (default: local usearch files above).
+# env only:
+# CBERG_INDEX_BACKEND=usearch
+# CBERG_INDEX_BACKEND=qdrant
+# CBERG_VECTORDB_URL=https://your-cluster.qdrant.io
+# CBERG_VECTORDB_API_KEY=your-api-key
+#
+# CBERG_INDEX_BACKEND=pgvector
+# CBERG_POSTGRES_URL=postgresql://user:pass@host:5432/dbname
+
+# Embedding performance (forwarded to cberg-index via inherited environment).
+# env only:
+# CBERG_EMBED_THREADS=8
+# CBERG_EMBED_COREML=1
+
+# =============================================================================
+# Agent / chat (agent scope)
+# =============================================================================
+
+# Daemon the agent queries over HTTP (default http://127.0.0.1:<CODEBERG_HTTP_PORT>).
+# CODEBERG_DAEMON_URL=http://127.0.0.1:48080
+
+# Open the chat in a browser instead of the terminal TUI (or pass --web).
+# CODEBERG_WEB=false
+
+# Browser UI listen port when CODEBERG_WEB is true (default 48088).
+# CODEBERG_WEB_PORT=48088
+
+# Static files for codeberg-web (default: agent/web-ui/dist beside the bundle).
+# env only:
+# CODEBERG_WEB_ROOT=/path/to/web-ui/dist
+
+# Reasoning effort for reasoning-capable models:
+# provider-default | none | minimal | low | medium | high | xhigh
+# CODEBERG_REASONING=medium
+
+# Override context window tokens for local ollama / llamacpp servers.
+# env only:
+# CODEBERG_CONTEXT_WINDOW=32768
+
+# One-shot question for codeberg-ask (CLI only).
+# env only:
+# CODEBERG_QUESTION=where is chunking implemented?
+
+# --- Local LLM endpoints (no API key) ---------------------------------------
+# CODEBERG_MODEL=ollama:qwen3.5:9b
+# OLLAMA_BASE_URL=http://localhost:11434/v1
+#
+# CODEBERG_MODEL=llamacpp:my-model
+# LLAMACPP_BASE_URL=http://localhost:8080/v1
+
+# =============================================================================
+# Web tools — web_search + fetch_url (agent scope)
+# =============================================================================
+
+# Master switch — on by default. Set false to disable all web access.
+# CODEBERG_WEB_USE=true
+
+# External SearXNG for web_search (no API key). When unset, the launcher installs
+# and runs a local instance on CODEBERG_SEARXNG_PORT.
+# CODEBERG_SEARXNG_URL=http://127.0.0.1:8888
+
+# Preferred port for launcher-managed SearXNG (default 48089).
+# CODEBERG_SEARXNG_PORT=48089
+
+# fetch_url: allow localhost/private hosts (SSRF guard off). env only:
+# CODEBERG_WEB_ALLOW_PRIVATE=1
+
+# Tuning knobs (sensible defaults). env only unless running agent with agent/.env:
+# CODEBERG_WEB_MAX_BYTES=1500000
+# CODEBERG_WEB_MAX_CHARS=20000
+# CODEBERG_WEB_TIMEOUT_MS=15000
+# CODEBERG_WEB_SEARCH_COUNT=6
+
+# =============================================================================
+# Launcher runtime (environment only — not read from this file)
+# =============================================================================
+
+# Max wait for daemon /health on first cold index (Go duration, e.g. 30m).
+# CODEBERG_HEALTH_TIMEOUT=30m
+
+# Check build prerequisites without auto-installing (brew/apt).
+# CODEBERG_SKIP_DEP_INSTALL=1
+
+# ONNX Runtime location for building the C core (not runtime config for indexing).
+# ONNXRUNTIME_ROOT=/opt/onnxruntime

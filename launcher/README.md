@@ -69,7 +69,7 @@ The launcher runs the same two ways:
 ## First run
 
 ```sh
-codeberg config init    # writes a starter ~/.codeberg/config
+codeberg config init    # writes a starter ~/.codeberg/config (from config.example)
 # edit it: set CODEBERG_ROOT (repo to index) + CODEBERG_MODEL (provider:model)
 #          and the matching API key (ANTHROPIC_API_KEY / OPENAI_API_KEY / …)
 codeberg                # builds anything missing, downloads the model, opens chat
@@ -124,7 +124,8 @@ Config is resolved from four layers, **highest precedence first**:
 
 1. CLI flags (`--root`, `--all`, `--repos`, `--no-index`, `--model`, `--port`, `--no-vector`, …)
 2. process environment (`CODEBERG_ROOT`, `CODEBERG_ALL`, `CODEBERG_REPOS`, `CODEBERG_NO_INDEX`, `CODEBERG_MODEL`, `ANTHROPIC_API_KEY`, …)
-3. `~/.codeberg/config` (KEY=VALUE; same names as the env vars)
+3. `~/.codeberg/config` (KEY=VALUE; same names as the env vars). See
+   [`config.example`](../config.example) in the repo for every supported key.
 4. built-in defaults
 
 The launcher splits these back into the two scopes the components read —

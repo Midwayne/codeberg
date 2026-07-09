@@ -1,6 +1,7 @@
 package config
 
 import (
+	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,41 +9,8 @@ import (
 	"strings"
 )
 
-const fileTemplate = `# codeberg launcher config — KEY=VALUE, '#' comments.
-# Precedence: CLI flags > environment > this file > defaults.
-
-# --- required ---------------------------------------------------------------
-# Repository tree to index.
-%s=/path/to/your/repo
-# LLM the agent uses, as provider:model (anthropic, openai, google, ollama,
-# llamacpp).
-%s=anthropic:claude-haiku-4-5
-
-# API key matching the model above (ollama and llamacpp need none).
-# ANTHROPIC_API_KEY=
-# OPENAI_API_KEY=
-# GOOGLE_GENERATIVE_AI_API_KEY=
-
-# --- optional ---------------------------------------------------------------
-# Daemon HTTP port (default 48080).
-# %s=48080
-# Open the chat in a browser instead of the terminal TUI (or pass --web).
-# %s=false
-# Browser UI port when --web is used (default 48088).
-# %s=48088
-# Reasoning effort: provider-default|none|minimal|low|medium|high|xhigh
-# %s=medium
-# Web tools for the agent (web_search + fetch_url) — on by default. Set false to
-# disable all web access. web_search uses a SearXNG instance the launcher
-# installs and runs locally; point at your own instead with CODEBERG_SEARXNG_URL.
-# %s=true
-# CODEBERG_SEARXNG_URL=http://127.0.0.1:8888
-# Set to false for chunk-only mode (skips the embedding-model download).
-# %s=true
-# Override the embedding model / vector index paths (sensible defaults otherwise).
-# %s=/abs/path/to/model.onnx
-# %s=/abs/path/to/index.usearch
-`
+//go:embed config.example
+var fileTemplate string
 
 // InitFile writes a template config to path unless it already exists. Returns
 // (created, error). It creates parent directories as needed.
@@ -53,9 +21,7 @@ func InitFile(path string) (bool, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return false, err
 	}
-	body := fmt.Sprintf(fileTemplate,
-		KeyRoot, KeyModel, KeyHTTPPort, KeyWeb, KeyWebPort, KeyReasoning, KeyWebUse, KeyVector, KeyEmbedModel, KeyIndexPath)
-	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(fileTemplate), 0o600); err != nil {
 		return false, err
 	}
 	return true, nil
