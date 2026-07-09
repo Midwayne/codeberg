@@ -2352,7 +2352,7 @@ static cberg_status graph_repo(cberg_engine *eng, const char *repo_key, cberg_re
             return CBERG_OK;
         }
     }
-    return eng->graph_enabled ? CBERG_ERR_NOT_FOUND : CBERG_ERR_NOT_IMPLEMENTED;
+    return CBERG_ERR_NOT_FOUND;
 }
 
 cberg_status cberg_engine_search_graph(cberg_engine *eng, const char *name, const char *repo_key, const char *kind, const char *path_prefix, size_t limit, cberg_engine_graph_node *out, size_t cap, size_t *found) {

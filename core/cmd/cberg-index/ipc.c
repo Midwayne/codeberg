@@ -365,6 +365,15 @@ static void write_gedge_json(char *resp, size_t cap, size_t *off, const cberg_en
     }
 }
 
+static size_t ipc_clamp_want(size_t limit, size_t cap) {
+    return limit > cap ? cap : limit;
+}
+
+/* True when the stack/response cap may have clipped results the caller asked for. */
+static int ipc_cap_truncated(size_t found, size_t want, size_t limit, size_t cap) {
+    return found >= want && (limit > cap || found >= cap);
+}
+
 static void handle_search_graph(cberg_engine *eng, int fd, char *args) {
     /* search_graph\t<name>\t[<repo>\t[<kind>\t[<path_prefix>\t[<limit>]]]] */
     char *cursor = args;
@@ -387,7 +396,7 @@ static void handle_search_graph(cberg_engine *eng, int fd, char *args) {
         }
     }
     enum { IPC_GRAPH_NODES_CAP = 64 };
-    size_t want = limit > IPC_GRAPH_NODES_CAP ? IPC_GRAPH_NODES_CAP : limit;
+    size_t want = ipc_clamp_want(limit, IPC_GRAPH_NODES_CAP);
 
     cberg_engine_graph_node nodes[IPC_GRAPH_NODES_CAP];
     size_t found = 0;
@@ -398,8 +407,7 @@ static void handle_search_graph(cberg_engine *eng, int fd, char *args) {
         write_all(fd, resp, strlen(resp));
         return;
     }
-    /* Cap hit (or caller asked above the stack cap) means more may exist. */
-    int truncated = found >= want && (limit > IPC_GRAPH_NODES_CAP || found >= IPC_GRAPH_NODES_CAP);
+    int truncated = ipc_cap_truncated(found, want, limit, IPC_GRAPH_NODES_CAP);
     char resp[65536];
     size_t off = (size_t)snprintf(resp, sizeof(resp), "{\"ok\":true,\"results\":[");
     size_t written = 0;
@@ -448,7 +456,7 @@ static void handle_trace_path(cberg_engine *eng, int fd, char *args) {
     char *path_prefix = null_if_empty(next_field(&cursor));
 
     enum { IPC_GRAPH_HOPS_CAP = 256 };
-    size_t want = limit > IPC_GRAPH_HOPS_CAP ? IPC_GRAPH_HOPS_CAP : limit;
+    size_t want = ipc_clamp_want(limit, IPC_GRAPH_HOPS_CAP);
     cberg_engine_graph_hop hops[IPC_GRAPH_HOPS_CAP];
     size_t found = 0;
     cberg_status st = cberg_engine_trace_path(eng, name, 0, repo, path_prefix, direction, edge_kind, max_depth, want, hops, IPC_GRAPH_HOPS_CAP, &found);
@@ -458,7 +466,7 @@ static void handle_trace_path(cberg_engine *eng, int fd, char *args) {
         write_all(fd, resp, strlen(resp));
         return;
     }
-    int truncated = found >= want && (limit > IPC_GRAPH_HOPS_CAP || found >= IPC_GRAPH_HOPS_CAP);
+    int truncated = ipc_cap_truncated(found, want, limit, IPC_GRAPH_HOPS_CAP);
     char resp[131072];
     size_t off = (size_t)snprintf(resp, sizeof(resp), "{\"ok\":true,\"hops\":[");
     size_t written = 0;
@@ -530,7 +538,7 @@ static void handle_graph_hubs(cberg_engine *eng, int fd, char *args) {
         }
     }
     enum { IPC_GRAPH_HUBS_CAP = 64 };
-    size_t want = limit > IPC_GRAPH_HUBS_CAP ? IPC_GRAPH_HUBS_CAP : limit;
+    size_t want = ipc_clamp_want(limit, IPC_GRAPH_HUBS_CAP);
     cberg_engine_graph_hub hubs[IPC_GRAPH_HUBS_CAP];
     size_t found = 0;
     cberg_status st = cberg_engine_graph_hubs(eng, repo, want, hubs, IPC_GRAPH_HUBS_CAP, &found);
@@ -540,7 +548,7 @@ static void handle_graph_hubs(cberg_engine *eng, int fd, char *args) {
         write_all(fd, resp, strlen(resp));
         return;
     }
-    int truncated = found >= want && (limit > IPC_GRAPH_HUBS_CAP || found >= IPC_GRAPH_HUBS_CAP);
+    int truncated = ipc_cap_truncated(found, want, limit, IPC_GRAPH_HUBS_CAP);
     char resp[65536];
     size_t off = (size_t)snprintf(resp, sizeof(resp), "{\"ok\":true,\"results\":[");
     size_t written = 0;
@@ -587,7 +595,7 @@ static void handle_graph_refs(cberg_engine *eng, int fd, char *args) {
     }
     char *path_prefix = null_if_empty(next_field(&cursor));
     enum { IPC_GRAPH_REFS_CAP = 64 };
-    size_t want = limit > IPC_GRAPH_REFS_CAP ? IPC_GRAPH_REFS_CAP : limit;
+    size_t want = ipc_clamp_want(limit, IPC_GRAPH_REFS_CAP);
     cberg_engine_graph_edge edges[IPC_GRAPH_REFS_CAP];
     size_t found = 0;
     cberg_status st = cberg_engine_graph_references(eng, name, repo, path_prefix, want, edges, IPC_GRAPH_REFS_CAP, &found);
@@ -597,7 +605,7 @@ static void handle_graph_refs(cberg_engine *eng, int fd, char *args) {
         write_all(fd, resp, strlen(resp));
         return;
     }
-    int truncated = found >= want && (limit > IPC_GRAPH_REFS_CAP || found >= IPC_GRAPH_REFS_CAP);
+    int truncated = ipc_cap_truncated(found, want, limit, IPC_GRAPH_REFS_CAP);
     char resp[65536];
     size_t off = (size_t)snprintf(resp, sizeof(resp), "{\"ok\":true,\"results\":[");
     size_t written = 0;

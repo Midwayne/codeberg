@@ -22,6 +22,7 @@
 #include "graph_internal.h"
 #include "grow.h"
 #include "strmap.h"
+#include "strutil.h"
 #include "u64map.h"
 
 #define GRAPH_CONF_EXACT 1.0f
@@ -499,19 +500,6 @@ static void file_snapshot_free(file_snapshot *snap) {
     memset(snap, 0, sizeof(*snap));
 }
 
-static char *snap_strdup(const char *s) {
-    if (s == NULL) {
-        return NULL;
-    }
-    size_t n = strlen(s);
-    char *out = malloc(n + 1);
-    if (out == NULL) {
-        return NULL;
-    }
-    memcpy(out, s, n + 1);
-    return out;
-}
-
 static cberg_status file_snapshot_take(cberg_graph *graph, const char *path, file_snapshot *snap) {
     memset(snap, 0, sizeof(*snap));
     size_t n_nodes = 0;
@@ -557,9 +545,9 @@ static cberg_status file_snapshot_take(cberg_graph *graph, const char *path, fil
             }
             cberg_graph_node *dst = &snap->nodes[snap->nodes_len++];
             *dst = rec->pub;
-            dst->name = snap_strdup(rec->pub.name);
-            dst->qname = snap_strdup(rec->pub.qname);
-            dst->path = snap_strdup(rec->pub.path);
+            dst->name = cberg_strdup(rec->pub.name);
+            dst->qname = cberg_strdup(rec->pub.qname);
+            dst->path = cberg_strdup(rec->pub.path);
             if (dst->name == NULL || dst->qname == NULL || (rec->pub.path != NULL && dst->path == NULL)) {
                 file_snapshot_free(snap);
                 return CBERG_ERR_OUT_OF_MEMORY;
@@ -575,8 +563,8 @@ static cberg_status file_snapshot_take(cberg_graph *graph, const char *path, fil
             }
             graph_ref_rec *dst = &snap->refs[snap->refs_len++];
             *dst = *rec;
-            dst->name = snap_strdup(rec->name);
-            dst->path = snap_strdup(rec->path);
+            dst->name = cberg_strdup(rec->name);
+            dst->path = cberg_strdup(rec->path);
             if (dst->path == NULL || (rec->name != NULL && dst->name == NULL)) {
                 file_snapshot_free(snap);
                 return CBERG_ERR_OUT_OF_MEMORY;

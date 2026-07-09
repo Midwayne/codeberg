@@ -29,6 +29,7 @@ typedef struct {
     size_t file_len;
     size_t file_cap;
     char go_module[512]; /* from go.mod, empty if absent */
+    cberg_status err;    /* first walk/add failure (walk_cb collapses to -1) */
 } pkg_index;
 
 static cberg_status pkg_add_file(pkg_index *idx, const char *rel) {
@@ -65,7 +66,12 @@ static int walk_cb(const char *abs, const char *rel, void *v) {
     if (!is_code_source(rel)) {
         return 0;
     }
-    return pkg_add_file(idx, rel) == CBERG_OK ? 0 : -1;
+    cberg_status st = pkg_add_file(idx, rel);
+    if (st != CBERG_OK) {
+        idx->err = st;
+        return -1;
+    }
+    return 0;
 }
 
 static int import_is_relative(const char *imp) {
@@ -358,10 +364,11 @@ cberg_status cberg_graph_resolve_imports(cberg_graph *graph, const char *repo_ro
         return CBERG_ERR_OUT_OF_MEMORY;
     }
     if (cberg_fs_walk_files(repo_root, walk_cb, &idx) != 0) {
+        cberg_status st = idx.err != CBERG_OK ? idx.err : CBERG_ERR_IO;
         free(idx.file_paths);
         cberg_strmap_free(idx.import_to_file);
         cberg_arena_free(idx.arena);
-        return CBERG_ERR_IO;
+        return st;
     }
     scan_go_mod(&idx, repo_root);
     map_js_sources(&idx);
