@@ -63,10 +63,9 @@ Registered at `GET /tools`, invoked via `POST /tools/call`. Full schemas and lim
 
 ### Index and search
 
-`search`, `get_chunk`, `find_symbol`, `file_outline`, `hybrid_search`, `find_references`
+`search`, `get_chunk`, `find_symbol`, `file_outline`, `hybrid_search`, `search_graph`, `trace_path`, `detect_changes`, `get_architecture`, `find_references`
 
-`find_symbol`, `file_outline`, and `get_chunk` work in **chunk-only mode** (no ONNX).
-`search` and `hybrid_search` require `vectors_enabled`.
+`find_symbol`, `file_outline`, `get_chunk`, and the graph tools work in **chunk-only mode** (no ONNX) when `CBERG_GRAPH` is enabled (default). `search` and `hybrid_search` require `vectors_enabled`. Graph tools return `graph disabled` when `CBERG_GRAPH=0`. See [docs/http.md](docs/http.md) and [core/docs/modules/graph.md](../core/docs/modules/graph.md).
 
 ### Repo metadata
 

@@ -14,6 +14,7 @@
 #include "arena.h"
 #include "chunk_keys.h"
 #include "chunk_kind.h"
+#include "graph_internal.h"
 #include "grow.h"
 
 extern const TSLanguage *tree_sitter_go(void);
@@ -122,6 +123,7 @@ struct cberg_chunker {
     TSParser *parsers[CBERG_LANG_SLOTS];
     TSQuery *queries[CBERG_LANG_SLOTS];
     cberg_language query_lang[CBERG_LANG_SLOTS];
+    cberg_graph_extractor *extractor; /* lazy; graph ref queries share the parse */
 };
 
 static int lang_slot(cberg_language lang) {
@@ -220,6 +222,7 @@ void cberg_chunker_close(cberg_chunker *chunker) {
     for (int i = 0; i < CBERG_LANG_SLOTS; i++) {
         free_lang_slot(chunker, i);
     }
+    cberg_graph_extractor_free(chunker->extractor);
     free(chunker);
 }
 
@@ -978,7 +981,7 @@ static cberg_status config_chunk(cberg_language lang, const char *path, const ch
     return CBERG_OK;
 }
 
-static cberg_status query_chunk(cberg_chunker *ch, lang_desc desc, cberg_language lang, const char *path, const char *src, size_t src_len, cberg_chunk_list **out_list) {
+static cberg_status query_chunk(cberg_chunker *ch, lang_desc desc, cberg_language lang, const char *path, const char *src, size_t src_len, cberg_chunk_list **out_list, cberg_graph_fragment **out_frag) {
     int slot = lang_slot(lang);
     if (slot < 0) {
         return CBERG_ERR_UNSUPPORTED_LANGUAGE;
@@ -1087,6 +1090,23 @@ static cberg_status query_chunk(cberg_chunker *ch, lang_desc desc, cberg_languag
     if (list->len > 1) {
         qsort(list->items, list->len, sizeof(cberg_chunk), compare_chunks);
     }
+
+    /* Graph extraction reuses this parse tree (ADR 0005: one parse pass feeds
+     * both indexes). Lazily create the extractor on first analyze call. */
+    if (out_frag != NULL) {
+        if (ch->extractor == NULL) {
+            ch->extractor = cberg_graph_extractor_new();
+            if (ch->extractor == NULL) {
+                status = CBERG_ERR_OUT_OF_MEMORY;
+                goto done;
+            }
+        }
+        status = cberg_graph_extract(ch->extractor, desc.language(), lang, ts_tree_root_node(tree), path, src, src_len, list, out_frag);
+        if (status != CBERG_OK) {
+            goto done;
+        }
+    }
+
     *out_list = list;
     list = NULL;
     status = CBERG_OK;
@@ -1100,11 +1120,19 @@ done:
 }
 
 cberg_status cberg_chunker_parse(cberg_chunker *chunker, cberg_language lang, const char *path, const char *src, size_t src_len, cberg_chunk_list **out_list) {
+    return cberg_chunker_analyze(chunker, lang, path, src, src_len, out_list, NULL);
+}
+
+cberg_status cberg_chunker_analyze(cberg_chunker *chunker, cberg_language lang, const char *path, const char *src, size_t src_len, cberg_chunk_list **out_list, cberg_graph_fragment **out_fragment) {
     if (out_list == NULL || chunker == NULL || path == NULL || src == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     *out_list = NULL;
+    if (out_fragment != NULL) {
+        *out_fragment = NULL;
+    }
 
+    /* Markdown / config / unknown files carry no graph structure: chunk only. */
     if (lang == CBERG_LANG_MARKDOWN) {
         return markdown_chunk(path, src, src_len, out_list);
     }
@@ -1115,7 +1143,7 @@ cberg_status cberg_chunker_parse(cberg_chunker *chunker, cberg_language lang, co
     if (desc.language == NULL) {
         return window_chunk(path, src, src_len, out_list);
     }
-    return query_chunk(chunker, desc, lang, path, src, src_len, out_list);
+    return query_chunk(chunker, desc, lang, path, src, src_len, out_list, out_fragment);
 }
 
 size_t cberg_chunk_list_len(const cberg_chunk_list *list) {

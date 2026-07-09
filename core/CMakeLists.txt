@@ -88,6 +88,9 @@ set(CBERG_SOURCES
   src/chunk/chunk_kind.c
   src/chunk/chunker.c
   src/chunk/chunk_table.c
+  src/graph/graph_store.c
+  src/graph/graph_extract.c
+  src/graph/resolve_pkg.c
   src/manifest/manifest.c
   src/watch/watch.c
   src/watch/watch_walk.c
@@ -183,6 +186,7 @@ target_include_directories(codeberg_obj
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
   PRIVATE           ${CMAKE_CURRENT_SOURCE_DIR}/src/common
           ${CMAKE_CURRENT_SOURCE_DIR}/src/chunk
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/graph
           ${CMAKE_CURRENT_SOURCE_DIR}/src/manifest
           ${CMAKE_CURRENT_SOURCE_DIR}/src/watch
           ${CMAKE_CURRENT_SOURCE_DIR}/src/embed

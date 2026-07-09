@@ -288,12 +288,47 @@ function tool(wrap) {
 function renderToolOutput(tc, output) {
   tc.output.textContent = "";
   var name = tc.name || "tool";
-  if (name === "search_code" || name === "find_symbol" || name === "file_outline") {
+  if (name === "search_code" || name === "find_symbol" || name === "file_outline" || name === "search_graph") {
     renderHits(tc.output, Array.isArray(output) ? output : []);
     return;
   }
   if (name === "hybrid_search" && Array.isArray(output)) {
     renderHits(tc.output, output.map(function (r) { return r && r.hit ? r.hit : null; }).filter(Boolean));
+    return;
+  }
+  if (name === "trace_path" && Array.isArray(output)) {
+    output.forEach(function (h) {
+      var card = document.createElement("div");
+      card.className = "hit";
+      var hd = document.createElement("div");
+      hd.className = "hit-hd";
+      var path = document.createElement("span"); path.className = "hit-path"; path.textContent = h.src_path || ""; hd.appendChild(path);
+      if (h.line) { var ln = document.createElement("span"); ln.className = "hit-lines"; ln.textContent = ":" + h.line; hd.appendChild(ln); }
+      card.appendChild(hd);
+      var tx = document.createElement("div"); tx.className = "grep-line";
+      tx.textContent = (h.src_name || "") + " -[" + (h.kind || "") + "]-> " + (h.dst_name || "") +
+        (h.confidence != null ? " (" + h.confidence + ")" : "");
+      card.appendChild(tx);
+      tc.output.appendChild(card);
+    });
+    return;
+  }
+  if (name === "find_references" && output && typeof output === "object" && !Array.isArray(output)) {
+    var rows = Array.isArray(output.graph) ? output.graph : (Array.isArray(output.matches) ? output.matches : []);
+    rows.forEach(function (m) {
+      var card = document.createElement("div");
+      card.className = "hit";
+      var hd = document.createElement("div");
+      hd.className = "hit-hd";
+      if (m.repo) { var repo = document.createElement("span"); repo.className = "hit-repo"; repo.textContent = m.repo; hd.appendChild(repo); }
+      var path = document.createElement("span"); path.className = "hit-path"; path.textContent = m.src_path || m.path || ""; hd.appendChild(path);
+      if (m.line) { var ln = document.createElement("span"); ln.className = "hit-lines"; ln.textContent = ":" + m.line; hd.appendChild(ln); }
+      card.appendChild(hd);
+      var tx = document.createElement("div"); tx.className = "grep-line";
+      tx.textContent = m.text || ((m.src_name || "") + (m.dst_name ? " → " + m.dst_name : "") + (m.kind ? " [" + m.kind + "]" : ""));
+      card.appendChild(tx);
+      tc.output.appendChild(card);
+    });
     return;
   }
   if ((name === "grep" || name === "find_references") && Array.isArray(output)) {

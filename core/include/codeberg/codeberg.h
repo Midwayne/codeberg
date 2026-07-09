@@ -196,8 +196,15 @@ CBERG_API const cberg_stored_chunk *cberg_chunk_table_at(const cberg_chunk_table
 CBERG_API const cberg_stored_chunk *cberg_chunk_table_find_by_id(const cberg_chunk_table *table, uint64_t id);
 
 /*
+ * Resolve a stored chunk by its stable key in O(1) (the graph maps symbol nodes
+ * onto chunk ids through keys). Same lifetime rules as find_by_id.
+ */
+CBERG_API const cberg_stored_chunk *cberg_chunk_table_find_by_key(const cberg_chunk_table *table, const char *key);
+
+/*
  * Diff `incoming` against the table. IDs are stable across modifications.
- * Change arrays are owned by the table until the next sync or free.
+ * Change arrays are owned by the table until the next sync or free; their
+ * key/path/symbol strings borrow the table's string arena (same lifetime).
  * On non-OK return the table and prior change arrays are unchanged.
  */
 CBERG_API cberg_status cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk *incoming, size_t count, cberg_changes *out_changes);
@@ -495,6 +502,172 @@ CBERG_API cberg_status cberg_search_query(cberg_embedder *embedder, cberg_index 
  * be searched against several indexes without re-paying the embed.
  */
 CBERG_API cberg_status cberg_search_vector(cberg_index *index, const float *query_vec, const cberg_search_config *config, size_t k, uint64_t *out_ids, float *out_scores, size_t *out_found);
+
+/* --- Knowledge graph (structural sidecar beside chunks/vectors) ---------- */
+
+/*
+ * Dual index (ADR 0005): the same tree-sitter parse that produces retrieval
+ * chunks also extracts a structural graph — who defines, contains, imports,
+ * calls, and inherits what. Symbol nodes reuse the stable chunk ids, so graph,
+ * chunk table, and vector index stay aligned across edits.
+ *
+ * Phase 1 resolution is *textual*: call/inherit references are linked by name
+ * at query time (same-file candidates win, cross-file candidates are scored by
+ * ambiguity). Edges carry `confidence` and `resolution` so callers can treat a
+ * textual link as a hint, not a go-to-definition.
+ */
+
+typedef enum cberg_graph_node_kind {
+    CBERG_GNODE_FILE = 0,
+    CBERG_GNODE_FUNCTION,
+    CBERG_GNODE_METHOD,
+    CBERG_GNODE_CLASS,
+    CBERG_GNODE_STRUCT,
+    CBERG_GNODE_INTERFACE,
+    CBERG_GNODE_MODULE, /* import target (package / header / module path) */
+} cberg_graph_node_kind;
+
+/* Node-kind filter bit for cberg_graph_find_nodes (0 mask = any kind). */
+#define CBERG_GNODE_MASK(kind) (1u << (unsigned)(kind))
+
+/* Edge kinds are bit flags so query APIs can take a mask (0 = all kinds). */
+typedef enum cberg_graph_edge_kind {
+    CBERG_GEDGE_DEFINES = 1u << 0,  /* File -> symbol (synthesized from chunks) */
+    CBERG_GEDGE_CONTAINS = 1u << 1, /* Class/Struct/Interface -> member */
+    CBERG_GEDGE_IMPORTS = 1u << 2,  /* File -> Module */
+    CBERG_GEDGE_CALLS = 1u << 3,    /* caller symbol (or File) -> callee */
+    CBERG_GEDGE_INHERITS = 1u << 4, /* subtype -> supertype / interface */
+    CBERG_GEDGE_REFERENCES = 1u << 5,
+} cberg_graph_edge_kind;
+#define CBERG_GEDGE_ALL 0x3Fu
+
+typedef enum cberg_graph_resolution {
+    CBERG_GRES_TEXTUAL = 0, /* linked by name match (Phase 1) */
+    CBERG_GRES_IMPORT = 1,  /* linked through import/manifest resolution */
+    CBERG_GRES_TYPED = 2,   /* linked through type analysis */
+} cberg_graph_resolution;
+
+typedef struct cberg_graph_node {
+    uint64_t id;   /* symbol nodes: the chunk id; file/module nodes: synthetic */
+    cberg_graph_node_kind kind;
+    cberg_language lang;
+    const char *name;  /* symbol / file basename / module path */
+    const char *qname; /* symbol nodes: the chunk key; files: repo-relative path */
+    const char *path;  /* defining file; NULL for module nodes */
+    cberg_span span;   /* zero for file/module nodes */
+} cberg_graph_node;
+
+typedef struct cberg_graph_edge {
+    uint64_t src;
+    uint64_t dst;
+    cberg_graph_edge_kind kind;
+    cberg_graph_resolution resolution;
+    float confidence; /* 1.0 exact; <1.0 name-matched (see graph module docs) */
+    uint32_t line;    /* reference site line in src's file; 0 when unknown */
+} cberg_graph_edge;
+
+typedef struct cberg_graph cberg_graph;
+typedef struct cberg_graph_fragment cberg_graph_fragment;
+
+CBERG_API cberg_status cberg_graph_new(cberg_graph **out_graph);
+CBERG_API void cberg_graph_free(cberg_graph *graph);
+
+/*
+ * Chunk + extract in one parse. Behaves exactly like cberg_chunker_parse for
+ * *out_list; additionally captures the file's graph fragment (definitions and
+ * call/import/inherit references) when out_fragment is non-NULL. Languages
+ * without a tree-sitter parser (markdown, config, unknown) yield a NULL
+ * fragment. The fragment is independent of the chunk list's lifetime.
+ */
+CBERG_API cberg_status cberg_chunker_analyze(cberg_chunker *chunker, cberg_language lang, const char *path, const char *src, size_t src_len, cberg_chunk_list **out_list, cberg_graph_fragment **out_fragment);
+
+CBERG_API const char *cberg_graph_fragment_path(const cberg_graph_fragment *fragment);
+CBERG_API void cberg_graph_fragment_free(cberg_graph_fragment *fragment);
+
+/*
+ * Maps a chunk key to its stable chunk id (typically backed by
+ * cberg_chunk_table_find_by_key after a sync). Return CBERG_ERR_NOT_FOUND to
+ * skip a definition that is no longer in the table.
+ */
+typedef cberg_status (*cberg_graph_resolve_fn)(void *ctx, const char *chunk_key, uint64_t *out_id);
+
+/*
+ * Replaces `fragment`'s file in the graph: removes the file's previous nodes
+ * and references, then inserts the fragment's. Incremental by construction —
+ * apply dirty files in any order; unchanged files keep their nodes and ids.
+ */
+CBERG_API cberg_status cberg_graph_apply(cberg_graph *graph, const cberg_graph_fragment *fragment, cberg_graph_resolve_fn resolve, void *resolve_ctx);
+
+/* Removes a deleted file's nodes and references (no dangling edges remain). */
+CBERG_API cberg_status cberg_graph_remove_file(cberg_graph *graph, const char *path);
+
+/* Live node / reference-record counts (out params nullable). */
+CBERG_API void cberg_graph_counts(const cberg_graph *graph, size_t *out_nodes, size_t *out_refs);
+
+/* Node lookup by id. Pointer valid until the next apply/remove/load. */
+CBERG_API const cberg_graph_node *cberg_graph_node_by_id(const cberg_graph *graph, uint64_t id);
+
+/*
+ * Structural symbol search: exact `name` (NULL = any), node-kind mask built
+ * from CBERG_GNODE_MASK (0 = any), and `path_prefix` (NULL = any). Prefixes are
+ * component-aware (`foo` matches `foo` / `foo/bar`, not `foobar`). Writes up
+ * to `cap` matches; *out_count is the number written (results truncate at cap).
+ */
+CBERG_API cberg_status cberg_graph_find_nodes(const cberg_graph *graph, const char *name, uint32_t kind_mask, const char *path_prefix, const cberg_graph_node **out_nodes, size_t cap, size_t *out_count);
+
+/*
+ * Resolved edges leaving / arriving at `id`, filtered by edge-kind mask
+ * (0 = all). Name references resolve at query time, so results never dangle
+ * after deletes. Results truncate at cap; *out_count is the number written.
+ * Returns CBERG_ERR_NOT_FOUND when `id` is not a live node.
+ */
+CBERG_API cberg_status cberg_graph_edges_from(const cberg_graph *graph, uint64_t id, uint32_t kind_mask, cberg_graph_edge *out_edges, size_t cap, size_t *out_count);
+CBERG_API cberg_status cberg_graph_edges_to(const cberg_graph *graph, uint64_t id, uint32_t kind_mask, cberg_graph_edge *out_edges, size_t cap, size_t *out_count);
+
+/* Traversal directions for cberg_graph_trace (bit flags, combinable). */
+#define CBERG_GRAPH_OUT 1u /* follow edges src -> dst (callees, imports) */
+#define CBERG_GRAPH_IN 2u  /* follow edges dst <- src (callers) */
+
+typedef struct cberg_graph_hop {
+    cberg_graph_edge edge;
+    uint32_t depth; /* 1 = adjacent to start_id */
+} cberg_graph_hop;
+
+/*
+ * Breadth-first traversal from `start_id` up to `max_depth` hops over edges
+ * matching `kind_mask` (0 = all), following `directions`. Each node is visited
+ * once; hops report the edge that first reached a node plus its depth.
+ * Results truncate at cap. Returns CBERG_ERR_NOT_FOUND for an unknown start.
+ */
+CBERG_API cberg_status cberg_graph_trace(const cberg_graph *graph, uint64_t start_id, uint32_t directions, uint32_t kind_mask, uint32_t max_depth, cberg_graph_hop *out_hops, size_t cap, size_t *out_count);
+
+/*
+ * Persist / restore the graph to `path` (atomic temp+rename, same contract as
+ * the chunk table: absent or incompatible snapshots load as CBERG_ERR_NOT_FOUND
+ * and the caller rebuilds from source).
+ */
+CBERG_API cberg_status cberg_graph_save(const cberg_graph *graph, const char *path);
+CBERG_API cberg_status cberg_graph_load(const char *path, cberg_graph **out_graph);
+
+/*
+ * Phase 2: scan package manifests under `repo_root` and rewrite IMPORTS edges
+ * that resolve to a repo-relative file so they point at that FILE node with
+ * resolution=import (confidence 0.95). Only relative (./ ../), Rust `::` paths,
+ * Go module-prefixed imports, multi-segment dotted names, or source-file paths
+ * (…/*.h) are candidates — bare identifiers and slash-form stdlib/npm packages
+ * (fmt, encoding/json) stay MODULE targets. Already-resolved FILE imports are
+ * left alone (idempotent). Unresolved imports keep their MODULE target. Safe
+ * to call repeatedly after applies.
+ */
+CBERG_API cberg_status cberg_graph_resolve_imports(cberg_graph *graph, const char *repo_root);
+
+/* Degree hubs: symbols ranked by incident CALLS edges (in+out). */
+typedef struct cberg_graph_hub {
+    uint64_t id;
+    uint32_t degree;
+} cberg_graph_hub;
+
+CBERG_API cberg_status cberg_graph_hubs(const cberg_graph *graph, cberg_graph_hub *out, size_t cap, size_t *out_count);
 
 #ifdef __cplusplus
 } /* extern "C" */

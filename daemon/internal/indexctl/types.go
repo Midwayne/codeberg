@@ -60,3 +60,106 @@ type ChunkDetail struct {
 	Body      string `json:"body"`
 	Truncated bool   `json:"truncated"`
 }
+
+// GraphNode is one knowledge-graph node from search_graph.
+type GraphNode struct {
+	ID        uint64 `json:"id"`
+	Repo      string `json:"repo"`
+	Kind      string `json:"kind"`
+	Name      string `json:"name"`
+	QName     string `json:"qname"`
+	Path      string `json:"path"`
+	StartLine uint32 `json:"start_line"`
+	EndLine   uint32 `json:"end_line"`
+}
+
+// GraphEdge is a resolved graph edge with confidence/resolution metadata.
+type GraphEdge struct {
+	Src        uint64  `json:"src"`
+	Dst        uint64  `json:"dst"`
+	Kind       string  `json:"kind"`
+	Resolution string  `json:"resolution"`
+	Confidence float32 `json:"confidence"`
+	Line       uint32  `json:"line"`
+	SrcName    string  `json:"src_name"`
+	DstName    string  `json:"dst_name"`
+	SrcPath    string  `json:"src_path"`
+	DstPath    string  `json:"dst_path"`
+}
+
+// GraphHop is one BFS hop from trace_path.
+type GraphHop struct {
+	Depth      uint32  `json:"depth"`
+	Src        uint64  `json:"src"`
+	Dst        uint64  `json:"dst"`
+	Kind       string  `json:"kind"`
+	Resolution string  `json:"resolution"`
+	Confidence float32 `json:"confidence"`
+	Line       uint32  `json:"line"`
+	SrcName    string  `json:"src_name"`
+	DstName    string  `json:"dst_name"`
+	SrcPath    string  `json:"src_path"`
+	DstPath    string  `json:"dst_path"`
+}
+
+// GraphStats is per-repo graph size from graph_stats.
+type GraphStats struct {
+	Repo       string          `json:"repo"`
+	Nodes      int             `json:"nodes"`
+	Refs       int             `json:"refs"`
+	Enabled    bool            `json:"enabled"`
+	Languages  []GraphLangStat `json:"languages,omitempty"`
+}
+
+// GraphLangStat is one language's FILE-node count from graph_stats.
+type GraphLangStat struct {
+	Lang  string `json:"lang"`
+	Files int    `json:"files"`
+}
+
+// GraphHub is a degree-ranked symbol from graph_hubs.
+type GraphHub struct {
+	ID        uint64 `json:"id"`
+	Repo      string `json:"repo"`
+	Kind      string `json:"kind"`
+	Name      string `json:"name"`
+	QName     string `json:"qname"`
+	Path      string `json:"path"`
+	StartLine uint32 `json:"start_line"`
+	EndLine   uint32 `json:"end_line"`
+	Degree    int    `json:"degree"`
+}
+
+// GraphSearchOptions configures a structural graph node search.
+type GraphSearchOptions struct {
+	Name       string
+	Repo       string
+	Kind       string
+	PathPrefix string
+	Limit      int
+}
+
+// TracePathOptions configures a BFS graph traversal.
+type TracePathOptions struct {
+	Name       string
+	Repo       string
+	PathPrefix string // disambiguate same-named symbols
+	Direction  string // in | out | both (default both)
+	EdgeKind   string // calls | imports | inherits | ... (default calls)
+	MaxDepth   int
+	Limit      int
+}
+
+// GraphRefsOptions configures graph-first reference lookup.
+type GraphRefsOptions struct {
+	Name       string
+	Repo       string
+	PathPrefix string // disambiguate same-named symbols
+	Limit      int
+}
+
+// GraphHubsOptions configures degree-hub lookup.
+type GraphHubsOptions struct {
+	Repo  string
+	Limit int
+}

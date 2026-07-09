@@ -39,6 +39,15 @@ daemon or agent coverage.
   `switch` with a `default:` `never` check for discriminated unions and enums.
 - **Imports:** `#include` at the top of C files; TypeScript imports at module top.
 - **Secrets:** never commit API keys, tokens, or model credentials.
+- **Performance changes need evidence.** Do not land alignment, cache-line,
+  packing, SoA/AoS, or allocator “optimizations” on intuition alone. For each
+  claimed win: (1) state a falsifiable claim, (2) capture a **baseline** on the
+  parent commit with the relevant microbench (e.g. `core/build/bench/bench_graph`)
+  or a focused harness, (3) apply the change, (4) re-run the same bench (≥3–5
+  trials; compare medians), (5) run the matching tests (`ctest` / `make check` /
+  layer tests). Keep the change only when the median improves outside noise and
+  tests stay green; otherwise revert and document the negative result. Prefer
+  existing benches under `core/bench/` over one-off scripts.
 
 ## Cursor Cloud specific instructions
 

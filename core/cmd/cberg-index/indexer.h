@@ -33,11 +33,13 @@ typedef struct cberg_repo {
     char *index_path;    /* per-root "<base>.<roothash>" (NULL in chunk-only mode) */
     char *chunks_path;   /* persisted chunk table (sidecar of index_path) */
     char *manifest_path; /* persisted merkle manifest (sidecar of index_path) */
+    char *graph_path;    /* persisted knowledge graph (sidecar of index_path) */
 
     cberg_chunk_table *table;
     cberg_manifest *manifest; /* change-detection baseline; NULL until bootstrap */
     cberg_watcher *watcher;
     cberg_index *index;
+    cberg_graph *graph; /* structural sidecar (ADR 0005); NULL when disabled */
 
     pthread_mutex_t mu;
     int ready;
@@ -49,6 +51,7 @@ struct cberg_engine {
     char *socket_path;
     int poll_ms;
     int vectors;
+    int graph_enabled; /* CBERG_GRAPH != 0 (default on); CBERG_GRAPH_MODE is fast-only for now */
     cberg_index_config index_cfg;
     char *vectordb_url;
     char *vectordb_api_key;
@@ -143,5 +146,80 @@ cberg_status cberg_engine_file_outline(cberg_engine *eng, const char *repo_key, 
 
 /* Map kind filter string to cberg_chunk_kind, or -1 when unset/unknown. */
 int cberg_index_parse_kind(const char *s);
+
+/* --- Knowledge graph IPC surface (ADR 0005) --- */
+
+typedef struct cberg_engine_graph_node {
+    uint64_t id;
+    const char *repo;
+    char kind[32];
+    char name[256];
+    char qname[512];
+    char path[512];
+    uint32_t start_line;
+    uint32_t end_line;
+} cberg_engine_graph_node;
+
+typedef struct cberg_engine_graph_edge {
+    uint64_t src;
+    uint64_t dst;
+    char kind[32];
+    char resolution[32];
+    float confidence;
+    uint32_t line;
+    char src_name[256];
+    char dst_name[256];
+    char src_path[512];
+    char dst_path[512];
+} cberg_engine_graph_edge;
+
+typedef struct cberg_engine_graph_hop {
+    cberg_engine_graph_edge edge;
+    uint32_t depth;
+} cberg_engine_graph_hop;
+
+typedef struct cberg_engine_graph_lang {
+    char lang[32];
+    size_t files;
+} cberg_engine_graph_lang;
+
+typedef struct cberg_engine_graph_stats {
+    const char *repo;
+    size_t nodes;
+    size_t refs;
+    int enabled;
+    cberg_engine_graph_lang languages[16];
+    size_t languages_len;
+} cberg_engine_graph_stats;
+
+typedef struct cberg_engine_graph_hub {
+    cberg_engine_graph_node node;
+    uint32_t degree;
+} cberg_engine_graph_hub;
+
+/* Structural symbol search over the graph. Returns CBERG_ERR_NOT_IMPLEMENTED
+ * ("graph disabled") when the graph kill-switch is on or the repo has no graph. */
+cberg_status cberg_engine_search_graph(cberg_engine *eng, const char *name, const char *repo_key, const char *kind, const char *path_prefix, size_t limit, cberg_engine_graph_node *out, size_t cap, size_t *found);
+
+/* BFS traversal from a named symbol (or start_id when non-zero). path_prefix
+ * disambiguates same-named symbols (NULL = any; component-aware). direction is
+ * "in", "out", or "both" (default both). edge_kind NULL/empty = CALLS. Returns
+ * CBERG_ERR_NOT_IMPLEMENTED when the graph is disabled. */
+cberg_status cberg_engine_trace_path(cberg_engine *eng, const char *name, uint64_t start_id, const char *repo_key, const char *path_prefix, const char *direction, const char *edge_kind, uint32_t max_depth, size_t limit, cberg_engine_graph_hop *out, size_t cap, size_t *found);
+
+/* Per-repo graph counts. repo_key NULL/empty → first ready repo with a graph. */
+cberg_status cberg_engine_get_graph_stats(cberg_engine *eng, const char *repo_key, cberg_engine_graph_stats *out);
+
+/* Incoming CALLS/INHERITS/IMPORTS edges for a symbol (graph-first find_references).
+ * path_prefix disambiguates same-named symbols (NULL = any; component-aware).
+ * REFERENCES is reserved and not extracted yet, so it is omitted from the mask. */
+cberg_status cberg_engine_graph_references(cberg_engine *eng, const char *name, const char *repo_key, const char *path_prefix, size_t limit, cberg_engine_graph_edge *out, size_t cap, size_t *found);
+
+/* Degree hubs: symbols ranked by incident CALLS (in+out). */
+cberg_status cberg_engine_graph_hubs(cberg_engine *eng, const char *repo_key, size_t limit, cberg_engine_graph_hub *out, size_t cap, size_t *found);
+
+/* Parse graph node/edge kind strings used on the IPC wire. */
+uint32_t cberg_index_parse_gnode_mask(const char *s);
+uint32_t cberg_index_parse_gedge_mask(const char *s);
 
 #endif

@@ -1,7 +1,8 @@
 # Codeberg
 
 Fast codebase indexing: parse source into semantic chunks, track changes incrementally,
-embed into vectors, and search by meaning.
+embed into vectors, search by meaning, and query a structural knowledge graph
+(callers, imports, blast radius) beside the chunk/vector index.
 
 ## Install
 
@@ -49,7 +50,7 @@ for the CLI-level walkthrough.
 
 | Path | Role |
 |------|------|
-| `core/` | C library — chunking, change tracking, watching, ONNX embedding, usearch vector index ([docs](core/docs/)) |
+| `core/` | C library — chunking, change tracking, watching, knowledge graph, ONNX embedding, usearch vector index ([docs](core/docs/)) |
 | `daemon/` | Go `codeberg-d` — HTTP, tools, git pull; supervises C `cberg-index` ([docs](daemon/README.md)) |
 | `agent/` | TypeScript ai-sdk agent — chat TUI + browser UI — over the daemon API ([docs](agent/README.md)) |
 | `launcher/` | Standalone `codeberg` CLI — boots the stack, resolves config, manages the repo registry ([docs](launcher/README.md)) |

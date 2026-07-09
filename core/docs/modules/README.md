@@ -7,6 +7,7 @@ module (public wrappers and `static` helpers).
 |--------|---------|---------------|
 | Common | `arena`, `config`, `hash`, `lang`, `pathutil`, `status`, `version` | [common.md](common.md) |
 | Chunk | `chunker`, `chunk_table` | [chunk.md](chunk.md) |
+| Graph | `graph_store`, `graph_extract`, `resolve_pkg` | [graph.md](graph.md) |
 | Manifest | `manifest` | [manifest.md](manifest.md) |
 | Watch | `watch` | [watch.md](watch.md) |
 | Embed | `embed`, `embed_onnx`, `tokenize` | [embed.md](embed.md) |

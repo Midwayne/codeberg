@@ -35,6 +35,25 @@ Project-wide overview. **libcodeberg** details live under [core/docs](../core/do
 |----------|-------------|
 | [agent/README.md](../agent/README.md) | CLI, TUI, web UI, providers, daemon client |
 | [agent/web-ui/README.md](../agent/web-ui/README.md) | React chat SPA development |
+| [agent-accuracy.md](agent-accuracy.md) | Retrieval quality & eval roadmap |
+
+## Knowledge graph (dual index)
+
+| Document | Description |
+|----------|-------------|
+| [core/docs/adr/0005-dual-index-graph.md](../core/docs/adr/0005-dual-index-graph.md) | ADR: chunks/vectors + knowledge graph sidecar |
+| [core/docs/modules/graph.md](../core/docs/modules/graph.md) | Implementation: schema, extract, resolve, IPC, tools, tests |
+| [core/docs/CBERG_INDEX.md](../core/docs/CBERG_INDEX.md) | Indexer env (`CBERG_GRAPH`), on-disk `.graph` layout |
+| [daemon/docs/ipc.md](../daemon/docs/ipc.md) | `search_graph`, `trace_path`, `graph_stats`, `graph_hubs`, `graph_refs` |
+| [daemon/docs/http.md](../daemon/docs/http.md) | Agent tools: `detect_changes`, `get_architecture`, `find_references` |
+| [agent-accuracy.md](agent-accuracy.md) | Agent answer quality (eval, hybrid retrieval, citations) |
+
+## Architecture decisions
+
+| Document | Description |
+|----------|-------------|
+| [core/docs/adr/](../core/docs/adr/) | All ADRs (0001–0005), including dual-index graph |
+| [agent-accuracy.md](agent-accuracy.md) | Agent answer quality (eval, hybrid retrieval, citations) |
 
 ## Core library
 

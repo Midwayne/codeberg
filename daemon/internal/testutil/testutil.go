@@ -65,6 +65,26 @@ func (f *FakeIndexer) FileOutline(context.Context, string, string) ([]indexctl.S
 	return f.OutlineHits, f.OutlineErr
 }
 
+func (f *FakeIndexer) SearchGraph(context.Context, indexctl.GraphSearchOptions) ([]indexctl.GraphNode, error) {
+	return nil, nil
+}
+
+func (f *FakeIndexer) TracePath(context.Context, indexctl.TracePathOptions) ([]indexctl.GraphHop, error) {
+	return nil, nil
+}
+
+func (f *FakeIndexer) GraphStats(context.Context, string) (indexctl.GraphStats, error) {
+	return indexctl.GraphStats{}, nil
+}
+
+func (f *FakeIndexer) GraphRefs(context.Context, indexctl.GraphRefsOptions) ([]indexctl.GraphEdge, error) {
+	return nil, nil
+}
+
+func (f *FakeIndexer) GraphHubs(context.Context, indexctl.GraphHubsOptions) ([]indexctl.GraphHub, error) {
+	return nil, nil
+}
+
 // StubIndexer is a ready no-op indexer for tests that do not exercise search.
 func StubIndexer() *FakeIndexer {
 	return (&FakeIndexer{}).WithStatus(indexctl.Status{Ready: true})

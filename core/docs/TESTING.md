@@ -21,6 +21,9 @@ make check                   # build + test (CI gate)
 | `test_config` | `test/` | `CODEBERG_ROOT` / `cberg_config_resolve_index_root` |
 | `test_chunker` | `test/` | Parse, symbols, window fallback |
 | `test_chunk_table` | `test/` | Sync add/modify/delete, save/load round-trip |
+| `test_graph` | `test/` | Graph apply / query / trace / confidence / persistence |
+| `test_graph_extract` | `test/` | Per-language graph captures (incl. Ruby require) |
+| `test_graph_resolve` | `test/` | Import rewrite safety (stdlib, Go module path, TS, Rust) |
 | `test_fingerprint` | `test/` | Order-independent set digest |
 | `test_manifest` | `test/` | Merkle build, diff, incremental rebuild |
 | `test_watch` | `test/` | Dirty path on file write |
@@ -31,7 +34,7 @@ make check                   # build + test (CI gate)
 | `test_embed` | `test/` | ONNX embedding pipeline |
 | `test_search` | `test/` | `cberg_search_query` end-to-end |
 | `test_cberg_walk` | `cmd/cberg-index/` | Walk policy, skip directories |
-| `test_cberg_engine` | `cmd/cberg-index/` | Multi-root engine bootstrap + step |
+| `test_cberg_engine` | `cmd/cberg-index/` | Multi-root engine bootstrap + step + graph IPC |
 
 ---
 

@@ -194,6 +194,7 @@ struct cberg_chunk_table {
     cberg_u64map *id_index;        // stable chunk id → index in entries
     uint64_t next_id;
     uint8_t fingerprint[CBERG_HASH_LEN];
+    cberg_arena *arena;            // owns entry + change-list key/path/symbol
     cberg_stored_chunk *added, *modified, *deleted;
     size_t added_len, modified_len, deleted_len;
 };
@@ -202,17 +203,13 @@ struct cberg_chunk_table {
 Key lookup uses `cberg_strmap` (see `common/strmap.c`). Id lookup uses `cberg_u64map`
 (see `common/u64map.c`) for O(1) `find_by_id` after vector search.
 
-### `rebuild_map(table)` — static
-
-Clears `key_index` and re-inserts all keys. **Returns** `cberg_status` on failure.
-
 ### `reserve_entries(table, want)` — static
 
 Geometric growth of `entries` array.
 
-### `store_chunk_copy(src, dst)` — static
+### `store_chunk_copy(arena, src, dst)` — static
 
-`strdup` key/path/symbol; copies kind, span, content_hash into heap-owned `dst`.
+`cberg_arena_strdup` key/path/symbol into `arena`; copies kind, span, content_hash.
 
 ### `recompute_fingerprint(table)` — static
 
@@ -244,11 +241,14 @@ Sorts deleted list by stable id ascending.
    - Not found → deep-copy, new id, push to `added`.
    - Found, hash changed → deep-copy from incoming, same id, push to `modified`.
    - Found, hash unchanged → deep-copy from existing, same id.
-3. For each live entry not seen in incoming → deep-copy owned snapshot to `deleted`.
-4. Change lists (`added`/`modified`/`deleted`) own their chunk strings independently of `entries`.
-4. Sort `deleted` by id when length > 1; recompute fingerprint on `next`.
-5. On success: free old entries/map/change lists, swap `next` into the live table.
-6. On failure: discard `next` only; **live table and prior change arrays are unchanged**.
+3. For each live entry not seen in incoming → arena-copy into `next` and push to `deleted`
+   (must not borrow the live arena: commit frees it).
+4. Change lists (`added`/`modified`/`deleted`) are shallow row snaps whose strings borrow
+   the table arena (valid until the next sync/free).
+5. Sort `deleted` by id when length > 1; recompute fingerprint on `next`.
+6. On success: free old entries/map/change lists/arena, swap `next` (including its arena)
+   into the live table.
+7. On failure: discard `next` only; **live table and prior change arrays are unchanged**.
 
 Incoming chunks must have non-NULL `key` and valid `content_hash` (typically from
 `cberg_chunk_list_hash_bodies`).

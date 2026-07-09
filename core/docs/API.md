@@ -528,3 +528,47 @@ policy as `cberg_search_query` via `config` (NULL → defaults).
 
 **Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_INTERNAL`,
 `CBERG_ERR_NOT_IMPLEMENTED`.
+
+---
+
+## Knowledge graph
+
+Structural sidecar beside chunks/vectors ([ADR 0005](adr/0005-dual-index-graph.md)).
+Full schema, confidence ladder, import resolution, and indexer wiring:
+[modules/graph.md](modules/graph.md).
+
+### Types
+
+- `cberg_graph_node_kind` — `FILE`, `FUNCTION`, `METHOD`, `CLASS`, `STRUCT`,
+  `INTERFACE`, `MODULE`
+- `cberg_graph_edge_kind` — bit flags: `DEFINES`, `CONTAINS`, `IMPORTS`, `CALLS`,
+  `INHERITS`, `REFERENCES` (`CBERG_GEDGE_ALL`)
+- `cberg_graph_resolution` — `textual`, `import`, `typed`
+- `cberg_graph_node` / `cberg_graph_edge` / `cberg_graph_hop` / `cberg_graph_hub`
+- Opaque: `cberg_graph`, `cberg_graph_fragment`
+
+### Lifecycle
+
+| Function | Role |
+|----------|------|
+| `cberg_graph_new` / `cberg_graph_free` | Allocate / free store |
+| `cberg_chunker_analyze` | One parse → chunk list + optional fragment |
+| `cberg_graph_apply` | Replace one file’s subgraph (resolve defs via callback) |
+| `cberg_graph_remove_file` | Drop a deleted file’s nodes and refs |
+| `cberg_graph_save` / `cberg_graph_load` | Atomic `.graph` sidecar |
+
+### Query
+
+| Function | Role |
+|----------|------|
+| `cberg_graph_counts` | Live node / ref counts |
+| `cberg_graph_node_by_id` | Lookup by id |
+| `cberg_graph_find_nodes` | Exact name + kind mask + path prefix |
+| `cberg_graph_edges_from` / `cberg_graph_edges_to` | Resolved edges (name refs linked at query time) |
+| `cberg_graph_trace` | BFS (`CBERG_GRAPH_IN` / `OUT`, kind mask, max depth) |
+| `cberg_graph_hubs` | Symbols ranked by full CALLS degree |
+| `cberg_graph_resolve_imports` | Manifest/path rewrite of safe IMPORTS → FILE |
+
+`cberg_graph_resolve_fn` maps chunk keys → stable ids (typically
+`cberg_chunk_table_find_by_key`). Results truncate at `cap`; pointers from
+`node_by_id` / `find_nodes` are valid until the next apply/remove/load.

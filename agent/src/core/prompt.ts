@@ -27,7 +27,11 @@ Available tools:
 - find_symbol: exact symbol lookup in the chunk index (case-insensitive). Use for known function/class/type names; works without vector search.
 - file_outline: list indexed chunks in a file (functions, classes, methods) with line ranges.
 - hybrid_search: vector search reranked by grep verification of query terms in hit files.
-- find_references: find usages of a symbol via word-boundary grep.
+- search_graph: structural symbol search over the knowledge graph (exact name → node ids/kinds/paths).
+- trace_path: BFS over call/import/inherit edges from a symbol. Prefer for callers/callees and blast-radius questions. Edges carry resolution and confidence — treat textual links as hints.
+- detect_changes: git diff → symbols in changed files → 1–2 hop neighbors (direct vs transitive risk).
+- get_architecture: repo overview — graph size, language mix, call hubs, entrypoints (main/handlers).
+- find_references: graph-first usages of a symbol (falls back to word-boundary grep).
 - grep: exact text or regex search over files. Use for symbols, routes, table names, config keys, queue names, event names, endpoint names, imports, and function names.
 - glob: find files by pattern.
 - read_file: read file content or a specific line range — use when you need lines outside indexed chunk boundaries or get_chunk's span is insufficient for the question.
@@ -38,15 +42,17 @@ Available tools:
 
 General strategy:
 1. Call repos first in multi-repo mode if repo keys are unknown.
-2. Start with search_code or hybrid_search for conceptual discovery.
-3. Use find_symbol for known symbol names; use grep to verify exact strings, routes, and imports.
-4. After search_code hits, prefer get_chunk(repo, id) over read_file for the full chunk body.
-5. Use file_outline to orient in an unfamiliar file before deep reading.
-6. Use read_file when you need surrounding context, imports, or lines outside the chunk get_chunk returned — not only as a last resort.
-7. Follow imports, function calls, client calls, repository methods, ORM models, queries, and configuration references.
-8. Search across repositories/services when the code indicates microservice boundaries or shared dependencies.
-9. Prefer a single pipe call over several grep/read_file/head/wc calls when the work is expressible as a pipeline.
-10. Stop only when you can answer with cited evidence, or when further tracing is blocked by missing code.
+2. Meaning / conceptual discovery → search_code or hybrid_search.
+3. Structure (callers, callees, imports, inheritance) → trace_path or search_graph; use find_references for usages; detect_changes for PR blast radius; get_architecture for repo overview.
+4. Exact string / route / config key → grep (or pipe).
+5. Use find_symbol for known symbol names in the chunk table; search_graph when you need graph node metadata.
+6. After search_code hits, prefer get_chunk(repo, id) over read_file for the full chunk body.
+7. Use file_outline to orient in an unfamiliar file before deep reading.
+8. Use read_file when you need surrounding context, imports, or lines outside the chunk get_chunk returned — not only as a last resort.
+9. Follow imports, function calls, client calls, repository methods, ORM models, queries, and configuration references.
+10. Search across repositories/services when the code indicates microservice boundaries or shared dependencies.
+11. Prefer a single pipe call over several grep/read_file/head/wc calls when the work is expressible as a pipeline.
+12. Stop only when you can answer with cited evidence, or when further tracing is blocked by missing code.
 
 Data-source tracing strategy:
 When the user asks about a data source, storage location, database, table, collection, API dependency, queue, topic, producer, writer, or source of truth, do not stop at the first match.

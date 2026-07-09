@@ -99,8 +99,26 @@ type fileOutlineArgs struct {
 }
 
 type findReferencesArgs struct {
-	Symbol   string `json:"symbol"`
-	Repo     string `json:"repo"`
-	PathGlob string `json:"path_glob"`
-	Limit    int    `json:"limit"`
+	Symbol     string `json:"symbol"`
+	Repo       string `json:"repo"`
+	PathPrefix string `json:"path_prefix"`
+	PathGlob   string `json:"path_glob"`
+	Limit      int    `json:"limit"`
+}
+
+type searchGraphArgs struct {
+	Name       string `json:"name"`
+	Repo       string `json:"repo"`
+	Kind       string `json:"kind"`
+	PathPrefix string `json:"path_prefix"`
+	Limit      int    `json:"limit"`
+}
+
+type tracePathArgs struct {
+	Name      string `json:"name"`
+	Repo      string `json:"repo"`
+	Direction string `json:"direction"`
+	EdgeKind  string `json:"edge_kind"`
+	MaxDepth  int    `json:"max_depth"`
+	Limit     int    `json:"limit"`
 }

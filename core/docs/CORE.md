@@ -1,7 +1,8 @@
 # libcodeberg
 
 `core/` builds **libcodeberg**, a C11 library for codebase indexing: semantic chunks,
-incremental change tracking, filesystem watching, ONNX embedding, and vector search.
+incremental change tracking, filesystem watching, ONNX embedding, vector search,
+and an optional knowledge-graph sidecar (dual index).
 
 **Detailed documentation:** [docs/README.md](docs/README.md) — public [API](docs/API.md),
 architecture [CORE.md](docs/CORE.md), and per-module [implementation guides](docs/modules/).
@@ -24,6 +25,7 @@ architecture [CORE.md](docs/CORE.md), and per-module [implementation guides](doc
 12. [Testing](#12-testing)
 13. [Threading and ownership](#13-threading-and-ownership)
 14. [Embedding and search](#14-embedding-and-search)
+15. [Knowledge graph](#15-knowledge-graph)
 
 For **per-function API detail** see [API.md](API.md). For **every internal function**
 see [modules/](modules/).
@@ -34,15 +36,17 @@ see [modules/](modules/).
 
 | Step | Component | Output |
 |------|-----------|--------|
-| Parse | `cberg_chunker` | Logical units of code (functions, methods, types, …) with stable keys |
+| Parse | `cberg_chunker` / `cberg_chunker_analyze` | Logical units of code (functions, methods, types, …) with stable keys; optional graph fragment |
 | Hash | `cberg_hash` | XXH3-128 digest of each chunk’s source bytes (zero-padded to 32 bytes) |
 | Diff | `cberg_chunk_table` | Added, modified, and deleted chunks since the last pass |
 | Summarize | `cberg_fingerprint` | Single digest over the whole chunk set |
 | Watch | `cberg_watcher` | Repo-relative paths that changed on disk (live tree) |
 | Manifest | `cberg_manifest` | Merkle tree over a repo's files; watch-free change detection at many-repo scale |
+| Structure | `cberg_graph_*` | Knowledge graph: defines / contains / imports / calls / inherits |
 
 The diff is the contract for downstream work: only **added** and **modified** chunks
-need embedding; **deleted** chunks need purging from the vector index (phase 2).
+need embedding; **deleted** chunks need purging from the vector index. The same
+dirty paths drive graph apply/remove so structure stays in sync with chunks.
 
 ---
 
@@ -507,19 +511,20 @@ core/
 ├── src/
 │   ├── common/           arena, hash, lang, pathutil, status, version
 │   ├── chunk/            chunker, chunk_table
+│   ├── graph/            knowledge graph store, extract, import resolve
 │   ├── manifest/         merkle manifest (content-derived change detection)
 │   ├── watch/            filesystem watcher
 │   ├── embed/            ONNX embedder + tokenizer
 │   └── search/           usearch index + semantic search
 ├── third_party/
 │   ├── tree-sitter/
-│   ├── grammars/         seven language parsers
+│   ├── grammars/         language parsers
 │   ├── usearch/
 │   ├── onnxruntime-extensions/
 │   └── xxhash.c
 ├── test/
 ├── cmd/cberg-index/      multi-root indexer binary (see CBERG_INDEX.md)
-├── bench/                microbenchmarks (strmap, u64map, chunk_table, fingerprint)
+├── bench/                microbenchmarks (strmap, u64map, chunk_table, fingerprint, graph)
 ├── CMakeLists.txt
 └── libcodeberg.pc.in
 ```
@@ -622,3 +627,23 @@ Implemented in the same `codeberg.h` ABI. **Full API:** [API.md](API.md#embeddin
 HNSW defaults: `connectivity=16`, `expansion_add=128`, `expansion_search=64`. `cberg_search_query` raises ef to `max(min_ef, k * oversample)` per query (defaults: min 64, oversample 4). ONNX embed batches up to 8 texts per inference when possible.
 
 Embedding runs only on `changes.added` and `changes.modified`; `changes.deleted` removes vectors by `id`.
+
+---
+
+## 15. Knowledge graph
+
+Dual index beside chunks/vectors ([ADR 0005](adr/0005-dual-index-graph.md)).
+**Module reference:** [modules/graph.md](modules/graph.md). **API:** [API.md](API.md#knowledge-graph).
+
+| Piece | Role |
+|-------|------|
+| `cberg_chunker_analyze` | One parse → chunks + optional `cberg_graph_fragment` |
+| `cberg_graph_apply` / `remove_file` | Incremental replace / delete of a file’s subgraph |
+| `cberg_graph_resolve_imports` | Safe IMPORTS → FILE rewrite after bootstrap |
+| `cberg_graph_find_nodes` / `edges_*` / `trace` / `hubs` | Structural query surface |
+| `.graph` sidecar | Atomic dump next to `.chunks` / `.manifest` |
+
+Symbol nodes reuse stable chunk ids. Call/inherit edges resolve by name at query
+time (confidence ladder in the module doc). Daemon IPC and tools are documented
+in [daemon/docs/ipc.md](../../daemon/docs/ipc.md) and
+[daemon/docs/http.md](../../daemon/docs/http.md).

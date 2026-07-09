@@ -67,6 +67,10 @@ int main(void) {
     CHECK(ch.deleted_len == 2, "deleted all");
     CHECK(cberg_chunk_table_len(table) == 0, "empty table");
     CHECK(cberg_chunk_table_find_by_id(table, id0) == NULL, "find_by_id of deleted id is NULL");
+    /* Deleted snaps must remain readable after commit (strings live in the new arena). */
+    CHECK(ch.deleted[0].chunk.key != NULL && ch.deleted[0].chunk.path != NULL, "deleted[0] strings live");
+    CHECK(ch.deleted[1].chunk.key != NULL && ch.deleted[1].chunk.path != NULL, "deleted[1] strings live");
+    CHECK(strcmp(ch.deleted[0].chunk.path, "a.go") == 0, "deleted path readable");
 
     cberg_chunk_table *dup_table = cberg_chunk_table_new();
     CHECK(dup_table != NULL, "dup table new");
@@ -75,10 +79,27 @@ int main(void) {
     CHECK(cberg_chunk_table_sync(dup_table, twice, 2, &dup_ch) == CBERG_OK, "dup incoming");
     CHECK(cberg_chunk_table_len(dup_table) == 1, "duplicate key not inserted twice");
     CHECK(dup_ch.added_len == 1, "one added in duplicate new batch");
-    CHECK(dup_ch.added[0].chunk.content_hash[0] == 1, "added snapshot not mutated");
-    CHECK(dup_ch.modified_len == 1, "duplicate batch updates once");
-    CHECK(dup_ch.modified[0].chunk.content_hash[0] == 9, "modified has final hash");
+    CHECK(dup_ch.added[0].chunk.content_hash[0] == 9, "added snapshot is final hash (later wins)");
+    CHECK(dup_ch.modified_len == 0, "duplicate within new batch does not also emit modified");
     cberg_chunk_table_free(dup_table);
+
+    /* Failed sync must leave the live table and prior change arrays intact. */
+    {
+        cberg_chunk_table *live = cberg_chunk_table_new();
+        cberg_changes lch = {0};
+        cberg_chunk seed = make_chunk("fail::1::X#0", 1);
+        CHECK(cberg_chunk_table_sync(live, &seed, 1, &lch) == CBERG_OK, "seed before fail");
+        CHECK(lch.added_len == 1, "seed added");
+        const char *prior_key = lch.added[0].chunk.key;
+        CHECK(prior_key != NULL && strcmp(prior_key, "fail::1::X#0") == 0, "prior change key");
+        cberg_chunk bad = make_chunk(NULL, 2); /* NULL key → INVALID_ARGUMENT */
+        CHECK(cberg_chunk_table_sync(live, &bad, 1, &lch) == CBERG_ERR_INVALID_ARGUMENT, "fail sync");
+        CHECK(cberg_chunk_table_len(live) == 1, "live len unchanged after fail");
+        CHECK(cberg_chunk_table_find_by_key(live, "fail::1::X#0") != NULL, "live key intact");
+        /* Prior change arrays unchanged (out_changes not rewritten on failure). */
+        CHECK(lch.added_len == 1 && lch.added[0].chunk.key == prior_key, "prior changes untouched");
+        cberg_chunk_table_free(live);
+    }
 
     /* --- persistence: save/load round-trip keeps ids stable, so a restarted
      *     indexer re-embeds nothing for unchanged chunks. --- */
