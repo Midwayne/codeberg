@@ -35,6 +35,15 @@ Project-wide overview. **libcodeberg** details live under [core/docs](../core/do
 |----------|-------------|
 | [agent/README.md](../agent/README.md) | CLI, TUI, web UI, providers, daemon client |
 | [agent/web-ui/README.md](../agent/web-ui/README.md) | React chat SPA development |
+| [agent-accuracy.md](agent-accuracy.md) | Retrieval quality & eval roadmap |
+
+## Roadmaps
+
+| Document | Description |
+|----------|-------------|
+| [full-intelligence-backend.md](full-intelligence-backend.md) | Dual index: knowledge graph + vectors — plan, phases, what to borrow from codebase-memory-mcp |
+| [core/docs/adr/0005-dual-index-graph.md](../core/docs/adr/0005-dual-index-graph.md) | ADR: chunks/vectors + graph sidecar |
+| [agent-accuracy.md](agent-accuracy.md) | Agent answer quality (eval, hybrid retrieval, citations) |
 
 ## Core library
 
