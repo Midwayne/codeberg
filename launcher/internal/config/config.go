@@ -359,16 +359,16 @@ func (c *Config) ValidateForRun() error {
 		return fmt.Errorf("%s is set — only the root(s) named there are indexed; unset %s or drop --all / %s",
 			KeyRoot, KeyRoot, KeyReposSel)
 	}
-	if c.All || len(c.Repos) > 0 {
-		// --all / --repos take their roots from the registry (resolved in cmdRun).
-	} else if c.Root == "" {
-		missing = append(missing, KeyRoot+" (the repository to index)")
-	} else if paths := RootPaths(c.Root); len(paths) == 0 {
-		return fmt.Errorf("%s is empty or invalid", KeyRoot)
-	} else {
-		for _, path := range paths {
-			if fi, err := os.Stat(path); err != nil || !fi.IsDir() {
-				return fmt.Errorf("%s is not a directory: %s", KeyRoot, path)
+	if !c.All && len(c.Repos) == 0 {
+		if c.Root == "" {
+			missing = append(missing, KeyRoot+" (the repository to index)")
+		} else if paths := RootPaths(c.Root); len(paths) == 0 {
+			return fmt.Errorf("%s is empty or invalid", KeyRoot)
+		} else {
+			for _, path := range paths {
+				if fi, err := os.Stat(path); err != nil || !fi.IsDir() {
+					return fmt.Errorf("%s is not a directory: %s", KeyRoot, path)
+				}
 			}
 		}
 	}
@@ -391,9 +391,6 @@ func (c *Config) DaemonEnv() map[string]string {
 		KeyHTTPPort: c.HTTPPort,
 		KeySocket:   c.Socket,
 	}
-	// The registry-keyed record set is what the daemon and C engine prefer; the
-	// single CODEBERG_ROOT stays alongside it as the compat fallback (and is
-	// omitted under --all, where no one root is "the" root).
 	if len(c.Roots) > 0 {
 		records := make([]string, 0, len(c.Roots))
 		for _, r := range c.Roots {
@@ -401,8 +398,8 @@ func (c *Config) DaemonEnv() map[string]string {
 		}
 		e[KeyRoots] = strings.Join(records, "\n")
 	}
-	// Single-path CODEBERG_ROOT stays alongside CODEBERG_ROOTS as a compat
-	// fallback. Multi-path values are encoded only in CODEBERG_ROOTS.
+	// Compat: single-path CODEBERG_ROOT alongside CODEBERG_ROOTS; omit for
+	// --all/--repos and multi-path lists (those use CODEBERG_ROOTS only).
 	if !c.All && len(c.Repos) == 0 {
 		if paths := RootPaths(c.Root); len(paths) == 1 {
 			e[KeyRoot] = paths[0]

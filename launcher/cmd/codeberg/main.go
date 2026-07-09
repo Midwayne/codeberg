@@ -172,17 +172,11 @@ func cmdRun(args []string) error {
 			return err
 		}
 		c.Roots = roots
-	case c.NoIndex:
-		// One-off roots from CODEBERG_ROOT (single or comma-separated).
-		roots, err := registry.Select(c.Home, config.RootPaths(c.Root), false)
-		if err != nil {
-			return err
-		}
-		c.Roots = roots
 	default:
 		paths := config.RootPaths(c.Root)
-		if len(paths) == 1 {
-			// Remember this root so `codeberg --all` can search every repo ever indexed.
+		// Soft-register a single root so --all can find it later; multi-path and
+		// --no-index go through Select (register=false leaves no registry trace).
+		if !c.NoIndex && len(paths) == 1 {
 			e, err := registry.Upsert(c.Home, paths[0])
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "warning: could not update the repo registry: %v\n", err)
@@ -190,7 +184,7 @@ func cmdRun(args []string) error {
 			}
 			c.Roots = []registry.Entry{e}
 		} else {
-			roots, err := registry.Select(c.Home, paths, true)
+			roots, err := registry.Select(c.Home, paths, !c.NoIndex)
 			if err != nil {
 				return err
 			}
@@ -558,7 +552,7 @@ CONFIGURE (changeable any time after install)
   Changes take effect the next time you run codeberg (it restarts the daemon
   each session, so a new root or model is picked up automatically).
 
-  COMMON TASKS
+COMMON TASKS
   First run:        codeberg config set CODEBERG_ROOT=~/proj \
                       CODEBERG_MODEL=anthropic:claude-haiku-4-5 \
                       ANTHROPIC_API_KEY=sk-ant-… ; codeberg

@@ -187,33 +187,25 @@ func loadRoots() ([]domain.Repo, string, error) {
 	if len(paths) == 0 {
 		return nil, "", invalid(EnvRoot)
 	}
-	if len(paths) > 1 {
-		var roots []domain.Repo
-		taken := map[string]bool{}
 
-		for _, path := range paths {
-			resolved, err := resolveRoot(path)
-			if err != nil {
-				return nil, "", invalid(EnvRoot)
-			}
-			if fi, err := os.Stat(resolved); err != nil || !fi.IsDir() {
-				return nil, "", invalid(EnvRoot)
-			}
-
-			key := deriveRepoKey(resolved, taken)
-			taken[key] = true
-			roots = append(roots, domain.Repo{Key: key, Root: resolved})
+	var roots []domain.Repo
+	taken := map[string]bool{}
+	for _, path := range paths {
+		resolved, err := resolveRoot(path)
+		if err != nil {
+			return nil, "", invalid(EnvRoot)
 		}
-		return roots, "", nil
+		if fi, err := os.Stat(resolved); err != nil || !fi.IsDir() {
+			return nil, "", invalid(EnvRoot)
+		}
+		key := deriveRepoKey(resolved, taken)
+		taken[key] = true
+		roots = append(roots, domain.Repo{Key: key, Root: resolved})
 	}
-
-	resolved, err := resolveRoot(paths[0])
-	if err != nil {
-		return nil, "", invalid(EnvRoot)
+	if len(roots) == 1 {
+		return roots, roots[0].Key, nil
 	}
-
-	key := filepath.Base(resolved)
-	return []domain.Repo{{Key: key, Root: resolved}}, key, nil
+	return roots, "", nil
 }
 
 func resolveRoot(root string) (string, error) {

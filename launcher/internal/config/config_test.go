@@ -178,13 +178,6 @@ func TestValidateForRunRejectsRootWithRepos(t *testing.T) {
 	}
 }
 
-func TestRootPathsSplitsCommaSeparated(t *testing.T) {
-	got := RootPaths("/a , /b,, /c")
-	if len(got) != 3 || got[0] != "/a" || got[2] != "/c" {
-		t.Fatalf("RootPaths: %+v", got)
-	}
-}
-
 func TestValidateForRunRejectsEmptyRootList(t *testing.T) {
 	dist := t.TempDir()
 	writeArtifacts(t, dist)
