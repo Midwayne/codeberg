@@ -1,6 +1,6 @@
 # 5. Dual index: chunks/vectors + knowledge graph
 
-Status: proposed
+Status: accepted
 
 ## Context
 

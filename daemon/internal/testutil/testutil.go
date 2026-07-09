@@ -35,3 +35,19 @@ func (StubIndexer) FindSymbol(context.Context, indexctl.SymbolOptions) ([]indexc
 func (StubIndexer) FileOutline(context.Context, string, string) ([]indexctl.SearchResult, error) {
 	return nil, nil
 }
+
+func (StubIndexer) SearchGraph(context.Context, indexctl.GraphSearchOptions) ([]indexctl.GraphNode, error) {
+	return nil, nil
+}
+
+func (StubIndexer) TracePath(context.Context, indexctl.TracePathOptions) ([]indexctl.GraphHop, error) {
+	return nil, nil
+}
+
+func (StubIndexer) GraphStats(context.Context, string) (indexctl.GraphStats, error) {
+	return indexctl.GraphStats{}, nil
+}
+
+func (StubIndexer) GraphRefs(context.Context, indexctl.GraphRefsOptions) ([]indexctl.GraphEdge, error) {
+	return nil, nil
+}

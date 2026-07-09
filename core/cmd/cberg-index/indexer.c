@@ -924,11 +924,14 @@ static cberg_status engine_add_repo(cberg_engine *eng, const char *key, const ch
         return st;
     }
 
-    if (eng->vectors) {
-        /* CBERG_INDEX_PATH is a base path; the actual index and its chunk-table /
-         * manifest sidecars are per-directory ("<base>.<roothash>[.chunks|.manifest]").
-         * Pointing at a different tree never reuses another tree's chunks, and
-         * reverting to a prior tree finds its embeddings still cached. */
+    /* CBERG_INDEX_PATH is a base path; the actual index and its chunk-table /
+     * manifest / graph sidecars are per-directory
+     * ("<base>.<roothash>[.chunks|.manifest|.graph]"). Pointing at a different
+     * tree never reuses another tree's chunks, and reverting to a prior tree
+     * finds its embeddings (and graph) still cached. Sidecars are written even
+     * in chunk-only mode when the base path is set, so warm restart can reload
+     * the graph without ONNX. */
+    if (eng->index_base != NULL) {
         char tag[18]; /* ".<16 hex>" */
         tag[0] = '.';
         root_suffix(r->root, tag + 1);
@@ -950,7 +953,9 @@ static cberg_status engine_add_repo(cberg_engine *eng, const char *key, const ch
                 return CBERG_ERR_OUT_OF_MEMORY;
             }
         }
+    }
 
+    if (eng->vectors) {
         size_t dim = cberg_embedder_dim(eng->embedder);
         st = cberg_index_open(r->index_path, dim, &eng->index_cfg, &r->index);
         if (st == CBERG_ERR_CORRUPT) {
@@ -969,6 +974,10 @@ static cberg_status engine_add_repo(cberg_engine *eng, const char *key, const ch
                 return CBERG_ERR_IO;
             }
             if (remove(r->manifest_path) != 0 && errno != ENOENT) {
+                repo_close(r);
+                return CBERG_ERR_IO;
+            }
+            if (r->graph_path != NULL && remove(r->graph_path) != 0 && errno != ENOENT) {
                 repo_close(r);
                 return CBERG_ERR_IO;
             }
@@ -1051,11 +1060,19 @@ cberg_status cberg_engine_open(cberg_engine *eng) {
 
     const char *model = getenv("CBERG_MODEL");
     const char *index_path = getenv("CBERG_INDEX_PATH");
-    if (model != NULL && model[0] != '\0' && index_path != NULL && index_path[0] != '\0') {
+    /* Sidecar base path is independent of vectors: chunk-only mode can still
+     * persist .chunks / .manifest / .graph when CBERG_INDEX_PATH is set. */
+    if (index_path != NULL && index_path[0] != '\0') {
+        eng->index_base = strdup(index_path);
+        if (eng->index_base == NULL) {
+            cberg_engine_close(eng);
+            return CBERG_ERR_OUT_OF_MEMORY;
+        }
+    }
+    if (model != NULL && model[0] != '\0' && eng->index_base != NULL) {
         eng->vectors = 1;
         eng->model_path = strdup(model);
-        eng->index_base = strdup(index_path);
-        if (eng->model_path == NULL || eng->index_base == NULL) {
+        if (eng->model_path == NULL) {
             cberg_engine_close(eng);
             return CBERG_ERR_OUT_OF_MEMORY;
         }
@@ -2139,4 +2156,368 @@ cberg_status cberg_engine_file_outline(cberg_engine *eng, const char *repo_key, 
         return CBERG_ERR_NOT_FOUND;
     }
     return repo_file_outline(r, path, hits, cap, found);
+}
+
+static const char *gnode_kind_str(cberg_graph_node_kind k) {
+    switch (k) {
+    case CBERG_GNODE_FILE:
+        return "file";
+    case CBERG_GNODE_FUNCTION:
+        return "function";
+    case CBERG_GNODE_METHOD:
+        return "method";
+    case CBERG_GNODE_CLASS:
+        return "class";
+    case CBERG_GNODE_STRUCT:
+        return "struct";
+    case CBERG_GNODE_INTERFACE:
+        return "interface";
+    case CBERG_GNODE_MODULE:
+        return "module";
+    default:
+        return "unknown";
+    }
+}
+
+static const char *gedge_kind_str(cberg_graph_edge_kind k) {
+    switch (k) {
+    case CBERG_GEDGE_DEFINES:
+        return "defines";
+    case CBERG_GEDGE_CONTAINS:
+        return "contains";
+    case CBERG_GEDGE_IMPORTS:
+        return "imports";
+    case CBERG_GEDGE_CALLS:
+        return "calls";
+    case CBERG_GEDGE_INHERITS:
+        return "inherits";
+    case CBERG_GEDGE_REFERENCES:
+        return "references";
+    default:
+        return "unknown";
+    }
+}
+
+static const char *gres_str(cberg_graph_resolution r) {
+    switch (r) {
+    case CBERG_GRES_TEXTUAL:
+        return "textual";
+    case CBERG_GRES_IMPORT:
+        return "import";
+    case CBERG_GRES_TYPED:
+        return "typed";
+    default:
+        return "unknown";
+    }
+}
+
+uint32_t cberg_index_parse_gnode_mask(const char *s) {
+    if (s == NULL || s[0] == '\0') {
+        return 0;
+    }
+    if (strcasecmp(s, "file") == 0) {
+        return CBERG_GNODE_MASK(CBERG_GNODE_FILE);
+    }
+    if (strcasecmp(s, "function") == 0) {
+        return CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION);
+    }
+    if (strcasecmp(s, "method") == 0) {
+        return CBERG_GNODE_MASK(CBERG_GNODE_METHOD);
+    }
+    if (strcasecmp(s, "class") == 0) {
+        return CBERG_GNODE_MASK(CBERG_GNODE_CLASS);
+    }
+    if (strcasecmp(s, "struct") == 0) {
+        return CBERG_GNODE_MASK(CBERG_GNODE_STRUCT);
+    }
+    if (strcasecmp(s, "interface") == 0) {
+        return CBERG_GNODE_MASK(CBERG_GNODE_INTERFACE);
+    }
+    if (strcasecmp(s, "module") == 0) {
+        return CBERG_GNODE_MASK(CBERG_GNODE_MODULE);
+    }
+    if (strcasecmp(s, "symbol") == 0) {
+        return CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION) | CBERG_GNODE_MASK(CBERG_GNODE_METHOD) | CBERG_GNODE_MASK(CBERG_GNODE_CLASS) |
+               CBERG_GNODE_MASK(CBERG_GNODE_STRUCT) | CBERG_GNODE_MASK(CBERG_GNODE_INTERFACE);
+    }
+    return 0;
+}
+
+uint32_t cberg_index_parse_gedge_mask(const char *s) {
+    if (s == NULL || s[0] == '\0') {
+        return 0;
+    }
+    if (strcasecmp(s, "defines") == 0) {
+        return CBERG_GEDGE_DEFINES;
+    }
+    if (strcasecmp(s, "contains") == 0) {
+        return CBERG_GEDGE_CONTAINS;
+    }
+    if (strcasecmp(s, "imports") == 0) {
+        return CBERG_GEDGE_IMPORTS;
+    }
+    if (strcasecmp(s, "calls") == 0) {
+        return CBERG_GEDGE_CALLS;
+    }
+    if (strcasecmp(s, "inherits") == 0) {
+        return CBERG_GEDGE_INHERITS;
+    }
+    if (strcasecmp(s, "references") == 0) {
+        return CBERG_GEDGE_REFERENCES;
+    }
+    if (strcasecmp(s, "all") == 0) {
+        return CBERG_GEDGE_ALL;
+    }
+    return 0;
+}
+
+static void copy_cstr(char *dst, size_t cap, const char *src) {
+    if (cap == 0) {
+        return;
+    }
+    if (src == NULL) {
+        dst[0] = '\0';
+        return;
+    }
+    snprintf(dst, cap, "%s", src);
+}
+
+static void fill_engine_gnode(cberg_engine_graph_node *out, const char *repo, const cberg_graph_node *n) {
+    out->id = n->id;
+    out->repo = repo;
+    copy_cstr(out->kind, sizeof(out->kind), gnode_kind_str(n->kind));
+    copy_cstr(out->name, sizeof(out->name), n->name);
+    copy_cstr(out->qname, sizeof(out->qname), n->qname);
+    copy_cstr(out->path, sizeof(out->path), n->path);
+    out->start_line = n->span.start_line;
+    out->end_line = n->span.end_line;
+}
+
+static void fill_engine_gedge(cberg_engine_graph_edge *out, const cberg_graph *g, const cberg_graph_edge *e) {
+    out->src = e->src;
+    out->dst = e->dst;
+    copy_cstr(out->kind, sizeof(out->kind), gedge_kind_str(e->kind));
+    copy_cstr(out->resolution, sizeof(out->resolution), gres_str(e->resolution));
+    out->confidence = e->confidence;
+    out->line = e->line;
+    const cberg_graph_node *src = cberg_graph_node_by_id(g, e->src);
+    const cberg_graph_node *dst = cberg_graph_node_by_id(g, e->dst);
+    copy_cstr(out->src_name, sizeof(out->src_name), src != NULL ? src->name : NULL);
+    copy_cstr(out->dst_name, sizeof(out->dst_name), dst != NULL ? dst->name : NULL);
+    copy_cstr(out->src_path, sizeof(out->src_path), src != NULL ? src->path : NULL);
+    copy_cstr(out->dst_path, sizeof(out->dst_path), dst != NULL ? dst->path : NULL);
+}
+
+/* Pick a ready repo for graph queries. Explicit key must exist; otherwise the
+ * first ready repo with a live graph wins (single-repo default). */
+static cberg_status graph_repo(cberg_engine *eng, const char *repo_key, cberg_repo **out) {
+    *out = NULL;
+    if (!eng->graph_enabled) {
+        return CBERG_ERR_NOT_IMPLEMENTED;
+    }
+    if (repo_key != NULL && repo_key[0] != '\0') {
+        cberg_repo *r = find_repo(eng, repo_key);
+        if (r == NULL) {
+            return CBERG_ERR_NOT_FOUND;
+        }
+        if (r->graph == NULL) {
+            return CBERG_ERR_NOT_IMPLEMENTED;
+        }
+        *out = r;
+        return CBERG_OK;
+    }
+    for (size_t i = 0; i < eng->repos_len; i++) {
+        cberg_repo *r = eng->repos[i];
+        if (cberg_repo_ready(r) && r->graph != NULL) {
+            *out = r;
+            return CBERG_OK;
+        }
+    }
+    return eng->graph_enabled ? CBERG_ERR_NOT_FOUND : CBERG_ERR_NOT_IMPLEMENTED;
+}
+
+cberg_status cberg_engine_search_graph(cberg_engine *eng, const char *name, const char *repo_key, const char *kind, const char *path_prefix, size_t limit, cberg_engine_graph_node *out, size_t cap, size_t *found) {
+    if (eng == NULL || out == NULL || found == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    *found = 0;
+    cberg_repo *r = NULL;
+    cberg_status st = graph_repo(eng, repo_key, &r);
+    if (st != CBERG_OK) {
+        return st;
+    }
+    if (limit == 0) {
+        limit = 20;
+    }
+    if (limit > cap) {
+        limit = cap;
+    }
+    uint32_t kind_mask = cberg_index_parse_gnode_mask(kind);
+    const char *name_filter = (name != NULL && name[0] != '\0') ? name : NULL;
+    const char *path_filter = (path_prefix != NULL && path_prefix[0] != '\0') ? path_prefix : NULL;
+
+    const cberg_graph_node *nodes[64];
+    size_t n = 0;
+    size_t want = limit > 64 ? 64 : limit;
+    pthread_mutex_lock(&r->mu);
+    if (!r->ready || r->graph == NULL) {
+        pthread_mutex_unlock(&r->mu);
+        return CBERG_ERR_NOT_FOUND;
+    }
+    st = cberg_graph_find_nodes(r->graph, name_filter, kind_mask, path_filter, nodes, want, &n);
+    if (st == CBERG_OK) {
+        for (size_t i = 0; i < n; i++) {
+            fill_engine_gnode(&out[i], r->key, nodes[i]);
+        }
+        *found = n;
+    }
+    pthread_mutex_unlock(&r->mu);
+    return st;
+}
+
+cberg_status cberg_engine_trace_path(cberg_engine *eng, const char *name, uint64_t start_id, const char *repo_key, const char *direction, const char *edge_kind, uint32_t max_depth, size_t limit, cberg_engine_graph_hop *out, size_t cap, size_t *found) {
+    if (eng == NULL || out == NULL || found == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    *found = 0;
+    cberg_repo *r = NULL;
+    cberg_status st = graph_repo(eng, repo_key, &r);
+    if (st != CBERG_OK) {
+        return st;
+    }
+    if (limit == 0) {
+        limit = 64;
+    }
+    if (limit > cap) {
+        limit = cap;
+    }
+    if (max_depth == 0) {
+        max_depth = 2;
+    }
+
+    uint32_t dirs = CBERG_GRAPH_IN;
+    if (direction != NULL && direction[0] != '\0') {
+        if (strcasecmp(direction, "out") == 0) {
+            dirs = CBERG_GRAPH_OUT;
+        } else if (strcasecmp(direction, "both") == 0) {
+            dirs = CBERG_GRAPH_IN | CBERG_GRAPH_OUT;
+        } else if (strcasecmp(direction, "in") != 0) {
+            return CBERG_ERR_INVALID_ARGUMENT;
+        }
+    }
+
+    uint32_t kind_mask = cberg_index_parse_gedge_mask(edge_kind);
+    if (kind_mask == 0) {
+        kind_mask = CBERG_GEDGE_CALLS;
+    }
+
+    pthread_mutex_lock(&r->mu);
+    if (!r->ready || r->graph == NULL) {
+        pthread_mutex_unlock(&r->mu);
+        return CBERG_ERR_NOT_FOUND;
+    }
+
+    uint64_t id = start_id;
+    if (id == 0) {
+        if (name == NULL || name[0] == '\0') {
+            pthread_mutex_unlock(&r->mu);
+            return CBERG_ERR_INVALID_ARGUMENT;
+        }
+        const cberg_graph_node *nodes[8];
+        size_t n = 0;
+        st = cberg_graph_find_nodes(r->graph, name, 0, NULL, nodes, 8, &n);
+        if (st != CBERG_OK || n == 0) {
+            pthread_mutex_unlock(&r->mu);
+            return CBERG_ERR_NOT_FOUND;
+        }
+        id = nodes[0]->id;
+    }
+
+    cberg_graph_hop hops[256];
+    size_t hop_n = 0;
+    size_t want = limit > 256 ? 256 : limit;
+    st = cberg_graph_trace(r->graph, id, dirs, kind_mask, max_depth, hops, want, &hop_n);
+    if (st == CBERG_OK) {
+        for (size_t i = 0; i < hop_n; i++) {
+            fill_engine_gedge(&out[i].edge, r->graph, &hops[i].edge);
+            out[i].depth = hops[i].depth;
+        }
+        *found = hop_n;
+    }
+    pthread_mutex_unlock(&r->mu);
+    return st;
+}
+
+cberg_status cberg_engine_get_graph_stats(cberg_engine *eng, const char *repo_key, cberg_engine_graph_stats *out) {
+    if (eng == NULL || out == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    memset(out, 0, sizeof(*out));
+    out->enabled = eng->graph_enabled;
+    if (!eng->graph_enabled) {
+        return CBERG_ERR_NOT_IMPLEMENTED;
+    }
+    cberg_repo *r = NULL;
+    cberg_status st = graph_repo(eng, repo_key, &r);
+    if (st != CBERG_OK) {
+        return st;
+    }
+    pthread_mutex_lock(&r->mu);
+    out->repo = r->key;
+    out->enabled = r->graph != NULL;
+    if (r->graph != NULL) {
+        cberg_graph_counts(r->graph, &out->nodes, &out->refs);
+    }
+    pthread_mutex_unlock(&r->mu);
+    return CBERG_OK;
+}
+
+cberg_status cberg_engine_graph_references(cberg_engine *eng, const char *name, const char *repo_key, size_t limit, cberg_engine_graph_edge *out, size_t cap, size_t *found) {
+    if (eng == NULL || name == NULL || name[0] == '\0' || out == NULL || found == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    *found = 0;
+    cberg_repo *r = NULL;
+    cberg_status st = graph_repo(eng, repo_key, &r);
+    if (st != CBERG_OK) {
+        return st;
+    }
+    if (limit == 0) {
+        limit = 50;
+    }
+    if (limit > cap) {
+        limit = cap;
+    }
+
+    pthread_mutex_lock(&r->mu);
+    if (!r->ready || r->graph == NULL) {
+        pthread_mutex_unlock(&r->mu);
+        return CBERG_ERR_NOT_FOUND;
+    }
+
+    const cberg_graph_node *nodes[16];
+    size_t n_nodes = 0;
+    st = cberg_graph_find_nodes(r->graph, name, 0, NULL, nodes, 16, &n_nodes);
+    if (st != CBERG_OK || n_nodes == 0) {
+        pthread_mutex_unlock(&r->mu);
+        return CBERG_ERR_NOT_FOUND;
+    }
+
+    uint32_t kind_mask = CBERG_GEDGE_CALLS | CBERG_GEDGE_REFERENCES | CBERG_GEDGE_INHERITS | CBERG_GEDGE_IMPORTS;
+    size_t written = 0;
+    for (size_t i = 0; i < n_nodes && written < limit; i++) {
+        cberg_graph_edge edges[64];
+        size_t n_edges = 0;
+        st = cberg_graph_edges_to(r->graph, nodes[i]->id, kind_mask, edges, 64, &n_edges);
+        if (st != CBERG_OK) {
+            continue;
+        }
+        for (size_t e = 0; e < n_edges && written < limit; e++) {
+            fill_engine_gedge(&out[written], r->graph, &edges[e]);
+            written++;
+        }
+    }
+    *found = written;
+    pthread_mutex_unlock(&r->mu);
+    return CBERG_OK;
 }

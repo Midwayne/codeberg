@@ -42,3 +42,26 @@ func TestEncodeOutline(t *testing.T) {
 		t.Fatalf("encodeOutline: %q", got)
 	}
 }
+
+func TestEncodeSearchGraph(t *testing.T) {
+	line := encodeSearchGraph(GraphSearchOptions{Name: "helper", Repo: "main", Kind: "function", Limit: 10})
+	if line != "search_graph\thelper\tmain\tfunction\t\t10" {
+		t.Fatalf("encodeSearchGraph: %q", line)
+	}
+}
+
+func TestEncodeTracePath(t *testing.T) {
+	line := encodeTracePath(TracePathOptions{Name: "helper", Direction: "in", EdgeKind: "calls", MaxDepth: 2, Limit: 32})
+	if line != "trace_path\thelper\t\tin\tcalls\t2\t32" {
+		t.Fatalf("encodeTracePath: %q", line)
+	}
+}
+
+func TestEncodeGraphStats(t *testing.T) {
+	if got := encodeGraphStats(""); got != "graph_stats" {
+		t.Fatalf("encodeGraphStats empty: %q", got)
+	}
+	if got := encodeGraphStats("alpha"); got != "graph_stats\talpha" {
+		t.Fatalf("encodeGraphStats repo: %q", got)
+	}
+}

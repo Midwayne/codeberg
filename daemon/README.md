@@ -63,7 +63,7 @@ Registered at `GET /tools`, invoked via `POST /tools/call`. Full schemas and lim
 
 ### Index and search
 
-`search`, `get_chunk`, `find_symbol`, `file_outline`, `hybrid_search`, `find_references`
+`search`, `get_chunk`, `find_symbol`, `file_outline`, `hybrid_search`, `search_graph`, `trace_path`, `find_references`
 
 `find_symbol`, `file_outline`, and `get_chunk` work in **chunk-only mode** (no ONNX).
 `search` and `hybrid_search` require `vectors_enabled`.

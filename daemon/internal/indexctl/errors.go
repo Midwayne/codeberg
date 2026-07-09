@@ -22,7 +22,7 @@ func (e *IndexerError) Error() string {
 func mapIndexerError(msg string) error {
 	code := "INDEXER_ERROR"
 	switch strings.ToLower(msg) {
-	case "not implemented":
+	case "not implemented", "graph disabled":
 		code = "NOT_IMPLEMENTED"
 	case "not found":
 		code = "NOT_FOUND"

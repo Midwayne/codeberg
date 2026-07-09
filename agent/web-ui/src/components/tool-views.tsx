@@ -14,6 +14,8 @@ import { Response } from '@/components/response';
 import type { ToolView } from '@/components/message';
 import { Collapsible, CopyButton } from '@/components/ui';
 import {
+  extractFindReferences,
+  extractGraphHops,
   extractGrepMatches,
   extractHybridHits,
   extractSearchHits,
@@ -53,8 +55,13 @@ export function ToolViewRouter({ part }: { part: ToolView }) {
     case 'get_chunk':
       return <ChunkDetail part={part} />;
     case 'grep':
+      return <GrepResults title="Grep" part={part} />;
     case 'find_references':
-      return <GrepResults title={name === 'grep' ? 'Grep' : 'References'} part={part} />;
+      return <FindReferencesResults part={part} />;
+    case 'search_graph':
+      return <ChunkHits title="Graph nodes" part={part} />;
+    case 'trace_path':
+      return <TracePathResults part={part} />;
     case 'read_file':
     case 'head':
     case 'tail':
@@ -170,6 +177,43 @@ function GrepResults({ title, part }: { title: string; part: ToolView }) {
     <HitList
       icon={<Search className="size-3.5" />}
       title={`${hits.length} ${title.toLowerCase()} match${hits.length === 1 ? '' : 's'}${pattern ? ` for “${pattern}”` : ''}`}
+      hits={hits}
+    />
+  );
+}
+
+function FindReferencesResults({ part }: { part: ToolView }) {
+  const hits = extractFindReferences(part.output);
+  const source =
+    part.output && typeof part.output === 'object' && 'source' in part.output
+      ? String((part.output as { source?: string }).source ?? '')
+      : '';
+  const symbol =
+    part.input && typeof part.input === 'object'
+      ? (part.input as { symbol?: string }).symbol
+      : undefined;
+  const label = source === 'graph' ? 'graph refs' : 'grep refs';
+
+  return (
+    <HitList
+      icon={<Search className="size-3.5" />}
+      title={`${hits.length} ${label}${symbol ? ` for “${symbol}”` : ''}`}
+      hits={hits}
+    />
+  );
+}
+
+function TracePathResults({ part }: { part: ToolView }) {
+  const hits = extractGraphHops(part.output);
+  const name =
+    part.input && typeof part.input === 'object'
+      ? (part.input as { name?: string }).name
+      : undefined;
+
+  return (
+    <HitList
+      icon={<GitBranch className="size-3.5" />}
+      title={`${hits.length} hop${hits.length === 1 ? '' : 's'}${name ? ` from “${name}”` : ''}`}
       hits={hits}
     />
   );

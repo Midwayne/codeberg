@@ -18,8 +18,14 @@ func registerIndexTools(r *Registry, idx indexctl.Indexer, ws *workspace.Workspa
 	r.Register(findSymbolTool(idx))
 	r.Register(fileOutlineTool(idx))
 	r.Register(hybridSearchTool(idx, ws))
-	r.Register(findReferencesTool(ws))
+	r.Register(searchGraphTool(idx))
+	r.Register(tracePathTool(idx))
+	r.Register(findReferencesTool(idx, ws))
 }
+
+const graphNodeKindDesc = "graph node kind: file, function, method, class, struct, interface, module, symbol"
+const graphEdgeKindDesc = "edge kind: calls, imports, inherits, contains, defines, references, all"
+const graphDirectionDesc = "traversal direction: in (callers, default), out (callees), both"
 
 func searchTool(idx indexctl.Indexer) Tool {
 	schema := `{
@@ -77,7 +83,7 @@ func findSymbolTool(idx indexctl.Indexer) Tool {
   "properties": {
     "name": {"type": "string", "description": "symbol name to find"},
     "repo": {"type": "string", "description": "restrict to one repo key"},
-    "kind": {"type": "string", "description": "` + chunkKindDescription + `"},
+    "kind": {"type": "string", "description": "` + chunkKindFilterDesc + `"},
     "limit": {"type": "integer", "description": "max results (default 20)"}
   },
   "required": ["name"]
@@ -157,21 +163,86 @@ func hybridSearchTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
 		})
 }
 
-func findReferencesTool(ws *workspace.Workspace) Tool {
+func searchGraphTool(idx indexctl.Indexer) Tool {
+	schema := `{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "name": {"type": "string", "description": "exact node name to find"},
+    "repo": {"type": "string", "description": "restrict to one repo key"},
+    "kind": {"type": "string", "description": "` + graphNodeKindDesc + `"},
+    "path_prefix": {"type": "string", "description": "restrict to nodes whose path starts with this prefix"},
+    "limit": {"type": "integer", "description": "max results (default 20)"}
+  },
+  "required": ["name"]
+}`
+
+	return New("search_graph",
+		"Structural symbol search over the knowledge graph (exact name). Prefer for known symbols when you need graph ids/kinds; use find_symbol for chunk-table lookup.",
+		schema,
+		func(ctx context.Context, a searchGraphArgs) (any, error) {
+			return idx.SearchGraph(ctx, indexctl.GraphSearchOptions{
+				Name:       a.Name,
+				Repo:       a.Repo,
+				Kind:       a.Kind,
+				PathPrefix: a.PathPrefix,
+				Limit:      a.Limit,
+			})
+		})
+}
+
+func tracePathTool(idx indexctl.Indexer) Tool {
+	schema := `{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "name": {"type": "string", "description": "symbol name to start from"},
+    "repo": {"type": "string", "description": "restrict to one repo key"},
+    "direction": {"type": "string", "description": "` + graphDirectionDesc + `"},
+    "edge_kind": {"type": "string", "description": "` + graphEdgeKindDesc + `"},
+    "max_depth": {"type": "integer", "description": "BFS depth limit (default 2)"},
+    "limit": {"type": "integer", "description": "max hops (default 64)"}
+  },
+  "required": ["name"]
+}`
+
+	return New("trace_path",
+		"BFS over the knowledge graph from a symbol (callers/callees/imports). Edges include resolution and confidence — treat textual links as hints, not go-to-definition.",
+		schema,
+		func(ctx context.Context, a tracePathArgs) (any, error) {
+			return idx.TracePath(ctx, indexctl.TracePathOptions{
+				Name:      a.Name,
+				Repo:      a.Repo,
+				Direction: a.Direction,
+				EdgeKind:  a.EdgeKind,
+				MaxDepth:  a.MaxDepth,
+				Limit:     a.Limit,
+			})
+		})
+}
+
+// findReferencesResult is graph-first when possible, with grep fallback.
+type findReferencesResult struct {
+	Source  string               `json:"source"` // "graph" or "grep"
+	Graph   []indexctl.GraphEdge `json:"graph,omitempty"`
+	Matches []workspace.GrepMatch `json:"matches,omitempty"`
+}
+
+func findReferencesTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
 	const schema = `{
   "type": "object",
   "additionalProperties": false,
   "properties": {
     "symbol": {"type": "string", "description": "symbol name to find references for"},
     "repo": {"type": "string", "description": "repo key"},
-    "path_glob": {"type": "string", "description": "restrict search to files matching glob"},
+    "path_glob": {"type": "string", "description": "restrict grep fallback to files matching glob"},
     "limit": {"type": "integer", "description": "max matches (default 50)"}
   },
   "required": ["symbol"]
 }`
 
 	return New("find_references",
-		"Find usages of a symbol via word-boundary grep across the repo.",
+		"Find usages of a symbol: prefers knowledge-graph edges (with resolution/confidence), falls back to word-boundary grep.",
 		schema,
 		func(ctx context.Context, a findReferencesArgs) (any, error) {
 			limit := a.Limit
@@ -179,7 +250,23 @@ func findReferencesTool(ws *workspace.Workspace) Tool {
 				limit = 50
 			}
 
+			edges, err := idx.GraphRefs(ctx, indexctl.GraphRefsOptions{
+				Name:  a.Symbol,
+				Repo:  a.Repo,
+				Limit: limit,
+			})
+			if err == nil && len(edges) > 0 {
+				return findReferencesResult{Source: "graph", Graph: edges}, nil
+			}
+
 			pattern := fmt.Sprintf(`\b%s\b`, regexp.QuoteMeta(a.Symbol))
-			return ws.Grep(ctx, pattern, false, a.Repo, a.PathGlob, limit)
+			matches, gerr := ws.Grep(ctx, pattern, false, a.Repo, a.PathGlob, limit)
+			if gerr != nil {
+				if err != nil {
+					return nil, err
+				}
+				return nil, gerr
+			}
+			return findReferencesResult{Source: "grep", Matches: matches}, nil
 		})
 }

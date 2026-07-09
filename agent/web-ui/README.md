@@ -47,8 +47,9 @@ src/
 
 ## Tool rendering
 
-- **Search/index tools** — `search_code`, `hybrid_search`, `find_symbol`, `file_outline`, `get_chunk` show path, lines, snippet cards (collapsed by default).
-- **Lexical tools** — `grep`, `find_references` show match rows.
+- **Search/index tools** — `search_code`, `hybrid_search`, `find_symbol`, `file_outline`, `get_chunk`, `search_graph` show path, lines, snippet cards (collapsed by default).
+- **Graph tools** — `trace_path` and graph-backed `find_references` show hop/ref rows.
+- **Lexical tools** — `grep` (and grep-fallback `find_references`) show match rows.
 - **File/repo tools** — `read_file`, `glob`, `tree`, `repos`, etc. have tailored views; unknown tools fall back to JSON.
 - **Reasoning** — collapsible when the model emits reasoning parts.
 

@@ -43,6 +43,43 @@ func encodeOutline(repo, path string) string {
 	return fmt.Sprintf("outline\t%s\t%s", sanitizeTab(repo), sanitizeTab(path))
 }
 
+func encodeSearchGraph(opts GraphSearchOptions) string {
+	limit := opts.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	return fmt.Sprintf("search_graph\t%s\t%s\t%s\t%s\t%d",
+		sanitizeTab(opts.Name), sanitizeTab(opts.Repo), sanitizeTab(opts.Kind), sanitizeTab(opts.PathPrefix), limit)
+}
+
+func encodeTracePath(opts TracePathOptions) string {
+	depth := opts.MaxDepth
+	if depth <= 0 {
+		depth = 2
+	}
+	limit := opts.Limit
+	if limit <= 0 {
+		limit = 64
+	}
+	return fmt.Sprintf("trace_path\t%s\t%s\t%s\t%s\t%d\t%d",
+		sanitizeTab(opts.Name), sanitizeTab(opts.Repo), sanitizeTab(opts.Direction), sanitizeTab(opts.EdgeKind), depth, limit)
+}
+
+func encodeGraphStats(repo string) string {
+	if repo == "" {
+		return "graph_stats"
+	}
+	return "graph_stats\t" + sanitizeTab(repo)
+}
+
+func encodeGraphRefs(opts GraphRefsOptions) string {
+	limit := opts.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	return fmt.Sprintf("graph_refs\t%s\t%s\t%d", sanitizeTab(opts.Name), sanitizeTab(opts.Repo), limit)
+}
+
 func normalizeSearchOptions(opts SearchOptions) SearchOptions {
 	if opts.K <= 0 {
 		opts.K = 10

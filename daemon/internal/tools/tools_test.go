@@ -17,7 +17,8 @@ func TestDefaultRegistry(t *testing.T) {
 		names[i] = sp.Name
 	}
 	want := []string{
-		"repos", "search", "get_chunk", "find_symbol", "file_outline", "hybrid_search", "find_references",
+		"repos", "search", "get_chunk", "find_symbol", "file_outline", "hybrid_search",
+		"search_graph", "trace_path", "find_references",
 		"grep", "glob", "read_file", "list_dir", "tree", "head", "tail", "wc", "sed", "pipe", "git_log", "git_blame",
 	}
 	for _, name := range want {

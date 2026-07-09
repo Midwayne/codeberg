@@ -9,6 +9,10 @@ type Indexer interface {
 	GetChunk(ctx context.Context, repo string, id uint64) (ChunkDetail, error)
 	FindSymbol(ctx context.Context, opts SymbolOptions) ([]SearchResult, error)
 	FileOutline(ctx context.Context, repo, path string) ([]SearchResult, error)
+	SearchGraph(ctx context.Context, opts GraphSearchOptions) ([]GraphNode, error)
+	TracePath(ctx context.Context, opts TracePathOptions) ([]GraphHop, error)
+	GraphStats(ctx context.Context, repo string) (GraphStats, error)
+	GraphRefs(ctx context.Context, opts GraphRefsOptions) ([]GraphEdge, error)
 }
 
 var _ Indexer = (*Client)(nil)

@@ -169,6 +169,21 @@ int main(void) {
             CHECK(ipc_roundtrip(socket_path, "search\tfoo\t5\talpha\n", resp, sizeof(resp)) == 0, "search 4-field");
             CHECK(strstr(resp, "\"ok\":false") != NULL, "repo-scoped chunk-only search errors");
 
+            /* Graph IPC: Add is defined in a.go; search_graph / graph_stats work
+             * without vectors. */
+            CHECK(ipc_roundtrip(socket_path, "search_graph\tAdd\talpha\tfunction\t\t10\n", resp, sizeof(resp)) == 0,
+                  "search_graph roundtrip");
+            CHECK(strstr(resp, "\"ok\":true") != NULL, "search_graph ok");
+            CHECK(strstr(resp, "\"name\":\"Add\"") != NULL, "search_graph finds Add");
+
+            CHECK(ipc_roundtrip(socket_path, "graph_stats\talpha\n", resp, sizeof(resp)) == 0, "graph_stats roundtrip");
+            CHECK(strstr(resp, "\"ok\":true") != NULL, "graph_stats ok");
+            CHECK(strstr(resp, "\"enabled\":true") != NULL, "graph enabled");
+
+            CHECK(ipc_roundtrip(socket_path, "trace_path\tAdd\talpha\tin\tcalls\t2\t16\n", resp, sizeof(resp)) == 0,
+                  "trace_path roundtrip");
+            CHECK(strstr(resp, "\"ok\":true") != NULL, "trace_path ok");
+
             cberg_ipc_stop(ipc);
         }
     }

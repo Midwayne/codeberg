@@ -23,6 +23,8 @@ full indexing loop for one or many repository roots in a single process. The Go
 | `CBERG_VECTORDB_URL` | for `qdrant` | Qdrant base URL, e.g. `https://cluster.qdrant.io` |
 | `CBERG_VECTORDB_API_KEY` | no | Qdrant API key (cloud) |
 | `CBERG_POSTGRES_URL` | for `pgvector` | PostgreSQL connection string (pgvector extension required) |
+| `CBERG_GRAPH` | no | Knowledge graph kill-switch; default **on**. Set `0` / `off` / `false` to disable |
+| `CBERG_GRAPH_MODE` | no | `fast` (syntactic, default). `moderate` / `full` not implemented yet (warn + fall back) |
 | `CBERG_SOCKET` | no | Unix socket for IPC (default `/tmp/codeberg-index.sock`) |
 | `CBERG_POLL_MS` | no | Watcher idle sleep between steps (default 1000) |
 | `CBERG_EMBED_THREADS` | no | ONNX intra-op thread cap (inherited env) |
@@ -33,8 +35,9 @@ full indexing loop for one or many repository roots in a single process. The Go
    `CODEBERG_ROOT` is a `codeberg-d` convenience only — set `CODEBERG_ROOTS`
    (or let the launcher build it) when talking to `cberg-index` directly.
 
-Without `CBERG_MODEL` and `CBERG_INDEX_PATH` the engine runs in **chunk-only mode**
-(chunk table + manifest + watcher; no vectors).
+Without `CBERG_MODEL` the engine runs in **chunk-only mode** (chunk table +
+manifest + watcher + optional graph; no vectors). Set `CBERG_INDEX_PATH` even
+without a model to persist `.chunks` / `.manifest` / `.graph` for warm restart.
 
 ---
 
@@ -128,6 +131,10 @@ a hash of the resolved root (`<index_path> = <base>.<roothash>`):
 | `<index_path>` | usearch HNSW index when `CBERG_INDEX_BACKEND=usearch` | usearch format |
 | `<index_path>.chunks` | Serialized chunk table (ids, keys, hashes) — **all backends** | `CBT1` v1 |
 | `<index_path>.manifest` | Serialized manifest leaves — **all backends** | `CBMF` v1 |
+| `<index_path>.graph` | Knowledge graph snapshot (when `CBERG_GRAPH` enabled) | versioned binary (`binio`) |
+
+Graph schema, confidence ladder, and incremental semantics:
+[modules/graph.md](modules/graph.md).
 
 With `qdrant` or `pgvector`, vectors live in a remote collection/table named
 `codeberg_<16hex>` (derived from `<index_path>`). Chunk sidecars stay local.

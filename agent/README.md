@@ -405,7 +405,9 @@ The agent prompt recommends a chunk-first strategy:
 5. **`file_outline`** (daemon) — orient in an unfamiliar file before deep reading.
 6. **`hybrid_search`** (daemon) — vector candidates reranked by lexical term
    matches in hit files.
-7. **`find_references`** (daemon) — word-boundary grep for symbol usages.
+7. **`search_graph` / `trace_path`** (daemon) — knowledge-graph symbol search and
+   BFS over call/import edges (resolution + confidence on each hop).
+8. **`find_references`** (daemon) — graph-first usages; word-boundary grep fallback.
 
 The daemon also exposes a `search` tool identical to `GET /search`, but the
 agent **hides** it from the tool bridge because `search_code` already wraps

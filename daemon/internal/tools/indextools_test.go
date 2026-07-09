@@ -14,6 +14,7 @@ type mockIndexer struct {
 	searchOpts indexctl.SearchOptions
 	searchHits []indexctl.SearchResult
 	chunk      indexctl.ChunkDetail
+	graphRefs  []indexctl.GraphEdge
 }
 
 func (m *mockIndexer) Status(context.Context) (indexctl.Status, error) {
@@ -35,6 +36,22 @@ func (m *mockIndexer) FindSymbol(context.Context, indexctl.SymbolOptions) ([]ind
 
 func (m *mockIndexer) FileOutline(context.Context, string, string) ([]indexctl.SearchResult, error) {
 	return nil, nil
+}
+
+func (m *mockIndexer) SearchGraph(context.Context, indexctl.GraphSearchOptions) ([]indexctl.GraphNode, error) {
+	return nil, nil
+}
+
+func (m *mockIndexer) TracePath(context.Context, indexctl.TracePathOptions) ([]indexctl.GraphHop, error) {
+	return nil, nil
+}
+
+func (m *mockIndexer) GraphStats(context.Context, string) (indexctl.GraphStats, error) {
+	return indexctl.GraphStats{}, nil
+}
+
+func (m *mockIndexer) GraphRefs(context.Context, indexctl.GraphRefsOptions) ([]indexctl.GraphEdge, error) {
+	return m.graphRefs, nil
 }
 
 func TestGetChunkTool(t *testing.T) {
@@ -105,11 +122,29 @@ func TestFindReferencesTool(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	matches, ok := out.([]workspace.GrepMatch)
+	res, ok := out.(findReferencesResult)
 	if !ok {
 		t.Fatalf("find_references type: %T", out)
 	}
-	if len(matches) != 1 || matches[0].Path != "use.go" {
-		t.Fatalf("word-boundary refs: %+v", matches)
+	if res.Source != "grep" || len(res.Matches) != 1 || res.Matches[0].Path != "use.go" {
+		t.Fatalf("word-boundary refs: %+v", res)
+	}
+}
+
+func TestFindReferencesGraphFirst(t *testing.T) {
+	idx := &mockIndexer{}
+	idx.graphRefs = []indexctl.GraphEdge{{
+		Src: 1, Dst: 2, Kind: "calls", Resolution: "textual", Confidence: 0.9,
+		SrcName: "caller", DstName: "Foo", SrcPath: "a.go", Line: 10,
+	}}
+	root := t.TempDir()
+	reg := Default(workspace.New([]workspace.RepoInfo{{Key: "main", Root: root}}, "main"), idx)
+	out, err := reg.Call(context.Background(), "find_references", json.RawMessage(`{"symbol":"Foo","repo":"main"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, ok := out.(findReferencesResult)
+	if !ok || res.Source != "graph" || len(res.Graph) != 1 || res.Graph[0].SrcName != "caller" {
+		t.Fatalf("graph-first refs: %+v", out)
 	}
 }

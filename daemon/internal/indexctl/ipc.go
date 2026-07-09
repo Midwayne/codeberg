@@ -36,3 +36,30 @@ type chunkResponse struct {
 	Chunk chunkPayload `json:"chunk"`
 	Error string       `json:"error"`
 }
+
+type graphNodesResponse struct {
+	OK      bool        `json:"ok"`
+	Results []GraphNode `json:"results"`
+	Error   string      `json:"error"`
+}
+
+type graphHopsResponse struct {
+	OK    bool       `json:"ok"`
+	Hops  []GraphHop `json:"hops"`
+	Error string     `json:"error"`
+}
+
+type graphStatsResponse struct {
+	OK      bool   `json:"ok"`
+	Repo    string `json:"repo"`
+	Nodes   int    `json:"nodes"`
+	Refs    int    `json:"refs"`
+	Enabled bool   `json:"enabled"`
+	Error   string `json:"error"`
+}
+
+type graphEdgesResponse struct {
+	OK      bool        `json:"ok"`
+	Results []GraphEdge `json:"results"`
+	Error   string      `json:"error"`
+}

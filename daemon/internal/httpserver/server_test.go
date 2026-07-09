@@ -45,6 +45,22 @@ func (f *fakeIndexer) FileOutline(context.Context, string, string) ([]indexctl.S
 	return nil, nil
 }
 
+func (f *fakeIndexer) SearchGraph(context.Context, indexctl.GraphSearchOptions) ([]indexctl.GraphNode, error) {
+	return nil, nil
+}
+
+func (f *fakeIndexer) TracePath(context.Context, indexctl.TracePathOptions) ([]indexctl.GraphHop, error) {
+	return nil, nil
+}
+
+func (f *fakeIndexer) GraphStats(context.Context, string) (indexctl.GraphStats, error) {
+	return indexctl.GraphStats{}, nil
+}
+
+func (f *fakeIndexer) GraphRefs(context.Context, indexctl.GraphRefsOptions) ([]indexctl.GraphEdge, error) {
+	return nil, nil
+}
+
 func TestHealthAndSearch(t *testing.T) {
 	idx := &fakeIndexer{
 		status: indexctl.Status{

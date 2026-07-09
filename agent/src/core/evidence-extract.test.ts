@@ -60,4 +60,45 @@ describe('extractEvidence', () => {
     }));
     expect(extractEvidence('grep', rows)).toHaveLength(20);
   });
+
+  it('extracts graph-first find_references', () => {
+    const hits = extractEvidence('find_references', {
+      source: 'graph',
+      graph: [
+        {
+          src: 1,
+          dst: 2,
+          kind: 'calls',
+          confidence: 0.9,
+          line: 12,
+          src_name: 'caller',
+          dst_name: 'Foo',
+          src_path: 'a.go',
+        },
+      ],
+    });
+    expect(hits).toHaveLength(1);
+    expect(hits[0]?.path).toBe('a.go');
+    expect(hits[0]?.symbol).toBe('caller');
+    expect(hits[0]?.start_line).toBe(12);
+  });
+
+  it('extracts trace_path hops', () => {
+    const hits = extractEvidence('trace_path', [
+      {
+        depth: 1,
+        src: 3,
+        dst: 4,
+        kind: 'calls',
+        confidence: 0.75,
+        line: 8,
+        src_name: 'run',
+        dst_name: 'helper',
+        src_path: 'b.go',
+      },
+    ]);
+    expect(hits).toHaveLength(1);
+    expect(hits[0]?.path).toBe('b.go');
+    expect(hits[0]?.snippet).toContain('helper');
+  });
 });

@@ -53,6 +53,50 @@ func (c *Client) FileOutline(ctx context.Context, repo, path string) ([]SearchRe
 	return roundHits(ctx, c.socket, encodeOutline(repo, path))
 }
 
+func (c *Client) SearchGraph(ctx context.Context, opts GraphSearchOptions) ([]GraphNode, error) {
+	var out graphNodesResponse
+	if err := roundTrip(ctx, c.socket, encodeSearchGraph(opts), &out); err != nil {
+		return nil, err
+	}
+	if !out.OK {
+		return nil, mapIndexerError(out.Error)
+	}
+	return out.Results, nil
+}
+
+func (c *Client) TracePath(ctx context.Context, opts TracePathOptions) ([]GraphHop, error) {
+	var out graphHopsResponse
+	if err := roundTrip(ctx, c.socket, encodeTracePath(opts), &out); err != nil {
+		return nil, err
+	}
+	if !out.OK {
+		return nil, mapIndexerError(out.Error)
+	}
+	return out.Hops, nil
+}
+
+func (c *Client) GraphStats(ctx context.Context, repo string) (GraphStats, error) {
+	var out graphStatsResponse
+	if err := roundTrip(ctx, c.socket, encodeGraphStats(repo), &out); err != nil {
+		return GraphStats{}, err
+	}
+	if !out.OK {
+		return GraphStats{}, mapIndexerError(out.Error)
+	}
+	return GraphStats{Repo: out.Repo, Nodes: out.Nodes, Refs: out.Refs, Enabled: out.Enabled}, nil
+}
+
+func (c *Client) GraphRefs(ctx context.Context, opts GraphRefsOptions) ([]GraphEdge, error) {
+	var out graphEdgesResponse
+	if err := roundTrip(ctx, c.socket, encodeGraphRefs(opts), &out); err != nil {
+		return nil, err
+	}
+	if !out.OK {
+		return nil, mapIndexerError(out.Error)
+	}
+	return out.Results, nil
+}
+
 func roundHits(ctx context.Context, socket, req string) ([]SearchResult, error) {
 	var out hitsResponse
 	if err := roundTrip(ctx, socket, req, &out); err != nil {
