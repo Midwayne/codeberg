@@ -72,7 +72,7 @@ Failed requests return structured JSON:
 | 403 | `FORBIDDEN` | Path escapes repo sandbox |
 | 404 | `NOT_FOUND` | Unknown tool, missing chunk/id, indexer not found |
 | 501 | `NOT_IMPLEMENTED` | Vector search when `vectors_enabled` is false |
-| 500 | `INTERNAL_ERROR` | Unexpected server or indexer failure |
+| 500 | `INTERNAL` | Unexpected server or indexer failure |
 | 500 | `IO_ERROR` | Filesystem or indexer I/O |
 | 504 | `TIMEOUT` | Subprocess or indexer timeout |
 
@@ -89,7 +89,7 @@ Lists registered tools with JSON Schema metadata:
     {
       "name": "grep",
       "description": "Search file contents with ripgrep",
-      "inputSchema": { "type": "object", "properties": { ... } }
+      "schema": { "type": "object", "properties": { ... } }
     }
   ]
 }

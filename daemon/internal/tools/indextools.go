@@ -77,7 +77,7 @@ func findSymbolTool(idx indexctl.Indexer) Tool {
   "properties": {
     "name": {"type": "string", "description": "symbol name to find"},
     "repo": {"type": "string", "description": "restrict to one repo key"},
-    "kind": {"type": "string", "description": "` + chunkKindDescription + `"},
+    "kind": {"type": "string", "description": "` + chunkKindFilterDesc + `"},
     "limit": {"type": "integer", "description": "max results (default 20)"}
   },
   "required": ["name"]

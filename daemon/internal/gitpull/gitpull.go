@@ -4,9 +4,10 @@ import (
 	"context"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"time"
+
+	"codeberg.org/codeberg/daemon/internal/git"
 )
 
 // Run pulls each dir on every tick. Dirs without a .git entry are skipped
@@ -26,10 +27,8 @@ func Run(ctx context.Context, dirs []string, interval time.Duration) {
 				if _, err := os.Stat(filepath.Join(dir, ".git")); err != nil {
 					continue
 				}
-				cmd := exec.CommandContext(ctx, "git", "-C", dir, "pull", "--ff-only")
-				out, err := cmd.CombinedOutput()
-				if err != nil {
-					log.Printf("git pull %s: %v: %s", dir, err, out)
+				if _, err := git.Run(ctx, dir, "pull", "--ff-only"); err != nil {
+					log.Printf("git pull %s: %v", dir, err)
 				}
 			}
 		}
