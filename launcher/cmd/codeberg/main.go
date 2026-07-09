@@ -145,9 +145,6 @@ func cmdRun(args []string) error {
 	if c.All && len(c.Repos) > 0 {
 		return fmt.Errorf("--all already serves every registered repo; use --repos to pick a subset instead")
 	}
-	if (c.All || len(c.Repos) > 0) && o.Root != "" {
-		return fmt.Errorf("--root names a single repo; drop it when using --all/--repos")
-	}
 	if err := c.ValidateForRun(); err != nil {
 		return err
 	}
@@ -176,21 +173,29 @@ func cmdRun(args []string) error {
 		}
 		c.Roots = roots
 	case c.NoIndex:
-		// One-off single root: resolve it (reusing a registered key if the
-		// path happens to be known) without writing to the registry.
-		roots, err := registry.Select(c.Home, []string{c.Root}, false)
+		// One-off roots from CODEBERG_ROOT (single or comma-separated).
+		roots, err := registry.Select(c.Home, config.RootPaths(c.Root), false)
 		if err != nil {
 			return err
 		}
 		c.Roots = roots
 	default:
-		// Remember this root so `codeberg --all` can search every repo ever indexed.
-		e, err := registry.Upsert(c.Home, c.Root)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "warning: could not update the repo registry: %v\n", err)
-			e = registry.Entry{Key: filepath.Base(c.Root), Root: c.Root}
+		paths := config.RootPaths(c.Root)
+		if len(paths) == 1 {
+			// Remember this root so `codeberg --all` can search every repo ever indexed.
+			e, err := registry.Upsert(c.Home, paths[0])
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: could not update the repo registry: %v\n", err)
+				e = registry.Entry{Key: filepath.Base(paths[0]), Root: paths[0]}
+			}
+			c.Roots = []registry.Entry{e}
+		} else {
+			roots, err := registry.Select(c.Home, paths, true)
+			if err != nil {
+				return err
+			}
+			c.Roots = roots
 		}
-		c.Roots = []registry.Entry{e}
 	}
 	if err := bootstrap.Ensure(c, false); err != nil {
 		return err

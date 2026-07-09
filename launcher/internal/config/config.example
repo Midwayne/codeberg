@@ -16,7 +16,10 @@
 # Required (launcher)
 # =============================================================================
 
-# Repository tree to index (single-repo mode).
+# Repository tree(s) to index. When set, only these directories are indexed —
+# unset CODEBERG_ROOT to use --all / CODEBERG_REPOS against the registry instead.
+# Comma-separate multiple paths to index several repos in one session:
+# CODEBERG_ROOT=/path/to/api,/path/to/frontend
 CODEBERG_ROOT=/path/to/your/repo
 
 # LLM the agent uses, as provider:model.
@@ -42,13 +45,15 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # CODEBERG_DIST=/opt/homebrew/libexec/codeberg
 
 # =============================================================================
-# Repository selection (optional — usually set via CLI instead)
+# Repository selection (only when CODEBERG_ROOT is unset)
 # =============================================================================
 
 # Serve every repo registered with `codeberg <dir>` (multi-repo combined search).
+# Mutually exclusive with CODEBERG_ROOT.
 # CODEBERG_ALL=false
 
 # Comma-separated subset of registered dirs/keys to serve together.
+# Mutually exclusive with CODEBERG_ROOT.
 # CODEBERG_REPOS=proj-a,proj-b
 
 # One-off run: register nothing, build no vector index (file tools + chat only).

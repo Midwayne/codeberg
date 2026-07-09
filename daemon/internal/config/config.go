@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -181,7 +182,40 @@ func loadRoots() ([]domain.Repo, string, error) {
 		return nil, "", missing(EnvRoot)
 	}
 
-	resolved, err := resolveRoot(root)
+	paths := splitList(root)
+	if len(paths) > 1 {
+		var roots []domain.Repo
+		seenKey := map[string]int{}
+
+		for _, path := range paths {
+			resolved, err := resolveRoot(path)
+			if err != nil {
+				log.Printf("skipping repo %q: unresolvable root %q", path, path)
+				continue
+			}
+			if _, err := os.Stat(resolved); err != nil {
+				log.Printf("skipping repo %q: missing root %q", path, resolved)
+				continue
+			}
+
+			key := filepath.Base(resolved)
+			if n := seenKey[key]; n > 0 {
+				key = fmt.Sprintf("%s-%d", key, n+1)
+			}
+			seenKey[filepath.Base(resolved)]++
+			roots = append(roots, domain.Repo{Key: key, Root: resolved})
+		}
+
+		if len(roots) == 0 {
+			return nil, "", invalid(EnvRoot)
+		}
+		if len(roots) == 1 {
+			return roots, roots[0].Key, nil
+		}
+		return roots, "", nil
+	}
+
+	resolved, err := resolveRoot(paths[0])
 	if err != nil {
 		return nil, "", invalid(EnvRoot)
 	}
@@ -217,4 +251,14 @@ type Error struct {
 
 func (e *Error) Error() string {
 	return e.Var + ": " + e.Msg
+}
+
+func splitList(v string) []string {
+	var out []string
+	for _, item := range strings.Split(v, ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			out = append(out, item)
+		}
+	}
+	return out
 }

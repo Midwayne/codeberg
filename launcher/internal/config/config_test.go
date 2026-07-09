@@ -154,7 +154,53 @@ func TestValidateForRunReposSkipsRoot(t *testing.T) {
 	writeArtifacts(t, dist)
 	c := &Config{Dist: dist, Model: "anthropic:claude", Repos: []string{"a"}}
 	if err := c.ValidateForRun(); err != nil {
-		t.Fatalf("--repos must not require a root: %v", err)
+		t.Fatalf("--repos must not require a root when CODEBERG_ROOT is unset: %v", err)
+	}
+}
+
+func TestValidateForRunRejectsRootWithAll(t *testing.T) {
+	dist := t.TempDir()
+	writeArtifacts(t, dist)
+	root := t.TempDir()
+	c := &Config{Dist: dist, Model: "anthropic:claude", Root: root, All: true}
+	if err := c.ValidateForRun(); err == nil {
+		t.Fatal("CODEBERG_ROOT + --all must be rejected")
+	}
+}
+
+func TestValidateForRunRejectsRootWithRepos(t *testing.T) {
+	dist := t.TempDir()
+	writeArtifacts(t, dist)
+	root := t.TempDir()
+	c := &Config{Dist: dist, Model: "anthropic:claude", Root: root, Repos: []string{"a"}}
+	if err := c.ValidateForRun(); err == nil {
+		t.Fatal("CODEBERG_ROOT + --repos must be rejected")
+	}
+}
+
+func TestRootPathsSplitsCommaSeparated(t *testing.T) {
+	got := RootPaths("/a , /b,, /c")
+	if len(got) != 3 || got[0] != "/a" || got[2] != "/c" {
+		t.Fatalf("RootPaths: %+v", got)
+	}
+}
+
+func TestDaemonEnvMultiRootOmitsSingleRootEnv(t *testing.T) {
+	c := &Config{
+		Root:     "/one,/two",
+		HTTPPort: "48080",
+		Socket:   "/tmp/s.sock",
+		Roots: []registry.Entry{
+			{Key: "one", Root: "/one"},
+			{Key: "two", Root: "/two"},
+		},
+	}
+	e := c.DaemonEnv()
+	if _, ok := e[KeyRoot]; ok {
+		t.Fatal("multi-path CODEBERG_ROOT must not set CODEBERG_ROOT env")
+	}
+	if e[KeyRoots] != "one\t/one\ntwo\t/two" {
+		t.Fatalf("roots records: %q", e[KeyRoots])
 	}
 }
 

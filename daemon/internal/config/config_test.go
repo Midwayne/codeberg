@@ -100,6 +100,25 @@ func TestLoadDaemonAllRootsDead(t *testing.T) {
 	}
 }
 
+func TestLoadDaemonCommaSeparatedRoot(t *testing.T) {
+	rootA := t.TempDir()
+	rootB := t.TempDir()
+	t.Setenv(EnvRoot, rootA+","+rootB)
+	t.Setenv(EnvRoots, "")
+	t.Setenv(EnvGitDir, "")
+
+	cfg, err := LoadDaemon()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Roots) != 2 {
+		t.Fatalf("roots: got %+v", cfg.Roots)
+	}
+	if cfg.DefaultKey != "" {
+		t.Fatalf("multi-root mode must have no default repo, got %q", cfg.DefaultKey)
+	}
+}
+
 func TestLoadDaemonPollClamp(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv(EnvRoot, root)
