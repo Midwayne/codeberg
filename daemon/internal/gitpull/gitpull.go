@@ -12,6 +12,8 @@ import (
 
 // Run pulls each dir on every tick. Dirs without a .git entry are skipped
 // quietly — in --all mode plain (non-git) directories are legitimate roots.
+// Pulls inherit the daemon lifetime context with no extra per-command timeout
+// so large mirrors can finish; cancel ctx to stop in-flight pulls on shutdown.
 func Run(ctx context.Context, dirs []string, interval time.Duration) {
 	if interval <= 0 || len(dirs) == 0 {
 		return
@@ -27,7 +29,7 @@ func Run(ctx context.Context, dirs []string, interval time.Duration) {
 				if _, err := os.Stat(filepath.Join(dir, ".git")); err != nil {
 					continue
 				}
-				if _, err := git.Run(ctx, dir, "pull", "--ff-only"); err != nil {
+				if _, err := git.RunWithTimeout(ctx, dir, 0, "pull", "--ff-only"); err != nil {
 					log.Printf("git pull %s: %v", dir, err)
 				}
 			}

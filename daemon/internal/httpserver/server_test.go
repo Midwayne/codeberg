@@ -165,6 +165,61 @@ func TestCallPipeTool(t *testing.T) {
 	if res2.StatusCode != http.StatusBadRequest {
 		t.Fatalf("unsafe pipe status %d, want 400", res2.StatusCode)
 	}
+	var errBody struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(res2.Body).Decode(&errBody); err != nil {
+		t.Fatal(err)
+	}
+	if errBody.Code != "UNSAFE_PIPE" {
+		t.Fatalf("unsafe pipe code %q, want UNSAFE_PIPE", errBody.Code)
+	}
+
+	res3 := call(``)
+	defer res3.Body.Close()
+	if res3.StatusCode != http.StatusBadRequest {
+		t.Fatalf("empty pipe status %d, want 400", res3.StatusCode)
+	}
+	if err := json.NewDecoder(res3.Body).Decode(&errBody); err != nil {
+		t.Fatal(err)
+	}
+	if errBody.Code != "INVALID_ARGS" {
+		t.Fatalf("empty pipe code %q, want INVALID_ARGS", errBody.Code)
+	}
+}
+
+func TestCallUnsafeSedTool(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(root+"/a.txt", []byte("hello\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	idx := testutil.StubIndexer()
+	ws := testutil.WsSingle(root)
+	srv := New(idx, tools.Default(ws, idx))
+	ts := httptest.NewServer(srv.Handler())
+	t.Cleanup(ts.Close)
+
+	b, _ := json.Marshal(map[string]any{
+		"name": "sed",
+		"args": map[string]any{"path": "a.txt", "script": "w /tmp/out"},
+	})
+	res, err := http.Post(ts.URL+"/tools/call", "application/json", bytes.NewReader(b))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("unsafe sed status %d, want 400", res.StatusCode)
+	}
+	var body struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Code != "UNSAFE_SED" {
+		t.Fatalf("unsafe sed code %q, want UNSAFE_SED", body.Code)
+	}
 }
 
 func TestSearchInvalidMinScore(t *testing.T) {

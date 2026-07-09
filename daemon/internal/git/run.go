@@ -11,14 +11,28 @@ import (
 
 const runTimeout = 30 * time.Second
 
-// Run executes a git command in dir and returns combined stdout/stderr.
+// Run executes a git command in dir with a 30s timeout (interactive tool use).
 func Run(ctx context.Context, dir string, args ...string) (string, error) {
+	return run(ctx, dir, runTimeout, args...)
+}
+
+// RunWithTimeout executes a git command in dir, canceling after timeout or when
+// ctx is done. A non-positive timeout means no extra deadline beyond ctx.
+func RunWithTimeout(ctx context.Context, dir string, timeout time.Duration, args ...string) (string, error) {
+	return run(ctx, dir, timeout, args...)
+}
+
+func run(ctx context.Context, dir string, timeout time.Duration, args ...string) (string, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	runCtx, cancel := context.WithTimeout(ctx, runTimeout)
-	defer cancel()
+	runCtx := ctx
+	var cancel context.CancelFunc
+	if timeout > 0 {
+		runCtx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
 
 	cmd := exec.CommandContext(runCtx, "git", args...)
 	cmd.Dir = dir

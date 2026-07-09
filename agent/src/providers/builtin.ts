@@ -9,13 +9,23 @@ function env(name: string): string | undefined {
   return v && v.length > 0 ? v : undefined;
 }
 
-/** Read a required API key, failing with a consistent message. The failure is
- *  caught by `registerBuiltinProviders`, so an unconfigured provider is skipped
- *  rather than crashing startup. */
+/** Thrown when a provider factory needs an env var that is unset. */
+export class ProviderConfigError extends Error {
+  constructor(
+    readonly envName: string,
+    readonly provider: string,
+  ) {
+    super(`${envName} is required for the ${provider} provider`);
+    this.name = 'ProviderConfigError';
+  }
+}
+
+/** Read a required API key. Missing keys throw ProviderConfigError so
+ *  registerBuiltinProviders can skip the provider without crashing startup. */
 function requireEnv(name: string, provider: string): string {
   const value = env(name);
   if (!value) {
-    throw new Error(`${name} is required for the ${provider} provider`);
+    throw new ProviderConfigError(name, provider);
   }
   return value;
 }
@@ -103,8 +113,7 @@ export function registerBuiltinProviders(registry: { register(p: ModelProvider):
     try {
       registry.register(make());
     } catch (err) {
-      // Skip providers whose required API key is missing; rethrow anything else.
-      if (err instanceof Error && / is required for the .+ provider$/.test(err.message)) {
+      if (err instanceof ProviderConfigError) {
         continue;
       }
       throw err;

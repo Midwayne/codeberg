@@ -14,10 +14,11 @@ func WsSingle(root string) *workspace.Workspace {
 }
 
 // FakeIndexer is a configurable indexctl.Indexer for tests.
+// Status returns StatusValue as-is (including Ready: false). Use StubIndexer
+// when a ready no-op indexer is needed.
 type FakeIndexer struct {
 	StatusValue indexctl.Status
 	StatusErr   error
-	statusSet   bool
 
 	SearchHits []indexctl.SearchResult
 	SearchErr  error
@@ -34,21 +35,14 @@ type FakeIndexer struct {
 	OutlineErr  error
 }
 
-// WithStatus sets StatusValue and marks it as explicitly configured.
+// WithStatus sets StatusValue and returns f for chaining.
 func (f *FakeIndexer) WithStatus(st indexctl.Status) *FakeIndexer {
 	f.StatusValue = st
-	f.statusSet = true
 	return f
 }
 
 func (f *FakeIndexer) Status(context.Context) (indexctl.Status, error) {
-	if f.StatusErr != nil {
-		return f.StatusValue, f.StatusErr
-	}
-	if f.statusSet || f.StatusValue.Ready || f.StatusValue.Version != "" || f.StatusValue.Chunks != 0 || len(f.StatusValue.Repos) > 0 {
-		return f.StatusValue, nil
-	}
-	return indexctl.Status{Ready: true}, nil
+	return f.StatusValue, f.StatusErr
 }
 
 func (f *FakeIndexer) Search(_ context.Context, opts indexctl.SearchOptions) ([]indexctl.SearchResult, error) {
