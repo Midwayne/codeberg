@@ -133,6 +133,18 @@ func TestLoadDaemonCommaSeparatedRootInvalidPath(t *testing.T) {
 	}
 }
 
+func TestLoadDaemonEmptyCommaSeparatedRoot(t *testing.T) {
+	for _, raw := range []string{",", ",,", "  ,  "} {
+		t.Setenv(EnvRoot, raw)
+		t.Setenv(EnvRoots, "")
+		_, err := LoadDaemon()
+		var cfgErr *Error
+		if !errors.As(err, &cfgErr) || cfgErr.Var != EnvRoot {
+			t.Fatalf("CODEBERG_ROOT=%q: expected invalid %s, got %v", raw, EnvRoot, err)
+		}
+	}
+}
+
 func TestLoadDaemonCommaSeparatedRootKeyCollision(t *testing.T) {
 	base := t.TempDir()
 	rootA := filepath.Join(base, "p1", "api")

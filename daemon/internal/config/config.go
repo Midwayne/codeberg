@@ -184,6 +184,9 @@ func loadRoots() ([]domain.Repo, string, error) {
 	}
 
 	paths := splitList(root)
+	if len(paths) == 0 {
+		return nil, "", invalid(EnvRoot)
+	}
 	if len(paths) > 1 {
 		var roots []domain.Repo
 		taken := map[string]bool{}
@@ -200,10 +203,6 @@ func loadRoots() ([]domain.Repo, string, error) {
 			key := deriveRepoKey(resolved, taken)
 			taken[key] = true
 			roots = append(roots, domain.Repo{Key: key, Root: resolved})
-		}
-
-		if len(roots) == 1 {
-			return roots, roots[0].Key, nil
 		}
 		return roots, "", nil
 	}

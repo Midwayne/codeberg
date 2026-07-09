@@ -100,7 +100,9 @@ curl 'http://localhost:8080/search?q=add+function&k=5'
 ```
 
 Multi-repo, run by hand (the launcher does this for you via `--all`/`--repos`,
-or comma-separated `CODEBERG_ROOT` when pinning explicit paths):
+or comma-separated `CODEBERG_ROOT` when pinning explicit paths). Paths must not
+contain commas. `codeberg-d` expands a comma list into `CODEBERG_ROOTS` before
+spawning `cberg-index` — the C binary itself does not split commas:
 
 ```sh
 export CODEBERG_ROOT=/path/to/api,/path/to/frontend   # or CODEBERG_ROOTS below
@@ -111,7 +113,8 @@ curl 'http://localhost:8080/search?q=add+function&k=5'            # both repos, 
 curl 'http://localhost:8080/search?q=add+function&k=5&repo=api'   # just api
 ```
 
-Keyed records (advanced — same shape as `~/.codeberg/repos`):
+Keyed records (required when talking to `cberg-index` directly — same shape as
+`~/.codeberg/repos`):
 
 ```sh
 export CODEBERG_ROOTS=$'api\t/path/to/api\nfrontend\t/path/to/frontend'

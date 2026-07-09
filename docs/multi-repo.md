@@ -47,9 +47,11 @@ CODEBERG_ROOT=~/projects/api,~/projects/frontend
 codeberg
 ```
 
-Each path is registered (unless `--no-index`) and forwarded to the daemon as
-`CODEBERG_ROOTS`. A single path also sets the `CODEBERG_ROOT` compat env var;
-multiple paths use `CODEBERG_ROOTS` only.
+Paths must not contain commas (no escape syntax). Each path is registered
+(unless `--no-index`) and forwarded to the daemon as `CODEBERG_ROOTS`. A single
+path also sets the `CODEBERG_ROOT` compat env var; multiple paths use
+`CODEBERG_ROOTS` only. The C `cberg-index` binary does not split commas itself —
+`codeberg-d` (or the launcher) expands the list before spawning it.
 
 ### Registry multi-repo (`CODEBERG_ROOT` unset)
 

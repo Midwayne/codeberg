@@ -26,7 +26,8 @@
 #        added. --all and CODEBERG_REPOS are rejected while this is set.
 #      → one path:   CODEBERG_ROOT=/path/to/api
 #      → several:    CODEBERG_ROOT=/path/to/api,/path/to/frontend
-#        (comma-separated; exactly those directories, no more)
+#        (comma-separated; exactly those directories, no more).
+#        Paths must not contain commas — there is no escape syntax.
 #
 #   B) CODEBERG_ROOT unset
 #      → use the registry built by prior `codeberg <dir>` runs:
