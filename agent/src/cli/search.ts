@@ -138,7 +138,7 @@ export function searchUsage(program: string): string {
     '  --min-score <0-1>  minimum similarity score\n' +
     '  --hybrid           rerank with lexical boost (daemon hybrid_search tool)\n' +
     '  --json             print raw JSON\n' +
-    '  --daemon <url>     daemon base URL (default http://127.0.0.1:8080)\n' +
+    `  --daemon <url>     daemon base URL (default ${DEFAULT_DAEMON_URL})\n` +
     '  -h, --help         show this help\n' +
     '\n' +
     'Env: CODEBERG_DAEMON_URL\n' +

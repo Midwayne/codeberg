@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { DaemonClient } from './client.js';
+import { DaemonClient, DEFAULT_DAEMON_URL } from './client.js';
 
 describe('DaemonClient', () => {
   afterEach(() => {
@@ -27,7 +27,7 @@ describe('DaemonClient', () => {
       ),
     );
 
-    const client = new DaemonClient('http://127.0.0.1:8080');
+    const client = new DaemonClient(DEFAULT_DAEMON_URL);
     const hits = await client.search('add function', { k: 3 });
     expect(hits).toEqual([
       {
@@ -66,7 +66,7 @@ describe('DaemonClient', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const client = new DaemonClient('http://127.0.0.1:8080');
+    const client = new DaemonClient(DEFAULT_DAEMON_URL);
     const hits = await client.search('auth', {
       k: 5,
       repo: 'alpha',
@@ -93,7 +93,7 @@ describe('DaemonClient', () => {
       ),
     );
 
-    const client = new DaemonClient('http://127.0.0.1:8080');
+    const client = new DaemonClient(DEFAULT_DAEMON_URL);
     const tools = await client.listTools();
     expect(tools[0]?.name).toBe('grep');
   });
@@ -104,7 +104,7 @@ describe('DaemonClient', () => {
       vi.fn(async () => Response.json({ result: { content: 'hi' } })),
     );
 
-    const client = new DaemonClient('http://127.0.0.1:8080');
+    const client = new DaemonClient(DEFAULT_DAEMON_URL);
     const out = await client.callTool('read_file', { path: 'x' });
     expect(out).toEqual({ content: 'hi' });
   });
@@ -120,7 +120,7 @@ describe('DaemonClient', () => {
       ),
     );
 
-    const client = new DaemonClient('http://127.0.0.1:8080');
+    const client = new DaemonClient(DEFAULT_DAEMON_URL);
     await expect(client.search('q')).rejects.toMatchObject({
       code: 'NOT_IMPLEMENTED',
       status: 501,
@@ -142,7 +142,7 @@ describe('DaemonClient', () => {
       }),
     );
 
-    const client = new DaemonClient('http://127.0.0.1:8080');
+    const client = new DaemonClient(DEFAULT_DAEMON_URL);
     const h = await client.waitReady(5000);
     expect(h.ready).toBe(true);
     expect(calls).toBeGreaterThanOrEqual(2);
