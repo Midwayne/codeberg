@@ -35,8 +35,8 @@ Outputs: `core/build/bin/cberg-index`, `core/build/bin/codeberg-d`.
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `CODEBERG_ROOT` | yes¹ | Repository tree to index (single-repo mode) |
-| `CODEBERG_ROOTS` | yes¹ | `key\tpath` records, newline-separated — every repo to serve (multi-repo mode; supersedes `CODEBERG_ROOT` when set) |
+| `CODEBERG_ROOT` | yes¹ | Repository tree to index: one path, or comma-separated list (only those dirs) |
+| `CODEBERG_ROOTS` | yes¹ | `key\tpath` records, newline-separated — every repo to serve (supersedes `CODEBERG_ROOT` when set) |
 | `CBERG_MODEL` | for vectors | Path to ONNX model |
 | `CBERG_INDEX_PATH` | for vectors | Index **base path**; per-repo sidecars at `<base>.<roothash>[.chunks\|.manifest]` |
 | `CBERG_INDEX_BACKEND` | no | `usearch` (default), `qdrant`, or `pgvector` (`postgres` alias) |

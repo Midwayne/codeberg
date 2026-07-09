@@ -25,6 +25,52 @@ codeberg repos                   # list every registered repo
 `codeberg <dir>` is shorthand for `codeberg --root <dir>`. `--all` and `--repos`
 compose with `--web` (`codeberg --all --web`).
 
+## `CODEBERG_ROOT` vs the registry
+
+There are **two mutually exclusive** ways to choose which repositories a
+session indexes. You use one or the other — never both.
+
+### Pinned roots (`CODEBERG_ROOT` set)
+
+When `CODEBERG_ROOT` is set — in `~/.codeberg/config`, the environment, or via
+`--root` — **only** the named directories are indexed. The repo registry is not
+consulted and `--all` / `--repos` (or `CODEBERG_ALL` / `CODEBERG_REPOS`) are
+rejected:
+
+```sh
+# one repo
+CODEBERG_ROOT=~/projects/api
+codeberg
+
+# exactly two repos — comma-separated, no others
+CODEBERG_ROOT=~/projects/api,~/projects/frontend
+codeberg
+```
+
+Each path is registered (unless `--no-index`) and forwarded to the daemon as
+`CODEBERG_ROOTS`. A single path also sets the `CODEBERG_ROOT` compat env var;
+multiple paths use `CODEBERG_ROOTS` only.
+
+### Registry multi-repo (`CODEBERG_ROOT` unset)
+
+When `CODEBERG_ROOT` is **unset**, roots come from the registry — every directory
+you have previously run `codeberg <dir>` against (without `--no-index`):
+
+```sh
+codeberg ~/projects/api          # registers api
+codeberg ~/projects/frontend     # registers frontend
+# remove or comment out CODEBERG_ROOT in ~/.codeberg/config, then:
+codeberg --all                   # index+search both, combined
+codeberg --repos api,frontend    # same two, named explicitly
+```
+
+| `CODEBERG_ROOT` | `--all` / `--repos` | Indexed |
+|-----------------|----------------------|---------|
+| set (one path) | not allowed | that path only |
+| set (comma list) | not allowed | exactly those paths |
+| unset | `--all` | every registered repo |
+| unset | `--repos a,b` | named subset from registry |
+
 ## The repo registry
 
 Every repo you run `codeberg` against (without `--no-index`) is remembered in
@@ -57,15 +103,17 @@ absolute path doesn't change).
 
 | Invocation | Roots served | Registered? | Vector index built? |
 |---|---|---|---|
-| `codeberg <dir>` / `--root <dir>` | that one directory | yes | yes (unless `--no-vector`) |
-| `codeberg --all` | every registered repo (skipping dead paths) | n/a (reads registry) | yes, per repo |
-| `codeberg --repos a,b,...` | the named dirs/keys | dirs get registered | yes, per repo |
+| `codeberg <dir>` / `--root <dir>` / `CODEBERG_ROOT` | that directory (or comma-separated list) | yes (unless `--no-index`) | yes (unless `--no-vector`) |
+| `codeberg --all` (requires unset `CODEBERG_ROOT`) | every registered repo (skipping dead paths) | n/a (reads registry) | yes, per repo |
+| `codeberg --repos a,b,...` (requires unset `CODEBERG_ROOT`) | the named dirs/keys | dirs get registered | yes, per repo |
 | `--no-index` (with any of the above) | same roots | **no** | **no** |
 
 `--all` and `--repos` are mutually exclusive (`--repos` is `--all` scoped to a
-chosen subset); `--root` cannot combine with either. `--repos` accepts a mix
-of directory paths and already-registered keys in one comma-separated list —
-an item is tried as a directory first, then as a key.
+chosen subset). `--root` / `CODEBERG_ROOT` cannot combine with either — pin
+explicit paths with `CODEBERG_ROOT` (comma-separated for several) or unset it
+and use the registry. `--repos` accepts a mix of directory paths and
+already-registered keys in one comma-separated list — an item is tried as a
+directory first, then as a key.
 
 ### `--no-index`: leave no trace
 

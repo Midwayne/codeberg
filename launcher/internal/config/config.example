@@ -16,10 +16,24 @@
 # Required (launcher)
 # =============================================================================
 
-# Repository tree(s) to index. When set, only these directories are indexed —
-# unset CODEBERG_ROOT to use --all / CODEBERG_REPOS against the registry instead.
-# Comma-separate multiple paths to index several repos in one session:
-# CODEBERG_ROOT=/path/to/api,/path/to/frontend
+# --- What to index: CODEBERG_ROOT vs registry multi-repo ----------------------
+#
+# Two mutually exclusive ways to choose which repositories a session indexes:
+#
+#   A) CODEBERG_ROOT set (this variable, --root, or CODEBERG_ROOT in the shell)
+#      → index ONLY the path(s) named here. Nothing from the repo registry is
+#        added. --all and CODEBERG_REPOS are rejected while this is set.
+#      → one path:   CODEBERG_ROOT=/path/to/api
+#      → several:    CODEBERG_ROOT=/path/to/api,/path/to/frontend
+#        (comma-separated; exactly those directories, no more)
+#
+#   B) CODEBERG_ROOT unset
+#      → use the registry built by prior `codeberg <dir>` runs:
+#        CODEBERG_ALL=true   or  codeberg --all     (every registered repo)
+#        CODEBERG_REPOS=a,b  or  codeberg --repos   (a chosen subset)
+#
+# See docs/multi-repo.md for the full picture (registry format, repo keys, …).
+#
 CODEBERG_ROOT=/path/to/your/repo
 
 # LLM the agent uses, as provider:model.
