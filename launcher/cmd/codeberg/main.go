@@ -558,22 +558,25 @@ CONFIGURE (changeable any time after install)
   Changes take effect the next time you run codeberg (it restarts the daemon
   each session, so a new root or model is picked up automatically).
 
-COMMON TASKS
+  COMMON TASKS
   First run:        codeberg config set CODEBERG_ROOT=~/proj \
                       CODEBERG_MODEL=anthropic:claude-haiku-4-5 \
                       ANTHROPIC_API_KEY=sk-ant-… ; codeberg
   Switch model:     codeberg config set CODEBERG_MODEL=openai:gpt-4o ; codeberg
-  Index another repo: codeberg ~/other                   (registers it too)
-  Search all repos: codeberg --all      (everything ever indexed; see: codeberg repos)
-  A chosen subset:  codeberg --repos ~/proj-a,api        (dirs and/or repo keys)
+  Index another repo: codeberg ~/other                   (registers it; overrides --root)
+  Search all repos: unset CODEBERG_ROOT, then codeberg --all
+                      (everything ever indexed; see: codeberg repos)
+  Pin several repos: codeberg config set CODEBERG_ROOT=~/a,~/b ; codeberg
+  A chosen subset:  codeberg --repos ~/proj-a,api        (dirs and/or repo keys; ROOT unset)
   Leave no trace:   codeberg ~/scratch --no-index        (not registered, no index)
   No embeddings:    codeberg config set CODEBERG_VECTOR=false ; codeberg
   What's installed: codeberg doctor
 
 KEY SETTINGS
-  CODEBERG_ROOT     repository to index            (--root)
-  CODEBERG_ALL      true = search all registered repos (--all)
-  CODEBERG_REPOS    comma-separated dirs/keys to serve (--repos)
+  CODEBERG_ROOT     repository to index (--root); comma-separated for several.
+                    Mutually exclusive with CODEBERG_ALL / CODEBERG_REPOS.
+  CODEBERG_ALL      true = search all registered repos (--all); requires unset ROOT
+  CODEBERG_REPOS    comma-separated dirs/keys to serve (--repos); requires unset ROOT
   CODEBERG_NO_INDEX true = register nothing, no index  (--no-index)
   CODEBERG_MODEL    LLM as provider:model          (--model)
   CODEBERG_VECTOR   false = chunk-only, skip model (--no-vector)

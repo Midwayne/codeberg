@@ -10,8 +10,8 @@ See [Prerequisites](#prerequisites) and [Build](#build), then run via the
 chat TUI, and auto-installs missing toolchains. `make dist` assembles a portable,
 prebuilt tree the launcher can run from anywhere (`codeberg --dist DIR`); packaged
 installers (a Homebrew tap) will build on that for a later release.
-[`config.example`](config.example) lists every launcher, daemon, and agent setting
-(`codeberg config init` writes a starter `~/.codeberg/config` from it).
+[`launcher/internal/config/config.example`](launcher/internal/config/config.example) lists every launcher, daemon, and agent setting
+(`codeberg config init` writes a minimal starter `~/.codeberg/config`; see that file for the full reference).
 
 ## Index root(s)
 

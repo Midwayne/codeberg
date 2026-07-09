@@ -1,5 +1,6 @@
 # codeberg launcher config — KEY=VALUE, '#' comments, optional `export ` prefix.
 # Copy to ~/.codeberg/config (`codeberg config init` does this) and edit.
+# `codeberg config init` writes a shorter starter; this file is the full reference.
 #
 # Precedence (highest first): CLI flags > process environment > this file > defaults.
 # The launcher injects daemon-scope and agent-scope vars into the right child

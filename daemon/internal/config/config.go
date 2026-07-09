@@ -1,7 +1,8 @@
 package config
 
 import (
-	"fmt"
+	"crypto/sha256"
+	"encoding/hex"
 	"log"
 	"os"
 	"path/filepath"
@@ -185,30 +186,22 @@ func loadRoots() ([]domain.Repo, string, error) {
 	paths := splitList(root)
 	if len(paths) > 1 {
 		var roots []domain.Repo
-		seenKey := map[string]int{}
+		taken := map[string]bool{}
 
 		for _, path := range paths {
 			resolved, err := resolveRoot(path)
 			if err != nil {
-				log.Printf("skipping repo %q: unresolvable root %q", path, path)
-				continue
+				return nil, "", invalid(EnvRoot)
 			}
-			if _, err := os.Stat(resolved); err != nil {
-				log.Printf("skipping repo %q: missing root %q", path, resolved)
-				continue
+			if fi, err := os.Stat(resolved); err != nil || !fi.IsDir() {
+				return nil, "", invalid(EnvRoot)
 			}
 
-			key := filepath.Base(resolved)
-			if n := seenKey[key]; n > 0 {
-				key = fmt.Sprintf("%s-%d", key, n+1)
-			}
-			seenKey[filepath.Base(resolved)]++
+			key := deriveRepoKey(resolved, taken)
+			taken[key] = true
 			roots = append(roots, domain.Repo{Key: key, Root: resolved})
 		}
 
-		if len(roots) == 0 {
-			return nil, "", invalid(EnvRoot)
-		}
 		if len(roots) == 1 {
 			return roots, roots[0].Key, nil
 		}
@@ -261,4 +254,27 @@ func splitList(v string) []string {
 		}
 	}
 	return out
+}
+
+// deriveRepoKey matches the launcher's registry key derivation: basename, with a
+// short path-hash suffix when another repo already claimed that name.
+func deriveRepoKey(resolved string, taken map[string]bool) string {
+	base := strings.Map(func(r rune) rune {
+		switch r {
+		case '\t', '\n', '\r':
+			return '-'
+		}
+		return r
+	}, filepath.Base(resolved))
+	if !taken[base] {
+		return base
+	}
+	sum := sha256.Sum256([]byte(resolved))
+	tag := hex.EncodeToString(sum[:])
+	for n := 6; n <= len(tag); n += 6 {
+		if key := base + "-" + tag[:n]; !taken[key] {
+			return key
+		}
+	}
+	return base + "-" + tag
 }

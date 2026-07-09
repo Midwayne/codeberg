@@ -185,6 +185,25 @@ func TestRootPathsSplitsCommaSeparated(t *testing.T) {
 	}
 }
 
+func TestValidateForRunRejectsEmptyRootList(t *testing.T) {
+	dist := t.TempDir()
+	writeArtifacts(t, dist)
+	c := &Config{Dist: dist, Model: "anthropic:claude", Root: ",,"}
+	if err := c.ValidateForRun(); err == nil {
+		t.Fatal("malformed CODEBERG_ROOT must be rejected")
+	}
+}
+
+func TestValidateForRunRejectsInvalidPathInList(t *testing.T) {
+	dist := t.TempDir()
+	writeArtifacts(t, dist)
+	good := t.TempDir()
+	c := &Config{Dist: dist, Model: "anthropic:claude", Root: good + ",/definitely/not/a/dir"}
+	if err := c.ValidateForRun(); err == nil {
+		t.Fatal("invalid path in comma-separated CODEBERG_ROOT must be rejected")
+	}
+}
+
 func TestDaemonEnvMultiRootOmitsSingleRootEnv(t *testing.T) {
 	c := &Config{
 		Root:     "/one,/two",
@@ -221,13 +240,15 @@ func TestInitFileWritesEmbeddedExample(t *testing.T) {
 	for _, want := range []string{
 		"CODEBERG_ROOT=",
 		"CODEBERG_MODEL=",
-		"CBERG_INDEX_PATH",
-		"CODEBERG_WEB_USE",
-		"daemon/.env.example",
+		"config.example",
+		"docs/multi-repo.md",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("init template missing %q", want)
 		}
+	}
+	if strings.Contains(body, "CODEBERG_HEALTH_TIMEOUT") {
+		t.Fatal("init template should be minimal, not the full config.example")
 	}
 	again, err := InitFile(path)
 	if err != nil {

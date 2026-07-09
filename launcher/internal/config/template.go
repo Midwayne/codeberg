@@ -9,8 +9,8 @@ import (
 	"strings"
 )
 
-//go:embed config.example
-var fileTemplate string
+//go:embed config.init.example
+var initTemplate string
 
 // InitFile writes a template config to path unless it already exists. Returns
 // (created, error). It creates parent directories as needed.
@@ -21,7 +21,7 @@ func InitFile(path string) (bool, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return false, err
 	}
-	if err := os.WriteFile(path, []byte(fileTemplate), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(initTemplate), 0o600); err != nil {
 		return false, err
 	}
 	return true, nil

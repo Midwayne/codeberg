@@ -363,8 +363,10 @@ func (c *Config) ValidateForRun() error {
 		// --all / --repos take their roots from the registry (resolved in cmdRun).
 	} else if c.Root == "" {
 		missing = append(missing, KeyRoot+" (the repository to index)")
+	} else if paths := RootPaths(c.Root); len(paths) == 0 {
+		return fmt.Errorf("%s is empty or invalid", KeyRoot)
 	} else {
-		for _, path := range RootPaths(c.Root) {
+		for _, path := range paths {
 			if fi, err := os.Stat(path); err != nil || !fi.IsDir() {
 				return fmt.Errorf("%s is not a directory: %s", KeyRoot, path)
 			}
