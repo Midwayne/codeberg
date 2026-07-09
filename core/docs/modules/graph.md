@@ -192,7 +192,9 @@ keep their MODULE target. FILE enumeration uses the live graph size (no fixed
 cap). Tests: `core/test/test_graph_resolve.c`.
 
 `cberg_graph_hubs` ranks symbols by full incident `CALLS` degree (in+out,
-uncapped) for architecture overviews (IPC `graph_hubs`).
+uncapped) for architecture overviews (IPC `graph_hubs`). Degree is tallied in
+one pass over live CALLS refs (name refs resolve once), not by re-emitting
+edges per node.
 
 ---
 

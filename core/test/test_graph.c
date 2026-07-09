@@ -246,6 +246,63 @@ static void test_invalid_args(void) {
     cberg_graph_free(g);
 }
 
+/* Ambiguous cross-file: confidence = 0.75 * min(1, 3/n) with n=4 → 0.5625. */
+static void test_ambiguous_confidence(void) {
+    graph_corpus c;
+    CHECK(corpus_open(&c) == 0, "ambiguous corpus");
+    if (c.chunker == NULL) {
+        return;
+    }
+    for (int i = 0; i < 4; i++) {
+        char path[32];
+        char src[64];
+        snprintf(path, sizeof path, "t%d.go", i);
+        snprintf(src, sizeof src, "package p\n\nfunc target() {}\n");
+        CHECK(corpus_index(&c, CBERG_LANG_GO, path, src) == CBERG_OK, "index target def");
+    }
+    CHECK(corpus_index(&c, CBERG_LANG_GO, "caller.go", "package p\n\nfunc call() {\n\ttarget()\n}\n") == CBERG_OK,
+          "index caller");
+
+    const cberg_graph_node *targets[8];
+    size_t nt = 0;
+    CHECK(cberg_graph_find_nodes(c.graph, "target", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION), NULL, targets, 8, &nt) == CBERG_OK,
+          "find targets");
+    CHECK(nt == 4, "four target defs");
+    if (nt < 1) {
+        corpus_close(&c);
+        return;
+    }
+
+    cberg_graph_edge edges[16];
+    size_t n = 0;
+    CHECK(cberg_graph_edges_to(c.graph, targets[0]->id, CBERG_GEDGE_CALLS, edges, 16, &n) == CBERG_OK, "edges_to target");
+    CHECK(n == 1, "one caller edge per candidate");
+    if (n == 1) {
+        float want = 0.75f * (3.0f / 4.0f);
+        CHECK(edges[0].confidence > want - 0.01f && edges[0].confidence < want + 0.01f, "ambiguous confidence 0.5625");
+    }
+
+    /* Hubs: helper-like unique name should report degree == caller count. */
+    const cberg_graph_node *call = corpus_node(&c, "call", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION));
+    CHECK(call != NULL, "call node");
+    if (call != NULL) {
+        cberg_graph_hub hubs[16];
+        size_t hn = 0;
+        CHECK(cberg_graph_hubs(c.graph, hubs, 16, &hn) == CBERG_OK, "hubs");
+        int found_call = 0;
+        for (size_t i = 0; i < hn; i++) {
+            if (hubs[i].id == call->id) {
+                found_call = 1;
+                /* call → 4 ambiguous targets ⇒ out-degree 4 */
+                CHECK(hubs[i].degree == 4, "call hub degree matches fan-out");
+            }
+        }
+        CHECK(found_call, "call appears in hubs");
+    }
+
+    corpus_close(&c);
+}
+
 int main(void) {
     graph_corpus corpus;
     if (corpus_open(&corpus) != 0) {
@@ -258,7 +315,9 @@ int main(void) {
     test_persistence(&corpus); /* before incremental edits mutate the corpus */
     test_incremental(&corpus);
     test_invalid_args();
-
     corpus_close(&corpus);
+
+    test_ambiguous_confidence();
+
     TEST_MAIN_RETURN
 }

@@ -290,6 +290,27 @@ int main(void) {
         return 1;
     }
 
+    const size_t hubs_rounds = 50;
+    cberg_graph_hub hubs[32];
+    size_t hubs_n = 0;
+    cberg_bench_start(&t);
+    size_t hubs_hits = 0;
+    for (size_t r = 0; r < hubs_rounds; r++) {
+        if (cberg_graph_hubs(corpus.graph, hubs, 32, &hubs_n) != CBERG_OK) {
+            fprintf(stderr, "hubs failed\n");
+            corpus_free(&corpus);
+            return 1;
+        }
+        hubs_hits += hubs_n;
+    }
+    cberg_bench_stop(&t);
+    cberg_bench_report("graph hubs top32", &t, hubs_rounds);
+    if (hubs_hits == 0) {
+        fprintf(stderr, "hubs returned empty\n");
+        corpus_free(&corpus);
+        return 1;
+    }
+
     char path[] = "/tmp/cberg-bench-graph-XXXXXX";
     int fd = mkstemp(path);
     if (fd < 0) {

@@ -612,6 +612,34 @@ static int candidates_contain(const graph_candidates *c, uint32_t node_index) {
     return 0;
 }
 
+/* Query-local memo: many CALLS refs share (name, path, kind) within one emit. */
+typedef struct {
+    const char *name;
+    const char *path;
+    uint8_t kind;
+    uint8_t valid;
+    graph_candidates cands;
+} resolve_memo;
+
+static void resolve_name_cached(const cberg_graph *g, const char *name, const char *ref_path, uint8_t ref_kind, resolve_memo *memo,
+                                graph_candidates *out) {
+    if (memo->valid && memo->kind == ref_kind && memo->name != NULL && name != NULL && strcmp(memo->name, name) == 0) {
+        int same_path = (memo->path == ref_path) ||
+                        (memo->path != NULL && ref_path != NULL && strcmp(memo->path, ref_path) == 0) ||
+                        (memo->path == NULL && ref_path == NULL);
+        if (same_path) {
+            *out = memo->cands;
+            return;
+        }
+    }
+    resolve_name(g, name, ref_path, ref_kind, out);
+    memo->name = name;
+    memo->path = ref_path;
+    memo->kind = ref_kind;
+    memo->cands = *out;
+    memo->valid = 1;
+}
+
 /* ------------------------------------------------------------ edge iteration */
 
 /* Returns nonzero to stop iteration (sink full). */
@@ -630,9 +658,10 @@ static cberg_graph_edge make_edge(uint64_t src, uint64_t dst, uint8_t kind, cber
 
 #define GRAPH_CONF_IMPORT 0.95f
 
-static int emit_ref_candidates(const cberg_graph *g, const graph_ref_rec *ref, int as_source, graph_edge_sink sink, void *ctx) {
+static int emit_ref_candidates(const cberg_graph *g, const graph_ref_rec *ref, int as_source, graph_edge_sink sink, void *ctx,
+                               resolve_memo *memo) {
     graph_candidates cands;
-    resolve_name(g, ref->name, ref->path, ref->kind, &cands);
+    resolve_name_cached(g, ref->name, ref->path, ref->kind, memo, &cands);
     for (size_t c = 0; c < cands.count; c++) {
         uint64_t cand_id = g->nodes[cands.idx[c]].pub.id;
         cberg_graph_resolution res = ref->resolution != 0 ? (cberg_graph_resolution)ref->resolution : CBERG_GRES_TEXTUAL;
@@ -648,6 +677,7 @@ static int emit_ref_candidates(const cberg_graph *g, const graph_ref_rec *ref, i
 /* All resolved edges leaving `rec`'s node. */
 static int emit_edges_from(const cberg_graph *g, const graph_node_rec *rec, uint32_t mask, graph_edge_sink sink, void *ctx) {
     uint64_t id = rec->pub.id;
+    resolve_memo memo = {0};
 
     /* DEFINES is synthesized from the path index rather than stored. */
     if (rec->pub.kind == CBERG_GNODE_FILE && (mask & CBERG_GEDGE_DEFINES) != 0) {
@@ -685,7 +715,7 @@ static int emit_edges_from(const cberg_graph *g, const graph_node_rec *rec, uint
                 if (sink(ctx, &edge)) {
                     return 1;
                 }
-            } else if (emit_ref_candidates(g, ref, 0, sink, ctx)) {
+            } else if (emit_ref_candidates(g, ref, 0, sink, ctx, &memo)) {
                 return 1;
             }
         }
@@ -702,7 +732,7 @@ static int emit_edges_from(const cberg_graph *g, const graph_node_rec *rec, uint
                 continue;
             }
             graph_candidates cands;
-            resolve_name(g, ref->name, ref->path, ref->kind, &cands);
+            resolve_name_cached(g, ref->name, ref->path, ref->kind, &memo, &cands);
             if (!candidates_contain(&cands, self_index)) {
                 continue;
             }
@@ -719,6 +749,7 @@ static int emit_edges_from(const cberg_graph *g, const graph_node_rec *rec, uint
 /* All resolved edges arriving at `rec`'s node. */
 static int emit_edges_to(const cberg_graph *g, const graph_node_rec *rec, uint32_t mask, graph_edge_sink sink, void *ctx) {
     uint64_t id = rec->pub.id;
+    resolve_memo memo = {0};
 
     if (rec->pub.kind != CBERG_GNODE_FILE && rec->pub.path != NULL && (mask & CBERG_GEDGE_DEFINES) != 0) {
         uint64_t fid = graph_file_id(rec->pub.path);
@@ -757,7 +788,7 @@ static int emit_edges_to(const cberg_graph *g, const graph_node_rec *rec, uint32
                 continue;
             }
             graph_candidates cands;
-            resolve_name(g, ref->name, ref->path, ref->kind, &cands);
+            resolve_name_cached(g, ref->name, ref->path, ref->kind, &memo, &cands);
             if (!candidates_contain(&cands, self_index)) {
                 continue;
             }
@@ -777,7 +808,7 @@ static int emit_edges_to(const cberg_graph *g, const graph_node_rec *rec, uint32
             if (ref->dead || !ref->rev || (mask & ref->kind) == 0) {
                 continue;
             }
-            if (emit_ref_candidates(g, ref, 1, sink, ctx)) {
+            if (emit_ref_candidates(g, ref, 1, sink, ctx, &memo)) {
                 return 1;
             }
         }
@@ -1207,10 +1238,15 @@ static int hub_cmp(const void *a, const void *b) {
     return ha->id < hb->id ? -1 : (ha->id > hb->id ? 1 : 0);
 }
 
-static int degree_count_sink(void *v, const cberg_graph_edge *edge) {
-    (void)edge;
-    (*(uint32_t *)v)++;
-    return 0; /* never stop — count the full degree */
+/*
+ * Single-pass CALLS degree: walk each live CALLS ref once, resolve name refs
+ * once, and bump both endpoints. Matches emit_edges_from/to CALLS counting
+ * without O(nodes × refs-per-name) re-resolution.
+ */
+static void hubs_bump(uint32_t *deg, size_t n, uint32_t idx) {
+    if (idx < n) {
+        deg[idx]++;
+    }
 }
 
 cberg_status cberg_graph_hubs(const cberg_graph *graph, cberg_graph_hub *out, size_t cap, size_t *out_count) {
@@ -1218,8 +1254,51 @@ cberg_status cberg_graph_hubs(const cberg_graph *graph, cberg_graph_hub *out, si
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     *out_count = 0;
+    if (graph->nodes_len == 0) {
+        return CBERG_OK;
+    }
+    uint32_t *deg = calloc(graph->nodes_len, sizeof(*deg));
+    if (deg == NULL) {
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+    resolve_memo memo = {0};
+    for (size_t r = 0; r < graph->refs_len; r++) {
+        const graph_ref_rec *ref = &graph->refs[r];
+        if (ref->dead || ref->kind != CBERG_GEDGE_CALLS || ref->rev) {
+            continue;
+        }
+        const graph_node_rec *src = node_rec_by_id(graph, ref->src);
+        if (src == NULL) {
+            continue;
+        }
+        uint32_t src_idx = (uint32_t)(src - graph->nodes);
+        if (ref->dst != 0) {
+            const graph_node_rec *dst = node_rec_by_id(graph, ref->dst);
+            if (dst == NULL) {
+                continue;
+            }
+            hubs_bump(deg, graph->nodes_len, src_idx);
+            hubs_bump(deg, graph->nodes_len, (uint32_t)(dst - graph->nodes));
+            continue;
+        }
+        if (ref->name == NULL) {
+            continue;
+        }
+        graph_candidates cands;
+        resolve_name_cached(graph, ref->name, ref->path, ref->kind, &memo, &cands);
+        if (cands.count == 0) {
+            continue;
+        }
+        /* One edge per candidate: src degree += N, each candidate += 1. */
+        for (size_t c = 0; c < cands.count; c++) {
+            hubs_bump(deg, graph->nodes_len, src_idx);
+            hubs_bump(deg, graph->nodes_len, cands.idx[c]);
+        }
+    }
+
     cberg_graph_hub *tmp = calloc(graph->nodes_len + 1, sizeof(*tmp));
     if (tmp == NULL) {
+        free(deg);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
     size_t n = 0;
@@ -1228,16 +1307,14 @@ cberg_status cberg_graph_hubs(const cberg_graph *graph, cberg_graph_hub *out, si
         if (rec->dead || rec->pub.kind == CBERG_GNODE_FILE || rec->pub.kind == CBERG_GNODE_MODULE) {
             continue;
         }
-        uint32_t deg = 0;
-        (void)emit_edges_from(graph, rec, CBERG_GEDGE_CALLS, degree_count_sink, &deg);
-        (void)emit_edges_to(graph, rec, CBERG_GEDGE_CALLS, degree_count_sink, &deg);
-        if (deg == 0) {
+        if (deg[i] == 0) {
             continue;
         }
         tmp[n].id = rec->pub.id;
-        tmp[n].degree = deg;
+        tmp[n].degree = deg[i];
         n++;
     }
+    free(deg);
     qsort(tmp, n, sizeof(*tmp), hub_cmp);
     size_t write = n < cap ? n : cap;
     memcpy(out, tmp, write * sizeof(*out));

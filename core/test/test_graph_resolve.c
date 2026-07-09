@@ -261,12 +261,84 @@ static void test_rust_crate_path(void) {
     rm_tree(root);
 }
 
+/* More than 64 relative imports must all rewrite (no silent 64-cap truncation). */
+static void test_many_relative_imports(void) {
+    char tmpl[] = "/tmp/cberg_resolve_XXXXXX";
+    char *root = mkdtemp(tmpl);
+    CHECK(root != NULL, "mkdtemp");
+    if (root == NULL) {
+        return;
+    }
+
+    const int n = 65;
+    char *body = malloc((size_t)n * 32 + 64);
+    CHECK(body != NULL, "alloc body");
+    if (body == NULL) {
+        rm_tree(root);
+        return;
+    }
+    size_t off = 0;
+    for (int i = 0; i < n; i++) {
+        char path[64];
+        snprintf(path, sizeof path, "m%d.ts", i);
+        write_file(root, path, "export const x = 1;\n");
+        off += (size_t)snprintf(body + off, 32, "import \"./m%d\";\n", i);
+    }
+    write_file(root, "app.ts", body);
+    free(body);
+
+    graph_corpus c;
+    CHECK(corpus_open(&c) == 0, "corpus open");
+    for (int i = 0; i < n; i++) {
+        char path[64];
+        snprintf(path, sizeof path, "m%d.ts", i);
+        CHECK(corpus_index(&c, CBERG_LANG_TYPESCRIPT, path, "export const x = 1;\n") == CBERG_OK, "index module");
+    }
+    /* Rebuild app.ts source for indexing. */
+    body = malloc((size_t)n * 32 + 64);
+    CHECK(body != NULL, "alloc body2");
+    if (body == NULL) {
+        corpus_close(&c);
+        rm_tree(root);
+        return;
+    }
+    off = 0;
+    for (int i = 0; i < n; i++) {
+        off += (size_t)snprintf(body + off, 32, "import \"./m%d\";\n", i);
+    }
+    CHECK(corpus_index(&c, CBERG_LANG_TYPESCRIPT, "app.ts", body) == CBERG_OK, "index app");
+    free(body);
+
+    CHECK(cberg_graph_resolve_imports(c.graph, root) == CBERG_OK, "resolve many");
+
+    const cberg_graph_node *app = file_by_path(&c, "app.ts");
+    CHECK(app != NULL, "app.ts file node");
+    if (app != NULL) {
+        cberg_graph_edge edges[128];
+        size_t ne = 0;
+        CHECK(cberg_graph_edges_from(c.graph, app->id, CBERG_GEDGE_IMPORTS, edges, 128, &ne) == CBERG_OK, "list imports");
+        CHECK(ne == (size_t)n, "all imports present");
+        size_t resolved = 0;
+        for (size_t i = 0; i < ne; i++) {
+            const cberg_graph_node *dst = cberg_graph_node_by_id(c.graph, edges[i].dst);
+            if (dst != NULL && dst->kind == CBERG_GNODE_FILE && edges[i].resolution == CBERG_GRES_IMPORT) {
+                resolved++;
+            }
+        }
+        CHECK(resolved == (size_t)n, "all 65 relative imports rewrite to FILE");
+    }
+
+    corpus_close(&c);
+    rm_tree(root);
+}
+
 int main(void) {
     test_stdlib_not_rewritten();
     test_slash_stdlib_not_rewritten();
     test_relative_and_module_path();
     test_ts_relative();
     test_rust_crate_path();
+    test_many_relative_imports();
     if (failures == 0) {
         printf("ok - resolve_imports\n");
     }

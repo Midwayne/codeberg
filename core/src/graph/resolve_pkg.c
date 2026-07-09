@@ -378,10 +378,24 @@ cberg_status cberg_graph_resolve_imports(cberg_graph *graph, const char *repo_ro
         cberg_arena_free(idx.arena);
         return st;
     }
+    /* Cap must cover every IMPORTS ref — a fixed 64-slot buffer silently left
+     * the rest as MODULE forever. Size once from live ref count. */
+    size_t refs_cap = 0;
+    cberg_graph_counts(graph, NULL, &refs_cap);
+    if (refs_cap < 64) {
+        refs_cap = 64;
+    }
+    cberg_graph_edge *edges = calloc(refs_cap, sizeof(*edges));
+    if (edges == NULL) {
+        free(files);
+        free(idx.file_paths);
+        cberg_strmap_free(idx.import_to_file);
+        cberg_arena_free(idx.arena);
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
     for (size_t i = 0; i < nfiles; i++) {
-        cberg_graph_edge edges[64];
         size_t nedges = 0;
-        if (cberg_graph_edges_from(graph, files[i]->id, CBERG_GEDGE_IMPORTS, edges, 64, &nedges) != CBERG_OK) {
+        if (cberg_graph_edges_from(graph, files[i]->id, CBERG_GEDGE_IMPORTS, edges, refs_cap, &nedges) != CBERG_OK) {
             continue;
         }
         for (size_t e = 0; e < nedges; e++) {
@@ -426,6 +440,7 @@ cberg_status cberg_graph_resolve_imports(cberg_graph *graph, const char *repo_ro
             (void)cberg_graph_rewrite_import(graph, files[i]->id, edges[e].dst, tgt->id, file);
         }
     }
+    free(edges);
     free(files);
     free(idx.file_paths);
     cberg_strmap_free(idx.import_to_file);
