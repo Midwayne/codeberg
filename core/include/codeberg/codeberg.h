@@ -203,7 +203,8 @@ CBERG_API const cberg_stored_chunk *cberg_chunk_table_find_by_key(const cberg_ch
 
 /*
  * Diff `incoming` against the table. IDs are stable across modifications.
- * Change arrays are owned by the table until the next sync or free.
+ * Change arrays are owned by the table until the next sync or free; their
+ * key/path/symbol strings borrow the table's string arena (same lifetime).
  * On non-OK return the table and prior change arrays are unchanged.
  */
 CBERG_API cberg_status cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk *incoming, size_t count, cberg_changes *out_changes);
