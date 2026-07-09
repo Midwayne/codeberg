@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"codeberg.org/codeberg/daemon/internal/workspace"
@@ -10,47 +11,30 @@ import (
 const defaultHeadTail = 20
 
 func headTool(ws *workspace.Workspace) Tool {
-	const schema = `{
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-    "repo": {"type": "string"},
-    "path": {"type": "string", "description": "repo-relative path"},
-    "lines": {"type": "integer", "description": "number of leading lines (default 20)"}
-  },
-  "required": ["path"]
-}`
-
-	return New("head", "Return the first N lines of a file (default 20).", schema,
-		func(_ context.Context, a pathLinesArgs) (any, error) {
-			lines, err := readLines(ws, a.Repo, a.Path)
-			if err != nil {
-				return nil, err
-			}
-
-			n := a.Lines
-			if n <= 0 {
-				n = defaultHeadTail
-			}
-
-			sliced, count := sliceLines(lines, n, false)
-			return headTailResult{Content: strings.Join(sliced, "\n"), Lines: count}, nil
-		})
+	return headTailTool(ws, "head", false, "Return the first N lines of a file (default 20).")
 }
 
 func tailTool(ws *workspace.Workspace) Tool {
-	const schema = `{
+	return headTailTool(ws, "tail", true, "Return the last N lines of a file (default 20).")
+}
+
+func headTailTool(ws *workspace.Workspace, name string, fromEnd bool, description string) Tool {
+	edge := "leading"
+	if fromEnd {
+		edge = "trailing"
+	}
+	schema := fmt.Sprintf(`{
   "type": "object",
   "additionalProperties": false,
   "properties": {
     "repo": {"type": "string"},
     "path": {"type": "string", "description": "repo-relative path"},
-    "lines": {"type": "integer", "description": "number of trailing lines (default 20)"}
+    "lines": {"type": "integer", "description": "number of %s lines (default 20)"}
   },
   "required": ["path"]
-}`
+}`, edge)
 
-	return New("tail", "Return the last N lines of a file (default 20).", schema,
+	return New(name, description, schema,
 		func(_ context.Context, a pathLinesArgs) (any, error) {
 			lines, err := readLines(ws, a.Repo, a.Path)
 			if err != nil {
@@ -62,7 +46,7 @@ func tailTool(ws *workspace.Workspace) Tool {
 				n = defaultHeadTail
 			}
 
-			sliced, count := sliceLines(lines, n, true)
+			sliced, count := sliceLines(lines, n, fromEnd)
 			return headTailResult{Content: strings.Join(sliced, "\n"), Lines: count}, nil
 		})
 }

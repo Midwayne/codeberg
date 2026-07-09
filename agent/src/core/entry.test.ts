@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { DEFAULT_DAEMON_URL } from './client.js';
 import { entryUsage, parseEntryArgs } from './entry.js';
 
 describe('parseEntryArgs', () => {
@@ -11,7 +12,7 @@ describe('parseEntryArgs', () => {
     expect(entry).toEqual({
       modelSpec: 'openai:gpt-4o-mini',
       question: 'how does auth work',
-      daemonUrl: 'http://127.0.0.1:8080',
+      daemonUrl: DEFAULT_DAEMON_URL,
     });
   });
 

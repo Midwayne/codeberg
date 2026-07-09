@@ -86,7 +86,7 @@ var cmd = { open: false, active: 0, matches: [] };
 fetch("/api/commands")
   .then(function (r) { return r.ok ? r.json() : []; })
   .then(function (list) { commands = Array.isArray(list) ? list : []; })
-  .catch(function () {});
+  .catch(function (err) { console.warn("failed to load /api/commands", err); });
 
 function cmdQuery() {
   var m = /^\\/([a-zA-Z-]*)$/.exec(input.value);
@@ -242,7 +242,9 @@ function forEachChunk(body, onChunk) {
         buf = buf.slice(i + 2);
         var line = frame.indexOf("data: ") === 0 ? frame.slice(6) : frame;
         if (line === "[DONE]") return;
-        try { onChunk(JSON.parse(line)); } catch (_) {}
+        try { onChunk(JSON.parse(line)); } catch (err) {
+          console.warn("bad SSE chunk", err);
+        }
       }
       return pump();
     });

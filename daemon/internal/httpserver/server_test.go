@@ -14,50 +14,18 @@ import (
 	"codeberg.org/codeberg/daemon/internal/tools"
 )
 
-type fakeIndexer struct {
-	status   indexctl.Status
-	hits     []indexctl.SearchResult
-	gotOpts  indexctl.SearchOptions
-	getChunk func(context.Context, string, uint64) (indexctl.ChunkDetail, error)
-}
-
-func (f *fakeIndexer) Status(context.Context) (indexctl.Status, error) {
-	return f.status, nil
-}
-
-func (f *fakeIndexer) Search(_ context.Context, opts indexctl.SearchOptions) ([]indexctl.SearchResult, error) {
-	f.gotOpts = opts
-	return f.hits, nil
-}
-
-func (f *fakeIndexer) GetChunk(ctx context.Context, repo string, id uint64) (indexctl.ChunkDetail, error) {
-	if f.getChunk != nil {
-		return f.getChunk(ctx, repo, id)
-	}
-	return indexctl.ChunkDetail{}, nil
-}
-
-func (f *fakeIndexer) FindSymbol(context.Context, indexctl.SymbolOptions) ([]indexctl.SearchResult, error) {
-	return nil, nil
-}
-
-func (f *fakeIndexer) FileOutline(context.Context, string, string) ([]indexctl.SearchResult, error) {
-	return nil, nil
-}
-
 func TestHealthAndSearch(t *testing.T) {
-	idx := &fakeIndexer{
-		status: indexctl.Status{
-			Ready:          true,
-			Chunks:         2,
-			Version:        "v0.1.0",
-			VectorsEnabled: true,
-			Repos:          []indexctl.RepoStatus{{Key: "main", Ready: true, Chunks: 2}},
-		},
-		hits: []indexctl.SearchResult{{
+	idx := (&testutil.FakeIndexer{
+		SearchHits: []indexctl.SearchResult{{
 			ID: 1, Score: 0.5, Repo: "main", Path: "main.go", StartLine: 1, EndLine: 10, Snippet: "package main",
 		}},
-	}
+	}).WithStatus(indexctl.Status{
+		Ready:          true,
+		Chunks:         2,
+		Version:        "v0.1.0",
+		VectorsEnabled: true,
+		Repos:          []indexctl.RepoStatus{{Key: "main", Ready: true, Chunks: 2}},
+	})
 	ws := testutil.WsSingle(t.TempDir())
 	srv := New(idx, tools.Default(ws, idx))
 	ts := httptest.NewServer(srv.Handler())
@@ -99,13 +67,13 @@ func TestHealthAndSearch(t *testing.T) {
 	if len(body.Results) != 1 || body.Results[0].Path != "main.go" || body.Results[0].Repo != "main" {
 		t.Fatalf("results: %+v", body.Results)
 	}
-	if idx.gotOpts.Repo != "main" || idx.gotOpts.PathGlob != "*.go" {
-		t.Fatalf("search opts not plumbed: %+v", idx.gotOpts)
+	if idx.GotSearch.Repo != "main" || idx.GotSearch.PathGlob != "*.go" {
+		t.Fatalf("search opts not plumbed: %+v", idx.GotSearch)
 	}
 }
 
 func TestSearchMissingQuery(t *testing.T) {
-	idx := &fakeIndexer{}
+	idx := &testutil.FakeIndexer{}
 	ws := testutil.WsSingle(t.TempDir())
 	srv := New(idx, tools.Default(ws, idx))
 	ts := httptest.NewServer(srv.Handler())
@@ -137,7 +105,7 @@ func TestCallTool(t *testing.T) {
 	if err := os.WriteFile(root+"/hello.txt", []byte("hi"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	idx := &fakeIndexer{status: indexctl.Status{Ready: true}}
+	idx := testutil.StubIndexer()
 	ws := testutil.WsSingle(root)
 	srv := New(idx, tools.Default(ws, idx))
 	ts := httptest.NewServer(srv.Handler())
@@ -160,7 +128,7 @@ func TestCallPipeTool(t *testing.T) {
 	if err := os.WriteFile(root+"/a.go", []byte("package main\n// TODO\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	idx := &fakeIndexer{status: indexctl.Status{Ready: true}}
+	idx := testutil.StubIndexer()
 	ws := testutil.WsSingle(root)
 	srv := New(idx, tools.Default(ws, idx))
 	ts := httptest.NewServer(srv.Handler())
@@ -197,10 +165,65 @@ func TestCallPipeTool(t *testing.T) {
 	if res2.StatusCode != http.StatusBadRequest {
 		t.Fatalf("unsafe pipe status %d, want 400", res2.StatusCode)
 	}
+	var errBody struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(res2.Body).Decode(&errBody); err != nil {
+		t.Fatal(err)
+	}
+	if errBody.Code != "UNSAFE_PIPE" {
+		t.Fatalf("unsafe pipe code %q, want UNSAFE_PIPE", errBody.Code)
+	}
+
+	res3 := call(``)
+	defer res3.Body.Close()
+	if res3.StatusCode != http.StatusBadRequest {
+		t.Fatalf("empty pipe status %d, want 400", res3.StatusCode)
+	}
+	if err := json.NewDecoder(res3.Body).Decode(&errBody); err != nil {
+		t.Fatal(err)
+	}
+	if errBody.Code != "INVALID_ARGS" {
+		t.Fatalf("empty pipe code %q, want INVALID_ARGS", errBody.Code)
+	}
+}
+
+func TestCallUnsafeSedTool(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(root+"/a.txt", []byte("hello\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	idx := testutil.StubIndexer()
+	ws := testutil.WsSingle(root)
+	srv := New(idx, tools.Default(ws, idx))
+	ts := httptest.NewServer(srv.Handler())
+	t.Cleanup(ts.Close)
+
+	b, _ := json.Marshal(map[string]any{
+		"name": "sed",
+		"args": map[string]any{"path": "a.txt", "script": "w /tmp/out"},
+	})
+	res, err := http.Post(ts.URL+"/tools/call", "application/json", bytes.NewReader(b))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("unsafe sed status %d, want 400", res.StatusCode)
+	}
+	var body struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Code != "UNSAFE_SED" {
+		t.Fatalf("unsafe sed code %q, want UNSAFE_SED", body.Code)
+	}
 }
 
 func TestSearchInvalidMinScore(t *testing.T) {
-	idx := &fakeIndexer{}
+	idx := &testutil.FakeIndexer{}
 	ws := testutil.WsSingle(t.TempDir())
 	srv := New(idx, tools.Default(ws, idx))
 	ts := httptest.NewServer(srv.Handler())
@@ -227,7 +250,7 @@ func TestSearchInvalidMinScore(t *testing.T) {
 
 func TestCallToolForbiddenPath(t *testing.T) {
 	root := t.TempDir()
-	idx := &fakeIndexer{status: indexctl.Status{Ready: true}}
+	idx := testutil.StubIndexer()
 	ws := testutil.WsSingle(root)
 	srv := New(idx, tools.Default(ws, idx))
 	ts := httptest.NewServer(srv.Handler())
@@ -246,12 +269,11 @@ func TestCallToolForbiddenPath(t *testing.T) {
 }
 
 func TestCallToolGetChunk(t *testing.T) {
-	idx := &fakeIndexer{
-		status: indexctl.Status{Ready: true},
-	}
-	idx.getChunk = func(_ context.Context, repo string, id uint64) (indexctl.ChunkDetail, error) {
-		return indexctl.ChunkDetail{ID: id, Repo: repo, Path: "a.go", Body: "func main(){}"}, nil
-	}
+	idx := (&testutil.FakeIndexer{
+		GetChunkFn: func(_ context.Context, repo string, id uint64) (indexctl.ChunkDetail, error) {
+			return indexctl.ChunkDetail{ID: id, Repo: repo, Path: "a.go", Body: "func main(){}"}, nil
+		},
+	}).WithStatus(indexctl.Status{Ready: true})
 	ws := testutil.WsSingle(t.TempDir())
 	srv := New(idx, tools.Default(ws, idx))
 	ts := httptest.NewServer(srv.Handler())
@@ -279,7 +301,7 @@ func TestCallToolGetChunk(t *testing.T) {
 }
 
 func TestSearchToolRegistered(t *testing.T) {
-	idx := &fakeIndexer{status: indexctl.Status{Ready: true}}
+	idx := testutil.StubIndexer()
 	ws := testutil.WsSingle(t.TempDir())
 	srv := New(idx, tools.Default(ws, idx))
 	ts := httptest.NewServer(srv.Handler())
