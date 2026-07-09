@@ -261,7 +261,9 @@ static void test_rust_crate_path(void) {
     rm_tree(root);
 }
 
-/* More than 64 relative imports must all rewrite (no silent 64-cap truncation). */
+/* More than 64 relative imports must all rewrite (no silent 64-cap truncation).
+ * Also exercises rewrite_import → maybe_compact while iterating many files:
+ * file IDs (not node pointers) must remain valid across compaction. */
 static void test_many_relative_imports(void) {
     char tmpl[] = "/tmp/cberg_resolve_XXXXXX";
     char *root = mkdtemp(tmpl);
@@ -332,6 +334,79 @@ static void test_many_relative_imports(void) {
     rm_tree(root);
 }
 
+/* Enough rewrites to trip GRAPH_COMPACT_MIN_DEAD while resolve still walks
+ * remaining file IDs — catches UAF if node pointers were cached across compact. */
+static void test_resolve_survives_compact(void) {
+    char tmpl[] = "/tmp/cberg_resolve_XXXXXX";
+    char *root = mkdtemp(tmpl);
+    CHECK(root != NULL, "mkdtemp");
+    if (root == NULL) {
+        return;
+    }
+
+    const int n_files = 8;
+    const int imports_per = 40; /* 8*40 = 320 rewrites > compact threshold */
+    graph_corpus c;
+    CHECK(corpus_open(&c) == 0, "corpus open");
+
+    for (int f = 0; f < n_files; f++) {
+        for (int i = 0; i < imports_per; i++) {
+            char path[64];
+            snprintf(path, sizeof path, "lib/f%dm%d.ts", f, i);
+            write_file(root, path, "export const x = 1;\n");
+            CHECK(corpus_index(&c, CBERG_LANG_TYPESCRIPT, path, "export const x = 1;\n") == CBERG_OK, "index lib");
+        }
+        size_t body_cap = (size_t)imports_per * 48 + 64;
+        char *body = malloc(body_cap);
+        CHECK(body != NULL, "body");
+        if (body == NULL) {
+            corpus_close(&c);
+            rm_tree(root);
+            return;
+        }
+        size_t off = 0;
+        for (int i = 0; i < imports_per; i++) {
+            off += (size_t)snprintf(body + off, body_cap - off, "import \"./lib/f%dm%d\";\n", f, i);
+        }
+        char app[64];
+        snprintf(app, sizeof app, "app%d.ts", f);
+        write_file(root, app, body);
+        CHECK(corpus_index(&c, CBERG_LANG_TYPESCRIPT, app, body) == CBERG_OK, "index appN");
+        free(body);
+    }
+
+    CHECK(cberg_graph_resolve_imports(c.graph, root) == CBERG_OK, "resolve under compact pressure");
+
+    size_t resolved_apps = 0;
+    for (int f = 0; f < n_files; f++) {
+        char app[64];
+        snprintf(app, sizeof app, "app%d.ts", f);
+        const cberg_graph_node *node = file_by_path(&c, app);
+        if (node == NULL) {
+            continue;
+        }
+        cberg_graph_edge edges[64];
+        size_t ne = 0;
+        if (cberg_graph_edges_from(c.graph, node->id, CBERG_GEDGE_IMPORTS, edges, 64, &ne) != CBERG_OK) {
+            continue;
+        }
+        size_t ok = 0;
+        for (size_t i = 0; i < ne; i++) {
+            const cberg_graph_node *dst = cberg_graph_node_by_id(c.graph, edges[i].dst);
+            if (dst != NULL && dst->kind == CBERG_GNODE_FILE && edges[i].resolution == CBERG_GRES_IMPORT) {
+                ok++;
+            }
+        }
+        if (ok == (size_t)imports_per) {
+            resolved_apps++;
+        }
+    }
+    CHECK(resolved_apps == (size_t)n_files, "all apps fully resolved after compact");
+
+    corpus_close(&c);
+    rm_tree(root);
+}
+
 int main(void) {
     test_stdlib_not_rewritten();
     test_slash_stdlib_not_rewritten();
@@ -339,6 +414,7 @@ int main(void) {
     test_ts_relative();
     test_rust_crate_path();
     test_many_relative_imports();
+    test_resolve_survives_compact();
     if (failures == 0) {
         printf("ok - resolve_imports\n");
     }

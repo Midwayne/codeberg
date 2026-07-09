@@ -168,9 +168,9 @@ Graph failures log a warning and never block the chunk/vector pipeline.
 ## Import resolution (`resolve_pkg.c`)
 
 `cberg_graph_resolve_imports(graph, repo_root)` walks the repo for source files,
-reads `go.mod` / `package.json` / `pyproject.toml` / `Cargo.toml` (when present),
-and rewrites **MODULE**-targeting IMPORTS onto FILE nodes with
-`resolution=import` (confidence 0.95).
+reads `go.mod` for the module path when present, maps path-derived import keys
+for JS/TS/Python/Rust sources, and rewrites **MODULE**-targeting IMPORTS onto
+FILE nodes with `resolution=import` (confidence 0.95).
 
 **Candidates (safe shapes only):**
 
@@ -188,8 +188,8 @@ a Go module prefix. Package/crate `name` fields are **not** mapped onto the
 first source file.
 
 Already-resolved FILE imports are left alone (idempotent). Unresolved imports
-keep their MODULE target. FILE enumeration uses the live graph size (no fixed
-cap). Tests: `core/test/test_graph_resolve.c`.
+keep their MODULE target. Per-file IMPORTS enumeration is sized from the live
+ref count (not a fixed 64-slot buffer). Tests: `core/test/test_graph_resolve.c`.
 
 `cberg_graph_hubs` ranks symbols by full incident `CALLS` degree (in+out,
 uncapped) for architecture overviews (IPC `graph_hubs`). Degree is tallied in

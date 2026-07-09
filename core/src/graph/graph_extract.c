@@ -397,7 +397,7 @@ static cberg_status ref_seen(cberg_strmap *dedupe, uint8_t kind, uint8_t rev, in
 }
 
 static cberg_status add_named_ref(cberg_graph_fragment *frag, cberg_strmap *dedupe, uint8_t kind, uint8_t rev, int32_t src_def, const char *name, uint32_t line) {
-    if (name[0] == '\0') {
+    if (name == NULL || name[0] == '\0') {
         return CBERG_OK;
     }
     int seen = 0;

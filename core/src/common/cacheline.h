@@ -45,6 +45,10 @@ static inline void *cberg_cacheline_realloc(void *p, size_t old_count, size_t ne
     }
     if (p != NULL && old_count > 0 && elem_size > 0) {
         size_t copy = old_count < new_count ? old_count : new_count;
+        if (copy > SIZE_MAX / elem_size) {
+            free(n);
+            return NULL;
+        }
         memcpy(n, p, copy * elem_size);
         free(p);
     }

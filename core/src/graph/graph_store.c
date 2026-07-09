@@ -82,6 +82,9 @@ struct cberg_graph {
 static uint64_t graph_tagged_id(char tag, const char *s) {
     uint8_t h[CBERG_HASH_LEN];
     size_t n = strlen(s);
+    if (n > SIZE_MAX - 2) {
+        return 0;
+    }
     char *buf = malloc(n + 2);
     if (buf == NULL) {
         return 0;
@@ -175,7 +178,13 @@ static cberg_status chain_push_u64(cberg_u64map *map, uint64_t key, uint32_t ind
 
 /* Copies `pub` (strings included) into the store and indexes it. */
 static cberg_status graph_add_node(cberg_graph *g, const cberg_graph_node *pub) {
+    if (g->nodes_len >= UINT32_MAX) {
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
     size_t cap = cberg_grow_cap(g->nodes_cap, g->nodes_len + 1, 64);
+    if (cap == SIZE_MAX || (cap > 0 && cap > SIZE_MAX / sizeof(graph_node_rec))) {
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
     if (cap != g->nodes_cap) {
         graph_node_rec *grown = realloc(g->nodes, cap * sizeof(*grown));
         if (grown == NULL) {
@@ -191,6 +200,7 @@ static cberg_status graph_add_node(cberg_graph *g, const cberg_graph_node *pub) 
     rec->pub.qname = cberg_arena_strdup(g->arena, pub->qname);
     rec->pub.path = pub->path != NULL ? cberg_arena_strdup(g->arena, pub->path) : NULL;
     if (rec->pub.name == NULL || rec->pub.qname == NULL || (pub->path != NULL && rec->pub.path == NULL)) {
+        memset(rec, 0, sizeof(*rec));
         return CBERG_ERR_OUT_OF_MEMORY;
     }
 
@@ -202,15 +212,25 @@ static cberg_status graph_add_node(cberg_graph *g, const cberg_graph_node *pub) 
     if (st == CBERG_OK) {
         st = cberg_u64map_set(g->node_by_id, rec->pub.id, (uint64_t)index + 1);
     }
+    /* Always consume the slot: maps may already point at `index`, so leaving
+     * nodes_len unchanged would let the next insert reuse a live chain head. */
+    g->nodes_len++;
     if (st != CBERG_OK) {
+        rec->dead = 1;
+        g->nodes_dead++;
         return st;
     }
-    g->nodes_len++;
     return CBERG_OK;
 }
 
 static cberg_status graph_add_ref(cberg_graph *g, const graph_ref_rec *tpl) {
+    if (g->refs_len >= UINT32_MAX) {
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
     size_t cap = cberg_grow_cap(g->refs_cap, g->refs_len + 1, 64);
+    if (cap == SIZE_MAX || (cap > 0 && cap > SIZE_MAX / sizeof(graph_ref_rec))) {
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
     if (cap != g->refs_cap) {
         graph_ref_rec *grown = realloc(g->refs, cap * sizeof(*grown));
         if (grown == NULL) {
@@ -230,6 +250,7 @@ static cberg_status graph_add_ref(cberg_graph *g, const graph_ref_rec *tpl) {
     rec->name = tpl->name != NULL ? cberg_arena_strdup(g->arena, tpl->name) : NULL;
     rec->path = cberg_arena_strdup(g->arena, tpl->path);
     if (rec->path == NULL || (tpl->name != NULL && rec->name == NULL)) {
+        memset(rec, 0, sizeof(*rec));
         return CBERG_ERR_OUT_OF_MEMORY;
     }
 
@@ -244,10 +265,12 @@ static cberg_status graph_add_ref(cberg_graph *g, const graph_ref_rec *tpl) {
     if (st == CBERG_OK) {
         st = chain_push_str(g->ref_by_path, rec->path, index, &rec->path_next);
     }
+    g->refs_len++;
     if (st != CBERG_OK) {
+        rec->dead = 1;
+        g->refs_dead++;
         return st;
     }
-    g->refs_len++;
     return CBERG_OK;
 }
 
@@ -509,6 +532,12 @@ cberg_status cberg_graph_apply(cberg_graph *graph, const cberg_graph_fragment *f
 
     for (size_t i = 0; i < fragment->refs_len; i++) {
         const cberg_graph_fref *fref = &fragment->refs[i];
+        if (fref->src_def >= 0 && (size_t)fref->src_def >= fragment->defs_len) {
+            continue;
+        }
+        if (fref->dst_def >= 0 && (size_t)fref->dst_def >= fragment->defs_len) {
+            continue;
+        }
         uint64_t src = fref->src_def >= 0 ? def_ids[fref->src_def] : file_id;
         if (src == 0) {
             continue; /* source def did not resolve to a live chunk */

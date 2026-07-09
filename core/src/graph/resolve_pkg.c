@@ -362,8 +362,13 @@ cberg_status cberg_graph_resolve_imports(cberg_graph *graph, const char *repo_ro
         cberg_arena_free(idx.arena);
         return CBERG_OK;
     }
+    /* Stable IDs — rewrite_import may compact and free graph->nodes, so we
+     * must not hold cberg_graph_node* across the loop. */
     const cberg_graph_node **files = calloc(node_count, sizeof(*files));
-    if (files == NULL) {
+    uint64_t *file_ids = calloc(node_count, sizeof(*file_ids));
+    if (files == NULL || file_ids == NULL) {
+        free(files);
+        free(file_ids);
         free(idx.file_paths);
         cberg_strmap_free(idx.import_to_file);
         cberg_arena_free(idx.arena);
@@ -373,11 +378,18 @@ cberg_status cberg_graph_resolve_imports(cberg_graph *graph, const char *repo_ro
     cberg_status st = cberg_graph_find_nodes(graph, NULL, CBERG_GNODE_MASK(CBERG_GNODE_FILE), NULL, files, node_count, &nfiles);
     if (st != CBERG_OK) {
         free(files);
+        free(file_ids);
         free(idx.file_paths);
         cberg_strmap_free(idx.import_to_file);
         cberg_arena_free(idx.arena);
         return st;
     }
+    for (size_t i = 0; i < nfiles; i++) {
+        file_ids[i] = files[i]->id;
+    }
+    free(files);
+    files = NULL;
+
     /* Cap must cover every IMPORTS ref — a fixed 64-slot buffer silently left
      * the rest as MODULE forever. Size once from live ref count. */
     size_t refs_cap = 0;
@@ -387,15 +399,16 @@ cberg_status cberg_graph_resolve_imports(cberg_graph *graph, const char *repo_ro
     }
     cberg_graph_edge *edges = calloc(refs_cap, sizeof(*edges));
     if (edges == NULL) {
-        free(files);
+        free(file_ids);
         free(idx.file_paths);
         cberg_strmap_free(idx.import_to_file);
         cberg_arena_free(idx.arena);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
     for (size_t i = 0; i < nfiles; i++) {
+        uint64_t file_id = file_ids[i];
         size_t nedges = 0;
-        if (cberg_graph_edges_from(graph, files[i]->id, CBERG_GEDGE_IMPORTS, edges, refs_cap, &nedges) != CBERG_OK) {
+        if (cberg_graph_edges_from(graph, file_id, CBERG_GEDGE_IMPORTS, edges, refs_cap, &nedges) != CBERG_OK) {
             continue;
         }
         for (size_t e = 0; e < nedges; e++) {
@@ -418,30 +431,31 @@ cberg_status cberg_graph_resolve_imports(cberg_graph *graph, const char *repo_ro
             if (file == NULL) {
                 continue;
             }
+            /* Re-lookup after each rewrite: compact may have moved nodes. */
             const cberg_graph_node *targets[8];
             size_t nt = 0;
             if (cberg_graph_find_nodes(graph, NULL, CBERG_GNODE_MASK(CBERG_GNODE_FILE), file, targets, 8, &nt) != CBERG_OK ||
                 nt == 0) {
                 continue;
             }
-            const cberg_graph_node *tgt = NULL;
+            uint64_t tgt_id = 0;
             for (size_t t = 0; t < nt; t++) {
                 if (targets[t]->qname != NULL && strcmp(targets[t]->qname, file) == 0) {
-                    tgt = targets[t];
+                    tgt_id = targets[t]->id;
                     break;
                 }
             }
-            if (tgt == NULL) {
-                tgt = targets[0];
+            if (tgt_id == 0) {
+                tgt_id = targets[0]->id;
             }
-            if (tgt->id == edges[e].dst) {
+            if (tgt_id == edges[e].dst) {
                 continue;
             }
-            (void)cberg_graph_rewrite_import(graph, files[i]->id, edges[e].dst, tgt->id, file);
+            (void)cberg_graph_rewrite_import(graph, file_id, edges[e].dst, tgt_id, file);
         }
     }
     free(edges);
-    free(files);
+    free(file_ids);
     free(idx.file_paths);
     cberg_strmap_free(idx.import_to_file);
     cberg_arena_free(idx.arena);
