@@ -14,11 +14,13 @@
  */
 #include "codeberg/codeberg.h"
 
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "arena.h"
 #include "binio.h"
+#include "cacheline.h"
 #include "graph_internal.h"
 #include "grow.h"
 #include "strmap.h"
@@ -39,28 +41,41 @@
  * sequential integers, so the two spaces cannot collide. */
 #define GRAPH_SYNTHETIC_ID (1ULL << 63)
 
+/*
+ * Hot fields lead each record so chain walks (name_next / src_next / dead /
+ * kind filters) stay in the first cache line. Public `pub` follows; callers
+ * still return &rec->pub. Arrays are allocated with cberg_cacheline_*.
+ */
 typedef struct graph_node_rec {
-    cberg_graph_node pub; /* strings owned by the graph arena */
-    uint32_t name_next;   /* +1 encoded chain over same-name nodes; 0 = end */
+    uint32_t name_next; /* +1 encoded chain over same-name nodes; 0 = end */
     uint32_t path_next;
     uint8_t dead;
+    /* 7 bytes of padding before pub (align 8) — kept in the first cache line */
+    cberg_graph_node pub; /* strings owned by the graph arena */
 } graph_node_rec;
 
 typedef struct graph_ref_rec {
-    uint64_t src;
-    uint64_t dst;     /* pre-resolved target id, or 0 = resolve `name` */
-    const char *name; /* arena; NULL when dst != 0 */
-    const char *path; /* arena; owning file (removal unit) */
-    uint32_t line;
     uint8_t kind; /* one cberg_graph_edge_kind bit */
     uint8_t rev;  /* reversed: resolved edge is (candidate -> src) */
     uint8_t resolution; /* cberg_graph_resolution; persisted from v2 */
     uint8_t dead;
-    uint32_t name_next;
+    uint32_t line;
     uint32_t src_next;
     uint32_t dst_next;
+    uint32_t name_next;
     uint32_t path_next;
+    uint64_t src;
+    uint64_t dst;     /* pre-resolved target id, or 0 = resolve `name` */
+    const char *name; /* arena; NULL when dst != 0 */
+    const char *path; /* arena; owning file (removal unit) */
 } graph_ref_rec;
+
+_Static_assert(offsetof(graph_node_rec, dead) + sizeof(uint8_t) <= CBERG_CACHE_LINE,
+               "node dead flag fits in the first cache line");
+_Static_assert(offsetof(graph_node_rec, name_next) == 0, "node chain links lead the record");
+_Static_assert(sizeof(graph_ref_rec) <= CBERG_CACHE_LINE, "ref record fits in one cache line");
+_Static_assert(offsetof(graph_ref_rec, path_next) + sizeof(uint32_t) <= 24,
+               "ref filter+chain fields pack into the first 24 bytes");
 
 struct cberg_graph {
     cberg_arena *arena;
@@ -177,7 +192,7 @@ static cberg_status chain_push_u64(cberg_u64map *map, uint64_t key, uint32_t ind
 static cberg_status graph_add_node(cberg_graph *g, const cberg_graph_node *pub) {
     size_t cap = cberg_grow_cap(g->nodes_cap, g->nodes_len + 1, 64);
     if (cap != g->nodes_cap) {
-        graph_node_rec *grown = realloc(g->nodes, cap * sizeof(*grown));
+        graph_node_rec *grown = cberg_cacheline_realloc(g->nodes, g->nodes_len, cap, sizeof(*grown));
         if (grown == NULL) {
             return CBERG_ERR_OUT_OF_MEMORY;
         }
@@ -185,6 +200,7 @@ static cberg_status graph_add_node(cberg_graph *g, const cberg_graph_node *pub) 
         g->nodes_cap = cap;
     }
     graph_node_rec *rec = &g->nodes[g->nodes_len];
+    /* New slots are zeroed by cacheline realloc; clear only if reusing capacity. */
     memset(rec, 0, sizeof(*rec));
     rec->pub = *pub;
     rec->pub.name = cberg_arena_strdup(g->arena, pub->name);
@@ -212,7 +228,7 @@ static cberg_status graph_add_node(cberg_graph *g, const cberg_graph_node *pub) 
 static cberg_status graph_add_ref(cberg_graph *g, const graph_ref_rec *tpl) {
     size_t cap = cberg_grow_cap(g->refs_cap, g->refs_len + 1, 64);
     if (cap != g->refs_cap) {
-        graph_ref_rec *grown = realloc(g->refs, cap * sizeof(*grown));
+        graph_ref_rec *grown = cberg_cacheline_realloc(g->refs, g->refs_len, cap, sizeof(*grown));
         if (grown == NULL) {
             return CBERG_ERR_OUT_OF_MEMORY;
         }
@@ -335,8 +351,8 @@ static cberg_status graph_compact(cberg_graph *g) {
     free(fresh);
     /* Free the old guts (not the struct we now occupy). */
     cberg_arena_free(old.arena);
-    free(old.nodes);
-    free(old.refs);
+    cberg_cacheline_free(old.nodes);
+    cberg_cacheline_free(old.refs);
     cberg_u64map_free(old.node_by_id);
     cberg_strmap_free(old.node_by_name);
     cberg_strmap_free(old.node_by_path);
@@ -388,8 +404,8 @@ void cberg_graph_free(cberg_graph *graph) {
         return;
     }
     cberg_arena_free(graph->arena);
-    free(graph->nodes);
-    free(graph->refs);
+    cberg_cacheline_free(graph->nodes);
+    cberg_cacheline_free(graph->refs);
     cberg_u64map_free(graph->node_by_id);
     cberg_strmap_free(graph->node_by_name);
     cberg_strmap_free(graph->node_by_path);

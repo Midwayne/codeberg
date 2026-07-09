@@ -4,7 +4,7 @@ Shared utilities used by chunking, watching, and hashing. None of these symbols 
 exported in `codeberg.h` except where noted (status, version, hash, language).
 
 **Files:** `arena.c`, `config.c`, `fileio.c`, `hash.c`, `lang.c`, `pathutil.c`, `status.c`, `strutil.c`, `strmap.c`, `u64map.c`, `version.c`, `walk_policy.c`  
-**Headers:** `arena.h`, `fileio.h`, `pathutil.h`, `statutil.h`, `strutil.h`, `strmap.h`, `u64map.h`, `fnv.h`, `grow.h`, `walk_policy.h`  
+**Headers:** `arena.h`, `cacheline.h`, `fileio.h`, `pathutil.h`, `statutil.h`, `strutil.h`, `strmap.h`, `u64map.h`, `fnv.h`, `grow.h`, `walk_policy.h`  
 **Third-party:** `third_party/xxhash.c` (linked from CMake, not under `src/common/`)
 
 ---
@@ -153,10 +153,13 @@ Iterate all entries (used by watcher drain).
 
 ---
 
-## `fnv.h` / `grow.h`
+## `fnv.h` / `grow.h` / `cacheline.h`
 
 `cberg_fnv1a` — fast string hash for `cberg_strmap` bucket indices only.  
-`cberg_grow_cap` — geometric capacity helper for dynamic arrays.
+`cberg_grow_cap` — geometric capacity helper for dynamic arrays.  
+`CBERG_CACHE_LINE` (64) / `cberg_cacheline_calloc` / `cberg_cacheline_realloc` /
+`cberg_cacheline_free` — aligned hot-path arrays (`u64map`, `strmap`, graph
+node/ref stores). `realloc` does not preserve alignment, so growth copies.
 
 ---
 
