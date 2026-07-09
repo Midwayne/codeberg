@@ -78,3 +78,14 @@ func TestEncodeGraphHubs(t *testing.T) {
 		t.Fatalf("encodeGraphHubs default limit: %q", got)
 	}
 }
+
+func TestEncodeGraphRefs(t *testing.T) {
+	line := encodeGraphRefs(GraphRefsOptions{Name: "helper", Repo: "main", Limit: 20})
+	if line != "graph_refs\thelper\tmain\t20\t" {
+		t.Fatalf("encodeGraphRefs: %q", line)
+	}
+	line = encodeGraphRefs(GraphRefsOptions{Name: "helper", PathPrefix: "a.go", Limit: 0})
+	if line != "graph_refs\thelper\t\t50\ta.go" {
+		t.Fatalf("encodeGraphRefs path: %q", line)
+	}
+}

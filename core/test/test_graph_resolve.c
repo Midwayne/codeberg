@@ -407,6 +407,34 @@ static void test_resolve_survives_compact(void) {
     rm_tree(root);
 }
 
+/* Ambiguous directory package (util/a.ts + util/b.ts) must stay MODULE. */
+static void test_ambiguous_import_stays_module(void) {
+    char tmpl[] = "/tmp/cberg_ambig_XXXXXX";
+    char *root = mkdtemp(tmpl);
+    CHECK(root != NULL, "mkdtemp");
+    if (root == NULL) {
+        return;
+    }
+
+    write_file(root, "util/a.ts", "export const a = 1;\n");
+    write_file(root, "util/b.ts", "export const b = 2;\n");
+    write_file(root, "app.ts", "import \"./util\";\n");
+
+    graph_corpus c;
+    CHECK(corpus_open(&c) == 0, "corpus open");
+    CHECK(corpus_index(&c, CBERG_LANG_TYPESCRIPT, "util/a.ts", "export const a = 1;\n") == CBERG_OK, "index a");
+    CHECK(corpus_index(&c, CBERG_LANG_TYPESCRIPT, "util/b.ts", "export const b = 2;\n") == CBERG_OK, "index b");
+    CHECK(corpus_index(&c, CBERG_LANG_TYPESCRIPT, "app.ts", "import \"./util\";\n") == CBERG_OK, "index app");
+    CHECK(cberg_graph_resolve_imports(c.graph, root) == CBERG_OK, "resolve");
+
+    CHECK(still_module(&c, "app.ts", "./util") || still_module(&c, "app.ts", "util"), "ambiguous util stays MODULE");
+    CHECK(!edge_to_file(&c, "app.ts", "util/a.ts"), "did not pick util/a.ts");
+    CHECK(!edge_to_file(&c, "app.ts", "util/b.ts"), "did not pick util/b.ts");
+
+    corpus_close(&c);
+    rm_tree(root);
+}
+
 int main(void) {
     test_stdlib_not_rewritten();
     test_slash_stdlib_not_rewritten();
@@ -415,6 +443,7 @@ int main(void) {
     test_rust_crate_path();
     test_many_relative_imports();
     test_resolve_survives_compact();
+    test_ambiguous_import_stays_module();
     if (failures == 0) {
         printf("ok - resolve_imports\n");
     }

@@ -202,16 +202,18 @@ typedef struct cberg_engine_graph_hub {
 cberg_status cberg_engine_search_graph(cberg_engine *eng, const char *name, const char *repo_key, const char *kind, const char *path_prefix, size_t limit, cberg_engine_graph_node *out, size_t cap, size_t *found);
 
 /* BFS traversal from a named symbol (or start_id when non-zero). path_prefix
- * disambiguates same-named symbols (NULL = any). direction is "in", "out", or
- * "both" (default in). edge_kind NULL/empty = CALLS. Returns
+ * disambiguates same-named symbols (NULL = any; component-aware). direction is
+ * "in", "out", or "both" (default both). edge_kind NULL/empty = CALLS. Returns
  * CBERG_ERR_NOT_IMPLEMENTED when the graph is disabled. */
 cberg_status cberg_engine_trace_path(cberg_engine *eng, const char *name, uint64_t start_id, const char *repo_key, const char *path_prefix, const char *direction, const char *edge_kind, uint32_t max_depth, size_t limit, cberg_engine_graph_hop *out, size_t cap, size_t *found);
 
 /* Per-repo graph counts. repo_key NULL/empty → first ready repo with a graph. */
 cberg_status cberg_engine_get_graph_stats(cberg_engine *eng, const char *repo_key, cberg_engine_graph_stats *out);
 
-/* Incoming CALLS/REFERENCES edges for a symbol (graph-first find_references). */
-cberg_status cberg_engine_graph_references(cberg_engine *eng, const char *name, const char *repo_key, size_t limit, cberg_engine_graph_edge *out, size_t cap, size_t *found);
+/* Incoming CALLS/INHERITS/IMPORTS edges for a symbol (graph-first find_references).
+ * path_prefix disambiguates same-named symbols (NULL = any; component-aware).
+ * REFERENCES is reserved and not extracted yet, so it is omitted from the mask. */
+cberg_status cberg_engine_graph_references(cberg_engine *eng, const char *name, const char *repo_key, const char *path_prefix, size_t limit, cberg_engine_graph_edge *out, size_t cap, size_t *found);
 
 /* Degree hubs: symbols ranked by incident CALLS (in+out). */
 cberg_status cberg_engine_graph_hubs(cberg_engine *eng, const char *repo_key, size_t limit, cberg_engine_graph_hub *out, size_t cap, size_t *found);

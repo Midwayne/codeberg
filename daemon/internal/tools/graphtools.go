@@ -240,12 +240,18 @@ func getArchitectureTool(idx indexctl.Indexer) Tool {
 			}
 			sort.Slice(res.Languages, func(i, j int) bool { return res.Languages[i].Files > res.Languages[j].Files })
 
+			seenEP := map[string]struct{}{}
 			for _, name := range []string{"main", "Main", "ServeHTTP", "Handler"} {
 				nodes, nerr := idx.SearchGraph(ctx, indexctl.GraphSearchOptions{Name: name, Repo: a.Repo, Kind: "symbol", Limit: 8})
 				if nerr != nil {
 					continue
 				}
 				for _, n := range nodes {
+					key := n.Path + "\x00" + n.Name + "\x00" + n.Kind
+					if _, ok := seenEP[key]; ok {
+						continue
+					}
+					seenEP[key] = struct{}{}
 					res.Entrypoints = append(res.Entrypoints, archHub{Name: n.Name, Path: n.Path, Kind: n.Kind})
 				}
 			}

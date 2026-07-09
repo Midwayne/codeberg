@@ -27,7 +27,7 @@ func registerIndexTools(r *Registry, idx indexctl.Indexer, ws *workspace.Workspa
 
 const graphNodeKindDesc = "graph node kind: file, function, method, class, struct, interface, module, symbol"
 const graphEdgeKindDesc = "edge kind: calls, imports, inherits, contains, defines, references, all"
-const graphDirectionDesc = "traversal direction: in (callers, default), out (callees), both"
+const graphDirectionDesc = "traversal direction: in (callers), out (callees), both (default)"
 
 func searchTool(idx indexctl.Indexer) Tool {
 	schema := `{
@@ -173,7 +173,7 @@ func searchGraphTool(idx indexctl.Indexer) Tool {
     "name": {"type": "string", "description": "exact node name to find"},
     "repo": {"type": "string", "description": "restrict to one repo key"},
     "kind": {"type": "string", "description": "` + graphNodeKindDesc + `"},
-    "path_prefix": {"type": "string", "description": "restrict to nodes whose path starts with this prefix"},
+    "path_prefix": {"type": "string", "description": "component-aware path prefix (foo matches foo/bar, not foobar)"},
     "limit": {"type": "integer", "description": "max results (default 20)"}
   },
   "required": ["name"]
@@ -237,6 +237,7 @@ func findReferencesTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
   "properties": {
     "symbol": {"type": "string", "description": "symbol name to find references for"},
     "repo": {"type": "string", "description": "repo key"},
+    "path_prefix": {"type": "string", "description": "restrict graph lookup to nodes under this path prefix"},
     "path_glob": {"type": "string", "description": "restrict grep fallback to files matching glob"},
     "limit": {"type": "integer", "description": "max matches (default 50)"}
   },
@@ -253,9 +254,10 @@ func findReferencesTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
 			}
 
 			edges, err := idx.GraphRefs(ctx, indexctl.GraphRefsOptions{
-				Name:  a.Symbol,
-				Repo:  a.Repo,
-				Limit: limit,
+				Name:       a.Symbol,
+				Repo:       a.Repo,
+				PathPrefix: a.PathPrefix,
+				Limit:      limit,
 			})
 			if err == nil && len(edges) > 0 {
 				return findReferencesResult{Source: "graph", Graph: edges}, nil

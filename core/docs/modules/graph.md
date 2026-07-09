@@ -71,7 +71,7 @@ so graph, chunk table, and vectors stay aligned across edits.
 | `IMPORTS` | File → Module (or File → File after resolve) | yes |
 | `CALLS` | caller → callee (name-resolved at query time) | yes (name refs) |
 | `INHERITS` | subtype → supertype | yes (name refs) |
-| `REFERENCES` | reserved | yes |
+| `REFERENCES` | reserved (not extracted yet; omitted from `graph_refs` mask) | no |
 
 Every resolved edge carries:
 
@@ -205,7 +205,7 @@ edges per node.
 | Command | Role |
 |---------|------|
 | `search_graph` | Exact-name node search |
-| `trace_path` | BFS over edge kinds / directions; optional `path_prefix` (exact path preferred) |
+| `trace_path` | BFS over edge kinds / directions (default `both`); optional component-aware `path_prefix` |
 | `graph_stats` | Node/ref counts + FILE language mix by extension |
 | `graph_hubs` | CALLS degree hubs |
 | `graph_refs` | Incoming edges for `find_references` |

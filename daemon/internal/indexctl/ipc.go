@@ -38,15 +38,17 @@ type chunkResponse struct {
 }
 
 type graphNodesResponse struct {
-	OK      bool        `json:"ok"`
-	Results []GraphNode `json:"results"`
-	Error   string      `json:"error"`
+	OK        bool        `json:"ok"`
+	Results   []GraphNode `json:"results"`
+	Truncated bool        `json:"truncated"`
+	Error     string      `json:"error"`
 }
 
 type graphHopsResponse struct {
-	OK    bool       `json:"ok"`
-	Hops  []GraphHop `json:"hops"`
-	Error string     `json:"error"`
+	OK        bool       `json:"ok"`
+	Hops      []GraphHop `json:"hops"`
+	Truncated bool       `json:"truncated"`
+	Error     string     `json:"error"`
 }
 
 type graphStatsResponse struct {
@@ -60,13 +62,15 @@ type graphStatsResponse struct {
 }
 
 type graphEdgesResponse struct {
-	OK      bool        `json:"ok"`
-	Results []GraphEdge `json:"results"`
-	Error   string      `json:"error"`
+	OK        bool        `json:"ok"`
+	Results   []GraphEdge `json:"results"`
+	Truncated bool        `json:"truncated"`
+	Error     string      `json:"error"`
 }
 
 type graphHubsResponse struct {
-	OK      bool       `json:"ok"`
-	Results []GraphHub `json:"results"`
-	Error   string     `json:"error"`
+	OK        bool       `json:"ok"`
+	Results   []GraphHub `json:"results"`
+	Truncated bool       `json:"truncated"`
+	Error     string     `json:"error"`
 }

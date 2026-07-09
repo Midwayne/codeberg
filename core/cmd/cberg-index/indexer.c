@@ -1597,9 +1597,13 @@ static cberg_status repo_step(cberg_repo *r, size_t *out_events) {
     pthread_mutex_lock(&r->mu);
     st = apply_path_changes(r, rechunk, rechunk_n, deleted, deleted_n);
     if (st == CBERG_OK) {
-        /* Persist the chunk table every sync so a restart never re-embeds the
-         * work done this session. The manifest baseline is refreshed on close. */
+        /* Persist chunk table + graph every sync so a restart never re-embeds
+         * or loses structural work done this session. Manifest baseline is
+         * refreshed on close. Re-resolve imports so new relative/module paths
+         * become FILE edges without waiting for a cold restart. */
+        resolve_imports(r);
         save_chunk_table(r);
+        save_graph(r);
     }
     pthread_mutex_unlock(&r->mu);
 
@@ -2410,13 +2414,13 @@ cberg_status cberg_engine_trace_path(cberg_engine *eng, const char *name, uint64
         max_depth = 2;
     }
 
-    uint32_t dirs = CBERG_GRAPH_IN;
+    uint32_t dirs = CBERG_GRAPH_IN | CBERG_GRAPH_OUT;
     if (direction != NULL && direction[0] != '\0') {
         if (strcasecmp(direction, "out") == 0) {
             dirs = CBERG_GRAPH_OUT;
-        } else if (strcasecmp(direction, "both") == 0) {
-            dirs = CBERG_GRAPH_IN | CBERG_GRAPH_OUT;
-        } else if (strcasecmp(direction, "in") != 0) {
+        } else if (strcasecmp(direction, "in") == 0) {
+            dirs = CBERG_GRAPH_IN;
+        } else if (strcasecmp(direction, "both") != 0) {
             return CBERG_ERR_INVALID_ARGUMENT;
         }
     }
@@ -2604,7 +2608,7 @@ cberg_status cberg_engine_graph_hubs(cberg_engine *eng, const char *repo_key, si
     return st;
 }
 
-cberg_status cberg_engine_graph_references(cberg_engine *eng, const char *name, const char *repo_key, size_t limit, cberg_engine_graph_edge *out, size_t cap, size_t *found) {
+cberg_status cberg_engine_graph_references(cberg_engine *eng, const char *name, const char *repo_key, const char *path_prefix, size_t limit, cberg_engine_graph_edge *out, size_t cap, size_t *found) {
     if (eng == NULL || name == NULL || name[0] == '\0' || out == NULL || found == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
@@ -2627,15 +2631,33 @@ cberg_status cberg_engine_graph_references(cberg_engine *eng, const char *name, 
         return CBERG_ERR_NOT_FOUND;
     }
 
-    const cberg_graph_node *nodes[16];
+    const char *path_filter = (path_prefix != NULL && path_prefix[0] != '\0') ? path_prefix : NULL;
+    const cberg_graph_node *nodes[64];
     size_t n_nodes = 0;
-    st = cberg_graph_find_nodes(r->graph, name, 0, NULL, nodes, 16, &n_nodes);
+    st = cberg_graph_find_nodes(r->graph, name, 0, path_filter, nodes, 64, &n_nodes);
     if (st != CBERG_OK || n_nodes == 0) {
         pthread_mutex_unlock(&r->mu);
         return CBERG_ERR_NOT_FOUND;
     }
+    /* Prefer an exact path match when path_prefix is a full file path. */
+    if (path_filter != NULL && n_nodes > 1) {
+        size_t exact = 0;
+        const cberg_graph_node *picked[64];
+        for (size_t i = 0; i < n_nodes; i++) {
+            if (nodes[i]->path != NULL && strcmp(nodes[i]->path, path_filter) == 0) {
+                picked[exact++] = nodes[i];
+            }
+        }
+        if (exact > 0) {
+            for (size_t i = 0; i < exact; i++) {
+                nodes[i] = picked[i];
+            }
+            n_nodes = exact;
+        }
+    }
 
-    uint32_t kind_mask = CBERG_GEDGE_CALLS | CBERG_GEDGE_REFERENCES | CBERG_GEDGE_INHERITS | CBERG_GEDGE_IMPORTS;
+    /* REFERENCES is reserved / not extracted yet — omit from the live mask. */
+    uint32_t kind_mask = CBERG_GEDGE_CALLS | CBERG_GEDGE_INHERITS | CBERG_GEDGE_IMPORTS;
     size_t written = 0;
     for (size_t i = 0; i < n_nodes && written < limit; i++) {
         cberg_graph_edge edges[64];

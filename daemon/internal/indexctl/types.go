@@ -144,7 +144,7 @@ type TracePathOptions struct {
 	Name       string
 	Repo       string
 	PathPrefix string // disambiguate same-named symbols
-	Direction  string // in | out | both (default in)
+	Direction  string // in | out | both (default both)
 	EdgeKind   string // calls | imports | inherits | ... (default calls)
 	MaxDepth   int
 	Limit      int
@@ -152,9 +152,10 @@ type TracePathOptions struct {
 
 // GraphRefsOptions configures graph-first reference lookup.
 type GraphRefsOptions struct {
-	Name  string
-	Repo  string
-	Limit int
+	Name       string
+	Repo       string
+	PathPrefix string // disambiguate same-named symbols
+	Limit      int
 }
 
 // GraphHubsOptions configures degree-hub lookup.

@@ -77,7 +77,7 @@ func encodeGraphRefs(opts GraphRefsOptions) string {
 	if limit <= 0 {
 		limit = 50
 	}
-	return fmt.Sprintf("graph_refs\t%s\t%s\t%d", sanitizeTab(opts.Name), sanitizeTab(opts.Repo), limit)
+	return fmt.Sprintf("graph_refs\t%s\t%s\t%d\t%s", sanitizeTab(opts.Name), sanitizeTab(opts.Repo), limit, sanitizeTab(opts.PathPrefix))
 }
 
 func encodeGraphHubs(opts GraphHubsOptions) string {

@@ -303,6 +303,107 @@ static void test_ambiguous_confidence(void) {
     corpus_close(&c);
 }
 
+/* Component-aware path_prefix: "pkg" matches pkg/a.go but not pkgx/a.go. */
+static void test_path_prefix_component(void) {
+    graph_corpus c;
+    CHECK(corpus_open(&c) == 0, "prefix corpus");
+    CHECK(corpus_index(&c, CBERG_LANG_GO, "pkg/a.go", "package pkg\n\nfunc Helper() {}\n") == CBERG_OK, "index pkg");
+    CHECK(corpus_index(&c, CBERG_LANG_GO, "pkgx/a.go", "package pkgx\n\nfunc Helper() {}\n") == CBERG_OK, "index pkgx");
+
+    const cberg_graph_node *nodes[8];
+    size_t n = 0;
+    CHECK(cberg_graph_find_nodes(c.graph, "Helper", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION), "pkg", nodes, 8, &n) == CBERG_OK,
+          "find with prefix pkg");
+    CHECK(n == 1, "prefix pkg matches one");
+    if (n == 1) {
+        CHECK(nodes[0]->path != NULL && strcmp(nodes[0]->path, "pkg/a.go") == 0, "matched pkg/a.go");
+    }
+
+    n = 0;
+    CHECK(cberg_graph_find_nodes(c.graph, "Helper", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION), "pkg/", nodes, 8, &n) == CBERG_OK,
+          "find with prefix pkg/");
+    CHECK(n == 1, "trailing slash prefix matches one");
+
+    n = 0;
+    CHECK(cberg_graph_find_nodes(c.graph, "Helper", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION), "pkgx", nodes, 8, &n) == CBERG_OK,
+          "find with prefix pkgx");
+    CHECK(n == 1, "prefix pkgx matches one");
+
+    corpus_close(&c);
+}
+
+/* Mid-apply OOM restores the prior file subgraph (Keep + Other, not Boom). */
+typedef struct {
+    cberg_chunk_table *table;
+    int calls;
+    int fail_after;
+} fail_resolve_ctx;
+
+static cberg_status fail_nth_resolve(void *ctx, const char *key, uint64_t *out_id) {
+    fail_resolve_ctx *f = ctx;
+    f->calls++;
+    if (f->calls > f->fail_after) {
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+    return corpus_resolver(f->table, key, out_id);
+}
+
+static void test_apply_restores_on_failure(void) {
+    graph_corpus c;
+    CHECK(corpus_open(&c) == 0, "restore corpus");
+    const char *prior = "package p\n\nfunc Keep() {}\n\nfunc Other() {}\n";
+    CHECK(corpus_index(&c, CBERG_LANG_GO, "a.go", prior) == CBERG_OK, "index a.go");
+    CHECK(corpus_node(&c, "Keep", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION)) != NULL, "Keep before");
+    CHECK(corpus_node(&c, "Other", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION)) != NULL, "Other before");
+
+    const char *next = "package p\n\nfunc Keep() {}\n\nfunc Boom() {}\n";
+    cberg_chunk_list *list = NULL;
+    cberg_graph_fragment *frag = NULL;
+    CHECK(cberg_chunker_analyze(c.chunker, CBERG_LANG_GO, "a.go", next, strlen(next), &list, &frag) == CBERG_OK, "analyze next");
+    CHECK(frag != NULL, "fragment extracted");
+    if (list == NULL || frag == NULL) {
+        cberg_graph_fragment_free(frag);
+        cberg_chunk_list_free(list);
+        corpus_close(&c);
+        return;
+    }
+    CHECK(cberg_chunk_list_hash_bodies(list, next, strlen(next)) == CBERG_OK, "hash bodies");
+
+    /* Sync new chunks so the first def can resolve; second resolve will OOM. */
+    corpus_drop_path(&c, "a.go");
+    size_t n = cberg_chunk_list_len(list);
+    if (c.chunks_len + n > c.chunks_cap) {
+        size_t cap = c.chunks_len + n;
+        cberg_chunk *grown = realloc(c.chunks, cap * sizeof(*grown));
+        CHECK(grown != NULL, "grow chunks");
+        if (grown == NULL) {
+            cberg_graph_fragment_free(frag);
+            cberg_chunk_list_free(list);
+            corpus_close(&c);
+            return;
+        }
+        c.chunks = grown;
+        c.chunks_cap = cap;
+    }
+    for (size_t i = 0; i < n; i++) {
+        c.chunks[c.chunks_len++] = *cberg_chunk_list_at(list, i);
+    }
+    cberg_changes changes = {0};
+    CHECK(cberg_chunk_table_sync(c.table, c.chunks, c.chunks_len, &changes) == CBERG_OK, "sync table");
+
+    fail_resolve_ctx rctx = {.table = c.table, .calls = 0, .fail_after = 1};
+    CHECK(cberg_graph_apply(c.graph, frag, fail_nth_resolve, &rctx) == CBERG_ERR_OUT_OF_MEMORY, "apply fails mid-way");
+    CHECK(rctx.calls > 1, "resolver ran past first def");
+
+    CHECK(corpus_node(&c, "Keep", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION)) != NULL, "Keep restored");
+    CHECK(corpus_node(&c, "Other", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION)) != NULL, "Other restored");
+    CHECK(corpus_node(&c, "Boom", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION)) == NULL, "Boom not left behind");
+
+    cberg_graph_fragment_free(frag);
+    cberg_chunk_list_free(list);
+    corpus_close(&c);
+}
+
 int main(void) {
     graph_corpus corpus;
     if (corpus_open(&corpus) != 0) {
@@ -318,6 +419,8 @@ int main(void) {
     corpus_close(&corpus);
 
     test_ambiguous_confidence();
+    test_path_prefix_component();
+    test_apply_restores_on_failure();
 
     TEST_MAIN_RETURN
 }

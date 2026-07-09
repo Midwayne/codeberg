@@ -99,10 +99,11 @@ type fileOutlineArgs struct {
 }
 
 type findReferencesArgs struct {
-	Symbol   string `json:"symbol"`
-	Repo     string `json:"repo"`
-	PathGlob string `json:"path_glob"`
-	Limit    int    `json:"limit"`
+	Symbol     string `json:"symbol"`
+	Repo       string `json:"repo"`
+	PathPrefix string `json:"path_prefix"`
+	PathGlob   string `json:"path_glob"`
+	Limit      int    `json:"limit"`
 }
 
 type searchGraphArgs struct {

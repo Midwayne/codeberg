@@ -386,25 +386,33 @@ static void handle_search_graph(cberg_engine *eng, int fd, char *args) {
             limit = 20;
         }
     }
+    enum { IPC_GRAPH_NODES_CAP = 64 };
+    size_t want = limit > IPC_GRAPH_NODES_CAP ? IPC_GRAPH_NODES_CAP : limit;
 
-    cberg_engine_graph_node nodes[64];
+    cberg_engine_graph_node nodes[IPC_GRAPH_NODES_CAP];
     size_t found = 0;
-    cberg_status st = cberg_engine_search_graph(eng, name, repo, kind, path_prefix, limit, nodes, 64, &found);
+    cberg_status st = cberg_engine_search_graph(eng, name, repo, kind, path_prefix, want, nodes, IPC_GRAPH_NODES_CAP, &found);
     if (st != CBERG_OK) {
         char resp[256];
         snprintf(resp, sizeof(resp), "{\"ok\":false,\"error\":\"%s\"}\n", graph_err(st));
         write_all(fd, resp, strlen(resp));
         return;
     }
+    /* Cap hit (or caller asked above the stack cap) means more may exist. */
+    int truncated = found >= want && (limit > IPC_GRAPH_NODES_CAP || found >= IPC_GRAPH_NODES_CAP);
     char resp[65536];
     size_t off = (size_t)snprintf(resp, sizeof(resp), "{\"ok\":true,\"results\":[");
-    for (size_t i = 0; i < found && off + 512 < sizeof(resp); i++) {
-        if (i > 0) {
+    size_t written = 0;
+    for (; written < found && off + 512 < sizeof(resp); written++) {
+        if (written > 0) {
             resp[off++] = ',';
         }
-        write_gnode_json(resp, sizeof(resp), &off, &nodes[i]);
+        write_gnode_json(resp, sizeof(resp), &off, &nodes[written]);
     }
-    snprintf(resp + off, sizeof(resp) - off, "]}\n");
+    if (written < found) {
+        truncated = 1;
+    }
+    snprintf(resp + off, sizeof(resp) - off, "],\"truncated\":%s}\n", truncated ? "true" : "false");
     write_all(fd, resp, strlen(resp));
 }
 
@@ -439,33 +447,40 @@ static void handle_trace_path(cberg_engine *eng, int fd, char *args) {
     }
     char *path_prefix = null_if_empty(next_field(&cursor));
 
-    cberg_engine_graph_hop hops[256];
+    enum { IPC_GRAPH_HOPS_CAP = 256 };
+    size_t want = limit > IPC_GRAPH_HOPS_CAP ? IPC_GRAPH_HOPS_CAP : limit;
+    cberg_engine_graph_hop hops[IPC_GRAPH_HOPS_CAP];
     size_t found = 0;
-    cberg_status st = cberg_engine_trace_path(eng, name, 0, repo, path_prefix, direction, edge_kind, max_depth, limit, hops, 256, &found);
+    cberg_status st = cberg_engine_trace_path(eng, name, 0, repo, path_prefix, direction, edge_kind, max_depth, want, hops, IPC_GRAPH_HOPS_CAP, &found);
     if (st != CBERG_OK) {
         char resp[256];
         snprintf(resp, sizeof(resp), "{\"ok\":false,\"error\":\"%s\"}\n", graph_err(st));
         write_all(fd, resp, strlen(resp));
         return;
     }
+    int truncated = found >= want && (limit > IPC_GRAPH_HOPS_CAP || found >= IPC_GRAPH_HOPS_CAP);
     char resp[131072];
     size_t off = (size_t)snprintf(resp, sizeof(resp), "{\"ok\":true,\"hops\":[");
-    for (size_t i = 0; i < found && off + 768 < sizeof(resp); i++) {
-        if (i > 0) {
+    size_t written = 0;
+    for (; written < found && off + 768 < sizeof(resp); written++) {
+        if (written > 0) {
             resp[off++] = ',';
         }
         char edge_buf[1536];
         size_t eoff = 0;
-        write_gedge_json(edge_buf, sizeof(edge_buf), &eoff, &hops[i].edge);
+        write_gedge_json(edge_buf, sizeof(edge_buf), &eoff, &hops[written].edge);
         /* edge_buf is {"src":...}; splice depth after the opening brace. */
         if (eoff > 1 && edge_buf[0] == '{') {
-            int w = snprintf(resp + off, sizeof(resp) - off, "{\"depth\":%u,%s", hops[i].depth, edge_buf + 1);
+            int w = snprintf(resp + off, sizeof(resp) - off, "{\"depth\":%u,%s", hops[written].depth, edge_buf + 1);
             if (w > 0) {
                 off += (size_t)w;
             }
         }
     }
-    snprintf(resp + off, sizeof(resp) - off, "]}\n");
+    if (written < found) {
+        truncated = 1;
+    }
+    snprintf(resp + off, sizeof(resp) - off, "],\"truncated\":%s}\n", truncated ? "true" : "false");
     write_all(fd, resp, strlen(resp));
 }
 
@@ -514,38 +529,45 @@ static void handle_graph_hubs(cberg_engine *eng, int fd, char *args) {
             limit = 10;
         }
     }
-    cberg_engine_graph_hub hubs[64];
+    enum { IPC_GRAPH_HUBS_CAP = 64 };
+    size_t want = limit > IPC_GRAPH_HUBS_CAP ? IPC_GRAPH_HUBS_CAP : limit;
+    cberg_engine_graph_hub hubs[IPC_GRAPH_HUBS_CAP];
     size_t found = 0;
-    cberg_status st = cberg_engine_graph_hubs(eng, repo, limit, hubs, 64, &found);
+    cberg_status st = cberg_engine_graph_hubs(eng, repo, want, hubs, IPC_GRAPH_HUBS_CAP, &found);
     if (st != CBERG_OK) {
         char resp[256];
         snprintf(resp, sizeof(resp), "{\"ok\":false,\"error\":\"%s\"}\n", graph_err(st));
         write_all(fd, resp, strlen(resp));
         return;
     }
+    int truncated = found >= want && (limit > IPC_GRAPH_HUBS_CAP || found >= IPC_GRAPH_HUBS_CAP);
     char resp[65536];
     size_t off = (size_t)snprintf(resp, sizeof(resp), "{\"ok\":true,\"results\":[");
-    for (size_t i = 0; i < found && off + 640 < sizeof(resp); i++) {
-        if (i > 0) {
+    size_t written = 0;
+    for (; written < found && off + 640 < sizeof(resp); written++) {
+        if (written > 0) {
             resp[off++] = ',';
         }
         size_t before = off;
-        write_gnode_json(resp, sizeof(resp), &off, &hubs[i].node);
+        write_gnode_json(resp, sizeof(resp), &off, &hubs[written].node);
         /* Replace trailing '}' with ,"degree":N} */
         if (off > before && resp[off - 1] == '}') {
             off--;
-            int w = snprintf(resp + off, sizeof(resp) - off, ",\"degree\":%u}", hubs[i].degree);
+            int w = snprintf(resp + off, sizeof(resp) - off, ",\"degree\":%u}", hubs[written].degree);
             if (w > 0) {
                 off += (size_t)w;
             }
         }
     }
-    snprintf(resp + off, sizeof(resp) - off, "]}\n");
+    if (written < found) {
+        truncated = 1;
+    }
+    snprintf(resp + off, sizeof(resp) - off, "],\"truncated\":%s}\n", truncated ? "true" : "false");
     write_all(fd, resp, strlen(resp));
 }
 
 static void handle_graph_refs(cberg_engine *eng, int fd, char *args) {
-    /* graph_refs\t<name>\t[<repo>\t[<limit>]] — used by find_references */
+    /* graph_refs\t<name>\t[<repo>\t[<limit>\t[<path_prefix>]]] — used by find_references */
     char *cursor = args;
     char *name = next_field(&cursor);
     if (name == NULL || name[0] == '\0') {
@@ -563,24 +585,32 @@ static void handle_graph_refs(cberg_engine *eng, int fd, char *args) {
             limit = 50;
         }
     }
-    cberg_engine_graph_edge edges[64];
+    char *path_prefix = null_if_empty(next_field(&cursor));
+    enum { IPC_GRAPH_REFS_CAP = 64 };
+    size_t want = limit > IPC_GRAPH_REFS_CAP ? IPC_GRAPH_REFS_CAP : limit;
+    cberg_engine_graph_edge edges[IPC_GRAPH_REFS_CAP];
     size_t found = 0;
-    cberg_status st = cberg_engine_graph_references(eng, name, repo, limit, edges, 64, &found);
+    cberg_status st = cberg_engine_graph_references(eng, name, repo, path_prefix, want, edges, IPC_GRAPH_REFS_CAP, &found);
     if (st != CBERG_OK) {
         char resp[256];
         snprintf(resp, sizeof(resp), "{\"ok\":false,\"error\":\"%s\"}\n", graph_err(st));
         write_all(fd, resp, strlen(resp));
         return;
     }
+    int truncated = found >= want && (limit > IPC_GRAPH_REFS_CAP || found >= IPC_GRAPH_REFS_CAP);
     char resp[65536];
     size_t off = (size_t)snprintf(resp, sizeof(resp), "{\"ok\":true,\"results\":[");
-    for (size_t i = 0; i < found && off + 768 < sizeof(resp); i++) {
-        if (i > 0) {
+    size_t written = 0;
+    for (; written < found && off + 768 < sizeof(resp); written++) {
+        if (written > 0) {
             resp[off++] = ',';
         }
-        write_gedge_json(resp, sizeof(resp), &off, &edges[i]);
+        write_gedge_json(resp, sizeof(resp), &off, &edges[written]);
     }
-    snprintf(resp + off, sizeof(resp) - off, "]}\n");
+    if (written < found) {
+        truncated = 1;
+    }
+    snprintf(resp + off, sizeof(resp) - off, "],\"truncated\":%s}\n", truncated ? "true" : "false");
     write_all(fd, resp, strlen(resp));
 }
 

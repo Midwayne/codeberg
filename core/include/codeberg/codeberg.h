@@ -608,7 +608,8 @@ CBERG_API const cberg_graph_node *cberg_graph_node_by_id(const cberg_graph *grap
 
 /*
  * Structural symbol search: exact `name` (NULL = any), node-kind mask built
- * from CBERG_GNODE_MASK (0 = any), and `path_prefix` (NULL = any). Writes up
+ * from CBERG_GNODE_MASK (0 = any), and `path_prefix` (NULL = any). Prefixes are
+ * component-aware (`foo` matches `foo` / `foo/bar`, not `foobar`). Writes up
  * to `cap` matches; *out_count is the number written (results truncate at cap).
  */
 CBERG_API cberg_status cberg_graph_find_nodes(const cberg_graph *graph, const char *name, uint32_t kind_mask, const char *path_prefix, const cberg_graph_node **out_nodes, size_t cap, size_t *out_count);

@@ -54,7 +54,7 @@ typedef struct graph_ref_rec {
     uint32_t line;
     uint8_t kind; /* one cberg_graph_edge_kind bit */
     uint8_t rev;  /* reversed: resolved edge is (candidate -> src) */
-    uint8_t resolution; /* cberg_graph_resolution; persisted from v2 */
+    uint8_t resolution; /* cberg_graph_resolution; persisted since CBERG_GRAPH_VERSION 1 */
     uint8_t dead;
     uint32_t name_next;
     uint32_t src_next;
@@ -440,10 +440,8 @@ const cberg_graph_node *cberg_graph_node_by_id(const cberg_graph *graph, uint64_
     return rec == NULL ? NULL : &rec->pub;
 }
 
-cberg_status cberg_graph_remove_file(cberg_graph *graph, const char *path) {
-    if (graph == NULL || path == NULL) {
-        return CBERG_ERR_INVALID_ARGUMENT;
-    }
+/* Tombstone a file's nodes/refs without compacting (used by transactional apply). */
+static void graph_tombstone_file(cberg_graph *graph, const char *path) {
     uint64_t head = 0;
     if (cberg_strmap_get(graph->node_by_path, path, &head)) {
         for (uint32_t i = (uint32_t)head; i != 0; i = graph->nodes[i - 1].path_next) {
@@ -464,7 +462,143 @@ cberg_status cberg_graph_remove_file(cberg_graph *graph, const char *path) {
             }
         }
     }
+}
+
+cberg_status cberg_graph_remove_file(cberg_graph *graph, const char *path) {
+    if (graph == NULL || path == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    graph_tombstone_file(graph, path);
     graph_maybe_compact(graph);
+    return CBERG_OK;
+}
+
+/* Deep-copied prior subgraph for one path — restore after a failed apply. */
+typedef struct {
+    cberg_graph_node *nodes;
+    size_t nodes_len;
+    graph_ref_rec *refs;
+    size_t refs_len;
+} file_snapshot;
+
+static void file_snapshot_free(file_snapshot *snap) {
+    if (snap == NULL) {
+        return;
+    }
+    for (size_t i = 0; i < snap->nodes_len; i++) {
+        free((void *)snap->nodes[i].name);
+        free((void *)snap->nodes[i].qname);
+        free((void *)snap->nodes[i].path);
+    }
+    for (size_t i = 0; i < snap->refs_len; i++) {
+        free((void *)snap->refs[i].name);
+        free((void *)snap->refs[i].path);
+    }
+    free(snap->nodes);
+    free(snap->refs);
+    memset(snap, 0, sizeof(*snap));
+}
+
+static char *snap_strdup(const char *s) {
+    if (s == NULL) {
+        return NULL;
+    }
+    size_t n = strlen(s);
+    char *out = malloc(n + 1);
+    if (out == NULL) {
+        return NULL;
+    }
+    memcpy(out, s, n + 1);
+    return out;
+}
+
+static cberg_status file_snapshot_take(cberg_graph *graph, const char *path, file_snapshot *snap) {
+    memset(snap, 0, sizeof(*snap));
+    size_t n_nodes = 0;
+    size_t n_refs = 0;
+    uint64_t head = 0;
+    if (cberg_strmap_get(graph->node_by_path, path, &head)) {
+        for (uint32_t i = (uint32_t)head; i != 0; i = graph->nodes[i - 1].path_next) {
+            if (!graph->nodes[i - 1].dead) {
+                n_nodes++;
+            }
+        }
+    }
+    head = 0;
+    if (cberg_strmap_get(graph->ref_by_path, path, &head)) {
+        for (uint32_t i = (uint32_t)head; i != 0; i = graph->refs[i - 1].path_next) {
+            if (!graph->refs[i - 1].dead) {
+                n_refs++;
+            }
+        }
+    }
+    if (n_nodes == 0 && n_refs == 0) {
+        return CBERG_OK;
+    }
+    if (n_nodes > 0) {
+        snap->nodes = calloc(n_nodes, sizeof(*snap->nodes));
+        if (snap->nodes == NULL) {
+            return CBERG_ERR_OUT_OF_MEMORY;
+        }
+    }
+    if (n_refs > 0) {
+        snap->refs = calloc(n_refs, sizeof(*snap->refs));
+        if (snap->refs == NULL) {
+            file_snapshot_free(snap);
+            return CBERG_ERR_OUT_OF_MEMORY;
+        }
+    }
+    head = 0;
+    if (cberg_strmap_get(graph->node_by_path, path, &head)) {
+        for (uint32_t i = (uint32_t)head; i != 0; i = graph->nodes[i - 1].path_next) {
+            const graph_node_rec *rec = &graph->nodes[i - 1];
+            if (rec->dead) {
+                continue;
+            }
+            cberg_graph_node *dst = &snap->nodes[snap->nodes_len++];
+            *dst = rec->pub;
+            dst->name = snap_strdup(rec->pub.name);
+            dst->qname = snap_strdup(rec->pub.qname);
+            dst->path = snap_strdup(rec->pub.path);
+            if (dst->name == NULL || dst->qname == NULL || (rec->pub.path != NULL && dst->path == NULL)) {
+                file_snapshot_free(snap);
+                return CBERG_ERR_OUT_OF_MEMORY;
+            }
+        }
+    }
+    head = 0;
+    if (cberg_strmap_get(graph->ref_by_path, path, &head)) {
+        for (uint32_t i = (uint32_t)head; i != 0; i = graph->refs[i - 1].path_next) {
+            const graph_ref_rec *rec = &graph->refs[i - 1];
+            if (rec->dead) {
+                continue;
+            }
+            graph_ref_rec *dst = &snap->refs[snap->refs_len++];
+            *dst = *rec;
+            dst->name = snap_strdup(rec->name);
+            dst->path = snap_strdup(rec->path);
+            if (dst->path == NULL || (rec->name != NULL && dst->name == NULL)) {
+                file_snapshot_free(snap);
+                return CBERG_ERR_OUT_OF_MEMORY;
+            }
+        }
+    }
+    return CBERG_OK;
+}
+
+static cberg_status file_snapshot_restore(cberg_graph *graph, const file_snapshot *snap) {
+    for (size_t i = 0; i < snap->nodes_len; i++) {
+        cberg_status st = graph_add_node(graph, &snap->nodes[i]);
+        if (st != CBERG_OK) {
+            return st;
+        }
+    }
+    for (size_t i = 0; i < snap->refs_len; i++) {
+        cberg_status st = graph_add_ref(graph, &snap->refs[i]);
+        if (st != CBERG_OK) {
+            return st;
+        }
+    }
     return CBERG_OK;
 }
 
@@ -472,14 +606,22 @@ cberg_status cberg_graph_apply(cberg_graph *graph, const cberg_graph_fragment *f
     if (graph == NULL || fragment == NULL || resolve == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
-    cberg_status st = cberg_graph_remove_file(graph, fragment->path);
+
+    /* Snapshot prior subgraph so a mid-apply failure can restore it. Compact
+     * is deferred until success so the snapshot's arena pointers stay valid
+     * only for the deep-copied malloc strings below. */
+    file_snapshot prior = {0};
+    uint64_t *def_ids = NULL;
+    cberg_status st = file_snapshot_take(graph, fragment->path, &prior);
     if (st != CBERG_OK) {
         return st;
     }
+    graph_tombstone_file(graph, fragment->path);
 
     uint64_t file_id = graph_file_id(fragment->path);
     if (file_id == 0) {
-        return CBERG_ERR_OUT_OF_MEMORY;
+        st = CBERG_ERR_OUT_OF_MEMORY;
+        goto fail_restore;
     }
     cberg_graph_node file_node = {
         .id = file_id,
@@ -491,14 +633,14 @@ cberg_status cberg_graph_apply(cberg_graph *graph, const cberg_graph_fragment *f
     };
     st = graph_add_node(graph, &file_node);
     if (st != CBERG_OK) {
-        return st;
+        goto fail_restore;
     }
 
-    uint64_t *def_ids = NULL;
     if (fragment->defs_len > 0) {
         def_ids = calloc(fragment->defs_len, sizeof(*def_ids));
         if (def_ids == NULL) {
-            return CBERG_ERR_OUT_OF_MEMORY;
+            st = CBERG_ERR_OUT_OF_MEMORY;
+            goto fail_restore;
         }
     }
     for (size_t i = 0; i < fragment->defs_len; i++) {
@@ -509,7 +651,7 @@ cberg_status cberg_graph_apply(cberg_graph *graph, const cberg_graph_fragment *f
             continue; /* def no longer in the chunk table; skip its node */
         }
         if (st != CBERG_OK) {
-            goto done;
+            goto fail_restore;
         }
         if (id == 0) {
             continue;
@@ -525,7 +667,7 @@ cberg_status cberg_graph_apply(cberg_graph *graph, const cberg_graph_fragment *f
         };
         st = graph_add_node(graph, &node);
         if (st != CBERG_OK) {
-            goto done;
+            goto fail_restore;
         }
         def_ids[i] = id;
     }
@@ -557,7 +699,7 @@ cberg_status cberg_graph_apply(cberg_graph *graph, const cberg_graph_fragment *f
         } else if (fref->kind == CBERG_GEDGE_IMPORTS) {
             st = ensure_module_node(graph, fref->name, fragment->lang, &rec.dst);
             if (st != CBERG_OK) {
-                goto done;
+                goto fail_restore;
             }
             /* Module target until cberg_graph_resolve_imports rewrites to a FILE. */
         } else {
@@ -565,14 +707,21 @@ cberg_status cberg_graph_apply(cberg_graph *graph, const cberg_graph_fragment *f
         }
         st = graph_add_ref(graph, &rec);
         if (st != CBERG_OK) {
-            goto done;
+            goto fail_restore;
         }
     }
-    st = CBERG_OK;
-    graph_maybe_compact(graph);
-
-done:
     free(def_ids);
+    file_snapshot_free(&prior);
+    graph_maybe_compact(graph);
+    return CBERG_OK;
+
+fail_restore:
+    free(def_ids);
+    /* Drop partial new content, then put the prior subgraph back. */
+    graph_tombstone_file(graph, fragment->path);
+    (void)file_snapshot_restore(graph, &prior);
+    file_snapshot_free(&prior);
+    graph_maybe_compact(graph);
     return st;
 }
 
@@ -890,6 +1039,18 @@ cberg_status cberg_graph_edges_to(const cberg_graph *graph, uint64_t id, uint32_
 
 /* ----------------------------------------------------------------- search */
 
+/* Component-aware path prefix: "foo" matches "foo" and "foo/bar" but not "foobar". */
+static int path_matches_prefix(const char *path, const char *prefix, size_t prefix_len) {
+    if (prefix_len == 0) {
+        return 1;
+    }
+    if (path == NULL || strncmp(path, prefix, prefix_len) != 0) {
+        return 0;
+    }
+    char next = path[prefix_len];
+    return next == '\0' || next == '/' || prefix[prefix_len - 1] == '/';
+}
+
 cberg_status cberg_graph_find_nodes(const cberg_graph *graph, const char *name, uint32_t kind_mask, const char *path_prefix, const cberg_graph_node **out_nodes, size_t cap, size_t *out_count) {
     if (graph == NULL || out_count == NULL || (out_nodes == NULL && cap > 0)) {
         return CBERG_ERR_INVALID_ARGUMENT;
@@ -907,7 +1068,7 @@ cberg_status cberg_graph_find_nodes(const cberg_graph *graph, const char *name, 
             if (rec->dead || (kind_mask != 0 && (kind_mask & CBERG_GNODE_MASK(rec->pub.kind)) == 0)) {
                 continue;
             }
-            if (prefix_len > 0 && (rec->pub.path == NULL || strncmp(rec->pub.path, path_prefix, prefix_len) != 0)) {
+            if (prefix_len > 0 && !path_matches_prefix(rec->pub.path, path_prefix, prefix_len)) {
                 continue;
             }
             out_nodes[(*out_count)++] = &rec->pub;
@@ -920,7 +1081,7 @@ cberg_status cberg_graph_find_nodes(const cberg_graph *graph, const char *name, 
         if (rec->dead || (kind_mask != 0 && (kind_mask & CBERG_GNODE_MASK(rec->pub.kind)) == 0)) {
             continue;
         }
-        if (prefix_len > 0 && (rec->pub.path == NULL || strncmp(rec->pub.path, path_prefix, prefix_len) != 0)) {
+        if (prefix_len > 0 && !path_matches_prefix(rec->pub.path, path_prefix, prefix_len)) {
             continue;
         }
         out_nodes[(*out_count)++] = &rec->pub;

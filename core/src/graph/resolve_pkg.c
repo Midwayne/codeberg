@@ -126,7 +126,9 @@ static int import_is_resolvable_shape(const char *imp, const char *go_module) {
     return 0;
 }
 
-/* Map relative / path-like imports onto the first matching source file. */
+/* Map relative / path-like imports onto a unique matching source file.
+ * Ambiguous matches (multiple distinct paths) return NULL so the edge stays
+ * MODULE rather than picking an arbitrary first walk hit at high confidence. */
 static const char *find_file_for_import(pkg_index *idx, const char *imp) {
     if (imp == NULL || imp[0] == '\0') {
         return NULL;
@@ -143,22 +145,29 @@ static const char *find_file_for_import(pkg_index *idx, const char *imp) {
     if (nlen == 0) {
         return NULL;
     }
+    const char *found = NULL;
     for (size_t i = 0; i < idx->file_len; i++) {
         const char *p = idx->file_paths[i];
         const char *dot = strrchr(p, '.');
         size_t plen = dot != NULL ? (size_t)(dot - p) : strlen(p);
+        int match = 0;
         if (plen == nlen && strncmp(p, needle, nlen) == 0) {
-            return p;
+            match = 1;
+        } else if (plen > nlen && p[plen - nlen - 1] == '/' && strncmp(p + plen - nlen, needle, nlen) == 0) {
+            match = 1;
+        } else if (strncmp(p, needle, nlen) == 0 && p[nlen] == '/') {
+            /* Directory package: needle/xxx.ext (Go packages, Python packages). */
+            match = 1;
         }
-        if (plen > nlen && p[plen - nlen - 1] == '/' && strncmp(p + plen - nlen, needle, nlen) == 0) {
-            return p;
+        if (!match) {
+            continue;
         }
-        /* Directory package: needle/xxx.ext (Go packages, Python packages). */
-        if (strncmp(p, needle, nlen) == 0 && p[nlen] == '/') {
-            return p;
+        if (found != NULL && strcmp(found, p) != 0) {
+            return NULL; /* ambiguous */
         }
+        found = p;
     }
-    return NULL;
+    return found;
 }
 
 static void map_put(pkg_index *idx, const char *key, const char *file) {
@@ -348,7 +357,12 @@ cberg_status cberg_graph_resolve_imports(cberg_graph *graph, const char *repo_ro
         cberg_strmap_free(idx.import_to_file);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
-    (void)cberg_fs_walk_files(repo_root, walk_cb, &idx);
+    if (cberg_fs_walk_files(repo_root, walk_cb, &idx) != 0) {
+        free(idx.file_paths);
+        cberg_strmap_free(idx.import_to_file);
+        cberg_arena_free(idx.arena);
+        return CBERG_ERR_IO;
+    }
     scan_go_mod(&idx, repo_root);
     map_js_sources(&idx);
     map_python_sources(&idx);
