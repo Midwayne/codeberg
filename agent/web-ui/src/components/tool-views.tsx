@@ -116,11 +116,8 @@ function ToolError({ name, message }: { name: string; message: string }) {
   );
 }
 
-export function SearchResults({ part }: { part: ToolView }) {
+function SearchResults({ part }: { part: ToolView }) {
   const query = inputQuery(part);
-  if (part.state !== 'output-available') {
-    return <ToolPending name="search_code" part={part} />;
-  }
   const hits = extractSearchHits(part.output);
   return (
     <HitList

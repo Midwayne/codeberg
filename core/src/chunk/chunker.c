@@ -13,6 +13,7 @@
 
 #include "arena.h"
 #include "chunk_keys.h"
+#include "chunk_kind.h"
 #include "graph_internal.h"
 #include "grow.h"
 
@@ -130,25 +131,6 @@ static int lang_slot(cberg_language lang) {
         return -1;
     }
     return (int)lang;
-}
-
-static cberg_chunk_kind kind_from_capture(const char *name, uint32_t len) {
-    struct {
-        const char *name;
-        cberg_chunk_kind kind;
-    } kinds[] = {
-        {"function", CBERG_CHUNK_FUNCTION},
-        {"method", CBERG_CHUNK_METHOD},
-        {"class", CBERG_CHUNK_CLASS},
-        {"struct", CBERG_CHUNK_STRUCT},
-        {"interface", CBERG_CHUNK_INTERFACE},
-    };
-    for (size_t i = 0; i < sizeof(kinds) / sizeof(kinds[0]); i++) {
-        if (strlen(kinds[i].name) == len && strncmp(name, kinds[i].name, len) == 0) {
-            return kinds[i].kind;
-        }
-    }
-    return CBERG_CHUNK_UNKNOWN;
 }
 
 static int compare_chunks(const void *a, const void *b) {
@@ -330,7 +312,6 @@ static cberg_status window_chunk(const char *path, const char *src, size_t src_l
 
 /* --- Markdown ------------------------------------------------------------ */
 
-#define CBERG_MD_SECTION_MAX_LINES 200
 #define CBERG_MD_MAX_DEPTH 6
 #define CBERG_MD_TITLE_MAX 120
 
@@ -457,7 +438,7 @@ static cberg_status md_emit(cberg_chunk_list *list, chunk_occ_tracker *occ, cons
  * to the line before the next heading (any level); the symbol is the
  * breadcrumb of enclosing headings ("Install > Prerequisites"). Content
  * before the first heading is an unnamed preamble section; '#' inside fenced
- * code blocks does not split; sections longer than CBERG_MD_SECTION_MAX_LINES
+ * code blocks does not split; sections longer than CBERG_CHUNK_MAX_SECTION_LINES
  * continue as extra chunks under the same symbol.
  */
 static cberg_status markdown_chunk(const char *path, const char *src, size_t src_len, cberg_chunk_list **out_list) {
@@ -555,7 +536,7 @@ static cberg_status markdown_chunk(const char *path, const char *src, size_t src
 
         sec_lines++;
         size_t line_end = nl < src_len ? nl + 1 : src_len;
-        if (sec_lines >= CBERG_MD_SECTION_MAX_LINES) {
+        if (sec_lines >= CBERG_CHUNK_MAX_SECTION_LINES) {
             st = md_emit(list, occ, path, depth > 0 ? crumb : NULL, depth > 0 ? crumb_len : 0, sec_start_byte, (uint32_t)line_end, sec_start_line, line_no);
             if (st != CBERG_OK) {
                 goto fail;
@@ -590,7 +571,6 @@ fail:
 
 /* --- Config files (YAML / TOML / JSON) ----------------------------------- */
 
-#define CBERG_CFG_CHUNK_MAX_LINES 200
 
 typedef struct {
     cberg_chunk_list *list;
@@ -611,7 +591,7 @@ static int cfg_span_blank(const char *src, size_t start, size_t end) {
 
 /*
  * Emits [start, end) as CBERG_CHUNK_KEY chunks, continuing every
- * CBERG_CFG_CHUNK_MAX_LINES lines under the same symbol (lock files can put
+ * CBERG_CHUNK_MAX_SECTION_LINES lines under the same symbol (lock files can put
  * thousands of lines under one key). `sym` may be NULL (preamble).
  */
 static cberg_status cfg_emit(cfg_ctx *ctx, const char *sym, size_t start, size_t end, uint32_t start_line) {
@@ -620,7 +600,7 @@ static cberg_status cfg_emit(cfg_ctx *ctx, const char *sym, size_t start, size_t
     while (b < end) {
         size_t e = b;
         uint32_t nl = 0;
-        while (e < end && nl < CBERG_CFG_CHUNK_MAX_LINES) {
+        while (e < end && nl < CBERG_CHUNK_MAX_SECTION_LINES) {
             if (ctx->src[e] == '\n') {
                 nl++;
             }
@@ -1059,7 +1039,7 @@ static cberg_status query_chunk(cberg_chunker *ch, lang_desc desc, cberg_languag
             TSQueryCapture cap = match.captures[i];
             uint32_t name_len = 0;
             const char *cap_name = ts_query_capture_name_for_id(query, cap.index, &name_len);
-            cberg_chunk_kind k = kind_from_capture(cap_name, name_len);
+            cberg_chunk_kind k = cberg_chunk_kind_from_capture(cap_name, name_len);
             if (k != CBERG_CHUNK_UNKNOWN) {
                 kind = k;
                 chunk_node = cap.node;

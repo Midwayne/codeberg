@@ -13,7 +13,9 @@ export function App() {
       .then((m: { title?: string } | null) => {
         if (m?.title) setSubtitle(m.title);
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.warn('failed to load /api/meta', err);
+      });
   }, []);
 
   return (

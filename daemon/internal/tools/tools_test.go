@@ -11,7 +11,7 @@ import (
 )
 
 func TestDefaultRegistry(t *testing.T) {
-	reg := Default(testutil.WsSingle(t.TempDir()), testutil.StubIndexer{})
+	reg := Default(testutil.WsSingle(t.TempDir()), testutil.StubIndexer())
 	names := make([]string, len(reg.List()))
 	for i, sp := range reg.List() {
 		names[i] = sp.Name
@@ -34,7 +34,7 @@ func TestReposTool(t *testing.T) {
 		{Key: "alpha", Root: rootA},
 		{Key: "beta", Root: rootB},
 	}, "")
-	reg := Default(ws, testutil.StubIndexer{})
+	reg := Default(ws, testutil.StubIndexer())
 
 	out, err := reg.Call(context.Background(), "repos", json.RawMessage(`{}`))
 	if err != nil {

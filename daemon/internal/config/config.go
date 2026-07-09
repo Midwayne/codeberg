@@ -223,6 +223,7 @@ func resolveRoot(root string) (string, error) {
 	}
 	real, err := filepath.EvalSymlinks(abs)
 	if err != nil {
+		// Path may not exist yet (e.g. first boot); keep the absolute form.
 		return abs, nil
 	}
 	return real, nil

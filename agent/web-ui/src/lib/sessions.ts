@@ -1,5 +1,7 @@
 import type { UIMessage } from 'ai';
 
+import { titleFromText } from '@agent/core/title.js';
+
 /** Sidebar row — mirrors the server's WebSessionSummary. */
 export interface SessionSummary {
   id: string;
@@ -74,8 +76,6 @@ export function deriveTitle(messages: UIMessage[]): string {
   const text = (firstUser?.parts ?? [])
     .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
     .map((p) => p.text)
-    .join(' ')
-    .trim();
-  if (!text) return 'New chat';
-  return text.length > 60 ? `${text.slice(0, 57)}…` : text;
+    .join(' ');
+  return titleFromText(text, 'New chat');
 }

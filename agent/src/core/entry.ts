@@ -1,10 +1,10 @@
+import { DEFAULT_DAEMON_URL } from './client.js';
+
 export interface EntryConfig {
   modelSpec: string;
   question: string;
   daemonUrl: string;
 }
-
-const DEFAULT_DAEMON_URL = 'http://127.0.0.1:8080';
 
 export function parseEntryArgs(
   argv: string[],
@@ -30,7 +30,7 @@ export function parseEntryArgs(
 export function entryUsage(program: string): string {
   return (
     `Usage: ${program} [provider:model] <question>\n` +
-    'Env: CODEBERG_DAEMON_URL (default http://127.0.0.1:8080)\n' +
+    'Env: CODEBERG_DAEMON_URL (default ' + DEFAULT_DAEMON_URL + ')\n' +
     '     CODEBERG_MODEL=openai:gpt-4o-mini\n' +
     'Providers: openai, anthropic, google (when API keys set)'
   );

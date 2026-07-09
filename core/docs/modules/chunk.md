@@ -67,7 +67,8 @@ Each language has a `lang_desc` `{ language_fn, query }`:
 | Java | `@class`, `@interface`, `@method` (constructors as methods) |
 | Kotlin | `@function`, `@class` |
 
-Capture names map to `cberg_chunk_kind` via `kind_from_capture`.
+Capture names map to `cberg_chunk_kind` via `cberg_chunk_kind_from_capture`
+(shared table in `chunk_kind.c`, also used by the indexer for name ↔ kind).
 
 ### Internal types
 
@@ -85,7 +86,7 @@ Returns `(int)lang` as cache index for grammar-backed languages. `CBERG_LANG_MAR
 config languages (`YAML`, `TOML`, `JSON`), and `CBERG_LANG_UNKNOWN` are outside the slot
 range.
 
-### `kind_from_capture(const char *name, uint32_t len)` — static
+### `cberg_chunk_kind_from_capture(const char *name, uint32_t len)` — `chunk_kind.c`
 
 Matches capture name (`"function"`, `"method"`, …) to `cberg_chunk_kind`.
 

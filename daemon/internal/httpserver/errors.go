@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"codeberg.org/codeberg/daemon/internal/indexctl"
+	"codeberg.org/codeberg/daemon/internal/subprocess"
 	"codeberg.org/codeberg/daemon/internal/tools"
 	"codeberg.org/codeberg/daemon/internal/workspace"
 )
@@ -28,7 +29,10 @@ func statusFor(err error) int {
 		return http.StatusNotFound
 	case errors.Is(err, workspace.ErrEscape):
 		return http.StatusForbidden
-	case errors.Is(err, tools.ErrInvalidArgs), errors.Is(err, tools.ErrUnsafeSed), errors.Is(err, tools.ErrUnsafePipe):
+	case errors.Is(err, tools.ErrInvalidArgs),
+		errors.Is(err, tools.ErrUnsafeSed),
+		errors.Is(err, tools.ErrUnsafePipe),
+		errors.Is(err, subprocess.ErrInvalid):
 		return http.StatusBadRequest
 	default:
 		return http.StatusInternalServerError
@@ -38,6 +42,13 @@ func statusFor(err error) int {
 func codeFor(err error, status int) string {
 	if ie, ok := indexctl.AsIndexerError(err); ok && ie.Code != "" {
 		return ie.Code
+	}
+
+	switch {
+	case errors.Is(err, tools.ErrUnsafePipe):
+		return "UNSAFE_PIPE"
+	case errors.Is(err, tools.ErrUnsafeSed):
+		return "UNSAFE_SED"
 	}
 
 	switch status {

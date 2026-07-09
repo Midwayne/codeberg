@@ -10,6 +10,8 @@ target_include_directories(index_provider_harness PUBLIC ${CMAKE_CURRENT_SOURCE_
 
 cberg_add_test(test_smoke)
 cberg_add_test(test_chunker)
+cberg_add_test(test_chunk_kind)
+target_include_directories(test_chunk_kind PRIVATE ${CMAKE_SOURCE_DIR}/src/chunk)
 cberg_add_test(test_chunk_table)
 cberg_add_test(test_graph)
 cberg_add_test(test_graph_extract)

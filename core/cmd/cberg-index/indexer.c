@@ -2,6 +2,7 @@
 
 #include "indexer.h"
 
+#include "chunk_kind.h"
 #include "fileio.h"
 #include "pathutil.h"
 #include "u64map.h"
@@ -145,15 +146,7 @@ static char *chunk_body(const cberg_repo *r, const cberg_stored_chunk *sc, size_
     return cberg_read_file(path, out_len);
 }
 
-/*
- * Per-run cache of file bodies for the embed pass. Reading a chunk's whole file
- * from disk for every chunk meant a file with M chunks was read M times; chunks
- * of one file arrive contiguously (chunk lists are appended per file), so a body
- * is reused while consecutive chunks share its path and re-read only when the
- * path changes. A non-contiguous repeat simply reads the file again — still
- * correct, just not deduped. Buffers stay live until file_cache_free because the
- * embed pass slices directly into them.
- */
+/* Cache file bodies across contiguous same-path chunks during embed. */
 typedef struct {
     const char *path; /* borrowed from the stored chunk; identifies the buffer */
     char *data;       /* owned file body */
@@ -176,9 +169,7 @@ static void file_cache_free(file_cache *fc) {
     fc->cap = 0;
 }
 
-/* Resolve sc's chunk to a [text, len) slice of its file body, reading the file
- * only on the first chunk of each contiguous same-file run. The slice points into
- * a cached buffer owned by fc and stays valid until file_cache_free. */
+/* Slice sc's body from the file cache, reading the file on path change. */
 static cberg_status cache_slice(cberg_repo *r, file_cache *fc, const cberg_stored_chunk *sc, const char **text, size_t *len) {
     cached_body *cb = (fc->len > 0 && strcmp(fc->items[fc->len - 1].path, sc->chunk.path) == 0)
                           ? &fc->items[fc->len - 1]
@@ -214,23 +205,8 @@ static cberg_status cache_slice(cberg_repo *r, file_cache *fc, const cberg_store
 }
 
 /*
- * Embed `count` chunks into `index`, embedding only one representative per distinct
- * body. Chunks that share a content_hash (byte-identical text — license headers,
- * generated code, trivial accessors, vendored copies) are embedded once and that
- * vector is reused for every chunk with the same body; the model is deterministic,
- * so this is identical to embedding each separately, just without the repeat compute.
- *
- * Bodies pair only on a full CBERG_HASH_LEN match (the map keys on the first 8 bytes
- * for speed, then confirms), so a 64-bit bucket collision can never share a wrong
- * vector. Duplicates are grouped behind their representative so embedding still runs
- * in BATCH_SIZE windows whose vectors are freed before the next — peak extra memory
- * stays one batch, not the whole upsert.
- *
- * When `show`, prints embed progress against `total` as chunks are indexed, advancing
- * *done. *out_unique (nullable) receives the count of bodies actually embedded.
- *
- * The embed lock is taken per batch (inside engine_embed), not around the whole
- * upsert, so a concurrent search query waits at most one batch.
+ * Embed unique bodies only (keyed by content_hash; full-hash confirm after 8-byte
+ * map key). Duplicates reuse the representative vector. Batched under embed_mu.
  */
 static cberg_status embed_unique(cberg_repo *r, cberg_index *index, const char **texts, const size_t *lens, const uint8_t **hashes, const uint64_t *ids, size_t count, int show, size_t *done, size_t total, size_t *out_unique) {
     if (out_unique != NULL) {
@@ -1717,59 +1693,8 @@ cberg_status cberg_engine_run(cberg_engine *eng) {
 
 /* ------------------------------------------------------------------ search */
 
-static const char *kind_str(cberg_chunk_kind k) {
-    switch (k) {
-    case CBERG_CHUNK_FUNCTION:
-        return "function";
-    case CBERG_CHUNK_METHOD:
-        return "method";
-    case CBERG_CHUNK_CLASS:
-        return "class";
-    case CBERG_CHUNK_STRUCT:
-        return "struct";
-    case CBERG_CHUNK_INTERFACE:
-        return "interface";
-    case CBERG_CHUNK_WINDOW:
-        return "window";
-    case CBERG_CHUNK_SECTION:
-        return "section";
-    case CBERG_CHUNK_KEY:
-        return "key";
-    case CBERG_CHUNK_UNKNOWN:
-    default:
-        return "unknown";
-    }
-}
-
 int cberg_index_parse_kind(const char *s) {
-    if (s == NULL || s[0] == '\0') {
-        return -1;
-    }
-    if (strcasecmp(s, "function") == 0) {
-        return CBERG_CHUNK_FUNCTION;
-    }
-    if (strcasecmp(s, "method") == 0) {
-        return CBERG_CHUNK_METHOD;
-    }
-    if (strcasecmp(s, "class") == 0) {
-        return CBERG_CHUNK_CLASS;
-    }
-    if (strcasecmp(s, "struct") == 0) {
-        return CBERG_CHUNK_STRUCT;
-    }
-    if (strcasecmp(s, "interface") == 0) {
-        return CBERG_CHUNK_INTERFACE;
-    }
-    if (strcasecmp(s, "window") == 0) {
-        return CBERG_CHUNK_WINDOW;
-    }
-    if (strcasecmp(s, "section") == 0) {
-        return CBERG_CHUNK_SECTION;
-    }
-    if (strcasecmp(s, "key") == 0) {
-        return CBERG_CHUNK_KEY;
-    }
-    return -1;
+    return cberg_chunk_kind_parse(s);
 }
 
 static int chunk_passes_filters(const cberg_stored_chunk *sc, float score, const cberg_search_filters *f) {
@@ -2036,7 +1961,7 @@ static cberg_status fill_chunk_detail(cberg_repo *r, const cberg_stored_chunk *s
     out->repo = r->key;
     snprintf(out->path, sizeof(out->path), "%s", sc->chunk.path != NULL ? sc->chunk.path : "");
     snprintf(out->symbol, sizeof(out->symbol), "%s", sc->chunk.symbol != NULL ? sc->chunk.symbol : "");
-    snprintf(out->kind, sizeof(out->kind), "%s", kind_str(sc->chunk.kind));
+    snprintf(out->kind, sizeof(out->kind), "%s", cberg_chunk_kind_name(sc->chunk.kind));
     out->start_line = sc->chunk.span.start_line;
     out->end_line = sc->chunk.span.end_line;
     fill_snippet(r, sc, out->snippet, sizeof(out->snippet));

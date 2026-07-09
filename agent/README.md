@@ -22,7 +22,7 @@ or from a checkout.
 | Variable | Binaries | Purpose |
 |---|---|---|
 | `CODEBERG_MODEL` | all | `provider:model`, overrides the positional argument |
-| `CODEBERG_DAEMON_URL` | all | daemon endpoint (default `http://127.0.0.1:8080`) |
+| `CODEBERG_DAEMON_URL` | all | daemon endpoint (default `http://127.0.0.1:48080`) |
 | `CODEBERG_QUESTION` | CLI | the question, overrides the positional argument |
 | `CODEBERG_HOME` | TUI, web | state root for sessions (default `~/.codeberg`) |
 | `CODEBERG_REASONING` | all | reasoning effort: `provider-default`, `none`, `minimal`, `low`, `medium`, `high`, `xhigh`; anything else is ignored |
@@ -355,7 +355,7 @@ const registry = new ProviderRegistry();
 registry.register(myProvider);
 const model = registry.resolve("myprov:model-id");
 
-const agent = new Agent({ model, daemon: new DaemonClient("http://127.0.0.1:8080") });
+const agent = new Agent({ model, daemon: new DaemonClient("http://127.0.0.1:48080") });
 const { answer, sources } = await agent.ask("how does search work?");
 ```
 

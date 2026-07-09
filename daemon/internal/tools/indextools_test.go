@@ -7,20 +7,21 @@ import (
 	"testing"
 
 	"codeberg.org/codeberg/daemon/internal/indexctl"
+	"codeberg.org/codeberg/daemon/internal/testutil"
 	"codeberg.org/codeberg/daemon/internal/workspace"
 )
 
 type mockIndexer struct {
-	searchOpts   indexctl.SearchOptions
-	searchHits   []indexctl.SearchResult
-	chunk        indexctl.ChunkDetail
-	graphRefs    []indexctl.GraphEdge
-	outline      map[string][]indexctl.SearchResult
-	traceHops    []indexctl.GraphHop
-	graphStats   indexctl.GraphStats
-	graphHubs    []indexctl.GraphHub
-	searchGraph  []indexctl.GraphNode
-	lastTrace    indexctl.TracePathOptions
+	searchOpts  indexctl.SearchOptions
+	searchHits  []indexctl.SearchResult
+	chunk       indexctl.ChunkDetail
+	graphRefs   []indexctl.GraphEdge
+	outline     map[string][]indexctl.SearchResult
+	traceHops   []indexctl.GraphHop
+	graphStats  indexctl.GraphStats
+	graphHubs   []indexctl.GraphHub
+	searchGraph []indexctl.GraphNode
+	lastTrace   indexctl.TracePathOptions
 }
 
 func (m *mockIndexer) Status(context.Context) (indexctl.Status, error) {
@@ -78,9 +79,11 @@ func (m *mockIndexer) GraphHubs(context.Context, indexctl.GraphHubsOptions) ([]i
 }
 
 func TestGetChunkTool(t *testing.T) {
-	idx := &mockIndexer{chunk: indexctl.ChunkDetail{ID: 7, Repo: "main", Path: "a.go", Body: "func main(){}"}}
+	idx := &testutil.FakeIndexer{
+		Chunk: indexctl.ChunkDetail{ID: 7, Repo: "main", Path: "a.go", Body: "func main(){}"},
+	}
 	root := t.TempDir()
-	reg := Default(workspace.New([]workspace.RepoInfo{{Key: "main", Root: root}}, "main"), idx)
+	reg := Default(testutil.WsSingle(root), idx)
 
 	out, err := reg.Call(context.Background(), "get_chunk", json.RawMessage(`{"repo":"main","id":7}`))
 	if err != nil {
@@ -93,8 +96,8 @@ func TestGetChunkTool(t *testing.T) {
 }
 
 func TestHybridSearchTool(t *testing.T) {
-	idx := &mockIndexer{
-		searchHits: []indexctl.SearchResult{
+	idx := &testutil.FakeIndexer{
+		SearchHits: []indexctl.SearchResult{
 			{ID: 1, Score: 0.9, Repo: "main", Path: "low.go"},
 			{ID: 2, Score: 0.85, Repo: "main", Path: "high.go"},
 		},
@@ -107,7 +110,7 @@ func TestHybridSearchTool(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reg := Default(workspace.New([]workspace.RepoInfo{{Key: "main", Root: root}}, "main"), idx)
+	reg := Default(testutil.WsSingle(root), idx)
 	out, err := reg.Call(context.Background(), "hybrid_search", json.RawMessage(`{"query":"authentication handler","k":1}`))
 	if err != nil {
 		t.Fatal(err)
@@ -126,8 +129,8 @@ func TestHybridSearchTool(t *testing.T) {
 	if len(decoded) != 1 || decoded[0].Hit.Path != "high.go" {
 		t.Fatalf("hybrid rerank: %+v", decoded)
 	}
-	if idx.searchOpts.K != 2 {
-		t.Fatalf("hybrid fetches 2*k candidates, got K=%d", idx.searchOpts.K)
+	if idx.GotSearch.K != 2 {
+		t.Fatalf("hybrid fetches 2*k candidates, got K=%d", idx.GotSearch.K)
 	}
 }
 
@@ -140,7 +143,7 @@ func TestFindReferencesTool(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reg := Default(workspace.New([]workspace.RepoInfo{{Key: "main", Root: root}}, "main"), &mockIndexer{})
+	reg := Default(testutil.WsSingle(root), &testutil.FakeIndexer{})
 	out, err := reg.Call(context.Background(), "find_references", json.RawMessage(`{"symbol":"Foo","repo":"main"}`))
 	if err != nil {
 		t.Fatal(err)
