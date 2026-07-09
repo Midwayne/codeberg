@@ -102,8 +102,12 @@ export function registerBuiltinProviders(registry: { register(p: ModelProvider):
   for (const make of BUILTIN) {
     try {
       registry.register(make());
-    } catch {
-      /* provider not configured (missing API key) */
+    } catch (err) {
+      // Skip providers whose required API key is missing; rethrow anything else.
+      if (err instanceof Error && / is required for the .+ provider$/.test(err.message)) {
+        continue;
+      }
+      throw err;
     }
   }
 }

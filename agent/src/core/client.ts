@@ -1,6 +1,8 @@
-import { formatSource } from './format.js';
 import { normalizeSearchHit } from './search-hit.js';
 import type { SearchOptions, SearchResult, ToolSpec } from './types.js';
+
+/** Default daemon base URL when CODEBERG_DAEMON_URL is unset. */
+export const DEFAULT_DAEMON_URL = 'http://127.0.0.1:8080';
 
 export interface DaemonHealth {
   ready: boolean;

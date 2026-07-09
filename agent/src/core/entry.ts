@@ -1,10 +1,10 @@
+import { DEFAULT_DAEMON_URL } from './client.js';
+
 export interface EntryConfig {
   modelSpec: string;
   question: string;
   daemonUrl: string;
 }
-
-const DEFAULT_DAEMON_URL = 'http://127.0.0.1:8080';
 
 export function parseEntryArgs(
   argv: string[],

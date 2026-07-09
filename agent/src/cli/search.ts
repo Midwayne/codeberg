@@ -1,10 +1,8 @@
 #!/usr/bin/env node
-import { DaemonClient, DaemonError } from '../core/client.js';
+import { DaemonClient, DaemonError, DEFAULT_DAEMON_URL } from '../core/client.js';
 import { extractHybridHits } from '../core/evidence-extract.js';
 import { formatScoredSource, formatSource } from '../core/format.js';
 import type { SearchOptions } from '../core/types.js';
-
-const DEFAULT_DAEMON_URL = 'http://127.0.0.1:8080';
 
 const VALUE_FLAGS = new Set([
   '--daemon',

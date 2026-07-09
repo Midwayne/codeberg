@@ -85,6 +85,7 @@ set(CBERG_SOURCES
   src/common/u64map.c
   third_party/xxhash.c
   src/chunk/chunk_keys.c
+  src/chunk/chunk_kind.c
   src/chunk/chunker.c
   src/chunk/chunk_table.c
   src/manifest/manifest.c

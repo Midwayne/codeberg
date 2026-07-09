@@ -1,6 +1,7 @@
 import type { ModelMessage } from 'ai';
 
 import { messageText } from '../core/message.js';
+import { titleFromText } from '../core/title.js';
 import type { SessionSummary } from './session-store.js';
 
 /** A parsed slash command. `arg` is the trimmed remainder (e.g. a session id). */
@@ -33,8 +34,11 @@ export function parseCommand(text: string): Command | null {
   }
 
   const [verb, ...rest] = trimmed.slice(1).split(/\s+/);
+  if (!verb) {
+    return null;
+  }
   const arg = rest.join(' ').trim();
-  switch (verb!.toLowerCase()) {
+  switch (verb.toLowerCase()) {
     case 'help':
     case '?':
       return { kind: 'help' };
@@ -129,9 +133,6 @@ export function relativeTime(then: number, now: number = Date.now()): string {
 /** First user message, condensed to a one-line session title. */
 export function deriveTitle(messages: ModelMessage[]): string {
   const firstUser = messages.find((m) => m.role === 'user');
-  const text = firstUser ? messageText(firstUser).replace(/\s+/g, ' ').trim() : '';
-  if (!text) {
-    return '(untitled)';
-  }
-  return text.length > 60 ? `${text.slice(0, 59)}…` : text;
+  const text = firstUser ? messageText(firstUser) : '';
+  return titleFromText(text, '(untitled)');
 }

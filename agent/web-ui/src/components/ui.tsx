@@ -80,15 +80,3 @@ export function Collapsible({
   );
 }
 
-export function Badge({ children, className }: { children: ReactNode; className?: string }) {
-  return (
-    <span
-      className={cn(
-        'ml-auto shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide',
-        className,
-      )}
-    >
-      {children}
-    </span>
-  );
-}
