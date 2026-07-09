@@ -138,6 +138,11 @@ Configuration is changeable any time after install — there's no need to
 reinstall. Each run reads config fresh and the daemon restarts per session, so a
 new root or model is picked up on the next `codeberg`.
 
+When `CODEBERG_ROOT` is set (in config or via `--root`), **only** those
+directories are indexed — comma-separate several paths to index a fixed set.
+Unset `CODEBERG_ROOT` to search across the repo registry with `--all` or
+`--repos` instead; the two modes do not combine.
+
 ```sh
 codeberg config                       # print the resolved config (secrets masked)
 codeberg config path                  # where the config file lives

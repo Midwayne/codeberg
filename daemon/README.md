@@ -99,15 +99,25 @@ export CBERG_INDEX_PATH=/tmp/codeberg.usearch
 curl 'http://localhost:8080/search?q=add+function&k=5'
 ```
 
-Multi-repo, run by hand (the launcher does this for you via `--all`/`--repos`):
+Multi-repo, run by hand (the launcher does this for you via `--all`/`--repos`,
+or comma-separated `CODEBERG_ROOT` when pinning explicit paths):
+
+```sh
+export CODEBERG_ROOT=/path/to/api,/path/to/frontend   # or CODEBERG_ROOTS below
+export CBERG_MODEL=models/jina-embeddings-v2-base-code/model.onnx
+export CBERG_INDEX_PATH=/tmp/codeberg.usearch
+./core/build/bin/codeberg-d
+curl 'http://localhost:8080/search?q=add+function&k=5'            # both repos, merged by score
+curl 'http://localhost:8080/search?q=add+function&k=5&repo=api'   # just api
+```
+
+Keyed records (advanced — same shape as `~/.codeberg/repos`):
 
 ```sh
 export CODEBERG_ROOTS=$'api\t/path/to/api\nfrontend\t/path/to/frontend'
 export CBERG_MODEL=models/jina-embeddings-v2-base-code/model.onnx
 export CBERG_INDEX_PATH=/tmp/codeberg.usearch
 ./core/build/bin/codeberg-d
-curl 'http://localhost:8080/search?q=add+function&k=5'            # both repos, merged by score
-curl 'http://localhost:8080/search?q=add+function&k=5&repo=api'   # just api
 ```
 
 ## Layout
