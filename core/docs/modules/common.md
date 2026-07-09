@@ -158,8 +158,10 @@ Iterate all entries (used by watcher drain).
 `cberg_fnv1a` — fast string hash for `cberg_strmap` bucket indices only.  
 `cberg_grow_cap` — geometric capacity helper for dynamic arrays.  
 `CBERG_CACHE_LINE` (64) / `cberg_cacheline_calloc` / `cberg_cacheline_realloc` /
-`cberg_cacheline_free` — aligned hot-path arrays (`u64map`, `strmap`, graph
-node/ref stores). `realloc` does not preserve alignment, so growth copies.
+`cberg_cacheline_free` — aligned hot-path arrays (`u64map`, `strmap`). Prefer
+`cberg_cacheline_realloc` over plain `realloc` when alignment must be preserved
+(plain `realloc` does not). Only adopt for new call sites after a measured win
+(see AGENTS.md performance rule).
 
 ---
 

@@ -14,9 +14,9 @@ fragments incrementally and persists a `.graph` sidecar.
 | `resolve_pkg.c` | Phase 2: manifest + path heuristics → rewrite IMPORTS to FILE |
 | `graph_internal.h` | Fragment / extractor / rewrite internals |
 
-**Depends on:** `common/arena`, `common/binio`, `common/cacheline`, `common/strmap`,
-`common/u64map`, `common/hash`, `common/fileio`, `common/pathutil`, walk policy,
-tree-sitter (via chunker).
+**Depends on:** `common/arena`, `common/binio`, `common/strmap`, `common/u64map`,
+`common/hash`, `common/fileio`, `common/pathutil`, walk policy, tree-sitter
+(via chunker).
 
 Public ABI: `cberg_graph_*` and `cberg_chunker_analyze` in
 [../API.md](../API.md) / `codeberg.h`.
@@ -84,22 +84,6 @@ Every resolved edge carries:
 Call/inherit references store a **name**, not a hard id. `edges_from` /
 `edges_to` / `trace` resolve names against the live definition index, so
 deleting a file can never leave a dangling edge.
-
-### Internal layout (cache-line friendly)
-
-`graph_store.c` keeps chain-walk fields in the first cache line of each record
-(same idea as `chunk_table` / `u64map`):
-
-- **Nodes** — `name_next`, `path_next`, `dead` lead; public `cberg_graph_node`
-  follows. Chain filters no longer pull a second line just for the tombstone.
-- **Refs** — `kind` / `rev` / `resolution` / `dead` / `line` / adjacency links
-  pack before `src`/`dst`/string pointers; the whole record fits in 64 bytes.
-- **Backing arrays** — grown with `cberg_cacheline_realloc` so index `0` starts
-  on a line boundary (plain `realloc` does not preserve alignment).
-
-Public ABI structs in `codeberg.h` are unchanged.
-
----
 
 ## Confidence ladder (textual)
 
