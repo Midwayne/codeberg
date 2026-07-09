@@ -12,28 +12,6 @@ import (
 	"codeberg.org/codeberg/daemon/internal/workspace"
 )
 
-func TestParseDiffHunks(t *testing.T) {
-	diff := `diff --git a/a.go b/a.go
---- a/a.go
-+++ b/a.go
-@@ -10,0 +11,2 @@
-+func New() {}
-+func Old() {}
-@@ -20 +22 @@
--func gone() {}
-`
-	h := parseDiffHunks(diff)
-	lines, ok := h["a.go"]
-	if !ok {
-		t.Fatalf("missing a.go: %+v", h)
-	}
-	for _, want := range []uint32{11, 12, 22} {
-		if _, ok := lines[want]; !ok {
-			t.Fatalf("missing line %d in %+v", want, lines)
-		}
-	}
-}
-
 func TestSymbolTouchesHunk(t *testing.T) {
 	lines := map[uint32]struct{}{15: {}}
 	if !symbolTouchesHunk(10, 20, lines) {
@@ -115,21 +93,12 @@ func TestDetectChangesHunkFilterAndPathPrefix(t *testing.T) {
 		},
 	}
 	reg := Default(workspace.New([]workspace.RepoInfo{{Key: "main", Root: root}}, "main"), idx)
-	out, err := reg.Call(context.Background(), "detect_changes", json.RawMessage(`{"repo":"main","base":"HEAD","head":"HEAD","limit":20}`))
+	// Bogus base forces working-tree-vs-HEAD fallback so unstaged edits are visible.
+	out, err := reg.Call(context.Background(), "detect_changes", json.RawMessage(`{"repo":"main","base":"does-not-exist","head":"HEAD","limit":20}`))
 	if err != nil {
 		t.Fatal(err)
 	}
 	res, ok := out.(detectChangesResult)
-	if !ok {
-		t.Fatalf("type: %T", out)
-	}
-	// base...head with identical refs may yield empty; unstaged vs HEAD is the interesting case.
-	// Force working-tree path by using a bogus base so fallback engages.
-	out, err = reg.Call(context.Background(), "detect_changes", json.RawMessage(`{"repo":"main","base":"does-not-exist","head":"HEAD","limit":20}`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	res, ok = out.(detectChangesResult)
 	if !ok {
 		t.Fatalf("type: %T", out)
 	}

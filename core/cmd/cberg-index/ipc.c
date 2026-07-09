@@ -102,6 +102,11 @@ static char *next_field(char **cursor) {
     return start;
 }
 
+/* Empty IPC fields become NULL so callers can pass them through unchanged. */
+static char *null_if_empty(char *s) {
+    return (s != NULL && s[0] == '\0') ? NULL : s;
+}
+
 static void write_hit_json(char *resp, size_t cap, size_t *off, const cberg_engine_hit *h) {
     char esc_repo[256];
     char esc_path[512];
@@ -144,14 +149,8 @@ static void handle_search(cberg_engine *eng, int fd, char *args) {
             k = 10;
         }
     }
-    char *repo = next_field(&cursor);
-    if (repo != NULL && repo[0] == '\0') {
-        repo = NULL;
-    }
-    char *path_glob = next_field(&cursor);
-    if (path_glob != NULL && path_glob[0] == '\0') {
-        path_glob = NULL;
-    }
+    char *repo = null_if_empty(next_field(&cursor));
+    char *path_glob = null_if_empty(next_field(&cursor));
     char *kind_str = next_field(&cursor);
     char *min_score_str = next_field(&cursor);
 
@@ -252,10 +251,7 @@ static void handle_symbol(cberg_engine *eng, int fd, char *args) {
         write_all(fd, resp, strlen(resp));
         return;
     }
-    char *repo = next_field(&cursor);
-    if (repo != NULL && repo[0] == '\0') {
-        repo = NULL;
-    }
+    char *repo = null_if_empty(next_field(&cursor));
     char *kind_str = next_field(&cursor);
     char *limit_str = next_field(&cursor);
     size_t limit = 20;
@@ -379,18 +375,9 @@ static void handle_search_graph(cberg_engine *eng, int fd, char *args) {
         write_all(fd, resp, strlen(resp));
         return;
     }
-    char *repo = next_field(&cursor);
-    if (repo != NULL && repo[0] == '\0') {
-        repo = NULL;
-    }
-    char *kind = next_field(&cursor);
-    if (kind != NULL && kind[0] == '\0') {
-        kind = NULL;
-    }
-    char *path_prefix = next_field(&cursor);
-    if (path_prefix != NULL && path_prefix[0] == '\0') {
-        path_prefix = NULL;
-    }
+    char *repo = null_if_empty(next_field(&cursor));
+    char *kind = null_if_empty(next_field(&cursor));
+    char *path_prefix = null_if_empty(next_field(&cursor));
     char *limit_str = next_field(&cursor);
     size_t limit = 20;
     if (limit_str != NULL && limit_str[0] != '\0') {
@@ -431,18 +418,9 @@ static void handle_trace_path(cberg_engine *eng, int fd, char *args) {
         write_all(fd, resp, strlen(resp));
         return;
     }
-    char *repo = next_field(&cursor);
-    if (repo != NULL && repo[0] == '\0') {
-        repo = NULL;
-    }
-    char *direction = next_field(&cursor);
-    if (direction != NULL && direction[0] == '\0') {
-        direction = NULL;
-    }
-    char *edge_kind = next_field(&cursor);
-    if (edge_kind != NULL && edge_kind[0] == '\0') {
-        edge_kind = NULL;
-    }
+    char *repo = null_if_empty(next_field(&cursor));
+    char *direction = null_if_empty(next_field(&cursor));
+    char *edge_kind = null_if_empty(next_field(&cursor));
     char *depth_str = next_field(&cursor);
     uint32_t max_depth = 2;
     if (depth_str != NULL && depth_str[0] != '\0') {
@@ -459,10 +437,7 @@ static void handle_trace_path(cberg_engine *eng, int fd, char *args) {
             limit = 64;
         }
     }
-    char *path_prefix = next_field(&cursor);
-    if (path_prefix != NULL && path_prefix[0] == '\0') {
-        path_prefix = NULL;
-    }
+    char *path_prefix = null_if_empty(next_field(&cursor));
 
     cberg_engine_graph_hop hops[256];
     size_t found = 0;
@@ -479,27 +454,15 @@ static void handle_trace_path(cberg_engine *eng, int fd, char *args) {
         if (i > 0) {
             resp[off++] = ',';
         }
-        char esc_kind[64];
-        char esc_res[64];
-        char esc_src_name[512];
-        char esc_dst_name[512];
-        char esc_src_path[1024];
-        char esc_dst_path[1024];
-        const cberg_engine_graph_edge *e = &hops[i].edge;
-        json_escape(e->kind, esc_kind, sizeof(esc_kind));
-        json_escape(e->resolution, esc_res, sizeof(esc_res));
-        json_escape(e->src_name, esc_src_name, sizeof(esc_src_name));
-        json_escape(e->dst_name, esc_dst_name, sizeof(esc_dst_name));
-        json_escape(e->src_path, esc_src_path, sizeof(esc_src_path));
-        json_escape(e->dst_path, esc_dst_path, sizeof(esc_dst_path));
-        int w = snprintf(resp + off, sizeof(resp) - off,
-                         "{\"depth\":%u,\"src\":%llu,\"dst\":%llu,\"kind\":\"%s\",\"resolution\":\"%s\","
-                         "\"confidence\":%.4f,\"line\":%u,\"src_name\":\"%s\",\"dst_name\":\"%s\","
-                         "\"src_path\":\"%s\",\"dst_path\":\"%s\"}",
-                         hops[i].depth, (unsigned long long)e->src, (unsigned long long)e->dst, esc_kind, esc_res,
-                         (double)e->confidence, e->line, esc_src_name, esc_dst_name, esc_src_path, esc_dst_path);
-        if (w > 0) {
-            off += (size_t)w;
+        char edge_buf[1536];
+        size_t eoff = 0;
+        write_gedge_json(edge_buf, sizeof(edge_buf), &eoff, &hops[i].edge);
+        /* edge_buf is {"src":...}; splice depth after the opening brace. */
+        if (eoff > 1 && edge_buf[0] == '{') {
+            int w = snprintf(resp + off, sizeof(resp) - off, "{\"depth\":%u,%s", hops[i].depth, edge_buf + 1);
+            if (w > 0) {
+                off += (size_t)w;
+            }
         }
     }
     snprintf(resp + off, sizeof(resp) - off, "]}\n");
@@ -509,10 +472,7 @@ static void handle_trace_path(cberg_engine *eng, int fd, char *args) {
 static void handle_graph_stats(cberg_engine *eng, int fd, char *args) {
     /* graph_stats[\t<repo>] */
     char *cursor = args;
-    char *repo = next_field(&cursor);
-    if (repo != NULL && repo[0] == '\0') {
-        repo = NULL;
-    }
+    char *repo = null_if_empty(next_field(&cursor));
     cberg_engine_graph_stats stats;
     cberg_status st = cberg_engine_get_graph_stats(eng, repo, &stats);
     if (st != CBERG_OK) {
@@ -545,10 +505,7 @@ static void handle_graph_stats(cberg_engine *eng, int fd, char *args) {
 static void handle_graph_hubs(cberg_engine *eng, int fd, char *args) {
     /* graph_hubs[\t<repo>[\t<limit>]] */
     char *cursor = args;
-    char *repo = next_field(&cursor);
-    if (repo != NULL && repo[0] == '\0') {
-        repo = NULL;
-    }
+    char *repo = null_if_empty(next_field(&cursor));
     char *limit_str = next_field(&cursor);
     size_t limit = 10;
     if (limit_str != NULL && limit_str[0] != '\0') {
@@ -572,24 +529,15 @@ static void handle_graph_hubs(cberg_engine *eng, int fd, char *args) {
         if (i > 0) {
             resp[off++] = ',';
         }
-        char esc_repo[256];
-        char esc_kind[64];
-        char esc_name[512];
-        char esc_qname[1024];
-        char esc_path[1024];
-        const cberg_engine_graph_node *n = &hubs[i].node;
-        json_escape(n->repo != NULL ? n->repo : "", esc_repo, sizeof(esc_repo));
-        json_escape(n->kind, esc_kind, sizeof(esc_kind));
-        json_escape(n->name, esc_name, sizeof(esc_name));
-        json_escape(n->qname, esc_qname, sizeof(esc_qname));
-        json_escape(n->path, esc_path, sizeof(esc_path));
-        int w = snprintf(resp + off, sizeof(resp) - off,
-                         "{\"id\":%llu,\"repo\":\"%s\",\"kind\":\"%s\",\"name\":\"%s\",\"qname\":\"%s\","
-                         "\"path\":\"%s\",\"start_line\":%u,\"end_line\":%u,\"degree\":%u}",
-                         (unsigned long long)n->id, esc_repo, esc_kind, esc_name, esc_qname, esc_path, n->start_line, n->end_line,
-                         hubs[i].degree);
-        if (w > 0) {
-            off += (size_t)w;
+        size_t before = off;
+        write_gnode_json(resp, sizeof(resp), &off, &hubs[i].node);
+        /* Replace trailing '}' with ,"degree":N} */
+        if (off > before && resp[off - 1] == '}') {
+            off--;
+            int w = snprintf(resp + off, sizeof(resp) - off, ",\"degree\":%u}", hubs[i].degree);
+            if (w > 0) {
+                off += (size_t)w;
+            }
         }
     }
     snprintf(resp + off, sizeof(resp) - off, "]}\n");
@@ -606,10 +554,7 @@ static void handle_graph_refs(cberg_engine *eng, int fd, char *args) {
         write_all(fd, resp, strlen(resp));
         return;
     }
-    char *repo = next_field(&cursor);
-    if (repo != NULL && repo[0] == '\0') {
-        repo = NULL;
-    }
+    char *repo = null_if_empty(next_field(&cursor));
     char *limit_str = next_field(&cursor);
     size_t limit = 50;
     if (limit_str != NULL && limit_str[0] != '\0') {

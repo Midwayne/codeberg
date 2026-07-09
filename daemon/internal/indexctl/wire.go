@@ -85,9 +85,6 @@ func encodeGraphHubs(opts GraphHubsOptions) string {
 	if limit <= 0 {
 		limit = 10
 	}
-	if opts.Repo == "" {
-		return fmt.Sprintf("graph_hubs\t\t%d", limit)
-	}
 	return fmt.Sprintf("graph_hubs\t%s\t%d", sanitizeTab(opts.Repo), limit)
 }
 

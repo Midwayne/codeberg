@@ -3,8 +3,6 @@ package tools
 import (
 	"context"
 	"sort"
-	"strconv"
-	"strings"
 
 	"codeberg.org/codeberg/daemon/internal/git"
 	"codeberg.org/codeberg/daemon/internal/indexctl"
@@ -27,7 +25,6 @@ type getArchitectureArgs struct {
 type changeSymbol struct {
 	Name      string `json:"name"`
 	Path      string `json:"path"`
-	Kind      string `json:"kind,omitempty"`
 	StartLine uint32 `json:"start_line,omitempty"`
 	EndLine   uint32 `json:"end_line,omitempty"`
 	Risk      string `json:"risk"` // direct | transitive
@@ -43,11 +40,6 @@ type detectChangesResult struct {
 	Indirect []changeSymbol `json:"indirect"`
 }
 
-type archLang struct {
-	Lang  string `json:"lang"`
-	Files int    `json:"files"`
-}
-
 type archHub struct {
 	Name   string `json:"name"`
 	Path   string `json:"path"`
@@ -56,69 +48,12 @@ type archHub struct {
 }
 
 type getArchitectureResult struct {
-	Repo        string     `json:"repo"`
-	Nodes       int        `json:"nodes"`
-	Refs        int        `json:"refs"`
-	Languages   []archLang `json:"languages"`
-	Hubs        []archHub  `json:"hubs"`
-	Entrypoints []archHub  `json:"entrypoints"`
-}
-
-// parseDiffHunks maps path -> set of changed 1-based line numbers from
-// unified diff output (git diff -U0).
-func parseDiffHunks(diff string) map[string]map[uint32]struct{} {
-	out := map[string]map[uint32]struct{}{}
-	var path string
-	for _, line := range strings.Split(diff, "\n") {
-		if strings.HasPrefix(line, "+++ b/") {
-			path = strings.TrimPrefix(line, "+++ b/")
-			if _, ok := out[path]; !ok {
-				out[path] = map[uint32]struct{}{}
-			}
-			continue
-		}
-		if strings.HasPrefix(line, "+++ /dev/null") {
-			path = ""
-			continue
-		}
-		if !strings.HasPrefix(line, "@@") || path == "" {
-			continue
-		}
-		// @@ -a,b +c,d @@  or  @@ -a +c @@
-		plus := strings.Index(line, "+")
-		if plus < 0 {
-			continue
-		}
-		rest := line[plus+1:]
-		end := strings.IndexAny(rest, " ,")
-		if end < 0 {
-			continue
-		}
-		startStr := rest[:end]
-		start, err := strconv.ParseUint(startStr, 10, 32)
-		if err != nil || start == 0 {
-			continue
-		}
-		count := uint64(1)
-		if end < len(rest) && rest[end] == ',' {
-			after := rest[end+1:]
-			cend := strings.IndexAny(after, " @")
-			if cend < 0 {
-				cend = len(after)
-			}
-			if c, e := strconv.ParseUint(after[:cend], 10, 32); e == nil {
-				count = c
-			}
-		}
-		if count == 0 {
-			// Pure deletion hunk — treat the surrounding line as touched.
-			count = 1
-		}
-		for i := uint64(0); i < count; i++ {
-			out[path][uint32(start+i)] = struct{}{}
-		}
-	}
-	return out
+	Repo        string                  `json:"repo"`
+	Nodes       int                     `json:"nodes"`
+	Refs        int                     `json:"refs"`
+	Languages   []indexctl.GraphLangStat `json:"languages"`
+	Hubs        []archHub               `json:"hubs"`
+	Entrypoints []archHub               `json:"entrypoints"`
 }
 
 func symbolTouchesHunk(start, end uint32, lines map[uint32]struct{}) bool {
@@ -180,27 +115,18 @@ func detectChangesTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
 
 			diffSpec := base + "..." + head
 			fallback := ""
-			nameOut, err := git.Run(ctx, root, "diff", "--name-only", diffSpec)
-			hunkOut := ""
-			hunksOK := false
-			if err == nil {
-				hunkOut, err = git.Run(ctx, root, "diff", "-U0", diffSpec)
-				hunksOK = err == nil
-				err = nil
-			} else {
+			hunkOut, err := git.Run(ctx, root, "diff", "-U0", diffSpec)
+			if err != nil {
 				// Honest fallback: working tree (staged+unstaged) vs HEAD.
 				fallback = "working-tree-vs-HEAD"
 				diffSpec = "HEAD"
-				nameOut, err = git.Run(ctx, root, "diff", "--name-only", "HEAD")
+				hunkOut, err = git.Run(ctx, root, "diff", "-U0", "HEAD")
 				if err != nil {
 					return nil, err
 				}
-				hunkOut, err = git.Run(ctx, root, "diff", "-U0", "HEAD")
-				hunksOK = err == nil
-				err = nil
 			}
-			paths := git.ParseLog(nameOut)
-			hunks := parseDiffHunks(hunkOut)
+			hunks := git.ParseDiffHunks(hunkOut)
+			paths := git.DiffPaths(hunks)
 			res := detectChangesResult{Base: base, Head: head, DiffSpec: diffSpec, Fallback: fallback, Paths: paths}
 
 			directBudget := limit
@@ -225,12 +151,9 @@ func detectChangesTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
 				}
 				fileHunks := hunks[path]
 				for _, hit := range outline {
-					if hunksOK {
-						if !symbolTouchesHunk(hit.StartLine, hit.EndLine, fileHunks) {
-							continue
-						}
+					if !symbolTouchesHunk(hit.StartLine, hit.EndLine, fileHunks) {
+						continue
 					}
-					// When -U0 failed, keep every symbol in name-only paths.
 					key := hit.Symbol + "@" + hit.Path
 					if _, ok := seenDirect[key]; ok {
 						continue
@@ -310,12 +233,10 @@ func getArchitectureTool(idx indexctl.Indexer) Tool {
 				return nil, err
 			}
 			res := getArchitectureResult{
-				Repo:  stats.Repo,
-				Nodes: stats.Nodes,
-				Refs:  stats.Refs,
-			}
-			for _, lang := range stats.Languages {
-				res.Languages = append(res.Languages, archLang{Lang: lang.Lang, Files: lang.Files})
+				Repo:      stats.Repo,
+				Nodes:     stats.Nodes,
+				Refs:      stats.Refs,
+				Languages: append([]indexctl.GraphLangStat(nil), stats.Languages...),
 			}
 			sort.Slice(res.Languages, func(i, j int) bool { return res.Languages[i].Files > res.Languages[j].Files })
 

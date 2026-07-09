@@ -161,4 +161,19 @@ static const cberg_graph_edge *edges_find(const cberg_graph_edge *edges, size_t 
     return NULL;
 }
 
+/* True when FILE `file` has an IMPORTS edge to MODULE `module`. */
+static int module_imported(graph_corpus *c, const char *file, const char *module) {
+    const cberg_graph_node *f = corpus_node(c, file, CBERG_GNODE_MASK(CBERG_GNODE_FILE));
+    const cberg_graph_node *m = corpus_node(c, module, CBERG_GNODE_MASK(CBERG_GNODE_MODULE));
+    if (f == NULL || m == NULL) {
+        return 0;
+    }
+    cberg_graph_edge edges[32];
+    size_t n = 0;
+    if (cberg_graph_edges_from(c->graph, f->id, CBERG_GEDGE_IMPORTS, edges, 32, &n) != CBERG_OK) {
+        return 0;
+    }
+    return edges_find(edges, n, f->id, m->id, CBERG_GEDGE_IMPORTS) != NULL;
+}
+
 #endif /* CODEBERG_TEST_GRAPH_COMMON_H */

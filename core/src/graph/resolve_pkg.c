@@ -1,14 +1,13 @@
 /*
- * Phase 2 package-manifest import resolution. Scans go.mod / package.json /
- * pyproject / Cargo.toml under a repo root and rewrites IMPORTS edges whose
- * module string maps to a repo-relative source file so they target that FILE
- * node with resolution=import.
+ * Phase 2 import resolution. Walks the repo for source files, reads go.mod for
+ * the module path, and rewrites IMPORTS edges whose module string maps to a
+ * repo-relative source file so they target that FILE node with resolution=import.
  *
  * Safety: bare identifiers (fmt, json, os) and slash-form stdlib/npm packages
  * (encoding/json) are never rewritten — only relative imports (./, ../), Rust
  * `::` paths, Go module-prefixed paths, multi-segment dotted names, or
- * source-file paths (…/*.h) are candidates. Manifest scanners never map
- * package-name → first file.
+ * source-file paths (…/*.h) are candidates. Package names from manifests are
+ * never mapped onto arbitrary first files.
  */
 #include "codeberg/codeberg.h"
 
@@ -20,7 +19,6 @@
 #include "arena.h"
 #include "fileio.h"
 #include "graph_internal.h"
-#include "pathutil.h"
 #include "strmap.h"
 #include "walk_policy.h"
 
@@ -54,20 +52,17 @@ static cberg_status pkg_add_file(pkg_index *idx, const char *rel) {
     return CBERG_OK;
 }
 
-static int is_source_rel(const char *rel) {
-    const char *dot = strrchr(rel, '.');
-    if (dot == NULL) {
-        return 0;
-    }
-    return strcmp(dot, ".go") == 0 || strcmp(dot, ".ts") == 0 || strcmp(dot, ".tsx") == 0 || strcmp(dot, ".js") == 0 ||
-           strcmp(dot, ".jsx") == 0 || strcmp(dot, ".py") == 0 || strcmp(dot, ".rs") == 0 || strcmp(dot, ".c") == 0 ||
-           strcmp(dot, ".h") == 0 || strcmp(dot, ".rb") == 0 || strcmp(dot, ".java") == 0 || strcmp(dot, ".kt") == 0;
+/* Code languages only — not markdown/yaml/toml/json (those are UNKNOWN for imports). */
+static int is_code_source(const char *rel) {
+    cberg_language lang = cberg_language_from_path(rel);
+    return lang != CBERG_LANG_UNKNOWN && lang != CBERG_LANG_MARKDOWN && lang != CBERG_LANG_YAML &&
+           lang != CBERG_LANG_TOML && lang != CBERG_LANG_JSON;
 }
 
 static int walk_cb(const char *abs, const char *rel, void *v) {
     (void)abs;
     pkg_index *idx = v;
-    if (!is_source_rel(rel)) {
+    if (!is_code_source(rel)) {
         return 0;
     }
     return pkg_add_file(idx, rel) == CBERG_OK ? 0 : -1;
@@ -78,14 +73,23 @@ static int import_is_relative(const char *imp) {
                              (imp[1] == '.' && (imp[2] == '/' || imp[2] == '\\')));
 }
 
+/* Path-like imports that look like source files (C includes, explicit paths). */
 static int import_has_source_ext(const char *imp) {
-    const char *dot = strrchr(imp, '.');
-    if (dot == NULL || strchr(dot, '/') != NULL || strchr(dot, '\\') != NULL) {
-        return 0;
+    const char *slash = strrchr(imp, '/');
+    const char *bslash = strrchr(imp, '\\');
+    const char *base = imp;
+    if (slash != NULL && slash + 1 > base) {
+        base = slash + 1;
     }
-    return strcmp(dot, ".h") == 0 || strcmp(dot, ".c") == 0 || strcmp(dot, ".hpp") == 0 || strcmp(dot, ".hh") == 0 ||
-           strcmp(dot, ".go") == 0 || strcmp(dot, ".ts") == 0 || strcmp(dot, ".tsx") == 0 || strcmp(dot, ".js") == 0 ||
-           strcmp(dot, ".jsx") == 0 || strcmp(dot, ".py") == 0 || strcmp(dot, ".rs") == 0 || strcmp(dot, ".rb") == 0;
+    if (bslash != NULL && bslash + 1 > base) {
+        base = bslash + 1;
+    }
+    if (is_code_source(base)) {
+        return 1;
+    }
+    /* Extra C++ headers not in cberg_language_from_path. */
+    const char *dot = strrchr(base, '.');
+    return dot != NULL && (strcmp(dot, ".hpp") == 0 || strcmp(dot, ".hh") == 0);
 }
 
 /* True when the import string is safe to attempt local resolution.
@@ -258,14 +262,8 @@ static void scan_go_mod(pkg_index *idx, const char *root) {
     }
 }
 
-static void scan_json_deps(pkg_index *idx, const char *root, const char *rel_manifest) {
-    char path[4096];
-    snprintf(path, sizeof path, "%s/%s", root, rel_manifest);
-    size_t len = 0;
-    char *body = cberg_read_file(path, &len);
-    if (body != NULL) {
-        free(body); /* package name is not mapped onto a file (false-positive risk). */
-    }
+/* Map JS/TS sources by path (package.json names are never remapped — false-positive risk). */
+static void map_js_sources(pkg_index *idx) {
     for (size_t i = 0; i < idx->file_len; i++) {
         const char *rel = idx->file_paths[i];
         const char *dot = strrchr(rel, '.');
@@ -279,14 +277,7 @@ static void scan_json_deps(pkg_index *idx, const char *root, const char *rel_man
     }
 }
 
-static void scan_pyproject(pkg_index *idx, const char *root) {
-    char path[4096];
-    snprintf(path, sizeof path, "%s/pyproject.toml", root);
-    size_t len = 0;
-    char *body = cberg_read_file(path, &len);
-    if (body != NULL) {
-        free(body);
-    }
+static void map_python_sources(pkg_index *idx) {
     for (size_t i = 0; i < idx->file_len; i++) {
         const char *rel = idx->file_paths[i];
         size_t rlen = strlen(rel);
@@ -316,14 +307,8 @@ static void scan_pyproject(pkg_index *idx, const char *root) {
     }
 }
 
-static void scan_cargo(pkg_index *idx, const char *root) {
-    char path[4096];
-    snprintf(path, sizeof path, "%s/Cargo.toml", root);
-    size_t len = 0;
-    char *body = cberg_read_file(path, &len);
-    if (body != NULL) {
-        free(body); /* crate name is not mapped onto arbitrary .rs files. */
-    }
+/* Map Rust sources by path / crate:: segments (Cargo.toml crate name is not remapped). */
+static void map_rust_sources(pkg_index *idx) {
     for (size_t i = 0; i < idx->file_len; i++) {
         const char *rel = idx->file_paths[i];
         const char *dot = strrchr(rel, '.');
@@ -363,13 +348,11 @@ cberg_status cberg_graph_resolve_imports(cberg_graph *graph, const char *repo_ro
         cberg_strmap_free(idx.import_to_file);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
-    if (cberg_fs_walk_files(repo_root, walk_cb, &idx) != 0) {
-        /* Partial index is fine; continue with what we have. */
-    }
+    (void)cberg_fs_walk_files(repo_root, walk_cb, &idx);
     scan_go_mod(&idx, repo_root);
-    scan_json_deps(&idx, repo_root, "package.json");
-    scan_pyproject(&idx, repo_root);
-    scan_cargo(&idx, repo_root);
+    map_js_sources(&idx);
+    map_python_sources(&idx);
+    map_rust_sources(&idx);
 
     size_t node_count = 0;
     cberg_graph_counts(graph, &node_count, NULL);

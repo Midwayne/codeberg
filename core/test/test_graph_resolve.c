@@ -250,18 +250,12 @@ static void test_rust_crate_path(void) {
     CHECK(corpus_index(&c, CBERG_LANG_RUST, "src/helper.rs", "pub fn help() {}\n") == CBERG_OK, "index helper");
     CHECK(corpus_index(&c, CBERG_LANG_RUST, "src/main.rs", main_src) == CBERG_OK, "index main");
 
-    /* Precondition: extractor captured the use path (same query as std::fmt::Debug). */
-    CHECK(still_module(&c, "src/main.rs", "crate::helper") || still_module(&c, "src/main.rs", "helper"),
-          "rust use captured before resolve");
+    /* Precondition: extractor captured the crate:: path (same query as std::fmt::Debug). */
+    CHECK(still_module(&c, "src/main.rs", "crate::helper"), "rust use crate::helper captured");
 
     CHECK(cberg_graph_resolve_imports(c.graph, root) == CBERG_OK, "resolve");
-    if (still_module(&c, "src/main.rs", "crate::helper")) {
-        CHECK(0, "crate::helper must rewrite to FILE (:: shape + cargo map)");
-    } else if (still_module(&c, "src/main.rs", "helper")) {
-        /* Bare helper is not a resolvable shape — leave as MODULE. */
-    } else {
-        CHECK(edge_to_file(&c, "src/main.rs", "src/helper.rs"), "crate::helper → src/helper.rs");
-    }
+    CHECK(!still_module(&c, "src/main.rs", "crate::helper"), "crate::helper rewritten off MODULE");
+    CHECK(edge_to_file(&c, "src/main.rs", "src/helper.rs"), "crate::helper → src/helper.rs");
 
     corpus_close(&c);
     rm_tree(root);

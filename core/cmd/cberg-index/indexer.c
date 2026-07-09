@@ -2474,42 +2474,35 @@ cberg_status cberg_engine_trace_path(cberg_engine *eng, const char *name, uint64
     return st;
 }
 
-static const char *lang_from_path(const char *path) {
-    if (path == NULL) {
-        return NULL;
-    }
-    const char *dot = strrchr(path, '.');
-    if (dot == NULL) {
-        return NULL;
-    }
-    if (strcmp(dot, ".go") == 0) {
+static const char *lang_name(cberg_language lang) {
+    switch (lang) {
+    case CBERG_LANG_GO:
         return "go";
-    }
-    if (strcmp(dot, ".ts") == 0 || strcmp(dot, ".tsx") == 0) {
+    case CBERG_LANG_TYPESCRIPT:
         return "typescript";
-    }
-    if (strcmp(dot, ".js") == 0 || strcmp(dot, ".jsx") == 0) {
+    case CBERG_LANG_JAVASCRIPT:
         return "javascript";
-    }
-    if (strcmp(dot, ".py") == 0) {
-        return "python";
-    }
-    if (strcmp(dot, ".rs") == 0) {
-        return "rust";
-    }
-    if (strcmp(dot, ".c") == 0 || strcmp(dot, ".h") == 0) {
+    case CBERG_LANG_C:
         return "c";
-    }
-    if (strcmp(dot, ".java") == 0) {
-        return "java";
-    }
-    if (strcmp(dot, ".kt") == 0) {
+    case CBERG_LANG_KOTLIN:
         return "kotlin";
-    }
-    if (strcmp(dot, ".rb") == 0) {
+    case CBERG_LANG_PYTHON:
+        return "python";
+    case CBERG_LANG_JAVA:
+        return "java";
+    case CBERG_LANG_RUST:
+        return "rust";
+    case CBERG_LANG_RUBY:
         return "ruby";
+    case CBERG_LANG_MARKDOWN:
+    case CBERG_LANG_YAML:
+    case CBERG_LANG_TOML:
+    case CBERG_LANG_JSON:
+    case CBERG_LANG_UNKNOWN:
+        return NULL;
+    default:
+        return NULL;
     }
-    return NULL;
 }
 
 static void bump_lang(cberg_engine_graph_stats *out, const char *lang) {
@@ -2550,15 +2543,15 @@ cberg_status cberg_engine_get_graph_stats(cberg_engine *eng, const char *repo_ke
     if (r->graph != NULL) {
         cberg_graph_counts(r->graph, &out->nodes, &out->refs);
         /* Language mix from FILE node path extensions. */
-        size_t node_count = 0;
-        cberg_graph_counts(r->graph, &node_count, NULL);
-        if (node_count > 0) {
-            const cberg_graph_node **files = calloc(node_count, sizeof(*files));
+        if (out->nodes > 0) {
+            const cberg_graph_node **files = calloc(out->nodes, sizeof(*files));
             if (files != NULL) {
                 size_t nfiles = 0;
-                if (cberg_graph_find_nodes(r->graph, NULL, CBERG_GNODE_MASK(CBERG_GNODE_FILE), NULL, files, node_count, &nfiles) == CBERG_OK) {
+                if (cberg_graph_find_nodes(r->graph, NULL, CBERG_GNODE_MASK(CBERG_GNODE_FILE), NULL, files, out->nodes, &nfiles) ==
+                    CBERG_OK) {
                     for (size_t i = 0; i < nfiles; i++) {
-                        bump_lang(out, lang_from_path(files[i]->qname != NULL ? files[i]->qname : files[i]->path));
+                        const char *path = files[i]->qname != NULL ? files[i]->qname : files[i]->path;
+                        bump_lang(out, lang_name(cberg_language_from_path(path)));
                     }
                 }
                 free(files);
