@@ -369,7 +369,7 @@ static void test_apply_restores_on_failure(void) {
           "file defines before");
     CHECK(n_edges_before >= 2, "file defined Keep and Other");
 
-    const char *next = "package p\n\nfunc Keep() {}\n\nfunc Boom() {}\n";
+    const char *next = "package p\n\nfunc Keep() {}\n\nfunc Boom() {}\n\nfunc Extra() {}\n";
     cberg_chunk_list *list = NULL;
     cberg_graph_fragment *frag = NULL;
     CHECK(cberg_chunker_analyze(c.chunker, CBERG_LANG_GO, "a.go", next, strlen(next), &list, &frag) == CBERG_OK, "analyze next");
@@ -382,7 +382,8 @@ static void test_apply_restores_on_failure(void) {
     }
     CHECK(cberg_chunk_list_hash_bodies(list, next, strlen(next)) == CBERG_OK, "hash bodies");
 
-    /* Sync new chunks so the first def can resolve; second resolve will OOM. */
+    /* Sync new chunks so Keep+Boom can resolve; Extra's resolve will OOM after
+     * Boom has already been inserted (brand-new id past the undo mark). */
     corpus_drop_path(&c, "a.go");
     size_t n = cberg_chunk_list_len(list);
     if (c.chunks_len + n > c.chunks_cap) {
@@ -404,13 +405,14 @@ static void test_apply_restores_on_failure(void) {
     cberg_changes changes = {0};
     CHECK(cberg_chunk_table_sync(c.table, c.chunks, c.chunks_len, &changes) == CBERG_OK, "sync table");
 
-    fail_resolve_ctx rctx = {.table = c.table, .calls = 0, .fail_after = 1};
+    fail_resolve_ctx rctx = {.table = c.table, .calls = 0, .fail_after = 2};
     CHECK(cberg_graph_apply(c.graph, frag, fail_nth_resolve, &rctx) == CBERG_ERR_OUT_OF_MEMORY, "apply fails mid-way");
-    CHECK(rctx.calls > 1, "resolver ran past first def");
+    CHECK(rctx.calls > 2, "resolver ran past Boom");
 
     CHECK(corpus_node(&c, "Keep", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION)) != NULL, "Keep restored");
     CHECK(corpus_node(&c, "Other", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION)) != NULL, "Other restored");
     CHECK(corpus_node(&c, "Boom", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION)) == NULL, "Boom not left behind");
+    CHECK(corpus_node(&c, "Extra", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION)) == NULL, "Extra not left behind");
 
     /* Id map must point at revived prior slots (not dead rebuild heads). */
     CHECK(cberg_graph_node_by_id(c.graph, keep_id) != NULL, "Keep id lookup restored");
@@ -418,6 +420,21 @@ static void test_apply_restores_on_failure(void) {
     CHECK(cberg_graph_node_by_id(c.graph, file_id) != NULL, "file id lookup restored");
     CHECK(cberg_graph_node_by_id(c.graph, keep_id)->id == keep_id, "Keep id matches");
     CHECK(cberg_graph_node_by_id(c.graph, other_id)->id == other_id, "Other id matches");
+
+    /* Boom was inserted past the undo mark then aborted: soft-clear must drop
+     * its id map entry (not leave a dead-slot hit). */
+    const cberg_stored_chunk *boom_chunk = NULL;
+    for (size_t i = 0; i < cberg_chunk_table_len(c.table); i++) {
+        const cberg_stored_chunk *sc = cberg_chunk_table_at(c.table, i);
+        if (sc != NULL && sc->chunk.symbol != NULL && strcmp(sc->chunk.symbol, "Boom") == 0) {
+            boom_chunk = sc;
+            break;
+        }
+    }
+    CHECK(boom_chunk != NULL, "Boom chunk present in table");
+    if (boom_chunk != NULL) {
+        CHECK(cberg_graph_node_by_id(c.graph, boom_chunk->id) == NULL, "Boom id soft-cleared after abort");
+    }
 
     cberg_graph_edge edges[16];
     size_t n_edges = 0;
