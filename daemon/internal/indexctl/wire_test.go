@@ -52,8 +52,12 @@ func TestEncodeSearchGraph(t *testing.T) {
 
 func TestEncodeTracePath(t *testing.T) {
 	line := encodeTracePath(TracePathOptions{Name: "helper", Direction: "in", EdgeKind: "calls", MaxDepth: 2, Limit: 32})
-	if line != "trace_path\thelper\t\tin\tcalls\t2\t32" {
+	if line != "trace_path\thelper\t\tin\tcalls\t2\t32\t" {
 		t.Fatalf("encodeTracePath: %q", line)
+	}
+	line = encodeTracePath(TracePathOptions{Name: "helper", Repo: "main", PathPrefix: "a.go", Direction: "both", EdgeKind: "calls", MaxDepth: 1, Limit: 16})
+	if line != "trace_path\thelper\tmain\tboth\tcalls\t1\t16\ta.go" {
+		t.Fatalf("encodeTracePath path: %q", line)
 	}
 }
 
@@ -63,5 +67,14 @@ func TestEncodeGraphStats(t *testing.T) {
 	}
 	if got := encodeGraphStats("alpha"); got != "graph_stats\talpha" {
 		t.Fatalf("encodeGraphStats repo: %q", got)
+	}
+}
+
+func TestEncodeGraphHubs(t *testing.T) {
+	if got := encodeGraphHubs(GraphHubsOptions{Limit: 5}); got != "graph_hubs\t\t5" {
+		t.Fatalf("encodeGraphHubs empty repo: %q", got)
+	}
+	if got := encodeGraphHubs(GraphHubsOptions{Repo: "main", Limit: 0}); got != "graph_hubs\tmain\t10" {
+		t.Fatalf("encodeGraphHubs default limit: %q", got)
 	}
 }

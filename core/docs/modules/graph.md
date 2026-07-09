@@ -121,11 +121,14 @@ Graph failures log a warning and never block the chunk/vector pipeline.
 `cberg_graph_resolve_imports(graph, repo_root)` scans `go.mod`, `package.json`,
 `pyproject.toml`, and `Cargo.toml`, plus relative path heuristics, and rewrites
 `IMPORTS` edges that map onto a repo FILE node with `resolution=import`
-(confidence 0.95). Unresolved imports keep their MODULE target. The indexer
-runs this after cold/warm bootstrap and graph rebuilds.
+(confidence 0.95). Only relative (`./` `../`), path-like (contains `/`),
+multi-segment dotted, or Go module-prefixed imports are candidates — bare
+identifiers (`fmt`, `json`, `os`) stay MODULE targets. Already-resolved FILE
+imports are left alone (idempotent). Unresolved imports keep their MODULE
+target. The indexer runs this after cold/warm bootstrap and graph rebuilds.
 
 `cberg_graph_hubs` ranks symbols by incident `CALLS` degree for architecture
-overviews.
+overviews (exposed as IPC `graph_hubs`).
 
 ---
 
@@ -136,15 +139,17 @@ overviews.
 | Command | Role |
 |---------|------|
 | `search_graph` | Exact-name node search |
-| `trace_path` | BFS over edge kinds / directions |
-| `graph_stats` | Node/ref counts |
+| `trace_path` | BFS over edge kinds / directions (optional path_prefix) |
+| `graph_stats` | Node/ref counts + FILE language mix |
+| `graph_hubs` | CALLS degree hubs |
 | `graph_refs` | Incoming edges for `find_references` |
 
 Disabled graph → error string `graph disabled` (`NOT_IMPLEMENTED` / HTTP 501).
 
-Daemon tools: `search_graph`, `trace_path`, `detect_changes` (git diff → blast
-radius), `get_architecture` (hubs / entrypoints / language mix);
-`find_references` is graph-first with grep fallback. Agent policy:
+Daemon tools: `search_graph`, `trace_path`, `detect_changes` (hunk-filtered git
+diff → blast radius; honest `fallback` field), `get_architecture` (hubs /
+entrypoints / language mix); `find_references` is graph-first with grep fallback
+and returns `{source, graph|matches}`. Agent policy:
 **meaning → search; structure → graph; exact string → grep**.
 
 ---

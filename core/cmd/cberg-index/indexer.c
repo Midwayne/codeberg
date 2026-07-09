@@ -2390,7 +2390,7 @@ cberg_status cberg_engine_search_graph(cberg_engine *eng, const char *name, cons
     return st;
 }
 
-cberg_status cberg_engine_trace_path(cberg_engine *eng, const char *name, uint64_t start_id, const char *repo_key, const char *direction, const char *edge_kind, uint32_t max_depth, size_t limit, cberg_engine_graph_hop *out, size_t cap, size_t *found) {
+cberg_status cberg_engine_trace_path(cberg_engine *eng, const char *name, uint64_t start_id, const char *repo_key, const char *path_prefix, const char *direction, const char *edge_kind, uint32_t max_depth, size_t limit, cberg_engine_graph_hop *out, size_t cap, size_t *found) {
     if (eng == NULL || out == NULL || found == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
@@ -2440,7 +2440,8 @@ cberg_status cberg_engine_trace_path(cberg_engine *eng, const char *name, uint64
         }
         const cberg_graph_node *nodes[8];
         size_t n = 0;
-        st = cberg_graph_find_nodes(r->graph, name, 0, NULL, nodes, 8, &n);
+        const char *path_filter = (path_prefix != NULL && path_prefix[0] != '\0') ? path_prefix : NULL;
+        st = cberg_graph_find_nodes(r->graph, name, 0, path_filter, nodes, 8, &n);
         if (st != CBERG_OK || n == 0) {
             pthread_mutex_unlock(&r->mu);
             return CBERG_ERR_NOT_FOUND;
@@ -2463,6 +2464,62 @@ cberg_status cberg_engine_trace_path(cberg_engine *eng, const char *name, uint64
     return st;
 }
 
+static const char *lang_from_path(const char *path) {
+    if (path == NULL) {
+        return NULL;
+    }
+    const char *dot = strrchr(path, '.');
+    if (dot == NULL) {
+        return NULL;
+    }
+    if (strcmp(dot, ".go") == 0) {
+        return "go";
+    }
+    if (strcmp(dot, ".ts") == 0 || strcmp(dot, ".tsx") == 0) {
+        return "typescript";
+    }
+    if (strcmp(dot, ".js") == 0 || strcmp(dot, ".jsx") == 0) {
+        return "javascript";
+    }
+    if (strcmp(dot, ".py") == 0) {
+        return "python";
+    }
+    if (strcmp(dot, ".rs") == 0) {
+        return "rust";
+    }
+    if (strcmp(dot, ".c") == 0 || strcmp(dot, ".h") == 0) {
+        return "c";
+    }
+    if (strcmp(dot, ".java") == 0) {
+        return "java";
+    }
+    if (strcmp(dot, ".kt") == 0) {
+        return "kotlin";
+    }
+    if (strcmp(dot, ".rb") == 0) {
+        return "ruby";
+    }
+    return NULL;
+}
+
+static void bump_lang(cberg_engine_graph_stats *out, const char *lang) {
+    if (lang == NULL) {
+        return;
+    }
+    for (size_t i = 0; i < out->languages_len; i++) {
+        if (strcmp(out->languages[i].lang, lang) == 0) {
+            out->languages[i].files++;
+            return;
+        }
+    }
+    if (out->languages_len >= sizeof(out->languages) / sizeof(out->languages[0])) {
+        return;
+    }
+    copy_cstr(out->languages[out->languages_len].lang, sizeof(out->languages[0].lang), lang);
+    out->languages[out->languages_len].files = 1;
+    out->languages_len++;
+}
+
 cberg_status cberg_engine_get_graph_stats(cberg_engine *eng, const char *repo_key, cberg_engine_graph_stats *out) {
     if (eng == NULL || out == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
@@ -2482,9 +2539,66 @@ cberg_status cberg_engine_get_graph_stats(cberg_engine *eng, const char *repo_ke
     out->enabled = r->graph != NULL;
     if (r->graph != NULL) {
         cberg_graph_counts(r->graph, &out->nodes, &out->refs);
+        /* Language mix from FILE node path extensions. */
+        size_t node_count = 0;
+        cberg_graph_counts(r->graph, &node_count, NULL);
+        if (node_count > 0) {
+            const cberg_graph_node **files = calloc(node_count, sizeof(*files));
+            if (files != NULL) {
+                size_t nfiles = 0;
+                if (cberg_graph_find_nodes(r->graph, NULL, CBERG_GNODE_MASK(CBERG_GNODE_FILE), NULL, files, node_count, &nfiles) == CBERG_OK) {
+                    for (size_t i = 0; i < nfiles; i++) {
+                        bump_lang(out, lang_from_path(files[i]->qname != NULL ? files[i]->qname : files[i]->path));
+                    }
+                }
+                free(files);
+            }
+        }
     }
     pthread_mutex_unlock(&r->mu);
     return CBERG_OK;
+}
+
+cberg_status cberg_engine_graph_hubs(cberg_engine *eng, const char *repo_key, size_t limit, cberg_engine_graph_hub *out, size_t cap, size_t *found) {
+    if (eng == NULL || out == NULL || found == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    *found = 0;
+    cberg_repo *r = NULL;
+    cberg_status st = graph_repo(eng, repo_key, &r);
+    if (st != CBERG_OK) {
+        return st;
+    }
+    if (limit == 0) {
+        limit = 10;
+    }
+    if (limit > cap) {
+        limit = cap;
+    }
+
+    pthread_mutex_lock(&r->mu);
+    if (!r->ready || r->graph == NULL) {
+        pthread_mutex_unlock(&r->mu);
+        return CBERG_ERR_NOT_FOUND;
+    }
+
+    cberg_graph_hub hubs[64];
+    size_t n = 0;
+    size_t want = limit > 64 ? 64 : limit;
+    st = cberg_graph_hubs(r->graph, hubs, want, &n);
+    if (st == CBERG_OK) {
+        for (size_t i = 0; i < n; i++) {
+            const cberg_graph_node *node = cberg_graph_node_by_id(r->graph, hubs[i].id);
+            if (node == NULL) {
+                continue;
+            }
+            fill_engine_gnode(&out[*found].node, r->key, node);
+            out[*found].degree = hubs[i].degree;
+            (*found)++;
+        }
+    }
+    pthread_mutex_unlock(&r->mu);
+    return st;
 }
 
 cberg_status cberg_engine_graph_references(cberg_engine *eng, const char *name, const char *repo_key, size_t limit, cberg_engine_graph_edge *out, size_t cap, size_t *found) {

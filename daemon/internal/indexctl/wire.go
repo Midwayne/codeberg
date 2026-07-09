@@ -61,8 +61,8 @@ func encodeTracePath(opts TracePathOptions) string {
 	if limit <= 0 {
 		limit = 64
 	}
-	return fmt.Sprintf("trace_path\t%s\t%s\t%s\t%s\t%d\t%d",
-		sanitizeTab(opts.Name), sanitizeTab(opts.Repo), sanitizeTab(opts.Direction), sanitizeTab(opts.EdgeKind), depth, limit)
+	return fmt.Sprintf("trace_path\t%s\t%s\t%s\t%s\t%d\t%d\t%s",
+		sanitizeTab(opts.Name), sanitizeTab(opts.Repo), sanitizeTab(opts.Direction), sanitizeTab(opts.EdgeKind), depth, limit, sanitizeTab(opts.PathPrefix))
 }
 
 func encodeGraphStats(repo string) string {
@@ -78,6 +78,17 @@ func encodeGraphRefs(opts GraphRefsOptions) string {
 		limit = 50
 	}
 	return fmt.Sprintf("graph_refs\t%s\t%s\t%d", sanitizeTab(opts.Name), sanitizeTab(opts.Repo), limit)
+}
+
+func encodeGraphHubs(opts GraphHubsOptions) string {
+	limit := opts.Limit
+	if limit <= 0 {
+		limit = 10
+	}
+	if opts.Repo == "" {
+		return fmt.Sprintf("graph_hubs\t\t%d", limit)
+	}
+	return fmt.Sprintf("graph_hubs\t%s\t%d", sanitizeTab(opts.Repo), limit)
 }
 
 func normalizeSearchOptions(opts SearchOptions) SearchOptions {

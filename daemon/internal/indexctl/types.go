@@ -104,10 +104,30 @@ type GraphHop struct {
 
 // GraphStats is per-repo graph size from graph_stats.
 type GraphStats struct {
-	Repo    string `json:"repo"`
-	Nodes   int    `json:"nodes"`
-	Refs    int    `json:"refs"`
-	Enabled bool   `json:"enabled"`
+	Repo       string          `json:"repo"`
+	Nodes      int             `json:"nodes"`
+	Refs       int             `json:"refs"`
+	Enabled    bool            `json:"enabled"`
+	Languages  []GraphLangStat `json:"languages,omitempty"`
+}
+
+// GraphLangStat is one language's FILE-node count from graph_stats.
+type GraphLangStat struct {
+	Lang  string `json:"lang"`
+	Files int    `json:"files"`
+}
+
+// GraphHub is a degree-ranked symbol from graph_hubs.
+type GraphHub struct {
+	ID        uint64 `json:"id"`
+	Repo      string `json:"repo"`
+	Kind      string `json:"kind"`
+	Name      string `json:"name"`
+	QName     string `json:"qname"`
+	Path      string `json:"path"`
+	StartLine uint32 `json:"start_line"`
+	EndLine   uint32 `json:"end_line"`
+	Degree    int    `json:"degree"`
 }
 
 // GraphSearchOptions configures a structural graph node search.
@@ -121,17 +141,24 @@ type GraphSearchOptions struct {
 
 // TracePathOptions configures a BFS graph traversal.
 type TracePathOptions struct {
-	Name      string
-	Repo      string
-	Direction string // in | out | both (default in)
-	EdgeKind  string // calls | imports | inherits | ... (default calls)
-	MaxDepth  int
-	Limit     int
+	Name       string
+	Repo       string
+	PathPrefix string // disambiguate same-named symbols
+	Direction  string // in | out | both (default in)
+	EdgeKind   string // calls | imports | inherits | ... (default calls)
+	MaxDepth   int
+	Limit      int
 }
 
 // GraphRefsOptions configures graph-first reference lookup.
 type GraphRefsOptions struct {
 	Name  string
+	Repo  string
+	Limit int
+}
+
+// GraphHubsOptions configures degree-hub lookup.
+type GraphHubsOptions struct {
 	Repo  string
 	Limit int
 }

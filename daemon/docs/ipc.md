@@ -142,7 +142,7 @@ BFS traversal from a named symbol.
 Request:
 
 ```
-trace_path\t<name>[\t<repo>[\t<direction>[\t<edge_kind>[\t<max_depth>[\t<limit>]]]]]
+trace_path\t<name>[\t<repo>[\t<direction>[\t<edge_kind>[\t<max_depth>[\t<limit>[\t<path_prefix>]]]]]]
 ```
 
 | Field | Required | Description |
@@ -153,6 +153,7 @@ trace_path\t<name>[\t<repo>[\t<direction>[\t<edge_kind>[\t<max_depth>[\t<limit>]
 | edge_kind | no | `calls` (default), `imports`, `inherits`, `contains`, `defines`, `references`, `all` |
 | max_depth | no | BFS depth (default 2) |
 | limit | no | Max hops (default 64) |
+| path_prefix | no | Restrict start-symbol lookup to nodes whose path starts with this prefix |
 
 Response:
 
@@ -171,7 +172,25 @@ graph_stats[\t<repo>]
 Response:
 
 ```json
-{"ok":true,"repo":"codeberg","nodes":1200,"refs":3400,"enabled":true}
+{"ok":true,"repo":"codeberg","nodes":1200,"refs":3400,"enabled":true,"languages":[{"lang":"go","files":80},{"lang":"typescript","files":12}]}
+```
+
+`languages` counts FILE nodes by path extension.
+
+### `graph_hubs`
+
+Degree hubs: symbols ranked by incident `CALLS` edges (in+out).
+
+Request:
+
+```
+graph_hubs[\t<repo>[\t<limit>]]
+```
+
+Response:
+
+```json
+{"ok":true,"results":[{"id":1,"repo":"codeberg","kind":"function","name":"helper","qname":"a.go::1::helper#0","path":"a.go","start_line":10,"end_line":12,"degree":5}]}
 ```
 
 ### `graph_refs`

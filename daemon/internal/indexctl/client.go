@@ -83,12 +83,23 @@ func (c *Client) GraphStats(ctx context.Context, repo string) (GraphStats, error
 	if !out.OK {
 		return GraphStats{}, mapIndexerError(out.Error)
 	}
-	return GraphStats{Repo: out.Repo, Nodes: out.Nodes, Refs: out.Refs, Enabled: out.Enabled}, nil
+	return GraphStats{Repo: out.Repo, Nodes: out.Nodes, Refs: out.Refs, Enabled: out.Enabled, Languages: out.Languages}, nil
 }
 
 func (c *Client) GraphRefs(ctx context.Context, opts GraphRefsOptions) ([]GraphEdge, error) {
 	var out graphEdgesResponse
 	if err := roundTrip(ctx, c.socket, encodeGraphRefs(opts), &out); err != nil {
+		return nil, err
+	}
+	if !out.OK {
+		return nil, mapIndexerError(out.Error)
+	}
+	return out.Results, nil
+}
+
+func (c *Client) GraphHubs(ctx context.Context, opts GraphHubsOptions) ([]GraphHub, error) {
+	var out graphHubsResponse
+	if err := roundTrip(ctx, c.socket, encodeGraphHubs(opts), &out); err != nil {
 		return nil, err
 	}
 	if !out.OK {

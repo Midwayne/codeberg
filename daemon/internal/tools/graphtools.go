@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"sort"
+	"strconv"
 	"strings"
 
 	"codeberg.org/codeberg/daemon/internal/git"
@@ -35,6 +36,8 @@ type changeSymbol struct {
 type detectChangesResult struct {
 	Base     string         `json:"base"`
 	Head     string         `json:"head"`
+	DiffSpec string         `json:"diff_spec"`           // actual git range used
+	Fallback string         `json:"fallback,omitempty"` // set when base...head failed
 	Paths    []string       `json:"paths"`
 	Direct   []changeSymbol `json:"direct"`
 	Indirect []changeSymbol `json:"indirect"`
@@ -53,12 +56,87 @@ type archHub struct {
 }
 
 type getArchitectureResult struct {
-	Repo        string    `json:"repo"`
-	Nodes       int       `json:"nodes"`
-	Refs        int       `json:"refs"`
+	Repo        string     `json:"repo"`
+	Nodes       int        `json:"nodes"`
+	Refs        int        `json:"refs"`
 	Languages   []archLang `json:"languages"`
-	Hubs        []archHub `json:"hubs"`
-	Entrypoints []archHub `json:"entrypoints"`
+	Hubs        []archHub  `json:"hubs"`
+	Entrypoints []archHub  `json:"entrypoints"`
+}
+
+// parseDiffHunks maps path -> set of changed 1-based line numbers from
+// unified diff output (git diff -U0).
+func parseDiffHunks(diff string) map[string]map[uint32]struct{} {
+	out := map[string]map[uint32]struct{}{}
+	var path string
+	for _, line := range strings.Split(diff, "\n") {
+		if strings.HasPrefix(line, "+++ b/") {
+			path = strings.TrimPrefix(line, "+++ b/")
+			if _, ok := out[path]; !ok {
+				out[path] = map[uint32]struct{}{}
+			}
+			continue
+		}
+		if strings.HasPrefix(line, "+++ /dev/null") {
+			path = ""
+			continue
+		}
+		if !strings.HasPrefix(line, "@@") || path == "" {
+			continue
+		}
+		// @@ -a,b +c,d @@  or  @@ -a +c @@
+		plus := strings.Index(line, "+")
+		if plus < 0 {
+			continue
+		}
+		rest := line[plus+1:]
+		end := strings.IndexAny(rest, " ,")
+		if end < 0 {
+			continue
+		}
+		startStr := rest[:end]
+		start, err := strconv.ParseUint(startStr, 10, 32)
+		if err != nil || start == 0 {
+			continue
+		}
+		count := uint64(1)
+		if end < len(rest) && rest[end] == ',' {
+			after := rest[end+1:]
+			cend := strings.IndexAny(after, " @")
+			if cend < 0 {
+				cend = len(after)
+			}
+			if c, e := strconv.ParseUint(after[:cend], 10, 32); e == nil {
+				count = c
+			}
+		}
+		if count == 0 {
+			// Pure deletion hunk — treat the surrounding line as touched.
+			count = 1
+		}
+		for i := uint64(0); i < count; i++ {
+			out[path][uint32(start+i)] = struct{}{}
+		}
+	}
+	return out
+}
+
+func symbolTouchesHunk(start, end uint32, lines map[uint32]struct{}) bool {
+	if len(lines) == 0 {
+		return true // no hunk info → keep all symbols in the file
+	}
+	if start == 0 {
+		return true
+	}
+	if end < start {
+		end = start
+	}
+	for line := range lines {
+		if line >= start && line <= end {
+			return true
+		}
+	}
+	return false
 }
 
 func detectChangesTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
@@ -75,7 +153,7 @@ func detectChangesTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
 }`
 
 	return New("detect_changes",
-		"Map a git diff to symbols and 1–2 hop graph neighbors (blast radius). Risk: direct = in changed files; transitive = callers/callees via trace_path.",
+		"Map a git diff to symbols overlapping changed hunks and 1–2 hop graph neighbors (blast radius). Risk: direct = symbols intersecting the diff; transitive = callers/callees via trace_path. On range failure, falls back to working-tree vs HEAD and sets fallback.",
 		schema,
 		func(ctx context.Context, a detectChangesArgs) (any, error) {
 			base := a.Base
@@ -99,19 +177,39 @@ func detectChangesTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
 			if err != nil {
 				return nil, err
 			}
-			out, err := git.Run(ctx, root, "diff", "--name-only", base+"..."+head)
-			if err != nil {
-				// Fallback: unstaged + staged vs HEAD
-				out, err = git.Run(ctx, root, "diff", "--name-only", "HEAD")
+
+			diffSpec := base + "..." + head
+			fallback := ""
+			nameOut, err := git.Run(ctx, root, "diff", "--name-only", diffSpec)
+			hunkOut := ""
+			if err == nil {
+				hunkOut, _ = git.Run(ctx, root, "diff", "-U0", diffSpec)
+			} else {
+				// Honest fallback: working tree (staged+unstaged) vs HEAD.
+				fallback = "working-tree-vs-HEAD"
+				diffSpec = "HEAD"
+				nameOut, err = git.Run(ctx, root, "diff", "--name-only", "HEAD")
 				if err != nil {
 					return nil, err
 				}
+				hunkOut, _ = git.Run(ctx, root, "diff", "-U0", "HEAD")
 			}
-			paths := git.ParseLog(out)
-			res := detectChangesResult{Base: base, Head: head, Paths: paths}
+			paths := git.ParseLog(nameOut)
+			hunks := parseDiffHunks(hunkOut)
+			res := detectChangesResult{Base: base, Head: head, DiffSpec: diffSpec, Fallback: fallback, Paths: paths}
+
+			directBudget := limit
+			if directBudget > limit/2 && limit >= 4 {
+				directBudget = limit / 2 // reserve room for transitive
+			}
 
 			seenDirect := map[string]struct{}{}
 			seenIndirect := map[string]struct{}{}
+			type pendingTrace struct {
+				name, path string
+			}
+			var traces []pendingTrace
+
 			for _, path := range paths {
 				if path == "" {
 					continue
@@ -120,47 +218,59 @@ func detectChangesTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
 				if oerr != nil {
 					continue
 				}
+				fileHunks := hunks[path]
 				for _, hit := range outline {
+					if !symbolTouchesHunk(hit.StartLine, hit.EndLine, fileHunks) {
+						continue
+					}
 					key := hit.Symbol + "@" + hit.Path
 					if _, ok := seenDirect[key]; ok {
 						continue
 					}
 					seenDirect[key] = struct{}{}
-					sym := changeSymbol{
+					res.Direct = append(res.Direct, changeSymbol{
 						Name: hit.Symbol, Path: hit.Path, StartLine: hit.StartLine, EndLine: hit.EndLine, Risk: "direct",
-					}
-					res.Direct = append(res.Direct, sym)
-					if len(res.Direct)+len(res.Indirect) >= limit {
-						return res, nil
-					}
-
-					hops, terr := idx.TracePath(ctx, indexctl.TracePathOptions{
-						Name: hit.Symbol, Repo: a.Repo, Direction: "both", EdgeKind: "calls", MaxDepth: depth, Limit: 32,
 					})
-					if terr != nil {
-						continue
+					traces = append(traces, pendingTrace{name: hit.Symbol, path: hit.Path})
+					if len(res.Direct) >= directBudget {
+						break
 					}
-					for _, h := range hops {
-						for _, side := range []struct{ name, path string }{
-							{h.SrcName, h.SrcPath}, {h.DstName, h.DstPath},
-						} {
-							if side.name == "" || side.name == hit.Symbol {
-								continue
-							}
-							ik := side.name + "@" + side.path
-							if _, ok := seenDirect[ik]; ok {
-								continue
-							}
-							if _, ok := seenIndirect[ik]; ok {
-								continue
-							}
-							seenIndirect[ik] = struct{}{}
-							res.Indirect = append(res.Indirect, changeSymbol{
-								Name: side.name, Path: side.path, Risk: "transitive",
-							})
-							if len(res.Direct)+len(res.Indirect) >= limit {
-								return res, nil
-							}
+				}
+				if len(res.Direct) >= directBudget {
+					break
+				}
+			}
+
+			for _, t := range traces {
+				if len(res.Direct)+len(res.Indirect) >= limit {
+					break
+				}
+				hops, terr := idx.TracePath(ctx, indexctl.TracePathOptions{
+					Name: t.name, Repo: a.Repo, PathPrefix: t.path, Direction: "both", EdgeKind: "calls", MaxDepth: depth, Limit: 32,
+				})
+				if terr != nil {
+					continue
+				}
+				for _, h := range hops {
+					for _, side := range []struct{ name, path string }{
+						{h.SrcName, h.SrcPath}, {h.DstName, h.DstPath},
+					} {
+						if side.name == "" || (side.name == t.name && side.path == t.path) {
+							continue
+						}
+						ik := side.name + "@" + side.path
+						if _, ok := seenDirect[ik]; ok {
+							continue
+						}
+						if _, ok := seenIndirect[ik]; ok {
+							continue
+						}
+						seenIndirect[ik] = struct{}{}
+						res.Indirect = append(res.Indirect, changeSymbol{
+							Name: side.name, Path: side.path, Risk: "transitive",
+						})
+						if len(res.Direct)+len(res.Indirect) >= limit {
+							return res, nil
 						}
 					}
 				}
@@ -180,7 +290,7 @@ func getArchitectureTool(idx indexctl.Indexer) Tool {
 }`
 
 	return New("get_architecture",
-		"Repo structural overview from the knowledge graph: size, language mix (via search_graph samples), call-graph hubs, and entrypoint heuristics (main).",
+		"Repo structural overview from the knowledge graph: size, language mix (FILE nodes), CALLS degree hubs (graph_hubs), and entrypoint heuristics (main/ServeHTTP).",
 		schema,
 		func(ctx context.Context, a getArchitectureArgs) (any, error) {
 			hubLimit := a.HubLimit
@@ -196,8 +306,11 @@ func getArchitectureTool(idx indexctl.Indexer) Tool {
 				Nodes: stats.Nodes,
 				Refs:  stats.Refs,
 			}
+			for _, lang := range stats.Languages {
+				res.Languages = append(res.Languages, archLang{Lang: lang.Lang, Files: lang.Files})
+			}
+			sort.Slice(res.Languages, func(i, j int) bool { return res.Languages[i].Files > res.Languages[j].Files })
 
-			// Entrypoints: symbols named main / Main / handle*
 			for _, name := range []string{"main", "Main", "ServeHTTP", "Handler"} {
 				nodes, nerr := idx.SearchGraph(ctx, indexctl.GraphSearchOptions{Name: name, Repo: a.Repo, Kind: "symbol", Limit: 8})
 				if nerr != nil {
@@ -208,86 +321,12 @@ func getArchitectureTool(idx indexctl.Indexer) Tool {
 				}
 			}
 
-			// Approximate hubs: sample known high-traffic names via trace fan-in on entrypoints.
-			deg := map[string]archHub{}
-			for _, ep := range res.Entrypoints {
-				hops, terr := idx.TracePath(ctx, indexctl.TracePathOptions{
-					Name: ep.Name, Repo: a.Repo, Direction: "both", EdgeKind: "calls", MaxDepth: 1, Limit: 64,
-				})
-				if terr != nil {
-					continue
-				}
-				bump := func(name, path, kind string) {
-					if name == "" {
-						return
-					}
-					key := name + "@" + path
-					h := deg[key]
-					h.Name = name
-					h.Path = path
-					h.Kind = kind
-					h.Degree++
-					deg[key] = h
-				}
-				bump(ep.Name, ep.Path, ep.Kind)
-				for _, h := range hops {
-					bump(h.SrcName, h.SrcPath, h.Kind)
-					bump(h.DstName, h.DstPath, h.Kind)
+			hubs, herr := idx.GraphHubs(ctx, indexctl.GraphHubsOptions{Repo: a.Repo, Limit: hubLimit})
+			if herr == nil {
+				for _, h := range hubs {
+					res.Hubs = append(res.Hubs, archHub{Name: h.Name, Path: h.Path, Kind: h.Kind, Degree: h.Degree})
 				}
 			}
-			hubs := make([]archHub, 0, len(deg))
-			for _, h := range deg {
-				hubs = append(hubs, h)
-			}
-			sort.Slice(hubs, func(i, j int) bool {
-				if hubs[i].Degree != hubs[j].Degree {
-					return hubs[i].Degree > hubs[j].Degree
-				}
-				return hubs[i].Name < hubs[j].Name
-			})
-			if len(hubs) > hubLimit {
-				hubs = hubs[:hubLimit]
-			}
-			res.Hubs = hubs
-
-			// Language mix from path extensions on hubs + entrypoints.
-			langCount := map[string]int{}
-			countPath := func(p string) {
-				ext := ""
-				if i := strings.LastIndex(p, "."); i >= 0 {
-					ext = strings.ToLower(p[i+1:])
-				}
-				switch ext {
-				case "go":
-					langCount["go"]++
-				case "ts", "tsx":
-					langCount["typescript"]++
-				case "js", "jsx":
-					langCount["javascript"]++
-				case "py":
-					langCount["python"]++
-				case "rs":
-					langCount["rust"]++
-				case "c", "h":
-					langCount["c"]++
-				case "java":
-					langCount["java"]++
-				case "kt":
-					langCount["kotlin"]++
-				case "rb":
-					langCount["ruby"]++
-				}
-			}
-			for _, h := range res.Hubs {
-				countPath(h.Path)
-			}
-			for _, h := range res.Entrypoints {
-				countPath(h.Path)
-			}
-			for lang, n := range langCount {
-				res.Languages = append(res.Languages, archLang{Lang: lang, Files: n})
-			}
-			sort.Slice(res.Languages, func(i, j int) bool { return res.Languages[i].Files > res.Languages[j].Files })
 
 			return res, nil
 		})

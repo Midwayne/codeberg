@@ -51,3 +51,7 @@ func (StubIndexer) GraphStats(context.Context, string) (indexctl.GraphStats, err
 func (StubIndexer) GraphRefs(context.Context, indexctl.GraphRefsOptions) ([]indexctl.GraphEdge, error) {
 	return nil, nil
 }
+
+func (StubIndexer) GraphHubs(context.Context, indexctl.GraphHubsOptions) ([]indexctl.GraphHub, error) {
+	return nil, nil
+}

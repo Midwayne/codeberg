@@ -422,7 +422,7 @@ static void handle_search_graph(cberg_engine *eng, int fd, char *args) {
 }
 
 static void handle_trace_path(cberg_engine *eng, int fd, char *args) {
-    /* trace_path\t<name>\t[<repo>\t[<direction>\t[<edge_kind>\t[<max_depth>\t[<limit>]]]]] */
+    /* trace_path\t<name>\t[<repo>\t[<direction>\t[<edge_kind>\t[<max_depth>\t[<limit>\t[<path_prefix>]]]]]] */
     char *cursor = args;
     char *name = next_field(&cursor);
     if (name == NULL || name[0] == '\0') {
@@ -459,10 +459,14 @@ static void handle_trace_path(cberg_engine *eng, int fd, char *args) {
             limit = 64;
         }
     }
+    char *path_prefix = next_field(&cursor);
+    if (path_prefix != NULL && path_prefix[0] == '\0') {
+        path_prefix = NULL;
+    }
 
     cberg_engine_graph_hop hops[256];
     size_t found = 0;
-    cberg_status st = cberg_engine_trace_path(eng, name, 0, repo, direction, edge_kind, max_depth, limit, hops, 256, &found);
+    cberg_status st = cberg_engine_trace_path(eng, name, 0, repo, path_prefix, direction, edge_kind, max_depth, limit, hops, 256, &found);
     if (st != CBERG_OK) {
         char resp[256];
         snprintf(resp, sizeof(resp), "{\"ok\":false,\"error\":\"%s\"}\n", graph_err(st));
@@ -519,9 +523,76 @@ static void handle_graph_stats(cberg_engine *eng, int fd, char *args) {
     }
     char esc_repo[256];
     json_escape(stats.repo != NULL ? stats.repo : "", esc_repo, sizeof(esc_repo));
-    char resp[512];
-    snprintf(resp, sizeof(resp), "{\"ok\":true,\"repo\":\"%s\",\"nodes\":%zu,\"refs\":%zu,\"enabled\":%s}\n", esc_repo, stats.nodes,
-             stats.refs, stats.enabled ? "true" : "false");
+    char resp[4096];
+    size_t off = (size_t)snprintf(resp, sizeof(resp),
+                                  "{\"ok\":true,\"repo\":\"%s\",\"nodes\":%zu,\"refs\":%zu,\"enabled\":%s,\"languages\":[", esc_repo,
+                                  stats.nodes, stats.refs, stats.enabled ? "true" : "false");
+    for (size_t i = 0; i < stats.languages_len && off + 96 < sizeof(resp); i++) {
+        if (i > 0) {
+            resp[off++] = ',';
+        }
+        char esc_lang[64];
+        json_escape(stats.languages[i].lang, esc_lang, sizeof(esc_lang));
+        int w = snprintf(resp + off, sizeof(resp) - off, "{\"lang\":\"%s\",\"files\":%zu}", esc_lang, stats.languages[i].files);
+        if (w > 0) {
+            off += (size_t)w;
+        }
+    }
+    snprintf(resp + off, sizeof(resp) - off, "]}\n");
+    write_all(fd, resp, strlen(resp));
+}
+
+static void handle_graph_hubs(cberg_engine *eng, int fd, char *args) {
+    /* graph_hubs[\t<repo>[\t<limit>]] */
+    char *cursor = args;
+    char *repo = next_field(&cursor);
+    if (repo != NULL && repo[0] == '\0') {
+        repo = NULL;
+    }
+    char *limit_str = next_field(&cursor);
+    size_t limit = 10;
+    if (limit_str != NULL && limit_str[0] != '\0') {
+        limit = (size_t)atoi(limit_str);
+        if (limit == 0) {
+            limit = 10;
+        }
+    }
+    cberg_engine_graph_hub hubs[64];
+    size_t found = 0;
+    cberg_status st = cberg_engine_graph_hubs(eng, repo, limit, hubs, 64, &found);
+    if (st != CBERG_OK) {
+        char resp[256];
+        snprintf(resp, sizeof(resp), "{\"ok\":false,\"error\":\"%s\"}\n", graph_err(st));
+        write_all(fd, resp, strlen(resp));
+        return;
+    }
+    char resp[65536];
+    size_t off = (size_t)snprintf(resp, sizeof(resp), "{\"ok\":true,\"results\":[");
+    for (size_t i = 0; i < found && off + 640 < sizeof(resp); i++) {
+        if (i > 0) {
+            resp[off++] = ',';
+        }
+        char esc_repo[256];
+        char esc_kind[64];
+        char esc_name[512];
+        char esc_qname[1024];
+        char esc_path[1024];
+        const cberg_engine_graph_node *n = &hubs[i].node;
+        json_escape(n->repo != NULL ? n->repo : "", esc_repo, sizeof(esc_repo));
+        json_escape(n->kind, esc_kind, sizeof(esc_kind));
+        json_escape(n->name, esc_name, sizeof(esc_name));
+        json_escape(n->qname, esc_qname, sizeof(esc_qname));
+        json_escape(n->path, esc_path, sizeof(esc_path));
+        int w = snprintf(resp + off, sizeof(resp) - off,
+                         "{\"id\":%llu,\"repo\":\"%s\",\"kind\":\"%s\",\"name\":\"%s\",\"qname\":\"%s\","
+                         "\"path\":\"%s\",\"start_line\":%u,\"end_line\":%u,\"degree\":%u}",
+                         (unsigned long long)n->id, esc_repo, esc_kind, esc_name, esc_qname, esc_path, n->start_line, n->end_line,
+                         hubs[i].degree);
+        if (w > 0) {
+            off += (size_t)w;
+        }
+    }
+    snprintf(resp + off, sizeof(resp) - off, "]}\n");
     write_all(fd, resp, strlen(resp));
 }
 
@@ -632,6 +703,16 @@ static void handle_client(cberg_engine *eng, int fd) {
 
     if (strncmp(line, "graph_refs\t", 11) == 0) {
         handle_graph_refs(eng, fd, line + 11);
+        return;
+    }
+
+    if (strcmp(line, "graph_hubs") == 0) {
+        handle_graph_hubs(eng, fd, "");
+        return;
+    }
+
+    if (strncmp(line, "graph_hubs\t", 11) == 0) {
+        handle_graph_hubs(eng, fd, line + 11);
         return;
     }
 

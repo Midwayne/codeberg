@@ -650,8 +650,11 @@ CBERG_API cberg_status cberg_graph_load(const char *path, cberg_graph **out_grap
 /*
  * Phase 2: scan package manifests under `repo_root` and rewrite IMPORTS edges
  * that resolve to a repo-relative file so they point at that FILE node with
- * resolution=import (confidence 0.95). Unresolved imports keep their MODULE
- * target. Safe to call repeatedly after incremental applies.
+ * resolution=import (confidence 0.95). Only relative (./ ../), path-like
+ * (contains '/'), multi-segment dotted, or Go module-prefixed imports are
+ * candidates — bare identifiers (fmt, json, os) stay MODULE targets.
+ * Already-resolved FILE imports are left alone (idempotent). Unresolved
+ * imports keep their MODULE target. Safe to call repeatedly after applies.
  */
 CBERG_API cberg_status cberg_graph_resolve_imports(cberg_graph *graph, const char *repo_root);
 

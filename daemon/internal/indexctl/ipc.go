@@ -50,16 +50,23 @@ type graphHopsResponse struct {
 }
 
 type graphStatsResponse struct {
-	OK      bool   `json:"ok"`
-	Repo    string `json:"repo"`
-	Nodes   int    `json:"nodes"`
-	Refs    int    `json:"refs"`
-	Enabled bool   `json:"enabled"`
-	Error   string `json:"error"`
+	OK        bool            `json:"ok"`
+	Repo      string          `json:"repo"`
+	Nodes     int             `json:"nodes"`
+	Refs      int             `json:"refs"`
+	Enabled   bool            `json:"enabled"`
+	Languages []GraphLangStat `json:"languages"`
+	Error     string          `json:"error"`
 }
 
 type graphEdgesResponse struct {
 	OK      bool        `json:"ok"`
 	Results []GraphEdge `json:"results"`
 	Error   string      `json:"error"`
+}
+
+type graphHubsResponse struct {
+	OK      bool       `json:"ok"`
+	Results []GraphHub `json:"results"`
+	Error   string     `json:"error"`
 }

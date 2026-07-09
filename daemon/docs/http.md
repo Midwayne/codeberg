@@ -130,8 +130,8 @@ All tools are read-only and sandboxed to their repo's root.
 | `hybrid_search` | Vector search reranked by query-term presence in hit chunks |
 | `search_graph` | Exact-name structural search over the knowledge graph |
 | `trace_path` | BFS over call/import/inherit edges (returns resolution + confidence) |
-| `detect_changes` | Git diff → symbols → 1–2 hop blast radius (direct / transitive) |
-| `get_architecture` | Repo overview: size, languages, hubs, entrypoints |
+| `detect_changes` | Git diff → hunk-overlapping symbols → 1–2 hop blast radius (direct / transitive); sets `fallback` when the requested range fails |
+| `get_architecture` | Repo overview: size, FILE-node language mix, CALLS degree hubs, entrypoints |
 | `find_references` | Graph-first symbol usages; word-boundary grep fallback |
 
 `hybrid_search` accepts the same filters as `search` (`repo`, `path_glob`, `kind`,
@@ -139,9 +139,10 @@ All tools are read-only and sandboxed to their repo's root.
 snippet/symbol text (falling back to the full file when needed), adds **+0.05** per
 matching term, sorts by `final_score`, and truncates to `k`.
 
-`find_references` prefers knowledge-graph edges (`source: "graph"`) and falls back
-to a word-boundary `rg` (`source: "grep"`). Graph edges include `resolution` and
-`confidence` so agents can distrust textual links.
+`find_references` returns `{source, graph|matches}` (not a bare match array). It
+prefers knowledge-graph edges (`source: "graph"`) and falls back to a word-boundary
+`rg` (`source: "grep"`). Graph edges include `resolution` and `confidence` so agents
+can distrust textual links.
 
 `find_symbol`, `file_outline`, `get_chunk`, `search_graph`, and `trace_path` work in
 **chunk-only mode** (without ONNX / vector indexing). `search` and `hybrid_search`

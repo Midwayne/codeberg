@@ -1,8 +1,13 @@
 /*
  * Phase 2 package-manifest import resolution. Scans go.mod / package.json /
- * tsconfig paths / pyproject / Cargo.toml under a repo root and rewrites
- * IMPORTS edges whose module string maps to a repo-relative source file so
- * they target that FILE node with resolution=import.
+ * pyproject / Cargo.toml under a repo root and rewrites IMPORTS edges whose
+ * module string maps to a repo-relative source file so they target that FILE
+ * node with resolution=import.
+ *
+ * Safety: bare identifiers (fmt, json, os) are never rewritten — only relative
+ * imports (./, ../), path-like strings containing '/', or multi-segment dotted
+ * names (pkg.sub) / Go module-prefixed paths are candidates. Manifest scanners
+ * only register those key shapes (never package-name → first file).
  */
 #include "codeberg/codeberg.h"
 
@@ -24,6 +29,7 @@ typedef struct {
     char **file_paths; /* all indexed-looking source paths (rel) */
     size_t file_len;
     size_t file_cap;
+    char go_module[512]; /* from go.mod, empty if absent */
 } pkg_index;
 
 static cberg_status pkg_add_file(pkg_index *idx, const char *rel) {
@@ -66,30 +72,63 @@ static int walk_cb(const char *abs, const char *rel, void *v) {
     return pkg_add_file(idx, rel) == CBERG_OK ? 0 : -1;
 }
 
-/* Map "pkg/foo" or "./foo" style imports onto the first matching source file. */
+/* True when the import string is safe to attempt local resolution. */
+static int import_is_resolvable_shape(const char *imp, const char *go_module) {
+    if (imp == NULL || imp[0] == '\0') {
+        return 0;
+    }
+    /* Relative: ./foo, ../bar */
+    if (imp[0] == '.' && (imp[1] == '/' || imp[1] == '\\' ||
+                          (imp[1] == '.' && (imp[2] == '/' || imp[2] == '\\')))) {
+        return 1;
+    }
+    /* Go module-prefixed path. */
+    if (go_module != NULL && go_module[0] != '\0') {
+        size_t mlen = strlen(go_module);
+        if (strncmp(imp, go_module, mlen) == 0 && (imp[mlen] == '\0' || imp[mlen] == '/')) {
+            return 1;
+        }
+    }
+    /* Path-like (contains slash) — e.g. internal/pkg, @scope/local-path rare. */
+    if (strchr(imp, '/') != NULL || strchr(imp, '\\') != NULL) {
+        return 1;
+    }
+    /* Multi-segment dotted (Python / Rust paths like crate::mod handled separately). */
+    if (strchr(imp, '.') != NULL) {
+        return 1;
+    }
+    /* Bare identifier: stdlib / external package name — never rewrite. */
+    return 0;
+}
+
+/* Map relative / path-like imports onto the first matching source file. */
 static const char *find_file_for_import(pkg_index *idx, const char *imp) {
     if (imp == NULL || imp[0] == '\0') {
         return NULL;
     }
-    /* Strip leading ./ */
     const char *needle = imp;
     while (needle[0] == '.' && (needle[1] == '/' || needle[1] == '\\')) {
         needle += 2;
     }
+    /* Strip a single leading "../" chain for relative lookups. */
+    while (needle[0] == '.' && needle[1] == '.' && (needle[2] == '/' || needle[2] == '\\')) {
+        needle += 3;
+    }
     size_t nlen = strlen(needle);
+    if (nlen == 0) {
+        return NULL;
+    }
     for (size_t i = 0; i < idx->file_len; i++) {
         const char *p = idx->file_paths[i];
-        /* Exact path match without extension, or path prefix. */
         const char *dot = strrchr(p, '.');
         size_t plen = dot != NULL ? (size_t)(dot - p) : strlen(p);
         if (plen == nlen && strncmp(p, needle, nlen) == 0) {
             return p;
         }
-        /* Suffix: ".../needle.ext" or "needle/mod.go" for Go packages. */
         if (plen > nlen && p[plen - nlen - 1] == '/' && strncmp(p + plen - nlen, needle, nlen) == 0) {
             return p;
         }
-        /* Directory package: needle/xxx.ext */
+        /* Directory package: needle/xxx.ext (Go packages, Python packages). */
         if (strncmp(p, needle, nlen) == 0 && p[nlen] == '/') {
             return p;
         }
@@ -101,11 +140,33 @@ static void map_put(pkg_index *idx, const char *key, const char *file) {
     if (key == NULL || file == NULL || key[0] == '\0') {
         return;
     }
+    /* First mapping wins — prefer earlier / more specific files. */
+    if (cberg_strmap_get(idx->import_to_file, key, NULL)) {
+        return;
+    }
     const char *k = cberg_arena_strdup(idx->arena, key);
     const char *v = cberg_arena_strdup(idx->arena, file);
     if (k != NULL && v != NULL) {
         (void)cberg_strmap_set(idx->import_to_file, k, (uint64_t)(uintptr_t)v);
     }
+}
+
+static void map_path_without_ext(pkg_index *idx, const char *rel) {
+    const char *dot = strrchr(rel, '.');
+    if (dot == NULL) {
+        return;
+    }
+    char key[512];
+    size_t klen = (size_t)(dot - rel);
+    if (klen + 1 >= sizeof key) {
+        return;
+    }
+    memcpy(key, rel, klen);
+    key[klen] = '\0';
+    map_put(idx, key, rel);
+    char dotted[520];
+    snprintf(dotted, sizeof dotted, "./%s", key);
+    map_put(idx, dotted, rel);
 }
 
 static void scan_go_mod(pkg_index *idx, const char *root) {
@@ -116,41 +177,39 @@ static void scan_go_mod(pkg_index *idx, const char *root) {
     if (body == NULL) {
         return;
     }
-    /* module <path> — map module/subdir imports onto local files. */
     const char *p = body;
-    char module[512] = {0};
     if (strncmp(p, "module ", 7) == 0) {
         p += 7;
         size_t i = 0;
-        while (*p && *p != '\n' && *p != '\r' && i + 1 < sizeof module) {
-            module[i++] = *p++;
+        while (*p && *p != '\n' && *p != '\r' && i + 1 < sizeof idx->go_module) {
+            idx->go_module[i++] = *p++;
         }
-        module[i] = '\0';
+        idx->go_module[i] = '\0';
     }
     free(body);
-    if (module[0] == '\0') {
+    if (idx->go_module[0] == '\0') {
         return;
     }
-    size_t mlen = strlen(module);
+    size_t mlen = strlen(idx->go_module);
     for (size_t i = 0; i < idx->file_len; i++) {
         const char *rel = idx->file_paths[i];
-        if (strstr(rel, ".go") == NULL) {
+        size_t rlen = strlen(rel);
+        if (rlen < 3 || strcmp(rel + rlen - 3, ".go") != 0) {
             continue;
         }
-        /* Map module + "/" + dir(rel) → file */
         char key[1024];
         const char *slash = strrchr(rel, '/');
         if (slash != NULL) {
             size_t dlen = (size_t)(slash - rel);
             if (mlen + 1 + dlen + 1 < sizeof key) {
-                memcpy(key, module, mlen);
+                memcpy(key, idx->go_module, mlen);
                 key[mlen] = '/';
                 memcpy(key + mlen + 1, rel, dlen);
                 key[mlen + 1 + dlen] = '\0';
                 map_put(idx, key, rel);
             }
         } else {
-            map_put(idx, module, rel);
+            map_put(idx, idx->go_module, rel);
         }
     }
 }
@@ -160,53 +219,20 @@ static void scan_json_deps(pkg_index *idx, const char *root, const char *rel_man
     snprintf(path, sizeof path, "%s/%s", root, rel_manifest);
     size_t len = 0;
     char *body = cberg_read_file(path, &len);
-    if (body == NULL) {
-        return;
+    if (body != NULL) {
+        free(body); /* package name is not mapped onto a file (false-positive risk). */
     }
-    /* Lightweight: look for "name": "pkg" near the top for package.json. */
-    const char *name_key = strstr(body, "\"name\"");
-    if (name_key != NULL) {
-        const char *q1 = strchr(name_key + 6, '"');
-        if (q1 != NULL) {
-            q1++;
-            const char *q2 = strchr(q1, '"');
-            if (q2 != NULL && (size_t)(q2 - q1) < 256) {
-                char pkg[256];
-                memcpy(pkg, q1, (size_t)(q2 - q1));
-                pkg[q2 - q1] = '\0';
-                /* Map package name and relative imports under src/ or . */
-                for (size_t i = 0; i < idx->file_len; i++) {
-                    const char *rel = idx->file_paths[i];
-                    if (strstr(rel, ".ts") == NULL && strstr(rel, ".js") == NULL) {
-                        continue;
-                    }
-                    map_put(idx, pkg, rel);
-                    break;
-                }
-            }
-        }
-    }
-    /* Relative import paths: map every source file under its path-without-ext. */
     for (size_t i = 0; i < idx->file_len; i++) {
         const char *rel = idx->file_paths[i];
         const char *dot = strrchr(rel, '.');
         if (dot == NULL) {
             continue;
         }
-        char key[512];
-        size_t klen = (size_t)(dot - rel);
-        if (klen + 1 >= sizeof key) {
+        if (strcmp(dot, ".ts") != 0 && strcmp(dot, ".tsx") != 0 && strcmp(dot, ".js") != 0 && strcmp(dot, ".jsx") != 0) {
             continue;
         }
-        memcpy(key, rel, klen);
-        key[klen] = '\0';
-        map_put(idx, key, rel);
-        /* Also "./key" form */
-        char dotted[520];
-        snprintf(dotted, sizeof dotted, "./%s", key);
-        map_put(idx, dotted, rel);
+        map_path_without_ext(idx, rel);
     }
-    free(body);
 }
 
 static void scan_pyproject(pkg_index *idx, const char *root) {
@@ -214,21 +240,17 @@ static void scan_pyproject(pkg_index *idx, const char *root) {
     snprintf(path, sizeof path, "%s/pyproject.toml", root);
     size_t len = 0;
     char *body = cberg_read_file(path, &len);
-    if (body == NULL) {
-        /* Still map python files by module path. */
-    } else {
+    if (body != NULL) {
         free(body);
     }
     for (size_t i = 0; i < idx->file_len; i++) {
         const char *rel = idx->file_paths[i];
-        if (strstr(rel, ".py") == NULL) {
+        size_t rlen = strlen(rel);
+        if (rlen < 3 || strcmp(rel + rlen - 3, ".py") != 0) {
             continue;
         }
         char key[512];
-        size_t klen = strlen(rel);
-        if (klen > 3 && strcmp(rel + klen - 3, ".py") == 0) {
-            klen -= 3;
-        }
+        size_t klen = rlen - 3;
         if (klen + 1 >= sizeof key) {
             continue;
         }
@@ -239,12 +261,14 @@ static void scan_pyproject(pkg_index *idx, const char *root) {
                 key[j] = '.';
             }
         }
-        /* Drop __init__ */
         size_t kl = strlen(key);
         if (kl >= 9 && strcmp(key + kl - 9, ".__init__") == 0) {
             key[kl - 9] = '\0';
         }
+        /* Only multi-segment or path-derived keys (never bare stdlib names alone
+         * unless the file itself is that name — gated at resolve time). */
         map_put(idx, key, rel);
+        map_path_without_ext(idx, rel);
     }
 }
 
@@ -253,54 +277,35 @@ static void scan_cargo(pkg_index *idx, const char *root) {
     snprintf(path, sizeof path, "%s/Cargo.toml", root);
     size_t len = 0;
     char *body = cberg_read_file(path, &len);
-    char crate[256] = {0};
     if (body != NULL) {
-        const char *n = strstr(body, "name");
-        if (n != NULL) {
-            const char *q1 = strchr(n, '"');
-            if (q1 == NULL) {
-                q1 = strchr(n, '\'');
-            }
-            if (q1 != NULL) {
-                q1++;
-                const char *q2 = strchr(q1, * (q1 - 1) == '"' ? '"' : '\'');
-                if (q2 != NULL && (size_t)(q2 - q1) < sizeof crate) {
-                    memcpy(crate, q1, (size_t)(q2 - q1));
-                    crate[q2 - q1] = '\0';
-                }
-            }
-        }
-        free(body);
+        free(body); /* crate name is not mapped onto arbitrary .rs files. */
     }
     for (size_t i = 0; i < idx->file_len; i++) {
         const char *rel = idx->file_paths[i];
-        if (strstr(rel, ".rs") == NULL) {
+        const char *dot = strrchr(rel, '.');
+        if (dot == NULL || strcmp(dot, ".rs") != 0) {
             continue;
         }
-        if (crate[0] != '\0') {
-            map_put(idx, crate, rel);
-            char key[512];
-            snprintf(key, sizeof key, "crate::%s", crate);
-            map_put(idx, key, rel);
+        map_path_without_ext(idx, rel);
+        /* crate::path::to::mod from path segments (skip "src/" prefix). */
+        const char *start = rel;
+        if (strncmp(rel, "src/", 4) == 0) {
+            start = rel + 4;
         }
-        /* Relative module path without .rs */
-        const char *dot = strrchr(rel, '.');
-        if (dot != NULL) {
-            char key[512];
-            size_t klen = (size_t)(dot - rel);
-            if (klen + 1 < sizeof key) {
-                memcpy(key, rel, klen);
-                key[klen] = '\0';
-                map_put(idx, key, rel);
+        char crate_key[520];
+        size_t off = (size_t)snprintf(crate_key, sizeof crate_key, "crate::");
+        for (const char *s = start; s < dot && off + 2 < sizeof crate_key; s++) {
+            if (*s == '/') {
+                crate_key[off++] = ':';
+                crate_key[off++] = ':';
+            } else {
+                crate_key[off++] = *s;
             }
         }
+        crate_key[off] = '\0';
+        map_put(idx, crate_key, rel);
     }
 }
-
-/* Forward decls of store internals we need — resolve_imports lives beside the
- * store and uses the public ABI only for queries, then mutates via a small
- * internal helper declared here. */
-cberg_status cberg_graph_rewrite_import(cberg_graph *graph, uint64_t src_file_id, uint64_t old_dst, uint64_t new_dst, const char *new_name);
 
 cberg_status cberg_graph_resolve_imports(cberg_graph *graph, const char *repo_root) {
     if (graph == NULL || repo_root == NULL) {
@@ -322,12 +327,29 @@ cberg_status cberg_graph_resolve_imports(cberg_graph *graph, const char *repo_ro
     scan_pyproject(&idx, repo_root);
     scan_cargo(&idx, repo_root);
 
-    /* Also map relative imports via find_file_for_import for anything not in map. */
-    const cberg_graph_node *files[4096];
+    size_t node_count = 0;
+    cberg_graph_counts(graph, &node_count, NULL);
+    if (node_count == 0) {
+        free(idx.file_paths);
+        cberg_strmap_free(idx.import_to_file);
+        cberg_arena_free(idx.arena);
+        return CBERG_OK;
+    }
+    const cberg_graph_node **files = calloc(node_count, sizeof(*files));
+    if (files == NULL) {
+        free(idx.file_paths);
+        cberg_strmap_free(idx.import_to_file);
+        cberg_arena_free(idx.arena);
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
     size_t nfiles = 0;
-    cberg_status st = cberg_graph_find_nodes(graph, NULL, CBERG_GNODE_MASK(CBERG_GNODE_FILE), NULL, files, 4096, &nfiles);
+    cberg_status st = cberg_graph_find_nodes(graph, NULL, CBERG_GNODE_MASK(CBERG_GNODE_FILE), NULL, files, node_count, &nfiles);
     if (st != CBERG_OK) {
-        goto done;
+        free(files);
+        free(idx.file_paths);
+        cberg_strmap_free(idx.import_to_file);
+        cberg_arena_free(idx.arena);
+        return st;
     }
     for (size_t i = 0; i < nfiles; i++) {
         cberg_graph_edge edges[64];
@@ -337,11 +359,16 @@ cberg_status cberg_graph_resolve_imports(cberg_graph *graph, const char *repo_ro
         }
         for (size_t e = 0; e < nedges; e++) {
             const cberg_graph_node *mod = cberg_graph_node_by_id(graph, edges[e].dst);
+            /* Only rewrite unresolved MODULE targets; already-resolved FILE
+             * imports are left alone (idempotent on re-run). */
             if (mod == NULL || mod->kind != CBERG_GNODE_MODULE) {
                 continue;
             }
-            uint64_t mapped = 0;
+            if (!import_is_resolvable_shape(mod->name, idx.go_module)) {
+                continue;
+            }
             const char *file = NULL;
+            uint64_t mapped = 0;
             if (cberg_strmap_get(idx.import_to_file, mod->name, &mapped)) {
                 file = (const char *)(uintptr_t)mapped;
             } else {
@@ -350,14 +377,12 @@ cberg_status cberg_graph_resolve_imports(cberg_graph *graph, const char *repo_ro
             if (file == NULL) {
                 continue;
             }
-            /* Find FILE node for that path. */
-            const cberg_graph_node *targets[4];
+            const cberg_graph_node *targets[8];
             size_t nt = 0;
-            if (cberg_graph_find_nodes(graph, NULL, CBERG_GNODE_MASK(CBERG_GNODE_FILE), file, targets, 4, &nt) != CBERG_OK ||
+            if (cberg_graph_find_nodes(graph, NULL, CBERG_GNODE_MASK(CBERG_GNODE_FILE), file, targets, 8, &nt) != CBERG_OK ||
                 nt == 0) {
                 continue;
             }
-            /* Prefer exact path match. */
             const cberg_graph_node *tgt = NULL;
             for (size_t t = 0; t < nt; t++) {
                 if (targets[t]->qname != NULL && strcmp(targets[t]->qname, file) == 0) {
@@ -374,11 +399,9 @@ cberg_status cberg_graph_resolve_imports(cberg_graph *graph, const char *repo_ro
             (void)cberg_graph_rewrite_import(graph, files[i]->id, edges[e].dst, tgt->id, file);
         }
     }
-    st = CBERG_OK;
-
-done:
+    free(files);
     free(idx.file_paths);
     cberg_strmap_free(idx.import_to_file);
     cberg_arena_free(idx.arena);
-    return st;
+    return CBERG_OK;
 }

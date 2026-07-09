@@ -11,10 +11,16 @@ import (
 )
 
 type mockIndexer struct {
-	searchOpts indexctl.SearchOptions
-	searchHits []indexctl.SearchResult
-	chunk      indexctl.ChunkDetail
-	graphRefs  []indexctl.GraphEdge
+	searchOpts   indexctl.SearchOptions
+	searchHits   []indexctl.SearchResult
+	chunk        indexctl.ChunkDetail
+	graphRefs    []indexctl.GraphEdge
+	outline      map[string][]indexctl.SearchResult
+	traceHops    []indexctl.GraphHop
+	graphStats   indexctl.GraphStats
+	graphHubs    []indexctl.GraphHub
+	searchGraph  []indexctl.GraphNode
+	lastTrace    indexctl.TracePathOptions
 }
 
 func (m *mockIndexer) Status(context.Context) (indexctl.Status, error) {
@@ -34,24 +40,41 @@ func (m *mockIndexer) FindSymbol(context.Context, indexctl.SymbolOptions) ([]ind
 	return nil, nil
 }
 
-func (m *mockIndexer) FileOutline(context.Context, string, string) ([]indexctl.SearchResult, error) {
-	return nil, nil
+func (m *mockIndexer) FileOutline(_ context.Context, _, path string) ([]indexctl.SearchResult, error) {
+	if m.outline == nil {
+		return nil, nil
+	}
+	return m.outline[path], nil
 }
 
-func (m *mockIndexer) SearchGraph(context.Context, indexctl.GraphSearchOptions) ([]indexctl.GraphNode, error) {
-	return nil, nil
+func (m *mockIndexer) SearchGraph(_ context.Context, opts indexctl.GraphSearchOptions) ([]indexctl.GraphNode, error) {
+	if opts.Name == "" {
+		return m.searchGraph, nil
+	}
+	var out []indexctl.GraphNode
+	for _, n := range m.searchGraph {
+		if n.Name == opts.Name {
+			out = append(out, n)
+		}
+	}
+	return out, nil
 }
 
-func (m *mockIndexer) TracePath(context.Context, indexctl.TracePathOptions) ([]indexctl.GraphHop, error) {
-	return nil, nil
+func (m *mockIndexer) TracePath(_ context.Context, opts indexctl.TracePathOptions) ([]indexctl.GraphHop, error) {
+	m.lastTrace = opts
+	return m.traceHops, nil
 }
 
 func (m *mockIndexer) GraphStats(context.Context, string) (indexctl.GraphStats, error) {
-	return indexctl.GraphStats{}, nil
+	return m.graphStats, nil
 }
 
 func (m *mockIndexer) GraphRefs(context.Context, indexctl.GraphRefsOptions) ([]indexctl.GraphEdge, error) {
 	return m.graphRefs, nil
+}
+
+func (m *mockIndexer) GraphHubs(context.Context, indexctl.GraphHubsOptions) ([]indexctl.GraphHub, error) {
+	return m.graphHubs, nil
 }
 
 func TestGetChunkTool(t *testing.T) {

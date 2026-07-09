@@ -61,6 +61,10 @@ func (f *fakeIndexer) GraphRefs(context.Context, indexctl.GraphRefsOptions) ([]i
 	return nil, nil
 }
 
+func (f *fakeIndexer) GraphHubs(context.Context, indexctl.GraphHubsOptions) ([]indexctl.GraphHub, error) {
+	return nil, nil
+}
+
 func TestHealthAndSearch(t *testing.T) {
 	idx := &fakeIndexer{
 		status: indexctl.Status{

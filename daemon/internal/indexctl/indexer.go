@@ -13,6 +13,7 @@ type Indexer interface {
 	TracePath(ctx context.Context, opts TracePathOptions) ([]GraphHop, error)
 	GraphStats(ctx context.Context, repo string) (GraphStats, error)
 	GraphRefs(ctx context.Context, opts GraphRefsOptions) ([]GraphEdge, error)
+	GraphHubs(ctx context.Context, opts GraphHubsOptions) ([]GraphHub, error)
 }
 
 var _ Indexer = (*Client)(nil)
