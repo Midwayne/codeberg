@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "binio.h"
 #include "cacheline.h"
 #include "grow.h"
 #include "strmap.h"
@@ -348,6 +349,17 @@ const cberg_stored_chunk *cberg_chunk_table_find_by_id(const cberg_chunk_table *
     return &table->entries[index];
 }
 
+const cberg_stored_chunk *cberg_chunk_table_find_by_key(const cberg_chunk_table *table, const char *key) {
+    if (table == NULL || key == NULL) {
+        return NULL;
+    }
+    size_t index = 0;
+    if (!map_find(table, key, &index) || index >= table->len) {
+        return NULL;
+    }
+    return &table->entries[index];
+}
+
 static int compare_stored_id(const void *a, const void *b) {
     const cberg_stored_chunk *ca = a;
     const cberg_stored_chunk *cb = b;
@@ -531,68 +543,22 @@ fail:
 /*
  * On-disk snapshot of the id<->chunk mapping, so a restarted indexer can diff
  * the repository against the chunks it already embedded instead of treating
- * every chunk as new. Little-endian-of-the-host fixed-width fields; a magic and
- * version guard means any mismatch (older format, different machine) reads back
- * as NOT_FOUND and the caller falls back to a cold rebuild. NUL string length is
- * encoded as 0xFFFFFFFF (symbol may be absent; key and path never are).
+ * every chunk as new. Serialized with the shared binio helpers (see binio.h);
+ * a magic and version guard means any mismatch (older format, different
+ * machine) reads back as NOT_FOUND and the caller falls back to a cold
+ * rebuild. Symbol may be absent; key and path never are.
  */
 #define CBERG_CHUNK_TABLE_MAGIC "CBT1"
 #define CBERG_CHUNK_TABLE_VERSION 1u
-#define CBERG_STR_NULL 0xFFFFFFFFu
 
-static cberg_status w_u32(FILE *f, uint32_t v) {
-    return fwrite(&v, sizeof v, 1, f) == 1 ? CBERG_OK : CBERG_ERR_IO;
-}
-static cberg_status w_u64(FILE *f, uint64_t v) {
-    return fwrite(&v, sizeof v, 1, f) == 1 ? CBERG_OK : CBERG_ERR_IO;
-}
-static cberg_status w_bytes(FILE *f, const void *p, size_t n) {
-    return n == 0 || fwrite(p, 1, n, f) == n ? CBERG_OK : CBERG_ERR_IO;
-}
-static cberg_status w_str(FILE *f, const char *s) {
-    if (s == NULL) {
-        return w_u32(f, CBERG_STR_NULL);
-    }
-    size_t n = strlen(s);
-    if (n >= CBERG_STR_NULL) {
-        return CBERG_ERR_INVALID_ARGUMENT;
-    }
-    cberg_status st = w_u32(f, (uint32_t)n);
-    return st != CBERG_OK ? st : w_bytes(f, s, n);
-}
-
-static cberg_status r_exact(FILE *f, void *p, size_t n) {
-    return n == 0 || fread(p, 1, n, f) == n ? CBERG_OK : CBERG_ERR_IO;
-}
-static cberg_status r_u32(FILE *f, uint32_t *v) {
-    return r_exact(f, v, sizeof *v);
-}
-static cberg_status r_u64(FILE *f, uint64_t *v) {
-    return r_exact(f, v, sizeof *v);
-}
-static cberg_status r_str(FILE *f, char **out) {
-    uint32_t n = 0;
-    cberg_status st = r_u32(f, &n);
-    if (st != CBERG_OK) {
-        return st;
-    }
-    if (n == CBERG_STR_NULL) {
-        *out = NULL;
-        return CBERG_OK;
-    }
-    char *s = malloc((size_t)n + 1);
-    if (s == NULL) {
-        return CBERG_ERR_OUT_OF_MEMORY;
-    }
-    st = r_exact(f, s, n);
-    if (st != CBERG_OK) {
-        free(s);
-        return st;
-    }
-    s[n] = '\0';
-    *out = s;
-    return CBERG_OK;
-}
+#define w_u32 cberg_bin_w_u32
+#define w_u64 cberg_bin_w_u64
+#define w_bytes cberg_bin_w_bytes
+#define w_str cberg_bin_w_str
+#define r_exact cberg_bin_r_exact
+#define r_u32 cberg_bin_r_u32
+#define r_u64 cberg_bin_r_u64
+#define r_str cberg_bin_r_str
 
 cberg_status cberg_chunk_table_save(const cberg_chunk_table *table, const char *path) {
     if (table == NULL || path == NULL) {

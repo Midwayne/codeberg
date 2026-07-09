@@ -33,11 +33,13 @@ typedef struct cberg_repo {
     char *index_path;    /* per-root "<base>.<roothash>" (NULL in chunk-only mode) */
     char *chunks_path;   /* persisted chunk table (sidecar of index_path) */
     char *manifest_path; /* persisted merkle manifest (sidecar of index_path) */
+    char *graph_path;    /* persisted knowledge graph (sidecar of index_path) */
 
     cberg_chunk_table *table;
     cberg_manifest *manifest; /* change-detection baseline; NULL until bootstrap */
     cberg_watcher *watcher;
     cberg_index *index;
+    cberg_graph *graph; /* structural sidecar (ADR 0005); NULL when disabled */
 
     pthread_mutex_t mu;
     int ready;
@@ -49,6 +51,7 @@ struct cberg_engine {
     char *socket_path;
     int poll_ms;
     int vectors;
+    int graph_enabled; /* CBERG_GRAPH != 0 (default on); CBERG_GRAPH_MODE is fast-only for now */
     cberg_index_config index_cfg;
     char *vectordb_url;
     char *vectordb_api_key;

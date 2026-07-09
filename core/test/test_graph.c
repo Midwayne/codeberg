@@ -1,0 +1,263 @@
+/*
+ * Graph store: end-to-end apply/query/trace over a small Go corpus, incremental
+ * replace and delete, textual-resolution confidence, persistence round-trip.
+ */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+#include "codeberg/codeberg.h"
+#include "test_common.h"
+#include "test_graph_common.h"
+
+static const char *const A_GO =
+    "package main\n"
+    "\n"
+    "import \"fmt\"\n"
+    "\n"
+    "type Server struct{}\n"
+    "\n"
+    "func (s *Server) Start() {\n"
+    "\thelper()\n"
+    "}\n"
+    "\n"
+    "func helper() {\n"
+    "\tfmt.Println(\"x\")\n"
+    "}\n";
+
+static const char *const B_GO =
+    "package main\n"
+    "\n"
+    "func run() {\n"
+    "\thelper()\n"
+    "\tother()\n"
+    "}\n"
+    "\n"
+    "func other() {}\n";
+
+/* b.go rewritten so run no longer calls helper. */
+static const char *const B_GO_V2 =
+    "package main\n"
+    "\n"
+    "func run() {\n"
+    "\tother()\n"
+    "}\n"
+    "\n"
+    "func other() {}\n";
+
+static void test_build_and_query(graph_corpus *c) {
+    CHECK(corpus_index(c, CBERG_LANG_GO, "a.go", A_GO) == CBERG_OK, "index a.go");
+    CHECK(corpus_index(c, CBERG_LANG_GO, "b.go", B_GO) == CBERG_OK, "index b.go");
+
+    size_t nodes = 0;
+    size_t refs = 0;
+    cberg_graph_counts(c->graph, &nodes, &refs);
+    /* 2 files + Server/Start/helper + run/other + module fmt = 8 nodes. */
+    CHECK(nodes == 8, "corpus has 8 nodes");
+    CHECK(refs > 0, "corpus has reference records");
+
+    const cberg_graph_node *helper = corpus_node(c, "helper", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION));
+    const cberg_graph_node *server = corpus_node(c, "Server", CBERG_GNODE_MASK(CBERG_GNODE_STRUCT));
+    const cberg_graph_node *start = corpus_node(c, "Start", CBERG_GNODE_MASK(CBERG_GNODE_METHOD));
+    const cberg_graph_node *run = corpus_node(c, "run", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION));
+    const cberg_graph_node *file_a = corpus_node(c, "a.go", CBERG_GNODE_MASK(CBERG_GNODE_FILE));
+    const cberg_graph_node *fmt_mod = corpus_node(c, "fmt", CBERG_GNODE_MASK(CBERG_GNODE_MODULE));
+    CHECK(helper != NULL && server != NULL && start != NULL && run != NULL, "symbol nodes exist");
+    CHECK(file_a != NULL, "file node exists");
+    CHECK(fmt_mod != NULL, "import created a module node");
+    if (helper == NULL || server == NULL || start == NULL || run == NULL || file_a == NULL || fmt_mod == NULL) {
+        return;
+    }
+    CHECK(strcmp(file_a->qname, "a.go") == 0, "file qname is the path");
+    CHECK(strcmp(helper->path, "a.go") == 0, "helper defined in a.go");
+    CHECK(helper->id != 0 && (helper->id >> 63) == 0, "symbol node reuses a chunk id");
+    CHECK((file_a->id >> 63) == 1, "file node id is synthetic");
+    CHECK(cberg_graph_node_by_id(c->graph, helper->id) == helper, "node_by_id round-trips");
+    CHECK(cberg_graph_node_by_id(c->graph, 0xDEAD) == NULL, "unknown id yields NULL");
+
+    /* Callers of helper: Start (same file, 0.90) and run (cross file, 0.75). */
+    cberg_graph_edge edges[16];
+    size_t n = 0;
+    CHECK(cberg_graph_edges_to(c->graph, helper->id, CBERG_GEDGE_CALLS, edges, 16, &n) == CBERG_OK, "edges_to helper");
+    CHECK(n == 2, "helper has two callers");
+    const cberg_graph_edge *from_start = edges_find(edges, n, start->id, helper->id, CBERG_GEDGE_CALLS);
+    const cberg_graph_edge *from_run = edges_find(edges, n, run->id, helper->id, CBERG_GEDGE_CALLS);
+    CHECK(from_start != NULL, "Start calls helper");
+    CHECK(from_run != NULL, "run calls helper");
+    if (from_start != NULL && from_run != NULL) {
+        CHECK(from_start->confidence > 0.89f && from_start->confidence < 0.91f, "same-file call scores 0.90");
+        CHECK(from_run->confidence > 0.74f && from_run->confidence < 0.76f, "unique cross-file call scores 0.75");
+        CHECK(from_start->resolution == CBERG_GRES_TEXTUAL, "phase 1 edges are textual");
+        CHECK(from_start->line == 8, "call site line recorded");
+    }
+
+    /* helper's own callees: fmt.Println is not indexed, so nothing resolves. */
+    CHECK(cberg_graph_edges_from(c->graph, helper->id, CBERG_GEDGE_CALLS, edges, 16, &n) == CBERG_OK, "edges_from helper");
+    CHECK(n == 0, "unindexed callee yields no edge");
+
+    /* Receiver membership: Server -CONTAINS-> Start (reversed ref). */
+    CHECK(cberg_graph_edges_from(c->graph, server->id, CBERG_GEDGE_CONTAINS, edges, 16, &n) == CBERG_OK, "edges_from Server");
+    CHECK(n == 1 && edges[0].dst == start->id, "Server contains Start");
+    CHECK(cberg_graph_edges_to(c->graph, start->id, CBERG_GEDGE_CONTAINS, edges, 16, &n) == CBERG_OK, "edges_to Start");
+    CHECK(n == 1 && edges[0].src == server->id, "Start contained by Server");
+
+    /* DEFINES is synthesized both ways. */
+    CHECK(cberg_graph_edges_from(c->graph, file_a->id, CBERG_GEDGE_DEFINES, edges, 16, &n) == CBERG_OK, "file defines");
+    CHECK(n == 3, "a.go defines three symbols");
+    CHECK(cberg_graph_edges_to(c->graph, helper->id, CBERG_GEDGE_DEFINES, edges, 16, &n) == CBERG_OK, "defined-by");
+    CHECK(n == 1 && edges[0].src == file_a->id, "helper defined by a.go");
+
+    /* Imports land on module nodes with full confidence. */
+    CHECK(cberg_graph_edges_from(c->graph, file_a->id, CBERG_GEDGE_IMPORTS, edges, 16, &n) == CBERG_OK, "file imports");
+    CHECK(n == 1 && edges[0].dst == fmt_mod->id, "a.go imports fmt");
+    CHECK(n == 1 && edges[0].confidence == 1.0f, "import edges are exact");
+
+    /* Truncation contract: cap wins. */
+    CHECK(cberg_graph_edges_from(c->graph, file_a->id, 0, edges, 2, &n) == CBERG_OK, "capped edges");
+    CHECK(n == 2, "results truncate at cap");
+
+    /* find_nodes filters: kind mask and path prefix. */
+    const cberg_graph_node *found[16];
+    CHECK(cberg_graph_find_nodes(c->graph, NULL, CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION), "b.go", found, 16, &n) == CBERG_OK, "find b.go functions");
+    CHECK(n == 2, "b.go has two functions");
+    CHECK(cberg_graph_find_nodes(c->graph, "helper", 0, "b.go", found, 16, &n) == CBERG_OK, "helper under b.go");
+    CHECK(n == 0, "path prefix filters out a.go's helper");
+
+    /* Unknown node for edge queries. */
+    CHECK(cberg_graph_edges_from(c->graph, 0xDEAD, 0, edges, 16, &n) == CBERG_ERR_NOT_FOUND, "edges of unknown node");
+}
+
+static void test_trace(graph_corpus *c) {
+    const cberg_graph_node *helper = corpus_node(c, "helper", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION));
+    const cberg_graph_node *run = corpus_node(c, "run", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION));
+    const cberg_graph_node *other = corpus_node(c, "other", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION));
+    if (helper == NULL || run == NULL || other == NULL) {
+        CHECK(0, "trace prerequisites missing");
+        return;
+    }
+
+    /* Callees of run, one hop: helper and other. */
+    cberg_graph_hop hops[32];
+    size_t n = 0;
+    CHECK(cberg_graph_trace(c->graph, run->id, CBERG_GRAPH_OUT, CBERG_GEDGE_CALLS, 1, hops, 32, &n) == CBERG_OK, "trace out from run");
+    CHECK(n == 2, "run reaches two callees in one hop");
+
+    /* Callers of helper across depth 2: Start and run at depth 1. */
+    CHECK(cberg_graph_trace(c->graph, helper->id, CBERG_GRAPH_IN, CBERG_GEDGE_CALLS, 2, hops, 32, &n) == CBERG_OK, "trace in to helper");
+    CHECK(n == 2, "helper has two callers");
+    for (size_t i = 0; i < n; i++) {
+        CHECK(hops[i].depth == 1, "direct callers are depth 1");
+        CHECK(hops[i].edge.dst == helper->id, "caller edges point at helper");
+    }
+
+    /* Unknown start and bad direction. */
+    CHECK(cberg_graph_trace(c->graph, 0xDEAD, CBERG_GRAPH_OUT, 0, 2, hops, 32, &n) == CBERG_ERR_NOT_FOUND, "trace unknown start");
+    CHECK(cberg_graph_trace(c->graph, run->id, 0, 0, 2, hops, 32, &n) == CBERG_ERR_INVALID_ARGUMENT, "trace needs a direction");
+}
+
+static void test_incremental(graph_corpus *c) {
+    const cberg_graph_node *helper = corpus_node(c, "helper", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION));
+    if (helper == NULL) {
+        CHECK(0, "incremental prerequisites missing");
+        return;
+    }
+    uint64_t helper_id = helper->id;
+
+    /* Re-index b.go without the helper() call: the stale caller edge must go. */
+    CHECK(corpus_index(c, CBERG_LANG_GO, "b.go", B_GO_V2) == CBERG_OK, "reindex b.go");
+    cberg_graph_edge edges[16];
+    size_t n = 0;
+    CHECK(cberg_graph_edges_to(c->graph, helper_id, CBERG_GEDGE_CALLS, edges, 16, &n) == CBERG_OK, "callers after edit");
+    CHECK(n == 1, "only the same-file caller remains");
+
+    /* Delete b.go entirely: its nodes disappear, nothing dangles. */
+    CHECK(corpus_remove(c, "b.go") == CBERG_OK, "remove b.go");
+    CHECK(corpus_node(c, "run", 0) == NULL, "run node removed with its file");
+    CHECK(corpus_node(c, "b.go", CBERG_GNODE_MASK(CBERG_GNODE_FILE)) == NULL, "file node removed");
+    CHECK(cberg_graph_edges_to(c->graph, helper_id, CBERG_GEDGE_CALLS, edges, 16, &n) == CBERG_OK, "callers after delete");
+    CHECK(n == 1, "deleting a file leaves no dangling callers");
+
+    /* Removing an unknown path is a harmless no-op. */
+    CHECK(cberg_graph_remove_file(c->graph, "never/was.go") == CBERG_OK, "remove unknown path");
+}
+
+static void test_persistence(graph_corpus *c) {
+    char path[] = "/tmp/cberg_graph_test_XXXXXX";
+    int fd = mkstemp(path);
+    CHECK(fd >= 0, "mkstemp");
+    if (fd < 0) {
+        return;
+    }
+    close(fd);
+
+    CHECK(cberg_graph_save(c->graph, path) == CBERG_OK, "graph save");
+
+    cberg_graph *loaded = NULL;
+    CHECK(cberg_graph_load(path, &loaded) == CBERG_OK, "graph load");
+    if (loaded != NULL) {
+        size_t nodes_a = 0, refs_a = 0, nodes_b = 0, refs_b = 0;
+        cberg_graph_counts(c->graph, &nodes_a, &refs_a);
+        cberg_graph_counts(loaded, &nodes_b, &refs_b);
+        CHECK(nodes_a == nodes_b, "load preserves node count");
+        CHECK(refs_a == refs_b, "load preserves ref count");
+
+        /* Queries behave identically on the restored graph. */
+        const cberg_graph_node *helper = corpus_node(c, "helper", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION));
+        if (helper != NULL) {
+            cberg_graph_edge edges[16];
+            size_t n = 0;
+            CHECK(cberg_graph_edges_to(loaded, helper->id, CBERG_GEDGE_CALLS, edges, 16, &n) == CBERG_OK, "loaded callers");
+            CHECK(n == 2, "loaded graph resolves the same callers");
+        }
+        cberg_graph_free(loaded);
+    }
+
+    /* Corrupt snapshots read back as NOT_FOUND (cold rebuild), never garbage. */
+    FILE *f = fopen(path, "wb");
+    CHECK(f != NULL, "rewrite snapshot");
+    if (f != NULL) {
+        fwrite("NOPE", 1, 4, f);
+        fclose(f);
+    }
+    loaded = NULL;
+    CHECK(cberg_graph_load(path, &loaded) == CBERG_ERR_NOT_FOUND, "bad magic loads as NOT_FOUND");
+    unlink(path);
+    CHECK(cberg_graph_load(path, &loaded) == CBERG_ERR_NOT_FOUND, "missing file loads as NOT_FOUND");
+}
+
+static void test_invalid_args(void) {
+    CHECK(cberg_graph_new(NULL) == CBERG_ERR_INVALID_ARGUMENT, "graph_new NULL");
+    cberg_graph_free(NULL); /* NULL-safe */
+    cberg_graph_fragment_free(NULL);
+    CHECK(cberg_graph_fragment_path(NULL) == NULL, "fragment_path NULL");
+
+    cberg_graph *g = NULL;
+    CHECK(cberg_graph_new(&g) == CBERG_OK, "graph_new");
+    size_t n = 0;
+    CHECK(cberg_graph_apply(g, NULL, NULL, NULL) == CBERG_ERR_INVALID_ARGUMENT, "apply NULL fragment");
+    CHECK(cberg_graph_remove_file(g, NULL) == CBERG_ERR_INVALID_ARGUMENT, "remove NULL path");
+    CHECK(cberg_graph_find_nodes(g, NULL, 0, NULL, NULL, 4, &n) == CBERG_ERR_INVALID_ARGUMENT, "find with NULL out");
+    CHECK(cberg_graph_save(g, NULL) == CBERG_ERR_INVALID_ARGUMENT, "save NULL path");
+    size_t nodes = 0;
+    cberg_graph_counts(g, &nodes, NULL);
+    CHECK(nodes == 0, "empty graph has no nodes");
+    cberg_graph_free(g);
+}
+
+int main(void) {
+    graph_corpus corpus;
+    if (corpus_open(&corpus) != 0) {
+        fprintf(stderr, "FAIL: corpus_open\n");
+        return 1;
+    }
+
+    test_build_and_query(&corpus);
+    test_trace(&corpus);
+    test_persistence(&corpus); /* before incremental edits mutate the corpus */
+    test_incremental(&corpus);
+    test_invalid_args();
+
+    corpus_close(&corpus);
+    TEST_MAIN_RETURN
+}

@@ -45,6 +45,9 @@ typedef struct {
     cberg_chunk_list **lists;
     size_t lists_len;
     size_t lists_cap;
+    cberg_graph_fragment **frags; /* per-file graph fragments, applied after sync */
+    size_t frags_len;
+    size_t frags_cap;
 } chunk_batch;
 
 static int batch_init(chunk_batch *b) {
@@ -68,6 +71,30 @@ static void batch_reset(chunk_batch *b) {
     b->len = 0;
     b->cap = 0;
     batch_clear_lists(b);
+    for (size_t i = 0; i < b->frags_len; i++) {
+        cberg_graph_fragment_free(b->frags[i]);
+    }
+    free(b->frags);
+    b->frags = NULL;
+    b->frags_len = 0;
+    b->frags_cap = 0;
+}
+
+static cberg_status batch_add_fragment(chunk_batch *b, cberg_graph_fragment *frag) {
+    if (frag == NULL) {
+        return CBERG_OK;
+    }
+    if (b->frags_len + 1 > b->frags_cap) {
+        size_t new_cap = b->frags_cap == 0 ? 16 : b->frags_cap * 2;
+        cberg_graph_fragment **next = realloc(b->frags, new_cap * sizeof(*b->frags));
+        if (next == NULL) {
+            return CBERG_ERR_OUT_OF_MEMORY;
+        }
+        b->frags = next;
+        b->frags_cap = new_cap;
+    }
+    b->frags[b->frags_len++] = frag;
+    return CBERG_OK;
 }
 
 static cberg_status batch_add_list(chunk_batch *b, cberg_chunk_list *list) {
@@ -579,12 +606,38 @@ static cberg_status rebuild_index(cberg_repo *r) {
     return cberg_index_open(r->index_path, dim, cfg, &r->index);
 }
 
+static cberg_status graph_key_resolver(void *ctx, const char *key, uint64_t *out_id) {
+    const cberg_stored_chunk *sc = cberg_chunk_table_find_by_key(ctx, key);
+    if (sc == NULL) {
+        return CBERG_ERR_NOT_FOUND;
+    }
+    *out_id = sc->id;
+    return CBERG_OK;
+}
+
+/* Patch the graph with the batch's fragments. Runs right after the chunk-table
+ * sync so fragment defs resolve to fresh chunk ids; failures degrade the graph
+ * (a file's structure goes missing until its next change) but never fail the
+ * chunk/vector pipeline. Caller holds r->mu. */
+static void apply_graph_fragments(cberg_repo *r, chunk_batch *batch) {
+    if (r->graph == NULL) {
+        return;
+    }
+    for (size_t i = 0; i < batch->frags_len; i++) {
+        cberg_status st = cberg_graph_apply(r->graph, batch->frags[i], graph_key_resolver, r->table);
+        if (st != CBERG_OK) {
+            fprintf(stderr, "cberg-index[%s]: warning: graph update failed for '%s': %s\n", r->key, cberg_graph_fragment_path(batch->frags[i]), cberg_status_str(st));
+        }
+    }
+}
+
 static cberg_status sync_table(cberg_repo *r, chunk_batch *batch) {
     cberg_changes ch = {0};
     cberg_status st = cberg_chunk_table_sync(r->table, batch->items, batch->len, &ch);
     if (st != CBERG_OK) {
         return st;
     }
+    apply_graph_fragments(r, batch);
     st = with_vector_retry(r, "vector apply", apply_vectors_op, &ch);
     if (st != CBERG_OK) {
         r->ready = 0;
@@ -605,8 +658,14 @@ static cberg_status sync_table(cberg_repo *r, chunk_batch *batch) {
     return CBERG_OK;
 }
 
-static cberg_status parse_file(cberg_repo *r, const char *abs, const char *rel, cberg_chunk_list **out) {
+/* Chunk (and, when the repo has a graph, extract) one file. out_frag may be
+ * NULL to skip extraction; a NULL *out_frag with OK means the file carries no
+ * graph structure (markdown, config, unknown language, or unreadable). */
+static cberg_status parse_file(cberg_repo *r, const char *abs, const char *rel, cberg_chunk_list **out, cberg_graph_fragment **out_frag) {
     *out = NULL;
+    if (out_frag != NULL) {
+        *out_frag = NULL;
+    }
     size_t len = 0;
     char *data = cberg_read_file(abs, &len);
     if (data == NULL) {
@@ -618,7 +677,7 @@ static cberg_status parse_file(cberg_repo *r, const char *abs, const char *rel, 
         return CBERG_OK;
     }
     cberg_chunk_list *list = NULL;
-    cberg_status st = cberg_chunker_parse(r->eng->chunker, lang, rel, data, len, &list);
+    cberg_status st = cberg_chunker_analyze(r->eng->chunker, lang, rel, data, len, &list, r->graph != NULL ? out_frag : NULL);
     if (st != CBERG_OK) {
         free(data);
         return st;
@@ -626,6 +685,10 @@ static cberg_status parse_file(cberg_repo *r, const char *abs, const char *rel, 
     if (list != NULL) {
         st = cberg_chunk_list_hash_bodies(list, data, len);
         if (st != CBERG_OK) {
+            if (out_frag != NULL) {
+                cberg_graph_fragment_free(*out_frag);
+                *out_frag = NULL;
+            }
             cberg_chunk_list_free(list);
             free(data);
             return st;
@@ -649,7 +712,8 @@ static int bootstrap_cb(const char *abs, const char *rel, void *v) {
         fprintf(stderr, "cberg-index[%s]: scanned %zu files...\n", ctx->repo->key, ctx->files);
     }
     cberg_chunk_list *list = NULL;
-    cberg_status st = parse_file(ctx->repo, abs, rel, &list);
+    cberg_graph_fragment *frag = NULL;
+    cberg_status st = parse_file(ctx->repo, abs, rel, &list, &frag);
     if (st != CBERG_OK) {
         ctx->err = st;
         return -1;
@@ -660,6 +724,13 @@ static int bootstrap_cb(const char *abs, const char *rel, void *v) {
     st = batch_add_list(ctx->batch, list);
     if (st != CBERG_OK) {
         cberg_chunk_list_free(list);
+        cberg_graph_fragment_free(frag);
+        ctx->err = st;
+        return -1;
+    }
+    st = batch_add_fragment(ctx->batch, frag); /* batch owns frag on success */
+    if (st != CBERG_OK) {
+        cberg_graph_fragment_free(frag);
         ctx->err = st;
         return -1;
     }
@@ -688,9 +759,20 @@ static void save_manifest(cberg_repo *r) {
     }
 }
 
+static void save_graph(cberg_repo *r) {
+    if (r->graph_path == NULL || r->graph == NULL) {
+        return;
+    }
+    cberg_status st = cberg_graph_save(r->graph, r->graph_path);
+    if (st != CBERG_OK) {
+        fprintf(stderr, "cberg-index[%s]: warning: could not persist graph: %s\n", r->key, cberg_status_str(st));
+    }
+}
+
 static void save_state(cberg_repo *r) {
     save_chunk_table(r);
     save_manifest(r);
+    save_graph(r);
 }
 
 /* Rebuild the manifest baseline from the current on-disk tree (stat-only for
@@ -789,11 +871,13 @@ static void repo_close(cberg_repo *r) {
     if (r->table != NULL) {
         cberg_chunk_table_free(r->table);
     }
+    cberg_graph_free(r->graph);
     free(r->key);
     free(r->root);
     free(r->index_path);
     free(r->chunks_path);
     free(r->manifest_path);
+    free(r->graph_path);
     pthread_mutex_destroy(&r->mu);
     free(r);
 }
@@ -827,6 +911,13 @@ static cberg_status engine_add_repo(cberg_engine *eng, const char *key, const ch
         repo_close(r);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
+    if (eng->graph_enabled) {
+        cberg_status gst = cberg_graph_new(&r->graph);
+        if (gst != CBERG_OK) {
+            repo_close(r);
+            return gst;
+        }
+    }
     cberg_status st = cberg_watcher_open(r->root, &r->watcher);
     if (st != CBERG_OK) {
         repo_close(r);
@@ -851,6 +942,13 @@ static cberg_status engine_add_repo(cberg_engine *eng, const char *key, const ch
         if (r->chunks_path == NULL || r->manifest_path == NULL) {
             repo_close(r);
             return CBERG_ERR_OUT_OF_MEMORY;
+        }
+        if (r->graph != NULL) {
+            r->graph_path = join_str(r->index_path, ".graph");
+            if (r->graph_path == NULL) {
+                repo_close(r);
+                return CBERG_ERR_OUT_OF_MEMORY;
+            }
         }
 
         size_t dim = cberg_embedder_dim(eng->embedder);
@@ -1028,6 +1126,19 @@ cberg_status cberg_engine_open(cberg_engine *eng) {
             }
             eng->index_cfg.postgres_url = eng->postgres_url;
         }
+    }
+
+    /* Graph sidecar (ADR 0005): on by default, CBERG_GRAPH=0 is the kill
+     * switch. CBERG_GRAPH_MODE only knows "fast" (syntactic) today; other
+     * modes fall back with a warning rather than failing startup. */
+    eng->graph_enabled = 1;
+    const char *graph_env = getenv("CBERG_GRAPH");
+    if (graph_env != NULL && (strcmp(graph_env, "0") == 0 || strcasecmp(graph_env, "off") == 0 || strcasecmp(graph_env, "false") == 0)) {
+        eng->graph_enabled = 0;
+    }
+    const char *graph_mode = getenv("CBERG_GRAPH_MODE");
+    if (eng->graph_enabled && graph_mode != NULL && graph_mode[0] != '\0' && strcasecmp(graph_mode, "fast") != 0) {
+        fprintf(stderr, "cberg-index: CBERG_GRAPH_MODE '%s' not implemented yet; using 'fast'\n", graph_mode);
     }
 
     eng->poll_ms = 1000;
@@ -1234,7 +1345,8 @@ static cberg_status apply_path_changes(cberg_repo *r, char **rechunk, size_t rec
         char abs[4096];
         snprintf(abs, sizeof(abs), "%s/%s", r->root, rechunk[i]);
         cberg_chunk_list *list = NULL;
-        st = parse_file(r, abs, rechunk[i], &list);
+        cberg_graph_fragment *frag = NULL;
+        st = parse_file(r, abs, rechunk[i], &list, &frag);
         if (st != CBERG_OK) {
             goto done;
         }
@@ -1242,8 +1354,27 @@ static cberg_status apply_path_changes(cberg_repo *r, char **rechunk, size_t rec
             st = batch_add_list(&batch, list);
             if (st != CBERG_OK) {
                 cberg_chunk_list_free(list);
+                cberg_graph_fragment_free(frag);
                 goto done;
             }
+            st = batch_add_fragment(&batch, frag);
+            if (st != CBERG_OK) {
+                cberg_graph_fragment_free(frag);
+                goto done;
+            }
+        } else {
+            /* A rechunked path that no longer parses to chunks (emptied file)
+             * still needs its old graph nodes dropped. */
+            cberg_graph_fragment_free(frag);
+            if (r->graph != NULL) {
+                cberg_graph_remove_file(r->graph, rechunk[i]);
+            }
+        }
+    }
+
+    if (r->graph != NULL) {
+        for (size_t i = 0; i < deleted_n; i++) {
+            cberg_graph_remove_file(r->graph, deleted[i]);
         }
     }
 
@@ -1255,6 +1386,46 @@ done:
     return st;
 }
 
+typedef struct {
+    cberg_repo *repo;
+    cberg_status err;
+} graph_walk_ctx;
+
+static int graph_rebuild_cb(const char *abs, const char *rel, void *v) {
+    graph_walk_ctx *ctx = v;
+    cberg_chunk_list *list = NULL;
+    cberg_graph_fragment *frag = NULL;
+    cberg_status st = parse_file(ctx->repo, abs, rel, &list, &frag);
+    if (st != CBERG_OK) {
+        ctx->err = st;
+        return -1;
+    }
+    if (frag != NULL) {
+        st = cberg_graph_apply(ctx->repo->graph, frag, graph_key_resolver, ctx->repo->table);
+        if (st != CBERG_OK) {
+            fprintf(stderr, "cberg-index[%s]: warning: graph rebuild failed for '%s': %s\n", ctx->repo->key, rel, cberg_status_str(st));
+        }
+        cberg_graph_fragment_free(frag);
+    }
+    cberg_chunk_list_free(list);
+    return 0;
+}
+
+/* Full graph re-extraction from source. Used when the chunk table restored
+ * warm but the .graph sidecar is missing or incompatible: chunks and vectors
+ * stay warm, only the structural pass re-runs (no ONNX involved). Caller
+ * holds r->mu and has already synced the chunk table. */
+static void rebuild_graph(cberg_repo *r) {
+    if (r->graph == NULL) {
+        return;
+    }
+    fprintf(stderr, "cberg-index[%s]: graph sidecar missing or stale; re-extracting\n", r->key);
+    graph_walk_ctx ctx = {.repo = r};
+    if (cberg_fs_walk_files(r->root, graph_rebuild_cb, &ctx) != 0) {
+        fprintf(stderr, "cberg-index[%s]: warning: graph rebuild walk failed (%s); graph is partial\n", r->key, cberg_status_str(ctx.err != CBERG_OK ? ctx.err : CBERG_ERR_IO));
+    }
+}
+
 static cberg_status bootstrap_warm(cberg_repo *r) {
     cberg_chunk_table *restored = NULL;
     cberg_status st = cberg_chunk_table_load(r->chunks_path, &restored);
@@ -1263,6 +1434,20 @@ static cberg_status bootstrap_warm(cberg_repo *r) {
     }
     cberg_chunk_table_free(r->table);
     r->table = restored;
+
+    /* Restore the graph sidecar; a missing or incompatible snapshot re-extracts
+     * from source once the chunk table is settled (walk_and_sync paths rebuild
+     * it as a side effect of re-parsing every file). */
+    int graph_stale = 0;
+    if (r->graph != NULL && r->graph_path != NULL) {
+        cberg_graph *loaded = NULL;
+        if (cberg_graph_load(r->graph_path, &loaded) == CBERG_OK) {
+            cberg_graph_free(r->graph);
+            r->graph = loaded;
+        } else {
+            graph_stale = 1;
+        }
+    }
 
     cberg_manifest *prev = NULL;
     if (r->manifest_path != NULL && cberg_manifest_load(r->manifest_path, &prev) != CBERG_OK) {
@@ -1329,6 +1514,9 @@ static cberg_status bootstrap_warm(cberg_repo *r) {
 
     cberg_manifest_free(r->manifest);
     r->manifest = next; /* the fresh tree becomes the new baseline */
+    if (graph_stale) {
+        rebuild_graph(r); /* diff only re-parsed changed files; cover the rest */
+    }
     save_state(r);
     return CBERG_OK;
 }
