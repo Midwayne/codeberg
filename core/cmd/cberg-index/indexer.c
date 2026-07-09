@@ -1346,12 +1346,32 @@ static cberg_status batch_add_table_except(cberg_repo *r, chunk_batch *batch, ch
  * `rechunk`+`deleted`, re-chunk `rechunk` from disk, and sync the union — so only
  * the affected files are parsed and only chunks whose content moved get
  * re-embedded. The path arrays are borrowed (not freed). Caller holds r->mu. */
+/* Borrowed path pointers; grow like a simple string list. */
+static cberg_status graph_drop_push(char ***list, size_t *len, size_t *cap, char *path) {
+    if (*len + 1 > *cap) {
+        size_t new_cap = *cap == 0 ? 8 : *cap * 2;
+        char **next = realloc(*list, new_cap * sizeof(**list));
+        if (next == NULL) {
+            return CBERG_ERR_OUT_OF_MEMORY;
+        }
+        *list = next;
+        *cap = new_cap;
+    }
+    (*list)[(*len)++] = path;
+    return CBERG_OK;
+}
+
 static cberg_status apply_path_changes(cberg_repo *r, char **rechunk, size_t rechunk_n, char **deleted, size_t deleted_n) {
     chunk_batch batch;
     batch_init(&batch);
 
     char **skip = NULL;
     size_t skip_n = 0;
+    /* Paths whose graph nodes must be dropped after a successful table sync.
+     * Deferred so a failed parse/sync cannot leave the graph ahead of the table. */
+    char **graph_drop = NULL;
+    size_t graph_drop_n = 0;
+    size_t graph_drop_cap = 0;
     if (rechunk_n + deleted_n > 0) {
         skip = calloc(rechunk_n + deleted_n, sizeof(*skip));
         if (skip == NULL) {
@@ -1392,26 +1412,33 @@ static cberg_status apply_path_changes(cberg_repo *r, char **rechunk, size_t rec
                 goto done;
             }
         } else {
-            /* A rechunked path that no longer parses to chunks (emptied file)
-             * still needs its old graph nodes dropped. */
+            /* Emptied / unreadable-as-chunks: drop graph after sync commits. */
             cberg_graph_fragment_free(frag);
-            if (r->graph != NULL) {
-                cberg_graph_remove_file(r->graph, rechunk[i]);
+            st = graph_drop_push(&graph_drop, &graph_drop_n, &graph_drop_cap, rechunk[i]);
+            if (st != CBERG_OK) {
+                goto done;
             }
         }
     }
 
-    if (r->graph != NULL) {
-        for (size_t i = 0; i < deleted_n; i++) {
-            cberg_graph_remove_file(r->graph, deleted[i]);
+    for (size_t i = 0; i < deleted_n; i++) {
+        st = graph_drop_push(&graph_drop, &graph_drop_n, &graph_drop_cap, deleted[i]);
+        if (st != CBERG_OK) {
+            goto done;
         }
     }
 
     st = sync_table(r, &batch);
+    if (st == CBERG_OK && r->graph != NULL) {
+        for (size_t i = 0; i < graph_drop_n; i++) {
+            cberg_graph_remove_file(r->graph, graph_drop[i]);
+        }
+    }
 
 done:
     batch_reset(&batch);
     free(skip);
+    free(graph_drop);
     return st;
 }
 

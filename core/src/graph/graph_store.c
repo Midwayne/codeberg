@@ -561,7 +561,11 @@ static cberg_status file_undo_begin(cberg_graph *graph, const char *path, file_u
 }
 
 static void file_undo_abort(cberg_graph *graph, file_undo *u) {
-    /* Kill partial rebuild slots appended after the mark (apply is exclusive). */
+    /* Kill partial rebuild slots appended after the mark (apply is exclusive).
+     * graph_add_node overwrote node_by_id for any id that was re-inserted; those
+     * map entries still point at the dead rebuild slots until we re-point them
+     * at the revived prior indexes below. Name/path/ref chains keep dead heads
+     * but walkers skip dead slots, so prior live entries remain reachable. */
     for (size_t i = u->nodes_mark; i < graph->nodes_len; i++) {
         graph_node_rec *rec = &graph->nodes[i];
         if (!rec->dead) {
@@ -577,11 +581,14 @@ static void file_undo_abort(cberg_graph *graph, file_undo *u) {
         }
     }
     for (size_t i = 0; i < u->node_len; i++) {
-        graph_node_rec *rec = &graph->nodes[u->node_idx[i]];
+        uint32_t idx = u->node_idx[i];
+        graph_node_rec *rec = &graph->nodes[idx];
         if (rec->dead) {
             rec->dead = 0;
             graph->nodes_dead--;
         }
+        /* Best-effort: OOM here leaves id lookup broken until compact rebuilds. */
+        (void)cberg_u64map_set(graph->node_by_id, rec->pub.id, (uint64_t)idx + 1);
     }
     for (size_t i = 0; i < u->ref_len; i++) {
         graph_ref_rec *rec = &graph->refs[u->ref_idx[i]];

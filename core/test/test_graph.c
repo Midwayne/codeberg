@@ -353,8 +353,21 @@ static void test_apply_restores_on_failure(void) {
     CHECK(corpus_open(&c) == 0, "restore corpus");
     const char *prior = "package p\n\nfunc Keep() {}\n\nfunc Other() {}\n";
     CHECK(corpus_index(&c, CBERG_LANG_GO, "a.go", prior) == CBERG_OK, "index a.go");
-    CHECK(corpus_node(&c, "Keep", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION)) != NULL, "Keep before");
-    CHECK(corpus_node(&c, "Other", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION)) != NULL, "Other before");
+    const cberg_graph_node *keep_before = corpus_node(&c, "Keep", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION));
+    const cberg_graph_node *other_before = corpus_node(&c, "Other", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION));
+    const cberg_graph_node *file_before = corpus_node(&c, "a.go", CBERG_GNODE_MASK(CBERG_GNODE_FILE));
+    CHECK(keep_before != NULL, "Keep before");
+    CHECK(other_before != NULL, "Other before");
+    CHECK(file_before != NULL, "file before");
+    uint64_t keep_id = keep_before->id;
+    uint64_t other_id = other_before->id;
+    uint64_t file_id = file_before->id;
+
+    cberg_graph_edge edges_before[16];
+    size_t n_edges_before = 0;
+    CHECK(cberg_graph_edges_from(c.graph, file_id, CBERG_GEDGE_DEFINES, edges_before, 16, &n_edges_before) == CBERG_OK,
+          "file defines before");
+    CHECK(n_edges_before >= 2, "file defined Keep and Other");
 
     const char *next = "package p\n\nfunc Keep() {}\n\nfunc Boom() {}\n";
     cberg_chunk_list *list = NULL;
@@ -398,6 +411,21 @@ static void test_apply_restores_on_failure(void) {
     CHECK(corpus_node(&c, "Keep", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION)) != NULL, "Keep restored");
     CHECK(corpus_node(&c, "Other", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION)) != NULL, "Other restored");
     CHECK(corpus_node(&c, "Boom", CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION)) == NULL, "Boom not left behind");
+
+    /* Id map must point at revived prior slots (not dead rebuild heads). */
+    CHECK(cberg_graph_node_by_id(c.graph, keep_id) != NULL, "Keep id lookup restored");
+    CHECK(cberg_graph_node_by_id(c.graph, other_id) != NULL, "Other id lookup restored");
+    CHECK(cberg_graph_node_by_id(c.graph, file_id) != NULL, "file id lookup restored");
+    CHECK(cberg_graph_node_by_id(c.graph, keep_id)->id == keep_id, "Keep id matches");
+    CHECK(cberg_graph_node_by_id(c.graph, other_id)->id == other_id, "Other id matches");
+
+    cberg_graph_edge edges[16];
+    size_t n_edges = 0;
+    CHECK(cberg_graph_edges_from(c.graph, file_id, CBERG_GEDGE_DEFINES, edges, 16, &n_edges) == CBERG_OK,
+          "file defines after restore");
+    CHECK(n_edges >= 2, "DEFINES edges restored");
+    CHECK(edges_find(edges, n_edges, file_id, keep_id, CBERG_GEDGE_DEFINES) != NULL, "DEFINES Keep");
+    CHECK(edges_find(edges, n_edges, file_id, other_id, CBERG_GEDGE_DEFINES) != NULL, "DEFINES Other");
 
     cberg_graph_fragment_free(frag);
     cberg_chunk_list_free(list);
