@@ -42,8 +42,8 @@ func TestSymbolTouchesHunk(t *testing.T) {
 	if symbolTouchesHunk(1, 5, lines) {
 		t.Fatal("expected miss")
 	}
-	if !symbolTouchesHunk(10, 20, nil) {
-		t.Fatal("empty hunks keep all")
+	if symbolTouchesHunk(10, 20, nil) {
+		t.Fatal("empty hunks must not match")
 	}
 }
 

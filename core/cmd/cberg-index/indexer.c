@@ -2438,15 +2438,25 @@ cberg_status cberg_engine_trace_path(cberg_engine *eng, const char *name, uint64
             pthread_mutex_unlock(&r->mu);
             return CBERG_ERR_INVALID_ARGUMENT;
         }
-        const cberg_graph_node *nodes[8];
+        const cberg_graph_node *nodes[16];
         size_t n = 0;
+        /* Prefer exact path match when path_prefix is a full path; fall back to
+         * prefix filter so callers can still pass a directory. */
         const char *path_filter = (path_prefix != NULL && path_prefix[0] != '\0') ? path_prefix : NULL;
-        st = cberg_graph_find_nodes(r->graph, name, 0, path_filter, nodes, 8, &n);
+        st = cberg_graph_find_nodes(r->graph, name, 0, path_filter, nodes, 16, &n);
         if (st != CBERG_OK || n == 0) {
             pthread_mutex_unlock(&r->mu);
             return CBERG_ERR_NOT_FOUND;
         }
         id = nodes[0]->id;
+        if (path_filter != NULL) {
+            for (size_t i = 0; i < n; i++) {
+                if (nodes[i]->path != NULL && strcmp(nodes[i]->path, path_filter) == 0) {
+                    id = nodes[i]->id;
+                    break;
+                }
+            }
+        }
     }
 
     cberg_graph_hop hops[256];

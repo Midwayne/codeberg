@@ -197,10 +197,82 @@ static void test_ts_relative(void) {
     rm_tree(root);
 }
 
+static void test_slash_stdlib_not_rewritten(void) {
+    char tmpl[] = "/tmp/cberg_resolve_XXXXXX";
+    char *root = mkdtemp(tmpl);
+    CHECK(root != NULL, "mkdtemp");
+    if (root == NULL) {
+        return;
+    }
+
+    /* Leading comments before module line must still be parsed. */
+    write_file(root, "go.mod", "// comment\n\nmodule example.com/app\n\ngo 1.22\n");
+    write_file(root, "encoding/json.go", "package encoding\n\nfunc Fake() {}\n");
+    const char *main_src =
+        "package main\n\n"
+        "import (\n"
+        "\t\"encoding/json\"\n"
+        "\t\"fmt\"\n"
+        ")\n\n"
+        "func main() {}\n";
+    write_file(root, "main.go", main_src);
+
+    graph_corpus c;
+    CHECK(corpus_open(&c) == 0, "corpus open");
+    CHECK(corpus_index(&c, CBERG_LANG_GO, "encoding/json.go", "package encoding\n\nfunc Fake() {}\n") == CBERG_OK,
+          "index decoy");
+    CHECK(corpus_index(&c, CBERG_LANG_GO, "main.go", main_src) == CBERG_OK, "index main");
+
+    CHECK(cberg_graph_resolve_imports(c.graph, root) == CBERG_OK, "resolve");
+    CHECK(still_module(&c, "main.go", "encoding/json"), "encoding/json stays MODULE");
+    CHECK(still_module(&c, "main.go", "fmt"), "fmt stays MODULE");
+    CHECK(!edge_to_file(&c, "main.go", "encoding/json.go"), "not rewritten to decoy");
+
+    corpus_close(&c);
+    rm_tree(root);
+}
+
+static void test_rust_crate_path(void) {
+    char tmpl[] = "/tmp/cberg_resolve_XXXXXX";
+    char *root = mkdtemp(tmpl);
+    CHECK(root != NULL, "mkdtemp");
+    if (root == NULL) {
+        return;
+    }
+
+    write_file(root, "Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n");
+    write_file(root, "src/helper.rs", "pub fn help() {}\n");
+    const char *main_src = "use crate::helper;\nfn main() {}\n";
+    write_file(root, "src/main.rs", main_src);
+
+    graph_corpus c;
+    CHECK(corpus_open(&c) == 0, "corpus open");
+    CHECK(corpus_index(&c, CBERG_LANG_RUST, "src/helper.rs", "pub fn help() {}\n") == CBERG_OK, "index helper");
+    CHECK(corpus_index(&c, CBERG_LANG_RUST, "src/main.rs", main_src) == CBERG_OK, "index main");
+
+    /* Precondition: extractor captured the use path (same query as std::fmt::Debug). */
+    CHECK(still_module(&c, "src/main.rs", "crate::helper") || still_module(&c, "src/main.rs", "helper"),
+          "rust use captured before resolve");
+
+    CHECK(cberg_graph_resolve_imports(c.graph, root) == CBERG_OK, "resolve");
+    if (still_module(&c, "src/main.rs", "crate::helper")) {
+        CHECK(0, "crate::helper must rewrite to FILE (:: shape + cargo map)");
+    } else if (still_module(&c, "src/main.rs", "helper")) {
+        /* Bare helper is not a resolvable shape — leave as MODULE. */
+    } else {
+        CHECK(edge_to_file(&c, "src/main.rs", "src/helper.rs"), "crate::helper → src/helper.rs");
+    }
+
+    corpus_close(&c);
+    rm_tree(root);
+}
+
 int main(void) {
     test_stdlib_not_rewritten();
+    test_slash_stdlib_not_rewritten();
     test_relative_and_module_path();
     test_ts_relative();
+    test_rust_crate_path();
     if (failures == 0) {
         printf("ok - resolve_imports\n");
     }

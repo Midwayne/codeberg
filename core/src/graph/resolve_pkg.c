@@ -4,10 +4,11 @@
  * module string maps to a repo-relative source file so they target that FILE
  * node with resolution=import.
  *
- * Safety: bare identifiers (fmt, json, os) are never rewritten — only relative
- * imports (./, ../), path-like strings containing '/', or multi-segment dotted
- * names (pkg.sub) / Go module-prefixed paths are candidates. Manifest scanners
- * only register those key shapes (never package-name → first file).
+ * Safety: bare identifiers (fmt, json, os) and slash-form stdlib/npm packages
+ * (encoding/json) are never rewritten — only relative imports (./, ../), Rust
+ * `::` paths, Go module-prefixed paths, multi-segment dotted names, or
+ * source-file paths (…/*.h) are candidates. Manifest scanners never map
+ * package-name → first file.
  */
 #include "codeberg/codeberg.h"
 
@@ -72,14 +73,33 @@ static int walk_cb(const char *abs, const char *rel, void *v) {
     return pkg_add_file(idx, rel) == CBERG_OK ? 0 : -1;
 }
 
-/* True when the import string is safe to attempt local resolution. */
+static int import_is_relative(const char *imp) {
+    return imp[0] == '.' && (imp[1] == '/' || imp[1] == '\\' ||
+                             (imp[1] == '.' && (imp[2] == '/' || imp[2] == '\\')));
+}
+
+static int import_has_source_ext(const char *imp) {
+    const char *dot = strrchr(imp, '.');
+    if (dot == NULL || strchr(dot, '/') != NULL || strchr(dot, '\\') != NULL) {
+        return 0;
+    }
+    return strcmp(dot, ".h") == 0 || strcmp(dot, ".c") == 0 || strcmp(dot, ".hpp") == 0 || strcmp(dot, ".hh") == 0 ||
+           strcmp(dot, ".go") == 0 || strcmp(dot, ".ts") == 0 || strcmp(dot, ".tsx") == 0 || strcmp(dot, ".js") == 0 ||
+           strcmp(dot, ".jsx") == 0 || strcmp(dot, ".py") == 0 || strcmp(dot, ".rs") == 0 || strcmp(dot, ".rb") == 0;
+}
+
+/* True when the import string is safe to attempt local resolution.
+ * Slash-form stdlib (encoding/json) and npm packages are NOT candidates unless
+ * they are relative, Go-module-prefixed, or look like a source file path. */
 static int import_is_resolvable_shape(const char *imp, const char *go_module) {
     if (imp == NULL || imp[0] == '\0') {
         return 0;
     }
-    /* Relative: ./foo, ../bar */
-    if (imp[0] == '.' && (imp[1] == '/' || imp[1] == '\\' ||
-                          (imp[1] == '.' && (imp[2] == '/' || imp[2] == '\\')))) {
+    if (import_is_relative(imp)) {
+        return 1;
+    }
+    /* Rust paths: crate::mod, self::, super:: */
+    if (strstr(imp, "::") != NULL) {
         return 1;
     }
     /* Go module-prefixed path. */
@@ -89,11 +109,12 @@ static int import_is_resolvable_shape(const char *imp, const char *go_module) {
             return 1;
         }
     }
-    /* Path-like (contains slash) — e.g. internal/pkg, @scope/local-path rare. */
-    if (strchr(imp, '/') != NULL || strchr(imp, '\\') != NULL) {
-        return 1;
+    int has_slash = strchr(imp, '/') != NULL || strchr(imp, '\\') != NULL;
+    if (has_slash) {
+        /* Quoted C includes and explicit file paths only — not encoding/json. */
+        return import_has_source_ext(imp);
     }
-    /* Multi-segment dotted (Python / Rust paths like crate::mod handled separately). */
+    /* Multi-segment dotted (Python pkg.sub) — not bare stdlib names. */
     if (strchr(imp, '.') != NULL) {
         return 1;
     }
@@ -177,7 +198,30 @@ static void scan_go_mod(pkg_index *idx, const char *root) {
     if (body == NULL) {
         return;
     }
+    /* Skip leading blank lines and // comments before `module`. */
     const char *p = body;
+    while (*p) {
+        while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') {
+            p++;
+        }
+        if (p[0] == '/' && p[1] == '/') {
+            while (*p && *p != '\n') {
+                p++;
+            }
+            continue;
+        }
+        if (p[0] == '/' && p[1] == '*') {
+            p += 2;
+            while (p[0] && !(p[0] == '*' && p[1] == '/')) {
+                p++;
+            }
+            if (p[0]) {
+                p += 2;
+            }
+            continue;
+        }
+        break;
+    }
     if (strncmp(p, "module ", 7) == 0) {
         p += 7;
         size_t i = 0;

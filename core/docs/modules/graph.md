@@ -121,11 +121,12 @@ Graph failures log a warning and never block the chunk/vector pipeline.
 `cberg_graph_resolve_imports(graph, repo_root)` scans `go.mod`, `package.json`,
 `pyproject.toml`, and `Cargo.toml`, plus relative path heuristics, and rewrites
 `IMPORTS` edges that map onto a repo FILE node with `resolution=import`
-(confidence 0.95). Only relative (`./` `../`), path-like (contains `/`),
-multi-segment dotted, or Go module-prefixed imports are candidates — bare
-identifiers (`fmt`, `json`, `os`) stay MODULE targets. Already-resolved FILE
-imports are left alone (idempotent). Unresolved imports keep their MODULE
-target. The indexer runs this after cold/warm bootstrap and graph rebuilds.
+(confidence 0.95). Only relative (`./` `../`), Rust `::` paths, Go
+module-prefixed imports, multi-segment dotted names, or source-file paths are
+candidates — bare identifiers and slash-form stdlib/npm packages (`fmt`,
+`encoding/json`) stay MODULE targets. Already-resolved FILE imports are left
+alone (idempotent). Unresolved imports keep their MODULE target. The indexer
+runs this after cold/warm bootstrap and graph rebuilds.
 
 `cberg_graph_hubs` ranks symbols by incident `CALLS` degree for architecture
 overviews (exposed as IPC `graph_hubs`).

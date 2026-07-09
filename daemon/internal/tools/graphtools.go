@@ -123,7 +123,7 @@ func parseDiffHunks(diff string) map[string]map[uint32]struct{} {
 
 func symbolTouchesHunk(start, end uint32, lines map[uint32]struct{}) bool {
 	if len(lines) == 0 {
-		return true // no hunk info → keep all symbols in the file
+		return false
 	}
 	if start == 0 {
 		return true
@@ -182,8 +182,11 @@ func detectChangesTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
 			fallback := ""
 			nameOut, err := git.Run(ctx, root, "diff", "--name-only", diffSpec)
 			hunkOut := ""
+			hunksOK := false
 			if err == nil {
-				hunkOut, _ = git.Run(ctx, root, "diff", "-U0", diffSpec)
+				hunkOut, err = git.Run(ctx, root, "diff", "-U0", diffSpec)
+				hunksOK = err == nil
+				err = nil
 			} else {
 				// Honest fallback: working tree (staged+unstaged) vs HEAD.
 				fallback = "working-tree-vs-HEAD"
@@ -192,7 +195,9 @@ func detectChangesTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
 				if err != nil {
 					return nil, err
 				}
-				hunkOut, _ = git.Run(ctx, root, "diff", "-U0", "HEAD")
+				hunkOut, err = git.Run(ctx, root, "diff", "-U0", "HEAD")
+				hunksOK = err == nil
+				err = nil
 			}
 			paths := git.ParseLog(nameOut)
 			hunks := parseDiffHunks(hunkOut)
@@ -220,9 +225,12 @@ func detectChangesTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
 				}
 				fileHunks := hunks[path]
 				for _, hit := range outline {
-					if !symbolTouchesHunk(hit.StartLine, hit.EndLine, fileHunks) {
-						continue
+					if hunksOK {
+						if !symbolTouchesHunk(hit.StartLine, hit.EndLine, fileHunks) {
+							continue
+						}
 					}
+					// When -U0 failed, keep every symbol in name-only paths.
 					key := hit.Symbol + "@" + hit.Path
 					if _, ok := seenDirect[key]; ok {
 						continue
@@ -322,10 +330,11 @@ func getArchitectureTool(idx indexctl.Indexer) Tool {
 			}
 
 			hubs, herr := idx.GraphHubs(ctx, indexctl.GraphHubsOptions{Repo: a.Repo, Limit: hubLimit})
-			if herr == nil {
-				for _, h := range hubs {
-					res.Hubs = append(res.Hubs, archHub{Name: h.Name, Path: h.Path, Kind: h.Kind, Degree: h.Degree})
-				}
+			if herr != nil {
+				return nil, herr
+			}
+			for _, h := range hubs {
+				res.Hubs = append(res.Hubs, archHub{Name: h.Name, Path: h.Path, Kind: h.Kind, Degree: h.Degree})
 			}
 
 			return res, nil

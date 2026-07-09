@@ -1208,6 +1208,12 @@ static int hub_cmp(const void *a, const void *b) {
     return ha->id < hb->id ? -1 : (ha->id > hb->id ? 1 : 0);
 }
 
+static int degree_count_sink(void *v, const cberg_graph_edge *edge) {
+    (void)edge;
+    (*(uint32_t *)v)++;
+    return 0; /* never stop — count the full degree */
+}
+
 cberg_status cberg_graph_hubs(const cberg_graph *graph, cberg_graph_hub *out, size_t cap, size_t *out_count) {
     if (graph == NULL || out == NULL || out_count == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
@@ -1223,12 +1229,9 @@ cberg_status cberg_graph_hubs(const cberg_graph *graph, cberg_graph_hub *out, si
         if (rec->dead || rec->pub.kind == CBERG_GNODE_FILE || rec->pub.kind == CBERG_GNODE_MODULE) {
             continue;
         }
-        cberg_graph_edge edges[64];
-        size_t from_n = 0;
-        size_t to_n = 0;
-        (void)cberg_graph_edges_from(graph, rec->pub.id, CBERG_GEDGE_CALLS, edges, 64, &from_n);
-        (void)cberg_graph_edges_to(graph, rec->pub.id, CBERG_GEDGE_CALLS, edges, 64, &to_n);
-        uint32_t deg = (uint32_t)(from_n + to_n);
+        uint32_t deg = 0;
+        (void)emit_edges_from(graph, rec, CBERG_GEDGE_CALLS, degree_count_sink, &deg);
+        (void)emit_edges_to(graph, rec, CBERG_GEDGE_CALLS, degree_count_sink, &deg);
         if (deg == 0) {
             continue;
         }
