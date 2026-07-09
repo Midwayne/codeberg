@@ -775,6 +775,17 @@ static void save_state(cberg_repo *r) {
     save_graph(r);
 }
 
+/* Phase 2: rewrite IMPORTS that resolve via package manifests. Best-effort. */
+static void resolve_imports(cberg_repo *r) {
+    if (r->graph == NULL || r->root == NULL) {
+        return;
+    }
+    cberg_status st = cberg_graph_resolve_imports(r->graph, r->root);
+    if (st != CBERG_OK) {
+        fprintf(stderr, "cberg-index[%s]: warning: import resolution failed: %s\n", r->key, cberg_status_str(st));
+    }
+}
+
 /* Rebuild the manifest baseline from the current on-disk tree (stat-only for
  * unchanged files) so the next restart sees an accurate "what changed while we
  * were down". Failure is non-fatal: the baseline simply stays as it was. */
@@ -1276,6 +1287,7 @@ static cberg_status walk_and_sync(cberg_repo *r) {
             fprintf(stderr, "cberg-index[%s]: warning: manifest build failed; restarts will re-scan all files\n", r->key);
         }
     }
+    resolve_imports(r);
     return CBERG_OK;
 }
 
@@ -1441,6 +1453,7 @@ static void rebuild_graph(cberg_repo *r) {
     if (cberg_fs_walk_files(r->root, graph_rebuild_cb, &ctx) != 0) {
         fprintf(stderr, "cberg-index[%s]: warning: graph rebuild walk failed (%s); graph is partial\n", r->key, cberg_status_str(ctx.err != CBERG_OK ? ctx.err : CBERG_ERR_IO));
     }
+    resolve_imports(r);
 }
 
 static cberg_status bootstrap_warm(cberg_repo *r) {
@@ -1533,6 +1546,8 @@ static cberg_status bootstrap_warm(cberg_repo *r) {
     r->manifest = next; /* the fresh tree becomes the new baseline */
     if (graph_stale) {
         rebuild_graph(r); /* diff only re-parsed changed files; cover the rest */
+    } else {
+        resolve_imports(r);
     }
     save_state(r);
     return CBERG_OK;

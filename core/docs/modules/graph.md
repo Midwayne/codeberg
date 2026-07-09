@@ -116,6 +116,19 @@ Graph failures log a warning and never block the chunk/vector pipeline.
 
 ---
 
+## Import resolution (Phase 2)
+
+`cberg_graph_resolve_imports(graph, repo_root)` scans `go.mod`, `package.json`,
+`pyproject.toml`, and `Cargo.toml`, plus relative path heuristics, and rewrites
+`IMPORTS` edges that map onto a repo FILE node with `resolution=import`
+(confidence 0.95). Unresolved imports keep their MODULE target. The indexer
+runs this after cold/warm bootstrap and graph rebuilds.
+
+`cberg_graph_hubs` ranks symbols by incident `CALLS` degree for architecture
+overviews.
+
+---
+
 ## IPC / tools
 
 `cberg-index` commands (see [daemon/docs/ipc.md](../../../daemon/docs/ipc.md)):
@@ -129,8 +142,10 @@ Graph failures log a warning and never block the chunk/vector pipeline.
 
 Disabled graph → error string `graph disabled` (`NOT_IMPLEMENTED` / HTTP 501).
 
-Daemon tools: `search_graph`, `trace_path`; `find_references` is graph-first with
-grep fallback. Agent policy: **meaning → search; structure → graph; exact string → grep**.
+Daemon tools: `search_graph`, `trace_path`, `detect_changes` (git diff → blast
+radius), `get_architecture` (hubs / entrypoints / language mix);
+`find_references` is graph-first with grep fallback. Agent policy:
+**meaning → search; structure → graph; exact string → grep**.
 
 ---
 
@@ -155,11 +170,15 @@ Microbenchmarks: [bench_graph](../../bench/bench_graph.c) (apply/remove churn,
 
 ---
 
-## Known limitations (Phase 1)
+## Known limitations
 
-- Ruby: no `require` import extraction (plain method call; needs argument-aware
-  handling).
-- Rust: trait-impl `INHERITS` (`impl Trait for Type`) deferred to typed mode.
-- Module nodes are not GC’d when their last importer disappears (harmless orphans).
-- Symbol `qname` is the chunk key, not a package-qualified name (Phase 2).
 - Kotlin extension/infix call shapes are incomplete in `fast` mode.
+- Rust: trait-impl `INHERITS` (`impl Trait for Type`) deferred to typed mode.
+- Symbol `qname` is the chunk key, not a package-qualified name (improves as
+  import resolution maps packages → files).
+- Hybrid LSP / `CBERG_GRAPH_MODE=moderate|full` not implemented yet (env warns
+  and falls back to `fast`).
+- Self-index cold time on this monorepo is dominated by vendored grammar trees
+  under `core/third_party/` (~250k chunks); application repos should be much
+  smaller.
+- Module orphans are dropped on compaction when they have no live IMPORTS.

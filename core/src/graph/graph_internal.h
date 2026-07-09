@@ -62,4 +62,7 @@ void cberg_graph_extractor_free(cberg_graph_extractor *extractor);
  */
 cberg_status cberg_graph_extract(cberg_graph_extractor *extractor, const TSLanguage *ts_lang, cberg_language lang, TSNode root, const char *path, const char *src, size_t src_len, const cberg_chunk_list *chunks, cberg_graph_fragment **out_fragment);
 
+/* Internal: rewrite one IMPORTS edge onto a resolved FILE (resolve_pkg.c). */
+cberg_status cberg_graph_rewrite_import(cberg_graph *graph, uint64_t src_file_id, uint64_t old_dst, uint64_t new_dst, const char *new_name);
+
 #endif /* CBERG_GRAPH_INTERNAL_H */

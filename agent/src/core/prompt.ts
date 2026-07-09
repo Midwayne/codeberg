@@ -29,6 +29,8 @@ Available tools:
 - hybrid_search: vector search reranked by grep verification of query terms in hit files.
 - search_graph: structural symbol search over the knowledge graph (exact name → node ids/kinds/paths).
 - trace_path: BFS over call/import/inherit edges from a symbol. Prefer for callers/callees and blast-radius questions. Edges carry resolution and confidence — treat textual links as hints.
+- detect_changes: git diff → symbols in changed files → 1–2 hop neighbors (direct vs transitive risk).
+- get_architecture: repo overview — graph size, language mix, call hubs, entrypoints (main/handlers).
 - find_references: graph-first usages of a symbol (falls back to word-boundary grep).
 - grep: exact text or regex search over files. Use for symbols, routes, table names, config keys, queue names, event names, endpoint names, imports, and function names.
 - glob: find files by pattern.
@@ -41,7 +43,7 @@ Available tools:
 General strategy:
 1. Call repos first in multi-repo mode if repo keys are unknown.
 2. Meaning / conceptual discovery → search_code or hybrid_search.
-3. Structure (callers, callees, imports, inheritance) → trace_path or search_graph; use find_references for usages.
+3. Structure (callers, callees, imports, inheritance) → trace_path or search_graph; use find_references for usages; detect_changes for PR blast radius; get_architecture for repo overview.
 4. Exact string / route / config key → grep (or pipe).
 5. Use find_symbol for known symbol names in the chunk table; search_graph when you need graph node metadata.
 6. After search_code hits, prefer get_chunk(repo, id) over read_file for the full chunk body.

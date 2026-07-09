@@ -43,7 +43,7 @@ Daemon exposes graph tools (`search_graph`, `trace_path`, …) alongside existin
 search tools. Edges carry `confidence` and `resolution` so agents can distrust
 textual links.
 
-Detailed roadmap: [docs/full-intelligence-backend.md](../../../docs/full-intelligence-backend.md).
+Module reference: [modules/graph.md](../modules/graph.md).
 
 ## Consequences
 
@@ -53,4 +53,5 @@ Detailed roadmap: [docs/full-intelligence-backend.md](../../../docs/full-intelli
   vector search.
 - Borrowing from codebase-memory-mcp is limited to MIT-compatible ports of
   algorithms/schema ideas; no wholesale replacement of our process model.
-- Eval must cover structural tools as well as retrieval ([agent-accuracy.md](../../../docs/agent-accuracy.md)).
+- Eval should cover structural tools as well as retrieval
+  ([agent-accuracy.md](../../../docs/agent-accuracy.md)).

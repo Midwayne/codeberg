@@ -130,6 +130,8 @@ All tools are read-only and sandboxed to their repo's root.
 | `hybrid_search` | Vector search reranked by query-term presence in hit chunks |
 | `search_graph` | Exact-name structural search over the knowledge graph |
 | `trace_path` | BFS over call/import/inherit edges (returns resolution + confidence) |
+| `detect_changes` | Git diff → symbols → 1–2 hop blast radius (direct / transitive) |
+| `get_architecture` | Repo overview: size, languages, hubs, entrypoints |
 | `find_references` | Graph-first symbol usages; word-boundary grep fallback |
 
 `hybrid_search` accepts the same filters as `search` (`repo`, `path_glob`, `kind`,

@@ -20,6 +20,8 @@ func registerIndexTools(r *Registry, idx indexctl.Indexer, ws *workspace.Workspa
 	r.Register(hybridSearchTool(idx, ws))
 	r.Register(searchGraphTool(idx))
 	r.Register(tracePathTool(idx))
+	r.Register(detectChangesTool(idx, ws))
+	r.Register(getArchitectureTool(idx))
 	r.Register(findReferencesTool(idx, ws))
 }
 

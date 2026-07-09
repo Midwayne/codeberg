@@ -647,6 +647,22 @@ CBERG_API cberg_status cberg_graph_trace(const cberg_graph *graph, uint64_t star
 CBERG_API cberg_status cberg_graph_save(const cberg_graph *graph, const char *path);
 CBERG_API cberg_status cberg_graph_load(const char *path, cberg_graph **out_graph);
 
+/*
+ * Phase 2: scan package manifests under `repo_root` and rewrite IMPORTS edges
+ * that resolve to a repo-relative file so they point at that FILE node with
+ * resolution=import (confidence 0.95). Unresolved imports keep their MODULE
+ * target. Safe to call repeatedly after incremental applies.
+ */
+CBERG_API cberg_status cberg_graph_resolve_imports(cberg_graph *graph, const char *repo_root);
+
+/* Degree hubs: symbols ranked by incident CALLS edges (in+out). */
+typedef struct cberg_graph_hub {
+    uint64_t id;
+    uint32_t degree;
+} cberg_graph_hub;
+
+CBERG_API cberg_status cberg_graph_hubs(const cberg_graph *graph, cberg_graph_hub *out, size_t cap, size_t *out_count);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif

@@ -210,6 +210,21 @@ static void test_ruby(void) {
     corpus_close(&c);
 }
 
+static void test_ruby_require(void) {
+    graph_corpus c;
+    CHECK(corpus_open(&c) == 0, "ruby require corpus");
+    const char *src =
+        "require \"json\"\n"
+        "require_relative \"./helper\"\n"
+        "def run\n"
+        "  JSON.parse(\"{}\")\n"
+        "end\n";
+    CHECK(corpus_index(&c, CBERG_LANG_RUBY, "app.rb", src) == CBERG_OK, "index ruby require");
+    CHECK(module_imported(&c, "app.rb", "json"), "require json");
+    CHECK(module_imported(&c, "app.rb", "./helper") || module_imported(&c, "app.rb", "helper"), "require_relative helper");
+    corpus_close(&c);
+}
+
 /* Markdown and config formats carry chunks but no graph fragment. */
 static void test_non_code(void) {
     cberg_chunker *ch = NULL;
@@ -241,6 +256,7 @@ int main(void) {
     test_kotlin();
     test_rust();
     test_ruby();
+    test_ruby_require();
     test_non_code();
     TEST_MAIN_RETURN
 }

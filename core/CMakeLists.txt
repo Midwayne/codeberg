@@ -89,6 +89,7 @@ set(CBERG_SOURCES
   src/chunk/chunk_table.c
   src/graph/graph_store.c
   src/graph/graph_extract.c
+  src/graph/resolve_pkg.c
   src/manifest/manifest.c
   src/watch/watch.c
   src/watch/watch_walk.c

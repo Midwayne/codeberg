@@ -111,6 +111,7 @@ static void test_build_and_query(graph_corpus *c) {
     /* Imports land on module nodes with full confidence. */
     CHECK(cberg_graph_edges_from(c->graph, file_a->id, CBERG_GEDGE_IMPORTS, edges, 16, &n) == CBERG_OK, "file imports");
     CHECK(n == 1 && edges[0].dst == fmt_mod->id, "a.go imports fmt");
+    CHECK(edges[0].resolution == CBERG_GRES_TEXTUAL || edges[0].resolution == CBERG_GRES_IMPORT, "import resolution set");
     CHECK(n == 1 && edges[0].confidence == 1.0f, "import edges are exact");
 
     /* Truncation contract: cap wins. */

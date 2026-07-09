@@ -55,6 +55,7 @@ typedef struct graph_ref_rec {
     uint32_t line;
     uint8_t kind; /* one cberg_graph_edge_kind bit */
     uint8_t rev;  /* reversed: resolved edge is (candidate -> src) */
+    uint8_t resolution; /* cberg_graph_resolution; persisted from v2 */
     uint8_t dead;
     uint32_t name_next;
     uint32_t src_next;
@@ -226,6 +227,7 @@ static cberg_status graph_add_ref(cberg_graph *g, const graph_ref_rec *tpl) {
     rec->line = tpl->line;
     rec->kind = tpl->kind;
     rec->rev = tpl->rev;
+    rec->resolution = tpl->resolution;
     rec->name = tpl->name != NULL ? cberg_arena_strdup(g->arena, tpl->name) : NULL;
     rec->path = cberg_arena_strdup(g->arena, tpl->path);
     if (rec->path == NULL || (tpl->name != NULL && rec->name == NULL)) {
@@ -282,6 +284,20 @@ static cberg_status ensure_module_node(cberg_graph *g, const char *name, cberg_l
  * live set. The new store is built completely before the old one is torn
  * down, so failure leaves the graph untouched.
  */
+static int module_has_importer(const cberg_graph *g, uint64_t module_id) {
+    uint64_t head = 0;
+    if (!cberg_u64map_get(g->ref_by_dst, module_id, &head)) {
+        return 0;
+    }
+    for (uint32_t i = (uint32_t)head; i != 0; i = g->refs[i - 1].dst_next) {
+        const graph_ref_rec *ref = &g->refs[i - 1];
+        if (!ref->dead && ref->kind == CBERG_GEDGE_IMPORTS && node_rec_by_id(g, ref->src) != NULL) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static cberg_status graph_compact(cberg_graph *g) {
     cberg_graph *fresh = NULL;
     cberg_status st = cberg_graph_new(&fresh);
@@ -289,14 +305,27 @@ static cberg_status graph_compact(cberg_graph *g) {
         return st;
     }
     for (size_t i = 0; i < g->nodes_len && st == CBERG_OK; i++) {
-        if (!g->nodes[i].dead) {
-            st = graph_add_node(fresh, &g->nodes[i].pub);
+        if (g->nodes[i].dead) {
+            continue;
         }
+        /* Drop orphan MODULE nodes with no live IMPORTS importers. */
+        if (g->nodes[i].pub.kind == CBERG_GNODE_MODULE && !module_has_importer(g, g->nodes[i].pub.id)) {
+            continue;
+        }
+        st = graph_add_node(fresh, &g->nodes[i].pub);
     }
     for (size_t i = 0; i < g->refs_len && st == CBERG_OK; i++) {
-        if (!g->refs[i].dead) {
-            st = graph_add_ref(fresh, &g->refs[i]);
+        if (g->refs[i].dead) {
+            continue;
         }
+        /* Skip refs whose endpoints were GC'd (orphan modules). */
+        if (node_rec_by_id(fresh, g->refs[i].src) == NULL) {
+            continue;
+        }
+        if (g->refs[i].dst != 0 && node_rec_by_id(fresh, g->refs[i].dst) == NULL) {
+            continue;
+        }
+        st = graph_add_ref(fresh, &g->refs[i]);
     }
     if (st != CBERG_OK) {
         cberg_graph_free(fresh);
@@ -502,6 +531,7 @@ cberg_status cberg_graph_apply(cberg_graph *graph, const cberg_graph_fragment *f
             if (st != CBERG_OK) {
                 goto done;
             }
+            /* Module target until cberg_graph_resolve_imports rewrites to a FILE. */
         } else {
             rec.name = fref->name;
         }
@@ -588,24 +618,27 @@ static int candidates_contain(const graph_candidates *c, uint32_t node_index) {
 /* Returns nonzero to stop iteration (sink full). */
 typedef int (*graph_edge_sink)(void *ctx, const cberg_graph_edge *edge);
 
-static cberg_graph_edge make_edge(uint64_t src, uint64_t dst, uint8_t kind, float confidence, uint32_t line) {
+static cberg_graph_edge make_edge(uint64_t src, uint64_t dst, uint8_t kind, cberg_graph_resolution resolution, float confidence, uint32_t line) {
     return (cberg_graph_edge){
         .src = src,
         .dst = dst,
         .kind = (cberg_graph_edge_kind)kind,
-        .resolution = CBERG_GRES_TEXTUAL,
+        .resolution = resolution,
         .confidence = confidence,
         .line = line,
     };
 }
+
+#define GRAPH_CONF_IMPORT 0.95f
 
 static int emit_ref_candidates(const cberg_graph *g, const graph_ref_rec *ref, int as_source, graph_edge_sink sink, void *ctx) {
     graph_candidates cands;
     resolve_name(g, ref->name, ref->path, ref->kind, &cands);
     for (size_t c = 0; c < cands.count; c++) {
         uint64_t cand_id = g->nodes[cands.idx[c]].pub.id;
-        cberg_graph_edge edge = as_source ? make_edge(cand_id, ref->src, ref->kind, cands.confidence, ref->line)
-                                          : make_edge(ref->src, cand_id, ref->kind, cands.confidence, ref->line);
+        cberg_graph_resolution res = ref->resolution != 0 ? (cberg_graph_resolution)ref->resolution : CBERG_GRES_TEXTUAL;
+        cberg_graph_edge edge = as_source ? make_edge(cand_id, ref->src, ref->kind, res, cands.confidence, ref->line)
+                                          : make_edge(ref->src, cand_id, ref->kind, res, cands.confidence, ref->line);
         if (sink(ctx, &edge)) {
             return 1;
         }
@@ -626,7 +659,7 @@ static int emit_edges_from(const cberg_graph *g, const graph_node_rec *rec, uint
                 if (sym->dead || sym->pub.kind == CBERG_GNODE_FILE) {
                     continue;
                 }
-                cberg_graph_edge edge = make_edge(id, sym->pub.id, CBERG_GEDGE_DEFINES, GRAPH_CONF_EXACT, sym->pub.span.start_line);
+                cberg_graph_edge edge = make_edge(id, sym->pub.id, CBERG_GEDGE_DEFINES, CBERG_GRES_TEXTUAL, GRAPH_CONF_EXACT, sym->pub.span.start_line);
                 if (sink(ctx, &edge)) {
                     return 1;
                 }
@@ -646,7 +679,10 @@ static int emit_edges_from(const cberg_graph *g, const graph_node_rec *rec, uint
                 if (dst == NULL) {
                     continue;
                 }
-                cberg_graph_edge edge = make_edge(id, ref->dst, ref->kind, GRAPH_CONF_EXACT, ref->line);
+                cberg_graph_resolution res =
+                    ref->resolution != 0 ? (cberg_graph_resolution)ref->resolution : CBERG_GRES_TEXTUAL;
+                float conf = res == CBERG_GRES_IMPORT ? GRAPH_CONF_IMPORT : GRAPH_CONF_EXACT;
+                cberg_graph_edge edge = make_edge(id, ref->dst, ref->kind, res, conf, ref->line);
                 if (sink(ctx, &edge)) {
                     return 1;
                 }
@@ -671,7 +707,8 @@ static int emit_edges_from(const cberg_graph *g, const graph_node_rec *rec, uint
             if (!candidates_contain(&cands, self_index)) {
                 continue;
             }
-            cberg_graph_edge edge = make_edge(id, ref->src, ref->kind, cands.confidence, ref->line);
+            cberg_graph_resolution res = ref->resolution != 0 ? (cberg_graph_resolution)ref->resolution : CBERG_GRES_TEXTUAL;
+            cberg_graph_edge edge = make_edge(id, ref->src, ref->kind, res, cands.confidence, ref->line);
             if (sink(ctx, &edge)) {
                 return 1;
             }
@@ -687,7 +724,7 @@ static int emit_edges_to(const cberg_graph *g, const graph_node_rec *rec, uint32
     if (rec->pub.kind != CBERG_GNODE_FILE && rec->pub.path != NULL && (mask & CBERG_GEDGE_DEFINES) != 0) {
         uint64_t fid = graph_file_id(rec->pub.path);
         if (node_rec_by_id(g, fid) != NULL) {
-            cberg_graph_edge edge = make_edge(fid, id, CBERG_GEDGE_DEFINES, GRAPH_CONF_EXACT, rec->pub.span.start_line);
+            cberg_graph_edge edge = make_edge(fid, id, CBERG_GEDGE_DEFINES, CBERG_GRES_TEXTUAL, GRAPH_CONF_EXACT, rec->pub.span.start_line);
             if (sink(ctx, &edge)) {
                 return 1;
             }
@@ -701,7 +738,10 @@ static int emit_edges_to(const cberg_graph *g, const graph_node_rec *rec, uint32
             if (ref->dead || ref->rev || (mask & ref->kind) == 0 || node_rec_by_id(g, ref->src) == NULL) {
                 continue;
             }
-            cberg_graph_edge edge = make_edge(ref->src, id, ref->kind, GRAPH_CONF_EXACT, ref->line);
+            cberg_graph_resolution res =
+                ref->resolution != 0 ? (cberg_graph_resolution)ref->resolution : CBERG_GRES_TEXTUAL;
+            float conf = res == CBERG_GRES_IMPORT ? GRAPH_CONF_IMPORT : GRAPH_CONF_EXACT;
+            cberg_graph_edge edge = make_edge(ref->src, id, ref->kind, res, conf, ref->line);
             if (sink(ctx, &edge)) {
                 return 1;
             }
@@ -722,7 +762,8 @@ static int emit_edges_to(const cberg_graph *g, const graph_node_rec *rec, uint32
             if (!candidates_contain(&cands, self_index)) {
                 continue;
             }
-            cberg_graph_edge edge = make_edge(ref->src, id, ref->kind, cands.confidence, ref->line);
+            cberg_graph_resolution res = ref->resolution != 0 ? (cberg_graph_resolution)ref->resolution : CBERG_GRES_TEXTUAL;
+            cberg_graph_edge edge = make_edge(ref->src, id, ref->kind, res, cands.confidence, ref->line);
             if (sink(ctx, &edge)) {
                 return 1;
             }
@@ -995,7 +1036,8 @@ cberg_status cberg_graph_save(const cberg_graph *graph, const char *path) {
             continue;
         }
         if (cberg_bin_w_u64(f, rec->src) != CBERG_OK || cberg_bin_w_u64(f, rec->dst) != CBERG_OK ||
-            cberg_bin_w_u32(f, rec->line) != CBERG_OK || cberg_bin_w_u32(f, ((uint32_t)rec->rev << 8) | rec->kind) != CBERG_OK ||
+            cberg_bin_w_u32(f, rec->line) != CBERG_OK ||
+            cberg_bin_w_u32(f, ((uint32_t)rec->resolution << 16) | ((uint32_t)rec->rev << 8) | rec->kind) != CBERG_OK ||
             cberg_bin_w_str(f, rec->name) != CBERG_OK || cberg_bin_w_str(f, rec->path) != CBERG_OK) {
             st = CBERG_ERR_IO;
             goto fail;
@@ -1098,6 +1140,7 @@ cberg_status cberg_graph_load(const char *path, cberg_graph **out_graph) {
         }
         rec.kind = (uint8_t)(kind_rev & 0xFFu);
         rec.rev = (uint8_t)((kind_rev >> 8) & 0x1u);
+        rec.resolution = (uint8_t)((kind_rev >> 16) & 0xFFu);
         rec.name = name;
         rec.path = rpath;
         st = graph_add_ref(g, &rec);
@@ -1110,5 +1153,93 @@ cberg_status cberg_graph_load(const char *path, cberg_graph **out_graph) {
         return st;
     }
     *out_graph = g;
+    return CBERG_OK;
+}
+
+/* Rewrite one IMPORTS edge from a file onto a resolved FILE node. Used by
+ * cberg_graph_resolve_imports (resolve_pkg.c). Marks the old MODULE-targeting
+ * ref dead and inserts a new import-resolved ref. */
+cberg_status cberg_graph_rewrite_import(cberg_graph *graph, uint64_t src_file_id, uint64_t old_dst, uint64_t new_dst, const char *new_name) {
+    if (graph == NULL || src_file_id == 0 || new_dst == 0) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    uint64_t head = 0;
+    if (!cberg_u64map_get(graph->ref_by_src, src_file_id, &head)) {
+        return CBERG_ERR_NOT_FOUND;
+    }
+    int found = 0;
+    const char *path = NULL;
+    uint32_t line = 0;
+    for (uint32_t i = (uint32_t)head; i != 0; i = graph->refs[i - 1].src_next) {
+        graph_ref_rec *ref = &graph->refs[i - 1];
+        if (ref->dead || ref->kind != CBERG_GEDGE_IMPORTS || ref->dst != old_dst) {
+            continue;
+        }
+        path = ref->path;
+        line = ref->line;
+        ref->dead = 1;
+        graph->refs_dead++;
+        found = 1;
+        break;
+    }
+    if (!found || path == NULL) {
+        return CBERG_ERR_NOT_FOUND;
+    }
+    graph_ref_rec rec = {
+        .src = src_file_id,
+        .dst = new_dst,
+        .path = path,
+        .line = line,
+        .kind = CBERG_GEDGE_IMPORTS,
+        .resolution = (uint8_t)CBERG_GRES_IMPORT,
+        .name = new_name,
+    };
+    cberg_status st = graph_add_ref(graph, &rec);
+    graph_maybe_compact(graph);
+    return st;
+}
+
+static int hub_cmp(const void *a, const void *b) {
+    const cberg_graph_hub *ha = a;
+    const cberg_graph_hub *hb = b;
+    if (ha->degree != hb->degree) {
+        return hb->degree > ha->degree ? 1 : -1;
+    }
+    return ha->id < hb->id ? -1 : (ha->id > hb->id ? 1 : 0);
+}
+
+cberg_status cberg_graph_hubs(const cberg_graph *graph, cberg_graph_hub *out, size_t cap, size_t *out_count) {
+    if (graph == NULL || out == NULL || out_count == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    *out_count = 0;
+    cberg_graph_hub *tmp = calloc(graph->nodes_len + 1, sizeof(*tmp));
+    if (tmp == NULL) {
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+    size_t n = 0;
+    for (size_t i = 0; i < graph->nodes_len; i++) {
+        const graph_node_rec *rec = &graph->nodes[i];
+        if (rec->dead || rec->pub.kind == CBERG_GNODE_FILE || rec->pub.kind == CBERG_GNODE_MODULE) {
+            continue;
+        }
+        cberg_graph_edge edges[64];
+        size_t from_n = 0;
+        size_t to_n = 0;
+        (void)cberg_graph_edges_from(graph, rec->pub.id, CBERG_GEDGE_CALLS, edges, 64, &from_n);
+        (void)cberg_graph_edges_to(graph, rec->pub.id, CBERG_GEDGE_CALLS, edges, 64, &to_n);
+        uint32_t deg = (uint32_t)(from_n + to_n);
+        if (deg == 0) {
+            continue;
+        }
+        tmp[n].id = rec->pub.id;
+        tmp[n].degree = deg;
+        n++;
+    }
+    qsort(tmp, n, sizeof(*tmp), hub_cmp);
+    size_t write = n < cap ? n : cap;
+    memcpy(out, tmp, write * sizeof(*out));
+    *out_count = write;
+    free(tmp);
     return CBERG_OK;
 }
