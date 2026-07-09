@@ -69,7 +69,7 @@ The launcher runs the same two ways:
 ## First run
 
 ```sh
-codeberg config init    # writes a starter ~/.codeberg/config
+codeberg config init    # writes a starter ~/.codeberg/config (from config.example)
 # edit it: set CODEBERG_ROOT (repo to index) + CODEBERG_MODEL (provider:model)
 #          and the matching API key (ANTHROPIC_API_KEY / OPENAI_API_KEY / …)
 codeberg                # builds anything missing, downloads the model, opens chat
@@ -124,7 +124,8 @@ Config is resolved from four layers, **highest precedence first**:
 
 1. CLI flags (`--root`, `--all`, `--repos`, `--no-index`, `--model`, `--port`, `--no-vector`, …)
 2. process environment (`CODEBERG_ROOT`, `CODEBERG_ALL`, `CODEBERG_REPOS`, `CODEBERG_NO_INDEX`, `CODEBERG_MODEL`, `ANTHROPIC_API_KEY`, …)
-3. `~/.codeberg/config` (KEY=VALUE; same names as the env vars)
+3. `~/.codeberg/config` (KEY=VALUE; same names as the env vars). See
+   [`launcher/internal/config/config.example`](internal/config/config.example) for every supported key.
 4. built-in defaults
 
 The launcher splits these back into the two scopes the components read —
@@ -136,6 +137,11 @@ The daemon never receives the LLM key.
 Configuration is changeable any time after install — there's no need to
 reinstall. Each run reads config fresh and the daemon restarts per session, so a
 new root or model is picked up on the next `codeberg`.
+
+When `CODEBERG_ROOT` is set (in config or via `--root`), **only** those
+directories are indexed — comma-separate several paths to index a fixed set.
+Unset `CODEBERG_ROOT` to search across the repo registry with `--all` or
+`--repos` instead; the two modes do not combine.
 
 ```sh
 codeberg config                       # print the resolved config (secrets masked)

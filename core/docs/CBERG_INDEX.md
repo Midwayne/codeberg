@@ -14,8 +14,8 @@ full indexing loop for one or many repository roots in a single process. The Go
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `CODEBERG_ROOT` | yes¹ | Single repository root (key = basename) |
-| `CODEBERG_ROOTS` | yes¹ | `key\tpath` records, newline-separated (multi-repo; supersedes `CODEBERG_ROOT`) |
+| `CODEBERG_ROOT` | yes¹ | Single repository root (key = basename). `codeberg-d` also accepts a comma-separated list and maps it to `CODEBERG_ROOTS` before spawning this binary — the C indexer itself does not split commas |
+| `CODEBERG_ROOTS` | yes¹ | `key\tpath` records, newline-separated (multi-repo; supersedes `CODEBERG_ROOT` when set) |
 | `CBERG_MODEL` | for vectors | Path to ONNX `model.onnx` |
 | `CBERG_INDEX_PATH` | for vectors | **Base** path for per-repo index files and local sidecars |
 | `CBERG_INDEX_BACKEND` | no | `usearch` (default), `qdrant`, or `pgvector` (`postgres` alias) — see [VECTOR_INDEX_PROVIDERS.md](VECTOR_INDEX_PROVIDERS.md) |
@@ -28,8 +28,10 @@ full indexing loop for one or many repository roots in a single process. The Go
 | `CBERG_EMBED_THREADS` | no | ONNX intra-op thread cap (inherited env) |
 | `CBERG_EMBED_COREML` | no | Apple Silicon CoreML provider opt-in |
 
-¹ Exactly one of `CODEBERG_ROOT` / `CODEBERG_ROOTS`. Unresolvable roots are skipped
-with a warning.
+¹ Exactly one of `CODEBERG_ROOT` / `CODEBERG_ROOTS`. Unresolvable roots in
+   `CODEBERG_ROOTS` records are skipped with a warning. Comma-separated
+   `CODEBERG_ROOT` is a `codeberg-d` convenience only — set `CODEBERG_ROOTS`
+   (or let the launcher build it) when talking to `cberg-index` directly.
 
 Without `CBERG_MODEL` and `CBERG_INDEX_PATH` the engine runs in **chunk-only mode**
 (chunk table + manifest + watcher; no vectors).

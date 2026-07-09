@@ -1,0 +1,26 @@
+# codeberg launcher config — KEY=VALUE, '#' comments.
+# Precedence: CLI flags > environment > this file > defaults.
+#
+# Full reference (every knob): launcher/internal/config/config.example
+
+# --- required ---------------------------------------------------------------
+# Repository to index. Comma-separate for several pinned paths, e.g.
+# /path/api,/path/frontend. Unset CODEBERG_ROOT to use --all / --repos on the
+# registry instead (the two modes do not combine). See docs/multi-repo.md.
+CODEBERG_ROOT=/path/to/your/repo
+
+# LLM as provider:model (anthropic, openai, google, ollama, llamacpp).
+CODEBERG_MODEL=anthropic:claude-haiku-4-5
+
+# API key matching CODEBERG_MODEL (ollama and llamacpp need none).
+# ANTHROPIC_API_KEY=
+# OPENAI_API_KEY=
+# GOOGLE_GENERATIVE_AI_API_KEY=
+
+# --- optional (uncomment to override defaults) ------------------------------
+# CODEBERG_HTTP_PORT=48080
+# CODEBERG_VECTOR=true
+# CODEBERG_WEB=false
+# CODEBERG_WEB_PORT=48088
+# CODEBERG_REASONING=medium
+# CODEBERG_WEB_USE=true

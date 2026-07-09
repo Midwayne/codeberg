@@ -10,6 +10,8 @@ See [Prerequisites](#prerequisites) and [Build](#build), then run via the
 chat TUI, and auto-installs missing toolchains. `make dist` assembles a portable,
 prebuilt tree the launcher can run from anywhere (`codeberg --dist DIR`); packaged
 installers (a Homebrew tap) will build on that for a later release.
+[`launcher/internal/config/config.example`](launcher/internal/config/config.example) lists every launcher, daemon, and agent setting
+(`codeberg config init` writes a minimal starter `~/.codeberg/config`; see that file for the full reference).
 
 ## Index root(s)
 
@@ -23,8 +25,8 @@ export CODEBERG_ROOT=/path/to/your/repository
 
 | Variable | Purpose |
 |----------|---------|
-| `CODEBERG_ROOT` | Absolute or relative path to the repository / workspace to index (single root) |
-| `CODEBERG_ROOTS` | `key\tpath` records, newline-separated — every repo to serve (multi-repo; supersedes `CODEBERG_ROOT`) |
+| `CODEBERG_ROOT` | Path(s) to index when pinned: one directory, or comma-separated list. When set, only these trees are indexed; `--all` / `--repos` are not allowed. Unset to search the registry instead. |
+| `CODEBERG_ROOTS` | `key\tpath` records, newline-separated — every repo the daemon serves (built by the launcher from `CODEBERG_ROOT` or the registry; supersedes `CODEBERG_ROOT` when set directly) |
 
 Library helpers (for daemons and CLI tools):
 

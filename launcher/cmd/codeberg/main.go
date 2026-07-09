@@ -145,9 +145,6 @@ func cmdRun(args []string) error {
 	if c.All && len(c.Repos) > 0 {
 		return fmt.Errorf("--all already serves every registered repo; use --repos to pick a subset instead")
 	}
-	if (c.All || len(c.Repos) > 0) && o.Root != "" {
-		return fmt.Errorf("--root names a single repo; drop it when using --all/--repos")
-	}
 	if err := c.ValidateForRun(); err != nil {
 		return err
 	}
@@ -175,22 +172,24 @@ func cmdRun(args []string) error {
 			return err
 		}
 		c.Roots = roots
-	case c.NoIndex:
-		// One-off single root: resolve it (reusing a registered key if the
-		// path happens to be known) without writing to the registry.
-		roots, err := registry.Select(c.Home, []string{c.Root}, false)
-		if err != nil {
-			return err
-		}
-		c.Roots = roots
 	default:
-		// Remember this root so `codeberg --all` can search every repo ever indexed.
-		e, err := registry.Upsert(c.Home, c.Root)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "warning: could not update the repo registry: %v\n", err)
-			e = registry.Entry{Key: filepath.Base(c.Root), Root: c.Root}
+		paths := config.RootPaths(c.Root)
+		// Soft-register a single root so --all can find it later; multi-path and
+		// --no-index go through Select (register=false leaves no registry trace).
+		if !c.NoIndex && len(paths) == 1 {
+			e, err := registry.Upsert(c.Home, paths[0])
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: could not update the repo registry: %v\n", err)
+				e = registry.Entry{Key: filepath.Base(paths[0]), Root: paths[0]}
+			}
+			c.Roots = []registry.Entry{e}
+		} else {
+			roots, err := registry.Select(c.Home, paths, !c.NoIndex)
+			if err != nil {
+				return err
+			}
+			c.Roots = roots
 		}
-		c.Roots = []registry.Entry{e}
 	}
 	if err := bootstrap.Ensure(c, false); err != nil {
 		return err
@@ -558,17 +557,20 @@ COMMON TASKS
                       CODEBERG_MODEL=anthropic:claude-haiku-4-5 \
                       ANTHROPIC_API_KEY=sk-ant-… ; codeberg
   Switch model:     codeberg config set CODEBERG_MODEL=openai:gpt-4o ; codeberg
-  Index another repo: codeberg ~/other                   (registers it too)
-  Search all repos: codeberg --all      (everything ever indexed; see: codeberg repos)
-  A chosen subset:  codeberg --repos ~/proj-a,api        (dirs and/or repo keys)
+  Index another repo: codeberg ~/other                   (registers it; overrides --root)
+  Search all repos: unset CODEBERG_ROOT, then codeberg --all
+                      (everything ever indexed; see: codeberg repos)
+  Pin several repos: codeberg config set CODEBERG_ROOT=~/a,~/b ; codeberg
+  A chosen subset:  codeberg --repos ~/proj-a,api        (dirs and/or repo keys; ROOT unset)
   Leave no trace:   codeberg ~/scratch --no-index        (not registered, no index)
   No embeddings:    codeberg config set CODEBERG_VECTOR=false ; codeberg
   What's installed: codeberg doctor
 
 KEY SETTINGS
-  CODEBERG_ROOT     repository to index            (--root)
-  CODEBERG_ALL      true = search all registered repos (--all)
-  CODEBERG_REPOS    comma-separated dirs/keys to serve (--repos)
+  CODEBERG_ROOT     repository to index (--root); comma-separated for several.
+                    Mutually exclusive with CODEBERG_ALL / CODEBERG_REPOS.
+  CODEBERG_ALL      true = search all registered repos (--all); requires unset ROOT
+  CODEBERG_REPOS    comma-separated dirs/keys to serve (--repos); requires unset ROOT
   CODEBERG_NO_INDEX true = register nothing, no index  (--no-index)
   CODEBERG_MODEL    LLM as provider:model          (--model)
   CODEBERG_VECTOR   false = chunk-only, skip model (--no-vector)

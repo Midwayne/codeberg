@@ -221,8 +221,8 @@ func Load(o Overrides) (*Config, error) {
 	c.WebPort = firstNonEmpty(resolve(KeyWebPort, o.WebPort), DefaultWebPort)
 
 	// All: serve every registered repo combined instead of a single root.
-	// Default off; --all (or CODEBERG_ALL=true) turns it on. Under --all any
-	// configured CODEBERG_ROOT is simply ignored — the registry is the source.
+	// Default off; --all (or CODEBERG_ALL=true) turns it on. Requires an
+	// unset CODEBERG_ROOT — explicit roots always win over the registry.
 	c.All = false
 	if o.All != nil {
 		c.All = *o.All
@@ -355,13 +355,22 @@ func (c *Config) ValidateForRun() error {
 			"Install via Homebrew, or run codeberg from inside a checkout / set it: codeberg config set %s=/path/to/codeberg  (or pass --repo).",
 			KeyDist, KeyRepo, KeyRoot, KeyRepo)
 	}
-	if c.All || len(c.Repos) > 0 {
-		// --all / --repos take their roots from the registry (resolved in
-		// cmdRun); CODEBERG_ROOT is not required and, if configured, ignored.
-	} else if c.Root == "" {
-		missing = append(missing, KeyRoot+" (the repository to index)")
-	} else if fi, err := os.Stat(c.Root); err != nil || !fi.IsDir() {
-		return fmt.Errorf("%s is not a directory: %s", KeyRoot, c.Root)
+	if c.Root != "" && (c.All || len(c.Repos) > 0) {
+		return fmt.Errorf("%s is set — only the root(s) named there are indexed; unset %s or drop --all / %s",
+			KeyRoot, KeyRoot, KeyReposSel)
+	}
+	if !c.All && len(c.Repos) == 0 {
+		if c.Root == "" {
+			missing = append(missing, KeyRoot+" (the repository to index)")
+		} else if paths := RootPaths(c.Root); len(paths) == 0 {
+			return fmt.Errorf("%s is empty or invalid", KeyRoot)
+		} else {
+			for _, path := range paths {
+				if fi, err := os.Stat(path); err != nil || !fi.IsDir() {
+					return fmt.Errorf("%s is not a directory: %s", KeyRoot, path)
+				}
+			}
+		}
 	}
 	if c.Model == "" {
 		missing = append(missing, KeyModel+" (provider:model, e.g. anthropic:claude-haiku-4-5)")
@@ -382,9 +391,6 @@ func (c *Config) DaemonEnv() map[string]string {
 		KeyHTTPPort: c.HTTPPort,
 		KeySocket:   c.Socket,
 	}
-	// The registry-keyed record set is what the daemon and C engine prefer; the
-	// single CODEBERG_ROOT stays alongside it as the compat fallback (and is
-	// omitted under --all, where no one root is "the" root).
 	if len(c.Roots) > 0 {
 		records := make([]string, 0, len(c.Roots))
 		for _, r := range c.Roots {
@@ -392,8 +398,12 @@ func (c *Config) DaemonEnv() map[string]string {
 		}
 		e[KeyRoots] = strings.Join(records, "\n")
 	}
-	if !c.All && len(c.Repos) == 0 && c.Root != "" {
-		e[KeyRoot] = c.Root
+	// Compat: single-path CODEBERG_ROOT alongside CODEBERG_ROOTS; omit for
+	// --all/--repos and multi-path lists (those use CODEBERG_ROOTS only).
+	if !c.All && len(c.Repos) == 0 {
+		if paths := RootPaths(c.Root); len(paths) == 1 {
+			e[KeyRoot] = paths[0]
+		}
 	}
 	if c.Vector {
 		e[KeyEmbedModel] = c.EmbedModel
@@ -440,6 +450,12 @@ func firstNonEmpty(vals ...string) string {
 		}
 	}
 	return ""
+}
+
+// RootPaths returns the directories named by CODEBERG_ROOT. Comma-separated
+// values list multiple roots; a single path returns a one-element slice.
+func RootPaths(root string) []string {
+	return splitList(root)
 }
 
 // splitList parses a comma-separated flag/env value into trimmed, non-empty

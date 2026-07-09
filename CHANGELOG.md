@@ -9,6 +9,12 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Added
 
+- **`config.example`** — comprehensive launcher/daemon/agent configuration
+  reference at `launcher/internal/config/config.example`. `codeberg config init`
+  writes a minimal starter file; see the example for every knob.
+- **Comma-separated `CODEBERG_ROOT`** — pin one or more directories to index
+  (`CODEBERG_ROOT=/a,/b`). The launcher and `codeberg-d` forward them as
+  `CODEBERG_ROOTS` with registry-compatible repo keys.
 - **Rust and Ruby chunking** — new vendored grammars `tree-sitter-rust`
   (v0.24.0) and `tree-sitter-ruby` (v0.23.1) with symbol-aware queries:
   Rust functions (including those in `impl` blocks), structs, enums (as
@@ -80,6 +86,11 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Changed
 
+- **`CODEBERG_ROOT` vs multi-repo** — when `CODEBERG_ROOT` is set, only the
+  named path(s) are indexed. `--all` / `--repos` (`CODEBERG_ALL` /
+  `CODEBERG_REPOS`) require an **unset** `CODEBERG_ROOT`; the two modes no
+  longer combine (previously a configured root was silently ignored under
+  `--all`). See [docs/multi-repo.md](docs/multi-repo.md#codeberg_root-vs-the-registry).
 - **Daemon package layout** — responsibilities split for clarity:
   - `bootstrap` — startup timeout and indexer readiness polling
   - `domain` — shared `Repo{Key, Root}` type

@@ -2,7 +2,9 @@ package config
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -97,6 +99,99 @@ func TestLoadDaemonAllRootsDead(t *testing.T) {
 	var cfgErr *Error
 	if !errors.As(err, &cfgErr) || cfgErr.Var != EnvRoots {
 		t.Fatalf("expected invalid %s, got %v", EnvRoots, err)
+	}
+}
+
+func TestLoadDaemonCommaSeparatedRoot(t *testing.T) {
+	rootA := t.TempDir()
+	rootB := t.TempDir()
+	t.Setenv(EnvRoot, rootA+","+rootB)
+	t.Setenv(EnvRoots, "")
+	t.Setenv(EnvGitDir, "")
+
+	cfg, err := LoadDaemon()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Roots) != 2 {
+		t.Fatalf("roots: got %+v", cfg.Roots)
+	}
+	if cfg.DefaultKey != "" {
+		t.Fatalf("multi-root mode must have no default repo, got %q", cfg.DefaultKey)
+	}
+}
+
+func TestLoadDaemonCommaSeparatedRootInvalidPath(t *testing.T) {
+	good := t.TempDir()
+	t.Setenv(EnvRoot, good+",/cberg/definitely/missing")
+	t.Setenv(EnvRoots, "")
+
+	_, err := LoadDaemon()
+	var cfgErr *Error
+	if !errors.As(err, &cfgErr) || cfgErr.Var != EnvRoot {
+		t.Fatalf("expected invalid %s, got %v", EnvRoot, err)
+	}
+}
+
+func TestLoadDaemonEmptyCommaSeparatedRoot(t *testing.T) {
+	for _, raw := range []string{",", ",,", "  ,  "} {
+		t.Setenv(EnvRoot, raw)
+		t.Setenv(EnvRoots, "")
+		_, err := LoadDaemon()
+		var cfgErr *Error
+		if !errors.As(err, &cfgErr) || cfgErr.Var != EnvRoot {
+			t.Fatalf("CODEBERG_ROOT=%q: expected invalid %s, got %v", raw, EnvRoot, err)
+		}
+	}
+}
+
+func TestLoadDaemonDuplicateCommaPathsCollapse(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv(EnvRoot, root+","+root)
+	t.Setenv(EnvRoots, "")
+	t.Setenv(EnvGitDir, "")
+
+	cfg, err := LoadDaemon()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Roots) != 1 {
+		t.Fatalf("duplicate paths must collapse to one root, got %+v", cfg.Roots)
+	}
+	if cfg.DefaultKey == "" {
+		t.Fatal("single unique root must keep a default key")
+	}
+}
+
+func TestLoadDaemonCommaSeparatedRootKeyCollision(t *testing.T) {
+	base := t.TempDir()
+	rootA := filepath.Join(base, "p1", "api")
+	rootB := filepath.Join(base, "p2", "api")
+	if err := os.MkdirAll(rootA, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(rootB, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(EnvRoot, rootA+","+rootB)
+	t.Setenv(EnvRoots, "")
+	t.Setenv(EnvGitDir, "")
+
+	cfg, err := LoadDaemon()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Roots) != 2 {
+		t.Fatalf("roots: got %+v", cfg.Roots)
+	}
+	if cfg.Roots[0].Key == cfg.Roots[1].Key {
+		t.Fatalf("basename collision must yield distinct keys: %+v", cfg.Roots)
+	}
+	if cfg.Roots[0].Key != "api" {
+		t.Fatalf("first key: got %q want api", cfg.Roots[0].Key)
+	}
+	if !strings.HasPrefix(cfg.Roots[1].Key, "api-") {
+		t.Fatalf("second key: got %q want api-<hash>", cfg.Roots[1].Key)
 	}
 }
 

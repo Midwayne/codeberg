@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"codeberg.org/codeberg/launcher/internal/registry"
@@ -153,6 +154,100 @@ func TestValidateForRunReposSkipsRoot(t *testing.T) {
 	writeArtifacts(t, dist)
 	c := &Config{Dist: dist, Model: "anthropic:claude", Repos: []string{"a"}}
 	if err := c.ValidateForRun(); err != nil {
-		t.Fatalf("--repos must not require a root: %v", err)
+		t.Fatalf("--repos must not require a root when CODEBERG_ROOT is unset: %v", err)
+	}
+}
+
+func TestValidateForRunRejectsRootWithAll(t *testing.T) {
+	dist := t.TempDir()
+	writeArtifacts(t, dist)
+	root := t.TempDir()
+	c := &Config{Dist: dist, Model: "anthropic:claude", Root: root, All: true}
+	if err := c.ValidateForRun(); err == nil {
+		t.Fatal("CODEBERG_ROOT + --all must be rejected")
+	}
+}
+
+func TestValidateForRunRejectsRootWithRepos(t *testing.T) {
+	dist := t.TempDir()
+	writeArtifacts(t, dist)
+	root := t.TempDir()
+	c := &Config{Dist: dist, Model: "anthropic:claude", Root: root, Repos: []string{"a"}}
+	if err := c.ValidateForRun(); err == nil {
+		t.Fatal("CODEBERG_ROOT + --repos must be rejected")
+	}
+}
+
+func TestValidateForRunRejectsEmptyRootList(t *testing.T) {
+	dist := t.TempDir()
+	writeArtifacts(t, dist)
+	c := &Config{Dist: dist, Model: "anthropic:claude", Root: ",,"}
+	if err := c.ValidateForRun(); err == nil {
+		t.Fatal("malformed CODEBERG_ROOT must be rejected")
+	}
+}
+
+func TestValidateForRunRejectsInvalidPathInList(t *testing.T) {
+	dist := t.TempDir()
+	writeArtifacts(t, dist)
+	good := t.TempDir()
+	c := &Config{Dist: dist, Model: "anthropic:claude", Root: good + ",/definitely/not/a/dir"}
+	if err := c.ValidateForRun(); err == nil {
+		t.Fatal("invalid path in comma-separated CODEBERG_ROOT must be rejected")
+	}
+}
+
+func TestDaemonEnvMultiRootOmitsSingleRootEnv(t *testing.T) {
+	c := &Config{
+		Root:     "/one,/two",
+		HTTPPort: "48080",
+		Socket:   "/tmp/s.sock",
+		Roots: []registry.Entry{
+			{Key: "one", Root: "/one"},
+			{Key: "two", Root: "/two"},
+		},
+	}
+	e := c.DaemonEnv()
+	if _, ok := e[KeyRoot]; ok {
+		t.Fatal("multi-path CODEBERG_ROOT must not set CODEBERG_ROOT env")
+	}
+	if e[KeyRoots] != "one\t/one\ntwo\t/two" {
+		t.Fatalf("roots records: %q", e[KeyRoots])
+	}
+}
+
+func TestInitFileWritesEmbeddedExample(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config")
+	created, err := InitFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !created {
+		t.Fatal("InitFile should create a new file")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(data)
+	for _, want := range []string{
+		"CODEBERG_ROOT=",
+		"CODEBERG_MODEL=",
+		"config.example",
+		"docs/multi-repo.md",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("init template missing %q", want)
+		}
+	}
+	if strings.Contains(body, "CODEBERG_HEALTH_TIMEOUT") {
+		t.Fatal("init template should be minimal, not the full config.example")
+	}
+	again, err := InitFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again {
+		t.Fatal("InitFile must not overwrite an existing file")
 	}
 }
