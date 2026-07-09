@@ -22,7 +22,6 @@
 #include "graph_internal.h"
 #include "grow.h"
 #include "strmap.h"
-#include "strutil.h"
 #include "u64map.h"
 
 #define GRAPH_CONF_EXACT 1.0f
@@ -474,34 +473,35 @@ cberg_status cberg_graph_remove_file(cberg_graph *graph, const char *path) {
     return CBERG_OK;
 }
 
-/* Deep-copied prior subgraph for one path — restore after a failed apply. */
+/*
+ * Transactional apply undo: record live slot indexes for `path`, tombstone them,
+ * rebuild, and on failure untombstone those indexes after killing the partial
+ * rebuild. Success path never deep-copies strings (unlike a snapshot restore).
+ * Compact is deferred until commit/abort so recorded indexes stay valid.
+ */
 typedef struct {
-    cberg_graph_node *nodes;
-    size_t nodes_len;
-    graph_ref_rec *refs;
-    size_t refs_len;
-} file_snapshot;
+    uint32_t *node_idx;
+    size_t node_len;
+    uint32_t *ref_idx;
+    size_t ref_len;
+    size_t nodes_mark; /* graph->nodes_len before rebuild */
+    size_t refs_mark;
+} file_undo;
 
-static void file_snapshot_free(file_snapshot *snap) {
-    if (snap == NULL) {
+static void file_undo_free(file_undo *u) {
+    if (u == NULL) {
         return;
     }
-    for (size_t i = 0; i < snap->nodes_len; i++) {
-        free((void *)snap->nodes[i].name);
-        free((void *)snap->nodes[i].qname);
-        free((void *)snap->nodes[i].path);
-    }
-    for (size_t i = 0; i < snap->refs_len; i++) {
-        free((void *)snap->refs[i].name);
-        free((void *)snap->refs[i].path);
-    }
-    free(snap->nodes);
-    free(snap->refs);
-    memset(snap, 0, sizeof(*snap));
+    free(u->node_idx);
+    free(u->ref_idx);
+    memset(u, 0, sizeof(*u));
 }
 
-static cberg_status file_snapshot_take(cberg_graph *graph, const char *path, file_snapshot *snap) {
-    memset(snap, 0, sizeof(*snap));
+static cberg_status file_undo_begin(cberg_graph *graph, const char *path, file_undo *u) {
+    memset(u, 0, sizeof(*u));
+    u->nodes_mark = graph->nodes_len;
+    u->refs_mark = graph->refs_len;
+
     size_t n_nodes = 0;
     size_t n_refs = 0;
     uint64_t head = 0;
@@ -520,74 +520,76 @@ static cberg_status file_snapshot_take(cberg_graph *graph, const char *path, fil
             }
         }
     }
-    if (n_nodes == 0 && n_refs == 0) {
-        return CBERG_OK;
-    }
     if (n_nodes > 0) {
-        snap->nodes = calloc(n_nodes, sizeof(*snap->nodes));
-        if (snap->nodes == NULL) {
+        u->node_idx = malloc(n_nodes * sizeof(*u->node_idx));
+        if (u->node_idx == NULL) {
             return CBERG_ERR_OUT_OF_MEMORY;
         }
     }
     if (n_refs > 0) {
-        snap->refs = calloc(n_refs, sizeof(*snap->refs));
-        if (snap->refs == NULL) {
-            file_snapshot_free(snap);
+        u->ref_idx = malloc(n_refs * sizeof(*u->ref_idx));
+        if (u->ref_idx == NULL) {
+            file_undo_free(u);
             return CBERG_ERR_OUT_OF_MEMORY;
         }
     }
     head = 0;
     if (cberg_strmap_get(graph->node_by_path, path, &head)) {
         for (uint32_t i = (uint32_t)head; i != 0; i = graph->nodes[i - 1].path_next) {
-            const graph_node_rec *rec = &graph->nodes[i - 1];
+            graph_node_rec *rec = &graph->nodes[i - 1];
             if (rec->dead) {
                 continue;
             }
-            cberg_graph_node *dst = &snap->nodes[snap->nodes_len++];
-            *dst = rec->pub;
-            dst->name = cberg_strdup(rec->pub.name);
-            dst->qname = cberg_strdup(rec->pub.qname);
-            dst->path = cberg_strdup(rec->pub.path);
-            if (dst->name == NULL || dst->qname == NULL || (rec->pub.path != NULL && dst->path == NULL)) {
-                file_snapshot_free(snap);
-                return CBERG_ERR_OUT_OF_MEMORY;
-            }
+            u->node_idx[u->node_len++] = i - 1;
+            rec->dead = 1;
+            graph->nodes_dead++;
         }
     }
     head = 0;
     if (cberg_strmap_get(graph->ref_by_path, path, &head)) {
         for (uint32_t i = (uint32_t)head; i != 0; i = graph->refs[i - 1].path_next) {
-            const graph_ref_rec *rec = &graph->refs[i - 1];
+            graph_ref_rec *rec = &graph->refs[i - 1];
             if (rec->dead) {
                 continue;
             }
-            graph_ref_rec *dst = &snap->refs[snap->refs_len++];
-            *dst = *rec;
-            dst->name = cberg_strdup(rec->name);
-            dst->path = cberg_strdup(rec->path);
-            if (dst->path == NULL || (rec->name != NULL && dst->name == NULL)) {
-                file_snapshot_free(snap);
-                return CBERG_ERR_OUT_OF_MEMORY;
-            }
+            u->ref_idx[u->ref_len++] = i - 1;
+            rec->dead = 1;
+            graph->refs_dead++;
         }
     }
     return CBERG_OK;
 }
 
-static cberg_status file_snapshot_restore(cberg_graph *graph, const file_snapshot *snap) {
-    for (size_t i = 0; i < snap->nodes_len; i++) {
-        cberg_status st = graph_add_node(graph, &snap->nodes[i]);
-        if (st != CBERG_OK) {
-            return st;
+static void file_undo_abort(cberg_graph *graph, file_undo *u) {
+    /* Kill partial rebuild slots appended after the mark (apply is exclusive). */
+    for (size_t i = u->nodes_mark; i < graph->nodes_len; i++) {
+        graph_node_rec *rec = &graph->nodes[i];
+        if (!rec->dead) {
+            rec->dead = 1;
+            graph->nodes_dead++;
         }
     }
-    for (size_t i = 0; i < snap->refs_len; i++) {
-        cberg_status st = graph_add_ref(graph, &snap->refs[i]);
-        if (st != CBERG_OK) {
-            return st;
+    for (size_t i = u->refs_mark; i < graph->refs_len; i++) {
+        graph_ref_rec *rec = &graph->refs[i];
+        if (!rec->dead) {
+            rec->dead = 1;
+            graph->refs_dead++;
         }
     }
-    return CBERG_OK;
+    for (size_t i = 0; i < u->node_len; i++) {
+        graph_node_rec *rec = &graph->nodes[u->node_idx[i]];
+        if (rec->dead) {
+            rec->dead = 0;
+            graph->nodes_dead--;
+        }
+    }
+    for (size_t i = 0; i < u->ref_len; i++) {
+        graph_ref_rec *rec = &graph->refs[u->ref_idx[i]];
+        if (rec->dead) {
+            rec->dead = 0;
+            graph->refs_dead--;
+        }
+    }
 }
 
 cberg_status cberg_graph_apply(cberg_graph *graph, const cberg_graph_fragment *fragment, cberg_graph_resolve_fn resolve, void *resolve_ctx) {
@@ -595,16 +597,12 @@ cberg_status cberg_graph_apply(cberg_graph *graph, const cberg_graph_fragment *f
         return CBERG_ERR_INVALID_ARGUMENT;
     }
 
-    /* Snapshot prior subgraph so a mid-apply failure can restore it. Compact
-     * is deferred until success so the snapshot's arena pointers stay valid
-     * only for the deep-copied malloc strings below. */
-    file_snapshot prior = {0};
+    file_undo undo = {0};
     uint64_t *def_ids = NULL;
-    cberg_status st = file_snapshot_take(graph, fragment->path, &prior);
+    cberg_status st = file_undo_begin(graph, fragment->path, &undo);
     if (st != CBERG_OK) {
         return st;
     }
-    graph_tombstone_file(graph, fragment->path);
 
     uint64_t file_id = graph_file_id(fragment->path);
     if (file_id == 0) {
@@ -699,16 +697,14 @@ cberg_status cberg_graph_apply(cberg_graph *graph, const cberg_graph_fragment *f
         }
     }
     free(def_ids);
-    file_snapshot_free(&prior);
+    file_undo_free(&undo);
     graph_maybe_compact(graph);
     return CBERG_OK;
 
 fail_restore:
     free(def_ids);
-    /* Drop partial new content, then put the prior subgraph back. */
-    graph_tombstone_file(graph, fragment->path);
-    (void)file_snapshot_restore(graph, &prior);
-    file_snapshot_free(&prior);
+    file_undo_abort(graph, &undo);
+    file_undo_free(&undo);
     graph_maybe_compact(graph);
     return st;
 }
