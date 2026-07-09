@@ -21,6 +21,7 @@ Complete reference for the C indexing core.
 | [adr/0002-watcher-driven-indexing.md](adr/0002-watcher-driven-indexing.md) | Watcher-only incremental indexing |
 | [adr/0003-merkle-manifest-change-detection.md](adr/0003-merkle-manifest-change-detection.md) | Merkle manifest for many-repo scale |
 | [adr/0004-multi-root-engine.md](adr/0004-multi-root-engine.md) | Multi-root `cberg-index` engine |
+| [adr/0005-dual-index-graph.md](adr/0005-dual-index-graph.md) | Chunks/vectors + knowledge graph sidecar |
 
 ## Module reference (implementation)
 
@@ -28,6 +29,7 @@ Complete reference for the C indexing core.
 |--------|------|-----|
 | Common | `src/common/` | [modules/common.md](modules/common.md) |
 | Chunking & diff | `src/chunk/` | [modules/chunk.md](modules/chunk.md) |
+| Knowledge graph | `src/graph/` | [modules/graph.md](modules/graph.md) |
 | Merkle manifest | `src/manifest/` | [modules/manifest.md](modules/manifest.md) |
 | Filesystem watch | `src/watch/` | [modules/watch.md](modules/watch.md) |
 | Embedding | `src/embed/` | [modules/embed.md](modules/embed.md) |

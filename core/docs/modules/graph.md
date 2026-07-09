@@ -1,15 +1,51 @@
 # Module: `src/graph/`
 
-RAM-first **knowledge graph** beside the chunk/vector index (ADR 0005). Same
-tree-sitter parse that produces chunks also emits a per-file graph fragment;
-`cberg-index` applies fragments incrementally and persists a `.graph` sidecar.
+RAM-first **knowledge graph** beside the chunk/vector index
+([ADR 0005](../adr/0005-dual-index-graph.md)). The same tree-sitter parse that
+produces chunks also emits a per-file graph fragment; `cberg-index` applies
+fragments incrementally and persists a `.graph` sidecar.
 
-**Files:** `graph_store.c`, `graph_extract.c`, `graph_internal.h`  
+**Files**
+
+| File | Role |
+|------|------|
+| `graph_store.c` | In-memory store, query, trace, hubs, save/load, import rewrite helper |
+| `graph_extract.c` | Per-language tree-sitter reference queries → fragment |
+| `resolve_pkg.c` | Phase 2: manifest + path heuristics → rewrite IMPORTS to FILE |
+| `graph_internal.h` | Fragment / extractor / rewrite internals |
+
 **Depends on:** `common/arena`, `common/binio`, `common/strmap`, `common/u64map`,
-`common/hash`, tree-sitter (via chunker)
+`common/hash`, `common/fileio`, `common/pathutil`, walk policy, tree-sitter
+(via chunker).
 
 Public ABI: `cberg_graph_*` and `cberg_chunker_analyze` in
 [../API.md](../API.md) / `codeberg.h`.
+
+---
+
+## Pipeline
+
+```mermaid
+flowchart LR
+  SRC[Source file] --> ANALYZE["cberg_chunker_analyze"]
+  ANALYZE --> CHUNKS[chunk list]
+  ANALYZE --> FRAG[graph fragment]
+  CHUNKS --> SYNC[chunk table sync]
+  SYNC --> APPLY["cberg_graph_apply"]
+  FRAG --> APPLY
+  APPLY --> STORE[(RAM graph)]
+  STORE --> SAVE[".graph sidecar"]
+  STORE --> RESOLVE["cberg_graph_resolve_imports"]
+  RESOLVE --> STORE
+```
+
+1. **Extract** — one parse; symbol chunks become fragment defs; queries capture
+   calls / imports / inherits / membership.
+2. **Apply** — replace that file’s subgraph; resolve def keys → chunk ids.
+3. **Resolve imports** (after bootstrap / rebuild) — rewrite safe IMPORTS onto
+   FILE nodes with `resolution=import`.
+4. **Query** — `find_nodes`, `edges_from` / `edges_to`, `trace`, `hubs`.
+5. **Persist** — atomic dump; warm restart loads without re-embedding.
 
 ---
 
@@ -32,14 +68,14 @@ so graph, chunk table, and vectors stay aligned across edits.
 |------|---------|---------|
 | `DEFINES` | File → symbol | **Synthesized** at query time from live nodes |
 | `CONTAINS` | Type → member (span nesting; Go receiver / Rust impl reversed) | yes (as refs) |
-| `IMPORTS` | File → Module | yes |
-| `CALLS` | caller → callee (name-resolved) | yes (name refs) |
+| `IMPORTS` | File → Module (or File → File after resolve) | yes |
+| `CALLS` | caller → callee (name-resolved at query time) | yes (name refs) |
 | `INHERITS` | subtype → supertype | yes (name refs) |
 | `REFERENCES` | reserved | yes |
 
 Every resolved edge carries:
 
-- `resolution` — `textual` (Phase 1), later `import` / `typed`
+- `resolution` — `textual` (name match), `import` (manifest/path rewrite), later `typed`
 - `confidence` — see ladder below
 - `line` — reference site in the source file (0 if unknown)
 
@@ -53,14 +89,13 @@ deleting a file can never leave a dangling edge.
 
 ## Confidence ladder (textual)
 
-Ported from DeusData/codebase-memory-mcp (MIT — see repo `THIRD_PARTY.md`):
-
 | Case | Confidence |
 |------|------------|
-| Exact / pre-resolved (same-file CONTAINS, etc.) | `1.0` |
+| Exact / pre-resolved (same-file CONTAINS, DEFINES, etc.) | `1.0` |
 | Same-file name match | `0.90` |
 | Unique cross-file match | `0.75` |
 | Ambiguous (`n` candidates) | `0.75 · min(1, 3/n)` |
+| Import-resolved FILE target | `0.95` |
 | Fan-out cap | at most **8** candidates per reference |
 
 Agents must treat `resolution=textual` as a hint, not go-to-definition.
@@ -73,10 +108,21 @@ Agents must treat `resolution=textual` as a hint, not go-to-definition.
 `cberg_graph_fragment`. Languages without tree-sitter (markdown, YAML/TOML/JSON,
 unknown) yield a `NULL` fragment.
 
-Reference queries cover all nine grammar languages: Go, C, Python, TypeScript,
+Reference queries cover nine grammar languages: Go, C, Python, TypeScript,
 JavaScript, Java, Kotlin, Rust, Ruby — calls, imports, inheritance, plus Go
-receiver / Rust impl membership as reversed `CONTAINS`. `CONTAINS` among
-same-file symbols also comes from chunk span nesting.
+receiver / Rust impl membership as reversed `CONTAINS`. Ruby
+`require` / `require_relative` become `IMPORTS`. `CONTAINS` among same-file
+symbols also comes from chunk span nesting.
+
+Capture vocabulary:
+
+| Capture | Meaning |
+|---------|---------|
+| `@call` | Callee identifier at a call site |
+| `@import` | Import path / module string (quotes stripped) |
+| `@inherit` | Supertype / implemented interface name |
+| `@member.container` + `@member.name` | Out-of-body membership → reversed CONTAINS |
+| `@require.method` + `@require.path` | Ruby require → IMPORTS |
 
 ---
 
@@ -91,6 +137,10 @@ Binary sidecar next to the chunk table:
 Same layout as `.chunks` / `.manifest` under `CBERG_INDEX_PATH.<roothash>`.
 When `CBERG_INDEX_PATH` is set **without** `CBERG_MODEL`, sidecars (including
 `.graph`) are still written so chunk-only warm restart can reload the graph.
+
+On compaction, MODULE nodes with no live IMPORTS importers are dropped
+(orphan GC). Tombstoned refs from import rewrites are compacted when dead
+entries dominate.
 
 ---
 
@@ -111,25 +161,40 @@ Graph failures log a warning and never block the chunk/vector pipeline.
 1. Dirty path → `cberg_chunker_analyze` → chunk-table sync → `cberg_graph_apply`
    (replace that file’s subgraph).
 2. Deleted path → `cberg_graph_remove_file` (nodes + refs for that path).
-3. Warm restart → load `.graph`, or re-extract from source without re-embedding
+3. After cold/warm bootstrap and full rebuilds → `cberg_graph_resolve_imports`.
+4. Warm restart → load `.graph`, or re-extract from source without re-embedding
    when the sidecar is missing/stale.
 
 ---
 
-## Import resolution (Phase 2)
+## Import resolution (`resolve_pkg.c`)
 
-`cberg_graph_resolve_imports(graph, repo_root)` scans `go.mod`, `package.json`,
-`pyproject.toml`, and `Cargo.toml`, plus relative path heuristics, and rewrites
-`IMPORTS` edges that map onto a repo FILE node with `resolution=import`
-(confidence 0.95). Only relative (`./` `../`), Rust `::` paths, Go
-module-prefixed imports, multi-segment dotted names, or source-file paths are
-candidates — bare identifiers and slash-form stdlib/npm packages (`fmt`,
-`encoding/json`) stay MODULE targets. Already-resolved FILE imports are left
-alone (idempotent). Unresolved imports keep their MODULE target. The indexer
-runs this after cold/warm bootstrap and graph rebuilds.
+`cberg_graph_resolve_imports(graph, repo_root)` walks the repo for source files,
+reads `go.mod` / `package.json` / `pyproject.toml` / `Cargo.toml` (when present),
+and rewrites **MODULE**-targeting IMPORTS onto FILE nodes with
+`resolution=import` (confidence 0.95).
 
-`cberg_graph_hubs` ranks symbols by incident `CALLS` degree for architecture
-overviews (exposed as IPC `graph_hubs`).
+**Candidates (safe shapes only):**
+
+| Shape | Example | Notes |
+|-------|---------|-------|
+| Relative | `./helper`, `../lib/x` | Always eligible |
+| Rust path | `crate::helper` | `::` present |
+| Go module-prefixed | `example.com/app/pkg` | Must match `go.mod` module path |
+| Multi-segment dotted | `pkg.sub.mod` | Python-style |
+| Source-file path | `foo/bar.h` | Extension must look like source |
+
+**Never rewritten:** bare identifiers (`fmt`, `json`, `os`) and slash-form
+stdlib / npm packages (`encoding/json`, `react-dom/client`) unless they match
+a Go module prefix. Package/crate `name` fields are **not** mapped onto the
+first source file.
+
+Already-resolved FILE imports are left alone (idempotent). Unresolved imports
+keep their MODULE target. FILE enumeration uses the live graph size (no fixed
+cap). Tests: `core/test/test_graph_resolve.c`.
+
+`cberg_graph_hubs` ranks symbols by full incident `CALLS` degree (in+out,
+uncapped) for architecture overviews (IPC `graph_hubs`).
 
 ---
 
@@ -140,18 +205,23 @@ overviews (exposed as IPC `graph_hubs`).
 | Command | Role |
 |---------|------|
 | `search_graph` | Exact-name node search |
-| `trace_path` | BFS over edge kinds / directions (optional path_prefix) |
-| `graph_stats` | Node/ref counts + FILE language mix |
+| `trace_path` | BFS over edge kinds / directions; optional `path_prefix` (exact path preferred) |
+| `graph_stats` | Node/ref counts + FILE language mix by extension |
 | `graph_hubs` | CALLS degree hubs |
 | `graph_refs` | Incoming edges for `find_references` |
 
 Disabled graph → error string `graph disabled` (`NOT_IMPLEMENTED` / HTTP 501).
 
-Daemon tools: `search_graph`, `trace_path`, `detect_changes` (hunk-filtered git
-diff → blast radius; honest `fallback` field), `get_architecture` (hubs /
-entrypoints / language mix); `find_references` is graph-first with grep fallback
-and returns `{source, graph|matches}`. Agent policy:
-**meaning → search; structure → graph; exact string → grep**.
+Daemon tools ([daemon/docs/http.md](../../../daemon/docs/http.md)):
+
+| Tool | Behavior |
+|------|----------|
+| `search_graph` / `trace_path` | Thin wrappers over IPC |
+| `detect_changes` | Git diff → hunk-overlapping symbols → 1–2 hop blast radius; sets `fallback` / `diff_spec` when the requested range fails |
+| `get_architecture` | Stats + language mix + real hubs + entrypoint heuristics; surfaces hub errors |
+| `find_references` | Graph-first; returns `{source, graph\|matches}` (not a bare array); grep fallback |
+
+Agent policy: **meaning → search; structure → graph; exact string → grep**.
 
 ---
 
@@ -173,6 +243,19 @@ structural-path target; this tree is an outlier because of `core/third_party/`.
 
 Microbenchmarks: [bench_graph](../../bench/bench_graph.c) (apply/remove churn,
 `edges_to` hub, BFS trace, save/load).
+
+---
+
+## Tests
+
+| Binary | Coverage |
+|--------|----------|
+| `test_graph` | Apply / query / trace / confidence / persistence |
+| `test_graph_extract` | Per-language captures (incl. Ruby require) |
+| `test_graph_resolve` | Stdlib non-rewrite, slash-stdlib decoy, Go module path, TS relative, Rust `crate::` |
+| `test_cberg_engine` | IPC round-trips for graph commands |
+
+Daemon: `graphtools_test.go`, `indextools_test.go` (find_references shape).
 
 ---
 

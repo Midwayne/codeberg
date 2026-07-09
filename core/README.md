@@ -18,6 +18,7 @@ Artifacts: `build/libcodeberg.a`, `build/libcodeberg.pc`.
 ```
 src/common/   shared utilities (arena, hash/xxhash, pathutil, u64map, …)
 src/chunk/    tree-sitter chunker + chunk table
+src/graph/    knowledge graph store, extract, import resolve
 src/manifest/ merkle manifest (watch-free change detection)
 src/watch/    filesystem watcher
 src/embed/    ONNX embedder + tokenizer
@@ -29,8 +30,9 @@ cmd/cberg-index/  multi-root indexer binary
 
 | Module | API | Purpose |
 |--------|-----|---------|
-| Chunker | `cberg_chunker_*` | Tree-sitter parsing into functions, types, etc. |
+| Chunker | `cberg_chunker_*`, `cberg_chunker_analyze` | Tree-sitter parsing into functions, types, etc.; optional graph fragment |
 | Chunk table | `cberg_chunk_table_*` | Incremental add/modify/delete diff with stable ids |
+| Knowledge graph | `cberg_graph_*` | Structural sidecar: defines / contains / imports / calls / inherits ([docs](docs/modules/graph.md)) |
 | Fingerprint | `cberg_fingerprint` | Whole-set change summary |
 | Manifest | `cberg_manifest_*` | Merkle tree for watch-free / many-repo change detection |
 | Watcher | `cberg_watcher_*` | Filesystem events — the indexing trigger |

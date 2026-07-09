@@ -8,14 +8,15 @@
  * chunker used, so the graph adds no extra parse pass.
  *
  * Capture vocabulary (per-language node names verified against the vendored
- * grammars; the pattern set follows the call/import node-type tables of
- * DeusData/codebase-memory-mcp, MIT):
+ * grammars):
  *   @call             callee identifier at a call site
  *   @import           import path / module string (quotes stripped)
  *   @inherit          supertype / implemented interface name
  *   @member.container + @member.name
  *                     out-of-body membership (Go receiver methods, Rust impl
  *                     blocks) -> reversed CONTAINS reference
+ *   @require.method + @require.path
+ *                     Ruby require / require_relative -> IMPORTS
  */
 #include "codeberg/codeberg.h"
 

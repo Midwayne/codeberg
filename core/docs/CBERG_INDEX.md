@@ -56,6 +56,7 @@ flowchart TB
     M1[manifest]
     W1[watcher]
     I1[vector index]
+    G1[knowledge graph]
   end
 
   subgraph repo2 [cberg_repo ...]
@@ -63,6 +64,7 @@ flowchart TB
     M2[manifest]
     W2[watcher]
     I2[vector index]
+    G2[knowledge graph]
   end
 
   engine --> repo1
@@ -75,10 +77,12 @@ flowchart TB
 
 - **One embedder** per process (expensive, not thread-safe) — all `cberg_embedder_embed`
   calls go through `embed_mu`.
-- **Per-repo state:** chunk table, manifest baseline, watcher, vector index, mutex.
-- **Main thread:** bootstrap each repo, then `cberg_engine_run` (watch loop).
-- **IPC thread:** search requests only; embeds the query once, searches each repo's
-  index under that repo's mutex, merges hits by score.
+- **Per-repo state:** chunk table, manifest baseline, watcher, vector index, knowledge
+  graph (when `CBERG_GRAPH` enabled), mutex.
+- **Main thread:** bootstrap each repo (including optional graph load / resolve), then
+  `cberg_engine_run` (watch loop).
+- **IPC thread:** vector search and graph commands; embeds the query once for search,
+  then searches each repo's index under that repo's mutex, merges hits by score.
 
 **Lock order:** `repo->mu` → `embed_mu` during indexing; search takes `embed_mu` alone
 for query embed, then one `repo->mu` at a time. Never `embed_mu` → `repo->mu`.
@@ -133,8 +137,9 @@ a hash of the resolved root (`<index_path> = <base>.<roothash>`):
 | `<index_path>.manifest` | Serialized manifest leaves — **all backends** | `CBMF` v1 |
 | `<index_path>.graph` | Knowledge graph snapshot (when `CBERG_GRAPH` enabled) | versioned binary (`binio`) |
 
-Graph schema, confidence ladder, and incremental semantics:
-[modules/graph.md](modules/graph.md).
+Graph schema, confidence ladder, import resolution, IPC, and tools:
+[modules/graph.md](modules/graph.md). Design decision:
+[adr/0005-dual-index-graph.md](adr/0005-dual-index-graph.md).
 
 With `qdrant` or `pgvector`, vectors live in a remote collection/table named
 `codeberg_<16hex>` (derived from `<index_path>`). Chunk sidecars stay local.

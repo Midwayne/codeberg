@@ -1,17 +1,16 @@
 /*
  * Knowledge-graph store (ADR 0005). RAM-first: nodes and reference records
- * live in flat arrays with open-addressing indexes, and persistence is a
- * single binary dump beside the chunk table — the shape borrowed from
- * codebase-memory-mcp's in-memory build + one-shot artifact write.
+ * live in flat arrays with open-addressing indexes; persistence is a single
+ * binary dump beside the chunk table (atomic temp+rename).
  *
  * Name references (calls, inherits) resolve at *query time* against the live
  * definition index, so incremental deletes can never leave a dangling edge:
  * removing a file kills its nodes and its reference records, and every later
  * query re-links names against what still exists.
  *
- * The confidence ladder for textual resolution follows
- * DeusData/codebase-memory-mcp (MIT): a same-file definition wins at 0.90,
- * otherwise candidates share 0.75 scaled by min(1, 3/candidate_count).
+ * Textual confidence: same-file name match 0.90; unique cross-file 0.75;
+ * ambiguous candidates share 0.75 * min(1, 3/count). Import-resolved edges
+ * use 0.95 (see resolve_pkg.c).
  */
 #include "codeberg/codeberg.h"
 
@@ -560,8 +559,8 @@ typedef struct graph_candidates {
  * Textual name resolution: collect live definitions named `name` whose kind a
  * `ref_kind` reference may target. Same-file definitions shadow every other
  * candidate (confidence 0.90); otherwise all candidates share a confidence
- * scaled down by ambiguity (0.75 * min(1, 3/count), after DeusData's
- * candidate-count penalty). At most GRAPH_MAX_CANDIDATES are returned.
+ * scaled down by ambiguity (0.75 * min(1, 3/count)). At most
+ * GRAPH_MAX_CANDIDATES are returned.
  */
 static void resolve_name(const cberg_graph *g, const char *name, const char *ref_path, uint8_t ref_kind, graph_candidates *out) {
     out->count = 0;
