@@ -22,10 +22,12 @@ import {
   type HybridHit,
 } from '@agent/core/evidence-extract.js';
 import { formatLineRange, normalizeSearchHit } from '@agent/core/search-hit.js';
-import type { SearchResult } from '@agent/core/types.js';
 import { langFromPath } from '@/lib/utils';
 
-type DisplayHit = SearchResult | HybridHit;
+// Every SearchResult is assignable to HybridHit (grep_boost is optional), and
+// SourceCard reads hit.grep_boost — so the display type is HybridHit, not the
+// union (a union would make grep_boost inaccessible).
+type DisplayHit = HybridHit;
 
 /** Dispatch to a rich renderer when we know the tool shape; otherwise JSON. */
 export function ToolViewRouter({ part }: { part: ToolView }) {

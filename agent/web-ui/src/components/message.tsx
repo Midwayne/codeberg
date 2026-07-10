@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import { Brain, RefreshCw } from 'lucide-react';
 import type { UIMessage } from 'ai';
 
