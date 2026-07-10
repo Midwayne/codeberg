@@ -14,6 +14,17 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+/*
+ * The per-command IPC handlers keep large response buffers on the stack (up to
+ * ~128 KB each, e.g. `char resp[131072]`). When the compiler inlines them into
+ * handle_client/ipc_thread it does not always coalesce those slots, so the
+ * thread's frame reaches ~550 KB. That overflows macOS's 512 KB default
+ * secondary-thread stack (Linux defaults to ~8 MB, which is why it only faults
+ * on macOS, as a SIGBUS in ___chkstk_darwin). Give the thread an explicit,
+ * generous stack rather than relying on the platform default.
+ */
+#define IPC_THREAD_STACK_SIZE (8u * 1024u * 1024u)
+
 typedef struct cberg_ipc_server {
     cberg_engine *eng;
     int listen_fd;
@@ -772,7 +783,17 @@ int cberg_ipc_start(cberg_engine *eng, cberg_ipc_server **out) {
         return -1;
     }
 
-    if (pthread_create(&srv->thread, NULL, ipc_thread, srv) != 0) {
+    pthread_attr_t attr;
+    pthread_attr_t *attrp = NULL;
+    if (pthread_attr_init(&attr) == 0) {
+        pthread_attr_setstacksize(&attr, IPC_THREAD_STACK_SIZE);
+        attrp = &attr;
+    }
+    int rc = pthread_create(&srv->thread, attrp, ipc_thread, srv);
+    if (attrp != NULL) {
+        pthread_attr_destroy(attrp);
+    }
+    if (rc != 0) {
         close(srv->listen_fd);
         unlink(eng->socket_path);
         free(srv);
