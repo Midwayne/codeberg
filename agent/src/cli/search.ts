@@ -4,14 +4,20 @@ import { extractHybridHits } from '../core/evidence-extract.js';
 import { formatScoredSource, formatSource } from '../core/format.js';
 import type { SearchOptions } from '../core/types.js';
 
-const VALUE_FLAGS = new Set([
+const VALUE_FLAGS = [
   '--daemon',
   '--k',
   '--repo',
   '--path-glob',
   '--kind',
   '--min-score',
-]);
+] as const;
+
+type ValueFlag = (typeof VALUE_FLAGS)[number];
+
+function isValueFlag(arg: string): arg is ValueFlag {
+  return (VALUE_FLAGS as readonly string[]).includes(arg);
+}
 
 export class SearchCliError extends Error {
   constructor(message: string) {
@@ -79,7 +85,7 @@ export function parseSearchArgs(
       json = true;
       continue;
     }
-    if (VALUE_FLAGS.has(arg)) {
+    if (isValueFlag(arg)) {
       const raw = requireValue(arg, args[++i]);
       switch (arg) {
         case '--daemon':
