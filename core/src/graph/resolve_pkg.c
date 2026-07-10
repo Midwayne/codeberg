@@ -19,6 +19,7 @@
 #include "arena.h"
 #include "fileio.h"
 #include "graph_internal.h"
+#include "pathutil.h"
 #include "strmap.h"
 #include "walk_policy.h"
 
