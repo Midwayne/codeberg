@@ -27,6 +27,8 @@ paths — use `CODEBERG_ROOT` or `cberg_config_*` helpers.
 | `make daemon-test` | `go test ./...` in `daemon/` |
 | `make build-agent` | `npm install` + build in `agent/` |
 | `make agent-test` | Vitest in `agent/` |
+| `make build-dbmcp` | Build the built-in multi-db MCP server (`build/dbmcp`) |
+| `make update-dbmcp` | Pull upstream `multi-db-mcp-server` and rebuild |
 
 CI (`.github/workflows/ci.yml`) runs `make submodules`, `make build`, and `make test`
 on Ubuntu with CMake and Ninja. Match that for verification unless the task needs
@@ -73,6 +75,9 @@ export CODEBERG_ROOT="$(git rev-parse --show-toplevel)"
 | `CBERG_POSTGRES_URL` | For `pgvector` backend | PostgreSQL connection string (requires pgvector extension) |
 | `CODEBERG_HTTP_PORT` | No | Daemon HTTP port (default `8080`) |
 | `CODEBERG_WEB_PORT` | No | Browser UI port for `make run-agent-web` (default `48088`) |
+| `CODEBERG_DBMCP_USE` | No | `true` enables the built-in multi-db MCP server (default off). Needs `~/.codeberg/spec.yml` and `make build-dbmcp` |
+| `CODEBERG_DBMCP_SPEC` | No | Override path to the database spec (default `$CODEBERG_HOME/spec.yml`) |
+| `CODEBERG_DBMCP_BIN` | No | Override path to the `dbmcp` binary |
 | `CODEBERG_MODEL` (agent) | For `make run-agent` | Provider:model, e.g. `anthropic:claude-haiku-4-5` |
 | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_GENERATIVE_AI_API_KEY` | For agent LLM calls | Matching provider API key |
 

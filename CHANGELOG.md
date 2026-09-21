@@ -9,6 +9,18 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Added
 
+- **Built-in database MCP** — optional MongoDB, PostgreSQL, and Redis tools
+  from the `third_party/multi-db-mcp-server` submodule. Off unless
+  `CODEBERG_DBMCP_USE` is set. Put connections in `~/.codeberg/spec.yml`
+  (`spec.yaml` also accepted). The agent registers `mcp_databases_<tool>` only
+  after the server handshakes. Tool definitions come from the server. The
+  system prompt tells the agent to find a query in the indexed code before
+  executing it against a database, unless the user has explicitly defined the
+  path to take. When the user asks for a new query, the agent drafts it from
+  the indexed code, shows the statement and a plain description, prefers
+  database indexes the code already uses, and asks before running it. `make build-dbmcp` builds
+  `build/dbmcp`; `make update-dbmcp` pulls upstream `main` and rebuilds. See
+  [docs/mcp.md](docs/mcp.md).
 - **MCP server config** — the agent loads Cursor-compatible `mcp.json` files
   (`mcpServers`, with VS Code `servers` as an alias) and registers their tools
   as `mcp_<server>_<tool>`. Discovery, later files winning on the same name:

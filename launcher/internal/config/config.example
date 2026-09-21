@@ -233,6 +233,24 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # CODEBERG_MCP_CONFIG=
 
 # =============================================================================
+# Built-in database MCP (MongoDB, PostgreSQL, Redis)
+# =============================================================================
+#
+# Off by default. The server is the third_party/multi-db-mcp-server submodule.
+# `make build-dbmcp` (or `codeberg` when this flag is on) builds build/dbmcp.
+# `make update-dbmcp` pulls upstream main and rebuilds — tool schemas come from
+# the running server, so new tools do not need agent code changes.
+#
+# Put connections in the codeberg config directory:
+#   ~/.codeberg/spec.yml   (preferred; spec.yaml is also accepted)
+# Copy a block from third_party/multi-db-mcp-server/spec.example.yaml.
+# Use ${ENV_VAR} in the spec for passwords; those vars must be in the environment.
+#
+# CODEBERG_DBMCP_USE=true
+# CODEBERG_DBMCP_SPEC=     # override the spec path
+# CODEBERG_DBMCP_BIN=      # override the dbmcp binary path
+
+# =============================================================================
 # Launcher runtime (environment only — not read from this file)
 # =============================================================================
 

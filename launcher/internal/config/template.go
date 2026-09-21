@@ -57,6 +57,8 @@ func (c *Config) Summary() string {
 		{KeySearxngURL, orUnset(c.SearxngURL) + searxngManagedNote(c)},
 		{KeyMcpUse, fmt.Sprintf("%t", c.McpUse)},
 		{"mcp.json", filepath.Join(c.Home, "mcp.json")},
+		{KeyDbmcpUse, fmt.Sprintf("%t", c.DbmcpUse)},
+		{"dbmcp spec", dbmcpSpecSummary(c)},
 		{KeyVector, fmt.Sprintf("%t", c.Vector)},
 		{KeyEmbedModel, c.EmbedModel},
 		{KeyIndexPath, c.IndexPath},
@@ -73,6 +75,12 @@ func (c *Config) Summary() string {
 	}
 	if c.McpConfig != "" {
 		rows = append(rows, [2]string{KeyMcpConfig, c.McpConfig})
+	}
+	if c.DbmcpSpec != "" {
+		rows = append(rows, [2]string{KeyDbmcpSpec, c.DbmcpSpec})
+	}
+	if c.DbmcpBin != "" {
+		rows = append(rows, [2]string{KeyDbmcpBin, c.DbmcpBin})
 	}
 	keys := make([]string, 0, len(c.Passthrough))
 	for k := range c.Passthrough {
@@ -94,6 +102,14 @@ func (c *Config) Summary() string {
 		fmt.Fprintf(&b, "  %-*s  %s\n", width, r[0], r[1])
 	}
 	return b.String()
+}
+
+func dbmcpSpecSummary(c *Config) string {
+	path, found := c.DbmcpSpecFile()
+	if found {
+		return path
+	}
+	return path + " (not found)"
 }
 
 func orUnset(v string) string {

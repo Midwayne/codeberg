@@ -36,8 +36,12 @@ DIST_PREFIX ?=
 # logical line so the exported vars survive through to the exec/run that follows.
 load_env = if [ -f "$(1)" ]; then set -a; . "$(1)"; set +a; echo "› loaded $(1)"; else echo "› no $(1); using current environment"; fi
 
+DBMCP      := $(ROOT)/third_party/multi-db-mcp-server
+DBMCP_BIN  := $(ROOT)/build/dbmcp
+
 .PHONY: build-core build test bench clean rebuild submodules help check set-version \
-        build-daemon daemon-test build-agent build-web-ui agent-test dist format \
+        build-daemon daemon-test build-agent build-web-ui build-dbmcp update-dbmcp \
+        agent-test dist format \
         run-core run-index run-daemon run-agent run-agent-tui run-agent-web gen-walk-skip
 
 help:
@@ -46,6 +50,8 @@ help:
 	@echo "    make build-core           Configure and compile libcodeberg + cberg-index"
 	@echo "    make build-daemon         Build Go codeberg-d (pure Go, no CGO)"
 	@echo "    make build-agent          Install deps and build the agent (npm: TUI + web server)"
+	@echo "    make build-dbmcp          Build the built-in multi-db MCP server (build/dbmcp)"
+	@echo "    make update-dbmcp         Pull upstream multi-db-mcp-server and rebuild"
 	@echo "    make build-web-ui         Build the browser chat SPA (web-ui/dist, served by --web)"
 	@echo "    make dist [DISTDIR=...]   Assemble a self-contained install tree (packaging)"
 	@echo "    make rebuild              clean + build-core"
@@ -124,6 +130,22 @@ daemon-test: build-core
 build-agent:
 	cd $(AGENT) && npm install && npm run build
 
+# dbmcp is the built-in database MCP server (third_party/multi-db-mcp-server).
+# GOTOOLCHAIN=auto downloads the Go version pinned by that submodule's go.mod
+# when the system toolchain is older. The binary is gitignored under build/.
+build-dbmcp:
+	@test -f $(DBMCP)/go.mod || $(MAKE) submodules
+	mkdir -p $(dir $(DBMCP_BIN))
+	cd $(DBMCP) && GOTOOLCHAIN=auto go build -o $(DBMCP_BIN) .
+
+# Fast-forward the submodule to the branch recorded in .gitmodules (main) and
+# rebuild. Commit the updated gitlink to pin the new revision. Tool schemas are
+# read from the server at startup, so this is the only step upstream tool
+# changes need.
+update-dbmcp:
+	git -C $(ROOT) submodule update --init --remote third_party/multi-db-mcp-server
+	$(MAKE) build-dbmcp
+
 # The browser chat SPA served by `codeberg --web` / codeberg-web. The server
 # resolves it at agent/web-ui/dist (a sibling of agent/dist/web.js), so building
 # it here is all `--web` needs to serve the rich UI instead of the fallback page.
@@ -143,6 +165,7 @@ agent-test:
 #   <DISTDIR>/libexec/core/build/bin/{cberg-index,codeberg-d}    siblings; daemon finds the indexer
 #   <DISTDIR>/libexec/agent/dist/*.js + .../agent/node_modules   node resolves up from dist/
 #   <DISTDIR>/libexec/agent/web-ui/dist                          browser SPA (--web; sibling of dist/web.js)
+#   <DISTDIR>/libexec/build/dbmcp                                built-in database MCP server
 #   <DISTDIR>/libexec/scripts/fetch-model.sh                     runtime model download
 #
 # The launcher locates its payload at ../libexec relative to its own (symlink-
@@ -154,16 +177,17 @@ agent-test:
 # Note: cberg-index keeps the ONNX Runtime rpath from build time, so it expects
 # the runtime at the same prefix at runtime; a tarball for other machines would
 # additionally bundle libonnxruntime + rewrite rpath.
-dist: build-core build-daemon build-agent build-web-ui
+dist: build-core build-daemon build-agent build-web-ui build-dbmcp
 	@echo "› assembling dist into $(DISTDIR)"
 	rm -rf "$(DISTDIR)"
-	mkdir -p "$(DISTDIR)/bin" "$(DISTDIR)/libexec/core/build/bin" "$(DISTDIR)/libexec/agent/web-ui" "$(DISTDIR)/libexec/scripts"
+	mkdir -p "$(DISTDIR)/bin" "$(DISTDIR)/libexec/core/build/bin" "$(DISTDIR)/libexec/agent/web-ui" "$(DISTDIR)/libexec/scripts" "$(DISTDIR)/libexec/build"
 	cp "$(BIN)/cberg-index" "$(BIN)/codeberg-d" "$(DISTDIR)/libexec/core/build/bin/"
 	cp -R "$(AGENT)/dist" "$(DISTDIR)/libexec/agent/dist"
 	cp -R "$(AGENT)/web-ui/dist" "$(DISTDIR)/libexec/agent/web-ui/dist"
 	cp "$(AGENT)/package.json" "$(AGENT)/package-lock.json" "$(DISTDIR)/libexec/agent/"
 	cd "$(DISTDIR)/libexec/agent" && npm ci --omit=dev --no-audit --no-fund
 	cp "$(ROOT)/scripts/fetch-model.sh" "$(DISTDIR)/libexec/scripts/"
+	cp "$(DBMCP_BIN)" "$(DISTDIR)/libexec/build/dbmcp"
 	cd "$(LAUNCHER)" && go build \
 	  -ldflags "-X codeberg.org/codeberg/launcher/internal/config.BuildDist=$(DIST_PREFIX)" \
 	  -o "$(DISTDIR)/bin/codeberg" ./cmd/codeberg

@@ -72,8 +72,9 @@ export interface AgentOptions {
    *  environment (CODEBERG_WEB_USE on by default). Pass `{ enabled: false, … }`
    *  to disable web tools entirely. */
   web?: WebConfig;
-  /** MCP servers from mcp.json. Defaults to files discovered from the
-   *  environment (`CODEBERG_MCP_USE` on by default). Pass an explicit config
+  /** MCP servers from mcp.json plus the optional built-in database server.
+   *  Defaults to files discovered from the environment (`CODEBERG_MCP_USE` on
+   *  by default; `CODEBERG_DBMCP_USE` off unless set). Pass an explicit config
    *  (or `{ enabled: false, servers: [], files: [], warnings: [] }`) to
    *  override discovery. */
   mcp?: McpConfig;

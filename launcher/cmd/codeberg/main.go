@@ -511,6 +511,24 @@ func cmdDoctor(args []string) error {
 		fmt.Println("  ✘ python3 not found — install it to enable web_search (fetch_url still works)")
 	}
 
+	fmt.Println("\nDatabase MCP (multi-db):")
+	switch {
+	case !c.DbmcpUse:
+		fmt.Println("  • disabled — set CODEBERG_DBMCP_USE=true and add spec.yml to the config directory")
+	default:
+		spec, found := c.DbmcpSpecFile()
+		if found {
+			fmt.Printf("  ✓ spec %s\n", spec)
+		} else {
+			fmt.Printf("  ✘ spec missing (%s)\n", spec)
+		}
+		if root != "" || c.DbmcpBin != "" {
+			reportFile("dbmcp", c.DbmcpBinary())
+		} else {
+			fmt.Println("  ✘ dbmcp binary unknown — set CODEBERG_DBMCP_BIN or run from a checkout")
+		}
+	}
+
 	fmt.Println("\nResolved config:")
 	fmt.Print(c.Summary())
 	return nil
@@ -592,6 +610,7 @@ KEY SETTINGS
   CODEBERG_WEB_PORT   browser UI port (default 48088)  (--web-port)
   CODEBERG_REASONING  reasoning effort             (--reasoning)
   CODEBERG_MCP_USE    false = disable MCP servers from mcp.json
+  CODEBERG_DBMCP_USE  true = built-in database MCP (needs ~/.codeberg/spec.yml)
   ANTHROPIC_API_KEY / OPENAI_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY
 
 Note: there is no in-chat /help or /config — the chat UI is a third-party TUI

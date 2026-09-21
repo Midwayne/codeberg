@@ -52,6 +52,9 @@ const (
 	KeySearxngPort = "CODEBERG_SEARXNG_PORT"          // preferred port for the managed SearXNG
 	KeyMcpUse      = "CODEBERG_MCP_USE"               // "false" => disable MCP tools (agent scope)
 	KeyMcpConfig   = "CODEBERG_MCP_CONFIG"            // extra mcp.json path(s), comma-separated (agent scope)
+	KeyDbmcpUse    = "CODEBERG_DBMCP_USE"             // "true" => built-in multi-db MCP (agent scope)
+	KeyDbmcpSpec   = "CODEBERG_DBMCP_SPEC"            // spec.yml path; default <home>/spec.yml (agent scope)
+	KeyDbmcpBin    = "CODEBERG_DBMCP_BIN"             // dbmcp binary override (agent scope)
 )
 
 // DefaultSearxngPort is the preferred listen port for the launcher-managed
@@ -141,6 +144,9 @@ type Config struct {
 	SearxngPort string // preferred port for the managed SearXNG
 	McpUse      bool   // agent MCP tools from mcp.json enabled
 	McpConfig   string // extra mcp.json path(s), comma-separated
+	DbmcpUse    bool   // built-in multi-db MCP server enabled
+	DbmcpSpec   string // explicit spec path; "" => <home>/spec.yml then spec.yaml
+	DbmcpBin    string // explicit dbmcp binary; "" => <root>/build/dbmcp
 
 	Passthrough map[string]string
 	ConfigPath  string // the file we read (whether or not it existed)
@@ -271,6 +277,15 @@ func Load(o Overrides) (*Config, error) {
 	}
 	c.McpConfig = resolve(KeyMcpConfig, "")
 
+	// Built-in database MCP (multi-db-mcp-server submodule). Off until the user
+	// opts in. The spec lives in the codeberg config directory (spec.yml).
+	c.DbmcpUse = false
+	if v := resolve(KeyDbmcpUse, ""); v != "" {
+		c.DbmcpUse = !isFalsey(v)
+	}
+	c.DbmcpSpec = resolve(KeyDbmcpSpec, "")
+	c.DbmcpBin = resolve(KeyDbmcpBin, "")
+
 	// Daemon URL defaults to the local daemon on the resolved port.
 	c.DaemonURL = firstNonEmpty(resolve(KeyDaemonURL, o.DaemonURL), "http://127.0.0.1:"+c.HTTPPort)
 
@@ -308,6 +323,7 @@ type Artifacts struct {
 	IndexBin  string // <root>/core/build/bin/cberg-index (daemon finds it as a sibling)
 	TUIScript string // <root>/agent/dist/tui.js (node resolves node_modules up from it)
 	WebScript string // <root>/agent/dist/web.js (the browser-UI server; built alongside the TUI)
+	DbmcpBin  string // <root>/build/dbmcp (built-in multi-db MCP server; optional)
 }
 
 // LocateArtifacts returns the expected artifact paths under root (no existence
@@ -320,6 +336,7 @@ func LocateArtifacts(root string) Artifacts {
 		IndexBin:  filepath.Join(bin, "cberg-index"),
 		TUIScript: filepath.Join(root, "agent", "dist", "tui.js"),
 		WebScript: filepath.Join(root, "agent", "dist", "web.js"),
+		DbmcpBin:  filepath.Join(root, "build", "dbmcp"),
 	}
 }
 
@@ -450,6 +467,11 @@ func (c *Config) AgentEnv() map[string]string {
 	e[KeyHome] = c.Home
 	e[KeyMcpUse] = fmt.Sprintf("%t", c.McpUse)
 	putIf(e, KeyMcpConfig, c.McpConfig)
+	e[KeyDbmcpUse] = fmt.Sprintf("%t", c.DbmcpUse)
+	putIf(e, KeyDbmcpSpec, c.DbmcpSpec)
+	if c.DbmcpUse {
+		putIf(e, KeyDbmcpBin, c.DbmcpBinary())
+	}
 	if len(c.Roots) > 0 {
 		records := make([]string, 0, len(c.Roots))
 		for _, r := range c.Roots {
@@ -464,6 +486,33 @@ func (c *Config) AgentEnv() map[string]string {
 		e[k] = v
 	}
 	return e
+}
+
+// DbmcpBinary is the dbmcp executable: an explicit CODEBERG_DBMCP_BIN, otherwise
+// <root>/build/dbmcp when a checkout or prebuilt root is known.
+func (c *Config) DbmcpBinary() string {
+	if c.DbmcpBin != "" {
+		return c.DbmcpBin
+	}
+	if root, _ := c.ResolveRoot(); root != "" {
+		return LocateArtifacts(root).DbmcpBin
+	}
+	return ""
+}
+
+// DbmcpSpecFile is the spec the built-in database server should load.
+// found is false when the preferred path is not on disk yet.
+func (c *Config) DbmcpSpecFile() (path string, found bool) {
+	if c.DbmcpSpec != "" {
+		return c.DbmcpSpec, fileExists(c.DbmcpSpec)
+	}
+	for _, name := range []string{"spec.yml", "spec.yaml"} {
+		p := filepath.Join(c.Home, name)
+		if fileExists(p) {
+			return p, true
+		}
+	}
+	return filepath.Join(c.Home, "spec.yml"), false
 }
 
 func putIf(m map[string]string, k, v string) {

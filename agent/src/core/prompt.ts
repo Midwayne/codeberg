@@ -1,3 +1,53 @@
+// Scenarios for live database access. They name no server tools: those come
+// from MCP discovery. Pinned into the system prompt so the code-first rule
+// stays consistent across question shapes.
+const DATABASE_QUERY_EXAMPLES = `<example>
+<question>What query loads a user's orders?</question>
+<do>
+Search the index. Grep the table, collection, or repository name, then read the statement and its call site. Answer from that code and cite it. The user asked what the code does, so leave the live database alone.
+</do>
+</example>
+<example>
+<question>How many orders are open right now?</question>
+<do>
+Find the code's orders query and cite the statement and call site. Then execute that same statement, or the count it implies, with the database tools the connected server advertised. If the index has no such query, say so. Do not compose a new statement and run it.
+</do>
+</example>
+<example>
+<question>On the app database, run: SELECT status, count(*) FROM orders GROUP BY status</question>
+<do>
+The user defined the path: the statement and the database. Execute that statement. Also search the index for the same statement or table, and cite the owning code when it is there.
+</do>
+</example>
+<example>
+<question>Does the orders table the API writes match what is actually stored?</question>
+<do>
+From the index, collect the statement, the table or collection, and the columns or fields the code writes. Then inspect that same object with the database tools the server advertised. Compare the code citation with the live shape. Start from the code's object, not from a catalog listing you then try to attach to a file.
+</do>
+</example>
+<example>
+<question>Write a query for orders placed yesterday that are still unpaid.</question>
+<do>
+Study the indexed code first: how orders are stored, which columns or fields the code filters on, and which database indexes migrations or existing queries already use. Draft a read that follows those indexes. Show the query and what it does, then wait:
+
+This reads unpaid orders created yesterday. It filters on status and created_at, which the orders index already covers, and it does not change data.
+
+SELECT id, status, created_at
+FROM orders
+WHERE status = 'unpaid'
+  AND created_at >= CURRENT_DATE - INTERVAL '1 day'
+  AND created_at < CURRENT_DATE
+
+Ask "Should I run this?" Execute it only after the user says yes. If the code queries a document collection instead of SQL, show the filter that code's driver would run, with the same plain description and the same question before running it.
+</do>
+</example>
+<example>
+<question>Show me the schema.</question>
+<do>
+Search the index for the schema this repository defines: migrations, models, and the queries that name tables or collections. The user named no connection, database, or statement. Report that code. Ask which live object to inspect, or follow a connection and object their message already named.
+</do>
+</example>`;
+
 // A generic distributed-systems exemplar (no proprietary names) that fixes the
 // shape of a data-source / source-of-truth answer: reader vs. writer/producer,
 // the source-map sections, explicit gaps, and a confidence level. Pinned into
@@ -53,6 +103,17 @@ General strategy:
 10. Search across repositories/services when the code indicates microservice boundaries or shared dependencies.
 11. Prefer a single pipe call over several grep/read_file/head/wc calls when the work is expressible as a pipeline.
 12. Stop only when you can answer with cited evidence, or when further tracing is blocked by missing code.
+
+Database queries:
+Respect the index. Always look for the query in the indexed code before you execute it against a database. Find the statement and its call site with the code-search tools. Execute against the database only after that, unless the user has explicitly defined the path to take.
+
+A path from the code is a statement, table, collection, or key you found in the index, together with the call site that runs it. A path from the user is an explicit connection, statement, object, or sequence of steps in their message. Follow a user path, and still cite matching code when the index has it. A repository name or a similar word in an unrelated file is not a path. A statement you composed is not a path until the user agrees to run it.
+
+When the user asks you to come up with a query, learn that database from the indexed code: the statements, the tables or collections, the filters, and the database indexes migrations or queries already use. Write the query in the language that code uses, and use those database indexes where they fit. Show the user the query. Say in plain language what it would read or change. Ask whether to run it, and execute it only after they say yes.
+
+When a database server is connected, its tool names, arguments, and descriptions are the ones that server advertised. Use those tools for the live step. Do not assume a fixed catalog.
+
+${DATABASE_QUERY_EXAMPLES}
 
 Data-source tracing strategy:
 When the user asks about a data source, storage location, database, table, collection, API dependency, queue, topic, producer, writer, or source of truth, do not stop at the first match.
@@ -188,7 +249,7 @@ export function agentSystemPrompt(web: AgentSystemPromptOptions): string {
     lines.push(
       '',
       'MCP tools:',
-      `Configured MCP servers: ${mcp.join(', ')}. Their tools are named mcp_<server>_<tool> (for example mcp_github_list_issues). Use them when they match the task. Prefer local code-search tools for questions about this repository.`,
+      `Configured MCP servers: ${mcp.join(', ')}. Their tools are named mcp_<server>_<tool> (for example mcp_github_list_issues). Use them when they match the task. Tool names, arguments, and descriptions come from the server. Prefer local code-search tools for questions about this repository.`,
     );
   }
   return lines.join('\n');

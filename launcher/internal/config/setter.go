@@ -16,7 +16,7 @@ func KnownKeys() []string {
 		KeySocket, KeyPollMS, KeyIndexBin, KeyGitPullSec, KeyGitDir, KeyReasoning,
 		KeyVector, KeyWeb, KeyWebPort, KeyWebUse, KeySearxngURL, KeySearxngPort,
 		KeyAll, KeyReposSel, KeyNoIndex, KeyHome, KeyRepo, KeyDist,
-		KeyMcpUse, KeyMcpConfig,
+		KeyMcpUse, KeyMcpConfig, KeyDbmcpUse, KeyDbmcpSpec, KeyDbmcpBin,
 	}
 	keys = append(keys, passthroughKeys...)
 	sort.Strings(keys)
@@ -89,6 +89,12 @@ func (c *Config) Get(key string) (string, bool) {
 		return fmt.Sprintf("%t", c.McpUse), true
 	case KeyMcpConfig:
 		return c.McpConfig, true
+	case KeyDbmcpUse:
+		return fmt.Sprintf("%t", c.DbmcpUse), true
+	case KeyDbmcpSpec:
+		return c.DbmcpSpec, true
+	case KeyDbmcpBin:
+		return c.DbmcpBin, true
 	}
 	if v, ok := c.Passthrough[key]; ok {
 		return v, true
