@@ -196,6 +196,43 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # CODEBERG_WEB_SEARCH_COUNT=6
 
 # =============================================================================
+# MCP tools — Cursor-compatible mcp.json (agent scope)
+# =============================================================================
+#
+# Add MCP servers the same way Cursor does: a JSON file with an `mcpServers`
+# object. The agent loads, in order (later files override the same name):
+#
+#   1. ~/.codeberg/mcp.json          (user-global; `codeberg config init` writes
+#                                    an empty starter)
+#   2. <indexed-root>/.cursor/mcp.json
+#   3. <indexed-root>/.codeberg/mcp.json
+#   4. CODEBERG_MCP_CONFIG           extra file(s), comma-separated
+#
+# Stdio example:
+#   { "mcpServers": { "github": {
+#       "command": "npx",
+#       "args": ["-y", "@modelcontextprotocol/server-github"],
+#       "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${env:GITHUB_PERSONAL_ACCESS_TOKEN}" }
+#   } } }
+#
+# Remote HTTP/SSE example:
+#   { "mcpServers": { "docs": {
+#       "type": "http",
+#       "url": "https://example.com/mcp",
+#       "headers": { "Authorization": "Bearer ${env:MCP_TOKEN}" }
+#   } } }
+#
+# Full example: launcher/internal/config/mcp.json.example
+# See docs/mcp.md.
+
+# Master switch — on by default. Set false to disable all MCP servers.
+# CODEBERG_MCP_USE=true
+
+# Extra mcp.json path(s), comma-separated. Use this to point at Cursor's global
+# file without copying it: CODEBERG_MCP_CONFIG=~/.cursor/mcp.json
+# CODEBERG_MCP_CONFIG=
+
+# =============================================================================
 # Launcher runtime (environment only — not read from this file)
 # =============================================================================
 

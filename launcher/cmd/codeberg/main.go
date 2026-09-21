@@ -142,6 +142,9 @@ func cmdRun(args []string) error {
 	if created, _ := config.InitFile(c.ConfigPath); created {
 		fmt.Fprintf(os.Stderr, "› wrote a starter config at %s\n", c.ConfigPath)
 	}
+	if created, _ := config.InitMcpFile(filepath.Join(c.Home, "mcp.json")); created {
+		fmt.Fprintf(os.Stderr, "› wrote a starter MCP config at %s\n", filepath.Join(c.Home, "mcp.json"))
+	}
 	if c.All && len(c.Repos) > 0 {
 		return fmt.Errorf("--all already serves every registered repo; use --repos to pick a subset instead")
 	}
@@ -244,6 +247,16 @@ func cmdConfig(args []string) error {
 				c.ConfigPath, config.KeyRoot, config.KeyModel)
 		} else {
 			fmt.Printf("%s already exists (not overwritten)\n", c.ConfigPath)
+		}
+		mcpPath := filepath.Join(c.Home, "mcp.json")
+		mcpCreated, err := config.InitMcpFile(mcpPath)
+		if err != nil {
+			return err
+		}
+		if mcpCreated {
+			fmt.Printf("wrote %s — add MCP servers (Cursor-compatible mcpServers JSON)\n", mcpPath)
+		} else {
+			fmt.Printf("%s already exists (not overwritten)\n", mcpPath)
 		}
 		return nil
 
@@ -542,7 +555,7 @@ CONFIGURE (changeable any time after install)
   codeberg config set KEY=VALUE  set one or more values (KEY=VALUE ...)
   codeberg config unset KEY      remove a value
   codeberg config edit           open the config file in $EDITOR
-  codeberg config init           write a starter config file
+  codeberg config init           write a starter config file and mcp.json
 
   Config is read fresh on every run from four layers, highest precedence first:
     1. CLI flags        e.g. codeberg --root ~/proj --model openai:gpt-4o
@@ -578,6 +591,7 @@ KEY SETTINGS
   CODEBERG_WEB      true = open the browser UI      (--web)
   CODEBERG_WEB_PORT   browser UI port (default 48088)  (--web-port)
   CODEBERG_REASONING  reasoning effort             (--reasoning)
+  CODEBERG_MCP_USE    false = disable MCP servers from mcp.json
   ANTHROPIC_API_KEY / OPENAI_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY
 
 Note: there is no in-chat /help or /config — the chat UI is a third-party TUI

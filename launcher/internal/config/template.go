@@ -12,16 +12,28 @@ import (
 //go:embed config.init.example
 var initTemplate string
 
+//go:embed mcp.init.json
+var mcpInitTemplate string
+
 // InitFile writes a template config to path unless it already exists. Returns
 // (created, error). It creates parent directories as needed.
 func InitFile(path string) (bool, error) {
+	return writeIfAbsent(path, initTemplate)
+}
+
+// InitMcpFile writes a starter ~/.codeberg/mcp.json unless it already exists.
+func InitMcpFile(path string) (bool, error) {
+	return writeIfAbsent(path, mcpInitTemplate)
+}
+
+func writeIfAbsent(path, body string) (bool, error) {
 	if _, err := os.Stat(path); err == nil {
 		return false, nil
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return false, err
 	}
-	if err := os.WriteFile(path, []byte(initTemplate), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -43,6 +55,8 @@ func (c *Config) Summary() string {
 		{KeyWebPort, c.WebPort},
 		{KeyWebUse, fmt.Sprintf("%t", c.WebUse)},
 		{KeySearxngURL, orUnset(c.SearxngURL) + searxngManagedNote(c)},
+		{KeyMcpUse, fmt.Sprintf("%t", c.McpUse)},
+		{"mcp.json", filepath.Join(c.Home, "mcp.json")},
 		{KeyVector, fmt.Sprintf("%t", c.Vector)},
 		{KeyEmbedModel, c.EmbedModel},
 		{KeyIndexPath, c.IndexPath},
@@ -56,6 +70,9 @@ func (c *Config) Summary() string {
 	}
 	if c.Reasoning != "" {
 		rows = append(rows, [2]string{KeyReasoning, c.Reasoning})
+	}
+	if c.McpConfig != "" {
+		rows = append(rows, [2]string{KeyMcpConfig, c.McpConfig})
 	}
 	keys := make([]string, 0, len(c.Passthrough))
 	for k := range c.Passthrough {

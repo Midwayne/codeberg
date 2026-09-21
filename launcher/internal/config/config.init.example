@@ -24,3 +24,7 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # CODEBERG_WEB_PORT=48088
 # CODEBERG_REASONING=medium
 # CODEBERG_WEB_USE=true
+
+# MCP servers: edit ~/.codeberg/mcp.json (Cursor-compatible `mcpServers` JSON).
+# See launcher/internal/config/mcp.json.example and docs/mcp.md.
+# CODEBERG_MCP_USE=true

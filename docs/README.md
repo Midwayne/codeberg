@@ -36,6 +36,7 @@ Project-wide overview. **libcodeberg** details live under [core/docs](../core/do
 | [agent/README.md](../agent/README.md) | CLI, TUI, web UI, providers, daemon client |
 | [agent/web-ui/README.md](../agent/web-ui/README.md) | React chat SPA development |
 | [agent-accuracy.md](agent-accuracy.md) | Retrieval quality & eval roadmap |
+| [mcp.md](mcp.md) | Cursor-compatible MCP server config (`mcp.json`) |
 
 ## Knowledge graph (dual index)
 
