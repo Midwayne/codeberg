@@ -23,6 +23,21 @@ describe('agentSystemPrompt', () => {
     expect(p).toContain('linear');
     expect(p).toContain('mcp_<server>_<tool>');
     expect(p).toContain(AGENT_SYSTEM);
+    expect(p).not.toContain('built-in multi-db MCP');
+  });
+
+  it('lists database tools only after that server connects', () => {
+    const p = agentSystemPrompt({
+      enabled: false,
+      search: false,
+      mcpServers: ['databases'],
+      mcpTools: { databases: ['postgres_query', 'list_connections'] },
+    });
+    expect(p).toContain('built-in multi-db MCP');
+    expect(p).toContain('- mcp_databases_list_connections');
+    expect(p).toContain('- mcp_databases_postgres_query');
+    const listed = p.slice(p.indexOf('Registered database tools:'));
+    expect(listed.indexOf('list_connections')).toBeLessThan(listed.indexOf('postgres_query'));
   });
 
   it('omits the MCP section when no servers connected', () => {

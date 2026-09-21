@@ -4,6 +4,7 @@ export {
   interpolateMcpString,
   parseMcpJson,
 } from './config.js';
+export { builtinDatabaseServer, DBMCP_SERVER_NAME } from './builtin.js';
 export { connectMcpServer } from './client.js';
 export { mcpToolName } from './names.js';
 export { mcpToolSource, type McpToolSource, type McpToolSourceOptions } from './tools.js';

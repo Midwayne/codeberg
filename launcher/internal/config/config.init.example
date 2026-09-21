@@ -28,3 +28,7 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # MCP servers: edit ~/.codeberg/mcp.json (Cursor-compatible `mcpServers` JSON).
 # See launcher/internal/config/mcp.json.example and docs/mcp.md.
 # CODEBERG_MCP_USE=true
+
+# Built-in database MCP (MongoDB, PostgreSQL, Redis). Off by default.
+# Add connections as ~/.codeberg/spec.yml, then set:
+# CODEBERG_DBMCP_USE=true

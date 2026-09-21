@@ -36,6 +36,9 @@ or from a checkout.
 | `CODEBERG_WEB_SEARCH_COUNT` | all | `web_search` result count (default 6) |
 | `CODEBERG_MCP_USE` | all | master switch for MCP servers from `mcp.json` (default on; `0`/`false`/`off`/`no` disables) |
 | `CODEBERG_MCP_CONFIG` | all | extra `mcp.json` path(s), comma-separated (e.g. `~/.cursor/mcp.json`) |
+| `CODEBERG_DBMCP_USE` | all | built-in multi-db MCP server (default off; `true`/`1`/`on`/`yes` enables) |
+| `CODEBERG_DBMCP_SPEC` | all | spec path (default `$CODEBERG_HOME/spec.yml`, then `spec.yaml`) |
+| `CODEBERG_DBMCP_BIN` | all | `dbmcp` binary (default `build/dbmcp` in the checkout or install) |
 | `CODEBERG_WEB_PORT` / `PORT` | web | listen port (default 48088) |
 | `CODEBERG_WEB_ROOT` | web | prebuilt SPA directory (default `../web-ui/dist`) |
 
@@ -500,3 +503,14 @@ starter) or in the indexed repo at `.codeberg/mcp.json` / `.cursor/mcp.json`.
 A repo you already configured for Cursor is picked up automatically.
 
 Full format, interpolation, and discovery order: [docs/mcp.md](../docs/mcp.md).
+
+### Built-in database server
+
+`CODEBERG_DBMCP_USE=true` starts the
+[multi-db MCP server](https://github.com/Midwayne/multi-db-mcp-server) vendored
+as `third_party/multi-db-mcp-server`. Build it with `make build-dbmcp` and
+describe connections in `$CODEBERG_HOME/spec.yml`. When that process completes
+the MCP handshake, its tools are registered as `mcp_databases_<tool>` and named
+in the system prompt. A missing spec, missing binary, or a server that exits
+is skipped. `make update-dbmcp` pulls upstream `main` and rebuilds; new tools
+show up from the server without agent code changes.

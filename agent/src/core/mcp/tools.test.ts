@@ -55,6 +55,18 @@ describe('mcpToolSource', () => {
       'github',
     );
     expect(source.connectedServers()).toEqual(['github']);
+    expect(source.connectedTools()).toEqual({ github: ['list_issues'] });
+  });
+
+  it('logs warnings when enabled even if no server is configured', async () => {
+    const log = vi.fn();
+    const source = mcpToolSource({
+      config: cfg({ warnings: ['database MCP is enabled but no spec file was found'] }),
+      log,
+    });
+    expect(Object.keys(await source.tools())).toEqual([]);
+    expect(log).toHaveBeenCalledWith('› MCP: database MCP is enabled but no spec file was found');
+    expect(source.connectedTools()).toEqual({});
   });
 
   it('skips a server that fails to connect and still loads the others', async () => {
@@ -76,6 +88,7 @@ describe('mcpToolSource', () => {
     const tools = await source.tools();
     expect(Object.keys(tools)).toEqual(['mcp_linear_ping']);
     expect(source.connectedServers()).toEqual(['linear']);
+    expect(source.connectedTools()).toEqual({ linear: ['ping'] });
     expect(log.mock.calls.some((c) => String(c[0]).includes('github'))).toBe(true);
   });
 

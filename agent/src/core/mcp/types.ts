@@ -25,7 +25,9 @@ export type McpServer = McpStdioServer | McpUrlServer;
 
 /** Fully resolved MCP configuration after file discovery and merge. */
 export interface McpConfig {
-  /** Master switch (CODEBERG_MCP_USE). When false, no MCP tools are registered. */
+  /** When false, no MCP tools are registered. False only when both user mcp.json
+   *  servers (`CODEBERG_MCP_USE`) and the built-in database server
+   *  (`CODEBERG_DBMCP_USE`) are off. */
   enabled: boolean;
   /** Enabled servers, later files win on a duplicate name. */
   servers: McpServer[];

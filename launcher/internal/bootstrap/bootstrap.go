@@ -32,6 +32,12 @@ func Ensure(c *config.Config, force bool) error {
 				return err
 			}
 		}
+		if c.DbmcpUse {
+			bin := c.DbmcpBinary()
+			if bin == "" || !exists(bin) {
+				fmt.Fprintf(os.Stderr, "⚠ dbmcp binary missing (%s); database MCP tools will be skipped\n", bin)
+			}
+		}
 		ensureSearxng(c, force)
 		return nil
 	}
@@ -56,13 +62,16 @@ func Ensure(c *config.Config, force bool) error {
 	// web.js (only needed for --web) also triggers an agent rebuild.
 	needAgent := force || !exists(a.TUIScript) || (c.Web && !exists(a.WebScript))
 	needWebUI := c.Web && (force || !exists(webUIIndex))
+	// The built-in database MCP binary is only built when the user turned it on
+	// and did not point CODEBERG_DBMCP_BIN at their own executable.
+	needDbmcp := c.DbmcpUse && c.DbmcpBin == "" && (force || !exists(a.DbmcpBin))
 
 	// Make sure the toolchains/libraries the Makefile shells out to exist (and
 	// auto-install the missing ones) before we invoke it — a missing cmake, Go,
 	// Node, or ONNX runtime otherwise surfaces as an opaque mid-build failure.
 	// Skip the check when nothing needs (re)building: an up-to-date tree already
 	// proved the toolchain works, so don't gate a plain run on it.
-	if needDaemon || needAgent || needWebUI {
+	if needDaemon || needAgent || needWebUI || needDbmcp {
 		if err := deps.Ensure(os.Stderr); err != nil {
 			return err
 		}
@@ -94,6 +103,17 @@ func Ensure(c *config.Config, force bool) error {
 		}
 	} else if c.Web {
 		skip("agent (web UI)")
+	}
+
+	if needDbmcp {
+		if err := makeTarget(c.Repo, "build-dbmcp", "database MCP (dbmcp)"); err != nil {
+			return err
+		}
+	} else if c.DbmcpUse && c.DbmcpBin == "" {
+		skip("database MCP (dbmcp)")
+	}
+	if c.DbmcpUse && c.DbmcpBin != "" && !exists(c.DbmcpBin) {
+		fmt.Fprintf(os.Stderr, "⚠ CODEBERG_DBMCP_BIN not found (%s); database MCP tools will be skipped\n", c.DbmcpBin)
 	}
 
 	if c.Vector {

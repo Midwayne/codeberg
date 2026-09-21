@@ -7,6 +7,8 @@ import type { McpConfig, McpServer } from './types.js';
 
 export interface McpToolSource extends ToolSource {
   connectedServers(): string[];
+  /** Raw tool names for each server that completed the MCP handshake, sorted. */
+  connectedTools(): Readonly<Record<string, readonly string[]>>;
   close(): Promise<void>;
 }
 
@@ -43,15 +45,18 @@ export function mcpToolSource(opts: McpToolSourceOptions): McpToolSource {
   const log = opts.log ?? ((message: string) => console.error(message));
   const connect = opts.connect ?? ((server: McpServer) => connectMcpServer(server));
   let connected: string[] = [];
+  let connectedTools: Record<string, readonly string[]> = {};
   const handles: McpClientHandle[] = [];
   let hookedExit = false;
 
   const source: McpToolSource = {
     name: 'mcp',
     connectedServers: () => connected,
+    connectedTools: () => connectedTools,
     close: async () => {
       const pending = handles.splice(0, handles.length);
       connected = [];
+      connectedTools = {};
       await Promise.all(
         pending.map(async (h) => {
           try {
@@ -64,12 +69,16 @@ export function mcpToolSource(opts: McpToolSourceOptions): McpToolSource {
     },
     tools: async (): Promise<ToolSet> => {
       connected = [];
+      connectedTools = {};
       handles.length = 0;
-      if (!opts.config.enabled || opts.config.servers.length === 0) {
+      if (!opts.config.enabled) {
         return {};
       }
       for (const w of opts.config.warnings) {
         log(`› MCP: ${w}`);
+      }
+      if (opts.config.servers.length === 0) {
+        return {};
       }
 
       const results = await Promise.allSettled(
@@ -90,13 +99,17 @@ export function mcpToolSource(opts: McpToolSourceOptions): McpToolSource {
         const { handle } = result.value;
         handles.push(handle);
         connected.push(server.name);
+        const rawNames: string[] = [];
         let n = 0;
         for (const [toolName, toolDef] of Object.entries(handle.tools)) {
+          rawNames.push(toolName);
           const prefixed = mcpToolName(server.name, toolName);
           if (prefixed in out) continue;
           out[prefixed] = annotateDescription(server.name, toolDef) as ToolSet[string];
           n++;
         }
+        rawNames.sort();
+        connectedTools[server.name] = rawNames;
         log(`› MCP: connected ${server.name} (${n} tools)`);
       }
       if (!hookedExit && handles.length > 0) {

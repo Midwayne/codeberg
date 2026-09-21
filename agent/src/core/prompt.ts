@@ -1,3 +1,6 @@
+import { DBMCP_SERVER_NAME } from './mcp/builtin.js';
+import { mcpToolName } from './mcp/names.js';
+
 // A generic distributed-systems exemplar (no proprietary names) that fixes the
 // shape of a data-source / source-of-truth answer: reader vs. writer/producer,
 // the source-map sections, explicit gaps, and a confidence level. Pinned into
@@ -146,6 +149,8 @@ export interface AgentSystemPromptOptions {
   search: boolean;
   /** Names of MCP servers that actually connected (tools are mcp_<server>_<tool>). */
   mcpServers?: readonly string[];
+  /** Raw tool names for each connected server. Used to list database tools. */
+  mcpTools?: Readonly<Record<string, readonly string[]>>;
 }
 
 /**
@@ -190,6 +195,27 @@ export function agentSystemPrompt(web: AgentSystemPromptOptions): string {
       'MCP tools:',
       `Configured MCP servers: ${mcp.join(', ')}. Their tools are named mcp_<server>_<tool> (for example mcp_github_list_issues). Use them when they match the task. Prefer local code-search tools for questions about this repository.`,
     );
+    lines.push(...databaseMcpSection(mcp, web.mcpTools));
   }
   return lines.join('\n');
+}
+
+function databaseMcpSection(
+  servers: readonly string[],
+  tools: Readonly<Record<string, readonly string[]>> | undefined,
+): string[] {
+  if (!servers.includes(DBMCP_SERVER_NAME)) return [];
+  const raw = tools?.[DBMCP_SERVER_NAME] ?? [];
+  const names = [...new Set(raw.map((tool) => mcpToolName(DBMCP_SERVER_NAME, tool)))].sort();
+  const lines = [
+    '',
+    'Database tools (built-in multi-db MCP):',
+    'The databases server connected. Use these tools for live MongoDB, PostgreSQL, and Redis questions from the spec file. Keep using code-search tools to see how this repository talks to those databases.',
+    'Pass the connection name from the spec on engine tools. Honor each connection access mode (read_only, read_write, admin).',
+  ];
+  if (names.length > 0) {
+    lines.push('Registered database tools:');
+    for (const name of names) lines.push(`- ${name}`);
+  }
+  return lines;
 }

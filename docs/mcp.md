@@ -94,6 +94,58 @@ A server that fails to spawn or handshake is skipped. The rest of the agent —
 code search, web tools, other MCP servers — keeps running. Look for
 `› MCP:` lines on stderr.
 
+## Built-in database server
+
+[multi-db-mcp-server](https://github.com/Midwayne/multi-db-mcp-server) is a
+built-in stdio MCP server for MongoDB, PostgreSQL, and Redis. The source is
+the git submodule `third_party/multi-db-mcp-server` (branch `main`), so tool
+changes upstream are pulled in rather than copied into this tree:
+
+```sh
+make update-dbmcp   # git submodule update --remote, then rebuild build/dbmcp
+```
+
+It is off until you opt in.
+
+1. Build the binary (the `codeberg` launcher does this when the flag is on):
+
+   ```sh
+   make build-dbmcp
+   ```
+
+2. Add a spec in the codeberg config directory. `spec.yml` is preferred;
+   `spec.yaml` is accepted. Recipes and the field reference live in the
+   submodule (`README.md`, `spec.example.yaml`) — do not commit passwords.
+   `${ENV_VAR}` in the spec expands from the agent process environment.
+
+   ```yaml
+   connections:
+     - name: app
+       type: postgres
+       uri: ${POSTGRES_URI}
+       access: read_only
+   ```
+
+3. Turn it on:
+
+   ```sh
+   CODEBERG_DBMCP_USE=true
+   ```
+
+   `0` / `false` / `off` / `no` (or leaving it unset) keeps it disabled.
+   `CODEBERG_MCP_USE=false` disables `mcp.json` servers only; this flag is
+   independent.
+
+Optional overrides: `CODEBERG_DBMCP_SPEC` (spec path) and `CODEBERG_DBMCP_BIN`
+(binary path). An `mcp.json` server named `databases` replaces the built-in
+command.
+
+When the flag is on, the spec is readable, and the process completes the MCP
+handshake, the agent registers that server's tools as `mcp_databases_<tool>`
+and lists them in the system prompt. A missing spec, a missing binary, or a
+server that exits (for example a database down while `fail_on_connect_error`
+is true) is skipped. Code search and other MCP servers keep running.
+
 ## Related
 
 - Agent environment variables: [agent/README.md](../agent/README.md)
