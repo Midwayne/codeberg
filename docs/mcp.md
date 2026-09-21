@@ -142,7 +142,9 @@ command.
 
 When the flag is on, the spec is readable, and the process completes the MCP
 handshake, the agent registers that server's tools as `mcp_databases_<tool>`
-and lists them in the system prompt. A missing spec, a missing binary, or a
+and lists them in the system prompt. The prompt tells the agent to list the
+databases on each connection — including their schemas, collections, and
+tables — and to map those names onto the code it searches. A missing spec, a missing binary, or a
 server that exits (for example a database down while `fail_on_connect_error`
 is true) is skipped. Code search and other MCP servers keep running.
 

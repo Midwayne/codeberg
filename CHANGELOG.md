@@ -13,9 +13,11 @@ changes may occur in minor releases and are called out explicitly.
   from the `third_party/multi-db-mcp-server` submodule. Off unless
   `CODEBERG_DBMCP_USE` is set. Put connections in `~/.codeberg/spec.yml`
   (`spec.yaml` also accepted). The agent registers `mcp_databases_<tool>` and
-  lists them in the system prompt only after the server handshakes. `make
-  build-dbmcp` builds `build/dbmcp`; `make update-dbmcp` pulls upstream `main`
-  and rebuilds. See [docs/mcp.md](docs/mcp.md).
+  lists them in the system prompt only after the server handshakes. The prompt
+  tells the agent to list databases, schemas, collections, and tables and map
+  those names onto the code it searches. `make build-dbmcp` builds
+  `build/dbmcp`; `make update-dbmcp` pulls upstream `main` and rebuilds. See
+  [docs/mcp.md](docs/mcp.md).
 - **MCP server config** — the agent loads Cursor-compatible `mcp.json` files
   (`mcpServers`, with VS Code `servers` as an alias) and registers their tools
   as `mcp_<server>_<tool>`. Discovery, later files winning on the same name:

@@ -31,11 +31,26 @@ describe('agentSystemPrompt', () => {
       enabled: false,
       search: false,
       mcpServers: ['databases'],
-      mcpTools: { databases: ['postgres_query', 'list_connections'] },
+      mcpTools: {
+        databases: [
+          'postgres_query',
+          'list_connections',
+          'postgres_list_databases',
+          'mongo_list_databases',
+          'landscape',
+        ],
+      },
     });
     expect(p).toContain('built-in multi-db MCP');
-    expect(p).toContain('- mcp_databases_list_connections');
-    expect(p).toContain('- mcp_databases_postgres_query');
+    expect(p).toContain('list the databases available');
+    expect(p).toContain('schemas, collections, tables');
+    expect(p).toContain('Map those names directly onto any code you search');
+    expect(p).toContain('mcp_databases_postgres_list_databases');
+    expect(p).toContain('schemas in each database');
+    expect(p).toContain('mcp_databases_mongo_list_databases');
+    expect(p).toContain('collections in each database');
+    expect(p).toContain('mcp_databases_landscape');
+    expect(p).not.toContain('mcp_databases_redis_scan');
     const listed = p.slice(p.indexOf('Registered database tools:'));
     expect(listed.indexOf('list_connections')).toBeLessThan(listed.indexOf('postgres_query'));
   });

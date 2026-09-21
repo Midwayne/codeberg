@@ -200,21 +200,86 @@ export function agentSystemPrompt(web: AgentSystemPromptOptions): string {
   return lines.join('\n');
 }
 
+/** Discovery tools, in the order the agent should try them. Emitted only when that tool registered. */
+const DATABASE_DISCOVERY: readonly { tool: string; use: string }[] = [
+  {
+    tool: 'list_connections',
+    use: 'every database connection in the spec: name, engine, and access mode. Start here. Pass that connection name on later tools.',
+  },
+  {
+    tool: 'list_permissions',
+    use: 'what each connection allows (read_only, read_write, admin) before reading or writing.',
+  },
+  {
+    tool: 'landscape',
+    use: 'one overview of every connected database: Mongo collections, Postgres tables, and Redis keyspace.',
+  },
+  {
+    tool: 'postgres_list_databases',
+    use: 'PostgreSQL databases, including the schemas in each database.',
+  },
+  {
+    tool: 'postgres_list_schemas',
+    use: 'schemas in a PostgreSQL database.',
+  },
+  {
+    tool: 'postgres_list_tables',
+    use: 'tables in a PostgreSQL schema.',
+  },
+  {
+    tool: 'postgres_describe_table',
+    use: 'columns of one PostgreSQL table.',
+  },
+  {
+    tool: 'mongo_list_databases',
+    use: 'MongoDB databases, including the collections in each database.',
+  },
+  {
+    tool: 'mongo_list_collections',
+    use: 'collections in a MongoDB database.',
+  },
+  {
+    tool: 'mongo_schema',
+    use: 'a sampled field schema for one MongoDB collection.',
+  },
+  {
+    tool: 'redis_scan',
+    use: 'Redis keys by pattern, so key prefixes can be matched to code.',
+  },
+  {
+    tool: 'redis_info',
+    use: 'Redis INFO, including keyspace stats.',
+  },
+];
+
 function databaseMcpSection(
   servers: readonly string[],
   tools: Readonly<Record<string, readonly string[]>> | undefined,
 ): string[] {
   if (!servers.includes(DBMCP_SERVER_NAME)) return [];
   const raw = tools?.[DBMCP_SERVER_NAME] ?? [];
+  const registered = new Set(raw);
   const names = [...new Set(raw.map((tool) => mcpToolName(DBMCP_SERVER_NAME, tool)))].sort();
   const lines = [
     '',
     'Database tools (built-in multi-db MCP):',
-    'The databases server connected. Use these tools for live MongoDB, PostgreSQL, and Redis questions from the spec file. Keep using code-search tools to see how this repository talks to those databases.',
-    'Pass the connection name from the spec on engine tools. Honor each connection access mode (read_only, read_write, admin).',
+    'The databases server is connected. You can list the databases available on each connection, and from those listings the schemas, collections, tables, and keyspaces they contain. Map those names directly onto any code you search.',
+    '',
+    'How to map a live database onto this repository:',
+    '1. List what exists. Use the catalog tools to read database names, schemas, collections, tables, columns, and key prefixes.',
+    '2. Search the code for those exact names. Use grep (and search_code or find_symbol when the name is a symbol) for each database, schema, collection, table, column, and key prefix. Queries, ORM models, migrations, and config should use the same identifiers the database tools returned.',
+    '3. Answer with both sides. Name the connection and the live object (database, schema, collection, or table), then cite the code that reads or writes it as [path:start-end]. When either side is missing, say what the database tools returned and what the code search returned.',
+    'Pass the connection name from list_connections on every engine tool. Honor each connection access mode.',
   ];
+  const discovery = DATABASE_DISCOVERY.filter((hint) => registered.has(hint.tool));
+  if (discovery.length > 0) {
+    lines.push('', 'Catalog tools (call these before querying rows or documents):');
+    for (const hint of discovery) {
+      lines.push(`- ${mcpToolName(DBMCP_SERVER_NAME, hint.tool)}: ${hint.use}`);
+    }
+  }
   if (names.length > 0) {
-    lines.push('Registered database tools:');
+    lines.push('', 'Registered database tools:');
     for (const name of names) lines.push(`- ${name}`);
   }
   return lines;
