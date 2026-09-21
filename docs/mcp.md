@@ -141,12 +141,13 @@ Optional overrides: `CODEBERG_DBMCP_SPEC` (spec path) and `CODEBERG_DBMCP_BIN`
 command.
 
 When the flag is on, the spec is readable, and the process completes the MCP
-handshake, the agent registers that server's tools as `mcp_databases_<tool>`
-and lists them in the system prompt. The prompt tells the agent to list the
-databases on each connection — including their schemas, collections, and
-tables — and to map those names onto the code it searches. A missing spec, a missing binary, or a
-server that exits (for example a database down while `fail_on_connect_error`
-is true) is skipped. Code search and other MCP servers keep running.
+handshake, the agent registers that server's tools as `mcp_databases_<tool>`.
+Names, arguments, and descriptions come from the server. The system prompt
+tells the agent to find a query in the indexed code before executing it
+against a database, unless the user has explicitly defined the path to take.
+A missing spec, a missing binary, or a server that exits (for example a
+database down while `fail_on_connect_error` is true) is skipped. Code search
+and other MCP servers keep running.
 
 ## Related
 

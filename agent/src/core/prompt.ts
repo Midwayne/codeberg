@@ -1,6 +1,3 @@
-import { DBMCP_SERVER_NAME } from './mcp/builtin.js';
-import { mcpToolName } from './mcp/names.js';
-
 // A generic distributed-systems exemplar (no proprietary names) that fixes the
 // shape of a data-source / source-of-truth answer: reader vs. writer/producer,
 // the source-map sections, explicit gaps, and a confidence level. Pinned into
@@ -56,6 +53,9 @@ General strategy:
 10. Search across repositories/services when the code indicates microservice boundaries or shared dependencies.
 11. Prefer a single pipe call over several grep/read_file/head/wc calls when the work is expressible as a pipeline.
 12. Stop only when you can answer with cited evidence, or when further tracing is blocked by missing code.
+
+Database queries:
+Respect the index. Always look for the query in the indexed code before you execute it against a database. Find the statement and its call site with the code-search tools. Execute against the database only after that, unless the user has explicitly defined the path to take.
 
 Data-source tracing strategy:
 When the user asks about a data source, storage location, database, table, collection, API dependency, queue, topic, producer, writer, or source of truth, do not stop at the first match.
@@ -149,8 +149,6 @@ export interface AgentSystemPromptOptions {
   search: boolean;
   /** Names of MCP servers that actually connected (tools are mcp_<server>_<tool>). */
   mcpServers?: readonly string[];
-  /** Raw tool names for each connected server. Used to list database tools. */
-  mcpTools?: Readonly<Record<string, readonly string[]>>;
 }
 
 /**
@@ -193,94 +191,8 @@ export function agentSystemPrompt(web: AgentSystemPromptOptions): string {
     lines.push(
       '',
       'MCP tools:',
-      `Configured MCP servers: ${mcp.join(', ')}. Their tools are named mcp_<server>_<tool> (for example mcp_github_list_issues). Use them when they match the task. Prefer local code-search tools for questions about this repository.`,
+      `Configured MCP servers: ${mcp.join(', ')}. Their tools are named mcp_<server>_<tool> (for example mcp_github_list_issues). Use them when they match the task. Tool names, arguments, and descriptions come from the server. Prefer local code-search tools for questions about this repository.`,
     );
-    lines.push(...databaseMcpSection(mcp, web.mcpTools));
   }
   return lines.join('\n');
-}
-
-/** Discovery tools, in the order the agent should try them. Emitted only when that tool registered. */
-const DATABASE_DISCOVERY: readonly { tool: string; use: string }[] = [
-  {
-    tool: 'list_connections',
-    use: 'every database connection in the spec: name, engine, and access mode. Start here. Pass that connection name on later tools.',
-  },
-  {
-    tool: 'list_permissions',
-    use: 'what each connection allows (read_only, read_write, admin) before reading or writing.',
-  },
-  {
-    tool: 'landscape',
-    use: 'one overview of every connected database: Mongo collections, Postgres tables, and Redis keyspace.',
-  },
-  {
-    tool: 'postgres_list_databases',
-    use: 'PostgreSQL databases, including the schemas in each database.',
-  },
-  {
-    tool: 'postgres_list_schemas',
-    use: 'schemas in a PostgreSQL database.',
-  },
-  {
-    tool: 'postgres_list_tables',
-    use: 'tables in a PostgreSQL schema.',
-  },
-  {
-    tool: 'postgres_describe_table',
-    use: 'columns of one PostgreSQL table.',
-  },
-  {
-    tool: 'mongo_list_databases',
-    use: 'MongoDB databases, including the collections in each database.',
-  },
-  {
-    tool: 'mongo_list_collections',
-    use: 'collections in a MongoDB database.',
-  },
-  {
-    tool: 'mongo_schema',
-    use: 'a sampled field schema for one MongoDB collection.',
-  },
-  {
-    tool: 'redis_scan',
-    use: 'Redis keys by pattern, so key prefixes can be matched to code.',
-  },
-  {
-    tool: 'redis_info',
-    use: 'Redis INFO, including keyspace stats.',
-  },
-];
-
-function databaseMcpSection(
-  servers: readonly string[],
-  tools: Readonly<Record<string, readonly string[]>> | undefined,
-): string[] {
-  if (!servers.includes(DBMCP_SERVER_NAME)) return [];
-  const raw = tools?.[DBMCP_SERVER_NAME] ?? [];
-  const registered = new Set(raw);
-  const names = [...new Set(raw.map((tool) => mcpToolName(DBMCP_SERVER_NAME, tool)))].sort();
-  const lines = [
-    '',
-    'Database tools (built-in multi-db MCP):',
-    'The databases server is connected. You can list the databases available on each connection, and from those listings the schemas, collections, tables, and keyspaces they contain. Map those names directly onto any code you search.',
-    '',
-    'How to map a live database onto this repository:',
-    '1. List what exists. Use the catalog tools to read database names, schemas, collections, tables, columns, and key prefixes.',
-    '2. Search the code for those exact names. Use grep (and search_code or find_symbol when the name is a symbol) for each database, schema, collection, table, column, and key prefix. Queries, ORM models, migrations, and config should use the same identifiers the database tools returned.',
-    '3. Answer with both sides. Name the connection and the live object (database, schema, collection, or table), then cite the code that reads or writes it as [path:start-end]. When either side is missing, say what the database tools returned and what the code search returned.',
-    'Pass the connection name from list_connections on every engine tool. Honor each connection access mode.',
-  ];
-  const discovery = DATABASE_DISCOVERY.filter((hint) => registered.has(hint.tool));
-  if (discovery.length > 0) {
-    lines.push('', 'Catalog tools (call these before querying rows or documents):');
-    for (const hint of discovery) {
-      lines.push(`- ${mcpToolName(DBMCP_SERVER_NAME, hint.tool)}: ${hint.use}`);
-    }
-  }
-  if (names.length > 0) {
-    lines.push('', 'Registered database tools:');
-    for (const name of names) lines.push(`- ${name}`);
-  }
-  return lines;
 }

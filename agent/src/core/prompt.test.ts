@@ -23,36 +23,24 @@ describe('agentSystemPrompt', () => {
     expect(p).toContain('linear');
     expect(p).toContain('mcp_<server>_<tool>');
     expect(p).toContain(AGENT_SYSTEM);
-    expect(p).not.toContain('built-in multi-db MCP');
+    expect(p).not.toContain('postgres_list_databases');
+    expect(p).not.toContain('mongo_list_collections');
   });
 
-  it('lists database tools only after that server connects', () => {
+  it('tells the agent to find queries in the index before running them', () => {
+    expect(AGENT_SYSTEM).toContain('Respect the index');
+    expect(AGENT_SYSTEM).toContain(
+      'Always look for the query in the indexed code before you execute it against a database',
+    );
+    expect(AGENT_SYSTEM).toContain('unless the user has explicitly defined the path to take');
     const p = agentSystemPrompt({
       enabled: false,
       search: false,
       mcpServers: ['databases'],
-      mcpTools: {
-        databases: [
-          'postgres_query',
-          'list_connections',
-          'postgres_list_databases',
-          'mongo_list_databases',
-          'landscape',
-        ],
-      },
     });
-    expect(p).toContain('built-in multi-db MCP');
-    expect(p).toContain('list the databases available');
-    expect(p).toContain('schemas, collections, tables');
-    expect(p).toContain('Map those names directly onto any code you search');
-    expect(p).toContain('mcp_databases_postgres_list_databases');
-    expect(p).toContain('schemas in each database');
-    expect(p).toContain('mcp_databases_mongo_list_databases');
-    expect(p).toContain('collections in each database');
-    expect(p).toContain('mcp_databases_landscape');
-    expect(p).not.toContain('mcp_databases_redis_scan');
-    const listed = p.slice(p.indexOf('Registered database tools:'));
-    expect(listed.indexOf('list_connections')).toBeLessThan(listed.indexOf('postgres_query'));
+    expect(p).toContain('Respect the index');
+    expect(p).not.toContain('mcp_databases_');
+    expect(p).toContain('Tool names, arguments, and descriptions come from the server');
   });
 
   it('omits the MCP section when no servers connected', () => {

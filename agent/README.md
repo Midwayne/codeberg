@@ -510,7 +510,10 @@ Full format, interpolation, and discovery order: [docs/mcp.md](../docs/mcp.md).
 [multi-db MCP server](https://github.com/Midwayne/multi-db-mcp-server) vendored
 as `third_party/multi-db-mcp-server`. Build it with `make build-dbmcp` and
 describe connections in `$CODEBERG_HOME/spec.yml`. When that process completes
-the MCP handshake, its tools are registered as `mcp_databases_<tool>` and named
-in the system prompt. A missing spec, missing binary, or a server that exits
-is skipped. `make update-dbmcp` pulls upstream `main` and rebuilds; new tools
-show up from the server without agent code changes.
+the MCP handshake, its tools are registered as `mcp_databases_<tool>`. Names
+and arguments come from the server, not from a fixed prompt. The system prompt
+tells the agent to find a query in the indexed code before executing it
+against a database, unless the user has explicitly defined the path to take.
+A missing spec, missing binary, or a server that exits is skipped. `make
+update-dbmcp` pulls upstream `main` and rebuilds; new tools show up from the
+server without agent code changes.

@@ -201,7 +201,6 @@ export class Agent implements Asker {
         enabled: this.web.enabled,
         search: Boolean(this.web.searxngUrl),
         mcpServers: this.mcpSource?.connectedServers() ?? [],
-        mcpTools: this.mcpSource?.connectedTools() ?? {},
       });
       const providerOptions = requestProviderOptions(this.system, Object.keys(tools), this.profile);
       const prune = pruneBudget(this.profile);
