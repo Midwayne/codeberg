@@ -1,3 +1,37 @@
+// Scenarios for live database access. They name no server tools: those come
+// from MCP discovery. Pinned into the system prompt so the code-first rule
+// stays consistent across question shapes.
+const DATABASE_QUERY_EXAMPLES = `<example>
+<question>What query loads a user's orders?</question>
+<do>
+Search the index. Grep the table, collection, or repository name, then read the statement and its call site. Answer from that code and cite it. The user asked what the code does, so leave the live database alone.
+</do>
+</example>
+<example>
+<question>How many orders are open right now?</question>
+<do>
+Find the code's orders query and cite the statement and call site. Then execute that same statement, or the count it implies, with the database tools the connected server advertised. If the index has no such query, say so. Do not compose a new statement and run it.
+</do>
+</example>
+<example>
+<question>On the app database, run: SELECT status, count(*) FROM orders GROUP BY status</question>
+<do>
+The user defined the path: the statement and the database. Execute that statement. Also search the index for the same statement or table, and cite the owning code when it is there.
+</do>
+</example>
+<example>
+<question>Does the orders table the API writes match what is actually stored?</question>
+<do>
+From the index, collect the statement, the table or collection, and the columns or fields the code writes. Then inspect that same object with the database tools the server advertised. Compare the code citation with the live shape. Start from the code's object, not from a catalog listing you then try to attach to a file.
+</do>
+</example>
+<example>
+<question>Show me the schema.</question>
+<do>
+Search the index for the schema this repository defines: migrations, models, and the queries that name tables or collections. The user named no connection, database, or statement. Report that code. Ask which live object to inspect, or follow a connection and object their message already named.
+</do>
+</example>`;
+
 // A generic distributed-systems exemplar (no proprietary names) that fixes the
 // shape of a data-source / source-of-truth answer: reader vs. writer/producer,
 // the source-map sections, explicit gaps, and a confidence level. Pinned into
@@ -56,6 +90,12 @@ General strategy:
 
 Database queries:
 Respect the index. Always look for the query in the indexed code before you execute it against a database. Find the statement and its call site with the code-search tools. Execute against the database only after that, unless the user has explicitly defined the path to take.
+
+A path from the code is a statement, table, collection, or key you found in the index, together with the call site that runs it. A path from the user is an explicit connection, statement, object, or sequence of steps in their message. Follow a user path, and still cite matching code when the index has it. A repository name, a similar word in an unrelated file, or a statement you composed is not a path.
+
+When a database server is connected, its tool names, arguments, and descriptions are the ones that server advertised. Use those tools for the live step. Do not assume a fixed catalog.
+
+${DATABASE_QUERY_EXAMPLES}
 
 Data-source tracing strategy:
 When the user asks about a data source, storage location, database, table, collection, API dependency, queue, topic, producer, writer, or source of truth, do not stop at the first match.

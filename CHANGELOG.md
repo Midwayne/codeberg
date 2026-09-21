@@ -16,7 +16,7 @@ changes may occur in minor releases and are called out explicitly.
   after the server handshakes. Tool definitions come from the server. The
   system prompt tells the agent to find a query in the indexed code before
   executing it against a database, unless the user has explicitly defined the
-  path to take. `make build-dbmcp` builds
+  path to take, with examples for those cases. `make build-dbmcp` builds
   `build/dbmcp`; `make update-dbmcp` pulls upstream `main` and rebuilds. See
   [docs/mcp.md](docs/mcp.md).
 - **MCP server config** — the agent loads Cursor-compatible `mcp.json` files

@@ -144,7 +144,9 @@ When the flag is on, the spec is readable, and the process completes the MCP
 handshake, the agent registers that server's tools as `mcp_databases_<tool>`.
 Names, arguments, and descriptions come from the server. The system prompt
 tells the agent to find a query in the indexed code before executing it
-against a database, unless the user has explicitly defined the path to take.
+against a database, unless the user has explicitly defined the path to take,
+and includes examples for code-only questions, live runs of a query found in
+the index, and a statement the user already named.
 A missing spec, a missing binary, or a server that exits (for example a
 database down while `fail_on_connect_error` is true) is skipped. Code search
 and other MCP servers keep running.

@@ -33,6 +33,15 @@ describe('agentSystemPrompt', () => {
       'Always look for the query in the indexed code before you execute it against a database',
     );
     expect(AGENT_SYSTEM).toContain('unless the user has explicitly defined the path to take');
+    expect(AGENT_SYSTEM).toContain('What query loads a user\'s orders?');
+    expect(AGENT_SYSTEM).toContain('How many orders are open right now?');
+    expect(AGENT_SYSTEM).toContain('SELECT status, count(*) FROM orders GROUP BY status');
+    expect(AGENT_SYSTEM).toContain('Does the orders table the API writes match');
+    expect(AGENT_SYSTEM).toContain('Show me the schema.');
+    expect(AGENT_SYSTEM).toContain('leave the live database alone');
+    expect(AGENT_SYSTEM).toContain('Do not compose a new statement');
+    expect(AGENT_SYSTEM).not.toContain('postgres_list_databases');
+    expect(AGENT_SYSTEM).not.toContain('mongo_list_collections');
     const p = agentSystemPrompt({
       enabled: false,
       search: false,
