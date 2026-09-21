@@ -19,6 +19,9 @@ import {
   type PromptHook,
 } from './hooks/index.js';
 import { agentSystemPrompt } from './prompt.js';
+import { mcpConfigFromEnv } from './mcp/config.js';
+import { mcpToolSource, type McpToolSource } from './mcp/tools.js';
+import type { McpConfig } from './mcp/types.js';
 import { collectTools, daemonToolSource, searchCodeSource, webToolSource } from './tools/index.js';
 import { webConfigFromEnv } from './web/config.js';
 import type { WebConfig } from './web/types.js';
@@ -69,6 +72,11 @@ export interface AgentOptions {
    *  environment (CODEBERG_WEB_USE on by default). Pass `{ enabled: false, … }`
    *  to disable web tools entirely. */
   web?: WebConfig;
+  /** MCP servers from mcp.json. Defaults to files discovered from the
+   *  environment (`CODEBERG_MCP_USE` on by default). Pass an explicit config
+   *  (or `{ enabled: false, servers: [], files: [], warnings: [] }`) to
+   *  override discovery. */
+  mcp?: McpConfig;
 }
 
 export class Agent implements Asker {
@@ -80,9 +88,12 @@ export class Agent implements Asker {
   private readonly profile: ModelProfile;
   private readonly promptHooks: readonly PromptHook[];
   private readonly web: WebConfig;
-  /** System prompt for this agent — `AGENT_SYSTEM` plus a web-tools section when
-   *  web use is enabled. Computed once so the cached prefix stays byte-stable. */
-  private readonly system: string;
+  private readonly mcp: McpConfig | undefined;
+  private mcpSource?: McpToolSource;
+  /** System prompt for this agent — `AGENT_SYSTEM` plus web/MCP sections matching
+   *  the tools that actually registered. Built in `ensureLoop` so it stays
+   *  byte-stable for the process, including connected MCP server names. */
+  private system = '';
 
   // Built once on first use (tools require an async daemon round-trip), then
   // reused across every ask instead of reconstructing the loop each call.
@@ -104,10 +115,12 @@ export class Agent implements Asker {
     this.profile = opts.profile ?? DEFAULT_PROFILE;
     this.promptHooks = opts.promptHooks ?? DEFAULT_PROMPT_HOOKS;
     this.web = opts.web ?? webConfigFromEnv();
-    this.system = agentSystemPrompt({
-      enabled: this.web.enabled,
-      search: Boolean(this.web.searxngUrl),
-    });
+    this.mcp = opts.mcp;
+  }
+
+  /** Drop MCP server connections (stdio child processes, HTTP sessions). */
+  async close(): Promise<void> {
+    await this.mcpSource?.close();
   }
 
   async ask(question: string, opts: AskOptions = {}): Promise<AskResult> {
@@ -183,6 +196,11 @@ export class Agent implements Asker {
       // Sort tools so the system+tools prefix is byte-stable — a reordered tool
       // list would invalidate the prompt cache on every process.
       const tools = deterministicTools(await this.buildTools());
+      this.system = agentSystemPrompt({
+        enabled: this.web.enabled,
+        search: Boolean(this.web.searxngUrl),
+        mcpServers: this.mcpSource?.connectedServers() ?? [],
+      });
       const providerOptions = requestProviderOptions(this.system, Object.keys(tools), this.profile);
       const prune = pruneBudget(this.profile);
       const loop = new ToolLoopAgent({
@@ -235,7 +253,15 @@ export class Agent implements Asker {
         },
       }),
       webToolSource(this.web),
+      this.mcpSourceForBuild(),
     ]);
+  }
+
+  private mcpSourceForBuild(): McpToolSource {
+    this.mcpSource = mcpToolSource({
+      config: this.mcp ?? mcpConfigFromEnv(),
+    });
+    return this.mcpSource;
   }
 }
 

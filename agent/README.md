@@ -24,7 +24,7 @@ or from a checkout.
 | `CODEBERG_MODEL` | all | `provider:model`, overrides the positional argument |
 | `CODEBERG_DAEMON_URL` | all | daemon endpoint (default `http://127.0.0.1:48080`) |
 | `CODEBERG_QUESTION` | CLI | the question, overrides the positional argument |
-| `CODEBERG_HOME` | TUI, web | state root for sessions (default `~/.codeberg`) |
+| `CODEBERG_HOME` | TUI, web, MCP | state root for sessions and `~/.codeberg/mcp.json` (default `~/.codeberg`) |
 | `CODEBERG_REASONING` | all | reasoning effort: `provider-default`, `none`, `minimal`, `low`, `medium`, `high`, `xhigh`; anything else is ignored |
 | `CODEBERG_CONTEXT_WINDOW` | all | override the model's inferred context window (tokens) — mainly for local `ollama`/`llamacpp` servers, whose real window depends on how they were started |
 | `CODEBERG_WEB_USE` | all | master switch for `fetch_url`/`web_search` (default on; `0`/`false`/`off`/`no` disables) |
@@ -34,6 +34,8 @@ or from a checkout.
 | `CODEBERG_WEB_MAX_CHARS` | all | `fetch_url` extracted-text cap (default 20,000 chars) |
 | `CODEBERG_WEB_TIMEOUT_MS` | all | `fetch_url`/`web_search` HTTP timeout (default 15,000) |
 | `CODEBERG_WEB_SEARCH_COUNT` | all | `web_search` result count (default 6) |
+| `CODEBERG_MCP_USE` | all | master switch for MCP servers from `mcp.json` (default on; `0`/`false`/`off`/`no` disables) |
+| `CODEBERG_MCP_CONFIG` | all | extra `mcp.json` path(s), comma-separated (e.g. `~/.cursor/mcp.json`) |
 | `CODEBERG_WEB_PORT` / `PORT` | web | listen port (default 48088) |
 | `CODEBERG_WEB_ROOT` | web | prebuilt SPA directory (default `../web-ui/dist`) |
 
@@ -277,6 +279,8 @@ apply surface-specific wrappers:
 
 **Tool sources** merge in order (`collectTools`) — first wins. Built-in `search_code`
 always registers before the daemon bridge so daemon `search` cannot shadow it.
+MCP servers from `mcp.json` register last so they cannot shadow core tools;
+their names are `mcp_<server>_<tool>`. See [docs/mcp.md](../docs/mcp.md).
 
 **Context management:** 50% history budget compaction before each turn; 60% in-loop
 tool-result pruning; optional prompt caching (Anthropic/OpenAI). Override window with
@@ -470,3 +474,29 @@ const agent = new Agent({
   web: { ...webConfigFromEnv(), searxngUrl: "http://127.0.0.1:8888" },
 });
 ```
+
+## MCP servers
+
+The agent loads [Model Context Protocol](https://modelcontextprotocol.io) servers
+from Cursor-compatible `mcp.json` files (`mcpServers`). On by default; disable
+with `CODEBERG_MCP_USE=false`.
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${env:GITHUB_PERSONAL_ACCESS_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+Put that in `~/.codeberg/mcp.json` (`codeberg config init` writes an empty
+starter) or in the indexed repo at `.codeberg/mcp.json` / `.cursor/mcp.json`.
+A repo you already configured for Cursor is picked up automatically.
+
+Full format, interpolation, and discovery order: [docs/mcp.md](../docs/mcp.md).

@@ -24,6 +24,9 @@ async function main(): Promise<void> {
   }
 
   const core = createAgentFromEntry(entry);
+  process.once('beforeExit', () => {
+    void core.close();
+  });
   const loop = await core.toolLoopAgent();
   const agent = wrapSessionAgent(loop, {
     store: new SessionStore(),

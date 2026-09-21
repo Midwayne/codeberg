@@ -12,6 +12,14 @@ export default defineConfig({
   dts: true,
   clean: true,
   target: 'node22',
-  external: ['ai', '@ai-sdk/tui', '@ai-sdk/openai', '@ai-sdk/anthropic', '@ai-sdk/google'],
+  external: [
+    'ai',
+    '@ai-sdk/tui',
+    '@ai-sdk/openai',
+    '@ai-sdk/anthropic',
+    '@ai-sdk/google',
+    '@ai-sdk/mcp',
+    '@ai-sdk/mcp/mcp-stdio',
+  ],
   splitting: false,
 });

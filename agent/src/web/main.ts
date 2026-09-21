@@ -45,6 +45,9 @@ async function main(): Promise<void> {
   }
 
   const core = createAgentFromEntry(entry);
+  process.once('beforeExit', () => {
+    void core.close();
+  });
   const loop = await core.toolLoopAgent();
   // Budget the (browser-held, ever-growing) transcript to the model's window on
   // every turn, the same policy the CLI/TUI apply.
