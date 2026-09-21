@@ -17,6 +17,7 @@ export function IconButton({ className, ...props }: ButtonHTMLAttributes<HTMLBut
   );
 }
 
+
 export function CopyButton({
   text,
   className,
@@ -67,16 +68,15 @@ export function Collapsible({
   return (
     <details
       open={defaultOpen}
-      className="group/collapsible my-1 rounded-lg border border-border bg-card/40"
+      className="group/collapsible my-1 min-w-0 max-w-full overflow-hidden rounded-lg border border-border bg-card/40"
     >
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs text-muted-foreground [&::-webkit-details-marker]:hidden">
+      <summary className="flex min-w-0 cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs text-muted-foreground [&::-webkit-details-marker]:hidden">
         <ChevronRight className="size-3.5 shrink-0 transition-transform group-open/collapsible:rotate-90" />
         {icon}
-        <span className="font-medium">{title}</span>
+        <span className="min-w-0 flex-1 truncate font-medium">{title}</span>
         {badge}
       </summary>
       <div className="border-t border-border px-3 py-2">{children}</div>
     </details>
   );
 }
-
