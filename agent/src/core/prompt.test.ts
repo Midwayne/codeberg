@@ -38,6 +38,11 @@ describe('agentSystemPrompt', () => {
     expect(AGENT_SYSTEM).toContain('SELECT status, count(*) FROM orders GROUP BY status');
     expect(AGENT_SYSTEM).toContain('Does the orders table the API writes match');
     expect(AGENT_SYSTEM).toContain('Show me the schema.');
+    expect(AGENT_SYSTEM).toContain('Write a query for orders placed yesterday that are still unpaid.');
+    expect(AGENT_SYSTEM).toContain('Should I run this?');
+    expect(AGENT_SYSTEM).toContain('which database indexes migrations or existing queries already use');
+    expect(AGENT_SYSTEM).toContain('This reads unpaid orders created yesterday');
+    expect(AGENT_SYSTEM).toContain("SELECT id, status, created_at");
     expect(AGENT_SYSTEM).toContain('leave the live database alone');
     expect(AGENT_SYSTEM).toContain('Do not compose a new statement');
     expect(AGENT_SYSTEM).not.toContain('postgres_list_databases');

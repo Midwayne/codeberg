@@ -146,7 +146,10 @@ Names, arguments, and descriptions come from the server. The system prompt
 tells the agent to find a query in the indexed code before executing it
 against a database, unless the user has explicitly defined the path to take,
 and includes examples for code-only questions, live runs of a query found in
-the index, and a statement the user already named.
+the index, a statement the user already named, and a query the user asked the
+agent to write. In that last case the agent shows the statement and a plain
+description, prefers database indexes the code already uses, and asks before
+running it.
 A missing spec, a missing binary, or a server that exits (for example a
 database down while `fail_on_connect_error` is true) is skipped. Code search
 and other MCP servers keep running.
