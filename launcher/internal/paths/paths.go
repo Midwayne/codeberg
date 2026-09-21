@@ -95,3 +95,8 @@ func Home(override string) string {
 func ConfigFile(home string) string {
 	return filepath.Join(home, "config")
 }
+
+// McpFile is the Cursor-compatible MCP server JSON inside Home.
+func McpFile(home string) string {
+	return filepath.Join(home, "mcp.json")
+}

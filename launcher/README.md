@@ -180,7 +180,7 @@ layers. See `codeberg help` for common workflows.
 | `codeberg build` | force (re)build/download of components and model |
 | `codeberg doctor` | toolchain + artifact + config diagnostics |
 | `codeberg config` | print resolved config |
-| `codeberg config init` | write a starter `~/.codeberg/config` |
+| `codeberg config init` | write a starter `~/.codeberg/config` and `mcp.json` |
 | `codeberg clean-index` | prune cached per-directory vector indexes |
 | `codeberg uninstall` | remove the command; ask before deleting model/data |
 | `codeberg version` | print version |

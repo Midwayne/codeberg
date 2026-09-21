@@ -50,6 +50,8 @@ const (
 	KeyWebUse      = "CODEBERG_WEB_USE"               // "false" => disable agent web tools (agent scope)
 	KeySearxngURL  = "CODEBERG_SEARXNG_URL"           // external SearXNG for web_search (agent scope)
 	KeySearxngPort = "CODEBERG_SEARXNG_PORT"          // preferred port for the managed SearXNG
+	KeyMcpUse      = "CODEBERG_MCP_USE"               // "false" => disable MCP tools (agent scope)
+	KeyMcpConfig   = "CODEBERG_MCP_CONFIG"            // extra mcp.json path(s), comma-separated (agent scope)
 )
 
 // DefaultSearxngPort is the preferred listen port for the launcher-managed
@@ -137,6 +139,8 @@ type Config struct {
 	WebUse      bool   // agent web tools (web_search + fetch_url) enabled
 	SearxngURL  string // external SearXNG instance; "" => launcher manages one
 	SearxngPort string // preferred port for the managed SearXNG
+	McpUse      bool   // agent MCP tools from mcp.json enabled
+	McpConfig   string // extra mcp.json path(s), comma-separated
 
 	Passthrough map[string]string
 	ConfigPath  string // the file we read (whether or not it existed)
@@ -257,6 +261,15 @@ func Load(o Overrides) (*Config, error) {
 	}
 	c.SearxngURL = resolve(KeySearxngURL, "")
 	c.SearxngPort = firstNonEmpty(resolve(KeySearxngPort, ""), DefaultSearxngPort)
+
+	// MCP tools from Cursor-compatible mcp.json files. On by default; disable
+	// with CODEBERG_MCP_USE=false. Extra config paths (beyond ~/.codeberg/mcp.json
+	// and per-repo .codeberg/.cursor files) go in CODEBERG_MCP_CONFIG.
+	c.McpUse = true
+	if v := resolve(KeyMcpUse, ""); v != "" {
+		c.McpUse = !isFalsey(v)
+	}
+	c.McpConfig = resolve(KeyMcpConfig, "")
 
 	// Daemon URL defaults to the local daemon on the resolved port.
 	c.DaemonURL = firstNonEmpty(resolve(KeyDaemonURL, o.DaemonURL), "http://127.0.0.1:"+c.HTTPPort)
@@ -431,6 +444,22 @@ func (c *Config) AgentEnv() map[string]string {
 	// has started), taking precedence over nothing / falling back to this.
 	e[KeyWebUse] = fmt.Sprintf("%t", c.WebUse)
 	putIf(e, KeySearxngURL, c.SearxngURL)
+	// MCP: the agent discovers mcp.json itself; we pass home + indexed roots so
+	// it finds ~/.codeberg/mcp.json and per-repo configs even though the child
+	// cwd is the codeberg checkout/dist, not the indexed tree.
+	e[KeyHome] = c.Home
+	e[KeyMcpUse] = fmt.Sprintf("%t", c.McpUse)
+	putIf(e, KeyMcpConfig, c.McpConfig)
+	if len(c.Roots) > 0 {
+		records := make([]string, 0, len(c.Roots))
+		for _, r := range c.Roots {
+			records = append(records, r.Key+"\t"+r.Root)
+		}
+		e[KeyRoots] = strings.Join(records, "\n")
+	}
+	if !c.All && len(c.Repos) == 0 {
+		putIf(e, KeyRoot, c.Root)
+	}
 	for k, v := range c.Passthrough {
 		e[k] = v
 	}

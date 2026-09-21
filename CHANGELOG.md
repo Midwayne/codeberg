@@ -9,6 +9,16 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Added
 
+- **MCP server config** — the agent loads Cursor-compatible `mcp.json` files
+  (`mcpServers`, with VS Code `servers` as an alias) and registers their tools
+  as `mcp_<server>_<tool>`. Discovery, later files winning on the same name:
+  `~/.codeberg/mcp.json`, each indexed root's `.cursor/mcp.json` then
+  `.codeberg/mcp.json`, then `CODEBERG_MCP_CONFIG`. Stdio (`command`/`args`/
+  `env`/`envFile`/`cwd`) and remote HTTP/SSE (`url`/`headers`/`type`) are
+  supported, including `${env:NAME}` interpolation. A broken server is skipped
+  so the rest of the agent keeps running. Disable with `CODEBERG_MCP_USE=false`.
+  `codeberg config init` writes an empty `~/.codeberg/mcp.json`. See
+  [docs/mcp.md](docs/mcp.md).
 - **`config.example`** — comprehensive launcher/daemon/agent configuration
   reference at `launcher/internal/config/config.example`. `codeberg config init`
   writes a minimal starter file; see the example for every knob.

@@ -3,7 +3,7 @@ export { cachedInstructions, deterministicTools, requestProviderOptions } from '
 export { DaemonClient } from './core/client.js';
 export { EvidenceLedger } from './core/evidence.js';
 export { fitHistory, totalTokens, type FitOptions, type Summarize } from './core/history.js';
-export { agentSystemPrompt } from './core/prompt.js';
+export { agentSystemPrompt, type AgentSystemPromptOptions } from './core/prompt.js';
 export {
   overrideLoopMethods,
   withMessageTransforms,
@@ -14,11 +14,20 @@ export { wrapToolLoopAgentWithCompaction, type HistoryCompactor } from './core/c
 export {
   collectTools,
   daemonToolSource,
+  mcpToolSource,
   searchCodeSource,
   webToolSource,
+  type McpToolSource,
+  type McpToolSourceOptions,
   type SearchCodeOptions,
   type ToolSource,
 } from './core/tools/index.js';
+export {
+  mcpConfigFromEnv,
+  parseMcpJson,
+  type McpConfig,
+  type McpServer,
+} from './core/mcp/index.js';
 export {
   assertFetchableUrl,
   fetchUrl,

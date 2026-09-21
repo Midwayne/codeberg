@@ -11,9 +11,14 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const session = new ChatSession({ agent: createAgentFromEntry(entry) });
-  const result = await session.ask(entry.question);
-  printResult(result);
+  const agent = createAgentFromEntry(entry);
+  try {
+    const session = new ChatSession({ agent });
+    const result = await session.ask(entry.question);
+    printResult(result);
+  } finally {
+    await agent.close();
+  }
 }
 
 main().catch((err: unknown) => {
