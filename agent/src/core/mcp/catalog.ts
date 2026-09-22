@@ -1,7 +1,6 @@
 import { dirname } from 'node:path';
 
-import type { ContextStore } from '../context/store.js';
-import { safeSegment } from '../context/store.js';
+import { contentHash, safeSegment, type ContextStore } from '../context/store.js';
 
 export interface McpToolListing {
   name: string;
@@ -37,6 +36,11 @@ export interface PublishedCatalog {
   dirs: Map<string, string>;
   /** Callable tool name → JSON file. */
   files: Map<string, string>;
+}
+
+/** Directory name for one server. Sanitized names that collide still hash apart. */
+export function catalogFolder(serverName: string): string {
+  return `${safeSegment(serverName)}-${contentHash(serverName)}`;
 }
 
 /** Prompt view of a catalog, plus the directory publish just wrote. */
@@ -76,7 +80,7 @@ export async function publishMcpCatalog(
 }
 
 function catalogFiles(entry: ServerCatalog): { rel: string; body: string; callable?: string }[] {
-  const folder = safeSegment(entry.serverName);
+  const folder = catalogFolder(entry.serverName);
   switch (entry.state) {
     case 'unavailable':
       return [

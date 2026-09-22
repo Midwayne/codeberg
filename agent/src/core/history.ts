@@ -55,20 +55,15 @@ const DEFAULT_KEEP_RECENT = 6;
  * into a single leading summary (when a summarizer is supplied) or dropped
  * behind a marker. Returns the input array unchanged when it already fits, so
  * the cacheable prefix is preserved on the common path.
+ *
+ * The older transcript is archived once. Prior `<history_file>` tags on those
+ * turns are copied onto the new marker. If the summary still overflows, the
+ * same file list goes on an omission marker — there is no second archive pass.
  */
 export async function fitHistory(
   messages: ModelMessage[],
   opts: FitOptions,
 ): Promise<ModelMessage[]> {
-  return compact(messages, opts);
-}
-
-/**
- * Overflow retry blanks `archive`, so the verbatim transcript is written once.
- * The marker already carries `<history_file>` tags, and `historyFilesIn` reads
- * them back on that retry.
- */
-async function compact(messages: ModelMessage[], opts: FitOptions): Promise<ModelMessage[]> {
   if (totalTokens(messages) <= opts.budget) {
     return messages;
   }
@@ -78,7 +73,6 @@ async function compact(messages: ModelMessage[], opts: FitOptions): Promise<Mode
   const older = messages.slice(0, split);
   const recent = messages.slice(split);
   if (older.length === 0) {
-    // Everything we're allowed to keep is recent; can't compact further.
     return messages;
   }
 
@@ -86,12 +80,15 @@ async function compact(messages: ModelMessage[], opts: FitOptions): Promise<Mode
   const archived = await archiveTranscript(opts.archive, full);
   const files = dedupe([...historyFilesIn(older), ...(archived ? [archived] : [])]);
 
-  if (opts.summarize) {
-    const summary = await opts.summarize(boundTranscript(full));
-    const marker = historyMarker(summary, older.length, files);
-    return compact([marker, ...recent], { ...opts, summarize: undefined, archive: undefined });
+  if (!opts.summarize) {
+    return [historyMarker(undefined, older.length, files), ...recent];
   }
 
+  const summary = await opts.summarize(boundTranscript(full));
+  const summarized = [historyMarker(summary, older.length, files), ...recent];
+  if (totalTokens(summarized) <= opts.budget) {
+    return summarized;
+  }
   return [historyMarker(undefined, older.length, files), ...recent];
 }
 

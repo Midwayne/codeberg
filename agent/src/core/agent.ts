@@ -24,6 +24,7 @@ import {
   type PromptHook,
 } from './hooks/index.js';
 import { agentSystemPrompt } from './prompt.js';
+import { prepareStepPatch } from './mcp/active.js';
 import { mcpConfigFromEnv } from './mcp/config.js';
 import { mcpToolSource, type McpToolSource } from './mcp/tools.js';
 import type { McpConfig } from './mcp/types.js';
@@ -248,13 +249,7 @@ export class Agent implements Asker {
                   emptyMessages: 'remove',
                 })
               : messages;
-          const activeTools = this.mcpSource?.activeTools(toolNames, next);
-          const messagesChanged = next !== messages;
-          if (!messagesChanged && !activeTools) return undefined;
-          return {
-            ...(messagesChanged ? { messages: next } : {}),
-            ...(activeTools ? { activeTools } : {}),
-          };
+          return prepareStepPatch(messages, next, this.mcpSource?.activeTools(toolNames, next));
         },
       });
       this.loop = wrapToolLoopAgentWithPromptHooks(loop, this.promptHooks);

@@ -131,7 +131,7 @@ function safeRel(rel: string): string {
   return parts.join(sep);
 }
 
-function contentHash(body: string): string {
+export function contentHash(body: string): string {
   return createHash('sha256').update(body).digest('hex').slice(0, 16);
 }
 

@@ -96,11 +96,34 @@ describe('fitHistory', () => {
     expect(archive).toHaveBeenCalledOnce();
     const transcript = archive.mock.calls[0]?.[0] ?? '';
     expect(transcript).not.toContain('<conversation_summary>');
-    expect(String(out[0]?.content)).toContain(
+    const marker = String(out[0]?.content);
+    expect(marker).toContain('omitted');
+    expect(marker).not.toContain('SUMMARY');
+    expect(marker).toContain(
       `<history_file>/tmp/history/${transcript.length}.txt</history_file>`,
     );
-    expect(String(out[0]?.content).match(/<history_file>/g)).toHaveLength(1);
-    expect(String(out[0]?.content)).toContain('context_grep');
+    expect(marker.match(/<history_file>/g)).toHaveLength(1);
+    expect(marker).toContain('context_grep');
+  });
+
+  it('carries earlier history files into the new marker', async () => {
+    const summarize = vi.fn(async () => 'SUMMARY');
+    const archive = vi.fn(async () => '/tmp/history/new.txt');
+    const msgs = [
+      turn('user', 'prior\n<history_file>/tmp/history/old.txt</history_file>'),
+      ...Array.from({ length: 6 }, (_, i) => turn(i % 2 ? 'assistant' : 'user', 'y'.repeat(200))),
+    ];
+    const out = await fitHistory(msgs, {
+      budget: 200,
+      keepRecent: 2,
+      summarize,
+      archive,
+    });
+    expect(archive).toHaveBeenCalledOnce();
+    const marker = String(out[0]?.content);
+    expect(marker).toContain('SUMMARY');
+    expect(marker).toContain('<history_file>/tmp/history/old.txt</history_file>');
+    expect(marker).toContain('<history_file>/tmp/history/new.txt</history_file>');
   });
 
   it('folds overflow into a single summary turn when a summarizer is given', async () => {

@@ -58,6 +58,20 @@ export class McpToolActivation {
   }
 }
 
+/** Fields `prepareStep` should send. Undefined when the step is unchanged. */
+export function prepareStepPatch(
+  messages: ModelMessage[],
+  next: ModelMessage[],
+  activeTools: string[] | undefined,
+): { messages?: ModelMessage[]; activeTools?: string[] } | undefined {
+  const messagesChanged = next !== messages;
+  if (!messagesChanged && !activeTools) return undefined;
+  return {
+    ...(messagesChanged ? { messages: next } : {}),
+    ...(activeTools ? { activeTools } : {}),
+  };
+}
+
 /** Prefixed MCP tool names already present as calls or results. */
 export function mcpToolsReferenced(messages: readonly ModelMessage[]): string[] {
   const found: string[] = [];

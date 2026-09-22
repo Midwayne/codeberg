@@ -1,7 +1,12 @@
 import type { ModelMessage } from 'ai';
 import { describe, expect, it } from 'vitest';
 
-import { isDeferredMcpTool, mcpToolsReferenced, selectActiveTools } from './active.js';
+import {
+  isDeferredMcpTool,
+  mcpToolsReferenced,
+  prepareStepPatch,
+  selectActiveTools,
+} from './active.js';
 
 describe('selectActiveTools', () => {
   const all = ['search_code', 'grep', 'load_mcp_tools', 'mcp_github_list_issues', 'mcp_github_create_issue'];
@@ -20,6 +25,24 @@ describe('selectActiveTools', () => {
     expect(isDeferredMcpTool('mcp_github_list_issues')).toBe(true);
     expect(isDeferredMcpTool('load_mcp_tools')).toBe(false);
     expect(isDeferredMcpTool('grep')).toBe(false);
+  });
+});
+
+describe('prepareStepPatch', () => {
+  const messages = [{ role: 'user' as const, content: 'hi' }];
+  const pruned = [{ role: 'user' as const, content: 'kept' }];
+
+  it('returns undefined when nothing changed and MCP has no deferred tools', () => {
+    expect(prepareStepPatch(messages, messages, undefined)).toBeUndefined();
+  });
+
+  it('returns only the fields that changed', () => {
+    expect(prepareStepPatch(messages, pruned, undefined)).toEqual({ messages: pruned });
+    expect(prepareStepPatch(messages, messages, ['grep'])).toEqual({ activeTools: ['grep'] });
+    expect(prepareStepPatch(messages, pruned, ['grep'])).toEqual({
+      messages: pruned,
+      activeTools: ['grep'],
+    });
   });
 });
 

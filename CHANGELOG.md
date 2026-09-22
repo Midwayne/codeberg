@@ -160,7 +160,11 @@ changes may occur in minor releases and are called out explicitly.
 ### Fixed
 
 - **History compaction** — the verbatim older transcript is archived once. A
-  summary that still overflows is trimmed without writing a second history file.
+  summary that still overflows becomes an omission marker that still names
+  that file.
+- **MCP catalog folders** — each server directory is the sanitized name plus a
+  hash of the original name, so two servers that sanitize to the same segment
+  still get two folders.
 - **MCP tool descriptions** — the server prefix is copied onto the registered
   tool. Connecting again does not prefix the client's own description a second time.
 - **Assistant tool results** — an oversized tool result carried on an assistant

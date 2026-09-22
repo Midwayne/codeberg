@@ -34,10 +34,15 @@ async function externalizeMessage(
     case 'system':
     case 'user':
       return message;
-    case 'assistant':
-      return externalizeAssistant(message, store, limit);
-    case 'tool':
-      return externalizeTool(message, store, limit);
+    case 'assistant': {
+      if (typeof message.content === 'string') return message;
+      const { content, changed } = await spillToolResultParts(message.content, store, limit);
+      return changed ? { ...message, content } : message;
+    }
+    case 'tool': {
+      const { content, changed } = await spillToolResultParts(message.content, store, limit);
+      return changed ? { ...message, content } : message;
+    }
     default: {
       const _never: never = message;
       return _never;
@@ -45,43 +50,27 @@ async function externalizeMessage(
   }
 }
 
-async function externalizeAssistant(
-  message: Extract<ModelMessage, { role: 'assistant' }>,
-  store: ContextStore,
-  limit: number,
-): Promise<ModelMessage> {
-  if (typeof message.content === 'string') return message;
-  let changed = false;
-  const content: typeof message.content = [];
-  for (const part of message.content) {
-    if (part.type !== 'tool-result') {
-      content.push(part);
-      continue;
-    }
-    const spilled = await spillResult(part, store, limit);
-    if (spilled !== part) changed = true;
-    content.push(spilled);
-  }
-  return changed ? { ...message, content } : message;
+function isToolResultPart(part: { type: string }): part is ToolResultPart {
+  return part.type === 'tool-result';
 }
 
-async function externalizeTool(
-  message: Extract<ModelMessage, { role: 'tool' }>,
+async function spillToolResultParts<P extends { type: string }>(
+  parts: readonly P[],
   store: ContextStore,
   limit: number,
-): Promise<ModelMessage> {
+): Promise<{ content: P[]; changed: boolean }> {
   let changed = false;
-  const content: typeof message.content = [];
-  for (const part of message.content) {
-    if (part.type !== 'tool-result') {
+  const content: P[] = [];
+  for (const part of parts) {
+    if (!isToolResultPart(part)) {
       content.push(part);
       continue;
     }
     const spilled = await spillResult(part, store, limit);
     if (spilled !== part) changed = true;
-    content.push(spilled);
+    content.push(spilled as unknown as P);
   }
-  return changed ? { ...message, content } : message;
+  return { content, changed };
 }
 
 async function spillResult(

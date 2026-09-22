@@ -146,7 +146,7 @@ export function mcpToolSource(opts: McpToolSourceOptions): McpToolSource {
       state.activation.setCallable(
         state.opened.flatMap((opened) => opened.catalog.tools.map((entry) => entry.callable)),
       );
-      if (state.opened.some((opened) => opened.catalog.tools.length > 0)) {
+      if (state.opened.length > 0) {
         out.load_mcp_tools = loadMcpTools(state);
       }
       if (!hookedExit && state.opened.some((opened) => opened.handle)) {
