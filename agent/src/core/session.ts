@@ -1,5 +1,6 @@
 import type { ModelMessage } from 'ai';
 
+import { branchTranscript } from './branch.js';
 import type { Asker, AskResult, Turn } from './types.js';
 
 export interface ChatSessionOptions {
@@ -44,6 +45,18 @@ export class ChatSession {
   clear(): void {
     this.turns.length = 0;
     this.notify();
+  }
+
+  /**
+   * A new session seeded with a copy of this conversation through
+   * `throughIndex` (inclusive; default: all turns). The original is unchanged.
+   * A user prompt snaps forward to include the following assistant reply so
+   * the branch starts on a complete turn.
+   */
+  branch(throughIndex = this.turns.length - 1): ChatSession {
+    const forked = new ChatSession({ agent: this.agent });
+    forked.turns.push(...branchTranscript(this.turns, { throughIndex }));
+    return forked;
   }
 
   private toMessages(): ModelMessage[] {

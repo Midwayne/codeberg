@@ -1,3 +1,4 @@
+import { GitBranch } from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -48,11 +49,14 @@ export function MessageRail({
   scrollRef,
   messages,
   onNavigate,
+  onBranch,
 }: {
   scrollRef: { current: HTMLElement | null };
   messages: UIMessage[];
   /** Fired before a tick scrolls the transcript, so the parent can pause pin-to-bottom. */
   onNavigate?: () => void;
+  /** Fork the chat through the user prompt this tick represents. */
+  onBranch?: (markerId: string) => void;
 }) {
   const users = useMemo(() => collectUserMarkers(messages), [messages]);
   const promptById = useMemo(() => new Map(users.map((u) => [u.id, u.prompt])), [users]);
@@ -236,11 +240,24 @@ export function MessageRail({
         <div
           ref={tooltipRef}
           role="tooltip"
-          className="pointer-events-none absolute right-full z-30 mr-2 w-max max-w-[min(16rem,calc(100vw-6rem))] rounded-lg border border-border bg-popover px-3 py-2 text-xs leading-relaxed text-popover-foreground shadow-xl"
+          className="absolute right-full z-30 mr-2 w-max max-w-[min(16rem,calc(100vw-6rem))] rounded-lg border border-border bg-popover px-3 py-2 text-xs leading-relaxed text-popover-foreground shadow-xl"
           style={{ top: tooltipTop }}
         >
           <p className="mb-1 text-[10px] font-medium tracking-wide text-muted-foreground">You</p>
           <p className="line-clamp-6 break-words">{promptPreview(promptById.get(previewId) ?? '')}</p>
+          {onBranch && (
+            <button
+              type="button"
+              className="mt-2 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              onClick={(e) => {
+                e.stopPropagation();
+                onBranch(previewId);
+              }}
+            >
+              <GitBranch className="size-3" />
+              Branch from here
+            </button>
+          )}
         </div>
       )}
     </nav>

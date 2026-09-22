@@ -14,8 +14,8 @@ import { wrapSessionAgent } from './session-agent.js';
 // `runAgentTUI` exposes no session or input hooks, so persistence and slash
 // commands are layered onto the one seam it does give us — the `agent` it calls
 // every turn. `wrapSessionAgent` rewrites that turn's prompt, answers `/help`,
-// `/sessions`, `/resume` and `/new` locally, and saves each chat under
-// ~/.codeberg/sessions so it can be resumed later.
+// `/sessions`, `/resume`, `/new`, and `/branch` locally, and saves each chat
+// under ~/.codeberg/sessions so it can be resumed later.
 async function main(): Promise<void> {
   const entry = parseEntryArgs(process.argv);
   if (!entry) {

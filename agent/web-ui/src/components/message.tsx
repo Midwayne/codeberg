@@ -1,4 +1,4 @@
-import { Brain, RefreshCw } from 'lucide-react';
+import { Brain, GitBranch, RefreshCw } from 'lucide-react';
 import type { UIMessage } from 'ai';
 
 import { Response } from '@/components/response';
@@ -22,14 +22,17 @@ export interface ToolView {
 export function Message({
   message,
   onRegenerate,
+  onBranch,
   domId,
 }: {
   message: UIMessage;
   onRegenerate?: () => void;
+  onBranch?: () => void;
   /** Stable id written to the DOM so the tick rail can scroll here. */
   domId?: string;
 }) {
   const isUser = message.role === 'user';
+  const showActions = Boolean(onRegenerate || onBranch || (!isUser && message.parts.length > 0));
   return (
     <div
       data-message-id={domId ?? message.id}
@@ -48,8 +51,8 @@ export function Message({
       >
         {isUser ? userPromptText(message) : message.parts.map((part, i) => <Part key={i} part={part} />)}
       </div>
-      {!isUser && message.parts.length > 0 && (
-        <MessageActions message={message} onRegenerate={onRegenerate} />
+      {showActions && (
+        <MessageActions message={message} onRegenerate={onRegenerate} onBranch={onBranch} />
       )}
     </div>
   );
@@ -82,17 +85,30 @@ function Reasoning({ text }: { text: string }) {
 function MessageActions({
   message,
   onRegenerate,
+  onBranch,
 }: {
   message: UIMessage;
   onRegenerate?: () => void;
+  onBranch?: () => void;
 }) {
+  const isUser = message.role === 'user';
   const text = message.parts
     .filter((p): p is Extract<AnyPart, { type: 'text' }> => p.type === 'text')
     .map((p) => p.text)
     .join('\n\n');
   return (
-    <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover/message:opacity-100 focus-within:opacity-100">
-      {text && <CopyButton text={text} />}
+    <div
+      className={cn(
+        'flex items-center gap-0.5 opacity-0 transition-opacity group-hover/message:opacity-100 focus-within:opacity-100',
+        isUser && 'flex-row-reverse',
+      )}
+    >
+      {!isUser && text && <CopyButton text={text} />}
+      {onBranch && (
+        <IconButton onClick={onBranch} aria-label="Branch from here" title="Branch from here">
+          <GitBranch className="size-3.5" />
+        </IconButton>
+      )}
       {onRegenerate && (
         <IconButton onClick={onRegenerate} aria-label="Regenerate" title="Regenerate">
           <RefreshCw className="size-3.5" />

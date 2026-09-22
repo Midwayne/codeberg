@@ -35,17 +35,21 @@ describe('isValidSessionId', () => {
 });
 
 describe('WebSessionStore', () => {
-  it('saves and loads a record verbatim', async () => {
+  it('round-trips optional parentId on a branched session', async () => {
     const store = tempStore();
     const record = {
-      id: 'abc123',
-      title: 'How does auth work',
+      id: 'child',
+      title: 'How does auth work (branch)',
       createdAt: 1,
       updatedAt: 2,
       messages: [userMsg('m1', 'hi')],
+      parentId: 'abc123',
     };
     await store.save(record);
-    expect(await store.load('abc123')).toEqual(record);
+    expect(await store.load('child')).toEqual(record);
+
+    const list = await store.list();
+    expect(list[0]).toMatchObject({ id: 'child', parentId: 'abc123' });
   });
 
   it('returns null for a missing or corrupt session', async () => {

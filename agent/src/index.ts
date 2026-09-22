@@ -51,6 +51,13 @@ export {
   type PromptHookInput,
 } from './core/hooks/index.js';
 export { ChatSession, type ChatSessionOptions } from './core/session.js';
+export {
+  branchEndIndex,
+  branchTitle,
+  branchTranscript,
+  cloneTranscript,
+  type BranchOptions,
+} from './core/branch.js';
 export { createAgentFromEntry } from './core/config.js';
 export { entryUsage, parseEntryArgs, type EntryConfig } from './core/entry.js';
 export { formatSource } from './core/format.js';

@@ -217,8 +217,41 @@ describe('web server', () => {
     const record = await (await fetch(`${url}/abc123`)).json();
     expect(record.messages).toEqual(messages);
 
+    // A branch records parentId; a later PUT without it keeps the lineage.
+    const branchPut = await fetch(`${url}/child1`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'auth (branch)',
+        messages,
+        parentId: 'abc123',
+      }),
+    });
+    expect(branchPut.status).toBe(200);
+    const branched = await (await fetch(`${url}/child1`)).json();
+    expect(branched.parentId).toBe('abc123');
+
+    await fetch(`${url}/child1`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'auth (branch)', messages }),
+    });
+    expect((await (await fetch(`${url}/child1`)).json()).parentId).toBe('abc123');
+
+    const listed = await (await fetch(url)).json();
+    expect(listed.find((s: { id: string }) => s.id === 'child1')?.parentId).toBe('abc123');
+
+    // Self-parent and invalid ids are ignored.
+    await fetch(`${url}/child1`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'x', messages, parentId: 'child1' }),
+    });
+    expect((await (await fetch(`${url}/child1`)).json()).parentId).toBe('abc123');
+
     // Delete removes it.
     expect((await fetch(`${url}/abc123`, { method: 'DELETE' })).status).toBe(204);
+    expect((await fetch(`${url}/child1`, { method: 'DELETE' })).status).toBe(204);
     expect(await (await fetch(url)).json()).toEqual([]);
   });
 

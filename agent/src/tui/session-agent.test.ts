@@ -164,4 +164,47 @@ describe('wrapSessionAgent', () => {
     expect(calls).toHaveLength(2);
     expect(calls[1]).toEqual([{ role: 'user', content: 'second' }]);
   });
+
+  it('/branch copies context into a new session and leaves the original intact', async () => {
+    const { wrapped, calls } = wrap();
+    const driver = makeDriver(wrapped);
+
+    await driver.send('what is auth?');
+    const original = (await store.list())[0]!;
+
+    const reply = await driver.send('/branch');
+    expect(reply).toContain('Branched into');
+    expect(reply).toContain(original.id);
+    expect(calls).toHaveLength(1);
+
+    const list = await store.list();
+    expect(list).toHaveLength(2);
+    const child = list.find((s) => s.id !== original.id)!;
+    expect(child.title).toContain('(branch)');
+
+    const loaded = await store.load(child.id);
+    expect(loaded?.parentId).toBe(original.id);
+    expect(loaded?.messages).toEqual([
+      { role: 'user', content: 'what is auth?' },
+      { role: 'assistant', content: 'model answer' },
+    ]);
+    expect((await store.load(original.id))?.messages).toEqual(loaded?.messages);
+
+    await driver.send('a different follow-up');
+    expect(calls[1]).toEqual([
+      { role: 'user', content: 'what is auth?' },
+      { role: 'assistant', content: 'model answer' },
+      { role: 'user', content: 'a different follow-up' },
+    ]);
+    // Original file still has only the first turn.
+    expect((await store.load(original.id))?.messages).toHaveLength(2);
+  });
+
+  it('/branch with no prior turns explains itself', async () => {
+    const { wrapped, calls } = wrap();
+    const reply = await makeDriver(wrapped).send('/branch');
+    expect(reply).toContain('Nothing to branch');
+    expect(calls).toHaveLength(0);
+    expect(await store.list()).toEqual([]);
+  });
 });

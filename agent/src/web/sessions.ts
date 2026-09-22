@@ -14,6 +14,8 @@ export interface WebSessionRecord {
   createdAt: number;
   updatedAt: number;
   messages: UIMessage[];
+  /** Session this one was branched from, when created via Branch. */
+  parentId?: string;
 }
 
 /** Lightweight row for the sidebar list (no message bodies sent). */
@@ -22,6 +24,7 @@ export interface WebSessionSummary {
   title: string;
   updatedAt: number;
   turns: number;
+  parentId?: string;
 }
 
 /**
@@ -93,6 +96,7 @@ export class WebSessionStore {
           title: record.title,
           updatedAt: record.updatedAt,
           turns: countTurns(record.messages),
+          ...(record.parentId ? { parentId: record.parentId } : {}),
         });
       }
     }

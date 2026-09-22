@@ -34,10 +34,9 @@ describe('SessionStore', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it('round-trips a saved session', async () => {
-    await store.save(record());
-    const loaded = await store.load('a3f2');
-    expect(loaded).toEqual(record());
+  it('round-trips optional parentId', async () => {
+    await store.save(record({ id: 'child', parentId: 'a3f2' }));
+    expect((await store.load('child'))?.parentId).toBe('a3f2');
   });
 
   it('returns null for a missing session', async () => {

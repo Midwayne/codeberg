@@ -1,5 +1,6 @@
 import type { ModelMessage, ToolLoopAgent } from 'ai';
 
+import { branchTitle, branchTranscript } from '../core/branch.js';
 import { overrideLoopMethods } from '../core/loop.js';
 import { lastUserMessage, messageText } from '../core/message.js';
 import {
@@ -38,8 +39,8 @@ type StreamResult = Awaited<ReturnType<ToolLoopAgent['stream']>>;
  *
  *  - rewrites `prompt` before it reaches the model — stripping slash-command
  *    turns, prepending a resumed session's history, and honouring `/new`;
- *  - short-circuits a typed command (`/help`, `/sessions`, `/resume`, `/new`)
- *    with a synthetic text stream instead of calling the model;
+ *  - short-circuits a typed command (`/help`, `/sessions`, `/resume`, `/new`,
+ *    `/branch`) with a synthetic text stream instead of calling the model;
  *  - tees real responses to disk so every chat is saved and can be resumed.
  *
  * The TUI's own scrollback is untouched; we only change what the model sees
@@ -62,6 +63,7 @@ export function wrapSessionAgent(loop: ToolLoopAgent, opts: SessionAgentOptions)
     dropBefore: 0,
     title: undefined as string | undefined,
     createdAt: now(),
+    parentId: undefined as string | undefined,
   };
 
   async function runCommand(command: Command, raw: ModelMessage[]): Promise<string> {
@@ -77,6 +79,7 @@ export function wrapSessionAgent(loop: ToolLoopAgent, opts: SessionAgentOptions)
         state.resumed = [];
         state.title = undefined;
         state.createdAt = now();
+        state.parentId = undefined;
         state.dropBefore = raw.length + 1; // skip this command and its reply
         return 'Started a fresh session. Earlier turns are no longer in context.';
 
@@ -92,11 +95,39 @@ export function wrapSessionAgent(loop: ToolLoopAgent, opts: SessionAgentOptions)
         state.resumed = stripCommandTurns(record.messages);
         state.title = record.title;
         state.createdAt = record.createdAt;
+        state.parentId = record.parentId;
         state.dropBefore = raw.length + 1;
         const turns = state.resumed.filter((m) => m.role === 'user').length;
         return `Resumed "${record.title}" — ${turns} prior turn${
           turns === 1 ? '' : 's'
         } now in context.`;
+      }
+
+      case 'branch': {
+        const seed = branchTranscript([
+          ...state.resumed,
+          ...stripCommandTurns(raw.slice(state.dropBefore)),
+        ]);
+        if (seed.length === 0) {
+          return 'Nothing to branch — ask a question first.';
+        }
+        const parentId = state.sessionId;
+        state.sessionId = newId();
+        state.resumed = seed;
+        state.title = branchTitle(state.title ?? deriveTitle(seed));
+        state.createdAt = now();
+        state.parentId = parentId;
+        state.dropBefore = raw.length + 1;
+        await persist(seed);
+        const turns = seed.filter((m) => m.role === 'user').length;
+        return `Branched into ${state.sessionId} — ${turns} prior turn${
+          turns === 1 ? '' : 's'
+        } copied. Resume ${parentId} to return to the original.`;
+      }
+
+      default: {
+        const _never: never = command;
+        throw new Error(`unexpected command: ${JSON.stringify(_never)}`);
       }
     }
   }
@@ -114,6 +145,7 @@ export function wrapSessionAgent(loop: ToolLoopAgent, opts: SessionAgentOptions)
         createdAt: state.createdAt,
         updatedAt: now(),
         messages,
+        parentId: state.parentId,
       });
     } catch {
       // Best-effort: a write failure must never break the live chat.

@@ -17,6 +17,8 @@ describe('parseCommand', () => {
     expect(parseCommand('/list')).toEqual({ kind: 'sessions' });
     expect(parseCommand('/new')).toEqual({ kind: 'new' });
     expect(parseCommand('/clear')).toEqual({ kind: 'new' });
+    expect(parseCommand('/branch')).toEqual({ kind: 'branch' });
+    expect(parseCommand('/fork')).toEqual({ kind: 'branch' });
   });
 
   it('captures the resume argument and trims/lowercases the verb', () => {

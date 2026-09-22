@@ -99,6 +99,7 @@ typed command set — intercepted before the model ever sees them:
 | `/sessions` | `/list` | `/sessions` | list saved chats, most recent first |
 | `/resume <id>` | `/continue <id>` | `/resume a1b2c3` | resume a saved chat; `<id>` may be a unique prefix |
 | `/new` | `/clear` | `/new` | start a fresh chat — earlier turns drop out of context |
+| `/branch` | `/fork` | `/branch` | copy the current context into a new session; the original is unchanged |
 
 Every chat is auto-saved after each turn to `<CODEBERG_HOME>/sessions/<id>.json`
 (6-hex-char id, title auto-derived from the first message) — there is no
@@ -107,10 +108,11 @@ rarely need to type the full id from `/sessions`. Commands other than the
 verbs above (an unrecognized word, a path like `/etc/hosts`) are left alone
 and sent to the model as an ordinary message.
 
-These four are **TUI-only** — they don't exist in the CLI or web UI, which
-manage sessions differently (see [Web § Sessions](#sessions) below). They are
-also a separate system from **prompt hooks** like `/enhance` (see
-[Commands](#commands)), which work identically across all three surfaces.
+These session commands are **TUI-only** as slash verbs — they don't exist in
+the CLI. The web UI offers the same *branch* idea through **Branch chat** /
+**Branch from here** rather than `/branch` (see [Web § Sessions](#sessions)
+below). They are also a separate system from **prompt hooks** like `/enhance`
+(see [Commands](#commands)), which work identically across all three surfaces.
 
 ## Web
 
@@ -158,10 +160,15 @@ not built, the server falls back to a dependency-free single-file page, so
 Each completed turn is saved to `<CODEBERG_HOME>/web-sessions/<id>.json` (the UI
 messages verbatim, so a resume re-renders with full fidelity) through the CRUD
 API above. In the sidebar: click a saved chat to resume it, the trash icon
-(on hover) to delete it, "New chat" to start fresh, and the header button to
-toggle the panel open/closed. These are **separate** from the TUI's `/sessions`
-(which persists `ModelMessage`s under `…/sessions/`) — the two message shapes
-don't convert losslessly, so each surface keeps its own store.
+(on hover) to delete it, "New chat" to start fresh, "Branch chat" to copy the
+current transcript into a new session, and the header button to toggle the
+panel open/closed. Inside a conversation, **Branch from here** (hover a
+message, or the tick-rail preview) copies the prefix through that turn —
+including the assistant reply when you pick a user prompt — then switches to
+the new chat. Branched sessions keep a `parentId` so the sidebar can mark
+them. These are **separate** from the TUI's `/sessions` (which persists
+`ModelMessage`s under `…/sessions/`) — the two message shapes don't convert
+losslessly, so each surface keeps its own store.
 
 ### Composer
 
@@ -184,10 +191,10 @@ components in.
 
 Codeberg has **two independent command systems** — don't confuse them:
 
-1. **TUI session commands** (`/help`, `/sessions`, `/resume`, `/new`) — covered
+1. **TUI session commands** (`/help`, `/sessions`, `/resume`, `/new`, `/branch`) — covered
    under [TUI § Session commands](#session-commands) above. Purely local to
-   `codeberg-tui`: they never reach the model and don't exist in the CLI or web
-   UI, which manage sessions their own way.
+   `codeberg-tui` as slash verbs: they never reach the model. The web UI
+   manages sessions in the sidebar (including branch) instead of these verbs.
 2. **Prompt hooks** (`/enhance` today) — documented below. These *do* reach the
    model: typing one rewrites the prompt before the tool loop runs, so they
    work identically in the CLI, TUI, and web UI. The web UI additionally offers
