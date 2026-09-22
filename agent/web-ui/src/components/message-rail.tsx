@@ -15,6 +15,7 @@ import {
   collectUserMarkers,
   layoutMarkers,
   MESSAGE_ID_ATTR,
+  nearestMarkerId,
   promptPreview,
   type ContentMarker,
 } from '@/lib/message-rail';
@@ -160,6 +161,12 @@ export function MessageRail({
     root.scrollBy({ top: e.deltaY, left: e.deltaX });
   };
 
+  const previewAt = (clientY: number): string | null => {
+    const rail = railRef.current;
+    if (!rail) return null;
+    return nearestMarkerId(laid, clientY - rail.getBoundingClientRect().top);
+  };
+
   if (users.length === 0) return null;
 
   return (
@@ -167,12 +174,20 @@ export function MessageRail({
       ref={railRef}
       aria-label="Jump to message"
       className={cn(
-        'absolute inset-y-2 right-5 z-20 hidden w-5 sm:block',
-        'opacity-80 transition-opacity duration-150',
+        'absolute inset-y-2 right-3 z-20 hidden w-7 cursor-pointer sm:block',
+        'opacity-90 transition-opacity duration-150',
         'hover:opacity-100 focus-within:opacity-100',
-        '[@media(hover:none)]:opacity-100',
       )}
+      onMouseMove={(e) => {
+        const id = previewAt(e.clientY);
+        if (id && id !== previewId) setPreviewId(id);
+      }}
       onMouseLeave={() => setPreviewId(null)}
+      onClick={(e) => {
+        if ((e.target as HTMLElement).closest('[data-rail-marker]')) return;
+        const id = previewAt(e.clientY);
+        if (id) jumpTo(id);
+      }}
       onWheel={forwardWheel}
     >
       <div
@@ -191,7 +206,7 @@ export function MessageRail({
             data-rail-marker=""
             aria-label={`Jump to message: ${preview}`}
             aria-current={isActive ? 'true' : undefined}
-            className="absolute left-1/2 flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="absolute inset-x-0 flex h-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             style={{ top: m.top }}
             onMouseEnter={() => setPreviewId(m.id)}
             onFocus={() => setPreviewId(m.id)}

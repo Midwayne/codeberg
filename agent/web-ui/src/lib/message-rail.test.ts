@@ -6,6 +6,7 @@ import {
   collectUserMarkers,
   layoutMarkers,
   markerId,
+  nearestMarkerId,
   promptPreview,
   userPromptText,
 } from './message-rail';
@@ -175,6 +176,26 @@ describe('activeMarkerId', () => {
 
   it('pins to the last marker when the user is at the bottom', () => {
     expect(activeMarkerId(markers, 890, 300, 1200)).toBe('c');
+  });
+});
+
+describe('nearestMarkerId', () => {
+  const laid = [
+    { id: 'a', top: 10 },
+    { id: 'b', top: 50 },
+    { id: 'c', top: 90 },
+  ];
+
+  it('returns null for an empty rail or non-finite y', () => {
+    expect(nearestMarkerId([], 10)).toBeNull();
+    expect(nearestMarkerId(laid, Number.NaN)).toBeNull();
+  });
+
+  it('picks the closest tick, including when the pointer is between ticks', () => {
+    expect(nearestMarkerId(laid, 10)).toBe('a');
+    expect(nearestMarkerId(laid, 28)).toBe('a');
+    expect(nearestMarkerId(laid, 32)).toBe('b');
+    expect(nearestMarkerId(laid, 200)).toBe('c');
   });
 });
 

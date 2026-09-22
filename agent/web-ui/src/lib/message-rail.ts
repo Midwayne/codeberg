@@ -145,6 +145,24 @@ export function activeMarkerId(
   return current;
 }
 
+/** The tick whose center is closest to a Y coordinate on the rail. */
+export function nearestMarkerId(
+  laid: readonly { id: string; top: number }[],
+  y: number,
+): string | null {
+  if (laid.length === 0 || !Number.isFinite(y)) return null;
+  let bestId = laid[0].id;
+  let bestDist = Math.abs(y - laid[0].top);
+  for (let i = 1; i < laid.length; i++) {
+    const d = Math.abs(y - laid[i].top);
+    if (d < bestDist) {
+      bestDist = d;
+      bestId = laid[i].id;
+    }
+  }
+  return bestId;
+}
+
 /** Vertically center a tooltip on a tick, then keep it inside the rail. */
 export function clampTooltipTop(
   markerTop: number,
