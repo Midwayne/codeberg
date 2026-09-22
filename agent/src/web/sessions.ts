@@ -1,8 +1,8 @@
-import { mkdir, readFile, readdir, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { UIMessage } from 'ai';
 
+import { countUserTurns, JsonDirectory } from '../core/json-directory.js';
 import { codebergHome } from '../core/paths.js';
 
 /** One persisted browser chat — UI messages verbatim, so a resume re-renders
@@ -36,78 +36,43 @@ export function isValidSessionId(id: string): boolean {
   return /^[A-Za-z0-9_-]{1,64}$/.test(id);
 }
 
-function home(env: NodeJS.ProcessEnv = process.env): string {
-  return codebergHome(env);
-}
-
-function countTurns(messages: UIMessage[]): number {
-  return messages.filter((m) => m.role === 'user').length;
-}
-
 /**
  * File-backed store of browser chat sessions under `<CODEBERG_HOME>/web-sessions/`,
  * one JSON file per session (`<id>.json`). Read/write failures on an individual
  * file are swallowed where that keeps the UI usable (a corrupt file must not hide
  * the other sessions or break the live chat).
  *
- * Deliberately separate from the TUI's `SessionStore`, which persists
- * `ModelMessage`s: converting between the UI and model shapes is lossy, so each
- * surface keeps its native format rather than sharing one store.
+ * Deliberately a different record from the TUI's `SessionStore` (`UIMessage` vs
+ * `ModelMessage` — converting is lossy). Both sit on `JsonDirectory`.
  */
 export class WebSessionStore {
-  private readonly dir: string;
+  private readonly files: JsonDirectory<WebSessionRecord>;
 
   constructor(dir?: string) {
-    this.dir = dir ?? join(home(), 'web-sessions');
+    this.files = new JsonDirectory(dir ?? join(codebergHome(), 'web-sessions'));
   }
 
   async save(record: WebSessionRecord): Promise<void> {
-    await mkdir(this.dir, { recursive: true });
-    await writeFile(join(this.dir, `${record.id}.json`), JSON.stringify(record, null, 2), 'utf8');
+    await this.files.save(record);
   }
 
   async load(id: string): Promise<WebSessionRecord | null> {
-    try {
-      const raw = await readFile(join(this.dir, `${id}.json`), 'utf8');
-      return JSON.parse(raw) as WebSessionRecord;
-    } catch {
-      return null;
-    }
+    return this.files.load(id);
   }
 
   /** All sessions, newest first. Corrupt/unreadable files are skipped. */
   async list(): Promise<WebSessionSummary[]> {
-    let files: string[];
-    try {
-      files = await readdir(this.dir);
-    } catch {
-      return [];
-    }
-
-    const summaries: WebSessionSummary[] = [];
-    for (const file of files) {
-      if (!file.endsWith('.json')) {
-        continue;
-      }
-      const record = await this.load(file.slice(0, -'.json'.length));
-      if (record) {
-        summaries.push({
-          id: record.id,
-          title: record.title,
-          updatedAt: record.updatedAt,
-          turns: countTurns(record.messages),
-          ...(record.parentId ? { parentId: record.parentId } : {}),
-        });
-      }
-    }
-    return summaries.sort((a, b) => b.updatedAt - a.updatedAt);
+    const records = await this.files.list();
+    return records.map((record) => ({
+      id: record.id,
+      title: record.title,
+      updatedAt: record.updatedAt,
+      turns: countUserTurns(record.messages),
+      ...(record.parentId ? { parentId: record.parentId } : {}),
+    }));
   }
 
   async remove(id: string): Promise<void> {
-    try {
-      await unlink(join(this.dir, `${id}.json`));
-    } catch {
-      // already gone / unreadable — nothing to do
-    }
+    await this.files.remove(id);
   }
 }

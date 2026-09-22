@@ -1,9 +1,9 @@
 import { randomBytes } from 'node:crypto';
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { ModelMessage } from 'ai';
 
+import { countUserTurns, JsonDirectory } from '../core/json-directory.js';
 import { codebergHome } from '../core/paths.js';
 
 /** One persisted chat, replayed into model context when resumed. */
@@ -28,26 +28,20 @@ export interface SessionSummary {
   turns: number;
 }
 
-function home(env: NodeJS.ProcessEnv = process.env): string {
-  return codebergHome(env);
-}
-
-/** Count user turns in a record, for the `/sessions` listing. */
-function countTurns(messages: ModelMessage[]): number {
-  return messages.filter((m) => m.role === 'user').length;
-}
-
 /**
  * File-backed store of chat sessions under `<CODEBERG_HOME>/sessions/`.
  * One JSON file per session, named `<id>.json`. Read/write failures on an
  * individual file are swallowed where it keeps the TUI usable (a corrupt file
  * should not crash the chat or hide the other sessions).
+ *
+ * The browser store is a separate directory of `UIMessage`s. The file protocol
+ * is shared (`JsonDirectory`); the record types are not.
  */
 export class SessionStore {
-  private readonly dir: string;
+  private readonly files: JsonDirectory<SessionRecord>;
 
   constructor(dir?: string) {
-    this.dir = dir ?? join(home(), 'sessions');
+    this.files = new JsonDirectory(dir ?? join(codebergHome(), 'sessions'));
   }
 
   /** A short, file-safe id. Injectable in tests via `save`-provided ids. */
@@ -56,44 +50,22 @@ export class SessionStore {
   }
 
   async save(record: SessionRecord): Promise<void> {
-    await mkdir(this.dir, { recursive: true });
-    await writeFile(join(this.dir, `${record.id}.json`), JSON.stringify(record, null, 2), 'utf8');
+    await this.files.save(record);
   }
 
   async load(id: string): Promise<SessionRecord | null> {
-    try {
-      const raw = await readFile(join(this.dir, `${id}.json`), 'utf8');
-      return JSON.parse(raw) as SessionRecord;
-    } catch {
-      return null;
-    }
+    return this.files.load(id);
   }
 
   /** All sessions, newest first. Corrupt/unreadable files are skipped. */
   async list(): Promise<SessionSummary[]> {
-    let files: string[];
-    try {
-      files = await readdir(this.dir);
-    } catch {
-      return [];
-    }
-
-    const summaries: SessionSummary[] = [];
-    for (const file of files) {
-      if (!file.endsWith('.json')) {
-        continue;
-      }
-      const record = await this.load(file.slice(0, -'.json'.length));
-      if (record) {
-        summaries.push({
-          id: record.id,
-          title: record.title,
-          updatedAt: record.updatedAt,
-          turns: countTurns(record.messages),
-        });
-      }
-    }
-    return summaries.sort((a, b) => b.updatedAt - a.updatedAt);
+    const records = await this.files.list();
+    return records.map((record) => ({
+      id: record.id,
+      title: record.title,
+      updatedAt: record.updatedAt,
+      turns: countUserTurns(record.messages),
+    }));
   }
 
   /**
@@ -105,7 +77,7 @@ export class SessionStore {
     if (exact) {
       return exact;
     }
-    const matches = (await this.list()).filter((s) => s.id.startsWith(idOrPrefix));
+    const matches = (await this.list()).filter((session) => session.id.startsWith(idOrPrefix));
     if (matches.length !== 1) {
       return null;
     }

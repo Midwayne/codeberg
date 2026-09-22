@@ -11,7 +11,7 @@ import {
   parseCommand,
   stripCommandTurns,
 } from './commands.js';
-import { SessionStore } from './session-store.js';
+import { SessionStore, type SessionRecord } from './session-store.js';
 
 export interface SessionAgentOptions {
   store: SessionStore;
@@ -28,6 +28,62 @@ export interface SessionAgentOptions {
 
 type StreamParams = Parameters<ToolLoopAgent['stream']>[0];
 type StreamResult = Awaited<ReturnType<ToolLoopAgent['stream']>>;
+
+/** The live chat. Commands replace the whole value; they never patch one field. */
+interface LiveSession {
+  sessionId: string;
+  /** History prepended to every turn after a `/resume` or `/branch`. */
+  resumed: ModelMessage[];
+  /**
+   * Index into the runner's append-only transcript before which messages are
+   * ignored. A `/new`, `/resume`, or `/branch` sets this past the command and
+   * the synthetic reply the runner appends right after, so earlier on-screen
+   * turns drop out of model context.
+   */
+  dropBefore: number;
+  title: string | undefined;
+  createdAt: number;
+  parentId: string | undefined;
+}
+
+function openSession(sessionId: string, createdAt: number, dropBefore: number): LiveSession {
+  return {
+    sessionId,
+    resumed: [],
+    dropBefore,
+    title: undefined,
+    createdAt,
+    parentId: undefined,
+  };
+}
+
+function resumeSession(record: SessionRecord, dropBefore: number): LiveSession {
+  return {
+    sessionId: record.id,
+    resumed: stripCommandTurns(record.messages),
+    dropBefore,
+    title: record.title,
+    createdAt: record.createdAt,
+    parentId: record.parentId,
+  };
+}
+
+function branchSession(
+  prev: LiveSession,
+  seed: ModelMessage[],
+  sessionId: string,
+  createdAt: number,
+  dropBefore: number,
+): LiveSession {
+  return {
+    sessionId,
+    resumed: seed,
+    dropBefore,
+    title: branchTitle(prev.title ?? deriveTitle(seed)),
+    createdAt,
+    parentId: prev.sessionId,
+  };
+}
 
 /**
  * Wrap a `ToolLoopAgent` so the sealed `runAgentTUI` gains persistent,
@@ -50,23 +106,12 @@ export function wrapSessionAgent(loop: ToolLoopAgent, opts: SessionAgentOptions)
   const now = opts.now ?? (() => Date.now());
   const newId = opts.newId ?? SessionStore.newId;
 
-  const state = {
-    sessionId: newId(),
-    /** History prepended to every turn after a `/resume`. */
-    resumed: [] as ModelMessage[],
-    /**
-     * Index into the runner's append-only transcript before which messages are
-     * ignored. Bumped past a `/new` or `/resume` command (and the synthetic
-     * reply the runner appends right after) so earlier on-screen turns drop out
-     * of model context.
-     */
-    dropBefore: 0,
-    title: undefined as string | undefined,
-    createdAt: now(),
-    parentId: undefined as string | undefined,
-  };
+  let session = openSession(newId(), now(), 0);
 
   async function runCommand(command: Command, raw: ModelMessage[]): Promise<string> {
+    // The command and the synthetic reply the runner appends next both leave
+    // model context. Help and sessions do not touch the live session.
+    const dropBefore = raw.length + 1;
     switch (command.kind) {
       case 'help':
         return formatHelp();
@@ -75,12 +120,7 @@ export function wrapSessionAgent(loop: ToolLoopAgent, opts: SessionAgentOptions)
         return formatSessionList(await opts.store.list(), now());
 
       case 'new':
-        state.sessionId = newId();
-        state.resumed = [];
-        state.title = undefined;
-        state.createdAt = now();
-        state.parentId = undefined;
-        state.dropBefore = raw.length + 1; // skip this command and its reply
+        session = openSession(newId(), now(), dropBefore);
         return 'Started a fresh session. Earlier turns are no longer in context.';
 
       case 'resume': {
@@ -91,13 +131,8 @@ export function wrapSessionAgent(loop: ToolLoopAgent, opts: SessionAgentOptions)
         if (!record) {
           return `No session matches "${command.arg}". Run /sessions to see saved ids.`;
         }
-        state.sessionId = record.id;
-        state.resumed = stripCommandTurns(record.messages);
-        state.title = record.title;
-        state.createdAt = record.createdAt;
-        state.parentId = record.parentId;
-        state.dropBefore = raw.length + 1;
-        const turns = state.resumed.filter((m) => m.role === 'user').length;
+        session = resumeSession(record, dropBefore);
+        const turns = session.resumed.filter((m) => m.role === 'user').length;
         return `Resumed "${record.title}" — ${turns} prior turn${
           turns === 1 ? '' : 's'
         } now in context.`;
@@ -105,22 +140,17 @@ export function wrapSessionAgent(loop: ToolLoopAgent, opts: SessionAgentOptions)
 
       case 'branch': {
         const seed = branchTranscript([
-          ...state.resumed,
-          ...stripCommandTurns(raw.slice(state.dropBefore)),
+          ...session.resumed,
+          ...stripCommandTurns(raw.slice(session.dropBefore)),
         ]);
         if (seed.length === 0) {
           return 'Nothing to branch — ask a question first.';
         }
-        const parentId = state.sessionId;
-        state.sessionId = newId();
-        state.resumed = seed;
-        state.title = branchTitle(state.title ?? deriveTitle(seed));
-        state.createdAt = now();
-        state.parentId = parentId;
-        state.dropBefore = raw.length + 1;
+        const parentId = session.sessionId;
+        session = branchSession(session, seed, newId(), now(), dropBefore);
         await persist(seed);
         const turns = seed.filter((m) => m.role === 'user').length;
-        return `Branched into ${state.sessionId} — ${turns} prior turn${
+        return `Branched into ${session.sessionId} — ${turns} prior turn${
           turns === 1 ? '' : 's'
         } copied. Resume ${parentId} to return to the original.`;
       }
@@ -136,16 +166,17 @@ export function wrapSessionAgent(loop: ToolLoopAgent, opts: SessionAgentOptions)
     if (messages.length === 0) {
       return;
     }
-    state.title ??= deriveTitle(messages);
+    const title = session.title ?? deriveTitle(messages);
+    session = { ...session, title };
     try {
       await opts.store.save({
-        id: state.sessionId,
-        title: state.title,
+        id: session.sessionId,
+        title,
         modelSpec: opts.modelSpec,
-        createdAt: state.createdAt,
+        createdAt: session.createdAt,
         updatedAt: now(),
         messages,
-        parentId: state.parentId,
+        parentId: session.parentId,
       });
     } catch {
       // Best-effort: a write failure must never break the live chat.
@@ -160,8 +191,8 @@ export function wrapSessionAgent(loop: ToolLoopAgent, opts: SessionAgentOptions)
       return synthetic(await runCommand(command, raw));
     }
 
-    const current = stripCommandTurns(raw.slice(state.dropBefore));
-    const effective = [...state.resumed, ...current];
+    const current = stripCommandTurns(raw.slice(session.dropBefore));
+    const effective = [...session.resumed, ...current];
     // Send a budgeted view to the model (older turns summarized once they
     // exceed the window), but persist the full transcript so resume is lossless.
     const sent = opts.compactor ? await opts.compactor(effective) : effective;
