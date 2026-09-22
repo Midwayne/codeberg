@@ -3,6 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { AGENT_SYSTEM, agentSystemPrompt } from './prompt.js';
 
 describe('agentSystemPrompt', () => {
+  it('keeps built-in tools immediately available and limits discovery to MCP tools', () => {
+    expect(AGENT_SYSTEM).toContain('Every tool listed below is built in');
+    expect(AGENT_SYSTEM).toContain('Only tools whose names start with `mcp_` are discovery-based');
+    expect(AGENT_SYSTEM).toContain('Set `literal: true` for plain text');
+    expect(AGENT_SYSTEM).toContain('retry once with fewer constraints');
+  });
+
   it('is exactly AGENT_SYSTEM when web and MCP are off', () => {
     expect(agentSystemPrompt({ enabled: false, search: false })).toBe(AGENT_SYSTEM);
   });

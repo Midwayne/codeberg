@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -89,7 +89,7 @@ describe('discoverSkills', () => {
     const index = readFileSync(join(store.root, 'skills', 'INDEX.md'), 'utf8');
     expect(index).toContain('## review');
     expect(index).toContain(skills[0]!.file);
-    expect(store.resolve(skills[0]!.file)).toBe(skills[0]!.file);
+    expect(store.resolve(skills[0]!.file)).toBe(realpathSync(skills[0]!.file));
   });
 });
 

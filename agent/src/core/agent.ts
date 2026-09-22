@@ -233,15 +233,18 @@ export class Agent implements Asker {
         // every tool round and every turn.
         instructions: cachedInstructions(this.system, this.profile),
         tools,
-        stopWhen: stepCountIs(this.maxSteps),
+        // Reserve one final, tool-disabled step after the investigation budget.
+        // Otherwise a tool call on the last allowed step ends with an empty
+        // answer immediately after its result is returned.
+        stopWhen: stepCountIs(this.maxSteps + 1),
         timeout: DEFAULT_TIMEOUT,
         ...(providerOptions ? { providerOptions } : {}),
         ...(this.reasoning ? { reasoning: this.reasoning } : {}),
         // In-loop results are spilled at execute. Here, drop the oldest tool
         // pairs once the transcript crosses the high-water mark, and hide MCP
         // tools until load_mcp_tools or the transcript already names them.
-        prepareStep: async ({ messages }) => {
-          const next =
+        prepareStep: async ({ messages, stepNumber }) => {
+          let next =
             totalTokens(messages) > prune
               ? pruneMessages({
                   messages,
@@ -249,7 +252,25 @@ export class Agent implements Asker {
                   emptyMessages: 'remove',
                 })
               : messages;
-          return prepareStepPatch(messages, next, this.mcpSource?.activeTools(toolNames, next));
+          const finalStep = stepNumber >= this.maxSteps;
+          if (finalStep) {
+            next = [
+              ...next,
+              {
+                role: 'user',
+                content:
+                  'The tool-round budget is exhausted. Do not call more tools. Answer now from the evidence gathered so far, and state any remaining gap.',
+              },
+            ];
+          }
+          const patch = prepareStepPatch(
+            messages,
+            next,
+            this.mcpSource?.activeTools(toolNames, next),
+          );
+          return finalStep
+            ? { ...patch, toolChoice: 'none' as const }
+            : patch;
         },
       });
       this.loop = wrapToolLoopAgentWithPromptHooks(loop, this.promptHooks);

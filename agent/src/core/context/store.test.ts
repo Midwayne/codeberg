@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -27,7 +27,7 @@ describe('ContextStore', () => {
     const second = await store.writeHistory('hello history');
     expect(second).toBe(first);
     expect(readFileSync(first, 'utf8')).toBe('hello history');
-    expect(store.resolve(first)).toBe(first);
+    expect(store.resolve(first)).toBe(realpathSync(first));
   });
 
   it('rejects paths that escape the context root', async () => {
@@ -47,7 +47,7 @@ describe('ContextStore', () => {
     writeFileSync(join(secret, 'secret.txt'), 'nope');
     symlinkSync(secret, join(outside, 'link'));
     store.allow(outside);
-    expect(store.resolve(join(outside, 'SKILL.md'))).toBe(join(outside, 'SKILL.md'));
+    expect(store.resolve(join(outside, 'SKILL.md'))).toBe(realpathSync(join(outside, 'SKILL.md')));
     expect(store.resolve(join(outside, 'link', 'secret.txt'))).toBeNull();
   });
 
