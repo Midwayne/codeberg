@@ -88,7 +88,7 @@
 @keyframes message-flash {
   0% {
     box-shadow: 0 0 0 2px var(--ring);
-    background-color: color-mix(in oklch, var(--accent) 70%, transparent);
+    background-color: color-mix(in oklch, var(--foreground) 12%, transparent);
   }
   100% {
     box-shadow: 0 0 0 2px transparent;

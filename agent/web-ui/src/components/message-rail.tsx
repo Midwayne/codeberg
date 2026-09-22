@@ -167,15 +167,18 @@ export function MessageRail({
       ref={railRef}
       aria-label="Jump to message"
       className={cn(
-        'absolute inset-y-2 right-1.5 z-20 hidden w-4 sm:block',
-        'opacity-55 transition-opacity duration-150',
+        'absolute inset-y-2 right-5 z-20 hidden w-5 sm:block',
+        'opacity-80 transition-opacity duration-150',
         'hover:opacity-100 focus-within:opacity-100',
-        '[@media(hover:none)]:opacity-90',
+        '[@media(hover:none)]:opacity-100',
       )}
       onMouseLeave={() => setPreviewId(null)}
       onWheel={forwardWheel}
     >
-      <div aria-hidden="true" className="pointer-events-none absolute inset-y-1 left-1/2 w-px -translate-x-1/2 bg-border" />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-1 left-1/2 w-px -translate-x-1/2 bg-foreground/25"
+      />
 
       {laid.map((m, i) => {
         const preview = promptPreview(promptById.get(m.id) ?? '');
@@ -188,7 +191,7 @@ export function MessageRail({
             data-rail-marker=""
             aria-label={`Jump to message: ${preview}`}
             aria-current={isActive ? 'true' : undefined}
-            className="absolute left-1/2 flex h-4 w-4 -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="absolute left-1/2 flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             style={{ top: m.top }}
             onMouseEnter={() => setPreviewId(m.id)}
             onFocus={() => setPreviewId(m.id)}
@@ -205,9 +208,9 @@ export function MessageRail({
             <span
               aria-hidden="true"
               className={cn(
-                'block rounded-full bg-foreground/35 transition-[width,height,background-color] duration-150',
-                isActive ? 'h-1 w-2.5 bg-foreground' : 'h-0.5 w-2',
-                isPreviewed && 'h-1 w-3 bg-foreground',
+                'block rounded-full bg-muted-foreground transition-[width,height,background-color] duration-150',
+                isActive ? 'h-1.5 w-3 bg-foreground' : 'h-[3px] w-2.5',
+                isPreviewed && 'h-1.5 w-3.5 bg-foreground',
               )}
             />
           </button>
@@ -218,9 +221,10 @@ export function MessageRail({
         <div
           ref={tooltipRef}
           role="tooltip"
-          className="pointer-events-none absolute right-full z-30 mr-2 w-max max-w-[min(18rem,calc(100vw-5rem))] rounded-lg border border-border bg-popover px-3 py-2 text-xs leading-relaxed text-popover-foreground shadow-lg"
+          className="pointer-events-none absolute right-full z-30 mr-2 w-max max-w-[min(16rem,calc(100vw-6rem))] rounded-lg border border-border bg-popover px-3 py-2 text-xs leading-relaxed text-popover-foreground shadow-xl"
           style={{ top: tooltipTop }}
         >
+          <p className="mb-1 text-[10px] font-medium tracking-wide text-muted-foreground">You</p>
           <p className="line-clamp-6 break-words">{promptPreview(promptById.get(previewId) ?? '')}</p>
         </div>
       )}
