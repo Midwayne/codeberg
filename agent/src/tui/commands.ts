@@ -9,7 +9,8 @@ export type Command =
   | { kind: 'help' }
   | { kind: 'sessions' }
   | { kind: 'resume'; arg: string }
-  | { kind: 'new' };
+  | { kind: 'new' }
+  | { kind: 'branch' };
 
 /** User-facing catalogue, also rendered by `/help`. */
 export const COMMANDS: ReadonlyArray<{ usage: string; summary: string }> = [
@@ -17,6 +18,7 @@ export const COMMANDS: ReadonlyArray<{ usage: string; summary: string }> = [
   { usage: '/sessions', summary: 'list saved chats you can resume' },
   { usage: '/resume <id>', summary: 'resume a saved chat by id' },
   { usage: '/new', summary: 'start a fresh chat (clears context)' },
+  { usage: '/branch', summary: 'copy this chat into a new session' },
 ];
 
 /**
@@ -51,6 +53,9 @@ export function parseCommand(text: string): Command | null {
     case 'new':
     case 'clear':
       return { kind: 'new' };
+    case 'branch':
+    case 'fork':
+      return { kind: 'branch' };
     default:
       return null;
   }

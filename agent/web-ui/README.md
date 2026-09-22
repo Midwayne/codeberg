@@ -36,13 +36,14 @@ runs `make build-web-ui` as part of `make build-agent`.
 ```
 src/
   components/
-    workspace.tsx   useChat + session sidebar + auto-save
+    workspace.tsx   useChat + session sidebar + auto-save + branch
     chat.tsx        message list, prompt input, tick rail
     message-rail.tsx ChatGPT-style jump-to-prompt ticks on the right
     message.tsx     renders text, reasoning, tool parts
     tool-views.tsx  rich cards for daemon tools (search, grep, files, git, …)
   lib/
     sessions.ts     CRUD client for /api/sessions/*
+    branch.ts       fork a transcript prefix into a new session payload
     commands.ts     fetches /api/commands for hook autocomplete
 ```
 

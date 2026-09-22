@@ -178,12 +178,14 @@ async function routeSessions(
       const rawTitle = typeof body?.title === 'string' ? body.title.trim() : '';
       const now = Date.now();
       const existing = await store.load(id);
+      const parentId = readParentId(body?.parentId, id) ?? existing?.parentId;
       await store.save({
         id,
         title: rawTitle || 'New chat',
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
         messages,
+        ...(parentId ? { parentId } : {}),
       });
       return sendJson(res, 200, { ok: true });
     }
@@ -205,6 +207,14 @@ function sendJson(res: ServerResponse, status: number, value: unknown): void {
 function sendText(res: ServerResponse, status: number, body: string): void {
   res.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8' });
   res.end(body);
+}
+
+/** A valid session id that isn't the record itself — ignored otherwise. */
+function readParentId(value: unknown, id: string): string | undefined {
+  if (typeof value !== 'string' || value === id || !isValidSessionId(value)) {
+    return undefined;
+  }
+  return value;
 }
 
 /**

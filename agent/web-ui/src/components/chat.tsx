@@ -6,13 +6,22 @@ import { useEffect, useRef } from 'react';
 import { Message } from '@/components/message';
 import { MessageRail } from '@/components/message-rail';
 import { PromptInput } from '@/components/prompt-input';
+import { messageIndexById } from '@/lib/branch';
 import { markerId } from '@/lib/message-rail';
 
 // `useChat` lives in the parent `Workspace` (which also owns session state), so
-// `Chat` is presentational over the helpers it returns.
-export function Chat({ chat }: { chat: UseChatHelpers<UIMessage> }) {
+// `Chat` is presentational over the helpers it returns. Branching is a session
+// operation: this component only reports the message index to branch through.
+export function Chat({
+  chat,
+  onBranch,
+}: {
+  chat: UseChatHelpers<UIMessage>;
+  onBranch?: (throughIndex: number) => void;
+}) {
   const { messages, sendMessage, status, stop, regenerate, error } = chat;
   const busy = status === 'submitted' || status === 'streaming';
+  const branchAt = !busy && onBranch ? onBranch : undefined;
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -45,6 +54,7 @@ export function Chat({ chat }: { chat: UseChatHelpers<UIMessage> }) {
                     ? () => regenerate()
                     : undefined
                 }
+                onBranch={branchAt ? () => branchAt(i) : undefined}
               />
             ))}
 
@@ -85,6 +95,14 @@ export function Chat({ chat }: { chat: UseChatHelpers<UIMessage> }) {
               holdAutoScroll.current = false;
             }, 700);
           }}
+          onBranch={
+            branchAt
+              ? (id) => {
+                  const index = messageIndexById(messages, id);
+                  if (index >= 0) branchAt(index);
+                }
+              : undefined
+          }
         />
       </div>
 

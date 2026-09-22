@@ -1,4 +1,4 @@
-import { MessageSquarePlus, Trash2 } from 'lucide-react';
+import { GitBranch, MessageSquarePlus, Trash2 } from 'lucide-react';
 
 import type { SessionSummary } from '@/lib/sessions';
 import { cn, timeAgo } from '@/lib/utils';
@@ -6,24 +6,29 @@ import { cn, timeAgo } from '@/lib/utils';
 /**
  * The saved-chats panel: a "New chat" button over a newest-first list. Clicking
  * a row resumes that chat; the current one is highlighted; each row has a
- * hover-revealed delete. Toggled in/out of the layout by the header button.
+ * hover-revealed delete. "Branch chat" copies the current transcript into a
+ * new session. Toggled in/out of the layout by the header button.
  */
 export function SessionSidebar({
   sessions,
   currentId,
+  canBranch,
   onResume,
   onNew,
+  onBranch,
   onDelete,
 }: {
   sessions: SessionSummary[];
   currentId: string;
+  canBranch: boolean;
   onResume: (id: string) => void;
   onNew: () => void;
+  onBranch: () => void;
   onDelete: (id: string) => void;
 }) {
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-card/30">
-      <div className="p-2">
+      <div className="space-y-1 p-2">
         <button
           type="button"
           onClick={onNew}
@@ -31,6 +36,16 @@ export function SessionSidebar({
         >
           <MessageSquarePlus className="size-4" />
           New chat
+        </button>
+        <button
+          type="button"
+          onClick={onBranch}
+          disabled={!canBranch}
+          title="Copy this chat into a new session"
+          className="flex w-full items-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-40"
+        >
+          <GitBranch className="size-4" />
+          Branch chat
         </button>
       </div>
 
@@ -55,7 +70,15 @@ export function SessionSidebar({
                     className="min-w-0 flex-1 px-2 py-1.5 text-left"
                     title={s.title}
                   >
-                    <div className="truncate text-foreground">{s.title}</div>
+                    <div className="flex min-w-0 items-center gap-1">
+                      {s.parentId && (
+                        <GitBranch
+                          className="size-3 shrink-0 text-muted-foreground"
+                          aria-label="Branched chat"
+                        />
+                      )}
+                      <div className="truncate text-foreground">{s.title}</div>
+                    </div>
                     <div className="truncate text-[10px] text-muted-foreground">
                       {timeAgo(s.updatedAt)} · {s.turns} turn
                       {s.turns === 1 ? '' : 's'}

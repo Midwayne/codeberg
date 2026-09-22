@@ -8,6 +8,7 @@ export interface SessionSummary {
   title: string;
   updatedAt: number;
   turns: number;
+  parentId?: string;
 }
 
 /** Full saved chat — UI messages verbatim, so a resume re-renders faithfully. */
@@ -17,6 +18,7 @@ export interface SessionRecord {
   createdAt: number;
   updatedAt: number;
   messages: UIMessage[];
+  parentId?: string;
 }
 
 const BASE = '/api/sessions';
@@ -44,12 +46,17 @@ export async function saveSession(input: {
   id: string;
   title: string;
   messages: UIMessage[];
+  parentId?: string;
 }): Promise<void> {
   try {
     await fetch(`${BASE}/${encodeURIComponent(input.id)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: input.title, messages: input.messages }),
+      body: JSON.stringify({
+        title: input.title,
+        messages: input.messages,
+        ...(input.parentId ? { parentId: input.parentId } : {}),
+      }),
     });
   } catch {
     // Best-effort: a failed save must never disrupt the live chat.

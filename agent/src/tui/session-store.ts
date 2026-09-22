@@ -16,6 +16,8 @@ export interface SessionRecord {
   updatedAt: number;
   /** The clean conversation (no slash-command turns), as model messages. */
   messages: ModelMessage[];
+  /** Session this one was branched from, when created via `/branch`. */
+  parentId?: string;
 }
 
 /** Lightweight row for the `/sessions` list (no message bodies loaded). */
