@@ -1,6 +1,6 @@
 import {
+  isLoopFinished,
   pruneMessages,
-  stepCountIs,
   ToolLoopAgent,
   type ModelMessage,
   type LanguageModel,
@@ -48,7 +48,6 @@ import {
   type SearchResult,
 } from './types.js';
 
-const DEFAULT_MAX_STEPS = 16;
 const DEFAULT_SEARCH_K = 8;
 
 // Timeout guards (ai-sdk v7 TimeoutConfiguration). They replace the old
@@ -64,7 +63,6 @@ const DEFAULT_TIMEOUT = {
 export interface AgentOptions {
   model: LanguageModel;
   daemon: DaemonClient;
-  maxSteps?: number;
   generator?: Generator;
   /** Standardized ai-sdk v7 reasoning-effort control, applied to every run. */
   reasoning?: ReasoningEffort;
@@ -92,7 +90,6 @@ export interface AgentOptions {
 export class Agent implements Asker {
   private readonly model: LanguageModel;
   private readonly daemon: DaemonClient;
-  private readonly maxSteps: number;
   private readonly generator: Generator;
   private readonly reasoning?: ReasoningEffort;
   private readonly profile: ModelProfile;
@@ -120,7 +117,6 @@ export class Agent implements Asker {
   constructor(opts: AgentOptions) {
     this.model = opts.model;
     this.daemon = opts.daemon;
-    this.maxSteps = opts.maxSteps ?? DEFAULT_MAX_STEPS;
     this.generator = opts.generator ?? fromAiSdk(opts.model);
     this.reasoning = opts.reasoning;
     this.profile = opts.profile ?? DEFAULT_PROFILE;
@@ -233,18 +229,17 @@ export class Agent implements Asker {
         // every tool round and every turn.
         instructions: cachedInstructions(this.system, this.profile),
         tools,
-        // Reserve one final, tool-disabled step after the investigation budget.
-        // Otherwise a tool call on the last allowed step ends with an empty
-        // answer immediately after its result is returned.
-        stopWhen: stepCountIs(this.maxSteps + 1),
+        // Continue until the model answers instead of inheriting the SDK's
+        // default 20-step limit. Request and per-step timeouts still bound a run.
+        stopWhen: isLoopFinished(),
         timeout: DEFAULT_TIMEOUT,
         ...(providerOptions ? { providerOptions } : {}),
         ...(this.reasoning ? { reasoning: this.reasoning } : {}),
         // In-loop results are spilled at execute. Here, drop the oldest tool
         // pairs once the transcript crosses the high-water mark, and hide MCP
         // tools until load_mcp_tools or the transcript already names them.
-        prepareStep: async ({ messages, stepNumber }) => {
-          let next =
+        prepareStep: async ({ messages }) => {
+          const next =
             totalTokens(messages) > prune
               ? pruneMessages({
                   messages,
@@ -252,25 +247,7 @@ export class Agent implements Asker {
                   emptyMessages: 'remove',
                 })
               : messages;
-          const finalStep = stepNumber >= this.maxSteps;
-          if (finalStep) {
-            next = [
-              ...next,
-              {
-                role: 'user',
-                content:
-                  'The tool-round budget is exhausted. Do not call more tools. Answer now from the evidence gathered so far, and state any remaining gap.',
-              },
-            ];
-          }
-          const patch = prepareStepPatch(
-            messages,
-            next,
-            this.mcpSource?.activeTools(toolNames, next),
-          );
-          return finalStep
-            ? { ...patch, toolChoice: 'none' as const }
-            : patch;
+          return prepareStepPatch(messages, next, this.mcpSource?.activeTools(toolNames, next));
         },
       });
       this.loop = wrapToolLoopAgentWithPromptHooks(loop, this.promptHooks);

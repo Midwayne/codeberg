@@ -71,7 +71,7 @@ Source map:
 </answer>
 </example>`;
 
-export const AGENT_SYSTEM = `You are a code-search agent. Use tools iteratively until you have enough evidence to answer, or until the maximum tool rounds are reached. Then answer with citations.
+export const AGENT_SYSTEM = `You are a code-search agent. Use tools iteratively until you have enough evidence to answer. Decide when the investigation is complete, then answer with citations.
 
 Available tools:
 Every tool listed below is built in, its full schema is already available, and it is callable immediately. Do not use MCP discovery to load these tools. Only tools whose names start with \`mcp_\` are discovery-based.

@@ -62,14 +62,15 @@ describe('Agent.compactHistory', () => {
 
 describe('Agent tool budget', () => {
   it.each(['generate', 'stream'] as const)(
-    'finishes with an answer after the last tool result (%s)',
+    'continues past the SDK default limit until the model answers (%s)',
     async (mode) => {
+      let calls = 0;
       const model = new MockLanguageModelV4({
-        doGenerate: async ({ toolChoice, prompt }) => {
-          const answering = toolChoice?.type === 'none';
+        doGenerate: async ({ prompt }) => {
+          calls++;
+          const answering = calls === 22;
           if (answering) {
             expect(JSON.stringify(prompt)).toContain('[spilled to ');
-            expect(JSON.stringify(prompt)).toContain('tool-round budget');
           }
           return {
             content: answering
@@ -121,7 +122,6 @@ describe('Agent tool budget', () => {
       const agent = new Agent({
         model: wrapLanguageModel({ model, middleware: simulateStreamingMiddleware() }),
         daemon,
-        maxSteps: 1,
         promptHooks: [],
         web: webConfigFromEnv({ CODEBERG_WEB_USE: 'false' }),
         mcp: { enabled: false, servers: [], files: [], warnings: [] },
@@ -137,8 +137,8 @@ describe('Agent tool budget', () => {
         text = await result.text;
       }
       expect(text).toContain('Partial findings');
-      expect(callTool).toHaveBeenCalledOnce();
-      expect(model.doGenerateCalls).toHaveLength(2);
+      expect(callTool).toHaveBeenCalledTimes(21);
+      expect(model.doGenerateCalls).toHaveLength(22);
       expect(model.doGenerateCalls[0]!.tools).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ name: 'grep', description: 'Search source files' }),
