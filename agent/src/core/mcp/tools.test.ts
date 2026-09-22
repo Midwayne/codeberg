@@ -40,24 +40,25 @@ describe('mcpToolSource', () => {
     expect(Object.keys(await mcpToolSource({ config: cfg() }).tools())).toEqual([]);
   });
 
-  it('prefixes tools with mcp_<server>_ and annotates the description', async () => {
+  it('prefixes tools with mcp_<server>_ and annotates a copy of the description', async () => {
+    const listed = { description: 'List issues', execute: async () => 'ok' };
     const source = mcpToolSource({
       config: cfg({ servers: [stdio] }),
       log: () => {},
       connect: async () => ({
-        tools: {
-          list_issues: {
-            description: 'List issues',
-            execute: async () => 'ok',
-          } as never,
-        },
+        tools: { list_issues: listed as never },
         close: async () => {},
       }),
     });
     const tools = await source.tools();
     expect(Object.keys(tools)).toEqual(['mcp_github_list_issues', 'load_mcp_tools']);
-    expect((tools.mcp_github_list_issues as { description?: string }).description).toContain(
-      'github',
+    expect((tools.mcp_github_list_issues as { description?: string }).description).toBe(
+      'MCP server "github": List issues',
+    );
+    expect(listed.description).toBe('List issues');
+    const again = await source.tools();
+    expect((again.mcp_github_list_issues as { description?: string }).description).toBe(
+      'MCP server "github": List issues',
     );
     expect(source.connectedServers()).toEqual(['github']);
     expect(source.connectedTools()).toEqual({ github: ['list_issues'] });

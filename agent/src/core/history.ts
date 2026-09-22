@@ -60,18 +60,15 @@ export async function fitHistory(
   messages: ModelMessage[],
   opts: FitOptions,
 ): Promise<ModelMessage[]> {
-  return compact(messages, opts, []);
+  return compact(messages, opts);
 }
 
 /**
- * `carriedFiles` is the verbatim archive from an earlier pass of this call.
- * The overflow retry is a pure trim: it does not archive again.
+ * Overflow retry blanks `archive`, so the verbatim transcript is written once.
+ * The marker already carries `<history_file>` tags, and `historyFilesIn` reads
+ * them back on that retry.
  */
-async function compact(
-  messages: ModelMessage[],
-  opts: FitOptions,
-  carriedFiles: readonly string[],
-): Promise<ModelMessage[]> {
+async function compact(messages: ModelMessage[], opts: FitOptions): Promise<ModelMessage[]> {
   if (totalTokens(messages) <= opts.budget) {
     return messages;
   }
@@ -87,20 +84,12 @@ async function compact(
 
   const full = renderTranscript(older);
   const archived = await archiveTranscript(opts.archive, full);
-  const files = dedupe([
-    ...carriedFiles,
-    ...historyFilesIn(older),
-    ...(archived ? [archived] : []),
-  ]);
+  const files = dedupe([...historyFilesIn(older), ...(archived ? [archived] : [])]);
 
   if (opts.summarize) {
     const summary = await opts.summarize(boundTranscript(full));
     const marker = historyMarker(summary, older.length, files);
-    return compact(
-      [marker, ...recent],
-      { ...opts, summarize: undefined, archive: undefined },
-      files,
-    );
+    return compact([marker, ...recent], { ...opts, summarize: undefined, archive: undefined });
   }
 
   return [historyMarker(undefined, older.length, files), ...recent];

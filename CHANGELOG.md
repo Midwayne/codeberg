@@ -161,6 +161,10 @@ changes may occur in minor releases and are called out explicitly.
 
 - **History compaction** — the verbatim older transcript is archived once. A
   summary that still overflows is trimmed without writing a second history file.
+- **MCP tool descriptions** — the server prefix is copied onto the registered
+  tool. Connecting again does not prefix the client's own description a second time.
+- **Assistant tool results** — an oversized tool result carried on an assistant
+  message is written to the same context file as a tool-role result.
 - **Hybrid search performance** — reranking reads each hit file once (content
   cache) instead of spawning `rg` per candidate × query term.
 - **Misplaced grep in hybrid** — term matching uses file content reads scoped

@@ -1,5 +1,5 @@
 import type { SkillSummary } from './context/skills.js';
-import type { McpServerReport } from './mcp/tools.js';
+import type { McpServerReport } from './mcp/catalog.js';
 
 // Scenarios for live database access. They name no server tools: those come
 // from MCP discovery. Pinned into the system prompt so the code-first rule

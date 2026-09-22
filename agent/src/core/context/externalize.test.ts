@@ -56,4 +56,34 @@ describe('externalizeToolResults', () => {
     const hash = createHash('sha256').update(value).digest('hex').slice(0, 16);
     expect(part.output.value).toContain(`read_file-${hash}.txt`);
   });
+
+  it('spills a tool result carried inside an assistant message', async () => {
+    const store = ContextStore.open(mkdtempSync(join(tmpdir(), 'cberg-ext-')));
+    const value = 'q'.repeat(SPILL_CHARS + 20);
+    const messages: ModelMessage[] = [
+      {
+        role: 'assistant',
+        content: [
+          { type: 'text', text: 'reading' },
+          {
+            type: 'tool-result',
+            toolCallId: '1',
+            toolName: 'read_file',
+            output: { type: 'text', value },
+          },
+        ],
+      },
+    ];
+    const out = await externalizeToolResults(messages, store);
+    const message = out[0];
+    if (message?.role !== 'assistant' || typeof message.content === 'string') {
+      throw new Error('expected assistant parts');
+    }
+    const part = message.content[1];
+    if (part?.type !== 'tool-result' || part.output.type !== 'text') {
+      throw new Error('expected a spilled tool result');
+    }
+    expect(part.output.value).toContain('[spilled to ');
+    expect(message.content[0]).toEqual({ type: 'text', text: 'reading' });
+  });
 });

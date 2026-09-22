@@ -1,29 +1,22 @@
 import { asSchema, jsonSchema, tool, type ModelMessage, type Tool, type ToolSet } from 'ai';
 
 import type { ContextStore } from '../context/store.js';
-import { safeSegment } from '../context/store.js';
 import type { ToolSource } from '../tools/source.js';
-import { isDeferredMcpTool, mcpToolsReferenced, selectActiveTools } from './active.js';
+import { McpToolActivation } from './active.js';
 import {
   publishMcpCatalog,
-  type CatalogDoc,
+  serverReport,
+  type CatalogTool,
+  type McpServerReport,
   type McpToolListing,
+  type PublishedCatalog,
   type ServerCatalog,
 } from './catalog.js';
 import { connectMcpServer, type McpClientHandle } from './client.js';
 import { mcpToolName } from './names.js';
 import type { McpConfig, McpServer } from './types.js';
 
-export type { McpToolListing };
-
-export interface McpServerReport {
-  name: string;
-  state: 'connected' | 'unavailable';
-  tools: readonly McpToolListing[];
-  detail?: string;
-  /** Absolute directory of this server's catalog files, when a context store is set. */
-  catalogDir?: string;
-}
+export type { McpServerReport, McpToolListing };
 
 export interface McpToolSource extends ToolSource {
   connectedServers(): string[];
@@ -50,45 +43,28 @@ export interface McpToolSourceOptions {
   context?: ContextStore;
 }
 
-interface Activation {
-  loaded: string[];
-  missing: string[];
-}
-
-/** One connected or failed server: the report, the catalog to publish, and the tools registered into the shared set. */
-interface ServerSession {
-  name: string;
+/** One handshake. The catalog is the record; the handle is how we close it. */
+interface OpenedServer {
   handle?: McpClientHandle;
+  /** Every raw tool name from the server, including sanitized-name collisions. */
   rawNames: readonly string[];
-  callable: readonly string[];
-  report: McpServerReport;
   catalog: ServerCatalog;
 }
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+interface SourceState {
+  opened: OpenedServer[];
+  published?: PublishedCatalog;
+  readonly activation: McpToolActivation;
 }
 
-function describeTool(def: Tool): string {
-  return typeof def.description === 'string' ? def.description : '';
+function blankState(): SourceState {
+  return { opened: [], activation: new McpToolActivation() };
 }
 
-function withServerDescription(serverName: string, def: Tool): Tool {
-  const desc = describeTool(def);
-  const prefix = `MCP server "${serverName}"`;
-  def.description = desc ? `${prefix}: ${desc}` : prefix;
-  return def;
-}
-
-async function readJsonSchema(def: Tool): Promise<unknown> {
-  const schema = def.inputSchema;
-  if (schema == null) return {};
-  try {
-    const converted = asSchema(schema);
-    return (await converted.jsonSchema) ?? {};
-  } catch {
-    return {};
-  }
+function resetState(state: SourceState): void {
+  state.opened = [];
+  state.published = undefined;
+  state.activation.reset();
 }
 
 /**
@@ -105,56 +81,38 @@ async function readJsonSchema(def: Tool): Promise<unknown> {
 export function mcpToolSource(opts: McpToolSourceOptions): McpToolSource {
   const log = opts.log ?? ((message: string) => console.error(message));
   const connect = opts.connect ?? ((server: McpServer) => connectMcpServer(server));
-  let connected: string[] = [];
-  let connectedTools: Record<string, readonly string[]> = {};
-  let reports: McpServerReport[] = [];
-  let callable = new Set<string>();
-  let loadedOrder: string[] = [];
-  const catalogs = new Map<string, string>();
-  const handles: McpClientHandle[] = [];
+  const state = blankState();
   let hookedExit = false;
 
-  function activate(names: readonly string[]): Activation {
-    const loaded: string[] = [];
-    const missing: string[] = [];
-    const seen = new Set<string>();
-    for (const raw of names) {
-      if (typeof raw !== 'string') continue;
-      const name = raw.trim();
-      if (!name || seen.has(name)) continue;
-      seen.add(name);
-      if (!callable.has(name)) {
-        missing.push(name);
-        continue;
-      }
-      if (!loadedOrder.includes(name)) loadedOrder.push(name);
-      loaded.push(name);
-    }
-    return { loaded, missing };
+  function reports(): McpServerReport[] {
+    return state.opened.map((opened) =>
+      serverReport(opened.catalog, state.published?.dirs.get(opened.catalog.serverName)),
+    );
   }
 
   const source: McpToolSource = {
     name: 'mcp',
-    connectedServers: () => connected,
-    connectedTools: () => connectedTools,
-    reports: () => reports,
-    activeToolNames: () => [...loadedOrder],
-    activeTools: (allNames, messages) => {
-      if (!allNames.some((name) => isDeferredMcpTool(name))) return undefined;
-      return selectActiveTools(allNames, [...loadedOrder, ...mcpToolsReferenced(messages)]);
+    connectedServers: () =>
+      state.opened
+        .filter((opened) => opened.catalog.state === 'connected')
+        .map((opened) => opened.catalog.serverName),
+    connectedTools: () => {
+      const out: Record<string, readonly string[]> = {};
+      for (const opened of state.opened) {
+        if (opened.catalog.state === 'connected') out[opened.catalog.serverName] = opened.rawNames;
+      }
+      return out;
     },
+    reports,
+    activeToolNames: () => state.activation.activeNames(),
+    activeTools: (allNames, messages) => state.activation.select(allNames, messages),
     close: async () => {
-      const pending = handles.splice(0, handles.length);
-      connected = [];
-      connectedTools = {};
-      reports = [];
-      callable = new Set();
-      loadedOrder = [];
-      catalogs.clear();
+      const pending = state.opened.flatMap((opened) => (opened.handle ? [opened.handle] : []));
+      resetState(state);
       await Promise.all(
-        pending.map(async (h) => {
+        pending.map(async (handle) => {
           try {
-            await h.close();
+            await handle.close();
           } catch {
             // best-effort — process exit will reap stdio children anyway
           }
@@ -162,22 +120,10 @@ export function mcpToolSource(opts: McpToolSourceOptions): McpToolSource {
       );
     },
     tools: async (): Promise<ToolSet> => {
-      connected = [];
-      connectedTools = {};
-      reports = [];
-      callable = new Set();
-      loadedOrder = [];
-      catalogs.clear();
-      handles.length = 0;
-      if (!opts.config.enabled) {
-        return {};
-      }
-      for (const w of opts.config.warnings) {
-        log(`› MCP: ${w}`);
-      }
-      if (opts.config.servers.length === 0) {
-        return {};
-      }
+      resetState(state);
+      if (!opts.config.enabled) return {};
+      for (const warning of opts.config.warnings) log(`› MCP: ${warning}`);
+      if (opts.config.servers.length === 0) return {};
 
       const results = await Promise.allSettled(
         opts.config.servers.map(async (server) => {
@@ -187,34 +133,23 @@ export function mcpToolSource(opts: McpToolSourceOptions): McpToolSource {
       );
 
       const out: ToolSet = {};
-      const sessions: ServerSession[] = [];
+      const captureSchema = opts.context != null;
       for (let i = 0; i < results.length; i++) {
-        sessions.push(
-          await openServer(opts.config.servers[i]!, results[i]!, out, opts.context != null, log),
+        state.opened.push(await openServer(opts.config.servers[i]!, results[i]!, out, captureSchema, log));
+      }
+      if (opts.context) {
+        state.published = await publishMcpCatalog(
+          opts.context,
+          state.opened.map((opened) => opened.catalog),
         );
       }
-      const published = opts.context
-        ? await publishMcpCatalog(
-            opts.context,
-            sessions.map((session) => session.catalog),
-          )
-        : undefined;
-      reports = sessions.map((session) => withCatalogDir(session.report, published?.dirs.get(session.name)));
-      for (const session of sessions) {
-        if (session.report.state === 'connected') {
-          connected.push(session.name);
-          connectedTools[session.name] = session.rawNames;
-        }
-        if (session.handle) handles.push(session.handle);
-        for (const name of session.callable) callable.add(name);
+      state.activation.setCallable(
+        state.opened.flatMap((opened) => opened.catalog.tools.map((entry) => entry.callable)),
+      );
+      if (state.opened.some((opened) => opened.catalog.tools.length > 0)) {
+        out.load_mcp_tools = loadMcpTools(state);
       }
-      if (published) {
-        for (const [name, file] of published.files) catalogs.set(name, file);
-      }
-      if (callable.size > 0) {
-        out.load_mcp_tools = loadMcpTools(activate, catalogs, reports);
-      }
-      if (!hookedExit && handles.length > 0) {
+      if (!hookedExit && state.opened.some((opened) => opened.handle)) {
         hookedExit = true;
         process.once('beforeExit', () => {
           void source.close();
@@ -232,41 +167,21 @@ async function openServer(
   out: ToolSet,
   captureSchema: boolean,
   log: (message: string) => void,
-): Promise<ServerSession> {
-  const folder = safeSegment(server.name);
+): Promise<OpenedServer> {
   if (result.status === 'rejected') {
     const detail = errorMessage(result.reason);
     log(`› MCP: failed to connect "${server.name}": ${detail}`);
     return {
-      name: server.name,
       rawNames: [],
-      callable: [],
-      report: { name: server.name, state: 'unavailable', tools: [], detail },
-      catalog: {
-        serverName: server.name,
-        folder,
-        state: 'unavailable',
-        detail,
-        listings: [],
-        docs: [],
-      },
+      catalog: { serverName: server.name, state: 'unavailable', detail, tools: [] },
     };
   }
   const registered = await registerTools(server, result.value.handle.tools, out, captureSchema);
-  log(`› MCP: connected ${server.name} (${registered.listings.length} tools)`);
+  log(`› MCP: connected ${server.name} (${registered.tools.length} tools)`);
   return {
-    name: server.name,
     handle: result.value.handle,
     rawNames: registered.rawNames,
-    callable: registered.callable,
-    report: { name: server.name, state: 'connected', tools: registered.listings },
-    catalog: {
-      serverName: server.name,
-      folder,
-      state: 'connected',
-      listings: registered.listings,
-      docs: registered.docs,
-    },
+    catalog: { serverName: server.name, state: 'connected', tools: registered.tools },
   };
 }
 
@@ -275,62 +190,34 @@ async function registerTools(
   defs: ToolSet,
   out: ToolSet,
   captureSchema: boolean,
-): Promise<{
-  rawNames: string[];
-  listings: McpToolListing[];
-  callable: string[];
-  docs: CatalogDoc[];
-}> {
+): Promise<{ rawNames: string[]; tools: CatalogTool[] }> {
   const prepared = await Promise.all(
     Object.entries(defs).map(async ([toolName, toolDef]) => {
       const prefixed = mcpToolName(server.name, toolName);
-      const annotated = withServerDescription(server.name, toolDef);
-      const inputSchema = captureSchema ? await readJsonSchema(annotated) : undefined;
+      const annotated = copyWithServerDescription(server.name, toolDef);
+      const inputSchema = captureSchema ? await readJsonSchema(toolDef) : undefined;
       return { toolName, prefixed, annotated, inputSchema };
     }),
   );
   const rawNames: string[] = [];
-  const listings: McpToolListing[] = [];
-  const callable: string[] = [];
-  const docs: CatalogDoc[] = [];
+  const tools: CatalogTool[] = [];
   for (const item of prepared) {
     rawNames.push(item.toolName);
     if (item.prefixed in out) continue;
     out[item.prefixed] = item.annotated;
-    callable.push(item.prefixed);
-    listings.push({ name: item.toolName, callable: item.prefixed });
-    if (item.inputSchema !== undefined) {
-      docs.push({
-        toolName: item.toolName,
-        callable: item.prefixed,
-        json: `${JSON.stringify(
-          {
-            server: server.name,
-            tool: item.toolName,
-            callable: item.prefixed,
-            description: describeTool(item.annotated),
-            inputSchema: item.inputSchema,
-          },
-          null,
-          2,
-        )}\n`,
-      });
-    }
+    tools.push({
+      name: item.toolName,
+      callable: item.prefixed,
+      description: describeTool(item.annotated),
+      ...(item.inputSchema !== undefined ? { inputSchema: item.inputSchema } : {}),
+    });
   }
   rawNames.sort();
-  listings.sort((a, b) => a.name.localeCompare(b.name));
-  return { rawNames, listings, callable, docs };
+  tools.sort((a, b) => a.name.localeCompare(b.name));
+  return { rawNames, tools };
 }
 
-function withCatalogDir(report: McpServerReport, dir: string | undefined): McpServerReport {
-  return dir ? { ...report, catalogDir: dir } : report;
-}
-
-function loadMcpTools(
-  activate: (names: readonly string[]) => Activation,
-  catalogs: Map<string, string>,
-  reports: readonly McpServerReport[],
-): ToolSet[string] {
+function loadMcpTools(state: SourceState): ToolSet[string] {
   return tool({
     description:
       'Activate MCP tools so they can be called on the next step. Pass callable names ' +
@@ -349,15 +236,18 @@ function loadMcpTools(
       required: ['names'],
     }),
     execute: async ({ names }) => {
-      const result = activate(Array.isArray(names) ? names : []);
-      const unavailable = reports
-        .filter((report) => report.state === 'unavailable')
-        .map((report) => ({ server: report.name, error: report.detail ?? 'unavailable' }));
+      const result = state.activation.activate(Array.isArray(names) ? names : []);
+      const unavailable = state.opened
+        .filter((opened) => opened.catalog.state === 'unavailable')
+        .map((opened) => ({
+          server: opened.catalog.serverName,
+          error: opened.catalog.detail ?? 'unavailable',
+        }));
       return {
         loaded: result.loaded,
         missing: result.missing,
         catalogs: result.loaded.flatMap((name) => {
-          const file = catalogs.get(name);
+          const file = state.published?.files.get(name);
           return file ? [file] : [];
         }),
         unavailable,
@@ -367,3 +257,29 @@ function loadMcpTools(
   });
 }
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function describeTool(def: Tool): string {
+  return typeof def.description === 'string' ? def.description : '';
+}
+
+/** A new tool object. The client's definition keeps its original description. */
+function copyWithServerDescription(serverName: string, def: Tool): Tool {
+  const desc = describeTool(def);
+  const prefix = `MCP server "${serverName}"`;
+  const description = desc ? `${prefix}: ${desc}` : prefix;
+  return { ...def, description } as Tool;
+}
+
+async function readJsonSchema(def: Tool): Promise<unknown> {
+  const schema = def.inputSchema;
+  if (schema == null) return {};
+  try {
+    const converted = asSchema(schema);
+    return (await converted.jsonSchema) ?? {};
+  } catch {
+    return {};
+  }
+}
