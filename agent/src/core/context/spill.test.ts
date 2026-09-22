@@ -77,4 +77,42 @@ describe('wrapToolOutputs', () => {
     const seen = await execute({}, {});
     expect(isSpillPreview(String(seen))).toBe(true);
   });
+
+  it('preserves custom tool output contracts and spills after toModelOutput', async () => {
+    const store = ContextStore.open(mkdtempSync(join(tmpdir(), 'cberg-wrap-convert-')));
+    const raw = {
+      content: [{ type: 'text', text: 'z'.repeat(SPILL_CHARS + 10) }],
+      isError: false,
+    };
+    const tools: ToolSet = {
+      mcp_query: {
+        description: 'MCP query',
+        inputSchema: { type: 'object', properties: {} } as never,
+        execute: async () => raw,
+        toModelOutput: ({ output }: { output: unknown }) => {
+          if (!output || typeof output !== 'object' || !('content' in output)) {
+            throw new TypeError('expected MCP result');
+          }
+          return { type: 'content', value: (output as typeof raw).content } as const;
+        },
+      } as ToolSet[string],
+    };
+    const wrapped = wrapToolOutputs(tools, store);
+    const execute = (wrapped.mcp_query as {
+      execute: (args: unknown, opts: unknown) => Promise<unknown>;
+    }).execute;
+    const toModelOutput = (wrapped.mcp_query as unknown as {
+      toModelOutput: (opts: {
+        toolCallId: string;
+        input: unknown;
+        output: unknown;
+      }) => PromiseLike<{ type: string; value: unknown }> | { type: string; value: unknown };
+    }).toModelOutput;
+
+    const output = await execute({}, {});
+    expect(output).toBe(raw);
+    const modelOutput = await toModelOutput({ toolCallId: 'call-1', input: {}, output });
+    expect(modelOutput.type).toBe('text');
+    expect(isSpillPreview(modelOutput.value)).toBe(true);
+  });
 });
