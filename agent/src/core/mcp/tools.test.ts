@@ -221,7 +221,9 @@ describe('mcpToolSource', () => {
       log: () => {},
       context,
       connect: async (server) => ({
-        tools: { ping: { description: server.name } as never },
+        tools: {
+          [server.name === 'a/b' ? 'left' : 'right']: { description: server.name } as never,
+        },
         close: async () => {},
       }),
     });
@@ -231,8 +233,8 @@ describe('mcpToolSource', () => {
     expect(reports[0]?.catalogDir).toBe(join(root, 'mcp', catalogFolder('a/b')));
     expect(reports[1]?.catalogDir).toBe(join(root, 'mcp', catalogFolder('a_b')));
     expect(reports[0]?.catalogDir).not.toBe(reports[1]?.catalogDir);
-    expect(readFileSync(join(reports[0]!.catalogDir!, 'ping.json'), 'utf8')).toContain('"server": "a/b"');
-    expect(readFileSync(join(reports[1]!.catalogDir!, 'ping.json'), 'utf8')).toContain('"server": "a_b"');
+    expect(readFileSync(join(reports[0]!.catalogDir!, 'left.json'), 'utf8')).toContain('"server": "a/b"');
+    expect(readFileSync(join(reports[1]!.catalogDir!, 'right.json'), 'utf8')).toContain('"server": "a_b"');
   });
 
   it('closes every connected client', async () => {
