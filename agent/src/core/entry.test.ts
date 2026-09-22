@@ -32,6 +32,6 @@ describe('parseEntryArgs', () => {
   });
 
   it('includes program name in usage', () => {
-    expect(entryUsage('codeberg-tui')).toContain('codeberg-tui');
+    expect(entryUsage('codeberg-web')).toContain('codeberg-web');
   });
 });

@@ -51,7 +51,6 @@ func (c *Config) Summary() string {
 		{KeyModel, orUnset(c.Model)},
 		{KeyDaemonURL, c.DaemonURL},
 		{KeyHTTPPort, c.HTTPPort},
-		{KeyWeb, fmt.Sprintf("%t", c.Web)},
 		{KeyWebPort, c.WebPort},
 		{KeyWebUse, fmt.Sprintf("%t", c.WebUse)},
 		{KeySearxngURL, orUnset(c.SearxngURL) + searxngManagedNote(c)},

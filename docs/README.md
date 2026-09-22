@@ -8,7 +8,7 @@ Project-wide overview. **libcodeberg** details live under [core/docs](../core/do
 | --------------------- | --------------------------------------------------------------- |
 | [core/](../core/)     | C library — chunking, change tracking, embedding, vector search |
 | [daemon/](../daemon/) | Go daemons — `cberg-index`, `codeberg-d` ([daemon/README.md](../daemon/README.md)) |
-| [agent/](../agent/)   | TypeScript ai-sdk agent (chat TUI + browser UI) over the daemon API |
+| [agent/](../agent/)   | TypeScript ai-sdk agent (CLI + browser chat) over the daemon API |
 | [launcher/](../launcher/) | Standalone `codeberg` CLI — boots the stack, resolves config, manages the repo registry ([launcher/README.md](../launcher/README.md)) |
 
 ## Multi-repo search
@@ -33,7 +33,7 @@ Project-wide overview. **libcodeberg** details live under [core/docs](../core/do
 
 | Document | Description |
 |----------|-------------|
-| [agent/README.md](../agent/README.md) | CLI, TUI, web UI, providers, daemon client |
+| [agent/README.md](../agent/README.md) | CLI, browser chat, providers, daemon client |
 | [agent/web-ui/README.md](../agent/web-ui/README.md) | React chat SPA development |
 | [agent-accuracy.md](agent-accuracy.md) | Retrieval quality & eval roadmap |
 | [mcp.md](mcp.md) | Cursor-compatible MCP server config (`mcp.json`) |

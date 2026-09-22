@@ -14,17 +14,17 @@ chunk-only mode.
 
 ## Environment variables
 
-All three binaries (`codeberg-ask`, `codeberg-tui`, `codeberg-web`) read the
-same core set; `codeberg-web` reads a few more of its own. The `codeberg`
-launcher sets these for you — this table is for running the agent standalone
-or from a checkout.
+Both binaries (`codeberg-ask`, `codeberg-web`) read the same core set;
+`codeberg-web` reads a few more of its own. The `codeberg` launcher sets
+these for you — this table is for running the agent standalone or from a
+checkout.
 
 | Variable | Binaries | Purpose |
 |---|---|---|
 | `CODEBERG_MODEL` | all | `provider:model`, overrides the positional argument |
 | `CODEBERG_DAEMON_URL` | all | daemon endpoint (default `http://127.0.0.1:48080`) |
 | `CODEBERG_QUESTION` | CLI | the question, overrides the positional argument |
-| `CODEBERG_HOME` | TUI, web, MCP | state root for sessions and `~/.codeberg/mcp.json` (default `~/.codeberg`) |
+| `CODEBERG_HOME` | web, MCP | state root for sessions and `~/.codeberg/mcp.json` (default `~/.codeberg`) |
 | `CODEBERG_REASONING` | all | reasoning effort: `provider-default`, `none`, `minimal`, `low`, `medium`, `high`, `xhigh`; anything else is ignored |
 | `CODEBERG_CONTEXT_WINDOW` | all | override the model's inferred context window (tokens) — mainly for local `ollama`/`llamacpp` servers, whose real window depends on how they were started |
 | `CODEBERG_WEB_USE` | all | master switch for `fetch_url`/`web_search` (default on; `0`/`false`/`off`/`no` disables) |
@@ -75,48 +75,9 @@ codeberg-search "error handling" --hybrid --json
 Options: `--repo`, `--path-glob`, `--kind`, `--min-score`, `--hybrid`,
 `--json`, `--daemon`. Requires a running `codeberg-d` with vector search enabled.
 
-## TUI
-
-Interactive chat, rendered by ai-sdk's `runAgentTUI` — streamed tool calls,
-collapsible reasoning, and live output-throughput stats:
-
-```sh
-codeberg-tui anthropic:claude-sonnet-4-6
-```
-
-`codeberg-tui [provider:model]` — no question argument; it always opens the
-interactive chat. Exit with `Ctrl+C`.
-
-### Session commands
-
-`runAgentTUI` itself exposes no slash commands, so the agent passed to it is
-wrapped (`wrapSessionAgent`) to add persistent, resumable sessions and a small
-typed command set — intercepted before the model ever sees them:
-
-| Command | Aliases | Usage | Does |
-|---|---|---|---|
-| `/help` | `/?`, bare `/` | `/help` | print this command list |
-| `/sessions` | `/list` | `/sessions` | list saved chats, most recent first |
-| `/resume <id>` | `/continue <id>` | `/resume a1b2c3` | resume a saved chat; `<id>` may be a unique prefix |
-| `/new` | `/clear` | `/new` | start a fresh chat — earlier turns drop out of context |
-| `/branch` | `/fork` | `/branch` | copy the current context into a new session; the original is unchanged |
-
-Every chat is auto-saved after each turn to `<CODEBERG_HOME>/sessions/<id>.json`
-(6-hex-char id, title auto-derived from the first message) — there is no
-explicit save command. `/resume` accepts any unambiguous id prefix, so you
-rarely need to type the full id from `/sessions`. Commands other than the
-verbs above (an unrecognized word, a path like `/etc/hosts`) are left alone
-and sent to the model as an ordinary message.
-
-These session commands are **TUI-only** as slash verbs — they don't exist in
-the CLI. The web UI offers the same *branch* idea through **Branch chat** /
-**Branch from here** rather than `/branch` (see [Web § Sessions](#sessions)
-below). They are also a separate system from **prompt hooks** like `/enhance`
-(see [Commands](#commands)), which work identically across all three surfaces.
-
 ## Web
 
-The browser counterpart to the TUI — a React chat UI (ai-sdk `useChat` +
+The interactive chat is a React UI (ai-sdk `useChat` +
 [streamdown](https://github.com/vercel/streamdown)) with streaming markdown,
 syntax-highlighted code, collapsible reasoning, generic tool cards,
 `search_code` results rendered as collapsible file cards with snippets (tagged
@@ -129,12 +90,12 @@ cd web-ui && npm install && npm run build   # one-time: build the SPA
 codeberg-web anthropic:claude-sonnet-4-6     # → http://127.0.0.1:48088
 ```
 
-`codeberg-web [provider:model]` — same argument rules as the TUI (no question;
-`CODEBERG_MODEL` can substitute for the positional arg). Set `CODEBERG_WEB_PORT`
-(or `PORT`) for the port, or `CODEBERG_WEB_ROOT` to point at a prebuilt SPA
-elsewhere.
+`codeberg-web [provider:model]` — no question argument; it always opens the
+browser chat. `CODEBERG_MODEL` can substitute for the positional arg. Set
+`CODEBERG_WEB_PORT` (or `PORT`) for the port, or `CODEBERG_WEB_ROOT` to point
+at a prebuilt SPA elsewhere.
 
-Both UIs drive the identical `toolLoopAgent()`. The chat route (`POST /api/chat`)
+The CLI and the web server both drive `toolLoopAgent()`. The chat route (`POST /api/chat`)
 is stateless: the browser holds the conversation and re-sends it each turn,
 mapping straight onto ai-sdk's `pipeAgentUIStreamToResponse`. If `web-ui/dist` is
 not built, the server falls back to a dependency-free single-file page, so
@@ -166,9 +127,7 @@ panel open/closed. Inside a conversation, **Branch from here** (hover a
 message, or the tick-rail preview) copies the prefix through that turn —
 including the assistant reply when you pick a user prompt — then switches to
 the new chat. Branched sessions keep a `parentId` so the sidebar can mark
-them. These are **separate** from the TUI's `/sessions` (which persists
-`ModelMessage`s under `…/sessions/`) — the two message shapes don't convert
-losslessly, so each surface keeps its own store.
+them.
 
 ### Composer
 
@@ -189,17 +148,12 @@ components in.
 
 ## Commands
 
-Codeberg has **two independent command systems** — don't confuse them:
+Prompt hooks rewrite the text before the tool loop runs, so they work the
+same from the CLI and the web composer. The web UI offers autocomplete for
+them; the CLI has no menu, but typing the trigger works the same.
 
-1. **TUI session commands** (`/help`, `/sessions`, `/resume`, `/new`, `/branch`) — covered
-   under [TUI § Session commands](#session-commands) above. Purely local to
-   `codeberg-tui` as slash verbs: they never reach the model. The web UI
-   manages sessions in the sidebar (including branch) instead of these verbs.
-2. **Prompt hooks** (`/enhance` today) — documented below. These *do* reach the
-   model: typing one rewrites the prompt before the tool loop runs, so they
-   work identically in the CLI, TUI, and web UI. The web UI additionally offers
-   autocomplete for them; the CLI and TUI don't, but typing the trigger works
-   just the same.
+Session actions (new chat, resume, branch, delete) live in the browser
+sidebar, not as slash verbs.
 
 ### Prompt hooks
 
@@ -211,7 +165,7 @@ Codeberg has **two independent command systems** — don't confuse them:
 codeberg-ask openai:gpt-4.1 "/enhance add tenant-aware search filtering"
 ```
 
-Works the same from the TUI or web composer — the hook rewrites what the model
+Works the same from the web composer — the hook rewrites what the model
 sees, so it flows through the normal tool loop and still gets to search first.
 Typing `/enhance` with nothing after it just asks the model to prompt you for
 the request.
@@ -227,8 +181,8 @@ Each hook is self-describing: it carries a `command` (trigger, title, summary,
 description, optional `argHint`) alongside its `rewrite`. Register a new hook in
 `src/core/hooks/` and add it to `DEFAULT_PROMPT_HOOKS` (`src/core/hooks/defaults.ts`)
 and it automatically appears in `/api/commands` and the web autocomplete — no
-UI wiring required, and it works from the CLI/TUI immediately since those
-just need the trigger typed.
+UI wiring required, and it works from the CLI immediately since that
+just needs the trigger typed.
 
 ```ts
 import type { PromptHook } from "@codeberg/agent";
@@ -252,7 +206,6 @@ export const reviewHook: PromptHook = {
 flowchart TB
   subgraph entry [Entry points]
     CLI[codeberg-ask]
-    TUI[codeberg-tui]
     WEB[codeberg-web]
   end
 
@@ -270,7 +223,6 @@ flowchart TB
   end
 
   CLI --> ENTRY --> CFG --> AGENT
-  TUI --> ENTRY --> CFG --> AGENT
   WEB --> ENTRY --> CFG --> AGENT
   CFG --> PROV
   AGENT --> LOOP
@@ -278,13 +230,12 @@ flowchart TB
   DC --> DAEMON[codeberg-d HTTP]
 ```
 
-All three binaries share `createAgentFromEntry` → `Agent` → `ToolLoopAgent`, then
+Both binaries share `createAgentFromEntry` → `Agent` → `ToolLoopAgent`, then
 apply surface-specific wrappers:
 
 | Surface | Wrapper | Notable behavior |
 |---------|---------|------------------|
 | CLI (`codeberg-ask`) | `ChatSession.ask` | Non-streaming `generate`; cross-turn evidence ledger |
-| TUI (`codeberg-tui`) | `wrapSessionAgent` | Streaming; `/sessions` slash commands; `~/.codeberg/sessions/` |
 | Web (`codeberg-web`) | `wrapToolLoopAgentWithCompaction` | SSE `/api/chat`; `~/.codeberg/web-sessions/`; no evidence ledger |
 
 **Tool sources** merge in order (`collectTools`) — first wins. Built-in `search_code`
@@ -312,7 +263,6 @@ Run locally (daemon must be up — `make run-daemon`):
 
 ```sh
 make run-agent q="where is chunking implemented?"
-make run-agent-tui
 make run-agent-web        # serves web-ui + API on CODEBERG_WEB_PORT (48088)
 cd agent/web-ui && npm run dev   # hot reload; proxies API to 48088
 ```
@@ -326,7 +276,6 @@ src/
   core/       agent, client, session, config
   providers/  model registry
   cli/        codeberg-ask
-  tui/        codeberg-tui
   web/        codeberg-web (node:http: /api/chat + serves the SPA)
 web-ui/       React chat SPA (Vite); built to web-ui/dist, served by codeberg-web
 ```
@@ -390,7 +339,7 @@ export const myProvider: ModelProvider = {
 
 - `agent.ask(question, { messages })` — tool loop with optional prior turns
 - `agent.toolLoopAgent()` — the underlying ai-sdk `ToolLoopAgent`, for callers
-  driving `.stream()`/`.generate()` directly (what the TUI and web server do)
+  driving `.stream()`/`.generate()` directly (what the web server does)
 - `ChatSession` — multi-turn wrapper that tracks history for follow-ups
 
 `SearchResult` (in `sources` and every `search_code` hit) carries an optional

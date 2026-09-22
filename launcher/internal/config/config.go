@@ -3,7 +3,7 @@
 // file, the process environment, and CLI flags. The result is split back into
 // the two scopes the components actually read: daemon-scope env (consumed by
 // codeberg-d, which forwards the relevant bits to the C cberg-index) and
-// agent-scope env (consumed by the Node TUI).
+// agent-scope env (consumed by the Node agent).
 //
 // Neither codeberg-d nor the agent read a .env file themselves — they read
 // os.Getenv / process.env — so the launcher is the single place that loads
@@ -45,8 +45,7 @@ const (
 	KeyHome        = "CODEBERG_HOME"                  // launcher managed dir
 	KeyRepo        = "CODEBERG_REPO"                  // source checkout to build/run
 	KeyDist        = "CODEBERG_DIST"                  // prebuilt artifact dir (installs)
-	KeyWeb         = "CODEBERG_WEB"                   // "true" => serve browser UI not TUI
-	KeyWebPort     = "CODEBERG_WEB_PORT"              // web UI listen port (agent scope)
+	KeyWebPort     = "CODEBERG_WEB_PORT"              // browser chat listen port (agent scope)
 	KeyWebUse      = "CODEBERG_WEB_USE"               // "false" => disable agent web tools (agent scope)
 	KeySearxngURL  = "CODEBERG_SEARXNG_URL"           // external SearXNG for web_search (agent scope)
 	KeySearxngPort = "CODEBERG_SEARXNG_PORT"          // preferred port for the managed SearXNG
@@ -108,7 +107,6 @@ type Overrides struct {
 	Socket     string
 	Reasoning  string
 	Vector     *bool
-	Web        *bool // serve the browser UI instead of the terminal TUI
 	All        *bool // serve every registered repo instead of one root
 	NoIndex    *bool // one-off run: register nothing, build no vector index
 	WebPort    string
@@ -137,8 +135,7 @@ type Config struct {
 	GitDir      string
 	Reasoning   string
 	Vector      bool
-	Web         bool   // serve the browser UI instead of the terminal TUI
-	WebPort     string // codeberg-web listen port (used only when Web)
+	WebPort     string // codeberg-web listen port
 	WebUse      bool   // agent web tools (web_search + fetch_url) enabled
 	SearxngURL  string // external SearXNG instance; "" => launcher manages one
 	SearxngPort string // preferred port for the managed SearXNG
@@ -220,14 +217,6 @@ func Load(o Overrides) (*Config, error) {
 		c.Vector = !isFalsey(v)
 	}
 
-	// Web: serve the browser UI instead of the TUI. Default off; --web (or
-	// CODEBERG_WEB=true) turns it on. The CLI flag, when passed, wins.
-	c.Web = false
-	if o.Web != nil {
-		c.Web = *o.Web
-	} else if v := resolve(KeyWeb, ""); v != "" {
-		c.Web = !isFalsey(v)
-	}
 	c.WebPort = firstNonEmpty(resolve(KeyWebPort, o.WebPort), DefaultWebPort)
 
 	// All: serve every registered repo combined instead of a single root.
@@ -321,8 +310,7 @@ func Load(o Overrides) (*Config, error) {
 type Artifacts struct {
 	DaemonBin string // <root>/core/build/bin/codeberg-d
 	IndexBin  string // <root>/core/build/bin/cberg-index (daemon finds it as a sibling)
-	TUIScript string // <root>/agent/dist/tui.js (node resolves node_modules up from it)
-	WebScript string // <root>/agent/dist/web.js (the browser-UI server; built alongside the TUI)
+	WebScript string // <root>/agent/dist/web.js (the browser chat server)
 	DbmcpBin  string // <root>/build/dbmcp (built-in multi-db MCP server; optional)
 }
 
@@ -334,7 +322,6 @@ func LocateArtifacts(root string) Artifacts {
 	return Artifacts{
 		DaemonBin: filepath.Join(bin, "codeberg-d"),
 		IndexBin:  filepath.Join(bin, "cberg-index"),
-		TUIScript: filepath.Join(root, "agent", "dist", "tui.js"),
 		WebScript: filepath.Join(root, "agent", "dist", "web.js"),
 		DbmcpBin:  filepath.Join(root, "build", "dbmcp"),
 	}
@@ -356,7 +343,7 @@ func autodetectDist() string {
 	}
 	cand := filepath.Clean(filepath.Join(filepath.Dir(exe), "..", "libexec"))
 	a := LocateArtifacts(cand)
-	if fileExists(a.DaemonBin) && fileExists(a.IndexBin) && fileExists(a.TUIScript) {
+	if fileExists(a.DaemonBin) && fileExists(a.IndexBin) && fileExists(a.WebScript) {
 		return cand
 	}
 	return ""
@@ -369,7 +356,7 @@ func autodetectDist() string {
 func (c *Config) ResolveRoot() (root string, prebuilt bool) {
 	if c.Dist != "" {
 		a := LocateArtifacts(c.Dist)
-		if fileExists(a.DaemonBin) && fileExists(a.IndexBin) && fileExists(a.TUIScript) {
+		if fileExists(a.DaemonBin) && fileExists(a.IndexBin) && fileExists(a.WebScript) {
 			return c.Dist, true
 		}
 	}
@@ -446,14 +433,13 @@ func (c *Config) DaemonEnv() map[string]string {
 	return e
 }
 
-// AgentEnv builds the environment overlay for the Node TUI.
+// AgentEnv builds the environment overlay for the Node agent (CLI or web).
 func (c *Config) AgentEnv() map[string]string {
 	e := map[string]string{
 		KeyModel:     c.Model,
 		KeyDaemonURL: c.DaemonURL,
 	}
 	putIf(e, KeyReasoning, c.Reasoning)
-	// codeberg-web reads this; the TUI ignores it, so it's harmless to always set.
 	putIf(e, KeyWebPort, c.WebPort)
 	// Web tools: tell the agent whether they're enabled, and point web_search at
 	// an external SearXNG when configured. A launcher-managed instance is

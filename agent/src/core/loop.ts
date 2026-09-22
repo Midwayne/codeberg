@@ -13,9 +13,9 @@ export interface LoopOverrides {
 /**
  * The single place that wraps a `ToolLoopAgent`: swap in `stream`/`generate`
  * overrides while passing every other property and method straight through,
- * bound to the real loop. Three concerns — prompt hooks, history compaction, and
- * the TUI session adapter — all need exactly this Proxy + binding dance, so it
- * lives here once. A fix to "how a loop is wrapped" lands in one spot.
+ * bound to the real loop. Prompt hooks and history compaction both need this
+ * Proxy + binding dance, so it lives here once. A fix to "how a loop is
+ * wrapped" lands in one spot.
  */
 export function overrideLoopMethods(loop: ToolLoopAgent, overrides: LoopOverrides): ToolLoopAgent {
   if (!overrides.stream && !overrides.generate) {

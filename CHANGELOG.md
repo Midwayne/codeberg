@@ -7,15 +7,25 @@ changes may occur in minor releases and are called out explicitly.
 
 ## [Unreleased]
 
+### Removed
+
+- **Terminal UI** — `codeberg-tui`, `@ai-sdk/tui`, and `agent/src/tui/` are
+  gone. `codeberg` always opens the browser chat. `--web` and `CODEBERG_WEB`
+  are no longer flags; the listen port is still `--web-port` /
+  `CODEBERG_WEB_PORT`. Session slash verbs (`/sessions`, `/resume`, `/new`,
+  `/branch`) went with the terminal UI. Prompt hooks such as `/enhance` stay
+  on the CLI and in the browser composer. Saved chats live only under
+  `~/.codeberg/web-sessions/`.
+
 ### Added
 
 - **Chat branching** — copy a conversation prefix into a new session
   without mutating the original. In the browser chat: **Branch from here**
   on a message or tick-rail preview, or **Branch chat** in the sidebar.
   Picking a user prompt includes its assistant reply so the branch starts
-  on a complete turn. TUI: `/branch` (alias `/fork`). Branched sessions
-  store `parentId`. Shared helpers live in `agent/src/core/branch.ts`;
-  session ownership stays in the TUI wrapper and the web `Workspace`.
+  on a complete turn. Branched sessions store `parentId`. Shared helpers
+  live in `agent/src/core/branch.ts`; session ownership stays in the web
+  `Workspace`.
 - **Chat message rail** — a ChatGPT-style tick rail on the right of the
   browser chat. Each tick is a user prompt: hover (or keyboard focus)
   previews the text, click/Enter jumps to that message. Ticks follow
@@ -138,7 +148,7 @@ changes may occur in minor releases and are called out explicitly.
   blank lines between logical blocks in methods; typed result structs instead of
   `map[string]any`.
 - **Agent deduplication** — shared `chunkKey()`, `codebergHome()`, and
-  `lastUserMessage*` helpers; `listTools` uses `DaemonError` like other client
+  `lastUserMessageIndex`; `listTools` uses `DaemonError` like other client
   methods; startup only swallows `NOT_READY` from `waitReady` (other errors
   propagate).
 - **`workspace.Tree` skip list** — aligned with C `cberg_walk_skip_dir`
@@ -155,7 +165,7 @@ changes may occur in minor releases and are called out explicitly.
   to the hit path, not `path_glob` passed where a file path was expected.
 
   is remembered in `~/.codeberg/repos` (list with `codeberg repos`), and
-  `codeberg --all [--web]` boots one daemon over all of them: a single
+  `codeberg --all` boots one daemon over all of them: a single
   `cberg-index` process shares one embedding model across per-repo chunk
   tables/watchers/vector indexes, warm-starting each repo from its existing
   `<base>.<roothash>` files. Searches fan out across ready repos and merge by
@@ -170,24 +180,23 @@ changes may occur in minor releases and are called out explicitly.
   directories get registered like any run). `--no-index` makes any run a
   one-off: nothing is added to the registry and no vector index is built or
   reused — file tools and chat work over the root(s), semantic search is off
-  for that session, and nothing lands on disk. Both compose with `--web`, and
-  are also settable as `CODEBERG_REPOS` / `CODEBERG_NO_INDEX`.
+  for that session, and nothing lands on disk. Both open the browser chat,
+  and are also settable as `CODEBERG_REPOS` / `CODEBERG_NO_INDEX`.
 - **Saved, resumable web chats** — the browser UI persists each completed turn to
   `<CODEBERG_HOME>/web-sessions/<id>.json` (UI messages verbatim, so a resume
   re-renders with full fidelity) behind a small CRUD API (`GET /api/sessions`,
   and `GET`/`PUT`/`DELETE /api/sessions/<id>`). A toggleable sidebar lists saved
-  chats newest-first to resume, delete, or start a new one. Kept separate from the
-  TUI's `ModelMessage` session store, which doesn't convert losslessly.
+  chats newest-first to resume, delete, or start a new one. Transcripts are
+  UI messages under `web-sessions/`.
 - **Collapsible search results in the web UI** — `search_code` results fold into
   the same disclosure used for reasoning and tool panels (default-open, since the
   hits are the primary surface), with the count and query as the summary.
-- **Browser chat UI from the launcher** — `codeberg --web` boots the same stack
-  but serves the chat in a browser (via `codeberg-web`) instead of the terminal
-  TUI, opening `http://127.0.0.1:48088` once the daemon is healthy. It defaults to
-  an uncommon high port (not the much-contended 3000), grouped just past the
-  daemon's 48080 and below the ephemeral range; override with `--web-port` /
-  `CODEBERG_WEB_PORT`, or make web the default with `CODEBERG_WEB=true`. The
-  launcher builds the React SPA (`make build-web-ui`) on first `--web` run so the
+- **Browser chat UI from the launcher** — `codeberg` serves the chat in a
+  browser (via `codeberg-web`), opening `http://127.0.0.1:48088` once the
+  daemon is healthy. It defaults to an uncommon high port (not the
+  much-contended 3000), grouped just past the daemon's 48080 and below the
+  ephemeral range; override with `--web-port` / `CODEBERG_WEB_PORT`. The
+  launcher builds the React SPA (`make build-web-ui`) on first run so the
   rich UI shows rather than the embedded fallback page.
 - **`launcher/update.sh`** — rebuilds the components (core+daemon, agent, web UI)
   and relinks `codeberg` in place, so code changes take effect without an
@@ -254,16 +263,8 @@ changes may occur in minor releases and are called out explicitly.
   (`totalMs`/`stepMs`/`chunkMs`) bounding stalled gateways. Provider packages move
   to their v7-compatible majors (`@ai-sdk/openai-compatible@3`, `anthropic@4`,
   `openai@4`, `google@4`).
-- **TUI replaced with `runAgentTUI`** — the interactive `codeberg-tui` now uses
-  `@ai-sdk/tui` (streamed tool calls, collapsible reasoning, live tok/s) instead of
-  the bespoke Ink UI. The custom prompt history and the old `/help` `/clear`
-  `/copy` `/quit` commands are dropped; `runAgentTUI` exposes no command hooks
-  of its own, so persistent sessions and a new `/help` `/sessions` `/resume`
-  `/new` set are layered back on by wrapping the agent it drives (see
-  [agent/README.md](agent/README.md#session-commands)). Neither the TUI nor
-  the CLI take a seeded-question flag — the CLI is single-shot by construction
-  (`codeberg-ask [provider:model] <question>`) and the TUI is always
-  interactive.
+- **CLI stays single-shot** — `codeberg-ask [provider:model] <question>`
+  takes the question on the command line. Interactive chat is the browser UI.
 
 ### Fixed
 

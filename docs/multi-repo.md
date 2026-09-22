@@ -23,7 +23,7 @@ codeberg repos                   # list every registered repo
 ```
 
 `codeberg <dir>` is shorthand for `codeberg --root <dir>`. `--all` and `--repos`
-compose with `--web` (`codeberg --all --web`).
+open the browser chat the same way a single-repo run does.
 
 ## `CODEBERG_ROOT` vs the registry
 

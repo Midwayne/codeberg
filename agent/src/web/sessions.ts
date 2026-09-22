@@ -42,8 +42,8 @@ export function isValidSessionId(id: string): boolean {
  * file are swallowed where that keeps the UI usable (a corrupt file must not hide
  * the other sessions or break the live chat).
  *
- * Deliberately a different record from the TUI's `SessionStore` (`UIMessage` vs
- * `ModelMessage` — converting is lossy). Both sit on `JsonDirectory`.
+ * UI messages are stored as the browser sent them. The file protocol is
+ * `JsonDirectory`.
  */
 export class WebSessionStore {
   private readonly files: JsonDirectory<WebSessionRecord>;

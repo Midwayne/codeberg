@@ -11,7 +11,7 @@ export interface DirectoryRecord {
  * One JSON file per record (`<id>.json`). Missing directories and unreadable
  * files yield null / an empty list so one corrupt record cannot hide the rest.
  * Callers own the record shape; this class only owns the directory protocol
- * shared by the TUI and browser session stores.
+ * used by the browser session store.
  */
 export class JsonDirectory<T extends DirectoryRecord> {
   constructor(private readonly dir: string) {}

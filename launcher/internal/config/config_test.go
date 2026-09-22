@@ -14,7 +14,7 @@ import (
 func writeArtifacts(t *testing.T, root string) {
 	t.Helper()
 	a := LocateArtifacts(root)
-	for _, p := range []string{a.DaemonBin, a.IndexBin, a.TUIScript} {
+	for _, p := range []string{a.DaemonBin, a.IndexBin, a.WebScript} {
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			t.Fatal(err)
 		}

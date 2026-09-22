@@ -6,11 +6,10 @@ import { wrapToolLoopAgentWithCompaction } from '../core/compaction.js';
 import { entryUsage, parseEntryArgs } from '../core/entry.js';
 import { createWebServer } from './server.js';
 
-// The browser counterpart to `codeberg-tui`: instead of ai-sdk's terminal
-// `runAgentTUI`, it serves a chat UI over HTTP. Both drive the exact same
-// `toolLoopAgent()` — the web route just streams that agent's UI-message output
-// to a browser client that owns the conversation state. Like the TUI, the
-// the CLI's seeded-question flow does not apply; pass `provider:model`.
+// The browser chat: it serves a chat UI over HTTP and drives the same
+// `toolLoopAgent()` as the CLI. The web route streams that agent's UI-message
+// output to a browser client that owns the conversation state. The CLI's
+// seeded-question flow does not apply; pass `provider:model`.
 //
 // The web path now gets prompt caching, in-loop pruning (both ride on
 // `toolLoopAgent()`), AND cross-turn history compaction — the browser holds the
@@ -20,7 +19,7 @@ import { createWebServer } from './server.js';
 // Still missing (by design): the conversation-lifetime evidence ledger from
 // `Agent.ask`. It can't hang off the single shared agent without bleeding
 // evidence across conversations — the UI switches between saved sessions, which
-// are stateless on the server — so it stays a TUI/CLI-only optimization.
+// are stateless on the server — so it stays a CLI-only optimization.
 //
 // The port defaults to an uncommon high one (rather than the much-contended
 // 3000) so it rarely collides with another dev server, while staying below the
@@ -50,7 +49,7 @@ async function main(): Promise<void> {
   });
   const loop = await core.toolLoopAgent();
   // Budget the (browser-held, ever-growing) transcript to the model's window on
-  // every turn, the same policy the CLI/TUI apply.
+  // every turn, the same policy the CLI applies.
   const agent = wrapToolLoopAgentWithCompaction(loop, core.historyCompactor());
   const server = createWebServer({
     agent,

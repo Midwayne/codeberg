@@ -2,7 +2,7 @@
 
 ## Context
 
-codeberg currently indexes and searches exactly one directory: `CODEBERG_ROOT` flows launcher → daemon → one C `cberg-index` process holding one chunk table / watcher / HNSW index. The goal is a multi-directory architecture: `codeberg <dir>` keeps single-repo behavior (and registers the dir), while `codeberg --all [--web]` searches all previously-indexed repos combined. Indexing stays on-demand — a repo is only indexed when you run against it; `--all` warm-starts every registered repo at daemon boot.
+codeberg currently indexes and searches exactly one directory: `CODEBERG_ROOT` flows launcher → daemon → one C `cberg-index` process holding one chunk table / watcher / HNSW index. The goal is a multi-directory architecture: `codeberg <dir>` keeps single-repo behavior (and registers the dir), while `codeberg --all` searches all previously-indexed repos combined. Indexing stays on-demand — a repo is only indexed when you run against it; `--all` warm-starts every registered repo at daemon boot.
 
 **Decisions made with the user:**
 - **Auto-registry**: every root ever run is remembered in `~/.codeberg/repos`; `--all` = all registered roots.
@@ -76,11 +76,11 @@ Tests: config parseRoots, workspace multi-root + escape checks per root, httpser
 ## Step 5 — Launcher: `--all` flag, roots plumbing, health UX
 
 Files: `launcher/cmd/codeberg/main.go`, `launcher/internal/config/config.go`, `launcher/internal/run/run.go`:
-1. `--all` bool flag in `parseShared` (near `--web`, main.go:91), `KeyAll="CODEBERG_ALL"` env + config key, `Config.All bool`. Explicit `--root` + `--all` → error; config-file root is simply ignored under `--all`.
+1. `--all` bool flag in `parseShared`, `KeyAll="CODEBERG_ALL"` env + config key, `Config.All bool`. Explicit `--root` + `--all` → error; config-file root is simply ignored under `--all`.
 2. `Config.Roots []registry.Entry`: `--all` → `registry.Load` filtered by `os.Stat` (warn+skip dead; zero live entries → error "no repos registered yet — run codeberg <dir> first"); otherwise the single upserted entry. `ValidateForRun` skips the root requirement when `All`.
 3. `DaemonEnv()` (config.go:338-353): always emit `CODEBERG_ROOTS` encoded from `c.Roots`; keep `CODEBERG_ROOT` in single-root mode, omit in `--all`.
 4. `run.Run`: startup message "indexing N repo(s): k1, k2…"; `healthDeadline()` default scales `max(15m, 5m × len(Roots))`, `CODEBERG_HEALTH_TIMEOUT` still wins. Per-repo progress comes free from the `cberg-index[key]:` stderr prefixes.
-5. `--all --web` composes with no extra work (web path orthogonal, run.go:186-199). Update `usage()`.
+5. `--all` opens the same browser chat as a single-repo run. Update `usage()`.
 
 ## Step 6 — Agent/UX: repo-tagged results
 
@@ -111,5 +111,5 @@ New ADR `core/docs/adr/0004-multi-root-engine.md` (one process / one embedder / 
 1. `make` / existing test suites green in core, daemon, launcher, agent.
 2. Regression: `codeberg <dir>` on one repo → identical index files (`<base>.<hash>`, `.chunks`, `.manifest`), warm start works, search results unchanged, no `repo` noise in single-repo UX.
 3. Multi: `codeberg <dirA>` then `codeberg <dirB>` (registers both) → `codeberg --all`: both warm-start with per-repo progress lines; `/health` shows both ready; a search returns hits tagged from both repos; `grep`/`read_file` tools with explicit `repo` key work; `repos` tool lists both.
-4. `codeberg --all --web`: web UI shows `[repo]`-prefixed sources.
+4. `codeberg --all`: the browser chat shows `[repo]`-prefixed sources.
 5. Edge cases: `--all` with empty registry → helpful error; registry entry with deleted path → warn + skip, daemon still healthy; `--all --root x` → usage error.

@@ -52,16 +52,14 @@ func Ensure(c *config.Config, force bool) error {
 	// Skip the check when nothing needs (re)building: an up-to-date tree already
 	// proved the toolchain works, so don't gate a plain run on it.
 	a := config.LocateArtifacts(c.Repo)
-	// The React SPA codeberg-web serves; only built for --web. Its absence is not
-	// fatal (the server falls back to an embedded page), but with --web we build
+	// The React SPA codeberg-web serves. Its absence is not fatal at request
+	// time (the server falls back to an embedded page), but a normal run builds
 	// it so the rich UI shows.
 	webUIIndex := filepath.Join(c.Repo, "agent", "web-ui", "dist", "index.html")
 
 	needDaemon := force || !exists(a.DaemonBin) || !exists(a.IndexBin)
-	// The agent bundle ships both tui.js and web.js from one build, so a missing
-	// web.js (only needed for --web) also triggers an agent rebuild.
-	needAgent := force || !exists(a.TUIScript) || (c.Web && !exists(a.WebScript))
-	needWebUI := c.Web && (force || !exists(webUIIndex))
+	needAgent := force || !exists(a.WebScript)
+	needWebUI := force || !exists(webUIIndex)
 	// The built-in database MCP binary is only built when the user turned it on
 	// and did not point CODEBERG_DBMCP_BIN at their own executable.
 	needDbmcp := c.DbmcpUse && c.DbmcpBin == "" && (force || !exists(a.DbmcpBin))
@@ -87,13 +85,13 @@ func Ensure(c *config.Config, force bool) error {
 		skip("core + daemon")
 	}
 
-	// agent/dist (the TUI + web bundles): `make build-agent` runs npm install + build.
+	// agent/dist (the CLI + web server): `make build-agent` runs npm install + build.
 	if needAgent {
-		if err := makeTarget(c.Repo, "build-agent", "agent (TUI + web)"); err != nil {
+		if err := makeTarget(c.Repo, "build-agent", "agent"); err != nil {
 			return err
 		}
 	} else {
-		skip("agent (TUI + web)")
+		skip("agent")
 	}
 
 	// web-ui/dist (the browser SPA): `make build-web-ui` runs npm install + vite build.
@@ -101,7 +99,7 @@ func Ensure(c *config.Config, force bool) error {
 		if err := makeTarget(c.Repo, "build-web-ui", "agent (web UI)"); err != nil {
 			return err
 		}
-	} else if c.Web {
+	} else {
 		skip("agent (web UI)")
 	}
 

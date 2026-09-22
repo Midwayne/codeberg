@@ -42,24 +42,23 @@ DBMCP_BIN  := $(ROOT)/build/dbmcp
 .PHONY: build-core build test bench clean rebuild submodules help check set-version \
         build-daemon daemon-test build-agent build-web-ui build-dbmcp update-dbmcp \
         agent-test dist format \
-        run-core run-index run-daemon run-agent run-agent-tui run-agent-web gen-walk-skip
+        run-core run-index run-daemon run-agent run-agent-web gen-walk-skip
 
 help:
 	@echo "Codeberg targets:"
 	@echo "  Build"
 	@echo "    make build-core           Configure and compile libcodeberg + cberg-index"
 	@echo "    make build-daemon         Build Go codeberg-d (pure Go, no CGO)"
-	@echo "    make build-agent          Install deps and build the agent (npm: TUI + web server)"
+	@echo "    make build-agent          Install deps and build the agent (npm: CLI + web server)"
 	@echo "    make build-dbmcp          Build the built-in multi-db MCP server (build/dbmcp)"
 	@echo "    make update-dbmcp         Pull upstream multi-db-mcp-server and rebuild"
-	@echo "    make build-web-ui         Build the browser chat SPA (web-ui/dist, served by --web)"
+	@echo "    make build-web-ui         Build the browser chat SPA (web-ui/dist, served by codeberg-web)"
 	@echo "    make dist [DISTDIR=...]   Assemble a self-contained install tree (packaging)"
 	@echo "    make rebuild              clean + build-core"
 	@echo "  Run"
 	@echo "    make run-core             Run the C indexer (cberg-index)     [daemon/.env]"
 	@echo "    make run-daemon           Run the Go daemon (codeberg-d) + HTTP [daemon/.env]"
 	@echo "    make run-agent q=\"…\"      Ask the agent, e.g. q=\"how does chunking work\"  [agent/.env]"
-	@echo "    make run-agent-tui          Interactive agent chat (follow-ups)  [agent/.env]"
 	@echo "    make run-agent-web          Serve the browser chat UI (codeberg-web)  [agent/.env]"
 	@echo "  Test"
 	@echo "    make bench                Run core micro-benchmarks (strmap, u64map, chunk_table, fingerprint)"
@@ -146,9 +145,9 @@ update-dbmcp:
 	git -C $(ROOT) submodule update --init --remote third_party/multi-db-mcp-server
 	$(MAKE) build-dbmcp
 
-# The browser chat SPA served by `codeberg --web` / codeberg-web. The server
+# The browser chat SPA served by `codeberg` / codeberg-web. The server
 # resolves it at agent/web-ui/dist (a sibling of agent/dist/web.js), so building
-# it here is all `--web` needs to serve the rich UI instead of the fallback page.
+# it here is what the launcher needs to serve the rich UI instead of the fallback page.
 build-web-ui:
 	cd $(AGENT)/web-ui && npm install && npm run build
 
@@ -164,7 +163,7 @@ agent-test:
 #   <DISTDIR>/bin/codeberg                                       the launcher
 #   <DISTDIR>/libexec/core/build/bin/{cberg-index,codeberg-d}    siblings; daemon finds the indexer
 #   <DISTDIR>/libexec/agent/dist/*.js + .../agent/node_modules   node resolves up from dist/
-#   <DISTDIR>/libexec/agent/web-ui/dist                          browser SPA (--web; sibling of dist/web.js)
+#   <DISTDIR>/libexec/agent/web-ui/dist                          browser SPA (sibling of dist/web.js)
 #   <DISTDIR>/libexec/build/dbmcp                                built-in database MCP server
 #   <DISTDIR>/libexec/scripts/fetch-model.sh                     runtime model download
 #
@@ -214,12 +213,6 @@ run-agent:
 	@$(call load_env,$(AGENT_ENV)); \
 	if [ -z "$${CODEBERG_MODEL:-}" ]; then echo "error: set CODEBERG_MODEL=provider:model in $(AGENT_ENV) (e.g. anthropic:claude-haiku-4-5) plus the matching API key"; exit 1; fi; \
 	cd $(AGENT) && exec node dist/cli.js $(q)
-
-run-agent-tui:
-	@test -f $(AGENT)/dist/tui.js || $(MAKE) build-agent
-	@$(call load_env,$(AGENT_ENV)); \
-	if [ -z "$${CODEBERG_MODEL:-}" ]; then echo "error: set CODEBERG_MODEL=provider:model in $(AGENT_ENV) (e.g. anthropic:claude-haiku-4-5) plus the matching API key"; exit 1; fi; \
-	cd $(AGENT) && exec node dist/tui.js $(q)
 
 # Serve the browser chat UI. Builds the SPA too so the rich UI shows (without it
 # the server still works, falling back to an embedded page). Port: CODEBERG_WEB_PORT.

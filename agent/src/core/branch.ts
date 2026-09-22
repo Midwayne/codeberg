@@ -2,8 +2,8 @@
  * Fork a chat transcript: copy a prefix into a new array so the branch can
  * diverge without sharing objects or mutating the source.
  *
- * Message-shape agnostic — TUI `ModelMessage`s, web `UIMessage`s, and
- * `ChatSession` turns all go through the same helpers. Surfaces that need a
+ * Message-shape agnostic — web `UIMessage`s and `ChatSession` turns go
+ * through the same helpers. Surfaces that need a
  * fresh id (the browser chat) pass `remap`.
  */
 

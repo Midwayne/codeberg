@@ -1,7 +1,7 @@
 # Agent accuracy & response quality — roadmap
 
 Status: **planned / not yet implemented.** This is the build spec for improving the
-answer accuracy of the `codeberg-ask` / TUI / web agent. Audited 2026-07-01.
+answer accuracy of the `codeberg-ask` / web agent. Audited 2026-07-01.
 
 The agent is mechanically solid (prompt caching, history compaction, in-loop
 pruning, composable tool sources, a loop-middleware seam). The gaps are about
@@ -159,7 +159,7 @@ answer cites nothing verifiable. This is the trust gap.
   are non-empty / plausibly related. Produce a `CitationReport`
   (`valid`, `invalid`, `unverifiable`).
 - **Surface it**: attach the report to `AskResult` (e.g. `result.citations`) and
-  let the TUI/web flag invalid citations. v1 = verify-and-report; a later
+  let the CLI/web flag invalid citations. v1 = verify-and-report; a later
   iteration can feed invalid citations back for a repair round.
 - **Evidence capture**: fold `grep`/`read_file` tool calls into the
   `EvidenceLedger` (today only `search_code` contributes), so the ledger and the

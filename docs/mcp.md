@@ -22,8 +22,9 @@ Later files override the same server name.
 optional — drop a `.cursor/mcp.json` in a repo you already use with Cursor and
 Codeberg will pick it up when that repo is indexed.
 
-When no `CODEBERG_ROOT` / `CODEBERG_ROOTS` is set (standalone `codeberg-tui`
-inside a project), the agent uses the git root of the current directory.
+When no `CODEBERG_ROOT` / `CODEBERG_ROOTS` is set (standalone `codeberg-web`
+or `codeberg-ask` inside a project), the agent uses the git root of the
+current directory.
 
 The launcher always sets `CODEBERG_HOME` and `CODEBERG_ROOTS` on the agent
 process so discovery follows the indexed repos, not the launcher's working

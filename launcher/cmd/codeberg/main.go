@@ -1,9 +1,9 @@
 // Command codeberg is the one-shot launcher for the code-search stack. It loads
 // config, makes sure the core, daemon, and agent are built (and the embedding
 // model downloaded), starts the daemon (which brings up the C indexer), waits
-// for it to be healthy, and hands the terminal to the agent TUI.
+// for it to be healthy, and opens the browser chat.
 //
-//	codeberg                 boot everything and open the chat TUI
+//	codeberg                 boot everything and open the browser chat
 //	codeberg build           (re)build/download the components and model
 //	codeberg doctor          check toolchains, binaries, and resolved config
 //	codeberg config [init]   print resolved config, or write a template file
@@ -96,7 +96,6 @@ func parseShared(name string, args []string) (*config.Overrides, error) {
 	fs.StringVar(&o.WebPort, "web-port", "", "web UI port (default "+config.DefaultWebPort+")")
 	noVector := fs.Bool("no-vector", false, "chunk-only mode (skip embedding model)")
 	vector := fs.Bool("vector", false, "force vector search on")
-	web := fs.Bool("web", false, "serve the browser chat UI instead of the terminal TUI")
 	all := fs.Bool("all", false, "search across every previously indexed repo (see `codeberg repos`)")
 	noIndex := fs.Bool("no-index", false, "one-off run: register nothing, build no vector index (search off)")
 	fs.Usage = func() {
@@ -113,10 +112,6 @@ func parseShared(name string, args []string) (*config.Overrides, error) {
 	if *vector {
 		v := true
 		o.Vector = &v
-	}
-	if *web {
-		v := true
-		o.Web = &v
 	}
 	if *all {
 		v := true
@@ -489,8 +484,7 @@ func cmdDoctor(args []string) error {
 		a := config.LocateArtifacts(root)
 		reportFile("cberg-index (core)", a.IndexBin)
 		reportFile("codeberg-d (daemon)", a.DaemonBin)
-		reportFile("agent TUI", a.TUIScript)
-		reportFile("agent web UI (--web)", a.WebScript)
+		reportFile("browser chat", a.WebScript)
 	}
 	if c.Vector {
 		reportFile("embedding model", c.EmbedModel)
@@ -545,18 +539,17 @@ func reportFile(label, path string) {
 func isFlag(s string) bool { return len(s) > 0 && s[0] == '-' }
 
 func usage(w *os.File) {
-	fmt.Fprint(w, `codeberg — launch the code-search stack (core + daemon + agent TUI)
+	fmt.Fprint(w, `codeberg — launch the code-search stack (core + daemon + browser chat)
 
 One command builds anything missing, starts the daemon (which brings up the C
-indexer), waits for it to be healthy, and opens the agent chat — like claude.
+indexer), waits for it to be healthy, and opens the browser chat.
 
 USAGE
-  codeberg [flags]               boot everything and open the chat TUI
+  codeberg [flags]               boot everything and open the browser chat
   codeberg <dir>                 index/search that directory (same as --root <dir>)
   codeberg --all [flags]         search every previously indexed repo combined
   codeberg --repos a,b [flags]   serve a chosen set of dirs and/or repo keys
   codeberg --no-index [flags]    one-off run: register nothing, build no index
-  codeberg --web [flags]         …or open the chat in a browser instead of the TUI
   codeberg build [flags]         (re)build/download components and the model
   codeberg doctor                check toolchains, binaries, and resolved config
   codeberg config [sub]          view/change configuration (see below)
@@ -606,14 +599,13 @@ KEY SETTINGS
   CODEBERG_MODEL    LLM as provider:model          (--model)
   CODEBERG_VECTOR   false = chunk-only, skip model (--no-vector)
   CODEBERG_HTTP_PORT  daemon port (default 48080)  (--port)
-  CODEBERG_WEB      true = open the browser UI      (--web)
-  CODEBERG_WEB_PORT   browser UI port (default 48088)  (--web-port)
+  CODEBERG_WEB_PORT   browser chat port (default 48088)  (--web-port)
   CODEBERG_REASONING  reasoning effort             (--reasoning)
   CODEBERG_MCP_USE    false = disable MCP servers from mcp.json
   CODEBERG_DBMCP_USE  true = built-in database MCP (needs ~/.codeberg/spec.yml)
   ANTHROPIC_API_KEY / OPENAI_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY
 
-Note: there is no in-chat /help or /config — the chat UI is a third-party TUI
-with no slash commands. Configure from this CLI (above) instead.
+Note: there is no in-chat /config. Configure from this CLI (above). The
+browser chat's "/" menu is for prompt hooks such as /enhance, not settings.
 `)
 }

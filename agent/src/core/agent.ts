@@ -48,7 +48,7 @@ const DEFAULT_SEARCH_K = 8;
 // Timeout guards (ai-sdk v7 TimeoutConfiguration). They replace the old
 // "never stream tool calls" workaround: a wedged gateway now aborts the step
 // instead of hanging the whole tool loop. `chunkMs` only bites on the streaming
-// path (the runAgentTUI TUI); the CLI runs non-streaming `generate()`.
+// path (the browser chat); the CLI runs non-streaming `generate()`.
 const DEFAULT_TIMEOUT = {
   totalMs: 300_000,
   stepMs: 120_000,
@@ -154,8 +154,8 @@ export class Agent implements Asker {
   }
 
   /** Compact a transcript to fit this model's history budget, summarizing the
-   *  overflow with the model itself. Exposed so the TUI session wrapper can
-   *  apply the same policy to its own (separately driven) transcript. */
+   *  overflow with the model itself. Exposed so the web server can apply the
+   *  same policy to the browser-held transcript. */
   async compactHistory(messages: ModelMessage[]): Promise<ModelMessage[]> {
     return fitHistory(messages, {
       budget: historyBudget(this.profile),
@@ -163,7 +163,7 @@ export class Agent implements Asker {
     });
   }
 
-  /** Bound compactor for callers that drive the loop directly (the TUI). */
+  /** Bound compactor for callers that drive the loop directly (the web server). */
   historyCompactor(): (messages: ModelMessage[]) => Promise<ModelMessage[]> {
     return (messages) => this.compactHistory(messages);
   }
@@ -180,7 +180,7 @@ export class Agent implements Asker {
   }
 
   /** The underlying ai-sdk v7 agent, for callers that drive their own loop
-   *  (e.g. `runAgentTUI`). Built lazily and cached, same instance as `ask`. */
+   *  (the web server). Built lazily and cached, same instance as `ask`. */
   async toolLoopAgent(): Promise<ToolLoopAgent> {
     return this.ensureLoop();
   }

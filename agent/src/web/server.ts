@@ -21,7 +21,7 @@ export const SESSIONS_PATH = '/api/sessions';
 export type ChatResponder = (res: ServerResponse, messages: unknown[]) => Promise<void>;
 
 export interface WebServerOptions {
-  /** The ai-sdk agent driving each turn — the same one `runAgentTUI` uses. */
+  /** The ai-sdk agent driving each turn. */
   agent: ToolLoopAgent;
   /** Shown in the page title bar; also returned from `/api/meta`. */
   title: string;
@@ -56,8 +56,7 @@ export interface WebServerOptions {
  *
  * The chat route is intentionally stateless: the client holds the conversation
  * and posts the full message array each turn, so a request maps straight onto
- * `pipeAgentUIStreamToResponse` — no server-side session (unlike the TUI, which
- * layers its own session store onto runAgentTUI's single seam).
+ * `pipeAgentUIStreamToResponse`. Saved chats are a separate CRUD store.
  */
 export function createRequestHandler(
   opts: WebServerOptions,
