@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { envFlag, expandHome } from '../paths.js';
 import type { McpConfigIo, McpStdioServer } from './types.js';
 
 /** MCP server name for the built-in multi-db server. Tools are `mcp_databases_<tool>`. */
@@ -11,17 +12,6 @@ export const DBMCP_SERVER_NAME = 'databases';
 const SPEC_NAMES = ['spec.yml', 'spec.yaml'] as const;
 
 const WALK_LIMIT = 8;
-
-function flag(value: string | undefined, fallback: boolean): boolean {
-  if (value == null || value.trim() === '') return fallback;
-  return !/^(0|false|off|no)$/i.test(value.trim());
-}
-
-function expandHome(p: string, home: string): string {
-  if (p === '~') return home;
-  if (p.startsWith('~/')) return join(home, p.slice(2));
-  return p;
-}
 
 function stringEnv(env: NodeJS.ProcessEnv): Record<string, string> {
   const out: Record<string, string> = {};
@@ -88,7 +78,7 @@ export interface BuiltinDatabaseResult {
  */
 export function builtinDatabaseServer(opts: BuiltinDatabaseOptions): BuiltinDatabaseResult {
   const warnings: string[] = [];
-  if (!flag(opts.env.CODEBERG_DBMCP_USE, false)) return { warnings };
+  if (!envFlag(opts.env.CODEBERG_DBMCP_USE, false)) return { warnings };
 
   const exists = opts.io?.exists ?? existsSync;
   const cwd = opts.io?.cwd ?? process.cwd();

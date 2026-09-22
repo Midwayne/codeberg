@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 
+import { codebergHome, envFlag, expandHome } from '../paths.js';
 import { builtinDatabaseServer } from './builtin.js';
 import type {
   McpConfig,
@@ -15,12 +16,6 @@ import type {
 
 const MCP_FILE = 'mcp.json';
 
-/** A flag env var: anything but 0/false/off/no (case-insensitive) is "on". */
-function flag(value: string | undefined, fallback: boolean): boolean {
-  if (value == null || value.trim() === '') return fallback;
-  return !/^(0|false|off|no)$/i.test(value.trim());
-}
-
 function splitList(v: string): string[] {
   const out: string[] = [];
   for (const item of v.split(',')) {
@@ -28,12 +23,6 @@ function splitList(v: string): string[] {
     if (t) out.push(t);
   }
   return out;
-}
-
-function expandHome(p: string, home: string): string {
-  if (p === '~') return home;
-  if (p.startsWith('~/')) return join(home, p.slice(2));
-  return p;
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -362,18 +351,16 @@ export function mcpConfigFromEnv(
   env: NodeJS.ProcessEnv = process.env,
   io: McpConfigIo = {},
 ): McpConfig {
-  const userEnabled = flag(env.CODEBERG_MCP_USE, true);
-  const dbEnabled = flag(env.CODEBERG_DBMCP_USE, false);
+  const userEnabled = envFlag(env.CODEBERG_MCP_USE, true);
+  const dbEnabled = envFlag(env.CODEBERG_DBMCP_USE, false);
   if (!userEnabled && !dbEnabled) {
     return { enabled: false, servers: [], files: [], warnings: [] };
   }
 
-  const home =
-    env.CODEBERG_HOME && env.CODEBERG_HOME.trim() !== ''
-      ? env.CODEBERG_HOME
-      : join((io.homedir ?? homedir)(), '.codeberg');
+  const resolveHome = io.homedir ?? homedir;
+  const home = codebergHome(env, resolveHome);
   const cwd = io.cwd ?? process.cwd();
-  const userHome = (io.homedir ?? homedir)();
+  const userHome = resolveHome();
   const exists = io.exists ?? defaultExists;
   const readFile = io.readFile ?? defaultReadFile;
   const warnings: string[] = [];
