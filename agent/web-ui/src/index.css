@@ -83,3 +83,27 @@
     -webkit-font-smoothing: antialiased;
   }
 }
+
+/* Brief highlight after jumping to a message from the tick rail. */
+@keyframes message-flash {
+  0% {
+    box-shadow: 0 0 0 2px var(--ring);
+    background-color: color-mix(in oklch, var(--accent) 70%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 2px transparent;
+    background-color: transparent;
+  }
+}
+
+.message-flash {
+  border-radius: 1rem;
+  animation: message-flash 1.05s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-flash {
+    animation: none;
+    box-shadow: 0 0 0 2px var(--ring);
+  }
+}

@@ -20,8 +20,21 @@ export function Workspace({ sidebarOpen }: { sidebarOpen: boolean }) {
   // Signature of the last conversation we persisted, so the save effect skips
   // re-writing an unchanged turn (notably the one we just resumed).
   const savedSig = useRef('');
+  const seededRailPreview = useRef(false);
   const signature = (id: string, msgs: { id: string }[]) =>
     `${id}:${msgs.length}:${msgs.at(-1)?.id ?? ''}`;
+
+  // Dev-only: `?preview=rail` fills a tall transcript so the tick rail can be
+  // exercised without a running model. Tree-shaken out of production builds.
+  useEffect(() => {
+    if (seededRailPreview.current) return;
+    if (!import.meta.env.DEV) return;
+    if (new URLSearchParams(window.location.search).get('preview') !== 'rail') return;
+    seededRailPreview.current = true;
+    void import('@/lib/rail-preview').then(({ RAIL_PREVIEW_MESSAGES }) => {
+      chat.setMessages(RAIL_PREVIEW_MESSAGES);
+    });
+  }, [chat]);
 
   // Persist once a turn settles (status back to "ready") and there's something
   // to save. PUT is idempotent, so the dedupe is just to avoid needless writes.

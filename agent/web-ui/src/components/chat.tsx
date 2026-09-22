@@ -4,7 +4,9 @@ import { AlertTriangle, Loader2 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
 import { Message } from '@/components/message';
+import { MessageRail } from '@/components/message-rail';
 import { PromptInput } from '@/components/prompt-input';
+import { markerId } from '@/lib/message-rail';
 
 // `useChat` lives in the parent `Workspace` (which also owns session state), so
 // `Chat` is presentational over the helpers it returns.
@@ -14,58 +16,76 @@ export function Chat({ chat }: { chat: UseChatHelpers<UIMessage> }) {
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  // Keep the view pinned to the latest content unless the user has scrolled up.
+  const holdAutoScroll = useRef(false);
+  const holdTimer = useRef(0);
+  // Keep the view pinned to the latest content unless the user has scrolled up
+  // or just jumped via the tick rail (smooth scroll would still look "near
+  // bottom" for a frame and the pin would yank them back).
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el) return;
+    if (!el || holdAutoScroll.current) return;
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
     if (nearBottom) bottomRef.current?.scrollIntoView({ block: 'end' });
   }, [messages, status]);
 
   return (
     <>
-      <div ref={scrollRef} className="flex-1 overflow-y-auto">
-        <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6">
-          {messages.length === 0 && <Empty />}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 sm:pr-8">
+            {messages.length === 0 && <Empty />}
 
-          {messages.map((m, i) => (
-            <Message
-              key={m.id}
-              message={m}
-              onRegenerate={
-                !busy && m.role === 'assistant' && i === messages.length - 1
-                  ? () => regenerate()
-                  : undefined
-              }
-            />
-          ))}
+            {messages.map((m, i) => (
+              <Message
+                key={m.id || `${m.role}-${i}`}
+                message={m}
+                domId={markerId(m, i)}
+                onRegenerate={
+                  !busy && m.role === 'assistant' && i === messages.length - 1
+                    ? () => regenerate()
+                    : undefined
+                }
+              />
+            ))}
 
-          {status === 'submitted' && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" />
-              Thinking…
-            </div>
-          )}
-
-          {error && (
-            <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-              <div className="flex-1">
-                <div className="font-medium">Something went wrong</div>
-                <div className="text-xs opacity-80">{error.message}</div>
+            {status === 'submitted' && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+                Thinking…
               </div>
-              <button
-                type="button"
-                onClick={() => regenerate()}
-                className="shrink-0 rounded-md border border-destructive/40 px-2 py-1 text-xs hover:bg-destructive/20"
-              >
-                Retry
-              </button>
-            </div>
-          )}
+            )}
 
-          <div ref={bottomRef} />
+            {error && (
+              <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                <div className="flex-1">
+                  <div className="font-medium">Something went wrong</div>
+                  <div className="text-xs opacity-80">{error.message}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => regenerate()}
+                  className="shrink-0 rounded-md border border-destructive/40 px-2 py-1 text-xs hover:bg-destructive/20"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            <div ref={bottomRef} />
+          </div>
         </div>
+        <MessageRail
+          scrollRef={scrollRef}
+          messages={messages}
+          onNavigate={() => {
+            holdAutoScroll.current = true;
+            window.clearTimeout(holdTimer.current);
+            holdTimer.current = window.setTimeout(() => {
+              holdAutoScroll.current = false;
+            }, 700);
+          }}
+        />
       </div>
 
       <div className="shrink-0 border-t border-border bg-background">

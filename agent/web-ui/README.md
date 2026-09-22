@@ -37,7 +37,8 @@ runs `make build-web-ui` as part of `make build-agent`.
 src/
   components/
     workspace.tsx   useChat + session sidebar + auto-save
-    chat.tsx        message list, prompt input, hook autocomplete
+    chat.tsx        message list, prompt input, tick rail
+    message-rail.tsx ChatGPT-style jump-to-prompt ticks on the right
     message.tsx     renders text, reasoning, tool parts
     tool-views.tsx  rich cards for daemon tools (search, grep, files, git, …)
   lib/

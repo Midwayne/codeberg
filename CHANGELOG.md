@@ -9,6 +9,11 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Added
 
+- **Chat message rail** — a ChatGPT-style tick rail on the right of the
+  browser chat. Each tick is a user prompt: hover (or keyboard focus)
+  previews the text, click/Enter jumps to that message. Ticks follow
+  scroll position, spread apart when they would overlap, and the active
+  one tracks the prompt currently in view. Hidden on narrow screens.
 - **Built-in database MCP** — optional MongoDB, PostgreSQL, and Redis tools
   from the `third_party/multi-db-mcp-server` submodule. Off unless
   `CODEBERG_DBMCP_USE` is set. Put connections in `~/.codeberg/spec.yml`
