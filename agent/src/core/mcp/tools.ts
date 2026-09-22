@@ -39,7 +39,7 @@ export interface McpToolSourceOptions {
   config: McpConfig;
   connect?: (server: McpServer) => Promise<McpClientHandle>;
   log?: (message: string) => void;
-  /** When set, each server's tools are written under `mcp/<server>/`. */
+  /** When set, each server's tools are written under `mcp/<server>-<hash>/`. */
   context?: ContextStore;
 }
 

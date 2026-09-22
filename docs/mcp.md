@@ -94,7 +94,7 @@ A server that fails to spawn or handshake is skipped. The rest of the agent —
 code search, web tools, other MCP servers — keeps running. Look for
 `› MCP:` lines on stderr.
 
-The failure is also written to `$CODEBERG_HOME/context/mcp/<server>/STATUS.txt`
+The failure is also written to `$CODEBERG_HOME/context/mcp/<server>-<hash>/STATUS.txt`
 and included in the system prompt. The agent is told to report that error,
 and to ask the user to re-authenticate when the failure is an auth error,
 instead of behaving as if the server was never configured.
@@ -102,9 +102,10 @@ instead of behaving as if the server was never configured.
 ## Dynamic tool loading
 
 Connected servers are not inlined into the prompt. Each tool's description and
-JSON schema is a file under `$CODEBERG_HOME/context/mcp/<server>/<tool>.json`
-(one folder per server; `TOOLS.txt` lists the names). The prompt receives the
-tool names only.
+JSON schema is a file under `$CODEBERG_HOME/context/mcp/<server>-<hash>/<tool>.json`.
+Each server gets its own folder; the hash keeps two servers that sanitize to
+the same name from sharing a directory. `TOOLS.txt` lists the names. The
+prompt receives the tool names only.
 
 `load_mcp_tools` takes callable names (`mcp_<server>_<tool>`) and enables those
 tools on the next step. A tool stays enabled once loaded, and any MCP tool
