@@ -4,6 +4,7 @@ import type { UIMessage } from 'ai';
 import { Response } from '@/components/response';
 import { ToolViewRouter } from '@/components/tool-views';
 import { Collapsible, CopyButton, IconButton } from '@/components/ui';
+import { userPromptText } from '@/lib/message-rail';
 import { cn } from '@/lib/utils';
 
 type AnyPart = UIMessage['parts'][number];
@@ -21,13 +22,22 @@ export interface ToolView {
 export function Message({
   message,
   onRegenerate,
+  domId,
 }: {
   message: UIMessage;
   onRegenerate?: () => void;
+  /** Stable id written to the DOM so the tick rail can scroll here. */
+  domId?: string;
 }) {
   const isUser = message.role === 'user';
   return (
-    <div className={cn('group/message flex flex-col gap-1', isUser ? 'items-end' : 'items-start')}>
+    <div
+      data-message-id={domId ?? message.id}
+      className={cn(
+        'group/message flex scroll-mt-3 flex-col gap-1',
+        isUser ? 'items-end' : 'items-start',
+      )}
+    >
       <div
         className={cn(
           'min-w-0 max-w-full',
@@ -36,7 +46,7 @@ export function Message({
             : 'w-full space-y-2',
         )}
       >
-        {isUser ? userText(message) : message.parts.map((part, i) => <Part key={i} part={part} />)}
+        {isUser ? userPromptText(message) : message.parts.map((part, i) => <Part key={i} part={part} />)}
       </div>
       {!isUser && message.parts.length > 0 && (
         <MessageActions message={message} onRegenerate={onRegenerate} />
@@ -90,11 +100,4 @@ function MessageActions({
       )}
     </div>
   );
-}
-
-function userText(message: UIMessage) {
-  return message.parts
-    .filter((p): p is Extract<AnyPart, { type: 'text' }> => p.type === 'text')
-    .map((p) => p.text)
-    .join('');
 }
