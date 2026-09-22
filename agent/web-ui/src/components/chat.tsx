@@ -9,9 +9,9 @@ import { PromptInput } from '@/components/prompt-input';
 import { messageIndexById } from '@/lib/branch';
 import { markerId } from '@/lib/message-rail';
 
-// `useChat` lives in the parent `Workspace` (which also owns session state), so
-// `Chat` is presentational over the helpers it returns. Branching is a session
-// operation: this component only reports the message index to branch through.
+// `useChat` lives in `ChatSession` (keyed by session id). `Chat` is presentational
+// over the helpers it returns. Branching is a session operation: this component
+// only reports the message index to branch through.
 export function Chat({
   chat,
   onBranch,

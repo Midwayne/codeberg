@@ -1,128 +1,60 @@
 import { useChat } from '@ai-sdk/react';
-import type { UIMessage } from 'ai';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Chat } from '@/components/chat';
 import { SessionSidebar } from '@/components/session-sidebar';
-import { createChatBranch, isSessionSettled, type SessionAdopt } from '@/lib/branch';
+import { blankSession, createChatBranch, type OpenSession } from '@/lib/branch';
 import { useSessions } from '@/lib/use-sessions';
-import { deleteSession, deriveTitle, loadSession, newSessionId, saveSession } from '@/lib/sessions';
+import { deleteSession, deriveTitle, loadSession, saveSession } from '@/lib/sessions';
 
 /**
- * Owns the chat and its persistence. `useChat` lives here (not in `Chat`) so the
- * sidebar can drive it: resuming a saved chat replaces the messages, "New chat"
- * clears them, "Branch" copies a prefix into a new session. Each completed turn
- * is written back to the server keyed by the current session id.
+ * Owns which chat is open. The live `useChat` store lives in `ChatSession`,
+ * which remounts when the session id changes, so the transcript, the id, and
+ * the title are always the same value — resume, new, and branch are one
+ * `setSession`.
  */
 export function Workspace({ sidebarOpen }: { sidebarOpen: boolean }) {
-  const chat = useChat();
   const { sessions, refresh } = useSessions();
-  const [sessionId, setSessionId] = useState(newSessionId);
+  const [session, setSession] = useState<OpenSession>(() => blankSession());
+  const [canBranch, setCanBranch] = useState(false);
+  const branchLatest = useRef<() => void>(() => {});
+  const seededPreview = useRef(false);
 
-  // Signature of the last conversation we persisted, so the save effect skips
-  // re-writing an unchanged turn (notably the one we just resumed).
-  const savedSig = useRef('');
-  const seededRailPreview = useRef(false);
-  // Title / parentId / id for the session we mean to persist. Kept in a ref so
-  // a branch's "(branch)" title survives auto-save, and so we don't depend on
-  // React state being in lockstep with useChat's message store.
-  const persistMeta = useRef<{ id: string; parentId?: string; title?: string }>({
-    id: sessionId,
-  });
-  const settle = useRef<SessionAdopt | null>(null);
-  const signature = (id: string, msgs: { id?: string }[]) =>
-    `${id}:${msgs.length}:${msgs.at(-1)?.id ?? ''}`;
-
-  const adopt = useCallback(
-    (id: string, messages: UIMessage[], nextParent?: string, title?: string) => {
-      persistMeta.current = { id, parentId: nextParent, title };
-      settle.current = { id, lastId: messages.at(-1)?.id ?? '' };
-      savedSig.current = signature(id, messages);
-      chat.setMessages(messages);
-      setSessionId(id);
-    },
-    [chat],
-  );
-
-  // Dev-only: `?preview=rail` fills a tall transcript so the tick rail can be
-  // exercised without a running model. Tree-shaken out of production builds.
-  useEffect(() => {
-    if (seededRailPreview.current) return;
-    if (!import.meta.env.DEV) return;
-    if (new URLSearchParams(window.location.search).get('preview') !== 'rail') return;
-    seededRailPreview.current = true;
-    void import('@/lib/rail-preview').then(({ RAIL_PREVIEW_MESSAGES }) => {
-      chat.setMessages(RAIL_PREVIEW_MESSAGES);
-    });
-  }, [chat]);
-
-  // Persist once a turn settles (status back to "ready") and there's something
-  // to save. PUT is idempotent, so the dedupe is just to avoid needless writes.
-  useEffect(() => {
-    if (chat.status !== 'ready' || chat.messages.length === 0) return;
-    if (!isSessionSettled(settle.current, sessionId, chat.messages)) return;
-    settle.current = null;
-    const meta = persistMeta.current;
-    if (meta.id !== sessionId) return;
-    const sig = signature(sessionId, chat.messages);
-    if (sig === savedSig.current) return;
-    savedSig.current = sig;
-    void saveSession({
-      id: sessionId,
-      title: meta.title ?? deriveTitle(chat.messages),
-      messages: chat.messages,
-      parentId: meta.parentId,
-    }).then(refresh);
-  }, [chat.status, chat.messages, sessionId, refresh]);
+  const claimPreview = useCallback(() => {
+    if (seededPreview.current || !import.meta.env.DEV) return false;
+    if (new URLSearchParams(window.location.search).get('preview') !== 'rail') return false;
+    seededPreview.current = true;
+    return true;
+  }, []);
 
   const resume = useCallback(
     async (id: string) => {
       const record = await loadSession(id);
       if (!record) {
-        void refresh(); // it was deleted out from under us
+        void refresh();
         return;
       }
-      adopt(record.id, record.messages, record.parentId, record.title);
+      setSession({
+        id: record.id,
+        title: record.title,
+        parentId: record.parentId,
+        messages: record.messages,
+      });
     },
-    [adopt, refresh],
+    [refresh],
   );
 
   const startNew = useCallback(() => {
-    const id = newSessionId();
-    persistMeta.current = { id };
-    settle.current = null;
-    savedSig.current = '';
-    chat.setMessages([]);
-    setSessionId(id);
-  }, [chat]);
-
-  const branchFrom = useCallback(
-    async (throughIndex: number) => {
-      if (chat.status !== 'ready' || chat.messages.length === 0 || throughIndex < 0) return;
-      const sourceId = persistMeta.current.id || sessionId;
-      const sourceMessages = chat.messages;
-      // Persist the parent first so the lineage target exists on disk.
-      await saveSession({
-        id: sourceId,
-        title: persistMeta.current.title ?? deriveTitle(sourceMessages),
-        messages: sourceMessages,
-        parentId: persistMeta.current.parentId,
-      });
-      const next = createChatBranch(sourceMessages, throughIndex, sourceId);
-      adopt(next.id, next.messages, next.parentId, next.title);
-      await saveSession(next);
-      void refresh();
-    },
-    [chat, sessionId, adopt, refresh],
-  );
+    setSession(blankSession());
+  }, []);
 
   const remove = useCallback(
     async (id: string) => {
       await deleteSession(id);
-      if (id === sessionId) startNew();
+      if (id === session.id) setSession(blankSession());
       void refresh();
     },
-    [sessionId, startNew, refresh],
+    [session.id, refresh],
   );
 
   return (
@@ -130,17 +62,119 @@ export function Workspace({ sidebarOpen }: { sidebarOpen: boolean }) {
       {sidebarOpen && (
         <SessionSidebar
           sessions={sessions}
-          currentId={sessionId}
-          canBranch={chat.status === 'ready' && chat.messages.length > 0}
-          onResume={resume}
+          currentId={session.id}
+          canBranch={canBranch}
+          onResume={(id) => void resume(id)}
           onNew={startNew}
-          onBranch={() => void branchFrom(chat.messages.length - 1)}
-          onDelete={remove}
+          onBranch={() => branchLatest.current()}
+          onDelete={(id) => void remove(id)}
         />
       )}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <Chat chat={chat} onBranch={(index) => void branchFrom(index)} />
-      </div>
+      <ChatSession
+        key={session.id}
+        session={session}
+        claimPreview={claimPreview}
+        onOpen={setSession}
+        onRefresh={refresh}
+        onCanBranch={setCanBranch}
+        branchLatest={branchLatest}
+      />
+    </div>
+  );
+}
+
+function transcriptSig(messages: readonly { id?: string }[]): string {
+  return `${messages.length}:${messages.at(-1)?.id ?? ''}`;
+}
+
+/**
+ * One mounted chat. `key={session.id}` on the parent means this component is
+ * born with its transcript; it never has to reconcile a new id against the
+ * previous message list.
+ */
+function ChatSession({
+  session,
+  claimPreview,
+  onOpen,
+  onRefresh,
+  onCanBranch,
+  branchLatest,
+}: {
+  session: OpenSession;
+  claimPreview: () => boolean;
+  onOpen: (next: OpenSession) => void;
+  onRefresh: () => Promise<void> | void;
+  onCanBranch: (value: boolean) => void;
+  branchLatest: { current: () => void };
+}) {
+  const chat = useChat({ id: session.id, messages: session.messages });
+  const savedSig = useRef(transcriptSig(session.messages));
+
+  useEffect(() => {
+    if (!claimPreview()) return;
+    void import('@/lib/rail-preview').then(({ RAIL_PREVIEW_MESSAGES }) => {
+      chat.setMessages(RAIL_PREVIEW_MESSAGES);
+    });
+  }, [chat, claimPreview]);
+
+  useEffect(() => {
+    onCanBranch(chat.status === 'ready' && chat.messages.length > 0);
+  }, [chat.status, chat.messages.length, onCanBranch]);
+
+  useEffect(() => {
+    return () => onCanBranch(false);
+  }, [onCanBranch]);
+
+  const branchFrom = useCallback(
+    async (throughIndex: number) => {
+      if (chat.status !== 'ready' || chat.messages.length === 0 || throughIndex < 0) return;
+      const sourceMessages = chat.messages;
+      await saveSession({
+        id: session.id,
+        title: session.title ?? deriveTitle(sourceMessages),
+        messages: sourceMessages,
+        parentId: session.parentId,
+      });
+      const next = createChatBranch(sourceMessages, throughIndex, session.id);
+      await saveSession(next);
+      onOpen({
+        id: next.id,
+        title: next.title,
+        parentId: next.parentId,
+        messages: next.messages,
+      });
+      void onRefresh();
+    },
+    [chat, session.id, session.title, session.parentId, onOpen, onRefresh],
+  );
+
+  useEffect(() => {
+    branchLatest.current = () => {
+      void branchFrom(chat.messages.length - 1);
+    };
+    return () => {
+      branchLatest.current = () => {};
+    };
+  }, [branchFrom, branchLatest, chat.messages.length]);
+
+  // Persist once a turn settles. The signature starts at the transcript this
+  // session was opened with, so a resume or branch does not rewrite itself.
+  useEffect(() => {
+    if (chat.status !== 'ready' || chat.messages.length === 0) return;
+    const sig = transcriptSig(chat.messages);
+    if (sig === savedSig.current) return;
+    savedSig.current = sig;
+    void saveSession({
+      id: session.id,
+      title: session.title ?? deriveTitle(chat.messages),
+      messages: chat.messages,
+      parentId: session.parentId,
+    }).then(() => onRefresh());
+  }, [chat.status, chat.messages, session.id, session.title, session.parentId, onRefresh]);
+
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <Chat chat={chat} onBranch={(index) => void branchFrom(index)} />
     </div>
   );
 }

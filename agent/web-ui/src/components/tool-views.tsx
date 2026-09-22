@@ -47,23 +47,81 @@ export function ToolViewRouter({ part }: { part: ToolView }) {
   }
 
   switch (name) {
-    case 'search_code':
-      return <SearchResults part={part} />;
-    case 'hybrid_search':
-      return <HybridSearchResults part={part} />;
+    case 'search_code': {
+      const hits = extractSearchHits(part.output);
+      const query = inputString(part, 'query');
+      return (
+        <HitList
+          icon={<Search className="size-3.5" />}
+          title={`${countPhrase(hits.length, 'result')}${forQuote(query)}`}
+          hits={hits}
+        />
+      );
+    }
+    case 'hybrid_search': {
+      const hits = extractHybridHits(part.output);
+      const query = inputString(part, 'query');
+      return (
+        <HitList
+          icon={<FileSearch className="size-3.5" />}
+          title={`${countPhrase(hits.length, 'hybrid result')}${forQuote(query)}`}
+          hits={hits}
+        />
+      );
+    }
     case 'find_symbol':
     case 'file_outline':
-      return <ChunkHits title={name === 'find_symbol' ? 'Symbols' : 'Outline'} part={part} />;
+    case 'search_graph': {
+      const hits = extractSearchHits(part.output);
+      const noun = CHUNK_HIT_NOUN[name] ?? 'hit';
+      return (
+        <HitList
+          icon={<FileCode className="size-3.5" />}
+          title={countPhrase(hits.length, noun)}
+          hits={hits}
+        />
+      );
+    }
     case 'get_chunk':
       return <ChunkDetail part={part} />;
-    case 'grep':
-      return <GrepResults title="Grep" part={part} />;
-    case 'find_references':
-      return <FindReferencesResults part={part} />;
-    case 'search_graph':
-      return <ChunkHits title="Graph nodes" part={part} />;
-    case 'trace_path':
-      return <TracePathResults part={part} />;
+    case 'grep': {
+      const hits = extractGrepMatches(part.output);
+      const pattern = inputString(part, 'pattern', 'symbol');
+      return (
+        <HitList
+          icon={<Search className="size-3.5" />}
+          title={`${countPhrase(hits.length, 'grep match')}${forQuote(pattern)}`}
+          hits={hits}
+        />
+      );
+    }
+    case 'find_references': {
+      const hits = extractFindReferences(part.output);
+      const source =
+        part.output && typeof part.output === 'object' && 'source' in part.output
+          ? String((part.output as { source?: string }).source ?? '')
+          : '';
+      const symbol = inputString(part, 'symbol');
+      const label = source === 'graph' ? 'graph refs' : 'grep refs';
+      return (
+        <HitList
+          icon={<Search className="size-3.5" />}
+          title={`${hits.length} ${label}${forQuote(symbol)}`}
+          hits={hits}
+        />
+      );
+    }
+    case 'trace_path': {
+      const hits = extractGraphHops(part.output);
+      const symbol = inputString(part, 'name');
+      return (
+        <HitList
+          icon={<GitBranch className="size-3.5" />}
+          title={`${countPhrase(hits.length, 'hop')}${symbol ? ` from “${symbol}”` : ''}`}
+          hits={hits}
+        />
+      );
+    }
     case 'read_file':
     case 'head':
     case 'tail':
@@ -85,19 +143,33 @@ export function ToolViewRouter({ part }: { part: ToolView }) {
   }
 }
 
+const CHUNK_HIT_NOUN: Record<string, string> = {
+  find_symbol: 'symbols hit',
+  file_outline: 'outline hit',
+  search_graph: 'graph nodes hit',
+};
+
+function countPhrase(count: number, singular: string): string {
+  return `${count} ${singular}${count === 1 ? '' : 's'}`;
+}
+
+function forQuote(value: string | undefined): string {
+  return value ? ` for “${value}”` : '';
+}
+
+/** First string field on a tool call's input, if one of `keys` is present. */
+function inputString(part: ToolView, ...keys: string[]): string | undefined {
+  if (!part.input || typeof part.input !== 'object') return undefined;
+  const record = part.input as Record<string, unknown>;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string') return value;
+  }
+  return undefined;
+}
+
 function ToolPending({ name, part }: { name: string; part: ToolView }) {
-  const query =
-    part.input && typeof part.input === 'object'
-      ? (part.input as { query?: string; pattern?: string; name?: string; symbol?: string })
-      : undefined;
-  const label =
-    query?.query ??
-    query?.pattern ??
-    query?.name ??
-    query?.symbol ??
-    (part.input && typeof part.input === 'object'
-      ? ((part.input as { path?: string }).path ?? '')
-      : '');
+  const label = inputString(part, 'query', 'pattern', 'name', 'symbol', 'path') ?? '';
 
   return (
     <div className="my-2 flex items-center gap-2 text-xs text-muted-foreground">
@@ -118,41 +190,6 @@ function ToolError({ name, message }: { name: string; message: string }) {
   );
 }
 
-function SearchResults({ part }: { part: ToolView }) {
-  const query = inputQuery(part);
-  const hits = extractSearchHits(part.output);
-  return (
-    <HitList
-      icon={<Search className="size-3.5" />}
-      title={`${hits.length} result${hits.length === 1 ? '' : 's'}${query ? ` for “${query}”` : ''}`}
-      hits={hits}
-    />
-  );
-}
-
-function HybridSearchResults({ part }: { part: ToolView }) {
-  const query = inputQuery(part);
-  const hits = extractHybridHits(part.output);
-  return (
-    <HitList
-      icon={<FileSearch className="size-3.5" />}
-      title={`${hits.length} hybrid result${hits.length === 1 ? '' : 's'}${query ? ` for “${query}”` : ''}`}
-      hits={hits}
-    />
-  );
-}
-
-function ChunkHits({ title, part }: { title: string; part: ToolView }) {
-  const hits = extractSearchHits(part.output);
-  return (
-    <HitList
-      icon={<FileCode className="size-3.5" />}
-      title={`${hits.length} ${title.toLowerCase()} hit${hits.length === 1 ? '' : 's'}`}
-      hits={hits}
-    />
-  );
-}
-
 function ChunkDetail({ part }: { part: ToolView }) {
   const hit = normalizeSearchHit(part.output);
   if (!hit) return <GenericTool part={part} name="get_chunk" />;
@@ -164,67 +201,10 @@ function ChunkDetail({ part }: { part: ToolView }) {
   );
 }
 
-function GrepResults({ title, part }: { title: string; part: ToolView }) {
-  const hits = extractGrepMatches(part.output);
-  const pattern =
-    part.input && typeof part.input === 'object'
-      ? ((part.input as { pattern?: string; symbol?: string }).pattern ??
-        (part.input as { symbol?: string }).symbol)
-      : undefined;
-
-  return (
-    <HitList
-      icon={<Search className="size-3.5" />}
-      title={`${hits.length} ${title.toLowerCase()} match${hits.length === 1 ? '' : 's'}${pattern ? ` for “${pattern}”` : ''}`}
-      hits={hits}
-    />
-  );
-}
-
-function FindReferencesResults({ part }: { part: ToolView }) {
-  const hits = extractFindReferences(part.output);
-  const source =
-    part.output && typeof part.output === 'object' && 'source' in part.output
-      ? String((part.output as { source?: string }).source ?? '')
-      : '';
-  const symbol =
-    part.input && typeof part.input === 'object'
-      ? (part.input as { symbol?: string }).symbol
-      : undefined;
-  const label = source === 'graph' ? 'graph refs' : 'grep refs';
-
-  return (
-    <HitList
-      icon={<Search className="size-3.5" />}
-      title={`${hits.length} ${label}${symbol ? ` for “${symbol}”` : ''}`}
-      hits={hits}
-    />
-  );
-}
-
-function TracePathResults({ part }: { part: ToolView }) {
-  const hits = extractGraphHops(part.output);
-  const name =
-    part.input && typeof part.input === 'object'
-      ? (part.input as { name?: string }).name
-      : undefined;
-
-  return (
-    <HitList
-      icon={<GitBranch className="size-3.5" />}
-      title={`${hits.length} hop${hits.length === 1 ? '' : 's'}${name ? ` from “${name}”` : ''}`}
-      hits={hits}
-    />
-  );
-}
-
 function FileContent({ part }: { part: ToolView }) {
   const out = part.output as { content?: string; start_line?: number; end_line?: number } | string;
   const content = typeof out === 'string' ? out : (out.content ?? '');
-  const path =
-    part.input && typeof part.input === 'object'
-      ? ((part.input as { path?: string }).path ?? 'file')
-      : 'file';
+  const path = inputString(part, 'path') ?? 'file';
   const lang = langFromPath(path);
   const range =
     typeof out === 'object' && out.start_line
@@ -399,12 +379,6 @@ function JsonBlock({ label, value }: { label: string; value: unknown }) {
       </pre>
     </div>
   );
-}
-
-function inputQuery(part: ToolView): string | undefined {
-  return part.input && typeof part.input === 'object'
-    ? (part.input as { query?: string }).query
-    : undefined;
 }
 
 function formatListItem(item: unknown): string {

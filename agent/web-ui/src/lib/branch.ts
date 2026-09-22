@@ -5,6 +5,19 @@ import { branchTitle, branchTranscript } from '@agent/core/branch.js';
 import { markerId } from './message-rail';
 import { deriveTitle, newSessionId } from './sessions';
 
+/** The chat the workspace is showing. One value: id, lineage, and transcript. */
+export interface OpenSession {
+  id: string;
+  /** Set when resumed or branched so later saves do not re-derive the title. */
+  title?: string;
+  parentId?: string;
+  messages: UIMessage[];
+}
+
+export function blankSession(id: string = newSessionId()): OpenSession {
+  return { id, messages: [] };
+}
+
 /** Payload the workspace persists and then adopts as the live chat. */
 export interface ChatBranch {
   id: string;
@@ -46,27 +59,4 @@ export function createChatBranch(
     messages: forked,
     parentId,
   };
-}
-
-/** Snapshot of an adopt/resume/branch so auto-save can wait for React + useChat. */
-export interface SessionAdopt {
-  id: string;
-  lastId: string;
-}
-
-/**
- * `useChat.setMessages` and React session-id state can flush on different
- * frames. Auto-save must not run until both sides show the adopted pair —
- * otherwise a new id can be persisted with the previous transcript (or the
- * parent id with the branch prefix).
- */
-export function isSessionSettled(
-  pending: SessionAdopt | null,
-  sessionId: string,
-  messages: readonly { id?: string }[],
-): boolean {
-  if (pending === null) {
-    return true;
-  }
-  return pending.id === sessionId && (messages.at(-1)?.id ?? '') === pending.lastId;
 }

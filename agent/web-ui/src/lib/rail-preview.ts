@@ -58,7 +58,7 @@ export const RAIL_PREVIEW_MESSAGES: UIMessage[] = [
     'a4',
     'assistant',
     [
-      '`useChat` is owned by `Workspace` (`agent/web-ui/src/components/workspace.tsx`), not by `Chat`. That split lets the session sidebar resume or clear the transcript without remounting the composer.',
+      '`useChat` lives in `ChatSession` inside `Workspace` (`agent/web-ui/src/components/workspace.tsx`). The session id is the React key, so resume, new, and branch remount the chat with that transcript instead of swapping messages under a stale id.',
       '',
       '`Chat` is presentational: it renders the message list, the tick rail, and the prompt input. Each completed turn is PUT to `/api/sessions/<id>` so a reload can resume the same thread.',
     ].join('\n'),

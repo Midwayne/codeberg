@@ -1,7 +1,7 @@
 import type { UIMessage } from 'ai';
 import { describe, expect, it } from 'vitest';
 
-import { createChatBranch, isSessionSettled, messageIndexById } from './branch';
+import { createChatBranch, messageIndexById } from './branch';
 
 function user(id: string, text: string): UIMessage {
   return { id, role: 'user', parts: [{ type: 'text', text }] };
@@ -54,18 +54,5 @@ describe('createChatBranch', () => {
     });
     expect(branch.messages).toHaveLength(4);
     expect(branch.title).toBe('what is auth? (branch)');
-  });
-});
-
-describe('isSessionSettled', () => {
-  it('is ready when no adopt is in flight', () => {
-    expect(isSessionSettled(null, 'a', [{ id: 'm1' }])).toBe(true);
-  });
-
-  it('waits until both the session id and last message match the adopt', () => {
-    const pending = { id: 'child', lastId: 'b1' };
-    expect(isSessionSettled(pending, 'parent', [{ id: 'b1' }])).toBe(false);
-    expect(isSessionSettled(pending, 'child', [{ id: 'a2' }])).toBe(false);
-    expect(isSessionSettled(pending, 'child', [{ id: 'u1' }, { id: 'b1' }])).toBe(true);
   });
 });
