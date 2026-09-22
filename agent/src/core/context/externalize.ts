@@ -1,7 +1,7 @@
 import type { ModelMessage } from 'ai';
 
 import { toolResultOutputText } from '../message.js';
-import { isSpillPreview, SPILL_CHARS, spillPreview } from './spill.js';
+import { SPILL_CHARS, spillText } from './spill.js';
 import type { ContextStore } from './store.js';
 
 /**
@@ -40,15 +40,14 @@ async function externalizeToolMessage(
       content.push(part);
       continue;
     }
-    const body = toolResultOutputText(part.output);
-    if (body.length <= limit || isSpillPreview(body)) {
+    const preview = await spillText(store, part.toolName, toolResultOutputText(part.output), limit);
+    if (preview === undefined) {
       content.push(part);
       continue;
     }
-    const file = await store.writeToolOutput(part.toolName, body);
     content.push({
       ...part,
-      output: { type: 'text', value: spillPreview(file, body) },
+      output: { type: 'text', value: preview },
     });
     changed = true;
   }

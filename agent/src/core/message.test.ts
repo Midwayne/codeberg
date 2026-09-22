@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { messageText, messageTranscript } from './message.js';
+import { messageText, messageTranscript, toolResultOutputText } from './message.js';
 
 describe('messageText', () => {
   it('returns string content as-is', () => {
@@ -30,6 +30,20 @@ describe('messageText', () => {
         ],
       }),
     ).toContain('core/src/foo.c:10');
+  });
+
+  it('renders tool-result text and file content parts', () => {
+    expect(
+      toolResultOutputText({
+        type: 'content',
+        value: [
+          { type: 'text', text: 'hello' },
+          { type: 'file-url', url: 'https://example.com/a.png' },
+        ],
+      }),
+    ).toBe('hello\n[file]');
+    expect(toolResultOutputText({ type: 'execution-denied', reason: 'no' })).toBe('no');
+    expect(toolResultOutputText({ type: 'execution-denied' })).toBe('execution denied');
   });
 
   it('concatenates text parts and ignores non-text parts', () => {

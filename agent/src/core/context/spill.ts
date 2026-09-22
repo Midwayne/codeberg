@@ -34,6 +34,21 @@ export function spillPreview(
 }
 
 /**
+ * Write `text` and return the preview the model should see. Returns undefined
+ * when the text is short enough to keep inline, or is already a preview.
+ */
+export async function spillText(
+  store: ContextStore,
+  toolName: string,
+  text: string,
+  limit = SPILL_CHARS,
+): Promise<string | undefined> {
+  if (text.length <= limit || isSpillPreview(text)) return undefined;
+  const file = await store.writeToolOutput(toolName, text);
+  return spillPreview(file, text);
+}
+
+/**
  * What the model should see for one tool result. Short results pass through.
  * Long ones are replaced with a preview. Pipe/shell output is always appended
  * to the terminal log so a later turn can grep it after the result is pruned.
@@ -50,9 +65,8 @@ export async function presentToolOutput(
     if (TERMINAL_TOOLS.has(toolName)) {
       await store.appendTerminal(toolName, args, text);
     }
-    if (text.length <= limit || isSpillPreview(text)) return output;
-    const file = await store.writeToolOutput(toolName, text);
-    return spillPreview(file, text);
+    const preview = await spillText(store, toolName, text, limit);
+    return preview ?? output;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`› context: failed to spill ${toolName}: ${message}`);

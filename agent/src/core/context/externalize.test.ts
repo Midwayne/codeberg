@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -52,6 +53,7 @@ describe('externalizeToolResults', () => {
       throw new Error('expected a text tool result');
     }
     expect(part.output.value).toContain('[spilled to ');
-    expect(part.output.value).toContain('read_file-1.txt');
+    const hash = createHash('sha256').update(value).digest('hex').slice(0, 16);
+    expect(part.output.value).toContain(`read_file-${hash}.txt`);
   });
 });

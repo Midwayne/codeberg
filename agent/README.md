@@ -293,7 +293,7 @@ MCP servers from `mcp.json` register last so they cannot shadow core tools;
 their names are `mcp_<server>_<tool>`. See [docs/mcp.md](../docs/mcp.md).
 
 **Context management:** dynamic context discovery. Long tool results are written
-under `$CODEBERG_HOME/context` and the model sees a head/tail plus the path
+under `$CODEBERG_HOME/context` (one file per distinct body) and the model sees a head/tail plus the path
 (`context_grep`, `context_tail`, `context_read`) instead of a truncated blob.
 Pipe/shell output is appended under `context/terminals/`. When history exceeds
 50% of the window it is summarized, and the verbatim older turns stay in a

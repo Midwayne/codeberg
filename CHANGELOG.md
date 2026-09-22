@@ -9,7 +9,8 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Added
 
-- **Dynamic context discovery** — long tool results, terminal/pipe logs, and
+- **Dynamic context discovery** — long tool results (one file per distinct
+  body), terminal/pipe logs, and
   pre-summary transcripts are files under `$CODEBERG_HOME/context`. The agent
   reads them back with `context_grep`, `context_tail`, and `context_read`
   instead of keeping the full text in the prompt. Compaction still summarizes

@@ -10,6 +10,17 @@ function tempStore(): ContextStore {
 }
 
 describe('ContextStore', () => {
+  it('writes a tool output once per body', async () => {
+    const store = tempStore();
+    const body = 'same output';
+    const first = await store.writeToolOutput('grep', body);
+    const second = await store.writeToolOutput('grep', body);
+    expect(second).toBe(first);
+    expect(first).toContain('grep-');
+    const index = readFileSync(join(store.root, 'tools', 'INDEX.txt'), 'utf8').trim().split('\n');
+    expect(index).toEqual([`grep\t${first}`]);
+  });
+
   it('writes a content-addressed history file', async () => {
     const store = tempStore();
     const first = await store.writeHistory('hello history');

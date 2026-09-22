@@ -1,10 +1,9 @@
-import { existsSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
-import { indexedRootsFromEnv } from '../mcp/config.js';
-import { codebergHome } from '../paths.js';
+import { codebergHome, projectRoots } from '../paths.js';
+import type { ContextStore } from './store.js';
 
 /** A discovered Agent Skill (SKILL.md). The prompt receives name and
  *  description only; the file itself is read on demand. */
@@ -67,6 +66,23 @@ export async function discoverSkills(opts: DiscoverSkillsOptions = {}): Promise<
   return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/** Discover skills, allow their directories, and write `skills/INDEX.md` when any exist. */
+export async function publishSkills(
+  store: ContextStore,
+  opts: DiscoverSkillsOptions = {},
+): Promise<SkillSummary[]> {
+  const skills = await discoverSkills(opts);
+  for (const skill of skills) {
+    store.allow(skill.dir);
+  }
+  if (skills.length === 0) return skills;
+  const index = skills
+    .map((skill) => `## ${skill.name}\n${skill.description}\n${skill.file}\n`)
+    .join('\n');
+  await store.writeRel('skills/INDEX.md', index);
+  return skills;
+}
+
 export function defaultUserSkillRoots(env: NodeJS.ProcessEnv): string[] {
   return [
     join(homedir(), '.agents', 'skills'),
@@ -88,22 +104,6 @@ export function parseSkillDocument(
   }
   if (!name || !description) return null;
   return { name, description };
-}
-
-function projectRoots(env: NodeJS.ProcessEnv, cwd: string): string[] {
-  const indexed = indexedRootsFromEnv(env);
-  if (indexed.length > 0) return indexed;
-  return [findGitRoot(cwd)];
-}
-
-function findGitRoot(start: string): string {
-  let dir = start;
-  for (;;) {
-    if (existsSync(join(dir, '.git'))) return dir;
-    const parent = dirname(dir);
-    if (parent === dir) return start;
-    dir = parent;
-  }
 }
 
 function firstParagraph(body: string): string {

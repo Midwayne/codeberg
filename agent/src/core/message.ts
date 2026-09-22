@@ -1,4 +1,8 @@
-import type { ModelMessage } from 'ai';
+import type { ModelMessage, ToolResultPart } from 'ai';
+
+/** ai-sdk tool-result payload. Not re-exported from `ai`; it is the `output` of a tool-result part. */
+type ToolResultOutput = ToolResultPart['output'];
+type ToolResultContentPart = Extract<ToolResultOutput, { type: 'content' }>['value'][number];
 
 /**
  * The readable text of a model message: string content as-is, or the
@@ -28,31 +32,45 @@ export function toolOutputText(output: unknown): string {
 }
 
 /** Text of an ai-sdk tool-result `output` value (text, json, or content parts). */
-export function toolResultOutputText(output: unknown): string {
-  if (!output || typeof output !== 'object' || !('type' in output)) {
-    return toolOutputText(output);
-  }
-  const typed = output as { type: string; value?: unknown; reason?: string };
-  switch (typed.type) {
+export function toolResultOutputText(output: ToolResultOutput): string {
+  switch (output.type) {
     case 'text':
     case 'error-text':
-      return typeof typed.value === 'string' ? typed.value : toolOutputText(typed.value);
+      return output.value;
     case 'json':
     case 'error-json':
-      return toolOutputText(typed.value);
+      return toolOutputText(output.value);
     case 'execution-denied':
-      return typed.reason ?? 'execution denied';
+      return output.reason ?? 'execution denied';
     case 'content':
-      if (!Array.isArray(typed.value)) return '';
-      return typed.value
-        .map((part: { type?: string; text?: string }) => {
-          if (part?.type === 'text' && typeof part.text === 'string') return part.text;
-          return part?.type ? `[${part.type}]` : '';
-        })
-        .filter(Boolean)
-        .join('\n');
-    default:
-      return toolOutputText(output);
+      return output.value.map(contentPartText).filter(Boolean).join('\n');
+    default: {
+      const _never: never = output;
+      return _never;
+    }
+  }
+}
+
+function contentPartText(part: ToolResultContentPart): string {
+  switch (part.type) {
+    case 'text':
+      return part.text;
+    case 'file':
+    case 'file-data':
+    case 'file-url':
+    case 'file-id':
+    case 'file-reference':
+    case 'image-data':
+    case 'image-url':
+    case 'image-file-id':
+    case 'image-file-reference':
+      return '[file]';
+    case 'custom':
+      return '[custom]';
+    default: {
+      const _never: never = part;
+      return _never;
+    }
   }
 }
 

@@ -1,9 +1,10 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { discoverSkills, parseSkillDocument } from './skills.js';
+import { ContextStore } from './store.js';
+import { discoverSkills, parseSkillDocument, publishSkills } from './skills.js';
 
 describe('parseSkillDocument', () => {
   it('reads a folded description and falls back to the directory name', () => {
@@ -56,6 +57,22 @@ describe('discoverSkills', () => {
     expect(found.map((skill) => skill.name)).toEqual(['notes', 'review']);
     expect(found.find((skill) => skill.name === 'review')?.description).toBe('from project');
     expect(found.find((skill) => skill.name === 'review')?.file).toContain('.codeberg');
+  });
+
+  it('publishes an index and allows the skill directory', async () => {
+    const project = mkdtempSync(join(tmpdir(), 'cberg-skills-pub-'));
+    writeSkill(join(project, '.agents', 'skills', 'review'), 'review', 'from project');
+    const store = ContextStore.open(mkdtempSync(join(tmpdir(), 'cberg-skills-ctx-')));
+    const skills = await publishSkills(store, {
+      env: { CODEBERG_ROOT: project },
+      cwd: project,
+      userRoots: [],
+    });
+    expect(skills.map((skill) => skill.name)).toEqual(['review']);
+    const index = readFileSync(join(store.root, 'skills', 'INDEX.md'), 'utf8');
+    expect(index).toContain('## review');
+    expect(index).toContain(skills[0]!.file);
+    expect(store.resolve(skills[0]!.file)).toBe(skills[0]!.file);
   });
 });
 

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -36,10 +37,13 @@ describe('presentToolOutput', () => {
     const seen = await presentToolOutput(store, 'grep', { pattern: 'x' }, body);
     expect(typeof seen).toBe('string');
     expect(isSpillPreview(String(seen))).toBe(true);
-    const file = join(store.root, 'tools', 'grep-1.txt');
+    const hash = createHash('sha256').update(body).digest('hex').slice(0, 16);
+    const file = join(store.root, 'tools', `grep-${hash}.txt`);
     expect(String(seen)).toContain(file);
     expect(readFileSync(file, 'utf8')).toBe(body);
-    expect(readFileSync(join(store.root, 'tools', 'INDEX.txt'), 'utf8')).toContain(file);
+    await presentToolOutput(store, 'grep', { pattern: 'x' }, body);
+    const index = readFileSync(join(store.root, 'tools', 'INDEX.txt'), 'utf8').trim().split('\n');
+    expect(index).toEqual([`grep\t${file}`]);
   });
 });
 

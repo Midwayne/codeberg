@@ -12,7 +12,7 @@ import { cachedInstructions, deterministicTools, requestProviderOptions } from '
 import { EvidenceLedger } from './evidence.js';
 import { extractEvidence } from './evidence-extract.js';
 import { externalizeToolResults } from './context/externalize.js';
-import { discoverSkills } from './context/skills.js';
+import { publishSkills } from './context/skills.js';
 import { ContextStore, defaultContextRoot } from './context/store.js';
 import { contextToolSource } from './context/tools.js';
 import { wrapToolOutputs } from './context/wrap.js';
@@ -24,7 +24,6 @@ import {
   type PromptHook,
 } from './hooks/index.js';
 import { agentSystemPrompt } from './prompt.js';
-import { isDeferredMcpTool, mcpToolsReferenced, selectActiveTools } from './mcp/active.js';
 import { mcpConfigFromEnv } from './mcp/config.js';
 import { mcpToolSource, type McpToolSource } from './mcp/tools.js';
 import type { McpConfig } from './mcp/types.js';
@@ -217,25 +216,12 @@ export class Agent implements Asker {
       // keeps that order and moves long results out of the transcript.
       const tools = wrapToolOutputs(deterministicTools(await this.buildTools()), this.context);
       const toolNames = Object.keys(tools);
-      const skills = await discoverSkills();
-      for (const skill of skills) {
-        this.context.allow(skill.dir);
-      }
-      if (skills.length > 0) {
-        const index = skills
-          .map((skill) => `## ${skill.name}\n${skill.description}\n${skill.file}\n`)
-          .join('\n');
-        await this.context.writeRel('skills/INDEX.md', index);
-      }
+      const skills = await publishSkills(this.context);
       this.system = agentSystemPrompt({
         enabled: this.web.enabled,
         search: Boolean(this.web.searxngUrl),
         mcp: this.mcpSource?.reports() ?? [],
-        skills: skills.map((skill) => ({
-          name: skill.name,
-          description: skill.description,
-          file: skill.file,
-        })),
+        skills,
         contextRoot: this.context.root,
       });
       const providerOptions = requestProviderOptions(this.system, toolNames, this.profile);
@@ -250,27 +236,19 @@ export class Agent implements Asker {
         timeout: DEFAULT_TIMEOUT,
         ...(providerOptions ? { providerOptions } : {}),
         ...(this.reasoning ? { reasoning: this.reasoning } : {}),
-        // Context editing for the in-flight loop: spill oversized tool results
-        // to files, then drop the oldest tool pairs once the transcript crosses
-        // the high-water mark. MCP tools stay inactive until load_mcp_tools
-        // (or the transcript already names them).
+        // In-loop results are spilled at execute. Here, drop the oldest tool
+        // pairs once the transcript crosses the high-water mark, and hide MCP
+        // tools until load_mcp_tools or the transcript already names them.
         prepareStep: async ({ messages }) => {
-          const externalized = await externalizeToolResults(messages, this.context);
           const next =
-            totalTokens(externalized) > prune
+            totalTokens(messages) > prune
               ? pruneMessages({
-                  messages: externalized,
+                  messages,
                   toolCalls: 'before-last-2-messages',
                   emptyMessages: 'remove',
                 })
-              : externalized;
-          const hasDeferred = toolNames.some((name) => isDeferredMcpTool(name));
-          const activeTools = hasDeferred
-            ? selectActiveTools(toolNames, [
-                ...(this.mcpSource?.activeToolNames() ?? []),
-                ...mcpToolsReferenced(next),
-              ])
-            : undefined;
+              : messages;
+          const activeTools = this.mcpSource?.activeTools(toolNames, next);
           const messagesChanged = next !== messages;
           if (!messagesChanged && !activeTools) return undefined;
           return {

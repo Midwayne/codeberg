@@ -20,7 +20,6 @@ export function defaultContextRoot(env: NodeJS.ProcessEnv = process.env): string
  */
 export class ContextStore {
   private readonly extra: string[] = [];
-  private toolSeq = 0;
 
   private constructor(readonly root: string) {}
 
@@ -66,17 +65,25 @@ export class ContextStore {
 
   /** Content-addressed transcript. The same text always maps to the same file. */
   async writeHistory(transcript: string): Promise<string> {
-    const hash = createHash('sha256').update(transcript).digest('hex').slice(0, 16);
-    return this.writeRel(join('history', `${hash}.txt`), transcript);
+    return this.writeRel(join('history', `${contentHash(transcript)}.txt`), transcript);
   }
 
-  /** Full tool output the model was not shown inline. Also appends a line to
-   *  `tools/INDEX.txt` so a later turn can find the file after the preview is pruned. */
+  /**
+   * Full tool output the model was not shown inline. The path is a hash of
+   * the body, so the same output is one file. `tools/INDEX.txt` gains a line
+   * only when that file is created.
+   */
   async writeToolOutput(toolName: string, body: string): Promise<string> {
-    this.toolSeq += 1;
-    const abs = await this.writeRel(join('tools', `${safeSegment(toolName)}-${this.toolSeq}.txt`), body);
-    const index = join(this.root, 'tools', 'INDEX.txt');
-    await appendFile(index, `${toolName}\t${abs}\n`, 'utf8');
+    const rel = join('tools', `${safeSegment(toolName)}-${contentHash(body)}.txt`);
+    const abs = join(this.root, safeRel(rel));
+    await mkdir(join(abs, '..'), { recursive: true });
+    try {
+      await writeFile(abs, body, { encoding: 'utf8', flag: 'wx' });
+    } catch (err) {
+      if (isAlreadyExists(err)) return abs;
+      throw err;
+    }
+    await appendFile(join(this.root, 'tools', 'INDEX.txt'), `${toolName}\t${abs}\n`, 'utf8');
     return abs;
   }
 
@@ -122,6 +129,19 @@ function safeRel(rel: string): string {
     throw new Error(`invalid context path: ${rel}`);
   }
   return parts.join(sep);
+}
+
+function contentHash(body: string): string {
+  return createHash('sha256').update(body).digest('hex').slice(0, 16);
+}
+
+function isAlreadyExists(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code?: unknown }).code === 'EEXIST'
+  );
 }
 
 function contains(root: string, target: string): boolean {

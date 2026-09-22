@@ -143,6 +143,24 @@ describe('mcpToolSource', () => {
     expect(tools).toHaveProperty('mcp_github_list_issues');
     expect(tools).toHaveProperty('load_mcp_tools');
     expect(source.activeToolNames()).toEqual([]);
+    const names = Object.keys(tools);
+    expect(source.activeTools(names, [])).toEqual(names.filter((name) => !name.startsWith('mcp_')));
+    expect(
+      source.activeTools(names, [
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'tool-call',
+              toolCallId: '1',
+              toolName: 'mcp_github_list_issues',
+              input: {},
+            },
+          ],
+        },
+      ]),
+    ).toContain('mcp_github_list_issues');
+    expect(source.activeTools(['grep'], [])).toBeUndefined();
     expect(source.reports().map((report) => report.state)).toEqual(['connected', 'unavailable']);
 
     const catalog = readFileSync(join(root, 'mcp', 'github', 'list_issues.json'), 'utf8');
