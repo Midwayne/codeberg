@@ -9,6 +9,16 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Added
 
+- **Dynamic context discovery** — long tool results (one file per distinct
+  body), terminal/pipe logs, and
+  pre-summary transcripts are files under `$CODEBERG_HOME/context`. The agent
+  reads them back with `context_grep`, `context_tail`, and `context_read`
+  instead of keeping the full text in the prompt. Compaction still summarizes
+  older turns and now points at the history file so later turns can recover
+  paths, symbols, and command output. MCP descriptions and schemas live in
+  one folder per server and are activated with `load_mcp_tools`; a server
+  that fails to connect stays visible, including auth failures. Agent Skills
+  (`SKILL.md`) contribute name and description until the agent opens the file.
 - **Chat branching** — copy a conversation prefix into a new session
   without mutating the original. In the browser chat: **Branch from here**
   on a message or tick-rail preview, or **Branch chat** in the sidebar.
@@ -149,6 +159,16 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Fixed
 
+- **History compaction** — the verbatim older transcript is archived once. A
+  summary that still overflows becomes an omission marker that still names
+  that file.
+- **MCP catalog folders** — each server directory is the sanitized name plus a
+  hash of the original name, so two servers that sanitize to the same segment
+  still get two folders.
+- **MCP tool descriptions** — the server prefix is copied onto the registered
+  tool. Connecting again does not prefix the client's own description a second time.
+- **Assistant tool results** — an oversized tool result carried on an assistant
+  message is written to the same context file as a tool-role result.
 - **Hybrid search performance** — reranking reads each hit file once (content
   cache) instead of spawning `rg` per candidate × query term.
 - **Misplaced grep in hybrid** — term matching uses file content reads scoped

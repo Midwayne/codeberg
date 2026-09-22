@@ -1,8 +1,13 @@
 import type { ModelMessage } from 'ai';
 import { describe, expect, it, vi } from 'vitest';
 
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { Agent } from './agent.js';
 import { DaemonClient, DEFAULT_DAEMON_URL } from './client.js';
+import { ContextStore } from './context/store.js';
 import type { Generator } from './types.js';
 import type { ModelProfile } from '../providers/profiles.js';
 
@@ -20,6 +25,7 @@ function agentWith(generator: Generator): Agent {
     daemon: new DaemonClient(DEFAULT_DAEMON_URL),
     generator,
     profile: smallWindow,
+    context: ContextStore.open(mkdtempSync(join(tmpdir(), 'cberg-ctx-'))),
   });
 }
 
@@ -47,6 +53,7 @@ describe('Agent.compactHistory', () => {
     const out = await agent.compactHistory(messages);
     expect(summarize).toHaveBeenCalledOnce();
     expect(String(out[0]?.content)).toContain('SUMMARY');
+    expect(String(out[0]?.content)).toContain('<history_file>');
     expect(out.length).toBeLessThan(messages.length);
   });
 });

@@ -13,15 +13,28 @@ describe('agentSystemPrompt', () => {
     expect(p).not.toContain('- web_search:');
   });
 
-  it('lists connected MCP servers and the mcp_<server>_<tool> naming scheme', () => {
+  it('lists connected MCP servers by callable name', () => {
     const p = agentSystemPrompt({
       enabled: false,
       search: false,
-      mcpServers: ['github', 'linear'],
+      mcp: [
+        {
+          name: 'github',
+          state: 'connected',
+          tools: [{ name: 'list_issues', callable: 'mcp_github_list_issues' }],
+        },
+        {
+          name: 'linear',
+          state: 'connected',
+          tools: [{ name: 'list_issues', callable: 'mcp_linear_list_issues' }],
+        },
+      ],
     });
     expect(p).toContain('github');
     expect(p).toContain('linear');
-    expect(p).toContain('mcp_<server>_<tool>');
+    expect(p).toContain('mcp_github_list_issues');
+    expect(p).toContain('mcp_linear_list_issues');
+    expect(p).toContain('load_mcp_tools');
     expect(p).toContain(AGENT_SYSTEM);
     expect(p).not.toContain('postgres_list_databases');
     expect(p).not.toContain('mongo_list_collections');
@@ -50,15 +63,72 @@ describe('agentSystemPrompt', () => {
     const p = agentSystemPrompt({
       enabled: false,
       search: false,
-      mcpServers: ['databases'],
+      mcp: [
+        {
+          name: 'databases',
+          state: 'connected',
+          tools: [{ name: 'query', callable: 'mcp_databases_query' }],
+        },
+      ],
     });
     expect(p).toContain('Respect the index');
-    expect(p).not.toContain('mcp_databases_');
-    expect(p).toContain('Tool names, arguments, and descriptions come from the server');
+    expect(p).toContain('mcp_databases_query');
+    expect(p).toContain('load_mcp_tools');
+    expect(p).not.toContain('postgres_list_databases');
+  });
+
+  it('lists MCP catalogs and unavailable servers without inlining schemas', () => {
+    const p = agentSystemPrompt({
+      enabled: false,
+      search: false,
+      contextRoot: '/tmp/context',
+      mcp: [
+        {
+          name: 'github',
+          state: 'connected',
+          catalogDir: '/tmp/context/mcp/github',
+          tools: [{ name: 'list_issues', callable: 'mcp_github_list_issues' }],
+        },
+        {
+          name: 'slack',
+          state: 'unavailable',
+          tools: [],
+          detail: 'HTTP 401 Unauthorized',
+          catalogDir: '/tmp/context/mcp/slack',
+        },
+      ],
+    });
+    expect(p).toContain('load_mcp_tools');
+    expect(p).toContain('mcp_github_list_issues');
+    expect(p).toContain('/tmp/context/mcp/github');
+    expect(p).toContain('slack: unavailable');
+    expect(p).toContain('re-authenticate');
+    expect(p).toContain('context_grep');
+    expect(p).not.toContain('"type": "object"');
+  });
+
+  it('lists skill names and descriptions, not the skill body', () => {
+    const p = agentSystemPrompt({
+      enabled: false,
+      search: false,
+      contextRoot: '/tmp/context',
+      skills: [
+        {
+          name: 'review-diff',
+          description: 'Summarize risk in a diff.',
+          file: '/repo/.agents/skills/review-diff/SKILL.md',
+          dir: '/repo/.agents/skills/review-diff',
+        },
+      ],
+    });
+    expect(p).toContain('review-diff');
+    expect(p).toContain('Summarize risk in a diff.');
+    expect(p).toContain('/repo/.agents/skills/review-diff/SKILL.md');
+    expect(p).toContain('Read the SKILL.md');
   });
 
   it('omits the MCP section when no servers connected', () => {
-    const p = agentSystemPrompt({ enabled: false, search: false, mcpServers: [] });
+    const p = agentSystemPrompt({ enabled: false, search: false, mcp: [] });
     expect(p).toBe(AGENT_SYSTEM);
   });
 });

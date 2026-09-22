@@ -1,8 +1,11 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
 
+import { findGitRoot, indexedRootsFromEnv } from '../paths.js';
 import { builtinDatabaseServer } from './builtin.js';
+
+export { indexedRootsFromEnv };
 import type {
   McpConfig,
   McpConfigIo,
@@ -288,16 +291,6 @@ function defaultReadFile(path: string): string | null {
   }
 }
 
-function findGitRoot(cwd: string, exists: (path: string) => boolean): string {
-  let dir = resolve(cwd);
-  for (;;) {
-    if (exists(join(dir, '.git'))) return dir;
-    const parent = dirname(dir);
-    if (parent === dir) return resolve(cwd);
-    dir = parent;
-  }
-}
-
 function projectMcpFiles(root: string): string[] {
   return [join(root, '.cursor', MCP_FILE), join(root, '.codeberg', MCP_FILE)];
 }
@@ -324,22 +317,6 @@ export function discoverMcpConfigPaths(opts: {
   }
   candidates.push(...opts.extra);
   return candidates.filter((p) => exists(p));
-}
-
-/** Indexed-repo directories from CODEBERG_ROOTS (preferred) or CODEBERG_ROOT. */
-export function indexedRootsFromEnv(env: NodeJS.ProcessEnv): string[] {
-  const roots = env.CODEBERG_ROOTS;
-  if (roots != null && roots.trim() !== '') {
-    const out: string[] = [];
-    for (const line of roots.split(/\r?\n/)) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      const tab = trimmed.indexOf('\t');
-      out.push(tab >= 0 ? trimmed.slice(tab + 1).trim() : trimmed);
-    }
-    return out.filter(Boolean);
-  }
-  return splitList(env.CODEBERG_ROOT ?? '');
 }
 
 function workspaceForConfig(configPath: string, fallback: string): string {
