@@ -11,6 +11,11 @@ import { DaemonClient, DaemonError } from './client.js';
 import { cachedInstructions, deterministicTools, requestProviderOptions } from './cache.js';
 import { EvidenceLedger } from './evidence.js';
 import { extractEvidence } from './evidence-extract.js';
+import { externalizeToolResults } from './context/externalize.js';
+import { discoverSkills } from './context/skills.js';
+import { ContextStore, defaultContextRoot } from './context/store.js';
+import { contextToolSource } from './context/tools.js';
+import { wrapToolOutputs } from './context/wrap.js';
 import { fitHistory, totalTokens } from './history.js';
 import { fromAiSdk } from './generator.js';
 import {
@@ -19,6 +24,7 @@ import {
   type PromptHook,
 } from './hooks/index.js';
 import { agentSystemPrompt } from './prompt.js';
+import { isDeferredMcpTool, mcpToolsReferenced, selectActiveTools } from './mcp/active.js';
 import { mcpConfigFromEnv } from './mcp/config.js';
 import { mcpToolSource, type McpToolSource } from './mcp/tools.js';
 import type { McpConfig } from './mcp/types.js';
@@ -78,6 +84,9 @@ export interface AgentOptions {
    *  (or `{ enabled: false, servers: [], files: [], warnings: [] }`) to
    *  override discovery. */
   mcp?: McpConfig;
+  /** Where spilled output, history files, and MCP catalogs are written.
+   *  Defaults to `$CODEBERG_HOME/context`. */
+  context?: ContextStore;
 }
 
 export class Agent implements Asker {
@@ -90,6 +99,7 @@ export class Agent implements Asker {
   private readonly promptHooks: readonly PromptHook[];
   private readonly web: WebConfig;
   private readonly mcp: McpConfig | undefined;
+  private readonly context: ContextStore;
   private mcpSource?: McpToolSource;
   /** System prompt for this agent — `AGENT_SYSTEM` plus web/MCP sections matching
    *  the tools that actually registered. Built in `ensureLoop` so it stays
@@ -117,6 +127,7 @@ export class Agent implements Asker {
     this.promptHooks = opts.promptHooks ?? DEFAULT_PROMPT_HOOKS;
     this.web = opts.web ?? webConfigFromEnv();
     this.mcp = opts.mcp;
+    this.context = opts.context ?? ContextStore.open(defaultContextRoot());
   }
 
   /** Drop MCP server connections (stdio child processes, HTTP sessions). */
@@ -157,10 +168,14 @@ export class Agent implements Asker {
    *  overflow with the model itself. Exposed so the TUI session wrapper can
    *  apply the same policy to its own (separately driven) transcript. */
   async compactHistory(messages: ModelMessage[]): Promise<ModelMessage[]> {
-    return fitHistory(messages, {
+    const fitted = await fitHistory(messages, {
       budget: historyBudget(this.profile),
       summarize: (transcript) => this.summarize(transcript),
+      archive: (transcript) => this.context.writeHistory(transcript),
     });
+    // Recent turns stay verbatim, but a huge tool result in that tail is
+    // moved to a file so the next turn does not re-ingest it.
+    return externalizeToolResults(fitted, this.context);
   }
 
   /** Bound compactor for callers that drive the loop directly (the TUI). */
@@ -173,8 +188,11 @@ export class Agent implements Asker {
       system:
         'Summarize this code-search conversation for an agent that will ' +
         'continue it. Preserve every concrete finding: file paths, line ' +
-        'ranges, symbols, data sources, and unresolved questions. Be terse; ' +
-        'drop pleasantries and restated questions.',
+        'ranges, symbols, commands, errors, data sources, and unresolved ' +
+        'questions. Copy any history-file or spilled-output path verbatim. ' +
+        'Be terse; drop pleasantries and restated questions. The transcript ' +
+        'you see may omit the middle of a very long history; do not invent ' +
+        'what that gap contained.',
       prompt: transcript,
     });
   }
@@ -195,14 +213,32 @@ export class Agent implements Asker {
         }
       }
       // Sort tools so the system+tools prefix is byte-stable — a reordered tool
-      // list would invalidate the prompt cache on every process.
-      const tools = deterministicTools(await this.buildTools());
+      // list would invalidate the prompt cache on every process. Spill wrapping
+      // keeps that order and moves long results out of the transcript.
+      const tools = wrapToolOutputs(deterministicTools(await this.buildTools()), this.context);
+      const toolNames = Object.keys(tools);
+      const skills = await discoverSkills();
+      for (const skill of skills) {
+        this.context.allow(skill.dir);
+      }
+      if (skills.length > 0) {
+        const index = skills
+          .map((skill) => `## ${skill.name}\n${skill.description}\n${skill.file}\n`)
+          .join('\n');
+        await this.context.writeRel('skills/INDEX.md', index);
+      }
       this.system = agentSystemPrompt({
         enabled: this.web.enabled,
         search: Boolean(this.web.searxngUrl),
-        mcpServers: this.mcpSource?.connectedServers() ?? [],
+        mcp: this.mcpSource?.reports() ?? [],
+        skills: skills.map((skill) => ({
+          name: skill.name,
+          description: skill.description,
+          file: skill.file,
+        })),
+        contextRoot: this.context.root,
       });
-      const providerOptions = requestProviderOptions(this.system, Object.keys(tools), this.profile);
+      const providerOptions = requestProviderOptions(this.system, toolNames, this.profile);
       const prune = pruneBudget(this.profile);
       const loop = new ToolLoopAgent({
         model: this.model,
@@ -214,20 +250,34 @@ export class Agent implements Asker {
         timeout: DEFAULT_TIMEOUT,
         ...(providerOptions ? { providerOptions } : {}),
         ...(this.reasoning ? { reasoning: this.reasoning } : {}),
-        // Context editing for the in-flight loop: once accumulated tool results
-        // cross the high-water mark, clear the older ones (keeping the two most
-        // recent messages intact) so a deep, tool-heavy ask can't blow the
-        // window. The cleared pairs are dropped together, never half-removed.
-        prepareStep: ({ messages }) =>
-          totalTokens(messages) > prune
-            ? {
-                messages: pruneMessages({
-                  messages,
+        // Context editing for the in-flight loop: spill oversized tool results
+        // to files, then drop the oldest tool pairs once the transcript crosses
+        // the high-water mark. MCP tools stay inactive until load_mcp_tools
+        // (or the transcript already names them).
+        prepareStep: async ({ messages }) => {
+          const externalized = await externalizeToolResults(messages, this.context);
+          const next =
+            totalTokens(externalized) > prune
+              ? pruneMessages({
+                  messages: externalized,
                   toolCalls: 'before-last-2-messages',
                   emptyMessages: 'remove',
-                }),
-              }
-            : undefined,
+                })
+              : externalized;
+          const hasDeferred = toolNames.some((name) => isDeferredMcpTool(name));
+          const activeTools = hasDeferred
+            ? selectActiveTools(toolNames, [
+                ...(this.mcpSource?.activeToolNames() ?? []),
+                ...mcpToolsReferenced(next),
+              ])
+            : undefined;
+          const messagesChanged = next !== messages;
+          if (!messagesChanged && !activeTools) return undefined;
+          return {
+            ...(messagesChanged ? { messages: next } : {}),
+            ...(activeTools ? { activeTools } : {}),
+          };
+        },
       });
       this.loop = wrapToolLoopAgentWithPromptHooks(loop, this.promptHooks);
     }
@@ -244,6 +294,7 @@ export class Agent implements Asker {
         defaultK: DEFAULT_SEARCH_K,
         onResults: (hits) => this.sources.push(...hits),
       }),
+      contextToolSource(this.context),
       daemonToolSource({
         daemon: this.daemon,
         onToolResult: (name, output) => {
@@ -261,6 +312,7 @@ export class Agent implements Asker {
   private mcpSourceForBuild(): McpToolSource {
     this.mcpSource = mcpToolSource({
       config: this.mcp ?? mcpConfigFromEnv(),
+      context: this.context,
     });
     return this.mcpSource;
   }

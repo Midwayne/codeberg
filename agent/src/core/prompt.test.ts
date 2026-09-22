@@ -57,6 +57,55 @@ describe('agentSystemPrompt', () => {
     expect(p).toContain('Tool names, arguments, and descriptions come from the server');
   });
 
+  it('lists MCP catalogs and unavailable servers without inlining schemas', () => {
+    const p = agentSystemPrompt({
+      enabled: false,
+      search: false,
+      contextRoot: '/tmp/context',
+      mcp: [
+        {
+          name: 'github',
+          state: 'connected',
+          catalogDir: '/tmp/context/mcp/github',
+          tools: [{ name: 'list_issues', callable: 'mcp_github_list_issues' }],
+        },
+        {
+          name: 'slack',
+          state: 'unavailable',
+          tools: [],
+          detail: 'HTTP 401 Unauthorized',
+          catalogDir: '/tmp/context/mcp/slack',
+        },
+      ],
+    });
+    expect(p).toContain('load_mcp_tools');
+    expect(p).toContain('mcp_github_list_issues');
+    expect(p).toContain('/tmp/context/mcp/github');
+    expect(p).toContain('slack: unavailable');
+    expect(p).toContain('re-authenticate');
+    expect(p).toContain('context_grep');
+    expect(p).not.toContain('"type": "object"');
+  });
+
+  it('lists skill names and descriptions, not the skill body', () => {
+    const p = agentSystemPrompt({
+      enabled: false,
+      search: false,
+      contextRoot: '/tmp/context',
+      skills: [
+        {
+          name: 'review-diff',
+          description: 'Summarize risk in a diff.',
+          file: '/repo/.agents/skills/review-diff/SKILL.md',
+        },
+      ],
+    });
+    expect(p).toContain('review-diff');
+    expect(p).toContain('Summarize risk in a diff.');
+    expect(p).toContain('/repo/.agents/skills/review-diff/SKILL.md');
+    expect(p).toContain('Read the SKILL.md');
+  });
+
   it('omits the MCP section when no servers connected', () => {
     const p = agentSystemPrompt({ enabled: false, search: false, mcpServers: [] });
     expect(p).toBe(AGENT_SYSTEM);

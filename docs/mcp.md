@@ -94,6 +94,23 @@ A server that fails to spawn or handshake is skipped. The rest of the agent —
 code search, web tools, other MCP servers — keeps running. Look for
 `› MCP:` lines on stderr.
 
+The failure is also written to `$CODEBERG_HOME/context/mcp/<server>/STATUS.txt`
+and included in the system prompt. The agent is told to report that error,
+and to ask the user to re-authenticate when the failure is an auth error,
+instead of behaving as if the server was never configured.
+
+## Dynamic tool loading
+
+Connected servers are not inlined into the prompt. Each tool's description and
+JSON schema is a file under `$CODEBERG_HOME/context/mcp/<server>/<tool>.json`
+(one folder per server; `TOOLS.txt` lists the names). The prompt receives the
+tool names only.
+
+`load_mcp_tools` takes callable names (`mcp_<server>_<tool>`) and enables those
+tools on the next step. A tool stays enabled once loaded, and any MCP tool
+already named in the transcript stays enabled too, so providers can replay the
+call. Tools that were never loaded are not sent.
+
 ## Built-in database server
 
 [multi-db-mcp-server](https://github.com/Midwayne/multi-db-mcp-server) is a
@@ -142,7 +159,9 @@ command.
 
 When the flag is on, the spec is readable, and the process completes the MCP
 handshake, the agent registers that server's tools as `mcp_databases_<tool>`.
-Names, arguments, and descriptions come from the server. The system prompt
+Names, arguments, and descriptions come from the server and are written to
+the `databases` catalog folder. Call `load_mcp_tools` before using them; see
+[Dynamic tool loading](#dynamic-tool-loading). The system prompt
 tells the agent to find a query in the indexed code before executing it
 against a database, unless the user has explicitly defined the path to take,
 and includes examples for code-only questions, live runs of a query found in

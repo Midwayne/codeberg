@@ -1,5 +1,10 @@
+import { jsonSchema } from 'ai';
+import { mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
+import { ContextStore } from '../context/store.js';
 import { connectMcpServer } from './client.js';
 import { mcpToolName } from './names.js';
 import { mcpToolSource } from './tools.js';
@@ -50,7 +55,7 @@ describe('mcpToolSource', () => {
       }),
     });
     const tools = await source.tools();
-    expect(Object.keys(tools)).toEqual(['mcp_github_list_issues']);
+    expect(Object.keys(tools)).toEqual(['mcp_github_list_issues', 'load_mcp_tools']);
     expect((tools.mcp_github_list_issues as { description?: string }).description).toContain(
       'github',
     );
@@ -86,7 +91,7 @@ describe('mcpToolSource', () => {
       },
     });
     const tools = await source.tools();
-    expect(Object.keys(tools)).toEqual(['mcp_linear_ping']);
+    expect(Object.keys(tools)).toEqual(['mcp_linear_ping', 'load_mcp_tools']);
     expect(source.connectedServers()).toEqual(['linear']);
     expect(source.connectedTools()).toEqual({ linear: ['ping'] });
     expect(log.mock.calls.some((c) => String(c[0]).includes('github'))).toBe(true);
@@ -106,6 +111,61 @@ describe('mcpToolSource', () => {
     });
     const tools = await colliding.tools();
     expect((tools.mcp_github_list_issues as unknown as { tag: string }).tag).toBe('dot');
+  });
+
+  it('writes one catalog folder per server and activates tools on demand', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'cberg-mcp-ctx-'));
+    const context = ContextStore.open(root);
+    const source = mcpToolSource({
+      config: cfg({
+        servers: [stdio, { ...stdio, name: 'slack', command: 'slack-mcp' }],
+      }),
+      log: () => {},
+      context,
+      connect: async (server) => {
+        if (server.name === 'slack') throw new Error('HTTP 401 Unauthorized');
+        return {
+          tools: {
+            list_issues: {
+              description: 'List issues in a repository',
+              inputSchema: jsonSchema({
+                type: 'object',
+                properties: { repo: { type: 'string' } },
+                required: ['repo'],
+              }),
+            } as never,
+          },
+          close: async () => {},
+        };
+      },
+    });
+    const tools = await source.tools();
+    expect(tools).toHaveProperty('mcp_github_list_issues');
+    expect(tools).toHaveProperty('load_mcp_tools');
+    expect(source.activeToolNames()).toEqual([]);
+    expect(source.reports().map((report) => report.state)).toEqual(['connected', 'unavailable']);
+
+    const catalog = readFileSync(join(root, 'mcp', 'github', 'list_issues.json'), 'utf8');
+    expect(catalog).toContain('List issues in a repository');
+    expect(catalog).toContain('mcp_github_list_issues');
+    expect(catalog).toContain('"repo"');
+    const status = readFileSync(join(root, 'mcp', 'slack', 'STATUS.txt'), 'utf8');
+    expect(status).toContain('unavailable');
+    expect(status).toContain('401');
+
+    const load = tools.load_mcp_tools as unknown as {
+      execute: (input: { names: string[] }, options: unknown) => Promise<{
+        loaded: string[];
+        missing: string[];
+      }>;
+    };
+    const loaded = await load.execute(
+      { names: ['mcp_github_list_issues', 'mcp_slack_missing'] },
+      {},
+    );
+    expect(loaded.loaded).toEqual(['mcp_github_list_issues']);
+    expect(loaded.missing).toEqual(['mcp_slack_missing']);
+    expect(source.activeToolNames()).toEqual(['mcp_github_list_issues']);
   });
 
   it('closes every connected client', async () => {

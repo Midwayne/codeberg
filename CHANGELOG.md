@@ -9,6 +9,15 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Added
 
+- **Dynamic context discovery** — long tool results, terminal/pipe logs, and
+  pre-summary transcripts are files under `$CODEBERG_HOME/context`. The agent
+  reads them back with `context_grep`, `context_tail`, and `context_read`
+  instead of keeping the full text in the prompt. Compaction still summarizes
+  older turns and now points at the history file so later turns can recover
+  paths, symbols, and command output. MCP descriptions and schemas live in
+  one folder per server and are activated with `load_mcp_tools`; a server
+  that fails to connect stays visible, including auth failures. Agent Skills
+  (`SKILL.md`) contribute name and description until the agent opens the file.
 - **Chat branching** — copy a conversation prefix into a new session
   without mutating the original. In the browser chat: **Branch from here**
   on a message or tick-rail preview, or **Branch chat** in the sidebar.

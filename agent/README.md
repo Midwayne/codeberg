@@ -292,9 +292,18 @@ always registers before the daemon bridge so daemon `search` cannot shadow it.
 MCP servers from `mcp.json` register last so they cannot shadow core tools;
 their names are `mcp_<server>_<tool>`. See [docs/mcp.md](../docs/mcp.md).
 
-**Context management:** 50% history budget compaction before each turn; 60% in-loop
-tool-result pruning; optional prompt caching (Anthropic/OpenAI). Override window with
-`CODEBERG_CONTEXT_WINDOW`.
+**Context management:** dynamic context discovery. Long tool results are written
+under `$CODEBERG_HOME/context` and the model sees a head/tail plus the path
+(`context_grep`, `context_tail`, `context_read`) instead of a truncated blob.
+Pipe/shell output is appended under `context/terminals/`. When history exceeds
+50% of the window it is summarized, and the verbatim older turns stay in a
+history file named in that summary so a later turn can search them. MCP tool
+schemas stay in per-server folders and are loaded with `load_mcp_tools` only
+when needed; a server that fails to connect (including auth) stays visible so
+the agent can tell the user. Agent Skills (`SKILL.md` under `.agents/skills`,
+`.cursor/skills`, `.codeberg/skills`, or `~/.codeberg/skills`) contribute name
+and description only until the agent reads the file. In-loop tool-result
+pruning still runs at 60%. Override the window with `CODEBERG_CONTEXT_WINDOW`.
 
 **Chunk-only daemon:** file tools (`grep`, `find_symbol`, …) work without vectors;
 `search_code` needs `vectors_enabled: true` on `GET /health`.
