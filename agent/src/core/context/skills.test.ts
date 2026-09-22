@@ -36,6 +36,23 @@ Do the thing.
     });
   });
 
+  it('rejects a YAML alias instead of expanding it', () => {
+    const parsed = parseSkillDocument(
+      `---
+name: &id review
+description: *id
+---
+
+Check callers before editing.
+`,
+      'fallback',
+    );
+    expect(parsed).toEqual({
+      name: 'fallback',
+      description: 'Check callers before editing.',
+    });
+  });
+
   it('skips a file with no description', () => {
     expect(parseSkillDocument('---\nname: empty\n---\n# only a heading\n', 'empty')).toBeNull();
   });

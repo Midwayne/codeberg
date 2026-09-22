@@ -186,6 +186,30 @@ describe('mcpToolSource', () => {
     expect(source.activeToolNames()).toEqual(['mcp_github_list_issues']);
   });
 
+  it('records a catalog directory for each server when sanitized names share a folder', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'cberg-mcp-folder-'));
+    const context = ContextStore.open(root);
+    const source = mcpToolSource({
+      config: cfg({
+        servers: [
+          { ...stdio, name: 'a/b' },
+          { ...stdio, name: 'a_b', command: 'other' },
+        ],
+      }),
+      log: () => {},
+      context,
+      connect: async (server) => ({
+        tools: { ping: { description: server.name } as never },
+        close: async () => {},
+      }),
+    });
+    await source.tools();
+    const reports = source.reports();
+    expect(reports.map((report) => report.name)).toEqual(['a/b', 'a_b']);
+    expect(reports[0]?.catalogDir).toBe(join(root, 'mcp', 'a_b'));
+    expect(reports[1]?.catalogDir).toBe(reports[0]?.catalogDir);
+  });
+
   it('closes every connected client', async () => {
     const closed: string[] = [];
     const source = mcpToolSource({

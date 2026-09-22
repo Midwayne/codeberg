@@ -159,6 +159,8 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Fixed
 
+- **History compaction** — the verbatim older transcript is archived once. A
+  summary that still overflows is trimmed without writing a second history file.
 - **Hybrid search performance** — reranking reads each hit file once (content
   cache) instead of spawning `rg` per candidate × query term.
 - **Misplaced grep in hybrid** — term matching uses file content reads scoped

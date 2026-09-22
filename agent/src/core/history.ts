@@ -60,6 +60,18 @@ export async function fitHistory(
   messages: ModelMessage[],
   opts: FitOptions,
 ): Promise<ModelMessage[]> {
+  return compact(messages, opts, []);
+}
+
+/**
+ * `carriedFiles` is the verbatim archive from an earlier pass of this call.
+ * The overflow retry is a pure trim: it does not archive again.
+ */
+async function compact(
+  messages: ModelMessage[],
+  opts: FitOptions,
+  carriedFiles: readonly string[],
+): Promise<ModelMessage[]> {
   if (totalTokens(messages) <= opts.budget) {
     return messages;
   }
@@ -75,15 +87,20 @@ export async function fitHistory(
 
   const full = renderTranscript(older);
   const archived = await archiveTranscript(opts.archive, full);
-  const files = dedupe([...historyFilesIn(older), ...(archived ? [archived] : [])]);
+  const files = dedupe([
+    ...carriedFiles,
+    ...historyFilesIn(older),
+    ...(archived ? [archived] : []),
+  ]);
 
   if (opts.summarize) {
     const summary = await opts.summarize(boundTranscript(full));
     const marker = historyMarker(summary, older.length, files);
-    // The summary + recent turns may still overflow; recurse without the
-    // summarizer so the fallback trims the (now-summarized) older end.
-    // History file paths ride along inside the marker so the trim cannot drop them.
-    return fitHistory([marker, ...recent], { ...opts, summarize: undefined });
+    return compact(
+      [marker, ...recent],
+      { ...opts, summarize: undefined, archive: undefined },
+      files,
+    );
   }
 
   return [historyMarker(undefined, older.length, files), ...recent];

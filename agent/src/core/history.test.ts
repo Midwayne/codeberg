@@ -93,7 +93,13 @@ describe('fitHistory', () => {
       summarize,
       archive,
     });
-    expect(String(out[0]?.content)).toContain('<history_file>');
+    expect(archive).toHaveBeenCalledOnce();
+    const transcript = archive.mock.calls[0]?.[0] ?? '';
+    expect(transcript).not.toContain('<conversation_summary>');
+    expect(String(out[0]?.content)).toContain(
+      `<history_file>/tmp/history/${transcript.length}.txt</history_file>`,
+    );
+    expect(String(out[0]?.content).match(/<history_file>/g)).toHaveLength(1);
     expect(String(out[0]?.content)).toContain('context_grep');
   });
 

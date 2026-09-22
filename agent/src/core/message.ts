@@ -1,8 +1,11 @@
-import type { ModelMessage, ToolResultPart } from 'ai';
+import type { AssistantContent, ModelMessage, ToolContent, ToolResultPart, UserContent } from 'ai';
 
 /** ai-sdk tool-result payload. Not re-exported from `ai`; it is the `output` of a tool-result part. */
 type ToolResultOutput = ToolResultPart['output'];
 type ToolResultContentPart = Extract<ToolResultOutput, { type: 'content' }>['value'][number];
+type UserPart = Exclude<UserContent, string>[number];
+type AssistantPart = Exclude<AssistantContent, string>[number];
+type ToolPart = ToolContent[number];
 
 /**
  * The readable text of a model message: string content as-is, or the
@@ -80,24 +83,75 @@ function contentPartText(part: ToolResultContentPart): string {
  * a later turn can recover what a tool actually returned.
  */
 export function messageTranscript(message: ModelMessage): string {
-  const { content } = message;
+  switch (message.role) {
+    case 'system':
+      return message.content;
+    case 'user':
+      return joinParts(message.content, userPartText);
+    case 'assistant':
+      return joinParts(message.content, assistantPartText);
+    case 'tool':
+      return message.content.map(toolPartText).filter(Boolean).join('\n');
+    default: {
+      const _never: never = message;
+      return _never;
+    }
+  }
+}
+
+function joinParts<T>(content: string | readonly T[], render: (part: T) => string): string {
   if (typeof content === 'string') return content;
-  return content
-    .map((part) => {
-      switch (part.type) {
-        case 'text':
-        case 'reasoning':
-          return part.text;
-        case 'tool-call':
-          return `tool-call ${part.toolName} ${toolOutputText(part.input)}`;
-        case 'tool-result':
-          return `tool-result ${part.toolName} ${toolResultOutputText(part.output)}`;
-        default:
-          return `[${part.type}]`;
-      }
-    })
-    .filter(Boolean)
-    .join('\n');
+  return content.map(render).filter(Boolean).join('\n');
+}
+
+function userPartText(part: UserPart): string {
+  switch (part.type) {
+    case 'text':
+      return part.text;
+    case 'image':
+    case 'file':
+      return '[file]';
+    default: {
+      const _never: never = part;
+      return _never;
+    }
+  }
+}
+
+function assistantPartText(part: AssistantPart): string {
+  switch (part.type) {
+    case 'text':
+    case 'reasoning':
+      return part.text;
+    case 'file':
+    case 'reasoning-file':
+      return '[file]';
+    case 'custom':
+      return '[custom]';
+    case 'tool-call':
+      return `tool-call ${part.toolName} ${toolOutputText(part.input)}`;
+    case 'tool-result':
+      return `tool-result ${part.toolName} ${toolResultOutputText(part.output)}`;
+    case 'tool-approval-request':
+      return '[tool-approval-request]';
+    default: {
+      const _never: never = part;
+      return _never;
+    }
+  }
+}
+
+function toolPartText(part: ToolPart): string {
+  switch (part.type) {
+    case 'tool-result':
+      return `tool-result ${part.toolName} ${toolResultOutputText(part.output)}`;
+    case 'tool-approval-response':
+      return '[tool-approval-response]';
+    default: {
+      const _never: never = part;
+      return _never;
+    }
+  }
 }
 
 /** Index of the last user message, or -1 if none. */

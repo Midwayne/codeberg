@@ -48,10 +48,21 @@ export async function spillText(
   return spillPreview(file, text);
 }
 
+/** Append pipe/shell output to the terminal log. Other tools are ignored. */
+export async function recordTerminal(
+  store: ContextStore,
+  toolName: string,
+  args: unknown,
+  text: string,
+): Promise<void> {
+  if (!TERMINAL_TOOLS.has(toolName)) return;
+  await store.appendTerminal(toolName, args, text);
+}
+
 /**
- * What the model should see for one tool result. Short results pass through.
- * Long ones are replaced with a preview. Pipe/shell output is always appended
- * to the terminal log so a later turn can grep it after the result is pruned.
+ * What the model should see for one freshly executed tool. Short results pass
+ * through. Long ones are replaced with a preview. Terminal tools are logged
+ * here, at execute time; a resumed transcript is not logged again.
  */
 export async function presentToolOutput(
   store: ContextStore,
@@ -62,9 +73,7 @@ export async function presentToolOutput(
 ): Promise<unknown> {
   const text = toolOutputText(output);
   try {
-    if (TERMINAL_TOOLS.has(toolName)) {
-      await store.appendTerminal(toolName, args, text);
-    }
+    await recordTerminal(store, toolName, args, text);
     const preview = await spillText(store, toolName, text, limit);
     return preview ?? output;
   } catch (err) {

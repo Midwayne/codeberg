@@ -1,6 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { parse } from 'yaml';
 
 import { codebergHome, projectRoots } from '../paths.js';
 import type { ContextStore } from './store.js';
@@ -119,57 +120,37 @@ function firstParagraph(body: string): string {
 }
 
 function parseFrontmatter(text: string): { fields: Map<string, string>; body: string } {
-  const normalized = text.replace(/^\uFEFF/, '');
-  const lines = normalized.split(/\r?\n/);
-  if ((lines[0] ?? '').trim() !== '---') {
-    return { fields: new Map(), body: text };
-  }
-  const fields = new Map<string, string>();
-  let i = 1;
-  for (; i < lines.length; i++) {
-    const line = lines[i] ?? '';
-    if (line.trim() === '---') {
-      i++;
-      break;
-    }
-    const match = /^([A-Za-z0-9_-]+):\s*(.*)$/.exec(line);
-    if (!match) continue;
-    const key = match[1]!;
-    let value = match[2] ?? '';
-    if (value === '>' || value === '|' || value === '') {
-      const folded: string[] = [];
-      let j = i + 1;
-      for (; j < lines.length; j++) {
-        const next = lines[j] ?? '';
-        if (next.trim() === '---') break;
-        if (/^[A-Za-z0-9_-]+:\s*/.test(next)) break;
-        if (next === '' || next.startsWith(' ') || next.startsWith('\t')) {
-          folded.push(next.trim());
-          continue;
-        }
-        break;
-      }
-      if (folded.length > 0) {
-        const joiner = value === '|' ? '\n' : ' ';
-        value = folded.filter(Boolean).join(joiner);
-        i = j - 1;
-      }
-    } else {
-      value = unquote(value.trim());
-    }
-    fields.set(key, value);
-  }
-  return { fields, body: lines.slice(i).join('\n') };
+  const split = splitFrontmatter(text);
+  if (!split) return { fields: new Map(), body: text };
+  return { fields: yamlFields(split.yaml), body: split.body };
 }
 
-function unquote(value: string): string {
-  if (
-    (value.startsWith('"') && value.endsWith('"') && value.length >= 2) ||
-    (value.startsWith("'") && value.endsWith("'") && value.length >= 2)
-  ) {
-    return value.slice(1, -1);
+/** The block between the opening and closing `---` fences. */
+function splitFrontmatter(text: string): { yaml: string; body: string } | null {
+  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/);
+  if ((lines[0] ?? '').trim() !== '---') return null;
+  for (let i = 1; i < lines.length; i++) {
+    if ((lines[i] ?? '').trim() !== '---') continue;
+    return { yaml: lines.slice(1, i).join('\n'), body: lines.slice(i + 1).join('\n') };
   }
-  return value;
+  return { yaml: '', body: text };
+}
+
+/** String fields from a YAML map. Aliases are rejected, so a skill cannot expand one. */
+function yamlFields(yamlText: string): Map<string, string> {
+  let parsed: unknown;
+  try {
+    parsed = parse(yamlText, { maxAliasCount: 0 });
+  } catch {
+    return new Map();
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return new Map();
+  const fields = new Map<string, string>();
+  for (const [key, value] of Object.entries(parsed)) {
+    if (typeof value === 'string') fields.set(key, value.trim());
+    else if (typeof value === 'number' || typeof value === 'boolean') fields.set(key, String(value));
+  }
+  return fields;
 }
 
 async function findSkillFiles(root: string): Promise<string[]> {

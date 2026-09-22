@@ -232,10 +232,6 @@ export function agentSystemPrompt(web: AgentSystemPromptOptions): string {
   const mcp = web.mcp ?? [];
   const skills = web.skills ?? [];
   const contextRoot = web.contextRoot;
-  if (!web.enabled && mcp.length === 0 && skills.length === 0 && !contextRoot) {
-    return AGENT_SYSTEM;
-  }
-
   const lines = [AGENT_SYSTEM];
   if (contextRoot) {
     lines.push(

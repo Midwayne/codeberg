@@ -1,18 +1,20 @@
-import { asSchema, jsonSchema, tool, type ModelMessage, type ToolSet } from 'ai';
-import { dirname } from 'node:path';
+import { asSchema, jsonSchema, tool, type ModelMessage, type Tool, type ToolSet } from 'ai';
 
 import type { ContextStore } from '../context/store.js';
 import { safeSegment } from '../context/store.js';
 import type { ToolSource } from '../tools/source.js';
 import { isDeferredMcpTool, mcpToolsReferenced, selectActiveTools } from './active.js';
+import {
+  publishMcpCatalog,
+  type CatalogDoc,
+  type McpToolListing,
+  type ServerCatalog,
+} from './catalog.js';
 import { connectMcpServer, type McpClientHandle } from './client.js';
 import { mcpToolName } from './names.js';
 import type { McpConfig, McpServer } from './types.js';
 
-export interface McpToolListing {
-  name: string;
-  callable: string;
-}
+export type { McpToolListing };
 
 export interface McpServerReport {
   name: string;
@@ -53,49 +55,36 @@ interface Activation {
   missing: string[];
 }
 
-interface CatalogDoc {
-  toolName: string;
-  callable: string;
-  json: string;
-}
-
-interface ServerCatalog {
-  folder: string;
-  state: 'connected' | 'unavailable';
-  detail?: string;
-  listings: McpToolListing[];
-  docs: CatalogDoc[];
-}
-
-function annotateDescription(serverName: string, tool: unknown): unknown {
-  if (!tool || typeof tool !== 'object') return tool;
-  const desc =
-    'description' in tool && typeof (tool as { description: unknown }).description === 'string'
-      ? (tool as { description: string }).description
-      : '';
-  const prefix = `MCP server "${serverName}"`;
-  return {
-    ...(tool as object),
-    description: desc ? `${prefix}: ${desc}` : prefix,
-  };
+/** One connected or failed server: the report, the catalog to publish, and the tools registered into the shared set. */
+interface ServerSession {
+  name: string;
+  handle?: McpClientHandle;
+  rawNames: readonly string[];
+  callable: readonly string[];
+  report: McpServerReport;
+  catalog: ServerCatalog;
 }
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-function readDescription(toolDef: unknown): string {
-  if (!toolDef || typeof toolDef !== 'object') return '';
-  const description = (toolDef as { description?: unknown }).description;
-  return typeof description === 'string' ? description : '';
+function describeTool(def: Tool): string {
+  return typeof def.description === 'string' ? def.description : '';
 }
 
-async function readJsonSchema(toolDef: unknown): Promise<unknown> {
-  if (!toolDef || typeof toolDef !== 'object') return {};
-  const schema = (toolDef as { inputSchema?: unknown }).inputSchema;
+function withServerDescription(serverName: string, def: Tool): Tool {
+  const desc = describeTool(def);
+  const prefix = `MCP server "${serverName}"`;
+  def.description = desc ? `${prefix}: ${desc}` : prefix;
+  return def;
+}
+
+async function readJsonSchema(def: Tool): Promise<unknown> {
+  const schema = def.inputSchema;
   if (schema == null) return {};
   try {
-    const converted = asSchema(schema as Parameters<typeof asSchema>[0]);
+    const converted = asSchema(schema);
     return (await converted.jsonSchema) ?? {};
   } catch {
     return {};
@@ -197,82 +186,30 @@ export function mcpToolSource(opts: McpToolSourceOptions): McpToolSource {
         }),
       );
 
-      const context = opts.context;
-      const pending: ServerCatalog[] = [];
       const out: ToolSet = {};
+      const sessions: ServerSession[] = [];
       for (let i = 0; i < results.length; i++) {
-        const result = results[i]!;
-        const server = opts.config.servers[i]!;
-        const folder = safeSegment(server.name);
-        if (result.status === 'rejected') {
-          const detail = errorMessage(result.reason);
-          log(`› MCP: failed to connect "${server.name}": ${detail}`);
-          reports.push({
-            name: server.name,
-            state: 'unavailable',
-            tools: [],
-            detail,
-          });
-          pending.push({ folder, state: 'unavailable', detail, listings: [], docs: [] });
-          continue;
-        }
-        const { handle } = result.value;
-        handles.push(handle);
-        connected.push(server.name);
-        const rawNames: string[] = [];
-        const listings: McpToolListing[] = [];
-        const docs: CatalogDoc[] = [];
-        const prepared = await Promise.all(
-          Object.entries(handle.tools).map(async ([toolName, toolDef]) => {
-            const prefixed = mcpToolName(server.name, toolName);
-            const annotated = annotateDescription(server.name, toolDef) as ToolSet[string];
-            const inputSchema = context ? await readJsonSchema(annotated) : undefined;
-            return { toolName, prefixed, annotated, inputSchema };
-          }),
+        sessions.push(
+          await openServer(opts.config.servers[i]!, results[i]!, out, opts.context != null, log),
         );
-        for (const item of prepared) {
-          rawNames.push(item.toolName);
-          if (item.prefixed in out) continue;
-          out[item.prefixed] = item.annotated;
-          callable.add(item.prefixed);
-          listings.push({ name: item.toolName, callable: item.prefixed });
-          if (item.inputSchema !== undefined) {
-            docs.push({
-              toolName: item.toolName,
-              callable: item.prefixed,
-              json: `${JSON.stringify(
-                {
-                  server: server.name,
-                  tool: item.toolName,
-                  callable: item.prefixed,
-                  description: readDescription(item.annotated),
-                  inputSchema: item.inputSchema,
-                },
-                null,
-                2,
-              )}\n`,
-            });
-          }
-        }
-        rawNames.sort();
-        listings.sort((a, b) => a.name.localeCompare(b.name));
-        connectedTools[server.name] = rawNames;
-        reports.push({
-          name: server.name,
-          state: 'connected',
-          tools: listings,
-        });
-        pending.push({ folder, state: 'connected', listings, docs });
-        log(`› MCP: connected ${server.name} (${listings.length} tools)`);
       }
-      if (context && pending.length > 0) {
-        const published = await publishMcpCatalog(context, pending);
-        for (const [name, file] of published.catalogs) catalogs.set(name, file);
-        for (let i = 0; i < reports.length; i++) {
-          const dir = published.dirs.get(pending[i]!.folder);
-          const report = reports[i];
-          if (dir && report) report.catalogDir = dir;
+      const published = opts.context
+        ? await publishMcpCatalog(
+            opts.context,
+            sessions.map((session) => session.catalog),
+          )
+        : undefined;
+      reports = sessions.map((session) => withCatalogDir(session.report, published?.dirs.get(session.name)));
+      for (const session of sessions) {
+        if (session.report.state === 'connected') {
+          connected.push(session.name);
+          connectedTools[session.name] = session.rawNames;
         }
+        if (session.handle) handles.push(session.handle);
+        for (const name of session.callable) callable.add(name);
+      }
+      if (published) {
+        for (const [name, file] of published.files) catalogs.set(name, file);
       }
       if (callable.size > 0) {
         out.load_mcp_tools = loadMcpTools(activate, catalogs, reports);
@@ -287,6 +224,106 @@ export function mcpToolSource(opts: McpToolSourceOptions): McpToolSource {
     },
   };
   return source;
+}
+
+async function openServer(
+  server: McpServer,
+  result: PromiseSettledResult<{ server: McpServer; handle: McpClientHandle }>,
+  out: ToolSet,
+  captureSchema: boolean,
+  log: (message: string) => void,
+): Promise<ServerSession> {
+  const folder = safeSegment(server.name);
+  if (result.status === 'rejected') {
+    const detail = errorMessage(result.reason);
+    log(`› MCP: failed to connect "${server.name}": ${detail}`);
+    return {
+      name: server.name,
+      rawNames: [],
+      callable: [],
+      report: { name: server.name, state: 'unavailable', tools: [], detail },
+      catalog: {
+        serverName: server.name,
+        folder,
+        state: 'unavailable',
+        detail,
+        listings: [],
+        docs: [],
+      },
+    };
+  }
+  const registered = await registerTools(server, result.value.handle.tools, out, captureSchema);
+  log(`› MCP: connected ${server.name} (${registered.listings.length} tools)`);
+  return {
+    name: server.name,
+    handle: result.value.handle,
+    rawNames: registered.rawNames,
+    callable: registered.callable,
+    report: { name: server.name, state: 'connected', tools: registered.listings },
+    catalog: {
+      serverName: server.name,
+      folder,
+      state: 'connected',
+      listings: registered.listings,
+      docs: registered.docs,
+    },
+  };
+}
+
+async function registerTools(
+  server: McpServer,
+  defs: ToolSet,
+  out: ToolSet,
+  captureSchema: boolean,
+): Promise<{
+  rawNames: string[];
+  listings: McpToolListing[];
+  callable: string[];
+  docs: CatalogDoc[];
+}> {
+  const prepared = await Promise.all(
+    Object.entries(defs).map(async ([toolName, toolDef]) => {
+      const prefixed = mcpToolName(server.name, toolName);
+      const annotated = withServerDescription(server.name, toolDef);
+      const inputSchema = captureSchema ? await readJsonSchema(annotated) : undefined;
+      return { toolName, prefixed, annotated, inputSchema };
+    }),
+  );
+  const rawNames: string[] = [];
+  const listings: McpToolListing[] = [];
+  const callable: string[] = [];
+  const docs: CatalogDoc[] = [];
+  for (const item of prepared) {
+    rawNames.push(item.toolName);
+    if (item.prefixed in out) continue;
+    out[item.prefixed] = item.annotated;
+    callable.push(item.prefixed);
+    listings.push({ name: item.toolName, callable: item.prefixed });
+    if (item.inputSchema !== undefined) {
+      docs.push({
+        toolName: item.toolName,
+        callable: item.prefixed,
+        json: `${JSON.stringify(
+          {
+            server: server.name,
+            tool: item.toolName,
+            callable: item.prefixed,
+            description: describeTool(item.annotated),
+            inputSchema: item.inputSchema,
+          },
+          null,
+          2,
+        )}\n`,
+      });
+    }
+  }
+  rawNames.sort();
+  listings.sort((a, b) => a.name.localeCompare(b.name));
+  return { rawNames, listings, callable, docs };
+}
+
+function withCatalogDir(report: McpServerReport, dir: string | undefined): McpServerReport {
+  return dir ? { ...report, catalogDir: dir } : report;
 }
 
 function loadMcpTools(
@@ -330,57 +367,3 @@ function loadMcpTools(
   });
 }
 
-/** Write every server's JSON, TOOLS.txt, and STATUS.txt. `context` is required. */
-async function publishMcpCatalog(
-  context: ContextStore,
-  entries: readonly ServerCatalog[],
-): Promise<{ catalogs: Map<string, string>; dirs: Map<string, string> }> {
-  const catalogs = new Map<string, string>();
-  const dirs = new Map<string, string>();
-  await Promise.all(
-    entries.map(async (entry) => {
-      const files: { rel: string; body: string; callable?: string }[] = [];
-      switch (entry.state) {
-        case 'unavailable':
-          files.push({
-            rel: `mcp/${entry.folder}/STATUS.txt`,
-            body: `state: unavailable\nerror: ${entry.detail ?? ''}\n`,
-          });
-          break;
-        case 'connected': {
-          const lines = [
-            'state: connected',
-            ...entry.listings.map((listing) => `${listing.name}\t${listing.callable}`),
-            '',
-          ];
-          files.push(
-            { rel: `mcp/${entry.folder}/TOOLS.txt`, body: lines.join('\n') },
-            { rel: `mcp/${entry.folder}/STATUS.txt`, body: 'state: connected\n' },
-            ...entry.docs.map((doc) => ({
-              rel: `mcp/${entry.folder}/${safeSegment(doc.toolName)}.json`,
-              body: doc.json,
-              callable: doc.callable,
-            })),
-          );
-          break;
-        }
-        default: {
-          const _never: never = entry.state;
-          throw new Error(_never);
-        }
-      }
-      const written = await Promise.all(
-        files.map(async (file) => {
-          const abs = await context.writeRel(file.rel, file.body);
-          return { abs, callable: file.callable };
-        }),
-      );
-      const first = written[0]?.abs;
-      if (first) dirs.set(entry.folder, dirname(first));
-      for (const file of written) {
-        if (file.callable) catalogs.set(file.callable, file.abs);
-      }
-    }),
-  );
-  return { catalogs, dirs };
-}

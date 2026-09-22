@@ -32,6 +32,18 @@ describe('messageText', () => {
     ).toContain('core/src/foo.c:10');
   });
 
+  it('renders an image part as a file placeholder', () => {
+    expect(
+      messageTranscript({
+        role: 'user',
+        content: [
+          { type: 'text', text: 'see' },
+          { type: 'image', image: new URL('https://example.com/a.png') },
+        ],
+      }),
+    ).toBe('see\n[file]');
+  });
+
   it('renders tool-result text and file content parts', () => {
     expect(
       toolResultOutputText({
