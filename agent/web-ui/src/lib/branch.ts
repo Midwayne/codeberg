@@ -47,3 +47,26 @@ export function createChatBranch(
     parentId,
   };
 }
+
+/** Snapshot of an adopt/resume/branch so auto-save can wait for React + useChat. */
+export interface SessionAdopt {
+  id: string;
+  lastId: string;
+}
+
+/**
+ * `useChat.setMessages` and React session-id state can flush on different
+ * frames. Auto-save must not run until both sides show the adopted pair —
+ * otherwise a new id can be persisted with the previous transcript (or the
+ * parent id with the branch prefix).
+ */
+export function isSessionSettled(
+  pending: SessionAdopt | null,
+  sessionId: string,
+  messages: readonly { id?: string }[],
+): boolean {
+  if (pending === null) {
+    return true;
+  }
+  return pending.id === sessionId && (messages.at(-1)?.id ?? '') === pending.lastId;
+}

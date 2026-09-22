@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Chat } from '@/components/chat';
 import { SessionSidebar } from '@/components/session-sidebar';
-import { createChatBranch } from '@/lib/branch';
+import { createChatBranch, isSessionSettled, type SessionAdopt } from '@/lib/branch';
 import { useSessions } from '@/lib/use-sessions';
 import { deleteSession, deriveTitle, loadSession, newSessionId, saveSession } from '@/lib/sessions';
 
@@ -18,21 +18,28 @@ export function Workspace({ sidebarOpen }: { sidebarOpen: boolean }) {
   const chat = useChat();
   const { sessions, refresh } = useSessions();
   const [sessionId, setSessionId] = useState(newSessionId);
-  const [parentId, setParentId] = useState<string | undefined>();
 
   // Signature of the last conversation we persisted, so the save effect skips
   // re-writing an unchanged turn (notably the one we just resumed).
   const savedSig = useRef('');
   const seededRailPreview = useRef(false);
-  const signature = (id: string, msgs: { id: string }[]) =>
+  // Title / parentId / id for the session we mean to persist. Kept in a ref so
+  // a branch's "(branch)" title survives auto-save, and so we don't depend on
+  // React state being in lockstep with useChat's message store.
+  const persistMeta = useRef<{ id: string; parentId?: string; title?: string }>({
+    id: sessionId,
+  });
+  const settle = useRef<SessionAdopt | null>(null);
+  const signature = (id: string, msgs: { id?: string }[]) =>
     `${id}:${msgs.length}:${msgs.at(-1)?.id ?? ''}`;
 
   const adopt = useCallback(
-    (id: string, messages: UIMessage[], nextParent?: string) => {
+    (id: string, messages: UIMessage[], nextParent?: string, title?: string) => {
+      persistMeta.current = { id, parentId: nextParent, title };
+      settle.current = { id, lastId: messages.at(-1)?.id ?? '' };
+      savedSig.current = signature(id, messages);
       chat.setMessages(messages);
       setSessionId(id);
-      setParentId(nextParent);
-      savedSig.current = signature(id, messages);
     },
     [chat],
   );
@@ -53,16 +60,20 @@ export function Workspace({ sidebarOpen }: { sidebarOpen: boolean }) {
   // to save. PUT is idempotent, so the dedupe is just to avoid needless writes.
   useEffect(() => {
     if (chat.status !== 'ready' || chat.messages.length === 0) return;
+    if (!isSessionSettled(settle.current, sessionId, chat.messages)) return;
+    settle.current = null;
+    const meta = persistMeta.current;
+    if (meta.id !== sessionId) return;
     const sig = signature(sessionId, chat.messages);
     if (sig === savedSig.current) return;
     savedSig.current = sig;
     void saveSession({
       id: sessionId,
-      title: deriveTitle(chat.messages),
+      title: meta.title ?? deriveTitle(chat.messages),
       messages: chat.messages,
-      parentId,
+      parentId: meta.parentId,
     }).then(refresh);
-  }, [chat.status, chat.messages, sessionId, parentId, refresh]);
+  }, [chat.status, chat.messages, sessionId, refresh]);
 
   const resume = useCallback(
     async (id: string) => {
@@ -71,36 +82,38 @@ export function Workspace({ sidebarOpen }: { sidebarOpen: boolean }) {
         void refresh(); // it was deleted out from under us
         return;
       }
-      adopt(record.id, record.messages, record.parentId);
+      adopt(record.id, record.messages, record.parentId, record.title);
     },
     [adopt, refresh],
   );
 
   const startNew = useCallback(() => {
-    chat.setMessages([]);
-    setSessionId(newSessionId());
-    setParentId(undefined);
+    const id = newSessionId();
+    persistMeta.current = { id };
+    settle.current = null;
     savedSig.current = '';
+    chat.setMessages([]);
+    setSessionId(id);
   }, [chat]);
 
   const branchFrom = useCallback(
     async (throughIndex: number) => {
       if (chat.status !== 'ready' || chat.messages.length === 0 || throughIndex < 0) return;
-      const sourceId = sessionId;
+      const sourceId = persistMeta.current.id || sessionId;
       const sourceMessages = chat.messages;
       // Persist the parent first so the lineage target exists on disk.
       await saveSession({
         id: sourceId,
-        title: deriveTitle(sourceMessages),
+        title: persistMeta.current.title ?? deriveTitle(sourceMessages),
         messages: sourceMessages,
-        parentId,
+        parentId: persistMeta.current.parentId,
       });
       const next = createChatBranch(sourceMessages, throughIndex, sourceId);
-      adopt(next.id, next.messages, next.parentId);
+      adopt(next.id, next.messages, next.parentId, next.title);
       await saveSession(next);
       void refresh();
     },
-    [chat, sessionId, parentId, adopt, refresh],
+    [chat, sessionId, adopt, refresh],
   );
 
   const remove = useCallback(
