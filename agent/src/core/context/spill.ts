@@ -1,5 +1,8 @@
 import { toolOutputText } from '../message.js';
+import { isSpillPreview } from './spill-preview.js';
 import type { ContextStore } from './store.js';
+
+export { isSpillPreview, spillResultCount } from './spill-preview.js';
 
 /** Tool results longer than this are written to a file. The model sees a
  *  head/tail preview and the path, so the middle is recoverable without
@@ -10,19 +13,17 @@ export const SPILL_TAIL_CHARS = 1_500;
 
 const TERMINAL_TOOLS = new Set(['pipe', 'shell', 'bash', 'terminal']);
 
-export function isSpillPreview(text: string): boolean {
-  return text.startsWith('[spilled to ');
-}
-
 /** Head/tail preview that names the file holding the full output. */
 export function spillPreview(
   file: string,
   text: string,
   headChars = SPILL_HEAD_CHARS,
   tailChars = SPILL_TAIL_CHARS,
+  resultCount?: number,
 ): string {
+  const count = resultCount == null ? '' : `; result_count=${resultCount}`;
   return [
-    `[spilled to ${file} — ${text.length} chars; the middle is only in that file]`,
+    `[spilled to ${file} — ${text.length} chars${count}; the middle is only in that file]`,
     '<head>',
     text.slice(0, headChars),
     '</head>',
@@ -42,10 +43,11 @@ export async function spillText(
   toolName: string,
   text: string,
   limit = SPILL_CHARS,
+  resultCount?: number,
 ): Promise<string | undefined> {
   if (text.length <= limit || isSpillPreview(text)) return undefined;
   const file = await store.writeToolOutput(toolName, text);
-  return spillPreview(file, text);
+  return spillPreview(file, text, SPILL_HEAD_CHARS, SPILL_TAIL_CHARS, resultCount);
 }
 
 /** Append pipe/shell output to the terminal log. Other tools are ignored. */
@@ -74,7 +76,13 @@ export async function presentToolOutput(
   const text = toolOutputText(output);
   try {
     await recordTerminal(store, toolName, args, text);
-    const preview = await spillText(store, toolName, text, limit);
+    const preview = await spillText(
+      store,
+      toolName,
+      text,
+      limit,
+      Array.isArray(output) ? output.length : undefined,
+    );
     return preview ?? output;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

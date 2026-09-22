@@ -288,6 +288,15 @@ function tool(wrap) {
 function renderToolOutput(tc, output) {
   tc.output.textContent = "";
   var name = tc.name || "tool";
+  if (typeof output === "string" && output.indexOf("[spilled to ") === 0) {
+    var count = output.match(/; result_count=(\d+);/);
+    tc.summary.textContent = "\uD83D\uDD27 " + (count ? count[1] + " " : "large ") + name + " output (spilled)";
+    var spilled = document.createElement("pre");
+    spilled.className = "hit-snippet";
+    spilled.textContent = output;
+    tc.output.appendChild(spilled);
+    return;
+  }
   if (name === "search_code" || name === "find_symbol" || name === "file_outline" || name === "search_graph") {
     renderHits(tc.output, Array.isArray(output) ? output : []);
     return;

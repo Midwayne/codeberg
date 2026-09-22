@@ -23,6 +23,7 @@ import {
 } from '@agent/core/evidence-extract.js';
 import { formatLineRange, normalizeSearchHit } from '@agent/core/search-hit.js';
 import { langFromPath } from '@/lib/utils';
+import { isSpillPreview, spilledToolTitle } from '@/lib/tool-output';
 
 // Every SearchResult is assignable to HybridHit (grep_boost is optional), and
 // SourceCard reads hit.grep_boost — so the display type is HybridHit, not the
@@ -44,6 +45,10 @@ export function ToolViewRouter({ part }: { part: ToolView }) {
 
   if (part.state === 'output-error') {
     return <ToolError name={name} message={part.errorText ?? 'tool failed'} />;
+  }
+
+  if (isSpillPreview(part.output)) {
+    return <SpilledOutput name={name} output={part.output} />;
   }
 
   switch (name) {
@@ -83,6 +88,16 @@ export function ToolViewRouter({ part }: { part: ToolView }) {
     default:
       return <GenericTool part={part} name={name} />;
   }
+}
+
+function SpilledOutput({ name, output }: { name: string; output: string }) {
+  return (
+    <Collapsible icon={<Wrench className="size-3.5" />} title={spilledToolTitle(name, output)}>
+      <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-background p-2 font-mono text-xs text-foreground/80">
+        {output}
+      </pre>
+    </Collapsible>
+  );
 }
 
 function ToolPending({ name, part }: { name: string; part: ToolView }) {

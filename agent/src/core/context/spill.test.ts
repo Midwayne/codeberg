@@ -6,7 +6,13 @@ import { tool, type ToolSet } from 'ai';
 import { describe, expect, it } from 'vitest';
 
 import { ContextStore } from './store.js';
-import { isSpillPreview, presentToolOutput, SPILL_CHARS, spillPreview } from './spill.js';
+import {
+  isSpillPreview,
+  presentToolOutput,
+  SPILL_CHARS,
+  spillPreview,
+  spillResultCount,
+} from './spill.js';
 import { wrapToolOutputs } from './wrap.js';
 
 describe('spillPreview', () => {
@@ -17,6 +23,14 @@ describe('spillPreview', () => {
     expect(preview).toContain('abc');
     expect(preview).toContain('hij');
     expect(preview).toContain('context_grep');
+  });
+
+  it('preserves the top-level result count for structured arrays', async () => {
+    const store = ContextStore.open(mkdtempSync(join(tmpdir(), 'cberg-spill-count-')));
+    const output = Array.from({ length: 42 }, (_, i) => ({ path: `file-${i}`, body: 'x'.repeat(400) }));
+    const seen = await presentToolOutput(store, 'grep', { pattern: 'x' }, output, 100);
+    expect(isSpillPreview(seen)).toBe(true);
+    expect(spillResultCount(seen)).toBe(42);
   });
 });
 
