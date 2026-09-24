@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { DaemonClient } from '../client.js';
+import { DaemonError, type DaemonClient } from '../client.js';
 import { daemonToolSource } from './daemon.js';
 
 function run(toolDef: unknown, input: unknown): Promise<any> {
@@ -11,6 +11,16 @@ function run(toolDef: unknown, input: unknown): Promise<any> {
 }
 
 describe('daemonToolSource', () => {
+  it('exposes missing files rather than a generic tool failure', async () => {
+    const daemon = {
+      listTools: vi.fn(async () => [{ name: 'read_file', description: 'read', schema: { type: 'object' } }]),
+      callTool: vi.fn(async () => { throw new DaemonError('NOT_FOUND', 'codeberg: not found: missing.kt', 404); }),
+    } as unknown as DaemonClient;
+    const set = await daemonToolSource({ daemon }).tools();
+    expect(await run(set.read_file, { path: 'missing.kt' })).toEqual({
+      error: 'NOT_FOUND: codeberg: not found: missing.kt',
+    });
+  });
   it('bridges each advertised tool and forwards calls to the daemon', async () => {
     const daemon = {
       listTools: vi.fn(async () => [

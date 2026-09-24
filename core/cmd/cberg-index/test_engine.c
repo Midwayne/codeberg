@@ -156,6 +156,11 @@ int main(void) {
         CHECK(cberg_ipc_start(&eng, &ipc) == 0, "ipc starts");
         if (ipc != NULL) {
             char resp[8192];
+            cberg_ipc_server *duplicate = NULL;
+            CHECK(cberg_ipc_start(&eng, &duplicate) != 0, "duplicate ipc cannot replace active socket");
+            if (duplicate != NULL) {
+                cberg_ipc_stop(duplicate);
+            }
             CHECK(ipc_roundtrip(socket_path, "status\n", resp, sizeof(resp)) == 0, "status roundtrip");
             CHECK(strstr(resp, "\"ready\":true") != NULL, "status ready");
             CHECK(strstr(resp, "\"repos\":[") != NULL, "status has repos array");
@@ -185,6 +190,23 @@ int main(void) {
             CHECK(strstr(resp, "\"ok\":true") != NULL, "trace_path ok");
 
             cberg_ipc_stop(ipc);
+
+            /* An unowned socket left by a crashed process can still be reclaimed. */
+            eng.stop = 0;
+            int stale = socket(AF_UNIX, SOCK_STREAM, 0);
+            struct sockaddr_un addr = {0};
+            addr.sun_family = AF_UNIX;
+            strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path) - 1);
+            CHECK(stale >= 0 && bind(stale, (struct sockaddr *)&addr, sizeof(addr)) == 0,
+                  "create stale socket");
+            if (stale >= 0) close(stale);
+            cberg_ipc_server *recovered = NULL;
+            CHECK(cberg_ipc_start(&eng, &recovered) == 0, "reclaim stale socket");
+            if (recovered != NULL) {
+                CHECK(ipc_roundtrip(socket_path, "status\n", resp, sizeof(resp)) == 0,
+                      "reclaimed socket accepts requests");
+                cberg_ipc_stop(recovered);
+            }
         }
     }
     cberg_engine_close(&eng);

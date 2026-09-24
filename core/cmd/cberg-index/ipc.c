@@ -1,16 +1,22 @@
 #define _POSIX_C_SOURCE 200809L
+#ifdef __APPLE__
+#define _DARWIN_C_SOURCE 1
+#endif
 
 #include "ipc.h"
 #include "indexer.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <poll.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/file.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/un.h>
 #include <unistd.h>
 
@@ -28,6 +34,7 @@
 typedef struct cberg_ipc_server {
     cberg_engine *eng;
     int listen_fd;
+    int lock_fd;
     pthread_t thread;
 } cberg_ipc_server;
 
@@ -759,9 +766,55 @@ int cberg_ipc_start(cberg_engine *eng, cberg_ipc_server **out) {
     }
     srv->eng = eng;
 
-    unlink(eng->socket_path);
+    /* Serialize owners even during startup. Leave the lock file in place so a
+     * waiting launcher never locks a different inode after it is removed. */
+    size_t lock_len = strlen(eng->socket_path) + sizeof(".lock");
+    char *lock_path = malloc(lock_len);
+    if (lock_path == NULL) {
+        free(srv);
+        return -1;
+    }
+    snprintf(lock_path, lock_len, "%s.lock", eng->socket_path);
+    srv->lock_fd = open(lock_path, O_CREAT | O_RDWR, 0600);
+    free(lock_path);
+    if (srv->lock_fd < 0) {
+        free(srv);
+        return -1;
+    }
+    if (flock(srv->lock_fd, LOCK_EX | LOCK_NB) != 0) {
+        close(srv->lock_fd);
+        free(srv);
+        return -1;
+    }
+
+    struct stat st;
+    if (lstat(eng->socket_path, &st) == 0) {
+        if (!S_ISSOCK(st.st_mode)) {
+            close(srv->lock_fd);
+            free(srv);
+            return -1;
+        }
+        int probe = socket(AF_UNIX, SOCK_STREAM, 0);
+        struct sockaddr_un existing;
+        memset(&existing, 0, sizeof(existing));
+        existing.sun_family = AF_UNIX;
+        strncpy(existing.sun_path, eng->socket_path, sizeof(existing.sun_path) - 1);
+        int connected = probe >= 0 && connect(probe, (struct sockaddr *)&existing, sizeof(existing)) == 0;
+        int probe_errno = errno;
+        if (probe >= 0) close(probe);
+        if (connected || probe < 0 || probe_errno != ECONNREFUSED || unlink(eng->socket_path) != 0) {
+            close(srv->lock_fd);
+            free(srv);
+            return -1;
+        }
+    } else if (errno != ENOENT) {
+        close(srv->lock_fd);
+        free(srv);
+        return -1;
+    }
     srv->listen_fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (srv->listen_fd < 0) {
+        close(srv->lock_fd);
         free(srv);
         return -1;
     }
@@ -773,12 +826,14 @@ int cberg_ipc_start(cberg_engine *eng, cberg_ipc_server **out) {
 
     if (bind(srv->listen_fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
         close(srv->listen_fd);
+        close(srv->lock_fd);
         free(srv);
         return -1;
     }
     if (listen(srv->listen_fd, 8) != 0) {
         close(srv->listen_fd);
         unlink(eng->socket_path);
+        close(srv->lock_fd);
         free(srv);
         return -1;
     }
@@ -796,6 +851,7 @@ int cberg_ipc_start(cberg_engine *eng, cberg_ipc_server **out) {
     if (rc != 0) {
         close(srv->listen_fd);
         unlink(eng->socket_path);
+        close(srv->lock_fd);
         free(srv);
         return -1;
     }
@@ -817,5 +873,6 @@ void cberg_ipc_stop(cberg_ipc_server *srv) {
     }
     pthread_join(srv->thread, NULL);
     unlink(srv->eng->socket_path);
+    close(srv->lock_fd);
     free(srv);
 }

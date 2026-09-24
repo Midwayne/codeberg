@@ -4,6 +4,7 @@ import { formatLineRange } from '../search-hit.js';
 import type { DaemonClient } from '../client.js';
 import type { SearchResult } from '../types.js';
 import type { ToolSource } from './source.js';
+import { daemonToolError } from './daemon-error.js';
 
 export interface SearchCodeOptions {
   daemon: DaemonClient;
@@ -63,15 +64,19 @@ export function searchCodeSource(opts: SearchCodeOptions): ToolSource {
           required: ['query'],
         }),
         execute: async ({ query, k, repo, path_glob, kind, min_score }) => {
-          const results = await opts.daemon.search(query, {
-            k: k ?? opts.defaultK,
-            repo,
-            path_glob,
-            kind,
-            min_score,
-          });
-          opts.onResults(results);
-          return results.map(toToolChunk);
+          try {
+            const results = await opts.daemon.search(query, {
+              k: k ?? opts.defaultK,
+              repo,
+              path_glob,
+              kind,
+              min_score,
+            });
+            opts.onResults(results);
+            return results.map(toToolChunk);
+          } catch (error) {
+            return daemonToolError(error);
+          }
         },
       }),
     }),

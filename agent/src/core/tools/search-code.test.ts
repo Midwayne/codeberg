@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { DaemonClient } from '../client.js';
+import { DaemonError, type DaemonClient } from '../client.js';
 import type { SearchResult } from '../types.js';
 import { searchCodeSource } from './search-code.js';
 
@@ -25,6 +25,15 @@ function run(toolDef: unknown, input: unknown): Promise<any> {
 }
 
 describe('searchCodeSource', () => {
+  it('returns actionable daemon errors to the model', async () => {
+    const daemon = {
+      search: vi.fn(async () => { throw new DaemonError('INTERNAL', 'indexer connect: socket missing', 500); }),
+    } as unknown as DaemonClient;
+    const source = searchCodeSource({ daemon, defaultK: 8, onResults: () => {} });
+    expect(await run((await source.tools()).search_code, { query: 'metrics' })).toEqual({
+      error: 'INTERNAL: indexer connect: socket missing',
+    });
+  });
   it('searches, reports full hits to the sink, and returns compact chunks', async () => {
     const hits = [hit(1), hit(2)];
     const daemon = {

@@ -76,6 +76,19 @@ func TestClientStatusAndSearch(t *testing.T) {
 	}
 }
 
+func TestClientSearchLargeResponse(t *testing.T) {
+	// A batch of snippets can exceed bufio.Scanner's default 64 KiB token limit.
+	snippet := strings.Repeat("x", 80*1024)
+	sock := startMockIndexer(t, func(string) []byte {
+		b, _ := json.Marshal(map[string]any{"ok": true, "results": []map[string]any{{"id": 1, "snippet": snippet}}})
+		return append(b, '\n')
+	})
+	hits, err := indexctl.NewClient(sock).Search(context.Background(), indexctl.SearchOptions{Query: "large", K: 1})
+	if err != nil || len(hits) != 1 || hits[0].Snippet != snippet {
+		t.Fatalf("large search response: hits=%d err=%v", len(hits), err)
+	}
+}
+
 func TestClientSearchEscapesTabs(t *testing.T) {
 	var gotLine string
 	sock := startMockIndexer(t, func(line string) []byte {

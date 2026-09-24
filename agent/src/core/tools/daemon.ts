@@ -1,6 +1,7 @@
 import { dynamicTool, jsonSchema, type ToolSet } from 'ai';
 
 import type { DaemonClient } from '../client.js';
+import { daemonToolError } from './daemon-error.js';
 import type { ToolSource } from './source.js';
 
 /** Daemon tools bridged elsewhere — omit to avoid duplicate/conflicting schemas. */
@@ -31,12 +32,16 @@ export function daemonToolSource(opts: DaemonToolSourceOptions): ToolSource {
           description: spec.description,
           inputSchema: jsonSchema(spec.schema),
           execute: async (args) => {
-            const result = await opts.daemon.callTool(
-              spec.name,
-              args as Record<string, unknown>,
-            );
-            opts.onToolResult?.(spec.name, result);
-            return result;
+            try {
+              const result = await opts.daemon.callTool(
+                spec.name,
+                args as Record<string, unknown>,
+              );
+              opts.onToolResult?.(spec.name, result);
+              return result;
+            } catch (error) {
+              return daemonToolError(error);
+            }
           },
         });
       }
