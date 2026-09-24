@@ -35,9 +35,9 @@ export const CHAT_PAGE_HTML = `<!doctype html>
   .tool summary { cursor: pointer; color: #d29922; font-family: ui-monospace, monospace; font-size: 13px; }
   .tool pre { margin: 8px 0 4px; padding: 8px; background: #0d1117; border-radius: 6px; overflow-x: auto; font-size: 12px; color: #adbac7; }
   .tool pre:empty { display: none; }
-  .tool-group { margin: 6px 0; background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 6px 10px; }
-  .tool-group > summary { cursor: pointer; color: #8b949e; font-size: 13px; }
-  .tool-group-body { padding: 2px 0; }
+  .activity-group { margin: 6px 0; background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 6px 10px; }
+  .activity-group > summary { cursor: pointer; color: #8b949e; font-size: 13px; }
+  .activity-group-body { padding: 2px 0; }
   .hit { margin: 6px 0; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; background: #161b22; }
   .hit-hd { display: flex; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid #30363d; font-family: ui-monospace, monospace; font-size: 12px; }
   .hit-repo { color: #8b949e; background: #21262d; padding: 1px 6px; border-radius: 4px; }
@@ -196,24 +196,33 @@ function streamTurn(wrap, collected) {
     body: JSON.stringify({ messages: history }),
   }).then(function (res) {
     if (!res.ok || !res.body) throw new Error("request failed: " + res.status);
-    var texts = {}, reasons = {}, tools = {}, toolBox;
+    var texts = {}, reasons = {}, tools = {}, activityBox;
+    function reasoning(id) {
+      if (!reasons[id]) {
+        activityBox = activityBox || activityGroup(wrap);
+        reasons[id] = block(activityBox.body, "reasoning");
+        activityBox.reasoningCount++;
+        updateActivitySummary(activityBox);
+      }
+      return reasons[id];
+    }
     return forEachChunk(res.body, function (c) {
       switch (c.type) {
         case "text-start": texts[c.id] = block(wrap, "text"); break;
         case "text-delta":
           (texts[c.id] || (texts[c.id] = block(wrap, "text"))).textContent += c.delta;
           collected.push(c.delta); break;
-        case "reasoning-start": reasons[c.id] = block(wrap, "reasoning"); break;
+        case "reasoning-start": reasoning(c.id); break;
         case "reasoning-delta":
-          (reasons[c.id] || (reasons[c.id] = block(wrap, "reasoning"))).textContent += c.delta; break;
+          reasoning(c.id).textContent += c.delta; break;
         case "tool-input-start":
         case "tool-input-available": {
           var t = tools[c.toolCallId];
           if (!t) {
-            toolBox = toolBox || toolGroup(wrap);
-            t = tools[c.toolCallId] = tool(toolBox.body);
-            toolBox.count++;
-            toolBox.summary.textContent = toolBox.count + " tool call" + (toolBox.count === 1 ? "" : "s");
+            activityBox = activityBox || activityGroup(wrap);
+            t = tools[c.toolCallId] = tool(activityBox.body);
+            activityBox.toolCount++;
+            updateActivitySummary(activityBox);
           }
           if (c.toolName) {
             t.name = c.toolName;
@@ -280,15 +289,22 @@ function block(wrap, cls) {
   return el;
 }
 
-function toolGroup(wrap) {
+function activityGroup(wrap) {
   var d = document.createElement("details");
-  d.className = "tool-group";
+  d.className = "activity-group";
   var summary = document.createElement("summary");
   var body = document.createElement("div");
-  body.className = "tool-group-body";
+  body.className = "activity-group-body";
   d.appendChild(summary); d.appendChild(body);
   wrap.appendChild(d);
-  return { summary: summary, body: body, count: 0 };
+  return { summary: summary, body: body, toolCount: 0, reasoningCount: 0 };
+}
+
+function updateActivitySummary(group) {
+  var labels = [];
+  if (group.toolCount) labels.push(group.toolCount + " tool call" + (group.toolCount === 1 ? "" : "s"));
+  if (group.reasoningCount) labels.push(group.reasoningCount + " reasoning trace" + (group.reasoningCount === 1 ? "" : "s"));
+  group.summary.textContent = labels.join(" · ");
 }
 
 function tool(wrap) {

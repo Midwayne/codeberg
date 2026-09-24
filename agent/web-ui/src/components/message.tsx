@@ -33,8 +33,8 @@ export function Message({
 }) {
   const isUser = message.role === 'user';
   const showActions = Boolean(onRegenerate || onBranch || (!isUser && message.parts.length > 0));
-  const toolParts = isUser ? [] : message.parts.filter(isToolPart);
-  const firstToolIndex = isUser ? -1 : message.parts.findIndex(isToolPart);
+  const activityParts = isUser ? [] : message.parts.filter(isActivityPart);
+  const firstActivityIndex = isUser ? -1 : message.parts.findIndex(isActivityPart);
   return (
     <div
       data-message-id={domId ?? message.id}
@@ -54,8 +54,8 @@ export function Message({
         {isUser
           ? userPromptText(message)
           : message.parts.map((part, i) =>
-              isToolPart(part) ? (
-                i === firstToolIndex ? <ToolCallGroup key="tools" parts={toolParts} /> : null
+              isActivityPart(part) ? (
+                i === firstActivityIndex ? <ActivityGroup key="activity" parts={activityParts} /> : null
               ) : (
                 <Part key={i} part={part} />
               ),
@@ -72,8 +72,19 @@ function isToolPart(part: AnyPart): boolean {
   return part.type === 'dynamic-tool' || part.type.startsWith('tool-');
 }
 
-function ToolCallGroup({ parts }: { parts: AnyPart[] }) {
+function isActivityPart(part: AnyPart): boolean {
+  return part.type === 'reasoning' || isToolPart(part);
+}
+
+function ActivityGroup({ parts }: { parts: AnyPart[] }) {
+  const toolCount = parts.filter(isToolPart).length;
+  const reasoningCount = parts.length - toolCount;
+  const title = [
+    toolCount && `${toolCount} tool call${toolCount === 1 ? '' : 's'}`,
+    reasoningCount && `${reasoningCount} reasoning trace${reasoningCount === 1 ? '' : 's'}`,
+  ].filter(Boolean).join(' · ');
   const running = parts.some((part) => {
+    if (!isToolPart(part)) return false;
     const state = (part as ToolView).state;
     return state !== 'output-available' && state !== 'output-error';
   });
@@ -82,16 +93,20 @@ function ToolCallGroup({ parts }: { parts: AnyPart[] }) {
       icon={
         running ? <Loader2 className="size-3.5 animate-spin" /> : <Wrench className="size-3.5" />
       }
-      title={`${parts.length} tool call${parts.length === 1 ? '' : 's'}`}
+      title={title}
       badge={running ? <span>Running…</span> : undefined}
     >
       <div className="space-y-1">
-        {parts.map((part, i) => (
-          <ToolViewRouter
-            key={'toolCallId' in part ? String(part.toolCallId) : i}
-            part={part as ToolView}
-          />
-        ))}
+        {parts.map((part, i) =>
+          isToolPart(part) ? (
+            <ToolViewRouter
+              key={'toolCallId' in part ? `tool:${String(part.toolCallId)}` : `tool:${i}`}
+              part={part as ToolView}
+            />
+          ) : (
+            <Part key={`reasoning:${i}`} part={part} />
+          ),
+        )}
       </div>
     </Collapsible>
   );
