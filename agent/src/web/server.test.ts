@@ -5,6 +5,7 @@ import type { AddressInfo } from 'node:net';
 import type { ServerResponse } from 'node:http';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { reasoningFromEnv } from '../core/config.js';
 import {
   CHAT_PATH,
   COMMANDS_PATH,
@@ -15,6 +16,7 @@ import {
   type WebServerOptions,
 } from './server.js';
 import { WebSessionStore } from './sessions.js';
+import { formatWebTitle } from './title.js';
 
 // `agent` is unused when `respond` is injected; cast a stub so the tests can
 // drive routing without a live model.
@@ -83,11 +85,34 @@ describe('web server', () => {
     expect(body).not.toContain('<script>"x"');
   });
 
-  it('returns model/daemon metadata for the title bar', async () => {
-    await start({ title: 'codeberg · m · d' });
+  it('returns the title for the SPA header', async () => {
+    await start({ title: 'gpt-5.6-sol · reasoning: high' });
     const res = await fetch(baseUrl + META_PATH);
     expect(res.headers.get('content-type')).toContain('application/json');
-    expect(await res.json()).toEqual({ title: 'codeberg · m · d' });
+    expect(await res.json()).toEqual({ title: 'gpt-5.6-sol · reasoning: high' });
+  });
+
+  it('shows only the model name and configured reasoning in both web headers', async () => {
+    await start({
+      title: formatWebTitle(
+        'openai:gpt-5.6-sol',
+        reasoningFromEnv({ CODEBERG_REASONING: 'high' }),
+      ),
+    });
+
+    expect(await (await fetch(baseUrl + META_PATH)).json()).toEqual({
+      title: 'gpt-5.6-sol · reasoning: high',
+    });
+    const html = await (await fetch(baseUrl + '/')).text();
+    expect(html).toContain('<header>gpt-5.6-sol · reasoning: high</header>');
+    expect(html).not.toContain('openai:');
+    expect(html).not.toContain('127.0.0.1:48080');
+  });
+
+  it('labels an unset reasoning effort as the provider default', () => {
+    expect(formatWebTitle('anthropic:claude-sonnet', reasoningFromEnv({}))).toBe(
+      'claude-sonnet · reasoning: provider-default',
+    );
   });
 
   it('serves the built-in slash-command catalog for autocomplete', async () => {

@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import { fileURLToPath } from 'node:url';
 
-import { createAgentFromEntry } from '../core/config.js';
+import { createAgentFromEntry, reasoningFromEnv } from '../core/config.js';
 import { wrapToolLoopAgentWithCompaction } from '../core/compaction.js';
 import { entryUsage, parseEntryArgs } from '../core/entry.js';
 import { createWebServer } from './server.js';
+import { formatWebTitle } from './title.js';
 
 // The browser counterpart to `codeberg-tui`: instead of ai-sdk's terminal
 // `runAgentTUI`, it serves a chat UI over HTTP. Both drive the exact same
@@ -54,7 +55,7 @@ async function main(): Promise<void> {
   const agent = wrapToolLoopAgentWithCompaction(loop, core.historyCompactor());
   const server = createWebServer({
     agent,
-    title: `codeberg · ${entry.modelSpec} · ${entry.daemonUrl}`,
+    title: formatWebTitle(entry.modelSpec, reasoningFromEnv()),
     staticRoot: process.env.CODEBERG_WEB_ROOT ?? defaultStaticRoot(),
   });
 

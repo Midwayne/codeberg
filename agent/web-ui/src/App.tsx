@@ -4,14 +4,14 @@ import { useEffect, useState } from 'react';
 import { Workspace } from '@/components/workspace';
 
 export function App() {
-  // The server exposes the active model/daemon at /api/meta for the title bar.
-  const [subtitle, setSubtitle] = useState('');
+  // The server exposes the model and reasoning effort at /api/meta.
+  const [title, setTitle] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   useEffect(() => {
     fetch('/api/meta')
       .then((r) => (r.ok ? r.json() : null))
       .then((m: { title?: string } | null) => {
-        if (m?.title) setSubtitle(m.title);
+        if (m?.title) setTitle(m.title);
       })
       .catch((err) => {
         console.warn('failed to load /api/meta', err);
@@ -32,8 +32,7 @@ export function App() {
           >
             <PanelLeft className="size-4" />
           </button>
-          <span className="font-semibold">codeberg</span>
-          {subtitle && <span className="truncate text-xs text-muted-foreground">{subtitle}</span>}
+          {title && <span className="truncate font-semibold">{title}</span>}
         </div>
       </header>
       <Workspace sidebarOpen={sidebarOpen} />
