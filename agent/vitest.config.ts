@@ -5,10 +5,11 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: {
     alias: {
+      '@': fileURLToPath(new URL('./web-ui/src', import.meta.url)),
       '@agent/core': fileURLToPath(new URL('./src/core', import.meta.url)),
     },
   },
   test: {
-    include: ['src/**/*.test.ts', 'web-ui/src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'web-ui/src/**/*.test.{ts,tsx}'],
   },
 });

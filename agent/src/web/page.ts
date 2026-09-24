@@ -35,6 +35,9 @@ export const CHAT_PAGE_HTML = `<!doctype html>
   .tool summary { cursor: pointer; color: #d29922; font-family: ui-monospace, monospace; font-size: 13px; }
   .tool pre { margin: 8px 0 4px; padding: 8px; background: #0d1117; border-radius: 6px; overflow-x: auto; font-size: 12px; color: #adbac7; }
   .tool pre:empty { display: none; }
+  .tool-group { margin: 6px 0; background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 6px 10px; }
+  .tool-group > summary { cursor: pointer; color: #8b949e; font-size: 13px; }
+  .tool-group-body { padding: 2px 0; }
   .hit { margin: 6px 0; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; background: #161b22; }
   .hit-hd { display: flex; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid #30363d; font-family: ui-monospace, monospace; font-size: 12px; }
   .hit-repo { color: #8b949e; background: #21262d; padding: 1px 6px; border-radius: 4px; }
@@ -193,7 +196,7 @@ function streamTurn(wrap, collected) {
     body: JSON.stringify({ messages: history }),
   }).then(function (res) {
     if (!res.ok || !res.body) throw new Error("request failed: " + res.status);
-    var texts = {}, reasons = {}, tools = {};
+    var texts = {}, reasons = {}, tools = {}, toolBox;
     return forEachChunk(res.body, function (c) {
       switch (c.type) {
         case "text-start": texts[c.id] = block(wrap, "text"); break;
@@ -205,7 +208,13 @@ function streamTurn(wrap, collected) {
           (reasons[c.id] || (reasons[c.id] = block(wrap, "reasoning"))).textContent += c.delta; break;
         case "tool-input-start":
         case "tool-input-available": {
-          var t = tools[c.toolCallId] || (tools[c.toolCallId] = tool(wrap));
+          var t = tools[c.toolCallId];
+          if (!t) {
+            toolBox = toolBox || toolGroup(wrap);
+            t = tools[c.toolCallId] = tool(toolBox.body);
+            toolBox.count++;
+            toolBox.summary.textContent = toolBox.count + " tool call" + (toolBox.count === 1 ? "" : "s");
+          }
           if (c.toolName) {
             t.name = c.toolName;
             t.summary.textContent = "\\uD83D\\uDD27 " + c.toolName;
@@ -269,6 +278,17 @@ function block(wrap, cls) {
   el.className = cls;
   wrap.appendChild(el);
   return el;
+}
+
+function toolGroup(wrap) {
+  var d = document.createElement("details");
+  d.className = "tool-group";
+  var summary = document.createElement("summary");
+  var body = document.createElement("div");
+  body.className = "tool-group-body";
+  d.appendChild(summary); d.appendChild(body);
+  wrap.appendChild(d);
+  return { summary: summary, body: body, count: 0 };
 }
 
 function tool(wrap) {

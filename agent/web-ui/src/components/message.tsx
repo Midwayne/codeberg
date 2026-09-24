@@ -1,4 +1,4 @@
-import { Brain, GitBranch, RefreshCw } from 'lucide-react';
+import { Brain, GitBranch, Loader2, RefreshCw, Wrench } from 'lucide-react';
 import type { UIMessage } from 'ai';
 
 import { Response } from '@/components/response';
@@ -33,6 +33,8 @@ export function Message({
 }) {
   const isUser = message.role === 'user';
   const showActions = Boolean(onRegenerate || onBranch || (!isUser && message.parts.length > 0));
+  const toolParts = isUser ? [] : message.parts.filter(isToolPart);
+  const firstToolIndex = isUser ? -1 : message.parts.findIndex(isToolPart);
   return (
     <div
       data-message-id={domId ?? message.id}
@@ -49,12 +51,49 @@ export function Message({
             : 'w-full space-y-2',
         )}
       >
-        {isUser ? userPromptText(message) : message.parts.map((part, i) => <Part key={i} part={part} />)}
+        {isUser
+          ? userPromptText(message)
+          : message.parts.map((part, i) =>
+              isToolPart(part) ? (
+                i === firstToolIndex ? <ToolCallGroup key="tools" parts={toolParts} /> : null
+              ) : (
+                <Part key={i} part={part} />
+              ),
+            )}
       </div>
       {showActions && (
         <MessageActions message={message} onRegenerate={onRegenerate} onBranch={onBranch} />
       )}
     </div>
+  );
+}
+
+function isToolPart(part: AnyPart): boolean {
+  return part.type === 'dynamic-tool' || part.type.startsWith('tool-');
+}
+
+function ToolCallGroup({ parts }: { parts: AnyPart[] }) {
+  const running = parts.some((part) => {
+    const state = (part as ToolView).state;
+    return state !== 'output-available' && state !== 'output-error';
+  });
+  return (
+    <Collapsible
+      icon={
+        running ? <Loader2 className="size-3.5 animate-spin" /> : <Wrench className="size-3.5" />
+      }
+      title={`${parts.length} tool call${parts.length === 1 ? '' : 's'}`}
+      badge={running ? <span>Running…</span> : undefined}
+    >
+      <div className="space-y-1">
+        {parts.map((part, i) => (
+          <ToolViewRouter
+            key={'toolCallId' in part ? String(part.toolCallId) : i}
+            part={part as ToolView}
+          />
+        ))}
+      </div>
+    </Collapsible>
   );
 }
 
