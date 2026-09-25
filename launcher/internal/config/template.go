@@ -60,6 +60,7 @@ func (c *Config) Summary() string {
 		{KeyDbmcpUse, fmt.Sprintf("%t", c.DbmcpUse)},
 		{"dbmcp spec", dbmcpSpecSummary(c)},
 		{KeyVector, fmt.Sprintf("%t", c.Vector)},
+		{KeyEmbedding, orUnset(c.Embedding)},
 		{KeyEmbedModel, c.EmbedModel},
 		{KeyIndexPath, c.IndexPath},
 		{KeySocket, c.Socket},

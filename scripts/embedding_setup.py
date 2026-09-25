@@ -3,29 +3,18 @@
 
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import urllib.request
 import venv
 
-MODELS_BY_ID = {
-    "qwen3-mlx": ("mlx-community/Qwen3-Embedding-0.6B-8bit", "model.safetensors"),
-    "qwen3-llama": ("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
-    "qwen3-4b-mlx": ("majentik/Qwen3-Embedding-4B-MLX-8bit", "model.safetensors"),
-    "qwen3-4b-llama": ("Qwen/Qwen3-Embedding-4B-GGUF", "Qwen3-Embedding-4B-Q4_K_M.gguf"),
-    "qwen3-fp16-mlx": ("Qwen/Qwen3-Embedding-0.6B", "model.safetensors"),
-    "qwen3-bf16-mlx": ("Qwen/Qwen3-Embedding-0.6B", "model.safetensors"),
-    "qwen3-fp16-llama": ("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-f16.gguf"),
-    "qwen3-4b-fp16-mlx": ("Qwen/Qwen3-Embedding-4B", "model.safetensors"),
-    "qwen3-4b-bf16-mlx": ("Qwen/Qwen3-Embedding-4B", "model.safetensors"),
-    "qwen3-4b-fp16-llama": ("Qwen/Qwen3-Embedding-4B-GGUF", "Qwen3-Embedding-4B-f16.gguf"),
-}
-
-
-def main(model_id: str, target: str, venv_path: str) -> None:
-    repo, filename = MODELS_BY_ID[model_id]
+def main(model_id: str, repo: str, target: str, venv_path: str) -> None:
     backend = "mlx" if model_id.endswith("mlx") else "llama"
+    if backend == "llama" and not shutil.which(os.environ.get("CBERG_LLAMA_SERVER", "llama-server")):
+        raise RuntimeError("llama-server is required; install llama.cpp or set CBERG_LLAMA_SERVER before downloading")
     dest = Path(target)
+    filename = dest.name
     dest.parent.mkdir(parents=True, exist_ok=True)
     if backend == "mlx":
         env = Path(venv_path)

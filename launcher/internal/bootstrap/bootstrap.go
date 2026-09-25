@@ -14,6 +14,7 @@ import (
 
 	"codeberg.org/codeberg/launcher/internal/config"
 	"codeberg.org/codeberg/launcher/internal/deps"
+	"codeberg.org/codeberg/launcher/internal/embedding"
 	"codeberg.org/codeberg/launcher/internal/searxng"
 )
 
@@ -175,12 +176,20 @@ func ensureModel(c *config.Config, root string) error {
 		return nil
 	}
 	if c.EmbedBackend != "onnx" {
+		model, err := embedding.Lookup(c.Embedding)
+		if err != nil {
+			return err
+		}
 		step("preparing embedding model " + c.Embedding)
 		cmd := exec.Command("python3", filepath.Join(root, "scripts", "embedding_setup.py"),
-			c.Embedding, c.EmbedModel, filepath.Join(c.Home, "embedding-venv"))
+			c.Embedding, model.HuggingFace, c.EmbedModel, filepath.Join(c.Home, "embedding-venv"))
 		cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
-		if err := cmd.Run(); err != nil { return fmt.Errorf("embedding setup: %w", err) }
-		if !exists(c.EmbedModel) { return fmt.Errorf("embedding setup finished but %s is missing", c.EmbedModel) }
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("embedding setup: %w", err)
+		}
+		if !exists(c.EmbedModel) {
+			return fmt.Errorf("embedding setup finished but %s is missing", c.EmbedModel)
+		}
 		return nil
 	}
 	step("downloading embedding model (jina-embeddings-v2-base-code, ~160MB)")
