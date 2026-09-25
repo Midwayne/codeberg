@@ -12,7 +12,7 @@ import (
 // pass-through). Used to warn on probable typos in `config set`.
 func KnownKeys() []string {
 	keys := []string{
-		KeyRoot, KeyModel, KeyDaemonURL, KeyHTTPPort, KeyEmbedModel, KeyIndexPath,
+		KeyRoot, KeyModel, KeyDaemonURL, KeyHTTPPort, KeyEmbedModel, KeyEmbedding, KeyIndexPath,
 		KeySocket, KeyPollMS, KeyIndexBin, KeyGitPullSec, KeyGitDir, KeyReasoning,
 		KeyVector, KeyWeb, KeyWebPort, KeyWebUse, KeySearxngURL, KeySearxngPort,
 		KeyAll, KeyReposSel, KeyNoIndex, KeyHome, KeyRepo, KeyDist,
@@ -47,6 +47,8 @@ func (c *Config) Get(key string) (string, bool) {
 		return c.HTTPPort, true
 	case KeyEmbedModel:
 		return c.EmbedModel, true
+	case KeyEmbedding:
+		return c.Embedding, true
 	case KeyIndexPath:
 		return c.IndexPath, true
 	case KeySocket:

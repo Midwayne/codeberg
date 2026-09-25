@@ -33,6 +33,8 @@ add_executable(test_index_providers test_index_providers.c)
 target_link_libraries(test_index_providers PRIVATE codeberg::codeberg index_provider_harness)
 add_test(NAME test_index_providers COMMAND test_index_providers)
 cberg_add_test(test_embed)
+cberg_add_test(test_embed_worker)
+target_compile_definitions(test_embed_worker PRIVATE CBERG_WORKER_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/embed_worker_mock.py")
 cberg_add_test(test_search)
 
 set_tests_properties(test_embed test_search PROPERTIES SKIP_RETURN_CODE 77)

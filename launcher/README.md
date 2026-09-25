@@ -81,6 +81,28 @@ chunk-only mode). Both are cached afterwards — **the model is downloaded once*
 into `~/.codeberg/models/` (not the repo), so it is reused across repo rebuilds,
 re-clones, and multiple checkouts and is **never re-pulled** while it is present.
 
+### Embedding model choice
+
+On a fresh interactive install, the launcher asks which embedding model to use
+**before downloading it**; select its number and press Enter. The default is
+Qwen3-Embedding-0.6B in **FP16** with MLX on Apple Silicon, or FP16 with
+llama.cpp elsewhere. Existing Jina installations retain their model and index.
+The menu also offers **4B** and MLX **BF16**, plus smaller 8-bit/4-bit downloads.
+For a non-interactive install or a later switch, use `--embedding` with a model
+ID such as `qwen3-fp16-mlx`, `qwen3-bf16-mlx`, `qwen3-4b-fp16-mlx`,
+`qwen3-4b-bf16-mlx`, `qwen3-fp16-llama`, `qwen3-4b-fp16-llama`, or
+`jina-onnx`. Save a choice with
+`codeberg config set CODEBERG_EMBEDDING_MODEL=qwen3-fp16-mlx`.
+
+MLX is prepared in a managed Python virtual environment; llama.cpp requires
+`llama-server` on PATH (or `CBERG_LLAMA_SERVER=/path/to/llama-server`). The Qwen
+FP16/BF16 0.6B weights are ~1.2 GB and 4B weights ~8 GB; the quantized
+alternatives use less space and memory. A model switch creates a separate index and sidecars
+under `~/.codeberg/index/<model-id>/`, so the first search re-embeds the source
+tree; switching back reuses the previous index. The original Jina index remains
+at `~/.codeberg/index/codeberg.usearch.*`. An explicitly configured
+`CBERG_INDEX_PATH` is also suffixed by the selected Qwen model ID.
+
 ### Dependencies (auto-installed)
 
 The build needs a C toolchain + `make`, **CMake**, **Go** ≥ 1.22, **Node** ≥ 22

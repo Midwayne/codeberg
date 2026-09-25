@@ -187,6 +187,7 @@ dist: build-core build-daemon build-agent build-web-ui build-dbmcp
 	cp "$(AGENT)/package.json" "$(AGENT)/package-lock.json" "$(DISTDIR)/libexec/agent/"
 	cd "$(DISTDIR)/libexec/agent" && npm ci --omit=dev --no-audit --no-fund
 	cp "$(ROOT)/scripts/fetch-model.sh" "$(DISTDIR)/libexec/scripts/"
+	cp "$(ROOT)/scripts/embedding_setup.py" "$(ROOT)/scripts/embedding_worker.py" "$(DISTDIR)/libexec/scripts/"
 	cp "$(DBMCP_BIN)" "$(DISTDIR)/libexec/build/dbmcp"
 	cd "$(LAUNCHER)" && go build \
 	  -ldflags "-X codeberg.org/codeberg/launcher/internal/config.BuildDist=$(DIST_PREFIX)" \

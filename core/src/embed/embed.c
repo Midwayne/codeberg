@@ -35,6 +35,9 @@ cberg_status cberg_embedder_open(const cberg_embed_config *config, cberg_embedde
     size_t dim = 0;
     cberg_status st;
     switch (config->provider) {
+    case CBERG_EMBED_WORKER:
+        st = cberg_worker_open(config, &impl, &dim);
+        break;
     case CBERG_EMBED_ONNX:
 #ifdef CBERG_WITH_ONNX
         st = cberg_onnx_open(config, &impl, &dim);
@@ -51,6 +54,9 @@ cberg_status cberg_embedder_open(const cberg_embed_config *config, cberg_embedde
 
     cberg_embedder *e = calloc(1, sizeof(*e));
     if (e == NULL) {
+        if (config->provider == CBERG_EMBED_WORKER) {
+            cberg_worker_close(impl);
+        }
 #ifdef CBERG_WITH_ONNX
         cberg_onnx_close(impl);
 #endif
@@ -83,6 +89,9 @@ cberg_status cberg_embedder_embed(cberg_embedder *embedder, const char *const *t
 
     cberg_status st;
     switch (embedder->provider) {
+    case CBERG_EMBED_WORKER:
+        st = cberg_worker_embed(embedder->impl, texts, text_lens, count, vectors);
+        break;
     case CBERG_EMBED_ONNX:
 #ifdef CBERG_WITH_ONNX
         st = cberg_onnx_embed(embedder->impl, texts, text_lens, count, vectors);
@@ -110,6 +119,9 @@ void cberg_embedder_close(cberg_embedder *embedder) {
         return;
     }
     switch (embedder->provider) {
+    case CBERG_EMBED_WORKER:
+        cberg_worker_close(embedder->impl);
+        break;
     case CBERG_EMBED_ONNX:
 #ifdef CBERG_WITH_ONNX
         cberg_onnx_close(embedder->impl);

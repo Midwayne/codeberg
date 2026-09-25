@@ -17,6 +17,10 @@ const (
 	EnvRoot         = "CODEBERG_ROOT"
 	EnvRoots        = "CODEBERG_ROOTS"
 	EnvModel        = "CBERG_MODEL"
+	EnvEmbedBackend = "CBERG_EMBED_BACKEND"
+	EnvEmbedWorker  = "CBERG_EMBED_WORKER"
+	EnvEmbedPython  = "CBERG_EMBED_PYTHON"
+	EnvLlamaServer  = "CBERG_LLAMA_SERVER"
 	EnvIndexPath    = "CBERG_INDEX_PATH"
 	EnvIndexBackend = "CBERG_INDEX_BACKEND"
 	EnvIndexQuant   = "CBERG_INDEX_QUANT"
@@ -41,6 +45,10 @@ type Indexer struct {
 	// single root's key, or "" in --all mode (where a repo must be explicit).
 	DefaultKey   string
 	Model        string
+	EmbedBackend string
+	EmbedWorker  string
+	EmbedPython  string
+	LlamaServer  string
 	Index        string
 	IndexBackend string
 	IndexQuant   string
@@ -124,6 +132,10 @@ func loadIndexer() (Indexer, error) {
 		Roots:        roots,
 		DefaultKey:   defaultKey,
 		Model:        model,
+		EmbedBackend: os.Getenv(EnvEmbedBackend),
+		EmbedWorker:  os.Getenv(EnvEmbedWorker),
+		EmbedPython:  os.Getenv(EnvEmbedPython),
+		LlamaServer:  os.Getenv(EnvLlamaServer),
 		Index:        indexPath,
 		IndexBackend: indexBackend,
 		IndexQuant:   indexQuant,

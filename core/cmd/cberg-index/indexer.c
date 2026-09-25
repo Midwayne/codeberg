@@ -1207,7 +1207,10 @@ cberg_status cberg_engine_open(cberg_engine *eng) {
             return CBERG_ERR_IO;
         }
         cberg_embed_config ecfg = {0};
-        ecfg.provider = CBERG_EMBED_ONNX;
+        const char *embed_backend = getenv("CBERG_EMBED_BACKEND");
+        ecfg.provider = (embed_backend != NULL &&
+                         (strcmp(embed_backend, "mlx") == 0 || strcmp(embed_backend, "llama") == 0))
+                            ? CBERG_EMBED_WORKER : CBERG_EMBED_ONNX;
         ecfg.model_path = eng->model_path;
         /* CBERG_EMBED_THREADS caps ONNX intra-op threads; unset or <= 0 uses all cores. */
         const char *embed_threads = getenv("CBERG_EMBED_THREADS");

@@ -14,17 +14,20 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"codeberg.org/codeberg/launcher/internal/bootstrap"
 	"codeberg.org/codeberg/launcher/internal/cleanindex"
 	"codeberg.org/codeberg/launcher/internal/config"
 	"codeberg.org/codeberg/launcher/internal/deps"
+	"codeberg.org/codeberg/launcher/internal/embedding"
 	"codeberg.org/codeberg/launcher/internal/registry"
 	"codeberg.org/codeberg/launcher/internal/run"
 	"codeberg.org/codeberg/launcher/internal/searxng"
@@ -86,6 +89,7 @@ func parseShared(name string, args []string) (*config.Overrides, error) {
 	fs.StringVar(&o.DaemonURL, "daemon-url", "", "daemon URL the agent queries")
 	fs.StringVar(&o.HTTPPort, "port", "", "daemon HTTP port (default 48080)")
 	fs.StringVar(&o.EmbedModel, "embed-model", "", "embedding model .onnx path")
+	fs.StringVar(&o.Embedding, "embedding", "", "embedding model ID (choose interactively on first run)")
 	fs.StringVar(&o.IndexPath, "index-path", "", "vector index base path")
 	fs.StringVar(&o.Socket, "socket", "", "cberg-index IPC socket path")
 	fs.StringVar(&o.Reasoning, "reasoning", "", "reasoning effort (low|medium|high|…)")
@@ -144,6 +148,9 @@ func cmdRun(args []string) error {
 	}
 	if created, _ := config.InitMcpFile(filepath.Join(c.Home, "mcp.json")); created {
 		fmt.Fprintf(os.Stderr, "› wrote a starter MCP config at %s\n", filepath.Join(c.Home, "mcp.json"))
+	}
+	if err := selectEmbedding(c, o); err != nil {
+		return err
 	}
 	if c.All && len(c.Repos) > 0 {
 		return fmt.Errorf("--all already serves every registered repo; use --repos to pick a subset instead")
@@ -209,12 +216,51 @@ func cmdBuild(args []string) error {
 	if err != nil {
 		return err
 	}
+	if err := selectEmbedding(c, o); err != nil {
+		return err
+	}
 	if _, prebuilt := c.ResolveRoot(); prebuilt {
 		fmt.Fprintln(os.Stderr, "running from a prebuilt install — nothing to build; checking the model only")
 	} else if c.Repo == "" {
 		return fmt.Errorf("no source checkout found; run inside it or pass --repo")
 	}
 	return bootstrap.Ensure(c, true)
+}
+
+// Prompt only before a first download. Existing Jina installations and explicit
+// paths keep their original model/index; a fresh interactive install offers one
+// keystroke to choose, and records the choice for subsequent runs.
+func selectEmbedding(c *config.Config, o *config.Overrides) error {
+	if !c.Vector || c.Embedding != "" || o.EmbedModel != "" || os.Getenv(config.KeyEmbedModel) != "" {
+		return nil
+	}
+	if _, err := os.Stat(c.EmbedModel); err == nil { return nil }
+	if matches, _ := filepath.Glob(c.IndexPath + ".*"); len(matches) > 0 { return nil }
+	if value, ok := c.Get(config.KeyEmbedding); ok && value != "" { return nil }
+	choice := embedding.Default()
+	if info, err := os.Stdin.Stat(); err == nil && info.Mode()&os.ModeCharDevice != 0 {
+		fmt.Fprintln(os.Stderr, "Choose an embedding model (before download):")
+		for i, model := range embedding.List() {
+			if model.ValidatePlatform() == nil {
+				fmt.Fprintf(os.Stderr, "  %d. %s\n", i+1, model.Label)
+			}
+		}
+		fmt.Fprintf(os.Stderr, "Selection [%s]: ", choice)
+		line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+		if err == nil && strings.TrimSpace(line) != "" {
+			n, err := strconv.Atoi(strings.TrimSpace(line))
+			all := embedding.List()
+			if err != nil || n < 1 || n > len(all) { return fmt.Errorf("invalid embedding choice %q", strings.TrimSpace(line)) }
+			choice = all[n-1].ID
+		}
+	}
+	model, _ := embedding.Lookup(choice)
+	if err := model.ValidatePlatform(); err != nil { return err }
+	o.Embedding = choice
+	resolved, err := config.Load(*o)
+	if err != nil { return err }
+	*c = *resolved
+	return config.SetValues(c.ConfigPath, map[string]string{config.KeyEmbedding: choice})
 }
 
 func cmdConfig(args []string) error {

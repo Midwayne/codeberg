@@ -165,8 +165,22 @@ func ensureSearxng(c *config.Config, force bool) {
 // ensureModel downloads the embedding model if absent, using the fetch-model.sh
 // that ships under root (the source checkout or the dist dir).
 func ensureModel(c *config.Config, root string) error {
-	if exists(c.EmbedModel) {
+	ready := exists(c.EmbedModel)
+	if c.EmbedBackend == "mlx" {
+		ready = ready && exists(filepath.Join(filepath.Dir(c.EmbedModel), "tokenizer.json")) &&
+			exists(filepath.Join(c.Home, "embedding-venv", "bin", "python"))
+	}
+	if ready {
 		skip("embedding model")
+		return nil
+	}
+	if c.EmbedBackend != "onnx" {
+		step("preparing embedding model " + c.Embedding)
+		cmd := exec.Command("python3", filepath.Join(root, "scripts", "embedding_setup.py"),
+			c.Embedding, c.EmbedModel, filepath.Join(c.Home, "embedding-venv"))
+		cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
+		if err := cmd.Run(); err != nil { return fmt.Errorf("embedding setup: %w", err) }
+		if !exists(c.EmbedModel) { return fmt.Errorf("embedding setup finished but %s is missing", c.EmbedModel) }
 		return nil
 	}
 	step("downloading embedding model (jina-embeddings-v2-base-code, ~160MB)")

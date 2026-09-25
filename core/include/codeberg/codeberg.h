@@ -377,6 +377,7 @@ CBERG_API cberg_status cberg_watcher_dirty_paths(cberg_watcher *watcher, const c
 
 typedef enum cberg_embed_provider {
     CBERG_EMBED_ONNX = 0,
+    CBERG_EMBED_WORKER = 1, /* persistent local MLX / llama.cpp worker */
 } cberg_embed_provider;
 
 typedef struct cberg_embed_config {

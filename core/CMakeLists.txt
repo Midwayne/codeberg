@@ -96,6 +96,7 @@ set(CBERG_SOURCES
   src/watch/watch_walk.c
   ${CBERG_WATCH_PLATFORM_SRC}
   src/embed/embed.c
+  src/embed/embed_worker.c
   src/search/index_config.c
   src/search/search.c
 )

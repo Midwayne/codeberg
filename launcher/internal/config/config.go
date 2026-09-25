@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"codeberg.org/codeberg/launcher/internal/embedding"
 	"codeberg.org/codeberg/launcher/internal/paths"
 	"codeberg.org/codeberg/launcher/internal/registry"
 )
@@ -25,36 +26,38 @@ import (
 // so a value works whether it is set in the config file, the environment, or
 // (via the matching flag) on the command line.
 const (
-	KeyRoot        = "CODEBERG_ROOT"                  // repo to index (daemon scope)
-	KeyRoots       = "CODEBERG_ROOTS"                 // key\tpath records of every served repo (daemon scope)
-	KeyAll         = "CODEBERG_ALL"                   // "true" => serve every registered repo
-	KeyReposSel    = "CODEBERG_REPOS"                 // comma-separated dirs/keys to serve together
-	KeyNoIndex     = "CODEBERG_NO_INDEX"              // "true" => register nothing, build no vector index
-	KeyModel       = "CODEBERG_MODEL"                 // LLM provider:model (agent scope)
-	KeyDaemonURL   = "CODEBERG_DAEMON_URL"            // agent -> daemon (agent scope)
-	KeyHTTPPort    = "CODEBERG_HTTP_PORT"             // daemon listen port (daemon scope)
-	KeyEmbedModel  = "CBERG_MODEL"                    // embedding model path (daemon scope)
-	KeyIndexPath   = "CBERG_INDEX_PATH"               // vector index base path (daemon scope)
-	KeySocket      = "CBERG_SOCKET"                   // cberg-index IPC socket (daemon scope)
-	KeyPollMS      = "CBERG_POLL_MS"                  // watcher poll ms (daemon scope)
-	KeyIndexBin    = "CBERG_INDEX_BIN"                // override cberg-index path (daemon scope)
-	KeyGitPullSec  = "CODEBERG_GIT_PULL_INTERVAL_SEC" // periodic git pull (daemon scope)
-	KeyGitDir      = "CODEBERG_GIT_DIR"               // git dir for pull (daemon scope)
-	KeyReasoning   = "CODEBERG_REASONING"             // reasoning effort (agent scope)
-	KeyVector      = "CODEBERG_VECTOR"                // "false" => chunk-only mode
-	KeyHome        = "CODEBERG_HOME"                  // launcher managed dir
-	KeyRepo        = "CODEBERG_REPO"                  // source checkout to build/run
-	KeyDist        = "CODEBERG_DIST"                  // prebuilt artifact dir (installs)
-	KeyWeb         = "CODEBERG_WEB"                   // "true" => serve browser UI not TUI
-	KeyWebPort     = "CODEBERG_WEB_PORT"              // web UI listen port (agent scope)
-	KeyWebUse      = "CODEBERG_WEB_USE"               // "false" => disable agent web tools (agent scope)
-	KeySearxngURL  = "CODEBERG_SEARXNG_URL"           // external SearXNG for web_search (agent scope)
-	KeySearxngPort = "CODEBERG_SEARXNG_PORT"          // preferred port for the managed SearXNG
-	KeyMcpUse      = "CODEBERG_MCP_USE"               // "false" => disable MCP tools (agent scope)
-	KeyMcpConfig   = "CODEBERG_MCP_CONFIG"            // extra mcp.json path(s), comma-separated (agent scope)
-	KeyDbmcpUse    = "CODEBERG_DBMCP_USE"             // "true" => built-in multi-db MCP (agent scope)
-	KeyDbmcpSpec   = "CODEBERG_DBMCP_SPEC"            // spec.yml path; default <home>/spec.yml (agent scope)
-	KeyDbmcpBin    = "CODEBERG_DBMCP_BIN"             // dbmcp binary override (agent scope)
+	KeyRoot         = "CODEBERG_ROOT"                  // repo to index (daemon scope)
+	KeyRoots        = "CODEBERG_ROOTS"                 // key\tpath records of every served repo (daemon scope)
+	KeyAll          = "CODEBERG_ALL"                   // "true" => serve every registered repo
+	KeyReposSel     = "CODEBERG_REPOS"                 // comma-separated dirs/keys to serve together
+	KeyNoIndex      = "CODEBERG_NO_INDEX"              // "true" => register nothing, build no vector index
+	KeyModel        = "CODEBERG_MODEL"                 // LLM provider:model (agent scope)
+	KeyDaemonURL    = "CODEBERG_DAEMON_URL"            // agent -> daemon (agent scope)
+	KeyHTTPPort     = "CODEBERG_HTTP_PORT"             // daemon listen port (daemon scope)
+	KeyEmbedModel   = "CBERG_MODEL"                    // embedding model path (daemon scope)
+	KeyEmbedding    = "CODEBERG_EMBEDDING_MODEL"       // registry selection (launcher scope)
+	KeyEmbedBackend = "CBERG_EMBED_BACKEND"            // ONNX, MLX, or llama.cpp (daemon scope)
+	KeyIndexPath    = "CBERG_INDEX_PATH"               // vector index base path (daemon scope)
+	KeySocket       = "CBERG_SOCKET"                   // cberg-index IPC socket (daemon scope)
+	KeyPollMS       = "CBERG_POLL_MS"                  // watcher poll ms (daemon scope)
+	KeyIndexBin     = "CBERG_INDEX_BIN"                // override cberg-index path (daemon scope)
+	KeyGitPullSec   = "CODEBERG_GIT_PULL_INTERVAL_SEC" // periodic git pull (daemon scope)
+	KeyGitDir       = "CODEBERG_GIT_DIR"               // git dir for pull (daemon scope)
+	KeyReasoning    = "CODEBERG_REASONING"             // reasoning effort (agent scope)
+	KeyVector       = "CODEBERG_VECTOR"                // "false" => chunk-only mode
+	KeyHome         = "CODEBERG_HOME"                  // launcher managed dir
+	KeyRepo         = "CODEBERG_REPO"                  // source checkout to build/run
+	KeyDist         = "CODEBERG_DIST"                  // prebuilt artifact dir (installs)
+	KeyWeb          = "CODEBERG_WEB"                   // "true" => serve browser UI not TUI
+	KeyWebPort      = "CODEBERG_WEB_PORT"              // web UI listen port (agent scope)
+	KeyWebUse       = "CODEBERG_WEB_USE"               // "false" => disable agent web tools (agent scope)
+	KeySearxngURL   = "CODEBERG_SEARXNG_URL"           // external SearXNG for web_search (agent scope)
+	KeySearxngPort  = "CODEBERG_SEARXNG_PORT"          // preferred port for the managed SearXNG
+	KeyMcpUse       = "CODEBERG_MCP_USE"               // "false" => disable MCP tools (agent scope)
+	KeyMcpConfig    = "CODEBERG_MCP_CONFIG"            // extra mcp.json path(s), comma-separated (agent scope)
+	KeyDbmcpUse     = "CODEBERG_DBMCP_USE"             // "true" => built-in multi-db MCP (agent scope)
+	KeyDbmcpSpec    = "CODEBERG_DBMCP_SPEC"            // spec.yml path; default <home>/spec.yml (agent scope)
+	KeyDbmcpBin     = "CODEBERG_DBMCP_BIN"             // dbmcp binary override (agent scope)
 )
 
 // DefaultSearxngPort is the preferred listen port for the launcher-managed
@@ -104,6 +107,7 @@ type Overrides struct {
 	DaemonURL  string
 	HTTPPort   string
 	EmbedModel string
+	Embedding  string
 	IndexPath  string
 	Socket     string
 	Reasoning  string
@@ -129,6 +133,8 @@ type Config struct {
 	DaemonURL   string
 	HTTPPort    string
 	EmbedModel  string
+	Embedding   string // registry model id, empty for a custom ONNX path
+	EmbedBackend string
 	IndexPath   string
 	Socket      string
 	PollMS      string
@@ -292,16 +298,40 @@ func Load(o Overrides) (*Config, error) {
 	// Embedding model: default under the managed home (not the repo) so it is
 	// downloaded once and reused across repo moves/re-clones and checkouts.
 	// Stored absolute so the daemon resolves it regardless of cwd.
+	c.Embedding = resolve(KeyEmbedding, o.Embedding)
 	embed := resolve(KeyEmbedModel, o.EmbedModel)
-	if embed == "" {
-		embed = filepath.Join(home, "models", "jina-embeddings-v2-base-code", "model.onnx")
+	if c.Embedding != "" {
+		model, err := embedding.Lookup(c.Embedding)
+		if err != nil {
+			return nil, err
+		}
+		if err := model.ValidatePlatform(); err != nil {
+			return nil, err
+		}
+		c.EmbedBackend = model.Backend
+		if embed == "" {
+			embed = model.Path(home)
+		}
+	} else {
+		c.EmbedBackend = "onnx"
+		if embed == "" {
+			embed = filepath.Join(home, "models", "jina-embeddings-v2-base-code", "model.onnx")
+		}
 	}
 	c.EmbedModel = abs(embed)
 
 	// Vector index lives under the managed home so it survives repo rebuilds.
 	idx := resolve(KeyIndexPath, o.IndexPath)
 	if idx == "" {
-		idx = filepath.Join(home, "index", "codeberg.usearch")
+		if c.Embedding != "" {
+			model, _ := embedding.Lookup(c.Embedding)
+			idx = model.IndexPath(home)
+		} else {
+			idx = filepath.Join(home, "index", "codeberg.usearch")
+		}
+	} else if c.Embedding != "" && c.Embedding != embedding.Jina {
+		// An explicit base may contain the legacy ONNX vectors; never reuse it.
+		idx = idx + "." + c.Embedding
 	}
 	c.IndexPath = abs(idx)
 
@@ -438,6 +468,17 @@ func (c *Config) DaemonEnv() map[string]string {
 	if c.Vector {
 		e[KeyEmbedModel] = c.EmbedModel
 		e[KeyIndexPath] = c.IndexPath
+		e[KeyEmbedBackend] = c.EmbedBackend
+		if c.EmbedBackend != "onnx" {
+			root, _ := c.ResolveRoot()
+			e["CBERG_EMBED_WORKER"] = filepath.Join(root, "scripts", "embedding_worker.py")
+			if c.EmbedBackend == "mlx" {
+				e["CBERG_EMBED_PYTHON"] = filepath.Join(c.Home, "embedding-venv", "bin", "python")
+			}
+			if bin := os.Getenv("CBERG_LLAMA_SERVER"); bin != "" {
+				e["CBERG_LLAMA_SERVER"] = bin
+			}
+		}
 	}
 	putIf(e, KeyPollMS, c.PollMS)
 	putIf(e, KeyIndexBin, c.IndexBin)
