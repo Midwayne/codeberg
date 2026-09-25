@@ -4,17 +4,14 @@ import {
   ToolLoopAgent,
   type ModelMessage,
   type LanguageModel,
-  type ToolSet,
 } from 'ai';
 
 import { DaemonClient, DaemonError } from './client.js';
 import { cachedInstructions, deterministicTools, requestProviderOptions } from './cache.js';
 import { EvidenceLedger } from './evidence.js';
-import { extractEvidence } from './evidence-extract.js';
 import { externalizeToolResults } from './context/externalize.js';
 import { publishSkills } from './context/skills.js';
 import { ContextStore, defaultContextRoot } from './context/store.js';
-import { contextToolSource } from './context/tools.js';
 import { wrapToolOutputs } from './context/wrap.js';
 import { fitHistory, totalTokens } from './history.js';
 import { fromAiSdk } from './generator.js';
@@ -28,7 +25,7 @@ import { prepareStepPatch } from './mcp/active.js';
 import { mcpConfigFromEnv } from './mcp/config.js';
 import { mcpToolSource, type McpToolSource } from './mcp/tools.js';
 import type { McpConfig } from './mcp/types.js';
-import { collectTools, daemonToolSource, searchCodeSource, webToolSource } from './tools/index.js';
+import { createAgentTools } from './tools/agent-tools.js';
 import { webConfigFromEnv } from './web/config.js';
 import type { WebConfig } from './web/types.js';
 import {
@@ -255,37 +252,21 @@ export class Agent implements Asker {
     return this.loop;
   }
 
-  private async buildTools(): Promise<ToolSet> {
-    // The agent's tools come from an ordered list of sources. search_code is
-    // first so it can't be shadowed; its hits flow back through a sink (not a
-    // reach into this.sources). Adding a capability is a new source here.
-    return collectTools([
-      searchCodeSource({
-        daemon: this.daemon,
-        defaultK: DEFAULT_SEARCH_K,
-        onResults: (hits) => this.sources.push(...hits),
-      }),
-      contextToolSource(this.context),
-      daemonToolSource({
-        daemon: this.daemon,
-        onToolResult: (name, output) => {
-          const hits = extractEvidence(name, output);
-          if (hits.length > 0) {
-            this.sources.push(...hits);
-          }
-        },
-      }),
-      webToolSource(this.web),
-      this.mcpSourceForBuild(),
-    ]);
-  }
-
-  private mcpSourceForBuild(): McpToolSource {
-    this.mcpSource = mcpToolSource({
-      config: this.mcp ?? mcpConfigFromEnv(),
+  private async buildTools() {
+    return createAgentTools({
+      daemon: this.daemon,
       context: this.context,
+      web: this.web,
+      mcp: () => {
+        this.mcpSource = mcpToolSource({
+          config: this.mcp ?? mcpConfigFromEnv(),
+          context: this.context,
+        });
+        return this.mcpSource;
+      },
+      defaultSearchK: DEFAULT_SEARCH_K,
+      onResults: (hits) => this.sources.push(...hits),
     });
-    return this.mcpSource;
   }
 }
 
