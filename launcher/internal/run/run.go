@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"codeberg.org/codeberg/launcher/internal/config"
+	"codeberg.org/codeberg/launcher/internal/deps"
 	"codeberg.org/codeberg/launcher/internal/searxng"
 )
 
@@ -68,6 +69,9 @@ func Run(c *config.Config) error {
 	node, err := exec.LookPath("node")
 	if err != nil {
 		return fmt.Errorf("node not found on PATH (the agent TUI needs Node >=22)")
+	}
+	if err := deps.CheckNode(node); err != nil {
+		return err
 	}
 
 	if err := os.MkdirAll(filepath.Dir(c.IndexPath), 0o755); err != nil {

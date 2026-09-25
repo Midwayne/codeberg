@@ -68,10 +68,15 @@ without naming the package, so install these up front:
 | C toolchain + `make` | compile `libcodeberg` / `cberg-index` | `xcode-select --install` | `build-essential` |
 | **CMake** | configure the C core | `brew install cmake` | `cmake` |
 | **Go** ≥ 1.22 | build `codeberg-d` (daemon) | `brew install go` | `golang-go` |
-| **Node** ≥ 22 + **npm** | build & run the TypeScript agent/TUI | `brew install node` | `nodejs npm` |
+| **Node** ≥ 22 + **npm** | build & run the TypeScript agent/TUI | `brew install node` | Install Node 22+ (distribution `nodejs` packages may be older) |
 | `git` | fetch the tree-sitter submodules | `brew install git` | `git` |
 | **ONNX Runtime** | vector embeddings (omit for chunk-only) | `brew install onnxruntime` | [release tarball](https://github.com/microsoft/onnxruntime/releases) or `ONNXRUNTIME_ROOT` |
 | **Python 3** ≥ 3.10 _(optional)_ | web search (`web_search` via SearXNG) | `brew install python` | `python3-venv python3-pip` |
+
+Check `node --version` in the shell that launches Codeberg. An older Node can
+start the web UI but fail on the first message because the AI SDK needs
+`AbortSignal.any`. Codeberg now checks the actual Node binary before starting
+the agent and points to the required upgrade instead of surfacing a chat error.
 
 The **ONNX Runtime** is a native library, not a CLI: CMake searches
 `/opt/homebrew/opt/onnxruntime`, `/usr/local`, `/opt/homebrew`, and `/usr`, or

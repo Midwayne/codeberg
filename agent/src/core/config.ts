@@ -4,6 +4,7 @@ import { defaultProviders } from '../providers/index.js';
 import { profileFor } from '../providers/profiles.js';
 import type { EntryConfig } from './entry.js';
 import type { ReasoningEffort } from './types.js';
+import { assertAgentRuntime } from './runtime.js';
 
 export interface AgentConfig {
   modelSpec: string;
@@ -32,6 +33,7 @@ export function reasoningFromEnv(
 }
 
 export function createAgent(config: AgentConfig): Agent {
+  assertAgentRuntime();
   const registry = defaultProviders();
   const model = registry.resolve(config.modelSpec);
   return new Agent({
