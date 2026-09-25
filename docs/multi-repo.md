@@ -155,11 +155,11 @@ This matters if you're consuming the HTTP API directly.
 `--all`/`--repos` index every selected repo **at daemon startup** (not lazily)
 — a first cold index of several large repos back-to-back through one shared
 embedder can take a while, so the wait scales with repo count on both sides:
-the launcher's own health-check wait is 5 minutes per repo (minimum 15,
-uncapped; override with `CODEBERG_HEALTH_TIMEOUT` as always), and the daemon's
-internal wait for the indexer is the same 5-minutes-per-repo but capped at 60
-minutes. A repo that already has a warm index (from a prior `codeberg <dir>`
-run) starts in seconds regardless of how many other repos are in the set —
+the launcher and daemon both wait 5 minutes per repo with a 15-minute minimum;
+the daemon's default is capped at 60 minutes. `CODEBERG_HEALTH_TIMEOUT` overrides
+both waits for an unusually large cold index. A repo that already has a warm
+index (from a prior `codeberg <dir>` run) starts in seconds regardless of how
+many other repos are in the set —
 bootstrap only re-chunks/re-embeds what changed per repo, same as single-repo
 mode.
 

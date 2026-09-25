@@ -1,13 +1,30 @@
 #!/usr/bin/env python3
 """Install a selected Qwen embedding model without touching other model files."""
 
+import importlib
 import os
 from pathlib import Path
 import shutil
 import subprocess
 import sys
+from types import SimpleNamespace
 import urllib.request
 import venv
+
+
+def _convert_mlx(repo: str, target: str, dtype: str) -> None:
+    converter = importlib.import_module("mlx_embeddings.convert")
+    # Hugging Face cache files are read-only. mlx-embeddings preserves that mode
+    # and then fails when it rewrites tokenizer.json and config.json.
+    def copy_writable(source, destination):
+        destination = Path(destination)
+        if destination.is_dir():
+            destination /= Path(source).name
+        return shutil.copyfile(source, destination)
+
+    converter.shutil = SimpleNamespace(copy=copy_writable)
+    converter.convert(hf_path=repo, mlx_path=target, dtype=dtype)
+
 
 def main(model_id: str, repo: str, target: str, venv_path: str) -> None:
     backend = "mlx" if model_id.endswith("mlx") else "llama"
@@ -28,8 +45,18 @@ def main(model_id: str, repo: str, target: str, venv_path: str) -> None:
             subprocess.run([python, "-m", "pip", "install", "mlx-embeddings==0.1.0"], check=True)
         if "fp16" in model_id or "bf16" in model_id:
             dtype = "bfloat16" if "bf16" in model_id else "float16"
-            subprocess.run([python, "-m", "mlx_embeddings.convert", "--hf-path", repo,
-                            "--mlx-path", str(dest.parent), "--dtype", dtype], check=True)
+            output = dest.parent
+            partial = output.with_name(output.name + ".part")
+            shutil.rmtree(partial, ignore_errors=True)
+            partial.mkdir(parents=True)
+            try:
+                subprocess.run([python, __file__, "--convert-mlx", repo, str(partial), dtype],
+                               check=True)
+            except BaseException:
+                shutil.rmtree(partial, ignore_errors=True)
+                raise
+            shutil.rmtree(output)
+            os.replace(partial, output)
         else:
             # Hub caches the weights; local_dir belongs to this variant alone.
             subprocess.run([python, "-c",
@@ -49,4 +76,7 @@ def main(model_id: str, repo: str, target: str, venv_path: str) -> None:
 
 
 if __name__ == "__main__":
-    main(*sys.argv[1:])
+    if len(sys.argv) > 1 and sys.argv[1] == "--convert-mlx":
+        _convert_mlx(*sys.argv[2:])
+    else:
+        main(*sys.argv[1:])

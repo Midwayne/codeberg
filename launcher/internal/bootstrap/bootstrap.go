@@ -172,7 +172,11 @@ func ensureModel(c *config.Config, root string) error {
 			exists(filepath.Join(c.Home, "embedding-venv", "bin", "python"))
 	}
 	if ready {
-		skip("embedding model")
+		label := c.Embedding
+		if label == "" {
+			label = c.EmbedModel
+		}
+		skip("embedding model " + label + " (" + c.EmbedBackend + ")")
 		return nil
 	}
 	if c.EmbedBackend != "onnx" {

@@ -466,7 +466,11 @@ func (c *Config) DaemonEnv() map[string]string {
 		}
 	}
 	if c.Vector {
-		e[KeyEmbedModel] = c.EmbedModel
+		embedModel := c.EmbedModel
+		if c.EmbedBackend == "mlx" {
+			embedModel = filepath.Dir(embedModel)
+		}
+		e[KeyEmbedModel] = embedModel
 		e[KeyIndexPath] = c.IndexPath
 		e[KeyEmbedBackend] = c.EmbedBackend
 		if c.EmbedBackend != "onnx" {

@@ -38,6 +38,11 @@ int main(void) {
     }
 
     fprintf(stderr, "cberg-index: %zu root(s) vectors=%d socket=%s\n", eng.repos_len, eng.vectors, eng.socket_path);
+    if (eng.vectors) {
+        const char *backend = getenv("CBERG_EMBED_BACKEND");
+        fprintf(stderr, "cberg-index: embedding backend=%s model=%s\n",
+                backend != NULL ? backend : "onnx", eng.model_path);
+    }
     for (size_t i = 0; i < eng.repos_len; i++) {
         cberg_repo *r = eng.repos[i];
         fprintf(stderr, "cberg-index[%s]: root=%s index=%s\n", r->key, r->root, r->index_path != NULL ? r->index_path : "(none)");

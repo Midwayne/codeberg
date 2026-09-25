@@ -112,6 +112,18 @@ func TestDaemonEnvRoots(t *testing.T) {
 	}
 }
 
+func TestDaemonEnvUsesMLXModelDirectory(t *testing.T) {
+	modelDir := filepath.Join(t.TempDir(), "qwen3-fp16-mlx")
+	c := &Config{
+		Vector:       true,
+		EmbedBackend: "mlx",
+		EmbedModel:   filepath.Join(modelDir, "model.safetensors"),
+	}
+	if got := c.DaemonEnv()[KeyEmbedModel]; got != modelDir {
+		t.Fatalf("MLX model path = %q, want directory %q", got, modelDir)
+	}
+}
+
 func TestNoIndexForcesVectorOff(t *testing.T) {
 	home := t.TempDir()
 	on := true
