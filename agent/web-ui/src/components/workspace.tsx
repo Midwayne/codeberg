@@ -22,7 +22,7 @@ export function Workspace({ sidebarOpen }: { sidebarOpen: boolean }) {
         />
       )}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <Chat chat={chat} onBranch={(index) => void branchFrom(index)} />
+        <Chat chat={chat} sessionId={sessionId} onBranch={(index) => void branchFrom(index)} />
       </div>
     </div>
   );

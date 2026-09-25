@@ -8,6 +8,7 @@ import { assertAgentRuntime } from './runtime.js';
 
 export interface AgentConfig {
   modelSpec: string;
+  subagentModelSpec?: string;
   daemonUrl: string;
   reasoning?: ReasoningEffort;
 }
@@ -36,8 +37,10 @@ export function createAgent(config: AgentConfig): Agent {
   assertAgentRuntime();
   const registry = defaultProviders();
   const model = registry.resolve(config.modelSpec);
+  const subagentModel = registry.resolve(config.subagentModelSpec ?? config.modelSpec);
   return new Agent({
     model,
+    subagentModel,
     daemon: new DaemonClient(config.daemonUrl),
     reasoning: config.reasoning,
     // Resolve the model's memory limit + caching strategy from the same spec so
@@ -49,6 +52,7 @@ export function createAgent(config: AgentConfig): Agent {
 export function createAgentFromEntry(entry: EntryConfig): Agent {
   return createAgent({
     modelSpec: entry.modelSpec,
+    subagentModelSpec: entry.subagentModelSpec,
     daemonUrl: entry.daemonUrl,
     reasoning: reasoningFromEnv(),
   });

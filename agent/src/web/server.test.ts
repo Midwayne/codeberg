@@ -6,6 +6,7 @@ import type { ServerResponse } from 'node:http';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { reasoningFromEnv } from '../core/config.js';
+import { LearningService } from '../core/learning/service.js';
 import {
   CHAT_PATH,
   COMMANDS_PATH,
@@ -44,6 +45,12 @@ function tempSessionStore(): WebSessionStore {
   const dir = mkdtempSync(join(tmpdir(), 'codeberg-web-sessions-'));
   tempDirs.push(dir);
   return new WebSessionStore(dir);
+}
+
+function tempLearning(): LearningService {
+  const dir = mkdtempSync(join(tmpdir(), 'codeberg-learning-'));
+  tempDirs.push(dir);
+  return new LearningService({ root: dir });
 }
 
 function makeStaticRoot(): string {
@@ -285,5 +292,55 @@ describe('web server', () => {
     expect((await fetch(`${baseUrl}${SESSIONS_PATH}/missing`)).status).toBe(404);
     // encoded `../` id is rejected before it can reach the filesystem
     expect((await fetch(`${baseUrl}${SESSIONS_PATH}/..%2f..%2fetc`)).status).toBe(400);
+  });
+
+  it('durably appends editable feedback and queues solved knowledge extraction', async () => {
+    const learning = tempLearning();
+    await start({ sessionStore: tempSessionStore(), learning });
+    const messages = [
+      { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'Where is X produced?' }] },
+      { id: 'a1', role: 'assistant', parts: [{ type: 'text', text: 'Builder.build produces X.' }] },
+    ];
+    await fetch(`${baseUrl}${SESSIONS_PATH}/conversation1`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'X', messages }),
+    });
+    const solved = await fetch(`${baseUrl}/api/learning/feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        conversation_id: 'conversation1',
+        message_id: 'a1',
+        rating: 3,
+        label: 'solved',
+      }),
+    });
+    expect(solved.status).toBe(201);
+    const solvedBody = await solved.json();
+    expect(solvedBody.jobStatus).toBe('pending');
+
+    const changed = await fetch(`${baseUrl}/api/learning/feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        conversation_id: 'conversation1',
+        message_id: 'a1',
+        rating: 1,
+        label: 'partially_useful',
+        reason: 'scheduled orders differ',
+      }),
+    });
+    expect(changed.status).toBe(201);
+    const events = await learning.store.events();
+    const feedback = events.flatMap((event) =>
+      event.type === 'feedback_recorded' ? [event.feedback] : [],
+    );
+    expect(feedback).toHaveLength(2);
+    expect(feedback[1].supersedes_feedback_id).toBe(feedback[0].feedback_id);
+
+    const params = new URLSearchParams({ conversation_id: 'conversation1', message_id: 'a1' });
+    const current = await (await fetch(`${baseUrl}/api/learning/feedback?${params}`)).json();
+    expect(current.label).toBe('partially_useful');
   });
 });

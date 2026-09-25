@@ -11,6 +11,7 @@ describe('parseEntryArgs', () => {
     );
     expect(entry).toEqual({
       modelSpec: 'openai:gpt-4o-mini',
+      subagentModelSpec: 'openai:gpt-4o-mini',
       question: 'how does auth work',
       daemonUrl: DEFAULT_DAEMON_URL,
     });
@@ -23,8 +24,17 @@ describe('parseEntryArgs', () => {
       CODEBERG_DAEMON_URL: 'http://localhost:9000',
     });
     expect(entry?.modelSpec).toBe('openai:gpt-4o');
+    expect(entry?.subagentModelSpec).toBe('openai:gpt-4o');
     expect(entry?.question).toBe('from env');
     expect(entry?.daemonUrl).toBe('http://localhost:9000');
+  });
+
+  it('supports an independent subagent model', () => {
+    const entry = parseEntryArgs(['node', 'cli'], {
+      CODEBERG_MODEL: 'openai:gpt-4o',
+      CODEBERG_SUBAGENT_MODEL: 'anthropic:claude-haiku',
+    });
+    expect(entry?.subagentModelSpec).toBe('anthropic:claude-haiku');
   });
 
   it('returns null without model spec', () => {
@@ -32,6 +42,6 @@ describe('parseEntryArgs', () => {
   });
 
   it('includes program name in usage', () => {
-    expect(entryUsage('codeberg-tui')).toContain('codeberg-tui');
+    expect(entryUsage('codeberg-web')).toContain('codeberg-web');
   });
 });

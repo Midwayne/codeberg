@@ -2,6 +2,7 @@ import { DEFAULT_DAEMON_URL } from './client.js';
 
 export interface EntryConfig {
   modelSpec: string;
+  subagentModelSpec?: string;
   question: string;
   daemonUrl: string;
 }
@@ -13,6 +14,7 @@ export function parseEntryArgs(
   const rest = argv.slice(2);
 
   const modelSpec = env.CODEBERG_MODEL ?? rest[0] ?? '';
+  const subagentModelSpec = env.CODEBERG_SUBAGENT_MODEL ?? modelSpec;
   const question =
     env.CODEBERG_QUESTION ?? (modelSpec === rest[0] ? rest.slice(1).join(' ') : rest.join(' '));
 
@@ -22,6 +24,7 @@ export function parseEntryArgs(
 
   return {
     modelSpec,
+    subagentModelSpec,
     question,
     daemonUrl: env.CODEBERG_DAEMON_URL ?? DEFAULT_DAEMON_URL,
   };
@@ -32,6 +35,7 @@ export function entryUsage(program: string): string {
     `Usage: ${program} [provider:model] <question>\n` +
     'Env: CODEBERG_DAEMON_URL (default ' + DEFAULT_DAEMON_URL + ')\n' +
     '     CODEBERG_MODEL=openai:gpt-4o-mini\n' +
+    '     CODEBERG_SUBAGENT_MODEL=openai:gpt-4o-mini (defaults to CODEBERG_MODEL)\n' +
     'Providers: openai, anthropic, google (when API keys set)'
   );
 }

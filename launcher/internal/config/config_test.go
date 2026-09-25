@@ -15,7 +15,7 @@ import (
 func writeArtifacts(t *testing.T, root string) {
 	t.Helper()
 	a := LocateArtifacts(root)
-	for _, p := range []string{a.DaemonBin, a.IndexBin, a.TUIScript} {
+	for _, p := range []string{a.DaemonBin, a.IndexBin, a.WebScript} {
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -73,6 +73,24 @@ func TestAllResolution(t *testing.T) {
 	}
 	if c.All {
 		t.Fatal("CLI --all=false should beat env")
+	}
+}
+
+func TestSubagentModelResolutionAndPropagation(t *testing.T) {
+	home := t.TempDir()
+	c, err := Load(Overrides{
+		Home:          home,
+		ConfigFile:    filepath.Join(home, "config"),
+		SubagentModel: "openai:gpt-4o-mini",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := c.AgentEnv()[KeySubagentModel]; got != "openai:gpt-4o-mini" {
+		t.Fatalf("subagent model env = %q", got)
+	}
+	if got, ok := c.Get(KeySubagentModel); !ok || got != "openai:gpt-4o-mini" {
+		t.Fatalf("Get(%s) = %q, %v", KeySubagentModel, got, ok)
 	}
 }
 

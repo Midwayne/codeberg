@@ -8,7 +8,7 @@ embed into vectors, search by meaning, and query a structural knowledge graph
 
 See [Prerequisites](#prerequisites) and [Build](#build), then run via the
 [`launcher/`](launcher/) — one `codeberg` command boots the daemon, indexer, and
-chat TUI, and auto-installs missing toolchains. `make dist` assembles a portable,
+browser chat, and auto-installs missing toolchains. `make dist` assembles a portable,
 prebuilt tree the launcher can run from anywhere (`codeberg --dist DIR`); packaged
 installers (a Homebrew tap) will build on that for a later release.
 [`launcher/internal/config/config.example`](launcher/internal/config/config.example) lists every launcher, daemon, and agent setting
@@ -52,7 +52,7 @@ for the CLI-level walkthrough.
 |------|------|
 | `core/` | C library — chunking, change tracking, watching, knowledge graph, ONNX embedding, usearch vector index ([docs](core/docs/)) |
 | `daemon/` | Go `codeberg-d` — HTTP, tools, git pull; supervises C `cberg-index` ([docs](daemon/README.md)) |
-| `agent/` | TypeScript ai-sdk agent — chat TUI + browser UI — over the daemon API ([docs](agent/README.md)) |
+| `agent/` | TypeScript ai-sdk agent — browser UI + one-shot CLI — over the daemon API ([docs](agent/README.md)) |
 | `launcher/` | Standalone `codeberg` CLI — boots the stack, resolves config, manages the repo registry ([docs](launcher/README.md)) |
 | `docs/` | Project overview, multi-repo guide, and links |
 
@@ -68,7 +68,7 @@ without naming the package, so install these up front:
 | C toolchain + `make` | compile `libcodeberg` / `cberg-index` | `xcode-select --install` | `build-essential` |
 | **CMake** | configure the C core | `brew install cmake` | `cmake` |
 | **Go** ≥ 1.22 | build `codeberg-d` (daemon) | `brew install go` | `golang-go` |
-| **Node** ≥ 22 + **npm** | build & run the TypeScript agent/TUI | `brew install node` | Install Node 22+ (distribution `nodejs` packages may be older) |
+| **Node** ≥ 22 + **npm** | build and run the TypeScript agent | `brew install node` | Install Node 22+ (distribution `nodejs` packages may be older) |
 | `git` | fetch the tree-sitter submodules | `brew install git` | `git` |
 | **ONNX Runtime** | vector embeddings (omit for chunk-only) | `brew install onnxruntime` | [release tarball](https://github.com/microsoft/onnxruntime/releases) or `ONNXRUNTIME_ROOT` |
 | **Python 3** ≥ 3.10 _(optional)_ | web search (`web_search` via SearXNG) | `brew install python` | `python3-venv python3-pip` |

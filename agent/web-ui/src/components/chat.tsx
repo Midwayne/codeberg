@@ -15,9 +15,11 @@ import { markerId } from '@/lib/message-rail';
 export function Chat({
   chat,
   onBranch,
+  sessionId,
 }: {
   chat: UseChatHelpers<UIMessage>;
   onBranch?: (throughIndex: number) => void;
+  sessionId: string;
 }) {
   const { messages, sendMessage, status, stop, regenerate, error } = chat;
   const busy = status === 'submitted' || status === 'streaming';
@@ -49,6 +51,7 @@ export function Chat({
                 key={m.id || `${m.role}-${i}`}
                 message={m}
                 domId={markerId(m, i)}
+                conversationId={sessionId}
                 onRegenerate={
                   !busy && m.role === 'assistant' && i === messages.length - 1
                     ? () => regenerate()

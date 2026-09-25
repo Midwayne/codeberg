@@ -10,7 +10,7 @@ type ToolPart = ToolContent[number];
 /**
  * The readable text of a model message: string content as-is, or the
  * concatenated text parts, ignoring tool-call/tool-result parts. The single
- * definition shared by the agent's history budgeter, the TUI command parser,
+ * definition shared by the agent's history budgeter,
  * and session titling — so handling a new content-part type is a one-line edit.
  */
 export function messageText(message: ModelMessage): string {

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { fileURLToPath } from 'node:url';
+import { createInterface } from 'node:readline/promises';
 
 import { createAgentFromEntry, reasoningFromEnv } from '../core/config.js';
 import { wrapToolLoopAgentWithCompaction } from '../core/compaction.js';
@@ -7,11 +8,10 @@ import { entryUsage, parseEntryArgs } from '../core/entry.js';
 import { createWebServer } from './server.js';
 import { formatWebTitle } from './title.js';
 
-// The browser counterpart to `codeberg-tui`: instead of ai-sdk's terminal
-// `runAgentTUI`, it serves a chat UI over HTTP. Both drive the exact same
-// `toolLoopAgent()` — the web route just streams that agent's UI-message output
-// to a browser client that owns the conversation state. Like the TUI, the
-// the CLI's seeded-question flow does not apply; pass `provider:model`.
+// Serves the interactive chat UI over HTTP. The route streams the shared
+// `toolLoopAgent()`'s UI-message output
+// to a browser client that owns the conversation state. The CLI's
+// seeded-question flow does not apply; pass `provider:model`.
 //
 // The web path now gets prompt caching, in-loop pruning (both ride on
 // `toolLoopAgent()`), AND cross-turn history compaction — the browser holds the
@@ -21,7 +21,7 @@ import { formatWebTitle } from './title.js';
 // Still missing (by design): the conversation-lifetime evidence ledger from
 // `Agent.ask`. It can't hang off the single shared agent without bleeding
 // evidence across conversations — the UI switches between saved sessions, which
-// are stateless on the server — so it stays a TUI/CLI-only optimization.
+// are stateless on the server — so it stays a CLI-only optimization.
 //
 // The port defaults to an uncommon high one (rather than the much-contended
 // 3000) so it rarely collides with another dev server, while staying below the
@@ -46,15 +46,13 @@ async function main(): Promise<void> {
   }
 
   const core = createAgentFromEntry(entry);
-  process.once('beforeExit', () => {
-    void core.close();
-  });
   const loop = await core.toolLoopAgent();
   // Budget the (browser-held, ever-growing) transcript to the model's window on
-  // every turn, the same policy the CLI/TUI apply.
+  // every turn, using the same policy as the CLI.
   const agent = wrapToolLoopAgentWithCompaction(loop, core.historyCompactor());
   const server = createWebServer({
     agent,
+    learning: core.learningService(),
     title: formatWebTitle(entry.modelSpec, reasoningFromEnv()),
     staticRoot: process.env.CODEBERG_WEB_ROOT ?? defaultStaticRoot(),
   });
@@ -62,6 +60,36 @@ async function main(): Promise<void> {
   const port = Number(process.env.CODEBERG_WEB_PORT ?? process.env.PORT ?? DEFAULT_PORT);
   server.listen(port, HOST, () => {
     console.error(`codeberg-web listening on http://${HOST}:${port}`);
+  });
+
+  let shuttingDown = false;
+  const shutdown = async (signal: NodeJS.Signals) => {
+    if (shuttingDown) {
+      process.exit(signal === 'SIGINT' ? 130 : 143);
+    }
+    shuttingDown = true;
+    const learning = core.learningService();
+    if (learning.isWorking() && process.stdin.isTTY && process.stdout.isTTY) {
+      const prompt = createInterface({ input: process.stdin, output: process.stdout });
+      try {
+        const answer = await prompt.question(
+          '1 knowledge update is still being processed. [W]ait / [E]xit anyway: ',
+        );
+        if (answer.trim().toLowerCase().startsWith('w')) {
+          await learning.waitForCurrent();
+        }
+      } finally {
+        prompt.close();
+      }
+    }
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await core.close();
+    process.exit(signal === 'SIGINT' ? 130 : 143);
+  };
+  process.once('SIGINT', () => void shutdown('SIGINT'));
+  process.once('SIGTERM', () => void shutdown('SIGTERM'));
+  process.once('beforeExit', () => {
+    void core.close();
   });
 }
 

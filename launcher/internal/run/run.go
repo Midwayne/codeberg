@@ -1,7 +1,6 @@
 // Package run owns process lifecycle: it starts codeberg-d (which itself spawns
 // and supervises the C cberg-index), waits for the daemon's /health to come up,
-// then runs the Node front end in the foreground — the terminal TUI by default,
-// or the browser-UI server (codeberg-web) when c.Web is set. When that front end
+// then runs the browser-UI server (codeberg-web) in the foreground. When it
 // exits — or the launcher is told to stop — it SIGTERMs the daemon, whose own
 // shutdown tears the core down with it.
 package run
@@ -54,7 +53,7 @@ func healthDeadline(repos int) time.Duration {
 	return d
 }
 
-// Run boots the daemon, waits for health, runs the TUI, and cleans up.
+// Run boots the daemon, waits for health, runs the browser UI, and cleans up.
 func Run(c *config.Config) error {
 	// root is where the binaries and agent live (a prebuilt dist or the source
 	// checkout's build tree); it is also the working directory for both children.
@@ -63,12 +62,12 @@ func Run(c *config.Config) error {
 	if _, err := os.Stat(a.DaemonBin); err != nil {
 		return fmt.Errorf("daemon binary missing (%s); run `codeberg build`", a.DaemonBin)
 	}
-	if _, err := os.Stat(a.TUIScript); err != nil {
-		return fmt.Errorf("agent TUI missing (%s); run `codeberg build`", a.TUIScript)
+	if _, err := os.Stat(a.WebScript); err != nil {
+		return fmt.Errorf("web UI server missing (%s); run `codeberg build`", a.WebScript)
 	}
 	node, err := exec.LookPath("node")
 	if err != nil {
-		return fmt.Errorf("node not found on PATH (the agent TUI needs Node >=22)")
+		return fmt.Errorf("node not found on PATH (the agent needs Node >=22)")
 	}
 	if err := deps.CheckNode(node); err != nil {
 		return err
@@ -90,7 +89,7 @@ func Run(c *config.Config) error {
 	// --- start the daemon -----------------------------------------------------
 	// Daemon + indexer output always goes to the log file, and is mirrored to the
 	// terminal only during startup — so the user watches files being chunked and
-	// embedded, without those logs corrupting the TUI once it takes over.
+	// embedded, without those logs interleaving with the web server once it starts.
 	progress := newStartupTee(logFile, os.Stderr)
 	daemon, err := startDaemon(a.DaemonBin, root, c, progress)
 	if err != nil {
@@ -190,9 +189,8 @@ func Run(c *config.Config) error {
 	}
 
 	// --- run the front end in the foreground ---------------------------------
-	// Either the terminal TUI or, with --web, the browser-UI server. Both share
-	// this terminal's process group: SIGINT (Ctrl-C) reaches the child, which
-	// uses it to interrupt generation (TUI) or to exit (web). SIGTERM means
+	// The browser UI shares this terminal's process group: SIGINT (Ctrl-C)
+	// reaches the child and exits it. SIGTERM means
 	// "shut down", so we stop the daemon and let the deferred teardown finish.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -206,24 +204,13 @@ func Run(c *config.Config) error {
 		}
 	}()
 
-	label := "chat"
-	script := a.TUIScript
-	if c.Web {
-		label = "browser chat UI"
-		script = a.WebScript
-		if _, err := os.Stat(script); err != nil {
-			return fmt.Errorf("web UI server missing (%s); run `codeberg build`", script)
-		}
-		url := fmt.Sprintf("http://127.0.0.1:%s", c.WebPort)
-		fmt.Fprintf(os.Stderr, "\n✓ daemon ready — serving the chat UI at %s\n  (opening your browser; press Ctrl-C here to stop)\n\n", url)
-		// The server binds a moment after node starts, so wait for the port to
-		// accept connections before opening the browser — best effort.
-		go openBrowserWhenReady(c.WebPort)
-	} else {
-		fmt.Fprintf(os.Stderr, "\n✓ daemon ready at %s — launching chat\n\n", c.DaemonURL)
-	}
+	url := fmt.Sprintf("http://127.0.0.1:%s", c.WebPort)
+	fmt.Fprintf(os.Stderr, "\n✓ daemon ready — serving the chat UI at %s\n  (opening your browser; press Ctrl-C here to stop)\n\n", url)
+	// The server binds a moment after node starts, so wait for the port to
+	// accept connections before opening the browser — best effort.
+	go openBrowserWhenReady(c.WebPort)
 
-	front := exec.Command(node, script)
+	front := exec.Command(node, a.WebScript)
 	front.Dir = root
 	front.Env = mergeEnv(os.Environ(), agentEnv)
 	front.Stdin = os.Stdin
@@ -239,7 +226,7 @@ func Run(c *config.Config) error {
 				return nil
 			}
 		}
-		return fmt.Errorf("agent %s exited: %w", label, err)
+		return fmt.Errorf("browser chat UI exited: %w", err)
 	}
 	return nil
 }
@@ -280,7 +267,7 @@ func openBrowser(url string) {
 // background, publishing the running manager via mu/dst once it is ready. It is
 // best effort: any problem is logged and leaves web_search unavailable (fetch_url
 // still works). There are no interactive steps — python is auto-installed only by
-// `codeberg build`, never here under a live TUI — and the context cancels an
+// `codeberg build`, never here under a live chat — and the context cancels an
 // in-flight install so teardown never blocks.
 func bringUpSearch(
 	ctx context.Context,
@@ -334,8 +321,7 @@ func startDaemon(bin, root string, c *config.Config, out io.Writer) (*exec.Cmd, 
 
 // startupTee records daemon/indexer output to the log unconditionally, and
 // mirrors it to the terminal only while "live" — i.e. during startup, so the
-// user sees indexing/embedding progress, but the stream stops before the TUI
-// owns the screen.
+// user sees indexing/embedding progress before the browser UI starts.
 type startupTee struct {
 	mu   sync.Mutex
 	log  io.Writer

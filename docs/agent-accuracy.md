@@ -162,7 +162,7 @@ answer cites nothing verifiable. This is the trust gap.
   are non-empty / plausibly related. Produce a `CitationReport`
   (`valid`, `invalid`, `unverifiable`).
 - **Surface it**: attach the report to `AskResult` (e.g. `result.citations`) and
-  let the TUI/web flag invalid citations. v1 = verify-and-report; a later
+  let the web UI flag invalid citations. v1 = verify-and-report; a later
   iteration can feed invalid citations back for a repair round.
 - **Evidence capture**: fold `grep`/`read_file` tool calls into the
   `EvidenceLedger` (today only `search_code` contributes), so the ledger and the

@@ -23,9 +23,9 @@ changes may occur in minor releases and are called out explicitly.
   without mutating the original. In the browser chat: **Branch from here**
   on a message or tick-rail preview, or **Branch chat** in the sidebar.
   Picking a user prompt includes its assistant reply so the branch starts
-  on a complete turn. TUI: `/branch` (alias `/fork`). Branched sessions
-  store `parentId`. Shared helpers live in `agent/src/core/branch.ts`;
-  session ownership stays in the TUI wrapper and the web `Workspace`.
+  on a complete turn. Branched sessions store `parentId`. Shared helpers live
+  in `agent/src/core/branch.ts`; session ownership stays in the web `Workspace`.
+
 - **Chat message rail** — a ChatGPT-style tick rail on the right of the
   browser chat. Each tick is a user prompt: hover (or keyboard focus)
   previews the text, click/Enter jumps to that message. Ticks follow
@@ -127,6 +127,12 @@ changes may occur in minor releases and are called out explicitly.
 - **Agent prompt strategy** — documents chunk-first workflow (`search_code` →
   `get_chunk` → `read_file` when chunk span is insufficient), symbol lookup,
   hybrid search, and reference finding.
+
+### Removed
+
+- **Terminal TUI** — `codeberg-tui`, its session/command implementation, and
+  `@ai-sdk/tui` were removed. `codeberg` now always launches the browser UI;
+  `--web` and `CODEBERG_WEB` are no longer needed.
 
 ### Changed
 

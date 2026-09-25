@@ -1,9 +1,9 @@
 // Command codeberg is the one-shot launcher for the code-search stack. It loads
 // config, makes sure the core, daemon, and agent are built (and the embedding
 // model downloaded), starts the daemon (which brings up the C indexer), waits
-// for it to be healthy, and hands the terminal to the agent TUI.
+// for it to be healthy, and opens the browser agent.
 //
-//	codeberg                 boot everything and open the chat TUI
+//	codeberg                 boot everything and open the browser chat
 //	codeberg build           (re)build/download the components and model
 //	codeberg doctor          check toolchains, binaries, and resolved config
 //	codeberg config [init]   print resolved config, or write a template file
@@ -61,6 +61,8 @@ func dispatch(args []string) error {
 		return cmdCleanIndex(args)
 	case "repos":
 		return cmdRepos(args)
+	case "learning":
+		return cmdLearning(args)
 	case "uninstall":
 		return cmdUninstall(args)
 	case "version", "--version", "-v":
@@ -79,6 +81,27 @@ func dispatch(args []string) error {
 	}
 }
 
+func cmdLearning(args []string) error {
+	c, err := config.Load(config.Overrides{})
+	if err != nil {
+		return err
+	}
+	root, _ := c.ResolveRoot()
+	if root == "" {
+		return fmt.Errorf("could not locate codeberg installation")
+	}
+	script := config.LocateArtifacts(root).LearningScript
+	if _, err := os.Stat(script); err != nil {
+		return fmt.Errorf("learning CLI is not built at %s; run codeberg build", script)
+	}
+	command := exec.Command("node", append([]string{script}, args...)...)
+	command.Stdin = os.Stdin
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
+	command.Env = append(os.Environ(), config.KeyHome+"="+c.Home)
+	return command.Run()
+}
+
 // parseShared parses args into overrides, wiring the --vector/--no-vector pair.
 func parseShared(name string, args []string) (*config.Overrides, error) {
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
@@ -86,6 +109,7 @@ func parseShared(name string, args []string) (*config.Overrides, error) {
 	fs.StringVar(&o.Root, "root", "", "repository tree to index (CODEBERG_ROOT)")
 	fs.StringVar(&o.Repos, "repos", "", "comma-separated dirs or repo keys to serve together (CODEBERG_REPOS)")
 	fs.StringVar(&o.Model, "model", "", "LLM as provider:model (CODEBERG_MODEL)")
+	fs.StringVar(&o.SubagentModel, "subagent-model", "", "background/subagent LLM as provider:model")
 	fs.StringVar(&o.DaemonURL, "daemon-url", "", "daemon URL the agent queries")
 	fs.StringVar(&o.HTTPPort, "port", "", "daemon HTTP port (default 48080)")
 	fs.StringVar(&o.EmbedModel, "embed-model", "", "embedding model .onnx path")
@@ -100,7 +124,6 @@ func parseShared(name string, args []string) (*config.Overrides, error) {
 	fs.StringVar(&o.WebPort, "web-port", "", "web UI port (default "+config.DefaultWebPort+")")
 	noVector := fs.Bool("no-vector", false, "chunk-only mode (skip embedding model)")
 	vector := fs.Bool("vector", false, "force vector search on")
-	web := fs.Bool("web", false, "serve the browser chat UI instead of the terminal TUI")
 	all := fs.Bool("all", false, "search across every previously indexed repo (see `codeberg repos`)")
 	noIndex := fs.Bool("no-index", false, "one-off run: register nothing, build no vector index (search off)")
 	fs.Usage = func() {
@@ -117,10 +140,6 @@ func parseShared(name string, args []string) (*config.Overrides, error) {
 	if *vector {
 		v := true
 		o.Vector = &v
-	}
-	if *web {
-		v := true
-		o.Web = &v
 	}
 	if *all {
 		v := true
@@ -547,8 +566,7 @@ func cmdDoctor(args []string) error {
 		a := config.LocateArtifacts(root)
 		reportFile("cberg-index (core)", a.IndexBin)
 		reportFile("codeberg-d (daemon)", a.DaemonBin)
-		reportFile("agent TUI", a.TUIScript)
-		reportFile("agent web UI (--web)", a.WebScript)
+		reportFile("agent web UI", a.WebScript)
 	}
 	if c.Vector {
 		reportFile("embedding model", c.EmbedModel)
@@ -603,22 +621,22 @@ func reportFile(label, path string) {
 func isFlag(s string) bool { return len(s) > 0 && s[0] == '-' }
 
 func usage(w *os.File) {
-	fmt.Fprint(w, `codeberg — launch the code-search stack (core + daemon + agent TUI)
+	fmt.Fprint(w, `codeberg — launch the code-search stack (core + daemon + browser agent)
 
 One command builds anything missing, starts the daemon (which brings up the C
 indexer), waits for it to be healthy, and opens the agent chat — like claude.
 
 USAGE
-  codeberg [flags]               boot everything and open the chat TUI
+  codeberg [flags]               boot everything and open the browser chat
   codeberg <dir>                 index/search that directory (same as --root <dir>)
   codeberg --all [flags]         search every previously indexed repo combined
   codeberg --repos a,b [flags]   serve a chosen set of dirs and/or repo keys
   codeberg --no-index [flags]    one-off run: register nothing, build no index
-  codeberg --web [flags]         …or open the chat in a browser instead of the TUI
   codeberg build [flags]         (re)build/download components and the model
   codeberg doctor                check toolchains, binaries, and resolved config
   codeberg config [sub]          view/change configuration (see below)
   codeberg repos                 list registered repos (what --all will search)
+  codeberg learning <command>    search learning/knowledge or export datasets
   codeberg clean-index [--dry-run]  prune cached per-directory vector indexes
   codeberg uninstall             remove the command; ask before deleting data
   codeberg version
@@ -662,16 +680,15 @@ KEY SETTINGS
   CODEBERG_REPOS    comma-separated dirs/keys to serve (--repos); requires unset ROOT
   CODEBERG_NO_INDEX true = register nothing, no index  (--no-index)
   CODEBERG_MODEL    LLM as provider:model          (--model)
+  CODEBERG_SUBAGENT_MODEL  background knowledge model; defaults to CODEBERG_MODEL
   CODEBERG_VECTOR   false = chunk-only, skip model (--no-vector)
   CODEBERG_HTTP_PORT  daemon port (default 48080)  (--port)
-  CODEBERG_WEB      true = open the browser UI      (--web)
   CODEBERG_WEB_PORT   browser UI port (default 48088)  (--web-port)
   CODEBERG_REASONING  reasoning effort             (--reasoning)
   CODEBERG_MCP_USE    false = disable MCP servers from mcp.json
   CODEBERG_DBMCP_USE  true = built-in database MCP (needs ~/.codeberg/spec.yml)
   ANTHROPIC_API_KEY / OPENAI_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY
 
-Note: there is no in-chat /help or /config — the chat UI is a third-party TUI
-with no slash commands. Configure from this CLI (above) instead.
+Note: there is no in-chat /config. Configure from this CLI (above) instead.
 `)
 }

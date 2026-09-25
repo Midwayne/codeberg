@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import { readJson, sendJson, sendText } from './http.js';
 import { WebSessionStore, isValidSessionId } from './sessions.js';
+import type { LearningService } from '../core/learning/service.js';
 
 const SESSIONS_PATH = '/api/sessions';
 
@@ -11,6 +12,7 @@ export async function routeSessions(
   res: ServerResponse,
   store: WebSessionStore,
   path: string,
+  learning?: LearningService,
 ): Promise<void> {
   const rest = decodeURIComponent(path.slice(SESSIONS_PATH.length).replace(/^\//, ''));
 
@@ -48,6 +50,7 @@ export async function routeSessions(
         messages,
         ...(parentId ? { parentId } : {}),
       });
+      await learning?.recordSession(id, messages, parentId);
       return sendJson(res, 200, { ok: true });
     }
     case 'DELETE': {

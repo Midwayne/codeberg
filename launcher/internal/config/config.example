@@ -8,7 +8,7 @@
 #
 # Direct development without the launcher:
 #   daemon/.env.example  — run `make run-daemon` / codeberg-d
-#   agent/.env.example   — run `make run-agent` / codeberg-tui / codeberg-web
+#   agent/.env.example   — run `make run-agent` / codeberg-web
 #
 # Keys marked "env only" are not read from this file by the launcher today; export
 # them in the shell (or use daemon/.env / agent/.env when running components alone).
@@ -41,6 +41,10 @@ CODEBERG_ROOT=/path/to/your/repo
 # LLM the agent uses, as provider:model.
 # Providers: anthropic, openai, google, ollama (local), llamacpp (local).
 CODEBERG_MODEL=anthropic:claude-haiku-4-5
+
+# Model used by background knowledge extraction/subagents. Defaults to
+# CODEBERG_MODEL when unset.
+# CODEBERG_SUBAGENT_MODEL=anthropic:claude-haiku-4-5
 
 # API key matching CODEBERG_MODEL (ollama and llamacpp need none).
 # ANTHROPIC_API_KEY=
@@ -143,10 +147,7 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # Daemon the agent queries over HTTP (default http://127.0.0.1:<CODEBERG_HTTP_PORT>).
 # CODEBERG_DAEMON_URL=http://127.0.0.1:48080
 
-# Open the chat in a browser instead of the terminal TUI (or pass --web).
-# CODEBERG_WEB=false
-
-# Browser UI listen port when CODEBERG_WEB is true (default 48088).
+# Browser UI listen port (default 48088).
 # CODEBERG_WEB_PORT=48088
 
 # Static files for codeberg-web (default: agent/web-ui/dist beside the bundle).

@@ -3,18 +3,16 @@
 One command to boot the whole code-search stack and drop you into the agent
 chat — the way `claude` opens. It builds/downloads whatever is missing, starts
 the daemon (which brings up the C indexer), waits for it to be healthy, and
-hands the terminal to the agent TUI.
+opens the browser chat UI.
 
 ```sh
-codeberg            # boot everything, open the chat TUI
-codeberg --web      # …or open the chat in your browser instead
+codeberg            # boot everything and open the browser chat
 ```
 
-`--web` runs the same agent behind a local HTTP server (`codeberg-web`) and opens
-the browser chat at `http://127.0.0.1:48088` — an uncommon high port (not the
+The agent runs behind a local HTTP server (`codeberg-web`) and opens the browser
+chat at `http://127.0.0.1:48088` — an uncommon high port (not the
 much-contended 3000), grouped just past the daemon's 48080. Override it with
-`--web-port` / `CODEBERG_WEB_PORT`, or make web the default with
-`CODEBERG_WEB=true`.
+`--web-port` / `CODEBERG_WEB_PORT`.
 
 ## Why it's a separate component
 
@@ -24,21 +22,20 @@ them as subprocesses / talks to the daemon over HTTP. That keeps the three
 components individually buildable and lets the launcher itself grow into
 something deployable on its own (e.g. a cloud entrypoint) later.
 
-## What "start core, then daemon, then TUI" really is
+## What startup really does
 
 The daemon already **supervises the core**: `codeberg-d` spawns `cberg-index`,
 restarts it on crash, and kills it on shutdown. So there are only two processes
-to launch — the daemon and the TUI — and the launcher manages both:
+to launch — the daemon and the browser UI server — and the launcher manages both:
 
 ```
 codeberg
   ├─ ensure deps:  cmake, go, node/npm, git, onnxruntime  (auto-install: brew/apt)
-  ├─ ensure built: make build-daemon (core+daemon), make build-agent (TUI)
+  ├─ ensure built: make build-daemon (core+daemon), make build-agent + build-web-ui
   ├─ ensure model: scripts/fetch-model.sh   (vector mode only)
   ├─ start codeberg-d ──spawns──▶ cberg-index      (logs: ~/.codeberg/logs)
   ├─ poll GET /health until ready  (first cold index is slow — up to 15m)
-  └─ exec  node agent/dist/tui.js   (your terminal)
-        │     …or with --web: node agent/dist/web.js, then open the browser
+  └─ exec  node agent/dist/web.js, then open the browser
         └─ on exit / SIGTERM ▶ stop daemon ▶ daemon stops the core
 ```
 
@@ -145,14 +142,15 @@ index and come up in seconds.
 Config is resolved from four layers, **highest precedence first**:
 
 1. CLI flags (`--root`, `--all`, `--repos`, `--no-index`, `--model`, `--port`, `--no-vector`, …)
-2. process environment (`CODEBERG_ROOT`, `CODEBERG_ALL`, `CODEBERG_REPOS`, `CODEBERG_NO_INDEX`, `CODEBERG_MODEL`, `ANTHROPIC_API_KEY`, …)
+2. process environment (`CODEBERG_ROOT`, `CODEBERG_ALL`, `CODEBERG_REPOS`, `CODEBERG_NO_INDEX`, `CODEBERG_MODEL`, `CODEBERG_SUBAGENT_MODEL`, `ANTHROPIC_API_KEY`, …)
 3. `~/.codeberg/config` (KEY=VALUE; same names as the env vars). See
    [`launcher/internal/config/config.example`](internal/config/config.example) for every supported key.
 4. built-in defaults
 
 The launcher splits these back into the two scopes the components read —
 **daemon scope** (`CODEBERG_ROOT`, `CBERG_MODEL` embedding model, `CBERG_INDEX_PATH`,
-port, socket) and **agent scope** (`CODEBERG_MODEL` LLM, `CODEBERG_DAEMON_URL`,
+port, socket) and **agent scope** (`CODEBERG_MODEL` LLM,
+`CODEBERG_SUBAGENT_MODEL` background knowledge LLM, `CODEBERG_DAEMON_URL`,
 `CODEBERG_REASONING`, API keys) — and injects each into the right child process.
 The daemon never receives the LLM key.
 
@@ -180,24 +178,20 @@ codeberg --root ~/proj --model anthropic:claude-haiku-4-5   # one-off overrides
 preserves your comments; `config get` prints the fully-resolved value across all
 layers. See `codeberg help` for common workflows.
 
-> **Note on editing config inside the chat.** The agent's chat UI is
-> `@ai-sdk/tui`'s `runAgentTUI`, which exposes no slash commands or settings
-> hooks — so there is no mid-chat `/config` yet. For now config lives in the
-> file + flags above. (Changing `CODEBERG_ROOT` or the embedding model requires
-> a daemon restart regardless, since the core reads them at startup.) A richer
-> in-app settings experience would mean replacing that TUI; it's intentionally
-> left as a later step.
+> **Note on editing config inside the chat.** There is no mid-chat `/config`.
+> Configuration lives in the file and flags above; changing `CODEBERG_ROOT` or
+> the embedding model requires a daemon restart because the core reads them at
+> startup.
 
 ## Commands
 
 | Command | Does |
 |---|---|
-| `codeberg` / `codeberg run` | bootstrap if needed, then boot daemon + TUI |
+| `codeberg` / `codeberg run` | bootstrap if needed, then boot daemon + browser UI |
 | `codeberg <dir>` | shorthand for `--root <dir>`; also registers the repo |
 | `codeberg --all` | search every registered repo, combined |
 | `codeberg --repos a,b` | search a chosen subset of dirs/keys, combined |
 | `codeberg --no-index` | one-off run: register nothing, build no vector index |
-| `codeberg --web` | same, but serve the browser chat UI instead of the TUI |
 | `codeberg repos` | list registered repos (what `--all` searches) |
 | `codeberg build` | force (re)build/download of components and model |
 | `codeberg doctor` | toolchain + artifact + config diagnostics |
@@ -278,5 +272,5 @@ launcher/
   internal/config/           four-layer config resolution + template
   internal/deps/             toolchain/library preflight + auto-install (brew/apt)
   internal/bootstrap/        build/download components and model
-  internal/run/              daemon start, /health wait, TUI, teardown
+  internal/run/              daemon start, /health wait, browser UI, teardown
 ```

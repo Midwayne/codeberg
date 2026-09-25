@@ -8,6 +8,8 @@ import { readJson, sendJson, sendText } from './http.js';
 import { routeSessions } from './session-routes.js';
 import { serveStatic } from './static.js';
 import { WebSessionStore } from './sessions.js';
+import { LEARNING_PATH, routeLearning } from './learning-routes.js';
+import type { LearningService } from '../core/learning/service.js';
 
 /** The endpoint the browser chat client posts its message history to. */
 export const CHAT_PATH = '/api/chat';
@@ -17,12 +19,13 @@ export const META_PATH = '/api/meta';
 export const COMMANDS_PATH = '/api/commands';
 /** Saved-chat CRUD: list (`GET`), and load/save/delete one at `/api/sessions/<id>`. */
 export const SESSIONS_PATH = '/api/sessions';
+export { LEARNING_PATH };
 
 /** Streams an agent turn to a Node response, given the client's UI messages. */
 export type ChatResponder = (res: ServerResponse, messages: unknown[]) => Promise<void>;
 
 export interface WebServerOptions {
-  /** The ai-sdk agent driving each turn — the same one `runAgentTUI` uses. */
+  /** The ai-sdk agent driving each turn. */
   agent: ToolLoopAgent;
   /** Shown in the page title bar; also returned from `/api/meta`. */
   title: string;
@@ -44,6 +47,8 @@ export interface WebServerOptions {
    * web-sessions`; inject one (e.g. a temp dir) in tests.
    */
   sessionStore?: WebSessionStore;
+  /** Durable interaction/feedback/knowledge subsystem. */
+  learning?: LearningService;
   /**
    * Slash commands served at `/api/commands` for the composer autocomplete.
    * Defaults to the built-in hook catalog, so a newly registered prompt hook
@@ -57,8 +62,7 @@ export interface WebServerOptions {
  *
  * The chat route is intentionally stateless: the client holds the conversation
  * and posts the full message array each turn, so a request maps straight onto
- * `pipeAgentUIStreamToResponse` — no server-side session (unlike the TUI, which
- * layers its own session store onto runAgentTUI's single seam).
+ * `pipeAgentUIStreamToResponse`; persistence is handled by the session routes.
  */
 export function createRequestHandler(
   opts: WebServerOptions,
@@ -92,7 +96,8 @@ async function route(
   respond: ChatResponder,
   sessions: WebSessionStore,
 ): Promise<void> {
-  const path = (req.url ?? '/').split('?')[0];
+  const url = new URL(req.url ?? '/', 'http://localhost');
+  const path = url.pathname;
 
   if (req.method === 'POST' && path === CHAT_PATH) {
     const body = await readJson(req);
@@ -113,7 +118,12 @@ async function route(
   }
 
   if (path === SESSIONS_PATH || path.startsWith(SESSIONS_PATH + '/')) {
-    await routeSessions(req, res, sessions, path);
+    await routeSessions(req, res, sessions, path, opts.learning);
+    return;
+  }
+
+  if (opts.learning && (path === LEARNING_PATH || path.startsWith(LEARNING_PATH + '/'))) {
+    await routeLearning(req, res, opts.learning, sessions, url);
     return;
   }
 

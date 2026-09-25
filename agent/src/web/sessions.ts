@@ -50,9 +50,7 @@ function countTurns(messages: UIMessage[]): number {
  * file are swallowed where that keeps the UI usable (a corrupt file must not hide
  * the other sessions or break the live chat).
  *
- * Deliberately separate from the TUI's `SessionStore`, which persists
- * `ModelMessage`s: converting between the UI and model shapes is lossy, so each
- * surface keeps its native format rather than sharing one store.
+ * Persists the browser's native UI-message format so resume remains lossless.
  */
 export class WebSessionStore {
   private readonly dir: string;

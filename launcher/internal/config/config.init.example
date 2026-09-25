@@ -12,6 +12,9 @@ CODEBERG_ROOT=/path/to/your/repo
 # LLM as provider:model (anthropic, openai, google, ollama, llamacpp).
 CODEBERG_MODEL=anthropic:claude-haiku-4-5
 
+# Optional model for background knowledge extraction; defaults to CODEBERG_MODEL.
+# CODEBERG_SUBAGENT_MODEL=anthropic:claude-haiku-4-5
+
 # API key matching CODEBERG_MODEL (ollama and llamacpp need none).
 # ANTHROPIC_API_KEY=
 # OPENAI_API_KEY=
@@ -22,7 +25,6 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # CODEBERG_VECTOR=true
 # Embedding model selected at first run; change to switch without deleting old indexes.
 # CODEBERG_EMBEDDING_MODEL=qwen3-fp16-mlx
-# CODEBERG_WEB=false
 # CODEBERG_WEB_PORT=48088
 # CODEBERG_REASONING=medium
 # CODEBERG_WEB_USE=true

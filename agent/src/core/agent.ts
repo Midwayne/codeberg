@@ -26,6 +26,7 @@ import { mcpConfigFromEnv } from './mcp/config.js';
 import { mcpToolSource, type McpToolSource } from './mcp/tools.js';
 import type { McpConfig } from './mcp/types.js';
 import { createAgentTools } from './tools/agent-tools.js';
+import { LearningService } from './learning/service.js';
 import { webConfigFromEnv } from './web/config.js';
 import type { WebConfig } from './web/types.js';
 import {
@@ -50,7 +51,7 @@ const DEFAULT_SEARCH_K = 8;
 // Timeout guards (ai-sdk v7 TimeoutConfiguration). They replace the old
 // "never stream tool calls" workaround: a wedged gateway now aborts the step
 // instead of hanging the whole tool loop. `chunkMs` only bites on the streaming
-// path (the runAgentTUI TUI); the CLI runs non-streaming `generate()`.
+// path (the browser UI); the CLI runs non-streaming `generate()`.
 const DEFAULT_TIMEOUT = {
   totalMs: 300_000,
   stepMs: 120_000,
@@ -59,6 +60,8 @@ const DEFAULT_TIMEOUT = {
 
 export interface AgentOptions {
   model: LanguageModel;
+  /** Model used by asynchronous knowledge extraction. Defaults to the main model. */
+  subagentModel?: LanguageModel;
   daemon: DaemonClient;
   generator?: Generator;
   /** Standardized ai-sdk v7 reasoning-effort control, applied to every run. */
@@ -82,6 +85,7 @@ export interface AgentOptions {
   /** Where spilled output, history files, and MCP catalogs are written.
    *  Defaults to `$CODEBERG_HOME/context`. */
   context?: ContextStore;
+  learning?: LearningService;
 }
 
 export class Agent implements Asker {
@@ -94,6 +98,8 @@ export class Agent implements Asker {
   private readonly web: WebConfig;
   private readonly mcp: McpConfig | undefined;
   private readonly context: ContextStore;
+  private readonly learning: LearningService;
+  private learningStarted?: Promise<void>;
   private mcpSource?: McpToolSource;
   /** System prompt for this agent — `AGENT_SYSTEM` plus web/MCP sections matching
    *  the tools that actually registered. Built in `ensureLoop` so it stays
@@ -121,11 +127,17 @@ export class Agent implements Asker {
     this.web = opts.web ?? webConfigFromEnv();
     this.mcp = opts.mcp;
     this.context = opts.context ?? ContextStore.open(defaultContextRoot());
+    this.learning =
+      opts.learning ?? new LearningService({ generator: fromAiSdk(opts.subagentModel ?? opts.model) });
   }
 
   /** Drop MCP server connections (stdio child processes, HTTP sessions). */
   async close(): Promise<void> {
     await this.mcpSource?.close();
+  }
+
+  learningService(): LearningService {
+    return this.learning;
   }
 
   async ask(question: string, opts: AskOptions = {}): Promise<AskResult> {
@@ -158,8 +170,8 @@ export class Agent implements Asker {
   }
 
   /** Compact a transcript to fit this model's history budget, summarizing the
-   *  overflow with the model itself. Exposed so the TUI session wrapper can
-   *  apply the same policy to its own (separately driven) transcript. */
+   *  overflow with the model itself. Exposed so the web wrapper can apply the
+   *  same policy to its browser-owned transcript. */
   async compactHistory(messages: ModelMessage[]): Promise<ModelMessage[]> {
     const fitted = await fitHistory(messages, {
       budget: historyBudget(this.profile),
@@ -171,7 +183,7 @@ export class Agent implements Asker {
     return externalizeToolResults(fitted, this.context);
   }
 
-  /** Bound compactor for callers that drive the loop directly (the TUI). */
+  /** Bound compactor for callers that drive the loop directly (the web server). */
   historyCompactor(): (messages: ModelMessage[]) => Promise<ModelMessage[]> {
     return (messages) => this.compactHistory(messages);
   }
@@ -190,13 +202,15 @@ export class Agent implements Asker {
     });
   }
 
-  /** The underlying ai-sdk v7 agent, for callers that drive their own loop
-   *  (e.g. `runAgentTUI`). Built lazily and cached, same instance as `ask`. */
+  /** The underlying ai-sdk v7 agent, for callers that drive their own loop.
+   *  Built lazily and cached, same instance as `ask`. */
   async toolLoopAgent(): Promise<ToolLoopAgent> {
     return this.ensureLoop();
   }
 
   private async ensureLoop(): Promise<ToolLoopAgent> {
+    this.learningStarted ??= this.learning.initialize();
+    await this.learningStarted;
     if (!this.loop) {
       try {
         await this.daemon.waitReady(30_000);
@@ -256,6 +270,7 @@ export class Agent implements Asker {
     return createAgentTools({
       daemon: this.daemon,
       context: this.context,
+      learning: this.learning.store,
       web: this.web,
       mcp: () => {
         this.mcpSource = mcpToolSource({

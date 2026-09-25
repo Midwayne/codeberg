@@ -5,7 +5,7 @@
 # bundle, and the browser SPA) and then rebuilds and relinks the `codeberg`
 # launcher itself (via install.sh). Because the installed `codeberg` is a symlink
 # into this checkout's launcher/bin and runs the checkout's freshly built
-# artifacts, the next `codeberg` (or `codeberg --web`) run uses the new build.
+# artifacts, the next `codeberg` run uses the new build.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -35,4 +35,4 @@ fi
 echo "› rebuilding and relinking the launcher…"
 "$here/install.sh"
 
-echo "✓ update complete — run: codeberg   (or: codeberg --web)"
+echo "✓ update complete — run: codeberg"

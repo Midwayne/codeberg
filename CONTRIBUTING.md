@@ -28,7 +28,7 @@ codeberg/
 │   ├── test/            ctest binaries
 │   └── docs/            architecture, API, ADRs
 ├── daemon/              Go: codeberg-d (HTTP, tools, git pull) + C cberg-index
-├── agent/               TypeScript agent — codeberg-ask, codeberg-tui, codeberg-web
+├── agent/               TypeScript agent — codeberg-ask, codeberg-web
 └── docs/                project-level documentation index
 ```
 

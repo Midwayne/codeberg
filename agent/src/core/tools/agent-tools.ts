@@ -7,11 +7,14 @@ import { extractEvidence } from '../evidence-extract.js';
 import type { McpToolSource } from '../mcp/tools.js';
 import type { SearchResult } from '../types.js';
 import type { WebConfig } from '../web/types.js';
+import { learningToolSource } from '../learning/tools.js';
+import type { LearningStore } from '../learning/store.js';
 import { collectTools, daemonToolSource, searchCodeSource, webToolSource } from './index.js';
 
 interface AgentToolOptions {
   daemon: DaemonClient;
   context: ContextStore;
+  learning: LearningStore;
   web: WebConfig;
   mcp: () => McpToolSource;
   defaultSearchK: number;
@@ -27,6 +30,7 @@ export async function createAgentTools(opts: AgentToolOptions): Promise<ToolSet>
       defaultK: opts.defaultSearchK,
       onResults: opts.onResults,
     }),
+    learningToolSource(opts.learning),
     contextToolSource(opts.context),
     daemonToolSource({
       daemon: opts.daemon,

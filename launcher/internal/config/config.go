@@ -3,7 +3,7 @@
 // file, the process environment, and CLI flags. The result is split back into
 // the two scopes the components actually read: daemon-scope env (consumed by
 // codeberg-d, which forwards the relevant bits to the C cberg-index) and
-// agent-scope env (consumed by the Node TUI).
+// agent-scope env (consumed by the Node agent).
 //
 // Neither codeberg-d nor the agent read a .env file themselves — they read
 // os.Getenv / process.env — so the launcher is the single place that loads
@@ -26,38 +26,38 @@ import (
 // so a value works whether it is set in the config file, the environment, or
 // (via the matching flag) on the command line.
 const (
-	KeyRoot         = "CODEBERG_ROOT"                  // repo to index (daemon scope)
-	KeyRoots        = "CODEBERG_ROOTS"                 // key\tpath records of every served repo (daemon scope)
-	KeyAll          = "CODEBERG_ALL"                   // "true" => serve every registered repo
-	KeyReposSel     = "CODEBERG_REPOS"                 // comma-separated dirs/keys to serve together
-	KeyNoIndex      = "CODEBERG_NO_INDEX"              // "true" => register nothing, build no vector index
-	KeyModel        = "CODEBERG_MODEL"                 // LLM provider:model (agent scope)
-	KeyDaemonURL    = "CODEBERG_DAEMON_URL"            // agent -> daemon (agent scope)
-	KeyHTTPPort     = "CODEBERG_HTTP_PORT"             // daemon listen port (daemon scope)
-	KeyEmbedModel   = "CBERG_MODEL"                    // embedding model path (daemon scope)
-	KeyEmbedding    = "CODEBERG_EMBEDDING_MODEL"       // registry selection (launcher scope)
-	KeyEmbedBackend = "CBERG_EMBED_BACKEND"            // ONNX, MLX, or llama.cpp (daemon scope)
-	KeyIndexPath    = "CBERG_INDEX_PATH"               // vector index base path (daemon scope)
-	KeySocket       = "CBERG_SOCKET"                   // cberg-index IPC socket (daemon scope)
-	KeyPollMS       = "CBERG_POLL_MS"                  // watcher poll ms (daemon scope)
-	KeyIndexBin     = "CBERG_INDEX_BIN"                // override cberg-index path (daemon scope)
-	KeyGitPullSec   = "CODEBERG_GIT_PULL_INTERVAL_SEC" // periodic git pull (daemon scope)
-	KeyGitDir       = "CODEBERG_GIT_DIR"               // git dir for pull (daemon scope)
-	KeyReasoning    = "CODEBERG_REASONING"             // reasoning effort (agent scope)
-	KeyVector       = "CODEBERG_VECTOR"                // "false" => chunk-only mode
-	KeyHome         = "CODEBERG_HOME"                  // launcher managed dir
-	KeyRepo         = "CODEBERG_REPO"                  // source checkout to build/run
-	KeyDist         = "CODEBERG_DIST"                  // prebuilt artifact dir (installs)
-	KeyWeb          = "CODEBERG_WEB"                   // "true" => serve browser UI not TUI
-	KeyWebPort      = "CODEBERG_WEB_PORT"              // web UI listen port (agent scope)
-	KeyWebUse       = "CODEBERG_WEB_USE"               // "false" => disable agent web tools (agent scope)
-	KeySearxngURL   = "CODEBERG_SEARXNG_URL"           // external SearXNG for web_search (agent scope)
-	KeySearxngPort  = "CODEBERG_SEARXNG_PORT"          // preferred port for the managed SearXNG
-	KeyMcpUse       = "CODEBERG_MCP_USE"               // "false" => disable MCP tools (agent scope)
-	KeyMcpConfig    = "CODEBERG_MCP_CONFIG"            // extra mcp.json path(s), comma-separated (agent scope)
-	KeyDbmcpUse     = "CODEBERG_DBMCP_USE"             // "true" => built-in multi-db MCP (agent scope)
-	KeyDbmcpSpec    = "CODEBERG_DBMCP_SPEC"            // spec.yml path; default <home>/spec.yml (agent scope)
-	KeyDbmcpBin     = "CODEBERG_DBMCP_BIN"             // dbmcp binary override (agent scope)
+	KeyRoot          = "CODEBERG_ROOT"                  // repo to index (daemon scope)
+	KeyRoots         = "CODEBERG_ROOTS"                 // key\tpath records of every served repo (daemon scope)
+	KeyAll           = "CODEBERG_ALL"                   // "true" => serve every registered repo
+	KeyReposSel      = "CODEBERG_REPOS"                 // comma-separated dirs/keys to serve together
+	KeyNoIndex       = "CODEBERG_NO_INDEX"              // "true" => register nothing, build no vector index
+	KeyModel         = "CODEBERG_MODEL"                 // LLM provider:model (agent scope)
+	KeySubagentModel = "CODEBERG_SUBAGENT_MODEL"        // background/subagent provider:model (agent scope)
+	KeyDaemonURL     = "CODEBERG_DAEMON_URL"            // agent -> daemon (agent scope)
+	KeyHTTPPort      = "CODEBERG_HTTP_PORT"             // daemon listen port (daemon scope)
+	KeyEmbedModel    = "CBERG_MODEL"                    // embedding model path (daemon scope)
+	KeyEmbedding     = "CODEBERG_EMBEDDING_MODEL"       // registry selection (launcher scope)
+	KeyEmbedBackend  = "CBERG_EMBED_BACKEND"            // ONNX, MLX, or llama.cpp (daemon scope)
+	KeyIndexPath     = "CBERG_INDEX_PATH"               // vector index base path (daemon scope)
+	KeySocket        = "CBERG_SOCKET"                   // cberg-index IPC socket (daemon scope)
+	KeyPollMS        = "CBERG_POLL_MS"                  // watcher poll ms (daemon scope)
+	KeyIndexBin      = "CBERG_INDEX_BIN"                // override cberg-index path (daemon scope)
+	KeyGitPullSec    = "CODEBERG_GIT_PULL_INTERVAL_SEC" // periodic git pull (daemon scope)
+	KeyGitDir        = "CODEBERG_GIT_DIR"               // git dir for pull (daemon scope)
+	KeyReasoning     = "CODEBERG_REASONING"             // reasoning effort (agent scope)
+	KeyVector        = "CODEBERG_VECTOR"                // "false" => chunk-only mode
+	KeyHome          = "CODEBERG_HOME"                  // launcher managed dir
+	KeyRepo          = "CODEBERG_REPO"                  // source checkout to build/run
+	KeyDist          = "CODEBERG_DIST"                  // prebuilt artifact dir (installs)
+	KeyWebPort       = "CODEBERG_WEB_PORT"              // web UI listen port (agent scope)
+	KeyWebUse        = "CODEBERG_WEB_USE"               // "false" => disable agent web tools (agent scope)
+	KeySearxngURL    = "CODEBERG_SEARXNG_URL"           // external SearXNG for web_search (agent scope)
+	KeySearxngPort   = "CODEBERG_SEARXNG_PORT"          // preferred port for the managed SearXNG
+	KeyMcpUse        = "CODEBERG_MCP_USE"               // "false" => disable MCP tools (agent scope)
+	KeyMcpConfig     = "CODEBERG_MCP_CONFIG"            // extra mcp.json path(s), comma-separated (agent scope)
+	KeyDbmcpUse      = "CODEBERG_DBMCP_USE"             // "true" => built-in multi-db MCP (agent scope)
+	KeyDbmcpSpec     = "CODEBERG_DBMCP_SPEC"            // spec.yml path; default <home>/spec.yml (agent scope)
+	KeyDbmcpBin      = "CODEBERG_DBMCP_BIN"             // dbmcp binary override (agent scope)
 )
 
 // DefaultSearxngPort is the preferred listen port for the launcher-managed
@@ -101,21 +101,21 @@ type Overrides struct {
 	Home       string
 	ConfigFile string // explicit config path; "" => <home>/config
 
-	Root       string
-	Repos      string // comma-separated dirs/keys to serve together (--repos)
-	Model      string
-	DaemonURL  string
-	HTTPPort   string
-	EmbedModel string
-	Embedding  string
-	IndexPath  string
-	Socket     string
-	Reasoning  string
-	Vector     *bool
-	Web        *bool // serve the browser UI instead of the terminal TUI
-	All        *bool // serve every registered repo instead of one root
-	NoIndex    *bool // one-off run: register nothing, build no vector index
-	WebPort    string
+	Root          string
+	Repos         string // comma-separated dirs/keys to serve together (--repos)
+	Model         string
+	SubagentModel string
+	DaemonURL     string
+	HTTPPort      string
+	EmbedModel    string
+	Embedding     string
+	IndexPath     string
+	Socket        string
+	Reasoning     string
+	Vector        *bool
+	All           *bool // serve every registered repo instead of one root
+	NoIndex       *bool // one-off run: register nothing, build no vector index
+	WebPort       string
 }
 
 // Config is the fully-resolved configuration.
@@ -124,35 +124,35 @@ type Config struct {
 	Dist string // prebuilt artifact dir ("" when building from source)
 	Home string
 
-	Root         string
-	All          bool             // serve every registered repo (--all)
-	Repos        []string         // explicit dirs/keys to serve together (--repos)
-	NoIndex      bool             // one-off run: register nothing, build no vector index
-	Roots        []registry.Entry // the repos this run serves; filled by cmdRun
-	Model        string
-	DaemonURL    string
-	HTTPPort     string
-	EmbedModel   string
-	Embedding    string // registry model id, empty for a custom ONNX path
-	EmbedBackend string
-	IndexPath    string
-	Socket       string
-	PollMS       string
-	IndexBin     string
-	GitPullSec   string
-	GitDir       string
-	Reasoning    string
-	Vector       bool
-	Web          bool   // serve the browser UI instead of the terminal TUI
-	WebPort      string // codeberg-web listen port (used only when Web)
-	WebUse       bool   // agent web tools (web_search + fetch_url) enabled
-	SearxngURL   string // external SearXNG instance; "" => launcher manages one
-	SearxngPort  string // preferred port for the managed SearXNG
-	McpUse       bool   // agent MCP tools from mcp.json enabled
-	McpConfig    string // extra mcp.json path(s), comma-separated
-	DbmcpUse     bool   // built-in multi-db MCP server enabled
-	DbmcpSpec    string // explicit spec path; "" => <home>/spec.yml then spec.yaml
-	DbmcpBin     string // explicit dbmcp binary; "" => <root>/build/dbmcp
+	Root          string
+	All           bool             // serve every registered repo (--all)
+	Repos         []string         // explicit dirs/keys to serve together (--repos)
+	NoIndex       bool             // one-off run: register nothing, build no vector index
+	Roots         []registry.Entry // the repos this run serves; filled by cmdRun
+	Model         string
+	SubagentModel string
+	DaemonURL     string
+	HTTPPort      string
+	EmbedModel    string
+	Embedding     string // registry model id, empty for a custom ONNX path
+	EmbedBackend  string
+	IndexPath     string
+	Socket        string
+	PollMS        string
+	IndexBin      string
+	GitPullSec    string
+	GitDir        string
+	Reasoning     string
+	Vector        bool
+	WebPort       string // codeberg-web listen port
+	WebUse        bool   // agent web tools (web_search + fetch_url) enabled
+	SearxngURL    string // external SearXNG instance; "" => launcher manages one
+	SearxngPort   string // preferred port for the managed SearXNG
+	McpUse        bool   // agent MCP tools from mcp.json enabled
+	McpConfig     string // extra mcp.json path(s), comma-separated
+	DbmcpUse      bool   // built-in multi-db MCP server enabled
+	DbmcpSpec     string // explicit spec path; "" => <home>/spec.yml then spec.yaml
+	DbmcpBin      string // explicit dbmcp binary; "" => <root>/build/dbmcp
 
 	Passthrough map[string]string
 	ConfigPath  string // the file we read (whether or not it existed)
@@ -207,6 +207,7 @@ func Load(o Overrides) (*Config, error) {
 
 	c.Root = resolve(KeyRoot, o.Root)
 	c.Model = resolve(KeyModel, o.Model)
+	c.SubagentModel = resolve(KeySubagentModel, o.SubagentModel)
 	// Default off the crowded 8080 (used by countless dev servers) to an
 	// uncommon high port, kept below the 49152+ ephemeral range so the OS does
 	// not hand it out to transient clients.
@@ -226,14 +227,6 @@ func Load(o Overrides) (*Config, error) {
 		c.Vector = !isFalsey(v)
 	}
 
-	// Web: serve the browser UI instead of the TUI. Default off; --web (or
-	// CODEBERG_WEB=true) turns it on. The CLI flag, when passed, wins.
-	c.Web = false
-	if o.Web != nil {
-		c.Web = *o.Web
-	} else if v := resolve(KeyWeb, ""); v != "" {
-		c.Web = !isFalsey(v)
-	}
 	c.WebPort = firstNonEmpty(resolve(KeyWebPort, o.WebPort), DefaultWebPort)
 
 	// All: serve every registered repo combined instead of a single root.
@@ -349,11 +342,11 @@ func Load(o Overrides) (*Config, error) {
 // Artifacts are the on-disk products the launcher runs, under some root — a
 // source checkout's build tree or an installed dist dir laid out the same way.
 type Artifacts struct {
-	DaemonBin string // <root>/core/build/bin/codeberg-d
-	IndexBin  string // <root>/core/build/bin/cberg-index (daemon finds it as a sibling)
-	TUIScript string // <root>/agent/dist/tui.js (node resolves node_modules up from it)
-	WebScript string // <root>/agent/dist/web.js (the browser-UI server; built alongside the TUI)
-	DbmcpBin  string // <root>/build/dbmcp (built-in multi-db MCP server; optional)
+	DaemonBin      string // <root>/core/build/bin/codeberg-d
+	IndexBin       string // <root>/core/build/bin/cberg-index (daemon finds it as a sibling)
+	WebScript      string // <root>/agent/dist/web.js (browser-UI server)
+	LearningScript string // <root>/agent/dist/learning-cli.js (offline learning inspection/export)
+	DbmcpBin       string // <root>/build/dbmcp (built-in multi-db MCP server; optional)
 }
 
 // LocateArtifacts returns the expected artifact paths under root (no existence
@@ -362,11 +355,11 @@ type Artifacts struct {
 func LocateArtifacts(root string) Artifacts {
 	bin := filepath.Join(root, "core", "build", "bin")
 	return Artifacts{
-		DaemonBin: filepath.Join(bin, "codeberg-d"),
-		IndexBin:  filepath.Join(bin, "cberg-index"),
-		TUIScript: filepath.Join(root, "agent", "dist", "tui.js"),
-		WebScript: filepath.Join(root, "agent", "dist", "web.js"),
-		DbmcpBin:  filepath.Join(root, "build", "dbmcp"),
+		DaemonBin:      filepath.Join(bin, "codeberg-d"),
+		IndexBin:       filepath.Join(bin, "cberg-index"),
+		WebScript:      filepath.Join(root, "agent", "dist", "web.js"),
+		LearningScript: filepath.Join(root, "agent", "dist", "learning-cli.js"),
+		DbmcpBin:       filepath.Join(root, "build", "dbmcp"),
 	}
 }
 
@@ -386,7 +379,7 @@ func autodetectDist() string {
 	}
 	cand := filepath.Clean(filepath.Join(filepath.Dir(exe), "..", "libexec"))
 	a := LocateArtifacts(cand)
-	if fileExists(a.DaemonBin) && fileExists(a.IndexBin) && fileExists(a.TUIScript) {
+	if fileExists(a.DaemonBin) && fileExists(a.IndexBin) && fileExists(a.WebScript) {
 		return cand
 	}
 	return ""
@@ -399,7 +392,7 @@ func autodetectDist() string {
 func (c *Config) ResolveRoot() (root string, prebuilt bool) {
 	if c.Dist != "" {
 		a := LocateArtifacts(c.Dist)
-		if fileExists(a.DaemonBin) && fileExists(a.IndexBin) && fileExists(a.TUIScript) {
+		if fileExists(a.DaemonBin) && fileExists(a.IndexBin) && fileExists(a.WebScript) {
 			return c.Dist, true
 		}
 	}
@@ -436,6 +429,9 @@ func (c *Config) ValidateForRun() error {
 		missing = append(missing, KeyModel+" (provider:model, e.g. anthropic:claude-haiku-4-5)")
 	} else if !strings.Contains(c.Model, ":") {
 		return fmt.Errorf("%s must be provider:model, got %q", KeyModel, c.Model)
+	}
+	if c.SubagentModel != "" && !strings.Contains(c.SubagentModel, ":") {
+		return fmt.Errorf("%s must be provider:model, got %q", KeySubagentModel, c.SubagentModel)
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("missing required config:\n  - %s\nset them in %s, via flags, or the environment (try `codeberg config init`)",
@@ -491,14 +487,15 @@ func (c *Config) DaemonEnv() map[string]string {
 	return e
 }
 
-// AgentEnv builds the environment overlay for the Node TUI.
+// AgentEnv builds the environment overlay for the Node agent.
 func (c *Config) AgentEnv() map[string]string {
 	e := map[string]string{
 		KeyModel:     c.Model,
 		KeyDaemonURL: c.DaemonURL,
 	}
 	putIf(e, KeyReasoning, c.Reasoning)
-	// codeberg-web reads this; the TUI ignores it, so it's harmless to always set.
+	putIf(e, KeySubagentModel, c.SubagentModel)
+	// codeberg-web reads this for its local HTTP listener.
 	putIf(e, KeyWebPort, c.WebPort)
 	// Web tools: tell the agent whether they're enabled, and point web_search at
 	// an external SearXNG when configured. A launcher-managed instance is

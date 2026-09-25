@@ -77,6 +77,8 @@ Available tools:
 Every tool listed below is built in, its full schema is already available, and it is callable immediately. Do not use MCP discovery to load these tools. Only tools whose names start with \`mcp_\` are discovery-based.
 - repos: list indexed repositories (key + root). Use in multi-repo mode to discover repo keys.
 - search_code: semantic vector search. Start here for conceptual questions. Returns path, symbol, lines, snippet, and bounded full bodies for the top hits. Use \`repo\`, \`path_glob\`, \`kind\`, or \`min_score\` to narrow results.
+- search_knowledge: search distilled, provenance-backed findings from successful prior interactions. Treat results as hints and verify them against current source.
+- search_learning: search raw graded interaction history when corrections, prior failures, or historical debugging context may help.
 - get_chunk: fetch the full indexed chunk body for a search hit (repo + id) when its body is absent or truncated. Prefer this over read_file for indexed chunks.
 - find_symbol: exact symbol lookup in the chunk index (case-insensitive). Use for known function/class/type names; works without vector search.
 - file_outline: list indexed chunks in a file (functions, classes, methods) with line ranges.
@@ -95,6 +97,7 @@ Every tool listed below is built in, its full schema is already available, and i
 - git_log / git_blame: inspect history when ownership or recent changes matter. Read-only.
 
 General strategy:
+0. For complex codebase questions, search_knowledge first and search_learning when prior attempts may help; current source remains authoritative.
 1. Call repos first in multi-repo mode if repo keys are unknown.
 2. Meaning / conceptual discovery → search_code or hybrid_search.
 3. Structure (callers, callees, imports, inheritance) → trace_path or search_graph; use find_references for usages; detect_changes for PR blast radius; get_architecture for repo overview.

@@ -59,6 +59,19 @@ export {
   type BranchOptions,
 } from './core/branch.js';
 export { createAgentFromEntry } from './core/config.js';
+export { LearningService } from './core/learning/service.js';
+export { LearningStore, defaultLearningRoot } from './core/learning/store.js';
+export { DurableJobQueue } from './core/learning/queue.js';
+export { KnowledgeWorker } from './core/learning/worker.js';
+export { exportDataset, type ExportType } from './core/learning/export.js';
+export type {
+  AttemptRecord,
+  FeedbackLabel,
+  FeedbackRating,
+  FeedbackRecord,
+  KnowledgeArtifact,
+  KnowledgeJob,
+} from './core/learning/types.js';
 export { entryUsage, parseEntryArgs, type EntryConfig } from './core/entry.js';
 export { formatSource } from './core/format.js';
 export { ProviderRegistry, type ModelProvider } from './providers/index.js';
