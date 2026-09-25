@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"codeberg.org/codeberg/launcher/internal/registry"
 	"codeberg.org/codeberg/launcher/internal/embedding"
+	"codeberg.org/codeberg/launcher/internal/registry"
 )
 
 // writeArtifacts lays out a minimal dist/checkout tree under root so ResolveRoot
@@ -256,9 +256,13 @@ func TestInitFileWritesEmbeddedExample(t *testing.T) {
 func TestEmbeddingSelectionIsolatesExistingIndex(t *testing.T) {
 	home := t.TempDir()
 	legacy, err := Load(Overrides{Home: home, ConfigFile: filepath.Join(home, "config")})
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	chosen, err := Load(Overrides{Home: home, ConfigFile: filepath.Join(home, "config"), Embedding: embedding.Llama})
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	if legacy.IndexPath == chosen.IndexPath || legacy.EmbedModel == chosen.EmbedModel {
 		t.Fatal("selecting Qwen must preserve the existing Jina index and model")
 	}
@@ -267,6 +271,10 @@ func TestEmbeddingSelectionIsolatesExistingIndex(t *testing.T) {
 	}
 	custom := filepath.Join(home, "custom.usearch")
 	chosen, err = Load(Overrides{Home: home, ConfigFile: filepath.Join(home, "config"), Embedding: embedding.Llama, IndexPath: custom})
-	if err != nil { t.Fatal(err) }
-	if chosen.IndexPath == custom { t.Fatal("explicit index base must be namespaced too") }
+	if err != nil {
+		t.Fatal(err)
+	}
+	if chosen.IndexPath == custom {
+		t.Fatal("explicit index base must be namespaced too")
+	}
 }

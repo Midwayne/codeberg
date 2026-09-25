@@ -124,35 +124,35 @@ type Config struct {
 	Dist string // prebuilt artifact dir ("" when building from source)
 	Home string
 
-	Root        string
-	All         bool             // serve every registered repo (--all)
-	Repos       []string         // explicit dirs/keys to serve together (--repos)
-	NoIndex     bool             // one-off run: register nothing, build no vector index
-	Roots       []registry.Entry // the repos this run serves; filled by cmdRun
-	Model       string
-	DaemonURL   string
-	HTTPPort    string
-	EmbedModel  string
-	Embedding   string // registry model id, empty for a custom ONNX path
+	Root         string
+	All          bool             // serve every registered repo (--all)
+	Repos        []string         // explicit dirs/keys to serve together (--repos)
+	NoIndex      bool             // one-off run: register nothing, build no vector index
+	Roots        []registry.Entry // the repos this run serves; filled by cmdRun
+	Model        string
+	DaemonURL    string
+	HTTPPort     string
+	EmbedModel   string
+	Embedding    string // registry model id, empty for a custom ONNX path
 	EmbedBackend string
-	IndexPath   string
-	Socket      string
-	PollMS      string
-	IndexBin    string
-	GitPullSec  string
-	GitDir      string
-	Reasoning   string
-	Vector      bool
-	Web         bool   // serve the browser UI instead of the terminal TUI
-	WebPort     string // codeberg-web listen port (used only when Web)
-	WebUse      bool   // agent web tools (web_search + fetch_url) enabled
-	SearxngURL  string // external SearXNG instance; "" => launcher manages one
-	SearxngPort string // preferred port for the managed SearXNG
-	McpUse      bool   // agent MCP tools from mcp.json enabled
-	McpConfig   string // extra mcp.json path(s), comma-separated
-	DbmcpUse    bool   // built-in multi-db MCP server enabled
-	DbmcpSpec   string // explicit spec path; "" => <home>/spec.yml then spec.yaml
-	DbmcpBin    string // explicit dbmcp binary; "" => <root>/build/dbmcp
+	IndexPath    string
+	Socket       string
+	PollMS       string
+	IndexBin     string
+	GitPullSec   string
+	GitDir       string
+	Reasoning    string
+	Vector       bool
+	Web          bool   // serve the browser UI instead of the terminal TUI
+	WebPort      string // codeberg-web listen port (used only when Web)
+	WebUse       bool   // agent web tools (web_search + fetch_url) enabled
+	SearxngURL   string // external SearXNG instance; "" => launcher manages one
+	SearxngPort  string // preferred port for the managed SearXNG
+	McpUse       bool   // agent MCP tools from mcp.json enabled
+	McpConfig    string // extra mcp.json path(s), comma-separated
+	DbmcpUse     bool   // built-in multi-db MCP server enabled
+	DbmcpSpec    string // explicit spec path; "" => <home>/spec.yml then spec.yaml
+	DbmcpBin     string // explicit dbmcp binary; "" => <root>/build/dbmcp
 
 	Passthrough map[string]string
 	ConfigPath  string // the file we read (whether or not it existed)

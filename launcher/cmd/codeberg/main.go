@@ -234,9 +234,15 @@ func selectEmbedding(c *config.Config, o *config.Overrides) error {
 	if !c.Vector || c.Embedding != "" || o.EmbedModel != "" || os.Getenv(config.KeyEmbedModel) != "" {
 		return nil
 	}
-	if _, err := os.Stat(c.EmbedModel); err == nil { return nil }
-	if matches, _ := filepath.Glob(c.IndexPath + ".*"); len(matches) > 0 { return nil }
-	if value, ok := c.Get(config.KeyEmbedding); ok && value != "" { return nil }
+	if _, err := os.Stat(c.EmbedModel); err == nil {
+		return nil
+	}
+	if matches, _ := filepath.Glob(c.IndexPath + ".*"); len(matches) > 0 {
+		return nil
+	}
+	if value, ok := c.Get(config.KeyEmbedding); ok && value != "" {
+		return nil
+	}
 	choice := embedding.Default()
 	if info, err := os.Stdin.Stat(); err == nil && info.Mode()&os.ModeCharDevice != 0 {
 		fmt.Fprintln(os.Stderr, "Choose an embedding model (before download):")
@@ -250,15 +256,21 @@ func selectEmbedding(c *config.Config, o *config.Overrides) error {
 		if err == nil && strings.TrimSpace(line) != "" {
 			n, err := strconv.Atoi(strings.TrimSpace(line))
 			all := embedding.List()
-			if err != nil || n < 1 || n > len(all) { return fmt.Errorf("invalid embedding choice %q", strings.TrimSpace(line)) }
+			if err != nil || n < 1 || n > len(all) {
+				return fmt.Errorf("invalid embedding choice %q", strings.TrimSpace(line))
+			}
 			choice = all[n-1].ID
 		}
 	}
 	model, _ := embedding.Lookup(choice)
-	if err := model.ValidatePlatform(); err != nil { return err }
+	if err := model.ValidatePlatform(); err != nil {
+		return err
+	}
 	o.Embedding = choice
 	resolved, err := config.Load(*o)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	*c = *resolved
 	return config.SetValues(c.ConfigPath, map[string]string{config.KeyEmbedding: choice})
 }
