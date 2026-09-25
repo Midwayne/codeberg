@@ -3,6 +3,8 @@
 #include "codeberg/codeberg.h"
 
 #include <stdint.h>
+#include <pthread.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -69,6 +71,7 @@ cberg_status cberg_worker_open(const cberg_embed_config *cfg, void **out, size_t
         cberg_worker_close(w);
         return CBERG_ERR_IO;
     }
+    setvbuf(w->input, NULL, _IONBF, 0);
     char line[64];
     unsigned long n = 0;
     if (fgets(line, sizeof(line), w->output) == NULL || sscanf(line, "READY %lu", &n) != 1 || n == 0 || n > 16384) {
@@ -84,14 +87,31 @@ cberg_status cberg_worker_open(const cberg_embed_config *cfg, void **out, size_t
 cberg_status cberg_worker_embed(void *handle, const char *const *texts, const size_t *lens, size_t count, float *out) {
     worker_impl *w = handle;
     if (count > UINT32_MAX) return CBERG_ERR_INVALID_ARGUMENT;
+    /* A failed worker closes its pipe; return IO instead of letting SIGPIPE
+     * terminate the entire indexer. Block only in this calling thread. */
+    sigset_t blocked, old, before, after;
+    sigemptyset(&blocked);
+    sigaddset(&blocked, SIGPIPE);
+    if (pthread_sigmask(SIG_BLOCK, &blocked, &old) != 0) return CBERG_ERR_IO;
+    sigpending(&before);
+    cberg_status status = CBERG_OK;
     uint32_t n = (uint32_t)count;
-    if (fwrite(&n, sizeof(n), 1, w->input) != 1) return CBERG_ERR_IO;
+    if (fwrite(&n, sizeof(n), 1, w->input) != 1) { status = CBERG_ERR_IO; goto done; }
     for (size_t i = 0; i < count; i++) {
-        if (lens[i] > UINT32_MAX) return CBERG_ERR_INVALID_ARGUMENT;
+        if (lens[i] > UINT32_MAX) { status = CBERG_ERR_INVALID_ARGUMENT; goto done; }
         uint32_t len = (uint32_t)lens[i];
-        if (fwrite(&len, sizeof(len), 1, w->input) != 1 || fwrite(texts[i], 1, len, w->input) != len) return CBERG_ERR_IO;
+        if (fwrite(&len, sizeof(len), 1, w->input) != 1 || fwrite(texts[i], 1, len, w->input) != len) { status = CBERG_ERR_IO; goto done; }
     }
-    if (fflush(w->input) != 0 || fread(out, sizeof(float), count * w->dim, w->output) != count * w->dim) return CBERG_ERR_IO;
-    for (size_t i = 0; i < count; i++) cberg_l2_normalize(out + i * w->dim, w->dim);
-    return CBERG_OK;
+    if (fflush(w->input) != 0 || fread(out, sizeof(float), count * w->dim, w->output) != count * w->dim) status = CBERG_ERR_IO;
+    if (status == CBERG_OK) {
+        for (size_t i = 0; i < count; i++) cberg_l2_normalize(out + i * w->dim, w->dim);
+    }
+done:
+    sigpending(&after);
+    if (!sigismember(&before, SIGPIPE) && sigismember(&after, SIGPIPE)) {
+        int caught;
+        sigwait(&blocked, &caught);
+    }
+    pthread_sigmask(SIG_SETMASK, &old, NULL);
+    return status;
 }

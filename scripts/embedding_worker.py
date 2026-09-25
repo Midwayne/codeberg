@@ -34,11 +34,13 @@ def mlx_embedder(path: str):
 
     def embed(texts):
         vectors = []
-        for text in texts:
-            tokens = tokenizer(text, return_tensors="np", truncation=True, max_length=512)
-            output = model(mx.array(tokens["input_ids"]))
+        for start in range(0, len(texts), 8):
+            tokens = tokenizer(texts[start:start + 8], return_tensors="np", padding=True,
+                               truncation=True, max_length=512)
+            output = model(mx.array(tokens["input_ids"]),
+                           attention_mask=mx.array(tokens["attention_mask"]))
             mx.eval(output.text_embeds)
-            vectors.append(output.text_embeds[0].astype(mx.float32).tolist())
+            vectors.extend(output.text_embeds.astype(mx.float32).tolist())
         return vectors
 
     return embed, lambda: None
