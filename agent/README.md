@@ -416,18 +416,20 @@ this composite key.
 The agent prompt recommends a chunk-first strategy:
 
 1. **`search_code`** (built-in) — semantic vector search via `GET /search`.
-   Returns path, symbol, lines, score, and snippet. Supports `repo`, `path_glob`,
-   `kind`, and `min_score` filters. Results are captured in the evidence ledger.
+   Returns path, symbol, lines, score, snippet, and bounded full bodies for a few
+   high-relevance hits. Supports `repo`, `path_glob`, `kind`, and `min_score`
+   filters. Results are captured in the evidence ledger.
 2. **`get_chunk`** (daemon) — fetch the full indexed chunk body for a hit's
-   `(repo, id)`. Prefer this over `read_file` right after search — chunk
+   `(repo, id)` when the search result's body is absent or truncated. Chunk
    boundaries are exact.
 3. **`read_file`** (daemon) — use when you need surrounding context, imports,
    or lines outside the chunk `get_chunk` returned.
 4. **`find_symbol`** (daemon) — exact symbol lookup when you know the name;
    works without vector search.
 5. **`file_outline`** (daemon) — orient in an unfamiliar file before deep reading.
-6. **`hybrid_search`** (daemon) — vector candidates reranked by lexical term
-   matches in hit files.
+6. **`hybrid_search`** (daemon) — independently retrieves vector chunks and
+   lexical matches, fuses ranks, and includes bounded context for top hits.
+   Lexical-only hits have `id=0`; use `read_file` for further context.
 7. **`search_graph` / `trace_path`** (daemon) — knowledge-graph symbol search and
    BFS over call/import edges (resolution + confidence on each hop). See
    [core/docs/modules/graph.md](../core/docs/modules/graph.md).

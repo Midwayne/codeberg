@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"codeberg.org/codeberg/daemon/internal/indexctl"
 	"codeberg.org/codeberg/daemon/internal/search"
@@ -71,7 +72,7 @@ func getChunkTool(idx indexctl.Indexer) Tool {
 }`
 
 	return New("get_chunk",
-		"Fetch the full indexed chunk body for a search hit (repo + id). Prefer over read_file after search_code.",
+		"Fetch a full indexed chunk (repo + id) when search_code's bounded body is absent or truncated.",
 		schema,
 		func(ctx context.Context, a getChunkArgs) (any, error) {
 			return idx.GetChunk(ctx, a.Repo, a.ID)
@@ -132,14 +133,14 @@ func hybridSearchTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
     "k": {"type": "integer", "description": "max results (default 8)"},
     "repo": {"type": "string", "description": "restrict to one repo key"},
     "path_glob": {"type": "string", "description": "fnmatch glob on chunk paths"},
-    "kind": {"type": "string", "description": "` + chunkKindFilterDesc + `"},
-    "min_score": {"type": "number", "description": "minimum similarity score (0-1)"}
+    "kind": {"type": "string", "description": "` + chunkKindFilterDesc + `; lexical lines must belong to an indexed chunk of this kind"},
+    "min_score": {"type": "number", "description": "minimum vector similarity score (0-1); lexical matches are independent"}
   },
   "required": ["query"]
 }`
 
 	return New("hybrid_search",
-		"Vector search candidates reranked by grep verification of query terms in hit chunks.",
+		"Fuse semantic chunks with independent exact-text matches and bounded context for top hits. Lexical-only hits have id=0; use read_file for more context.",
 		schema,
 		func(ctx context.Context, a searchArgs) (any, error) {
 			k := a.K
@@ -147,22 +148,145 @@ func hybridSearchTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
 				k = 8
 			}
 
-			candidates, err := idx.Search(ctx, indexctl.SearchOptions{
+			if k > 64 {
+				k = 64
+			}
+			candidates, searchErr := idx.Search(ctx, indexctl.SearchOptions{
 				Query:    a.Query,
-				K:        k * 2,
+				K:        min(k*2, 64),
 				Repo:     a.Repo,
 				PathGlob: a.PathGlob,
 				Kind:     a.Kind,
 				MinScore: a.MinScore,
 			})
+			if searchErr != nil {
+				ie, ok := indexctl.AsIndexerError(searchErr)
+				if !ok || ie.Code != "NOT_IMPLEMENTED" {
+					return nil, searchErr
+				}
+			}
+			matches, err := hybridLexicalMatches(ctx, ws, idx, a, min(k*4, 64))
 			if err != nil {
 				return nil, err
 			}
-
-			return search.Hybrid(ctx, candidates, a.Query, func(ctx context.Context, repo, path string) ([]byte, error) {
-				return ws.ReadRaw(repo, path)
-			}, k)
+			if searchErr != nil && len(matches) == 0 {
+				return nil, searchErr
+			}
+			hits := search.Fuse(candidates, matches, k, a.Query)
+			enrichHybridContext(ctx, idx, ws, hits)
+			return hits, nil
 		})
+}
+
+func enrichHybridContext(ctx context.Context, idx indexctl.Indexer, ws *workspace.Workspace, hits []search.HybridHit) {
+	const maxPerHit = 2500
+	remaining := 6000
+	for i := 0; i < min(3, len(hits)) && remaining > 0; i++ {
+		hit := &hits[i]
+		var body string
+		var startLine, matchLine uint32
+		var alreadyTruncated bool
+		if hit.Hit.ID > 0 {
+			detail, err := idx.GetChunk(ctx, hit.Hit.Repo, hit.Hit.ID)
+			if err != nil || detail.Body == "" {
+				continue
+			}
+			body, startLine, matchLine = detail.Body, detail.StartLine, detail.StartLine
+			alreadyTruncated = detail.Truncated
+		} else {
+			line := hit.Hit.StartLine
+			start := uint32(1)
+			if line > 4 {
+				start = line - 4
+			}
+			file, err := ws.ReadFile(hit.Hit.Repo, hit.Hit.Path, start, line+4)
+			if err != nil {
+				continue
+			}
+			body, startLine, matchLine = file.Content, file.StartLine, line
+		}
+		maxChars := min(maxPerHit, remaining)
+		text := []rune(body)
+		from := 0
+		if len(text) > maxChars {
+			// Keep the matching line in view even when surrounding lines are huge.
+			lines := strings.SplitAfter(body, "\n")
+			for j := uint32(0); j < matchLine-startLine && int(j) < len(lines); j++ {
+				from += len([]rune(lines[j]))
+			}
+			from = max(0, min(from-maxChars/3, len(text)-maxChars))
+		}
+		to := min(from+maxChars, len(text))
+		hit.Context = string(text[from:to])
+		hit.ContextStartLine = startLine + uint32(strings.Count(string(text[:from]), "\n"))
+		hit.ContextEndLine = hit.ContextStartLine + uint32(strings.Count(hit.Context, "\n"))
+		hit.ContextTruncated = alreadyTruncated || from > 0 || to < len(text)
+		remaining -= to - from
+	}
+}
+
+func hybridLexicalMatches(ctx context.Context, ws *workspace.Workspace, idx indexctl.Indexer, a searchArgs, limit int) ([]workspace.GrepMatch, error) {
+	pattern := search.LexicalPattern(a.Query)
+	if pattern == "" {
+		return nil, nil
+	}
+	repos := []string{a.Repo}
+	if a.Repo == "" {
+		repos = nil
+		for _, repo := range ws.Repos() {
+			repos = append(repos, repo.Key)
+		}
+	}
+	var matches []workspace.GrepMatch
+	perRepo := limit
+	if len(repos) > 1 {
+		perRepo = max(1, limit/len(repos))
+	}
+	for _, repo := range repos {
+		found, err := ws.GrepForRetrieval(ctx, pattern, repo, a.PathGlob, min(perRepo, limit-len(matches)))
+		if err != nil {
+			return nil, err
+		}
+		matches = append(matches, found...)
+		if len(matches) >= limit {
+			break
+		}
+	}
+	if a.Kind == "" {
+		return search.PrioritizeLexical(matches, a.Query), nil
+	}
+	// A lexical line has no chunk kind. Resolve it against indexed spans only
+	// when the caller requested a kind; omit untyped/unindexed lines then.
+	filtered := make([]workspace.GrepMatch, 0, len(matches))
+	outlines := make(map[string][]indexctl.SearchResult)
+	kinds := make(map[string]string)
+	for _, match := range matches {
+		key := match.Repo + "\x00" + match.Path
+		outline, ok := outlines[key]
+		if !ok {
+			outline, _ = idx.FileOutline(ctx, match.Repo, match.Path)
+			outlines[key] = outline
+		}
+		for _, chunk := range outline {
+			if match.Line < chunk.StartLine || match.Line > chunk.EndLine {
+				continue
+			}
+			chunkKey := fmt.Sprintf("%s\x00%d", match.Repo, chunk.ID)
+			kind, ok := kinds[chunkKey]
+			if !ok {
+				detail, err := idx.GetChunk(ctx, match.Repo, chunk.ID)
+				if err == nil {
+					kind = detail.Kind
+				}
+				kinds[chunkKey] = kind
+			}
+			if strings.EqualFold(kind, a.Kind) {
+				filtered = append(filtered, match)
+				break
+			}
+		}
+	}
+	return search.PrioritizeLexical(filtered, a.Query), nil
 }
 
 func searchGraphTool(idx indexctl.Indexer) Tool {
@@ -225,8 +349,8 @@ func tracePathTool(idx indexctl.Indexer) Tool {
 
 // findReferencesResult is graph-first when possible, with grep fallback.
 type findReferencesResult struct {
-	Source  string               `json:"source"` // "graph" or "grep"
-	Graph   []indexctl.GraphEdge `json:"graph,omitempty"`
+	Source  string                `json:"source"` // "graph" or "grep"
+	Graph   []indexctl.GraphEdge  `json:"graph,omitempty"`
 	Matches []workspace.GrepMatch `json:"matches,omitempty"`
 }
 

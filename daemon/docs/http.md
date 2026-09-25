@@ -127,17 +127,22 @@ All tools are read-only and sandboxed to their repo's root.
 | `get_chunk` | Full indexed chunk body for a `(repo, id)` hit |
 | `find_symbol` | Case-insensitive symbol lookup in the chunk table |
 | `file_outline` | Indexed chunks in a file with line ranges |
-| `hybrid_search` | Vector search reranked by query-term presence in hit chunks |
+| `hybrid_search` | Fused vector and independent lexical candidates with bounded top-hit context |
 | `search_graph` | Exact-name structural search over the knowledge graph |
 | `trace_path` | BFS over call/import/inherit edges (returns resolution + confidence) |
 | `detect_changes` | Git diff → hunk-overlapping symbols → 1–2 hop blast radius (direct / transitive); sets `fallback` when the requested range fails |
 | `get_architecture` | Repo overview: size, FILE-node language mix, CALLS degree hubs, entrypoints |
 | `find_references` | Graph-first symbol usages; word-boundary grep fallback |
 
-`hybrid_search` accepts the same filters as `search` (`repo`, `path_glob`, `kind`,
-`min_score`). It fetches `2×k` vector candidates, scores query terms against chunk
-snippet/symbol text (falling back to the full file when needed), adds **+0.05** per
-matching term, sorts by `final_score`, and truncates to `k`.
+`hybrid_search` fetches up to `2×k` vector chunks and searches file contents
+independently with bounded per-file matches. It fuses reciprocal ranks, merges
+lexical lines inside vector chunks, favors files supported by both sources,
+and diversifies the top `k` across files. The top three hits carry at most
+6,000 characters of combined `context` with line ranges. Lexical-only hits use
+`id: 0`; use `read_file` for more context (not `get_chunk`). `repo` and
+`path_glob` scope both branches; `kind` filters indexed lexical lines;
+`min_score` filters the vector branch only. When vectors are unavailable,
+lexical results can still be returned.
 
 `find_references` returns `{source, graph|matches}` (not a bare match array). It
 prefers knowledge-graph edges (`source: "graph"`) and falls back to a word-boundary
@@ -145,8 +150,8 @@ prefers knowledge-graph edges (`source: "graph"`) and falls back to a word-bound
 can distrust textual links.
 
 `find_symbol`, `file_outline`, `get_chunk`, `search_graph`, and `trace_path` work in
-**chunk-only mode** (without ONNX / vector indexing). `search` and `hybrid_search`
-require `vectors_enabled`. Graph tools return `501` / `graph disabled` when
+**chunk-only mode** (without ONNX / vector indexing). `search` requires
+`vectors_enabled`; `hybrid_search` can use its lexical branch. Graph tools return `501` / `graph disabled` when
 `CBERG_GRAPH=0`.
 
 ### File and repo tools

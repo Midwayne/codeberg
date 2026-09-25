@@ -1,7 +1,10 @@
 # Agent accuracy & response quality — roadmap
 
-Status: **planned / not yet implemented.** This is the build spec for improving the
-answer accuracy of the `codeberg-ask` / TUI / web agent. Audited 2026-07-01.
+Status: **partially implemented.** This document records the 2026-07-01 audit;
+the table below is historical. Search now expands a few top chunks within a
+shared output budget, and `hybrid_search` fuses independent vector and bounded
+lexical candidates with file diversity and nearby context. The eval harness,
+sampling changes, and citation verification remain planned.
 
 The agent is mechanically solid (prompt caching, history compaction, in-loop
 pruning, composable tool sources, a loop-middleware seam). The gaps are about

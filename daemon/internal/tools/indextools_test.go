@@ -3,10 +3,14 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"codeberg.org/codeberg/daemon/internal/indexctl"
+	"codeberg.org/codeberg/daemon/internal/search"
 	"codeberg.org/codeberg/daemon/internal/testutil"
 	"codeberg.org/codeberg/daemon/internal/workspace"
 )
@@ -131,6 +135,116 @@ func TestHybridSearchTool(t *testing.T) {
 	}
 	if idx.GotSearch.K != 2 {
 		t.Fatalf("hybrid fetches 2*k candidates, got K=%d", idx.GotSearch.K)
+	}
+}
+
+func TestHybridSearchFindsLexicalOnlyFile(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(root+"/exact.go", []byte("package main\nfunc checkoutSessionToken() {}\nfunc companion() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	idx := &testutil.FakeIndexer{SearchHits: []indexctl.SearchResult{{ID: 1, Repo: "main", Path: "unrelated.go", Score: .9}}}
+	reg := Default(testutil.WsSingle(root), idx)
+	out, err := reg.Call(context.Background(), "hybrid_search", json.RawMessage(`{"query":"where is checkoutSessionToken used?","k":2}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	hits := out.([]search.HybridHit)
+	if len(hits) != 2 || hits[0].Hit.Path != "exact.go" || hits[0].Hit.StartLine != 2 || hits[0].Hit.ID != 0 {
+		t.Fatalf("expected lexical-only file missed by vector search: %+v", hits)
+	}
+	if hits[0].ContextStartLine != 1 || !strings.Contains(hits[0].Context, "func companion()") {
+		t.Fatalf("lexical hit should carry nearby context without an extra tool call: %+v", hits[0])
+	}
+}
+
+func TestHybridSearchWorksWithoutVectors(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(root+"/exact.go", []byte("func checkoutSessionToken() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	idx := &testutil.FakeIndexer{SearchErr: &indexctl.IndexerError{Code: "NOT_IMPLEMENTED", Message: "not implemented"}}
+	reg := Default(testutil.WsSingle(root), idx)
+	out, err := reg.Call(context.Background(), "hybrid_search", json.RawMessage(`{"query":"checkoutSessionToken"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	hits := out.([]search.HybridHit)
+	if len(hits) != 1 || hits[0].Hit.Path != "exact.go" || hits[0].Hit.ID != 0 {
+		t.Fatalf("lexical fallback: %+v", hits)
+	}
+}
+
+func TestHybridSearchScopesLexicalCandidates(t *testing.T) {
+	alpha, beta := t.TempDir(), t.TempDir()
+	for _, root := range []string{alpha, beta} {
+		if err := os.Mkdir(root+"/api", 0o755); err != nil {
+			t.Fatal(err)
+		}
+		for _, path := range []string{"/api/match.go", "/other.go"} {
+			if err := os.WriteFile(root+path, []byte("func checkoutSessionToken() {}\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	ws := workspace.New([]workspace.RepoInfo{{Key: "alpha", Root: alpha}, {Key: "beta", Root: beta}}, "")
+	reg := Default(ws, &testutil.FakeIndexer{})
+	out, err := reg.Call(context.Background(), "hybrid_search", json.RawMessage(`{"query":"checkoutSessionToken","repo":"beta","path_glob":"api/*.go"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	hits := out.([]search.HybridHit)
+	if len(hits) != 1 || hits[0].Hit.Repo != "beta" || hits[0].Hit.Path != "api/match.go" {
+		t.Fatalf("repo and path glob should apply to lexical branch: %+v", hits)
+	}
+}
+
+func TestHybridSearchDoesNotStarveLaterRepos(t *testing.T) {
+	alpha, beta := t.TempDir(), t.TempDir()
+	for i := 0; i < 65; i++ {
+		path := filepath.Join(alpha, fmt.Sprintf("file%03d.go", i))
+		if err := os.WriteFile(path, []byte("checkoutSessionToken\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(beta, "exact.go"), []byte("checkoutSessionToken\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ws := workspace.New([]workspace.RepoInfo{{Key: "alpha", Root: alpha}, {Key: "beta", Root: beta}}, "")
+	reg := Default(ws, &testutil.FakeIndexer{})
+	out, err := reg.Call(context.Background(), "hybrid_search", json.RawMessage(`{"query":"checkoutSessionToken","k":64}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, hit := range out.([]search.HybridHit) {
+		if hit.Hit.Repo == "beta" {
+			return
+		}
+	}
+	t.Fatalf("lexical search should include later repos within the candidate budget")
+}
+
+func TestHybridSearchKindFiltersLexicalCandidates(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(root+"/exact.go", []byte("func checkoutSessionToken() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	idx := &testutil.FakeIndexer{
+		OutlineHits: []indexctl.SearchResult{{ID: 9, Repo: "main", Path: "exact.go", StartLine: 1, EndLine: 1}},
+		Chunk:       indexctl.ChunkDetail{Kind: "function"},
+	}
+	reg := Default(testutil.WsSingle(root), idx)
+	for _, tc := range []struct {
+		kind string
+		want int
+	}{{"method", 0}, {"function", 1}} {
+		out, err := reg.Call(context.Background(), "hybrid_search", json.RawMessage(`{"query":"checkoutSessionToken","kind":"`+tc.kind+`"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := len(out.([]search.HybridHit)); got != tc.want {
+			t.Fatalf("kind %q: got %d want %d", tc.kind, got, tc.want)
+		}
 	}
 }
 

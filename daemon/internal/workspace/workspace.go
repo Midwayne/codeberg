@@ -137,6 +137,16 @@ func (w *Workspace) rootFor(repo string) (string, error) {
 }
 
 func (w *Workspace) Grep(ctx context.Context, pattern string, literal bool, repo, pathGlob string, limit int) ([]GrepMatch, error) {
+	return w.grep(ctx, pattern, literal, repo, pathGlob, limit, 0)
+}
+
+// GrepForRetrieval limits matches per file so a large generated/test file
+// cannot consume the entire lexical candidate budget before other files appear.
+func (w *Workspace) GrepForRetrieval(ctx context.Context, pattern, repo, pathGlob string, limit int) ([]GrepMatch, error) {
+	return w.grep(ctx, pattern, false, repo, pathGlob, limit, 2)
+}
+
+func (w *Workspace) grep(ctx context.Context, pattern string, literal bool, repo, pathGlob string, limit, perFileLimit int) ([]GrepMatch, error) {
 	if pattern == "" {
 		return nil, fmt.Errorf("codeberg: grep: empty pattern")
 	}
@@ -155,7 +165,7 @@ func (w *Workspace) Grep(ctx context.Context, pattern string, literal bool, repo
 		return nil, fmt.Errorf("%w: repo", ErrNotFound)
 	}
 
-	hits, err := grepRoot(ctx, dir, pattern, literal, pathGlob, limit)
+	hits, err := grepRoot(ctx, dir, pattern, literal, pathGlob, limit, perFileLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -167,8 +177,11 @@ func (w *Workspace) Grep(ctx context.Context, pattern string, literal bool, repo
 	return hits, nil
 }
 
-func grepRoot(ctx context.Context, dir, pattern string, literal bool, pathGlob string, limit int) ([]GrepMatch, error) {
+func grepRoot(ctx context.Context, dir, pattern string, literal bool, pathGlob string, limit, perFileLimit int) ([]GrepMatch, error) {
 	args := []string{"--no-heading", "--line-number", "--with-filename", "--color=never", "--no-messages"}
+	if perFileLimit > 0 {
+		args = append(args, "--max-count", strconv.Itoa(perFileLimit))
+	}
 	if literal {
 		args = append(args, "--fixed-strings")
 	}

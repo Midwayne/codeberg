@@ -6,6 +6,10 @@ import type { SearchResult } from '../types.js';
 import type { ToolSource } from './source.js';
 import { daemonToolError } from './daemon-error.js';
 
+const MAX_EXPANDED_HITS = 3;
+const MAX_BODY_CHARS_PER_HIT = 2_500;
+const MAX_BODY_CHARS_TOTAL = 6_000;
+
 export interface SearchCodeOptions {
   daemon: DaemonClient;
   /** Result count when the model doesn't specify one. */
@@ -29,7 +33,7 @@ export function searchCodeSource(opts: SearchCodeOptions): ToolSource {
     tools: (): ToolSet => ({
       search_code: tool({
         description:
-          'Semantic code search. Returns relevant chunks with path, lines, and snippet. ' +
+          'Semantic code search. Returns relevant chunks with path, lines, snippet, and bounded full bodies for the top hits. ' +
           'Searches every indexed repo unless `repo` narrows it to one (keys via the repos tool).',
         inputSchema: jsonSchema<{
           query: string;
@@ -73,7 +77,39 @@ export function searchCodeSource(opts: SearchCodeOptions): ToolSource {
               min_score,
             });
             opts.onResults(results);
-            return results.map(toToolChunk);
+            const selected = selectExpansionHits(results, query);
+            const bodies = await Promise.all(
+              selected.map(async (i) => {
+                const hit = results[i];
+                try {
+                  const detail = await opts.daemon.callTool('get_chunk', {
+                    repo: hit.repo,
+                    id: hit.id,
+                  });
+                  return detail && typeof detail === 'object' && 'body' in detail &&
+                    typeof detail.body === 'string'
+                    ? { body: detail.body, truncated: 'truncated' in detail && detail.truncated === true }
+                    : undefined;
+                } catch {
+                  // Indexes can change between search and chunk lookup. The original
+                  // hit remains usable even when its expansion fails.
+                  return undefined;
+                }
+              }),
+            );
+            let remaining = MAX_BODY_CHARS_TOTAL;
+            const expanded = new Map<number, { body: string; truncated: boolean }>();
+            for (let n = 0; n < selected.length; n++) {
+              const detail = bodies[n];
+              if (!detail?.body || remaining <= 0) continue;
+              const body = detail.body.slice(0, Math.min(MAX_BODY_CHARS_PER_HIT, remaining));
+              remaining -= body.length;
+              expanded.set(selected[n], {
+                body,
+                truncated: detail.truncated || body.length < detail.body.length,
+              });
+            }
+            return results.map((hit, i) => ({ ...toToolChunk(hit), ...expanded.get(i) }));
           } catch (error) {
             return daemonToolError(error);
           }
@@ -81,6 +117,24 @@ export function searchCodeSource(opts: SearchCodeOptions): ToolSource {
       }),
     }),
   };
+}
+
+function selectExpansionHits(results: SearchResult[], query: string): number[] {
+  const stop = new Set(['the', 'and', 'for', 'how', 'what', 'where', 'with', 'from', 'does', 'into']);
+  const terms = [...new Set((query.toLowerCase().match(/[a-z][a-z0-9_]{2,}/g) ?? [])
+    .filter((term) => !stop.has(term)))];
+  return results
+    .map((hit, i) => {
+      const path = hit.path.toLowerCase();
+      const content = `${hit.symbol} ${hit.snippet}`.toLowerCase();
+      const overlap = terms.reduce((score, term) =>
+        score + (path.includes(term) ? 0.012 : 0) + (content.includes(term) ? 0.025 : 0), 0);
+      return { i, score: hit.score + overlap };
+    })
+    .filter(({ i }) => Boolean(results[i].repo && results[i].id))
+    .sort((a, b) => b.score - a.score || a.i - b.i)
+    .slice(0, MAX_EXPANDED_HITS)
+    .map(({ i }) => i);
 }
 
 function toToolChunk(r: SearchResult): Record<string, unknown> {

@@ -103,6 +103,28 @@ func TestReadFileTruncatesAtMaxBytes(t *testing.T) {
 	}
 }
 
+func TestGrepForRetrievalPreservesOtherFiles(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(root+"/a.go", []byte(strings.Repeat("exactIdentifier\n", 30)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(root+"/b.go", []byte("exactIdentifier\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	w := New([]RepoInfo{{Key: "main", Root: root}}, "main")
+	hits, err := w.GrepForRetrieval(context.Background(), "exactIdentifier", "main", "*.go", 8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := make(map[string]int)
+	for _, hit := range hits {
+		files[hit.Path]++
+	}
+	if len(hits) != 3 || files["a.go"] != 2 || files["b.go"] != 1 {
+		t.Fatalf("per-file cap should leave room for other source files: %+v", hits)
+	}
+}
+
 func TestReadRawRejectsOversize(t *testing.T) {
 	root := t.TempDir()
 	big := make([]byte, 4*1024*1024+1)

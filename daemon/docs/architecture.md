@@ -91,7 +91,7 @@ On `SIGTERM` / `SIGINT`:
 
 | Mode | Env | Vector search | Chunk tools |
 |------|-----|---------------|-------------|
-| Chunk-only | No `CBERG_MODEL` / `CBERG_INDEX_PATH` | `501 NOT_IMPLEMENTED` | `find_symbol`, `file_outline`, `get_chunk`, grep, … |
+| Chunk-only | No `CBERG_MODEL` / `CBERG_INDEX_PATH` | `GET /search`: `501 NOT_IMPLEMENTED`; `hybrid_search`: lexical-only | `find_symbol`, `file_outline`, `get_chunk`, grep, … |
 | Full | Both set | `GET /search`, `search`, `hybrid_search` | All tools |
 
 `GET /health` exposes `vectors_enabled` and per-repo `ready` / `chunks`.

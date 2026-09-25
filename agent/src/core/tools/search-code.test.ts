@@ -25,6 +25,57 @@ function run(toolDef: unknown, input: unknown): Promise<any> {
 }
 
 describe('searchCodeSource', () => {
+  it('expands only the top three chunks within a shared output budget', async () => {
+    const hits = [1, 2, 3, 4].map((id) => ({ ...hit(id), repo: 'alpha' }));
+    const daemon = {
+      search: vi.fn(async () => hits),
+      callTool: vi.fn(async (_name: string, args: { id: number }) => ({
+        body: String(args.id).repeat(4000), truncated: false,
+      })),
+    } as unknown as DaemonClient;
+    const captured: SearchResult[] = [];
+    const source = searchCodeSource({ daemon, defaultK: 8, onResults: (h) => captured.push(...h) });
+
+    const out = await run((await source.tools()).search_code, { query: 'auth' });
+    expect(daemon.callTool).toHaveBeenCalledTimes(3);
+    expect(daemon.callTool).toHaveBeenCalledWith('get_chunk', { repo: 'alpha', id: 1 });
+    expect(out.map((r: { body?: string }) => r.body?.length)).toEqual([2500, 2500, 1000, undefined]);
+    expect(out[0]).toMatchObject({ snippet: 'code', body: '1'.repeat(2500), truncated: true });
+    expect(out[3]).not.toHaveProperty('body');
+    expect(captured).toEqual(hits);
+  });
+
+  it('keeps search results when a chunk cannot be fetched', async () => {
+    const hits = [1, 2].map((id) => ({ ...hit(id), repo: 'alpha' }));
+    const daemon = {
+      search: vi.fn(async () => hits),
+      callTool: vi.fn(async (_name: string, args: { id: number }) => {
+        if (args.id === 1) throw new Error('chunk no longer indexed');
+        return { body: 'full function', truncated: false };
+      }),
+    } as unknown as DaemonClient;
+    const source = searchCodeSource({ daemon, defaultK: 8, onResults: () => {} });
+    const out = await run((await source.tools()).search_code, { query: 'auth' });
+    expect(out[0]).toMatchObject({ snippet: 'code' });
+    expect(out[0]).not.toHaveProperty('body');
+    expect(out[1]).toMatchObject({ body: 'full function', truncated: false });
+  });
+
+  it('spends expansion budget on a query-matching hit beyond the first three', async () => {
+    const hits = [1, 2, 3, 4].map((id) => ({
+      ...hit(id), repo: 'alpha', score: 1 - id * 0.01,
+      path: id === 4 ? 'src/obligationMetricsService.ts' : `src/unrelated${id}.ts`,
+    }));
+    const daemon = {
+      search: vi.fn(async () => hits),
+      callTool: vi.fn(async (_name: string, args: { id: number }) => ({ body: `body ${args.id}` })),
+    } as unknown as DaemonClient;
+    const source = searchCodeSource({ daemon, defaultK: 8, onResults: () => {} });
+    const out = await run((await source.tools()).search_code, { query: 'obligation metrics service' });
+    expect(daemon.callTool).toHaveBeenCalledWith('get_chunk', { repo: 'alpha', id: 4 });
+    expect(out[3]).toMatchObject({ body: 'body 4' });
+    expect(out[0].path).toBe('src/unrelated1.ts'); // ranking remains the daemon's
+  });
   it('returns actionable daemon errors to the model', async () => {
     const daemon = {
       search: vi.fn(async () => { throw new DaemonError('INTERNAL', 'indexer connect: socket missing', 500); }),
