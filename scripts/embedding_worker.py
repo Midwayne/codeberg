@@ -7,6 +7,7 @@ All diagnostics go to stderr so the indexer's protocol stays unambiguous.
 """
 
 import json
+from contextlib import redirect_stdout
 import os
 import socket
 import struct
@@ -89,10 +90,14 @@ def llama_embedder(path: str):
 
 
 def main(backend: str, path: str):
-    embed, stop = (mlx_embedder(path) if backend == "mlx" else llama_embedder(path))
+    # Dependencies may print model-loading progress; stdout is reserved for the
+    # binary protocol read by cberg-index.
+    with redirect_stdout(sys.stderr):
+        embed, stop = (mlx_embedder(path) if backend == "mlx" else llama_embedder(path))
     try:
         # Detect model / endpoint errors before telling the indexer it is ready.
-        first = embed(["code search"])
+        with redirect_stdout(sys.stderr):
+            first = embed(["code search"])
         dim = len(first[0])
         if not dim or dim > 16384:
             raise ValueError(f"invalid embedding dimension: {dim}")
@@ -104,7 +109,8 @@ def main(backend: str, path: str):
             count = struct.unpack("=I", header)[0]
             texts = [read_exact(struct.unpack("=I", read_exact(4))[0]).decode("utf-8")
                      for _ in range(count)]
-            vectors = embed(texts)
+            with redirect_stdout(sys.stderr):
+                vectors = embed(texts)
             if len(vectors) != count or any(len(v) != dim for v in vectors):
                 raise ValueError("embedding output shape changed")
             for vector in vectors:
