@@ -9,6 +9,7 @@ import { reasoningFromEnv } from '../core/config.js';
 import { LearningService } from '../core/learning/service.js';
 import {
   CHAT_PATH,
+  CHAT_SEARCH_PATH,
   COMMANDS_PATH,
   META_PATH,
   SESSIONS_PATH,
@@ -365,6 +366,54 @@ describe('web server', () => {
     expect((await fetch(`${url}/abc123`, { method: 'DELETE' })).status).toBe(204);
     expect((await fetch(`${url}/child1`, { method: 'DELETE' })).status).toBe(204);
     expect(await (await fetch(url)).json()).toEqual([]);
+  });
+
+  it('pins, archives, searches message text across all chats, and preserves flags when prompting again', async () => {
+    let prompted: unknown[] | undefined;
+    await start({ sessionStore: tempSessionStore(), respond: async (res, messages) => {
+      prompted = messages;
+      res.end('ok');
+    } });
+    const url = `${baseUrl}${SESSIONS_PATH}`;
+    const put = (id: string, title: string, text: string, answer?: string) => fetch(`${url}/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, messages: [
+        { id: 'u', role: 'user', parts: [{ type: 'text', text }] },
+        ...(answer ? [{ id: 'a', role: 'assistant', parts: [{ type: 'text', text: answer }] }] : []),
+      ] }),
+    });
+    const patch = (id: string, body: unknown) => fetch(`${url}/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    await put('first', 'First chat', 'Searchable secret phrase');
+    await put('second', 'Other chat', 'Something else', 'The unique answer is here');
+    expect((await patch('first', { pinned: true, archived: true })).status).toBe(200);
+    expect((await patch('second', { pinned: true })).status).toBe(200);
+
+    const results = await (await fetch(`${url}?q=SECRET%20phrase`)).json();
+    expect(results.map((item: { id: string }) => item.id)).toEqual(['first']);
+    expect(results[0]).toMatchObject({ pinned: true, archived: true });
+    const hits = await (await fetch(`${baseUrl}${CHAT_SEARCH_PATH}?q=secret%20phrase`)).json();
+    expect(hits).toMatchObject([{ id: 'first', messageId: 'u', role: 'user', archived: true, snippet: 'Searchable secret phrase' }]);
+    expect((await (await fetch(`${baseUrl}${CHAT_SEARCH_PATH}?q=other%20chat`)).json())[0]).toMatchObject({ id: 'second', role: 'title' });
+    expect((await (await fetch(`${baseUrl}${CHAT_SEARCH_PATH}?q=unique%20answer`)).json())[0]).toMatchObject({ id: 'second', messageId: 'a', role: 'assistant', snippet: 'The unique answer is here' });
+    expect((await (await fetch(`${url}?q=other%20chat`)).json()).map((item: { id: string }) => item.id)).toEqual(['second']);
+    expect((await (await fetch(url)).json()).map((item: { id: string }) => item.id)).toContain('first');
+
+    const archived = await (await fetch(`${url}/first`)).json();
+    expect((await fetch(baseUrl + CHAT_PATH, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: archived.messages }),
+    })).status).toBe(200);
+    expect(prompted).toEqual(archived.messages);
+    await put('first', 'First chat', 'Searchable secret phrase and a new prompt');
+    expect(await (await fetch(`${url}/first`)).json()).toMatchObject({ pinned: true, archived: true });
+
+    expect((await patch('first', { pinned: false, archived: false })).status).toBe(200);
+    expect(await (await fetch(`${url}/first`)).json()).toMatchObject({ pinned: false, archived: false });
+    expect((await patch('missing', { pinned: true })).status).toBe(404);
+    expect((await patch('first', { messages: [] })).status).toBe(400);
+    expect((await patch('first', { archived: 'yes' })).status).toBe(400);
   });
 
   it('404s a missing session and 400s a traversal id', async () => {

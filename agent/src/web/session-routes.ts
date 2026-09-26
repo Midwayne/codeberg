@@ -21,7 +21,8 @@ export async function routeSessions(
     if (req.method !== 'GET') {
       return sendText(res, 405, 'method not allowed');
     }
-    return sendJson(res, 200, await store.list());
+    const query = new URL(req.url ?? '/', 'http://localhost').searchParams.get('q') ?? '';
+    return sendJson(res, 200, await store.list(query));
   }
 
   // Item: one chat by id.
@@ -39,26 +40,33 @@ export async function routeSessions(
       const body = await readJson(req);
       const messages = Array.isArray(body?.messages) ? body.messages : [];
       const rawTitle = typeof body?.title === 'string' ? body.title.trim() : '';
-      const now = Date.now();
-      const existing = await store.load(id);
-      const parentId = readParentId(body?.parentId, id) ?? existing?.parentId;
-      await store.save({
+      const parentId = readParentId(body?.parentId, id);
+      const record = await store.upsert({
         id,
         title: rawTitle || 'New chat',
-        createdAt: existing?.createdAt ?? now,
-        updatedAt: now,
         messages,
         ...(parentId ? { parentId } : {}),
       });
       if (learning) {
         try {
-          await learning.recordSession(id, messages, parentId);
+          await learning.recordSession(id, messages, record.parentId);
         } catch (error) {
           // Chat persistence succeeded. A learning disk failure must not break it.
           console.error('learning session recording failed:', error);
         }
       }
       return sendJson(res, 200, { ok: true });
+    }
+    case 'PATCH': {
+      const body = await readJson(req);
+      if (!body || typeof body !== 'object' || Array.isArray(body) ||
+          Object.keys(body).length === 0 ||
+          Object.entries(body).some(([key, value]) =>
+            (key !== 'pinned' && key !== 'archived') || typeof value !== 'boolean')) {
+        return sendText(res, 400, 'expected pinned and/or archived booleans');
+      }
+      const record = await store.setFlags(id, body as { pinned?: boolean; archived?: boolean });
+      return record ? sendJson(res, 200, { ok: true }) : sendText(res, 404, 'not found');
     }
     case 'DELETE': {
       await store.remove(id);

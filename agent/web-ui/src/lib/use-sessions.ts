@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { listSessions, type SessionSummary } from '@/lib/sessions';
 
@@ -6,13 +6,17 @@ import { listSessions, type SessionSummary } from '@/lib/sessions';
  *  save or delete). Errors are swallowed in `listSessions`, so this never throws. */
 export function useSessions() {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const request = useRef(0);
 
   const refresh = useCallback(async () => {
-    setSessions(await listSessions());
+    const current = ++request.current;
+    const result = await listSessions();
+    if (current === request.current) setSessions(result);
   }, []);
 
   useEffect(() => {
-    void refresh();
+    const timer = setTimeout(() => void refresh(), 0);
+    return () => { clearTimeout(timer); ++request.current; };
   }, [refresh]);
 
   return { sessions, refresh };

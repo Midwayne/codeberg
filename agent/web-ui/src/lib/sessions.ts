@@ -9,6 +9,8 @@ export interface SessionSummary {
   updatedAt: number;
   turns: number;
   parentId?: string;
+  pinned: boolean;
+  archived: boolean;
 }
 
 /** Full saved chat — UI messages verbatim, so a resume re-renders faithfully. */
@@ -19,18 +21,28 @@ export interface SessionRecord {
   updatedAt: number;
   messages: UIMessage[];
   parentId?: string;
+  pinned?: boolean;
+  archived?: boolean;
 }
 
 const BASE = '/api/sessions';
 
 /** All saved chats, newest first. Network/parse errors yield an empty list. */
-export async function listSessions(): Promise<SessionSummary[]> {
+export async function listSessions(query = ''): Promise<SessionSummary[]> {
   try {
-    const res = await fetch(BASE);
+    const res = await fetch(query.trim() ? `${BASE}?q=${encodeURIComponent(query.trim())}` : BASE);
     return res.ok ? ((await res.json()) as SessionSummary[]) : [];
   } catch {
     return [];
   }
+}
+
+/** Metadata updates are independent of the transcript and never replace messages. */
+export async function updateSessionFlags(id: string, flags: { pinned?: boolean; archived?: boolean }): Promise<void> {
+  const response = await fetch(`${BASE}/${encodeURIComponent(id)}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(flags),
+  });
+  if (!response.ok) throw new Error(`Could not update chat (${response.status})`);
 }
 
 export async function loadSession(id: string): Promise<SessionRecord | null> {

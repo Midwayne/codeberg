@@ -21,6 +21,7 @@ export const META_PATH = '/api/meta';
 export const COMMANDS_PATH = '/api/commands';
 /** Saved-chat CRUD: list (`GET`), and load/save/delete one at `/api/sessions/<id>`. */
 export const SESSIONS_PATH = '/api/sessions';
+export const CHAT_SEARCH_PATH = '/api/chat-search';
 export const MODELS_PATH = '/api/models';
 export { LEARNING_PATH };
 
@@ -154,6 +155,11 @@ async function route(
   if (path === SESSIONS_PATH || path.startsWith(SESSIONS_PATH + '/')) {
     await routeSessions(req, res, sessions, path, opts.learning);
     return;
+  }
+
+  if (path === CHAT_SEARCH_PATH) {
+    if (req.method !== 'GET') return sendText(res, 405, 'method not allowed');
+    return sendJson(res, 200, await sessions.search(url.searchParams.get('q') ?? ''));
   }
 
   if (opts.learning && (path === LEARNING_PATH || path.startsWith(LEARNING_PATH + '/'))) {

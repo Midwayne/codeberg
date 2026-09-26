@@ -31,6 +31,17 @@ npm run build    # output: web-ui/dist/
 `codeberg-web` serves `web-ui/dist` by default (`CODEBERG_WEB_ROOT`). The launcher
 runs `make build-web-ui` as part of `make build-agent`.
 
+## Saved chats
+
+The sidebar separates active and archived chats. The actions menu on each chat
+lets you pin/unpin, archive/unarchive, or delete it. Use the header search button
+or ⌘K/Ctrl+K to open a keyboard-navigable search dialog.
+It searches titles and user/assistant message text across **all** chats, including
+archived chats, with answers from the open chat listed first. Selecting a message
+opens its chat and jumps to that message. Any chat can still be prompted normally;
+pinning and archiving only change its sidebar organization. State is stored with
+each conversation in `$CODEBERG_HOME/web-sessions/`.
+
 ## Layout
 
 ```

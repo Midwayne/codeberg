@@ -102,4 +102,15 @@ describe('WebSessionStore', () => {
     expect(await store.load('gone')).toBeNull();
     await expect(store.remove('gone')).resolves.toBeUndefined();
   });
+
+  it('keeps pin/archive metadata when a new turn saves concurrently with a toggle', async () => {
+    const store = tempStore();
+    await store.upsert({ id: 'chat', title: 'Example', messages: [userMsg('a', 'first')] });
+    await Promise.all([
+      store.setFlags('chat', { pinned: true, archived: true }),
+      store.upsert({ id: 'chat', title: 'Example', messages: [userMsg('a', 'first'), userMsg('b', 'second')] }),
+    ]);
+    const record = await store.load('chat');
+    expect(record).toMatchObject({ pinned: true, archived: true, messages: [userMsg('a', 'first'), userMsg('b', 'second')] });
+  });
 });

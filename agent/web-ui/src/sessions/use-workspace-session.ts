@@ -4,11 +4,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { createChatBranch } from '@/lib/branch';
 import { useSessions } from '@/lib/use-sessions';
-import { deleteSession, deriveTitle, loadSession, newSessionId, saveSession } from '@/lib/sessions';
+import { deleteSession, deriveTitle, loadSession, newSessionId, saveSession, updateSessionFlags } from '@/lib/sessions';
 import { createWorkspaceChat, type WorkspaceChat } from '@/sessions/workspace-chat';
 
 /** Owns the conversation lifecycle shared by the chat and session sidebar. */
 export function useWorkspaceSession() {
+  const [sessionError, setSessionError] = useState('');
   const { sessions, refresh } = useSessions();
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
@@ -106,5 +107,15 @@ export function useWorkspaceSession() {
     [sessionId, startNew, refresh],
   );
 
-  return { chat, sessions, sessionId, resume, startNew, branchFrom, remove };
+  const setFlags = useCallback(async (id: string, flags: { pinned?: boolean; archived?: boolean }) => {
+    try {
+      await updateSessionFlags(id, flags);
+      setSessionError('');
+      await refresh();
+    } catch (error) {
+      setSessionError(error instanceof Error ? error.message : 'Could not update chat');
+    }
+  }, [refresh]);
+
+  return { chat, sessions, sessionId, sessionError, resume, startNew, branchFrom, remove, setFlags };
 }
