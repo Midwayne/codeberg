@@ -18,6 +18,15 @@ afterEach(async () => {
 });
 
 describe('KnowledgeWorker', () => {
+  it('initializes a shared learning service only once across model-bound chat agents', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'codeberg-worker-'));
+    roots.push(root);
+    const service = new LearningService({ root, generator: { generate: async () => '{"action":"none"}' } });
+    const initializeWorker = vi.spyOn(service.worker!, 'initialize');
+    await Promise.all([service.initialize(), service.initialize()]);
+    expect(initializeWorker).toHaveBeenCalledTimes(1);
+    service.stop();
+  });
   it('recovers an interrupted in-flight job when its lease expires without another restart', async () => {
     const root = await mkdtemp(join(tmpdir(), 'codeberg-worker-'));
     roots.push(root);

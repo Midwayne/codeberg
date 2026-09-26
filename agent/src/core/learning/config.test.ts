@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { learningEnabledFromEnv } from '../config.js';
+import { learningEnabledFromEnv, reasoningFromEnv } from '../config.js';
 
 describe('learningEnabledFromEnv', () => {
   it('defaults on and recognizes standard disabled values', () => {
@@ -8,4 +8,8 @@ describe('learningEnabledFromEnv', () => {
       expect(learningEnabledFromEnv({ CODEBERG_LEARNING_USE: value })).toBe(false);
     }
   });
+});
+
+it('accepts max reasoning effort from launcher config', () => {
+  expect(reasoningFromEnv({ CODEBERG_REASONING: 'max' })).toBe('max');
 });

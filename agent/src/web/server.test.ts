@@ -17,6 +17,7 @@ import {
   type WebServerOptions,
 } from './server.js';
 import { WebSessionStore } from './sessions.js';
+import { ModelSettingsStore } from './model-settings.js';
 import { formatWebTitle } from './title.js';
 
 // `agent` is unused when `respond` is injected; cast a stub so the tests can
@@ -97,6 +98,43 @@ describe('web server', () => {
     const res = await fetch(baseUrl + META_PATH);
     expect(res.headers.get('content-type')).toContain('application/json');
     expect(await res.json()).toEqual({ title: 'gpt-5.6-sol · reasoning: high', capabilities: { learning: false } });
+  });
+
+  it('persists independent UI model selections and binds each chat request to a snapshot', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'codeberg-models-'));
+    tempDirs.push(dir);
+    writeFileSync(join(dir, 'models.yml'), 'providers:\n  openai:\n    models:\n      small:\n        model: alpha\n        context_window: 50000\n        efforts: [low, high]\n      large:\n        model: alpha\n        context_window: 90000\n        efforts: [none, low]\n');
+    const models = new ModelSettingsStore({
+      home: dir,
+      defaultChat: { key: 'openai:small', effort: 'low' },
+      defaultLearning: { key: 'openai:large', effort: 'none' },
+    });
+    const received: string[] = [];
+    await start({ modelSettings: models, respond: async (res, _messages, selected) => {
+      received.push(`${selected?.key}:${selected?.model}:${selected?.effort}:${selected?.contextWindow}`);
+      res.end('ok');
+    } });
+
+    const initial = await (await fetch(`${baseUrl}/api/models`)).json();
+    expect(initial.chat).toEqual({ key: 'openai:small', effort: 'low' });
+    expect(initial.learning).toEqual({ key: 'openai:large', effort: 'none' });
+    const send = () => fetch(baseUrl + CHAT_PATH, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"messages":[]}' });
+    expect((await send()).status).toBe(200);
+    const saved = await fetch(`${baseUrl}/api/models`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat: { key: 'openai:large', effort: 'low' }, learning: { key: 'openai:small', effort: 'high' } }),
+    });
+    expect(saved.status).toBe(200);
+    expect((await (await fetch(baseUrl + META_PATH)).json()).title).toContain('large');
+    expect((await send()).status).toBe(200);
+    expect(received).toEqual(['openai:small:openai:alpha:low:50000', 'openai:large:openai:alpha:low:90000']);
+
+    const invalid = await fetch(`${baseUrl}/api/models`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat: { key: 'openai:unlisted', effort: 'high' }, learning: initial.learning }),
+    });
+    expect(invalid.status).toBe(400);
+    expect((await (await fetch(`${baseUrl}/api/models`)).json()).chat.key).toBe('openai:large');
   });
 
   it('omits learning routes and collection when the learning service is absent', async () => {

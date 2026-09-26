@@ -37,6 +37,7 @@ Project-wide overview. **libcodeberg** details live under [core/docs](../core/do
 | [agent/web-ui/README.md](../agent/web-ui/README.md) | React chat SPA development |
 | [agent-accuracy.md](agent-accuracy.md) | Retrieval quality & eval roadmap |
 | [continuous-learning.md](continuous-learning.md) | Graded interactions, durable jobs, knowledge extraction, retrieval, and dataset export |
+| [models.md](models.md) | Browser model catalog, per-model efforts/context windows, and persistent chat/learning selections |
 | [mcp.md](mcp.md) | Cursor-compatible MCP server config (`mcp.json`) |
 
 ## Knowledge graph (dual index)

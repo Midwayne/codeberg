@@ -61,6 +61,31 @@ describe('Agent.compactHistory', () => {
 });
 
 describe('Agent tool budget', () => {
+  it('passes max chat effort through Responses provider options without dropping the prompt cache key', async () => {
+    const model = new MockLanguageModelV4({ doGenerate: async () => ({
+      content: [{ type: 'text', text: 'Done' }],
+      finishReason: { unified: 'stop', raw: undefined },
+      usage: { inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 1, text: 1, reasoning: 0 } },
+      warnings: [],
+    }) });
+    const daemon = new DaemonClient(DEFAULT_DAEMON_URL);
+    vi.spyOn(daemon, 'waitReady').mockResolvedValue({ ready: true, chunks: 0, version: 'test', vectors_enabled: false });
+    vi.spyOn(daemon, 'listTools').mockResolvedValue([]);
+    const agent = new Agent({ model, daemon, learning: false, reasoning: 'max',
+      profile: { provider: 'openai', modelId: 'gpt-max', contextWindow: 128000, cache: 'openai' },
+      promptHooks: [], web: webConfigFromEnv({ CODEBERG_WEB_USE: 'false' }),
+      mcp: { enabled: false, servers: [], files: [], warnings: [] },
+      context: ContextStore.open(mkdtempSync(join(tmpdir(), 'cberg-max-'))),
+    });
+    await (await agent.toolLoopAgent()).generate({ prompt: 'Hi' });
+    expect(model.doGenerateCalls[0].reasoning).toBeUndefined();
+    expect(model.doGenerateCalls[0].providerOptions?.openai).toMatchObject({
+      reasoningEffort: 'max',
+      promptCacheKey: expect.stringMatching(/^codeberg-/),
+    });
+    await agent.close();
+  });
+
   it('does not initialize learning or register learning tools when disabled', async () => {
     const model = new MockLanguageModelV4({
       doGenerate: async () => ({

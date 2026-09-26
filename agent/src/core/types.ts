@@ -75,8 +75,8 @@ export interface Asker {
   ask(question: string, opts?: AskOptions): Promise<AskResult>;
 }
 
-/** Reasoning-effort levels accepted by ai-sdk v7's standardized `reasoning`
- *  option (`LanguageModelV4CallOptions['reasoning']`). */
+/** ai-sdk v7 standardized efforts plus `max`, which OpenAI Responses gateways
+ *  accept via providerOptions.openai.reasoningEffort. */
 export type ReasoningEffort =
   | 'provider-default'
   | 'none'
@@ -84,7 +84,8 @@ export type ReasoningEffort =
   | 'low'
   | 'medium'
   | 'high'
-  | 'xhigh';
+  | 'xhigh'
+  | 'max';
 
 export interface Turn {
   role: 'user' | 'assistant';

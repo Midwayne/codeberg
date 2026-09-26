@@ -25,7 +25,7 @@ or from a checkout.
 | `CODEBERG_DAEMON_URL` | all | daemon endpoint (default `http://127.0.0.1:48080`) |
 | `CODEBERG_QUESTION` | CLI | the question, overrides the positional argument |
 | `CODEBERG_HOME` | web, MCP | state root for sessions and `~/.codeberg/mcp.json` (default `~/.codeberg`) |
-| `CODEBERG_REASONING` | all | reasoning effort: `provider-default`, `none`, `minimal`, `low`, `medium`, `high`, `xhigh`; anything else is ignored |
+| `CODEBERG_REASONING` | all | reasoning effort: `provider-default`, `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` (Responses-compatible models only); anything else is ignored |
 | `CODEBERG_CONTEXT_WINDOW` | all | override the model's inferred context window (tokens) — mainly for local `ollama`/`llamacpp` servers, whose real window depends on how they were started |
 | `CODEBERG_WEB_USE` | all | master switch for `fetch_url`/`web_search` (default on; `0`/`false`/`off`/`no` disables) |
 | `CODEBERG_SEARXNG_URL` | all | SearXNG endpoint backing `web_search` |
@@ -119,6 +119,11 @@ codeberg-web anthropic:claude-sonnet-4-6     # → http://127.0.0.1:48088
 `CODEBERG_MODEL` can substitute for the positional argument. Set `CODEBERG_WEB_PORT`
 (or `PORT`) for the port, or `CODEBERG_WEB_ROOT` to point at a prebuilt SPA
 elsewhere.
+
+To select chat and background-learning models and effort from the browser,
+define [`$CODEBERG_HOME/models.yml`](../docs/models.md) and open **Model settings**
+in the top-right corner. With a catalog, `CODEBERG_MODEL` is optional for the
+web server; the chosen settings persist across launches.
 
 The chat route (`POST /api/chat`) is stateless: the browser holds the
 conversation and re-sends it each turn,

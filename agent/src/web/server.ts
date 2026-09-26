@@ -10,6 +10,8 @@ import { serveStatic } from './static.js';
 import { WebSessionStore } from './sessions.js';
 import { LEARNING_PATH, routeLearning } from './learning-routes.js';
 import type { LearningService } from '../core/learning/service.js';
+import { ModelSelectionError, type ModelSelection, type ModelSettingsStore } from './model-settings.js';
+import { formatWebTitle } from './title.js';
 
 /** The endpoint the browser chat client posts its message history to. */
 export const CHAT_PATH = '/api/chat';
@@ -19,10 +21,14 @@ export const META_PATH = '/api/meta';
 export const COMMANDS_PATH = '/api/commands';
 /** Saved-chat CRUD: list (`GET`), and load/save/delete one at `/api/sessions/<id>`. */
 export const SESSIONS_PATH = '/api/sessions';
+export const MODELS_PATH = '/api/models';
 export { LEARNING_PATH };
 
 /** Streams an agent turn to a Node response, given the client's UI messages. */
-export type ChatResponder = (res: ServerResponse, messages: unknown[]) => Promise<void>;
+export type ResolvedModelSelection = ModelSelection & { model: string; contextWindow: number };
+export type ChatResponder = (
+  res: ServerResponse, messages: unknown[], selected?: ResolvedModelSelection,
+) => Promise<void>;
 
 export interface WebServerOptions {
   /** The ai-sdk agent driving each turn. */
@@ -49,6 +55,10 @@ export interface WebServerOptions {
   sessionStore?: WebSessionStore;
   /** Durable interaction/feedback/knowledge subsystem. */
   learning?: LearningService;
+  /** Persistent catalog and UI choices. Omitted for servers without model selection. */
+  modelSettings?: ModelSettingsStore;
+  /** Resolve and cache a model-bound agent for this request's selection. */
+  selectAgent?: (selection: ResolvedModelSelection) => Promise<ToolLoopAgent>;
   /**
    * Slash commands served at `/api/commands` for the composer autocomplete.
    * Defaults to the built-in hook catalog, so a newly registered prompt hook
@@ -69,10 +79,10 @@ export function createRequestHandler(
 ): (req: IncomingMessage, res: ServerResponse) => void {
   const respond: ChatResponder =
     opts.respond ??
-    ((res, messages) =>
+    (async (res, messages, selection) =>
       pipeAgentUIStreamToResponse({
         response: res,
-        agent: opts.agent,
+        agent: selection && opts.selectAgent ? await opts.selectAgent(selection) : opts.agent,
         uiMessages: messages,
       }));
   const sessions = opts.sessionStore ?? new WebSessionStore();
@@ -102,14 +112,38 @@ async function route(
   if (req.method === 'POST' && path === CHAT_PATH) {
     const body = await readJson(req);
     const messages = Array.isArray(body?.messages) ? body.messages : [];
-    await respond(res, messages);
+    const settings = await opts.modelSettings?.current();
+    const selected = settings?.models.find((entry) => entry.key === settings.chat.key);
+    await respond(res, messages, selected && settings ? {
+      ...settings.chat, model: selected.model, contextWindow: selected.contextWindow,
+    } : undefined);
     return;
   }
 
   if (req.method === 'GET' && path === META_PATH) {
+    const settings = await opts.modelSettings?.current();
+    const selected = settings?.models.find((entry) => entry.key === settings.chat.key);
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify({ title: opts.title, capabilities: { learning: Boolean(opts.learning) } }));
+    res.end(JSON.stringify({
+      title: settings && selected
+        ? `${formatWebTitle(selected.model, settings.chat.effort)}${selected.key !== selected.model ? ` · ${selected.key.slice(selected.provider.length + 1)}` : ''}`
+        : opts.title,
+      capabilities: { learning: Boolean(opts.learning) },
+    }));
     return;
+  }
+
+  if (path === MODELS_PATH && opts.modelSettings) {
+    if (req.method === 'GET') return sendJson(res, 200, await opts.modelSettings.current());
+    if (req.method === 'PUT') {
+      try {
+        return sendJson(res, 200, await opts.modelSettings.update(await readJson(req)));
+      } catch (error) {
+        if (error instanceof ModelSelectionError) return sendText(res, 400, error.message);
+        throw error;
+      }
+    }
+    return sendText(res, 405, 'method not allowed');
   }
 
   if (req.method === 'GET' && path === COMMANDS_PATH) {

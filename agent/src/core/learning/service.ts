@@ -12,6 +12,7 @@ export class LearningService {
   readonly store: LearningStore;
   readonly queue: DurableJobQueue;
   readonly worker?: KnowledgeWorker;
+  private starting?: Promise<void>;
 
   constructor(options: { root?: string; generator?: Generator } = {}) {
     const root = options.root ?? defaultLearningRoot();
@@ -20,7 +21,15 @@ export class LearningService {
     if (options.generator) this.worker = new KnowledgeWorker(this.store, this.queue, options.generator);
   }
 
-  async initialize(): Promise<void> {
+  initialize(): Promise<void> {
+    this.starting ??= this.start().catch((error: unknown) => {
+      this.starting = undefined;
+      throw error;
+    });
+    return this.starting;
+  }
+
+  private async start(): Promise<void> {
     await this.ensureLayout();
     await this.queue.reconcileStates();
     await this.reconcileJobs();

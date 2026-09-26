@@ -15,6 +15,7 @@ import { ContextStore, defaultContextRoot } from './context/store.js';
 import { wrapToolOutputs } from './context/wrap.js';
 import { fitHistory, totalTokens } from './history.js';
 import { fromAiSdk } from './generator.js';
+import { maxReasoningProviderOptions } from './reasoning.js';
 import {
   DEFAULT_PROMPT_HOOKS,
   wrapToolLoopAgentWithPromptHooks,
@@ -99,6 +100,7 @@ export class Agent implements Asker {
   private readonly mcp: McpConfig | undefined;
   private readonly context: ContextStore;
   private readonly learning?: LearningService;
+  private readonly ownsLearning: boolean;
   private learningStarted?: Promise<void>;
   private mcpSource?: McpToolSource;
   /** System prompt for this agent — `AGENT_SYSTEM` plus web/MCP sections matching
@@ -130,11 +132,12 @@ export class Agent implements Asker {
     this.learning = opts.learning === false
       ? undefined
       : opts.learning ?? new LearningService({ generator: fromAiSdk(opts.subagentModel ?? opts.model) });
+    this.ownsLearning = opts.learning === undefined;
   }
 
   /** Drop MCP server connections (stdio child processes, HTTP sessions). */
   async close(): Promise<void> {
-    this.learning?.stop();
+    if (this.ownsLearning) this.learning?.stop();
     await this.mcpSource?.close();
   }
 
@@ -237,7 +240,13 @@ export class Agent implements Asker {
         skills,
         contextRoot: this.context.root,
       });
-      const providerOptions = requestProviderOptions(this.system, toolNames, this.profile);
+      let providerOptions = requestProviderOptions(this.system, toolNames, this.profile);
+      if (this.reasoning === 'max') {
+        providerOptions = {
+          ...providerOptions,
+          openai: { ...providerOptions?.openai, ...maxReasoningProviderOptions(this.profile.provider).openai },
+        };
+      }
       const prune = pruneBudget(this.profile);
       const loop = new ToolLoopAgent({
         model: this.model,
@@ -250,7 +259,7 @@ export class Agent implements Asker {
         stopWhen: isLoopFinished(),
         timeout: DEFAULT_TIMEOUT,
         ...(providerOptions ? { providerOptions } : {}),
-        ...(this.reasoning ? { reasoning: this.reasoning } : {}),
+        ...(this.reasoning && this.reasoning !== 'max' ? { reasoning: this.reasoning } : {}),
         // In-loop results are spilled at execute. Here, drop the oldest tool
         // pairs once the transcript crosses the high-water mark, and hide MCP
         // tools until load_mcp_tools or the transcript already names them.

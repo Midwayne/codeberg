@@ -431,9 +431,11 @@ func (c *Config) ValidateForRun() error {
 			}
 		}
 	}
-	if c.Model == "" {
+	// The browser can choose its initial model from the validated models.yml catalog.
+	_, catalogErr := os.Stat(filepath.Join(c.Home, "models.yml"))
+	if c.Model == "" && catalogErr != nil {
 		missing = append(missing, KeyModel+" (provider:model, e.g. anthropic:claude-haiku-4-5)")
-	} else if !strings.Contains(c.Model, ":") {
+	} else if c.Model != "" && !strings.Contains(c.Model, ":") {
 		return fmt.Errorf("%s must be provider:model, got %q", KeyModel, c.Model)
 	}
 	if c.SubagentModel != "" && !strings.Contains(c.SubagentModel, ":") {

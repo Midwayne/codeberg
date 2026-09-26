@@ -1,11 +1,18 @@
 #!/usr/bin/env node
 import { fileURLToPath } from 'node:url';
+import { stat } from 'node:fs/promises';
+import { join } from 'node:path';
 
-import { createAgentFromEntry, reasoningFromEnv } from '../core/config.js';
-import { wrapToolLoopAgentWithCompaction } from '../core/compaction.js';
+import { learningEnabledFromEnv, reasoningFromEnv } from '../core/config.js';
+import { DEFAULT_DAEMON_URL } from '../core/client.js';
 import { entryUsage, parseEntryArgs } from '../core/entry.js';
+import { LearningService } from '../core/learning/service.js';
+import { codebergHome } from '../core/paths.js';
+import { defaultProviders } from '../providers/index.js';
 import { createWebServer } from './server.js';
 import { formatWebTitle } from './title.js';
+import { ModelSettingsStore } from './model-settings.js';
+import { createLearningGenerator, createWebModelPool } from './model-runtime.js';
 
 // Serves the interactive chat UI over HTTP. The route streams the shared
 // `toolLoopAgent()`'s UI-message output
@@ -38,21 +45,41 @@ function defaultStaticRoot(): string {
 }
 
 async function main(): Promise<void> {
-  const entry = parseEntryArgs(process.argv);
+  let entry = parseEntryArgs(process.argv);
   if (!entry) {
-    console.error(entryUsage('codeberg-web'));
-    process.exit(1);
+    const catalog = join(codebergHome(), 'models.yml');
+    const exists = await stat(catalog).then((value) => value.isFile()).catch(() => false);
+    if (!exists) {
+      console.error(entryUsage('codeberg-web'));
+      process.exit(1);
+    }
+    entry = {
+      modelSpec: '', question: '',
+      daemonUrl: process.env.CODEBERG_DAEMON_URL ?? DEFAULT_DAEMON_URL,
+    };
   }
 
-  const core = createAgentFromEntry(entry);
-  const loop = await core.toolLoopAgent();
+  const providers = defaultProviders();
+  const modelSettings = new ModelSettingsStore({
+    defaultChat: { key: entry.modelSpec, effort: reasoningFromEnv() ?? 'provider-default' },
+    defaultLearning: { key: entry.subagentModelSpec ?? entry.modelSpec, effort: 'provider-default' },
+    availableProvider: (provider) => Boolean(providers.get(provider)),
+  });
+  const selected = await modelSettings.current();
+  const learning = learningEnabledFromEnv()
+    ? new LearningService({ generator: createLearningGenerator(modelSettings, (spec) => providers.resolve(spec)) })
+    : false;
+  const pool = createWebModelPool(entry.daemonUrl, learning);
   // Budget the (browser-held, ever-growing) transcript to the model's window on
   // every turn, using the same policy as the CLI.
-  const agent = wrapToolLoopAgentWithCompaction(loop, core.historyCompactor());
+  const chosen = selected.models.find((model) => model.key === selected.chat.key)!;
+  const agent = await pool.forSelection({ ...selected.chat, model: chosen.model, contextWindow: chosen.contextWindow });
   const server = createWebServer({
     agent,
-    learning: core.learningService(),
-    title: formatWebTitle(entry.modelSpec, reasoningFromEnv()),
+    learning: learning || undefined,
+    modelSettings,
+    selectAgent: (selection) => pool.forSelection(selection),
+    title: formatWebTitle(chosen.model, selected.chat.effort),
     staticRoot: process.env.CODEBERG_WEB_ROOT ?? defaultStaticRoot(),
   });
 
@@ -68,15 +95,16 @@ async function main(): Promise<void> {
     }
     shuttingDown = true;
     // The durable queue recovers interrupted work on the next launch.
-    core.learningService()?.stop();
+    if (learning) learning.stop();
     await new Promise<void>((resolve) => server.close(() => resolve()));
-    await core.close();
+    await pool.close();
     process.exit(signal === 'SIGINT' ? 130 : 143);
   };
   process.once('SIGINT', () => void shutdown('SIGINT'));
   process.once('SIGTERM', () => void shutdown('SIGTERM'));
   process.once('beforeExit', () => {
-    void core.close();
+    if (learning) learning.stop();
+    void pool.close();
   });
 }
 

@@ -154,6 +154,12 @@ port, socket) and **agent scope** (`CODEBERG_MODEL` LLM,
 `CODEBERG_REASONING`, API keys) — and injects each into the right child process.
 The daemon never receives the LLM key.
 
+To switch chat and background-learning models without restarting, define
+[`~/.codeberg/models.yml`](../docs/models.md) and use the browser's top-right
+**Model settings** button. The launcher no longer requires `CODEBERG_MODEL` when
+the catalog exists; model and effort choices persist in
+`~/.codeberg/model-settings.json`.
+
 Configuration is changeable any time after install — there's no need to
 reinstall. Each run reads config fresh and the daemon restarts per session, so a
 new root or model is picked up on the next `codeberg`.

@@ -680,6 +680,7 @@ KEY SETTINGS
   CODEBERG_REPOS    comma-separated dirs/keys to serve (--repos); requires unset ROOT
   CODEBERG_NO_INDEX true = register nothing, no index  (--no-index)
   CODEBERG_MODEL    LLM as provider:model          (--model)
+                     optional when $CODEBERG_HOME/models.yml exists
   CODEBERG_SUBAGENT_MODEL  background knowledge model; defaults to CODEBERG_MODEL
   CODEBERG_LEARNING_USE   false = disable learning and feedback (default true)
   CODEBERG_VECTOR   false = chunk-only, skip model (--no-vector)

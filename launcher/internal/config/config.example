@@ -46,6 +46,10 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # CODEBERG_MODEL when unset.
 # CODEBERG_SUBAGENT_MODEL=anthropic:claude-haiku-4-5
 
+# Optional browser model catalog: $CODEBERG_HOME/models.yml. Define providers,
+# models, context_window and efforts there; see docs/models.md. When present,
+# CODEBERG_MODEL can be omitted and the first available entry is used.
+
 # Collect graded browser feedback and run durable background knowledge jobs.
 # Default true. Set false to hide feedback, disable learning tools/routes and stop
 # recording new data; existing learning files remain available to export.
@@ -160,7 +164,7 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # CODEBERG_WEB_ROOT=/path/to/web-ui/dist
 
 # Reasoning effort for reasoning-capable models:
-# provider-default | none | minimal | low | medium | high | xhigh
+# provider-default | none | minimal | low | medium | high | xhigh | max (Responses-compatible only)
 # CODEBERG_REASONING=medium
 
 # Override context window tokens for local ollama / llamacpp servers.

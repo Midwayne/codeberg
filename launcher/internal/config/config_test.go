@@ -94,6 +94,19 @@ func TestSubagentModelResolutionAndPropagation(t *testing.T) {
 	}
 }
 
+func TestModelsCatalogAllowsLaunchingWithoutModelEnv(t *testing.T) {
+	dist := t.TempDir()
+	writeArtifacts(t, dist)
+	home := t.TempDir()
+	if err := os.WriteFile(filepath.Join(home, "models.yml"), []byte("providers:\n  openai:\n    models:\n      gpt-4o:\n        context_window: 128000\n        efforts: [provider-default]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c := &Config{Dist: dist, Home: home, All: true}
+	if err := c.ValidateForRun(); err != nil {
+		t.Fatalf("models.yml should supply the initial UI model: %v", err)
+	}
+}
+
 func TestLearningToggle(t *testing.T) {
 	home := t.TempDir()
 	c, err := Load(Overrides{Home: home})
