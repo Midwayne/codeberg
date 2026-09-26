@@ -5,7 +5,7 @@ import { useWorkspaceSession } from '@/sessions/use-workspace-session';
 /**
  * Composes the chat and sidebar around the shared session lifecycle.
  */
-export function Workspace({ sidebarOpen }: { sidebarOpen: boolean }) {
+export function Workspace({ sidebarOpen, learningEnabled }: { sidebarOpen: boolean; learningEnabled: boolean }) {
   const { chat, sessions, sessionId, resume, startNew, branchFrom, remove } = useWorkspaceSession();
 
   return (
@@ -22,7 +22,7 @@ export function Workspace({ sidebarOpen }: { sidebarOpen: boolean }) {
         />
       )}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <Chat chat={chat} sessionId={sessionId} onBranch={(index) => void branchFrom(index)} />
+        <Chat chat={chat} sessionId={sessionId} learningEnabled={learningEnabled} onBranch={(index) => void branchFrom(index)} />
       </div>
     </div>
   );

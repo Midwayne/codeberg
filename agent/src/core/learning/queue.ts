@@ -7,6 +7,7 @@ import type { FailureCategory, JobStatus, KnowledgeJob } from './types.js';
 
 const DEFAULT_LEASE_MS = 10 * 60_000;
 const BACKOFF_MS = [60_000, 5 * 60_000, 15 * 60_000, 60 * 60_000, 4 * 60 * 60_000];
+const MAX_ATTEMPTS = 5;
 
 export class DurableJobQueue {
   constructor(
@@ -21,6 +22,10 @@ export class DurableJobQueue {
   ): Promise<KnowledgeJob> {
     const jobId = stableId('job', 'extract_knowledge', interactionId);
     const existing = await this.find(jobId);
+    if (existing?.status === 'processing' && options.requeueCompleted) {
+      await writeJsonAtomic(this.path('processing', jobId), { ...existing, rerun_requested: true });
+      return existing;
+    }
     if (existing && !(options.requeueCompleted && ['completed', 'failed'].includes(existing.status))) {
       return existing;
     }
@@ -32,10 +37,11 @@ export class DurableJobQueue {
       interaction_id: interactionId,
       created_at: existing?.created_at ?? timestamp,
       updated_at: timestamp,
-      attempt_count: existing?.attempt_count ?? 0,
+      attempt_count: options.requeueCompleted ? 0 : existing?.attempt_count ?? 0,
       status: 'pending',
       next_attempt_at: undefined,
       lease_expires_at: undefined,
+      rerun_requested: undefined,
     };
     await writeJsonAtomic(this.path('pending', jobId), job);
     if (existing && existing.status !== 'pending') {
@@ -51,7 +57,7 @@ export class DurableJobQueue {
   async recoverExpired(): Promise<number> {
     let recovered = 0;
     for (const job of await this.list('processing')) {
-      if (!job.lease_expires_at || Date.parse(job.lease_expires_at) > this.now().getTime()) continue;
+      if (job.lease_expires_at && Date.parse(job.lease_expires_at) > this.now().getTime()) continue;
       const next: KnowledgeJob = {
         ...job,
         status: 'pending',
@@ -62,6 +68,60 @@ export class DurableJobQueue {
         lease_expires_at: undefined,
       };
       await this.transition(job.job_id, 'processing', 'pending', next);
+      recovered++;
+    }
+    return recovered;
+  }
+
+  /** Earliest pending retry or abandoned lease, including a claim with no lease. */
+  async nextDueAt(): Promise<number | undefined> {
+    const [pending, processing] = await Promise.all([this.list('pending'), this.list('processing')]);
+    const times = [
+      ...pending.map((job) => job.next_attempt_at ? Date.parse(job.next_attempt_at) : this.now().getTime()),
+      ...processing.map((job) => job.lease_expires_at ? Date.parse(job.lease_expires_at) : this.now().getTime()),
+    ].filter(Number.isFinite);
+    return times.length ? Math.min(...times) : undefined;
+  }
+
+  /** Reconcile a crash between writing the new state and deleting the old file. */
+  async reconcileStates(): Promise<void> {
+    const statuses = ['processing', 'pending', 'failed', 'completed'] as const;
+    const byId = new Map<string, KnowledgeJob[]>();
+    for (const status of statuses) {
+      for (const job of await this.list(status)) {
+        byId.set(job.job_id, [...(byId.get(job.job_id) ?? []), job]);
+      }
+    }
+    for (const [id, jobs] of byId) {
+      if (jobs.length < 2) continue;
+      const winner = jobs.sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at) || statuses.indexOf(b.status) - statuses.indexOf(a.status))[0];
+      for (const job of jobs) {
+        if (job === winner) continue;
+        await unlink(this.path(job.status, id));
+      }
+    }
+  }
+
+  /** Migrates retryable jobs failed by older one-shot queue policies back to pending. */
+  async recoverRetryableFailures(): Promise<number> {
+    let recovered = 0;
+    for (const job of await this.list('failed')) {
+      if (
+        !job.last_error_category ||
+        !isTransientFailure(job.last_error_category) ||
+        job.attempt_count >= MAX_ATTEMPTS
+      ) {
+        continue;
+      }
+      const timestamp = this.now().toISOString();
+      const next: KnowledgeJob = {
+        ...job,
+        status: 'pending',
+        updated_at: timestamp,
+        next_attempt_at: timestamp,
+        lease_expires_at: undefined,
+      };
+      await this.transition(job.job_id, 'failed', 'pending', next);
       recovered++;
     }
     return recovered;
@@ -94,12 +154,22 @@ export class DurableJobQueue {
   }
 
   async complete(job: KnowledgeJob): Promise<void> {
+    const current = await this.find(job.job_id);
+    if (current?.status === 'processing' && current.rerun_requested) {
+      await this.transition(job.job_id, 'processing', 'pending', {
+        ...current, status: 'pending', updated_at: this.now().toISOString(),
+        next_attempt_at: undefined, lease_expires_at: undefined, rerun_requested: undefined,
+      });
+      return;
+    }
     const completed: KnowledgeJob = {
       ...job,
       status: 'completed',
       updated_at: this.now().toISOString(),
       lease_expires_at: undefined,
       next_attempt_at: undefined,
+      last_error: undefined,
+      last_error_category: undefined,
     };
     await this.transition(job.job_id, 'processing', 'completed', completed);
   }
@@ -110,7 +180,15 @@ export class DurableJobQueue {
     error: string,
     transient = isTransientFailure(category),
   ): Promise<void> {
-    const permanent = !transient;
+    const current = await this.find(job.job_id);
+    if (current?.status === 'processing' && current.rerun_requested) {
+      await this.transition(job.job_id, 'processing', 'pending', {
+        ...current, status: 'pending', updated_at: this.now().toISOString(),
+        next_attempt_at: undefined, lease_expires_at: undefined, rerun_requested: undefined,
+      });
+      return;
+    }
+    const permanent = !transient || job.attempt_count >= MAX_ATTEMPTS;
     const delay = BACKOFF_MS[Math.min(Math.max(job.attempt_count - 1, 0), BACKOFF_MS.length - 1)];
     const next: KnowledgeJob = {
       ...job,
@@ -193,7 +271,7 @@ export class DurableJobQueue {
 }
 
 export function isTransientFailure(category: FailureCategory): boolean {
-  return !['INVALID_RESPONSE', 'PERMANENT_ERROR'].includes(category);
+  return category !== 'PERMANENT_ERROR';
 }
 
 export function classifyFailure(error: unknown): FailureCategory {
@@ -202,6 +280,6 @@ export function classifyFailure(error: unknown): FailureCategory {
   if (/rate.?limit|\b429\b/.test(text)) return 'RATE_LIMITED';
   if (/network|fetch failed|econn|enotfound|timeout|offline/.test(text)) return 'NETWORK_ERROR';
   if (/repository|enoent/.test(text)) return 'REPOSITORY_UNAVAILABLE';
-  if (/invalid response|invalid json|schema/.test(text)) return 'INVALID_RESPONSE';
+  if (/invalid[_ ]response|invalid json|schema/.test(text)) return 'INVALID_RESPONSE';
   return 'MODEL_ERROR';
 }

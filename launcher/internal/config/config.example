@@ -46,6 +46,11 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # CODEBERG_MODEL when unset.
 # CODEBERG_SUBAGENT_MODEL=anthropic:claude-haiku-4-5
 
+# Collect graded browser feedback and run durable background knowledge jobs.
+# Default true. Set false to hide feedback, disable learning tools/routes and stop
+# recording new data; existing learning files remain available to export.
+# CODEBERG_LEARNING_USE=true
+
 # API key matching CODEBERG_MODEL (ollama and llamacpp need none).
 # ANTHROPIC_API_KEY=
 # OPENAI_API_KEY=

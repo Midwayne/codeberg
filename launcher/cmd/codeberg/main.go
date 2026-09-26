@@ -681,6 +681,7 @@ KEY SETTINGS
   CODEBERG_NO_INDEX true = register nothing, no index  (--no-index)
   CODEBERG_MODEL    LLM as provider:model          (--model)
   CODEBERG_SUBAGENT_MODEL  background knowledge model; defaults to CODEBERG_MODEL
+  CODEBERG_LEARNING_USE   false = disable learning and feedback (default true)
   CODEBERG_VECTOR   false = chunk-only, skip model (--no-vector)
   CODEBERG_HTTP_PORT  daemon port (default 48080)  (--port)
   CODEBERG_WEB_PORT   browser UI port (default 48088)  (--web-port)

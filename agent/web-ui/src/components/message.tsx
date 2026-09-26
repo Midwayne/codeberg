@@ -1,6 +1,6 @@
-import { Brain, GitBranch, Loader2, RefreshCw, Wrench } from 'lucide-react';
+import { Brain, CircleAlert, GitBranch, Loader2, RefreshCw, Wrench } from 'lucide-react';
 import type { UIMessage } from 'ai';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { Response } from '@/components/response';
 import { ToolViewRouter } from '@/components/tool-views';
@@ -9,7 +9,6 @@ import { userPromptText } from '@/lib/message-rail';
 import { cn } from '@/lib/utils';
 import {
   FEEDBACK_OPTIONS,
-  knowledgeJobStatus,
   loadFeedback,
   rateAttempt,
   type FeedbackOption,
@@ -33,6 +32,7 @@ export function Message({
   onBranch,
   domId,
   conversationId,
+  learningEnabled = true,
 }: {
   message: UIMessage;
   onRegenerate?: () => void;
@@ -40,6 +40,7 @@ export function Message({
   /** Stable id written to the DOM so the tick rail can scroll here. */
   domId?: string;
   conversationId?: string;
+  learningEnabled?: boolean;
 }) {
   const isUser = message.role === 'user';
   const showActions = Boolean(onRegenerate || onBranch || (!isUser && message.parts.length > 0));
@@ -75,6 +76,7 @@ export function Message({
         <MessageActions
           message={message}
           conversationId={conversationId}
+          learningEnabled={learningEnabled}
           onRegenerate={onRegenerate}
           onBranch={onBranch}
         />
@@ -156,11 +158,13 @@ function MessageActions({
   onRegenerate,
   onBranch,
   conversationId,
+  learningEnabled,
 }: {
   message: UIMessage;
   onRegenerate?: () => void;
   onBranch?: () => void;
   conversationId?: string;
+  learningEnabled: boolean;
 }) {
   const isUser = message.role === 'user';
   const text = message.parts
@@ -176,7 +180,7 @@ function MessageActions({
       )}
     >
       {!isUser && text && <CopyButton text={text} />}
-      {!isUser && conversationId && (
+      {!isUser && learningEnabled && conversationId && (
         <FeedbackActions conversationId={conversationId} messageId={message.id} />
       )}
       {onBranch && (
@@ -195,72 +199,74 @@ function MessageActions({
 
 function FeedbackActions({ conversationId, messageId }: { conversationId: string; messageId: string }) {
   const [selected, setSelected] = useState<string>();
-  const [status, setStatus] = useState('');
+  const [failed, setFailed] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const generation = useRef(0);
 
   useEffect(() => {
-    let live = true;
+    const request = ++generation.current;
+    savingRef.current = false;
+    setSaving(false);
+    setSelected(undefined);
+    setFailed(false);
     void loadFeedback(conversationId, messageId).then((feedback) => {
-      if (live && feedback) setSelected(feedback.label);
+      if (request === generation.current && !savingRef.current) setSelected(feedback?.label);
     });
     return () => {
-      live = false;
+      generation.current++;
     };
   }, [conversationId, messageId]);
 
   async function choose(option: FeedbackOption): Promise<void> {
-    setStatus('Saving feedback...');
+    if (savingRef.current) return;
+    savingRef.current = true;
+    const request = ++generation.current;
+    const previous = selected;
+    setSaving(true);
+    setFailed(false);
+    setSelected(option.label);
     try {
-      const result = await rateAttempt(conversationId, messageId, option);
-      setSelected(result.feedback.label);
-      if (!result.jobId) {
-        setStatus('Feedback saved');
-        return;
-      }
-      setStatus('Updating knowledge base...');
-      for (let count = 0; count < 20; count++) {
-        await new Promise((resolve) => window.setTimeout(resolve, 1_000));
-        const next = await knowledgeJobStatus(result.jobId);
-        if (next?.status === 'completed') {
-          setStatus('Knowledge base updated');
-          return;
-        }
-        if (next?.status === 'pending' && count > 1) {
-          setStatus(
-            next.last_error_category === 'NETWORK_ERROR'
-              ? 'Knowledge update pending - offline'
-              : 'Knowledge update pending - will retry automatically',
-          );
-          return;
-        }
-        if (next?.status === 'failed') {
-          setStatus('Knowledge update needs attention');
-          return;
-        }
-      }
-      setStatus('Knowledge update pending - will retry automatically');
+      const feedback = await rateAttempt(conversationId, messageId, option);
+      if (request === generation.current) setSelected(feedback.label);
     } catch {
-      setStatus('Feedback could not be saved');
+      if (request === generation.current) {
+        setSelected(previous);
+        setFailed(true);
+      }
+    } finally {
+      if (request === generation.current) {
+        savingRef.current = false;
+        setSaving(false);
+      }
     }
   }
 
   return (
-    <div className="ml-1 flex items-center gap-1">
-      {FEEDBACK_OPTIONS.map((option) => (
-        <button
-          key={option.label}
-          type="button"
-          aria-pressed={selected === option.label}
-          title={option.title}
-          onClick={() => void choose(option)}
-          className={cn(
-            'rounded-md px-1.5 py-1 text-[10px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
-            selected === option.label && 'bg-accent text-foreground',
-          )}
-        >
-          {option.title}
-        </button>
-      ))}
-      {status && <span className="ml-1 text-[10px] text-muted-foreground">{status}</span>}
+    <div role="group" aria-label="Rate this answer" aria-busy={saving} className="ml-1 flex items-center gap-0.5">
+      <select
+        aria-label="Rate this answer"
+        value={selected ?? ''}
+        disabled={saving}
+        onChange={(event) => {
+          const option = FEEDBACK_OPTIONS.find((entry) => entry.label === event.currentTarget.value);
+          if (option) void choose(option);
+        }}
+        className={cn(
+          'h-7 w-36 rounded-md border border-transparent bg-transparent px-1 text-xs text-muted-foreground transition-colors hover:border-border hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-60',
+          selected && 'text-foreground',
+        )}
+      >
+        <option value="">Rate answer</option>
+        {FEEDBACK_OPTIONS.map((option) => (
+          <option key={option.label} value={option.label}>{option.title}</option>
+        ))}
+      </select>
+      {failed && (
+        <span title="Feedback wasn't saved; try again" role="status" aria-label="Feedback wasn't saved; try again">
+          <CircleAlert className="size-3.5 text-destructive" />
+        </span>
+      )}
     </div>
   );
 }

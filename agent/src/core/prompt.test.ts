@@ -14,6 +14,12 @@ describe('agentSystemPrompt', () => {
     expect(agentSystemPrompt({ enabled: false, search: false })).toBe(AGENT_SYSTEM);
   });
 
+  it('never advertises unavailable learning tools when disabled', () => {
+    const prompt = agentSystemPrompt({ enabled: false, search: false, learning: false });
+    expect(prompt).not.toContain('search_learning');
+    expect(prompt).not.toContain('search_knowledge');
+  });
+
   it('mentions fetch_url but not web_search when web is on without a backend', () => {
     const p = agentSystemPrompt({ enabled: true, search: false });
     expect(p).toContain('fetch_url');

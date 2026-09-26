@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import type { Generator } from '../types.js';
 import { DurableJobQueue } from './queue.js';
-import { LearningStore, defaultLearningRoot } from './store.js';
+import { effectiveFeedback, LearningStore, defaultLearningRoot } from './store.js';
 import type { FeedbackLabel, FeedbackRating, FeedbackRecord } from './types.js';
 import { KnowledgeWorker } from './worker.js';
 
@@ -22,6 +22,8 @@ export class LearningService {
 
   async initialize(): Promise<void> {
     await this.ensureLayout();
+    await this.queue.reconcileStates();
+    await this.reconcileJobs();
     await this.worker?.initialize();
   }
 
@@ -50,11 +52,17 @@ export class LearningService {
       reason: input.reason,
     });
     if (feedback.label !== 'solved' && previous?.label !== 'solved') return { feedback };
-    const job = await this.queue.enqueueKnowledge(attempt.interaction_id, {
-      requeueCompleted: true,
-    });
-    this.worker?.wake();
-    return { feedback, jobId: job.job_id, jobStatus: job.status };
+    try {
+      const job = await this.queue.enqueueKnowledge(attempt.interaction_id, {
+        requeueCompleted: true,
+      });
+      this.worker?.wake();
+      return { feedback, jobId: job.job_id, jobStatus: job.status };
+    } catch (error) {
+      // The feedback event is already durable. Reconcile this handoff on startup.
+      console.error('knowledge job enqueue failed; feedback is saved:', error);
+      return { feedback };
+    }
   }
 
   isWorking(): boolean {
@@ -63,6 +71,36 @@ export class LearningService {
 
   async waitForCurrent(): Promise<void> {
     await this.worker?.waitForCurrent();
+  }
+
+  stop(): void {
+    this.worker?.stop();
+  }
+
+  /** Replay the feedback-to-job handoff if the process stopped between the two durable writes. */
+  private async reconcileJobs(): Promise<void> {
+    if (!this.worker) return;
+    const events = await this.store.events();
+    const feedback = effectiveFeedback(events);
+    const attempts = events.filter((event) => event.type === 'attempt_recorded').map((event) => event.attempt);
+    const everSolved = new Set(events.flatMap((event) =>
+      event.type === 'feedback_recorded' && event.feedback.label === 'solved'
+        ? [event.feedback.attempt_id] : [],
+    ));
+    const latest = new Map<string, string>();
+    for (const attempt of attempts) {
+      const grade = feedback.get(attempt.attempt_id);
+      if (!grade || !everSolved.has(attempt.attempt_id)) continue;
+      const prev = latest.get(attempt.interaction_id);
+      if (!prev || prev < grade.timestamp) latest.set(attempt.interaction_id, grade.timestamp);
+    }
+    for (const [id, timestamp] of latest) {
+      const jobId = (await this.queue.enqueueKnowledge(id)).job_id;
+      const job = await this.queue.get(jobId);
+      if (job && ['completed', 'failed'].includes(job.status) && job.updated_at < timestamp) {
+        await this.queue.enqueueKnowledge(id, { requeueCompleted: true });
+      }
+    }
   }
 
   private async ensureLayout(): Promise<void> {

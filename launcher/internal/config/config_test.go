@@ -94,6 +94,28 @@ func TestSubagentModelResolutionAndPropagation(t *testing.T) {
 	}
 }
 
+func TestLearningToggle(t *testing.T) {
+	home := t.TempDir()
+	c, err := Load(Overrides{Home: home})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.LearningUse || c.AgentEnv()[KeyLearningUse] != "true" {
+		t.Fatal("learning should default on")
+	}
+	t.Setenv(KeyLearningUse, "false")
+	c, err = Load(Overrides{Home: home})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.LearningUse || c.AgentEnv()[KeyLearningUse] != "false" {
+		t.Fatal("learning must be disabled in agent env")
+	}
+	if got, ok := c.Get(KeyLearningUse); !ok || got != "false" {
+		t.Fatalf("config get = %q, %t", got, ok)
+	}
+}
+
 func TestValidateForRunAllSkipsRoot(t *testing.T) {
 	dist := t.TempDir()
 	writeArtifacts(t, dist)

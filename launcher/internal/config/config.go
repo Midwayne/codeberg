@@ -33,6 +33,7 @@ const (
 	KeyNoIndex       = "CODEBERG_NO_INDEX"              // "true" => register nothing, build no vector index
 	KeyModel         = "CODEBERG_MODEL"                 // LLM provider:model (agent scope)
 	KeySubagentModel = "CODEBERG_SUBAGENT_MODEL"        // background/subagent provider:model (agent scope)
+	KeyLearningUse   = "CODEBERG_LEARNING_USE"          // "false" => disable learning, feedback, and background extraction
 	KeyDaemonURL     = "CODEBERG_DAEMON_URL"            // agent -> daemon (agent scope)
 	KeyHTTPPort      = "CODEBERG_HTTP_PORT"             // daemon listen port (daemon scope)
 	KeyEmbedModel    = "CBERG_MODEL"                    // embedding model path (daemon scope)
@@ -146,6 +147,7 @@ type Config struct {
 	Vector        bool
 	WebPort       string // codeberg-web listen port
 	WebUse        bool   // agent web tools (web_search + fetch_url) enabled
+	LearningUse   bool   // learning storage, retrieval tools, and feedback enabled
 	SearxngURL    string // external SearXNG instance; "" => launcher manages one
 	SearxngPort   string // preferred port for the managed SearXNG
 	McpUse        bool   // agent MCP tools from mcp.json enabled
@@ -263,6 +265,10 @@ func Load(o Overrides) (*Config, error) {
 	c.WebUse = true
 	if v := resolve(KeyWebUse, ""); v != "" {
 		c.WebUse = !isFalsey(v)
+	}
+	c.LearningUse = true
+	if v := resolve(KeyLearningUse, ""); v != "" {
+		c.LearningUse = !isFalsey(v)
 	}
 	c.SearxngURL = resolve(KeySearxngURL, "")
 	c.SearxngPort = firstNonEmpty(resolve(KeySearxngPort, ""), DefaultSearxngPort)
@@ -502,6 +508,7 @@ func (c *Config) AgentEnv() map[string]string {
 	// injected at launch time by the run package (its URL isn't known until it
 	// has started), taking precedence over nothing / falling back to this.
 	e[KeyWebUse] = fmt.Sprintf("%t", c.WebUse)
+	e[KeyLearningUse] = fmt.Sprintf("%t", c.LearningUse)
 	putIf(e, KeySearxngURL, c.SearxngURL)
 	// MCP: the agent discovers mcp.json itself; we pass home + indexed roots so
 	// it finds ~/.codeberg/mcp.json and per-repo configs even though the child

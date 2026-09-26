@@ -50,7 +50,14 @@ export async function routeSessions(
         messages,
         ...(parentId ? { parentId } : {}),
       });
-      await learning?.recordSession(id, messages, parentId);
+      if (learning) {
+        try {
+          await learning.recordSession(id, messages, parentId);
+        } catch (error) {
+          // Chat persistence succeeded. A learning disk failure must not break it.
+          console.error('learning session recording failed:', error);
+        }
+      }
       return sendJson(res, 200, { ok: true });
     }
     case 'DELETE': {

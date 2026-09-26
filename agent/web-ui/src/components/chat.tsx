@@ -16,10 +16,12 @@ export function Chat({
   chat,
   onBranch,
   sessionId,
+  learningEnabled,
 }: {
   chat: UseChatHelpers<UIMessage>;
   onBranch?: (throughIndex: number) => void;
   sessionId: string;
+  learningEnabled: boolean;
 }) {
   const { messages, sendMessage, status, stop, regenerate, error } = chat;
   const busy = status === 'submitted' || status === 'streaming';
@@ -52,6 +54,7 @@ export function Chat({
                 message={m}
                 domId={markerId(m, i)}
                 conversationId={sessionId}
+                learningEnabled={learningEnabled && !busy}
                 onRegenerate={
                   !busy && m.role === 'assistant' && i === messages.length - 1
                     ? () => regenerate()

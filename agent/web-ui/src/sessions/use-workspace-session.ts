@@ -2,40 +2,38 @@ import { useChat } from '@ai-sdk/react';
 import type { UIMessage } from 'ai';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { createChatBranch, isSessionSettled, type SessionAdopt } from '@/lib/branch';
+import { createChatBranch } from '@/lib/branch';
 import { useSessions } from '@/lib/use-sessions';
 import { deleteSession, deriveTitle, loadSession, newSessionId, saveSession } from '@/lib/sessions';
+import { createWorkspaceChat, type WorkspaceChat } from '@/sessions/workspace-chat';
 
 /** Owns the conversation lifecycle shared by the chat and session sidebar. */
 export function useWorkspaceSession() {
-  const chat = useChat();
   const { sessions, refresh } = useSessions();
-  const [sessionId, setSessionId] = useState(newSessionId);
-
-  // Signature of the last conversation we persisted, so the save effect skips
-  // re-writing an unchanged turn (notably the one we just resumed).
-  const savedSig = useRef('');
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+  const chats = useRef(new Map<string, WorkspaceChat>());
+  const transitionIntent = useRef(0);
   const seededRailPreview = useRef(false);
-  // Title / parentId / id for the session we mean to persist. Kept in a ref so
-  // a branch's "(branch)" title survives auto-save, and so we don't depend on
-  // React state being in lockstep with useChat's message store.
-  const persistMeta = useRef<{ id: string; parentId?: string; title?: string }>({
-    id: sessionId,
-  });
-  const settle = useRef<SessionAdopt | null>(null);
-  const signature = (id: string, msgs: { id?: string }[]) =>
-    `${id}:${msgs.length}:${msgs.at(-1)?.id ?? ''}`;
 
-  const adopt = useCallback(
-    (id: string, messages: UIMessage[], nextParent?: string, title?: string) => {
-      persistMeta.current = { id, parentId: nextParent, title };
-      settle.current = { id, lastId: messages.at(-1)?.id ?? '' };
-      savedSig.current = signature(id, messages);
-      chat.setMessages(messages);
-      setSessionId(id);
+  const createChat = useCallback(
+    (id: string, messages: UIMessage[], parentId?: string, title?: string) => {
+      const next = createWorkspaceChat({
+        id,
+        messages,
+        parentId,
+        title,
+        persist: saveSession,
+        onPersist: () => void refreshRef.current(),
+      });
+      chats.current.set(id, next);
+      return next;
     },
-    [chat],
+    [],
   );
+  const [active, setActive] = useState(() => createChat(newSessionId(), []));
+  const chat = useChat({ chat: active.chat });
+  const sessionId = active.id;
 
   // Dev-only: `?preview=rail` fills a tall transcript so the tick rail can be
   // exercised without a running model. Tree-shaken out of production builds.
@@ -45,74 +43,64 @@ export function useWorkspaceSession() {
     if (new URLSearchParams(window.location.search).get('preview') !== 'rail') return;
     seededRailPreview.current = true;
     void import('@/lib/rail-preview').then(({ RAIL_PREVIEW_MESSAGES }) => {
-      chat.setMessages(RAIL_PREVIEW_MESSAGES);
+      active.chat.messages = RAIL_PREVIEW_MESSAGES;
     });
-  }, [chat]);
-
-  // Persist once a turn settles (status back to "ready") and there's something
-  // to save. PUT is idempotent, so the dedupe is just to avoid needless writes.
-  useEffect(() => {
-    if (chat.status !== 'ready' || chat.messages.length === 0) return;
-    if (!isSessionSettled(settle.current, sessionId, chat.messages)) return;
-    settle.current = null;
-    const meta = persistMeta.current;
-    if (meta.id !== sessionId) return;
-    const sig = signature(sessionId, chat.messages);
-    if (sig === savedSig.current) return;
-    savedSig.current = sig;
-    void saveSession({
-      id: sessionId,
-      title: meta.title ?? deriveTitle(chat.messages),
-      messages: chat.messages,
-      parentId: meta.parentId,
-    }).then(refresh);
-  }, [chat.status, chat.messages, sessionId, refresh]);
+  }, [active]);
 
   const resume = useCallback(
     async (id: string) => {
+      const intent = ++transitionIntent.current;
+      const existing = chats.current.get(id);
+      if (existing) {
+        setActive(existing);
+        return;
+      }
       const record = await loadSession(id);
+      if (intent !== transitionIntent.current) return;
       if (!record) {
         void refresh(); // it was deleted out from under us
         return;
       }
-      adopt(record.id, record.messages, record.parentId, record.title);
+      setActive(createChat(record.id, record.messages, record.parentId, record.title));
     },
-    [adopt, refresh],
+    [createChat, refresh],
   );
 
   const startNew = useCallback(() => {
-    const id = newSessionId();
-    persistMeta.current = { id };
-    settle.current = null;
-    savedSig.current = '';
-    chat.setMessages([]);
-    setSessionId(id);
-  }, [chat]);
+    transitionIntent.current++;
+    setActive(createChat(newSessionId(), []));
+  }, [createChat]);
 
   const branchFrom = useCallback(
     async (throughIndex: number) => {
       if (chat.status !== 'ready' || chat.messages.length === 0 || throughIndex < 0) return;
-      const sourceId = persistMeta.current.id || sessionId;
+      const intent = ++transitionIntent.current;
+      const sourceId = active.id;
       const sourceMessages = chat.messages;
       // Persist the parent first so the lineage target exists on disk.
       await saveSession({
         id: sourceId,
-        title: persistMeta.current.title ?? deriveTitle(sourceMessages),
+        title: active.title ?? deriveTitle(sourceMessages),
         messages: sourceMessages,
-        parentId: persistMeta.current.parentId,
+        parentId: active.parentId,
       });
       const next = createChatBranch(sourceMessages, throughIndex, sourceId);
-      adopt(next.id, next.messages, next.parentId, next.title);
       await saveSession(next);
       void refresh();
+      if (intent !== transitionIntent.current) return;
+      setActive(createChat(next.id, next.messages, next.parentId, next.title));
     },
-    [chat, sessionId, adopt, refresh],
+    [active, chat, createChat, refresh],
   );
 
   const remove = useCallback(
     async (id: string) => {
-      await deleteSession(id);
+      transitionIntent.current++;
+      const removed = chats.current.get(id);
+      removed?.dispose();
+      chats.current.delete(id);
       if (id === sessionId) startNew();
+      await deleteSession(id);
       void refresh();
     },
     [sessionId, startNew, refresh],

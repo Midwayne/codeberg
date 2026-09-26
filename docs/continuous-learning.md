@@ -14,14 +14,17 @@ learning/
 ├── events/YYYY-MM-DD.jsonl
 ├── knowledge/{services,flows,concepts,debugging}/
 ├── jobs/{pending,processing,completed,failed}/
-└── datasets/{eval,embedding}/
+└── datasets/{eval,embedding,openai-chat,query-positive-negative,preference,knowledge}/
 ```
 
 Event appends are synced before the feedback endpoint acknowledges them. Job and
 knowledge writes use a synced temporary file plus atomic rename. Processing jobs
-carry leases; an expired lease returns to `pending` after restart. Transient
-failures use bounded exponential backoff and permanent/invalid responses move to
-`failed`.
+carry leases. An interrupted job is recovered when its lease expires, including
+one stopped before the lease was written. Feedback events are reconciled with jobs
+on startup if the process stopped after writing feedback but before queueing.
+Transient and malformed-model responses retry with bounded backoff (at most five
+attempts); permanently invalid interactions end in `failed`. Background updates
+never block the chat UI or prompt on shutdown.
 
 SQLite is deliberately not required. JSONL remains canonical, local lexical
 search provides the initial projection, and the existing usearch index is not
@@ -33,6 +36,12 @@ usearch sidecar can add semantic recall without becoming the source of truth.
 
 Set `CODEBERG_SUBAGENT_MODEL=provider:model` (or `--subagent-model`) to choose the
 background knowledge model. It defaults to `CODEBERG_MODEL`.
+
+Learning is enabled by default. Set `CODEBERG_LEARNING_USE=false` in the launcher
+config (`codeberg config set CODEBERG_LEARNING_USE=false`) or environment to stop
+recording interactions, disable learning tools/routes and hide browser feedback.
+Existing learning data is retained, and the explicit `codeberg learning` offline
+inspection/export command still works. Restart `codeberg` after changing config.
 
 The browser UI offers `Not useful`, `Partially useful`, `Mostly correct`, and
 `Solved` on every completed assistant message. Changing a rating appends a new
@@ -63,12 +72,33 @@ codeberg learning show interaction-...
 codeberg learning stats
 codeberg learning export --type eval
 codeberg learning export --type embedding
+codeberg learning export --type openai-chat
+codeberg learning export --type query-positive-negative
+codeberg learning export --type preference
+codeberg learning export --type knowledge
 ```
 
 Eval rows contain graded queries and cited files/symbols. Embedding candidates
 are emitted only for solved attempts with evidence actually cited in the answer;
 retrieved-but-uncited chunks become hard-negative candidates. These labels are
-derived at export time and never written back into the raw event stream.
+derived at export time and never written back into the raw event stream. `eval`
+also includes the candidate answer, human feedback reason, version, and an
+`answer_referenced_unverified` evidence label; cited paths are not ground truth.
+
+`openai-chat` writes strict `{"messages":[{"role":"user","content":"..."},
+{"role":"assistant","content":"..."}]}` rows for solved, standalone turns only.
+Context-dependent corrections are excluded. `preference` writes
+`{"prompt":[...],"chosen":[...],"rejected":[...]}` only when graded answers
+share the same interaction and exact user query; inspect context before using
+these pairs for preference tuning. `query-positive-negative` writes
+`{"query":"...","positive":["path\\nsymbol\\nsource snippet"],"negative":["..."]}`
+from solved, answer-referenced results with source snippets. Negatives are
+**unjudged candidates**, not verified irrelevant; review them before training.
+Each line is JSONL. Split train/eval by interaction (not attempt) to avoid
+correction leakage. The canonical append-only events preserve provenance, while
+these portable projections omit machine-specific paths and raw tool payloads.
+`knowledge` produces versioned JSONL of artifact metadata and body for offline
+indexing and review; it is not automatically a supervised training target.
 
 ## Collection boundary
 

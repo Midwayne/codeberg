@@ -36,7 +36,7 @@ async function main(): Promise<void> {
       return;
     }
     default:
-      console.error('Usage: codeberg-learning search-learning <query> | search-knowledge <query> | list | show <interaction-id> | stats | export --type eval|embedding');
+      console.error('Usage: codeberg-learning search-learning <query> | search-knowledge <query> | list | show <interaction-id> | stats | export --type eval|embedding|openai-chat|query-positive-negative|preference|knowledge');
       process.exitCode = 1;
   }
 }
@@ -44,8 +44,10 @@ async function main(): Promise<void> {
 function readExportType(args: string[]): ExportType {
   const index = args.indexOf('--type');
   const type = index >= 0 ? args[index + 1] : undefined;
-  if (type !== 'eval' && type !== 'embedding') throw new Error('--type must be eval or embedding');
-  return type;
+  if (!['eval', 'embedding', 'openai-chat', 'query-positive-negative', 'preference', 'knowledge'].includes(type ?? '')) {
+    throw new Error('--type must be eval, embedding, openai-chat, query-positive-negative, preference, or knowledge');
+  }
+  return type as ExportType;
 }
 
 main().catch((error: unknown) => {

@@ -54,6 +54,7 @@ func (c *Config) Summary() string {
 		{KeyHTTPPort, c.HTTPPort},
 		{KeyWebPort, c.WebPort},
 		{KeyWebUse, fmt.Sprintf("%t", c.WebUse)},
+		{KeyLearningUse, fmt.Sprintf("%t", c.LearningUse)},
 		{KeySearxngURL, orUnset(c.SearxngURL) + searxngManagedNote(c)},
 		{KeyMcpUse, fmt.Sprintf("%t", c.McpUse)},
 		{"mcp.json", filepath.Join(c.Home, "mcp.json")},

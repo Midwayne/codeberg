@@ -6,12 +6,14 @@ import { Workspace } from '@/components/workspace';
 export function App() {
   // The server exposes the model and reasoning effort at /api/meta.
   const [title, setTitle] = useState('');
+  const [learningEnabled, setLearningEnabled] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   useEffect(() => {
     fetch('/api/meta')
       .then((r) => (r.ok ? r.json() : null))
-      .then((m: { title?: string } | null) => {
-        if (m?.title) setTitle(m.title);
+       .then((m: { title?: string; capabilities?: { learning?: boolean } } | null) => {
+         if (m?.title) setTitle(m.title);
+         setLearningEnabled(m?.capabilities?.learning === true);
       })
       .catch((err) => {
         console.warn('failed to load /api/meta', err);
@@ -35,7 +37,7 @@ export function App() {
           {title && <span className="truncate font-semibold">{title}</span>}
         </div>
       </header>
-      <Workspace sidebarOpen={sidebarOpen} />
+      <Workspace sidebarOpen={sidebarOpen} learningEnabled={learningEnabled} />
     </div>
   );
 }

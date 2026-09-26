@@ -14,7 +14,7 @@ func KnownKeys() []string {
 	keys := []string{
 		KeyRoot, KeyModel, KeySubagentModel, KeyDaemonURL, KeyHTTPPort, KeyEmbedModel, KeyEmbedding, KeyIndexPath,
 		KeySocket, KeyPollMS, KeyIndexBin, KeyGitPullSec, KeyGitDir, KeyReasoning,
-		KeyVector, KeyWebPort, KeyWebUse, KeySearxngURL, KeySearxngPort,
+		KeyVector, KeyWebPort, KeyWebUse, KeyLearningUse, KeySearxngURL, KeySearxngPort,
 		KeyAll, KeyReposSel, KeyNoIndex, KeyHome, KeyRepo, KeyDist,
 		KeyMcpUse, KeyMcpConfig, KeyDbmcpUse, KeyDbmcpSpec, KeyDbmcpBin,
 	}
@@ -77,6 +77,8 @@ func (c *Config) Get(key string) (string, bool) {
 		return c.WebPort, true
 	case KeyWebUse:
 		return fmt.Sprintf("%t", c.WebUse), true
+	case KeyLearningUse:
+		return fmt.Sprintf("%t", c.LearningUse), true
 	case KeySearxngURL:
 		return c.SearxngURL, true
 	case KeySearxngPort:

@@ -96,7 +96,18 @@ describe('web server', () => {
     await start({ title: 'gpt-5.6-sol · reasoning: high' });
     const res = await fetch(baseUrl + META_PATH);
     expect(res.headers.get('content-type')).toContain('application/json');
-    expect(await res.json()).toEqual({ title: 'gpt-5.6-sol · reasoning: high' });
+    expect(await res.json()).toEqual({ title: 'gpt-5.6-sol · reasoning: high', capabilities: { learning: false } });
+  });
+
+  it('omits learning routes and collection when the learning service is absent', async () => {
+    await start({ sessionStore: tempSessionStore() });
+    expect((await fetch(`${baseUrl}/api/learning/status`)).status).toBe(404);
+    const saved = await fetch(`${baseUrl}${SESSIONS_PATH}/disabled`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Works without learning', messages: [] }),
+    });
+    expect(saved.status).toBe(200);
+    expect((await (await fetch(`${baseUrl}${SESSIONS_PATH}/disabled`)).json()).title).toBe('Works without learning');
   });
 
   it('shows only the model name and configured reasoning in both web headers', async () => {
@@ -109,6 +120,7 @@ describe('web server', () => {
 
     expect(await (await fetch(baseUrl + META_PATH)).json()).toEqual({
       title: 'gpt-5.6-sol · reasoning: high',
+      capabilities: { learning: false },
     });
     const html = await (await fetch(baseUrl + '/')).text();
     expect(html).toContain('<header>gpt-5.6-sol · reasoning: high</header>');
@@ -194,6 +206,36 @@ describe('web server', () => {
 
     expect(await res.text()).toBe('streamed');
     expect(received).toEqual(messages);
+  });
+
+  it('runs separate chat requests concurrently and keeps their responses isolated', async () => {
+    const entered: string[] = [];
+    const release = new Map<string, () => void>();
+    const respond: ChatResponder = async (res, messages) => {
+      const marker = String((messages[0] as { marker?: unknown } | undefined)?.marker);
+      entered.push(marker);
+      await new Promise<void>((resolve) => release.set(marker, resolve));
+      res.end(`response-${marker}`);
+    };
+    await start({ respond });
+
+    const post = (marker: string) =>
+      fetch(baseUrl + CHAT_PATH, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [{ marker }] }),
+      }).then((response) => response.text());
+    const responseA = post('a');
+    const responseB = post('b');
+
+    await expect.poll(() => [...entered].sort()).toEqual(['a', 'b']);
+    release.get('b')?.();
+    release.get('a')?.();
+
+    await expect(Promise.all([responseA, responseB])).resolves.toEqual([
+      'response-a',
+      'response-b',
+    ]);
   });
 
   it('defaults to an empty message list on a malformed body', async () => {

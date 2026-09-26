@@ -14,7 +14,7 @@ import { collectTools, daemonToolSource, searchCodeSource, webToolSource } from 
 interface AgentToolOptions {
   daemon: DaemonClient;
   context: ContextStore;
-  learning: LearningStore;
+  learning?: LearningStore;
   web: WebConfig;
   mcp: () => McpToolSource;
   defaultSearchK: number;
@@ -30,7 +30,7 @@ export async function createAgentTools(opts: AgentToolOptions): Promise<ToolSet>
       defaultK: opts.defaultSearchK,
       onResults: opts.onResults,
     }),
-    learningToolSource(opts.learning),
+    ...(opts.learning ? [learningToolSource(opts.learning)] : []),
     contextToolSource(opts.context),
     daemonToolSource({
       daemon: opts.daemon,

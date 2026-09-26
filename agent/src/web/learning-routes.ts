@@ -50,7 +50,8 @@ export async function routeLearning(
       });
       return sendJson(res, 201, result);
     } catch (error) {
-      return sendText(res, 404, String(error));
+      if (String(error).includes('attempt not found')) return sendText(res, 404, String(error));
+      throw error;
     }
   }
 

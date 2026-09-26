@@ -85,7 +85,7 @@ export interface AgentOptions {
   /** Where spilled output, history files, and MCP catalogs are written.
    *  Defaults to `$CODEBERG_HOME/context`. */
   context?: ContextStore;
-  learning?: LearningService;
+  learning?: LearningService | false;
 }
 
 export class Agent implements Asker {
@@ -98,7 +98,7 @@ export class Agent implements Asker {
   private readonly web: WebConfig;
   private readonly mcp: McpConfig | undefined;
   private readonly context: ContextStore;
-  private readonly learning: LearningService;
+  private readonly learning?: LearningService;
   private learningStarted?: Promise<void>;
   private mcpSource?: McpToolSource;
   /** System prompt for this agent — `AGENT_SYSTEM` plus web/MCP sections matching
@@ -127,16 +127,18 @@ export class Agent implements Asker {
     this.web = opts.web ?? webConfigFromEnv();
     this.mcp = opts.mcp;
     this.context = opts.context ?? ContextStore.open(defaultContextRoot());
-    this.learning =
-      opts.learning ?? new LearningService({ generator: fromAiSdk(opts.subagentModel ?? opts.model) });
+    this.learning = opts.learning === false
+      ? undefined
+      : opts.learning ?? new LearningService({ generator: fromAiSdk(opts.subagentModel ?? opts.model) });
   }
 
   /** Drop MCP server connections (stdio child processes, HTTP sessions). */
   async close(): Promise<void> {
+    this.learning?.stop();
     await this.mcpSource?.close();
   }
 
-  learningService(): LearningService {
+  learningService(): LearningService | undefined {
     return this.learning;
   }
 
@@ -209,8 +211,10 @@ export class Agent implements Asker {
   }
 
   private async ensureLoop(): Promise<ToolLoopAgent> {
-    this.learningStarted ??= this.learning.initialize();
-    await this.learningStarted;
+    if (this.learning) {
+      this.learningStarted ??= this.learning.initialize();
+      await this.learningStarted;
+    }
     if (!this.loop) {
       try {
         await this.daemon.waitReady(30_000);
@@ -226,6 +230,7 @@ export class Agent implements Asker {
       const toolNames = Object.keys(tools);
       const skills = await publishSkills(this.context);
       this.system = agentSystemPrompt({
+        learning: Boolean(this.learning),
         enabled: this.web.enabled,
         search: Boolean(this.web.searxngUrl),
         mcp: this.mcpSource?.reports() ?? [],
@@ -270,7 +275,7 @@ export class Agent implements Asker {
     return createAgentTools({
       daemon: this.daemon,
       context: this.context,
-      learning: this.learning.store,
+      learning: this.learning?.store,
       web: this.web,
       mcp: () => {
         this.mcpSource = mcpToolSource({

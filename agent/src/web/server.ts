@@ -108,7 +108,7 @@ async function route(
 
   if (req.method === 'GET' && path === META_PATH) {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify({ title: opts.title }));
+    res.end(JSON.stringify({ title: opts.title, capabilities: { learning: Boolean(opts.learning) } }));
     return;
   }
 

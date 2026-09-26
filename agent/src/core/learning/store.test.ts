@@ -153,5 +153,30 @@ describe('LearningStore', () => {
     const embeddingRows = await exportDataset(learning, 'embedding');
     expect(evalRows).toHaveLength(2);
     expect(embeddingRows).toEqual([]); // no cited/retrieved positive in attempt 2
+    const chatRows = await exportDataset(learning, 'openai-chat');
+    expect(chatRows).toEqual([]); // correction without context is not a standalone training sample
+  });
+
+  it('exports a standalone solved response in chat training format', async () => {
+    const learning = await store();
+    await learning.recordSession('standalone', transcript());
+    const attempt = (await learning.attempts())[0];
+    await learning.recordFeedback({ attemptId: attempt.attempt_id, rating: 3, label: 'solved' });
+    const rows = await exportDataset(learning, 'openai-chat');
+    expect(rows).toEqual([{ messages: [
+      { role: 'user', content: attempt.user_query },
+      { role: 'assistant', content: attempt.answer },
+    ] }]);
+    expect(await exportDataset(learning, 'query-positive-negative')).toEqual([{
+      query: attempt.user_query,
+      positive: ['src/FulfillmentContextBuilder.ts\nFulfillmentContextBuilder.build\nreturn { fulfillmentType }'],
+      negative: [], // an uncited hit with no source text is not a trainable negative
+    }]);
+    expect((await exportDataset(learning, 'eval'))[0]).toMatchObject({
+      answer: attempt.answer,
+      label: 'solved',
+      evidence_label: 'answer_referenced_unverified',
+      schema_version: 1,
+    });
   });
 });

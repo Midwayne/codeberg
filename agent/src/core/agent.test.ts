@@ -61,6 +61,25 @@ describe('Agent.compactHistory', () => {
 });
 
 describe('Agent tool budget', () => {
+  it('does not initialize learning or register learning tools when disabled', async () => {
+    const model = new MockLanguageModelV4({
+      doGenerate: async () => ({
+        content: [{ type: 'text', text: 'Done' }],
+        finishReason: { unified: 'stop', raw: undefined },
+        usage: { inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 1, text: 1, reasoning: 0 } },
+        warnings: [],
+      }),
+    });
+    const daemon = new DaemonClient(DEFAULT_DAEMON_URL);
+    vi.spyOn(daemon, 'waitReady').mockResolvedValue({ ready: true, chunks: 0, version: 'test', vectors_enabled: false });
+    vi.spyOn(daemon, 'listTools').mockResolvedValue([]);
+    const agent = new Agent({ model, daemon, learning: false, promptHooks: [], web: webConfigFromEnv({ CODEBERG_WEB_USE: 'false' }), mcp: { enabled: false, servers: [], files: [], warnings: [] }, context: ContextStore.open(mkdtempSync(join(tmpdir(), 'cberg-disabled-'))) });
+    expect(agent.learningService()).toBeUndefined();
+    const loop = await agent.toolLoopAgent();
+    await loop.generate({ prompt: 'Hi' });
+    const tools = model.doGenerateCalls[0].tools ?? [];
+    expect(tools.some((entry) => entry.name === 'search_knowledge' || entry.name === 'search_learning')).toBe(false);
+  });
   it.each(['generate', 'stream'] as const)(
     'continues past the SDK default limit until the model answers (%s)',
     async (mode) => {

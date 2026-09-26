@@ -13,6 +13,7 @@ export interface FeedbackRecord {
   label: FeedbackOption['label'];
 }
 
+
 export async function loadFeedback(
   conversationId: string,
   messageId: string,
@@ -31,7 +32,7 @@ export async function rateAttempt(
   messageId: string,
   option: FeedbackOption,
   reason?: string,
-): Promise<{ feedback: FeedbackRecord; jobId?: string; jobStatus?: string }> {
+): Promise<FeedbackRecord> {
   const response = await fetch('/api/learning/feedback', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -44,17 +45,6 @@ export async function rateAttempt(
     }),
   });
   if (!response.ok) throw new Error(await response.text());
-  return response.json();
-}
-
-export async function knowledgeJobStatus(jobId: string): Promise<
-  { status?: string; last_error_category?: string } | undefined
-> {
-  try {
-    const response = await fetch(`/api/learning/status?job_id=${encodeURIComponent(jobId)}`);
-    const job = response.ok ? ((await response.json()) as { status?: string } | null) : null;
-    return job ?? undefined;
-  } catch {
-    return undefined;
-  }
+  const result = (await response.json()) as { feedback: FeedbackRecord };
+  return result.feedback;
 }

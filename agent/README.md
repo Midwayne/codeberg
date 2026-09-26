@@ -79,8 +79,10 @@ Options: `--repo`, `--path-glob`, `--kind`, `--min-score`, `--hybrid`,
 
 The browser UI records durable attempts and editable graded feedback under
 `<CODEBERG_HOME>/learning`. `CODEBERG_SUBAGENT_MODEL=provider:model` selects the
-background knowledge extractor and defaults to `CODEBERG_MODEL`. Inspect or
-export the local data with `codeberg learning` (or the directly installed
+background knowledge extractor and defaults to `CODEBERG_MODEL`. Set
+`CODEBERG_LEARNING_USE=false` to disable collection, feedback, learning tools
+and background extraction without deleting existing data. Inspect or export
+the local data with `codeberg learning` (or the directly installed
 `codeberg-learning` binary):
 
 ```sh
@@ -89,6 +91,10 @@ codeberg learning search-knowledge "service ownership"
 codeberg learning stats
 codeberg learning export --type eval
 codeberg learning export --type embedding
+codeberg learning export --type openai-chat
+codeberg learning export --type query-positive-negative
+codeberg learning export --type preference
+codeberg learning export --type knowledge
 ```
 
 See [continuous learning](../docs/continuous-learning.md) for durability,

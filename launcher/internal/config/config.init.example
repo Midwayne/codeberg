@@ -14,6 +14,7 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 
 # Optional model for background knowledge extraction; defaults to CODEBERG_MODEL.
 # CODEBERG_SUBAGENT_MODEL=anthropic:claude-haiku-4-5
+# CODEBERG_LEARNING_USE=true   # false disables feedback and background learning
 
 # API key matching CODEBERG_MODEL (ollama and llamacpp need none).
 # ANTHROPIC_API_KEY=

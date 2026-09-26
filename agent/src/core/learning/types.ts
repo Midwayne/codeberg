@@ -100,6 +100,7 @@ export interface KnowledgeJob {
   last_attempt_at?: string;
   next_attempt_at?: string;
   lease_expires_at?: string;
+  rerun_requested?: boolean;
 }
 
 export type KnowledgeCategory = 'services' | 'flows' | 'concepts' | 'debugging';

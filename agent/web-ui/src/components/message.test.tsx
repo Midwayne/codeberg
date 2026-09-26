@@ -5,6 +5,18 @@ import type { UIMessage } from 'ai';
 import { Message } from './message';
 
 describe('assistant activity group', () => {
+  it('uses a compact feedback dropdown with full wording only when learning is enabled', () => {
+    const message = { id: 'answer', role: 'assistant', parts: [{ type: 'text', text: 'Done.' }] } as UIMessage;
+    const html = renderToStaticMarkup(<Message message={message} conversationId="chat" learningEnabled />);
+    expect(html).toContain('aria-label="Rate this answer"');
+    expect(html).toContain('<select');
+    expect(html).toContain('<option value="not_useful">Not useful</option>');
+    expect(html).toContain('<option value="partially_useful">Partially useful</option>');
+    expect(html).toContain('<option value="mostly_correct">Mostly correct</option>');
+    expect(html).toContain('<option value="solved">Solved</option>');
+    expect(html).not.toContain('Updating knowledge base');
+    expect(renderToStaticMarkup(<Message message={message} conversationId="chat" learningEnabled={false} />)).not.toContain('Rate this answer');
+  });
   it('wraps reasoning and tools in one disclosure while keeping their individual disclosures', () => {
     const message = {
       id: 'assistant-1',

@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { fileURLToPath } from 'node:url';
-import { createInterface } from 'node:readline/promises';
 
 import { createAgentFromEntry, reasoningFromEnv } from '../core/config.js';
 import { wrapToolLoopAgentWithCompaction } from '../core/compaction.js';
@@ -68,20 +67,8 @@ async function main(): Promise<void> {
       process.exit(signal === 'SIGINT' ? 130 : 143);
     }
     shuttingDown = true;
-    const learning = core.learningService();
-    if (learning.isWorking() && process.stdin.isTTY && process.stdout.isTTY) {
-      const prompt = createInterface({ input: process.stdin, output: process.stdout });
-      try {
-        const answer = await prompt.question(
-          '1 knowledge update is still being processed. [W]ait / [E]xit anyway: ',
-        );
-        if (answer.trim().toLowerCase().startsWith('w')) {
-          await learning.waitForCurrent();
-        }
-      } finally {
-        prompt.close();
-      }
-    }
+    // The durable queue recovers interrupted work on the next launch.
+    core.learningService()?.stop();
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await core.close();
     process.exit(signal === 'SIGINT' ? 130 : 143);

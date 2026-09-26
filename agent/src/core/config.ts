@@ -37,16 +37,24 @@ export function createAgent(config: AgentConfig): Agent {
   assertAgentRuntime();
   const registry = defaultProviders();
   const model = registry.resolve(config.modelSpec);
-  const subagentModel = registry.resolve(config.subagentModelSpec ?? config.modelSpec);
+  const learningEnabled = learningEnabledFromEnv();
+  const subagentModel = learningEnabled
+    ? registry.resolve(config.subagentModelSpec ?? config.modelSpec)
+    : undefined;
   return new Agent({
     model,
     subagentModel,
+    learning: learningEnabled ? undefined : false,
     daemon: new DaemonClient(config.daemonUrl),
     reasoning: config.reasoning,
     // Resolve the model's memory limit + caching strategy from the same spec so
     // the agent budgets context and marks the cache prefix correctly.
     profile: profileFor(config.modelSpec),
   });
+}
+
+export function learningEnabledFromEnv(env: NodeJS.ProcessEnv = process.env): boolean {
+  return !['false', '0', 'off', 'no'].includes((env.CODEBERG_LEARNING_USE ?? '').trim().toLowerCase());
 }
 
 export function createAgentFromEntry(entry: EntryConfig): Agent {
