@@ -1,8 +1,10 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { randomUUID } from 'node:crypto';
 
 import { pipeAgentUIStreamToResponse, type ToolLoopAgent } from 'ai';
 
 import { promptCommandCatalog, type PromptCommand } from '../core/hooks/index.js';
+import { writeModuleLog } from '../core/module-log.js';
 import { CHAT_PAGE_HTML } from './page.js';
 import { readJson, sendJson, sendText } from './http.js';
 import { routeSessions } from './session-routes.js';
@@ -89,7 +91,21 @@ export function createRequestHandler(
   const sessions = opts.sessionStore ?? new WebSessionStore();
 
   return (req, res) => {
+    const chat = req.method === 'POST' && req.url?.split('?')[0] === CHAT_PATH;
+    const id = chat ? randomUUID() : undefined;
+    const started = Date.now();
+    if (id) {
+      writeModuleLog('agent', 'turn_started', { id });
+      res.once('finish', () => {
+        if (res.statusCode < 500) writeModuleLog('agent', 'turn_completed', { id, duration_ms: Date.now() - started, status: res.statusCode });
+      });
+      res.once('close', () => {
+        if (!res.writableEnded) writeModuleLog('agent', 'turn_disconnected', { id, duration_ms: Date.now() - started });
+      });
+    }
     route(req, res, opts, respond, sessions).catch((err: unknown) => {
+      if (id) writeModuleLog('agent', 'turn_failed', { id, duration_ms: Date.now() - started, error: String(err) });
+      else if (req.url?.startsWith(LEARNING_PATH)) writeModuleLog('learning-agent', 'request_failed', { error: String(err) });
       // `respond` writes the SSE headers itself, so only set a status if the
       // stream had not started yet.
       if (!res.headersSent) {

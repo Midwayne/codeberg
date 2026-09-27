@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { readJson, sendJson, sendText } from './http.js';
 import { WebSessionStore, isValidSessionId } from './sessions.js';
 import type { LearningService } from '../core/learning/service.js';
+import { writeModuleLog } from '../core/module-log.js';
 
 const SESSIONS_PATH = '/api/sessions';
 
@@ -53,6 +54,7 @@ export async function routeSessions(
         } catch (error) {
           // Chat persistence succeeded. A learning disk failure must not break it.
           console.error('learning session recording failed:', error);
+          writeModuleLog('learning-agent', 'session_recording_failed', { error: String(error) });
         }
       }
       return sendJson(res, 200, { ok: true });

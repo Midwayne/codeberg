@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 func TestWebUseDefaultsOnAndPropagatesToAgent(t *testing.T) {
 	t.Setenv("CODEBERG_WEB_USE", "")
@@ -16,6 +19,9 @@ func TestWebUseDefaultsOnAndPropagatesToAgent(t *testing.T) {
 		t.Fatalf("SearxngPort = %q; want %q", c.SearxngPort, DefaultSearxngPort)
 	}
 	env := c.AgentEnv()
+	if got, want := env[KeyLogDir], filepath.Join(c.Home, "logs"); got != want {
+		t.Fatalf("AgentEnv[%s] = %q; want %q", KeyLogDir, got, want)
+	}
 	if env[KeyWebUse] != "true" {
 		t.Fatalf("AgentEnv[%s] = %q; want true", KeyWebUse, env[KeyWebUse])
 	}

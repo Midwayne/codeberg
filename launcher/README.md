@@ -133,9 +133,14 @@ blow past, forcing a second run). For an exceptionally large tree, raise it:
 CODEBERG_HEALTH_TIMEOUT=30m codeberg     # any Go duration, e.g. 45m
 ```
 
-Live indexing progress streams to the terminal during the wait; the full log is
-at `~/.codeberg/logs/daemon.log`. Subsequent runs warm-start from the persisted
-index and come up in seconds.
+Live indexing progress streams to the terminal during the wait. The launcher
+appends logs across runs under `~/.codeberg/logs/` (or `$CODEBERG_HOME/logs/`):
+`daemon.log` (daemon and mirrored indexer output), `indexer.log` (dedicated C
+indexer output), `searxng.log` (managed web search and its install), and
+`web.log` (browser UI server and stderr from stdio MCP servers), `agent.log`
+(chat turn lifecycle and failures), and `learning-agent.log` (background job
+lifecycle and failures). The agent logs contain event metadata, not prompts or
+answers. Subsequent runs warm-start from the persisted index and come up in seconds.
 
 ## Configuring
 

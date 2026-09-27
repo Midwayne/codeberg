@@ -3,6 +3,7 @@ package supervisor
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -14,10 +15,11 @@ import (
 )
 
 type Supervisor struct {
-	cfg    config.Indexer
-	cmd    *exec.Cmd
-	mu     sync.Mutex
-	closed bool
+	cfg     config.Indexer
+	cmd     *exec.Cmd
+	logFile *os.File
+	mu      sync.Mutex
+	closed  bool
 }
 
 func Start(ctx context.Context, cfg config.Indexer) (*Supervisor, error) {
@@ -44,12 +46,36 @@ func (s *Supervisor) Stop() {
 
 func (s *Supervisor) spawn(ctx context.Context, bin string) error {
 	cmd := exec.CommandContext(ctx, bin)
-	cmd.Stdout = os.Stderr
-	cmd.Stderr = os.Stderr
+	out := io.Writer(os.Stderr)
+	if dir := os.Getenv("CODEBERG_LOG_DIR"); dir != "" {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return fmt.Errorf("creating indexer log directory: %w", err)
+		}
+		f, err := os.OpenFile(filepath.Join(dir, "indexer.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+		if err != nil {
+			return fmt.Errorf("opening indexer log: %w", err)
+		}
+		s.logFile = f
+		out = io.MultiWriter(os.Stderr, f)
+	}
+	cmd.Stdout = out
+	cmd.Stderr = out
 	cmd.Env = append(os.Environ(), indexerEnv(s.cfg)...)
 
 	s.cmd = cmd
-	return cmd.Start()
+	if err := cmd.Start(); err != nil {
+		s.closeLog()
+		return err
+	}
+	return nil
+}
+
+// Wait for the process (including os/exec's output copy) before closing the log.
+func (s *Supervisor) closeLog() {
+	if s.logFile != nil {
+		_ = s.logFile.Close()
+		s.logFile = nil
+	}
 }
 
 func indexerEnv(cfg config.Indexer) []string {
@@ -104,6 +130,7 @@ func (s *Supervisor) watch(ctx context.Context, bin string) {
 	backoff := time.Second
 	for {
 		err := s.cmd.Wait()
+		s.closeLog()
 		s.mu.Lock()
 		if s.closed {
 			s.mu.Unlock()

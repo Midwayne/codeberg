@@ -7,6 +7,7 @@ import { learningEnabledFromEnv, reasoningFromEnv } from '../core/config.js';
 import { DEFAULT_DAEMON_URL } from '../core/client.js';
 import { entryUsage, parseEntryArgs } from '../core/entry.js';
 import { LearningService } from '../core/learning/service.js';
+import { writeModuleLog } from '../core/module-log.js';
 import { codebergHome } from '../core/paths.js';
 import { defaultProviders } from '../providers/index.js';
 import { createWebServer } from './server.js';
@@ -45,6 +46,7 @@ function defaultStaticRoot(): string {
 }
 
 async function main(): Promise<void> {
+  process.env.CODEBERG_LOG_DIR ??= join(codebergHome(), 'logs');
   let entry = parseEntryArgs(process.argv);
   if (!entry) {
     const catalog = join(codebergHome(), 'models.yml');
@@ -69,6 +71,8 @@ async function main(): Promise<void> {
   const learning = learningEnabledFromEnv()
     ? new LearningService({ generator: createLearningGenerator(modelSettings, (spec) => providers.resolve(spec)) })
     : false;
+  writeModuleLog('agent', 'started');
+  writeModuleLog('learning-agent', learning ? 'started' : 'disabled');
   const pool = createWebModelPool(entry.daemonUrl, learning);
   // Budget the (browser-held, ever-growing) transcript to the model's window on
   // every turn, using the same policy as the CLI.
@@ -96,6 +100,8 @@ async function main(): Promise<void> {
     shuttingDown = true;
     // The durable queue recovers interrupted work on the next launch.
     if (learning) learning.stop();
+    writeModuleLog('agent', 'stopping', { signal });
+    if (learning) writeModuleLog('learning-agent', 'stopping', { signal });
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await pool.close();
     process.exit(signal === 'SIGINT' ? 130 : 143);
@@ -109,6 +115,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: unknown) => {
+  writeModuleLog('agent', 'startup_failed', { error: String(err) });
   console.error(err);
   process.exit(1);
 });

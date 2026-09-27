@@ -3,6 +3,7 @@ import { realpath } from 'node:fs/promises';
 import { basename, dirname, resolve, sep } from 'node:path';
 
 import { sourceKey } from './memory-source.js';
+import { writeModuleLog } from '../module-log.js';
 import type { LearningStore } from './store.js';
 import type { RepositoryVersion } from './types.js';
 
@@ -81,6 +82,7 @@ export class KnowledgeSourceWatcher {
           this.directories.delete(directory);
           watcher.close();
           console.error('knowledge source watcher failed:', error);
+          writeModuleLog('learning-agent', 'source_watcher_failed', { error: String(error) });
         });
         this.directories.set(directory, { watcher, files });
       } catch {

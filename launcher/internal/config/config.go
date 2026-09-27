@@ -48,6 +48,7 @@ const (
 	KeyReasoning     = "CODEBERG_REASONING"             // reasoning effort (agent scope)
 	KeyVector        = "CODEBERG_VECTOR"                // "false" => chunk-only mode
 	KeyHome          = "CODEBERG_HOME"                  // launcher managed dir
+	KeyLogDir        = "CODEBERG_LOG_DIR"               // daemon/indexer log directory
 	KeyRepo          = "CODEBERG_REPO"                  // source checkout to build/run
 	KeyDist          = "CODEBERG_DIST"                  // prebuilt artifact dir (installs)
 	KeyWebPort       = "CODEBERG_WEB_PORT"              // web UI listen port (agent scope)
@@ -454,6 +455,7 @@ func (c *Config) DaemonEnv() map[string]string {
 	e := map[string]string{
 		KeyHTTPPort: c.HTTPPort,
 		KeySocket:   c.Socket,
+		KeyLogDir:   filepath.Join(c.Home, "logs"),
 	}
 	if len(c.Roots) > 0 {
 		records := make([]string, 0, len(c.Roots))
@@ -500,6 +502,7 @@ func (c *Config) AgentEnv() map[string]string {
 	e := map[string]string{
 		KeyModel:     c.Model,
 		KeyDaemonURL: c.DaemonURL,
+		KeyLogDir:    filepath.Join(c.Home, "logs"),
 	}
 	putIf(e, KeyReasoning, c.Reasoning)
 	putIf(e, KeySubagentModel, c.SubagentModel)

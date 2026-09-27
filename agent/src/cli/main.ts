@@ -1,6 +1,8 @@
 #!/usr/bin/env node
+import { join } from 'node:path';
 import { createAgentFromEntry } from '../core/config.js';
 import { entryUsage, parseEntryArgs } from '../core/entry.js';
+import { codebergHome } from '../core/paths.js';
 import { ChatSession } from '../core/session.js';
 import { printResult } from './format.js';
 
@@ -10,6 +12,8 @@ async function main(): Promise<void> {
     console.error(entryUsage('codeberg-ask'));
     process.exit(1);
   }
+
+  process.env.CODEBERG_LOG_DIR ??= join(codebergHome(), 'logs');
 
   const agent = createAgentFromEntry(entry);
   try {

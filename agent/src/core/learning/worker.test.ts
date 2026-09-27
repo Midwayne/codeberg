@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 
@@ -25,6 +25,7 @@ async function fixtureRepository(root: string, files: Record<string, string>) {
 }
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
@@ -72,6 +73,7 @@ describe('KnowledgeWorker', () => {
   it('recreates a missing job from durable solved feedback after restart', async () => {
     const root = await mkdtemp(join(tmpdir(), 'codeberg-worker-'));
     roots.push(root);
+    vi.stubEnv('CODEBERG_LOG_DIR', join(root, 'logs'));
     const service = new LearningService({ root, generator: { generate: async () => '{"action":"none"}' } });
     await service.recordSession('conversation-1', [
       { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'Where is it?' }] },
@@ -83,6 +85,10 @@ describe('KnowledgeWorker', () => {
     await service.initialize();
     await service.waitForCurrent();
     expect((await service.queue.list('completed')).map((job) => job.type).sort()).toEqual(['extract_dataset', 'extract_knowledge']);
+    const events = (await readFile(join(root, 'logs', 'learning-agent.log'), 'utf8'))
+      .trim().split('\n').map((line) => JSON.parse(line).event);
+    expect(events.filter((event) => event === 'job_started')).toHaveLength(2);
+    expect(events.filter((event) => event === 'job_completed')).toHaveLength(2);
     service.stop();
   });
   it('accepts a JSON object wrapped in model commentary', () => {

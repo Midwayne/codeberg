@@ -1,9 +1,9 @@
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
 import type { ServerResponse } from 'node:http';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { reasoningFromEnv } from '../core/config.js';
 import { LearningService } from '../core/learning/service.js';
@@ -68,6 +68,7 @@ function makeStaticRoot(): string {
 }
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await close?.();
   close = undefined;
   for (const service of learningServices.splice(0)) {
@@ -78,6 +79,27 @@ afterEach(async () => {
 });
 
 describe('web server', () => {
+  it('records chat turn completion and errors in agent.log without storing messages', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'codeberg-agent-log-'));
+    tempDirs.push(dir);
+    vi.stubEnv('CODEBERG_LOG_DIR', dir);
+    await start({ respond: async (res, messages) => {
+      if (messages.includes('fail')) throw new Error('model unavailable');
+      res.end('ok');
+    } });
+    const send = (messages: string[]) => fetch(baseUrl + CHAT_PATH, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages }),
+    });
+    expect((await send(['private prompt'])).status).toBe(200);
+    expect((await send(['fail'])).status).toBe(500);
+    const log = readFileSync(join(dir, 'agent.log'), 'utf8');
+    expect(log.split('\n').filter(Boolean).map((line) => JSON.parse(line).event)).toEqual([
+      'turn_started', 'turn_completed', 'turn_started', 'turn_failed',
+    ]);
+    expect(log).not.toContain('private prompt');
+    expect(log).toContain('model unavailable');
+  });
+
   it('serves the embedded fallback page (no build) with the title substituted', async () => {
     await start();
     const res = await fetch(baseUrl + '/');

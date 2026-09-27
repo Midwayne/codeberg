@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
 import type { Generator } from '../types.js';
+import { writeModuleLog } from '../module-log.js';
 import { knowledgeBody, validatedClaims } from './claims.js';
 import { writeAtomic } from './fs.js';
 import { EXTRACTION_SYSTEM, knowledgePrompt } from './knowledge-prompt.js';
@@ -42,10 +43,12 @@ export class KnowledgeWorker {
     this.retryTimer = undefined;
     this.running = this.runUntilIdle().catch((error: unknown) => {
       console.error('knowledge worker queue error:', error);
+      writeModuleLog('learning-agent', 'queue_failed', { error: String(error) });
     }).finally(() => {
       this.running = undefined;
       if (!this.stopping) void this.scheduleRetry().catch((error: unknown) => {
         console.error('knowledge worker retry scheduling error:', error);
+        writeModuleLog('learning-agent', 'retry_scheduling_failed', { error: String(error) });
       });
     });
   }
@@ -70,6 +73,7 @@ export class KnowledgeWorker {
       if (this.stopping) return;
       const job = await this.queue.claim(this.generator ? undefined : 'extract_dataset');
       if (!job) return;
+      writeModuleLog('learning-agent', 'job_started', { id: job.job_id, type: job.type });
       try {
         const interaction = await this.store.interaction(job.interaction_id);
         job.source_revision = sourceRevision(interaction.attempts, interaction.feedback);
@@ -80,9 +84,11 @@ export class KnowledgeWorker {
           await this.process(job);
         }
         await this.queue.complete(job);
+        writeModuleLog('learning-agent', 'job_completed', { id: job.job_id, type: job.type });
       } catch (error) {
         const category = classifyFailure(error);
         await this.queue.fail(job, category, String(error));
+        writeModuleLog('learning-agent', 'job_failed', { id: job.job_id, type: job.type, category, error: String(error) });
       }
     }
   }
@@ -200,6 +206,7 @@ export class KnowledgeWorker {
     this.retryTimer = setTimeout(() => {
       void this.queue.recoverExpired().then(() => this.wake()).catch((error: unknown) => {
         console.error('knowledge worker recovery error:', error);
+        writeModuleLog('learning-agent', 'recovery_failed', { error: String(error) });
         void this.scheduleRetry();
       });
     }, delay);

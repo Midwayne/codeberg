@@ -3,6 +3,7 @@ import { mkdir, open } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { Generator } from '../types.js';
+import { writeModuleLog } from '../module-log.js';
 import { DurableJobQueue } from './queue.js';
 import { DatasetStore } from './datasets.js';
 import { memorySourceState, sourceKey, type SourceObservation } from './memory-source.js';
@@ -33,16 +34,23 @@ export class LearningService {
     this.knowledgeEnabled = Boolean(options.generator);
     this.datasets = new DatasetStore(this.store);
     this.sourceWatcher = new KnowledgeSourceWatcher(this.store, (sources) => {
-      void this.refreshKnowledge(sources).catch((error: unknown) => console.error('knowledge source refresh failed:', error));
+      void this.refreshKnowledge(sources).catch((error: unknown) => {
+        console.error('knowledge source refresh failed:', error);
+        writeModuleLog('learning-agent', 'source_refresh_failed', { error: String(error) });
+      });
     });
     this.worker = new KnowledgeWorker(this.store, this.queue, options.generator, () => {
-      void this.sourceWatcher.sync().catch((error: unknown) => console.error('knowledge source watcher update failed:', error));
+      void this.sourceWatcher.sync().catch((error: unknown) => {
+        console.error('knowledge source watcher update failed:', error);
+        writeModuleLog('learning-agent', 'watcher_update_failed', { error: String(error) });
+      });
     });
   }
 
   initialize(): Promise<void> {
     this.starting ??= this.start().catch((error: unknown) => {
       this.starting = undefined;
+      writeModuleLog('learning-agent', 'initialization_failed', { error: String(error) });
       throw error;
     });
     return this.starting;
@@ -57,7 +65,10 @@ export class LearningService {
     await this.sourceWatcher.sync();
     if (this.knowledgeEnabled) {
       this.refreshTimer = setInterval(() => {
-        void this.refreshKnowledge().catch((error: unknown) => console.error('knowledge refresh scan failed:', error));
+        void this.refreshKnowledge().catch((error: unknown) => {
+          console.error('knowledge refresh scan failed:', error);
+          writeModuleLog('learning-agent', 'refresh_scan_failed', { error: String(error) });
+        });
       }, 2 * 60_000);
       this.refreshTimer.unref();
     }
@@ -104,6 +115,7 @@ export class LearningService {
       this.worker?.wake();
     } catch (error) {
       console.error('dataset job enqueue failed; feedback is saved:', error);
+      writeModuleLog('learning-agent', 'dataset_enqueue_failed', { error: String(error) });
     }
     // A change to an older attempt can invalidate knowledge learned from a newer
     // solved attempt (or vice versa). Revisit the entire logical interaction.
@@ -118,6 +130,7 @@ export class LearningService {
     } catch (error) {
       // The feedback event is already durable. Reconcile this handoff on startup.
       console.error('knowledge job enqueue failed; feedback is saved:', error);
+      writeModuleLog('learning-agent', 'knowledge_enqueue_failed', { error: String(error) });
       return { feedback };
     }
   }

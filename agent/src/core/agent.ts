@@ -5,8 +5,10 @@ import {
   type ModelMessage,
   type LanguageModel,
 } from 'ai';
+import { randomUUID } from 'node:crypto';
 
 import { DaemonClient, DaemonError } from './client.js';
+import { writeModuleLog } from './module-log.js';
 import { cachedInstructions, deterministicTools, requestProviderOptions } from './cache.js';
 import { EvidenceLedger } from './evidence.js';
 import { externalizeToolResults } from './context/externalize.js';
@@ -146,6 +148,20 @@ export class Agent implements Asker {
   }
 
   async ask(question: string, opts: AskOptions = {}): Promise<AskResult> {
+    const id = randomUUID();
+    const started = Date.now();
+    writeModuleLog('agent', 'turn_started', { id, interface: 'cli' });
+    try {
+      const result = await this.askTurn(question, opts);
+      writeModuleLog('agent', 'turn_completed', { id, interface: 'cli', duration_ms: Date.now() - started });
+      return result;
+    } catch (error) {
+      writeModuleLog('agent', 'turn_failed', { id, interface: 'cli', duration_ms: Date.now() - started, error: String(error) });
+      throw error;
+    }
+  }
+
+  private async askTurn(question: string, opts: AskOptions): Promise<AskResult> {
     this.sources = [];
     const loop = await this.ensureLoop();
     // Keep the transcript under the model's memory limit: summarize older turns

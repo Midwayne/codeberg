@@ -76,15 +76,22 @@ func Run(c *config.Config) error {
 	if err := os.MkdirAll(filepath.Dir(c.IndexPath), 0o755); err != nil {
 		return err
 	}
-	logDir := filepath.Join(c.Home, "logs")
-	if err := os.MkdirAll(logDir, 0o755); err != nil {
-		return err
-	}
-	logPath := filepath.Join(logDir, "daemon.log")
-	logFile, err := os.Create(logPath)
+	logPath := filepath.Join(c.Home, "logs", "daemon.log")
+	logFile, err := openLog(c.Home, "daemon.log")
 	if err != nil {
 		return err
 	}
+	defer logFile.Close()
+	searxLog, err := openLog(c.Home, "searxng.log")
+	if err != nil {
+		return err
+	}
+	defer searxLog.Close()
+	webLog, err := openLog(c.Home, "web.log")
+	if err != nil {
+		return err
+	}
+	defer webLog.Close()
 
 	// --- start the daemon -----------------------------------------------------
 	// Daemon + indexer output always goes to the log file, and is mirrored to the
@@ -108,7 +115,7 @@ func Run(c *config.Config) error {
 	webDone := make(chan struct{})
 	launchWeb := c.WebUse && c.SearxngURL == ""
 	if launchWeb {
-		go bringUpSearch(webCtx, c, logFile, webDone, &searxMu, &searx)
+		go bringUpSearch(webCtx, c, searxLog, webDone, &searxMu, &searx)
 	} else {
 		close(webDone)
 	}
@@ -214,8 +221,10 @@ func Run(c *config.Config) error {
 	front.Dir = root
 	front.Env = mergeEnv(os.Environ(), agentEnv)
 	front.Stdin = os.Stdin
-	front.Stdout = os.Stdout
-	front.Stderr = os.Stderr
+	webOutput := io.MultiWriter(os.Stdout, webLog)
+	webErrors := io.MultiWriter(os.Stderr, webLog)
+	front.Stdout = webOutput
+	front.Stderr = webErrors
 	err = front.Run()
 
 	stop()
@@ -229,6 +238,17 @@ func Run(c *config.Config) error {
 		return fmt.Errorf("browser chat UI exited: %w", err)
 	}
 	return nil
+}
+
+// openLog keeps output from previous sessions so intermittent failures remain
+// available after a restart. Restrict new logs to the current user: subprocesses
+// may print request details or other private data.
+func openLog(home, name string) (*os.File, error) {
+	dir := filepath.Join(home, "logs")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return nil, err
+	}
+	return os.OpenFile(filepath.Join(dir, name), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 }
 
 // openBrowserWhenReady polls the local web port until it accepts a connection
@@ -278,15 +298,20 @@ func bringUpSearch(
 	dst **searxng.Manager,
 ) {
 	defer close(done)
+	warn := func(format string, args ...any) {
+		msg := fmt.Sprintf(format, args...)
+		fmt.Fprintln(os.Stderr, msg)
+		fmt.Fprintln(logw, msg)
+	}
 	if !searxng.Installed(c.Home) {
 		if !searxng.Available() {
-			fmt.Fprintln(os.Stderr, "› web search needs python3 — run `codeberg build` to set it up (fetch_url still works)")
+			warn("› web search needs python3 — run `codeberg build` to set it up (fetch_url still works)")
 			return
 		}
 		fmt.Fprintln(os.Stderr, "› setting up web search (SearXNG) in the background — first run only")
 		if err := searxng.EnsureInstalled(ctx, c.Home, false, logw); err != nil {
 			if ctx.Err() == nil {
-				fmt.Fprintf(os.Stderr, "  web search setup skipped: %v (fetch_url still works)\n", err)
+				warn("  web search setup skipped: %v (fetch_url still works)", err)
 			}
 			return
 		}
@@ -294,7 +319,7 @@ func bringUpSearch(
 	m, err := searxng.Start(ctx, c.Home, c.SearxngPort, logw)
 	if err != nil {
 		if ctx.Err() == nil {
-			fmt.Fprintf(os.Stderr, "  web search unavailable: %v (fetch_url still works)\n", err)
+			warn("  web search unavailable: %v (fetch_url still works)", err)
 		}
 		return
 	}
