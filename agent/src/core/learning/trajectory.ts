@@ -1,6 +1,6 @@
 import type { UIMessage } from 'ai';
 
-import type { RetrievedResult, ToolInvocation } from './types.js';
+import type { RetrievedResult, ToolInvocation, TrajectoryStep } from './types.js';
 import { redactSecrets } from './redact.js';
 
 interface Trajectory {
@@ -11,6 +11,8 @@ interface Trajectory {
   symbolsInspected: string[];
   toolsInvoked: ToolInvocation[];
   evidenceUsed: RetrievedResult[];
+  steps: TrajectoryStep[];
+  openedFiles: string[];
 }
 
 export function messageText(message: UIMessage): string {
@@ -27,6 +29,9 @@ export function extractTrajectory(message: UIMessage): Trajectory {
   const symbols = new Set<string>();
   const toolsInvoked: ToolInvocation[] = [];
   const retrievedResults: RetrievedResult[] = [];
+  const steps: TrajectoryStep[] = [];
+  const openedFiles = new Set<string>();
+  let lastQuery: string | undefined;
 
   for (const part of message.parts as unknown as Record<string, unknown>[]) {
     const type = typeof part.type === 'string' ? part.type : '';
@@ -39,10 +44,24 @@ export function extractTrajectory(message: UIMessage): Trajectory {
           : 'unknown';
     const input = redactSecrets(part.input);
     const output = redactSecrets(part.output);
-    toolsInvoked.push({ name, ...(input !== undefined ? { input } : {}), ...(output !== undefined ? { output } : {}) });
+    const timestamp = typeof part.timestamp === 'string' ? part.timestamp : undefined;
+    const toolCallId = typeof part.toolCallId === 'string' ? part.toolCallId : undefined;
+    const state = typeof part.state === 'string' ? part.state : undefined;
+    toolsInvoked.push({ name, tool_call_id: toolCallId, ...(input !== undefined ? { input } : {}), ...(output !== undefined ? { output } : {}), timestamp, state });
+    steps.push({ kind: 'tool_call', tool: name, tool_call_id: toolCallId, payload: input, timestamp });
+    if (output !== undefined) steps.push({ kind: 'observation', tool: name, tool_call_id: toolCallId, payload: output, timestamp });
 
     collectInput(name, input, searchQueries, files, symbols);
-    collectResults(name, output, retrievedResults, files, symbols);
+    if (/open|read_file|read_source/i.test(name) && input && typeof input === 'object') {
+      const file = (input as Record<string, unknown>).path ?? (input as Record<string, unknown>).file;
+      if (typeof file === 'string') openedFiles.add(file);
+    }
+    if (/search|grep|references|symbol/i.test(name) && input && typeof input === 'object') {
+      const record = input as Record<string, unknown>;
+      const query = record.query ?? record.pattern ?? record.name;
+      if (typeof query === 'string') lastQuery = query;
+    }
+    collectResults(name, output, retrievedResults, files, symbols, /search|grep|references|symbol/i.test(name) ? lastQuery : undefined, toolCallId);
   }
 
   const evidenceUsed = retrievedResults.filter((result) =>
@@ -56,6 +75,8 @@ export function extractTrajectory(message: UIMessage): Trajectory {
     symbolsInspected: [...symbols],
     toolsInvoked,
     evidenceUsed,
+    steps: [...steps, { kind: 'answer', text: redactSecrets(answer) }],
+    openedFiles: [...openedFiles],
   };
 }
 
@@ -84,6 +105,8 @@ function collectResults(
   results: RetrievedResult[],
   files: Set<string>,
   symbols: Set<string>,
+  searchQuery?: string,
+  toolCallId?: string,
 ): void {
   const candidates = resultCandidates(output);
   for (let rank = 0; rank < candidates.length; rank++) {
@@ -95,10 +118,12 @@ function collectResults(
     if (symbol) symbols.add(symbol);
     results.push({
       tool,
+      ...(toolCallId ? { tool_call_id: toolCallId } : {}),
       rank: rank + 1,
       ...(number(item.score) !== undefined ? { score: number(item.score) } : {}),
       ...(string(item.repo) ? { repo: string(item.repo) } : {}),
       ...(path ? { path } : {}),
+      ...(searchQuery ? { search_query: searchQuery } : {}),
       ...(symbol ? { symbol } : {}),
       ...(number(item.start_line ?? item.startLine) !== undefined
         ? { start_line: number(item.start_line ?? item.startLine) }

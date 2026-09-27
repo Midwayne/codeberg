@@ -28,6 +28,7 @@ const stubAgent = {} as WebServerOptions['agent'];
 let baseUrl = '';
 let close: (() => Promise<void>) | undefined;
 const tempDirs: string[] = [];
+const learningServices: LearningService[] = [];
 
 async function start(opts: Partial<WebServerOptions> = {}): Promise<string> {
   const server = createWebServer({
@@ -52,7 +53,9 @@ function tempSessionStore(): WebSessionStore {
 function tempLearning(): LearningService {
   const dir = mkdtempSync(join(tmpdir(), 'codeberg-learning-'));
   tempDirs.push(dir);
-  return new LearningService({ root: dir });
+  const service = new LearningService({ root: dir });
+  learningServices.push(service);
+  return service;
 }
 
 function makeStaticRoot(): string {
@@ -67,6 +70,10 @@ function makeStaticRoot(): string {
 afterEach(async () => {
   await close?.();
   close = undefined;
+  for (const service of learningServices.splice(0)) {
+    service.stop();
+    await service.waitForCurrent();
+  }
   while (tempDirs.length) rmSync(tempDirs.pop()!, { recursive: true, force: true });
 });
 

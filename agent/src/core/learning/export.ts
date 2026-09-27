@@ -1,11 +1,14 @@
 import type { AttemptRecord, FeedbackRecord, LearningEvent } from './types.js';
 import { effectiveFeedback, type LearningStore } from './store.js';
 import { redactSecrets } from './redact.js';
+import { DatasetStore, exampleFiles } from './datasets.js';
+import { sameTaskFamily } from './dedup.js';
+import { interactionRevisions } from './revision.js';
 
 export type ExportType = 'eval' | 'embedding' | 'openai-chat' | 'query-positive-negative' | 'preference' | 'knowledge';
 
 export async function exportDataset(store: LearningStore, type: ExportType): Promise<unknown[]> {
-  if (type === 'knowledge') return (await store.knowledgeArtifacts()).map((artifact) => ({
+  if (type === 'knowledge') return (await store.currentKnowledgeArtifacts()).map((artifact) => ({
     schema_version: 1,
     record_type: 'knowledge_artifact',
     id: artifact.id,
@@ -20,12 +23,23 @@ export async function exportDataset(store: LearningStore, type: ExportType): Pro
   }));
   const events = await store.events();
   const feedback = effectiveFeedback(events);
-  const attempts = uniqueAttempts(events);
-  if (type === 'eval') return attempts.map((attempt) => evalRecord(attempt, feedback.get(attempt.attempt_id)));
+  const allAttempts = uniqueAttempts(events);
+  const revisions = interactionRevisions(events);
+  const datasets = new DatasetStore(store);
+  const heldOut = await datasets.list('eval');
+  if (type === 'eval') return datasets.active('eval');
+  const training = await datasets.active('training');
+  const requiredKind = type === 'openai-chat' ? ['sft'] : type === 'preference' ? ['preferences'] : ['retrieval', 'hard_negatives', 'hard_negative_candidates'];
+  // Legacy on-demand exports must respect the same held-out boundary as reviewed datasets.
+  const attempts = allAttempts.filter((attempt) =>
+    training.some((row) => row.source_interaction_id === attempt.interaction_id && row.source_revision === revisions.get(attempt.interaction_id) && requiredKind.includes(row.kind)) &&
+    !heldOut.some((row) => row.source_interaction_id === attempt.interaction_id || sameTaskFamily(
+      { query: row.query, files: exampleFiles(row) },
+      { query: attempt.user_query, files: attempt.evidence_used.map((hit) => hit.path).filter((path): path is string => Boolean(path)) })));
   if (type === 'preference') return preferenceRecords(attempts, feedback);
-  const solved = attempts.filter((attempt) =>
-    feedback.get(attempt.attempt_id)?.label === 'solved' && attempt.user_query.trim() && attempt.answer.trim(),
-  );
+  const latest = new Map(attempts.map((attempt) => [attempt.interaction_id, attempt.attempt_id]));
+  const solved = attempts.filter((attempt) => latest.get(attempt.interaction_id) === attempt.attempt_id &&
+    feedback.get(attempt.attempt_id)?.label === 'solved' && attempt.user_query.trim() && attempt.answer.trim());
   if (type === 'openai-chat') return solved
     .filter((attempt) => !attempt.parent_interaction_id &&
       !/^(?:no\b|actually\b|i meant\b|that's not\b|that is not\b|but\b)/i.test(attempt.user_query))
@@ -37,14 +51,27 @@ export async function exportDataset(store: LearningStore, type: ExportType): Pro
     const positive = [...new Set(attempt.evidence_used.map(documentText).filter((text) => text))];
     if (!positive.length) return [];
     const used = new Set(attempt.evidence_used.map(resultKey));
+    const verifiedNegatives = approvedNegatives(training, attempt.interaction_id, revisions.get(attempt.interaction_id));
     const negative = [...new Set(attempt.retrieved_results
-      .filter((hit) => !used.has(resultKey(hit)))
+      .filter((hit) => hit.path && verifiedNegatives.has(hit.path) && !used.has(resultKey(hit)))
       .map(documentText).filter((text) => text && !positive.includes(text)))];
     return [{ query: redactSecrets(attempt.user_query), positive, negative }];
   });
   return attempts
         .filter((attempt) => feedback.get(attempt.attempt_id)?.rating === 3 && attempt.evidence_used.length > 0)
-        .map((attempt) => embeddingRecord(attempt));
+         .map((attempt) => embeddingRecord(attempt, approvedNegatives(training, attempt.interaction_id, revisions.get(attempt.interaction_id))));
+}
+
+function approvedNegatives(training: Awaited<ReturnType<DatasetStore['active']>>, interactionId: string, revision?: string): Set<string> {
+  const rows = training.filter((row) => row.source_interaction_id === interactionId && row.source_revision === revision &&
+    (row.kind === 'hard_negatives' || row.kind === 'hard_negative_candidates'));
+  return new Set(rows.flatMap((row) => {
+    const reviewed = row.review?.oracle?.verified_negatives;
+    if (Array.isArray(reviewed)) return reviewed.filter((path): path is string => typeof path === 'string');
+    if (row.kind !== 'hard_negatives') return [];
+    const hits = row.payload.hard_negatives;
+    return Array.isArray(hits) ? hits.flatMap((hit) => hit && typeof hit === 'object' && typeof hit.path === 'string' ? [hit.path] : []) : [];
+  }));
 }
 
 function documentText(hit: AttemptRecord['retrieved_results'][number]): string {
@@ -73,34 +100,13 @@ function preferenceRecords(attempts: AttemptRecord[], feedback: Map<string, Feed
   return rows;
 }
 
-function evalRecord(attempt: AttemptRecord, feedback?: FeedbackRecord): unknown {
-  return {
-    interaction_id: attempt.interaction_id,
-    attempt_id: attempt.attempt_id,
-    query: attempt.user_query,
-    relevant_files: [...new Set(attempt.evidence_used.flatMap((hit) => (hit.path ? [hit.path] : [])))],
-    relevant_symbols: [...new Set(attempt.evidence_used.flatMap((hit) => (hit.symbol ? [hit.symbol] : [])))],
-    rating: feedback?.rating,
-    label: feedback?.label,
-    answer: redactSecrets(attempt.answer),
-    feedback_reason: feedback?.reason ? redactSecrets(feedback.reason) : undefined,
-    schema_version: 1,
-    evidence_label: 'answer_referenced_unverified',
-    repositories: attempt.repositories.map((repository) => ({
-      name: repository.path.split(/[\\/]/).at(-1),
-      branch: repository.branch,
-      commit: repository.commit,
-    })),
-  };
-}
-
-function embeddingRecord(attempt: AttemptRecord): unknown {
+function embeddingRecord(attempt: AttemptRecord, verifiedNegatives: Set<string>): unknown {
   const positive = new Set(attempt.evidence_used.map(resultKey));
   return {
     interaction_id: attempt.interaction_id,
     query: attempt.user_query,
     positive_chunks: attempt.evidence_used,
-    hard_negative_chunks: attempt.retrieved_results.filter((hit) => !positive.has(resultKey(hit))),
+    hard_negative_chunks: attempt.retrieved_results.filter((hit) => hit.path && verifiedNegatives.has(hit.path) && !positive.has(resultKey(hit))),
   };
 }
 

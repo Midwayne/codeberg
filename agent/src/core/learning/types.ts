@@ -16,12 +16,17 @@ export interface RepositoryVersion {
 
 export interface ToolInvocation {
   name: string;
+  tool_call_id?: string;
   input?: unknown;
   output?: unknown;
+  timestamp?: string;
+  duration_ms?: number;
+  state?: string;
 }
 
 export interface RetrievedResult {
   tool: string;
+  tool_call_id?: string;
   rank: number;
   score?: number;
   repo?: string;
@@ -30,6 +35,17 @@ export interface RetrievedResult {
   start_line?: number;
   end_line?: number;
   snippet?: string;
+  search_query?: string;
+  opened?: boolean;
+}
+
+export interface TrajectoryStep {
+  kind: 'user' | 'tool_call' | 'observation' | 'answer';
+  text?: string;
+  tool?: string;
+  tool_call_id?: string;
+  payload?: unknown;
+  timestamp?: string;
 }
 
 export interface AttemptRecord {
@@ -48,6 +64,12 @@ export interface AttemptRecord {
   symbols_inspected: string[];
   tools_invoked: ToolInvocation[];
   evidence_used: RetrievedResult[];
+  trajectory?: TrajectoryStep[];
+  model?: string;
+  token_usage?: { input?: number; output?: number; retrieved?: number };
+  latency_ms?: number;
+  available_tools?: string[];
+  tool_versions?: Record<string, string>;
 }
 
 export interface FeedbackRecord {
@@ -89,8 +111,10 @@ export type FailureCategory =
 
 export interface KnowledgeJob {
   job_id: string;
-  type: 'extract_knowledge';
+  type: 'extract_knowledge' | 'extract_dataset';
   interaction_id: string;
+  source_revision?: string;
+  source_code_revision?: string;
   created_at: string;
   updated_at: string;
   attempt_count: number;
@@ -107,6 +131,11 @@ export type KnowledgeCategory = 'services' | 'flows' | 'concepts' | 'debugging';
 export type KnowledgeConfidence = 'low' | 'medium' | 'high';
 export type KnowledgeStatus = 'active' | 'needs_verification';
 
+export interface KnowledgeClaim {
+  statement: string;
+  evidence: { repo: string; path: string; quote: string; symbol?: string; start_line?: number; end_line?: number }[];
+}
+
 export interface KnowledgeArtifact {
   id: string;
   title: string;
@@ -117,7 +146,13 @@ export interface KnowledgeArtifact {
   last_verified_at: string;
   repositories: string[];
   source_interactions: string[];
+  /** Attempt and feedback revision last used to verify this interaction's evidence. */
+  source_revision?: string;
+  source_revisions?: Record<string, string>;
   source_commits: Record<string, string>;
+  source_refs?: { repo: string; path: string; symbol?: string }[];
+  source_hashes?: Record<string, string>;
+  claims?: KnowledgeClaim[];
   confidence: KnowledgeConfidence;
   status: KnowledgeStatus;
   body: string;

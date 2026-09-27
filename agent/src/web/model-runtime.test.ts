@@ -2,7 +2,7 @@ import type { LanguageModel, ToolLoopAgent } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
 import { describe, expect, it, vi } from 'vitest';
 
-import { ModelAgentPool, createLearningGenerator } from './model-runtime.js';
+import { ModelAgentPool, boundLearningContext, createLearningGenerator } from './model-runtime.js';
 import type { ModelSelection, ModelSettingsStore } from './model-settings.js';
 
 describe('model runtime', () => {
@@ -87,5 +87,32 @@ describe('model runtime', () => {
     learning = { key: 'openai:wide', effort: 'none' };
     await generator.generate(prompt);
     expect(JSON.stringify(model.doGenerateCalls[1].prompt).length).toBeGreaterThan(20_000);
+  });
+
+  it('keeps authoritative source evidence and valid JSON when compacting a long learning trajectory', () => {
+    const input = JSON.stringify({
+      authoritative_attempt_id: 'a2',
+      authoritative_attempt: { user_query: 'Where does the value originate?', answer: 'Producer.ts',
+        evidence_used: [{ path: 'Producer.ts', symbol: 'produce', snippet: 'return inventoryAvailability' }] },
+      interaction: { attempts: [
+        { attempt_id: 'a1', user_query: 'Where?', answer: 'old consumer '.repeat(1500), tools_invoked: [] },
+        { attempt_id: 'a2', user_query: 'No, find producer', answer: 'Producer.ts', repositories: [{ path: 'inventory', commit: 'abc' }],
+          tools_invoked: [{ name: 'read_file', input: { path: 'Producer.ts' }, output: { path: 'Producer.ts', body: 'return inventoryAvailability' } }],
+          trajectory: [{ payload: 'unrelated trace '.repeat(1000) }] },
+      ], feedback: [{ attempt_id: 'a1', label: 'not_useful' }, { attempt_id: 'a2', label: 'solved' }] },
+      existing_artifacts: [{ category: 'flows', slug: 'origin', body: 'old entry '.repeat(1500) }],
+    });
+    const bounded = boundLearningContext(input, 'extract', 2400);
+    const data = JSON.parse(bounded);
+    expect(bounded.length).toBeLessThan(4800);
+    expect(data).toMatchObject({ truncated: true, authoritative_attempt_id: 'a2',
+      authoritative_attempt: { evidence_used: [{ path: 'Producer.ts', symbol: 'produce' }] } });
+    expect(data.interaction.attempts).toHaveLength(1);
+    expect(data.interaction.attempts[0]).toMatchObject({ attempt_id: 'a2', tools_invoked: [
+      { name: 'read_file', output: { path: 'Producer.ts', body: 'return inventoryAvailability' } },
+    ] });
+    expect(bounded).not.toContain('old consumer old consumer');
+    const tiny = JSON.parse(boundLearningContext(input, 'extract', 128));
+    expect(tiny).toMatchObject({ insufficient_evidence: true, authoritative_attempt_id: 'a2' });
   });
 });

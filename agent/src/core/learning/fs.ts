@@ -1,4 +1,4 @@
-import { mkdir, open, rename } from 'node:fs/promises';
+import { link, mkdir, open, rename, unlink } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 export async function appendDurable(path: string, value: unknown): Promise<void> {
@@ -23,6 +23,26 @@ export async function appendDurable(path: string, value: unknown): Promise<void>
 
 export async function writeJsonAtomic(path: string, value: unknown): Promise<void> {
   await writeAtomic(path, JSON.stringify(value, null, 2) + '\n');
+}
+
+/** Publish a version exactly once: an interrupted writer leaves no visible record. */
+export async function writeJsonImmutable(path: string, value: unknown): Promise<boolean> {
+  const dir = dirname(path);
+  await mkdir(dir, { recursive: true });
+  const temp = `${path}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  const file = await open(temp, 'wx', 0o600);
+  try {
+    try {
+      await file.writeFile(JSON.stringify(value, null, 2) + '\n', 'utf8');
+      await file.sync();
+    } finally { await file.close(); }
+    try { await link(temp, path); } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'EEXIST') return false;
+      throw error;
+    }
+    await syncDirectory(dir);
+    return true;
+  } finally { await unlink(temp); }
 }
 
 export async function writeAtomic(path: string, value: string): Promise<void> {

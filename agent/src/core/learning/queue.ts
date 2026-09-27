@@ -20,7 +20,15 @@ export class DurableJobQueue {
     interactionId: string,
     options: { requeueCompleted?: boolean } = {},
   ): Promise<KnowledgeJob> {
-    const jobId = stableId('job', 'extract_knowledge', interactionId);
+    return this.enqueue('extract_knowledge', interactionId, options);
+  }
+
+  async enqueueDataset(interactionId: string, options: { requeueCompleted?: boolean } = {}): Promise<KnowledgeJob> {
+    return this.enqueue('extract_dataset', interactionId, options);
+  }
+
+  private async enqueue(type: KnowledgeJob['type'], interactionId: string, options: { requeueCompleted?: boolean }): Promise<KnowledgeJob> {
+    const jobId = stableId('job', type, interactionId);
     const existing = await this.find(jobId);
     if (existing?.status === 'processing' && options.requeueCompleted) {
       await writeJsonAtomic(this.path('processing', jobId), { ...existing, rerun_requested: true });
@@ -33,7 +41,7 @@ export class DurableJobQueue {
     const job: KnowledgeJob = {
       ...(existing ?? {}),
       job_id: jobId,
-      type: 'extract_knowledge',
+      type,
       interaction_id: interactionId,
       created_at: existing?.created_at ?? timestamp,
       updated_at: timestamp,
@@ -74,11 +82,11 @@ export class DurableJobQueue {
   }
 
   /** Earliest pending retry or abandoned lease, including a claim with no lease. */
-  async nextDueAt(): Promise<number | undefined> {
+  async nextDueAt(type?: KnowledgeJob['type']): Promise<number | undefined> {
     const [pending, processing] = await Promise.all([this.list('pending'), this.list('processing')]);
     const times = [
-      ...pending.map((job) => job.next_attempt_at ? Date.parse(job.next_attempt_at) : this.now().getTime()),
-      ...processing.map((job) => job.lease_expires_at ? Date.parse(job.lease_expires_at) : this.now().getTime()),
+      ...pending.filter((job) => !type || job.type === type).map((job) => job.next_attempt_at ? Date.parse(job.next_attempt_at) : this.now().getTime()),
+      ...processing.filter((job) => !type || job.type === type).map((job) => job.lease_expires_at ? Date.parse(job.lease_expires_at) : this.now().getTime()),
     ].filter(Number.isFinite);
     return times.length ? Math.min(...times) : undefined;
   }
@@ -97,7 +105,10 @@ export class DurableJobQueue {
       const winner = jobs.sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at) || statuses.indexOf(b.status) - statuses.indexOf(a.status))[0];
       for (const job of jobs) {
         if (job === winner) continue;
-        await unlink(this.path(job.status, id));
+        try { await unlink(this.path(job.status, id)); } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+          // Another worker may already have removed the duplicate state.
+        }
       }
     }
   }
@@ -127,9 +138,10 @@ export class DurableJobQueue {
     return recovered;
   }
 
-  async claim(): Promise<KnowledgeJob | undefined> {
+  async claim(type?: KnowledgeJob['type']): Promise<KnowledgeJob | undefined> {
     await mkdir(join(this.root, 'jobs', 'processing'), { recursive: true });
     for (const job of await this.list('pending')) {
+      if (type && job.type !== type) continue;
       if (job.next_attempt_at && Date.parse(job.next_attempt_at) > this.now().getTime()) continue;
       const from = this.path('pending', job.job_id);
       const to = this.path('processing', job.job_id);

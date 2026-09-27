@@ -7,8 +7,10 @@ import { promisify } from 'node:util';
 import type { UIMessage } from 'ai';
 
 import { codebergHome, projectRoots } from '../paths.js';
+import { memorySourceState, type SourceObservation } from './memory-source.js';
 import { appendDurable } from './fs.js';
 import { redactSecrets } from './redact.js';
+import { interactionRevisions } from './revision.js';
 import { extractTrajectory, messageText } from './trajectory.js';
 import {
   FEEDBACK_LABELS,
@@ -38,8 +40,12 @@ export class LearningStore {
   readonly root: string;
   private writeChain: Promise<void> = Promise.resolve();
 
-  constructor(root = defaultLearningRoot()) {
+  constructor(root = defaultLearningRoot(), private readonly repositoryProvider = repositoryVersions) {
     this.root = root;
+  }
+
+  repositories(): Promise<RepositoryVersion[]> {
+    return this.repositoryProvider();
   }
 
   async recordSession(
@@ -52,7 +58,7 @@ export class LearningStore {
       events.filter((event) => event.type === 'attempt_recorded').map((event) => event.attempt.attempt_id),
     );
     const feedback = effectiveFeedback(events);
-    const repositories = await repositoryVersions();
+    const repositories = await this.repositories();
     const recorded: AttemptRecord[] = [];
     let currentInteraction = '';
     let parentInteraction: string | undefined;
@@ -81,6 +87,10 @@ export class LearningStore {
       previousAttempt = attemptId;
       if (existing.has(attemptId)) continue;
       const trajectory = extractTrajectory(message);
+      const metadata = message.metadata as Record<string, unknown> | undefined;
+      const usage = metadata?.usage as Record<string, unknown> | undefined;
+      const inputTokens = usage?.inputTokens ?? usage?.promptTokens;
+      const outputTokens = usage?.outputTokens ?? usage?.completionTokens;
       const attempt: AttemptRecord = redactSecrets({
         conversation_id: conversationId,
         interaction_id: currentInteraction,
@@ -97,6 +107,20 @@ export class LearningStore {
         symbols_inspected: trajectory.symbolsInspected,
         tools_invoked: trajectory.toolsInvoked,
         evidence_used: trajectory.evidenceUsed,
+        trajectory: [{ kind: 'user', text: messageText(user) }, ...trajectory.steps],
+        ...(Array.isArray(metadata?.availableTools) && metadata.availableTools.every((tool) => typeof tool === 'string')
+          ? { available_tools: metadata.availableTools } : {}),
+        ...(metadata?.toolVersions && typeof metadata.toolVersions === 'object' && !Array.isArray(metadata.toolVersions) &&
+          Object.values(metadata.toolVersions).every((version) => typeof version === 'string')
+          ? { tool_versions: metadata.toolVersions as Record<string, string> } : {}),
+        ...(typeof metadata?.model === 'string' ? { model: metadata.model } : {}),
+        ...(typeof inputTokens === 'number' || typeof outputTokens === 'number' ? {
+          token_usage: {
+            ...(typeof inputTokens === 'number' ? { input: inputTokens } : {}),
+            ...(typeof outputTokens === 'number' ? { output: outputTokens } : {}),
+          },
+        } : {}),
+        ...(typeof metadata?.latencyMs === 'number' ? { latency_ms: metadata.latencyMs } : {}),
       });
       await this.append({
         event_id: randomUUID(),
@@ -226,13 +250,27 @@ export class LearningStore {
       .slice(0, Math.max(1, limit));
   }
 
-  async searchKnowledge(query: string, limit = 10): Promise<KnowledgeSearchHit[]> {
-    const artifacts = await this.knowledgeArtifacts();
+  async searchKnowledge(query: string, limit = 10, options: { includeUnverified?: boolean } = {}): Promise<KnowledgeSearchHit[]> {
+    const artifacts = options.includeUnverified ? await this.knowledgeArtifacts() : await this.currentKnowledgeArtifacts();
     return artifacts
       .map((artifact) => ({ score: lexicalScore(query, `${artifact.title}\n${artifact.body}`), artifact }))
       .filter((hit) => hit.score > 0)
       .sort((a, b) => b.score - a.score || b.artifact.updated_at.localeCompare(a.artifact.updated_at))
       .slice(0, Math.max(1, limit));
+  }
+
+  /** Active facts only, checked against events even before an async invalidation job runs. */
+  async currentKnowledgeArtifacts(): Promise<KnowledgeArtifact[]> {
+    const [artifacts, events, repositories] = await Promise.all([this.knowledgeArtifacts(), this.events(), this.repositories()]);
+    const revisions = interactionRevisions(events);
+    const feedbackFresh = artifacts.filter((artifact) => artifact.status === 'active' && artifact.source_interactions.length > 0 &&
+      artifact.source_interactions.every((id) =>
+        (artifact.source_revisions?.[id] ?? (artifact.source_interactions.length === 1 ? artifact.source_revision : undefined)) === revisions.get(id) &&
+        revisions.has(id)));
+    const sourceCache = new Map<string, Promise<SourceObservation>>();
+    const states = await Promise.all(feedbackFresh.map(async (artifact) => ({ artifact,
+      fresh: (await memorySourceState(artifact, repositories, sourceCache)).fresh })));
+    return states.filter((entry) => entry.fresh).map((entry) => entry.artifact);
   }
 
   async knowledgeArtifacts(): Promise<KnowledgeArtifact[]> {

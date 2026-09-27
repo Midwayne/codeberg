@@ -66,7 +66,7 @@ export async function routeLearning(
 
   if (req.method === 'GET' && url.pathname === `${LEARNING_PATH}/status`) {
     const jobId = url.searchParams.get('job_id');
-    return sendJson(res, 200, jobId ? await learning.queue.get(jobId) ?? null : await learning.queue.counts());
+    return sendJson(res, 200, jobId ? await learning.queue.get(jobId) ?? null : { ...await learning.queue.counts(), active: await learning.activeJobs() });
   }
 
   return sendText(res, 404, 'not found');

@@ -60,6 +60,8 @@ export {
 } from './core/branch.js';
 export { createAgentFromEntry } from './core/config.js';
 export { LearningService } from './core/learning/service.js';
+export { DatasetStore, EXTRACTION_VERSION } from './core/learning/datasets.js';
+export { historicalEvalMetrics, scoreRetrievalRuns } from './core/learning/metrics.js';
 export { LearningStore, defaultLearningRoot } from './core/learning/store.js';
 export { DurableJobQueue } from './core/learning/queue.js';
 export { KnowledgeWorker } from './core/learning/worker.js';

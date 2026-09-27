@@ -9,13 +9,13 @@ export function learningToolSource(store: LearningStore): ToolSource {
     tools: (): ToolSet => ({
       search_learning: tool({
         description:
-          'Search raw graded interaction history. Use for prior attempts, corrections, and historical debugging context.',
+          'Search prior attempts, corrections and graded feedback for debugging context. Historical answers are unverified; confirm claims against current code.',
         inputSchema: searchSchema,
         execute: ({ query, limit }) => store.searchLearning(query, limit),
       }),
       search_knowledge: tool({
         description:
-          'Search distilled, provenance-backed codebase knowledge. Treat it as a hint and verify against current source.',
+          'Search distilled codebase knowledge. Check artifact status and repository commit; needs_verification is stale. Treat all hits as hints and confirm against current source.',
         inputSchema: searchSchema,
         execute: ({ query, limit }) => store.searchKnowledge(query, limit),
       }),

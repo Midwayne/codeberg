@@ -8,6 +8,7 @@ export function App() {
   // The server exposes the model and reasoning effort at /api/meta.
   const [title, setTitle] = useState('');
   const [learningEnabled, setLearningEnabled] = useState(false);
+  const [learningBusy, setLearningBusy] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -27,6 +28,19 @@ export function App() {
   useEffect(() => {
     refreshMeta();
   }, []);
+
+  useEffect(() => {
+    if (!learningEnabled) return;
+    let active = true;
+    const check = () => {
+      void fetch('/api/learning/status').then((response) => response.json()).then((counts: { active: number }) => {
+        if (active) setLearningBusy(counts.active > 0);
+      }).catch(() => undefined);
+    };
+    check();
+    const timer = setInterval(check, 2000);
+    return () => { active = false; clearInterval(timer); setLearningBusy(false); };
+  }, [learningEnabled]);
 
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
@@ -60,6 +74,7 @@ export function App() {
             <PanelLeft className="size-4" />
           </button>
           {title && <span className="min-w-0 flex-1 truncate font-semibold">{title}</span>}
+          {learningBusy && <span role="status" className="shrink-0 text-xs text-muted-foreground">Updating knowledge &amp; learning data…</span>}
           <button ref={searchButton} type="button" onClick={() => { setSettingsOpen(false); setSearchOpen(true); }} aria-label="Search chats" title="Search chats (⌘K / Ctrl+K)" className="ml-auto inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground">
             <Search className="size-4" />
           </button>

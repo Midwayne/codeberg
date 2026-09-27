@@ -14,7 +14,7 @@ learning/
 ├── events/YYYY-MM-DD.jsonl
 ├── knowledge/{services,flows,concepts,debugging}/
 ├── jobs/{pending,processing,completed,failed}/
-└── datasets/{eval,embedding,openai-chat,query-positive-negative,preference,knowledge}/
+└── datasets/{candidates,eval,training}/
 ```
 
 Event appends are synced before the feedback endpoint acknowledges them. Job and
@@ -50,10 +50,94 @@ A solved rating queues extraction. Downgrading a solved rating requeues the same
 stable job and marks knowledge supported by that interaction as
 `needs_verification`.
 
+Revising feedback on **any** earlier attempt requeues both projections if the
+interaction has ever been solved. A later ungraded correction invalidates
+previously active knowledge rather than treating an older solved answer as the
+winner. Knowledge records the attempt/feedback revision used to verify it; on
+revision changes the worker rechecks the latest solved attempt. Restart
+reconciliation compares revisions as well as job timestamps.
+KB search and knowledge export check current event revisions at read time, so
+an old fact is hidden immediately after a downgrade, even before the worker
+updates its on-disk status. Historical artifacts remain available for review.
+Older artifacts without verifiable source metadata are retained but hidden from
+active agent search. Use `codeberg learning list-knowledge` or `search-knowledge
+--all <query>` to inspect them explicitly; the background worker can upgrade
+them when their original evidence still resolves in current repositories.
+
+## Codebase memory refresh
+
+Knowledge artifacts also track the source files and repository commits that
+support them. File hashes detect edits in cited working-tree files even before
+a commit; a changed commit conservatively invalidates memories from that repo.
+KB search checks these versions at read time. Cited-file directory watchers
+signal the existing durable queue as soon as a file changes; startup and a
+two-minute full scan cover missed events, moved files, unwatched directories,
+and git ref updates. The daemon currently has no push change-event feed.
+The worker reads current repository files (never paths outside an indexed root),
+passes those fresh excerpts to the model, and accepts an updated active memory
+only when every structured claim has a matching source quotation. The worker
+computes source line numbers and renders the article from validated claims;
+unverified free-form model prose cannot enter an active memory. Source quotes
+provide auditable provenance, but do not mechanically prove a claim's semantic
+interpretation. If the code is missing or the
+model cannot support a replacement, the historical artifact stays marked
+`needs_verification` and is excluded from active search and export. Its prior
+content is retained for audit, not reused as current evidence. A bounded local
+symbol search can locate moved cited files; if it cannot, a later solved
+interaction or source change can trigger another refresh.
+
+Refresh uses the same job leases, retry policy, and restart reconciliation as
+feedback-based learning. Unrelated uncommitted changes are not detected unless
+they modify a cited file; committed repo changes are conservatively rechecked.
+
 The knowledge worker receives every attempt in the logical interaction, feedback
 history, retrieval/tool trajectory, evidence cited by the answer, repository
 branches/commits, and matching existing artifacts. It updates rather than
 duplicates matching knowledge and records source interaction/commit provenance.
+Its prompt identifies the latest solved attempt as authoritative, treats earlier
+solutions and tool output as untrusted context, and requires claim-by-claim code
+citations plus a complete replacement body for existing artifacts. If a small
+model cannot fit coherent source evidence, the context limiter sends an explicit
+insufficient-evidence instruction instead of disconnected text fragments.
+
+## Dataset capture
+
+The same append-only event log and leased job queue run `extract_dataset` jobs
+independently of `extract_knowledge`. Answered tool trajectories and graded
+attempts trigger extraction; revised feedback (including downgrades after
+success) creates a new immutable candidate revision. On restart the event/job
+handoff is reconciled. Jobs are idempotent. Ordered, sanitized tool calls,
+inputs, observations, ranked results, corrections, and available model/usage
+metadata remain in the raw events; private reasoning is excluded.
+
+Candidates include retrieval trajectories and raw reward/difficulty signals,
+explicitly rejected file-level hard negatives, unjudged steering-based negative
+candidates, solved SFT trajectories, graded preference
+pairs, and RLVR tasks with proposed tool-based verifiers. Answer citations are
+proposed evidence, not an oracle. Uncited results remain unjudged. A tool's test
+output alone does not establish that a verifier is reproducible.
+
+`DatasetStore.promote(id, 'eval' | 'training', { provenance, oracle? })` is the
+review boundary. Eval requires a reviewed oracle and independent provenance
+(e.g. user confirmation, tests, static analysis). Promotion checks interaction
+IDs, normalized/paraphrased queries, and shared evidence-file families against the
+opposite split under a local lock. Candidates never automatically enter training.
+Older training-oriented exports require promotion of the matching example kind
+and filter out held-out families. Bump
+`EXTRACTION_VERSION` (currently 2) and rerun extraction to rebuild new versions
+from raw events. Ambiguous steering candidates require reviewed negative paths
+before promotion to training; uncited results never become negative labels merely
+by being retrieved.
+If feedback changes after promotion, the historical promoted file remains
+intact, but exports omit that stale revision until a new candidate is reviewed.
+The held-out query family remains reserved during review.
+`DatasetStore.active('eval' | 'training')` returns only current reviewed rows;
+`list(...)` intentionally includes historical versions for auditing.
+The offline CLI exposes `codeberg learning candidates`, `codeberg learning
+extract <interaction-id>`, and `codeberg learning promote <example-id> eval
+user_confirmed oracle.json` (or `training <provenance>`). `oracle.json` is a
+locally reviewed JSON object of ground-truth fields such as `files`, `symbols`,
+and `dependency_path`.
 
 ## Retrieval and export
 
@@ -67,9 +151,13 @@ The standalone CLI supports inspection and offline dataset derivation:
 ```sh
 codeberg learning search-learning "scheduled fulfillment"
 codeberg learning search-knowledge "fulfillment type lifecycle"
+codeberg learning search-knowledge --all "fulfillment type lifecycle"
+codeberg learning list-knowledge
 codeberg learning list
 codeberg learning show interaction-...
 codeberg learning stats
+codeberg learning metrics
+codeberg learning score runs.jsonl
 codeberg learning export --type eval
 codeberg learning export --type embedding
 codeberg learning export --type openai-chat
@@ -78,12 +166,16 @@ codeberg learning export --type preference
 codeberg learning export --type knowledge
 ```
 
-Eval rows contain graded queries and cited files/symbols. Embedding candidates
-are emitted only for solved attempts with evidence actually cited in the answer;
-retrieved-but-uncited chunks become hard-negative candidates. These labels are
-derived at export time and never written back into the raw event stream. `eval`
-also includes the candidate answer, human feedback reason, version, and an
-`answer_referenced_unverified` evidence label; cited paths are not ground truth.
+`metrics` scores historical attempts against reviewed eval oracles. `score`
+accepts newline-delimited records such as
+`{"eval_id":"example-...","hits":[{"repo":"inventory","path":"src/Flow.ts","symbol":"getFlow"}],"tool_calls":4,"retrieved_tokens":1200,"latency_ms":900,"success":true}`.
+It reports Recall@1/5/10, oracle repo/symbol hits, success, tool calls, tokens
+and latency, including missing-run counts and repo commit provenance. Supply
+the same held-out IDs for BM25, embedding, reranker or agent runs; these commands
+score results but do not execute the models. Eval export contains only reviewed
+held-out examples. Training-oriented embedding/query-positive-negative exports
+require promoted interactions, and only reviewed or explicitly rejected file
+paths become negatives; retrieved-but-uncited results remain unjudged.
 
 `openai-chat` writes strict `{"messages":[{"role":"user","content":"..."},
 {"role":"assistant","content":"..."}]}` rows for solved, standalone turns only.

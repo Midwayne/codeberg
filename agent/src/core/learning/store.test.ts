@@ -6,7 +6,9 @@ import type { UIMessage } from 'ai';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { exportDataset } from './export.js';
-import { LearningStore } from './store.js';
+import { DatasetStore } from './datasets.js';
+import { writeAtomic } from './fs.js';
+import { LearningStore, serializeArtifact } from './store.js';
 
 const roots: string[] = [];
 
@@ -53,6 +55,23 @@ function transcript(answerId = 'a1'): UIMessage[] {
 }
 
 describe('LearningStore', () => {
+  it('keeps pre-versioned knowledge readable for explicit historical inspection', async () => {
+    const learning = await store();
+    const legacy = {
+      id: 'knowledge-legacy', title: 'Legacy shipping flow', category: 'flows' as const,
+      slug: 'legacy-shipping-flow', created_at: '2025-01-01', updated_at: '2025-01-01',
+      last_verified_at: '2025-01-01', repositories: ['old-repo'],
+      source_interactions: ['interaction-legacy'], source_commits: {},
+      confidence: 'high' as const, status: 'active' as const, body: 'Historical shipping process.',
+    };
+    await writeAtomic(join(learning.root, 'knowledge', 'flows', 'legacy-shipping-flow.md'), serializeArtifact(legacy));
+    expect((await learning.knowledgeArtifacts())[0]).toMatchObject(legacy);
+    expect(await learning.searchKnowledge('shipping')).toEqual([]);
+    expect(await learning.searchKnowledge('shipping', 10, { includeUnverified: true })).toMatchObject([
+      { artifact: { id: 'knowledge-legacy', body: 'Historical shipping process.' } },
+    ]);
+  });
+
   it('durably records a deduplicated attempt with retrieval separate from used evidence', async () => {
     const learning = await store();
     await learning.recordSession('conversation-1', transcript());
@@ -151,7 +170,7 @@ describe('LearningStore', () => {
 
     const evalRows = await exportDataset(learning, 'eval');
     const embeddingRows = await exportDataset(learning, 'embedding');
-    expect(evalRows).toHaveLength(2);
+    expect(evalRows).toHaveLength(0); // unreviewed answers cannot enter held-out eval
     expect(embeddingRows).toEqual([]); // no cited/retrieved positive in attempt 2
     const chatRows = await exportDataset(learning, 'openai-chat');
     expect(chatRows).toEqual([]); // correction without context is not a standalone training sample
@@ -162,6 +181,10 @@ describe('LearningStore', () => {
     await learning.recordSession('standalone', transcript());
     const attempt = (await learning.attempts())[0];
     await learning.recordFeedback({ attemptId: attempt.attempt_id, rating: 3, label: 'solved' });
+    const datasets = new DatasetStore(learning);
+    const candidates = await datasets.extract(attempt.interaction_id);
+    await datasets.promote(candidates.find((row) => row.kind === 'sft')!.id, 'training', { provenance: 'user_confirmed' });
+    await datasets.promote(candidates.find((row) => row.kind === 'retrieval')!.id, 'training', { provenance: 'user_confirmed' });
     const rows = await exportDataset(learning, 'openai-chat');
     expect(rows).toEqual([{ messages: [
       { role: 'user', content: attempt.user_query },
@@ -172,11 +195,10 @@ describe('LearningStore', () => {
       positive: ['src/FulfillmentContextBuilder.ts\nFulfillmentContextBuilder.build\nreturn { fulfillmentType }'],
       negative: [], // an uncited hit with no source text is not a trainable negative
     }]);
-    expect((await exportDataset(learning, 'eval'))[0]).toMatchObject({
-      answer: attempt.answer,
-      label: 'solved',
-      evidence_label: 'answer_referenced_unverified',
-      schema_version: 1,
-    });
+    expect(await exportDataset(learning, 'eval')).toEqual([]);
+    await learning.recordFeedback({ attemptId: attempt.attempt_id, rating: 0, label: 'not_useful' });
+    expect(await datasets.active('training')).toEqual([]);
+    expect(await datasets.list('training')).toHaveLength(2); // immutable audit history
+    expect(await exportDataset(learning, 'openai-chat')).toEqual([]); // reviewed revision is now stale
   });
 });
