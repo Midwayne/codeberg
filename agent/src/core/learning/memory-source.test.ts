@@ -151,18 +151,23 @@ describe('source-aware codebase memory', () => {
   });
 
   it('rejects a refresh that cites only a deleted file', async () => {
-    const { repo, path, service, generate, setCommit } = await setup();
+    const { root, repo, path, service, generate, setCommit } = await setup();
+    service.stop(); // Isolate the rejected model response from file-watcher retries.
+    await service.waitForCurrent();
     await writeFile(join(repo, 'src', 'NewFlow.ts'), 'export function getFlow() { return "new-process"; }');
     await unlink(path);
     setCommit('commit-B');
     generate.mockResolvedValueOnce(JSON.stringify({ action: 'upsert', category: 'flows', slug: 'inventory-flow',
       title: 'Inventory flow', confidence: 'high', status: 'active', claims: [{ statement: 'src/Flow.ts: old-process',
         evidence: [{ repo: 'inventory-service', path: 'src/Flow.ts', quote: 'return "old-process"' }] }] }));
-    await service.refreshKnowledge();
-    await service.waitForCurrent();
+    const queue = new DurableJobQueue(join(root, 'learning'));
+    const interactionId = (await service.store.attempts())[0].interaction_id;
+    await queue.enqueueKnowledge(interactionId, { requeueCompleted: true });
+    const worker = new KnowledgeWorker(service.store, queue, { generate });
+    await worker.runUntilIdle();
     expect((await service.store.knowledgeArtifacts())[0].status).toBe('needs_verification');
     expect(await service.store.searchKnowledge('inventory flow')).toEqual([]);
-    service.stop();
+    worker.stop();
   });
 
   it('recovers a refresh job interrupted before it could inspect changed code', async () => {

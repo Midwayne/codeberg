@@ -14,7 +14,9 @@ export interface SourceObservation extends SourceRef {
   unavailable?: string;
 }
 
-export function sourceKey(ref: SourceRef): string { return `${ref.repo}\0${ref.path}`; }
+export function sourceKey(ref: SourceRef): string {
+  return `${ref.repo}\0${ref.path}`;
+}
 
 /** Follow repository-relative citations, never an arbitrary path from model output. */
 export function evidenceRefs(attempt: AttemptRecord): SourceRef[] {
@@ -47,29 +49,31 @@ export async function observeSources(
 }
 
 async function readSource(ref: SourceRef, repositories: RepositoryVersion[]): Promise<SourceObservation> {
-    const repo = repositories.find((entry) => entry.path === ref.repo);
-    if (!repo) return { ...ref, unavailable: 'repository not available' };
-    try {
-      const root = await realpath(repo.path);
-      const path = resolve(root, ref.path);
-      const location = relative(root, path);
-      if (!location || location === '..' || location.startsWith(`..${sep}`) || resolve(path) !== path) {
-        throw new Error('invalid repository-relative path');
-      }
-      const actual = await realpath(path);
-      if (!actual.startsWith(`${root}${sep}`)) throw new Error('source is outside the repository');
-      if ((await stat(actual)).size > 1_000_000) throw new Error('source file exceeds safe read limit');
-      const content = await readFile(actual);
-      const text = content.toString('utf8');
-      const hash = createHash('sha256').update(content).digest('hex');
-      const needle = ref.symbol?.split(/[.#:]/).at(-1);
-      const position = needle ? Math.max(0, text.indexOf(needle) - 1_500) : 0;
-      const excerpt = text.slice(position, position + 12_000);
-      const excerpt_start_line = 1 + (text.slice(0, position).match(/\n/g)?.length ?? 0);
-      return { ...ref, commit: repo.commit, hash, excerpt, excerpt_start_line, truncated: excerpt.length < text.length };
-    } catch (error) {
-      return { ...ref, commit: repo.commit, unavailable: String(error) };
+  const repo = repositories.find((entry) => entry.path === ref.repo);
+  if (!repo) return { ...ref, unavailable: 'repository not available' };
+
+  try {
+    const root = await realpath(repo.path);
+    const path = resolve(root, ref.path);
+    const location = relative(root, path);
+    if (!location || location === '..' || location.startsWith(`..${sep}`)) {
+      throw new Error('invalid repository-relative path');
     }
+    const actual = await realpath(path);
+    if (!actual.startsWith(`${root}${sep}`)) throw new Error('source is outside the repository');
+    if ((await stat(actual)).size > 1_000_000) throw new Error('source file exceeds safe read limit');
+
+    const content = await readFile(actual);
+    const text = content.toString('utf8');
+    const hash = createHash('sha256').update(content).digest('hex');
+    const needle = ref.symbol?.split(/[.#:]/).at(-1);
+    const position = needle ? Math.max(0, text.indexOf(needle) - 1_500) : 0;
+    const excerpt = text.slice(position, position + 12_000);
+    const excerpt_start_line = 1 + (text.slice(0, position).match(/\n/g)?.length ?? 0);
+    return { ...ref, commit: repo.commit, hash, excerpt, excerpt_start_line, truncated: excerpt.length < text.length };
+  } catch (error) {
+    return { ...ref, commit: repo.commit, unavailable: String(error) };
+  }
 }
 
 /** Bounded local symbol lookup when a cited file moved; results remain unverified until opened. */
@@ -102,7 +106,9 @@ export async function relocatedSources(ref: SourceRef, repositories: RepositoryV
         const text = await readFile(path, 'utf8');
         if (text.includes('\0') || !text.includes(symbol)) continue;
         matches.push({ repo: repo.path, path: relative(root, path), symbol: ref.symbol });
-      } catch { /* Files may move while scanning; keep looking. */ }
+      } catch {
+        // Files may move while scanning; keep looking.
+      }
     }
   }
   return matches;
@@ -117,7 +123,11 @@ export function sourceCommits(repositories: RepositoryVersion[]): Record<string,
 }
 
 /** The fingerprint changes on a commit, working-tree edit, deletion, or repo loss. */
-export async function memorySourceState(artifact: KnowledgeArtifact, repositories: RepositoryVersion[], cache?: Map<string, Promise<SourceObservation>>): Promise<{
+export async function memorySourceState(
+  artifact: KnowledgeArtifact,
+  repositories: RepositoryVersion[],
+  cache?: Map<string, Promise<SourceObservation>>,
+): Promise<{
   fresh: boolean;
   revision: string;
   observations: SourceObservation[];
@@ -133,11 +143,21 @@ export async function memorySourceState(artifact: KnowledgeArtifact, repositorie
   });
   const revision = `code-${createHash('sha256').update(JSON.stringify([version, observations.map((item) =>
     [item.repo, item.path, item.hash ?? item.unavailable])])).digest('hex').slice(0, 24)}`;
-  const fresh = artifact.repositories.length > 0 && artifact.repositories.every((name) => {
-    const repo = relevant.find((entry) => basename(entry.path) === name);
-    return Boolean(repo && (repo.commit
-      ? repo.commit === artifact.source_commits[name]
-      : !artifact.source_commits[name] && observations.some((item) => item.repo === repo.path && item.hash)));
-  }) && observations.every((item) => item.hash && item.hash === artifact.source_hashes?.[sourceKey(item)]);
+  const commitsCurrent = artifact.repositories.length > 0 && artifact.repositories.every((name) =>
+    repositoryCurrent(name, artifact, relevant, observations));
+  const filesCurrent = observations.every((item) => item.hash && item.hash === artifact.source_hashes?.[sourceKey(item)]);
+  const fresh = commitsCurrent && filesCurrent;
   return { fresh, revision, observations, hashes };
+}
+
+function repositoryCurrent(
+  name: string,
+  artifact: KnowledgeArtifact,
+  repositories: RepositoryVersion[],
+  observations: SourceObservation[],
+): boolean {
+  const repo = repositories.find((entry) => basename(entry.path) === name);
+  if (!repo) return false;
+  if (repo.commit) return repo.commit === artifact.source_commits[name];
+  return !artifact.source_commits[name] && observations.some((item) => item.repo === repo.path && item.hash);
 }

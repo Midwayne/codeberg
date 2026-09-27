@@ -1,12 +1,13 @@
 import type { UIMessage } from 'ai';
-import { watch, type FSWatcher } from 'node:fs';
-import { mkdir, open, realpath } from 'node:fs/promises';
-import { basename, dirname, join, relative, resolve, sep } from 'node:path';
+import { mkdir, open } from 'node:fs/promises';
+import { join } from 'node:path';
 
 import type { Generator } from '../types.js';
 import { DurableJobQueue } from './queue.js';
-import { DatasetStore, sourceRevision } from './datasets.js';
+import { DatasetStore } from './datasets.js';
 import { memorySourceState, sourceKey, type SourceObservation } from './memory-source.js';
+import { interactionRevisions } from './revision.js';
+import { KnowledgeSourceWatcher } from './source-watcher.js';
 import { LearningStore, defaultLearningRoot, stableId } from './store.js';
 import type { FeedbackLabel, FeedbackRating, FeedbackRecord, RepositoryVersion } from './types.js';
 import { KnowledgeWorker } from './worker.js';
@@ -23,7 +24,7 @@ export class LearningService {
   private stopping = false;
   private pendingSources = new Set<string>();
   private fullScanRequested = false;
-  private readonly sourceWatchers = new Map<string, { watcher: FSWatcher; files: Map<string, Set<string>> }>();
+  private readonly sourceWatcher: KnowledgeSourceWatcher;
 
   constructor(options: { root?: string; generator?: Generator; repositories?: () => Promise<RepositoryVersion[]> } = {}) {
     const root = options.root ?? defaultLearningRoot();
@@ -31,8 +32,11 @@ export class LearningService {
     this.queue = new DurableJobQueue(root);
     this.knowledgeEnabled = Boolean(options.generator);
     this.datasets = new DatasetStore(this.store);
+    this.sourceWatcher = new KnowledgeSourceWatcher(this.store, (sources) => {
+      void this.refreshKnowledge(sources).catch((error: unknown) => console.error('knowledge source refresh failed:', error));
+    });
     this.worker = new KnowledgeWorker(this.store, this.queue, options.generator, () => {
-      void this.syncWatchers().catch((error: unknown) => console.error('knowledge source watcher update failed:', error));
+      void this.sourceWatcher.sync().catch((error: unknown) => console.error('knowledge source watcher update failed:', error));
     });
   }
 
@@ -50,7 +54,7 @@ export class LearningService {
     await this.reconcileJobs();
     await this.refreshKnowledge();
     await this.worker?.initialize();
-    await this.syncWatchers();
+    await this.sourceWatcher.sync();
     if (this.knowledgeEnabled) {
       this.refreshTimer = setInterval(() => {
         void this.refreshKnowledge().catch((error: unknown) => console.error('knowledge refresh scan failed:', error));
@@ -131,14 +135,13 @@ export class LearningService {
 
   async waitForCurrent(): Promise<void> {
     await this.worker?.waitForCurrent();
-    await this.syncWatchers();
+    await this.sourceWatcher.sync();
   }
 
   stop(): void {
     this.stopping = true;
     if (this.refreshTimer) clearInterval(this.refreshTimer);
-    for (const { watcher } of this.sourceWatchers.values()) watcher.close();
-    this.sourceWatchers.clear();
+    this.sourceWatcher.stop();
     this.worker?.stop();
   }
 
@@ -175,88 +178,58 @@ export class LearningService {
       }
     }
     this.worker?.wake();
-    await this.syncWatchers();
-  }
-
-  /** One watcher per cited directory; a slower full scan covers missed events and git ref changes. */
-  private async syncWatchers(): Promise<void> {
-    if (!this.knowledgeEnabled || this.stopping) return;
-    const [artifacts, repositories] = await Promise.all([this.store.knowledgeArtifacts(), this.store.repositories()]);
-    const desired = new Map<string, Map<string, Set<string>>>();
-    for (const ref of artifacts.flatMap((artifact) => artifact.source_refs ?? [])) {
-      const repo = repositories.find((entry) => entry.path === ref.repo);
-      if (!repo) continue;
-      const root = await realpath(repo.path).catch(() => undefined);
-      if (!root) continue;
-      const dir = await realpath(dirname(resolve(root, ref.path))).catch(() => undefined);
-      if (!dir || (dir !== root && !dir.startsWith(`${root}${sep}`))) continue;
-      const files = desired.get(dir) ?? new Map<string, Set<string>>();
-      const basenameKey = basename(ref.path);
-      files.set(basenameKey, (files.get(basenameKey) ?? new Set()).add(sourceKey(ref)));
-      desired.set(dir, files);
-    }
-    for (const [dir, state] of this.sourceWatchers) {
-      if (!desired.has(dir)) { state.watcher.close(); this.sourceWatchers.delete(dir); }
-      else state.files = desired.get(dir)!;
-    }
-    for (const [dir, files] of desired) {
-      if (this.sourceWatchers.has(dir) || this.sourceWatchers.size >= 256) continue;
-      try {
-        const watcher = watch(dir, { persistent: false }, (_event, filename) => {
-          const sourceFiles = this.sourceWatchers.get(dir)?.files;
-          const affected = filename ? sourceFiles?.get(String(filename)) : new Set([...sourceFiles?.values() ?? []].flatMap((keys) => [...keys]));
-          if (affected?.size) void this.refreshKnowledge(affected).catch((error: unknown) => console.error('knowledge source refresh failed:', error));
-        });
-        watcher.on('error', (error) => {
-          this.sourceWatchers.delete(dir);
-          watcher.close();
-          console.error('knowledge source watcher failed:', error);
-        });
-        this.sourceWatchers.set(dir, { watcher, files });
-      } catch { /* A periodic scan covers inaccessible or unsupported watches. */ }
-    }
+    await this.sourceWatcher.sync();
   }
 
   /** Replay the feedback-to-job handoff if the process stopped between the two durable writes. */
   private async reconcileJobs(): Promise<void> {
     const events = await this.store.events();
-    const attempts = events.filter((event) => event.type === 'attempt_recorded').map((event) => event.attempt);
-    const interactionForAttempt = new Map(attempts.map((attempt) => [attempt.attempt_id, attempt.interaction_id]));
-    const revisions = new Map<string, string>();
-    for (const id of new Set(attempts.map((attempt) => attempt.interaction_id))) {
-      const group = attempts.filter((attempt) => attempt.interaction_id === id);
-      const ids = new Set(group.map((attempt) => attempt.attempt_id));
-      revisions.set(id, sourceRevision(group, events.flatMap((event) =>
-        event.type === 'feedback_recorded' && ids.has(event.feedback.attempt_id) ? [event.feedback] : [])));
-    }
-    const everSolved = new Set(events.flatMap((event) => event.type === 'feedback_recorded' && event.feedback.label === 'solved'
-      ? [interactionForAttempt.get(event.feedback.attempt_id)] : []).filter((id): id is string => Boolean(id)));
-    const latest = new Map<string, string>();
+    const interactionForAttempt = new Map(events.flatMap((event) =>
+      event.type === 'attempt_recorded' ? [[event.attempt.attempt_id, event.attempt.interaction_id] as const] : []));
+    const revisions = interactionRevisions(events);
+    const everSolved = new Set<string>();
     for (const event of events) {
-      const id = event.type === 'attempt_recorded' ? event.attempt.interaction_id : interactionForAttempt.get(event.feedback.attempt_id);
-      if (id && everSolved.has(id)) latest.set(id, event.timestamp);
+      if (event.type !== 'feedback_recorded' || event.feedback.label !== 'solved') continue;
+      const id = interactionForAttempt.get(event.feedback.attempt_id);
+      if (id) everSolved.add(id);
     }
-    for (const [id, timestamp] of latest) {
-      const jobId = (await this.queue.enqueueKnowledge(id)).job_id;
-      const job = await this.queue.get(jobId);
-      if (job && ['completed', 'failed'].includes(job.status) &&
-        (job.source_revision !== revisions.get(id) || job.updated_at < timestamp)) {
-        await this.queue.enqueueKnowledge(id, { requeueCompleted: true });
-      }
-    }
+
+    const latestKnowledge = new Map<string, string>();
     const latestDataset = new Map<string, string>();
     for (const event of events) {
-      const attempt = event.type === 'attempt_recorded' ? event.attempt : attempts.find((a) => a.attempt_id === event.feedback.attempt_id);
-      if (!attempt) continue;
-      if (event.type === 'attempt_recorded' && (!attempt.answer.trim() || !attempt.tools_invoked.length)) continue;
-      latestDataset.set(attempt.interaction_id, event.timestamp);
+      const id = event.type === 'attempt_recorded'
+        ? event.attempt.interaction_id
+        : interactionForAttempt.get(event.feedback.attempt_id);
+      if (!id) continue;
+
+      if (everSolved.has(id)) latestKnowledge.set(id, event.timestamp);
+      if (event.type === 'feedback_recorded' || (event.attempt.answer.trim() && event.attempt.tools_invoked.length)) {
+        latestDataset.set(id, event.timestamp);
+      }
+    }
+
+    for (const [id, timestamp] of latestKnowledge) {
+      await this.reconcileJob('knowledge', id, timestamp, revisions.get(id));
     }
     for (const [id, timestamp] of latestDataset) {
-      const job = await this.queue.enqueueDataset(id);
-      if (['completed', 'failed'].includes(job.status) &&
-        (job.source_revision !== revisions.get(id) || job.updated_at < timestamp)) {
-        await this.queue.enqueueDataset(id, { requeueCompleted: true });
-      }
+      await this.reconcileJob('dataset', id, timestamp, revisions.get(id));
+    }
+  }
+
+  private async reconcileJob(
+    kind: 'knowledge' | 'dataset',
+    interactionId: string,
+    lastEvent: string,
+    revision?: string,
+  ): Promise<void> {
+    const enqueue = kind === 'knowledge'
+      ? this.queue.enqueueKnowledge.bind(this.queue)
+      : this.queue.enqueueDataset.bind(this.queue);
+    const jobId = (await enqueue(interactionId)).job_id;
+    const job = await this.queue.get(jobId);
+    if (job && ['completed', 'failed'].includes(job.status) &&
+      (job.source_revision !== revision || job.updated_at < lastEvent)) {
+      await enqueue(interactionId, { requeueCompleted: true });
     }
   }
 
@@ -269,7 +242,6 @@ export class LearningService {
       ...['pending', 'processing', 'completed', 'failed'].map((name) =>
         mkdir(join(this.store.root, 'jobs', name), { recursive: true }),
       ),
-      mkdir(join(this.store.root, 'datasets', 'eval'), { recursive: true }),
       mkdir(join(this.store.root, 'datasets', 'embedding'), { recursive: true }),
       ...['candidates', 'eval', 'training'].map((name) => mkdir(join(this.store.root, 'datasets', name), { recursive: true })),
     ]);

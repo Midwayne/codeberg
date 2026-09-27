@@ -30,12 +30,16 @@ export async function exportDataset(store: LearningStore, type: ExportType): Pro
   if (type === 'eval') return datasets.active('eval');
   const training = await datasets.active('training');
   const requiredKind = type === 'openai-chat' ? ['sft'] : type === 'preference' ? ['preferences'] : ['retrieval', 'hard_negatives', 'hard_negative_candidates'];
-  // Legacy on-demand exports must respect the same held-out boundary as reviewed datasets.
-  const attempts = allAttempts.filter((attempt) =>
-    training.some((row) => row.source_interaction_id === attempt.interaction_id && row.source_revision === revisions.get(attempt.interaction_id) && requiredKind.includes(row.kind)) &&
-    !heldOut.some((row) => row.source_interaction_id === attempt.interaction_id || sameTaskFamily(
-      { query: row.query, files: exampleFiles(row) },
-      { query: attempt.user_query, files: attempt.evidence_used.map((hit) => hit.path).filter((path): path is string => Boolean(path)) })));
+  const attempts = allAttempts.filter((attempt) => {
+    const approved = training.some((row) => row.source_interaction_id === attempt.interaction_id &&
+      row.source_revision === revisions.get(attempt.interaction_id) && requiredKind.includes(row.kind));
+    const inEvalFamily = heldOut.some((row) => row.source_interaction_id === attempt.interaction_id ||
+      sameTaskFamily(
+        { query: row.query, files: exampleFiles(row) },
+        { query: attempt.user_query, files: attempt.evidence_used.map((hit) => hit.path).filter((path): path is string => Boolean(path)) },
+      ));
+    return approved && !inEvalFamily;
+  });
   if (type === 'preference') return preferenceRecords(attempts, feedback);
   const latest = new Map(attempts.map((attempt) => [attempt.interaction_id, attempt.attempt_id]));
   const solved = attempts.filter((attempt) => latest.get(attempt.interaction_id) === attempt.attempt_id &&
@@ -58,20 +62,22 @@ export async function exportDataset(store: LearningStore, type: ExportType): Pro
     return [{ query: redactSecrets(attempt.user_query), positive, negative }];
   });
   return attempts
-        .filter((attempt) => feedback.get(attempt.attempt_id)?.rating === 3 && attempt.evidence_used.length > 0)
-         .map((attempt) => embeddingRecord(attempt, approvedNegatives(training, attempt.interaction_id, revisions.get(attempt.interaction_id))));
+    .filter((attempt) => feedback.get(attempt.attempt_id)?.rating === 3 && attempt.evidence_used.length > 0)
+    .map((attempt) => embeddingRecord(attempt,
+      approvedNegatives(training, attempt.interaction_id, revisions.get(attempt.interaction_id))));
 }
 
 function approvedNegatives(training: Awaited<ReturnType<DatasetStore['active']>>, interactionId: string, revision?: string): Set<string> {
   const rows = training.filter((row) => row.source_interaction_id === interactionId && row.source_revision === revision &&
     (row.kind === 'hard_negatives' || row.kind === 'hard_negative_candidates'));
-  return new Set(rows.flatMap((row) => {
+  const paths = rows.flatMap((row) => {
     const reviewed = row.review?.oracle?.verified_negatives;
     if (Array.isArray(reviewed)) return reviewed.filter((path): path is string => typeof path === 'string');
-    if (row.kind !== 'hard_negatives') return [];
-    const hits = row.payload.hard_negatives;
-    return Array.isArray(hits) ? hits.flatMap((hit) => hit && typeof hit === 'object' && typeof hit.path === 'string' ? [hit.path] : []) : [];
-  }));
+    if (row.kind !== 'hard_negatives' || !Array.isArray(row.payload.hard_negatives)) return [];
+    return row.payload.hard_negatives.flatMap((hit) =>
+      hit && typeof hit === 'object' && typeof hit.path === 'string' ? [hit.path] : []);
+  });
+  return new Set(paths);
 }
 
 function documentText(hit: AttemptRecord['retrieved_results'][number]): string {
@@ -84,7 +90,9 @@ function preferenceRecords(attempts: AttemptRecord[], feedback: Map<string, Feed
   for (const attempt of attempts) {
     if (!feedback.has(attempt.attempt_id) || !attempt.answer.trim()) continue;
     const key = `${attempt.interaction_id}\0${attempt.user_query}`;
-    byPrompt.set(key, [...(byPrompt.get(key) ?? []), attempt]);
+    const group = byPrompt.get(key) ?? [];
+    group.push(attempt);
+    byPrompt.set(key, group);
   }
   const rows: unknown[] = [];
   for (const group of byPrompt.values()) {

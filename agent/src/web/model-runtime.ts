@@ -90,57 +90,111 @@ export function boundLearningContext(input: string, system: string, contextWindo
   // Reserve roughly half the token window for output and account for system text.
   const maxChars = Math.max(512, Math.floor(contextWindow * 2) - system.length);
   if (input.length <= maxChars) return input;
-  try {
-    const data = JSON.parse(input) as Record<string, unknown>;
-    if (typeof data.authoritative_attempt_id === 'string' && isRecord(data.interaction) && Array.isArray(data.interaction.attempts)) {
-      const attempts = data.interaction.attempts.filter(isRecord);
-      const authoritative = attempts.find((attempt) => attempt.attempt_id === data.authoritative_attempt_id);
-      const tools = Array.isArray(authoritative?.tools_invoked) ? authoritative.tools_invoked.filter(isRecord) : [];
-      const compact = {
-        truncated: true,
-        mode: data.mode,
-        authoritative_attempt_id: data.authoritative_attempt_id,
-        authoritative_attempt: data.authoritative_attempt,
-        current_source_observations: Array.isArray(data.current_source_observations)
-          ? data.current_source_observations.slice(0, 8).map((item) => isRecord(item)
-            ? { ...item, excerpt: typeof item.excerpt === 'string' ? item.excerpt.slice(0, 3_000) : undefined }
-            : item) : [],
-        interaction: {
-          attempts: attempts.slice(-4).map((attempt) => attempt === authoritative
-            ? { ...attempt, trajectory: undefined, retrieved_results: undefined, tools_invoked: tools.slice(-10).map((entry) => ({
-                name: entry.name, input: entry.input, output: compactOutput(entry.output, 1800),
-              })) }
-            : { attempt_id: attempt.attempt_id, user_query: attempt.user_query, answer: attempt.answer, evidence_used: attempt.evidence_used }),
-          feedback: Array.isArray(data.interaction.feedback) ? data.interaction.feedback.slice(-12) : [],
-        },
-        existing_artifacts: Array.isArray(data.existing_artifacts) ? data.existing_artifacts.slice(0, 3) : [],
-      };
-      if (JSON.stringify(compact).length <= maxChars) return JSON.stringify(compact);
-      compact.interaction.attempts = compact.interaction.attempts.filter((attempt) => attempt.attempt_id === data.authoritative_attempt_id);
-      compact.interaction.feedback = compact.interaction.feedback.slice(-4);
-      compact.current_source_observations = compact.current_source_observations.slice(0, 3).map((item) => isRecord(item)
-        ? { ...item, excerpt: typeof item.excerpt === 'string' ? item.excerpt.slice(0, 1_500) : undefined }
-        : item);
-      compact.existing_artifacts = compact.existing_artifacts.map((artifact) => isRecord(artifact)
-        ? { category: artifact.category, slug: artifact.slug, title: artifact.title,
-            body: typeof artifact.body === 'string' ? artifact.body.slice(0, 900) : undefined }
-        : artifact);
-      if (JSON.stringify(compact).length <= maxChars) return JSON.stringify(compact);
-      // Never send disconnected string fragments as if they were complete source
-      // evidence. A too-small context is an explicit "do not extract" input.
-      return JSON.stringify({ truncated: true, insufficient_evidence: true,
-        authoritative_attempt_id: data.authoritative_attempt_id,
-        instruction: 'Source evidence does not fit this context. Return {"action":"none"}.' });
-    }
-  } catch {
-    // Other generators may send plain text rather than the knowledge JSON input.
-  }
+  const knowledge = parseKnowledgeInput(input);
+  if (knowledge) return compactKnowledgeInput(knowledge, maxChars);
+
   const excerpt = Math.floor(maxChars * 0.4);
   return JSON.stringify({
     truncated: true,
     opening_context: input.slice(0, excerpt),
     ending_context: input.slice(-excerpt),
   });
+}
+
+interface KnowledgeInput extends Record<string, unknown> {
+  authoritative_attempt_id: string;
+  interaction: Record<string, unknown> & { attempts: unknown[] };
+}
+
+function parseKnowledgeInput(input: string): KnowledgeInput | undefined {
+  try {
+    const value = JSON.parse(input) as unknown;
+    if (isRecord(value) && typeof value.authoritative_attempt_id === 'string' &&
+      isRecord(value.interaction) && Array.isArray(value.interaction.attempts)) {
+      return value as KnowledgeInput;
+    }
+  } catch {
+    // Other generators may send plain text rather than the knowledge JSON input.
+  }
+  return undefined;
+}
+
+function compactKnowledgeInput(data: KnowledgeInput, maxChars: number): string {
+  const attempts = data.interaction.attempts.filter(isRecord);
+  const authoritative = attempts.find((attempt) => attempt.attempt_id === data.authoritative_attempt_id);
+  const observations = Array.isArray(data.current_source_observations) ? data.current_source_observations : [];
+  const artifacts = Array.isArray(data.existing_artifacts) ? data.existing_artifacts : [];
+  const feedback = Array.isArray(data.interaction.feedback) ? data.interaction.feedback : [];
+
+  const summary = {
+    truncated: true,
+    mode: data.mode,
+    authoritative_attempt_id: data.authoritative_attempt_id,
+    authoritative_attempt: data.authoritative_attempt,
+    current_source_observations: observations.slice(0, 8).map((item) => compactObservation(item, 3_000)),
+    interaction: {
+      attempts: attempts.slice(-4).map((attempt) => summarizeAttempt(attempt, authoritative)),
+      feedback: feedback.slice(-12),
+    },
+    existing_artifacts: artifacts.slice(0, 3),
+  };
+  const compact = JSON.stringify(summary);
+  if (compact.length <= maxChars) return compact;
+
+  const focused = {
+    ...summary,
+    current_source_observations: summary.current_source_observations.slice(0, 3)
+      .map((item) => compactObservation(item, 1_500)),
+    interaction: {
+      attempts: summary.interaction.attempts.filter((attempt) => attempt.attempt_id === data.authoritative_attempt_id),
+      feedback: summary.interaction.feedback.slice(-4),
+    },
+    existing_artifacts: summary.existing_artifacts.map((artifact) => isRecord(artifact)
+      ? { category: artifact.category, slug: artifact.slug, title: artifact.title,
+          body: typeof artifact.body === 'string' ? artifact.body.slice(0, 900) : undefined }
+      : artifact),
+  };
+  const limited = JSON.stringify(focused);
+  if (limited.length <= maxChars) return limited;
+
+  // Never send disconnected string fragments as if they were complete source evidence.
+  return JSON.stringify({
+    truncated: true,
+    insufficient_evidence: true,
+    authoritative_attempt_id: data.authoritative_attempt_id,
+    instruction: 'Source evidence does not fit this context. Return {"action":"none"}.',
+  });
+}
+
+function summarizeAttempt(attempt: Record<string, unknown>, authoritative?: Record<string, unknown>) {
+  if (attempt !== authoritative) {
+    return {
+      attempt_id: attempt.attempt_id,
+      user_query: attempt.user_query,
+      answer: attempt.answer,
+      evidence_used: attempt.evidence_used,
+    };
+  }
+
+  const tools = Array.isArray(attempt.tools_invoked) ? attempt.tools_invoked.filter(isRecord) : [];
+  return {
+    ...attempt,
+    trajectory: undefined,
+    retrieved_results: undefined,
+    tools_invoked: tools.slice(-10).map((tool) => ({
+      name: tool.name,
+      input: tool.input,
+      output: compactOutput(tool.output, 1_800),
+    })),
+  };
+}
+
+function compactObservation(value: unknown, maxChars: number): unknown {
+  if (!isRecord(value)) return value;
+  return {
+    ...value,
+    excerpt: typeof value.excerpt === 'string' ? value.excerpt.slice(0, maxChars) : undefined,
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -32,6 +32,14 @@ reused because it stores vectors and numeric keys rather than ordered events,
 feedback supersession, job state, or provenance. A future learning-specific
 usearch sidecar can add semantic recall without becoming the source of truth.
 
+The TypeScript learning modules have distinct responsibilities:
+
+- `store.ts` and `revision.ts`: append-only interactions and their current revision.
+- `service.ts`, `queue.ts`, `source-watcher.ts`: durable job handoff, recovery, and source-change signals.
+- `worker.ts`, `knowledge-prompt.ts`, `knowledge-response.ts`, `claims.ts`: KB extraction and evidence validation.
+- `dataset-extract.ts`, `retrieval-extract.ts`: pure candidate derivation from recorded interactions.
+- `datasets.ts`, `dedup.ts`, `metrics.ts`: immutable storage, split review, and offline evaluation.
+
 ## Model and feedback
 
 Set `CODEBERG_SUBAGENT_MODEL=provider:model` (or `--subagent-model`) to choose the
