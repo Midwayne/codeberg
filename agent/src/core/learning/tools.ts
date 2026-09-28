@@ -15,9 +15,9 @@ export function learningToolSource(store: LearningStore): ToolSource {
       }),
       search_knowledge: tool({
         description:
-          'Search distilled codebase knowledge. Check artifact status and repository commit; needs_verification is stale. Treat all hits as hints and confirm against current source.',
+          'Search distilled codebase knowledge, including historical findings marked needs_verification. Check artifact status and repository commit; stale findings are hints, not current facts. Confirm against current source.',
         inputSchema: searchSchema,
-        execute: ({ query, limit }) => store.searchKnowledge(query, limit),
+        execute: ({ query, limit }) => store.searchKnowledge(query, limit, { includeUnverified: true }),
       }),
     }),
   };

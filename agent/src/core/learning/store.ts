@@ -252,11 +252,18 @@ export class LearningStore {
 
   async searchKnowledge(query: string, limit = 10, options: { includeUnverified?: boolean } = {}): Promise<KnowledgeSearchHit[]> {
     const artifacts = options.includeUnverified ? await this.knowledgeArtifacts() : await this.currentKnowledgeArtifacts();
-    return artifacts
-      .map((artifact) => ({ score: lexicalScore(query, `${artifact.title}\n${artifact.body}`), artifact }))
+    const currentIds = options.includeUnverified
+      ? new Set((await this.currentKnowledgeArtifacts()).map((artifact) => artifact.id))
+      : undefined;
+    return rankKnowledge(query, artifacts)
       .filter((hit) => hit.score > 0)
       .sort((a, b) => b.score - a.score || b.artifact.updated_at.localeCompare(a.artifact.updated_at))
-      .slice(0, Math.max(1, limit));
+      .slice(0, Math.max(1, limit))
+      .map(({ artifact, score }) => ({ score,
+        artifact: currentIds && !currentIds.has(artifact.id) && artifact.status === 'active'
+          ? { ...artifact, status: 'needs_verification' as const }
+          : artifact,
+      }));
   }
 
   /** Active facts only, checked against events even before an async invalidation job runs. */
@@ -346,6 +353,35 @@ function attemptText(attempt: AttemptRecord): string {
     ...attempt.files_inspected,
     ...attempt.symbols_inspected,
   ].join('\n');
+}
+
+/** BM25 ranks topical overlap with rare terms above repeated generic words. */
+function rankKnowledge(query: string, artifacts: KnowledgeArtifact[]): KnowledgeSearchHit[] {
+  const terms = [...new Set(searchTerms(query))];
+  if (!terms.length || !artifacts.length) return [];
+  const documents = artifacts.map((artifact) => {
+    const body = searchTerms(artifact.body);
+    const title = searchTerms(artifact.title);
+    const counts = new Map<string, number>();
+    for (const term of body) counts.set(term, (counts.get(term) ?? 0) + 1);
+    for (const term of title) counts.set(term, (counts.get(term) ?? 0) + 3);
+    return { artifact, counts, length: body.length + title.length * 3 };
+  });
+  const averageLength = documents.reduce((total, document) => total + document.length, 0) / documents.length;
+  const frequency = new Map(terms.map((term) => [term, documents.filter((document) => document.counts.has(term)).length]));
+  return documents.map(({ artifact, counts, length }) => ({
+    artifact,
+    score: terms.reduce((score, term) => {
+      const count = counts.get(term) ?? 0;
+      if (!count) return score;
+      const idf = Math.log(1 + (documents.length - frequency.get(term)! + 0.5) / (frequency.get(term)! + 0.5));
+      return score + idf * count * 2.2 / (count + 1.2 * (0.25 + 0.75 * length / averageLength));
+    }, 0),
+  }));
+}
+
+function searchTerms(value: string): string[] {
+  return value.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase().match(/[a-z0-9]{2,}/g) ?? [];
 }
 
 function lexicalScore(query: string, document: string): number {

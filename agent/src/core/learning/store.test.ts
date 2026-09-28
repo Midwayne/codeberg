@@ -72,6 +72,27 @@ describe('LearningStore', () => {
     ]);
   });
 
+  it('ranks a rare relevant concept over repetition of common terms in any query order', async () => {
+    const learning = await store();
+    const artifact = {
+      category: 'flows' as const, created_at: '2026-09-26', updated_at: '2026-09-26',
+      last_verified_at: '2026-09-26', repositories: ['core'], source_interactions: ['interaction-old'],
+      source_commits: {}, confidence: 'medium' as const, status: 'needs_verification' as const,
+    };
+    await writeAtomic(join(learning.root, 'knowledge', 'flows', 'mpm-units.md'), serializeArtifact({
+      ...artifact, id: 'mpm', title: 'MPM remaining available units', slug: 'mpm-units',
+      body: 'Subtract store-close from the open total.',
+    }));
+    await writeAtomic(join(learning.root, 'knowledge', 'flows', 'unrelated-units.md'), serializeArtifact({
+      ...artifact, id: 'unrelated', title: 'Units availability', slug: 'unrelated-units',
+      body: `${'remaining '.repeat(5)}${'available '.repeat(5)}${'units '.repeat(5)}`,
+    }));
+
+    const hits = await learning.searchKnowledge('units available remaining MPM', 10, { includeUnverified: true });
+    expect(hits.map((hit) => hit.artifact.id)).toEqual(['mpm', 'unrelated']);
+    expect(hits[0].score).toBeGreaterThan(hits[1].score);
+  });
+
   it('durably records a deduplicated attempt with retrieval separate from used evidence', async () => {
     const learning = await store();
     await learning.recordSession('conversation-1', transcript());
