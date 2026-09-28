@@ -49,14 +49,19 @@ export async function writeAtomic(path: string, value: string): Promise<void> {
   const dir = dirname(path);
   await mkdir(dir, { recursive: true });
   const temp = `${path}.${process.pid}.${crypto.randomUUID()}.tmp`;
-  const file = await open(temp, 'wx', 0o600);
   try {
-    await file.writeFile(value, 'utf8');
-    await file.sync();
-  } finally {
-    await file.close();
+    const file = await open(temp, 'wx', 0o600);
+    try {
+      await file.writeFile(value, 'utf8');
+      await file.sync();
+    } finally {
+      await file.close();
+    }
+    await rename(temp, path);
+  } catch (error) {
+    await unlink(temp).catch(() => {});
+    throw error;
   }
-  await rename(temp, path);
   await syncDirectory(dir);
 }
 

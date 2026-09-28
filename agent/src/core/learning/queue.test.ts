@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -74,7 +74,6 @@ describe('DurableJobQueue', () => {
   it('recovers a claim interrupted before its lease was written', async () => {
     const queue = new DurableJobQueue(await root());
     const job = await queue.enqueueKnowledge('crashed');
-    const { mkdir, rename } = await import('node:fs/promises');
     await mkdir(join(queue.root, 'jobs', 'processing'), { recursive: true });
     await rename(join(queue.root, 'jobs', 'pending', `${job.job_id}.json`), join(queue.root, 'jobs', 'processing', `${job.job_id}.json`));
     expect(await queue.recoverExpired()).toBe(1);
@@ -106,6 +105,23 @@ describe('DurableJobQueue', () => {
     await queue.reconcileStates();
     expect((await queue.counts())).toMatchObject({ pending: 0, completed: 1 });
     expect((await queue.get(old.job_id))?.status).toBe('completed');
+  });
+
+  it('removes orphaned atomic job writes on restart without touching a live writer', async () => {
+    const queue = new DurableJobQueue(await root());
+    const job = await queue.enqueueDataset('completed-interaction');
+    await queue.complete((await queue.claim())!);
+    const processing = join(queue.root, 'jobs', 'processing');
+    const orphan = `${job.job_id}.json.99999999.39461c64-99a7-442d-acd4-408ca6a327bb.tmp`;
+    const live = `${job.job_id}.json.${process.pid}.39461c64-99a7-442d-acd4-408ca6a327bb.tmp`;
+    await writeFile(join(processing, orphan), '');
+    await writeFile(join(processing, live), 'in progress');
+    await writeFile(join(processing, 'unrelated.tmp'), 'keep');
+
+    await queue.reconcileStates();
+
+    expect(await readdir(processing)).toEqual([live, 'unrelated.tmp']);
+    expect(await queue.counts()).toMatchObject({ processing: 0, completed: 1 });
   });
 
   it('recovers old invalid-response failures and caps repeated retries', async () => {

@@ -94,6 +94,21 @@ export class DurableJobQueue {
   /** Reconcile a crash between writing the new state and deleting the old file. */
   async reconcileStates(): Promise<void> {
     const statuses = ['processing', 'pending', 'failed', 'completed'] as const;
+    for (const status of statuses) {
+      const dir = join(this.root, 'jobs', status);
+      let files: string[];
+      try { files = await readdir(dir); } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+        throw error;
+      }
+      for (const file of files) {
+        const match = /^job-[a-f\d]+\.json\.(\d+)\.[a-f\d-]+\.tmp$/.exec(file);
+        if (!match || isProcessAlive(Number(match[1]))) continue;
+        try { await unlink(join(dir, file)); } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        }
+      }
+    }
     const byId = new Map<string, KnowledgeJob[]>();
     for (const status of statuses) {
       for (const job of await this.list(status)) {
@@ -279,6 +294,16 @@ export class DurableJobQueue {
 
   private path(status: JobStatus, jobId: string): string {
     return join(this.root, 'jobs', status, `${jobId}.json`);
+  }
+}
+
+function isProcessAlive(pid: number): boolean {
+  if (!Number.isSafeInteger(pid) || pid <= 0) return true;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code !== 'ESRCH';
   }
 }
 
