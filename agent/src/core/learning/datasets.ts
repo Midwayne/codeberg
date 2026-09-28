@@ -18,7 +18,7 @@ export type Provenance = 'user_confirmed' | 'tests' | 'compiler' | 'static_analy
 export interface DatasetExample {
   id: string;
   kind: DatasetKind;
-  state: 'candidate' | 'training' | 'eval';
+  state: 'candidate' | 'training' | 'eval' | 'dismissed';
   source_interaction_id: string;
   extraction_version: number;
   source_revision: string;
@@ -42,7 +42,7 @@ export class DatasetStore {
     return join(this.store.root, 'datasets', bucket, `${id}.json`);
   }
 
-  async list(bucket: 'candidates' | 'eval' | 'training'): Promise<DatasetExample[]> {
+  async list(bucket: 'candidates' | 'eval' | 'training' | 'dismissed'): Promise<DatasetExample[]> {
     const dir = join(this.store.root, 'datasets', bucket);
     let files: string[];
     try { files = (await readdir(dir)).filter((file) => file.endsWith('.json')); } catch { return []; }
@@ -93,6 +93,7 @@ export class DatasetStore {
       }
 
       if ((await this.list(split)).some((row) => row.id === id)) throw new Error('already promoted');
+      if ((await this.list('dismissed')).some((row) => row.id === id)) throw new Error('already dismissed');
       const promoted = redactSecrets({
         ...example,
         state: split,
@@ -101,6 +102,28 @@ export class DatasetStore {
       });
       if (!await writeJsonImmutable(this.path(split, id), promoted)) throw new Error('already promoted');
       return promoted;
+    });
+  }
+
+  /** A deliberate review decision; never delete the original candidate. */
+  async dismiss(id: string): Promise<DatasetExample> {
+    const example = (await this.list('candidates')).find((row) => row.id === id);
+    if (!example) throw new Error('candidate not found');
+    const current = await this.store.interaction(example.source_interaction_id);
+    if (example.extraction_version !== EXTRACTION_VERSION ||
+      example.source_revision !== sourceRevision(current.attempts, current.feedback)) {
+      throw new Error('candidate is stale');
+    }
+    return this.withPromotionLock(async () => {
+      const reviewed = await Promise.all((['training', 'eval', 'dismissed'] as const)
+        .map((bucket) => this.list(bucket)));
+      if (reviewed.some((rows) => rows.some((row) => row.id === id))) {
+        throw new Error('already reviewed');
+      }
+      const dismissed: DatasetExample = { ...example, state: 'dismissed',
+        review: { provenance: 'user_confirmed', timestamp: new Date().toISOString() } };
+      if (!await writeJsonImmutable(this.path('dismissed', id), dismissed)) throw new Error('already reviewed');
+      return dismissed;
     });
   }
 

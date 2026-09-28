@@ -262,7 +262,7 @@ export class LearningService {
         mkdir(join(this.store.root, 'jobs', name), { recursive: true }),
       ),
       mkdir(join(this.store.root, 'datasets', 'embedding'), { recursive: true }),
-      ...['candidates', 'eval', 'training'].map((name) => mkdir(join(this.store.root, 'datasets', name), { recursive: true })),
+      ...['candidates', 'eval', 'training', 'dismissed'].map((name) => mkdir(join(this.store.root, 'datasets', name), { recursive: true })),
     ]);
     try {
       const readme = await open(join(this.store.root, 'README.md'), 'wx', 0o600);

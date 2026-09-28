@@ -3,10 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
 import type { ServerResponse } from 'node:http';
+import type { UIMessage } from 'ai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { reasoningFromEnv } from '../core/config.js';
 import { LearningService } from '../core/learning/service.js';
+import type { DatasetExample } from '../core/learning/datasets.js';
 import {
   CHAT_PATH,
   CHAT_SEARCH_PATH,
@@ -56,6 +58,20 @@ function tempLearning(): LearningService {
   const service = new LearningService({ root: dir });
   learningServices.push(service);
   return service;
+}
+
+async function reviewedCandidates(learning: LearningService, conversationId: string, path: string): Promise<DatasetExample[]> {
+  await learning.store.recordSession(conversationId, [
+    { id: 'u1', role: 'user', parts: [{ type: 'text', text: `Where is ${path} implemented?` }] },
+    { id: 'a1', role: 'assistant', parts: [
+      { type: 'dynamic-tool', toolName: 'search_code', toolCallId: 't1', state: 'output-available',
+        input: { query: path }, output: [{ path, snippet: 'export function calculate() {}' }] },
+      { type: 'text', text: `It is implemented in ${path}.` },
+    ] },
+  ] as UIMessage[]);
+  const attempt = (await learning.store.attempts()).find((row) => row.conversation_id === conversationId)!;
+  await learning.store.recordFeedback({ attemptId: attempt.attempt_id, rating: 3, label: 'solved' });
+  return learning.datasets.extract(attempt.interaction_id);
 }
 
 function makeStaticRoot(): string {
@@ -500,5 +516,60 @@ describe('web server', () => {
     const params = new URLSearchParams({ conversation_id: 'conversation1', message_id: 'a1' });
     const current = await (await fetch(`${baseUrl}/api/learning/feedback?${params}`)).json();
     expect(current.label).toBe('partially_useful');
+  });
+
+  it('reviews current dataset candidates for training, evaluation, and dismissal with useful progress counts', async () => {
+    const learning = tempLearning();
+    await start({ learning });
+    const first = await reviewedCandidates(learning, 'first', 'src/First.ts');
+    const second = await reviewedCandidates(learning, 'second', 'src/Second.ts');
+    const third = await reviewedCandidates(learning, 'third', 'src/Third.ts');
+    const post = (id: string, body: unknown) => fetch(`${baseUrl}/api/learning/review/${id}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+
+    const initial = await (await fetch(`${baseUrl}/api/learning/review`)).json();
+    expect(initial.stats).toMatchObject({ ready: first.length + second.length + third.length,
+      training: 0, eval: 0, dismissed: 0 });
+    expect(initial.candidates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: first[0].id, query: 'Where is src/First.ts implemented?',
+        kind: first[0].kind, eligible: true }),
+    ]));
+    expect(JSON.stringify(initial)).not.toContain('successful_trajectory');
+
+    const sft = first.find((row) => row.kind === 'sft')!;
+    expect((await post(sft.id, { decision: 'training' })).status).toBe(201);
+    expect((await post(sft.id, { decision: 'training' })).status).toBe(409);
+    const retrieval = second.find((row) => row.kind === 'retrieval')!;
+    expect((await post(retrieval.id, { decision: 'eval' })).status).toBe(400);
+    expect((await post(retrieval.id, { decision: 'eval', oracle: { files: ['src/Second.ts'] } })).status).toBe(201);
+    expect((await post(third[0].id, { decision: 'dismiss' })).status).toBe(201);
+    expect((await post(third[0].id, { decision: 'dismiss' })).status).toBe(409);
+    expect((await post(third[0].id, { decision: 'training' })).status).toBe(409);
+    expect((await post('bad-id', { decision: 'dismiss' })).status).toBe(400);
+    expect((await (await fetch(`${baseUrl}/api/learning/review/${sft.id}`)).json()).payload.answer).toContain('src/First.ts');
+
+    const result = await (await fetch(`${baseUrl}/api/learning/review`)).json();
+    expect(result.stats).toMatchObject({ training: 1, eval: 1, dismissed: 1,
+      ready: first.length + second.length + third.length - 3 });
+    expect(result.candidates.find((row: { id: string }) => row.id === sft.id).state).toBe('training');
+    expect((await learning.datasets.active('training')).map((row) => row.id)).toContain(sft.id);
+    expect((await learning.datasets.active('eval')).map((row) => row.id)).toContain(retrieval.id);
+  });
+
+  it('shows superseded candidate revisions as outdated and prevents approval', async () => {
+    const learning = tempLearning();
+    await start({ learning });
+    const examples = await reviewedCandidates(learning, 'old-review', 'src/Old.ts');
+    const attempt = (await learning.store.attempts())[0];
+    await learning.store.recordFeedback({ attemptId: attempt.attempt_id, rating: 1, label: 'partially_useful' });
+
+    const view = await (await fetch(`${baseUrl}/api/learning/review`)).json();
+    expect(view.stats).toMatchObject({ total: examples.length, ready: 0, stale: examples.length });
+    expect(view.candidates[0]).toMatchObject({ state: 'stale', eligible: false });
+    const res = await fetch(`${baseUrl}/api/learning/review/${examples[0].id}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision: 'training' }),
+    });
+    expect(res.status).toBe(409);
   });
 });

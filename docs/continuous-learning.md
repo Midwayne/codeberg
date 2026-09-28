@@ -14,7 +14,7 @@ learning/
 ├── events/YYYY-MM-DD.jsonl
 ├── knowledge/{services,flows,concepts,debugging}/
 ├── jobs/{pending,processing,completed,failed}/
-└── datasets/{candidates,eval,training,embedding}/
+└── datasets/{candidates,eval,training,dismissed,embedding}/
 ```
 
 Event appends are synced before the feedback endpoint acknowledges them. Job and
@@ -179,6 +179,19 @@ The held-out query family remains reserved during review.
 `eval/` only fill after explicit reviewed promotion. `embedding/` is an export
 destination, not a background queue: `codeberg learning export --type embedding`
 writes there only when approved current training retrieval examples are available.
+`dismissed/` records candidates set aside by the reviewer without deleting the
+original candidate or allowing it to be promoted later.
+
+In the browser UI, the graduation-cap icon in the header opens **Training
+review**. The dashboard shows the ready queue, approved training and held-out
+evaluation counts, set-aside decisions, outdated revisions, and progress across
+current examples. Selecting an example shows its question, answer, feedback,
+and proposed evidence. **Teach the agent** approves it for a future training
+export; **Test the agent** holds it out and requires independently reviewed
+ground truth. Ambiguous negative examples require checked negative paths before
+training approval. Neither action retrains the running model automatically.
+Only current extraction revisions can be accepted; old revisions remain visible
+under **Outdated**. Reviewed decisions remain visible under **Reviewed**.
 The offline CLI exposes `codeberg learning candidates`, `codeberg learning
 extract <interaction-id>`, and `codeberg learning promote <example-id> eval
 user_confirmed oracle.json` (or `training <provenance>`). `oracle.json` is a
