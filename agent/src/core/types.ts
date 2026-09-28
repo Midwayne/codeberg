@@ -43,6 +43,7 @@ export interface SearchOptions {
 export interface Prompt {
   system: string;
   prompt: string;
+  traceId?: string;
 }
 
 export interface Generator {

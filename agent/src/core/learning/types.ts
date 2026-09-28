@@ -114,6 +114,7 @@ export interface KnowledgeJob {
   type: 'extract_knowledge' | 'extract_dataset';
   interaction_id: string;
   source_revision?: string;
+  extraction_version?: number;
   source_code_revision?: string;
   created_at: string;
   updated_at: string;
@@ -146,6 +147,8 @@ export interface KnowledgeArtifact {
   last_verified_at: string;
   repositories: string[];
   source_interactions: string[];
+  /** Older interactions retained for provenance but not used to verify current claims. */
+  historical_source_interactions?: string[];
   /** Attempt and feedback revision last used to verify this interaction's evidence. */
   source_revision?: string;
   source_revisions?: Record<string, string>;
@@ -153,6 +156,14 @@ export interface KnowledgeArtifact {
   source_refs?: { repo: string; path: string; symbol?: string }[];
   source_hashes?: Record<string, string>;
   claims?: KnowledgeClaim[];
+  /** Explicit solved user corrections, retained as provisional notes rather than source-verified claims. */
+  user_confirmed_notes?: {
+    interaction_id: string;
+    source_revision: string;
+    text: string;
+    confirmed_at: string;
+    provenance: 'user_confirmed';
+  }[];
   confidence: KnowledgeConfidence;
   status: KnowledgeStatus;
   body: string;

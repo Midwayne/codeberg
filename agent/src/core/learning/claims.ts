@@ -1,23 +1,31 @@
 import { basename } from 'node:path';
 
 import { redactSecrets } from './redact.js';
-import type { SourceObservation } from './memory-source.js';
+import { sourceTextFor, type SourceObservation } from './memory-source.js';
 import type { KnowledgeClaim } from './types.js';
 
 /** Enforce provenance for *each* claim; exact quotations are evidence, not semantic proof. */
 export function validatedClaims(
   raw: unknown,
   observations: SourceObservation[],
+  onRejected?: (index: number) => void,
 ): KnowledgeClaim[] | undefined {
-  if (!Array.isArray(raw) || raw.length === 0 || raw.length > 12) return undefined;
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
 
   const claims: KnowledgeClaim[] = [];
-  for (const value of raw) {
+  for (const [index, value] of raw.entries()) {
+    if (claims.length >= 12) {
+      onRejected?.(index);
+      continue;
+    }
     const claim = validateClaim(value, observations);
-    if (!claim) return undefined;
+    if (!claim) {
+      onRejected?.(index);
+      continue;
+    }
     claims.push(claim);
   }
-  return redactSecrets(claims);
+  return claims.length ? redactSecrets(claims) : undefined;
 }
 
 export function knowledgeBody(claims: KnowledgeClaim[]): string {
@@ -60,12 +68,14 @@ function validateEvidence(
   const { repo, path, quote } = value;
   const source = observations.find((observation) => observation.hash && observation.path === path &&
     (observation.repo === repo || basename(observation.repo) === repo) &&
-    redactSecrets(observation.excerpt ?? '').includes(quote));
+    redactSecrets(sourceTextFor(observation) ?? observation.excerpt ?? '').includes(quote));
   if (!source) return undefined;
 
-  const offset = source.excerpt?.indexOf(quote);
+  const fullText = sourceTextFor(source);
+  const text = fullText ?? source.excerpt;
+  const offset = text?.indexOf(quote);
   const startLine = offset === undefined || offset < 0 ? undefined :
-    (source.excerpt_start_line ?? 1) + countNewlines(source.excerpt!.slice(0, offset));
+    (fullText ? 1 : (source.excerpt_start_line ?? 1)) + countNewlines(text!.slice(0, offset));
   const endLine = startLine === undefined ? undefined : startLine + countNewlines(quote);
   if (value.start_line !== undefined && (typeof value.start_line !== 'number' ||
     startLine !== undefined && value.start_line !== startLine)) return undefined;

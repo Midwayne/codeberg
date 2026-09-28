@@ -139,8 +139,10 @@ appends logs across runs under `~/.codeberg/logs/` (or `$CODEBERG_HOME/logs/`):
 indexer output), `searxng.log` (managed web search and its install), and
 `web.log` (browser UI server and stderr from stdio MCP servers), `agent.log`
 (chat turn lifecycle and failures), and `learning-agent.log` (background job
-lifecycle and failures). The agent logs contain event metadata, not prompts or
-answers. Subsequent runs warm-start from the persisted index and come up in seconds.
+lifecycle and failures). These lifecycle logs contain event metadata, not prompts
+or answers. `learning-agent-trace.log` contains redacted knowledge-extraction
+requests, model responses and decisions for debugging; it has owner-only
+permissions. Subsequent runs warm-start from the persisted index and come up in seconds.
 
 ## Configuring
 

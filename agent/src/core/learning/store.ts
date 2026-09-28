@@ -277,7 +277,11 @@ export class LearningStore {
     const sourceCache = new Map<string, Promise<SourceObservation>>();
     const states = await Promise.all(feedbackFresh.map(async (artifact) => ({ artifact,
       fresh: (await memorySourceState(artifact, repositories, sourceCache)).fresh })));
-    return states.filter((entry) => entry.fresh).map((entry) => entry.artifact);
+    return states.filter((entry) => entry.fresh).map(({ artifact }) => {
+      if (!artifact.user_confirmed_notes?.length) return artifact;
+      const { user_confirmed_notes: _notes, ...verified } = artifact;
+      return { ...verified, body: artifact.body.split('\n## User-confirmed notes (not source-verified)\n')[0].trim() };
+    });
   }
 
   async knowledgeArtifacts(): Promise<KnowledgeArtifact[]> {

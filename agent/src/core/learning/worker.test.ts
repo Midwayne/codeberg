@@ -6,11 +6,13 @@ import type { UIMessage } from 'ai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DurableJobQueue } from './queue.js';
-import { LearningStore } from './store.js';
+import { LearningStore, stableId } from './store.js';
 import { KnowledgeWorker, parseExtractionResponse } from './worker.js';
 import { exportDataset } from './export.js';
 import { LearningService } from './service.js';
 import { sourceRevision } from './datasets.js';
+import { writeAtomic } from './fs.js';
+import { serializeArtifact } from './store.js';
 
 const roots: string[] = [];
 
@@ -68,6 +70,217 @@ describe('KnowledgeWorker', () => {
     expect(result.feedback.label).toBe('solved');
     expect((await service.store.events()).some((event) => event.type === 'feedback_recorded')).toBe(true);
     await service.waitForCurrent();
+    service.stop();
+  });
+
+  it('adds a solved correction without citations to a matching old document as a provisional user note', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'codeberg-worker-'));
+    roots.push(root);
+    vi.stubEnv('CODEBERG_LOG_DIR', join(root, 'logs'));
+    const repositories = await fixtureRepository(root, { 'src/Store.ts': 'export const totalOpenUnits = 59;' });
+    const service = new LearningService({ root: join(root, 'learning'), repositories,
+      generator: { generate: vi.fn(async () => '{"action":"none","reason":"No quoted source proves the formula."}') } });
+    await service.initialize();
+    const path = join(service.store.root, 'knowledge', 'flows', 'remaining-available-units.md');
+    await writeAtomic(path, serializeArtifact({
+      id: 'knowledge-units', title: 'Remaining available units', category: 'flows', slug: 'remaining-available-units',
+      created_at: '2026-09-25', updated_at: '2026-09-25', last_verified_at: '2026-09-25',
+      repositories: ['source-repo'], source_interactions: ['interaction-older'], source_commits: {},
+      confidence: 'medium', status: 'needs_verification', body: '## Definition\nOlder explanation.',
+    }));
+    await service.recordSession('c', [
+      { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'I meant remaining available units = total open units - store-close open units.' }] },
+      { id: 'a1', role: 'assistant', parts: [{ type: 'text', text: 'Understood: subtract store-close from total.' }] },
+    ] as UIMessage[]);
+    await service.feedback({ conversationId: 'c', messageId: 'a1', rating: 3, label: 'solved' });
+    await service.waitForCurrent();
+
+    const artifact = (await service.store.knowledgeArtifacts())[0];
+    expect(artifact.body).toContain('User-confirmed notes (not source-verified)');
+    expect(artifact.body).toContain('remaining available units = total open units - store-close open units');
+    expect(artifact.status).toBe('needs_verification');
+    expect(artifact.user_confirmed_notes).toHaveLength(1);
+    expect((await readFile(join(root, 'logs', 'learning-agent-trace.log'), 'utf8'))).toContain('user_note_added');
+    await service.queue.enqueueKnowledge((await service.store.attempts())[0].interaction_id, { requeueCompleted: true });
+    service.worker!.wake();
+    await service.waitForCurrent();
+    expect((await service.store.knowledgeArtifacts())[0].user_confirmed_notes).toHaveLength(1);
+    service.stop();
+  });
+
+  it('rechecks earlier cited files but keeps a source-unproven correction provisional', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'codeberg-worker-'));
+    roots.push(root);
+    vi.stubEnv('CODEBERG_LOG_DIR', join(root, 'logs'));
+    const repositories = await fixtureRepository(root, { 'src/Store.ts': 'export const totalOpenUnits = 59;' });
+    const generate = vi.fn(async () => '{"action":"none","reason":"No code states the consumer subtraction."}');
+    const service = new LearningService({ root: join(root, 'learning'), repositories, generator: { generate } });
+    await service.initialize();
+    const path = join(service.store.root, 'knowledge', 'flows', 'remaining-available-units.md');
+    await writeAtomic(path, serializeArtifact({
+      id: 'knowledge-units', title: 'Remaining available units', category: 'flows', slug: 'remaining-available-units',
+      created_at: '2026-09-25', updated_at: '2026-09-25', last_verified_at: '2026-09-25',
+      repositories: ['source-repo'], source_interactions: ['interaction-older'], source_commits: {},
+      confidence: 'medium', status: 'needs_verification', body: 'Older explanation.',
+    }));
+    await service.recordSession('c', [
+      { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'What is the total open units count?' }] },
+      { id: 'a1', role: 'assistant', parts: [
+        { type: 'dynamic-tool', toolName: 'read_file', toolCallId: 't1', state: 'output-available',
+          input: { path: 'src/Store.ts' }, output: { path: 'src/Store.ts', body: 'totalOpenUnits = 59' } },
+        { type: 'text', text: 'src/Store.ts reports totalOpenUnits.' },
+      ] },
+      { id: 'u2', role: 'user', parts: [{ type: 'text', text: 'I meant remaining available units = total open units - store-close open units.' }] },
+      { id: 'a2', role: 'assistant', parts: [{ type: 'text', text: 'Subtract store-close from total open units.' }] },
+    ] as UIMessage[]);
+    await service.feedback({ conversationId: 'c', messageId: 'a2', rating: 3, label: 'solved' });
+    await service.waitForCurrent();
+    expect(generate).toHaveBeenCalledOnce();
+    expect((await service.store.knowledgeArtifacts())[0].body).toContain('User-confirmed notes (not source-verified)');
+    const trace = (await readFile(join(root, 'logs', 'learning-agent-trace.log'), 'utf8'))
+      .trim().split('\n').map((line) => JSON.parse(line));
+    expect(trace).toContainEqual(expect.objectContaining({ event: 'model_response',
+      raw: '{"action":"none","reason":"No code states the consumer subtraction."}' }));
+    expect(trace).toContainEqual(expect.objectContaining({ event: 'extraction_skipped',
+      reason: 'model_returned_none', model_reason: 'No code states the consumer subtraction.' }));
+    service.stop();
+  });
+
+  it('replays old completed extraction jobs once after the knowledge policy changes', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'codeberg-worker-'));
+    roots.push(root);
+    const store = new LearningStore(root);
+    const queue = new DurableJobQueue(root);
+    await writeAtomic(join(root, 'knowledge', 'flows', 'remaining-available-units.md'), serializeArtifact({
+      id: 'knowledge-units', title: 'Remaining available units', category: 'flows', slug: 'remaining-available-units',
+      created_at: '2026-09-25', updated_at: '2026-09-25', last_verified_at: '2026-09-25',
+      repositories: ['source-repo'], source_interactions: ['interaction-older'], source_commits: {},
+      confidence: 'medium', status: 'needs_verification', body: 'Older explanation.',
+    }));
+    await store.recordSession('c', [
+      { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'I meant remaining available units = total open units - store-close open units.' }] },
+      { id: 'a1', role: 'assistant', parts: [{ type: 'text', text: 'Subtract store-close from total open units.' }] },
+    ] as UIMessage[]);
+    const attempt = (await store.attempts())[0];
+    await store.recordFeedback({ attemptId: attempt.attempt_id, rating: 3, label: 'solved' });
+    await queue.enqueueKnowledge(attempt.interaction_id);
+    const claimed = (await queue.claim())!;
+    const interaction = await store.interaction(attempt.interaction_id);
+    claimed.source_revision = sourceRevision(interaction.attempts, interaction.feedback);
+    claimed.extraction_version = 2;
+    await queue.complete(claimed); // Old worker completed without updating the document.
+
+    const service = new LearningService({ root, generator: { generate: async () => '{"action":"none"}' } });
+    await service.initialize();
+    await service.waitForCurrent();
+    expect((await service.store.knowledgeArtifacts())[0].user_confirmed_notes).toHaveLength(1);
+    expect((await service.queue.get(stableId('job', 'extract_knowledge', attempt.interaction_id)))?.extraction_version).toBe(3);
+    service.stop();
+  });
+
+  it('finds a stale document from another interaction and records the extraction decision', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'codeberg-worker-'));
+    roots.push(root);
+    vi.stubEnv('CODEBERG_LOG_DIR', join(root, 'logs'));
+    const repositories = await fixtureRepository(root, {
+      'src/Store.ts': 'export function remainingUnits() { return totalOpen - storeClose; }',
+      'src/Old.ts': 'export const totalOpen = picked + packed;',
+    });
+    const generate = vi.fn(async (_input: { prompt: string }) => JSON.stringify({ action: 'upsert', category: 'flows',
+      slug: 'remaining-available-units', title: 'Remaining available units', status: 'active', confidence: 'high',
+      reason: 'Current sources confirm the old total and new subtraction.', claims: [{
+        statement: 'Remaining units subtract storeClose from totalOpen.', evidence: [
+          { repo: 'source-repo', path: 'src/Store.ts', quote: 'return totalOpen - storeClose;' },
+        ],
+      }, {
+        statement: 'The total is picked plus packed.', evidence: [
+          { repo: 'source-repo', path: 'src/Old.ts', quote: 'totalOpen = picked + packed;' },
+        ],
+      }],
+    }));
+    const service = new LearningService({ root: join(root, 'learning'), repositories, generator: { generate } });
+    await service.initialize();
+    const path = join(service.store.root, 'knowledge', 'flows', 'remaining-available-units.md');
+    await writeAtomic(path, serializeArtifact({
+      id: 'knowledge-units', title: 'Remaining available units', category: 'flows', slug: 'remaining-available-units',
+      created_at: '2026-09-25', updated_at: '2026-09-25', last_verified_at: '2026-09-25',
+      repositories: ['source-repo'], source_interactions: ['interaction-older'], source_commits: {},
+      source_refs: [{ repo: join(root, 'source-repo'), path: 'src/Old.ts' }],
+      confidence: 'medium', status: 'needs_verification', body: 'Older explanation.',
+      user_confirmed_notes: [{ interaction_id: 'interaction-confirmed', source_revision: 'old-revision',
+        text: 'Earlier user-confirmed exception.', confirmed_at: '2026-09-25', provenance: 'user_confirmed' }],
+    }));
+    await service.recordSession('c', [
+      { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'How are remaining available units calculated?' }] },
+      { id: 'a1', role: 'assistant', parts: [
+        { type: 'dynamic-tool', toolName: 'read_file', toolCallId: 't1', state: 'output-available',
+          input: { path: 'src/Store.ts' }, output: { path: 'src/Store.ts', body: 'return totalOpen - storeClose;' } },
+        { type: 'text', text: 'src/Store.ts subtracts storeClose from totalOpen.' },
+      ] },
+    ] as UIMessage[]);
+    await service.feedback({ conversationId: 'c', messageId: 'a1', rating: 3, label: 'solved' });
+    await service.waitForCurrent();
+
+    expect(generate).toHaveBeenCalledOnce();
+    expect(JSON.parse(generate.mock.calls[0][0].prompt).existing_artifacts).toMatchObject([
+      { id: 'knowledge-units', status: 'needs_verification' },
+    ]);
+    expect(JSON.parse(generate.mock.calls[0][0].prompt).current_source_observations).toMatchObject([
+      expect.objectContaining({ path: 'src/Old.ts' }), expect.objectContaining({ path: 'src/Store.ts' }),
+    ]);
+    expect((await service.store.knowledgeArtifacts())[0]).toMatchObject({
+      id: 'knowledge-units', status: 'active', body: expect.stringContaining('totalOpen - storeClose'),
+      user_confirmed_notes: [{ text: 'Earlier user-confirmed exception.' }],
+    });
+    expect((await service.store.knowledgeArtifacts())[0].body).toContain('User-confirmed notes (not source-verified)');
+    expect((await service.store.knowledgeArtifacts())[0].body).toContain('picked plus packed');
+    expect((await service.store.currentKnowledgeArtifacts()).map((artifact) => artifact.id)).toContain('knowledge-units');
+    expect((await service.store.currentKnowledgeArtifacts())[0].body).not.toContain('Earlier user-confirmed exception.');
+    expect((await service.store.knowledgeArtifacts())[0].historical_source_interactions).toContain('interaction-older');
+    const trace = (await readFile(join(root, 'logs', 'learning-agent-trace.log'), 'utf8'))
+      .trim().split('\n').map((line) => JSON.parse(line));
+    expect(trace.map((entry) => entry.event)).toContain('model_response');
+    expect(trace).toContainEqual(expect.objectContaining({ event: 'artifact_upserted', slug: 'remaining-available-units' }));
+    service.stop();
+  });
+
+  it('grounds an exact quote past the model excerpt in the current source file', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'codeberg-worker-'));
+    roots.push(root);
+    vi.stubEnv('CODEBERG_LOG_DIR', join(root, 'logs'));
+    const quote = 'return todaysWorkCappedByTMU + priorityUnits';
+    const repositories = await fixtureRepository(root, {
+      'src/Progress.ts': `${'// earlier progress calculations\n'.repeat(500)}${quote}\n`,
+    });
+    const service = new LearningService({ root: join(root, 'learning'), repositories,
+      generator: { generate: async ({ prompt }) => {
+        const input = JSON.parse(prompt) as { current_source_observations: { excerpt: string }[] };
+        expect(input.current_source_observations[0].excerpt).not.toContain(quote);
+        return JSON.stringify({ action: 'upsert', category: 'flows', slug: 'progress-work',
+          title: 'Progress work', status: 'active', confidence: 'high', claims: [{
+            statement: 'Available progress work includes priority units.',
+            evidence: [{ repo: 'source-repo', path: 'src/Progress.ts', quote }],
+          }, {
+            statement: 'Unsupported extra detail must be dropped.',
+            evidence: [{ repo: 'source-repo', path: 'src/Progress.ts', quote: 'return invented calculation' }],
+          }] });
+      } } });
+    await service.initialize();
+    await service.recordSession('c', [
+      { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'How are priority units added to progress work?' }] },
+      { id: 'a1', role: 'assistant', parts: [
+        { type: 'dynamic-tool', toolName: 'read_file', toolCallId: 't1', state: 'output-available',
+          input: { path: 'src/Progress.ts' }, output: { path: 'src/Progress.ts', body: quote } },
+        { type: 'text', text: 'src/Progress.ts adds priority units to capped work.' },
+      ] },
+    ] as UIMessage[]);
+    await service.feedback({ conversationId: 'c', messageId: 'a1', rating: 3, label: 'solved' });
+    await service.waitForCurrent();
+    expect((await service.store.currentKnowledgeArtifacts())[0]?.body).toContain(quote);
+    expect((await service.store.currentKnowledgeArtifacts())[0]?.body).not.toContain('invented calculation');
+    const trace = (await readFile(join(root, 'logs', 'learning-agent-trace.log'), 'utf8'))
+      .trim().split('\n').map((line) => JSON.parse(line));
+    expect(trace).toContainEqual(expect.objectContaining({ event: 'claims_rejected', rejected_indexes: [1] }));
     service.stop();
   });
   it('recreates a missing job from durable solved feedback after restart', async () => {

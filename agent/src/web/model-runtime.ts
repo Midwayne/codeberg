@@ -5,6 +5,7 @@ import { wrapToolLoopAgentWithCompaction } from '../core/compaction.js';
 import { fromAiSdk } from '../core/generator.js';
 import type { LearningService } from '../core/learning/service.js';
 import type { Generator } from '../core/types.js';
+import { writeLearningTrace } from '../core/module-log.js';
 import type { ModelSettingsStore } from './model-settings.js';
 import type { ResolvedModelSelection } from './server.js';
 
@@ -78,9 +79,12 @@ export function createLearningGenerator(
         models.set(modelSpec, model);
       }
       const contextWindow = selected?.contextWindow;
+      const bounded = contextWindow ? boundLearningContext(prompt.prompt, prompt.system, contextWindow) : prompt.prompt;
+      writeLearningTrace('model_request', { job_id: prompt.traceId, model: modelSpec,
+        effort: learning.effort, system: prompt.system, prompt: bounded });
       return fromAiSdk(model, learning.effort, modelSpec).generate({
         ...prompt,
-        prompt: contextWindow ? boundLearningContext(prompt.prompt, prompt.system, contextWindow) : prompt.prompt,
+        prompt: bounded,
       });
     },
   };

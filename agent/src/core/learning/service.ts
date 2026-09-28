@@ -11,7 +11,7 @@ import { interactionRevisions } from './revision.js';
 import { KnowledgeSourceWatcher } from './source-watcher.js';
 import { LearningStore, defaultLearningRoot, stableId } from './store.js';
 import type { FeedbackLabel, FeedbackRating, FeedbackRecord, RepositoryVersion } from './types.js';
-import { KnowledgeWorker } from './worker.js';
+import { KNOWLEDGE_EXTRACTION_VERSION, KnowledgeWorker } from './worker.js';
 
 export class LearningService {
   readonly store: LearningStore;
@@ -90,6 +90,8 @@ export class LearningService {
       }
       if (interaction.feedback.some((feedback) => feedback.label === 'solved')) {
         await this.queue.enqueueKnowledge(id, { requeueCompleted: true });
+      } else {
+        writeModuleLog('learning-agent', 'knowledge_not_queued', { interaction_id: id, reason: 'no_solved_feedback' });
       }
       this.worker?.wake();
     }
@@ -120,7 +122,10 @@ export class LearningService {
     // A change to an older attempt can invalidate knowledge learned from a newer
     // solved attempt (or vice versa). Revisit the entire logical interaction.
     const interaction = await this.store.interaction(attempt.interaction_id);
-    if (!interaction.feedback.some((entry) => entry.label === 'solved')) return { feedback };
+    if (!interaction.feedback.some((entry) => entry.label === 'solved')) {
+      writeModuleLog('learning-agent', 'knowledge_not_queued', { interaction_id: attempt.interaction_id, reason: 'no_solved_feedback' });
+      return { feedback };
+    }
     try {
       const job = await this.queue.enqueueKnowledge(attempt.interaction_id, {
         requeueCompleted: true,
@@ -241,7 +246,8 @@ export class LearningService {
     const jobId = (await enqueue(interactionId)).job_id;
     const job = await this.queue.get(jobId);
     if (job && ['completed', 'failed'].includes(job.status) &&
-      (job.source_revision !== revision || job.updated_at < lastEvent)) {
+      (job.source_revision !== revision || job.updated_at < lastEvent ||
+        (kind === 'knowledge' && job.extraction_version !== KNOWLEDGE_EXTRACTION_VERSION))) {
       await enqueue(interactionId, { requeueCompleted: true });
     }
   }

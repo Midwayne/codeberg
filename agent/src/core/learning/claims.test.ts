@@ -12,11 +12,14 @@ describe('knowledge claim grounding', () => {
     expect(knowledgeBody(claims!)).toContain('inventory:src/Flow.ts#getFlow:15');
   });
 
-  it('rejects any unsupported claim or invented line number in a multi-claim article', () => {
+  it('keeps supported claims while dropping unsupported claims and invented line numbers', () => {
     const supported = { statement: 'The flow returns the new process.',
       evidence: [{ repo: 'inventory', path: 'src/Flow.ts', quote: 'return "new-process"' }] };
+    const rejected: number[] = [];
     expect(validatedClaims([supported, { statement: 'Also publishes Kafka messages.',
-      evidence: [{ repo: 'inventory', path: 'src/Flow.ts', quote: 'sendToKafka()' }] }], observed)).toBeUndefined();
+      evidence: [{ repo: 'inventory', path: 'src/Flow.ts', quote: 'sendToKafka()' }] }], observed,
+    (index) => rejected.push(index))).toMatchObject([supported]);
+    expect(rejected).toEqual([1]);
     expect(validatedClaims([{ ...supported, evidence: [{ ...supported.evidence[0], start_line: 900 }] }],
       observed)).toBeUndefined();
   });

@@ -2,6 +2,7 @@ import type { KnowledgeCategory, KnowledgeConfidence, KnowledgeStatus } from './
 
 export interface ExtractionResponse {
   action: 'none' | 'upsert';
+  reason?: string;
   category?: KnowledgeCategory;
   slug?: string;
   title?: string;

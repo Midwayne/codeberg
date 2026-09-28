@@ -1,5 +1,8 @@
 import type { LanguageModel, ToolLoopAgent } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ModelAgentPool, boundLearningContext, createLearningGenerator } from './model-runtime.js';
@@ -87,6 +90,33 @@ describe('model runtime', () => {
     learning = { key: 'openai:wide', effort: 'none' };
     await generator.generate(prompt);
     expect(JSON.stringify(model.doGenerateCalls[1].prompt).length).toBeGreaterThan(20_000);
+  });
+
+  it('logs the selected model and the actual bounded extraction request', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'codeberg-model-trace-'));
+    vi.stubEnv('CODEBERG_LOG_DIR', dir);
+    try {
+      const model = new MockLanguageModelV4({ doGenerate: async () => ({
+        content: [{ type: 'text', text: '{"action":"none","reason":"no quoted evidence"}' }],
+        finishReason: { unified: 'stop', raw: undefined },
+        usage: { inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+          outputTokens: { total: 1, text: 1, reasoning: 0 } }, warnings: [],
+      }) });
+      const settings = { current: async () => ({
+        learning: { key: 'openai:test', effort: 'none' },
+        models: [{ key: 'openai:test', model: 'openai:test', contextWindow: 1024 }],
+      }) } as ModelSettingsStore;
+      const prompt = '{"authoritative_attempt_id":"a1","interaction":{"attempts":[]},"current_source_observations":[]}';
+      await createLearningGenerator(settings, () => model).generate({
+        system: 'extract', prompt, traceId: 'job-1',
+      });
+      const trace = (await readFile(join(dir, 'learning-agent-trace.log'), 'utf8'))
+        .trim().split('\n').map((line) => JSON.parse(line));
+      expect(trace).toMatchObject([{ event: 'model_request', job_id: 'job-1', model: 'openai:test', prompt }]);
+    } finally {
+      vi.unstubAllEnvs();
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   it('keeps authoritative source evidence and valid JSON when compacting a long learning trajectory', () => {

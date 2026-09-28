@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { writeModuleLog } from './module-log.js';
+import { writeLearningTrace, writeModuleLog } from './module-log.js';
 
 describe('module logs', () => {
   it('appends scoped events across calls without mixing agent and learning events', () => {
@@ -19,6 +19,22 @@ describe('module logs', () => {
       expect(learning.map((entry) => entry.event)).toEqual(['job_failed']);
       expect(agent[0].timestamp).toBeDefined();
       expect(statSync(join(dir, 'agent.log')).mode & 0o777).toBe(0o600);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('writes a redacted and private knowledge trace separately from lifecycle logs', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'codeberg-trace-'));
+    try {
+      writeLearningTrace('model_response', { job_id: 'job-1', raw: 'Bearer abcde12345secret' }, dir);
+      const trace = JSON.parse(readFileSync(join(dir, 'learning-agent-trace.log'), 'utf8'));
+      expect(trace).toMatchObject({ event: 'model_response', job_id: 'job-1', raw: 'Bearer [REDACTED]' });
+      expect(statSync(join(dir, 'learning-agent-trace.log')).mode & 0o777).toBe(0o600);
+      writeLearningTrace('model_response', { raw: '{"action":"none","reason":"API_KEY=abcdefghi"}' }, dir);
+      const second = readFileSync(join(dir, 'learning-agent-trace.log'), 'utf8').trim()
+        .split('\n').map((line) => JSON.parse(line))[1];
+      expect(JSON.parse(second.raw)).toEqual({ action: 'none', reason: 'API_KEY=[REDACTED]' });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

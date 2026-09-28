@@ -14,6 +14,13 @@ export interface SourceObservation extends SourceRef {
   unavailable?: string;
 }
 
+// Retain freshly read source for quote validation without sending whole files to the model.
+const sourceText = new WeakMap<SourceObservation, string>();
+
+export function sourceTextFor(observation: SourceObservation): string | undefined {
+  return sourceText.get(observation);
+}
+
 export function sourceKey(ref: SourceRef): string {
   return `${ref.repo}\0${ref.path}`;
 }
@@ -70,7 +77,9 @@ async function readSource(ref: SourceRef, repositories: RepositoryVersion[]): Pr
     const position = needle ? Math.max(0, text.indexOf(needle) - 1_500) : 0;
     const excerpt = text.slice(position, position + 12_000);
     const excerpt_start_line = 1 + (text.slice(0, position).match(/\n/g)?.length ?? 0);
-    return { ...ref, commit: repo.commit, hash, excerpt, excerpt_start_line, truncated: excerpt.length < text.length };
+    const observation = { ...ref, commit: repo.commit, hash, excerpt, excerpt_start_line, truncated: excerpt.length < text.length };
+    sourceText.set(observation, text);
+    return observation;
   } catch (error) {
     return { ...ref, commit: repo.commit, unavailable: String(error) };
   }

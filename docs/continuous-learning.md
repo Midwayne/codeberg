@@ -14,7 +14,7 @@ learning/
 ├── events/YYYY-MM-DD.jsonl
 ├── knowledge/{services,flows,concepts,debugging}/
 ├── jobs/{pending,processing,completed,failed}/
-└── datasets/{candidates,eval,training}/
+└── datasets/{candidates,eval,training,embedding}/
 ```
 
 Event appends are synced before the feedback endpoint acknowledges them. Job and
@@ -40,6 +40,10 @@ The TypeScript learning modules have distinct responsibilities:
 - `dataset-extract.ts`, `retrieval-extract.ts`: pure candidate derivation from recorded interactions.
 - `datasets.ts`, `dedup.ts`, `metrics.ts`: immutable storage, split review, and offline evaluation.
 
+The four knowledge directories are categories chosen by the extractor, not
+quotas or stages. If the solved investigations are mostly multi-step behavior,
+`flows/` can grow while `services/` and `debugging/` remain empty.
+
 ## Model and feedback
 
 Set `CODEBERG_SUBAGENT_MODEL=provider:model` (or `--subagent-model`) to choose the
@@ -54,9 +58,9 @@ inspection/export command still works. Restart `codeberg` after changing config.
 The browser UI offers `Not useful`, `Partially useful`, `Mostly correct`, and
 `Solved` on every completed assistant message. Changing a rating appends a new
 feedback event with `supersedes_feedback_id`; previous ratings remain immutable.
-A solved rating queues extraction. Downgrading a solved rating requeues the same
-stable job and marks knowledge supported by that interaction as
-`needs_verification`.
+A solved rating queues extraction; an ungraded chat nudge alone does not.
+Downgrading a solved rating requeues the same stable job and marks knowledge
+supported by that interaction as `needs_verification`.
 
 Revising feedback on **any** earlier attempt requeues both projections if the
 interaction has ever been solved. A later ungraded correction invalidates
@@ -64,13 +68,14 @@ previously active knowledge rather than treating an older solved answer as the
 winner. Knowledge records the attempt/feedback revision used to verify it; on
 revision changes the worker rechecks the latest solved attempt. Restart
 reconciliation compares revisions as well as job timestamps.
-KB search and knowledge export check current event revisions at read time, so
-an old fact is hidden immediately after a downgrade, even before the worker
-updates its on-disk status. Historical artifacts remain available for review.
-Older artifacts without verifiable source metadata are retained but hidden from
-active agent search. Use `codeberg learning list-knowledge` or `search-knowledge
---all <query>` to inspect them explicitly; the background worker can upgrade
-them when their original evidence still resolves in current repositories.
+Verified knowledge search and knowledge export check current event revisions at
+read time, so an old fact is hidden immediately after a downgrade, even before
+the worker updates its on-disk status. The agent's `search_knowledge` also
+returns matching historical artifacts as explicitly labeled
+`needs_verification` hints; these require source checking before use. The
+offline CLI defaults to verified results; use `search-knowledge --all <query>`
+or `list-knowledge` to inspect historical records. Search ranks document titles
+and bodies with BM25 rather than substring counts.
 
 ## Codebase memory refresh
 
@@ -83,7 +88,7 @@ two-minute full scan cover missed events, moved files, unwatched directories,
 and git ref updates. The daemon currently has no push change-event feed.
 The worker reads current repository files (never paths outside an indexed root),
 passes those fresh excerpts to the model, and accepts an updated active memory
-only when every structured claim has a matching source quotation. The worker
+only for claims with a matching source quotation. The worker
 computes source line numbers and renders the article from validated claims;
 unverified free-form model prose cannot enter an active memory. Source quotes
 provide auditable provenance, but do not mechanically prove a claim's semantic
@@ -93,6 +98,28 @@ model cannot support a replacement, the historical artifact stays marked
 content is retained for audit, not reused as current evidence. A bounded local
 symbol search can locate moved cited files; if it cannot, a later solved
 interaction or source change can trigger another refresh.
+
+The model sees bounded excerpts; quote validation checks the full, freshly read
+source file (up to the safe file-size limit), without putting the entire file
+in the model prompt or logs. If a response mixes valid and invalid quotes, only
+grounded claims are saved (up to twelve per document); the rejected claim
+indexes and accepted count are recorded in the learning trace.
+
+New solved interactions search both current and historical documents for the
+same concept. When fresh file quotes support new facts, the worker updates the
+existing document and retains its ID and provisional notes. Legacy interaction
+IDs without current evidence move to historical provenance, so they do not
+block verified facts from becoming searchable. For an explicit user correction
+marked Solved whose claim lacks current code evidence, a matching document can
+retain the correction in `User-confirmed notes (not source-verified)` instead
+of promoting it to a sourced claim. Notes are redacted, revision-keyed and
+deduplicated; they remain provisional even if the document contains other
+verified claims. A correction with no matching document is not turned into a
+new source-backed fact.
+
+On the first restart after this extraction-policy change, completed knowledge
+jobs from the older policy are rechecked once against their durable interactions;
+the job version prevents repeated reprocessing on later restarts.
 
 Refresh uses the same job leases, retry policy, and restart reconciliation as
 feedback-based learning. Unrelated uncommitted changes are not detected unless
@@ -107,6 +134,13 @@ solutions and tool output as untrusted context, and requires claim-by-claim code
 citations plus a complete replacement body for existing artifacts. If a small
 model cannot fit coherent source evidence, the context limiter sends an explicit
 insufficient-evidence instruction instead of disconnected text fragments.
+The prompt asks for a brief decision reason. `learning-agent.log` records job
+events and why extraction was not queued; `learning-agent-trace.log` records
+redacted extraction input, the actual bounded model request and selected model,
+its response, skip reasons, provisional-note additions and artifact updates,
+correlated by job ID. These JSONL files live in `$CODEBERG_LOG_DIR` (normally
+`~/.codeberg/logs/`) with owner-only permissions. The trace contains model
+output and a short decision reason when supplied, not private model reasoning.
 
 ## Dataset capture
 
@@ -141,6 +175,10 @@ intact, but exports omit that stale revision until a new candidate is reviewed.
 The held-out query family remains reserved during review.
 `DatasetStore.active('eval' | 'training')` returns only current reviewed rows;
 `list(...)` intentionally includes historical versions for auditing.
+`candidates/` fills automatically from eligible interactions; `training/` and
+`eval/` only fill after explicit reviewed promotion. `embedding/` is an export
+destination, not a background queue: `codeberg learning export --type embedding`
+writes there only when approved current training retrieval examples are available.
 The offline CLI exposes `codeberg learning candidates`, `codeberg learning
 extract <interaction-id>`, and `codeberg learning promote <example-id> eval
 user_confirmed oracle.json` (or `training <provenance>`). `oracle.json` is a
