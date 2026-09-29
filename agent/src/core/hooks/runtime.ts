@@ -26,7 +26,10 @@ export function applyPromptHooksToMessages(
   }
 
   const next = messages.slice();
-  next[index] = { ...current, content: rewritten } as ModelMessage;
+  const content = current.role === 'user' && Array.isArray(current.content)
+    ? [{ type: 'text' as const, text: rewritten }, ...current.content.filter((part) => part.type !== 'text')]
+    : rewritten;
+  next[index] = { ...current, content } as ModelMessage;
   return next;
 }
 

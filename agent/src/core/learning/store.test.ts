@@ -55,6 +55,16 @@ function transcript(answerId = 'a1'): UIMessage[] {
 }
 
 describe('LearningStore', () => {
+  it('keeps knowledge interaction text usable without copying attached file bytes', async () => {
+    const learning = await store();
+    const messages = transcript();
+    messages[0].parts.push({ type: 'file', mediaType: 'image/png', filename: 'diagram.png',
+      url: 'data:image/png;base64,AQID' });
+    await learning.recordSession('with-image', messages);
+    const attempts = await learning.attempts();
+    expect(attempts[0].user_query).toBe('Where is fulfillmentType produced?');
+    expect(JSON.stringify(await learning.events())).not.toContain('AQID');
+  });
   it('keeps pre-versioned knowledge readable for explicit historical inspection', async () => {
     const learning = await store();
     const legacy = {

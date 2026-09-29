@@ -5,6 +5,18 @@ import type { UIMessage } from 'ai';
 import { Message } from './message';
 
 describe('assistant activity group', () => {
+  it('shows multimodal user attachments alongside text without exposing encoded bytes', () => {
+    const message = { id: 'u', role: 'user', parts: [
+      { type: 'text', text: 'Inspect this' },
+      { type: 'file', filename: 'picture.png', mediaType: 'image/png', url: 'data:image/png;base64,AQID' },
+      { type: 'file', filename: 'report.pdf', mediaType: 'application/pdf', url: 'data:application/pdf;base64,AQID' },
+    ] } as UIMessage;
+    const html = renderToStaticMarkup(<Message message={message} />);
+    expect(html).toContain('Inspect this');
+    expect(html).toContain('alt="picture.png"');
+    expect(html).toContain('report.pdf');
+    expect(html).not.toContain('data:application/pdf;base64,AQID');
+  });
   it('uses a compact feedback dropdown with full wording only when learning is enabled', () => {
     const message = { id: 'answer', role: 'assistant', parts: [{ type: 'text', text: 'Done.' }] } as UIMessage;
     const html = renderToStaticMarkup(<Message message={message} conversationId="chat" learningEnabled />);

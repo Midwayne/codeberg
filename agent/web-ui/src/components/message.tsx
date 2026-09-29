@@ -63,7 +63,9 @@ export function Message({
         )}
       >
         {isUser
-          ? userPromptText(message)
+          ? <>{userPromptText(message)}{message.parts.filter((part) => part.type === 'file').map((part, index) => (
+              <Attachment key={index} file={part as Extract<AnyPart, { type: 'file' }>} />
+            ))}</>
           : message.parts.map((part, i) =>
               isActivityPart(part) ? (
                 i === firstActivityIndex ? <ActivityGroup key="activity" parts={activityParts} /> : null
@@ -83,6 +85,18 @@ export function Message({
       )}
     </div>
   );
+}
+
+function Attachment({ file }: { file: Extract<AnyPart, { type: 'file' }> }) {
+  const name = file.filename ?? file.mediaType;
+  // Saved sessions may contain arbitrary URLs; only preview local embedded attachments.
+  const url = file.url.startsWith(`data:${file.mediaType};base64,`) ? file.url : undefined;
+  return <div className="mt-2 text-xs">
+    {url && file.mediaType.startsWith('image/') ? <img src={url} alt={name} className="max-h-64 max-w-full rounded-lg" /> :
+      url && file.mediaType.startsWith('audio/') ? <audio controls src={url} aria-label={name} className="max-w-full" /> :
+        url && file.mediaType.startsWith('video/') ? <video controls src={url} aria-label={name} className="max-h-64 max-w-full" /> : null}
+    <span className="break-all">{name}</span>
+  </div>;
 }
 
 function isToolPart(part: AnyPart): boolean {

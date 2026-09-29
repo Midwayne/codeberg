@@ -130,6 +130,7 @@ describe('web server', () => {
     // the fallback page's "/" autocomplete silently never opens.
     expect(body).toContain('/^\\/([a-zA-Z-]*)$/');
     expect(body).toContain('id="commands"');
+    expect(body).toContain('id="files"');
   });
 
   it('escapes the title to avoid HTML injection in the fallback page', async () => {
@@ -181,6 +182,43 @@ describe('web server', () => {
     });
     expect(invalid.status).toBe(400);
     expect((await (await fetch(`${baseUrl}/api/models`)).json()).chat.key).toBe('openai:large');
+  });
+
+  it('passes supported files through and rejects unsupported inputs before running the agent', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'codeberg-models-'));
+    tempDirs.push(dir);
+    writeFileSync(join(dir, 'models.yml'), `providers:
+  google:
+    models:
+      multi:
+        context_window: 32000
+        efforts: [none]
+        inputs: [text, vision, audio, video, pdf]
+      plain:
+        context_window: 32000
+        efforts: [none]
+`);
+    const store = new ModelSettingsStore({ home: dir,
+      defaultChat: { key: 'google:multi', effort: 'none' },
+      defaultLearning: { key: 'google:plain', effort: 'none' } });
+    const respond = vi.fn(async (res: ServerResponse, _messages: unknown[]) => { res.end('ok'); });
+    await start({ modelSettings: store, respond });
+    const send = (mediaType: string, url = `data:${mediaType};base64,AQID`) => fetch(baseUrl + CHAT_PATH, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: [{ id: 'u1', role: 'user', parts: [
+        { type: 'text', text: 'What is this?' }, { type: 'file', mediaType, filename: 'sample', url },
+      ] }] }),
+    });
+    for (const mediaType of ['image/png', 'audio/mpeg', 'video/mp4', 'application/pdf']) {
+      expect((await send(mediaType)).status).toBe(200);
+    }
+    expect(respond).toHaveBeenCalledTimes(4);
+    expect(respond.mock.calls[0][1]).toMatchObject([{ parts: [{ type: 'text' }, { type: 'file', mediaType: 'image/png' }] }]);
+    expect((await send('application/zip')).status).toBe(400);
+    expect((await send('image/png', 'https://example.com/image.png')).status).toBe(400);
+    await store.update({ chat: { key: 'google:plain', effort: 'none' }, learning: { key: 'google:plain', effort: 'none' } });
+    expect((await send('image/png')).status).toBe(400);
+    expect(respond).toHaveBeenCalledTimes(4);
   });
 
   it('omits learning routes and collection when the learning service is absent', async () => {

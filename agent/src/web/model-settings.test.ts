@@ -28,6 +28,34 @@ async function fixture() {
 }
 
 describe('ModelSettingsStore', () => {
+  it('reads declared input capabilities and defaults older catalogs to text', async () => {
+    const home = await fixture();
+    await writeFile(join(home, 'models.yml'), `providers:
+  google:
+    models:
+      gemini:
+        context_window: 32000
+        efforts: [none]
+        inputs: [text, vision, audio, video, pdf]
+      legacy:
+        context_window: 32000
+        efforts: [none]
+`);
+    const store = new ModelSettingsStore({ home, defaultChat: { key: 'google:gemini', effort: 'none' },
+      defaultLearning: { key: 'google:legacy', effort: 'none' } });
+    expect((await store.current()).models.map((model) => model.inputs)).toEqual([
+      ['text', 'vision', 'audio', 'video', 'pdf'], ['text'],
+    ]);
+    await writeFile(join(home, 'models.yml'), `providers:
+  google:
+    models:
+      bad:
+        context_window: 32000
+        efforts: [none]
+        inputs: [text, hologram]
+`);
+    await expect(store.current()).rejects.toThrow(/inputs/);
+  });
   it('accepts max effort for Responses models and rejects it for other providers', async () => {
     const home = await fixture();
     await writeFile(join(home, 'models.yml'), 'providers:\n  openai:\n    models:\n      sol-max:\n        model: gpt-5.6-sol\n        context_window: 32000\n        efforts: [high, max]\n');

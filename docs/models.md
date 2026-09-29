@@ -12,6 +12,7 @@ providers:
         label: Claude Sonnet
         context_window: 200000
         efforts: [provider-default, low, medium, high]
+        inputs: [text, vision, pdf] # only capabilities supported by this model/gateway
   openai:
     models:
       gpt-4o-128k:
@@ -41,6 +42,17 @@ include colons (quote them in YAML when necessary). The selected context window 
 history compaction and in-loop pruning. For learning jobs, oversized evidence is
 bounded to the selected model's window with excerpts from the beginning and end.
 Only list effort levels the model supports.
+
+`inputs` is optional and defaults to `[text]` for existing catalogs. Declare
+`text` plus the file types the selected model and provider endpoint actually
+accept: `vision` (images), `audio`, `video`, and `pdf`. The browser composer
+offers attachments only for those declared inputs. Files are sent as embedded
+data URLs with the chat history (up to 20 MB per file); the selected model must
+support every attachment in that history, including when switching models.
+Support also depends on the provider API: for example, the OpenAI Responses
+adapter accepts images, audio, and PDFs, while video requires an endpoint that
+accepts video files (such as compatible Google models). The background learning
+model continues to receive text-only extraction prompts.
 
 `CODEBERG_MODEL` is optional when `models.yml` exists. When supplied as the
 provider's actual model name, it chooses the first matching catalog entry;

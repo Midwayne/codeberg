@@ -4,13 +4,15 @@ import { SessionSidebar } from '@/components/session-sidebar';
 import { useWorkspaceSession } from '@/sessions/use-workspace-session';
 import { useState } from 'react';
 import { deriveTitle } from '@/lib/sessions';
+import type { CatalogModel } from '@/lib/models';
 
 /**
  * Composes the chat and sidebar around the shared session lifecycle.
  */
-export function Workspace({ sidebarOpen, learningEnabled, searchOpen, onSearchClose }: {
+export function Workspace({ sidebarOpen, learningEnabled, chatInputs, searchOpen, onSearchClose }: {
   sidebarOpen: boolean;
   learningEnabled: boolean;
+  chatInputs: CatalogModel['inputs'];
   searchOpen: boolean;
   onSearchClose: () => void;
 }) {
@@ -33,7 +35,7 @@ export function Workspace({ sidebarOpen, learningEnabled, searchOpen, onSearchCl
         />
       )}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <Chat chat={chat} sessionId={sessionId} learningEnabled={learningEnabled} onBranch={(index) => void branchFrom(index)} jump={jump?.sessionId === sessionId ? jump : undefined} />
+        <Chat chat={chat} sessionId={sessionId} learningEnabled={learningEnabled} chatInputs={chatInputs} onBranch={(index) => void branchFrom(index)} jump={jump?.sessionId === sessionId ? jump : undefined} />
       </div>
       <ChatSearch open={searchOpen} onClose={onSearchClose} currentId={sessionId} currentTitle={sessions.find((item) => item.id === sessionId)?.title ?? deriveTitle(chat.messages)} currentMessages={chat.messages} currentFlags={{ archived: sessions.find((item) => item.id === sessionId)?.archived ?? false, pinned: sessions.find((item) => item.id === sessionId)?.pinned ?? false }} onSelect={(id, messageId) => {
         if (messageId) setJump({ sessionId: id, messageId, nonce: Date.now() + Math.random() });

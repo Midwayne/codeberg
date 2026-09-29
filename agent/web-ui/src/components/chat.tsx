@@ -8,6 +8,7 @@ import { MessageRail } from '@/components/message-rail';
 import { PromptInput } from '@/components/prompt-input';
 import { messageIndexById } from '@/lib/branch';
 import { markerId, MESSAGE_ID_ATTR } from '@/lib/message-rail';
+import type { CatalogModel } from '@/lib/models';
 
 // `useChat` lives in the parent `Workspace` (which also owns session state), so
 // `Chat` is presentational over the helpers it returns. Branching is a session
@@ -17,12 +18,14 @@ export function Chat({
   onBranch,
   sessionId,
   learningEnabled,
+  chatInputs,
   jump,
 }: {
   chat: UseChatHelpers<UIMessage>;
   onBranch?: (throughIndex: number) => void;
   sessionId: string;
   learningEnabled: boolean;
+  chatInputs: CatalogModel['inputs'];
   jump?: { messageId: string; nonce: number };
 }) {
   const { messages, sendMessage, status, stop, regenerate, error } = chat;
@@ -130,7 +133,7 @@ export function Chat({
 
       <div className="shrink-0 border-t border-border bg-background">
         <div className="mx-auto max-w-3xl px-4 py-3">
-          <PromptInput busy={busy} onSend={(text) => sendMessage({ text })} onStop={stop} />
+          <PromptInput busy={busy} inputs={chatInputs} onSend={(text, files) => sendMessage({ text, ...(files.length ? { files } : {}) })} onStop={stop} />
           <p className="mt-2 text-center text-[11px] text-muted-foreground">
             Enter to send · Shift+Enter for newline · / for commands
           </p>

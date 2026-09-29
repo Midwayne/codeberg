@@ -1,12 +1,22 @@
-import { ArrowUp, Square } from 'lucide-react';
+import { ArrowUp, Paperclip, Square, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { CommandMenu } from '@/components/command-menu';
 import { commandQuery, matchCommands, type PromptCommand } from '@/lib/commands';
 import { useCommands } from '@/lib/use-commands';
 import { cn } from '@/lib/utils';
+import type { CatalogModel } from '@/lib/models';
 
 const MAX_HEIGHT = 200;
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
+
+function inputFor(file: File): CatalogModel['inputs'][number] | undefined {
+  if (file.type.startsWith('image/')) return 'vision';
+  if (file.type.startsWith('audio/')) return 'audio';
+  if (file.type.startsWith('video/')) return 'video';
+  if (file.type === 'application/pdf') return 'pdf';
+  return undefined;
+}
 
 /**
  * Auto-growing composer. Enter sends, Shift+Enter inserts a newline. The action
@@ -19,17 +29,22 @@ const MAX_HEIGHT = 200;
  */
 export function PromptInput({
   busy,
+  inputs,
   onSend,
   onStop,
 }: {
   busy: boolean;
-  onSend: (text: string) => void;
+  inputs: CatalogModel['inputs'];
+  onSend: (text: string, files: FileList) => void;
   onStop: () => void;
 }) {
   const [value, setValue] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
+  const [fileError, setFileError] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const [dismissed, setDismissed] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const commands = useCommands();
   const query = commandQuery(value);
@@ -51,11 +66,26 @@ export function PromptInput({
     setActiveIndex(0);
   }, [query]);
 
+  useEffect(() => {
+    setFiles((current) => {
+      const supported = current.filter((file) => {
+        const input = inputFor(file);
+        return input && inputs.includes(input);
+      });
+      return supported.length === current.length ? current : supported;
+    });
+  }, [inputs]);
+
   function submit() {
     const text = value.trim();
-    if (!text || busy) return;
-    onSend(text);
+    if ((!text && !files.length) || busy) return;
+    const transfer = new DataTransfer();
+    for (const file of files) transfer.items.add(file);
+    onSend(text, transfer.files);
     setValue('');
+    setFiles([]);
+    setFileError('');
+    if (fileRef.current) fileRef.current.value = '';
     setDismissed(false);
   }
 
@@ -100,8 +130,18 @@ export function PromptInput({
     }
   }
 
+  const acceptedTypes = [inputs.includes('vision') && 'image/*', inputs.includes('audio') && 'audio/*',
+    inputs.includes('video') && 'video/*', inputs.includes('pdf') && 'application/pdf'].filter(Boolean).join(',');
+
   return (
-    <div className="relative flex items-end gap-2 rounded-2xl border border-input bg-card p-2 shadow-sm transition-colors focus-within:border-ring">
+    <div className="relative rounded-2xl border border-input bg-card p-2 shadow-sm transition-colors focus-within:border-ring">
+      {files.length > 0 && <div className="flex flex-wrap gap-1.5 px-2 pb-2">
+        {files.map((file, index) => <span key={`${file.name}-${index}`} className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs">
+          {file.name}<button type="button" aria-label={`Remove ${file.name}`} onClick={() => setFiles(files.filter((_, i) => i !== index))}><X className="size-3" /></button>
+        </span>)}
+      </div>}
+      {fileError && <p role="alert" className="px-2 pb-2 text-xs text-destructive">{fileError}</p>}
+      <div className="flex items-end gap-2">
       {menuOpen && (
         <CommandMenu
           commands={matches}
@@ -122,6 +162,20 @@ export function PromptInput({
         placeholder="Ask about the codebase…  (type / for commands)"
         className="max-h-[200px] flex-1 resize-none bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-muted-foreground"
       />
+      {acceptedTypes && <>
+        <input ref={fileRef} type="file" multiple accept={acceptedTypes} className="hidden" aria-label="Attach files" onChange={(event) => {
+          const chosen = Array.from(event.target.files ?? []);
+          const rejected = chosen.find((file) => {
+            const input = inputFor(file);
+            return !input || !inputs.includes(input) || file.size > MAX_FILE_SIZE;
+          });
+          if (rejected) { setFileError(`Unsupported file or over 20 MB: ${rejected.name}`); event.target.value = ''; return; }
+          setFiles((current) => [...current, ...chosen]);
+          setFileError('');
+          event.target.value = '';
+        }} />
+        <button type="button" disabled={busy} onClick={() => fileRef.current?.click()} aria-label="Attach files" title="Attach files" className="inline-flex size-8 shrink-0 items-center justify-center rounded-xl text-muted-foreground hover:bg-accent disabled:opacity-30"><Paperclip className="size-4" /></button>
+      </>}
       {busy ? (
         <button
           type="button"
@@ -136,7 +190,7 @@ export function PromptInput({
         <button
           type="button"
           onClick={submit}
-          disabled={!value.trim()}
+          disabled={!value.trim() && !files.length}
           aria-label="Send"
           title="Send"
           className={cn(
@@ -147,6 +201,7 @@ export function PromptInput({
           <ArrowUp className="size-4" />
         </button>
       )}
+      </div>
     </div>
   );
 }

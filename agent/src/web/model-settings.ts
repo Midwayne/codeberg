@@ -12,6 +12,8 @@ import { maxReasoningProviderOptions } from '../core/reasoning.js';
 const EFFORTS: readonly ReasoningEffort[] = [
   'provider-default', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max',
 ];
+export const MODEL_INPUTS = ['text', 'vision', 'audio', 'video', 'pdf'] as const;
+export type ModelInput = typeof MODEL_INPUTS[number];
 
 export interface ModelSelection {
   /** Stable provider:key, independent of the provider's actual model name. */
@@ -27,6 +29,7 @@ export interface CatalogModel {
   label: string;
   contextWindow: number;
   efforts: ReasoningEffort[];
+  inputs: ModelInput[];
 }
 
 export interface ModelSettings extends ModelSelections {
@@ -156,6 +159,7 @@ export class ModelSettingsStore {
             ...(this.defaultChat.key === spec ? [this.defaultChat.effort] : []),
             ...(this.defaultLearning.key === spec ? [this.defaultLearning.effort] : []),
           ])],
+          inputs: ['text' as const],
         };
       });
       return fallback.filter((model) => !this.availableProvider || this.availableProvider(model.provider));
@@ -185,6 +189,11 @@ export class ModelSettingsStore {
           throw new Error(`invalid efforts for ${provider}:${id}`);
         }
         if (efforts.includes('max')) maxReasoningProviderOptions(provider);
+        const inputs = value.inputs ?? ['text'];
+        if (!Array.isArray(inputs) || inputs.length === 0 ||
+            !inputs.includes('text') || !inputs.every((input) => MODEL_INPUTS.includes(input as ModelInput))) {
+          throw new Error(`invalid inputs for ${provider}:${id}`);
+        }
         const label = value.label;
         if (label !== undefined && (typeof label !== 'string' || !label.trim())) {
           throw new Error(`invalid label for ${provider}:${id}`);
@@ -193,7 +202,7 @@ export class ModelSettingsStore {
           models.push({
             key: `${provider}:${id}`, model: `${provider}:${modelId}`,
             provider, label: typeof label === 'string' ? label : id,
-            contextWindow: Number(window), efforts: [...new Set(efforts)],
+            contextWindow: Number(window), efforts: [...new Set(efforts)], inputs: [...new Set(inputs)] as ModelInput[],
           });
         }
       }

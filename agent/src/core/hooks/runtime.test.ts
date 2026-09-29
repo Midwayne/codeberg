@@ -40,6 +40,13 @@ describe('/enhance prompt hook', () => {
     expect(String(out[2]?.content)).toContain('# Agent Brief');
     expect(messages[2]?.content).toBe('/enhance fix flaky tests');
   });
+  it('retains file parts when rewriting a multimodal prompt', () => {
+    const file = { type: 'file' as const, data: new Uint8Array([1, 2]), mediaType: 'application/pdf' };
+    const messages: ModelMessage[] = [{ role: 'user', content: [{ type: 'text', text: '/enhance read this' }, file] }];
+    const out = applyPromptHooksToMessages(messages);
+    expect(out[0].content).toEqual([{ type: 'text', text: expect.stringContaining('read this') }, file]);
+    expect(messages[0].content).toEqual([{ type: 'text', text: '/enhance read this' }, file]);
+  });
 });
 
 describe('wrapToolLoopAgentWithPromptHooks', () => {

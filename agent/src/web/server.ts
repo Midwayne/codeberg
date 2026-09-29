@@ -12,7 +12,7 @@ import { serveStatic } from './static.js';
 import { WebSessionStore } from './sessions.js';
 import { LEARNING_PATH, routeLearning } from './learning-routes.js';
 import type { LearningService } from '../core/learning/service.js';
-import { ModelSelectionError, type ModelSelection, type ModelSettingsStore } from './model-settings.js';
+import { ModelSelectionError, type ModelInput, type ModelSelection, type ModelSettingsStore } from './model-settings.js';
 import { formatWebTitle } from './title.js';
 
 /** The endpoint the browser chat client posts its message history to. */
@@ -131,6 +131,8 @@ async function route(
     const messages = Array.isArray(body?.messages) ? body.messages : [];
     const settings = await opts.modelSettings?.current();
     const selected = settings?.models.find((entry) => entry.key === settings.chat.key);
+    const error = validateChatFiles(messages, selected?.inputs ?? ['text']);
+    if (error) return sendText(res, 400, error);
     await respond(res, messages, selected && settings ? {
       ...settings.chat, model: selected.model, contextWindow: selected.contextWindow,
     } : undefined);
@@ -204,6 +206,33 @@ async function route(
 
   res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
   res.end('not found');
+}
+
+/** Check each submitted file, including previous turns sent again by the browser. */
+function validateChatFiles(messages: unknown[], inputs: readonly ModelInput[]): string | undefined {
+  for (const message of messages) {
+    if (!message || typeof message !== 'object' || !('parts' in message) || !Array.isArray(message.parts)) continue;
+    for (const part of message.parts) {
+      if (!part || typeof part !== 'object' || part.type !== 'file') continue;
+      const mediaType = part.mediaType;
+      const input: ModelInput | undefined = typeof mediaType === 'string'
+        ? mediaType.startsWith('image/') ? 'vision'
+          : mediaType.startsWith('audio/') ? 'audio'
+            : mediaType.startsWith('video/') ? 'video'
+              : mediaType === 'application/pdf' ? 'pdf' : undefined
+        : undefined;
+      if (!input || !inputs.includes(input)) return `selected model does not support ${String(mediaType)} files`;
+      // Files are embedded in the UI-message history and never fetched from arbitrary URLs.
+      if (typeof part.url !== 'string' || !part.url.startsWith(`data:${mediaType};base64,`) ||
+          !/^[A-Za-z0-9+/]*={0,2}$/.test(part.url.slice(part.url.indexOf(',') + 1))) {
+        return 'files must be base64 data URLs matching their media type';
+      }
+      if (part.url.length - part.url.indexOf(',') - 1 > Math.ceil(20 * 1024 * 1024 * 4 / 3) + 4) {
+        return 'files must be 20 MB or smaller';
+      }
+    }
+  }
+  return undefined;
 }
 
 /** Builds (but does not start) the HTTP server. Call `.listen()` to run it. */

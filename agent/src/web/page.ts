@@ -49,6 +49,7 @@ export const CHAT_PAGE_HTML = `<!doctype html>
   form { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid #30363d; position: relative; }
   #prompt { flex: 1; padding: 10px 12px; border-radius: 8px; border: 1px solid #30363d; background: #0d1117; color: #e6edf3; font: inherit; }
   #prompt:focus { outline: none; border-color: #1f6feb; }
+  #attachments { padding: 4px 16px; color: #8b949e; font-size: 12px; }
   button { padding: 0 18px; border-radius: 8px; border: 1px solid #238636; background: #238636; color: white; font: inherit; cursor: pointer; }
   button:disabled { opacity: .5; cursor: default; }
   .cmdmenu { position: absolute; left: 16px; right: 16px; bottom: calc(100% + 6px); background: #161b22; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,.45); }
@@ -63,9 +64,12 @@ export const CHAT_PAGE_HTML = `<!doctype html>
 <body>
 <header>{{TITLE}}</header>
 <div id="messages"></div>
+<div id="attachments" hidden></div>
 <form id="composer">
   <div id="commands" class="cmdmenu" hidden></div>
   <input id="prompt" placeholder="Ask about the codebase…  (/ for commands)" autocomplete="off" autofocus />
+  <input id="files" type="file" multiple hidden />
+  <button id="attach" type="button" aria-label="Attach files" title="Attach files" hidden>📎</button>
   <button type="submit">Send</button>
 </form>
 <script>
@@ -73,6 +77,39 @@ export const CHAT_PAGE_HTML = `<!doctype html>
 var root = document.getElementById("messages");
 var form = document.getElementById("composer");
 var input = document.getElementById("prompt");
+var fileInput = document.getElementById("files");
+var attach = document.getElementById("attach");
+var attachments = document.getElementById("attachments");
+var inputs = ["text"];
+var pendingFiles = [];
+fetch("/api/models").then(function (r) { return r.ok ? r.json() : null; }).then(function (settings) {
+  var model = settings && settings.models.find(function (m) { return m.key === settings.chat.key; });
+  inputs = model && model.inputs || ["text"];
+  var types = [inputs.includes("vision") && "image/*", inputs.includes("audio") && "audio/*",
+    inputs.includes("video") && "video/*", inputs.includes("pdf") && "application/pdf"].filter(Boolean);
+  fileInput.accept = types.join(",");
+  attach.hidden = !types.length;
+}).catch(function () {});
+attach.addEventListener("click", function () { fileInput.click(); });
+fileInput.addEventListener("change", function () {
+  var chosen = Array.from(fileInput.files);
+  var invalid = chosen.find(function (f) {
+    var type = f.type.indexOf("image/") === 0 ? "vision" : f.type.indexOf("audio/") === 0 ? "audio" :
+      f.type.indexOf("video/") === 0 ? "video" : f.type === "application/pdf" ? "pdf" : "";
+    return !inputs.includes(type) || f.size > 20 * 1024 * 1024;
+  });
+  if (invalid) { attachments.hidden = false; attachments.textContent = "Unsupported file or over 20 MB: " + invalid.name; }
+  else { pendingFiles = pendingFiles.concat(chosen); attachments.hidden = false; attachments.textContent = pendingFiles.map(function (f) { return f.name; }).join(", "); }
+  fileInput.value = "";
+});
+function filePart(file) {
+  return new Promise(function (resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function () { resolve({ type: "file", filename: file.name, mediaType: file.type, url: reader.result }); };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 // The conversation is held client-side and re-sent in full each turn, so the
 // server's /api/chat route stays stateless.
@@ -170,18 +207,24 @@ form.addEventListener("submit", function (e) { e.preventDefault(); send(); });
 
 function send() {
   var text = input.value.trim();
-  if (!text || input.disabled) return;
+  if ((!text && !pendingFiles.length) || input.disabled) return;
+  var files = pendingFiles;
+  pendingFiles = [];
+  attachments.hidden = true;
+  attachments.textContent = "";
   input.value = "";
   hideCmd();
   setBusy(true);
 
   var userWrap = addMessage("user");
   block(userWrap, "text").textContent = text;
-  history.push({ id: uid(), role: "user", parts: [{ type: "text", text: text }] });
-
   var aWrap = addMessage("assistant");
   var collected = [];
-  streamTurn(aWrap, collected)
+  Promise.all(files.map(filePart)).then(function (parts) {
+    parts.forEach(function (part) { block(userWrap, "text").textContent = part.filename; });
+    history.push({ id: uid(), role: "user", parts: [{ type: "text", text: text }].concat(parts) });
+    return streamTurn(aWrap, collected);
+  })
     .then(function () {
       history.push({ id: uid(), role: "assistant", parts: [{ type: "text", text: collected.join("") }] });
     })
@@ -438,7 +481,7 @@ function pretty(v) {
   catch (_) { return String(v); }
 }
 function uid() { return Math.random().toString(36).slice(2); }
-function setBusy(b) { input.disabled = b; form.querySelector("button").disabled = b; }
+function setBusy(b) { input.disabled = b; attach.disabled = b; form.querySelector('button[type="submit"]').disabled = b; }
 </script>
 </body>
 </html>`;

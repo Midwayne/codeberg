@@ -13,6 +13,7 @@ export interface CatalogModel {
   label: string;
   contextWindow: number;
   efforts: ReasoningEffort[];
+  inputs: ('text' | 'vision' | 'audio' | 'video' | 'pdf')[];
 }
 
 export interface ModelSettings {

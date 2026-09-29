@@ -4,10 +4,12 @@ import { useEffect, useRef, useState } from 'react';
 import { Workspace } from '@/components/workspace';
 import { ModelSettingsPanel } from '@/components/model-settings';
 import { TrainingReview } from '@/components/training-review';
+import { loadModelSettings, type CatalogModel } from '@/lib/models';
 
 export function App() {
   // The server exposes the model and reasoning effort at /api/meta.
   const [title, setTitle] = useState('');
+  const [chatInputs, setChatInputs] = useState<CatalogModel['inputs']>(['text']);
   const [learningEnabled, setLearningEnabled] = useState(false);
   const [learningBusy, setLearningBusy] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -25,6 +27,9 @@ export function App() {
         setLearningEnabled(meta?.capabilities?.learning === true);
       })
       .catch((err: unknown) => console.warn('failed to load /api/meta', err));
+    loadModelSettings().then((settings) => {
+      setChatInputs(settings.models.find((model) => model.key === settings.chat.key)?.inputs ?? ['text']);
+    }).catch((err: unknown) => console.warn('failed to load /api/models', err));
   }
 
   useEffect(() => {
@@ -101,7 +106,7 @@ export function App() {
         </div>
       </header>
       <div className={trainingOpen ? 'hidden' : 'flex min-h-0 flex-1'}>
-        <Workspace sidebarOpen={sidebarOpen} learningEnabled={learningEnabled} searchOpen={searchOpen} onSearchClose={() => { setSearchOpen(false); searchButton.current?.focus(); }} />
+        <Workspace sidebarOpen={sidebarOpen} learningEnabled={learningEnabled} chatInputs={chatInputs} searchOpen={searchOpen} onSearchClose={() => { setSearchOpen(false); searchButton.current?.focus(); }} />
       </div>
       {trainingOpen && <TrainingReview />}
       {settingsOpen && <ModelSettingsPanel onClose={closeSettings} onSaved={refreshMeta} />}

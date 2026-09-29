@@ -7,8 +7,8 @@ import type { CatalogModel } from '../lib/models';
 describe('ModelSettingsForm', () => {
   it('shows independent model/effort controls and both context windows', () => {
     const models: CatalogModel[] = [
-      { key: 'openai:alpha', model: 'openai:alpha', provider: 'openai', label: 'Alpha', contextWindow: 50000, efforts: ['low', 'high'] },
-      { key: 'openai:beta', model: 'openai:alpha', provider: 'openai', label: 'Beta', contextWindow: 90000, efforts: ['none', 'low'] },
+      { key: 'openai:alpha', model: 'openai:alpha', provider: 'openai', label: 'Alpha', contextWindow: 50000, efforts: ['low', 'high'], inputs: ['text'] },
+      { key: 'openai:beta', model: 'openai:alpha', provider: 'openai', label: 'Beta', contextWindow: 90000, efforts: ['none', 'low'], inputs: ['text'] },
     ];
     const html = renderToStaticMarkup(<ModelSettingsForm
       models={models}
