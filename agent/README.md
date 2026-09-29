@@ -291,7 +291,7 @@ pruning still runs at 60%. Override the window with `CODEBERG_CONTEXT_WINDOW`.
 make build-agent          # npm install + tsup bundles
 make build-web-ui         # Vite build → web-ui/dist
 make agent-test           # vitest in agent/
-cd agent && npm run typecheck
+make agent-check          # typecheck, test, and build agent + web UI
 ```
 
 Run locally (daemon must be up — `make run-daemon`):

@@ -121,7 +121,8 @@ export function PromptInput({
       }
       if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault();
-        accept(matches[Math.min(activeIndex, matches.length - 1)]);
+        const command = matches[Math.min(activeIndex, matches.length - 1)];
+        if (command) accept(command);
         return;
       }
       if (e.key === 'Escape') {

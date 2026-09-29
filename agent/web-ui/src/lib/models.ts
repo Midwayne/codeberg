@@ -9,7 +9,8 @@ export function selectModel(
 ): ModelSelection {
   const option = models.find((entry) => entry.key === key);
   if (!option) return current;
-  return { key, effort: option.efforts.includes(current.effort) ? current.effort : option.efforts[0] };
+  const effort = option.efforts.includes(current.effort) ? current.effort : option.efforts[0];
+  return effort ? { key, effort } : current;
 }
 
 export async function loadModelSettings(): Promise<ModelSettings> {

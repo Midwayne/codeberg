@@ -26,6 +26,7 @@ Vite proxies `/api/*` to `http://127.0.0.1:48088` (see `vite.config.ts`).
 
 ```sh
 npm run build    # output: web-ui/dist/
+npm run typecheck
 ```
 
 `codeberg-web` serves `web-ui/dist` by default (`CODEBERG_WEB_ROOT`). The launcher

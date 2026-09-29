@@ -72,8 +72,10 @@ export function ChatSearch({ open, onClose, onSelect, currentId, currentTitle, c
           if (targets?.length) {
             const first = targets[0];
             const last = targets[targets.length - 1];
-            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+            if (first && last) {
+              if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+              else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+            }
           }
         }
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {

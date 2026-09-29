@@ -41,7 +41,7 @@ DBMCP_BIN  := $(ROOT)/build/dbmcp
 
 .PHONY: build-core build test bench clean rebuild submodules help check set-version \
         build-daemon daemon-test build-agent build-web-ui build-dbmcp update-dbmcp \
-        agent-test dist format \
+        agent-test agent-check dist format \
         run-core run-index run-daemon run-agent run-agent-web gen-walk-skip
 
 help:
@@ -66,7 +66,8 @@ help:
 	@echo "    make test TEST=<name>     Run one test (test_smoke test_chunker …)"
 	@echo "    make daemon-test          Run Go tests in daemon/"
 	@echo "    make agent-test           Run agent tests (vitest)"
-	@echo "    make check                build-core + test (pre-PR gate)"
+	@echo "    make agent-check          Typecheck, test, and build agent + web UI (requires npm deps)"
+	@echo "    make check                build-core + test (C core gate)"
 	@echo "    make format               clang-format (C), gofmt (Go), prettier (TS)"
 	@echo "  Misc"
 	@echo "    make gen-walk-skip          Regenerate C/Go skip-dir tables from configs/walk_skip_dirs.txt"
@@ -153,6 +154,10 @@ build-web-ui:
 
 agent-test:
 	cd $(AGENT) && npm install && npm test
+
+agent-check:
+	cd $(AGENT) && npm run typecheck && npm test && npm run build
+	cd $(AGENT)/web-ui && npm run typecheck && npm run build
 
 # --- Package -----------------------------------------------------------------
 

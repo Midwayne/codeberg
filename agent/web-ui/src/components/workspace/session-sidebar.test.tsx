@@ -32,10 +32,10 @@ describe('SessionSidebar', () => {
   });
 
   it('shows reversible options and delete in the single actions menu', () => {
-    const html = renderToStaticMarkup(<SessionActionsMenu session={sessions[0]} onAction={() => undefined} />);
+    const html = renderToStaticMarkup(<SessionActionsMenu session={sessions[0]!} onAction={() => undefined} />);
     expect(html).toContain('Unarchive');
     expect(html).toContain('Pin');
     expect(html).toContain('Delete');
-    expect(renderToStaticMarkup(<SessionActionsMenu session={sessions[1]} onAction={() => undefined} />)).toContain('Unpin');
+    expect(renderToStaticMarkup(<SessionActionsMenu session={sessions[1]!} onAction={() => undefined} />)).toContain('Unpin');
   });
 });

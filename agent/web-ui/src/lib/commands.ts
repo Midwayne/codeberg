@@ -25,7 +25,7 @@ export async function listCommands(): Promise<PromptCommand[]> {
  */
 export function commandQuery(text: string): string | null {
   const match = /^\/([a-zA-Z-]*)$/.exec(text);
-  return match ? match[1].toLowerCase() : null;
+  return match ? (match[1] ?? '').toLowerCase() : null;
 }
 
 /** Commands whose trigger starts with the typed query, in catalog order. */

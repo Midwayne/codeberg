@@ -57,8 +57,7 @@ export function promptPreview(text: string, maxLen = DEFAULT_PREVIEW_MAX): strin
 /** User turns, in conversation order. Missing ids fall back to `user-<index>`. */
 export function collectUserMarkers(messages: readonly RailMessage[]): UserMarker[] {
   const out: UserMarker[] = [];
-  for (let i = 0; i < messages.length; i++) {
-    const m = messages[i];
+  for (const [i, m] of messages.entries()) {
     if (m.role !== 'user') continue;
     out.push({ id: markerId(m, i), prompt: userPromptText(m) });
   }
@@ -88,7 +87,8 @@ export function layoutMarkers(
 
   const even = (list: readonly MarkerLayoutInput[]): MarkerLayout[] => {
     if (list.length === 1) {
-      return [{ id: list[0].id, top: pad + finiteFraction(list[0].fraction) * usable }];
+      const item = list[0]!;
+      return [{ id: item.id, top: pad + finiteFraction(item.fraction) * usable }];
     }
     const gap = usable / (list.length - 1);
     return list.map((item, i) => ({ id: item.id, top: pad + i * gap }));
@@ -105,19 +105,19 @@ export function layoutMarkers(
 
   const tops = items.map((item) => pad + finiteFraction(item.fraction) * usable);
   for (let i = 1; i < tops.length; i++) {
-    tops[i] = Math.max(tops[i], tops[i - 1] + minGap);
+    tops[i] = Math.max(tops[i]!, tops[i - 1]! + minGap);
   }
   const maxTop = pad + usable;
-  if (tops[tops.length - 1] > maxTop) {
+  if (tops[tops.length - 1]! > maxTop) {
     tops[tops.length - 1] = maxTop;
     for (let i = tops.length - 2; i >= 0; i--) {
-      tops[i] = Math.min(tops[i], tops[i + 1] - minGap);
+      tops[i] = Math.min(tops[i]!, tops[i + 1]! - minGap);
     }
-    if (tops[0] < pad) {
+    if (tops[0]! < pad) {
       return even(items);
     }
   }
-  return items.map((item, i) => ({ id: item.id, top: tops[i] }));
+  return items.map((item, i) => ({ id: item.id, top: tops[i]! }));
 }
 
 /**
@@ -134,10 +134,10 @@ export function activeMarkerId(
 ): string | null {
   if (markers.length === 0) return null;
   if (scrollTop + clientHeight >= scrollHeight - 8) {
-    return markers[markers.length - 1].id;
+    return markers[markers.length - 1]!.id;
   }
   const probe = scrollTop + probeOffset;
-  let current = markers[0].id;
+  let current = markers[0]!.id;
   for (const m of markers) {
     if (m.topInContent <= probe) current = m.id;
     else break;
@@ -151,13 +151,13 @@ export function nearestMarkerId(
   y: number,
 ): string | null {
   if (laid.length === 0 || !Number.isFinite(y)) return null;
-  let bestId = laid[0].id;
-  let bestDist = Math.abs(y - laid[0].top);
-  for (let i = 1; i < laid.length; i++) {
-    const d = Math.abs(y - laid[i].top);
+  let bestId = laid[0]!.id;
+  let bestDist = Math.abs(y - laid[0]!.top);
+  for (const marker of laid.slice(1)) {
+    const d = Math.abs(y - marker.top);
     if (d < bestDist) {
       bestDist = d;
-      bestId = laid[i].id;
+      bestId = marker.id;
     }
   }
   return bestId;

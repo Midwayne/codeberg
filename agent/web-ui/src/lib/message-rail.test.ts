@@ -95,20 +95,20 @@ describe('layoutMarkers', () => {
       markerSize: 0,
       minGap: 8,
     });
-    expect(one.id).toBe('a');
-    expect(one.top).toBe(50);
+    expect(one?.id).toBe('a');
+    expect(one?.top).toBe(50);
 
     const [high] = layoutMarkers([{ id: 'a', fraction: 2 }], 100, {
       pad: 10,
       markerSize: 0,
     });
-    expect(high.top).toBe(90);
+    expect(high?.top).toBe(90);
 
     const [nan] = layoutMarkers([{ id: 'a', fraction: Number.NaN }], 100, {
       pad: 10,
       markerSize: 0,
     });
-    expect(nan.top).toBe(10);
+    expect(nan?.top).toBe(10);
   });
 
   it('spreads overlapping fractions so ticks stay ordered and at least minGap apart', () => {
@@ -122,10 +122,10 @@ describe('layoutMarkers', () => {
       { pad: 10, markerSize: 0, minGap: 12 },
     );
     expect(laid.map((m) => m.id)).toEqual(['a', 'b', 'c']);
-    expect(laid[1].top - laid[0].top).toBeGreaterThanOrEqual(12);
-    expect(laid[2].top - laid[1].top).toBeGreaterThanOrEqual(12);
-    expect(laid[0].top).toBeGreaterThanOrEqual(10);
-    expect(laid[2].top).toBeLessThanOrEqual(190);
+    expect(laid[1]!.top - laid[0]!.top).toBeGreaterThanOrEqual(12);
+    expect(laid[2]!.top - laid[1]!.top).toBeGreaterThanOrEqual(12);
+    expect(laid[0]?.top).toBeGreaterThanOrEqual(10);
+    expect(laid[2]?.top).toBeLessThanOrEqual(190);
   });
 
   it('evenly distributes when there are more ticks than the track can space', () => {
@@ -135,10 +135,10 @@ describe('layoutMarkers', () => {
     }));
     const laid = layoutMarkers(items, 50, { pad: 5, markerSize: 0, minGap: 12 });
     expect(laid).toHaveLength(10);
-    expect(laid[0].top).toBe(5);
-    expect(laid[9].top).toBe(45);
+    expect(laid[0]?.top).toBe(5);
+    expect(laid[9]?.top).toBe(45);
     for (let i = 1; i < laid.length; i++) {
-      expect(laid[i].top).toBeGreaterThan(laid[i - 1].top);
+      expect(laid[i]!.top).toBeGreaterThan(laid[i - 1]!.top);
     }
   });
 
@@ -151,9 +151,9 @@ describe('layoutMarkers', () => {
       100,
       { pad: 0, markerSize: 0, minGap: 8 },
     );
-    expect(laid[0].id).toBe('first');
-    expect(laid[1].id).toBe('second');
-    expect(laid[1].top).toBeGreaterThan(laid[0].top);
+    expect(laid[0]?.id).toBe('first');
+    expect(laid[1]?.id).toBe('second');
+    expect(laid[1]!.top).toBeGreaterThan(laid[0]!.top);
   });
 });
 

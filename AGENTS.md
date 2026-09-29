@@ -22,17 +22,18 @@ paths — use `CODEBERG_ROOT` or `cberg_config_*` helpers.
 | `make build` | Configure and compile `libcodeberg` + `cberg-index` |
 | `make test` | Run all core tests (`ctest`) |
 | `make test TEST=<name>` | Run one test binary (e.g. `test_chunker`) |
-| `make check` | `build` + `test` — pre-PR gate (same as CI) |
+| `make check` | `build` + `test` for the C core |
 | `make build-daemon` | Build Go `codeberg-d` (requires `cberg-index`) |
 | `make daemon-test` | `go test ./...` in `daemon/` |
 | `make build-agent` | `npm install` + build in `agent/` |
 | `make agent-test` | Vitest in `agent/` |
+| `make agent-check` | Typecheck, test, and build the agent and web UI (install both packages first) |
 | `make build-dbmcp` | Build the built-in multi-db MCP server (`build/dbmcp`) |
 | `make update-dbmcp` | Pull upstream `multi-db-mcp-server` and rebuild |
 
-CI (`.github/workflows/ci.yml`) runs `make submodules`, `make build`, and `make test`
-on Ubuntu with CMake and Ninja. Match that for verification unless the task needs
-daemon or agent coverage.
+CI (`.github/workflows/ci.yml`) builds and tests the C core, and separately
+typechecks, tests, and builds the agent and web UI on Ubuntu. Match the relevant
+layer for local verification.
 
 ## Coding standards
 
@@ -101,7 +102,9 @@ make daemon-test
 **TypeScript agent:**
 
 ```bash
-make agent-test
+npm ci --prefix agent
+npm ci --prefix agent/web-ui
+make agent-check
 ```
 
 **End-to-end agent (optional — needs LLM API key in secrets):**

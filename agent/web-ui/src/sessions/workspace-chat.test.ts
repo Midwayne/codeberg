@@ -56,7 +56,7 @@ describe('workspace chats', () => {
     await expect
       .poll(() => transport.requests.map((request) => request.chatId))
       .toEqual(['chat-a']);
-    const requestA = transport.requests[0];
+    const requestA = transport.requests[0]!;
     streamText(requestA, 'assistant-a', 'text-a', 'answer A');
     await expect.poll(() => chatA.chat.messages.map(text)).toEqual(['question A', 'answer A']);
 
@@ -79,7 +79,7 @@ describe('workspace chats', () => {
       .poll(() => transport.requests.map((request) => request.chatId))
       .toEqual(['chat-a', 'chat-b']);
 
-    const requestB = transport.requests[1];
+    const requestB = transport.requests[1]!;
     streamText(requestB, 'assistant-b', 'text-b', 'answer B');
     requestA.controller.enqueue({ type: 'text-delta', id: 'text-a', delta: ' continued' });
 
