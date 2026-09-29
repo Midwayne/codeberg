@@ -7,13 +7,13 @@ import { promptCommandCatalog, type PromptCommand } from '../core/hooks/index.js
 import { writeModuleLog } from '../core/module-log.js';
 import { CHAT_PAGE_HTML } from './page.js';
 import { readJson, sendJson, sendText } from './http.js';
-import { routeSessions } from './session-routes.js';
+import { routeChat, routeMeta, type ChatResponder, type ResolvedModelSelection } from './chat-routes.js';
+import { routeSessions } from './sessions/routes.js';
 import { serveStatic } from './static.js';
-import { WebSessionStore } from './sessions.js';
+import { WebSessionStore } from './sessions/store.js';
 import { LEARNING_PATH, routeLearning } from './learning-routes.js';
 import type { LearningService } from '../core/learning/service.js';
-import { ModelSelectionError, type ModelInput, type ModelSelection, type ModelSettingsStore } from './model-settings.js';
-import { formatWebTitle } from './title.js';
+import { ModelSelectionError, type ModelSettingsStore } from './model-selection/settings.js';
 
 /** The endpoint the browser chat client posts its message history to. */
 export const CHAT_PATH = '/api/chat';
@@ -28,10 +28,7 @@ export const MODELS_PATH = '/api/models';
 export { LEARNING_PATH };
 
 /** Streams an agent turn to a Node response, given the client's UI messages. */
-export type ResolvedModelSelection = ModelSelection & { model: string; contextWindow: number };
-export type ChatResponder = (
-  res: ServerResponse, messages: unknown[], selected?: ResolvedModelSelection,
-) => Promise<void>;
+export type { ChatResponder, ResolvedModelSelection } from './chat-routes.js';
 
 export interface WebServerOptions {
   /** The ai-sdk agent driving each turn. */
@@ -127,29 +124,15 @@ async function route(
   const path = url.pathname;
 
   if (req.method === 'POST' && path === CHAT_PATH) {
-    const body = await readJson(req);
-    const messages = Array.isArray(body?.messages) ? body.messages : [];
-    const settings = await opts.modelSettings?.current();
-    const selected = settings?.models.find((entry) => entry.key === settings.chat.key);
-    const error = validateChatFiles(messages, selected?.inputs ?? ['text']);
-    if (error) return sendText(res, 400, error);
-    await respond(res, messages, selected && settings ? {
-      ...settings.chat, model: selected.model, contextWindow: selected.contextWindow,
-    } : undefined);
-    return;
+    return routeChat(req, res, opts.modelSettings, respond);
   }
 
   if (req.method === 'GET' && path === META_PATH) {
-    const settings = await opts.modelSettings?.current();
-    const selected = settings?.models.find((entry) => entry.key === settings.chat.key);
-    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify({
-      title: settings && selected
-        ? `${formatWebTitle(selected.model, settings.chat.effort)}${selected.key !== selected.model ? ` · ${selected.key.slice(selected.provider.length + 1)}` : ''}`
-        : opts.title,
-      capabilities: { learning: Boolean(opts.learning) },
-    }));
-    return;
+    return routeMeta(res, {
+      title: opts.title,
+      learningEnabled: Boolean(opts.learning),
+      modelSettings: opts.modelSettings,
+    });
   }
 
   if (path === MODELS_PATH && opts.modelSettings) {
@@ -206,33 +189,6 @@ async function route(
 
   res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
   res.end('not found');
-}
-
-/** Check each submitted file, including previous turns sent again by the browser. */
-function validateChatFiles(messages: unknown[], inputs: readonly ModelInput[]): string | undefined {
-  for (const message of messages) {
-    if (!message || typeof message !== 'object' || !('parts' in message) || !Array.isArray(message.parts)) continue;
-    for (const part of message.parts) {
-      if (!part || typeof part !== 'object' || part.type !== 'file') continue;
-      const mediaType = part.mediaType;
-      const input: ModelInput | undefined = typeof mediaType === 'string'
-        ? mediaType.startsWith('image/') ? 'vision'
-          : mediaType.startsWith('audio/') ? 'audio'
-            : mediaType.startsWith('video/') ? 'video'
-              : mediaType === 'application/pdf' ? 'pdf' : undefined
-        : undefined;
-      if (!input || !inputs.includes(input)) return `selected model does not support ${String(mediaType)} files`;
-      // Files are embedded in the UI-message history and never fetched from arbitrary URLs.
-      if (typeof part.url !== 'string' || !part.url.startsWith(`data:${mediaType};base64,`) ||
-          !/^[A-Za-z0-9+/]*={0,2}$/.test(part.url.slice(part.url.indexOf(',') + 1))) {
-        return 'files must be base64 data URLs matching their media type';
-      }
-      if (part.url.length - part.url.indexOf(',') - 1 > Math.ceil(20 * 1024 * 1024 * 4 / 3) + 4) {
-        return 'files must be 20 MB or smaller';
-      }
-    }
-  }
-  return undefined;
 }
 
 /** Builds (but does not start) the HTTP server. Call `.listen()` to run it. */

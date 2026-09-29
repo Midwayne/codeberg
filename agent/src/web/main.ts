@@ -12,8 +12,8 @@ import { codebergHome } from '../core/paths.js';
 import { defaultProviders } from '../providers/index.js';
 import { createWebServer } from './server.js';
 import { formatWebTitle } from './title.js';
-import { ModelSettingsStore } from './model-settings.js';
-import { createLearningGenerator, createWebModelPool } from './model-runtime.js';
+import { ModelSettingsStore } from './model-selection/settings.js';
+import { createLearningGenerator, createWebModelPool } from './model-selection/runtime.js';
 
 // Serves the interactive chat UI over HTTP. The route streams the shared
 // `toolLoopAgent()`'s UI-message output

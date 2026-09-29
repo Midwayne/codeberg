@@ -1,7 +1,7 @@
 import { ArrowUp, Paperclip, Square, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { CommandMenu } from '@/components/command-menu';
+import { CommandMenu } from './command-menu';
 import { commandQuery, matchCommands, type PromptCommand } from '@/lib/commands';
 import { useCommands } from '@/lib/use-commands';
 import { cn } from '@/lib/utils';

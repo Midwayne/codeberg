@@ -1,7 +1,7 @@
 import { GraduationCap, PanelLeft, Search, Settings2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { Workspace } from '@/components/workspace';
+import { Workspace } from '@/components/workspace/workspace';
 import { ModelSettingsPanel } from '@/components/model-settings';
 import { TrainingReview } from '@/components/training-review';
 import { loadModelSettings, type CatalogModel } from '@/lib/models';

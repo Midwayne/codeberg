@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import type { UIMessage } from 'ai';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { WebSessionStore, isValidSessionId } from './sessions.js';
+import { WebSessionStore, isValidSessionId } from './store.js';
 
 const dirs: string[] = [];
 function tempStore(): WebSessionStore {

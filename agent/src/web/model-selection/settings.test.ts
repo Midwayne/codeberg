@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { ModelSettingsStore } from './model-settings.js';
+import { ModelSettingsStore } from './settings.js';
 
 const dirs: string[] = [];
 afterEach(async () => {

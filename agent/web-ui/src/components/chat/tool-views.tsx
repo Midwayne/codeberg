@@ -10,8 +10,8 @@ import {
   Wrench,
 } from 'lucide-react';
 
-import { Response } from '@/components/response';
-import type { ToolView } from '@/components/message';
+import { Response } from './response';
+import type { ToolView } from './message';
 import { Collapsible, CopyButton } from '@/components/ui';
 import {
   extractFindReferences,

@@ -1,13 +1,13 @@
 import type { LanguageModel, ToolLoopAgent } from 'ai';
 
-import { createAgent } from '../core/config.js';
-import { wrapToolLoopAgentWithCompaction } from '../core/compaction.js';
-import { fromAiSdk } from '../core/generator.js';
-import type { LearningService } from '../core/learning/service.js';
-import type { Generator } from '../core/types.js';
-import { writeLearningTrace } from '../core/module-log.js';
-import type { ModelSettingsStore } from './model-settings.js';
-import type { ResolvedModelSelection } from './server.js';
+import { createAgent } from '../../core/config.js';
+import { wrapToolLoopAgentWithCompaction } from '../../core/compaction.js';
+import { fromAiSdk } from '../../core/generator.js';
+import type { LearningService } from '../../core/learning/service.js';
+import type { Generator } from '../../core/types.js';
+import { writeLearningTrace } from '../../core/module-log.js';
+import type { ModelSettingsStore } from './settings.js';
+import type { ResolvedModelSelection } from '../chat-routes.js';
 
 /** A loop's model, effort, and history budget are immutable for its lifetime. */
 export class ModelAgentPool {

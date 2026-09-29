@@ -1,26 +1,6 @@
-import type { ReasoningEffort } from '@agent/core/types.js';
+import type { CatalogModel, ModelSelection, ModelSettings } from '@agent/core/model-types.js';
 
-export interface ModelSelection {
-  key: string;
-  effort: ReasoningEffort;
-}
-
-export interface CatalogModel {
-  key: string;
-  /** Provider:model sent to the model API; can be shared by multiple keys. */
-  model: string;
-  provider: string;
-  label: string;
-  contextWindow: number;
-  efforts: ReasoningEffort[];
-  inputs: ('text' | 'vision' | 'audio' | 'video' | 'pdf')[];
-}
-
-export interface ModelSettings {
-  chat: ModelSelection;
-  learning: ModelSelection;
-  models: CatalogModel[];
-}
+export type { CatalogModel, ModelSelection, ModelSettings } from '@agent/core/model-types.js';
 
 export function selectModel(
   current: ModelSelection,

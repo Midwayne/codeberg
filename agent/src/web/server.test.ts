@@ -19,8 +19,8 @@ import {
   type ChatResponder,
   type WebServerOptions,
 } from './server.js';
-import { WebSessionStore } from './sessions.js';
-import { ModelSettingsStore } from './model-settings.js';
+import { WebSessionStore } from './sessions/store.js';
+import { ModelSettingsStore } from './model-selection/settings.js';
 import { formatWebTitle } from './title.js';
 
 // `agent` is unused when `respond` is injected; cast a stub so the tests can

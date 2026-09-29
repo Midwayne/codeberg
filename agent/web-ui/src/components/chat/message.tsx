@@ -2,8 +2,8 @@ import { Brain, CircleAlert, GitBranch, Loader2, RefreshCw, Wrench } from 'lucid
 import type { UIMessage } from 'ai';
 import { useEffect, useRef, useState } from 'react';
 
-import { Response } from '@/components/response';
-import { ToolViewRouter } from '@/components/tool-views';
+import { Response } from './response';
+import { ToolViewRouter } from './tool-views';
 import { Collapsible, CopyButton, IconButton } from '@/components/ui';
 import { userPromptText } from '@/lib/message-rail';
 import { cn } from '@/lib/utils';

@@ -8,7 +8,7 @@ import {
 import type { LearningService } from '../core/learning/service.js';
 import { reviewDashboard } from '../core/learning/review.js';
 import { readJson, sendJson, sendText } from './http.js';
-import { isValidSessionId, type WebSessionStore } from './sessions.js';
+import { isValidSessionId, type WebSessionStore } from './sessions/store.js';
 
 export const LEARNING_PATH = '/api/learning';
 

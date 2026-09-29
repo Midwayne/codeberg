@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 // (the bulk of the bundle). Load it lazily so the initial app shell stays
 // small; until the chunk arrives, show the raw text (readable, no flicker to
 // blank). After the first load it renders inline.
-const Markdown = lazy(() => import('@/components/markdown'));
+const Markdown = lazy(() => import('./markdown'));
 
 /**
  * Streaming-aware markdown. Streamdown (the engine behind ai-elements'

@@ -3,9 +3,9 @@ import type { UIMessage } from 'ai';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
-import { Message } from '@/components/message';
-import { MessageRail } from '@/components/message-rail';
-import { PromptInput } from '@/components/prompt-input';
+import { Message } from './message';
+import { MessageRail } from './message-rail';
+import { PromptInput } from './prompt-input';
 import { messageIndexById } from '@/lib/branch';
 import { markerId, MESSAGE_ID_ATTR } from '@/lib/message-rail';
 import type { CatalogModel } from '@/lib/models';

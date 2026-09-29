@@ -1,9 +1,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-import { readJson, sendJson, sendText } from './http.js';
-import { WebSessionStore, isValidSessionId } from './sessions.js';
-import type { LearningService } from '../core/learning/service.js';
-import { writeModuleLog } from '../core/module-log.js';
+import { readJson, sendJson, sendText } from '../http.js';
+import { WebSessionStore, isValidSessionId } from './store.js';
+import type { LearningService } from '../../core/learning/service.js';
+import { writeModuleLog } from '../../core/module-log.js';
 
 const SESSIONS_PATH = '/api/sessions';
 

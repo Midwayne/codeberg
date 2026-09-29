@@ -1,6 +1,6 @@
-import { Chat } from '@/components/chat';
-import { ChatSearch } from '@/components/chat-search';
-import { SessionSidebar } from '@/components/session-sidebar';
+import { Chat } from '@/components/chat/chat';
+import { ChatSearch } from './chat-search';
+import { SessionSidebar } from './session-sidebar';
 import { useWorkspaceSession } from '@/sessions/use-workspace-session';
 import { useState } from 'react';
 import { deriveTitle } from '@/lib/sessions';

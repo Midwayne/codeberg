@@ -3,9 +3,9 @@ import { join } from 'node:path';
 
 import type { UIMessage } from 'ai';
 
-import { codebergHome } from '../core/paths.js';
-import { writeJsonAtomic } from '../core/learning/fs.js';
-import { messageSearchHits, type MessageSearchHit } from '../core/session-search.js';
+import { codebergHome } from '../../core/paths.js';
+import { writeJsonAtomic } from '../../core/learning/fs.js';
+import { messageSearchHits, type MessageSearchHit } from '../../core/session-search.js';
 
 /** One persisted browser chat — UI messages verbatim, so a resume re-renders
  *  with full fidelity (tool cards, reasoning, citations). */
