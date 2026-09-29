@@ -49,6 +49,8 @@ accept: `vision` (images), `audio`, `video`, and `pdf`. The browser composer
 offers attachments only for those declared inputs. Files are sent as embedded
 data URLs with the chat history (up to 20 MB per file); the selected model must
 support every attachment in that history, including when switching models.
+With `vision` selected, you can also paste screenshots into the focused chat
+composer with Cmd/Ctrl+V; ordinary text pastes work as before.
 Support also depends on the provider API: for example, the OpenAI Responses
 adapter accepts images, audio, and PDFs, while video requires an endpoint that
 accepts video files (such as compatible Google models). The background learning

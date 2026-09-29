@@ -131,6 +131,7 @@ describe('web server', () => {
     expect(body).toContain('/^\\/([a-zA-Z-]*)$/');
     expect(body).toContain('id="commands"');
     expect(body).toContain('id="files"');
+    expect(body).toContain('input.addEventListener("paste"');
   });
 
   it('escapes the title to avoid HTML injection in the fallback page', async () => {

@@ -93,6 +93,17 @@ fetch("/api/models").then(function (r) { return r.ok ? r.json() : null; }).then(
 attach.addEventListener("click", function () { fileInput.click(); });
 fileInput.addEventListener("change", function () {
   var chosen = Array.from(fileInput.files);
+  attachFiles(chosen);
+  fileInput.value = "";
+});
+input.addEventListener("paste", function (event) {
+  if (!inputs.includes("vision") || input.disabled) return;
+  var images = Array.from(event.clipboardData.files).filter(function (f) { return f.type.indexOf("image/") === 0; });
+  if (!images.length) return; // Leave ordinary text pastes alone.
+  event.preventDefault();
+  attachFiles(images);
+});
+function attachFiles(chosen) {
   var invalid = chosen.find(function (f) {
     var type = f.type.indexOf("image/") === 0 ? "vision" : f.type.indexOf("audio/") === 0 ? "audio" :
       f.type.indexOf("video/") === 0 ? "video" : f.type === "application/pdf" ? "pdf" : "";
@@ -100,8 +111,7 @@ fileInput.addEventListener("change", function () {
   });
   if (invalid) { attachments.hidden = false; attachments.textContent = "Unsupported file or over 20 MB: " + invalid.name; }
   else { pendingFiles = pendingFiles.concat(chosen); attachments.hidden = false; attachments.textContent = pendingFiles.map(function (f) { return f.name; }).join(", "); }
-  fileInput.value = "";
-});
+}
 function filePart(file) {
   return new Promise(function (resolve, reject) {
     var reader = new FileReader();

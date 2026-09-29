@@ -18,6 +18,12 @@ function inputFor(file: File): CatalogModel['inputs'][number] | undefined {
   return undefined;
 }
 
+export function clipboardImages(files: FileList, inputs: readonly CatalogModel['inputs'][number][]): File[] {
+  return inputs.includes('vision')
+    ? Array.from(files).filter((file) => file.type.startsWith('image/'))
+    : [];
+}
+
 /**
  * Auto-growing composer. Enter sends, Shift+Enter inserts a newline. The action
  * button becomes a stop control while a turn is streaming.
@@ -157,6 +163,18 @@ export function PromptInput({
         onChange={(e) => {
           setValue(e.target.value);
           setDismissed(false);
+        }}
+        onPaste={(event) => {
+          const images = clipboardImages(event.clipboardData.files, inputs);
+          if (!images.length || busy) return;
+          event.preventDefault();
+          const oversized = images.find((file) => file.size > MAX_FILE_SIZE);
+          if (oversized) {
+            setFileError(`Unsupported file or over 20 MB: ${oversized.name}`);
+            return;
+          }
+          setFiles((current) => [...current, ...images]);
+          setFileError('');
         }}
         onKeyDown={onKeyDown}
         placeholder="Ask about the codebase…  (type / for commands)"
