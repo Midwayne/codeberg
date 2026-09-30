@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ProcessMonitor, parseProcessSnapshot, selectProcessTree, type ProcessSnapshot } from './process-resources.js';
+import { ProcessMonitor, parseProcessSnapshot, selectProcessTree, workerName, type ProcessSnapshot } from './process-resources.js';
 
 const MB = 1024 * 1024;
 afterEach(() => { vi.unstubAllGlobals(); });
@@ -8,6 +8,25 @@ function row(pid: number, ppid: number, command: string, rssBytes = MB, cpuMs = 
 }
 
 describe('Codeberg process attribution', () => {
+  it('names known Python workers by their Codeberg component and preserves unknown Python names', () => {
+    expect(workerName('/home/.codeberg/embedding-venv/bin/python', '', '/models/qwen3-fp16-mlx', 'mlx')).toBe('Embedding worker — Qwen3/MLX');
+    expect(workerName('/home/.codeberg/searxng/venv/bin/python')).toBe('Web search — SearXNG');
+    expect(workerName('python3', 'python3 /app/embedding_worker.py mlx /models/qwen3-fp16-mlx')).toBe('Embedding worker — Qwen3/MLX');
+    expect(workerName('python', 'python -m searx.webapp')).toBe('Web search — SearXNG');
+    expect(workerName('python', 'python /app/custom.py')).toBe('python');
+  });
+
+  it('resolves a worker name once per process identity rather than on every sample', async () => {
+    const rows = [row(20, 1, 'node'), row(30, 20, 'python')];
+    const readArguments = vi.fn(async () => 'python -m searx.webapp');
+    const monitor = new ProcessMonitor({ pid: 20, readProcesses: async () => rows, readArguments });
+    expect((await monitor.sample()).processes.find((item) => item.pid === 30)?.name).toBe('Web search — SearXNG');
+    await monitor.sample();
+    expect(readArguments).toHaveBeenCalledTimes(1);
+    rows[1]!.startedAt = 100;
+    await monitor.sample();
+    expect(readArguments).toHaveBeenCalledTimes(2);
+  });
   it('selects the launcher, daemon, indexer, and managed workers without counting unrelated apps or the browser', () => {
     const rows = [
       row(10, 1, '/bin/codeberg'), row(20, 10, '/bin/node'), row(30, 10, '/bin/codeberg-d'),

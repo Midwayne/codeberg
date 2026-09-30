@@ -25,6 +25,7 @@ export interface ProcessUsage {
 export class ProcessMonitor {
   private previous = new Map<string, number>();
   private previousAt?: number;
+  private names = new Map<string, string>();
   private fallbackCpu?: NodeJS.CpuUsage;
   private fallbackAt?: number;
 
@@ -35,6 +36,9 @@ export class ProcessMonitor {
     cores?: number;
     totalMemoryBytes?: number;
     readProcesses?: () => Promise<ProcessSnapshot[]>;
+    readArguments?: (pid: number) => Promise<string>;
+    embeddingModel?: string;
+    embeddingBackend?: string;
     now?: () => number;
   } = {}) {}
 
@@ -56,6 +60,19 @@ export class ProcessMonitor {
       const daemon = snapshot.find((item) => item.pid === daemonPid && basename(item.command) === 'codeberg-d');
       const roots = [pid, ...(launcher ? [launcher.pid] : []), ...(daemon ? [daemon.pid] : [])];
       const selected = selectProcessTree(snapshot, roots);
+      const names = new Map<string, string>();
+      await Promise.all(selected.map(async (item) => {
+        const key = `${item.pid}:${item.startedAt}:${item.command}`;
+        let name = this.names.get(key);
+        if (name === undefined) {
+          name = workerName(item.command, '', this.options.embeddingModel, this.options.embeddingBackend);
+          if (/^python(?:\d+(?:\.\d+)*)?$/.test(basename(item.command)) && name === basename(item.command)) {
+            name = workerName(item.command, await (this.options.readArguments ?? readArguments)(item.pid), this.options.embeddingModel, this.options.embeddingBackend);
+          }
+        }
+        names.set(key, name);
+      }));
+      this.names = names;
       const elapsed = this.previousAt === undefined ? undefined : now - this.previousAt;
       const current = new Map<string, number>();
       const processes = selected.map((item) => {
@@ -69,7 +86,7 @@ export class ProcessMonitor {
           ? Math.max(0, item.cpuMs - baseline) / elapsed * 100 : null;
         return {
           pid: item.pid,
-          name: item.pid === pid ? 'Web server & learning' : processLabel(item.command),
+          name: item.pid === pid ? 'Web server & learning' : names.get(`${item.pid}:${item.startedAt}:${item.command}`) ?? processLabel(item.command),
           cpuPercent,
           memoryBytes: item.rssBytes,
         };
@@ -113,6 +130,37 @@ function processLabel(command: string): string {
   const name = basename(command);
   return name === 'codeberg' ? 'Launcher' : name === 'codeberg-d' ? 'Daemon'
     : name === 'cberg-index' ? 'Indexer' : name;
+}
+
+export function workerName(command: string, arguments_ = '', model = '', backend = ''): string {
+  let embedding = command.includes('/embedding-venv/');
+  let search = command.includes('/searxng/venv/');
+  const fields = arguments_.trim().split(/\s+/);
+  fields.forEach((field, i) => {
+    if (field === '-m' && fields[i + 1] === 'searx.webapp') search = true;
+    if (basename(field) === 'embedding_worker.py') {
+      embedding = true;
+      backend = fields[i + 1] ?? backend;
+      if (fields[i + 2]) model = fields.slice(i + 2).join(' ');
+    }
+  });
+  if (search) return 'Web search — SearXNG';
+  if (!embedding) return processLabel(command);
+  const lower = model.toLowerCase();
+  if (!backend) {
+    if (lower.endsWith('-mlx') || lower.includes('-mlx/')) backend = 'mlx';
+    else if (lower.endsWith('.gguf') || lower.includes('-llama')) backend = 'llama';
+  }
+  const details = [...(lower.includes('qwen3') ? ['Qwen3'] : []),
+    ...(backend === 'mlx' ? ['MLX'] : backend === 'llama' ? ['llama.cpp'] : [])];
+  return details.length ? `Embedding worker — ${details.join('/')}` : 'Embedding worker';
+}
+
+async function readArguments(pid: number): Promise<string> {
+  try {
+    const { stdout } = await execFileAsync('ps', ['-p', String(pid), '-o', 'args='], { encoding: 'utf8', timeout: 500, maxBuffer: 64 * 1024 });
+    return stdout.slice(0, 8192);
+  } catch { return ''; }
 }
 
 export function selectProcessTree(snapshot: ProcessSnapshot[], roots: number[]): ProcessSnapshot[] {

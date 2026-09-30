@@ -38,7 +38,7 @@ func main() {
 	}
 	rootPID, _ := strconv.Atoi(os.Getenv("CODEBERG_RESOURCE_ROOT_PID"))
 	metrics := resources.New(resources.Options{Home: home, ModelPath: cfg.Model, IndexPath: cfg.Index,
-		LogDir: os.Getenv("CODEBERG_LOG_DIR"), RootPID: rootPID})
+		LogDir: os.Getenv("CODEBERG_LOG_DIR"), RootPID: rootPID, EmbeddingBackend: cfg.EmbedBackend})
 	// Include indexing/bootstrap in history rather than starting only once ready.
 	metrics.Start(ctx)
 

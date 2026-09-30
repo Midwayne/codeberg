@@ -33,7 +33,11 @@ their processes and workers are included alongside the daemon and indexer.
 Remote daemon PIDs are never used locally.
 
 The **Measured processes** table lists included PIDs, CPU, and resident memory,
-and states the actual measurement scope. Linux uses native `/proc` CPU counters
+and states the actual measurement scope. Python workers are labeled by component,
+for example **Embedding worker — Qwen3/MLX** and **Web search — SearXNG**.
+Labels are cached per process identity. Only fixed component/model-family names
+are displayed; raw command arguments remain local to the collector.
+Linux uses native `/proc` CPU counters
 and resident pages; macOS uses one bounded `ps` call per interval. An unavailable
 or older daemon uses a dedicated Node worker thread. Its synchronous filesystem
 calls run on that private thread, outside both the chat event loop and its libuv

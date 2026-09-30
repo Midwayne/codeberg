@@ -2,6 +2,7 @@ package resources
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"strconv"
@@ -77,4 +78,17 @@ func systemMemory() int64 {
 	var info syscall.Sysinfo_t
 	_ = syscall.Sysinfo(&info)
 	return int64(uint64(info.Totalram) * uint64(info.Unit))
+}
+
+func nativeArguments(ctx context.Context, pid int) string {
+	if ctx.Err() != nil {
+		return ""
+	}
+	file, err := os.Open("/proc/" + strconv.Itoa(pid) + "/cmdline")
+	if err != nil {
+		return ""
+	}
+	defer file.Close()
+	data, _ := io.ReadAll(io.LimitReader(file, 8192))
+	return strings.ReplaceAll(string(data), "\x00", " ")
 }

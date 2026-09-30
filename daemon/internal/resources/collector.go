@@ -63,6 +63,7 @@ type Usage struct {
 }
 type Options struct {
 	Home, ModelPath, IndexPath, LogDir string
+	EmbeddingBackend                   string
 	PID, RootPID, Cores                int
 	TotalMemory                        int64
 	Now                                func() time.Time
@@ -79,6 +80,7 @@ type Collector struct {
 	clients     map[int]string
 	captureMu   sync.Mutex
 	previous    map[string]float64
+	names       map[string]string
 	previousAt  int64
 	started     sync.Once
 	refresh     chan struct{}
@@ -104,7 +106,7 @@ func New(opts Options) *Collector {
 	if opts.ReadDisk == nil {
 		opts.ReadDisk = func(ctx context.Context) (*Disk, error) { return ScanDisk(ctx, opts) }
 	}
-	return &Collector{opts: opts, id: fmt.Sprintf("%d:%d", opts.PID, opts.Now().UnixNano()), clients: make(map[int]string), previous: make(map[string]float64),
+	return &Collector{opts: opts, id: fmt.Sprintf("%d:%d", opts.PID, opts.Now().UnixNano()), clients: make(map[int]string), previous: make(map[string]float64), names: make(map[string]string),
 		refresh: make(chan struct{}, 1), refreshDisk: make(chan struct{}, 1)}
 }
 
@@ -261,6 +263,7 @@ func (c *Collector) Capture(ctx context.Context) error {
 		sample.Scope = "web-and-daemon"
 	}
 	current := make(map[string]float64, len(selected))
+	names := make(map[string]string, len(selected))
 	complete := c.previousAt > 0 && now > c.previousAt
 	corePercent := 0.0
 	for _, row := range selected {
@@ -269,7 +272,16 @@ func (c *Collector) Capture(ctx context.Context) error {
 		if !known && c.previousAt > 0 && row.StartedAt >= c.previousAt {
 			previous, known = 0, true
 		}
-		item := Process{PID: row.PID, Name: processName(row.Command), MemoryBytes: row.MemoryBytes}
+		nameKey := key + ":" + row.Command
+		name, cached := c.names[nameKey]
+		if !cached {
+			name = workerName(row.Command, "", c.opts.ModelPath, c.opts.EmbeddingBackend)
+			if pythonProcess.MatchString(filepath.Base(row.Command)) && name == filepath.Base(row.Command) {
+				name = workerName(row.Command, nativeArguments(ctx, row.PID), c.opts.ModelPath, c.opts.EmbeddingBackend)
+			}
+		}
+		names[nameKey] = name
+		item := Process{PID: row.PID, Name: name, MemoryBytes: row.MemoryBytes}
 		if webPIDs[row.PID] {
 			item.Name = "Web server & learning"
 		}
@@ -289,6 +301,7 @@ func (c *Collector) Capture(ctx context.Context) error {
 		sample.CPU.CorePercent, sample.CPU.UsedPercent = &corePercent, &capacity
 	}
 	c.previous, c.previousAt = current, now
+	c.names = names
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	cut := 0

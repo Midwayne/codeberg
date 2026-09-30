@@ -56,6 +56,19 @@ func psProcesses(ctx context.Context) ([]ProcessCounter, error) {
 	return parsePS(string(output)), nil
 }
 
+func psArguments(ctx context.Context, pid int) string {
+	ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer cancel()
+	output, err := exec.CommandContext(ctx, "ps", "-p", strconv.Itoa(pid), "-o", "args=").Output()
+	if err != nil {
+		return ""
+	}
+	if len(output) > 8192 {
+		output = output[:8192]
+	}
+	return strings.TrimSpace(string(output))
+}
+
 func parsePS(output string) []ProcessCounter {
 	rows := make([]ProcessCounter, 0)
 	for _, line := range strings.Split(output, "\n") {

@@ -84,13 +84,13 @@ func TestCompleteProcessCoverageAndDeltaHistory(t *testing.T) {
 		{PID: 20, PPID: 10, Command: "node", MemoryBytes: 100, CPUTimeMS: 100},
 		{PID: 30, PPID: 10, Command: "codeberg-d", MemoryBytes: 200, CPUTimeMS: 100},
 		{PID: 40, PPID: 30, Command: "cberg-index", MemoryBytes: 300, CPUTimeMS: 100},
-		{PID: 50, PPID: 40, Command: "python3", MemoryBytes: 400, CPUTimeMS: 100},
+		{PID: 50, PPID: 40, Command: "/home/.codeberg/embedding-venv/bin/python", MemoryBytes: 400, CPUTimeMS: 100},
 		{PID: 60, PPID: 20, Command: "dbmcp", MemoryBytes: 500, CPUTimeMS: 100},
 		{PID: 70, PPID: 10, Command: "xdg-open", MemoryBytes: 40000},
 		{PID: 80, PPID: 70, Command: "firefox", MemoryBytes: 40000},
 		{PID: 90, PPID: 1, Command: "codeberg-d", MemoryBytes: 40000},
 	}
-	c := New(Options{PID: 30, RootPID: 10, Cores: 4, TotalMemory: 48000, Now: func() time.Time { return now },
+	c := New(Options{PID: 30, RootPID: 10, Cores: 4, TotalMemory: 48000, ModelPath: "/models/qwen3-fp16-mlx", EmbeddingBackend: "mlx", Now: func() time.Time { return now },
 		ReadProcesses: func(context.Context) ([]ProcessCounter, error) { return rows, nil }})
 	if err := c.Register(20); err != nil {
 		t.Fatal(err)
@@ -122,6 +122,9 @@ func TestCompleteProcessCoverageAndDeltaHistory(t *testing.T) {
 	}
 	if len(usage.Current.Processes) != 6 {
 		t.Fatalf("processes: %+v", usage.Current.Processes)
+	}
+	if usage.Current.Processes[4].Name != "Embedding worker — Qwen3/MLX" {
+		t.Fatalf("embedding worker label: %q", usage.Current.Processes[4].Name)
 	}
 }
 

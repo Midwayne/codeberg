@@ -12,6 +12,7 @@ import type { ResourceSample } from './resources.js';
 const options = workerData as ResourceWorkerData;
 const env = options.env ?? process.env;
 const monitor = new ProcessMonitor({ launcherPid: Number(env.CODEBERG_RESOURCE_ROOT_PID) || undefined,
+  embeddingModel: env.CBERG_MODEL, embeddingBackend: env.CBERG_EMBED_BACKEND,
   daemonUrl: options.daemonUrl, readProcesses: async () => parseProcessSnapshot(execFileSync('ps',
     ['-ax', '-o', 'pid=,ppid=,time=,rss=,lstart=,comm='], { encoding: 'utf8', timeout: 3000, maxBuffer: 8 * 1024 * 1024, env: { ...process.env, LC_ALL: 'C' } })) });
 let disk: ResourceSample['disk'] = null;
