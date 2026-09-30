@@ -145,6 +145,9 @@ export class LearningService {
     return this.worker?.isRunning() ?? false;
   }
 
+  /** Cheap, current execution state for the UI activity indicator. */
+  isUpdating(): boolean { return this.worker?.isProcessing() ?? false; }
+
   async activeJobs(): Promise<number> {
     const now = Date.now();
     const [pending, processing] = await Promise.all([this.queue.list('pending'), this.queue.list('processing')]);

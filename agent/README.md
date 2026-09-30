@@ -171,6 +171,11 @@ preview its full description.
 
 ### Settings
 
+The header's learning activity banner reflects a currently executing background
+job. Queued retries and abandoned processing receipts do not keep it visible.
+Its uncached status polls are serialized and bounded by a five-second timeout;
+idle, failed, or timed-out polls clear the previous busy indication.
+
 The header's **Settings** button opens a dedicated screen with **Resource usage**
 and **Free up resources**. The Go daemon measures Codeberg's own process CPU,
 resident memory, and stored-data size on background loops, with a rolling hour

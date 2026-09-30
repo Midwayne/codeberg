@@ -66,8 +66,10 @@ export async function routeLearning(
   }
 
   if (req.method === 'GET' && url.pathname === `${LEARNING_PATH}/status`) {
+    res.setHeader('Cache-Control', 'no-store');
+    if (url.searchParams.get('view') === 'activity') return sendJson(res, 200, { working: learning.isUpdating() });
     const jobId = url.searchParams.get('job_id');
-    return sendJson(res, 200, jobId ? await learning.queue.get(jobId) ?? null : { ...await learning.queue.counts(), active: await learning.activeJobs() });
+    return sendJson(res, 200, jobId ? await learning.queue.get(jobId) ?? null : { ...await learning.queue.counts(), active: await learning.activeJobs(), working: learning.isUpdating() });
   }
 
   if (req.method === 'GET' && url.pathname === `${LEARNING_PATH}/review`) {

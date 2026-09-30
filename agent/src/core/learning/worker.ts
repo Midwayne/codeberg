@@ -27,6 +27,7 @@ export class KnowledgeWorker {
   private retryTimer?: NodeJS.Timeout;
   private stopping = false;
   private paused = false;
+  private processing = false;
 
   constructor(
     private readonly store: LearningStore,
@@ -68,6 +69,9 @@ export class KnowledgeWorker {
     return Boolean(this.running);
   }
 
+  /** A claimed job is executing, rather than waiting, polling, or retrying later. */
+  isProcessing(): boolean { return this.processing; }
+
   pause(): void { this.paused = true; }
 
   resume(): void { this.paused = false; this.wake(); }
@@ -81,6 +85,7 @@ export class KnowledgeWorker {
       if (this.stopping || this.paused) return;
       const job = await this.queue.claim(this.generator ? undefined : 'extract_dataset');
       if (!job) return;
+      this.processing = true;
       writeModuleLog('learning-agent', 'job_started', { id: job.job_id, type: job.type });
       try {
         const interaction = await this.store.interaction(job.interaction_id);
@@ -99,6 +104,8 @@ export class KnowledgeWorker {
         await this.queue.fail(job, category, String(error));
         writeLearningTrace('job_failed', { job_id: job.job_id, category, error: String(error) });
         writeModuleLog('learning-agent', 'job_failed', { id: job.job_id, type: job.type, category, error: String(error) });
+      } finally {
+        this.processing = false;
       }
     }
   }

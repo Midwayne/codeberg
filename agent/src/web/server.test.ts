@@ -617,6 +617,21 @@ describe('web server', () => {
     expect(current.label).toBe('partially_useful');
   });
 
+  it('reports idle execution without enumerating queued or completed job records for the header', async () => {
+    const learning = tempLearning();
+    await learning.queue.enqueueDataset('queued');
+    const counts = vi.spyOn(learning.queue, 'counts');
+    const list = vi.spyOn(learning.queue, 'list');
+    await start({ learning });
+    const response = await fetch(`${baseUrl}/api/learning/status?view=activity`);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.json()).toEqual({ working: false });
+    expect(counts).not.toHaveBeenCalled();
+    expect(list).not.toHaveBeenCalled();
+    const full = await fetch(`${baseUrl}/api/learning/status`);
+    expect(await full.json()).toMatchObject({ pending: 1, active: 1, working: false });
+  });
+
   it('reviews current dataset candidates for training, evaluation, and dismissal with useful progress counts', async () => {
     const learning = tempLearning();
     await start({ learning });

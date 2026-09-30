@@ -6,6 +6,7 @@ import { ModelSettingsPanel } from '@/components/model-settings';
 import { TrainingReview } from '@/components/training-review';
 import { Settings } from '@/components/settings';
 import { loadModelSettings, type CatalogModel } from '@/lib/models';
+import { startLearningStatusPolling } from '@/lib/learning-status';
 
 export function App() {
   // The server exposes the model and reasoning effort at /api/meta.
@@ -41,15 +42,7 @@ export function App() {
 
   useEffect(() => {
     if (!learningEnabled) return;
-    let active = true;
-    const check = () => {
-      void fetch('/api/learning/status').then((response) => response.json()).then((counts: { active: number }) => {
-        if (active) setLearningBusy(counts.active > 0);
-      }).catch(() => undefined);
-    };
-    check();
-    const timer = setInterval(check, 2000);
-    return () => { active = false; clearInterval(timer); setLearningBusy(false); };
+    return startLearningStatusPolling(setLearningBusy);
   }, [learningEnabled]);
 
   useEffect(() => {
