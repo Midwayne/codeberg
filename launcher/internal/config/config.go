@@ -506,6 +506,11 @@ func (c *Config) AgentEnv() map[string]string {
 	}
 	putIf(e, KeyReasoning, c.Reasoning)
 	putIf(e, KeySubagentModel, c.SubagentModel)
+	// Include configured storage outside CODEBERG_HOME in resource accounting.
+	if c.Vector {
+		putIf(e, KeyEmbedModel, c.EmbedModel)
+		putIf(e, KeyIndexPath, c.IndexPath)
+	}
 	// codeberg-web reads this for its local HTTP listener.
 	putIf(e, KeyWebPort, c.WebPort)
 	// Web tools: tell the agent whether they're enabled, and point web_search at

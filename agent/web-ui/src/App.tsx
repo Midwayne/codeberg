@@ -1,4 +1,4 @@
-import { GraduationCap, PanelLeft, Search, Settings2 } from 'lucide-react';
+import { GraduationCap, PanelLeft, Search, Settings2, SlidersHorizontal } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { Workspace } from '@/components/workspace/workspace';
@@ -20,6 +20,7 @@ export function App() {
   const [trainingOpen, setTrainingOpen] = useState(false);
   const searchButton = useRef<HTMLButtonElement>(null);
   const settingsButton = useRef<HTMLButtonElement>(null);
+  const modelsButton = useRef<HTMLButtonElement>(null);
 
   function refreshMeta(): void {
     fetch('/api/meta')
@@ -95,6 +96,11 @@ export function App() {
             className={`inline-flex size-7 shrink-0 items-center justify-center rounded-md hover:bg-accent hover:text-foreground ${trainingOpen ? 'bg-accent text-foreground' : 'text-muted-foreground'}`}>
             <GraduationCap className="size-4" />
           </button>}
+          <button ref={modelsButton} type="button" onClick={() => setModelsOpen((open) => !open)}
+            aria-label="Model settings" aria-expanded={modelsOpen} title="Model settings"
+            className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring">
+            <SlidersHorizontal className="size-4" />
+          </button>
           <button
             ref={settingsButton}
             type="button"
@@ -112,8 +118,8 @@ export function App() {
         <Workspace sidebarOpen={sidebarOpen} learningEnabled={learningEnabled} chatInputs={chatInputs} searchOpen={searchOpen} onSearchClose={() => { setSearchOpen(false); searchButton.current?.focus(); }} />
       </div>
       {trainingOpen && <TrainingReview />}
-      {settingsOpen && <Settings onClose={closeSettings} onModels={() => setModelsOpen(true)} />}
-      {modelsOpen && <ModelSettingsPanel onClose={() => setModelsOpen(false)} onSaved={refreshMeta} />}
+      {settingsOpen && <Settings onClose={closeSettings} />}
+      {modelsOpen && <ModelSettingsPanel onClose={() => { setModelsOpen(false); modelsButton.current?.focus(); }} onSaved={refreshMeta} />}
     </div>
   );
 }

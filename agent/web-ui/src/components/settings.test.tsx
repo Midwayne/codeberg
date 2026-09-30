@@ -3,13 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { CleanupOptions, ResourceUsageView } from './settings';
 
 describe('settings', () => {
-  it('clearly labels host and web-process metrics and history retention', () => {
+  it('labels only Codeberg usage and history retention', () => {
     const html = renderToStaticMarkup(<ResourceUsageView usage={{ current: null, history: [], retentionMs: 3_600_000, sampleIntervalMs: 10_000 }} range={60} onRange={() => undefined} />);
-    expect(html).toContain('Host CPU');
-    expect(html).toContain('Host memory');
-    expect(html).toContain('Disk usage');
+    expect(html).toContain('Codeberg CPU');
+    expect(html).toContain('Codeberg memory');
+    expect(html).toContain('Codeberg disk');
+    expect(html).not.toContain('Host memory');
     expect(html).toContain('one hour');
-    expect(html).toContain('Web server');
     expect(html).toContain('No samples yet');
   });
 

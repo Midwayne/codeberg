@@ -1,9 +1,11 @@
 export type CleanupCategory = 'chats' | 'training' | 'knowledge';
 export interface ResourceSample {
   timestamp: number;
-  cpu: { hostPercent: number; processPercent: number; cores: number };
-  memory: { usedBytes: number; totalBytes: number; processBytes: number };
-  disk: { totalBytes: number; usedBytes: number; availableBytes: number; codebergBytes: number } | null;
+  cpu: { usedPercent: number | null; corePercent: number | null; cores: number };
+  memory: { usedBytes: number; totalBytes: number };
+  disk: { totalBytes: number; availableBytes: number; codebergBytes: number } | null;
+  processes: { pid: number; name: string; cpuPercent: number | null; memoryBytes: number }[];
+  scope: 'managed-stack' | 'web-and-daemon' | 'web-process-tree' | 'web-process';
 }
 export interface ResourceUsage {
   current: ResourceSample | null;

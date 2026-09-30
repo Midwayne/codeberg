@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { link, lstat, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -22,7 +22,7 @@ async function fixture() {
   const sessions = new WebSessionStore(join(home, 'web-sessions'));
   const learning = new LearningService({ root: join(home, 'learning'), repositories: async () => [] });
   services.push(learning);
-  const resources = new ResourceSettings({ home, sessions, learning });
+  const resources = new ResourceSettings({ home, sessions, learning, env: {} });
   return { home, sessions, learning, resources };
 }
 
@@ -91,9 +91,9 @@ describe('resource settings', () => {
     const usage = resources.usage();
     expect(usage.history).toHaveLength(1);
     expect(usage.current?.memory.totalBytes).toBeGreaterThan(0);
-    expect(usage.current?.memory.processBytes).toBeGreaterThan(0);
+    expect(usage.current?.memory.usedBytes).toBeGreaterThan(0);
     expect(usage.current?.disk?.totalBytes).toBeGreaterThan(0);
-    expect(usage.current?.cpu.hostPercent).toBeGreaterThanOrEqual(0);
+    expect(usage.current?.cpu.usedPercent).toBeGreaterThanOrEqual(0);
   });
 
   it('does not recreate deleted training on restart from unchanged source records', async () => {
@@ -146,5 +146,27 @@ describe('resource settings', () => {
     const result = await resources.cleanup({ categories: ['chats'], olderThanDays: 0 });
     expect(result).toMatchObject({ deleted: 1, failed: 1, deletedChatIds: ['a'] });
     expect((await sessions.list()).map((row) => row.id)).toEqual(['b']);
+  });
+
+  it('counts Codeberg storage and configured external model/index files, excluding unrelated files and duplicate hardlinks', async () => {
+    const { home, sessions, learning } = await fixture();
+    const external = await mkdtemp(join(tmpdir(), 'codeberg-external-storage-'));
+    dirs.push(external);
+    const data = join(home, 'data.json');
+    const index = join(external, 'index.usearch.repo.chunks');
+    const model = join(external, 'model.onnx');
+    await writeFile(data, Buffer.alloc(1024));
+    await writeFile(index, Buffer.alloc(16_384));
+    await writeFile(model, Buffer.alloc(32_768));
+    await writeFile(join(external, 'unrelated.bin'), Buffer.alloc(1_000_000));
+    await link(index, join(home, 'index-copy'));
+    await symlink(join(external, 'unrelated.bin'), join(home, 'external-link'));
+    const resources = new ResourceSettings({ home, sessions, learning, env: {
+      CBERG_MODEL: model, CBERG_INDEX_PATH: join(external, 'index.usearch'),
+    } });
+    await resources.sample();
+    const expected = (await Promise.all([data, index, model].map((path) => lstat(path))))
+      .reduce((sum, info) => sum + info.blocks * 512, 0);
+    expect(resources.usage().current?.disk?.codebergBytes).toBe(expected);
   });
 });

@@ -79,6 +79,7 @@ async function main(): Promise<void> {
   const chosen = selected.models.find((model) => model.key === selected.chat.key)!;
   const agent = await pool.forSelection({ ...selected.chat, model: chosen.model, contextWindow: chosen.contextWindow });
   const server = createWebServer({
+    daemonUrl: entry.daemonUrl,
     agent,
     learning: learning || undefined,
     modelSettings,

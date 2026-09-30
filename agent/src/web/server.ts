@@ -68,6 +68,8 @@ export interface WebServerOptions {
   commands?: PromptCommand[];
   /** Local monitoring/cleanup service. The server owns its sampling lifecycle. */
   resources?: ResourceSettings;
+  /** Resolve a separately launched local daemon for process resource accounting. */
+  daemonUrl?: string;
 }
 
 /**
@@ -89,7 +91,7 @@ export function createRequestHandler(
         uiMessages: messages,
       }));
   const sessions = opts.sessionStore ?? new WebSessionStore();
-  const resources = opts.resources ?? new ResourceSettings({ sessions, learning: opts.learning });
+  const resources = opts.resources ?? new ResourceSettings({ sessions, learning: opts.learning, daemonUrl: opts.daemonUrl });
   let activeWrites = 0;
   let cleanupRequested = false;
 
@@ -253,7 +255,7 @@ async function route(
 /** Builds (but does not start) the HTTP server. Call `.listen()` to run it. */
 export function createWebServer(opts: WebServerOptions): Server {
   const sessions = opts.sessionStore ?? new WebSessionStore();
-  const resources = opts.resources ?? new ResourceSettings({ sessions, learning: opts.learning });
+  const resources = opts.resources ?? new ResourceSettings({ sessions, learning: opts.learning, daemonUrl: opts.daemonUrl });
   const server = createServer(createRequestHandler({ ...opts, sessionStore: sessions, resources }));
   server.on('listening', () => resources.start());
   server.on('close', () => resources.stop());

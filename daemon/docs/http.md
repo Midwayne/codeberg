@@ -21,6 +21,7 @@ carry it, and tools accept it as `repo`.
 ```json
 {
   "status": "ok",
+  "pid": 1234,
   "ready": true,
   "chunks": 12345,
   "version": "0.1.0",
@@ -30,6 +31,8 @@ carry it, and tools accept it as `repo`.
 ```
 
 - `ready` — bootstrap finished and at least one repo is searchable.
+- `pid` — daemon process ID, used to attribute resource usage for a local daemon.
+  A remote daemon's PID must not be interpreted on the client's machine.
 - `vectors_enabled` — `CBERG_MODEL` + `CBERG_INDEX_PATH` are configured; when
   `false`, vector search returns `501 NOT_IMPLEMENTED` but chunk-only tools
   (`find_symbol`, `file_outline`, `get_chunk`) still work.

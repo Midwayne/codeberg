@@ -142,7 +142,7 @@ not built, the server falls back to a dependency-free single-file page, so
 | `GET` | `/api/sessions/<id>` | load one saved chat, or 404 |
 | `PUT` | `/api/sessions/<id>` | upsert `{ title?, messages }` → `{ ok: true }` |
 | `DELETE` | `/api/sessions/<id>` | delete a saved chat → 204 |
-| `GET` | `/api/settings/resources` | current CPU, memory, disk, and bounded usage history |
+| `GET` | `/api/settings/resources` | Codeberg process CPU/resident memory, stored-data disk usage, and bounded history |
 | `GET` | `/api/settings/cleanup?olderThanDays=30` | preview eligible files and reclaimable bytes per category |
 | `POST` | `/api/settings/cleanup` | delete selected chats, training data, and/or knowledge documents |
 
@@ -172,11 +172,12 @@ preview its full description.
 ### Settings
 
 The header's **Settings** button opens a dedicated screen with **Resource usage**
-and **Free up resources**. Monitoring keeps a rolling hour of CPU, memory, and
-disk history while the web server runs. Cleanup offers independent categories,
+and **Free up resources**. Monitoring measures Codeberg's own process CPU, resident
+memory, and stored-data size, with a rolling hour of history and hover tooltips.
+Cleanup offers independent categories,
 age filtering, size previews, and deletion confirmation; pinned chats are kept.
-The existing model controls remain available from **Model settings** on this
-screen. See [Settings and resource management](../docs/settings.md) for metric
+The model picker has its own **Model settings** button in the main header,
+separate from Settings. See [Settings and resource management](../docs/settings.md) for metric
 scope, storage behavior, and the HTTP API.
 
 ### Frontend dev

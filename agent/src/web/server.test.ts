@@ -39,7 +39,7 @@ async function start(opts: Partial<WebServerOptions> = {}): Promise<string> {
     agent: stubAgent,
     title: 'test-title',
     sessionStore,
-    resources: new ResourceSettings({ home: sessionStore.dir, sessions: sessionStore, learning: opts.learning }),
+    resources: new ResourceSettings({ home: sessionStore.dir, sessions: sessionStore, learning: opts.learning, env: {} }),
     ...opts,
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -106,7 +106,7 @@ describe('web server', () => {
     await start({ sessionStore: sessions });
     const usage = await fetch(baseUrl + '/api/settings/resources');
     expect(usage.status).toBe(200);
-    expect((await usage.json()).current.memory.processBytes).toBeGreaterThan(0);
+    expect((await usage.json()).current.memory.usedBytes).toBeGreaterThan(0);
     const preview = await fetch(baseUrl + '/api/settings/cleanup?olderThanDays=30');
     expect((await preview.json()).categories[0]).toMatchObject({ category: 'chats', count: 1 });
     const clean = (body: unknown, origin?: string) => fetch(baseUrl + '/api/settings/cleanup', {

@@ -1,10 +1,11 @@
-import { Activity, ArrowLeft, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { Activity, ArrowLeft, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import {
   cleanupResources, formatBytes, loadResourceUsage, previewCleanup,
   type CleanupCategory, type CleanupPreview, type ResourceSample, type ResourceUsage,
 } from '@/lib/resources';
+import { ResourceChart } from '@/components/resource-chart';
 
 const labels: Record<CleanupCategory, string> = { chats: 'Saved chats', training: 'Training data', knowledge: 'Knowledge documents' };
 const descriptions: Record<CleanupCategory, string> = {
@@ -14,7 +15,7 @@ const descriptions: Record<CleanupCategory, string> = {
 };
 const buttonClass = 'rounded-lg border border-border px-3 py-2 text-sm hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50';
 
-export function Settings({ onClose, onModels }: { onClose: () => void; onModels: () => void }) {
+export function Settings({ onClose }: { onClose: () => void }) {
   const [section, setSection] = useState<'usage' | 'cleanup'>('usage');
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => { heading.current?.focus(); }, []);
@@ -26,7 +27,6 @@ export function Settings({ onClose, onModels }: { onClose: () => void; onModels:
             <button type="button" onClick={onClose} aria-label="Back to chats" className={buttonClass}><ArrowLeft className="size-4" /></button>
             <h1 ref={heading} tabIndex={-1} className="text-xl font-semibold outline-none">Settings</h1>
           </div>
-          <button type="button" onClick={onModels} className={`${buttonClass} flex items-center gap-2`}><SlidersHorizontal className="size-4" />Model settings</button>
         </div>
         <nav aria-label="Settings sections" className="flex flex-wrap gap-2 border-b border-border pb-4">
           <button type="button" onClick={() => setSection('usage')} aria-current={section === 'usage' ? 'page' : undefined} className={`${buttonClass} flex items-center gap-2 ${section === 'usage' ? 'bg-accent' : ''}`}><Activity className="size-4" />Resource usage</button>
@@ -65,43 +65,47 @@ function ResourceUsagePanel() {
 export function ResourceUsageView({ usage, range, onRange }: { usage: ResourceUsage; range: number; onRange: (value: number) => void }) {
   const current = usage.current;
   const percent = (used: number, total: number) => total > 0 ? used / total * 100 : 0;
-  const memoryPercent = (row: ResourceSample) => percent(row.memory.usedBytes, row.memory.totalBytes);
-  const diskPercent = (row: ResourceSample) => row.disk ? percent(row.disk.usedBytes, row.disk.totalBytes) : 0;
+  const percentage = (value: number) => `${value.toFixed(2)}%`;
   const rows = usage.history.filter((row) => row.timestamp >= (current?.timestamp ?? Date.now()) - range * 60_000);
+  const end = current?.timestamp ?? Date.now();
+  const scopes: Record<ResourceSample['scope'], string> = {
+    'managed-stack': 'This Codeberg instance: launcher, web server, learning, daemon, indexer, and managed workers.',
+    'web-and-daemon': 'Web server, learning, local daemon, indexer, and their child processes.',
+    'web-process-tree': 'Web server, learning, and their child processes. A separate daemon is not currently identified.',
+    'web-process': 'Web server and learning only. Full process-tree measurements are unavailable on this system.',
+  };
   return <section className="space-y-5" aria-label="Resource usage">
-    <div><h2 className="text-lg font-semibold">Resource usage</h2><p className="mt-1 text-sm text-muted-foreground">Live usage on the machine running Codeberg. Samples every 10 seconds; one hour of history is kept while the web server runs.</p></div>
+    <div><h2 className="text-lg font-semibold">Resource usage</h2><p className="mt-1 text-sm text-muted-foreground">Codeberg’s resource footprint. Samples every 10 seconds; one hour of history is kept while the web server runs.</p></div>
     <div className="grid gap-3 sm:grid-cols-3">
-      <Metric label="Host CPU" value={current ? `${current.cpu.hostPercent.toFixed(1)}%` : '—'} detail={current ? `${current.cpu.cores} CPU cores` : 'Waiting for first sample'} />
-      <Metric label="Host memory" value={current ? `${memoryPercent(current).toFixed(1)}%` : '—'} detail={current ? `${formatBytes(current.memory.usedBytes)} / ${formatBytes(current.memory.totalBytes)}` : 'Waiting for first sample'} />
-      <Metric label="Disk usage" value={current?.disk ? `${diskPercent(current).toFixed(1)}%` : '—'} detail={current?.disk ? `${formatBytes(current.disk.availableBytes)} available on the data volume` : 'Disk metrics unavailable'} />
+      <Metric label="Codeberg CPU" value={current?.cpu.usedPercent != null ? percentage(current.cpu.usedPercent) : '—'}
+        detail={current?.cpu.corePercent != null ? `Of total CPU capacity · ${current.cpu.corePercent.toFixed(1)}% of one core · ${current.cpu.cores} cores` : 'Waiting for a complete CPU interval…'} />
+      <Metric label="Codeberg memory" value={current ? formatBytes(current.memory.usedBytes) : '—'}
+        detail={current ? `${percentage(percent(current.memory.usedBytes, current.memory.totalBytes))} of ${formatBytes(current.memory.totalBytes)} physical RAM` : 'Waiting for first sample'} />
+      <Metric label="Codeberg disk" value={current?.disk ? formatBytes(current.disk.codebergBytes) : '—'}
+        detail={current?.disk ? 'Space occupied by Codeberg’s local data, models, and indexes' : 'Disk metrics unavailable'} />
     </div>
     <div className="rounded-xl border border-border p-4 text-sm">
-      <h3 className="font-medium">Web server</h3>
-      <p className="mt-2 text-muted-foreground">CPU: {current ? `${current.cpu.processPercent.toFixed(1)}%` : '—'} · Memory: {current ? formatBytes(current.memory.processBytes) : '—'} · Codeberg data on disk: {current?.disk ? formatBytes(current.disk.codebergBytes) : '—'}</p>
-      <p className="mt-2 text-xs text-muted-foreground">Process metrics cover the web server and its learning worker. CPU 100% equals one full core. Host metrics include all processes; disk totals cover the volume containing CODEBERG_HOME. Data size is refreshed once a minute.</p>
+      <h3 className="font-medium">Measured processes</h3>
+      <p className="mt-2 text-muted-foreground">{current ? scopes[current.scope] : 'Waiting for process measurements.'}</p>
+      <p className="mt-2 text-xs text-muted-foreground">CPU uses the change in process CPU time between samples. Memory is summed resident memory (RSS); shared pages may be counted by more than one process. Unrelated apps and the browser are excluded. Disk size is refreshed once a minute.</p>
+      {current && <div className="mt-3 overflow-x-auto"><table className="w-full text-left text-xs">
+        <thead className="text-muted-foreground"><tr><th className="pb-2 font-medium">Process</th><th className="pb-2 font-medium">PID</th><th className="pb-2 font-medium">CPU (100% = one core)</th><th className="pb-2 font-medium">Resident memory</th></tr></thead>
+        <tbody>{current.processes.map((item) => <tr key={item.pid} className="border-t border-border"><td className="py-2 pr-3">{item.name}</td><td className="pr-3 tabular-nums">{item.pid}</td><td className="pr-3 tabular-nums">{item.cpuPercent === null ? '—' : `${item.cpuPercent.toFixed(1)}%`}</td><td className="tabular-nums">{formatBytes(item.memoryBytes)}</td></tr>)}</tbody>
+      </table></div>}
     </div>
     <div className="flex items-center justify-between gap-3"><h3 className="text-sm font-medium">Usage history</h3><label className="text-sm">Time range <select value={range} onChange={(event) => onRange(Number(event.currentTarget.value))} className="ml-2 rounded-md border border-border bg-background px-2 py-1"><option value={5}>5 minutes</option><option value={15}>15 minutes</option><option value={60}>1 hour</option></select></label></div>
     <div className="grid gap-3 sm:grid-cols-3">
-      <UsageChart title="Host CPU history" rows={rows} value={(row) => row.cpu.hostPercent} range={range} />
-      <UsageChart title="Host memory history" rows={rows} value={memoryPercent} range={range} />
-      <UsageChart title="Disk usage history" rows={rows.filter((row) => row.disk)} value={diskPercent} range={range} />
+      <ResourceChart title="CPU history" rows={rows.filter((row) => row.cpu.usedPercent !== null)} value={(row) => row.cpu.usedPercent ?? 0} format={percentage} range={range} end={end} />
+      <ResourceChart title="Memory history" rows={rows} value={(row) => row.memory.usedBytes} format={formatBytes} range={range} end={end} />
+      <ResourceChart title="Disk history" rows={rows.filter((row) => row.disk)} value={(row) => row.disk?.codebergBytes ?? 0} format={formatBytes} range={range} end={end} />
     </div>
+    <p className="text-xs text-muted-foreground">Hover or tap a chart to inspect the exact sample value and time. Keyboard: focus a chart, then use ← / →.</p>
     {current && <p className="text-xs text-muted-foreground">Last sampled {new Date(current.timestamp).toLocaleTimeString()}. History resets when the web server restarts.</p>}
   </section>;
 }
 
 function Metric({ label, value, detail }: { label: string; value: string; detail: string }) {
   return <div className="rounded-xl border border-border p-4"><h3 className="text-sm text-muted-foreground">{label}</h3><p className="mt-2 text-2xl font-semibold tabular-nums">{value}</p><p className="mt-1 text-xs text-muted-foreground">{detail}</p></div>;
-}
-
-function UsageChart({ title, rows, value, range }: { title: string; rows: ResourceSample[]; value: (row: ResourceSample) => number; range: number }) {
-  const end = rows.at(-1)?.timestamp ?? Date.now();
-  const start = end - range * 60_000;
-  const first = rows[0];
-  const points = rows.map((row) => `${(row.timestamp - start) / (end - start) * 300},${100 - Math.min(100, Math.max(0, value(row)))}`).join(' ');
-  return <figure className="rounded-xl border border-border p-3"><figcaption className="mb-3 text-xs font-medium">{title}</figcaption>
-    {first ? <><svg viewBox="0 -4 300 108" role="img" aria-label={`${title}, 0 to 100 percent`} className="h-28 w-full text-primary"><path d="M0 0H300 M0 50H300 M0 100H300" className="stroke-border" fill="none" /><polyline points={points} fill="none" stroke="currentColor" strokeWidth="2" vectorEffect="non-scaling-stroke" />{rows.length === 1 && <circle cx="300" cy={100 - value(first)} r="3" fill="currentColor" />}</svg><div className="flex justify-between text-[10px] text-muted-foreground"><span>{range} min ago</span><span>0–100% · now</span></div></> : <p className="flex h-28 items-center justify-center text-xs text-muted-foreground">No samples yet</p>}
-  </figure>;
 }
 
 function CleanupPanel() {

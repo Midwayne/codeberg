@@ -1,6 +1,9 @@
 package httpserver
 
-import "net/http"
+import (
+	"net/http"
+	"os"
+)
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	st, err := s.idx.Status(r.Context())
@@ -11,6 +14,7 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 
 	body := map[string]any{
 		"status":          "ok",
+		"pid":             os.Getpid(),
 		"ready":           st.Ready,
 		"chunks":          st.Chunks,
 		"version":         st.Version,

@@ -8,6 +8,7 @@ export const DEFAULT_DAEMON_PORT = 48080;
 export const DEFAULT_DAEMON_URL = `http://127.0.0.1:${DEFAULT_DAEMON_PORT}`;
 
 export interface DaemonHealth {
+  pid?: number;
   ready: boolean;
   chunks: number;
   version: string;

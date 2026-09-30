@@ -16,6 +16,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -179,6 +180,8 @@ func Run(c *config.Config) error {
 	// runs usually beat this), but never wait on a first-time background install:
 	// web_search simply lights up on a later run. Nothing here is fatal.
 	agentEnv := c.AgentEnv()
+	// Resource monitoring attributes this launcher's managed process tree only.
+	agentEnv["CODEBERG_RESOURCE_ROOT_PID"] = strconv.Itoa(os.Getpid())
 	if launchWeb {
 		select {
 		case <-webDone:

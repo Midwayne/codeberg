@@ -40,6 +40,7 @@ func TestHealthAndSearch(t *testing.T) {
 		t.Fatalf("health status %d", res.StatusCode)
 	}
 	var health struct {
+		PID            int                   `json:"pid"`
 		VectorsEnabled bool                  `json:"vectors_enabled"`
 		Repos          []indexctl.RepoStatus `json:"repos"`
 	}
@@ -48,6 +49,9 @@ func TestHealthAndSearch(t *testing.T) {
 	}
 	if !health.VectorsEnabled {
 		t.Fatal("expected vectors_enabled true")
+	}
+	if health.PID != os.Getpid() {
+		t.Fatalf("health pid: got %d, want %d", health.PID, os.Getpid())
 	}
 	if len(health.Repos) != 1 || health.Repos[0].Key != "main" {
 		t.Fatalf("health repos: %+v", health.Repos)
