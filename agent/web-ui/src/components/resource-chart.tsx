@@ -1,4 +1,4 @@
-import { useId, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { useId, useMemo, useState, type KeyboardEvent, type PointerEvent } from 'react';
 
 import type { ResourceSample } from '@/lib/resources';
 
@@ -22,10 +22,13 @@ export function ResourceChart({ title, rows, value, format, range, end }: {
   const active = rows.find((row) => row.timestamp === activeTimestamp);
   const latest = rows.at(-1);
   const start = end - range * 60_000;
-  const maximum = Math.max(1, ...rows.map(value)) * 1.15;
   const x = (row: ResourceSample) => Math.max(0, Math.min(300, (row.timestamp - start) / (end - start) * 300));
+  const { maximum, points } = useMemo(() => {
+    const maximum = Math.max(1, ...rows.map(value)) * 1.15;
+    const points = rows.map((row) => `${Math.max(0, Math.min(300, (row.timestamp - start) / (end - start) * 300))},${110 - Math.max(0, value(row)) / maximum * 100}`).join(' ');
+    return { maximum, points };
+  }, [rows, value, start, end]);
   const y = (row: ResourceSample) => 110 - Math.max(0, value(row)) / maximum * 100;
-  const points = rows.map((row) => `${x(row)},${y(row)}`).join(' ');
 
   function point(event: PointerEvent<SVGSVGElement>) {
     const rect = event.currentTarget.getBoundingClientRect();

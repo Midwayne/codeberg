@@ -453,6 +453,7 @@ func (c *Config) ValidateForRun() error {
 // CODEBERG_ROOT(S)/CBERG_* to the C cberg-index when it spawns it.
 func (c *Config) DaemonEnv() map[string]string {
 	e := map[string]string{
+		KeyHome:     c.Home,
 		KeyHTTPPort: c.HTTPPort,
 		KeySocket:   c.Socket,
 		KeyLogDir:   filepath.Join(c.Home, "logs"),

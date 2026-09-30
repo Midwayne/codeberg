@@ -172,8 +172,10 @@ preview its full description.
 ### Settings
 
 The header's **Settings** button opens a dedicated screen with **Resource usage**
-and **Free up resources**. Monitoring measures Codeberg's own process CPU, resident
-memory, and stored-data size, with a rolling hour of history and hover tooltips.
+and **Free up resources**. The Go daemon measures Codeberg's own process CPU,
+resident memory, and stored-data size on background loops, with a rolling hour
+of history and hover tooltips. The agent relays cached data; standalone mode
+uses an isolated worker. Subsequent UI polls transfer only new history points.
 Cleanup offers independent categories,
 age filtering, size previews, and deletion confirmation; pinned chats are kept.
 The model picker has its own **Model settings** button in the main header,

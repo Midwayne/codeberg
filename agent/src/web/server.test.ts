@@ -39,7 +39,10 @@ async function start(opts: Partial<WebServerOptions> = {}): Promise<string> {
     agent: stubAgent,
     title: 'test-title',
     sessionStore,
-    resources: new ResourceSettings({ home: sessionStore.dir, sessions: sessionStore, learning: opts.learning, env: {} }),
+    resources: new ResourceSettings({ home: sessionStore.dir, sessions: sessionStore, learning: opts.learning, env: {}, monitor: {
+      start() {}, stop() {}, invalidateDisk() {},
+      read: () => JSON.stringify({ current: { memory: { usedBytes: process.memoryUsage().rss } }, history: [] }),
+    } }),
     ...opts,
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));

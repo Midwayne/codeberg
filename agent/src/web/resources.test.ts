@@ -1,4 +1,4 @@
-import { link, lstat, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -83,17 +83,15 @@ describe('resource settings', () => {
     await release;
   });
 
-  it('samples real usage and retains only a bounded hour of history', async () => {
-    const { resources } = await fixture();
-    const now = Date.now();
-    await resources.sample(now - 3_600_001);
-    await resources.sample(now);
-    const usage = resources.usage();
-    expect(usage.history).toHaveLength(1);
-    expect(usage.current?.memory.totalBytes).toBeGreaterThan(0);
-    expect(usage.current?.memory.usedBytes).toBeGreaterThan(0);
-    expect(usage.current?.disk?.totalBytes).toBeGreaterThan(0);
-    expect(usage.current?.cpu.usedPercent).toBeGreaterThanOrEqual(0);
+  it('delegates cached metrics reads and invalidates storage asynchronously after cleanup', async () => {
+    const { home, sessions, learning } = await fixture();
+    const monitor = { start: vi.fn(), stop: vi.fn(), invalidateDisk: vi.fn(), read: vi.fn(() => '{"current":null,"history":[]}') };
+    const resources = new ResourceSettings({ home, sessions, learning, monitor });
+    expect(await resources.usage(123)).toContain('"current":null');
+    expect(monitor.read).toHaveBeenCalledWith(123);
+    await sessions.save({ id: 'old', title: 'old', messages: [], createdAt: 1, updatedAt: 1 });
+    await resources.cleanup({ categories: ['chats'], olderThanDays: 0 });
+    expect(monitor.invalidateDisk).toHaveBeenCalledOnce();
   });
 
   it('does not recreate deleted training on restart from unchanged source records', async () => {
@@ -148,25 +146,4 @@ describe('resource settings', () => {
     expect((await sessions.list()).map((row) => row.id)).toEqual(['b']);
   });
 
-  it('counts Codeberg storage and configured external model/index files, excluding unrelated files and duplicate hardlinks', async () => {
-    const { home, sessions, learning } = await fixture();
-    const external = await mkdtemp(join(tmpdir(), 'codeberg-external-storage-'));
-    dirs.push(external);
-    const data = join(home, 'data.json');
-    const index = join(external, 'index.usearch.repo.chunks');
-    const model = join(external, 'model.onnx');
-    await writeFile(data, Buffer.alloc(1024));
-    await writeFile(index, Buffer.alloc(16_384));
-    await writeFile(model, Buffer.alloc(32_768));
-    await writeFile(join(external, 'unrelated.bin'), Buffer.alloc(1_000_000));
-    await link(index, join(home, 'index-copy'));
-    await symlink(join(external, 'unrelated.bin'), join(home, 'external-link'));
-    const resources = new ResourceSettings({ home, sessions, learning, env: {
-      CBERG_MODEL: model, CBERG_INDEX_PATH: join(external, 'index.usearch'),
-    } });
-    await resources.sample();
-    const expected = (await Promise.all([data, index, model].map((path) => lstat(path))))
-      .reduce((sum, info) => sum + info.blocks * 512, 0);
-    expect(resources.usage().current?.disk?.codebergBytes).toBe(expected);
-  });
 });

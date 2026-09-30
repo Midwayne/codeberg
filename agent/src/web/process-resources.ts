@@ -18,7 +18,7 @@ export interface ProcessUsage {
   cpu: { usedPercent: number | null; corePercent: number | null; cores: number };
   memory: { usedBytes: number; totalBytes: number };
   processes: { pid: number; name: string; cpuPercent: number | null; memoryBytes: number }[];
-  scope: 'managed-stack' | 'web-and-daemon' | 'web-process-tree' | 'web-process';
+  scope: 'managed-stack' | 'web-and-daemon' | 'daemon-process-tree' | 'web-process-tree' | 'web-process';
 }
 
 /** Interval CPU and resident memory for this Codeberg instance, not the host. */

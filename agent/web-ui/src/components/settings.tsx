@@ -2,7 +2,7 @@ import { Activity, ArrowLeft, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import {
-  cleanupResources, formatBytes, loadResourceUsage, previewCleanup,
+  cleanupResources, formatBytes, loadResourceUsage, mergeResourceUsage, previewCleanup,
   type CleanupCategory, type CleanupPreview, type ResourceSample, type ResourceUsage,
 } from '@/lib/resources';
 import { ResourceChart } from '@/components/resource-chart';
@@ -42,19 +42,33 @@ function ResourceUsagePanel() {
   const [usage, setUsage] = useState<ResourceUsage>();
   const [error, setError] = useState('');
   const [range, setRange] = useState(60);
+  const latest = useRef<ResourceUsage>(undefined);
   useEffect(() => {
     let active = true;
     let loading = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const warmUntil = Date.now() + 5000;
     const refresh = async () => {
-      if (loading) return;
+      if (loading || document.hidden) return;
+      if (timer) clearTimeout(timer);
       loading = true;
-      try { const value = await loadResourceUsage(); if (active) { setUsage(value); setError(''); } }
+      try {
+        const value = await loadResourceUsage(latest.current?.current?.timestamp);
+        if (active) { latest.current = mergeResourceUsage(latest.current, value); setUsage(latest.current); setError(''); }
+      }
       catch (failure) { if (active) setError(String(failure)); }
-      finally { loading = false; }
+      finally {
+        loading = false;
+        if (active && !document.hidden) {
+          const ready = Date.now() > warmUntil || Boolean(latest.current?.current?.disk);
+          timer = setTimeout(() => void refresh(), ready ? 10_000 : 500);
+        }
+      }
     };
     void refresh();
-    const timer = setInterval(() => void refresh(), 10_000);
-    return () => { active = false; clearInterval(timer); };
+    const visible = () => { if (!document.hidden) void refresh(); };
+    document.addEventListener('visibilitychange', visible);
+    return () => { active = false; if (timer) clearTimeout(timer); document.removeEventListener('visibilitychange', visible); };
   }, []);
   return <>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
@@ -71,11 +85,12 @@ export function ResourceUsageView({ usage, range, onRange }: { usage: ResourceUs
   const scopes: Record<ResourceSample['scope'], string> = {
     'managed-stack': 'This Codeberg instance: launcher, web server, learning, daemon, indexer, and managed workers.',
     'web-and-daemon': 'Web server, learning, local daemon, indexer, and their child processes.',
+    'daemon-process-tree': 'Daemon, indexer, and their workers. The web process is registering with the collector.',
     'web-process-tree': 'Web server, learning, and their child processes. A separate daemon is not currently identified.',
     'web-process': 'Web server and learning only. Full process-tree measurements are unavailable on this system.',
   };
   return <section className="space-y-5" aria-label="Resource usage">
-    <div><h2 className="text-lg font-semibold">Resource usage</h2><p className="mt-1 text-sm text-muted-foreground">Codeberg’s resource footprint. Samples every 10 seconds; one hour of history is kept while the web server runs.</p></div>
+    <div><h2 className="text-lg font-semibold">Resource usage</h2><p className="mt-1 text-sm text-muted-foreground">Codeberg’s resource footprint. Samples every 10 seconds; one hour of history is kept by the background collector.</p></div>
     <div className="grid gap-3 sm:grid-cols-3">
       <Metric label="Codeberg CPU" value={current?.cpu.usedPercent != null ? percentage(current.cpu.usedPercent) : '—'}
         detail={current?.cpu.corePercent != null ? `Of total CPU capacity · ${current.cpu.corePercent.toFixed(1)}% of one core · ${current.cpu.cores} cores` : 'Waiting for a complete CPU interval…'} />
@@ -87,7 +102,7 @@ export function ResourceUsageView({ usage, range, onRange }: { usage: ResourceUs
     <div className="rounded-xl border border-border p-4 text-sm">
       <h3 className="font-medium">Measured processes</h3>
       <p className="mt-2 text-muted-foreground">{current ? scopes[current.scope] : 'Waiting for process measurements.'}</p>
-      <p className="mt-2 text-xs text-muted-foreground">CPU uses the change in process CPU time between samples. Memory is summed resident memory (RSS); shared pages may be counted by more than one process. Unrelated apps and the browser are excluded. Disk size is refreshed once a minute.</p>
+      <p className="mt-2 text-xs text-muted-foreground">CPU uses the change in process CPU time between samples. Memory is summed resident memory (RSS); shared pages may be counted by more than one process. Unrelated apps and the browser are excluded. Collection runs in {usage.collector === 'daemon' ? 'the daemon' : 'a dedicated worker'}; disk is refreshed every five minutes and after cleanup.</p>
       {current && <div className="mt-3 overflow-x-auto"><table className="w-full text-left text-xs">
         <thead className="text-muted-foreground"><tr><th className="pb-2 font-medium">Process</th><th className="pb-2 font-medium">PID</th><th className="pb-2 font-medium">CPU (100% = one core)</th><th className="pb-2 font-medium">Resident memory</th></tr></thead>
         <tbody>{current.processes.map((item) => <tr key={item.pid} className="border-t border-border"><td className="py-2 pr-3">{item.name}</td><td className="pr-3 tabular-nums">{item.pid}</td><td className="pr-3 tabular-nums">{item.cpuPercent === null ? '—' : `${item.cpuPercent.toFixed(1)}%`}</td><td className="tabular-nums">{formatBytes(item.memoryBytes)}</td></tr>)}</tbody>
@@ -100,7 +115,7 @@ export function ResourceUsageView({ usage, range, onRange }: { usage: ResourceUs
       <ResourceChart title="Disk history" rows={rows.filter((row) => row.disk)} value={(row) => row.disk?.codebergBytes ?? 0} format={formatBytes} range={range} end={end} />
     </div>
     <p className="text-xs text-muted-foreground">Hover or tap a chart to inspect the exact sample value and time. Keyboard: focus a chart, then use ← / →.</p>
-    {current && <p className="text-xs text-muted-foreground">Last sampled {new Date(current.timestamp).toLocaleTimeString()}. History resets when the web server restarts.</p>}
+    {current && <p className="text-xs text-muted-foreground">Last sampled {new Date(current.timestamp).toLocaleTimeString()}. History resets when the collector restarts.{current.disk?.sampledAt ? ` Disk measured ${new Date(current.disk.sampledAt).toLocaleTimeString()}.` : ''}</p>}
   </section>;
 }
 

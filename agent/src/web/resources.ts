@@ -1,6 +1,6 @@
-import { constants, type StatsFs } from 'node:fs';
-import { lstat, open, readdir, statfs, unlink } from 'node:fs/promises';
-import { basename, dirname, join, resolve } from 'node:path';
+import { constants } from 'node:fs';
+import { lstat, open, readdir, unlink } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 
 import { codebergHome } from '../core/paths.js';
 import { writeModuleLog } from '../core/module-log.js';
@@ -8,16 +8,15 @@ import { DatasetStore } from '../core/learning/datasets.js';
 import type { LearningService } from '../core/learning/service.js';
 import { defaultLearningRoot, LearningStore, parseArtifact } from '../core/learning/store.js';
 import { isValidSessionId, type WebSessionStore } from './sessions/store.js';
-import { ProcessMonitor, type ProcessUsage } from './process-resources.js';
+import type { ProcessUsage } from './process-resources.js';
+import { ResourceMonitorClient, type ResourceReader } from './resource-monitor.js';
 
-const HOUR = 60 * 60_000;
-export const RESOURCE_SAMPLE_MS = 10_000;
 export const CLEANUP_CATEGORIES = ['chats', 'training', 'knowledge'] as const;
 export type CleanupCategory = typeof CLEANUP_CATEGORIES[number];
 
 export interface ResourceSample extends ProcessUsage {
   timestamp: number;
-  disk: { totalBytes: number; availableBytes: number; codebergBytes: number } | null;
+  disk: { totalBytes: number; availableBytes: number; codebergBytes: number; sampledAt?: number } | null;
 }
 
 interface StoredFile {
@@ -33,17 +32,12 @@ export class ResourceSettingsError extends Error {
   constructor(message: string, readonly status = 400) { super(message); }
 }
 
-/** Local monitoring and narrowly scoped cleanup; paths never come from the client. */
+/** Narrowly scoped cleanup and a cached metrics transport; collection is isolated. */
 export class ResourceSettings {
   private readonly home: string;
   private readonly learningRoot: string;
-  private history: ResourceSample[] = [];
-  private readonly processMonitor: ProcessMonitor;
+  private readonly monitor: ResourceReader;
   private readonly env: NodeJS.ProcessEnv;
-  private disk: ResourceSample['disk'] = null;
-  private diskSampledAt = -Infinity;
-  private sampling?: Promise<void>;
-  private timer?: NodeJS.Timeout;
   busy = false;
 
   constructor(private readonly options: {
@@ -52,75 +46,24 @@ export class ResourceSettings {
     learning?: LearningService;
     daemonUrl?: string;
     env?: NodeJS.ProcessEnv;
-    processMonitor?: ProcessMonitor;
+    monitor?: ResourceReader;
   }) {
     this.env = options.env ?? process.env;
     this.home = resolve(options.home ?? codebergHome(this.env));
     this.learningRoot = resolve(options.learning?.store.root ?? defaultLearningRoot({ ...this.env, CODEBERG_HOME: this.home }));
-    this.processMonitor = options.processMonitor ?? new ProcessMonitor({
-      launcherPid: Number(this.env.CODEBERG_RESOURCE_ROOT_PID) || undefined,
+    this.monitor = options.monitor ?? new ResourceMonitorClient({
+      home: this.home, sessionsDir: options.sessions.dir, learningRoot: this.learningRoot, env: this.env,
       daemonUrl: options.daemonUrl ?? this.env.CODEBERG_DAEMON_URL,
     });
   }
 
   start(): void {
-    if (this.timer) return;
-    void this.sample().catch(() => undefined);
-    this.timer = setInterval(() => { void this.sample().catch(() => undefined); }, RESOURCE_SAMPLE_MS);
-    this.timer.unref();
+    this.monitor.start();
   }
 
-  stop(): void { if (this.timer) clearInterval(this.timer); this.timer = undefined; }
+  stop(): void { this.monitor.stop(); }
 
-  usage() {
-    return { current: this.history.at(-1) ?? null, history: [...this.history], retentionMs: HOUR, sampleIntervalMs: RESOURCE_SAMPLE_MS };
-  }
-
-  sample(timestamp = Date.now()): Promise<void> {
-    this.sampling ??= this.collect(timestamp).finally(() => { this.sampling = undefined; });
-    return this.sampling;
-  }
-
-  private async collect(timestamp: number): Promise<void> {
-    const sample: ResourceSample = { ...await this.processMonitor.sample(), timestamp, disk: null };
-    if (timestamp - this.diskSampledAt >= 60_000) {
-      try {
-        const fs = await filesystem(this.home);
-        this.disk = {
-          totalBytes: fs.blocks * fs.bsize,
-          availableBytes: fs.bavail * fs.bsize,
-          codebergBytes: await this.storageBytes(),
-        };
-      } catch { this.disk = null; }
-      this.diskSampledAt = timestamp;
-    }
-    sample.disk = this.disk;
-    this.history = [...this.history.filter((row) => row.timestamp > timestamp - HOUR), sample].slice(-360);
-  }
-
-  private async storageBytes(): Promise<number> {
-    const paths = [this.home, this.options.sessions.dir, this.learningRoot];
-    if (this.env.CODEBERG_LOG_DIR) paths.push(this.env.CODEBERG_LOG_DIR);
-    if (this.env.CBERG_MODEL) {
-      paths.push(this.env.CBERG_MODEL);
-      for (const name of ['tokenizer.json', 'vocab.txt', 'tokenizer_config.json', 'special_tokens_map.json']) {
-        paths.push(join(dirname(this.env.CBERG_MODEL), name));
-      }
-    }
-    if (this.env.CBERG_INDEX_PATH) {
-      const base = resolve(this.env.CBERG_INDEX_PATH);
-      const dir = dirname(base);
-      const stem = basename(base);
-      let names: string[] = [];
-      try { names = await readdir(dir); }
-      catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
-      paths.push(...names.filter((name) => name === stem || name.startsWith(stem + '.')).map((name) => join(dir, name)));
-    }
-    const visited = new Set<string>();
-    let bytes = 0;
-    for (const path of paths) bytes += await directoryBytes(resolve(path), visited);
-    return bytes;
-  }
+  usage(after = 0) { return this.monitor.read(after); }
 
   async preview(olderThanDays: unknown) {
     const cutoff = ageCutoff(olderThanDays);
@@ -168,7 +111,7 @@ export class ResourceSettings {
           }
         }
       }
-      this.diskSampledAt = -Infinity;
+      this.monitor.invalidateDisk();
       return { deleted, failed, bytesFreed, categories, deletedChatIds };
     };
     try {
@@ -240,22 +183,4 @@ async function readRegularFile(path: string): Promise<string> {
   const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
   try { if (!(await file.stat()).isFile()) throw new Error('not a regular file'); return await file.readFile('utf8'); }
   finally { await file.close(); }
-}
-
-async function directoryBytes(path: string, visited: Set<string>): Promise<number> {
-  let info;
-  try { info = await lstat(path); } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return 0; throw error; }
-  if (!info.isFile() && !info.isDirectory()) return 0;
-  const key = `${info.dev}:${info.ino}`;
-  if (visited.has(key)) return 0;
-  visited.add(key);
-  if (info.isFile()) return info.blocks * 512;
-  let size = 0;
-  for (const name of await readdir(path)) size += await directoryBytes(join(path, name), visited);
-  return size;
-}
-
-async function filesystem(path: string): Promise<StatsFs> {
-  try { return await statfs(path); }
-  catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT' || dirname(path) === path) throw error; return filesystem(dirname(path)); }
 }

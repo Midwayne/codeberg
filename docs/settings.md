@@ -6,7 +6,8 @@ dialog has its own separate button in the main web header.
 
 ## Resource usage
 
-Monitoring starts with the web server, even when the settings screen is closed:
+Monitoring starts in the Go daemon before indexer bootstrap, even when the
+settings screen is closed. The agent transports cached snapshots:
 
 - **Codeberg CPU:** the change in cumulative CPU time of this instance's measured
   processes between samples, as a percentage of the machine's total CPU capacity.
@@ -23,21 +24,32 @@ Monitoring starts with the web server, even when the settings screen is closed:
   Symlinks are not traversed and hardlinks are counted once. Other files on the
   disk, repository source checkouts, and remote vector databases are not counted.
 
-The launcher supplies `CODEBERG_RESOURCE_ROOT_PID`, allowing the monitor to follow
+The launcher supplies `CODEBERG_RESOURCE_ROOT_PID` to both services, allowing the daemon to follow
 its managed process tree: launcher, web server, learning, daemon, indexer, embedding
 workers, MCP servers, and managed search. Browsers and the sampling `ps` process
 are excluded. An older launcher's parent process is also recognized by its executable
-name. For standalone web servers, the configured local daemon's `/health` PID
-identifies its separate process tree; remote daemon PIDs are never used locally.
+name. Standalone web servers register their PID with the local collector, so
+their processes and workers are included alongside the daemon and indexer.
+Remote daemon PIDs are never used locally.
 
 The **Measured processes** table lists included PIDs, CPU, and resident memory,
-and states the actual measurement scope. On macOS/Linux, process counters come
-from `ps`; if full process-tree sampling is unavailable, the dashboard explicitly
-reports web-process-only metrics using Node's own counters.
+and states the actual measurement scope. Linux uses native `/proc` CPU counters
+and resident pages; macOS uses one bounded `ps` call per interval. An unavailable
+or older daemon uses a dedicated Node worker thread. Its synchronous filesystem
+calls run on that private thread, outside both the chat event loop and its libuv
+filesystem pool. Unsupported process-tree sampling is explicitly labeled web-only.
 
-CPU and memory are sampled every **10 seconds**. Filesystem and data-size metrics
-are refreshed every **minute**. History is bounded to **360 samples / one hour**,
-held in memory, and resets on web-server restart. The history charts offer
+CPU and memory are sampled every **10 seconds** on an independent background loop.
+Disk usage is refreshed every **five minutes**, after bootstrap, and after cleanup.
+Disk scans are single-flight, cancellation-aware, and have a 30-second time budget;
+cleanup notifications are coalesced with a short delay. Requests never initiate
+or wait for a scan. A slow disk scan does not delay daemon CPU sampling or search.
+History is bounded to **360 samples / one hour**, held by the collector, and resets
+when that collector restarts. A web-server restart preserves daemon history.
+Historical points contain aggregate usage; only `current` includes the PID table.
+The browser fetches full history once, then requests only newer points using
+`after=<timestamp>`. Polling pauses in hidden tabs, and chart geometry is reused
+while inspecting hover values. The history charts offer
 5-minute, 15-minute, and 1-hour views with auto-scaled axes. Hover or tap to show a
 crosshair, the exact recorded value, and its timestamp. Focus a chart and use
 arrow keys (or Home/End) to inspect samples from the keyboard. No additional
@@ -81,7 +93,7 @@ disposes the corresponding cached conversations, starting a new chat if needed.
 
 | Method | Path | Response |
 | --- | --- | --- |
-| `GET` | `/api/settings/resources` | `current`, `history`, `retentionMs`, `sampleIntervalMs` |
+| `GET` | `/api/settings/resources[?after=<timestamp>]` | Cached `current`, incremental `history`, retention/intervals, collector identity |
 | `GET` | `/api/settings/cleanup?olderThanDays=30` | Category `count`/`bytes` preview |
 | `POST` | `/api/settings/cleanup` | `deleted`, `failed`, `bytesFreed`, `categories`, `deletedChatIds` |
 
@@ -97,3 +109,28 @@ input returns 400, concurrent writes/learning return 409, and incorrect methods
 return 405. POST requires `application/json` and rejects a mismatched browser
 Origin. Per-file deletion failures are counted in `failed` and logged; successful
 deletions still update the browser cache. Responses are not cached.
+
+### Daemon transport
+
+The loopback-only daemon endpoints are `GET /resources?after=<timestamp>`,
+`POST /resources/clients` with `{ "pid": <web PID> }`, and
+`POST /resources/refresh`. Registration and refresh only enqueue background work.
+The agent relays JSON bytes without parsing/re-encoding the historical payload.
+
+### Performance verification
+
+A focused macOS harness used 20,001 files (80 directories of 250 one-byte files,
+plus a probe file), concurrent HTTP file-read probes every 5 ms, a fixed two-second
+measurement window, and three trials. Baseline: `b59493e`.
+
+| Median measurement | Agent collector baseline | Daemon collector |
+| --- | ---: | ---: |
+| Agent CPU time in the two-second window | 1,120.7 ms | 316.9 ms |
+| Disk sweep wall time | 1,106.7 ms | 597.0 ms |
+| Cold metrics read | waited for the 1,106.7 ms sweep | 0.21 ms cached reply |
+
+This is approximately **72% less agent CPU** in the harness. A cold cached reply
+may initially be empty; collection continues independently and the UI briefly
+polls for initial data. The harness's ordinary HTTP latency was already low, so
+these numbers demonstrate removal of collection CPU and cold-read waiting rather
+than a claim about LLM response speed.

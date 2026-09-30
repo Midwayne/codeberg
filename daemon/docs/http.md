@@ -12,6 +12,9 @@ carry it, and tools accept it as `repo`.
 | Method | Path | Purpose |
 |--------|------|---------|
 | `GET` | `/health` | Daemon + indexer status |
+| `GET` | `/resources` | Cached resource usage and history (loopback only) |
+| `POST` | `/resources/clients` | Register a local web PID for monitoring |
+| `POST` | `/resources/refresh` | Queue a background disk refresh |
 | `GET` | `/search` | Vector search (see [Search](#search) below) |
 | `GET` | `/tools` | List registered read-only agent tools |
 | `POST` | `/tools/call` | Run a tool: `{"name":"grep","args":{…}}` |
@@ -36,6 +39,12 @@ carry it, and tools accept it as `repo`.
 - `vectors_enabled` — `CBERG_MODEL` + `CBERG_INDEX_PATH` are configured; when
   `false`, vector search returns `501 NOT_IMPLEMENTED` but chunk-only tools
   (`find_symbol`, `file_outline`, `get_chunk`) still work.
+
+### Resource monitoring
+
+Resource monitoring details: [Web settings](../../docs/settings.md). Resource
+requests read cached samples; CPU collection and disk scans run on independent
+background loops. `after=<timestamp>` requests incremental history.
 
 ### Search
 

@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -15,6 +17,7 @@ import (
 	"codeberg.org/codeberg/daemon/internal/gitpull"
 	"codeberg.org/codeberg/daemon/internal/httpserver"
 	"codeberg.org/codeberg/daemon/internal/indexctl"
+	"codeberg.org/codeberg/daemon/internal/resources"
 	"codeberg.org/codeberg/daemon/internal/supervisor"
 	"codeberg.org/codeberg/daemon/internal/tools"
 	"codeberg.org/codeberg/daemon/internal/workspace"
@@ -28,6 +31,16 @@ func main() {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+	home := os.Getenv("CODEBERG_HOME")
+	if home == "" {
+		userHome, _ := os.UserHomeDir()
+		home = filepath.Join(userHome, ".codeberg")
+	}
+	rootPID, _ := strconv.Atoi(os.Getenv("CODEBERG_RESOURCE_ROOT_PID"))
+	metrics := resources.New(resources.Options{Home: home, ModelPath: cfg.Model, IndexPath: cfg.Index,
+		LogDir: os.Getenv("CODEBERG_LOG_DIR"), RootPID: rootPID})
+	// Include indexing/bootstrap in history rather than starting only once ready.
+	metrics.Start(ctx)
 
 	sup, err := supervisor.Start(ctx, cfg.Indexer)
 	if err != nil {
@@ -44,6 +57,7 @@ func main() {
 		log.Fatalf("indexer not ready: %v", err)
 	}
 	log.Printf("indexer ready: %d chunks, version %s", st.Chunks, st.Version)
+	metrics.InvalidateDisk()
 
 	go gitpull.Run(ctx, cfg.GitDirs, cfg.GitPull)
 
@@ -55,7 +69,7 @@ func main() {
 	}
 
 	ws := workspace.New(repos, cfg.DefaultKey)
-	srv := httpserver.New(idx, tools.Default(ws, idx))
+	srv := httpserver.New(idx, tools.Default(ws, idx)).WithResources(metrics)
 
 	log.Printf("codeberg-d: roots=[%s] http=:%s socket=%s", strings.Join(roots, " "), cfg.HTTPPort, cfg.Socket)
 

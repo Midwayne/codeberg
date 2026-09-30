@@ -7,6 +7,7 @@ export default defineConfig({
     'search-cli': 'src/cli/search-main.ts',
     'learning-cli': 'src/cli/learning-main.ts',
     web: 'src/web/main.ts',
+    'resource-worker': 'src/web/resource-worker.ts',
   },
   format: ['esm'],
   dts: true,

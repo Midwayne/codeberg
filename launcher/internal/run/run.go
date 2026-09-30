@@ -334,7 +334,9 @@ func bringUpSearch(
 func startDaemon(bin, root string, c *config.Config, out io.Writer) (*exec.Cmd, error) {
 	cmd := exec.Command(bin)
 	cmd.Dir = root
-	cmd.Env = mergeEnv(os.Environ(), c.DaemonEnv())
+	env := c.DaemonEnv()
+	env["CODEBERG_RESOURCE_ROOT_PID"] = strconv.Itoa(os.Getpid())
+	cmd.Env = mergeEnv(os.Environ(), env)
 	// Same writer for both streams: os/exec then serializes Write calls for us.
 	cmd.Stdout = out
 	cmd.Stderr = out

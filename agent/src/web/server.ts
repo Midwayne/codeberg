@@ -165,8 +165,12 @@ async function route(
       res.setHeader('Cache-Control', 'no-store');
       if (path === '/api/settings/resources') {
         if (req.method !== 'GET') return sendText(res, 405, 'method not allowed');
-        if (!resources.usage().current) await resources.sample();
-        return sendJson(res, 200, resources.usage());
+        const after = url.searchParams.get('after') ?? '0';
+        if (!/^\d+$/.test(after) || !Number.isSafeInteger(Number(after))) throw new ResourceSettingsError('invalid history cursor');
+        const body = await resources.usage(Number(after));
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(body);
+        return;
       }
       if (req.method === 'GET') {
         const days = url.searchParams.get('olderThanDays') ?? '30';
