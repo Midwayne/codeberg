@@ -22,6 +22,7 @@ import {
 import { WebSessionStore } from './sessions/store.js';
 import { ModelSettingsStore } from './model-selection/settings.js';
 import { formatWebTitle } from './title.js';
+import { ResourceSettings } from './resources.js';
 
 // `agent` is unused when `respond` is injected; cast a stub so the tests can
 // drive routing without a live model.
@@ -33,9 +34,12 @@ const tempDirs: string[] = [];
 const learningServices: LearningService[] = [];
 
 async function start(opts: Partial<WebServerOptions> = {}): Promise<string> {
+  const sessionStore = opts.sessionStore ?? tempSessionStore();
   const server = createWebServer({
     agent: stubAgent,
     title: 'test-title',
+    sessionStore,
+    resources: new ResourceSettings({ home: sessionStore.dir, sessions: sessionStore, learning: opts.learning }),
     ...opts,
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -95,6 +99,59 @@ afterEach(async () => {
 });
 
 describe('web server', () => {
+  it('exposes resource usage, previews cleanup, validates selections, and deletes only selected storage', async () => {
+    const sessions = tempSessionStore();
+    vi.stubEnv('CODEBERG_HOME', sessions.dir);
+    await sessions.save({ id: 'old', title: 'old', createdAt: 1, updatedAt: 1, messages: [] });
+    await start({ sessionStore: sessions });
+    const usage = await fetch(baseUrl + '/api/settings/resources');
+    expect(usage.status).toBe(200);
+    expect((await usage.json()).current.memory.processBytes).toBeGreaterThan(0);
+    const preview = await fetch(baseUrl + '/api/settings/cleanup?olderThanDays=30');
+    expect((await preview.json()).categories[0]).toMatchObject({ category: 'chats', count: 1 });
+    const clean = (body: unknown, origin?: string) => fetch(baseUrl + '/api/settings/cleanup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...(origin ? { Origin: origin } : {}) }, body: JSON.stringify(body),
+    });
+    expect((await clean({ categories: ['chats'], olderThanDays: -1 })).status).toBe(400);
+    expect((await clean({ categories: ['chats'], olderThanDays: 30 }, 'https://other.example')).status).toBe(403);
+    expect((await clean({ categories: ['chats'], olderThanDays: 30 })).status).toBe(200);
+    expect(await sessions.list()).toEqual([]);
+    expect((await fetch(baseUrl + '/api/settings/resources', { method: 'PUT' })).status).toBe(405);
+  });
+
+  it('rejects cleanup while a chat write is in flight', async () => {
+    let finish: (() => void) | undefined;
+    let started: (() => void) | undefined;
+    const inFlight = new Promise<void>((resolve) => { started = resolve; });
+    await start({ respond: async (res) => {
+      started?.();
+      await new Promise<void>((resolve) => { finish = resolve; });
+      res.end('ok');
+    } });
+    const chat = fetch(baseUrl + CHAT_PATH, { method: 'POST', body: JSON.stringify({ messages: [] }) });
+    await inFlight;
+    try {
+      const res = await fetch(baseUrl + '/api/settings/cleanup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ categories: ['chats'], olderThanDays: 0 }) });
+      expect(res.status).toBe(409);
+    } finally { finish?.(); await chat; }
+  });
+
+  it('keeps cleanup blocked until a streaming response finishes even if its responder returns early', async () => {
+    let finish: (() => void) | undefined;
+    await start({ respond: async (res) => {
+      res.writeHead(200, { 'Content-Type': 'text/plain' });
+      res.write('streaming');
+      finish = () => res.end('done');
+    } });
+    const response = await fetch(baseUrl + CHAT_PATH, { method: 'POST', body: JSON.stringify({ messages: [] }) });
+    try {
+      const cleanup = await fetch(baseUrl + '/api/settings/cleanup', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ categories: ['chats'], olderThanDays: 0 }),
+      });
+      expect(cleanup.status).toBe(409);
+    } finally { finish?.(); await response.text(); }
+  });
+
   it('records chat turn completion and errors in agent.log without storing messages', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'codeberg-agent-log-'));
     tempDirs.push(dir);

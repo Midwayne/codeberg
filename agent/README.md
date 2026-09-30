@@ -142,6 +142,9 @@ not built, the server falls back to a dependency-free single-file page, so
 | `GET` | `/api/sessions/<id>` | load one saved chat, or 404 |
 | `PUT` | `/api/sessions/<id>` | upsert `{ title?, messages }` → `{ ok: true }` |
 | `DELETE` | `/api/sessions/<id>` | delete a saved chat → 204 |
+| `GET` | `/api/settings/resources` | current CPU, memory, disk, and bounded usage history |
+| `GET` | `/api/settings/cleanup?olderThanDays=30` | preview eligible files and reclaimable bytes per category |
+| `POST` | `/api/settings/cleanup` | delete selected chats, training data, and/or knowledge documents |
 
 `<id>` must match `[A-Za-z0-9_-]{1,64}`; anything else is a 400. Any other
 `/api/*` path/method is a 404 rather than falling through to the SPA.
@@ -165,6 +168,16 @@ them.
 menu (see [Commands](#commands)): `↑`/`↓` to move the selection, `Enter` or
 `Tab` to accept the highlighted command, `Esc` to dismiss, hover a row to
 preview its full description.
+
+### Settings
+
+The header's **Settings** button opens a dedicated screen with **Resource usage**
+and **Free up resources**. Monitoring keeps a rolling hour of CPU, memory, and
+disk history while the web server runs. Cleanup offers independent categories,
+age filtering, size previews, and deletion confirmation; pinned chats are kept.
+The existing model controls remain available from **Model settings** on this
+screen. See [Settings and resource management](../docs/settings.md) for metric
+scope, storage behavior, and the HTTP API.
 
 ### Frontend dev
 

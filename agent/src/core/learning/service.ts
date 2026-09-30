@@ -23,6 +23,7 @@ export class LearningService {
   private refreshTimer?: NodeJS.Timeout;
   private checking?: Promise<void>;
   private stopping = false;
+  private maintenance = false;
   private pendingSources = new Set<string>();
   private fullScanRequested = false;
   private readonly sourceWatcher: KnowledgeSourceWatcher;
@@ -156,6 +157,23 @@ export class LearningService {
     await this.sourceWatcher.sync();
   }
 
+  /** Quiesce derived-data writers while resource cleanup runs. */
+  async withMaintenance<T>(action: () => Promise<T>): Promise<T> {
+    if (this.maintenance || this.isWorking() || this.checking) throw new Error('learning is busy');
+    this.maintenance = true;
+    this.worker?.pause();
+    try {
+      const pending = await this.queue.list('pending');
+      if (await this.activeJobs() || pending.some((job) => this.knowledgeEnabled || job.type === 'extract_dataset')) throw new Error('learning is busy');
+      return await action();
+    } finally {
+      this.maintenance = false;
+      try { await this.sourceWatcher.sync(); }
+      catch (error) { writeModuleLog('learning-agent', 'watcher_update_failed', { error: String(error) }); }
+      finally { this.worker?.resume(); }
+    }
+  }
+
   stop(): void {
     this.stopping = true;
     if (this.refreshTimer) clearInterval(this.refreshTimer);
@@ -165,7 +183,7 @@ export class LearningService {
 
   /** Recheck memory against live repos; durable knowledge jobs perform the refresh. */
   refreshKnowledge(sources?: Iterable<string>): Promise<void> {
-    if (!this.knowledgeEnabled || this.stopping) return Promise.resolve();
+    if (!this.knowledgeEnabled || this.stopping || this.maintenance) return Promise.resolve();
     if (sources) for (const source of sources) this.pendingSources.add(source);
     else this.fullScanRequested = true;
     this.checking ??= this.drainScans().finally(() => { this.checking = undefined; });

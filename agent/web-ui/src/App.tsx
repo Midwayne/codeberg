@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Workspace } from '@/components/workspace/workspace';
 import { ModelSettingsPanel } from '@/components/model-settings';
 import { TrainingReview } from '@/components/training-review';
+import { Settings } from '@/components/settings';
 import { loadModelSettings, type CatalogModel } from '@/lib/models';
 
 export function App() {
@@ -14,6 +15,7 @@ export function App() {
   const [learningBusy, setLearningBusy] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [modelsOpen, setModelsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [trainingOpen, setTrainingOpen] = useState(false);
   const searchButton = useRef<HTMLButtonElement>(null);
@@ -54,6 +56,7 @@ export function App() {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
         setSettingsOpen(false);
+        setModelsOpen(false);
         setTrainingOpen(false);
         setSearchOpen(true);
       }
@@ -71,7 +74,7 @@ export function App() {
     <div className="flex h-dvh flex-col bg-background text-foreground">
       <header className="shrink-0 border-b border-border">
         <div className="flex items-center gap-2 px-3 py-3 text-sm">
-          {!trainingOpen && <button
+          {!trainingOpen && !settingsOpen && <button
             type="button"
             onClick={() => setSidebarOpen((o) => !o)}
             aria-label={sidebarOpen ? 'Hide chats' : 'Show chats'}
@@ -81,7 +84,7 @@ export function App() {
           >
             <PanelLeft className="size-4" />
           </button>}
-          {title && <span className="min-w-0 flex-1 truncate font-semibold">{trainingOpen ? 'Training review' : title}</span>}
+          {title && <span className="min-w-0 flex-1 truncate font-semibold">{settingsOpen ? 'Settings' : trainingOpen ? 'Training review' : title}</span>}
           {learningBusy && <span role="status" className="shrink-0 text-xs text-muted-foreground">Updating knowledge &amp; learning data…</span>}
           <button ref={searchButton} type="button" onClick={() => { setTrainingOpen(false); setSettingsOpen(false); setSearchOpen(true); }} aria-label="Search chats" title="Search chats (⌘K / Ctrl+K)" className="ml-auto inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground">
             <Search className="size-4" />
@@ -95,21 +98,22 @@ export function App() {
           <button
             ref={settingsButton}
             type="button"
-            onClick={() => setSettingsOpen((open) => !open)}
-            aria-label="Model settings"
+            onClick={() => { setSettingsOpen((open) => !open); setTrainingOpen(false); setSearchOpen(false); }}
+            aria-label="Settings"
             aria-expanded={settingsOpen}
-            title="Model settings"
+            title="Settings"
             className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
           >
             <Settings2 className="size-4" />
           </button>
         </div>
       </header>
-      <div className={trainingOpen ? 'hidden' : 'flex min-h-0 flex-1'}>
+      <div className={trainingOpen || settingsOpen ? 'hidden' : 'flex min-h-0 flex-1'}>
         <Workspace sidebarOpen={sidebarOpen} learningEnabled={learningEnabled} chatInputs={chatInputs} searchOpen={searchOpen} onSearchClose={() => { setSearchOpen(false); searchButton.current?.focus(); }} />
       </div>
       {trainingOpen && <TrainingReview />}
-      {settingsOpen && <ModelSettingsPanel onClose={closeSettings} onSaved={refreshMeta} />}
+      {settingsOpen && <Settings onClose={closeSettings} onModels={() => setModelsOpen(true)} />}
+      {modelsOpen && <ModelSettingsPanel onClose={() => setModelsOpen(false)} onSaved={refreshMeta} />}
     </div>
   );
 }

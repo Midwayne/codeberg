@@ -127,7 +127,7 @@ export class DatasetStore {
     });
   }
 
-  private async withPromotionLock<T>(action: () => Promise<T>): Promise<T> {
+  async withPromotionLock<T>(action: () => Promise<T>): Promise<T> {
     // A local lock makes the split decision atomic across processes.
     const lock = join(this.store.root, 'datasets', '.promotion-lock');
     await mkdir(join(this.store.root, 'datasets'), { recursive: true });

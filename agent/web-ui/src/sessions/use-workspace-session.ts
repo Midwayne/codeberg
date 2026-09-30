@@ -72,6 +72,17 @@ export function useWorkspaceSession() {
     setActive(createChat(newSessionId(), []));
   }, [createChat]);
 
+  useEffect(() => {
+    const cleaned = (event: Event) => {
+      const ids = (event as CustomEvent<{ deletedChatIds?: string[] }>).detail?.deletedChatIds ?? [];
+      for (const id of ids) { chats.current.get(id)?.dispose(); chats.current.delete(id); }
+      if (ids.includes(sessionId)) startNew();
+      void refresh();
+    };
+    window.addEventListener('codeberg:storage-cleaned', cleaned);
+    return () => window.removeEventListener('codeberg:storage-cleaned', cleaned);
+  }, [sessionId, startNew, refresh]);
+
   const branchFrom = useCallback(
     async (throughIndex: number) => {
       if (chat.status !== 'ready' || chat.messages.length === 0 || throughIndex < 0) return;

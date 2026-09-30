@@ -1,4 +1,4 @@
-import { readFile, readdir, unlink } from 'node:fs/promises';
+import { lstat, readFile, readdir, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { UIMessage } from 'ai';
@@ -65,7 +65,7 @@ function countTurns(messages: UIMessage[]): number {
  * Persists the browser's native UI-message format so resume remains lossless.
  */
 export class WebSessionStore {
-  private readonly dir: string;
+  readonly dir: string;
   private readonly writes = new Map<string, Promise<void>>();
 
   constructor(dir?: string) {
@@ -188,6 +188,22 @@ export class WebSessionStore {
       } catch {
         // already gone / unreadable — nothing to do
       }
+    });
+  }
+
+  /** Recheck age and pins inside the same serialization used by saves. */
+  async removeOlder(id: string, cutoff: number): Promise<number | undefined> {
+    return this.serial(id, async () => {
+      const path = join(this.dir, `${id}.json`);
+      const info = await lstat(path).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === 'ENOENT') return undefined;
+        throw error;
+      });
+      if (!info?.isFile()) return undefined;
+      const record = await this.load(id);
+      if (!record || record.pinned || !(record.updatedAt < cutoff)) return undefined;
+      await unlink(path);
+      return info.size;
     });
   }
 }

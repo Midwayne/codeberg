@@ -14,6 +14,7 @@ import { WebSessionStore } from './sessions/store.js';
 import { LEARNING_PATH, routeLearning } from './learning-routes.js';
 import type { LearningService } from '../core/learning/service.js';
 import { ModelSelectionError, type ModelSettingsStore } from './model-selection/settings.js';
+import { ResourceSettings, ResourceSettingsError } from './resources.js';
 
 /** The endpoint the browser chat client posts its message history to. */
 export const CHAT_PATH = '/api/chat';
@@ -65,6 +66,8 @@ export interface WebServerOptions {
    * shows up in the UI without any wiring here.
    */
   commands?: PromptCommand[];
+  /** Local monitoring/cleanup service. The server owns its sampling lifecycle. */
+  resources?: ResourceSettings;
 }
 
 /**
@@ -86,9 +89,36 @@ export function createRequestHandler(
         uiMessages: messages,
       }));
   const sessions = opts.sessionStore ?? new WebSessionStore();
+  const resources = opts.resources ?? new ResourceSettings({ sessions, learning: opts.learning });
+  let activeWrites = 0;
+  let cleanupRequested = false;
 
   return (req, res) => {
-    const chat = req.method === 'POST' && req.url?.split('?')[0] === CHAT_PATH;
+    let path: string;
+    try { path = new URL(req.url ?? '/', 'http://localhost').pathname; }
+    catch { sendText(res, 400, 'invalid request URL'); return; }
+    const cleanup = req.method === 'POST' && path === '/api/settings/cleanup';
+    const write = !['GET', 'HEAD', 'OPTIONS'].includes(req.method ?? '') && !cleanup;
+    if ((write && (resources.busy || cleanupRequested)) || (cleanup && (activeWrites > 0 || cleanupRequested))) {
+      sendText(res, 409, 'Codeberg is busy. Retry after current writes finish.');
+      return;
+    }
+    if (write) activeWrites++;
+    if (cleanup) cleanupRequested = true;
+    let routeFinished = false;
+    let responseFinished = false;
+    let released = false;
+    const releaseWrite = () => {
+      if (!write || released || !routeFinished || !responseFinished) return;
+      released = true;
+      activeWrites--;
+    };
+    if (write) {
+      const finished = () => { responseFinished = true; releaseWrite(); };
+      res.once('finish', finished);
+      res.once('close', finished);
+    }
+    const chat = req.method === 'POST' && path === CHAT_PATH;
     const id = chat ? randomUUID() : undefined;
     const started = Date.now();
     if (id) {
@@ -100,7 +130,7 @@ export function createRequestHandler(
         if (!res.writableEnded) writeModuleLog('agent', 'turn_disconnected', { id, duration_ms: Date.now() - started });
       });
     }
-    route(req, res, opts, respond, sessions).catch((err: unknown) => {
+    route(req, res, opts, respond, sessions, resources).catch((err: unknown) => {
       if (id) writeModuleLog('agent', 'turn_failed', { id, duration_ms: Date.now() - started, error: String(err) });
       else if (req.url?.startsWith(LEARNING_PATH)) writeModuleLog('learning-agent', 'request_failed', { error: String(err) });
       // `respond` writes the SSE headers itself, so only set a status if the
@@ -109,6 +139,10 @@ export function createRequestHandler(
         res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
       }
       res.end(`internal error: ${String(err)}`);
+    }).finally(() => {
+      routeFinished = true;
+      releaseWrite();
+      if (cleanup) cleanupRequested = false;
     });
   };
 }
@@ -119,9 +153,34 @@ async function route(
   opts: WebServerOptions,
   respond: ChatResponder,
   sessions: WebSessionStore,
+  resources: ResourceSettings,
 ): Promise<void> {
   const url = new URL(req.url ?? '/', 'http://localhost');
   const path = url.pathname;
+
+  if (path === '/api/settings/resources' || path === '/api/settings/cleanup') {
+    try {
+      res.setHeader('Cache-Control', 'no-store');
+      if (path === '/api/settings/resources') {
+        if (req.method !== 'GET') return sendText(res, 405, 'method not allowed');
+        if (!resources.usage().current) await resources.sample();
+        return sendJson(res, 200, resources.usage());
+      }
+      if (req.method === 'GET') {
+        const days = url.searchParams.get('olderThanDays') ?? '30';
+        if (!/^\d+$/.test(days)) throw new ResourceSettingsError('invalid cleanup age');
+        return sendJson(res, 200, await resources.preview(Number(days)));
+      }
+      if (req.method !== 'POST') return sendText(res, 405, 'method not allowed');
+      if (req.headers.origin && req.headers.origin !== `http://${req.headers.host}` && req.headers.origin !== `https://${req.headers.host}`) return sendText(res, 403, 'cross-origin cleanup is not allowed');
+      if (!req.headers['content-type']?.startsWith('application/json')) return sendText(res, 415, 'application/json required');
+      const body = await readJson(req);
+      return sendJson(res, 200, await resources.cleanup(body));
+    } catch (error) {
+      if (error instanceof ResourceSettingsError) return sendText(res, error.status, error.message);
+      throw error;
+    }
+  }
 
   if (req.method === 'POST' && path === CHAT_PATH) {
     return routeChat(req, res, opts.modelSettings, respond);
@@ -193,7 +252,12 @@ async function route(
 
 /** Builds (but does not start) the HTTP server. Call `.listen()` to run it. */
 export function createWebServer(opts: WebServerOptions): Server {
-  return createServer(createRequestHandler(opts));
+  const sessions = opts.sessionStore ?? new WebSessionStore();
+  const resources = opts.resources ?? new ResourceSettings({ sessions, learning: opts.learning });
+  const server = createServer(createRequestHandler({ ...opts, sessionStore: sessions, resources }));
+  server.on('listening', () => resources.start());
+  server.on('close', () => resources.stop());
+  return server;
 }
 
 function escapeHtml(s: string): string {

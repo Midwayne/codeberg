@@ -26,6 +26,7 @@ export class KnowledgeWorker {
   private running?: Promise<void>;
   private retryTimer?: NodeJS.Timeout;
   private stopping = false;
+  private paused = false;
 
   constructor(
     private readonly store: LearningStore,
@@ -41,7 +42,7 @@ export class KnowledgeWorker {
   }
 
   wake(): void {
-    if (this.stopping || this.running) return;
+    if (this.stopping || this.paused || this.running) return;
     if (this.retryTimer) clearTimeout(this.retryTimer);
     this.retryTimer = undefined;
     this.running = this.runUntilIdle().catch((error: unknown) => {
@@ -67,13 +68,17 @@ export class KnowledgeWorker {
     return Boolean(this.running);
   }
 
+  pause(): void { this.paused = true; }
+
+  resume(): void { this.paused = false; this.wake(); }
+
   async waitForCurrent(): Promise<void> {
     await this.running;
   }
 
   async runUntilIdle(): Promise<void> {
     for (;;) {
-      if (this.stopping) return;
+      if (this.stopping || this.paused) return;
       const job = await this.queue.claim(this.generator ? undefined : 'extract_dataset');
       if (!job) return;
       writeModuleLog('learning-agent', 'job_started', { id: job.job_id, type: job.type });
