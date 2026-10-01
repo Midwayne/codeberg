@@ -22,56 +22,115 @@ func ValidateSedScript(script string) error {
 		return fmt.Errorf("%w: empty script", ErrInvalid)
 	}
 
-	for _, seg := range strings.FieldsFunc(script, func(r rune) bool { return r == ';' || r == '\n' }) {
-		cmd := sedCommandLetter(seg)
-		if cmd == 0 {
+	// Parse every command, including commands inside address blocks. Splitting
+	// on semicolons misses nested commands and delimiters inside expressions.
+	depth := 0
+	for i := 0; i < len(script); {
+		c := script[i]
+		if strings.ContainsRune(" \t\r\n;", rune(c)) {
+			i++
 			continue
 		}
-		if !allowedSedCommands[cmd] {
-			return fmt.Errorf("%w: %q", ErrUnsafeSed, string(cmd))
+		if (c >= '0' && c <= '9') || strings.ContainsRune("$,+~!", rune(c)) {
+			i++
+			continue
 		}
-		if (cmd == 's' || cmd == 'y') && sedHasUnsafeFlag(seg, cmd) {
-			return fmt.Errorf("%w: s/y write or exec flag", ErrUnsafeSed)
+		if c == '/' || c == '\\' {
+			delim := c
+			i++
+			if c == '\\' {
+				if i == len(script) {
+					return ErrUnsafeSed
+				}
+				delim = script[i]
+				i++
+			}
+			var ok bool
+			i, ok = sedDelimited(script, i, delim)
+			if !ok {
+				return ErrUnsafeSed
+			}
+			continue
+		}
+		i++
+		if !allowedSedCommands[c] {
+			return fmt.Errorf("%w: %q", ErrUnsafeSed, string(c))
+		}
+		switch c {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth < 0 {
+				return ErrUnsafeSed
+			}
+		case '#':
+			for i < len(script) && script[i] != '\n' {
+				i++
+			}
+		case ':', 'b', 't', 'T':
+			for i < len(script) && !strings.ContainsRune(";\n}", rune(script[i])) {
+				i++
+			}
+		case 's', 'y':
+			if i == len(script) {
+				return ErrUnsafeSed
+			}
+			delim := script[i]
+			if delim == '\\' || delim == '\n' {
+				return ErrUnsafeSed
+			}
+			i++
+			for n := 0; n < 2; n++ {
+				var ok bool
+				i, ok = sedDelimited(script, i, delim)
+				if !ok {
+					return ErrUnsafeSed
+				}
+			}
+			for i < len(script) && !strings.ContainsRune(";\n}", rune(script[i])) {
+				flag := script[i]
+				if flag != ' ' && flag != '\t' && (c != 's' || (!strings.ContainsRune("gpIiMm", rune(flag)) && (flag < '0' || flag > '9'))) {
+					return fmt.Errorf("%w: substitution flag %q", ErrUnsafeSed, flag)
+				}
+				i++
+			}
 		}
 	}
-
+	if depth != 0 {
+		return ErrUnsafeSed
+	}
 	return nil
 }
 
 // ValidateSedArgs ensures every sed script in a pipeline stage is read-only.
 func ValidateSedArgs(args []string) error {
 	scriptSeen := false
+	var scripts []string
 
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
 		case a == "-n" || a == "--quiet" || a == "--silent":
 		case a == "-e" || a == "--expression":
-			scriptSeen = true
-			if i+1 < len(args) {
-				if err := ValidateSedScript(args[i+1]); err != nil {
-					return err
-				}
-				i++
+			if i+1 == len(args) {
+				return fmt.Errorf("%w: missing sed expression", ErrInvalid)
 			}
+			scriptSeen = true
+			scripts = append(scripts, args[i+1])
+			i++
 		case strings.HasPrefix(a, "-e"):
 			scriptSeen = true
-			if err := ValidateSedScript(a[2:]); err != nil {
-				return err
-			}
+			scripts = append(scripts, a[2:])
 		case strings.HasPrefix(a, "--expression="):
 			scriptSeen = true
-			if err := ValidateSedScript(strings.TrimPrefix(a, "--expression=")); err != nil {
-				return err
-			}
+			scripts = append(scripts, strings.TrimPrefix(a, "--expression="))
 		case strings.HasPrefix(a, "-"):
 			return fmt.Errorf("%w: sed flag %q", ErrUnsafe, a)
 		default:
 			if !scriptSeen {
 				scriptSeen = true
-				if err := ValidateSedScript(a); err != nil {
-					return err
-				}
+				scripts = append(scripts, a)
 			}
 		}
 	}
@@ -80,58 +139,20 @@ func ValidateSedArgs(args []string) error {
 		return fmt.Errorf("%w: sed requires a script", ErrInvalid)
 	}
 
-	return nil
+	// Sed compiles all -e expressions together; blocks can span expressions.
+	return ValidateSedScript(strings.Join(scripts, "\n"))
 }
 
-func sedCommandLetter(seg string) byte {
-	s := strings.TrimSpace(seg)
-	i := 0
-
+func sedDelimited(s string, i int, delim byte) (int, bool) {
 	for i < len(s) {
-		switch c := s[i]; {
-		case (c >= '0' && c <= '9') || c == '$' || c == ',' || c == '~' ||
-			c == ' ' || c == '\t' || c == '+' || c == '!':
-			i++
-		case c == '/':
-			i++
-			for i < len(s) && s[i] != '/' {
-				if s[i] == '\\' {
-					i++
-				}
-				i++
-			}
-			if i < len(s) {
-				i++
-			}
-		default:
-			return s[i]
-		}
-	}
-
-	return 0
-}
-
-func sedHasUnsafeFlag(seg string, cmd byte) bool {
-	s := strings.TrimSpace(seg)
-	idx := strings.IndexByte(s, cmd)
-	if idx < 0 || idx+1 >= len(s) {
-		return false
-	}
-
-	delimPos := idx + 1
-	delim := s[delimPos]
-	count, j := 0, delimPos+1
-
-	for j < len(s) && count < 2 {
-		if s[j] == '\\' {
-			j += 2
+		if s[i] == '\\' {
+			i += 2
 			continue
 		}
-		if s[j] == delim {
-			count++
+		if s[i] == delim {
+			return i + 1, true
 		}
-		j++
+		i++
 	}
-
-	return strings.ContainsAny(s[j:], "wWe")
+	return i, false
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -71,9 +72,12 @@ func main() {
 	ws := workspace.New(repos, cfg.DefaultKey)
 	srv := httpserver.New(idx, tools.Default(ws, idx)).WithResources(metrics)
 
-	log.Printf("codeberg-d: roots=[%s] http=:%s socket=%s", strings.Join(roots, " "), cfg.HTTPPort, cfg.Socket)
+	// Repository APIs are local-only. Never expose unauthenticated tools on a
+	// wildcard interface; remote access must go through an authenticated proxy.
+	address := net.JoinHostPort("127.0.0.1", cfg.HTTPPort)
+	log.Printf("codeberg-d: roots=[%s] http=%s socket=%s", strings.Join(roots, " "), address, cfg.Socket)
 
-	httpSrv := &http.Server{Addr: ":" + cfg.HTTPPort, Handler: srv.Handler()}
+	httpSrv := &http.Server{Addr: address, Handler: srv.Handler()}
 	go func() {
 		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Printf("http: %v", err)

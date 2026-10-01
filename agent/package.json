@@ -30,18 +30,22 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^4.0.0",
-    "@ai-sdk/google": "^4.0.0",
-    "@ai-sdk/mcp": "^2.0.54",
-    "@ai-sdk/openai": "^4.0.0",
-    "@ai-sdk/openai-compatible": "^3.0.0",
-    "ai": "^7.0.0",
+    "@ai-sdk/anthropic": "^4.0.71",
+    "@ai-sdk/google": "^4.0.87",
+    "@ai-sdk/mcp": "^2.0.65",
+    "@ai-sdk/openai": "^4.0.83",
+    "@ai-sdk/openai-compatible": "^3.0.62",
+    "ai": "^7.0.126",
     "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "tsup": "^8.5.1",
     "typescript": "^5.8.0",
-    "vitest": "^3.0.0"
+    "vitest": "^4.1.11"
+  },
+  "overrides": {
+    "esbuild": "^0.28.2",
+    "source-map-js": "^1.2.2"
   }
 }
