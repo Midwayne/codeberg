@@ -3,12 +3,12 @@ import type { UIMessage } from 'ai';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { Message } from './message';
+import { MessageList } from './message-list';
 import { MessageRail } from './message-rail';
 import { PromptInput } from './prompt-input';
 import { ChatEmptyState } from './chat-empty';
 import { messageIndexById } from '@/lib/branch';
-import { markerId, MESSAGE_ID_ATTR } from '@/lib/message-rail';
+import { MESSAGE_ID_ATTR } from '@/lib/message-rail';
 import type { CatalogModel } from '@/lib/models';
 
 // `useChat` lives in the parent `Workspace` (which also owns session state), so
@@ -70,21 +70,8 @@ export function Chat({
           <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 sm:px-8">
             {messages.length === 0 && <ChatEmptyState onChoose={(question) => { setDraft(question); promptRef.current?.focus(); }} />}
 
-            {messages.map((m, i) => (
-              <Message
-                key={m.id || `${m.role}-${i}`}
-                message={m}
-                domId={markerId(m, i)}
-                conversationId={sessionId}
-                learningEnabled={learningEnabled && !busy}
-                onRegenerate={
-                  !busy && m.role === 'assistant' && i === messages.length - 1
-                    ? () => regenerate()
-                    : undefined
-                }
-                onBranch={branchAt ? () => branchAt(i) : undefined}
-              />
-            ))}
+            <MessageList messages={messages} sessionId={sessionId} learningEnabled={learningEnabled}
+              busy={busy} onRegenerate={regenerate} onBranch={onBranch} />
 
             {status === 'submitted' && (
               <div role="status" className="flex items-center gap-2 text-sm text-muted-foreground">

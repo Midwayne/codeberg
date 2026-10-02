@@ -1,14 +1,16 @@
 import { GraduationCap, PanelLeft, Search, Settings2, SlidersHorizontal } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 
 import { Workspace } from '@/components/workspace/workspace';
 import { ModelSettingsPanel } from '@/components/model-settings';
-import { TrainingReview } from '@/components/training-review';
-import { Settings } from '@/components/settings';
 import { loadModelSettings, type CatalogModel } from '@/lib/models';
 import { startLearningStatusPolling } from '@/lib/learning-status';
 import { IconButton } from '@/components/ui';
 import { useMediaQuery } from '@/lib/use-media-query';
+
+// Secondary screens load only when opened; the chat stays on the critical path.
+const Settings = lazy(() => import('@/components/settings').then((module) => ({ default: module.Settings })));
+const TrainingReview = lazy(() => import('@/components/training-review').then((module) => ({ default: module.TrainingReview })));
 
 export function App() {
   // The server exposes the model and reasoning effort at /api/meta.
@@ -120,9 +122,13 @@ export function App() {
       <div className={trainingOpen || settingsOpen ? 'hidden' : 'flex min-h-0 flex-1'}>
         <Workspace sidebarOpen={sidebarOpen && !settingsOpen && !trainingOpen} onSidebarClose={() => setSidebarOpen(false)} learningEnabled={learningEnabled} chatInputs={chatInputs} searchOpen={searchOpen} onSearchClose={() => { setSearchOpen(false); searchButton.current?.focus(); }} />
       </div>
-      {trainingOpen && <TrainingReview />}
-      {settingsOpen && <Settings onClose={closeSettings} />}
+      {trainingOpen && <Suspense fallback={<PanelLoading label="Loading training review…" />}><TrainingReview /></Suspense>}
+      {settingsOpen && <Suspense fallback={<PanelLoading label="Loading settings…" />}><Settings onClose={closeSettings} /></Suspense>}
       {modelsOpen && <ModelSettingsPanel onClose={() => { setModelsOpen(false); modelsButton.current?.focus(); }} onSaved={refreshMeta} />}
     </div>
   );
+}
+
+function PanelLoading({ label }: { label: string }) {
+  return <main role="status" className="min-h-0 flex-1 p-6 text-sm text-muted-foreground">{label}</main>;
 }
