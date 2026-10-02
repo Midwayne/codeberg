@@ -1,8 +1,26 @@
 # Web settings and resource management
 
-Open **Settings** from the web header. The dedicated screen has two sections:
-**Resource usage** and **Free up resources**. The existing **Model settings**
+Open **Settings** from the web header. The dedicated screen has three sections:
+**Appearance**, **Resource usage**, and **Free up resources**. The existing **Model settings**
 dialog has its own separate button in the main web header.
+
+## Appearance
+
+Choose **Dark**, **Light**, **Kanagawa** (Wave), **Tokyo Night** (Night),
+**Catppuccin Mocha**, **Dracula**, **Nord**, or **Gruvbox**. Each option shows a
+palette preview; the radio group supports Tab and arrow-key navigation.
+The selection applies immediately across the UI and is saved in this browser's
+local storage under `codeberg.theme`. It is restored before React renders on
+reload. New browsers and invalid saved selections use the original **Dark**
+theme. If local storage is unavailable, switching still works for the current page.
+
+Named palettes adapt the upstream colors to Codeberg's shared semantic tokens:
+[Kanagawa](https://github.com/rebelot/kanagawa.nvim/blob/master/lua/kanagawa/colors.lua),
+[Tokyo Night](https://github.com/folke/tokyonight.nvim/tree/main/lua/tokyonight/colors),
+[Catppuccin](https://github.com/catppuccin/catppuccin#-palette),
+[Dracula](https://draculatheme.com/spec),
+[Nord](https://www.nordtheme.com/docs/colors-and-palettes/), and
+[Gruvbox](https://github.com/morhetz/gruvbox#palette).
 
 ## Resource usage
 

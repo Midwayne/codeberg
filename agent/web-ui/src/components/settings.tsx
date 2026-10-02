@@ -1,4 +1,4 @@
-import { Activity, ArrowLeft, Trash2 } from 'lucide-react';
+import { Activity, ArrowLeft, Palette, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import {
@@ -6,6 +6,7 @@ import {
   type CleanupCategory, type CleanupPreview, type ResourceSample, type ResourceUsage,
 } from '@/lib/resources';
 import { ResourceChart } from '@/components/resource-chart';
+import { AppearancePanel } from '@/components/appearance';
 
 const labels: Record<CleanupCategory, string> = { chats: 'Saved chats', training: 'Training data', knowledge: 'Knowledge documents' };
 const descriptions: Record<CleanupCategory, string> = {
@@ -16,7 +17,7 @@ const descriptions: Record<CleanupCategory, string> = {
 const buttonClass = 'rounded-lg border border-border px-3 py-2 text-sm hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50';
 
 export function Settings({ onClose }: { onClose: () => void }) {
-  const [section, setSection] = useState<'usage' | 'cleanup'>('usage');
+  const [section, setSection] = useState<'appearance' | 'usage' | 'cleanup'>('usage');
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => { heading.current?.focus(); }, []);
   return (
@@ -29,10 +30,13 @@ export function Settings({ onClose }: { onClose: () => void }) {
           </div>
         </div>
         <nav aria-label="Settings sections" className="flex flex-wrap gap-2 border-b border-border pb-4">
+          <button type="button" onClick={() => setSection('appearance')} aria-current={section === 'appearance' ? 'page' : undefined} className={`${buttonClass} flex items-center gap-2 ${section === 'appearance' ? 'bg-accent' : ''}`}><Palette className="size-4" />Appearance</button>
           <button type="button" onClick={() => setSection('usage')} aria-current={section === 'usage' ? 'page' : undefined} className={`${buttonClass} flex items-center gap-2 ${section === 'usage' ? 'bg-accent' : ''}`}><Activity className="size-4" />Resource usage</button>
           <button type="button" onClick={() => setSection('cleanup')} aria-current={section === 'cleanup' ? 'page' : undefined} className={`${buttonClass} flex items-center gap-2 ${section === 'cleanup' ? 'bg-accent' : ''}`}><Trash2 className="size-4" />Free up resources</button>
         </nav>
-        {section === 'usage' ? <ResourceUsagePanel /> : <CleanupPanel />}
+        {section === 'appearance' && <AppearancePanel />}
+        {section === 'usage' && <ResourceUsagePanel />}
+        {section === 'cleanup' && <CleanupPanel />}
       </div>
     </main>
   );
@@ -153,7 +157,7 @@ function CleanupPanel() {
     <div><h2 className="text-lg font-semibold">Free up resources</h2><p className="mt-1 text-sm text-muted-foreground">Choose what to remove and how old it should be. Cleanup permanently deletes matching files.</p></div>
     <CleanupOptions preview={preview} days={days} onDays={(value) => { setDays(value); setConfirming(false); setResult(''); setError(''); }} selected={selected} onSelect={(value) => { setSelected(value); setConfirming(false); }} busy={busy} onDelete={() => setConfirming(true)} />
     <p className="text-xs text-muted-foreground">Interaction/feedback source records and job receipts are kept to preserve provenance and prevent automatic regeneration on restart. New feedback or code changes may generate new training or knowledge data.</p>
-    {confirming && <div className="space-y-3 rounded-xl border border-destructive p-4"><p className="text-sm">Permanently delete {count} matching files from {selected.map((category) => labels[category]).join(', ')}? This cannot be undone.</p><div className="flex gap-2"><button type="button" disabled={busy} onClick={() => void remove()} className="rounded-lg bg-destructive px-3 py-2 text-sm text-white disabled:opacity-50">{busy ? 'Deleting…' : 'Confirm deletion'}</button><button type="button" disabled={busy} onClick={() => setConfirming(false)} className={buttonClass}>Cancel</button></div></div>}
+    {confirming && <div className="space-y-3 rounded-xl border border-destructive p-4"><p className="text-sm">Permanently delete {count} matching files from {selected.map((category) => labels[category]).join(', ')}? This cannot be undone.</p><div className="flex gap-2"><button type="button" disabled={busy} onClick={() => void remove()} className="rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground disabled:opacity-50">{busy ? 'Deleting…' : 'Confirm deletion'}</button><button type="button" disabled={busy} onClick={() => setConfirming(false)} className={buttonClass}>Cancel</button></div></div>}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {result && <p role="status" className="text-sm">{result}</p>}
   </section>;

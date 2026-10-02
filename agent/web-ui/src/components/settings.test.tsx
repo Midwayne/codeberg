@@ -1,8 +1,15 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { CleanupOptions, ResourceUsageView } from './settings';
+import { CleanupOptions, ResourceUsageView, Settings } from './settings';
 
 describe('settings', () => {
+  it('provides an Appearance section alongside the existing resource sections', () => {
+    const html = renderToStaticMarkup(<Settings onClose={() => undefined} />);
+    expect(html).toContain('Appearance');
+    expect(html).toContain('Resource usage');
+    expect(html).toContain('Free up resources');
+  });
+
   it('labels only Codeberg usage and history retention', () => {
     const html = renderToStaticMarkup(<ResourceUsageView usage={{ current: null, history: [], retentionMs: 3_600_000, sampleIntervalMs: 10_000 }} range={60} onRange={() => undefined} />);
     expect(html).toContain('Codeberg CPU');
