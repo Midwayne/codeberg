@@ -8,6 +8,8 @@ describe('settings', () => {
     expect(html).toContain('Appearance');
     expect(html).toContain('Resource usage');
     expect(html).toContain('Free up resources');
+    expect(html).toContain('Choose a theme');
+    expect(html).not.toContain('Loading resource usage');
   });
 
   it('labels only Codeberg usage and history retention', () => {

@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-02T11:55:15.178524+00:00",
+  "title": "Design System: Codeberg web workspace",
+  "extensions": {
+    "shadows": [
+      {
+        "name": "floating-xl",
+        "value": "0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)",
+        "purpose": "Floating menus and native dialogs."
+      }
+    ],
+    "motion": [
+      {
+        "name": "control-feedback",
+        "value": "150ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Tailwind transition-colors / transition-opacity controls."
+      },
+      {
+        "name": "message-flash",
+        "value": "1.05s ease-out",
+        "purpose": "Message jump highlight; animation disabled for reduced motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "New chat action.",
+      "html": "<button class=\"ds-primary\">New chat</button>",
+      "css": ".ds-primary{font-family:ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';min-height:2.75rem;border:0;border-radius:var(--radius-lg,.625rem);padding:.5rem .75rem;background:var(--primary);color:var(--primary-foreground);font-size:.875rem;line-height:1.25rem;font-weight:500}.ds-primary:hover{opacity:.9}.ds-primary:focus-visible{outline:2px solid var(--ring);outline-offset:3px;}.ds-primary:disabled{opacity:.5}"
+    },
+    {
+      "name": "Secondary button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Bordered settings action.",
+      "html": "<button class=\"ds-secondary\">Back to chats</button>",
+      "css": ".ds-secondary{font-family:ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';min-height:2.75rem;border:1px solid var(--border);border-radius:var(--radius-lg,.625rem);padding:.5rem .75rem;background:transparent;color:var(--foreground);font-size:.875rem;line-height:1.25rem}.ds-secondary:hover{background:var(--accent)}.ds-secondary:focus-visible{outline:2px solid var(--ring);outline-offset:3px;}.ds-secondary:disabled{opacity:.5}"
+    },
+    {
+      "name": "Icon button",
+      "kind": "button",
+      "refersTo": "button-icon",
+      "description": "Quiet header action with an accessible name.",
+      "html": "<button class=\"ds-icon\" aria-label=\"Search chats\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg></button>",
+      "css": ".ds-icon{display:inline-flex;align-items:center;justify-content:center;width:2.75rem;height:2.75rem;border:0;border-radius:var(--radius-lg,.625rem);background:transparent;color:var(--muted-foreground);transition:background-color .15s,color .15s}.ds-icon:hover{background:var(--accent);color:var(--foreground)}.ds-icon:focus-visible{outline:2px solid var(--ring);outline-offset:3px;}.ds-icon:disabled{pointer-events:none;opacity:.4}@media(min-width:640px){.ds-icon{width:2.25rem;height:2.25rem}}"
+    },
+    {
+      "name": "Native select",
+      "kind": "input",
+      "refersTo": "input-select",
+      "description": "Model selection field.",
+      "html": "<label class=\"ds-field\">Model<select class=\"ds-select\"><option>Selected model</option><option>Another model</option></select></label>",
+      "css": ".ds-field{font-family:ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';display:block;color:var(--muted-foreground);font-size:.75rem}.ds-select{font-family:ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';display:block;margin-top:.5rem;min-height:2.75rem;width:100%;border:1px solid var(--input);border-radius:var(--radius-lg,.625rem);padding:.5rem .75rem;background:var(--background);color:var(--foreground);font-size:1rem;line-height:1.5rem}.ds-select:focus-visible{outline:2px solid var(--ring);outline-offset:3px;}.ds-select:disabled{opacity:.5}@media(min-width:640px){.ds-select{font-size:.875rem;line-height:1.25rem}}"
+    },
+    {
+      "name": "Settings navigation",
+      "kind": "nav",
+      "refersTo": "navigation-active",
+      "description": "Selected and available settings sections.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Settings sections\"><button aria-current=\"page\">Appearance</button><button>Resource usage</button><button>Free up resources</button></nav>",
+      "css": ".ds-nav{display:grid;gap:.25rem}.ds-nav button{font-family:ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';min-height:2.75rem;border:0;border-radius:var(--radius-lg,.625rem);padding:.75rem;background:transparent;color:var(--muted-foreground);font-size:.875rem;line-height:1.25rem;text-align:left}.ds-nav button[aria-current],.ds-nav button:hover{background:var(--accent);color:var(--foreground)}.ds-nav button[aria-current]{font-weight:500}.ds-nav button:focus-visible{outline:2px solid var(--ring);outline-offset:3px;}"
+    },
+    {
+      "name": "Metric card",
+      "kind": "card",
+      "refersTo": "card-metric",
+      "description": "Bordered resource metric container.",
+      "html": "<div class=\"ds-card\"><h3>Codeberg memory</h3><p class=\"ds-value\">2.4 GB</p><p class=\"ds-detail\">Illustrative preview value</p></div>",
+      "css": ".ds-card{font-family:ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';border:1px solid var(--border);border-radius:var(--radius-xl,.875rem);padding:1rem;color:var(--foreground)}.ds-card h3{margin:0;color:var(--muted-foreground);font-size:.875rem;line-height:1.25rem;font-weight:400}.ds-value{margin:.5rem 0 0;font-size:1.5rem;line-height:2rem;font-weight:600;font-variant-numeric:tabular-nums}.ds-detail{margin:.25rem 0 0;font-size:.75rem;line-height:1rem;color:var(--muted-foreground)}"
+    },
+    {
+      "name": "Attachment chip",
+      "kind": "chip",
+      "refersTo": "chip-attachment",
+      "description": "Truncated attachment name and separate removal action.",
+      "html": "<span class=\"ds-chip\"><span class=\"ds-name\">example.png</span><button aria-label=\"Remove example.png\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" aria-hidden=\"true\"><path d=\"m18 6-12 12M6 6l12 12\"/></svg></button></span>",
+      "css": ".ds-chip{font-family:ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';display:inline-flex;max-width:100%;align-items:center;gap:.25rem;border-radius:var(--radius-md,.5rem);background:var(--muted);color:var(--foreground);padding-left:.5rem;font-size:.75rem;line-height:1rem}.ds-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ds-chip button{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:2.25rem;height:2.25rem;border:0;border-radius:var(--radius-md,.5rem);background:transparent;color:inherit}.ds-chip button:hover{background:var(--accent)}.ds-chip button:focus-visible{outline:2px solid var(--ring);outline-offset:3px;}"
+    }
+  ],
+  "narrative": {
+    "overview": "This document records the existing web UI after a scoped refinement of chat and settings. Semantic palettes, system sans text, Lucide icons, borders, and native controls remain the visual authority. It describes implemented conventions; no replacement identity or display typeface was introduced.",
+    "keyCharacteristics": [
+      "Semantic themes across chat and settings.",
+      "Readable compact text with larger touch controls.",
+      "Flat bordered surfaces; native disclosures, inputs, and dialogs."
+    ],
+    "rules": [
+      {
+        "name": "The Semantic Roles Rule",
+        "body": "Use semantic roles for surfaces, text, actions, selection, and danger; palette values belong in the shared theme source.",
+        "section": "colors"
+      }
+    ],
+    "dos": [
+      "Do use semantic CSS tokens so every installed theme updates the same controls.",
+      "Do retain accessible names for icon actions and visible focus feedback.",
+      "Do let suggestions populate an editable, focused draft before sending.",
+      "Do keep mobile conversation space and the composer reachable."
+    ],
+    "donts": [
+      "Don't replace the installed palette or typography when extending these surfaces.",
+      "Don't remove native control behavior or disabled/loading feedback."
+    ]
+  }
+}

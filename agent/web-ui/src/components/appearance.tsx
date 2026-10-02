@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { findTheme, setTheme, THEMES, type ThemeId } from '@/lib/themes';
 
 export function AppearancePanel() {
-  const [theme, selectTheme] = useState(() => findTheme(document.documentElement.dataset.theme).id);
+  const [theme, selectTheme] = useState(() => findTheme(typeof document === 'undefined' ? undefined : document.documentElement.dataset.theme).id);
 
   function changeTheme(id: ThemeId) {
     setTheme(id);
@@ -26,7 +26,7 @@ export function ThemePicker({ value, onChange }: { value: ThemeId; onChange: (id
   return (
     <fieldset>
       <legend className="mb-3 text-sm font-medium">Theme</legend>
-      <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 min-[360px]:grid-cols-2 xl:grid-cols-3">
         {THEMES.map((theme) => (
           <label key={theme.id} className="cursor-pointer">
             <input type="radio" name="theme" value={theme.id} aria-label={theme.label}

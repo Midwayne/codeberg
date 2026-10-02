@@ -4,9 +4,16 @@ import { describe, expect, it } from 'vitest';
 import { clipboardImages, PromptInput } from './prompt-input';
 
 describe('PromptInput attachments', () => {
+  it('labels the composer and preserves a suggested question as an editable draft', () => {
+    const html = renderToStaticMarkup(<PromptInput value="Where is the main entry point?" onValueChange={() => undefined} inputs={['text']} busy={false} onSend={() => undefined} onStop={() => undefined} />);
+    expect(html).toContain('aria-label="Message"');
+    expect(html).toContain('aria-describedby=');
+    expect(html).toContain('Where is the main entry point?');
+  });
+
   it('only offers media types declared by the selected chat model', () => {
     const render = (inputs: ('text' | 'vision' | 'audio' | 'video' | 'pdf')[]) =>
-      renderToStaticMarkup(<PromptInput inputs={inputs} busy={false} onSend={() => undefined} onStop={() => undefined} />);
+      renderToStaticMarkup(<PromptInput value="" onValueChange={() => undefined} inputs={inputs} busy={false} onSend={() => undefined} onStop={() => undefined} />);
     expect(render(['text'])).not.toContain('aria-label="Attach files"');
     const html = render(['text', 'vision', 'pdf']);
     expect(html).toContain('accept="image/*,application/pdf"');

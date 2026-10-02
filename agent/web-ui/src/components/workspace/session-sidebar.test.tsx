@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { SessionActionsMenu, SessionSidebar } from './session-sidebar';
+import { DeleteChatDialog, SessionActionsMenu, SessionSidebar } from './session-sidebar';
 import type { SessionSummary } from '@/lib/sessions';
 
 const sessions: SessionSummary[] = [
@@ -20,6 +20,13 @@ function render(): string {
 }
 
 describe('SessionSidebar', () => {
+  it('requires a separate destructive action and offers a safe cancel button', () => {
+    const html = renderToStaticMarkup(<DeleteChatDialog title="A saved investigation" onClose={() => undefined} onDelete={() => undefined} />);
+    expect(html).toContain('<dialog');
+    expect(html).toContain('A saved investigation');
+    expect(html).toContain('cannot be undone');
+    expect(html.indexOf('Cancel')).toBeLessThan(html.indexOf('>Delete chat<'));
+  });
   it('separates pinned and recent chats while hiding archived chats in the active view', () => {
     const html = render();
     expect(html).toContain('Pinned conversation');

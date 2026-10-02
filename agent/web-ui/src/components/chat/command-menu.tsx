@@ -11,11 +11,13 @@ import { cn } from '@/lib/utils';
  * agent harnesses preview what a command does before you accept it.
  */
 export function CommandMenu({
+  id,
   commands,
   activeIndex,
   onActivate,
   onSelect,
 }: {
+  id: string;
   commands: PromptCommand[];
   activeIndex: number;
   onActivate: (index: number) => void;
@@ -26,6 +28,7 @@ export function CommandMenu({
 
   return (
     <div
+      id={id}
       role="listbox"
       aria-label="Slash commands"
       className="absolute inset-x-0 bottom-full z-20 mb-2 overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-lg"
@@ -38,14 +41,15 @@ export function CommandMenu({
               <button
                 type="button"
                 role="option"
+                id={`${id}-${index}`}
                 aria-selected={selected}
                 title={command.description}
                 onMouseEnter={() => onActivate(index)}
                 // mousedown (not click) so we act before the textarea blurs.
                 onMouseDown={(e) => {
                   e.preventDefault();
-                  onSelect(command);
                 }}
+                onClick={() => onSelect(command)}
                 className={cn(
                   'flex w-full items-center gap-2 px-3 py-2 text-left text-sm',
                   selected ? 'bg-accent' : 'hover:bg-accent/60',

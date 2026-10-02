@@ -1,11 +1,12 @@
 import { ArrowUp, Paperclip, Square, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type RefObject } from 'react';
 
 import { CommandMenu } from './command-menu';
 import { commandQuery, matchCommands, type PromptCommand } from '@/lib/commands';
 import { useCommands } from '@/lib/use-commands';
 import { cn } from '@/lib/utils';
 import type { CatalogModel } from '@/lib/models';
+import { isComposingKey } from '@/lib/prompt-keyboard';
 
 const MAX_HEIGHT = 200;
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
@@ -34,23 +35,31 @@ export function clipboardImages(files: FileList, inputs: readonly CatalogModel['
  * user can finish the prompt — the command itself is enhanced server-side.
  */
 export function PromptInput({
+  value,
+  onValueChange: setValue,
+  inputRef,
   busy,
   inputs,
   onSend,
   onStop,
 }: {
+  value: string;
+  onValueChange: (value: string) => void;
+  inputRef?: RefObject<HTMLTextAreaElement | null>;
   busy: boolean;
   inputs: CatalogModel['inputs'];
   onSend: (text: string, files: FileList) => void;
   onStop: () => void;
 }) {
-  const [value, setValue] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [fileError, setFileError] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const [dismissed, setDismissed] = useState(false);
-  const ref = useRef<HTMLTextAreaElement>(null);
+  const fallbackRef = useRef<HTMLTextAreaElement>(null);
+  const ref = inputRef ?? fallbackRef;
   const fileRef = useRef<HTMLInputElement>(null);
+  const helpId = useId();
+  const commandId = useId();
 
   const commands = useCommands();
   const query = commandQuery(value);
@@ -108,6 +117,7 @@ export function PromptInput({
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (isComposingKey(e.nativeEvent)) return;
     if (menuOpen) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
@@ -119,7 +129,7 @@ export function PromptInput({
         setActiveIndex((i) => (i - 1 + matches.length) % matches.length);
         return;
       }
-      if (e.key === 'Enter' || e.key === 'Tab') {
+      if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Tab') {
         e.preventDefault();
         const command = matches[Math.min(activeIndex, matches.length - 1)];
         if (command) accept(command);
@@ -141,16 +151,18 @@ export function PromptInput({
     inputs.includes('video') && 'video/*', inputs.includes('pdf') && 'application/pdf'].filter(Boolean).join(',');
 
   return (
-    <div className="relative rounded-2xl border border-input bg-card p-2 shadow-sm transition-colors focus-within:border-ring">
+    <div>
+    <div className="relative rounded-xl border border-input bg-card p-2 transition-colors focus-within:border-ring">
       {files.length > 0 && <div className="flex flex-wrap gap-1.5 px-2 pb-2">
-        {files.map((file, index) => <span key={`${file.name}-${index}`} className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs">
-          {file.name}<button type="button" aria-label={`Remove ${file.name}`} onClick={() => setFiles(files.filter((_, i) => i !== index))}><X className="size-3" /></button>
+        {files.map((file, index) => <span key={`${file.name}-${index}`} className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-md bg-muted pl-2 text-xs">
+          <span className="truncate">{file.name}</span><button type="button" className="inline-flex size-9 shrink-0 items-center justify-center rounded-md hover:bg-accent" aria-label={`Remove ${file.name}`} onClick={() => setFiles(files.filter((_, i) => i !== index))}><X className="size-3.5" /></button>
         </span>)}
       </div>}
       {fileError && <p role="alert" className="px-2 pb-2 text-xs text-destructive">{fileError}</p>}
       <div className="flex items-end gap-2">
       {menuOpen && (
         <CommandMenu
+          id={commandId}
           commands={matches}
           activeIndex={activeIndex}
           onActivate={setActiveIndex}
@@ -159,6 +171,11 @@ export function PromptInput({
       )}
       <textarea
         ref={ref}
+        aria-label="Message"
+        aria-describedby={helpId}
+        aria-autocomplete="list"
+        aria-controls={menuOpen ? commandId : undefined}
+        aria-activedescendant={menuOpen ? `${commandId}-${Math.min(activeIndex, matches.length - 1)}` : undefined}
         rows={1}
         value={value}
         onChange={(e) => {
@@ -178,8 +195,8 @@ export function PromptInput({
           setFileError('');
         }}
         onKeyDown={onKeyDown}
-        placeholder="Ask about the codebase…  (type / for commands)"
-        className="max-h-[200px] flex-1 resize-none bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-muted-foreground"
+        placeholder="Ask about the codebase…"
+        className="max-h-[200px] min-w-0 flex-1 resize-none bg-transparent px-2 py-3 text-base leading-6 outline-none placeholder:text-muted-foreground sm:text-sm"
       />
       {acceptedTypes && <>
         <input ref={fileRef} type="file" multiple accept={acceptedTypes} className="hidden" aria-label="Attach files" onChange={(event) => {
@@ -193,7 +210,7 @@ export function PromptInput({
           setFileError('');
           event.target.value = '';
         }} />
-        <button type="button" disabled={busy} onClick={() => fileRef.current?.click()} aria-label="Attach files" title="Attach files" className="inline-flex size-8 shrink-0 items-center justify-center rounded-xl text-muted-foreground hover:bg-accent disabled:opacity-30"><Paperclip className="size-4" /></button>
+        <button type="button" disabled={busy} onClick={() => fileRef.current?.click()} aria-label="Attach files" title="Attach files" className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent disabled:opacity-30"><Paperclip className="size-4" /></button>
       </>}
       {busy ? (
         <button
@@ -201,7 +218,7 @@ export function PromptInput({
           onClick={onStop}
           aria-label="Stop"
           title="Stop"
-          className="inline-flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-opacity hover:opacity-90"
+          className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-opacity hover:opacity-90"
         >
           <Square className="size-3.5 fill-current" />
         </button>
@@ -213,7 +230,7 @@ export function PromptInput({
           aria-label="Send"
           title="Send"
           className={cn(
-            'inline-flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-opacity',
+            'inline-flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-opacity',
             'hover:opacity-90 disabled:opacity-30',
           )}
         >
@@ -221,6 +238,10 @@ export function PromptInput({
         </button>
       )}
       </div>
+    </div>
+    <p id={helpId} className="mt-2 text-center text-xs leading-5 text-muted-foreground">
+      <span className="hidden sm:inline">Enter to send · Shift+Enter for newline · </span>Type / for commands
+    </p>
     </div>
   );
 }

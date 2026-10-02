@@ -10,5 +10,7 @@ describe('header settings controls', () => {
     const header = html.split('</header>')[0];
     expect(header).toContain('aria-label="Model settings"');
     expect(header).toContain('aria-label="Settings"');
+    expect(header).toContain('Codeberg');
+    expect(header).toContain('aria-controls="chat-sidebar"');
   });
 });

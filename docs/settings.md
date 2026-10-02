@@ -3,6 +3,11 @@
 Open **Settings** from the web header. The dedicated screen has three sections:
 **Appearance**, **Resource usage**, and **Free up resources**. The existing **Model settings**
 dialog has its own separate button in the main web header.
+Settings opens on **Appearance**. On desktop, section navigation sits beside the
+content; on smaller screens it becomes a compact row. Usage and cleanup are
+loaded only when their section is opened. Failed resource requests show a
+**Try again** action; failed cleanup previews disable selection until totals
+are available.
 
 ## Appearance
 

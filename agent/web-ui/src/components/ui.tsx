@@ -1,20 +1,62 @@
-import { Check, ChevronRight, Copy } from 'lucide-react';
-import { useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { AlertTriangle, Check, ChevronRight, Copy } from 'lucide-react';
+import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode, type Ref } from 'react';
 
 import { cn } from '@/lib/utils';
 
-export function IconButton({ className, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
+export function IconButton({ className, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { ref?: Ref<HTMLButtonElement> }) {
   return (
     <button
       type="button"
       className={cn(
-        'inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors',
+        'inline-flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors sm:size-9',
         'hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
         className,
       )}
       {...props}
     />
   );
+}
+
+/** Native modality supplies focus containment, Escape, and background inertness. */
+export function Dialog({ open = true, label, onClose, className, children }: {
+  open?: boolean;
+  label: string;
+  onClose: () => void;
+  className?: string;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const opener = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const dialog = ref.current;
+    if (!dialog) return;
+    if (open && !dialog.open) {
+      opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      dialog.showModal();
+    }
+    if (!open && dialog.open) dialog.close();
+    return () => {
+      if (!dialog.open) return;
+      dialog.close();
+      if (opener.current?.isConnected) opener.current.focus();
+    };
+  }, [open]);
+  return (
+    <dialog ref={ref} aria-label={label} onCancel={(event) => { event.preventDefault(); ref.current?.close(); }}
+      onClose={() => { if (ref.current && !ref.current.open) onClose(); }}
+      onClick={(event) => { if (event.target === event.currentTarget) ref.current?.close(); }}
+      className={cn('max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl border-0 bg-popover p-0 text-popover-foreground shadow-xl', className)}>
+      <div className="flex h-full flex-col">{children}</div>
+    </dialog>
+  );
+}
+
+export function ErrorNotice({ title, detail, onRetry }: { title: string; detail: string; onRetry: () => void }) {
+  return <div role="alert" className="flex flex-wrap items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+    <AlertTriangle aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-destructive" />
+    <div className="min-w-0 flex-1 text-sm"><p className="font-medium">{title}</p><p className="mt-1 break-words text-xs leading-5 text-muted-foreground">{detail}</p></div>
+    <button type="button" onClick={onRetry} className="min-h-11 rounded-lg border border-border px-3 text-sm hover:bg-accent">Try again</button>
+  </div>;
 }
 
 

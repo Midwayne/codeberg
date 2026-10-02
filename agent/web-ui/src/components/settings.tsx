@@ -7,6 +7,14 @@ import {
 } from '@/lib/resources';
 import { ResourceChart } from '@/components/resource-chart';
 import { AppearancePanel } from '@/components/appearance';
+import { cn } from '@/lib/utils';
+import { ErrorNotice } from '@/components/ui';
+
+const sections = [
+  { id: 'appearance', label: 'Appearance', shortLabel: 'Appearance', icon: Palette },
+  { id: 'usage', label: 'Resource usage', shortLabel: 'Usage', icon: Activity },
+  { id: 'cleanup', label: 'Free up resources', shortLabel: 'Cleanup', icon: Trash2 },
+] as const;
 
 const labels: Record<CleanupCategory, string> = { chats: 'Saved chats', training: 'Training data', knowledge: 'Knowledge documents' };
 const descriptions: Record<CleanupCategory, string> = {
@@ -14,29 +22,37 @@ const descriptions: Record<CleanupCategory, string> = {
   training: 'Candidates and their training, evaluation, and dismissed copies. Recently reviewed examples are kept together.',
   knowledge: 'Generated service, flow, concept, and debugging documents. Original repository files are kept.',
 };
-const buttonClass = 'rounded-lg border border-border px-3 py-2 text-sm hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50';
+const buttonClass = 'min-h-11 rounded-lg border border-border px-3 py-2 text-sm hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50';
 
 export function Settings({ onClose }: { onClose: () => void }) {
-  const [section, setSection] = useState<'appearance' | 'usage' | 'cleanup'>('usage');
+  const [section, setSection] = useState<(typeof sections)[number]['id']>('appearance');
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => { heading.current?.focus(); }, []);
   return (
     <main className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-8">
+      <div className="mx-auto max-w-6xl space-y-8 p-4 sm:p-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <button type="button" onClick={onClose} aria-label="Back to chats" className={buttonClass}><ArrowLeft className="size-4" /></button>
-            <h1 ref={heading} tabIndex={-1} className="text-xl font-semibold outline-none">Settings</h1>
+            <button type="button" onClick={onClose} aria-label="Back to chats" className={`${buttonClass} flex items-center gap-2`}><ArrowLeft className="size-4" /><span className="hidden sm:inline">Back to chats</span></button>
+            <h1 ref={heading} tabIndex={-1} className="text-2xl font-semibold tracking-tight outline-none">Settings</h1>
           </div>
         </div>
-        <nav aria-label="Settings sections" className="flex flex-wrap gap-2 border-b border-border pb-4">
-          <button type="button" onClick={() => setSection('appearance')} aria-current={section === 'appearance' ? 'page' : undefined} className={`${buttonClass} flex items-center gap-2 ${section === 'appearance' ? 'bg-accent' : ''}`}><Palette className="size-4" />Appearance</button>
-          <button type="button" onClick={() => setSection('usage')} aria-current={section === 'usage' ? 'page' : undefined} className={`${buttonClass} flex items-center gap-2 ${section === 'usage' ? 'bg-accent' : ''}`}><Activity className="size-4" />Resource usage</button>
-          <button type="button" onClick={() => setSection('cleanup')} aria-current={section === 'cleanup' ? 'page' : undefined} className={`${buttonClass} flex items-center gap-2 ${section === 'cleanup' ? 'bg-accent' : ''}`}><Trash2 className="size-4" />Free up resources</button>
-        </nav>
-        {section === 'appearance' && <AppearancePanel />}
-        {section === 'usage' && <ResourceUsagePanel />}
-        {section === 'cleanup' && <CleanupPanel />}
+        <div className="grid items-start gap-6 md:grid-cols-[12rem_minmax(0,1fr)] md:gap-10">
+          <nav aria-label="Settings sections" className="grid grid-cols-3 gap-1 border-b border-border pb-3 md:sticky md:top-0 md:grid-cols-1 md:border-b-0 md:pb-0">
+            {sections.map(({ id, label, shortLabel, icon: Icon }) => (
+              <button key={id} type="button" aria-label={label} aria-current={section === id ? 'page' : undefined}
+                onClick={() => setSection(id)} className={cn('flex min-h-11 items-center justify-center gap-2 rounded-lg px-2 py-3 text-sm md:justify-start md:px-3', section === id ? 'bg-accent font-medium text-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground')}>
+                <Icon className="hidden size-4 shrink-0 min-[380px]:block" />
+                <span className="md:hidden">{shortLabel}</span><span className="hidden md:inline">{label}</span>
+              </button>
+            ))}
+          </nav>
+          <div className="min-w-0">
+            {section === 'appearance' && <AppearancePanel />}
+            {section === 'usage' && <ResourceUsagePanel />}
+            {section === 'cleanup' && <CleanupPanel />}
+          </div>
+        </div>
       </div>
     </main>
   );
@@ -46,6 +62,7 @@ function ResourceUsagePanel() {
   const [usage, setUsage] = useState<ResourceUsage>();
   const [error, setError] = useState('');
   const [range, setRange] = useState(60);
+  const [retry, setRetry] = useState(0);
   const latest = useRef<ResourceUsage>(undefined);
   useEffect(() => {
     let active = true;
@@ -73,10 +90,10 @@ function ResourceUsagePanel() {
     const visible = () => { if (!document.hidden) void refresh(); };
     document.addEventListener('visibilitychange', visible);
     return () => { active = false; if (timer) clearTimeout(timer); document.removeEventListener('visibilitychange', visible); };
-  }, []);
+  }, [retry]);
   return <>
-    {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-    {usage ? <ResourceUsageView usage={usage} range={range} onRange={setRange} /> : <p role="status" className="text-sm text-muted-foreground">Loading resource usage…</p>}
+    {error && <ErrorNotice title="Could not load resource usage" detail={error} onRetry={() => { setError(''); setRetry((value) => value + 1); }} />}
+    {usage ? <ResourceUsageView usage={usage} range={range} onRange={setRange} /> : !error && <p role="status" className="text-sm text-muted-foreground">Loading resource usage…</p>}
   </>;
 }
 
@@ -112,7 +129,7 @@ export function ResourceUsageView({ usage, range, onRange }: { usage: ResourceUs
         <tbody>{current.processes.map((item) => <tr key={item.pid} className="border-t border-border"><td className="py-2 pr-3">{item.name}</td><td className="pr-3 tabular-nums">{item.pid}</td><td className="pr-3 tabular-nums">{item.cpuPercent === null ? '—' : `${item.cpuPercent.toFixed(1)}%`}</td><td className="tabular-nums">{formatBytes(item.memoryBytes)}</td></tr>)}</tbody>
       </table></div>}
     </div>
-    <div className="flex items-center justify-between gap-3"><h3 className="text-sm font-medium">Usage history</h3><label className="text-sm">Time range <select value={range} onChange={(event) => onRange(Number(event.currentTarget.value))} className="ml-2 rounded-md border border-border bg-background px-2 py-1"><option value={5}>5 minutes</option><option value={15}>15 minutes</option><option value={60}>1 hour</option></select></label></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-sm font-medium">Usage history</h3><label className="text-sm">Time range <select value={range} onChange={(event) => onRange(Number(event.currentTarget.value))} className="ml-2 min-h-11 rounded-lg border border-input bg-background px-3 py-2 text-base sm:text-sm"><option value={5}>5 minutes</option><option value={15}>15 minutes</option><option value={60}>1 hour</option></select></label></div>
     <div className="grid gap-3 sm:grid-cols-3">
       <ResourceChart title="CPU history" rows={rows.filter((row) => row.cpu.usedPercent !== null)} value={(row) => row.cpu.usedPercent ?? 0} format={percentage} range={range} end={end} />
       <ResourceChart title="Memory history" rows={rows} value={(row) => row.memory.usedBytes} format={formatBytes} range={range} end={end} />
@@ -131,6 +148,7 @@ function CleanupPanel() {
   const [days, setDays] = useState(30);
   const [selected, setSelected] = useState<CleanupCategory[]>([]);
   const [preview, setPreview] = useState<CleanupPreview>();
+  const [previewError, setPreviewError] = useState('');
   const [error, setError] = useState('');
   const [result, setResult] = useState('');
   const [confirming, setConfirming] = useState(false);
@@ -139,7 +157,8 @@ function CleanupPanel() {
   useEffect(() => {
     let active = true;
     setPreview(undefined);
-    void previewCleanup(days).then((value) => { if (active) setPreview(value); }).catch((failure: unknown) => { if (active) setError(String(failure)); });
+    setPreviewError('');
+    void previewCleanup(days).then((value) => { if (active) setPreview(value); }).catch((failure: unknown) => { if (active) setPreviewError(String(failure)); });
     return () => { active = false; };
   }, [days, revision]);
   const count = preview?.categories.filter((row) => selected.includes(row.category)).reduce((sum, row) => sum + row.count, 0) ?? 0;
@@ -155,7 +174,8 @@ function CleanupPanel() {
   }
   return <section className="space-y-5" aria-label="Free up resources">
     <div><h2 className="text-lg font-semibold">Free up resources</h2><p className="mt-1 text-sm text-muted-foreground">Choose what to remove and how old it should be. Cleanup permanently deletes matching files.</p></div>
-    <CleanupOptions preview={preview} days={days} onDays={(value) => { setDays(value); setConfirming(false); setResult(''); setError(''); }} selected={selected} onSelect={(value) => { setSelected(value); setConfirming(false); }} busy={busy} onDelete={() => setConfirming(true)} />
+    {previewError && <ErrorNotice title="Could not calculate cleanup totals" detail={previewError} onRetry={() => setRevision((value) => value + 1)} />}
+    <CleanupOptions preview={preview} unavailable={Boolean(previewError)} days={days} onDays={(value) => { setDays(value); setConfirming(false); setResult(''); setError(''); }} selected={selected} onSelect={(value) => { setSelected(value); setConfirming(false); }} busy={busy} onDelete={() => setConfirming(true)} />
     <p className="text-xs text-muted-foreground">Interaction/feedback source records and job receipts are kept to preserve provenance and prevent automatic regeneration on restart. New feedback or code changes may generate new training or knowledge data.</p>
     {confirming && <div className="space-y-3 rounded-xl border border-destructive p-4"><p className="text-sm">Permanently delete {count} matching files from {selected.map((category) => labels[category]).join(', ')}? This cannot be undone.</p><div className="flex gap-2"><button type="button" disabled={busy} onClick={() => void remove()} className="rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground disabled:opacity-50">{busy ? 'Deleting…' : 'Confirm deletion'}</button><button type="button" disabled={busy} onClick={() => setConfirming(false)} className={buttonClass}>Cancel</button></div></div>}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
@@ -163,8 +183,9 @@ function CleanupPanel() {
   </section>;
 }
 
-export function CleanupOptions({ preview, selected, onSelect, days, onDays, busy, onDelete }: {
+export function CleanupOptions({ preview, unavailable, selected, onSelect, days, onDays, busy, onDelete }: {
   preview?: CleanupPreview; selected: CleanupCategory[]; onSelect: (value: CleanupCategory[]) => void;
+  unavailable?: boolean;
   days: number; onDays: (value: number) => void; busy: boolean; onDelete: () => void;
 }) {
   const rows = preview?.categories;
@@ -172,10 +193,10 @@ export function CleanupOptions({ preview, selected, onSelect, days, onDays, busy
   const count = matches.reduce((sum, row) => sum + row.count, 0);
   const bytes = matches.reduce((sum, row) => sum + row.bytes, 0);
   return <div className="space-y-4">
-    <label className="block text-sm font-medium">Older than <select value={days} disabled={busy} onChange={(event) => onDays(Number(event.currentTarget.value))} className="ml-2 rounded-md border border-border bg-background px-3 py-2">{[7, 30, 90, 365].map((value) => <option key={value} value={value}>{value} days</option>)}<option value={0}>All ages</option></select></label>
-    <fieldset disabled={busy} className="space-y-3"><legend className="sr-only">Data to delete</legend>{(['chats', 'training', 'knowledge'] as const).map((category) => {
+    <label className="block text-sm font-medium">Older than <select value={days} disabled={busy} onChange={(event) => onDays(Number(event.currentTarget.value))} className="ml-2 min-h-11 rounded-lg border border-input bg-background px-3 py-2 text-base sm:text-sm">{[7, 30, 90, 365].map((value) => <option key={value} value={value}>{value} days</option>)}<option value={0}>All ages</option></select></label>
+    <fieldset disabled={busy || !preview} className="space-y-3"><legend className="sr-only">Data to delete</legend>{(['chats', 'training', 'knowledge'] as const).map((category) => {
       const row = rows?.find((item) => item.category === category);
-      return <label key={category} className="flex cursor-pointer items-start gap-3 rounded-xl border border-border p-4"><input type="checkbox" checked={selected.includes(category)} onChange={(event) => onSelect(event.currentTarget.checked ? [...selected, category] : selected.filter((item) => item !== category))} className="mt-1 size-4 accent-primary" /><span className="min-w-0 flex-1"><span className="text-sm font-medium">{labels[category]}</span><span className="mt-1 block text-xs text-muted-foreground">{descriptions[category]}</span></span><span className="shrink-0 text-right text-xs text-muted-foreground">{row ? <>{row.count} files<br />{formatBytes(row.bytes)}</> : 'Calculating…'}</span></label>;
+      return <label key={category} className="flex cursor-pointer items-start gap-3 rounded-xl border border-border p-4"><input type="checkbox" checked={selected.includes(category)} onChange={(event) => onSelect(event.currentTarget.checked ? [...selected, category] : selected.filter((item) => item !== category))} className="mt-1 size-5 shrink-0 accent-primary" /><span className="min-w-0 flex-1"><span className="text-sm font-medium">{labels[category]}</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">{descriptions[category]}</span></span><span className="shrink-0 text-right text-xs tabular-nums text-muted-foreground">{row ? <>{row.count} files<br />{formatBytes(row.bytes)}</> : unavailable ? 'Unavailable' : 'Calculating…'}</span></label>;
     })}</fieldset>
     <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-muted-foreground">{count} files selected · {formatBytes(bytes)} reclaimable</p><button type="button" disabled={busy || !preview || !count} onClick={onDelete} className={`${buttonClass} text-destructive`}>Delete selected data…</button></div>
   </div>;

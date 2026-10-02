@@ -7,6 +7,8 @@ import { TrainingReview } from '@/components/training-review';
 import { Settings } from '@/components/settings';
 import { loadModelSettings, type CatalogModel } from '@/lib/models';
 import { startLearningStatusPolling } from '@/lib/learning-status';
+import { IconButton } from '@/components/ui';
+import { useMediaQuery } from '@/lib/use-media-query';
 
 export function App() {
   // The server exposes the model and reasoning effort at /api/meta.
@@ -14,7 +16,9 @@ export function App() {
   const [chatInputs, setChatInputs] = useState<CatalogModel['inputs']>(['text']);
   const [learningEnabled, setLearningEnabled] = useState(false);
   const [learningBusy, setLearningBusy] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const desktop = useMediaQuery('(min-width: 768px)');
+  const [sidebarPreference, setSidebarOpen] = useState<boolean>();
+  const sidebarOpen = sidebarPreference ?? desktop;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modelsOpen, setModelsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -52,12 +56,13 @@ export function App() {
         setSettingsOpen(false);
         setModelsOpen(false);
         setTrainingOpen(false);
+        if (!desktop) setSidebarOpen(false);
         setSearchOpen(true);
       }
     };
     window.addEventListener('keydown', shortcut);
     return () => window.removeEventListener('keydown', shortcut);
-  }, []);
+  }, [desktop]);
 
   function closeSettings(): void {
     setSettingsOpen(false);
@@ -65,50 +70,55 @@ export function App() {
   }
 
   return (
-    <div className="flex h-dvh flex-col bg-background text-foreground">
+    <div className="flex h-dvh min-w-0 flex-col bg-background text-foreground">
       <header className="shrink-0 border-b border-border">
-        <div className="flex items-center gap-2 px-3 py-3 text-sm">
-          {!trainingOpen && !settingsOpen && <button
-            type="button"
-            onClick={() => setSidebarOpen((o) => !o)}
+        <div className="flex min-h-16 items-center gap-1 px-2 text-sm sm:gap-2 sm:px-4">
+          {!trainingOpen && !settingsOpen && <IconButton
+            onClick={() => setSidebarOpen(!sidebarOpen)}
             aria-label={sidebarOpen ? 'Hide chats' : 'Show chats'}
-            aria-pressed={sidebarOpen}
+            aria-expanded={sidebarOpen}
+            aria-controls="chat-sidebar"
             title="Toggle chats"
-            className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <PanelLeft className="size-4" />
-          </button>}
-          {title && <span className="min-w-0 flex-1 truncate font-semibold">{settingsOpen ? 'Settings' : trainingOpen ? 'Training review' : title}</span>}
-          {learningBusy && <span role="status" className="shrink-0 text-xs text-muted-foreground">Updating knowledge &amp; learning data…</span>}
-          <button ref={searchButton} type="button" onClick={() => { setTrainingOpen(false); setSettingsOpen(false); setSearchOpen(true); }} aria-label="Search chats" title="Search chats (⌘K / Ctrl+K)" className="ml-auto inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground">
+          </IconButton>}
+          <span className="shrink-0 px-1 font-semibold max-[359px]:text-xs">Codeberg</span>
+          <span className="ml-2 hidden min-w-0 flex-1 truncate border-l border-border pl-4 text-xs text-muted-foreground md:block" title={title}>
+            {settingsOpen ? 'Settings' : trainingOpen ? 'Training review' : title}
+          </span>
+          {learningBusy && <span role="status" title="Updating knowledge and learning data" className="hidden shrink-0 text-xs text-muted-foreground lg:block">Updating knowledge &amp; learning data…</span>}
+          <IconButton ref={searchButton} onClick={() => { setTrainingOpen(false); setSettingsOpen(false); if (!desktop) setSidebarOpen(false); setSearchOpen(true); }} aria-label="Search chats" title="Search chats (⌘K / Ctrl+K)" className="ml-auto gap-2 md:w-auto md:px-3">
             <Search className="size-4" />
-          </button>
-          {learningEnabled && <button type="button" onClick={() => { setTrainingOpen((open) => !open); setSettingsOpen(false); }}
+            <span className="hidden text-xs md:inline">Search</span>
+          </IconButton>
+          {learningEnabled && <IconButton onClick={() => { setTrainingOpen((open) => !open); setSettingsOpen(false); setModelsOpen(false); if (!desktop) setSidebarOpen(false); }}
             aria-label={trainingOpen ? 'Back to chats' : 'Training review'} aria-pressed={trainingOpen}
             title={trainingOpen ? 'Back to chats' : 'Review training data'}
-            className={`inline-flex size-7 shrink-0 items-center justify-center rounded-md hover:bg-accent hover:text-foreground ${trainingOpen ? 'bg-accent text-foreground' : 'text-muted-foreground'}`}>
+            className={`gap-2 md:w-auto md:px-3 ${trainingOpen ? 'bg-accent text-foreground' : ''}`}>
             <GraduationCap className="size-4" />
-          </button>}
-          <button ref={modelsButton} type="button" onClick={() => setModelsOpen((open) => !open)}
+            <span className="hidden text-xs md:inline">Training</span>
+          </IconButton>}
+          <IconButton ref={modelsButton} onClick={() => { setModelsOpen((open) => !open); if (!desktop) setSidebarOpen(false); }}
             aria-label="Model settings" aria-expanded={modelsOpen} title="Model settings"
-            className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring">
+            className="gap-2 md:w-auto md:px-3">
             <SlidersHorizontal className="size-4" />
-          </button>
-          <button
+            <span className="hidden text-xs md:inline">Models</span>
+          </IconButton>
+          <IconButton
             ref={settingsButton}
-            type="button"
-            onClick={() => { setSettingsOpen((open) => !open); setTrainingOpen(false); setSearchOpen(false); }}
+            onClick={() => { setSettingsOpen((open) => !open); setTrainingOpen(false); setSearchOpen(false); setModelsOpen(false); if (!desktop) setSidebarOpen(false); }}
             aria-label="Settings"
             aria-expanded={settingsOpen}
             title="Settings"
-            className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+            className={`gap-2 md:w-auto md:px-3 ${settingsOpen ? 'bg-accent text-foreground' : ''}`}
           >
             <Settings2 className="size-4" />
-          </button>
+            <span className="hidden text-xs md:inline">Settings</span>
+          </IconButton>
         </div>
       </header>
       <div className={trainingOpen || settingsOpen ? 'hidden' : 'flex min-h-0 flex-1'}>
-        <Workspace sidebarOpen={sidebarOpen} learningEnabled={learningEnabled} chatInputs={chatInputs} searchOpen={searchOpen} onSearchClose={() => { setSearchOpen(false); searchButton.current?.focus(); }} />
+        <Workspace sidebarOpen={sidebarOpen && !settingsOpen && !trainingOpen} onSidebarClose={() => setSidebarOpen(false)} learningEnabled={learningEnabled} chatInputs={chatInputs} searchOpen={searchOpen} onSearchClose={() => { setSearchOpen(false); searchButton.current?.focus(); }} />
       </div>
       {trainingOpen && <TrainingReview />}
       {settingsOpen && <Settings onClose={closeSettings} />}
