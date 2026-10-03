@@ -192,6 +192,11 @@ ground truth. Ambiguous negative examples require checked negative paths before
 training approval. Neither action retrains the running model automatically.
 Only current extraction revisions can be accepted; old revisions remain visible
 under **Outdated**. Reviewed decisions remain visible under **Reviewed**.
+On smaller screens, selecting an example opens its detail view; **Back to
+examples** returns to the queue. Refresh preserves the active filter. Failed
+loads have a retry action, and a confirmed decision stays saved even if the
+following dashboard refresh fails. Controls are locked while saving. Files
+entered for evaluation are never treated as verified negative training paths.
 The offline CLI exposes `codeberg learning candidates`, `codeberg learning
 extract <interaction-id>`, and `codeberg learning promote <example-id> eval
 user_confirmed oracle.json` (or `training <provenance>`). `oracle.json` is a

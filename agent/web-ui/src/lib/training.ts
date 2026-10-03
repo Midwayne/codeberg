@@ -52,12 +52,12 @@ async function readResponse<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export async function loadTrainingReview(): Promise<ReviewDashboard> {
-  return readResponse(await fetch('/api/learning/review'));
+export async function loadTrainingReview(signal?: AbortSignal): Promise<ReviewDashboard> {
+  return readResponse(await fetch('/api/learning/review', { signal }));
 }
 
-export async function loadReviewExample(id: string): Promise<ReviewExample> {
-  return readResponse(await fetch(`/api/learning/review/${encodeURIComponent(id)}`));
+export async function loadReviewExample(id: string, signal?: AbortSignal): Promise<ReviewExample> {
+  return readResponse(await fetch(`/api/learning/review/${encodeURIComponent(id)}`, { signal }));
 }
 
 export async function submitReview(id: string, decision: 'training' | 'eval' | 'dismiss', oracle?: Record<string, unknown>): Promise<void> {

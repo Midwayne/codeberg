@@ -39,5 +39,19 @@ describe('training review', () => {
     expect(html).toContain('Which sources did you independently verify?');
     expect(html).toContain('Save evaluation case');
     expect(html).toContain('Set aside');
+    const saving = renderToStaticMarkup(<ReviewDetail row={row} example={example} destination="eval"
+      onDestination={() => undefined} verified={[]} onVerified={() => undefined} otherPaths="" onOtherPaths={() => undefined}
+      expected="" onExpected={() => undefined} saving onDecide={() => undefined} onNext={() => undefined} />);
+    expect(saving).toContain('<fieldset disabled=""');
+    expect(saving).toContain('Saving…');
+    const stale = renderToStaticMarkup(<ReviewDetail row={{...row,state:'stale',eligible:false}} example={example} destination="eval"
+      onDestination={() => undefined} verified={[]} onVerified={() => undefined} otherPaths="" onOtherPaths={() => undefined}
+      expected="" onExpected={() => undefined} saving={false} onDecide={() => undefined} onNext={() => undefined} />);
+    expect(stale).toContain('cannot be approved');
+    expect(stale).not.toContain('Save evaluation case');
+    const payloadEvidence = renderToStaticMarkup(<ReviewDetail row={{...row,proposed_files:[]}} example={example} destination="eval"
+      onDestination={() => undefined} verified={[]} onVerified={() => undefined} otherPaths="" onOtherPaths={() => undefined}
+      expected="" onExpected={() => undefined} saving={false} onDecide={() => undefined} onNext={() => undefined} />);
+    expect(payloadEvidence).toContain('return picked + packed');
   });
 });

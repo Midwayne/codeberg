@@ -1,159 +1,127 @@
-import { ArrowRight, Check, CircleHelp, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { ArrowLeft, ArrowRight, Check, CircleHelp, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import {
-  KIND_LABELS, exampleAnswer, loadReviewExample, loadTrainingReview, proposedEvidence, submitReview,
+  KIND_LABELS, exampleAnswer, proposedEvidence,
   type EvidencePreview, type ReviewDashboard, type ReviewExample, type ReviewSummary,
 } from '@/lib/training';
+import { prepareReviewDecision, type ReviewDecision } from '@/lib/training-review';
+import { useTrainingReview } from '@/lib/use-training-review';
+import { useMediaQuery } from '@/lib/use-media-query';
+import { ErrorNotice, IconButton } from '@/components/ui';
 
-type Filter = 'ready' | 'reviewed' | 'stale';
-type Decision = 'training' | 'eval' | 'dismiss';
+type Decision = ReviewDecision;
 
 export function TrainingReview() {
-  const [dashboard, setDashboard] = useState<ReviewDashboard>();
-  const [selectedId, setSelectedId] = useState<string>();
-  const [example, setExample] = useState<ReviewExample>();
-  const [filter, setFilter] = useState<Filter>('ready');
+  const review = useTrainingReview();
+  const { dashboard, filter, visible, selected, selectedId, example, saving } = review;
   const [destination, setDestination] = useState<'training' | 'eval'>('training');
   const [verified, setVerified] = useState<string[]>([]);
   const [otherPaths, setOtherPaths] = useState('');
   const [expected, setExpected] = useState('');
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [validationError, setValidationError] = useState('');
+  const [mobileDetails, setMobileDetails] = useState(false);
+  const desktop = useMediaQuery('(min-width: 1024px)');
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const queueRef = useRef<HTMLElement>(null);
+  const detailRef = useRef<HTMLElement>(null);
+  const locked = saving || review.loading;
 
-  async function refresh(): Promise<void> {
-    const next = await loadTrainingReview();
-    setDashboard(next);
-    setSelectedId((current) => current && next.candidates.some((row) => row.id === current && row.state === 'ready')
-      ? current : next.candidates.find((row) => row.state === 'ready')?.id);
-  }
-
+  useEffect(() => { titleRef.current?.focus(); }, []);
   useEffect(() => {
-    let active = true;
-    void loadTrainingReview().then((next) => {
-      if (!active) return;
-      setDashboard(next);
-      setSelectedId(next.candidates.find((row) => row.state === 'ready')?.id);
-    }).catch((failure: unknown) => { if (active) setError(String(failure)); });
-    return () => { active = false; };
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-    setExample(undefined);
     setVerified([]);
     setOtherPaths('');
     setExpected('');
     setDestination('training');
-    setError('');
-    if (selectedId) void loadReviewExample(selectedId).then((value) => {
-      if (active) setExample(value);
-    }).catch((failure: unknown) => { if (active) setError(String(failure)); });
-    return () => { active = false; };
+    setValidationError('');
   }, [selectedId]);
+  useEffect(() => {
+    if (!mobileDetails || desktop) return;
+    detailRef.current?.focus();
+    detailRef.current?.scrollIntoView({ block: 'start' });
+  }, [mobileDetails, selectedId, desktop]);
 
-  const visible = dashboard?.candidates.filter((row) => filter === 'ready' ? row.state === 'ready'
-    : filter === 'stale' ? row.state === 'stale' : ['training', 'eval', 'dismissed'].includes(row.state)) ?? [];
-  const selected = dashboard?.candidates.find((row) => row.id === selectedId);
-
-  async function decide(decision: Decision): Promise<void> {
-    if (!selected || busy) return;
-    setError('');
-    const paths = [...new Set([...verified, ...otherPaths.split(/[\n,]/).map((value) => value.trim()).filter(Boolean)])];
-    let oracle: Record<string, unknown> | undefined;
-    if (decision === 'eval') {
-      if (selected.kind === 'retrieval' && !paths.length) {
-        setError('Choose or enter at least one independently checked source file.');
-        return;
-      }
-      if (!paths.length && !expected.trim()) {
-        setError('Record the checked outcome or source evidence for this evaluation case.');
-        return;
-      }
-      oracle = { ...(paths.length ? { files: paths } : {}), ...(expected.trim() ? { notes: expected.trim() } : {}) };
-    }
-    if (decision === 'training' && selected.kind === 'hard_negative_candidates') {
-      if (!paths.length) {
-        setError('Confirm at least one genuinely incorrect result before adding it to training.');
-        return;
-      }
-      oracle = { verified_negatives: paths };
-    }
-    setBusy(true);
-    try {
-      await submitReview(selected.id, decision, oracle);
-      const nextId = dashboard?.candidates.filter((row) => row.state === 'ready' && row.id !== selected.id)
-        .find((row) => row.id !== selected.id)?.id;
-      await refresh();
-      setFilter('ready');
-      if (nextId) setSelectedId(nextId);
-    } catch (failure) {
-      setError(String(failure));
-    } finally {
-      setBusy(false);
-    }
+  function select(id: string): void {
+    if (locked) return;
+    review.select(id);
+    setMobileDetails(true);
   }
-
   function nextExample(): void {
-    if (!selectedId) return;
-    const ready = dashboard?.candidates.filter((row) => row.state === 'ready') ?? [];
-    setSelectedId(ready[(ready.findIndex((row) => row.id === selectedId) + 1) % ready.length]?.id);
+    const index = visible.findIndex((row) => row.id === selectedId);
+    const next = visible[(index + 1) % visible.length];
+    if (next) select(next.id);
+  }
+  function backToExamples(): void {
+    setMobileDetails(false);
+    requestAnimationFrame(() => {
+      queueRef.current?.focus();
+      queueRef.current?.scrollIntoView({ block: 'start' });
+    });
+  }
+  function decide(decision: Decision): void {
+    if (!selected || example?.id !== selected.id || locked) return;
+    const result = prepareReviewDecision(selected, decision, { verified, otherPaths, expected },
+      proposedEvidence(example, 'proposed_negatives').map((hit) => hit.path));
+    setValidationError(result.ok ? '' : result.error);
+    if (result.ok) void review.save(decision, result.oracle);
   }
 
   return (
     <main className="min-h-0 flex-1 overflow-y-auto bg-background" aria-label="Training review">
       <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:py-9">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">Learning data</p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight">Training review</h1>
-            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Check an example, then decide whether it belongs in training or a held-out evaluation set. Approval saves data for later use; it does not retrain the current model.</p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h1 ref={titleRef} tabIndex={-1} className="text-2xl font-semibold tracking-tight">Training review</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Check an example, then decide whether it belongs in training or a held-out evaluation set. Approval saves data for later use; it does not retrain the current model.</p>
           </div>
-          <button type="button" onClick={() => void refresh().catch((failure: unknown) => setError(String(failure)))}
-            aria-label="Refresh training data" title="Refresh" className="rounded-lg border border-border p-2 text-muted-foreground hover:bg-accent hover:text-foreground">
+          <IconButton onClick={review.refresh} disabled={locked} aria-label="Refresh training data" title="Refresh training data">
             <RefreshCw className="size-4" />
-          </button>
+          </IconButton>
         </div>
 
-        {dashboard ? <TrainingSummary stats={dashboard.stats} /> : !error ? <p className="text-sm text-muted-foreground">Loading training data…</p> : null}
-        {error && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p>}
+        {dashboard && <TrainingSummary stats={dashboard.stats} />}
+        {review.loading && <p role="status" className="text-sm text-muted-foreground">{dashboard ? 'Refreshing training data…' : 'Loading training data…'}</p>}
+        {review.dashboardError && <ErrorNotice title={dashboard ? 'Could not refresh training data' : 'Could not load training data'} detail={review.dashboardError} onRetry={review.refresh} />}
+        {review.announcement && <p role="status" className="text-sm text-foreground">{review.announcement}</p>}
 
         {dashboard && (
-          <div className="grid min-h-[34rem] gap-4 lg:grid-cols-[minmax(16rem,21rem)_minmax(0,1fr)]">
-            <section className="flex min-h-0 flex-col rounded-xl border border-border bg-card" aria-label="Examples">
+          <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(16rem,21rem)_minmax(0,1fr)]">
+            <section ref={queueRef} tabIndex={-1} className={`min-h-0 min-w-0 flex-col rounded-xl border border-border bg-card ${mobileDetails ? 'hidden lg:flex' : 'flex'}`} aria-label="Examples">
               <div className="border-b border-border p-3">
-                <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1 text-xs">
+                <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1 text-xs" aria-label="Example filters">
                   {([
                     ['ready', `To review · ${dashboard.stats.ready}`],
                     ['reviewed', `Reviewed · ${dashboard.stats.training + dashboard.stats.eval + dashboard.stats.dismissed}`],
                     ['stale', `Outdated · ${dashboard.stats.stale}`],
-                  ] as const).map(([key, label]) => <button key={key} type="button" onClick={() => {
-                    setFilter(key);
-                    setSelectedId(dashboard.candidates.find((row) => key === 'ready' ? row.state === 'ready'
-                      : key === 'stale' ? row.state === 'stale' : ['training', 'eval', 'dismissed'].includes(row.state))?.id);
-                  }}
-                    aria-pressed={filter === key} className={`rounded-md px-2 py-2 font-medium transition-colors ${filter === key ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>{label}</button>)}
+                  ] as const).map(([key, label]) => <button key={key} type="button" disabled={locked}
+                    onClick={() => { review.setFilter(key); setValidationError(''); }}
+                    aria-pressed={filter === key} className={`min-h-11 rounded-md px-1 py-2 font-medium transition-colors disabled:opacity-50 ${filter === key ? 'bg-background text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>{label}</button>)}
                 </div>
               </div>
               <div className="max-h-[45rem] min-h-0 flex-1 overflow-y-auto p-2">
                 {visible.length ? visible.map((row) => (
-                  <button key={row.id} type="button" onClick={() => setSelectedId(row.id)}
-                    aria-pressed={selectedId === row.id} className={`mb-1 w-full rounded-lg border px-3 py-3 text-left transition-colors ${selectedId === row.id ? 'border-foreground/30 bg-accent' : 'border-transparent hover:bg-muted'}`}>
-                    <span className="text-[11px] font-medium text-muted-foreground">{KIND_LABELS[row.kind]} · {row.repositories.join(', ') || 'No repository'}</span>
-                    <span className="mt-1 block line-clamp-2 text-sm font-medium">{row.query}</span>
-                    <span className="mt-1 block text-[11px] text-muted-foreground">{row.state === 'ready' ? 'Ready for review' : row.state === 'stale' ? 'Outdated revision' : row.state === 'eval' ? 'Evaluation' : row.state === 'training' ? 'Training' : 'Set aside'}</span>
+                  <button key={row.id} type="button" disabled={locked} onClick={() => select(row.id)} aria-controls="training-example"
+                    aria-pressed={selectedId === row.id} className={`mb-1 w-full rounded-lg border px-3 py-3 text-left transition-colors disabled:opacity-50 ${selectedId === row.id ? 'border-primary/40 bg-accent' : 'border-transparent hover:bg-muted'}`}>
+                    <span className="block break-words text-xs leading-5 text-muted-foreground">{KIND_LABELS[row.kind]} · {row.repositories.join(', ') || 'No repository'}</span>
+                    <span className="mt-1 block line-clamp-2 break-words text-sm font-medium">{row.query}</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">{row.state === 'ready' ? 'Ready for review' : row.state === 'stale' ? 'Outdated revision' : row.state === 'eval' ? 'Evaluation' : row.state === 'training' ? 'Training' : 'Set aside'}</span>
                   </button>
                 )) : <p className="px-3 py-8 text-center text-sm text-muted-foreground">{filter === 'ready' ? 'All caught up. New examples appear after answered or graded chats.' : 'Nothing here yet.'}</p>}
               </div>
             </section>
 
-            <section className="min-w-0 rounded-xl border border-border bg-card" aria-label="Example details">
-              {selected && example?.id === selected.id ? (
-                <ReviewDetail row={selected} example={example} destination={destination} onDestination={setDestination}
-                  verified={verified} onVerified={(path) => setVerified((current) => current.includes(path) ? current.filter((item) => item !== path) : [...current, path])}
+            <section id="training-example" ref={detailRef} tabIndex={-1} aria-busy={!!selected && !example && !review.detailError}
+              className={`min-w-0 scroll-mt-4 rounded-xl border border-border bg-card ${mobileDetails ? 'block' : 'hidden lg:block'}`} aria-label="Example details">
+              <div className="border-b border-border p-2 lg:hidden"><button type="button" disabled={saving} onClick={backToExamples}
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm hover:bg-accent disabled:opacity-50"><ArrowLeft className="size-4" />Back to examples</button></div>
+              {review.detailError ? <div className="p-4"><ErrorNotice title="Could not load this example" detail={review.detailError} onRetry={review.retryDetail} /></div>
+                : selected && example?.id === selected.id ? (
+                <ReviewDetail row={selected} example={example} destination={destination} onDestination={(value) => { setDestination(value); setVerified([]); setValidationError(''); }}
+                  verified={verified} onVerified={(path) => { setVerified((current) => current.includes(path) ? current.filter((item) => item !== path) : [...current, path]); setValidationError(''); }}
                   otherPaths={otherPaths} onOtherPaths={setOtherPaths} expected={expected} onExpected={setExpected}
-                  saving={busy} onDecide={(decision) => void decide(decision)} onNext={nextExample} />
-              ) : <div className="flex h-full min-h-64 items-center justify-center px-6 text-center text-sm text-muted-foreground">
+                  saving={locked} error={validationError || review.saveError} canNext={visible.length > 1}
+                  onDecide={decide} onNext={nextExample} />
+              ) : <div role={selected ? 'status' : undefined} className="flex min-h-64 items-center justify-center px-6 text-center text-sm text-muted-foreground">
                 {selected ? 'Loading example…' : 'Select an example to inspect its answer and evidence.'}
               </div>}
             </section>
@@ -169,7 +137,7 @@ export function TrainingSummary({ stats }: { stats: ReviewDashboard['stats'] }) 
   const current = reviewed + stats.ready;
   const progress = current ? Math.round(100 * reviewed / current) : 0;
   return (
-    <section className="rounded-xl border border-border bg-card p-4 sm:p-5" aria-label="Training progress">
+    <section className="border-b border-border pb-6" aria-label="Training progress">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-sm font-semibold">Review progress</p>
@@ -179,7 +147,7 @@ export function TrainingSummary({ stats }: { stats: ReviewDashboard['stats'] }) 
       </div>
       <div role="progressbar" aria-label="Review progress" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}
         className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
-        <div className="h-full rounded-full bg-foreground transition-all" style={{ width: `${progress}%` }} />
+        <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
       </div>
       <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {([
@@ -188,10 +156,10 @@ export function TrainingSummary({ stats }: { stats: ReviewDashboard['stats'] }) 
           ['Evaluation', stats.eval, 'Held-out checks'],
           ['Set aside', stats.dismissed, 'Not selected'],
         ] as const).map(([label, value, caption]) => (
-          <div key={label} className="rounded-lg bg-muted/70 px-3 py-3">
-            <p className="text-2xl font-semibold tabular-nums">{value}</p>
-            <p className="text-xs font-medium">{label}</p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">{caption}</p>
+          <div key={label}>
+            <p className="text-xs font-medium text-muted-foreground">{label}</p>
+            <p className="mt-1 text-xl font-semibold tabular-nums">{value}</p>
+            <p className="mt-0.5 hidden text-xs text-muted-foreground sm:block">{caption}</p>
           </div>
         ))}
       </div>
@@ -202,7 +170,7 @@ export function TrainingSummary({ stats }: { stats: ReviewDashboard['stats'] }) 
 }
 
 export function ReviewDetail({ row, example, destination, onDestination, verified, onVerified, otherPaths, onOtherPaths,
-  expected, onExpected, saving, onDecide, onNext }: {
+  expected, onExpected, saving, error, canNext = true, onDecide, onNext }: {
   row: ReviewSummary;
   example: ReviewExample;
   destination: 'training' | 'eval';
@@ -214,6 +182,8 @@ export function ReviewDetail({ row, example, destination, onDestination, verifie
   expected: string;
   onExpected: (value: string) => void;
   saving: boolean;
+  error?: string;
+  canNext?: boolean;
   onDecide: (decision: Decision) => void;
   onNext: () => void;
 }) {
@@ -228,6 +198,14 @@ export function ReviewDetail({ row, example, destination, onDestination, verifie
   const choices = destination === 'training' && row.kind === 'hard_negative_candidates' ? negatives :
     evidence.length ? evidence : positive.length ? positive : verifierFiles;
   const feedback = example.feedback.at(-1);
+  const errorId = useId();
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => { if (error) errorRef.current?.focus(); }, [error]);
+  const allEvidence = new Map<string, EvidencePreview>();
+  for (const hit of [...evidence, ...positive, ...negatives, ...hardNegatives, ...verifierFiles,
+    ...row.proposed_files.map((path) => ({ path }))]) {
+    if (!allEvidence.has(hit.path)) allEvidence.set(hit.path, hit);
+  }
   return (
     <div className="space-y-5 p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -235,25 +213,24 @@ export function ReviewDetail({ row, example, destination, onDestination, verifie
         <span>{row.repositories.join(', ') || 'No repository'} · {new Date(row.extracted_at).toLocaleDateString()}</span>
       </div>
       <div>
-        <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Question</p>
-        <h2 className="mt-1 text-lg font-semibold leading-snug">{row.query}</h2>
+        <h2 className="text-lg font-semibold leading-snug break-words">{row.query}</h2>
       </div>
       {answer && <div>
-        <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Answer to review</p>
+        <h3 className="text-sm font-medium">Answer to review</h3>
         <div className="mt-2 max-h-72 overflow-y-auto rounded-lg border border-border bg-background p-3 text-sm whitespace-pre-wrap wrap-break-word">{answer}</div>
       </div>}
       {typeof example.payload.rejected === 'string' && <div>
-        <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Earlier answer that was rejected</p>
+        <h3 className="text-sm font-medium">Earlier answer that was rejected</h3>
         <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-border bg-muted/50 p-3 text-sm whitespace-pre-wrap wrap-break-word">{example.payload.rejected}</div>
       </div>}
       {feedback && <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
         <span className="font-medium">User feedback: {feedback.label.replaceAll('_', ' ')}</span>
-        {feedback.reason && <p className="mt-1 text-muted-foreground">{feedback.reason}</p>}
+        {feedback.reason && <p className="mt-1 break-words text-muted-foreground">{feedback.reason}</p>}
       </div>}
-      {row.proposed_files.length > 0 && <div>
-        <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Evidence to check</p>
+      {allEvidence.size > 0 && <div>
+        <h3 className="text-sm font-medium">Evidence to check</h3>
         <div className="mt-2 space-y-2">
-          {[...evidence, ...positive, ...negatives, ...hardNegatives, ...verifierFiles].slice(0, 12).map((hit, index) => (
+          {[...allEvidence.values()].map((hit, index) => (
             <div key={`${hit.path}-${index}`} className="rounded-lg border border-border p-3 text-xs">
               <span className="font-mono wrap-break-word">{hit.path}</span>
               {hit.snippet && <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-muted-foreground">{hit.snippet}</p>}
@@ -262,12 +239,13 @@ export function ReviewDetail({ row, example, destination, onDestination, verifie
         </div>
       </div>}
 
-      {row.state === 'ready' ? <div className="space-y-4 border-t border-border pt-5">
+      {row.state === 'ready' && row.eligible ? <fieldset disabled={saving} aria-describedby={error ? errorId : undefined} className="min-w-0 space-y-4 border-t border-border pt-5">
+        <legend className="sr-only">Review decision</legend>
         <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted p-1 text-sm">
           <button type="button" onClick={() => onDestination('training')} aria-pressed={destination === 'training'}
-            className={`rounded-md px-3 py-2 font-medium ${destination === 'training' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}>Teach the agent</button>
+            className={`min-h-11 rounded-md px-3 py-2 font-medium disabled:opacity-50 ${destination === 'training' ? 'bg-background' : 'text-muted-foreground'}`}>Teach the agent</button>
           <button type="button" onClick={() => onDestination('eval')} aria-pressed={destination === 'eval'}
-            className={`rounded-md px-3 py-2 font-medium ${destination === 'eval' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}>Test the agent</button>
+            className={`min-h-11 rounded-md px-3 py-2 font-medium disabled:opacity-50 ${destination === 'eval' ? 'bg-background' : 'text-muted-foreground'}`}>Test the agent</button>
         </div>
         <p className="flex items-start gap-2 text-xs text-muted-foreground">
           {destination === 'training' ? <Sparkles className="mt-0.5 size-4 shrink-0" /> : <ShieldCheck className="mt-0.5 size-4 shrink-0" />}
@@ -275,34 +253,35 @@ export function ReviewDetail({ row, example, destination, onDestination, verifie
         </p>
         {(destination === 'eval' || row.kind === 'hard_negative_candidates') && <div className="space-y-3 rounded-lg border border-border p-3">
           <p className="text-xs font-medium">{row.kind === 'hard_negative_candidates' && destination === 'training' ? 'Which proposed results did you verify are wrong?' : 'Which sources did you independently verify?'}</p>
-          {choices.map((hit) => <label key={hit.path} className="flex cursor-pointer items-start gap-2 text-xs">
-            <input type="checkbox" checked={verified.includes(hit.path)} onChange={() => onVerified(hit.path)} className="mt-0.5 accent-foreground" />
+          {choices.map((hit) => <label key={hit.path} className="flex min-h-11 cursor-pointer items-start gap-3 py-3 text-sm">
+            <input type="checkbox" checked={verified.includes(hit.path)} onChange={() => onVerified(hit.path)} className="size-5 shrink-0 accent-primary" />
             <span className="font-mono wrap-break-word">{hit.path}</span>
           </label>)}
           {destination === 'eval' && <label className="block text-xs text-muted-foreground">
             Other verified files (one per line, optional)
             <textarea value={otherPaths} onChange={(event) => onOtherPaths(event.currentTarget.value)} rows={2}
-              placeholder="src/path/to/verified-file.ts" className="mt-1 w-full rounded-md border border-border bg-background p-2 font-mono text-xs text-foreground" />
+              placeholder="src/path/to/verified-file.ts" className="mt-1 w-full rounded-md border border-border bg-background p-3 font-mono text-base text-foreground sm:text-sm" />
           </label>}
           {destination === 'eval' && row.kind !== 'retrieval' && <label className="block text-xs text-muted-foreground">
             Checked expected outcome (if no file applies)
-            <textarea value={expected} onChange={(event) => onExpected(event.currentTarget.value)} rows={2}
-              placeholder="What should a correct result say?" className="mt-1 w-full rounded-md border border-border bg-background p-2 text-xs text-foreground" />
+            <textarea value={expected} onChange={(event) => onExpected(event.currentTarget.value)} rows={2} maxLength={4000}
+              placeholder="What should a correct result say?" className="mt-1 w-full rounded-md border border-border bg-background p-3 text-base text-foreground sm:text-sm" />
           </label>}
         </div>}
+        {error && <p id={errorId} ref={errorRef} tabIndex={-1} role="alert" className="break-words text-sm text-destructive">{error}</p>}
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" disabled={saving} onClick={() => onDecide(destination)}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50">
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50">
             <Check className="size-4" /> {saving ? 'Saving…' : destination === 'training' ? 'Add to training' : 'Save evaluation case'}
           </button>
-          <button type="button" disabled={saving} onClick={() => onDecide('dismiss')} className="rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">Set aside</button>
-          <button type="button" disabled={saving} onClick={onNext} className="ml-auto inline-flex items-center gap-1 px-2 py-2 text-sm text-muted-foreground hover:text-foreground">Next <ArrowRight className="size-4" /></button>
+          <button type="button" disabled={saving} onClick={() => onDecide('dismiss')} className="min-h-11 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted disabled:opacity-50">Set aside</button>
+          <button type="button" disabled={saving || !canNext} onClick={onNext} className="ml-auto inline-flex min-h-11 items-center gap-1 px-2 py-2 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50">Next <ArrowRight className="size-4" /></button>
         </div>
-      </div> : <p className="flex items-center gap-2 border-t border-border pt-4 text-sm text-muted-foreground">
-        <CircleHelp className="size-4" /> {row.state === 'stale' ? 'This example is outdated after newer feedback. It cannot be approved.' : row.state === 'dismissed' ? 'You set this example aside.' : `Approved for ${row.state === 'eval' ? 'evaluation' : 'training'}.`}
+      </fieldset> : <p className="flex items-center gap-2 border-t border-border pt-4 text-sm text-muted-foreground">
+        <CircleHelp className="size-4 shrink-0" /> {row.state === 'stale' || !row.eligible ? 'This example is outdated after newer feedback. It cannot be approved.' : row.state === 'dismissed' ? 'You set this example aside.' : `Approved for ${row.state === 'eval' ? 'evaluation' : 'training'}.`}
       </p>}
       <details className="border-t border-border pt-4 text-xs text-muted-foreground">
-        <summary className="cursor-pointer">Technical record</summary>
+        <summary className="min-h-11 cursor-pointer py-3">Technical record</summary>
         <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-muted p-3 whitespace-pre-wrap wrap-break-word">{JSON.stringify(example.payload, null, 2)}</pre>
       </details>
     </div>

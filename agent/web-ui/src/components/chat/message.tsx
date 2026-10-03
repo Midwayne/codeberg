@@ -1,4 +1,4 @@
-import { Brain, CircleAlert, GitBranch, Loader2, RefreshCw, Wrench } from 'lucide-react';
+import { Brain, ChevronDown, CircleAlert, GitBranch, Loader2, RefreshCw, Wrench } from 'lucide-react';
 import type { UIMessage } from 'ai';
 import { useEffect, useRef, useState } from 'react';
 
@@ -257,28 +257,33 @@ function FeedbackActions({ conversationId, messageId }: { conversationId: string
   }
 
   return (
-    <div role="group" aria-label="Rate this answer" aria-busy={saving} className="ml-1 flex items-center gap-0.5">
-      <select
-        aria-label="Rate this answer"
-        value={selected ?? ''}
-        disabled={saving}
-        onChange={(event) => {
-          const option = FEEDBACK_OPTIONS.find((entry) => entry.label === event.currentTarget.value);
-          if (option) void choose(option);
-        }}
-        className={cn(
-          'h-7 w-36 rounded-md border border-transparent bg-transparent px-1 text-xs text-muted-foreground transition-colors hover:border-border hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-60',
-          selected && 'text-foreground',
-        )}
-      >
-        <option value="">Rate answer</option>
-        {FEEDBACK_OPTIONS.map((option) => (
-          <option key={option.label} value={option.label}>{option.title}</option>
-        ))}
-      </select>
+    <div role="group" aria-label="Rate this answer" aria-busy={saving} className="ml-1 flex flex-wrap items-center gap-2">
+      <div className="relative">
+        <select
+          aria-label="Rate this answer"
+          value={selected ?? ''}
+          disabled={saving}
+          onChange={(event) => {
+            const option = FEEDBACK_OPTIONS.find((entry) => entry.label === event.currentTarget.value);
+            if (option) void choose(option);
+          }}
+          className={cn(
+            'peer min-h-11 w-40 appearance-none rounded-md border border-transparent bg-background py-2 pl-2 pr-7 text-base text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-60 sm:min-h-9 sm:text-xs',
+            selected && 'text-foreground',
+          )}
+        >
+          <option value="" disabled={selected !== undefined} className="bg-popover text-popover-foreground">Rate answer</option>
+          {FEEDBACK_OPTIONS.map((option) => (
+            <option key={option.label} value={option.label} className="bg-popover text-popover-foreground">{option.title}</option>
+          ))}
+        </select>
+        <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground peer-hover:text-accent-foreground peer-focus-visible:text-accent-foreground peer-disabled:opacity-60" />
+      </div>
+      {saving && <span role="status" className="sr-only">Saving rating…</span>}
       {failed && (
-        <span title="Feedback wasn't saved; try again" role="status" aria-label="Feedback wasn't saved; try again">
-          <CircleAlert className="size-3.5 text-destructive" />
+        <span role="status" className="inline-flex max-w-48 items-start gap-1.5 text-xs text-destructive">
+          <CircleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+          Feedback wasn't saved. Select a rating to retry.
         </span>
       )}
     </div>
