@@ -1,8 +1,26 @@
 # Codeberg
 
-Fast codebase indexing: parse source into semantic chunks, track changes incrementally,
-embed into vectors, search by meaning, and query a structural knowledge graph
-(callers, imports, blast radius) beside the chunk/vector index.
+Codeberg is a complete agent harness for working with codebases. It brings together
+the agent runtime, project workspaces, browser chat and CLI, model configuration,
+tools, context management, memory, and continuous learning in one system.
+
+The harness includes:
+
+- **Projects:** select a repository in the UI, with separate chats, memories,
+  learning data, and indexes for each project. Different tabs can work on different
+  projects. See [Projects](docs/projects.md).
+- **Agent runtime:** model and reasoning selection, tool execution, context
+  budgeting, and resumable, searchable chats. See [Agent](agent/README.md).
+- **Code retrieval:** fast semantic chunking, incremental indexing, vector search,
+  and a structural knowledge graph for callers, imports, and blast radius.
+  See [Core architecture](core/docs/CORE.md).
+- **MCPs and skills:** global and project-specific extensions, managed from the
+  settings UI or existing configuration files. See [Projects](docs/projects.md#mcps-and-skills).
+- **Memory and learning:** feedback, durable learning jobs, project knowledge, and
+  training datasets. See [Continuous learning](docs/continuous-learning.md).
+
+One `codeberg` command launches the stack and manages its local processes and
+configuration.
 
 ## Install
 
