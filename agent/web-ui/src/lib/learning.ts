@@ -17,10 +17,11 @@ export interface FeedbackRecord {
 export async function loadFeedback(
   conversationId: string,
   messageId: string,
+  fetcher: typeof fetch = fetch,
 ): Promise<FeedbackRecord | null> {
   try {
     const params = new URLSearchParams({ conversation_id: conversationId, message_id: messageId });
-    const response = await fetch(`/api/learning/feedback?${params}`);
+    const response = await fetcher(`/api/learning/feedback?${params}`);
     return response.ok ? ((await response.json()) as FeedbackRecord | null) : null;
   } catch {
     return null;
@@ -32,8 +33,9 @@ export async function rateAttempt(
   messageId: string,
   option: FeedbackOption,
   reason?: string,
+  fetcher: typeof fetch = fetch,
 ): Promise<FeedbackRecord> {
-  const response = await fetch('/api/learning/feedback', {
+  const response = await fetcher('/api/learning/feedback', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

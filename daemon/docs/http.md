@@ -1,5 +1,8 @@
 # HTTP API (`codeberg-d`)
 
+Project-aware endpoints and compatibility behavior are described in [Projects](../../docs/projects.md#api).
+
+
 Pure Go daemon. Semantic search and chunk-index operations are proxied to the
 C `cberg-index` process over a Unix socket.
 

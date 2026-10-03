@@ -1,3 +1,4 @@
+import { useProjectApi } from '@/lib/project-api';
 import { useEffect, useRef, useState } from 'react';
 
 import { loadReviewExample, loadTrainingReview, submitReview, type ReviewDashboard, type ReviewExample } from './training';
@@ -5,6 +6,7 @@ import { applyReviewDecision, reviewRows, reviewSelection, type ReviewDecision, 
 
 /** Separate read failures from write results; stale reads never replace a newer selection. */
 export function useTrainingReview() {
+  const { fetch: api } = useProjectApi();
   const [dashboard, setDashboard] = useState<ReviewDashboard>();
   const [filter, setFilter] = useState<ReviewFilter>('ready');
   const [requestedId, setRequestedId] = useState<string>();
@@ -29,24 +31,24 @@ export function useTrainingReview() {
     const controller = new AbortController();
     setLoading(true);
     setDashboardError('');
-    void loadTrainingReview(controller.signal).then((next) => {
+    void loadTrainingReview(controller.signal, api).then((next) => {
       if (!controller.signal.aborted) setDashboard(next);
     }).catch((error: unknown) => {
       if (!controller.signal.aborted) setDashboardError(String(error));
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [dashboardAttempt]);
+  }, [dashboardAttempt, api]);
 
   useEffect(() => {
     const controller = new AbortController();
     setExample(undefined);
     setDetailError('');
     setSaveError('');
-    if (selectedId) void loadReviewExample(selectedId, controller.signal).then((next) => {
+    if (selectedId) void loadReviewExample(selectedId, controller.signal, api).then((next) => {
       if (!controller.signal.aborted) setExample(next);
     }).catch((error: unknown) => { if (!controller.signal.aborted) setDetailError(String(error)); });
     return () => controller.abort();
-  }, [selectedId, detailAttempt]);
+  }, [selectedId, detailAttempt, api]);
 
   async function save(decision: ReviewDecision, oracle?: Record<string, unknown>): Promise<void> {
     if (!selected || selected.state !== 'ready' || !selected.eligible || savingRef.current) return;
@@ -55,7 +57,7 @@ export function useTrainingReview() {
     setSaveError('');
     setAnnouncement('');
     try {
-      await submitReview(selected.id, decision, oracle);
+      await submitReview(selected.id, decision, oracle, api);
       if (!mounted.current) return;
       setDashboard((current) => current ? applyReviewDecision(current, selected.id, decision) : current);
       setAnnouncement(decision === 'dismiss' ? 'Example set aside.' : decision === 'eval' ? 'Evaluation case saved.' : 'Example added to training.');

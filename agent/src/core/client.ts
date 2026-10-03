@@ -36,8 +36,12 @@ export class DaemonError extends Error {
 export class DaemonClient {
   constructor(private readonly baseUrl: string) {}
 
+  private endpoint(path: string): URL {
+    return new URL(path.replace(/^\//, ''), this.baseUrl.replace(/\/?$/, '/'));
+  }
+
   async health(): Promise<DaemonHealth> {
-    const res = await fetch(new URL('/health', this.baseUrl));
+    const res = await fetch(this.endpoint('/health'));
     const body = (await res.json()) as DaemonHealth & DaemonErrorBody;
     if (!res.ok) {
       throw parseError(res.status, body);
@@ -59,7 +63,7 @@ export class DaemonClient {
   }
 
   async search(query: string, opts: SearchOptions = {}): Promise<SearchResult[]> {
-    const url = new URL('/search', this.baseUrl);
+    const url = this.endpoint('/search');
     url.searchParams.set('q', query);
     if (opts.k != null) {
       url.searchParams.set('k', String(opts.k));
@@ -89,7 +93,7 @@ export class DaemonClient {
   }
 
   async listTools(): Promise<ToolSpec[]> {
-    const res = await fetch(new URL('/tools', this.baseUrl));
+    const res = await fetch(this.endpoint('/tools'));
     const body = (await res.json()) as {
       tools: {
         name: string;
@@ -108,7 +112,7 @@ export class DaemonClient {
   }
 
   async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
-    const res = await fetch(new URL('/tools/call', this.baseUrl), {
+    const res = await fetch(this.endpoint('/tools/call'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, args }),

@@ -1,3 +1,5 @@
+import { currentProjectEnvironment } from './projects.js';
+import { ContextStore, defaultContextRoot } from './context/store.js';
 import { Agent } from './agent.js';
 import { DaemonClient } from './client.js';
 import { defaultProviders } from '../providers/index.js';
@@ -8,6 +10,7 @@ import type { LearningService } from './learning/service.js';
 import { assertAgentRuntime } from './runtime.js';
 
 export interface AgentConfig {
+  env?: NodeJS.ProcessEnv;
   modelSpec: string;
   subagentModelSpec?: string;
   daemonUrl: string;
@@ -39,17 +42,21 @@ export function reasoningFromEnv(
 
 export function createAgent(config: AgentConfig): Agent {
   assertAgentRuntime();
+  const env = config.env ?? currentProjectEnvironment();
   const registry = defaultProviders();
   const model = registry.resolve(config.modelSpec);
-  const learningEnabled = config.learning === undefined ? learningEnabledFromEnv() : config.learning !== false;
+  const learningEnabled = config.learning === undefined ? learningEnabledFromEnv(env) : config.learning !== false;
   const subagentModel = learningEnabled && !config.learning
     ? registry.resolve(config.subagentModelSpec ?? config.modelSpec)
     : undefined;
   return new Agent({
     model,
+    env,
+    context: ContextStore.open(defaultContextRoot(env)),
     subagentModel,
     learning: learningEnabled ? config.learning : false,
-    daemon: new DaemonClient(config.daemonUrl),
+    daemon: new DaemonClient(!config.env && env.CODEBERG_PROJECT_ID
+      ? `${config.daemonUrl.replace(/\/$/, '')}/projects/${env.CODEBERG_PROJECT_ID}` : config.daemonUrl),
     reasoning: config.reasoning,
     // Resolve the model's memory limit + caching strategy from the same spec so
     // the agent budgets context and marks the cache prefix correctly.

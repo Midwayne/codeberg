@@ -11,6 +11,8 @@ describe('header settings controls', () => {
     expect(header).toContain('aria-label="Model settings"');
     expect(header).toContain('aria-label="Settings"');
     expect(header).toContain('Codeberg');
+    expect(header).not.toContain('aria-label="Project"');
+    expect(header).not.toContain('aria-label="MCPs and skills"');
     expect(header).toContain('aria-controls="chat-sidebar"');
   });
 });

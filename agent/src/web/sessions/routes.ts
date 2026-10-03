@@ -42,6 +42,13 @@ export async function routeSessions(
       const messages = Array.isArray(body?.messages) ? body.messages : [];
       const rawTitle = typeof body?.title === 'string' ? body.title.trim() : '';
       const parentId = readParentId(body?.parentId, id);
+      if (parentId) {
+        const existing = await store.load(id);
+        // A deleted parent must not prevent subsequent saves of its branch.
+        if (existing?.parentId !== parentId && !await store.load(parentId)) {
+          return sendText(res, 404, 'parent conversation not found in this project');
+        }
+      }
       const record = await store.upsert({
         id,
         title: rawTitle || 'New chat',

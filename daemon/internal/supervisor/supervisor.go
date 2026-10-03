@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -47,7 +48,11 @@ func (s *Supervisor) Stop() {
 func (s *Supervisor) spawn(ctx context.Context, bin string) error {
 	cmd := exec.CommandContext(ctx, bin)
 	out := io.Writer(os.Stderr)
-	if dir := os.Getenv("CODEBERG_LOG_DIR"); dir != "" {
+	dir := s.cfg.LogDir
+	if dir == "" {
+		dir = os.Getenv("CODEBERG_LOG_DIR")
+	}
+	if dir != "" {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return fmt.Errorf("creating indexer log directory: %w", err)
 		}
@@ -60,7 +65,20 @@ func (s *Supervisor) spawn(ctx context.Context, bin string) error {
 	}
 	cmd.Stdout = out
 	cmd.Stderr = out
-	cmd.Env = append(os.Environ(), indexerEnv(s.cfg)...)
+	// Explicit project roots must override inherited multi-repository settings.
+	overrides := indexerEnv(s.cfg)
+	keys := map[string]bool{config.EnvRoots: true, config.EnvRoot: true, config.EnvIndexPath: true, config.EnvSocket: true}
+	for _, entry := range overrides {
+		key, _, _ := strings.Cut(entry, "=")
+		keys[key] = true
+	}
+	for _, entry := range os.Environ() {
+		key, _, _ := strings.Cut(entry, "=")
+		if !keys[key] {
+			cmd.Env = append(cmd.Env, entry)
+		}
+	}
+	cmd.Env = append(cmd.Env, overrides...)
 
 	s.cmd = cmd
 	if err := cmd.Start(); err != nil {
@@ -85,9 +103,9 @@ func indexerEnv(cfg config.Indexer) []string {
 		fmt.Sprintf("%s=%d", config.EnvPollMS, cfg.PollMS),
 	}
 
-	// Multi-root mode: hand the engine the full key\tpath record set (it
-	// prefers CODEBERG_ROOTS; the single CODEBERG_ROOT above is the fallback).
-	if len(cfg.Roots) > 1 || (len(cfg.Roots) == 1 && cfg.DefaultKey == "") {
+	// Preserve configured keys even for a single root; the engine otherwise
+	// derives a basename key that may differ from the daemon's workspace key.
+	if len(cfg.Roots) > 0 {
 		env = append(env, config.EnvRoots+"="+config.FormatRoots(cfg.Roots))
 	}
 

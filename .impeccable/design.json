@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-02T11:55:15.178524+00:00",
+  "generatedAt": "2026-10-03T05:47:14.799792+00:00",
   "title": "Design System: Codeberg web workspace",
   "extensions": {
     "shadows": [
@@ -66,9 +66,9 @@
       "name": "Native select",
       "kind": "input",
       "refersTo": "input-select",
-      "description": "Model selection field.",
-      "html": "<label class=\"ds-field\">Model<select class=\"ds-select\"><option>Selected model</option><option>Another model</option></select></label>",
-      "css": ".ds-field{font-family:ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';display:block;color:var(--muted-foreground);font-size:.75rem}.ds-select{font-family:ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';display:block;margin-top:.5rem;min-height:2.75rem;width:100%;border:1px solid var(--input);border-radius:var(--radius-lg,.625rem);padding:.5rem .75rem;background:var(--background);color:var(--foreground);font-size:1rem;line-height:1.5rem}.ds-select:focus-visible{outline:2px solid var(--ring);outline-offset:3px;}.ds-select:disabled{opacity:.5}@media(min-width:640px){.ds-select{font-size:.875rem;line-height:1.25rem}}"
+      "description": "Content-sized text and chevron trigger with native selection behavior.",
+      "html": "<label class=\"ds-field\">Model<span class=\"ds-select-wrap\"><select class=\"ds-select\"><option>Selected model</option><option>Another model</option></select><svg class=\"ds-select-chevron\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m6 9 6 6 6-6\"/></svg></span></label>",
+      "css": ".ds-field{font-family:ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';display:block;color:var(--muted-foreground);font-size:.75rem}.ds-select-wrap{position:relative;display:inline-flex;min-width:0;max-width:100%;margin-top:.5rem;vertical-align:middle}.ds-select{font-family:ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';min-height:2.75rem;min-width:0;max-width:100%;cursor:pointer;appearance:none;field-sizing:content;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;border-radius:var(--radius-md,.5rem);padding:.5rem 1.75rem .5rem .5rem;background:transparent;color:var(--foreground);font-size:1rem;line-height:1.5rem;font-weight:500;transition:color .15s cubic-bezier(.4,0,.2,1)}.ds-select:hover,.ds-select:focus-visible{color:var(--accent-foreground)}.ds-select:focus-visible{outline:2px solid var(--ring);outline-offset:3px}.ds-select:disabled{cursor:default;opacity:.5}.ds-select option{background:var(--popover);color:var(--popover-foreground)}.ds-select-chevron{pointer-events:none;position:absolute;right:.5rem;top:50%;width:.875rem;height:.875rem;transform:translateY(-50%);color:var(--muted-foreground)}.ds-select:disabled~.ds-select-chevron{opacity:.5}@media(min-width:640px){.ds-select{font-size:.875rem;line-height:1.25rem}}"
     },
     {
       "name": "Settings navigation",

@@ -8,7 +8,10 @@ import { exportDataset, type ExportType } from '../core/learning/export.js';
 import { writeAtomic } from '../core/learning/fs.js';
 import { LearningStore, defaultLearningRoot } from '../core/learning/store.js';
 
+import { prepareProjectStorage } from '../core/projects.js';
+
 async function main(): Promise<void> {
+  await prepareProjectStorage();
   const [command, ...args] = process.argv.slice(2);
   const store = new LearningStore();
   const datasets = new DatasetStore(store);

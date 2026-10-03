@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 
 import type { UIMessage } from 'ai';
 
-import { codebergHome, projectRoots } from '../paths.js';
+import { codebergDataHome, projectRoots } from '../paths.js';
 import { memorySourceState, type SourceObservation } from './memory-source.js';
 import { appendDurable } from './fs.js';
 import { redactSecrets } from './redact.js';
@@ -29,7 +29,7 @@ const execFileAsync = promisify(execFile);
 const CORRECTION = /^(?:no\b|actually\b|i meant\b|that's not\b|that is not\b|but\b)/i;
 
 export function defaultLearningRoot(env: NodeJS.ProcessEnv = process.env): string {
-  return join(codebergHome(env), 'learning');
+  return join(codebergDataHome(env), 'learning');
 }
 
 export function stableId(prefix: string, ...parts: string[]): string {
@@ -407,8 +407,7 @@ function tokenize(value: string): string[] {
   return [...new Set(value.toLowerCase().match(/[a-z0-9_./-]{2,}/g) ?? [])];
 }
 
-async function repositoryVersions(): Promise<RepositoryVersion[]> {
-  const roots = projectRoots(process.env, process.cwd());
+export async function repositoryVersions(roots = projectRoots(process.env, process.cwd())): Promise<RepositoryVersion[]> {
   return Promise.all(
     roots.map(async (path) => {
       const [branch, commit] = await Promise.all([

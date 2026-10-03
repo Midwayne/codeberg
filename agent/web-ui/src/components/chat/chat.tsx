@@ -1,3 +1,4 @@
+import { useProjectApi } from '@/lib/project-api';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import type { UIMessage } from 'ai';
 import { AlertTriangle, Loader2 } from 'lucide-react';
@@ -29,6 +30,7 @@ export function Chat({
   chatInputs: CatalogModel['inputs'];
   jump?: { messageId: string; nonce: number };
 }) {
+  const { ready } = useProjectApi();
   const { messages, sendMessage, status, stop, regenerate, error } = chat;
   const busy = status === 'submitted' || status === 'streaming';
   const branchAt = !busy && onBranch ? onBranch : undefined;
@@ -71,7 +73,7 @@ export function Chat({
             {messages.length === 0 && <ChatEmptyState onChoose={(question) => { setDraft(question); promptRef.current?.focus(); }} />}
 
             <MessageList messages={messages} sessionId={sessionId} learningEnabled={learningEnabled}
-              busy={busy} onRegenerate={regenerate} onBranch={onBranch} />
+              busy={busy} onRegenerate={() => { if (ready) void regenerate(); }} onBranch={onBranch} />
 
             {status === 'submitted' && (
               <div role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -89,6 +91,7 @@ export function Chat({
                 </div>
                 <button
                   type="button"
+                  disabled={!ready}
                   onClick={() => regenerate()}
                   className="shrink-0 rounded-md border border-destructive/40 px-2 py-1 text-xs hover:bg-destructive/20"
                 >
@@ -123,7 +126,7 @@ export function Chat({
 
       <div className="shrink-0 border-t border-border bg-background">
         <div className="mx-auto max-w-3xl px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-8">
-          <PromptInput value={draft} onValueChange={setDraft} inputRef={promptRef} busy={busy} inputs={chatInputs} onSend={(text, files) => sendMessage({ text, ...(files.length ? { files } : {}) })} onStop={stop} />
+          <PromptInput value={draft} onValueChange={setDraft} inputRef={promptRef} busy={busy} disabled={!ready} inputs={chatInputs} onSend={(text, files) => sendMessage({ text, ...(files.length ? { files } : {}) })} onStop={stop} />
         </div>
       </div>
     </>

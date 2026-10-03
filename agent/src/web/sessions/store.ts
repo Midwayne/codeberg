@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import type { UIMessage } from 'ai';
 
-import { codebergHome } from '../../core/paths.js';
+import { codebergDataHome } from '../../core/paths.js';
 import { writeJsonAtomic } from '../../core/learning/fs.js';
 import { messageSearchHits, type MessageSearchHit } from '../../core/session-search.js';
 
@@ -49,7 +49,7 @@ export function isValidSessionId(id: string): boolean {
 }
 
 function home(env: NodeJS.ProcessEnv = process.env): string {
-  return codebergHome(env);
+  return codebergDataHome(env);
 }
 
 function countTurns(messages: UIMessage[]): number {

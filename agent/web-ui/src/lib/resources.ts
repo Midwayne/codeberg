@@ -26,13 +26,13 @@ export interface CleanupResult {
   deletedChatIds: string[];
 }
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`/api/settings/${path}`, { cache: 'no-store', ...options });
+async function request<T>(path: string, options?: RequestInit, fetcher: typeof fetch = fetch): Promise<T> {
+  const response = await fetcher(`/api/settings/${path}`, { cache: 'no-store', ...options });
   if (!response.ok) throw new Error(await response.text());
   return response.json() as Promise<T>;
 }
 
-export const loadResourceUsage = (after?: number) => request<ResourceUsage>(`resources${after ? `?after=${after}` : ''}`);
+export const loadResourceUsage = (after?: number, fetcher: typeof fetch = fetch) => request<ResourceUsage>(`resources${after ? `?after=${after}` : ''}`, undefined, fetcher);
 
 /** Keep a bounded local history while subsequent polls transfer only new points. */
 export function mergeResourceUsage(previous: ResourceUsage | undefined, incoming: ResourceUsage): ResourceUsage {
@@ -47,10 +47,10 @@ export function mergeResourceUsage(previous: ResourceUsage | undefined, incoming
   return { ...incoming, history: [...points.values()].filter((row) => row.timestamp > cutoff)
     .sort((a, b) => a.timestamp - b.timestamp).slice(-360) };
 }
-export const previewCleanup = (days: number) => request<CleanupPreview>(`cleanup?olderThanDays=${days}`);
-export const cleanupResources = (categories: CleanupCategory[], olderThanDays: number) => request<CleanupResult>('cleanup', {
+export const previewCleanup = (days: number, fetcher: typeof fetch = fetch) => request<CleanupPreview>(`cleanup?olderThanDays=${days}`, undefined, fetcher);
+export const cleanupResources = (categories: CleanupCategory[], olderThanDays: number, fetcher: typeof fetch = fetch) => request<CleanupResult>('cleanup', {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ categories, olderThanDays }),
-});
+}, fetcher);
 
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes.toLocaleString()} B`;

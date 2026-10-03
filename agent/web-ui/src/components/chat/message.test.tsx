@@ -29,13 +29,14 @@ describe('assistant activity group', () => {
     expect(html).not.toContain('Updating knowledge base');
     expect(renderToStaticMarkup(<Message message={message} conversationId="chat" learningEnabled={false} />)).not.toContain('Rate this answer');
   });
-  it('uses themed surfaces and hover text instead of the native rating control skin', () => {
+  it('uses a borderless rating control with themed menu options and visible focus', () => {
     const message = { id: 'answer', role: 'assistant', parts: [{ type: 'text', text: 'Done.' }] } as UIMessage;
     const html = renderToStaticMarkup(<Message message={message} conversationId="chat" learningEnabled />);
     const control = html.match(/<select\b[^>]*>/)?.[0];
     expect(control).toContain('appearance-none');
-    expect(control).toContain('bg-background');
-    expect(control).toContain('hover:bg-accent');
+    expect(control).toContain('border-0');
+    expect(control).toContain('bg-transparent');
+    expect(control).not.toContain('hover:border');
     expect(control).toContain('hover:text-accent-foreground');
     expect(control).toContain('focus-visible:text-accent-foreground');
     expect(html).toContain('bg-popover text-popover-foreground');

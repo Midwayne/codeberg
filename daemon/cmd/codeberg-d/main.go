@@ -18,6 +18,7 @@ import (
 	"codeberg.org/codeberg/daemon/internal/gitpull"
 	"codeberg.org/codeberg/daemon/internal/httpserver"
 	"codeberg.org/codeberg/daemon/internal/indexctl"
+	"codeberg.org/codeberg/daemon/internal/projects"
 	"codeberg.org/codeberg/daemon/internal/resources"
 	"codeberg.org/codeberg/daemon/internal/supervisor"
 	"codeberg.org/codeberg/daemon/internal/tools"
@@ -37,6 +38,15 @@ func main() {
 		userHome, _ := os.UserHomeDir()
 		home = filepath.Join(userHome, ".codeberg")
 	}
+	projectManager, err := projects.New(ctx, home, cfg.Indexer)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer projectManager.Close()
+	cfg.Indexer, err = projectManager.InitialConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
 	rootPID, _ := strconv.Atoi(os.Getenv("CODEBERG_RESOURCE_ROOT_PID"))
 	metrics := resources.New(resources.Options{Home: home, ModelPath: cfg.Model, IndexPath: cfg.Index,
 		LogDir: os.Getenv("CODEBERG_LOG_DIR"), RootPID: rootPID, EmbeddingBackend: cfg.EmbedBackend})
@@ -51,14 +61,18 @@ func main() {
 
 	idx := indexctl.NewClient(cfg.Socket)
 
-	readyCtx, readyCancel := context.WithTimeout(ctx, bootstrap.StartupTimeout(len(cfg.Roots)))
-	st, err := bootstrap.WaitIndexer(readyCtx, idx)
-	readyCancel()
-	if err != nil {
-		log.Fatalf("indexer not ready: %v", err)
-	}
-	log.Printf("indexer ready: %d chunks, version %s", st.Chunks, st.Version)
-	metrics.InvalidateDisk()
+	// Serve the project UI while the initial index is still being built.
+	go func() {
+		readyCtx, readyCancel := context.WithTimeout(ctx, bootstrap.StartupTimeout(len(cfg.Roots)))
+		defer readyCancel()
+		st, err := bootstrap.WaitIndexer(readyCtx, idx)
+		if err != nil {
+			log.Printf("initial project indexing: %v", err)
+			return
+		}
+		log.Printf("indexer ready: %d chunks, version %s", st.Chunks, st.Version)
+		metrics.InvalidateDisk()
+	}()
 
 	go gitpull.Run(ctx, cfg.GitDirs, cfg.GitPull)
 
@@ -77,7 +91,8 @@ func main() {
 	address := net.JoinHostPort("127.0.0.1", cfg.HTTPPort)
 	log.Printf("codeberg-d: roots=[%s] http=%s socket=%s", strings.Join(roots, " "), address, cfg.Socket)
 
-	httpSrv := &http.Server{Addr: address, Handler: srv.Handler()}
+	projectManager.WithGitPull(cfg.GitPull).BindDefault(srv.Handler())
+	httpSrv := &http.Server{Addr: address, Handler: projectManager.Handler(srv.Handler())}
 	go func() {
 		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Printf("http: %v", err)

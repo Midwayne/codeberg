@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
-import { ModelAgentPool, boundLearningContext, createLearningGenerator } from './runtime.js';
+import { ModelAgentPool, ReloadableAgentPool, boundLearningContext, createLearningGenerator } from './runtime.js';
 import type { ModelSelection, ModelSettingsStore } from './settings.js';
 
 describe('model runtime', () => {
@@ -145,4 +145,40 @@ describe('model runtime', () => {
     const tiny = JSON.parse(boundLearningContext(input, 'extract', 128));
     expect(tiny).toMatchObject({ insufficient_evidence: true, authoritative_attempt_id: 'a2' });
   });
+});
+
+it('reloads extensions for new turns and closes retired MCP connections only after old turns finish', async () => {
+  const closed = [vi.fn(async () => undefined), vi.fn(async () => undefined)];
+  let builds = 0;
+  const pool = new ReloadableAgentPool(() => {
+    const close = closed[builds++]!;
+    return new ModelAgentPool({ build: async () => ({} as ToolLoopAgent), close });
+  });
+  const choice = { key: 'openai:test', model: 'openai:test', effort: 'low' as const, contextWindow: 50000 };
+  const first = await pool.acquire(choice, 0);
+  const second = await pool.acquire(choice, 1);
+  expect(closed[0]).not.toHaveBeenCalled();
+  await first.release();
+  await first.release();
+  expect(closed[0]).toHaveBeenCalledTimes(1);
+  await second.release();
+  expect(closed[1]).not.toHaveBeenCalled();
+  await pool.close();
+  expect(closed[1]).toHaveBeenCalledTimes(1);
+});
+
+it('shares one new pool between simultaneous turns while a retired pool closes', async () => {
+ let finishClose!: () => void;
+ const close = vi.fn(() => new Promise<void>((resolve) => { finishClose = resolve; }));
+ let builds = 0;
+ const pool = new ReloadableAgentPool(() => new ModelAgentPool({
+   build: async () => ({} as ToolLoopAgent), close: builds++ === 0 ? close : async () => undefined,
+ }));
+ const choice = { key: 'openai:test', model: 'openai:test', effort: 'low' as const, contextWindow: 50000 };
+ await (await pool.acquire(choice, 0)).release();
+ const first = pool.acquire(choice, 1); const second = pool.acquire(choice, 1);
+ await Promise.resolve(); finishClose();
+ const leases = await Promise.all([first, second]);
+ expect(builds).toBe(2); expect(leases[0].agent).toBe(leases[1].agent);
+ await Promise.all(leases.map((lease) => lease.release())); await pool.close();
 });

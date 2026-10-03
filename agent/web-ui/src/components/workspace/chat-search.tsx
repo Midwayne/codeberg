@@ -1,3 +1,4 @@
+import { useProjectApi } from '@/lib/project-api';
 import type { UIMessage } from 'ai';
 import { MessageSquare, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -14,6 +15,7 @@ export function ChatSearch({ open, onClose, onSelect, currentId, currentTitle, c
   currentMessages: readonly UIMessage[];
   currentFlags: Pick<ChatSearchResult, 'archived' | 'pinned'>;
 }) {
+  const { fetch: api } = useProjectApi();
   const [query, setQuery] = useState('');
   const [remote, setRemote] = useState<{ query: string; hits: ChatSearchResult[] }>({ query: '', hits: [] });
   const [active, setActive] = useState(0);
@@ -35,7 +37,7 @@ export function ChatSearch({ open, onClose, onSelect, currentId, currentTitle, c
     setLoading(true);
     setError('');
     const timer = window.setTimeout(() => {
-      void searchChats(term, controller.signal)
+      void searchChats(term, controller.signal, api)
         .then((hits) => { setRemote({ query: term, hits }); setLoading(false); })
         .catch((reason: unknown) => {
           if (controller.signal.aborted) return;
@@ -44,7 +46,7 @@ export function ChatSearch({ open, onClose, onSelect, currentId, currentTitle, c
         });
     }, 180);
     return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [open, query]);
+  }, [open, query, api]);
 
   const { current, others } = useMemo(() => rankChatResults(
     query, currentId, currentTitle, currentMessages,

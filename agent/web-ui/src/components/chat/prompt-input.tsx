@@ -39,6 +39,7 @@ export function PromptInput({
   onValueChange: setValue,
   inputRef,
   busy,
+  disabled = false,
   inputs,
   onSend,
   onStop,
@@ -47,6 +48,7 @@ export function PromptInput({
   onValueChange: (value: string) => void;
   inputRef?: RefObject<HTMLTextAreaElement | null>;
   busy: boolean;
+  disabled?: boolean;
   inputs: CatalogModel['inputs'];
   onSend: (text: string, files: FileList) => void;
   onStop: () => void;
@@ -93,7 +95,7 @@ export function PromptInput({
 
   function submit() {
     const text = value.trim();
-    if ((!text && !files.length) || busy) return;
+    if ((!text && !files.length) || busy || disabled) return;
     const transfer = new DataTransfer();
     for (const file of files) transfer.items.add(file);
     onSend(text, transfer.files);
@@ -184,7 +186,7 @@ export function PromptInput({
         }}
         onPaste={(event) => {
           const images = clipboardImages(event.clipboardData.files, inputs);
-          if (!images.length || busy) return;
+          if (!images.length || busy || disabled) return;
           event.preventDefault();
           const oversized = images.find((file) => file.size > MAX_FILE_SIZE);
           if (oversized) {
@@ -226,7 +228,7 @@ export function PromptInput({
         <button
           type="button"
           onClick={submit}
-          disabled={!value.trim() && !files.length}
+          disabled={disabled || (!value.trim() && !files.length)}
           aria-label="Send"
           title="Send"
           className={cn(

@@ -1,0 +1,25 @@
+import { createContext, useContext } from 'react';
+
+export interface Project {
+  id: string;
+  name: string;
+  roots: { key: string; root: string }[];
+}
+export interface ProjectCatalog {
+  defaultId: string;
+  projects: Project[];
+}
+export interface ProjectStatus { ready: boolean; chunks: number; status?: string; message?: string }
+const unscopedFetch: typeof fetch = (...args) => globalThis.fetch(...args);
+export const ProjectApiContext = createContext<{ project?: Project; fetch: typeof fetch; ready: boolean }>({ fetch: unscopedFetch, ready: true });
+export function useProjectApi() { return useContext(ProjectApiContext); }
+
+/** The captured ID is immutable, including saves after switching projects. */
+export function projectFetch(id: string): typeof fetch {
+  return (input, init) => {
+    const headers = new Headers(input instanceof Request ? input.headers : undefined);
+    new Headers(init?.headers).forEach((value, key) => headers.set(key, value));
+    headers.set('X-Codeberg-Project', id);
+    return globalThis.fetch(input, { ...init, headers });
+  };
+}

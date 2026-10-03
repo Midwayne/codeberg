@@ -11,6 +11,10 @@ Project-wide overview. **libcodeberg** details live under [core/docs](../core/do
 | [agent/](../agent/)   | TypeScript ai-sdk agent (browser UI + one-shot CLI) over the daemon API |
 | [launcher/](../launcher/) | Standalone `codeberg` CLI — boots the stack, resolves config, manages the repo registry ([launcher/README.md](../launcher/README.md)) |
 
+## Projects
+
+[projects.md](projects.md) covers per-tab project selection, isolated chats and learning, project/global MCPs and skills, indexing, storage and upgrades.
+
 ## Multi-repo search
 
 | Document | Description |

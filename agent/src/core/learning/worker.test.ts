@@ -32,6 +32,22 @@ afterEach(async () => {
 });
 
 describe('KnowledgeWorker', () => {
+  it('does not start jobs before startup reconciliation has completed', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'codeberg-worker-start-'));
+    roots.push(root);
+    const service = new LearningService({ root, generator: { generate: async () => '{"action":"none"}' } });
+    const claim = vi.spyOn(service.queue, 'claim');
+    await service.recordSession('startup', [
+      { id: 'u', role: 'user', parts: [{ type: 'text', text: 'Where?' }] },
+      { id: 'a', role: 'assistant', parts: [{ type: 'text', text: 'Here.' }] },
+    ]);
+    expect(claim).not.toHaveBeenCalled();
+    await service.initialize();
+    await service.waitForCurrent();
+    expect(claim).toHaveBeenCalled();
+    service.stop();
+  });
+
   it('initializes a shared learning service only once across model-bound chat agents', async () => {
     const root = await mkdtemp(join(tmpdir(), 'codeberg-worker-'));
     roots.push(root);

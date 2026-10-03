@@ -52,16 +52,16 @@ async function readResponse<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export async function loadTrainingReview(signal?: AbortSignal): Promise<ReviewDashboard> {
-  return readResponse(await fetch('/api/learning/review', { signal }));
+export async function loadTrainingReview(signal?: AbortSignal, fetcher: typeof fetch = fetch): Promise<ReviewDashboard> {
+  return readResponse(await fetcher('/api/learning/review', { signal }));
 }
 
-export async function loadReviewExample(id: string, signal?: AbortSignal): Promise<ReviewExample> {
-  return readResponse(await fetch(`/api/learning/review/${encodeURIComponent(id)}`, { signal }));
+export async function loadReviewExample(id: string, signal?: AbortSignal, fetcher: typeof fetch = fetch): Promise<ReviewExample> {
+  return readResponse(await fetcher(`/api/learning/review/${encodeURIComponent(id)}`, { signal }));
 }
 
-export async function submitReview(id: string, decision: 'training' | 'eval' | 'dismiss', oracle?: Record<string, unknown>): Promise<void> {
-  await readResponse(await fetch(`/api/learning/review/${encodeURIComponent(id)}`, {
+export async function submitReview(id: string, decision: 'training' | 'eval' | 'dismiss', oracle?: Record<string, unknown>, fetcher: typeof fetch = fetch): Promise<void> {
+  await readResponse(await fetcher(`/api/learning/review/${encodeURIComponent(id)}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ decision, ...(oracle ? { oracle } : {}) }),
   }));

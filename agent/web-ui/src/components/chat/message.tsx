@@ -1,10 +1,11 @@
-import { Brain, ChevronDown, CircleAlert, GitBranch, Loader2, RefreshCw, Wrench } from 'lucide-react';
+import { useProjectApi } from '@/lib/project-api';
+import { Brain, CircleAlert, GitBranch, Loader2, RefreshCw, Wrench } from 'lucide-react';
 import type { UIMessage } from 'ai';
 import { useEffect, useRef, useState } from 'react';
 
 import { Response } from './response';
 import { ToolViewRouter } from './tool-views';
-import { Collapsible, CopyButton, IconButton } from '@/components/ui';
+import { Collapsible, CopyButton, IconButton, Select } from '@/components/ui';
 import { userPromptText } from '@/lib/message-rail';
 import { cn } from '@/lib/utils';
 import {
@@ -212,6 +213,7 @@ function MessageActions({
 }
 
 function FeedbackActions({ conversationId, messageId }: { conversationId: string; messageId: string }) {
+  const { fetch: api } = useProjectApi();
   const [selected, setSelected] = useState<string>();
   const [failed, setFailed] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -224,13 +226,13 @@ function FeedbackActions({ conversationId, messageId }: { conversationId: string
     setSaving(false);
     setSelected(undefined);
     setFailed(false);
-    void loadFeedback(conversationId, messageId).then((feedback) => {
+    void loadFeedback(conversationId, messageId, api).then((feedback) => {
       if (request === generation.current && !savingRef.current) setSelected(feedback?.label);
     });
     return () => {
       generation.current++;
     };
-  }, [conversationId, messageId]);
+  }, [conversationId, messageId, api]);
 
   async function choose(option: FeedbackOption): Promise<void> {
     if (savingRef.current) return;
@@ -241,7 +243,7 @@ function FeedbackActions({ conversationId, messageId }: { conversationId: string
     setFailed(false);
     setSelected(option.label);
     try {
-      const feedback = await rateAttempt(conversationId, messageId, option);
+      const feedback = await rateAttempt(conversationId, messageId, option, undefined, api);
       if (request === generation.current) setSelected(feedback.label);
     } catch {
       if (request === generation.current) {
@@ -258,8 +260,7 @@ function FeedbackActions({ conversationId, messageId }: { conversationId: string
 
   return (
     <div role="group" aria-label="Rate this answer" aria-busy={saving} className="ml-1 flex flex-wrap items-center gap-2">
-      <div className="relative">
-        <select
+        <Select
           aria-label="Rate this answer"
           value={selected ?? ''}
           disabled={saving}
@@ -268,7 +269,7 @@ function FeedbackActions({ conversationId, messageId }: { conversationId: string
             if (option) void choose(option);
           }}
           className={cn(
-            'peer min-h-11 w-40 appearance-none rounded-md border border-transparent bg-background py-2 pl-2 pr-7 text-base text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-60 sm:min-h-9 sm:text-xs',
+            'text-muted-foreground sm:min-h-9 sm:text-xs',
             selected && 'text-foreground',
           )}
         >
@@ -276,9 +277,7 @@ function FeedbackActions({ conversationId, messageId }: { conversationId: string
           {FEEDBACK_OPTIONS.map((option) => (
             <option key={option.label} value={option.label} className="bg-popover text-popover-foreground">{option.title}</option>
           ))}
-        </select>
-        <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground peer-hover:text-accent-foreground peer-focus-visible:text-accent-foreground peer-disabled:opacity-60" />
-      </div>
+        </Select>
       {saving && <span role="status" className="sr-only">Saving rating…</span>}
       {failed && (
         <span role="status" className="inline-flex max-w-48 items-start gap-1.5 text-xs text-destructive">

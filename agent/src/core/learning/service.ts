@@ -20,6 +20,7 @@ export class LearningService {
   readonly datasets: DatasetStore;
   readonly knowledgeEnabled: boolean;
   private starting?: Promise<void>;
+  private initialized = false;
   private refreshTimer?: NodeJS.Timeout;
   private checking?: Promise<void>;
   private stopping = false;
@@ -48,6 +49,10 @@ export class LearningService {
     });
   }
 
+  // Durable writes can precede initialize. Starting a worker during replay can
+  // complete a job before reconciliation sees it and enqueue the same job twice.
+  private wakeWorker(): void { if (this.initialized) this.worker?.wake(); }
+
   initialize(): Promise<void> {
     this.starting ??= this.start().catch((error: unknown) => {
       this.starting = undefined;
@@ -64,6 +69,8 @@ export class LearningService {
     await this.refreshKnowledge();
     await this.worker?.initialize();
     await this.sourceWatcher.sync();
+    this.initialized = true;
+    this.wakeWorker();
     if (this.knowledgeEnabled) {
       this.refreshTimer = setInterval(() => {
         void this.refreshKnowledge().catch((error: unknown) => {
@@ -94,7 +101,7 @@ export class LearningService {
       } else {
         writeModuleLog('learning-agent', 'knowledge_not_queued', { interaction_id: id, reason: 'no_solved_feedback' });
       }
-      this.worker?.wake();
+      this.wakeWorker();
     }
   }
 
@@ -115,7 +122,7 @@ export class LearningService {
     });
     try {
       await this.queue.enqueueDataset(attempt.interaction_id, { requeueCompleted: true });
-      this.worker?.wake();
+      this.wakeWorker();
     } catch (error) {
       console.error('dataset job enqueue failed; feedback is saved:', error);
       writeModuleLog('learning-agent', 'dataset_enqueue_failed', { error: String(error) });
@@ -131,7 +138,7 @@ export class LearningService {
       const job = await this.queue.enqueueKnowledge(attempt.interaction_id, {
         requeueCompleted: true,
       });
-      this.worker?.wake();
+      this.wakeWorker();
       return { feedback, jobId: job.job_id, jobStatus: job.status };
     } catch (error) {
       // The feedback event is already durable. Reconcile this handoff on startup.
@@ -216,7 +223,7 @@ export class LearningService {
         await this.queue.enqueueKnowledge(id, { requeueCompleted: true });
       }
     }
-    this.worker?.wake();
+    this.wakeWorker();
     await this.sourceWatcher.sync();
   }
 

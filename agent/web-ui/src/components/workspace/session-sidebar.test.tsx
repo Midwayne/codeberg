@@ -12,6 +12,7 @@ const sessions: SessionSummary[] = [
 
 function render(): string {
   return renderToStaticMarkup(<SessionSidebar
+    projectControls={<select aria-label="Project"><option>Alpha</option></select>}
     sessions={sessions}
     currentId="pin" canBranch={false} onResume={() => undefined}
     onNew={() => undefined} onBranch={() => undefined}
@@ -29,6 +30,9 @@ describe('SessionSidebar', () => {
   });
   it('separates pinned and recent chats while hiding archived chats in the active view', () => {
     const html = render();
+    expect(html).toContain('aria-label="Project"');
+    expect(html).not.toContain('>Chats</h2>');
+    expect(html.indexOf('aria-label="Project"')).toBeLessThan(html.indexOf('New chat'));
     expect(html).toContain('Pinned conversation');
     expect(html).toContain('Recent conversation');
     expect(html).not.toContain('Archived conversation');

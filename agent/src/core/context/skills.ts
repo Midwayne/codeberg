@@ -44,7 +44,7 @@ export async function discoverSkills(opts: DiscoverSkillsOptions = {}): Promise<
   ]);
 
   const byName = new Map<string, SkillSummary>();
-  for (const root of [...userRoots, ...projectDirs]) {
+  for (const root of [...userRoots, ...projectDirs, ...(env.CODEBERG_PROJECT_HOME ? [join(env.CODEBERG_PROJECT_HOME, 'skills')] : [])]) {
     const files = await findSkillFiles(root);
     for (const file of files) {
       let text: string;

@@ -358,7 +358,7 @@ export function mcpConfigFromEnv(
 
   const builtin = builtinDatabaseServer({
     env,
-    home,
+    home: env.CODEBERG_PROJECT_HOME ?? home,
     userHome,
     io: { ...io, cwd, exists },
   });
@@ -370,6 +370,8 @@ export function mcpConfigFromEnv(
     const roots = indexedRootsFromEnv(env);
     const extra = splitList(env.CODEBERG_MCP_CONFIG ?? '').map((p) => expandHome(p, userHome));
     files.push(...discoverMcpConfigPaths({ home, roots, cwd, extra, exists }));
+    const projectFile = env.CODEBERG_PROJECT_HOME && join(env.CODEBERG_PROJECT_HOME, MCP_FILE);
+    if (projectFile && exists(projectFile)) files.push(projectFile);
     const fallbackWorkspace = roots[0] ?? cwd;
     for (const file of files) {
       loadMcpFile(file, env, userHome, fallbackWorkspace, readFile, merged, warnings);
@@ -408,6 +410,7 @@ function loadMcpFile(
     warnings.push(`${file}: ${w}`);
   }
   for (const server of parsed.servers) {
-    merged[server.name] = server;
+    merged[server.name] = server.kind === 'stdio' && env.CODEBERG_PROJECT_HOME && !server.cwd
+      ? { ...server, cwd: fallbackWorkspace } : server;
   }
 }

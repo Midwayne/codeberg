@@ -44,3 +44,14 @@ func TestIndexerEnvOmitsEmptyIndexQuant(t *testing.T) {
 		}
 	}
 }
+
+func TestIndexerEnvPreservesSingleRepositoryKey(t *testing.T) {
+	cfg := config.Indexer{
+		Root:       "/tmp/repo",
+		Roots:      []domain.Repo{{Key: "repo-custom", Root: "/tmp/repo"}},
+		DefaultKey: "repo-custom",
+	}
+	if env := indexerEnv(cfg); !slices.Contains(env, config.EnvRoots+"=repo-custom\t/tmp/repo") {
+		t.Fatalf("single repository lost its configured key: %v", env)
+	}
+}

@@ -26,18 +26,43 @@ const tagLen = 17 // ".<16 hex>"
 
 // Run lists the cached index sets and (unless DryRun) removes them.
 func Run(c *config.Config, o Options) error {
-	base := c.IndexPath
-	dir := filepath.Dir(base)
-	matches, err := filepath.Glob(base + ".*")
+	dir := filepath.Dir(c.IndexPath)
+	bases := []string{c.IndexPath}
+	projectDirs, err := filepath.Glob(filepath.Join(c.Home, "projects", "p-*", "index"))
 	if err != nil {
 		return err
 	}
+	for _, projectDir := range projectDirs {
+		bases = append(bases, filepath.Join(projectDir, "codeberg.usearch"))
+	}
+	var matches []string
+	sets := map[string]int64{}
+	seen := map[string]bool{}
+	for _, base := range bases {
+		if seen[base] {
+			continue
+		}
+		seen[base] = true
+		files, err := filepath.Glob(base + ".*")
+		if err != nil {
+			return err
+		}
+		if info, err := os.Stat(base); err == nil && info.Mode().IsRegular() {
+			files = append(files, base)
+		}
+		matches = append(matches, files...)
+		for tag, size := range group(base, files) {
+			if base != c.IndexPath {
+				tag = filepath.Base(filepath.Dir(filepath.Dir(base))) + ":" + tag
+			}
+			sets[tag] += size
+		}
+	}
 	if len(matches) == 0 {
-		fmt.Printf("no cached index files under %s\n", dir)
+		fmt.Printf("no cached index files under %s or project directories\n", dir)
 		return nil
 	}
 
-	sets := group(base, matches)
 	tags := make([]string, 0, len(sets))
 	for tag := range sets {
 		tags = append(tags, tag)
@@ -45,7 +70,7 @@ func Run(c *config.Config, o Options) error {
 	sort.Strings(tags)
 
 	var total int64
-	fmt.Printf("cached index sets under %s:\n", dir)
+	fmt.Printf("cached index sets under %s and project directories:\n", dir)
 	for _, tag := range tags {
 		total += sets[tag]
 		fmt.Printf("  %-18s %s\n", tag, human(sets[tag]))
@@ -73,7 +98,9 @@ func Run(c *config.Config, o Options) error {
 		}
 		removed++
 	}
-	_ = os.Remove(dir) // drop the index dir if it is now empty
+	for _, base := range bases {
+		_ = os.Remove(filepath.Dir(base))
+	} // only empty cache directories
 	fmt.Printf("✓ removed %d file(s), freed %s\n", removed, human(freed))
 	return nil
 }

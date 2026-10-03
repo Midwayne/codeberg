@@ -28,9 +28,9 @@ export interface SessionRecord {
 const BASE = '/api/sessions';
 
 /** All saved chats, newest first. Network/parse errors yield an empty list. */
-export async function listSessions(query = ''): Promise<SessionSummary[]> {
+export async function listSessions(query = '', fetcher: typeof fetch = fetch): Promise<SessionSummary[]> {
   try {
-    const res = await fetch(query.trim() ? `${BASE}?q=${encodeURIComponent(query.trim())}` : BASE);
+    const res = await fetcher(query.trim() ? `${BASE}?q=${encodeURIComponent(query.trim())}` : BASE);
     return res.ok ? ((await res.json()) as SessionSummary[]) : [];
   } catch {
     return [];
@@ -38,16 +38,16 @@ export async function listSessions(query = ''): Promise<SessionSummary[]> {
 }
 
 /** Metadata updates are independent of the transcript and never replace messages. */
-export async function updateSessionFlags(id: string, flags: { pinned?: boolean; archived?: boolean }): Promise<void> {
-  const response = await fetch(`${BASE}/${encodeURIComponent(id)}`, {
+export async function updateSessionFlags(id: string, flags: { pinned?: boolean; archived?: boolean }, fetcher: typeof fetch = fetch): Promise<void> {
+  const response = await fetcher(`${BASE}/${encodeURIComponent(id)}`, {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(flags),
   });
   if (!response.ok) throw new Error(`Could not update chat (${response.status})`);
 }
 
-export async function loadSession(id: string): Promise<SessionRecord | null> {
+export async function loadSession(id: string, fetcher: typeof fetch = fetch): Promise<SessionRecord | null> {
   try {
-    const res = await fetch(`${BASE}/${encodeURIComponent(id)}`);
+    const res = await fetcher(`${BASE}/${encodeURIComponent(id)}`);
     return res.ok ? ((await res.json()) as SessionRecord) : null;
   } catch {
     return null;
@@ -59,9 +59,9 @@ export async function saveSession(input: {
   title: string;
   messages: UIMessage[];
   parentId?: string;
-}): Promise<void> {
+}, fetcher: typeof fetch = fetch): Promise<void> {
   try {
-    await fetch(`${BASE}/${encodeURIComponent(input.id)}`, {
+    await fetcher(`${BASE}/${encodeURIComponent(input.id)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -75,9 +75,9 @@ export async function saveSession(input: {
   }
 }
 
-export async function deleteSession(id: string): Promise<void> {
+export async function deleteSession(id: string, fetcher: typeof fetch = fetch): Promise<void> {
   try {
-    await fetch(`${BASE}/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    await fetcher(`${BASE}/${encodeURIComponent(id)}`, { method: 'DELETE' });
   } catch {
     // ignore — the sidebar refresh will reconcile
   }

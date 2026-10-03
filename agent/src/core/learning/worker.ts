@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
 import type { Generator } from '../types.js';
-import { writeLearningTrace, writeModuleLog } from '../module-log.js';
+import { writeLearningTrace, writeModuleLog, withProjectLog, moduleLogDirectory } from '../module-log.js';
 import { knowledgeBody, validatedClaims } from './claims.js';
 import { writeAtomic } from './fs.js';
 import { EXTRACTION_SYSTEM, knowledgePrompt } from './knowledge-prompt.js';
@@ -23,6 +23,7 @@ export { parseExtractionResponse } from './knowledge-response.js';
 export const KNOWLEDGE_EXTRACTION_VERSION = 3;
 
 export class KnowledgeWorker {
+  private readonly logDir = moduleLogDirectory();
   private running?: Promise<void>;
   private retryTimer?: NodeJS.Timeout;
   private stopping = false;
@@ -80,7 +81,11 @@ export class KnowledgeWorker {
     await this.running;
   }
 
-  async runUntilIdle(): Promise<void> {
+  runUntilIdle(): Promise<void> {
+    return withProjectLog(this.logDir, () => this.drain());
+  }
+
+  private async drain(): Promise<void> {
     for (;;) {
       if (this.stopping || this.paused) return;
       const job = await this.queue.claim(this.generator ? undefined : 'extract_dataset');

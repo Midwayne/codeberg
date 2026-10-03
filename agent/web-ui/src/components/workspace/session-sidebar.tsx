@@ -1,5 +1,5 @@
 import { Archive, ArchiveRestore, GitBranch, MessageSquarePlus, MoreHorizontal, Pin, PinOff, Trash2 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import type { SessionSummary } from '@/lib/sessions';
 import { cn, timeAgo } from '@/lib/utils';
@@ -7,6 +7,8 @@ import { Dialog, IconButton } from '@/components/ui';
 
 /** Chat organization is only a view over the same resumable conversations. */
 export function SessionSidebar({
+  projectControls,
+  sidebarActions,
   sessions,
   error,
   currentId,
@@ -17,6 +19,8 @@ export function SessionSidebar({
   onDelete,
   onSetFlags,
 }: {
+  projectControls?: ReactNode;
+  sidebarActions?: ReactNode;
   sessions: SessionSummary[];
   error?: string;
   currentId: string;
@@ -62,7 +66,7 @@ export function SessionSidebar({
   return (
     <aside id="chat-sidebar" className="flex min-h-0 w-full flex-1 flex-col bg-card/30 md:w-72 md:flex-none md:border-r md:border-border" aria-label="Chats">
       <div className="space-y-4 p-3">
-        <h2 className="hidden px-1 text-sm font-semibold md:block">Chats</h2>
+        <div className="flex min-w-0 items-center gap-1">{projectControls}{sidebarActions}</div>
         <div className="flex items-center gap-2">
         <button type="button" onClick={onNew} className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">
           <MessageSquarePlus className="size-4" />New chat

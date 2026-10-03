@@ -33,7 +33,7 @@ export type { ChatResponder, ResolvedModelSelection } from './chat-routes.js';
 
 export interface WebServerOptions {
   /** The ai-sdk agent driving each turn. */
-  agent: ToolLoopAgent;
+  agent?: ToolLoopAgent;
   /** Shown in the page title bar; also returned from `/api/meta`. */
   title: string;
   /**
@@ -87,7 +87,7 @@ export function createRequestHandler(
     (async (res, messages, selection) =>
       pipeAgentUIStreamToResponse({
         response: res,
-        agent: selection && opts.selectAgent ? await opts.selectAgent(selection) : opts.agent,
+        agent: selection && opts.selectAgent ? await opts.selectAgent(selection) : requireAgent(opts.agent),
         uiMessages: messages,
       }));
   const sessions = opts.sessionStore ?? new WebSessionStore();
@@ -272,4 +272,9 @@ function escapeHtml(s: string): string {
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;');
+}
+
+function requireAgent(agent: ToolLoopAgent | undefined): ToolLoopAgent {
+  if (!agent) throw new Error('Select an available chat model.');
+  return agent;
 }

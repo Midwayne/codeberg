@@ -512,6 +512,54 @@ describe('web server', () => {
     expect(await (await fetch(url)).json()).toEqual([]);
   });
 
+  it.each(['delete', 'cleanup'] as const)('keeps saving an existing branch after parent %s', async (removal) => {
+    const sessions = tempSessionStore();
+    await start({ sessionStore: sessions });
+    const url = `${baseUrl}${SESSIONS_PATH}`;
+    const messages: UIMessage[] = [{ id: 'u1', role: 'user', parts: [{ type: 'text', text: 'Initial question' }] }];
+    const put = (id: string, body: unknown) => fetch(`${url}/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    expect((await put('parent', { title: 'Parent', messages })).status).toBe(200);
+    expect((await put('branch', { title: 'Branch', messages, parentId: 'parent' })).status).toBe(200);
+    const original = await sessions.load('branch');
+
+    if (removal === 'delete') {
+      expect((await fetch(`${url}/parent`, { method: 'DELETE' })).status).toBe(204);
+    } else {
+      const parent = await sessions.load('parent');
+      await sessions.save({ ...parent!, updatedAt: 1 });
+      expect((await fetch(baseUrl + '/api/settings/cleanup', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ categories: ['chats'], olderThanDays: 30 }),
+      })).status).toBe(200);
+    }
+    expect(await sessions.load('parent')).toBeNull();
+
+    const updatedMessages: UIMessage[] = [...messages, { id: 'u2', role: 'user', parts: [{ type: 'text', text: 'Continue the branch' }] }];
+    expect((await put('branch', { title: 'Updated branch', messages: updatedMessages, parentId: 'parent' })).status).toBe(200);
+    expect(await (await fetch(`${url}/branch`)).json()).toMatchObject({
+      title: 'Updated branch', messages: updatedMessages, parentId: 'parent', createdAt: original!.createdAt,
+    });
+  });
+
+  it('rejects missing parents when creating a branch or changing its lineage', async () => {
+    const sessions = tempSessionStore();
+    await start({ sessionStore: sessions });
+    const url = `${baseUrl}${SESSIONS_PATH}`;
+    const put = (id: string, parentId?: string) => fetch(`${url}/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: id, messages: [], parentId }),
+    });
+    expect((await put('new-branch', 'missing')).status).toBe(404);
+    expect(await sessions.load('new-branch')).toBeNull();
+    expect((await put('parent')).status).toBe(200);
+    expect((await put('branch', 'parent')).status).toBe(200);
+    const original = await sessions.load('branch');
+    expect((await put('branch', 'missing')).status).toBe(404);
+    expect(await sessions.load('branch')).toEqual(original);
+  });
+
   it('pins, archives, searches message text across all chats, and preserves flags when prompting again', async () => {
     let prompted: unknown[] | undefined;
     await start({ sessionStore: tempSessionStore(), respond: async (res, messages) => {

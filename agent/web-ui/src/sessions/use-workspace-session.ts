@@ -1,3 +1,5 @@
+import { DefaultChatTransport } from 'ai';
+import { useProjectApi } from '@/lib/project-api';
 import { useChat } from '@ai-sdk/react';
 import type { UIMessage } from 'ai';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -9,6 +11,7 @@ import { createWorkspaceChat, type WorkspaceChat } from '@/sessions/workspace-ch
 
 /** Owns the conversation lifecycle shared by the chat and session sidebar. */
 export function useWorkspaceSession() {
+  const { fetch: api } = useProjectApi();
   const [sessionError, setSessionError] = useState('');
   const { sessions, refresh } = useSessions();
   const refreshRef = useRef(refresh);
@@ -24,13 +27,14 @@ export function useWorkspaceSession() {
         messages,
         parentId,
         title,
-        persist: saveSession,
+        persist: (record) => saveSession(record, api),
+        transport: new DefaultChatTransport({ api: '/api/chat', fetch: api }),
         onPersist: () => void refreshRef.current(),
       });
       chats.current.set(id, next);
       return next;
     },
-    [],
+    [api],
   );
   const [active, setActive] = useState(() => createChat(newSessionId(), []));
   const chat = useChat({ chat: active.chat });
@@ -56,7 +60,7 @@ export function useWorkspaceSession() {
         setActive(existing);
         return;
       }
-      const record = await loadSession(id);
+      const record = await loadSession(id, api);
       if (intent !== transitionIntent.current) return;
       if (!record) {
         void refresh(); // it was deleted out from under us
@@ -64,7 +68,7 @@ export function useWorkspaceSession() {
       }
       setActive(createChat(record.id, record.messages, record.parentId, record.title));
     },
-    [createChat, refresh],
+    [createChat, refresh, api],
   );
 
   const startNew = useCallback(() => {
@@ -81,7 +85,7 @@ export function useWorkspaceSession() {
     };
     window.addEventListener('codeberg:storage-cleaned', cleaned);
     return () => window.removeEventListener('codeberg:storage-cleaned', cleaned);
-  }, [sessionId, startNew, refresh]);
+  }, [sessionId, startNew, refresh, api]);
 
   const branchFrom = useCallback(
     async (throughIndex: number) => {
@@ -95,14 +99,14 @@ export function useWorkspaceSession() {
         title: active.title ?? deriveTitle(sourceMessages),
         messages: sourceMessages,
         parentId: active.parentId,
-      });
+      }, api);
       const next = createChatBranch(sourceMessages, throughIndex, sourceId);
-      await saveSession(next);
+      await saveSession(next, api);
       void refresh();
       if (intent !== transitionIntent.current) return;
       setActive(createChat(next.id, next.messages, next.parentId, next.title));
     },
-    [active, chat, createChat, refresh],
+    [active, chat, createChat, refresh, api],
   );
 
   const remove = useCallback(
@@ -112,21 +116,21 @@ export function useWorkspaceSession() {
       removed?.dispose();
       chats.current.delete(id);
       if (id === sessionId) startNew();
-      await deleteSession(id);
+      await deleteSession(id, api);
       void refresh();
     },
-    [sessionId, startNew, refresh],
+    [sessionId, startNew, refresh, api],
   );
 
   const setFlags = useCallback(async (id: string, flags: { pinned?: boolean; archived?: boolean }) => {
     try {
-      await updateSessionFlags(id, flags);
+      await updateSessionFlags(id, flags, api);
       setSessionError('');
       await refresh();
     } catch (error) {
       setSessionError(error instanceof Error ? error.message : 'Could not update chat');
     }
-  }, [refresh]);
+  }, [refresh, api]);
 
   return { chat, sessions, sessionId, sessionError, resume, startNew, branchFrom, remove, setFlags };
 }

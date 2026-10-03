@@ -74,10 +74,10 @@ components:
     rounded: "{rounded.lg}"
     size: "2.75rem"
   input-select:
-    backgroundColor: "{colors.background}"
+    backgroundColor: "transparent"
     textColor: "{colors.foreground}"
-    rounded: "{rounded.lg}"
-    padding: "0.5rem 0.75rem"
+    rounded: "{rounded.md}"
+    padding: "0.5rem 1.75rem 0.5rem 0.5rem"
   navigation-active:
     backgroundColor: "{colors.accent}"
     textColor: "{colors.foreground}"
@@ -140,7 +140,7 @@ Gently curved controls use the medium and large radius steps. Cards, composer, a
 ## Components
 
 - **Buttons:** primary fill for main actions, bordered secondary controls, and quiet icon actions with accent hover. Shared icon buttons are (2.75rem) square on phones and (2.25rem) at the small breakpoint. Main composer actions remain (2.75rem). Disabled opacity communicates availability.
-- **Inputs / Fields:** native selects use semantic input borders and background, rounded corners, and a minimum height (2.75rem). The composer is a bordered card with an auto-growing textarea capped at (200px), attachment chips, and Send/Stop. Enter sends, Shift+Enter adds a line; IME composition is respected. Slash suggestions insert a command before submission.
+- **Inputs / Fields:** shared native selects show medium-weight text and a small down chevron (0.875rem), with a transparent background and no border. They size to their selected content, truncate within the available width, and keep a minimum height (2.75rem). Hover and keyboard focus use accent-foreground text; the shared focus outline remains visible. Disabled selects and chevrons use half opacity, and option surfaces use popover and popover-foreground. The composer is a bordered card with an auto-growing textarea capped at (200px), attachment chips, and Send/Stop. Enter sends, Shift+Enter adds a line; IME composition is respected. Slash suggestions insert a command before submission.
 - **Chips:** attachments sit in muted rounded capsules with truncated names and separately named remove actions.
 - **Cards / Containers:** resource metrics and cleanup options use thin borders, extra-large corners, and one-rem padding. Theme previews show palette colors; native radio selection adds a ring and check mark, with keyboard focus visible.
 - **Navigation:** named desktop header actions become accessible icon actions on smaller screens. Selected settings and chat rows use accent backgrounds. Chat rows show two-line titles, metadata, and separate actions; native dialogs handle mobile chat navigation, models, and chat-delete confirmation.

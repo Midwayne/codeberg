@@ -36,6 +36,7 @@ const (
 )
 
 type Indexer struct {
+	LogDir string
 	// Root is the first (or only) root — kept for single-root consumers like
 	// the git-pull default and the CODEBERG_ROOT env forwarded to the C engine.
 	Root string

@@ -1,5 +1,5 @@
 /** Shared polling lifecycle for the header's learning indicator. */
-export function startLearningStatusPolling(onBusy: (busy: boolean) => void): () => void {
+export function startLearningStatusPolling(onBusy: (busy: boolean) => void, fetcher: typeof fetch = fetch): () => void {
   let active = true;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let request: AbortController | undefined;
@@ -13,7 +13,7 @@ export function startLearningStatusPolling(onBusy: (busy: boolean) => void): () 
     try {
       const status = await Promise.race([
         (async () => {
-          const response = await fetch('/api/learning/status?view=activity', { cache: 'no-store', signal: controller.signal });
+          const response = await fetcher('/api/learning/status?view=activity', { cache: 'no-store', signal: controller.signal });
           if (!response.ok) throw new Error('learning status unavailable');
           const value = await response.json() as { working?: unknown; active?: unknown };
           if (typeof value.working === 'boolean') return value.working;

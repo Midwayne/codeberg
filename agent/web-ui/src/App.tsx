@@ -1,3 +1,6 @@
+import { ProjectShell } from '@/components/projects';
+import { useProjectApi } from '@/lib/project-api';
+import type { ReactNode } from 'react';
 import { GraduationCap, PanelLeft, Search, Settings2, SlidersHorizontal } from 'lucide-react';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 
@@ -13,6 +16,11 @@ const Settings = lazy(() => import('@/components/settings').then((module) => ({ 
 const TrainingReview = lazy(() => import('@/components/training-review').then((module) => ({ default: module.TrainingReview })));
 
 export function App() {
+  return <ProjectShell>{(toolbar, loading, notice) => <ProjectWorkspace toolbar={toolbar} loading={loading} notice={notice} />}</ProjectShell>;
+}
+
+function ProjectWorkspace({ toolbar, loading, notice }: { toolbar: ReactNode; loading: boolean; notice: ReactNode }) {
+  const { fetch: api } = useProjectApi();
   // The server exposes the model and reasoning effort at /api/meta.
   const [title, setTitle] = useState('');
   const [chatInputs, setChatInputs] = useState<CatalogModel['inputs']>(['text']);
@@ -30,7 +38,7 @@ export function App() {
   const modelsButton = useRef<HTMLButtonElement>(null);
 
   function refreshMeta(): void {
-    fetch('/api/meta')
+    api('/api/meta')
       .then((response) => response.ok ? response.json() : null)
       .then((meta: { title?: string; capabilities?: { learning?: boolean } } | null) => {
         if (meta?.title) setTitle(meta.title);
@@ -43,13 +51,13 @@ export function App() {
   }
 
   useEffect(() => {
-    refreshMeta();
-  }, []);
+    if (!loading) refreshMeta();
+  }, [api, loading]);
 
   useEffect(() => {
     if (!learningEnabled) return;
-    return startLearningStatusPolling(setLearningBusy);
-  }, [learningEnabled]);
+    return startLearningStatusPolling(setLearningBusy, api);
+  }, [learningEnabled, api]);
 
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
@@ -74,7 +82,7 @@ export function App() {
   return (
     <div className="flex h-dvh min-w-0 flex-col bg-background text-foreground">
       <header className="shrink-0 border-b border-border">
-        <div className="flex min-h-16 items-center gap-1 px-2 text-sm sm:gap-2 sm:px-4">
+        <div className="flex min-h-16 flex-wrap items-center gap-1 px-2 text-sm sm:gap-2 sm:px-4">
           {!trainingOpen && !settingsOpen && <IconButton
             onClick={() => setSidebarOpen(!sidebarOpen)}
             aria-label={sidebarOpen ? 'Hide chats' : 'Show chats'}
@@ -119,8 +127,9 @@ export function App() {
           </IconButton>
         </div>
       </header>
+      {notice}
       <div className={trainingOpen || settingsOpen ? 'hidden' : 'flex min-h-0 flex-1'}>
-        <Workspace sidebarOpen={sidebarOpen && !settingsOpen && !trainingOpen} onSidebarClose={() => setSidebarOpen(false)} learningEnabled={learningEnabled} chatInputs={chatInputs} searchOpen={searchOpen} onSearchClose={() => { setSearchOpen(false); searchButton.current?.focus(); }} />
+        {loading ? <PanelLoading label="Loading projects…" /> : <Workspace projectControls={toolbar} sidebarOpen={sidebarOpen && !settingsOpen && !trainingOpen} onSidebarClose={() => setSidebarOpen(false)} learningEnabled={learningEnabled} chatInputs={chatInputs} searchOpen={searchOpen} onSearchClose={() => { setSearchOpen(false); searchButton.current?.focus(); }} />}
       </div>
       {trainingOpen && <Suspense fallback={<PanelLoading label="Loading training review…" />}><TrainingReview /></Suspense>}
       {settingsOpen && <Suspense fallback={<PanelLoading label="Loading settings…" />}><Settings onClose={closeSettings} /></Suspense>}

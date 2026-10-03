@@ -1,6 +1,6 @@
 import { X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { Dialog, ErrorNotice, IconButton } from '@/components/ui';
+import { Dialog, ErrorNotice, IconButton, Select } from '@/components/ui';
 
 import {
   loadModelSettings,
@@ -104,25 +104,23 @@ function ChoiceFields({ label, prefix, models, value, onChange }: {
     <fieldset className="space-y-2">
       <legend className="mb-2 text-sm font-medium">{label}</legend>
       <label htmlFor={`${prefix}-model`} className="block text-xs text-muted-foreground">Model</label>
-      <select
+      <Select
         id={`${prefix}-model`}
         value={value.key}
         onChange={(event) => onChange(selectModel(value, event.currentTarget.value, models))}
-        className="min-h-11 w-full rounded-lg border border-input bg-background px-3 py-2 text-base text-foreground sm:text-sm"
       >
         {models.map((model) => (
           <option key={model.key} value={model.key}>{model.provider} · {model.label}{model.key !== model.model ? ` (${model.key.slice(model.provider.length + 1)})` : ''}</option>
         ))}
-      </select>
+      </Select>
       <label htmlFor={`${prefix}-effort`} className="block text-xs text-muted-foreground">Effort</label>
-      <select
+      <Select
         id={`${prefix}-effort`}
         value={value.effort}
         onChange={(event) => onChange({ ...value, effort: event.currentTarget.value as ModelSelection['effort'] })}
-        className="min-h-11 w-full rounded-lg border border-input bg-background px-3 py-2 text-base text-foreground sm:text-sm"
       >
         {selected?.efforts.map((effort) => <option key={effort} value={effort}>{effort}</option>)}
-      </select>
+      </Select>
       {selected && <p className="text-xs text-muted-foreground">Context window: {selected.contextWindow.toLocaleString()} tokens</p>}
     </fieldset>
   );

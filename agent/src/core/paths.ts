@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
@@ -58,4 +58,34 @@ function splitComma(value: string): string[] {
     if (trimmed) out.push(trimmed);
   }
   return out;
+}
+
+/** Project-owned data. Global credentials/models continue to use codebergHome.
+ * CLI callers match their configured roots; an explicit snapshot always wins. */
+export function codebergDataHome(env: NodeJS.ProcessEnv = process.env): string {
+  if (env.CODEBERG_PROJECT_HOME) return env.CODEBERG_PROJECT_HOME;
+  const home = codebergHome(env);
+  try {
+    if (!existsSync(join(home, 'projects-migrated.json'))) return home;
+    const catalog = JSON.parse(readFileSync(join(home, 'projects.json'), 'utf8')) as {
+      defaultId: string; projects: { id: string; roots: { root: string }[] }[];
+    };
+    const configuredRoots = indexedRootsFromEnv(env);
+    // The daemon skips missing keyed roots before registering its workspace.
+    // Keep an explicit but unavailable selection from falling back to the default.
+    const roots = configuredRoots.map(canonicalPath).filter((root) => !env.CODEBERG_ROOTS?.trim() || existsSync(root));
+    const project = configuredRoots.length ? catalog.projects.find((candidate) =>
+      roots.length > 0 && candidate.roots.length === roots.length && candidate.roots.every((root, i) => canonicalPath(root.root) === roots[i]))
+      : catalog.projects.find((candidate) => candidate.id === catalog.defaultId);
+    if (project && /^p-[a-f0-9]{16}$/.test(project.id)) return join(home, 'projects', project.id);
+    // Once upgraded, an unmatched root cannot write to the old shared store.
+    throw new Error('Repository is not registered as a Codeberg project. Add it in the UI first.');
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('Repository is not')) throw error;
+    throw new Error(`Unable to resolve project storage: ${String(error)}`);
+  }
+}
+
+function canonicalPath(path: string): string {
+  try { return realpathSync(path); } catch { return resolve(path); }
 }

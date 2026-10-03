@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { writeLearningTrace, writeModuleLog } from './module-log.js';
+import { writeLearningTrace, writeModuleLog, withProjectLog } from './module-log.js';
 
 describe('module logs', () => {
   it('appends scoped events across calls without mixing agent and learning events', () => {
@@ -39,4 +39,19 @@ describe('module logs', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+});
+
+it('keeps overlapping background work in its captured project log directory', async () => {
+  const a = mkdtempSync(join(tmpdir(), 'project-log-a-'));
+  const b = mkdtempSync(join(tmpdir(), 'project-log-b-'));
+  try {
+    const late = withProjectLog(a, async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      writeLearningTrace('late', { project: 'a' });
+    });
+    withProjectLog(b, () => writeLearningTrace('current', { project: 'b' }));
+    await late;
+    expect(JSON.parse(readFileSync(join(a, 'learning-agent-trace.log'), 'utf8')).project).toBe('a');
+    expect(JSON.parse(readFileSync(join(b, 'learning-agent-trace.log'), 'utf8')).project).toBe('b');
+  } finally { rmSync(a, { recursive: true, force: true }); rmSync(b, { recursive: true, force: true }); }
 });

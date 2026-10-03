@@ -1,7 +1,12 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { redactSecrets } from './learning/redact.js';
+
+const projectLog = new AsyncLocalStorage<string>();
+export function moduleLogDirectory(): string { return projectLog.getStore() ?? process.env.CODEBERG_LOG_DIR ?? ''; }
+export function withProjectLog<T>(dir: string, action: () => T): T { return projectLog.run(dir, action); }
 
 type Module = 'agent' | 'learning-agent';
 
@@ -10,7 +15,7 @@ export function writeModuleLog(
   module: Module,
   event: string,
   fields: Record<string, string | number | boolean> = {},
-  dir = process.env.CODEBERG_LOG_DIR,
+  dir = projectLog.getStore() ?? process.env.CODEBERG_LOG_DIR,
 ): void {
   if (!dir) return;
   try {
@@ -26,7 +31,7 @@ export function writeModuleLog(
 export function writeLearningTrace(
   event: string,
   fields: Record<string, unknown> = {},
-  dir = process.env.CODEBERG_LOG_DIR,
+  dir = projectLog.getStore() ?? process.env.CODEBERG_LOG_DIR,
 ): void {
   if (!dir) return;
   try {

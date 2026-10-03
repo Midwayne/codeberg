@@ -3,13 +3,13 @@ import { mkdirSync, realpathSync } from 'node:fs';
 import { appendFile, mkdir, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 
-import { codebergHome } from '../paths.js';
+import { codebergDataHome } from '../paths.js';
 import { toolOutputText } from '../message.js';
 
 /** Context files for one user (`$CODEBERG_HOME/context`). Stable across runs so
  *  a resumed chat can still open the history file named in its summary. */
 export function defaultContextRoot(env: NodeJS.ProcessEnv = process.env): string {
-  return join(codebergHome(env), 'context');
+  return join(codebergDataHome(env), 'context');
 }
 
 /**

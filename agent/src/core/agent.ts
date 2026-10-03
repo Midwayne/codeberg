@@ -29,6 +29,8 @@ import { mcpConfigFromEnv } from './mcp/config.js';
 import { mcpToolSource, type McpToolSource } from './mcp/tools.js';
 import type { McpConfig } from './mcp/types.js';
 import { createAgentTools } from './tools/agent-tools.js';
+import { repositoryVersions, defaultLearningRoot } from './learning/store.js';
+import { projectRoots } from './paths.js';
 import { LearningService } from './learning/service.js';
 import { webConfigFromEnv } from './web/config.js';
 import type { WebConfig } from './web/types.js';
@@ -62,6 +64,8 @@ const DEFAULT_TIMEOUT = {
 } as const;
 
 export interface AgentOptions {
+  /** Request-bound discovery environment for repository skills and MCPs. */
+  env?: NodeJS.ProcessEnv;
   model: LanguageModel;
   /** Model used by asynchronous knowledge extraction. Defaults to the main model. */
   subagentModel?: LanguageModel;
@@ -92,6 +96,7 @@ export interface AgentOptions {
 }
 
 export class Agent implements Asker {
+  private readonly env: NodeJS.ProcessEnv;
   private readonly model: LanguageModel;
   private readonly daemon: DaemonClient;
   private readonly generator: Generator;
@@ -122,6 +127,7 @@ export class Agent implements Asker {
   private readonly ledger = new EvidenceLedger();
 
   constructor(opts: AgentOptions) {
+    this.env = opts.env ?? process.env;
     this.model = opts.model;
     this.daemon = opts.daemon;
     this.generator = opts.generator ?? fromAiSdk(opts.model);
@@ -130,10 +136,12 @@ export class Agent implements Asker {
     this.promptHooks = opts.promptHooks ?? DEFAULT_PROMPT_HOOKS;
     this.web = opts.web ?? webConfigFromEnv();
     this.mcp = opts.mcp;
-    this.context = opts.context ?? ContextStore.open(defaultContextRoot());
+    this.context = opts.context ?? ContextStore.open(defaultContextRoot(this.env));
     this.learning = opts.learning === false
       ? undefined
-      : opts.learning ?? new LearningService({ generator: fromAiSdk(opts.subagentModel ?? opts.model) });
+      : opts.learning ?? new LearningService({ root: defaultLearningRoot(this.env),
+          repositories: () => repositoryVersions(projectRoots(this.env, process.cwd())),
+          generator: fromAiSdk(opts.subagentModel ?? opts.model) });
     this.ownsLearning = opts.learning === undefined;
   }
 
@@ -247,7 +255,7 @@ export class Agent implements Asker {
       // keeps that order and moves long results out of the transcript.
       const tools = wrapToolOutputs(deterministicTools(await this.buildTools()), this.context);
       const toolNames = Object.keys(tools);
-      const skills = await publishSkills(this.context);
+      const skills = await publishSkills(this.context, { env: this.env });
       this.system = agentSystemPrompt({
         learning: Boolean(this.learning),
         enabled: this.web.enabled,
@@ -304,7 +312,7 @@ export class Agent implements Asker {
       web: this.web,
       mcp: () => {
         this.mcpSource = mcpToolSource({
-          config: this.mcp ?? mcpConfigFromEnv(),
+          config: this.mcp ?? mcpConfigFromEnv(this.env),
           context: this.context,
         });
         return this.mcpSource;
