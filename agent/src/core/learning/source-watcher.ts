@@ -47,6 +47,8 @@ export class KnowledgeSourceWatcher {
     this.watchNewDirectories(desired);
   }
 
+  resume(): void { this.stopped = false; }
+
   stop(): void {
     this.stopped = true;
     for (const { watcher } of this.directories.values()) watcher.close();

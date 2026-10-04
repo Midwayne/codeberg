@@ -226,3 +226,17 @@ describe('versioned dataset capture', () => {
     restarted.stop();
   });
 });
+
+it('captures only the enabled example kinds without deleting existing candidates', async () => {
+    const { store, datasets } = await fixture();
+    await store.recordSession('kind-filter', corrected());
+    const attempts = await store.attempts();
+    await store.recordFeedback({ attemptId: attempts[0].attempt_id, label: 'not_useful', rating: 0 });
+    await store.recordFeedback({ attemptId: attempts[1].attempt_id, label: 'solved', rating: 3 });
+    const kinds = { retrieval: false, hard_negatives: false, sft: true, preferences: false, rlvr: false, hard_negative_candidates: false };
+    expect((await datasets.extract(attempts[0].interaction_id, kinds)).map((row) => row.kind)).toEqual(['sft']);
+    expect((await datasets.list('candidates')).map((row) => row.kind)).toEqual(['sft']);
+    expect((await datasets.extract(attempts[0].interaction_id)).length).toBeGreaterThan(1);
+    await datasets.extract(attempts[0].interaction_id, kinds);
+    expect((await datasets.list('candidates')).length).toBeGreaterThan(1);
+  });

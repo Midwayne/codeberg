@@ -7,6 +7,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Workspace } from '@/components/workspace/workspace';
 import { ModelSettingsPanel } from '@/components/model-settings';
 import { loadModelSettings, type CatalogModel } from '@/lib/models';
+import { loadLearningSettings } from '@/lib/learning-settings';
 import { startLearningStatusPolling } from '@/lib/learning-status';
 import { IconButton } from '@/components/ui';
 import { useMediaQuery } from '@/lib/use-media-query';
@@ -25,6 +26,8 @@ function ProjectWorkspace({ toolbar, loading, notice }: { toolbar: ReactNode; lo
   const [title, setTitle] = useState('');
   const [chatInputs, setChatInputs] = useState<CatalogModel['inputs']>(['text']);
   const [learningEnabled, setLearningEnabled] = useState(false);
+  const [learningActive, setLearningActive] = useState(false);
+  const [trainingEnabled, setTrainingEnabled] = useState(false);
   const [learningBusy, setLearningBusy] = useState(false);
   const desktop = useMediaQuery('(min-width: 768px)');
   const [sidebarPreference, setSidebarOpen] = useState<boolean>();
@@ -45,6 +48,10 @@ function ProjectWorkspace({ toolbar, loading, notice }: { toolbar: ReactNode; lo
         setLearningEnabled(meta?.capabilities?.learning === true);
       })
       .catch((err: unknown) => console.warn('failed to load /api/meta', err));
+    void loadLearningSettings(api).then((settings) => {
+      setLearningActive(Boolean(settings?.enabled));
+      setTrainingEnabled(Boolean(settings?.enabled && settings.datasets && (settings.training || settings.evals)));
+    }).catch((err: unknown) => console.warn('failed to load learning settings', err));
     loadModelSettings().then((settings) => {
       setChatInputs(settings.models.find((model) => model.key === settings.chat.key)?.inputs ?? ['text']);
     }).catch((err: unknown) => console.warn('failed to load /api/models', err));
@@ -55,9 +62,9 @@ function ProjectWorkspace({ toolbar, loading, notice }: { toolbar: ReactNode; lo
   }, [api, loading]);
 
   useEffect(() => {
-    if (!learningEnabled) return;
+    if (!learningActive) { setLearningBusy(false); return; }
     return startLearningStatusPolling(setLearningBusy, api);
-  }, [learningEnabled, api]);
+  }, [learningActive, api]);
 
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
@@ -101,7 +108,7 @@ function ProjectWorkspace({ toolbar, loading, notice }: { toolbar: ReactNode; lo
             <Search className="size-4" />
             <span className="hidden text-xs md:inline">Search</span>
           </IconButton>
-          {learningEnabled && <IconButton onClick={() => { setTrainingOpen((open) => !open); setSettingsOpen(false); setModelsOpen(false); if (!desktop) setSidebarOpen(false); }}
+          {trainingEnabled && <IconButton onClick={() => { setTrainingOpen((open) => !open); setSettingsOpen(false); setModelsOpen(false); if (!desktop) setSidebarOpen(false); }}
             aria-label={trainingOpen ? 'Back to chats' : 'Training review'} aria-pressed={trainingOpen}
             title={trainingOpen ? 'Back to chats' : 'Review training data'}
             className={`gap-2 md:w-auto md:px-3 ${trainingOpen ? 'bg-accent text-foreground' : ''}`}>
@@ -132,7 +139,7 @@ function ProjectWorkspace({ toolbar, loading, notice }: { toolbar: ReactNode; lo
         {loading ? <PanelLoading label="Loading projects…" /> : <Workspace projectControls={toolbar} sidebarOpen={sidebarOpen && !settingsOpen && !trainingOpen} onSidebarClose={() => setSidebarOpen(false)} learningEnabled={learningEnabled} chatInputs={chatInputs} searchOpen={searchOpen} onSearchClose={() => { setSearchOpen(false); searchButton.current?.focus(); }} />}
       </div>
       {trainingOpen && <Suspense fallback={<PanelLoading label="Loading training review…" />}><TrainingReview /></Suspense>}
-      {settingsOpen && <Suspense fallback={<PanelLoading label="Loading settings…" />}><Settings onClose={closeSettings} /></Suspense>}
+      {settingsOpen && <Suspense fallback={<PanelLoading label="Loading settings…" />}><Settings onClose={closeSettings} onLearningSaved={refreshMeta} /></Suspense>}
       {modelsOpen && <ModelSettingsPanel onClose={() => { setModelsOpen(false); modelsButton.current?.focus(); }} onSaved={refreshMeta} />}
     </div>
   );

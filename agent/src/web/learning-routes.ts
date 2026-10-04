@@ -6,6 +6,7 @@ import {
   type FeedbackRating,
 } from '../core/learning/types.js';
 import type { LearningService } from '../core/learning/service.js';
+import { LearningSettingsError } from '../core/learning/preferences.js';
 import { reviewDashboard } from '../core/learning/review.js';
 import { readJson, sendJson, sendText } from './http.js';
 import { isValidSessionId, type WebSessionStore } from './sessions/store.js';
@@ -19,7 +20,21 @@ export async function routeLearning(
   sessions: WebSessionStore,
   url: URL,
 ): Promise<void> {
+  if (url.pathname === `${LEARNING_PATH}/settings`) {
+    res.setHeader('Cache-Control', 'no-store');
+    if (req.method === 'GET') return sendJson(res, 200, await learning.getSettings());
+    if (req.method !== 'PUT') return sendText(res, 405, 'method not allowed');
+    if (req.headers.origin && req.headers.origin !== `http://${req.headers.host}` && req.headers.origin !== `https://${req.headers.host}`) return sendText(res, 403, 'cross-origin settings changes are not allowed');
+    if (!req.headers['content-type']?.startsWith('application/json')) return sendText(res, 415, 'application/json required');
+    try { return sendJson(res, 200, await learning.updateSettings(await readJson(req))); }
+    catch (error) {
+      if (error instanceof LearningSettingsError) return sendText(res, 400, error.message);
+      throw error;
+    }
+  }
+
   if (req.method === 'POST' && url.pathname === `${LEARNING_PATH}/feedback`) {
+    if (!learning.settings.enabled || !learning.settings.history || !learning.settings.historyCapture) return sendText(res, 409, 'Learning history is paused. Enable it in Settings.');
     const body = await readJson(req);
     const conversationId = typeof body?.conversation_id === 'string' ? body.conversation_id : '';
     const messageId = typeof body?.message_id === 'string' ? body.message_id : '';
@@ -88,6 +103,8 @@ export async function routeLearning(
     if (!body || !['training', 'eval', 'dismiss'].includes(String(body.decision))) {
       return sendText(res, 400, 'invalid review decision');
     }
+    const settings = learning.settings;
+    if (!settings.enabled || !settings.datasets || (body.decision === 'training' && !settings.training) || (body.decision === 'eval' && !settings.evals)) return sendText(res, 409, 'This review component is paused. Enable it in Settings → Learning.');
     const oracle = reviewOracle(body.oracle);
     if (body.oracle !== undefined && !oracle) return sendText(res, 400, 'invalid reviewed evidence');
     try {

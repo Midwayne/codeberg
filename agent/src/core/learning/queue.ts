@@ -18,23 +18,27 @@ export class DurableJobQueue {
 
   async enqueueKnowledge(
     interactionId: string,
-    options: { requeueCompleted?: boolean } = {},
+    options: { requeueCompleted?: boolean; sourceRefresh?: boolean } = {},
   ): Promise<KnowledgeJob> {
     return this.enqueue('extract_knowledge', interactionId, options);
   }
 
-  async enqueueDataset(interactionId: string, options: { requeueCompleted?: boolean } = {}): Promise<KnowledgeJob> {
+  async enqueueDataset(interactionId: string, options: { requeueCompleted?: boolean; sourceRefresh?: boolean } = {}): Promise<KnowledgeJob> {
     return this.enqueue('extract_dataset', interactionId, options);
   }
 
-  private async enqueue(type: KnowledgeJob['type'], interactionId: string, options: { requeueCompleted?: boolean }): Promise<KnowledgeJob> {
+  private async enqueue(type: KnowledgeJob['type'], interactionId: string, options: { requeueCompleted?: boolean; sourceRefresh?: boolean }): Promise<KnowledgeJob> {
     const jobId = stableId('job', type, interactionId);
     const existing = await this.find(jobId);
     if (existing?.status === 'processing' && options.requeueCompleted) {
-      await writeJsonAtomic(this.path('processing', jobId), { ...existing, rerun_requested: true });
+      await writeJsonAtomic(this.path('processing', jobId), { ...existing, rerun_requested: true, source_refresh: existing.source_refresh && options.sourceRefresh === true });
       return existing;
     }
     if (existing && !(options.requeueCompleted && ['completed', 'failed'].includes(existing.status))) {
+      if (existing.source_refresh && options.requeueCompleted && !options.sourceRefresh) {
+        existing.source_refresh = false;
+        await writeJsonAtomic(this.path(existing.status, jobId), existing);
+      }
       return existing;
     }
     const timestamp = this.now().toISOString();
@@ -43,6 +47,7 @@ export class DurableJobQueue {
       job_id: jobId,
       type,
       interaction_id: interactionId,
+      source_refresh: options.sourceRefresh === true,
       created_at: existing?.created_at ?? timestamp,
       updated_at: timestamp,
       attempt_count: options.requeueCompleted ? 0 : existing?.attempt_count ?? 0,
@@ -82,11 +87,11 @@ export class DurableJobQueue {
   }
 
   /** Earliest pending retry or abandoned lease, including a claim with no lease. */
-  async nextDueAt(type?: KnowledgeJob['type']): Promise<number | undefined> {
+  async nextDueAt(type?: KnowledgeJob['type'], enabled: (job: KnowledgeJob) => boolean = () => true): Promise<number | undefined> {
     const [pending, processing] = await Promise.all([this.list('pending'), this.list('processing')]);
     const times = [
-      ...pending.filter((job) => !type || job.type === type).map((job) => job.next_attempt_at ? Date.parse(job.next_attempt_at) : this.now().getTime()),
-      ...processing.filter((job) => !type || job.type === type).map((job) => job.lease_expires_at ? Date.parse(job.lease_expires_at) : this.now().getTime()),
+      ...pending.filter((job) => (!type || job.type === type) && enabled(job)).map((job) => job.next_attempt_at ? Date.parse(job.next_attempt_at) : this.now().getTime()),
+      ...processing.filter((job) => (!type || job.type === type) && enabled(job)).map((job) => job.lease_expires_at ? Date.parse(job.lease_expires_at) : this.now().getTime()),
     ].filter(Number.isFinite);
     return times.length ? Math.min(...times) : undefined;
   }
@@ -153,10 +158,10 @@ export class DurableJobQueue {
     return recovered;
   }
 
-  async claim(type?: KnowledgeJob['type']): Promise<KnowledgeJob | undefined> {
+  async claim(type?: KnowledgeJob['type'], enabled: (job: KnowledgeJob) => boolean = () => true): Promise<KnowledgeJob | undefined> {
     await mkdir(join(this.root, 'jobs', 'processing'), { recursive: true });
     for (const job of await this.list('pending')) {
-      if (type && job.type !== type) continue;
+      if ((type && job.type !== type) || !enabled(job)) continue;
       if (job.next_attempt_at && Date.parse(job.next_attempt_at) > this.now().getTime()) continue;
       const from = this.path('pending', job.job_id);
       const to = this.path('processing', job.job_id);
@@ -178,6 +183,16 @@ export class DurableJobQueue {
       return claimed;
     }
     return undefined;
+  }
+
+  /** Put a claimed but unexecuted job back without counting pause as a failure. */
+  async release(job: KnowledgeJob): Promise<void> {
+    const current = await this.find(job.job_id);
+    await this.transition(job.job_id, 'processing', 'pending', {
+      ...(current ?? job), status: 'pending', updated_at: this.now().toISOString(),
+      attempt_count: Math.max(0, job.attempt_count - 1), lease_expires_at: undefined,
+      next_attempt_at: undefined, rerun_requested: undefined,
+    });
   }
 
   async complete(job: KnowledgeJob): Promise<void> {

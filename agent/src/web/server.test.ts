@@ -735,3 +735,31 @@ describe('web server', () => {
     expect(res.status).toBe(409);
   });
 });
+
+it('updates learning settings live, validates patches, and retains settings access while paused', async () => {
+  const learning = tempLearning();
+  await start({ learning });
+  const update = (patch: unknown) => fetch(`${baseUrl}/api/learning/settings`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
+  });
+  expect((await update({ knowledge: false, evals: false })).status).toBe(200);
+  expect(await (await fetch(`${baseUrl}/api/learning/settings`)).json()).toMatchObject({ knowledge: false, evals: false, history: true });
+  expect((await update({ history: 'false' })).status).toBe(400);
+  expect((await update({ enabled: false })).status).toBe(200);
+  expect((await (await fetch(`${baseUrl}/api/meta`)).json()).capabilities.learning).toBe(false);
+  expect((await fetch(`${baseUrl}/api/learning/feedback`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status).toBe(409);
+  expect((await update({ enabled: true })).status).toBe(200);
+  expect((await (await fetch(`${baseUrl}/api/meta`)).json()).capabilities.learning).toBe(true);
+});
+it('blocks evaluation promotion when evaluations are off, preserving candidates for later', async () => {
+  const learning = tempLearning();
+  const examples = await reviewedCandidates(learning, 'review-paused', 'src/Example.ts');
+  await learning.updateSettings({ evals: false });
+  await start({ learning });
+  const response = await fetch(`${baseUrl}/api/learning/review/${examples[0]!.id}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision: 'eval', oracle: { files: ['src/Example.ts'] } }),
+  });
+  expect(response.status).toBe(409);
+  expect(await learning.datasets.list('eval')).toEqual([]);
+  expect((await learning.datasets.list('candidates')).length).toBeGreaterThan(0);
+});

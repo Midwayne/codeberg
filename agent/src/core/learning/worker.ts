@@ -1,3 +1,4 @@
+import { DEFAULT_LEARNING_SETTINGS, type LearningSettings } from './preferences.js';
 import { readFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
@@ -22,6 +23,8 @@ import type {
 export { parseExtractionResponse } from './knowledge-response.js';
 export const KNOWLEDGE_EXTRACTION_VERSION = 3;
 
+class LearningPaused extends Error {}
+
 export class KnowledgeWorker {
   private readonly logDir = moduleLogDirectory();
   private running?: Promise<void>;
@@ -35,6 +38,8 @@ export class KnowledgeWorker {
     private readonly queue: DurableJobQueue,
     private readonly generator?: Generator,
     private readonly onKnowledgeChanged?: () => void,
+    private readonly settings: () => LearningSettings = () => DEFAULT_LEARNING_SETTINGS,
+    private readonly datasets = new DatasetStore(store),
   ) {}
 
   async initialize(): Promise<void> {
@@ -88,14 +93,17 @@ export class KnowledgeWorker {
   private async drain(): Promise<void> {
     for (;;) {
       if (this.stopping || this.paused) return;
-      const job = await this.queue.claim(this.generator ? undefined : 'extract_dataset');
+      const type = this.enabledType();
+      if (type === false) return;
+      const job = await this.queue.claim(type, (job) => this.jobEnabled(job));
       if (!job) return;
+      if (!this.jobEnabled(job)) { await this.queue.release(job); return; }
       this.processing = true;
       writeModuleLog('learning-agent', 'job_started', { id: job.job_id, type: job.type });
       try {
         const interaction = await this.store.interaction(job.interaction_id);
         job.source_revision = sourceRevision(interaction.attempts, interaction.feedback);
-        if (job.type === 'extract_dataset') await new DatasetStore(this.store).extract(job.interaction_id);
+        if (job.type === 'extract_dataset') await this.datasets.extract(job.interaction_id, this.settings().kinds);
         else {
           job.extraction_version = KNOWLEDGE_EXTRACTION_VERSION;
           const artifacts = (await this.store.knowledgeArtifacts()).filter((artifact) => artifact.source_interactions.includes(job.interaction_id));
@@ -105,6 +113,7 @@ export class KnowledgeWorker {
         await this.queue.complete(job);
         writeModuleLog('learning-agent', 'job_completed', { id: job.job_id, type: job.type });
       } catch (error) {
+        if (error instanceof LearningPaused) { await this.queue.release(job); continue; }
         const category = classifyFailure(error);
         await this.queue.fail(job, category, String(error));
         writeLearningTrace('job_failed', { job_id: job.job_id, category, error: String(error) });
@@ -122,7 +131,7 @@ export class KnowledgeWorker {
     const revision = sourceRevision(interaction.attempts, interaction.feedback);
     const currentRepositories = await this.store.repositories();
     const artifacts = (await this.store.knowledgeArtifacts()).filter((artifact) =>
-      artifact.source_interactions.includes(job.interaction_id));
+      artifact.source_interactions.includes(job.interaction_id) && this.settings().categories[artifact.category]);
     const sourceStates = await Promise.all(artifacts.map((artifact) => memorySourceState(artifact, currentRepositories)));
     const sourceChanged = sourceStates.some((state) => !state.fresh);
     if (sourceChanged || artifacts.some((artifact) => artifactRevision(artifact, job.interaction_id) !== revision)) {
@@ -140,7 +149,7 @@ export class KnowledgeWorker {
       writeLearningTrace('extraction_skipped', { job_id: job.job_id, reason: 'own_artifacts_already_current' });
       return;
     }
-    const related = await this.store.searchKnowledge(final.user_query, 3, { includeUnverified: true });
+    const related = await this.store.searchKnowledge(final.user_query, 3, { includeUnverified: true, categories: this.settings().categories });
     const existing = [...artifacts, ...related.map((hit) => hit.artifact).filter((artifact) => !artifacts.some((own) => own.id === artifact.id))];
     // A later correction may cite no files itself; reread evidence from the whole interaction.
     const refs = [...new Map([...existing.flatMap((artifact) => artifact.source_refs ?? []),
@@ -168,7 +177,10 @@ export class KnowledgeWorker {
     });
     writeLearningTrace('extraction_input', { job_id: job.job_id, mode: refresh ? 'refresh' : 'extract',
       existing_artifacts: existing.map((artifact) => artifact.slug), prompt });
-    const raw = await this.generator!.generate({ system: EXTRACTION_SYSTEM, prompt, traceId: job.job_id });
+    if (!this.jobEnabled(job)) throw new LearningPaused();
+    const categories = Object.entries(this.settings().categories).filter(([, enabled]) => enabled).map(([category]) => category);
+    const system = `${EXTRACTION_SYSTEM}\nOnly use these enabled categories: ${categories.join(', ')}. Return action none for other categories.`;
+    const raw = await this.generator!.generate({ system, prompt, traceId: job.job_id });
     writeLearningTrace('model_response', { job_id: job.job_id, raw });
     const response = parseExtractionResponse(raw);
     if (response.action === 'none') {
@@ -178,6 +190,7 @@ export class KnowledgeWorker {
       return;
     }
     validateResponse(response);
+    if (!this.settings().enabled || !this.settings().knowledge || !this.settings().categories[response.category!]) return;
     const rejectedIndexes: number[] = [];
     const claims = validatedClaims(response.claims, observations, (index) => rejectedIndexes.push(index));
     if (rejectedIndexes.length) writeLearningTrace('claims_rejected', { job_id: job.job_id,
@@ -281,8 +294,26 @@ export class KnowledgeWorker {
     }
   }
 
+  private jobEnabled(job: KnowledgeJob): boolean {
+    const settings = this.settings();
+    if (!settings.enabled) return false;
+    return job.type === 'extract_dataset' ? settings.datasets && Object.values(settings.kinds).some(Boolean)
+      : Boolean(this.generator) && settings.knowledge && Object.values(settings.categories).some(Boolean) && (job.source_refresh ? settings.knowledgeRefresh : settings.knowledgeCapture);
+  }
+
+  private enabledType(): 'extract_knowledge' | 'extract_dataset' | undefined | false {
+    const settings = this.settings();
+    if (!settings.enabled) return false;
+    const knowledge = Boolean(this.generator) && settings.knowledge && (settings.knowledgeCapture || settings.knowledgeRefresh) && Object.values(settings.categories).some(Boolean);
+    const datasets = settings.datasets && Object.values(settings.kinds).some(Boolean);
+    return knowledge && datasets ? undefined : knowledge ? 'extract_knowledge' : datasets ? 'extract_dataset' : false;
+  }
+
   private async scheduleRetry(): Promise<void> {
-    const due = await this.queue.nextDueAt(this.generator ? undefined : 'extract_dataset');
+    if (this.stopping || this.paused) return;
+    const type = this.enabledType();
+    if (type === false) return;
+    const due = await this.queue.nextDueAt(type, (job) => this.jobEnabled(job));
     if (due === undefined) return;
     // Timers use wall-clock time, while tests/queues may inject a different clock.
     const delay = Math.max(0, due - Date.now());

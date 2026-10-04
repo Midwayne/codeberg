@@ -31,6 +31,7 @@ import type { McpConfig } from './mcp/types.js';
 import { createAgentTools } from './tools/agent-tools.js';
 import { repositoryVersions, defaultLearningRoot } from './learning/store.js';
 import { projectRoots } from './paths.js';
+import { learningRecall } from './learning/preferences.js';
 import { LearningService } from './learning/service.js';
 import { webConfigFromEnv } from './web/config.js';
 import type { WebConfig } from './web/types.js';
@@ -257,7 +258,7 @@ export class Agent implements Asker {
       const toolNames = Object.keys(tools);
       const skills = await publishSkills(this.context, { env: this.env });
       this.system = agentSystemPrompt({
-        learning: Boolean(this.learning),
+        learning: this.learning ? learningRecall(this.learning.settings) : false,
         enabled: this.web.enabled,
         search: Boolean(this.web.searxngUrl),
         mcp: this.mcpSource?.reports() ?? [],
@@ -309,6 +310,7 @@ export class Agent implements Asker {
       daemon: this.daemon,
       context: this.context,
       learning: this.learning?.store,
+      learningSettings: this.learning ? () => this.learning!.settings : undefined,
       web: this.web,
       mcp: () => {
         this.mcpSource = mcpToolSource({

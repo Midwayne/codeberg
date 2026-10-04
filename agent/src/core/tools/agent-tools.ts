@@ -8,6 +8,7 @@ import type { McpToolSource } from '../mcp/tools.js';
 import type { SearchResult } from '../types.js';
 import type { WebConfig } from '../web/types.js';
 import { learningToolSource } from '../learning/tools.js';
+import type { LearningSettings } from '../learning/preferences.js';
 import type { LearningStore } from '../learning/store.js';
 import { collectTools, daemonToolSource, searchCodeSource, webToolSource } from './index.js';
 
@@ -15,6 +16,7 @@ interface AgentToolOptions {
   daemon: DaemonClient;
   context: ContextStore;
   learning?: LearningStore;
+  learningSettings?: () => LearningSettings;
   web: WebConfig;
   mcp: () => McpToolSource;
   defaultSearchK: number;
@@ -30,7 +32,7 @@ export async function createAgentTools(opts: AgentToolOptions): Promise<ToolSet>
       defaultK: opts.defaultSearchK,
       onResults: opts.onResults,
     }),
-    ...(opts.learning ? [learningToolSource(opts.learning)] : []),
+    ...(opts.learning ? [learningToolSource(opts.learning, opts.learningSettings)] : []),
     contextToolSource(opts.context),
     daemonToolSource({
       daemon: opts.daemon,

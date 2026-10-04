@@ -250,12 +250,12 @@ export class LearningStore {
       .slice(0, Math.max(1, limit));
   }
 
-  async searchKnowledge(query: string, limit = 10, options: { includeUnverified?: boolean } = {}): Promise<KnowledgeSearchHit[]> {
+  async searchKnowledge(query: string, limit = 10, options: { includeUnverified?: boolean; categories?: Partial<Record<KnowledgeArtifact['category'], boolean>> } = {}): Promise<KnowledgeSearchHit[]> {
     const artifacts = options.includeUnverified ? await this.knowledgeArtifacts() : await this.currentKnowledgeArtifacts();
     const currentIds = options.includeUnverified
       ? new Set((await this.currentKnowledgeArtifacts()).map((artifact) => artifact.id))
       : undefined;
-    return rankKnowledge(query, artifacts)
+    return rankKnowledge(query, artifacts.filter((artifact) => options.categories?.[artifact.category] !== false))
       .filter((hit) => hit.score > 0)
       .sort((a, b) => b.score - a.score || b.artifact.updated_at.localeCompare(a.artifact.updated_at))
       .slice(0, Math.max(1, limit))

@@ -107,7 +107,7 @@ async function main(): Promise<void> {
         daemonUrl, sessionStore: sessions, resources, learning, modelSettings,
         respond: async (res, messages, selection) => {
           if (!selection) throw new Error('Choose a chat model first.');
-          const lease = await pool.acquire(selection, extensions.revision);
+          const lease = await pool.acquire(selection, extensions.revision + (learning?.settingsRevision ?? 0));
           let routed = false;
           let finished = res.writableEnded || res.destroyed;
           const release = () => {

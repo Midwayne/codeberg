@@ -116,6 +116,8 @@ export interface KnowledgeJob {
   source_revision?: string;
   extraction_version?: number;
   source_code_revision?: string;
+  /** Source-change refreshes can be paused independently of solved feedback. */
+  source_refresh?: boolean;
   created_at: string;
   updated_at: string;
   attempt_count: number;

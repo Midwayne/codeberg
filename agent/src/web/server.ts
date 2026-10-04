@@ -195,7 +195,7 @@ async function route(
   if (req.method === 'GET' && path === META_PATH) {
     return routeMeta(res, {
       title: opts.title,
-      learningEnabled: Boolean(opts.learning),
+      learningEnabled: Boolean(opts.learning?.settings.enabled && opts.learning.settings.history && opts.learning.settings.historyCapture),
       modelSettings: opts.modelSettings,
     });
   }

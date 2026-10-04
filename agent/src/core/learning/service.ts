@@ -4,6 +4,8 @@ import { join } from 'node:path';
 
 import type { Generator } from '../types.js';
 import { writeModuleLog } from '../module-log.js';
+import { LearningSettingsStore } from './settings.js';
+import { DEFAULT_LEARNING_SETTINGS, type LearningSettings } from './preferences.js';
 import { DurableJobQueue } from './queue.js';
 import { DatasetStore } from './datasets.js';
 import { memorySourceState, sourceKey, type SourceObservation } from './memory-source.js';
@@ -18,7 +20,37 @@ export class LearningService {
   readonly queue: DurableJobQueue;
   readonly worker?: KnowledgeWorker;
   readonly datasets: DatasetStore;
-  readonly knowledgeEnabled: boolean;
+  private readonly hasGenerator: boolean;
+  private readonly settingsStore: LearningSettingsStore;
+  private preferences = structuredClone(DEFAULT_LEARNING_SETTINGS);
+  settingsRevision = 0;
+  get settings(): LearningSettings { return structuredClone(this.preferences); }
+  private get knowledgeCaptureEnabled(): boolean { return this.preferences.enabled && this.preferences.knowledge && this.preferences.knowledgeCapture && Object.values(this.preferences.categories).some(Boolean); }
+  get knowledgeEnabled(): boolean { return this.preferences.enabled && this.preferences.knowledge && this.hasGenerator && Object.values(this.preferences.categories).some(Boolean); }
+  get datasetEnabled(): boolean { return this.preferences.enabled && this.preferences.datasets && Object.values(this.preferences.kinds).some(Boolean); }
+  async getSettings(): Promise<LearningSettings> {
+    this.preferences = await this.settingsStore.current();
+    return this.settings;
+  }
+  async updateSettings(patch: unknown): Promise<LearningSettings> {
+    this.preferences = await this.settingsStore.update(patch);
+    this.settingsRevision++;
+    if (this.initialized) {
+      try {
+        if (this.knowledgeEnabled && this.preferences.knowledgeRefresh) {
+          this.sourceWatcher.resume();
+          await this.refreshKnowledge();
+          await this.syncWatcher();
+        } else this.sourceWatcher.stop();
+        await this.reconcileJobs();
+      } catch (error) { writeModuleLog('learning-agent', 'settings_reconcile_failed', { error: String(error) }); }
+      finally { this.wakeWorker(); }
+    }
+    return this.settings;
+  }
+  private jobEnabled(job: { type: 'extract_knowledge' | 'extract_dataset'; source_refresh?: boolean }): boolean {
+    return job.type === 'extract_knowledge' ? this.knowledgeEnabled && (job.source_refresh ? this.preferences.knowledgeRefresh : this.preferences.knowledgeCapture) : this.datasetEnabled;
+  }
   private starting?: Promise<void>;
   private initialized = false;
   private refreshTimer?: NodeJS.Timeout;
@@ -33,7 +65,8 @@ export class LearningService {
     const root = options.root ?? defaultLearningRoot();
     this.store = new LearningStore(root, options.repositories);
     this.queue = new DurableJobQueue(root);
-    this.knowledgeEnabled = Boolean(options.generator);
+    this.hasGenerator = Boolean(options.generator);
+    this.settingsStore = new LearningSettingsStore(root);
     this.datasets = new DatasetStore(this.store);
     this.sourceWatcher = new KnowledgeSourceWatcher(this.store, (sources) => {
       void this.refreshKnowledge(sources).catch((error: unknown) => {
@@ -42,11 +75,15 @@ export class LearningService {
       });
     });
     this.worker = new KnowledgeWorker(this.store, this.queue, options.generator, () => {
-      void this.sourceWatcher.sync().catch((error: unknown) => {
+      void this.syncWatcher().catch((error: unknown) => {
         console.error('knowledge source watcher update failed:', error);
         writeModuleLog('learning-agent', 'watcher_update_failed', { error: String(error) });
       });
-    });
+    }, () => this.preferences, this.datasets);
+  }
+
+  private async syncWatcher(): Promise<void> {
+    if (this.knowledgeEnabled && this.preferences.knowledgeRefresh && !this.stopping) await this.sourceWatcher.sync();
   }
 
   // Durable writes can precede initialize. Starting a worker during replay can
@@ -63,15 +100,16 @@ export class LearningService {
   }
 
   private async start(): Promise<void> {
+    await this.getSettings();
     await this.ensureLayout();
     await this.queue.reconcileStates();
     await this.reconcileJobs();
     await this.refreshKnowledge();
     await this.worker?.initialize();
-    await this.sourceWatcher.sync();
+    await this.syncWatcher();
     this.initialized = true;
     this.wakeWorker();
-    if (this.knowledgeEnabled) {
+    if (this.hasGenerator) {
       this.refreshTimer = setInterval(() => {
         void this.refreshKnowledge().catch((error: unknown) => {
           console.error('knowledge refresh scan failed:', error);
@@ -87,16 +125,17 @@ export class LearningService {
     messages: UIMessage[],
     parentConversationId?: string,
   ): Promise<void> {
+    if (!this.preferences.enabled || !this.preferences.history || !this.preferences.historyCapture) return;
     const attempts = await this.store.recordSession(conversationId, messages, parentConversationId);
     const newIds = new Set(attempts.map((attempt) => attempt.attempt_id));
     for (const id of new Set(attempts.map((attempt) => attempt.interaction_id))) {
       const interaction = await this.store.interaction(id);
       const newAnswers = interaction.attempts.filter((attempt) => newIds.has(attempt.attempt_id) && attempt.answer.trim());
       if (!newAnswers.length) continue;
-      if (interaction.feedback.length || newAnswers.some((attempt) => attempt.tools_invoked.length)) {
+      if (this.datasetEnabled && (interaction.feedback.length || newAnswers.some((attempt) => attempt.tools_invoked.length))) {
         await this.queue.enqueueDataset(id, { requeueCompleted: true });
       }
-      if (interaction.feedback.some((feedback) => feedback.label === 'solved')) {
+      if (this.knowledgeCaptureEnabled && interaction.feedback.some((feedback) => feedback.label === 'solved')) {
         await this.queue.enqueueKnowledge(id, { requeueCompleted: true });
       } else {
         writeModuleLog('learning-agent', 'knowledge_not_queued', { interaction_id: id, reason: 'no_solved_feedback' });
@@ -112,6 +151,7 @@ export class LearningService {
     label: FeedbackLabel;
     reason?: string;
   }): Promise<{ feedback: FeedbackRecord; jobId?: string; jobStatus?: string }> {
+    if (!this.preferences.enabled || !this.preferences.history || !this.preferences.historyCapture) throw new Error('Learning history is paused. Enable it in Settings.');
     const attempt = await this.store.attemptForMessage(input.conversationId, input.messageId);
     if (!attempt) throw new Error('attempt not found; wait for the conversation to finish saving');
     const feedback = await this.store.recordFeedback({
@@ -121,7 +161,7 @@ export class LearningService {
       reason: input.reason,
     });
     try {
-      await this.queue.enqueueDataset(attempt.interaction_id, { requeueCompleted: true });
+      if (this.datasetEnabled) await this.queue.enqueueDataset(attempt.interaction_id, { requeueCompleted: true });
       this.wakeWorker();
     } catch (error) {
       console.error('dataset job enqueue failed; feedback is saved:', error);
@@ -130,7 +170,7 @@ export class LearningService {
     // A change to an older attempt can invalidate knowledge learned from a newer
     // solved attempt (or vice versa). Revisit the entire logical interaction.
     const interaction = await this.store.interaction(attempt.interaction_id);
-    if (!interaction.feedback.some((entry) => entry.label === 'solved')) {
+    if (!this.knowledgeCaptureEnabled || !interaction.feedback.some((entry) => entry.label === 'solved')) {
       writeModuleLog('learning-agent', 'knowledge_not_queued', { interaction_id: attempt.interaction_id, reason: 'no_solved_feedback' });
       return { feedback };
     }
@@ -159,12 +199,12 @@ export class LearningService {
     const now = Date.now();
     const [pending, processing] = await Promise.all([this.queue.list('pending'), this.queue.list('processing')]);
     return [...pending.filter((job) => !job.next_attempt_at || Date.parse(job.next_attempt_at) <= now), ...processing]
-      .filter((job) => this.knowledgeEnabled || job.type === 'extract_dataset').length;
+      .filter((job) => this.jobEnabled(job)).length;
   }
 
   async waitForCurrent(): Promise<void> {
     await this.worker?.waitForCurrent();
-    await this.sourceWatcher.sync();
+    await this.syncWatcher();
   }
 
   /** Quiesce derived-data writers while resource cleanup runs. */
@@ -174,11 +214,11 @@ export class LearningService {
     this.worker?.pause();
     try {
       const pending = await this.queue.list('pending');
-      if (await this.activeJobs() || pending.some((job) => this.knowledgeEnabled || job.type === 'extract_dataset')) throw new Error('learning is busy');
+      if (await this.activeJobs() || pending.some((job) => this.jobEnabled(job))) throw new Error('learning is busy');
       return await action();
     } finally {
       this.maintenance = false;
-      try { await this.sourceWatcher.sync(); }
+      try { await this.syncWatcher(); }
       catch (error) { writeModuleLog('learning-agent', 'watcher_update_failed', { error: String(error) }); }
       finally { this.worker?.resume(); }
     }
@@ -193,7 +233,7 @@ export class LearningService {
 
   /** Recheck memory against live repos; durable knowledge jobs perform the refresh. */
   refreshKnowledge(sources?: Iterable<string>): Promise<void> {
-    if (!this.knowledgeEnabled || this.stopping || this.maintenance) return Promise.resolve();
+    if (!this.knowledgeEnabled || !this.preferences.knowledgeRefresh || this.stopping || this.maintenance) return Promise.resolve();
     if (sources) for (const source of sources) this.pendingSources.add(source);
     else this.fullScanRequested = true;
     this.checking ??= this.drainScans().finally(() => { this.checking = undefined; });
@@ -213,18 +253,19 @@ export class LearningService {
     const [artifacts, repositories] = await Promise.all([this.store.knowledgeArtifacts(), this.store.repositories()]);
     const sourceCache = new Map<string, Promise<SourceObservation>>();
     for (const artifact of artifacts) {
-      if (this.stopping) return;
+      if (this.stopping || !this.knowledgeEnabled || !this.preferences.knowledgeRefresh) return;
+      if (!this.preferences.categories[artifact.category]) continue;
       if (sources && !artifact.source_refs?.some((ref) => sources.has(sourceKey(ref)))) continue;
       const state = await memorySourceState(artifact, repositories, sourceCache);
       if (state.fresh && artifact.status !== 'needs_verification') continue;
       for (const id of artifact.source_interactions) {
         const job = await this.queue.get(stableId('job', 'extract_knowledge', id));
         if (job?.source_code_revision === state.revision && ['completed', 'failed'].includes(job.status)) continue;
-        await this.queue.enqueueKnowledge(id, { requeueCompleted: true });
+        await this.queue.enqueueKnowledge(id, { requeueCompleted: true, sourceRefresh: true });
       }
     }
     this.wakeWorker();
-    await this.sourceWatcher.sync();
+    await this.syncWatcher();
   }
 
   /** Replay the feedback-to-job handoff if the process stopped between the two durable writes. */
@@ -268,6 +309,7 @@ export class LearningService {
     lastEvent: string,
     revision?: string,
   ): Promise<void> {
+    if (kind === 'knowledge' ? !this.knowledgeCaptureEnabled : !this.datasetEnabled) return;
     const enqueue = kind === 'knowledge'
       ? this.queue.enqueueKnowledge.bind(this.queue)
       : this.queue.enqueueDataset.bind(this.queue);

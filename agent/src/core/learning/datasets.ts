@@ -60,10 +60,10 @@ export class DatasetStore {
       row.source_revision === revisions.get(row.source_interaction_id));
   }
 
-  async extract(interactionId: string): Promise<DatasetExample[]> {
+  async extract(interactionId: string, kinds?: Partial<Record<DatasetKind, boolean>>): Promise<DatasetExample[]> {
     const { attempts, feedback } = await this.store.interaction(interactionId);
     const grades = effectiveFeedback(await this.store.events());
-    const examples = extractExamples(interactionId, attempts, feedback, grades);
+    const examples = extractExamples(interactionId, attempts, feedback, grades).filter((example) => !kinds || kinds[example.kind] !== false);
     for (const example of examples) {
       // Retries are idempotent; never overwrite historical candidates.
       await writeJsonImmutable(this.path('candidates', example.id), example);

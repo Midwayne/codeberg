@@ -1,5 +1,5 @@
 import { useProjectApi } from '@/lib/project-api';
-import { Activity, ArrowLeft, BookOpen, FolderOpen, Palette, Puzzle, Trash2 } from 'lucide-react';
+import { Activity, ArrowLeft, BookOpen, Brain, FolderOpen, Palette, Puzzle, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import {
@@ -8,6 +8,7 @@ import {
 } from '@/lib/resources';
 import { ResourceChart } from '@/components/resource-chart';
 import { ProjectExtensions } from '@/components/extensions';
+import { LearningSettingsPanel } from '@/components/learning-settings';
 import { AppearancePanel } from '@/components/appearance';
 import { ProjectsPanel } from '@/components/projects';
 import { cn } from '@/lib/utils';
@@ -18,6 +19,7 @@ const sections = [
   { id: 'projects', label: 'Projects', shortLabel: 'Projects', icon: FolderOpen },
   { id: 'mcps', label: 'MCP servers', shortLabel: 'MCPs', icon: Puzzle },
   { id: 'skills', label: 'Skills', shortLabel: 'Skills', icon: BookOpen },
+  { id: 'learning', label: 'Learning', shortLabel: 'Learning', icon: Brain },
   { id: 'usage', label: 'Resource usage', shortLabel: 'Usage', icon: Activity },
   { id: 'cleanup', label: 'Free up resources', shortLabel: 'Cleanup', icon: Trash2 },
 ] as const;
@@ -30,7 +32,7 @@ const descriptions: Record<CleanupCategory, string> = {
 };
 const buttonClass = 'min-h-11 rounded-lg border border-border px-3 py-2 text-sm hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50';
 
-export function Settings({ onClose }: { onClose: () => void }) {
+export function Settings({ onClose, onLearningSaved }: { onClose: () => void; onLearningSaved?: () => void }) {
   const [section, setSection] = useState<(typeof sections)[number]['id']>('appearance');
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => { heading.current?.focus(); }, []);
@@ -67,6 +69,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
             {id === 'projects' && <ProjectsPanel />}
             {id === 'mcps' && <ProjectExtensions kind="mcp" />}
             {id === 'skills' && <ProjectExtensions kind="skill" />}
+            {id === 'learning' && <LearningSettingsPanel onSaved={onLearningSaved} />}
             {id === 'usage' && <ResourceUsagePanel />}
             {id === 'cleanup' && <CleanupPanel />}</>}
           </div>)}</div>

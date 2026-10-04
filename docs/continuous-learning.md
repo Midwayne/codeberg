@@ -49,7 +49,18 @@ quotas or stages. If the solved investigations are mostly multi-step behavior,
 Set `CODEBERG_SUBAGENT_MODEL=provider:model` (or `--subagent-model`) to choose the
 background knowledge model. It defaults to `CODEBERG_MODEL`.
 
-Learning is enabled by default. Set `CODEBERG_LEARNING_USE=false` in the launcher
+Learning is enabled by default. **Settings → Learning** saves project-level
+choices for the overall service, knowledge extraction/recall/source refresh,
+interaction recording/recall, dataset kinds, training approval, and evaluations.
+Changes apply to new chat turns and background jobs without restarting, preserve
+existing data and subcomponent choices, and leave disabled jobs pending. Knowledge
+categories can also be selected individually. Turning off extraction and refresh
+retains optional knowledge recall without background model calls. Recording and
+dataset derivation are local; recalled findings/history add chat context, while
+knowledge extraction and refresh call the learning model. See
+[learning settings](settings.md#learning) for controls, persistence, and API details.
+
+Set `CODEBERG_LEARNING_USE=false` in the launcher
 config (`codeberg config set CODEBERG_LEARNING_USE=false`) or environment to stop
 recording interactions, disable learning tools/routes and hide browser feedback.
 Existing learning data is retained, and the explicit `codeberg learning` offline

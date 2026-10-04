@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, expect, it } from 'vitest';
 
+import { DEFAULT_LEARNING_SETTINGS } from './preferences.js';
 import { writeAtomic } from './fs.js';
 import { LearningStore, serializeArtifact } from './store.js';
 import { learningToolSource } from './tools.js';
@@ -45,4 +46,9 @@ it('finds matching knowledge needing verification and exposes its status to the 
     { artifact: { title: 'Old remaining available units', status: 'needs_verification' } },
   ]);
   expect((await store.knowledgeArtifacts()).find((artifact) => artifact.id === 'knowledge-legacy-units')?.status).toBe('active');
+  const filtered = await learningToolSource(store, () => ({ ...DEFAULT_LEARNING_SETTINGS,
+    categories: { ...DEFAULT_LEARNING_SETTINGS.categories, flows: false } })).tools();
+  const filteredSearch = filtered.search_knowledge as typeof search;
+  expect(await filteredSearch.execute({ query: 'remaining available units', limit: 10 }, {})).toEqual([]);
+
 });

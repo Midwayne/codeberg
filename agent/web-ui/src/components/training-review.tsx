@@ -6,6 +6,8 @@ import {
   type EvidencePreview, type ReviewDashboard, type ReviewExample, type ReviewSummary,
 } from '@/lib/training';
 import { prepareReviewDecision, type ReviewDecision } from '@/lib/training-review';
+import { useProjectApi } from '@/lib/project-api';
+import { loadLearningSettings, type LearningSettings } from '@/lib/learning-settings';
 import { useTrainingReview } from '@/lib/use-training-review';
 import { useMediaQuery } from '@/lib/use-media-query';
 import { ErrorNotice, IconButton } from '@/components/ui';
@@ -14,6 +16,19 @@ type Decision = ReviewDecision;
 
 export function TrainingReview() {
   const review = useTrainingReview();
+  const { fetch: api } = useProjectApi();
+  const [settings, setSettings] = useState<LearningSettings | null>();
+  const [settingsError, setSettingsError] = useState('');
+  const [retrySettings, setRetrySettings] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setSettingsError('');
+    void loadLearningSettings(api).then((value) => { if (active) setSettings(value); })
+      .catch((reason: unknown) => { if (active) setSettingsError(String(reason)); });
+    return () => { active = false; };
+  }, [api, retrySettings]);
+  const trainingEnabled = Boolean(settings?.enabled && settings.datasets && settings.training);
+  const evalEnabled = Boolean(settings?.enabled && settings.datasets && settings.evals);
   const { dashboard, filter, visible, selected, selectedId, example, saving } = review;
   const [destination, setDestination] = useState<'training' | 'eval'>('training');
   const [verified, setVerified] = useState<string[]>([]);
@@ -32,9 +47,9 @@ export function TrainingReview() {
     setVerified([]);
     setOtherPaths('');
     setExpected('');
-    setDestination('training');
+    setDestination(trainingEnabled || !evalEnabled ? 'training' : 'eval');
     setValidationError('');
-  }, [selectedId]);
+  }, [selectedId, trainingEnabled, evalEnabled]);
   useEffect(() => {
     if (!mobileDetails || desktop) return;
     detailRef.current?.focus();
@@ -69,6 +84,7 @@ export function TrainingReview() {
   return (
     <main className="min-h-0 flex-1 overflow-y-auto bg-background" aria-label="Training review">
       <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:py-9">
+        {settingsError && <ErrorNotice title="Could not load learning permissions" detail={settingsError} onRetry={() => setRetrySettings((value) => value + 1)} />}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <h1 ref={titleRef} tabIndex={-1} className="text-2xl font-semibold tracking-tight">Training review</h1>
@@ -116,7 +132,7 @@ export function TrainingReview() {
                 className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm hover:bg-accent disabled:opacity-50"><ArrowLeft className="size-4" />Back to examples</button></div>
               {review.detailError ? <div className="p-4"><ErrorNotice title="Could not load this example" detail={review.detailError} onRetry={review.retryDetail} /></div>
                 : selected && example?.id === selected.id ? (
-                <ReviewDetail row={selected} example={example} destination={destination} onDestination={(value) => { setDestination(value); setVerified([]); setValidationError(''); }}
+                <ReviewDetail trainingEnabled={trainingEnabled} evalEnabled={evalEnabled} row={selected} example={example} destination={destination} onDestination={(value) => { setDestination(value); setVerified([]); setValidationError(''); }}
                   verified={verified} onVerified={(path) => { setVerified((current) => current.includes(path) ? current.filter((item) => item !== path) : [...current, path]); setValidationError(''); }}
                   otherPaths={otherPaths} onOtherPaths={setOtherPaths} expected={expected} onExpected={setExpected}
                   saving={locked} error={validationError || review.saveError} canNext={visible.length > 1}
@@ -170,7 +186,9 @@ export function TrainingSummary({ stats }: { stats: ReviewDashboard['stats'] }) 
 }
 
 export function ReviewDetail({ row, example, destination, onDestination, verified, onVerified, otherPaths, onOtherPaths,
-  expected, onExpected, saving, error, canNext = true, onDecide, onNext }: {
+  expected, onExpected, saving, error, canNext = true, onDecide, onNext, trainingEnabled = true, evalEnabled = true }: {
+  trainingEnabled?: boolean;
+  evalEnabled?: boolean;
   row: ReviewSummary;
   example: ReviewExample;
   destination: 'training' | 'eval';
@@ -242,11 +260,12 @@ export function ReviewDetail({ row, example, destination, onDestination, verifie
       {row.state === 'ready' && row.eligible ? <fieldset disabled={saving} aria-describedby={error ? errorId : undefined} className="min-w-0 space-y-4 border-t border-border pt-5">
         <legend className="sr-only">Review decision</legend>
         <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted p-1 text-sm">
-          <button type="button" onClick={() => onDestination('training')} aria-pressed={destination === 'training'}
+          <button type="button" disabled={!trainingEnabled} onClick={() => onDestination('training')} aria-pressed={destination === 'training'}
             className={`min-h-11 rounded-md px-3 py-2 font-medium disabled:opacity-50 ${destination === 'training' ? 'bg-background' : 'text-muted-foreground'}`}>Teach the agent</button>
-          <button type="button" onClick={() => onDestination('eval')} aria-pressed={destination === 'eval'}
+          <button type="button" disabled={!evalEnabled} onClick={() => onDestination('eval')} aria-pressed={destination === 'eval'}
             className={`min-h-11 rounded-md px-3 py-2 font-medium disabled:opacity-50 ${destination === 'eval' ? 'bg-background' : 'text-muted-foreground'}`}>Test the agent</button>
         </div>
+        {(!trainingEnabled || !evalEnabled) && <p className="text-xs leading-5 text-muted-foreground">{!trainingEnabled && !evalEnabled ? 'Training and evaluations are paused.' : !trainingEnabled ? 'Training review is paused.' : 'Evaluations are paused.'} Change this in Settings → Learning.</p>}
         <p className="flex items-start gap-2 text-xs text-muted-foreground">
           {destination === 'training' ? <Sparkles className="mt-0.5 size-4 shrink-0" /> : <ShieldCheck className="mt-0.5 size-4 shrink-0" />}
           {destination === 'training' ? 'Training teaches future answers. Approve only if the answer and evidence look right.' : 'Evaluation is held out to measure quality. Check the expected outcome independently before saving it.'}
@@ -270,7 +289,7 @@ export function ReviewDetail({ row, example, destination, onDestination, verifie
         </div>}
         {error && <p id={errorId} ref={errorRef} tabIndex={-1} role="alert" className="break-words text-sm text-destructive">{error}</p>}
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" disabled={saving} onClick={() => onDecide(destination)}
+          <button type="button" disabled={saving || (destination === 'training' ? !trainingEnabled : !evalEnabled)} onClick={() => onDecide(destination)}
             className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50">
             <Check className="size-4" /> {saving ? 'Saving…' : destination === 'training' ? 'Add to training' : 'Save evaluation case'}
           </button>
