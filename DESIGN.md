@@ -127,7 +127,7 @@ The recorded headline is the Settings heading and mobile empty-chat heading. Emp
 
 A full dynamic-viewport flex shell keeps a stable header and separates scrolling conversation content from the bottom composer. Conversation and composer share a centered maximum width (48rem); the empty state narrows to (36rem). The desktop chat list is (18rem) wide. Below the medium breakpoint it becomes a native modal drawer, at most (20rem) wide with a (3rem) viewport margin. Selecting or starting a chat closes that drawer.
 
-Settings uses a centered maximum width (72rem), with page padding (1rem), increasing to (2rem) at the small breakpoint. At the medium breakpoint its (12rem) navigation rail sits beside flexible content; below it, three compact section buttons form a row. Theme previews use one column, two from (360px), and three at the extra-large breakpoint. The shared spacing rhythm is a quarter rem, with half steps where needed. Composer bottom padding respects the safe-area inset.
+Settings uses a centered maximum width (72rem), with page padding (1rem), increasing to (2rem) at the small breakpoint. At the medium breakpoint its (12rem) navigation rail sits beside flexible content; below it, six section buttons use two columns on phones and three from the small breakpoint. Theme previews use one column, two from (360px), and three at the extra-large breakpoint. The shared spacing rhythm is a quarter rem, with half steps where needed. Composer bottom padding respects the safe-area inset.
 
 ## Elevation & Depth
 
@@ -144,7 +144,9 @@ Gently curved controls use the medium and large radius steps. Cards, composer, a
 - **Chips:** attachments sit in muted rounded capsules with truncated names and separately named remove actions.
 - **Cards / Containers:** resource metrics and cleanup options use thin borders, extra-large corners, and one-rem padding. Theme previews show palette colors; native radio selection adds a ring and check mark, with keyboard focus visible.
 - **Navigation:** named desktop header actions become accessible icon actions on smaller screens. Selected settings and chat rows use accent backgrounds. Chat rows show two-line titles, metadata, and separate actions; native dialogs handle mobile chat navigation, models, and chat-delete confirmation.
-- **Feedback:** loading uses status text; resource/model failures provide a retry action. Cleanup selection stays disabled without a valid preview. Chat deletion names the conversation and focuses Cancel initially. Suggested first questions fill and focus the composer without sending.
+- **Projects:** Settings lists project names as headings, marks the current project, and opens a focused inline form through Rename. Save name is the primary action; Cancel or Escape closes the form and restores focus. Compact definition rows align directory names and paths, stable IDs, and config directories on desktop, then stack their labels on phones. Copy buttons sit beside paths and IDs; a native Config files disclosure explains their contents. The shared catalog path follows the project list. Catalog and config paths come from the server's configured home. Saving updates the selector while retaining the selected ID and workspace state.
+- **Empty chat:** the heading leads straight into suggested questions with a two-rem gap, followed by the existing command tip. Selecting a question still fills and focuses an editable draft.
+- **Feedback:** loading uses status text; resource/model failures provide a retry action. Project names have disabled, saving, success, and error states. Cleanup selection stays disabled without a valid preview. Chat deletion names the conversation and focuses Cancel initially. Suggested first questions fill and focus the composer without sending.
 
 ## Do's and Don'ts
 

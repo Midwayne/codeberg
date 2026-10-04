@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"codeberg.org/codeberg/daemon/internal/bootstrap"
 	"codeberg.org/codeberg/daemon/internal/config"
@@ -165,7 +167,7 @@ func (m *Manager) Add(name, root string) (Project, error) {
 	if name == "" {
 		name = filepath.Base(root)
 	}
-	if len(name) > 120 {
+	if utf8.RuneCountInString(name) > 120 {
 		return Project{}, fmt.Errorf("project name must be 120 characters or shorter")
 	}
 	roots := []domain.Repo{{Key: filepath.Base(root), Root: root}}
@@ -183,6 +185,31 @@ func (m *Manager) Add(name, root string) (Project, error) {
 		return Project{}, err
 	}
 	return p, nil
+}
+
+var errProjectNotFound = errors.New("project not found")
+var errProjectName = errors.New("project name must contain 1 to 120 characters")
+
+// Rename changes only the display label; roots, IDs and running indexers stay stable.
+func (m *Manager) Rename(id, name string) (Project, error) {
+	name = strings.TrimSpace(name)
+	if name == "" || utf8.RuneCountInString(name) > 120 {
+		return Project{}, errProjectName
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i, p := range m.catalog.Projects {
+		if p.ID != id {
+			continue
+		}
+		m.catalog.Projects[i].Name = name
+		if err := m.save(); err != nil {
+			m.catalog.Projects[i] = p
+			return Project{}, err
+		}
+		return m.catalog.Projects[i], nil
+	}
+	return Project{}, errProjectNotFound
 }
 func (m *Manager) project(id string) (Project, bool) {
 	for _, p := range m.catalog.Projects {
@@ -358,8 +385,39 @@ func (m *Manager) Handler(fallback http.Handler) http.Handler {
 		m.mu.Lock()
 		_, ok := m.project(parts[0])
 		m.mu.Unlock()
-		if !ok || len(parts) != 2 {
+		if !ok {
 			respond(w, 404, map[string]string{"message": "project not found"})
+			return
+		}
+		if len(parts) == 1 {
+			if r.Method != "PATCH" {
+				respond(w, 405, map[string]string{"message": "method not allowed"})
+				return
+			}
+			if !sameOrigin(r) {
+				respond(w, 403, map[string]string{"message": "cross-origin project changes are not allowed"})
+				return
+			}
+			var body struct {
+				Name string `json:"name"`
+			}
+			if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&body); err != nil {
+				respond(w, 400, map[string]string{"message": "invalid project name"})
+				return
+			}
+			p, err := m.Rename(parts[0], body.Name)
+			if err != nil {
+				status := 500
+				if errors.Is(err, errProjectName) {
+					status = 400
+				}
+				if errors.Is(err, errProjectNotFound) {
+					status = 404
+				}
+				respond(w, status, map[string]string{"message": err.Error()})
+				return
+			}
+			respond(w, 200, p)
 			return
 		}
 		if parts[1] == "retry" {

@@ -94,3 +94,40 @@ it('proxies the native picker without starting a project and preserves cancellat
   expect((await fetch(`${base}/api/projects/pick-directory`, { method: 'POST', headers: { Origin: 'https://other.example' } })).status).toBe(403);
   expect((await fetch(`${base}/api/projects/pick-directory`, { method: 'POST', body: '{}' })).status).toBe(415);
 });
+
+it('maps names to directories and storage, and proxies renames without rebuilding project handlers', async () => {
+ const home=await mkdtemp(join(tmpdir(),'project-map-'));dirs.push(home);
+ const next=structuredClone(catalog);
+ const daemon=createServer(async(req,res)=>{
+  res.setHeader('Content-Type','application/json');
+  if(req.url==='/projects'){res.end(JSON.stringify(next));return;}
+  expect(req.url).toBe(`/projects/${next.projects[0]!.id}`);expect(req.method).toBe('PATCH');
+  let raw='';for await(const part of req)raw+=part;
+  const body=JSON.parse(raw);
+  if(!body.name?.trim()){res.writeHead(400);res.end(JSON.stringify({message:'project name is required'}));return;}
+  next.projects[0]!.name=body.name.trim();res.end(JSON.stringify(next.projects[0]));
+ });servers.push(daemon);
+ await new Promise<void>(done=>daemon.listen(0,'127.0.0.1',done));
+ let builds=0;
+ const proxy=createServer(createProjectRequestHandler({catalog,home,daemonUrl:`http://127.0.0.1:${(daemon.address() as {port:number}).port}`,
+  build:async()=>{builds++;return(_req,res)=>res.end('existing handler');}}));servers.push(proxy);
+ await new Promise<void>(done=>proxy.listen(0,'127.0.0.1',done));
+ const base=`http://127.0.0.1:${(proxy.address() as {port:number}).port}`;
+ const mapped=await(await fetch(`${base}/api/projects`)).json();
+ expect(mapped.catalogPath).toBe(join(home,'projects.json'));
+ expect(mapped.projects[0]).toEqual({...catalog.projects[0],configDirectory:join(home,'projects',catalog.defaultId)});
+ await fetch(`${base}/api/meta`);expect(builds).toBe(1);
+ const url=`${base}/api/projects/${catalog.defaultId}`;
+ const headers={'Content-Type':'application/json'};
+ const renamed=await fetch(url,{method:'PATCH',headers,body:JSON.stringify({name:'Renamed'})});
+ expect(renamed.status).toBe(200);
+ expect(await renamed.json()).toEqual({...mapped.projects[0],name:'Renamed'});
+ await fetch(`${base}/api/meta`);expect(builds).toBe(1);
+ expect((await(await fetch(`${base}/api/projects`)).json()).projects[0].name).toBe('Renamed');
+ const invalid=await fetch(url,{method:'PATCH',headers,body:'{}'});
+ expect(invalid.status).toBe(400);expect(await invalid.json()).toEqual({message:'project name is required'});
+ expect((await fetch(url)).status).toBe(405);
+ expect((await fetch(url,{method:'PATCH',headers:{...headers,Origin:'https://other.example'},body:'{}'})).status).toBe(403);
+ expect((await fetch(url,{method:'PATCH',body:'{}'})).status).toBe(415);
+ expect((await fetch(`${base}/api/projects/missing`,{method:'PATCH',headers,body:'{}'})).status).toBe(404);
+});

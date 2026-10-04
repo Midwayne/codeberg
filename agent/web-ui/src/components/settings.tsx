@@ -9,11 +9,13 @@ import {
 import { ResourceChart } from '@/components/resource-chart';
 import { ProjectExtensions } from '@/components/extensions';
 import { AppearancePanel } from '@/components/appearance';
+import { ProjectsPanel } from '@/components/projects';
 import { cn } from '@/lib/utils';
 import { ErrorNotice, Select } from '@/components/ui';
 
 const sections = [
   { id: 'appearance', label: 'Appearance', shortLabel: 'Appearance', icon: Palette },
+  { id: 'projects', label: 'Projects', shortLabel: 'Projects', icon: FolderOpen },
   { id: 'mcps', label: 'MCP servers', shortLabel: 'MCPs', icon: Puzzle },
   { id: 'skills', label: 'Skills', shortLabel: 'Skills', icon: BookOpen },
   { id: 'usage', label: 'Resource usage', shortLabel: 'Usage', icon: Activity },
@@ -54,7 +56,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
                   if (next === undefined) return;
                   event.preventDefault(); setSection(sections[next]!.id);
                   event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
-                }} className={cn('flex min-h-11 items-center justify-center gap-2 rounded-lg px-2 py-3 text-sm last:col-span-2 sm:last:col-span-1 md:justify-start md:px-3 focus-visible:outline-2 focus-visible:outline-ring', section === id ? 'bg-accent font-medium text-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground')}>
+                }} className={cn('flex min-h-11 items-center justify-center gap-2 rounded-lg px-2 py-3 text-sm md:justify-start md:px-3 focus-visible:outline-2 focus-visible:outline-ring', section === id ? 'bg-accent font-medium text-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground')}>
                 <Icon className="hidden size-4 shrink-0 min-[380px]:block" />
                 <span className="md:hidden">{shortLabel}</span><span className="hidden md:inline">{label}</span>
               </button>
@@ -62,6 +64,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
           </nav>
           <div className="min-w-0">{sections.map(({ id }) => <div key={id} role="tabpanel" id={`settings-panel-${id}`} aria-labelledby={`settings-tab-${id}`} hidden={section !== id} tabIndex={0} className="focus-visible:outline-2 focus-visible:outline-ring">
             {section === id && <>{id === 'appearance' && <AppearancePanel />}
+            {id === 'projects' && <ProjectsPanel />}
             {id === 'mcps' && <ProjectExtensions kind="mcp" />}
             {id === 'skills' && <ProjectExtensions kind="skill" />}
             {id === 'usage' && <ResourceUsagePanel />}

@@ -6,6 +6,7 @@ describe('settings', () => {
   it('provides an Appearance section alongside the existing resource sections', () => {
     const html = renderToStaticMarkup(<Settings onClose={() => undefined} />);
     expect(html).toContain('Appearance');
+    expect(html).toContain('aria-label="Projects"');
     expect(html).toContain('aria-label="MCP servers"');
     expect(html).toContain('aria-label="Skills"');
     expect(html).toContain('Open config directory');

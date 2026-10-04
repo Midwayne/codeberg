@@ -21,6 +21,8 @@ export interface ProjectRouterOptions {
  * No mutable active project, cookie, or process environment is involved. */
 export function createProjectRequestHandler(options: ProjectRouterOptions) {
   let catalog = options.catalog;
+  const home = resolve(options.home ?? codebergHome());
+  const projectInfo = (project: Project) => ({ ...project, configDirectory: projectDataHome(home, project.id) });
   const handlers = new Map<string, ReturnType<ProjectRouterOptions['build']>>();
   async function daemon(path: string, init?: RequestInit) {
     const response = await fetch(new URL(path, options.daemonUrl), { ...init, signal: AbortSignal.timeout(5000) });
@@ -64,14 +66,34 @@ export function createProjectRequestHandler(options: ProjectRouterOptions) {
     if (url.pathname === '/api/projects') {
       if (req.method === 'GET') {
         catalog = await daemon('/projects');
-        return sendJson(res, 200, catalog);
+        return sendJson(res, 200, { ...catalog, catalogPath: join(home, 'projects.json'), projects: catalog.projects.map(projectInfo) });
       }
       if (req.method !== 'POST') return sendText(res, 405, 'method not allowed');
       if (!sameOrigin(req)) return sendText(res, 403, 'cross-origin project changes are not allowed');
       if (!req.headers['content-type']?.startsWith('application/json')) return sendText(res, 415, 'application/json required');
       const project = await daemon('/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(await readJson(req)) });
       catalog = await daemon('/projects');
-      return sendJson(res, 201, project);
+      return sendJson(res, 201, projectInfo(project));
+    }
+    const projectRoute = /^\/api\/projects\/([^/]+)$/.exec(url.pathname);
+    if (projectRoute) {
+      if (req.method !== 'PATCH') return sendText(res, 405, 'method not allowed');
+      if (!sameOrigin(req)) return sendText(res, 403, 'cross-origin project changes are not allowed');
+      if (!req.headers['content-type']?.startsWith('application/json')) return sendText(res, 415, 'application/json required');
+      const id = projectRoute[1]!;
+      // Refresh the catalog so a project added by another tab is addressable.
+      catalog = await daemon('/projects');
+      if (!catalog.projects.some((project) => project.id === id)) return sendText(res, 404, 'project not found');
+      const body = await readJson(req);
+      if (!body || typeof body !== 'object') return sendJson(res, 400, { message: 'invalid project name' });
+      const response = await fetch(new URL(`/projects/${id}`, options.daemonUrl), {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: body.name }), signal: AbortSignal.timeout(5000),
+      });
+      const result = await response.json();
+      if (!response.ok) return sendJson(res, response.status, result);
+      const project = result as Project;
+      catalog = { ...catalog, projects: catalog.projects.map((existing) => existing.id === project.id ? project : existing) };
+      return sendJson(res, 200, projectInfo(project));
     }
     const id = req.headers['x-codeberg-project'];
     if (id !== undefined && typeof id !== 'string') return sendText(res, 400, 'invalid project selection');

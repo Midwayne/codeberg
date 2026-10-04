@@ -18,6 +18,24 @@ Chats, chat search, branches, feedback, knowledge, learning queues and datasets
 belong to that project. Branches require a parent chat within the same project.
 Global model choices and credentials continue to apply across projects.
 
+## Names and config locations
+
+Open **Settings → Projects**, choose **Rename**, then **Save name** to change a
+project's display name. **Cancel** or Escape leaves the original name in place.
+The same section lists every project's directory name, full repository path,
+stable project ID, and absolute config directory. It also shows the path to
+`projects.json`, which maps registered names and repository roots to their IDs.
+Paths follow the configured `CODEBERG_HOME`, including custom locations.
+The selected project is marked **Current project**. Copy controls beside paths
+and IDs help locate config files; expand **Config files** for their purposes.
+
+Names must contain 1–120 characters; surrounding whitespace is trimmed.
+Renaming persists across restarts and updates the project selector immediately.
+The ID, repository directory, chats, extensions, and indexes stay in place.
+Project config lives in `projects/<id>/` (`mcp.json`, `skills/`, and `spec.yml`);
+global config stays at the top of `CODEBERG_HOME`. Repository-local config and
+explicit external config paths remain supported as described below.
+
 ## Indexing
 
 Each project has its own supervised indexer, vector namespace and file watcher.
@@ -118,12 +136,18 @@ timeout. Unavailable native pickers return an error with a manual-entry fallback
 The daemon exposes `GET /projects` and `POST /projects` with
 `{"root":"/absolute/directory","name":"Optional label"}`. Project repository APIs
 use `/projects/<id>/health`, `/search`, `/tools` and `/tools/call`.
+`PATCH /projects/<id>` with `{"name":"New display name"}` renames a project
+without starting or restarting its indexer. It returns the updated project, 400
+for an invalid name, or 404 for an unknown ID. Cross-origin changes are rejected.
 `POST /projects/<id>/retry` renews the startup readiness window. Unscoped APIs
 continue to address the startup project. Unknown project IDs return 404.
 
 Web requests use the `X-Codeberg-Project` header. `/api/projects` manages the
-catalog, `/api/project/status` reports readiness, `/api/project/retry` retries the
-check, and `/api/extensions` lists or adds extensions. Existing requests without
+catalog, and `PATCH /api/projects/<id>` proxies project renames. Web catalog
+responses include `catalogPath` and a `configDirectory` for each project, using
+the web server's configured home. `/api/project/status` reports readiness,
+`/api/project/retry` retries the check, and `/api/extensions` lists or adds
+extensions. Existing requests without
 a header use the startup default. Selection is request-bound; there is no
 process-wide active-project mutation.
 

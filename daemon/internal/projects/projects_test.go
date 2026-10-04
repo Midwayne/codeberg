@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -49,6 +50,76 @@ func TestCatalogCanonicalRootsAndRestart(t *testing.T) {
 	}
 	if _, err := m.Add("Bad", filepath.Join(home, "missing")); err == nil {
 		t.Fatal("accepted missing directory")
+	}
+}
+
+func TestRenamePersistsWithoutChangingProjectIdentity(t *testing.T) {
+	m, home := setup(t)
+	p := m.catalog.Projects[0]
+	w := httptest.NewRecorder()
+	m.Handler(http.NotFoundHandler()).ServeHTTP(w, httptest.NewRequest("PATCH", "/projects/"+p.ID, strings.NewReader(`{"name":"  New workspace  "}`)))
+	if w.Code != 200 {
+		t.Fatalf("rename: %d %s", w.Code, w.Body)
+	}
+	var updated Project
+	if err := json.Unmarshal(w.Body.Bytes(), &updated); err != nil {
+		t.Fatal(err)
+	}
+	want := p
+	want.Name = "New workspace"
+	if !reflect.DeepEqual(updated, want) || len(m.runtimes) != 0 {
+		t.Fatalf("rename changed identity or started an indexer: %#v", updated)
+	}
+	restored, err := New(context.Background(), home, m.base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer restored.Close()
+	if got, _ := restored.project(p.ID); !reflect.DeepEqual(got, want) {
+		t.Fatalf("rename lost on restart: %#v", got)
+	}
+}
+
+func TestRenameValidationAndSaveFailure(t *testing.T) {
+	m, home := setup(t)
+	p := m.catalog.Projects[0]
+	handler := m.Handler(http.NotFoundHandler())
+	for _, tc := range []struct {
+		method, id, body, origin string
+		status                   int
+	}{
+		{"PATCH", p.ID, `{}`, "", 400},
+		{"PATCH", p.ID, `{"name":"   "}`, "", 400},
+		{"PATCH", p.ID, `{"name":123}`, "", 400},
+		{"PATCH", p.ID, `{"name":"` + strings.Repeat("a", 121) + `"}`, "", 400},
+		{"PATCH", p.ID, `{"name":"Renamed"}`, "https://other.example", 403},
+		{"PATCH", "missing", `{"name":"Renamed"}`, "", 404},
+		{"POST", p.ID, `{"name":"Renamed"}`, "", 405},
+	} {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(tc.method, "/projects/"+tc.id, strings.NewReader(tc.body))
+		if tc.origin != "" {
+			r.Header.Set("Origin", tc.origin)
+		}
+		handler.ServeHTTP(w, r)
+		if w.Code != tc.status {
+			t.Errorf("%s %s: %d %s", tc.method, tc.body, w.Code, w.Body)
+		}
+	}
+	// A catalog path that cannot be replaced must leave the in-memory name intact.
+	if err := os.Remove(filepath.Join(home, "projects.json")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(home, "projects.json"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, httptest.NewRequest("PATCH", "/projects/"+p.ID, strings.NewReader(`{"name":"Unsaved"}`)))
+	if w.Code != 500 {
+		t.Fatalf("save failure: %d %s", w.Code, w.Body)
+	}
+	if got, _ := m.project(p.ID); got.Name != p.Name {
+		t.Fatal("failed rename changed in-memory catalog")
 	}
 }
 
