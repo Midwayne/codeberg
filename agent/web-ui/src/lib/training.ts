@@ -52,19 +52,34 @@ async function readResponse<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export async function loadTrainingReview(signal?: AbortSignal, fetcher: typeof fetch = fetch): Promise<ReviewDashboard> {
+export async function loadTrainingReview(
+  signal?: AbortSignal,
+  fetcher: typeof fetch = fetch,
+): Promise<ReviewDashboard> {
   return readResponse(await fetcher('/api/learning/review', { signal }));
 }
 
-export async function loadReviewExample(id: string, signal?: AbortSignal, fetcher: typeof fetch = fetch): Promise<ReviewExample> {
+export async function loadReviewExample(
+  id: string,
+  signal?: AbortSignal,
+  fetcher: typeof fetch = fetch,
+): Promise<ReviewExample> {
   return readResponse(await fetcher(`/api/learning/review/${encodeURIComponent(id)}`, { signal }));
 }
 
-export async function submitReview(id: string, decision: 'training' | 'eval' | 'dismiss', oracle?: Record<string, unknown>, fetcher: typeof fetch = fetch): Promise<void> {
-  await readResponse(await fetcher(`/api/learning/review/${encodeURIComponent(id)}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ decision, ...(oracle ? { oracle } : {}) }),
-  }));
+export async function submitReview(
+  id: string,
+  decision: 'training' | 'eval' | 'dismiss',
+  oracle?: Record<string, unknown>,
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  await readResponse(
+    await fetcher(`/api/learning/review/${encodeURIComponent(id)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ decision, ...(oracle ? { oracle } : {}) }),
+    }),
+  );
 }
 
 export function exampleAnswer(example: ReviewExample): string {
@@ -74,14 +89,29 @@ export function exampleAnswer(example: ReviewExample): string {
   return Array.isArray(trajectory) ? String(trajectory.at(-1)?.answer ?? '') : '';
 }
 
-export interface EvidencePreview { path: string; repo?: string; symbol?: string; snippet?: string }
+export interface EvidencePreview {
+  path: string;
+  repo?: string;
+  symbol?: string;
+  snippet?: string;
+}
 
-export function proposedEvidence(example: ReviewExample, field: 'proposed_evidence' | 'positive' | 'proposed_negatives' | 'hard_negatives'): EvidencePreview[] {
+export function proposedEvidence(
+  example: ReviewExample,
+  field: 'proposed_evidence' | 'positive' | 'proposed_negatives' | 'hard_negatives',
+): EvidencePreview[] {
   const value = example.payload[field];
   if (!Array.isArray(value)) return [];
-  return value.flatMap((hit): EvidencePreview[] => hit && typeof hit === 'object' && typeof hit.path === 'string'
-    ? [{ path: hit.path, repo: typeof hit.repo === 'string' ? hit.repo : undefined,
-      symbol: typeof hit.symbol === 'string' ? hit.symbol : undefined,
-      snippet: typeof hit.snippet === 'string' ? hit.snippet : undefined }]
-    : []);
+  return value.flatMap((hit): EvidencePreview[] =>
+    hit && typeof hit === 'object' && typeof hit.path === 'string'
+      ? [
+          {
+            path: hit.path,
+            repo: typeof hit.repo === 'string' ? hit.repo : undefined,
+            symbol: typeof hit.symbol === 'string' ? hit.symbol : undefined,
+            snippet: typeof hit.snippet === 'string' ? hit.snippet : undefined,
+          },
+        ]
+      : [],
+  );
 }

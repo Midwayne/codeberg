@@ -1,20 +1,40 @@
 import { AlertTriangle, Check, ChevronDown, ChevronRight, Copy } from 'lucide-react';
-import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode, type Ref, type SelectHTMLAttributes } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type ReactNode,
+  type Ref,
+  type SelectHTMLAttributes,
+} from 'react';
 
-import { cn } from '@/lib/utils';
+import { cn } from '../lib/utils';
 
 /** Quiet trigger, with native selection, labels, and keyboard behavior intact. */
-export function Select({ className, wrapperClassName, ...props }: SelectHTMLAttributes<HTMLSelectElement> & { wrapperClassName?: string }) {
-  return <span className={cn('relative inline-flex min-w-0 max-w-full align-middle', wrapperClassName)}>
-    <select {...props} className={cn(
-      'peer min-h-11 min-w-0 max-w-full cursor-pointer appearance-none truncate rounded-md border-0 bg-transparent py-2 pl-2 pr-7 text-base font-medium text-foreground [field-sizing:content] transition-colors hover:text-accent-foreground focus-visible:text-accent-foreground disabled:cursor-default disabled:opacity-50 sm:text-sm [&>option]:bg-popover [&>option]:text-popover-foreground',
-      className,
-    )} />
-    <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground peer-disabled:opacity-50" />
-  </span>;
+export type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & { wrapperClassName?: string };
+
+export function Select({ className, wrapperClassName, ...props }: SelectProps) {
+  return (
+    <span className={cn('relative inline-flex min-w-0 max-w-full align-middle', wrapperClassName)}>
+      <select
+        {...props}
+        className={cn(
+          'peer min-h-11 min-w-0 max-w-full cursor-pointer appearance-none truncate rounded-md border-0 bg-transparent py-2 pl-2 pr-7 text-base font-medium text-foreground [field-sizing:content] transition-colors hover:text-accent-foreground focus-visible:text-accent-foreground disabled:cursor-default disabled:opacity-50 sm:text-sm [&>option]:bg-popover [&>option]:text-popover-foreground',
+          className,
+        )}
+      />
+      <ChevronDown
+        aria-hidden="true"
+        className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground peer-disabled:opacity-50"
+      />
+    </span>
+  );
 }
 
-export function IconButton({ className, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { ref?: Ref<HTMLButtonElement> }) {
+export type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { ref?: Ref<HTMLButtonElement> };
+
+export function IconButton({ className, ...props }: IconButtonProps) {
   return (
     <button
       type="button"
@@ -29,13 +49,15 @@ export function IconButton({ className, ...props }: ButtonHTMLAttributes<HTMLBut
 }
 
 /** Native modality supplies focus containment, Escape, and background inertness. */
-export function Dialog({ open = true, label, onClose, className, children }: {
+export type DialogProps = {
   open?: boolean;
   label: string;
   onClose: () => void;
   className?: string;
   children: ReactNode;
-}) {
+};
+
+export function Dialog({ open = true, label, onClose, className, children }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const opener = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -53,33 +75,56 @@ export function Dialog({ open = true, label, onClose, className, children }: {
     };
   }, [open]);
   return (
-    <dialog ref={ref} aria-label={label} onCancel={(event) => { event.preventDefault(); ref.current?.close(); }}
-      onClose={() => { if (ref.current && !ref.current.open) onClose(); }}
-      onClick={(event) => { if (event.target === event.currentTarget) ref.current?.close(); }}
-      className={cn('max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl border-0 bg-popover p-0 text-popover-foreground shadow-xl', className)}>
+    <dialog
+      ref={ref}
+      aria-label={label}
+      onCancel={(event) => {
+        event.preventDefault();
+        ref.current?.close();
+      }}
+      onClose={() => {
+        if (ref.current && !ref.current.open) onClose();
+      }}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) ref.current?.close();
+      }}
+      className={cn(
+        'max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl border-0 bg-popover p-0 text-popover-foreground shadow-xl',
+        className,
+      )}
+    >
       <div className="flex h-full flex-col">{children}</div>
     </dialog>
   );
 }
 
-export function ErrorNotice({ title, detail, onRetry }: { title: string; detail: string; onRetry: () => void }) {
-  return <div role="alert" className="flex flex-wrap items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
-    <AlertTriangle aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-destructive" />
-    <div className="min-w-0 flex-1 text-sm"><p className="font-medium">{title}</p><p className="mt-1 break-words text-xs leading-5 text-muted-foreground">{detail}</p></div>
-    <button type="button" onClick={onRetry} className="min-h-11 rounded-lg border border-border px-3 text-sm hover:bg-accent">Try again</button>
-  </div>;
+export type ErrorNoticeProps = { title: string; detail: string; onRetry: () => void };
+
+export function ErrorNotice({ title, detail, onRetry }: ErrorNoticeProps) {
+  return (
+    <div
+      role="alert"
+      className="flex flex-wrap items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4"
+    >
+      <AlertTriangle aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-destructive" />
+      <div className="min-w-0 flex-1 text-sm">
+        <p className="font-medium">{title}</p>
+        <p className="mt-1 break-words text-xs leading-5 text-muted-foreground">{detail}</p>
+      </div>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="min-h-11 rounded-lg border border-border px-3 text-sm hover:bg-accent"
+      >
+        Try again
+      </button>
+    </div>
+  );
 }
 
+export type CopyButtonProps = { text: string; className?: string; label?: string };
 
-export function CopyButton({
-  text,
-  className,
-  label = 'Copy',
-}: {
-  text: string;
-  className?: string;
-  label?: string;
-}) {
+export function CopyButton({ text, className, label = 'Copy' }: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
   return (
     <IconButton
@@ -105,19 +150,15 @@ export function CopyButton({
  * A native <details> disclosure styled to match (used for reasoning and tool
  * panels). Native keeps it accessible and keyboard-toggleable with no state.
  */
-export function Collapsible({
-  icon,
-  title,
-  badge,
-  defaultOpen = false,
-  children,
-}: {
+export type CollapsibleProps = {
   icon?: ReactNode;
   title: ReactNode;
   badge?: ReactNode;
   defaultOpen?: boolean;
   children: ReactNode;
-}) {
+};
+
+export function Collapsible({ icon, title, badge, defaultOpen = false, children }: CollapsibleProps) {
   return (
     <details
       open={defaultOpen}

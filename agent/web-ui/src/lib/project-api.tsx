@@ -11,12 +11,23 @@ export interface ProjectCatalog {
   projects: Project[];
   catalogPath?: string;
 }
-export interface ProjectStatus { ready: boolean; chunks: number; status?: string; message?: string }
+export interface ProjectStatus {
+  ready: boolean;
+  chunks: number;
+  status?: string;
+  message?: string;
+}
 const unscopedFetch: typeof fetch = (...args) => globalThis.fetch(...args);
-export const ProjectApiContext = createContext<{ project?: Project; fetch: typeof fetch; ready: boolean; onProjectRenamed?: (project: Project) => void }>({ fetch: unscopedFetch, ready: true });
-export function useProjectApi() { return useContext(ProjectApiContext); }
+export const ProjectApiContext = createContext<{
+  project?: Project;
+  fetch: typeof fetch;
+  ready: boolean;
+  onProjectRenamed?: (project: Project) => void;
+}>({ fetch: unscopedFetch, ready: true });
+export function useProjectApi() {
+  return useContext(ProjectApiContext);
+}
 
-/** The captured ID is immutable, including saves after switching projects. */
 export function projectFetch(id: string): typeof fetch {
   return (input, init) => {
     const headers = new Headers(input instanceof Request ? input.headers : undefined);

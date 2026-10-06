@@ -1,8 +1,8 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Streamdown } from 'streamdown';
 
-import { CITE_TAG, parseCiteSource, type Citation } from '@/lib/citations';
-import { transformCitations } from '@/lib/citations';
+import { CITE_TAG, parseCiteSource, type Citation } from '../../lib/citations';
+import { transformCitations } from '../../lib/citations';
 
 /**
  * The markdown engine behind <Response>, plus citation rendering. This module
@@ -20,7 +20,9 @@ import { transformCitations } from '@/lib/citations';
 const allowedTags = { [CITE_TAG]: ['source'] };
 const literalTagContent = [CITE_TAG];
 
-function CiteChipTag({ source, children }: { source?: unknown; children?: ReactNode }) {
+export type CiteChipTagProps = { source?: unknown; children?: ReactNode };
+
+function CiteChipTag({ source, children }: CiteChipTagProps) {
   const citation = typeof source === 'string' ? parseCiteSource(source) : null;
   if (!citation) {
     return null;
@@ -30,7 +32,9 @@ function CiteChipTag({ source, children }: { source?: unknown; children?: ReactN
 
 const components = { [CITE_TAG]: CiteChipTag };
 
-function CitationChip({ citation, label }: { citation: Citation; label: ReactNode }) {
+export type CitationChipProps = { citation: Citation; label: ReactNode };
+
+function CitationChip({ citation, label }: CitationChipProps) {
   const [copied, setCopied] = useState(false);
   return (
     <span className="group/cite relative inline-block">
@@ -60,7 +64,9 @@ function CitationChip({ citation, label }: { citation: Citation; label: ReactNod
   );
 }
 
-export default function Markdown({ children, className }: { children: string; className?: string }) {
+export type MarkdownProps = { children: string; className?: string };
+
+export default function Markdown({ children, className }: MarkdownProps) {
   const markdown = useMemo(() => transformCitations(children), [children]);
   return (
     <Streamdown

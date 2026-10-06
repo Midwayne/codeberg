@@ -13,7 +13,6 @@ export interface FeedbackRecord {
   label: FeedbackOption['label'];
 }
 
-
 export async function loadFeedback(
   conversationId: string,
   messageId: string,

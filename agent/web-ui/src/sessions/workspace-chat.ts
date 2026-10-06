@@ -1,7 +1,7 @@
 import { Chat } from '@ai-sdk/react';
 import type { ChatTransport, UIMessage } from 'ai';
 
-import { deriveTitle } from '@/lib/sessions';
+import { deriveTitle } from '../lib/sessions';
 
 export interface WorkspaceChatSave {
   id: string;

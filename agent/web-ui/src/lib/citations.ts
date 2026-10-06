@@ -38,7 +38,6 @@ const CITATION = /\[([^[\]\s]+):(\d+)(?:-(\d+))?\](?!\()/g;
  */
 const CODE_REGION = /(?:^|\n)(?:```|~~~)[\s\S]*?(?:\n(?:```|~~~)[^\n]*|$)|`[^`\n]*`/g;
 
-/** Rewrite citations in prose to cite-chip tags, numbering unique sources in order. */
 export function transformCitations(markdown: string): string {
   markdown = attachCitationLines(markdown);
   let out = '';
@@ -53,7 +52,6 @@ export function transformCitations(markdown: string): string {
   return out;
 }
 
-/** Treat citation-only lines as references to the preceding prose, not new blocks. */
 function attachCitationLines(markdown: string): string {
   const codeRegions = [...markdown.matchAll(CODE_REGION)];
   const lines: string[] = [];
@@ -98,7 +96,6 @@ function rewrite(prose: string, ordinals: Map<string, number>): string {
   });
 }
 
-/** Decode a cite-chip `source` attribute back into its parts, or null if malformed. */
 export function parseCiteSource(encoded: string): Citation | null {
   let source: string;
   try {

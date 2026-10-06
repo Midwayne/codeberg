@@ -27,10 +27,21 @@ Vite proxies `/api/*` to `http://127.0.0.1:48088` (see `vite.config.ts`).
 ```sh
 npm run build    # output: web-ui/dist/
 npm run typecheck
+npm run lint
 ```
 
 `codeberg-web` serves `web-ui/dist` by default (`CODEBERG_WEB_ROOT`). The launcher
 runs `make build-web-ui` as part of `make build-agent`.
+
+## Code quality
+
+Production `.ts` and `.tsx` files share the agent's ESLint rules: at most 199 lines
+per file and 50 lines per function, including comments and blank lines. Trailing
+spaces, repeated empty lines, and multiple statements on one line are rejected.
+Tests and generated output are excluded. Keep logical steps separated and extract
+focused hooks, components, and helpers as code grows; preserve functionality and
+useful whitespace. Run `make agent-check` from the repository root to lint, check
+types, test, and build both packages.
 
 ## Saved chats
 

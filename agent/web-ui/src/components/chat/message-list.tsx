@@ -2,7 +2,7 @@ import type { UIMessage } from 'ai';
 import { memo } from 'react';
 
 import { Message } from './message';
-import { markerId } from '@/lib/message-rail';
+import { markerId } from '../../lib/message-rail';
 
 /** Draft edits must not revisit the transcript or its markdown renderer. */
 export const MessageList = memo(function MessageList({

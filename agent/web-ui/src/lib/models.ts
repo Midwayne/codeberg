@@ -2,11 +2,7 @@ import type { CatalogModel, ModelSelection, ModelSettings } from '@agent/core/mo
 
 export type { CatalogModel, ModelSelection, ModelSettings } from '@agent/core/model-types.js';
 
-export function selectModel(
-  current: ModelSelection,
-  key: string,
-  models: readonly CatalogModel[],
-): ModelSelection {
+export function selectModel(current: ModelSelection, key: string, models: readonly CatalogModel[]): ModelSelection {
   const option = models.find((entry) => entry.key === key);
   if (!option) return current;
   const effort = option.efforts.includes(current.effort) ? current.effort : option.efforts[0];

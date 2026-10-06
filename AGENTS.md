@@ -49,11 +49,12 @@ layer for local verification.
   Never remove useful whitespace to meet size limits; extract focused helpers
   and split files by responsibility instead. Readability-only changes must
   preserve functionality.
-- **TypeScript agent backend:** production functions must be at most 50 lines
+- **TypeScript agent and web UI:** production functions must be at most 50 lines
   and source files at most 199 lines, including comments and blank lines
-  (`npm run lint --prefix agent`). Write agent code and tests with blank lines
-  between logical steps and declarations so they are human-readable and
-  maintainable. Group related statements and keep validation, setup, processing,
+  (`npm run lint --prefix agent`; the web UI also supports
+  `npm run lint --prefix agent/web-ui`). Write agent and UI code and tests with
+  blank lines between logical steps and declarations so they are human-readable
+  and maintainable. Group related statements and keep validation, setup, processing,
   and cleanup visually distinct. Avoid packing multiple operations onto one
   line or removing useful whitespace to satisfy the limits; extract focused
   helpers and split files by responsibility instead. Readability-only changes

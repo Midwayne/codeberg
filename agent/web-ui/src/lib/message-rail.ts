@@ -14,7 +14,9 @@ export interface UserMarker {
 /** DOM attribute on each chat message, used to scroll a tick to its prompt. */
 export const MESSAGE_ID_ATTR = 'data-message-id';
 
-export function markerId(message: { id?: string; role: string }, index: number): string {
+export type MarkerIdInput = { id?: string; role: string };
+
+export function markerId(message: MarkerIdInput, index: number): string {
   return message.id && message.id.length > 0 ? message.id : `${message.role}-${index}`;
 }
 
@@ -38,14 +40,15 @@ export interface ContentMarker {
 export const EMPTY_PROMPT_PREVIEW = 'Empty message';
 export const DEFAULT_PREVIEW_MAX = 160;
 
-export function userPromptText(message: { parts?: RailMessage['parts'] }): string {
+export type userPromptTextOptions = { parts?: RailMessage['parts'] };
+
+export function userPromptText(message: userPromptTextOptions): string {
   return (message.parts ?? [])
     .filter((p): p is { type: 'text'; text: string } => p.type === 'text' && typeof p.text === 'string')
     .map((p) => p.text)
     .join('');
 }
 
-/** Collapse whitespace and truncate for the hover preview. */
 export function promptPreview(text: string, maxLen = DEFAULT_PREVIEW_MAX): string {
   const clean = text.replace(/\s+/g, ' ').trim();
   if (!clean) return EMPTY_PROMPT_PREVIEW;
@@ -55,7 +58,9 @@ export function promptPreview(text: string, maxLen = DEFAULT_PREVIEW_MAX): strin
 }
 
 /** User turns, in conversation order. Missing ids fall back to `user-<index>`. */
-export function collectUserMarkers(messages: readonly RailMessage[]): UserMarker[] {
+export type UserMarkersOptions = readonly RailMessage[];
+
+export function collectUserMarkers(messages: UserMarkersOptions): UserMarker[] {
   const out: UserMarker[] = [];
   for (const [i, m] of messages.entries()) {
     if (m.role !== 'user') continue;
@@ -120,11 +125,6 @@ export function layoutMarkers(
   return items.map((item, i) => ({ id: item.id, top: tops[i]! }));
 }
 
-/**
- * The user prompt that "owns" the current viewport: the last one whose top has
- * scrolled past a small offset from the viewport top. At/near the bottom, the
- * last prompt wins so a long trailing answer still highlights its question.
- */
 export function activeMarkerId(
   markers: readonly ContentMarker[],
   scrollTop: number,
@@ -145,11 +145,7 @@ export function activeMarkerId(
   return current;
 }
 
-/** The tick whose center is closest to a Y coordinate on the rail. */
-export function nearestMarkerId(
-  laid: readonly { id: string; top: number }[],
-  y: number,
-): string | null {
+export function nearestMarkerId(laid: readonly { id: string; top: number }[], y: number): string | null {
   if (laid.length === 0 || !Number.isFinite(y)) return null;
   let bestId = laid[0]!.id;
   let bestDist = Math.abs(y - laid[0]!.top);
@@ -163,13 +159,7 @@ export function nearestMarkerId(
   return bestId;
 }
 
-/** Vertically center a tooltip on a tick, then keep it inside the rail. */
-export function clampTooltipTop(
-  markerTop: number,
-  tooltipHeight: number,
-  trackHeight: number,
-  pad = 4,
-): number {
+export function clampTooltipTop(markerTop: number, tooltipHeight: number, trackHeight: number, pad = 4): number {
   const room = trackHeight - tooltipHeight - pad;
   if (room < pad) return pad;
   return clamp(markerTop - tooltipHeight / 2, pad, room);

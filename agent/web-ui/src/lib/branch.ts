@@ -13,11 +13,7 @@ export interface ChatBranch {
   parentId: string;
 }
 
-/** Index of the message the rail/tick id refers to, or -1. */
-export function messageIndexById(
-  messages: readonly { id?: string; role: string }[],
-  id: string,
-): number {
+export function messageIndexById(messages: readonly { id?: string; role: string }[], id: string): number {
   return messages.findIndex((m, i) => markerId(m, i) === id);
 }
 
@@ -25,8 +21,10 @@ export function messageIndexById(
  * Fork `messages` through `throughIndex` into a new session record. Ids are
  * remapped so the live `useChat` store cannot alias the parent transcript.
  */
+export type ChatBranchOptions = UIMessage[];
+
 export function createChatBranch(
-  messages: UIMessage[],
+  messages: ChatBranchOptions,
   throughIndex: number,
   parentId: string,
   opts?: {

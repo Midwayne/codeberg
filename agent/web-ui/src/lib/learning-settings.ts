@@ -7,8 +7,15 @@ export async function loadLearningSettings(fetcher: typeof fetch = fetch): Promi
   if (!response.ok) throw new Error(await response.text());
   return response.json() as Promise<LearningSettings>;
 }
-export async function saveLearningSettings(settings: LearningSettings, fetcher: typeof fetch = fetch): Promise<LearningSettings> {
-  const response = await fetcher('/api/learning/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) });
+export async function saveLearningSettings(
+  settings: LearningSettings,
+  fetcher: typeof fetch = fetch,
+): Promise<LearningSettings> {
+  const response = await fetcher('/api/learning/settings', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings),
+  });
   if (!response.ok) throw new Error(await response.text());
   return response.json() as Promise<LearningSettings>;
 }

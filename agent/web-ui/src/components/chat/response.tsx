@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
 
-import { cn } from '@/lib/utils';
+import { cn } from '../../lib/utils';
 
 // markdown.tsx statically imports streamdown, which pulls in shiki + mermaid
 // (the bulk of the bundle). Load it lazily so the initial app shell stays
@@ -15,16 +15,13 @@ const Markdown = lazy(() => import('./markdown'));
  * citations (`[path:12-40]`) render as numbered hover chips instead of full
  * paths (see markdown.tsx).
  */
-export function Response({ children, className }: { children: string; className?: string }) {
+export type ResponseProps = { children: string; className?: string };
+
+export function Response({ children, className }: ResponseProps) {
   return (
     <Suspense
       fallback={
-        <div
-          className={cn(
-            'space-y-3 text-sm leading-relaxed break-words whitespace-pre-wrap',
-            className,
-          )}
-        >
+        <div className={cn('space-y-3 text-sm leading-relaxed break-words whitespace-pre-wrap', className)}>
           {children}
         </div>
       }

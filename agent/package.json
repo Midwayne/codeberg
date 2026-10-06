@@ -24,7 +24,7 @@
   "scripts": {
     "build": "tsup",
     "test": "vitest run",
-    "lint": "eslint src --max-warnings 0",
+    "lint": "eslint src web-ui/src --max-warnings 0",
     "test:lint": "node --test scripts/lint.test.mjs",
     "typecheck": "tsc --noEmit"
   },

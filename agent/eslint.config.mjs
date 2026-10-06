@@ -1,25 +1,16 @@
 import tsParser from '@typescript-eslint/parser';
 
+import { codeRules } from './eslint-rules.mjs';
+
 export default [
-  { ignores: ['dist/**', 'web-ui/**', 'src/**/*.test.ts'] },
+  { ignores: ['**/dist/**', '**/node_modules/**', '**/*.test.{ts,tsx}'] },
   {
-    files: ['src/**/*.ts'],
+    files: ['src/**/*.ts', 'web-ui/src/**/*.{ts,tsx}'],
     languageOptions: {
       parser: tsParser,
       ecmaVersion: 'latest',
       sourceType: 'module',
     },
-    rules: {
-      'max-lines': ['error', { max: 199, skipBlankLines: false, skipComments: false }],
-      'max-lines-per-function': [
-        'error',
-        {
-          max: 50,
-          skipBlankLines: false,
-          skipComments: false,
-          IIFEs: true,
-        },
-      ],
-    },
+    rules: codeRules,
   },
 ];

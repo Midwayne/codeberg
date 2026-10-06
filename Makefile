@@ -165,7 +165,7 @@ agent-test:
 
 agent-check:
 	cd $(AGENT) && npm run lint && npm run test:lint && npm run typecheck && npm test && npm run build
-	cd $(AGENT)/web-ui && npm run typecheck && npm run build
+	cd $(AGENT)/web-ui && npm run lint && npm run typecheck && npm run build
 
 # --- Package -----------------------------------------------------------------
 

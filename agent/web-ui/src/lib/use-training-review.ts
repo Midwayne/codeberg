@@ -1,81 +1,147 @@
-import { useProjectApi } from '@/lib/project-api';
+import { useReviewSave } from './use-review-save';
+import { useProjectApi } from './project-api';
 import { useEffect, useRef, useState } from 'react';
 
-import { loadReviewExample, loadTrainingReview, submitReview, type ReviewDashboard, type ReviewExample } from './training';
-import { applyReviewDecision, reviewRows, reviewSelection, type ReviewDecision, type ReviewFilter } from './training-review';
+import { loadReviewExample, loadTrainingReview, type ReviewDashboard, type ReviewExample } from './training';
+import { reviewRows, reviewSelection, type ReviewFilter } from './training-review';
 
 /** Separate read failures from write results; stale reads never replace a newer selection. */
 export function useTrainingReview() {
   const { fetch: api } = useProjectApi();
-  const [dashboard, setDashboard] = useState<ReviewDashboard>();
-  const [filter, setFilter] = useState<ReviewFilter>('ready');
-  const [requestedId, setRequestedId] = useState<string>();
-  const [example, setExample] = useState<ReviewExample>();
-  const [dashboardAttempt, setDashboardAttempt] = useState(0);
-  const [detailAttempt, setDetailAttempt] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [dashboardError, setDashboardError] = useState('');
-  const [detailError, setDetailError] = useState('');
+  const { dashboard, setDashboard, setDashboardAttempt, loading, dashboardError } = useReviewDashboard({ api });
+  const { selectedId, selected, setFilter, setRequestedId, filter, visible } = useReviewSelection({ dashboard });
+
   const [saveError, setSaveError] = useState('');
   const [announcement, setAnnouncement] = useState('');
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
-  const mounted = useRef(false);
-  const visible = reviewRows(dashboard?.candidates ?? [], filter);
-  const selectedId = reviewSelection(visible, filter, requestedId);
-  const selected = visible.find((row) => row.id === selectedId);
+  const { mounted } = useReviewMounted();
+  const { example, detailError, setDetailAttempt } = useReviewExample({ setSaveError, selectedId, api });
+  const { save } = useReviewSave({
+    selected,
+    savingRef,
+    setSaving,
+    setSaveError,
+    setAnnouncement,
+    api,
+    mounted,
+    setDashboard,
+    setFilter,
+    setRequestedId,
+    setDashboardAttempt,
+  });
 
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  return {
+    dashboard,
+    filter,
+    setFilter,
+    visible,
+    selected,
+    selectedId,
+    example,
+    select: setRequestedId,
+    loading,
+    dashboardError,
+    detailError,
+    saveError,
+    announcement,
+    saving,
+    save,
+    refresh: () => setDashboardAttempt((attempt) => attempt + 1),
+    retryDetail: () => setDetailAttempt((attempt) => attempt + 1),
+  };
+}
+
+export type ReviewDashboardOptions = {
+  api: typeof fetch;
+};
+
+function useReviewDashboard({ api }: ReviewDashboardOptions) {
+  const [dashboard, setDashboard] = useState<ReviewDashboard>();
+
+  const [dashboardAttempt, setDashboardAttempt] = useState(0);
+
+  const [loading, setLoading] = useState(true);
+
+  const [dashboardError, setDashboardError] = useState('');
 
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setDashboardError('');
-    void loadTrainingReview(controller.signal, api).then((next) => {
-      if (!controller.signal.aborted) setDashboard(next);
-    }).catch((error: unknown) => {
-      if (!controller.signal.aborted) setDashboardError(String(error));
-    }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    void loadTrainingReview(controller.signal, api)
+      .then((next) => {
+        if (!controller.signal.aborted) setDashboard(next);
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) setDashboardError(String(error));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
     return () => controller.abort();
   }, [dashboardAttempt, api]);
+
+  return { dashboard, setDashboard, setDashboardAttempt, loading, dashboardError };
+}
+
+export type ReviewExampleOptions = {
+  setSaveError: React.Dispatch<React.SetStateAction<string>>;
+  selectedId: string | undefined;
+  api: typeof fetch;
+};
+
+function useReviewExample({ setSaveError, selectedId, api }: ReviewExampleOptions) {
+  const [example, setExample] = useState<ReviewExample>();
+
+  const [detailAttempt, setDetailAttempt] = useState(0);
+
+  const [detailError, setDetailError] = useState('');
 
   useEffect(() => {
     const controller = new AbortController();
     setExample(undefined);
     setDetailError('');
     setSaveError('');
-    if (selectedId) void loadReviewExample(selectedId, controller.signal, api).then((next) => {
-      if (!controller.signal.aborted) setExample(next);
-    }).catch((error: unknown) => { if (!controller.signal.aborted) setDetailError(String(error)); });
+    if (selectedId)
+      void loadReviewExample(selectedId, controller.signal, api)
+        .then((next) => {
+          if (!controller.signal.aborted) setExample(next);
+        })
+        .catch((error: unknown) => {
+          if (!controller.signal.aborted) setDetailError(String(error));
+        });
     return () => controller.abort();
   }, [selectedId, detailAttempt, api]);
 
-  async function save(decision: ReviewDecision, oracle?: Record<string, unknown>): Promise<void> {
-    if (!selected || selected.state !== 'ready' || !selected.eligible || savingRef.current) return;
-    savingRef.current = true;
-    setSaving(true);
-    setSaveError('');
-    setAnnouncement('');
-    try {
-      await submitReview(selected.id, decision, oracle, api);
-      if (!mounted.current) return;
-      setDashboard((current) => current ? applyReviewDecision(current, selected.id, decision) : current);
-      setAnnouncement(decision === 'dismiss' ? 'Example set aside.' : decision === 'eval' ? 'Evaluation case saved.' : 'Example added to training.');
-      setFilter('ready');
-      setRequestedId(undefined);
-      setDashboardAttempt((attempt) => attempt + 1);
-    } catch (error) {
-      if (mounted.current) setSaveError(`Could not save this decision. ${String(error)}`);
-    } finally {
-      savingRef.current = false;
-      if (mounted.current) setSaving(false);
-    }
-  }
+  return { example, detailError, setDetailAttempt };
+}
 
-  return {
-    dashboard, filter, setFilter, visible, selected, selectedId, example,
-    select: setRequestedId, loading, dashboardError, detailError, saveError, announcement, saving, save,
-    refresh: () => setDashboardAttempt((attempt) => attempt + 1),
-    retryDetail: () => setDetailAttempt((attempt) => attempt + 1),
-  };
+function useReviewMounted() {
+  const mounted = useRef(false);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  return { mounted };
+}
+
+export type ReviewSelectionOptions = { dashboard: ReviewDashboard | undefined };
+
+function useReviewSelection({ dashboard }: ReviewSelectionOptions) {
+  const [filter, setFilter] = useState<ReviewFilter>('ready');
+
+  const [requestedId, setRequestedId] = useState<string>();
+
+  const visible = reviewRows(dashboard?.candidates ?? [], filter);
+
+  const selectedId = reviewSelection(visible, filter, requestedId);
+
+  const selected = visible.find((row) => row.id === selectedId);
+
+  return { selectedId, selected, setFilter, setRequestedId, filter, visible };
 }

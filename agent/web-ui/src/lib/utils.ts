@@ -5,7 +5,6 @@ export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
 }
 
-/** Compact relative time ("just now", "5m", "3h", "2d") for the session list. */
 export function timeAgo(ms: number): string {
   const secs = Math.max(0, Math.round((Date.now() - ms) / 1000));
   if (secs < 45) return 'just now';
@@ -55,7 +54,6 @@ const EXT_TO_LANG: Record<string, string> = {
   dockerfile: 'dockerfile',
 };
 
-/** Best-effort shiki language id from a file path, for snippet highlighting. */
 export function langFromPath(path: string): string {
   const name = path.split('/').pop() ?? '';
   if (name.toLowerCase() === 'dockerfile') return 'dockerfile';

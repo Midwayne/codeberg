@@ -37,10 +37,15 @@ export async function listSessions(query = '', fetcher: typeof fetch = fetch): P
   }
 }
 
-/** Metadata updates are independent of the transcript and never replace messages. */
-export async function updateSessionFlags(id: string, flags: { pinned?: boolean; archived?: boolean }, fetcher: typeof fetch = fetch): Promise<void> {
+export async function updateSessionFlags(
+  id: string,
+  flags: { pinned?: boolean; archived?: boolean },
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
   const response = await fetcher(`${BASE}/${encodeURIComponent(id)}`, {
-    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(flags),
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(flags),
   });
   if (!response.ok) throw new Error(`Could not update chat (${response.status})`);
 }
@@ -54,12 +59,14 @@ export async function loadSession(id: string, fetcher: typeof fetch = fetch): Pr
   }
 }
 
-export async function saveSession(input: {
+export type SaveSessionInput = {
   id: string;
   title: string;
   messages: UIMessage[];
   parentId?: string;
-}, fetcher: typeof fetch = fetch): Promise<void> {
+};
+
+export async function saveSession(input: SaveSessionInput, fetcher: typeof fetch = fetch): Promise<void> {
   try {
     await fetcher(`${BASE}/${encodeURIComponent(input.id)}`, {
       method: 'PUT',
@@ -89,7 +96,6 @@ export function newSessionId(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-/** Title from the first user message's text, trimmed to a sane length. */
 export function deriveTitle(messages: UIMessage[]): string {
   const firstUser = messages.find((m) => m.role === 'user');
   const text = (firstUser?.parts ?? [])

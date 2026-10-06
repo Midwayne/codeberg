@@ -1,7 +1,7 @@
-import { useProjectApi } from '@/lib/project-api';
+import { useProjectApi } from './project-api';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { listSessions, type SessionSummary } from '@/lib/sessions';
+import { listSessions, type SessionSummary } from './sessions';
 
 /** Loads the saved-chat list and exposes a `refresh` to re-pull it (after a
  *  save or delete). Errors are swallowed in `listSessions`, so this never throws. */
@@ -18,7 +18,10 @@ export function useSessions() {
 
   useEffect(() => {
     const timer = setTimeout(() => void refresh(), 0);
-    return () => { clearTimeout(timer); ++request.current; };
+    return () => {
+      clearTimeout(timer);
+      ++request.current;
+    };
   }, [refresh]);
 
   return { sessions, refresh };

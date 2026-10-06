@@ -15,11 +15,14 @@ chunk-only mode.
 ## Development checks
 
 Use Node.js 22.13+ on the 22.x line, or Node.js 24+.
-Run `npm run lint` to check backend TypeScript under `src/`. Functions must be
-at most 50 lines and source files must stay under 200 lines (199 maximum).
+Run `npm run lint` to check production TypeScript under `src/` and `web-ui/src/`.
+Functions must be at most 50 lines and source files must stay under 200 lines
+(199 maximum).
 Both limits count comments and blank lines; function signatures and braces count too.
 Keep whitespace between logical steps and extract focused helpers when a
-function or module grows too large. Test files, generated output, and `web-ui/` are excluded.
+function or module grows too large. Test files and generated output are excluded.
+Both packages share size and whitespace rules; packed statements, trailing spaces,
+and repeated empty lines are rejected.
 The checks use ESLint's [max-lines-per-function](https://eslint.org/docs/latest/rules/max-lines-per-function)
 and [max-lines](https://eslint.org/docs/latest/rules/max-lines). A final newline does not add an empty line.
 
@@ -329,7 +332,7 @@ pruning still runs at 60%. Override the window with `CODEBERG_CONTEXT_WINDOW`.
 make build-agent          # npm install + tsup bundles
 make build-web-ui         # Vite build → web-ui/dist
 make agent-test           # vitest in agent/
-make agent-check          # typecheck, test, and build agent + web UI
+make agent-check          # lint, typecheck, test, and build agent + web UI
 ```
 
 Run locally (daemon must be up — `make run-daemon`):
