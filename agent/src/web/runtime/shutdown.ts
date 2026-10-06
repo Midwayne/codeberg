@@ -1,9 +1,12 @@
+import { closeCanvasStreams } from '../canvas/stream.js';
 import { type Server } from 'node:http';
 import { writeModuleLog } from '../../core/module-log.js';
 import type { OwnedRuntime } from './types.js';
 
 export function stopRuntimes(owned: OwnedRuntime[]): void {
   for (const runtime of owned) {
+    if (runtime.canvas) closeCanvasStreams(runtime.canvas);
+
     runtime.learning?.stop();
     runtime.resources.stop();
   }

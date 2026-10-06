@@ -1,3 +1,5 @@
+import { canvasFromEnv } from '../../core/canvas/config.js';
+import type { CanvasStore } from '../../core/canvas/store.js';
 import { pipeAgentUIStreamToResponse } from 'ai';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -29,6 +31,7 @@ export async function buildProjectHandler(project: Project, options: ProjectRunt
   const { entry, catalog, modelSettings, providers, extensions, owned, title } = options;
 
   const env = projectEnvironment(process.env, project, catalog);
+  const canvas = canvasFromEnv(env);
   const home = projectDataHome(codebergHome(), project.id);
   const learning = learningEnabledFromEnv()
     ? new LearningService({
@@ -49,7 +52,7 @@ export async function buildProjectHandler(project: Project, options: ProjectRunt
   });
 
   const pool = new ReloadableAgentPool(() => createWebModelPool(daemonUrl, learning ?? false, env));
-  const runtime = { learning, resources, pool };
+  const runtime = { learning, resources, pool, canvas };
   owned.push(runtime);
   resources.start();
   // Recover durable work independently of chat; failed initialization can retry.
@@ -64,11 +67,12 @@ export async function buildProjectHandler(project: Project, options: ProjectRunt
 
   return createRequestHandler({
     daemonUrl,
+    canvas,
     sessionStore: sessions,
     resources,
     learning,
     modelSettings,
-    respond: projectResponder(pool, extensions, learning),
+    respond: projectResponder(pool, extensions, learning, canvas),
     title,
     staticRoot: process.env.CODEBERG_WEB_ROOT ?? defaultStaticRoot(),
   });
@@ -78,13 +82,14 @@ export function projectResponder(
   pool: ReloadableAgentPool,
   extensions: ExtensionStore,
   learning?: LearningService,
+  canvas?: CanvasStore,
 ): ChatResponder {
   return async (res, messages, selection) => {
     if (!selection) throw new Error('Choose a chat model first.');
 
     const lease = await pool.acquire(
       selection,
-      extensions.revision + (learning?.settingsRevision ?? 0),
+      (extensions.revision + (learning?.settingsRevision ?? 0)) * 2 + Number((await canvas?.available()) ?? false),
     );
 
     let routed = false;

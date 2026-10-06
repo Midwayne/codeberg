@@ -1,4 +1,4 @@
-import { Activity, BookOpen, Brain, FolderOpen, Palette, Puzzle, Trash2 } from 'lucide-react';
+import { Activity, BookOpen, Brain, FolderOpen, Palette, PencilRuler, Puzzle, Trash2 } from 'lucide-react';
 
 import { type CleanupCategory } from '../lib/resources';
 
@@ -7,6 +7,7 @@ export const sections = [
   { id: 'projects', label: 'Projects', shortLabel: 'Projects', icon: FolderOpen },
   { id: 'mcps', label: 'MCP servers', shortLabel: 'MCPs', icon: Puzzle },
   { id: 'skills', label: 'Skills', shortLabel: 'Skills', icon: BookOpen },
+  { id: 'canvas', label: 'Canvas', shortLabel: 'Canvas', icon: PencilRuler },
   { id: 'learning', label: 'Learning', shortLabel: 'Learning', icon: Brain },
   { id: 'usage', label: 'Resource usage', shortLabel: 'Usage', icon: Activity },
   { id: 'cleanup', label: 'Free up resources', shortLabel: 'Cleanup', icon: Trash2 },

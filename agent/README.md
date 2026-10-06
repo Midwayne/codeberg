@@ -557,3 +557,9 @@ report, inspect the proposed changes, then apply or undo the view. Optional dail
 proposal generation is off by default. The CLI offers `codeberg learning dream`,
 `dream-reports`, `dream-report <id>`, `dream-apply <id>`, `dream-undo <id>` and
 `dream-dismiss <id>`. See [knowledge consolidation](../docs/continuous-learning.md#knowledge-consolidation-dreaming).
+
+## Local canvas
+
+Enable **Settings → Canvas** in the web UI to give the agent native drawing tools
+and share one persistent local Excalidraw canvas per chat. Drawings appear inline
+automatically; expand a drawing to edit it in a separate tab. See [canvas documentation](../docs/canvas.md) for setup, storage and offline behavior.

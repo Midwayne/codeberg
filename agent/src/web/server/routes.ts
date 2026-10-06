@@ -1,3 +1,4 @@
+import { routeCanvas } from '../canvas/routes.js';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { promptCommandCatalog } from '../../core/hooks/index.js';
 import { routeChat, routeMeta, type ChatResponder } from '../chat-routes.js';
@@ -33,6 +34,10 @@ export async function route(
 
   if (path === '/api/settings/resources' || path === '/api/settings/cleanup') {
     return routeResources(req, res, resources, url);
+  }
+
+  if ((path.startsWith('/api/canvas/') || path === '/api/settings/canvas') && opts.canvas) {
+    return routeCanvas(req, res, opts.canvas, url);
   }
 
   if (path === MODELS_PATH && opts.modelSettings) return routeModels(req, res, opts.modelSettings);
@@ -76,7 +81,7 @@ export async function routeApi(
   }
 
   if (path === SESSIONS_PATH || path.startsWith(SESSIONS_PATH + '/')) {
-    await routeSessions(req, res, sessions, path, opts.learning);
+    await routeSessions(req, res, sessions, path, opts.learning, opts.canvas);
     return;
   }
 
@@ -121,6 +126,9 @@ export async function servePage(
   path: string,
 ): Promise<void> {
   if (req.method === 'GET') {
+    if (path === '/canvas') res.setHeader('Content-Security-Policy',
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; frame-ancestors 'self'; object-src 'none'");
+
     if (await serveStatic(res, opts.staticRoot, path)) {
       return;
     }

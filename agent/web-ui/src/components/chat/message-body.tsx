@@ -1,3 +1,4 @@
+import { isCanvasDrawing } from '../../canvas/conversation';
 import { Brain, Loader2, Wrench } from 'lucide-react';
 
 import { Response } from './response';
@@ -38,7 +39,7 @@ export function isToolPart(part: AnyPart): boolean {
 }
 
 export function isActivityPart(part: AnyPart): boolean {
-  return part.type === 'reasoning' || isToolPart(part);
+  return part.type === 'reasoning' || (isToolPart(part) && !isCanvasDrawing(part as ToolView));
 }
 
 export function ActivityGroup({ parts }: ActivityGroupProps) {

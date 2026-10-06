@@ -43,6 +43,7 @@ Project-wide overview. **libcodeberg** details live under [core/docs](../core/do
 | [continuous-learning.md](continuous-learning.md) | Graded interactions, durable jobs, knowledge extraction, retrieval, and dataset export |
 | [models.md](models.md) | Browser model catalog, per-model efforts/context windows, and persistent chat/learning selections |
 | [settings.md](settings.md) | Resource monitoring, one-hour usage history, and age-filtered chat/training/knowledge cleanup |
+| [canvas.md](canvas.md) | Optional local Excalidraw canvas shared by the agent and user |
 | [mcp.md](mcp.md) | Cursor-compatible MCP server config (`mcp.json`) |
 
 ## Knowledge graph (dual index)

@@ -1,3 +1,4 @@
+import type { CanvasStore } from '../../core/canvas/store.js';
 import { parseEntryArgs } from '../../core/entry.js';
 import { LearningService } from '../../core/learning/service.js';
 import type { ProjectCatalog } from '../../core/projects.js';
@@ -8,6 +9,7 @@ import { ModelSettingsStore } from '../model-selection/settings.js';
 import { ResourceSettings } from '../resources.js';
 
 export interface OwnedRuntime {
+  canvas?: CanvasStore;
   learning?: LearningService;
   resources: ResourceSettings;
   pool: ReloadableAgentPool;

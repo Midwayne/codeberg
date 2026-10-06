@@ -1,3 +1,5 @@
+import { CanvasArtifact } from '../../canvas/artifact';
+import { isCanvasDrawing } from '../../canvas/conversation';
 import { SpilledOutput, ToolPending, ToolError, GenericTool } from './tool-status';
 import { FileContent, FileList, ReposList, TextOutput } from './tool-file-results';
 import { type DisplayHit } from './tool-source-cards';
@@ -38,6 +40,8 @@ export function ToolViewRouter({ part }: ToolViewRouterProps) {
   if (isSpillPreview(part.output)) {
     return <SpilledOutput name={name} output={part.output} />;
   }
+
+  if (isCanvasDrawing(part)) return <CanvasArtifact part={part} />;
 
   return <CompletedTool name={name} part={part} />;
 }

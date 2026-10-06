@@ -1,7 +1,7 @@
 # Web settings and resource management
 
 Open **Settings** from the web header. The dedicated screen includes **Appearance**, **Projects**, **MCP servers**,
-**Skills**, **Learning**, **Resource usage**, and **Free up resources**. The existing **Model settings**
+**Skills**, **Learning**, **Canvas**, **Resource usage**, and **Free up resources**. The existing **Model settings**
 dialog has its own separate button in the main web header.
 Settings opens on **Appearance**. On desktop, section navigation sits beside the
 content; on smaller screens it becomes a compact grid. Usage and cleanup are
@@ -69,6 +69,14 @@ configured data directory. Invalid patches are rejected before writing. A failed
 save restores the previous switches and offers an error with retry guidance.
 If the launcher sets `CODEBERG_LEARNING_USE=false`, the panel explains how to
 re-enable the service and restart; browser settings cannot override that switch.
+
+## Canvas
+
+Enable the optional **local canvas** for the selected project. New chat turns get
+native canvas tools. Each chat’s drawing appears inline automatically when the
+agent draws. **Expand canvas** opens the same scene full-window for editing. Drawings persist locally when the
+feature is disabled. See [shared local canvas](canvas.md) for storage, tools,
+revision conflicts and offline behavior.
 
 ## Resource usage
 

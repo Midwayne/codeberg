@@ -1,3 +1,5 @@
+import { forkChatCanvas } from '../../core/canvas/fork.js';
+import type { CanvasStore } from '../../core/canvas/store.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import type { LearningService } from '../../core/learning/service.js';
@@ -14,6 +16,7 @@ export async function routeSessions(
   store: WebSessionStore,
   path: string,
   learning?: LearningService,
+  canvas?: CanvasStore,
 ): Promise<void> {
   const rest = decodeURIComponent(path.slice(SESSIONS_PATH.length).replace(/^\//, ''));
 
@@ -41,7 +44,7 @@ export async function routeSessions(
       return record ? sendJson(res, 200, record) : sendText(res, 404, 'not found');
     }
     case 'PUT':
-      return saveSession(req, res, store, id, learning);
+      return saveSession(req, res, store, id, learning, canvas);
     case 'PATCH':
       return updateSessionFlags(req, res, store, id);
     case 'DELETE': {
@@ -60,6 +63,7 @@ async function saveSession(
   store: WebSessionStore,
   id: string,
   learning?: LearningService,
+  canvas?: CanvasStore,
 ): Promise<void> {
   const body = await readJson(req);
   const messages = Array.isArray(body?.messages) ? body.messages : [];
@@ -79,6 +83,8 @@ async function saveSession(
     messages,
     ...(parentId ? { parentId } : {}),
   });
+
+  await forkChatCanvas(canvas, id, record.parentId);
 
   if (learning) {
     try {

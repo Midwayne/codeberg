@@ -1,3 +1,4 @@
+import { validChatId, withCanvasChat } from '../core/canvas/context.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import type { ModelInput, ModelSelection } from '../core/model-types.js';
@@ -21,22 +22,32 @@ export async function routeChat(
   respond: ChatResponder,
 ): Promise<void> {
   const body = await readJson(req);
+  if (body?.id !== undefined) {
+    try {
+      validChatId(body.id);
+    } catch {
+      return sendText(res, 400, 'invalid chat id');
+    }
+  }
+
   const messages = Array.isArray(body?.messages) ? body.messages : [];
   const settings = await modelSettings?.current();
   const selected = settings?.models.find((entry) => entry.key === settings.chat.key);
   const error = validateChatFiles(messages, selected?.inputs ?? ['text']);
   if (error) return sendText(res, 400, error);
 
-  await respond(
-    res,
-    messages,
-    selected && settings
-      ? {
-          ...settings.chat,
-          model: selected.model,
-          contextWindow: selected.contextWindow,
-        }
-      : undefined,
+  await withCanvasChat(body?.id, () =>
+    respond(
+      res,
+      messages,
+      selected && settings
+        ? {
+            ...settings.chat,
+            model: selected.model,
+            contextWindow: selected.contextWindow,
+          }
+        : undefined,
+    ),
   );
 }
 

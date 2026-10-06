@@ -1,3 +1,4 @@
+import { CanvasConversation, canvasAnchor } from '../../canvas/conversation';
 import type { UIMessage } from 'ai';
 import { memo } from 'react';
 
@@ -20,15 +21,19 @@ export const MessageList = memo(function MessageList({
   onRegenerate: () => void;
   onBranch?: (throughIndex: number) => void;
 }) {
-  return messages.map((message, index) => (
-    <Message
-      key={message.id || `${message.role}-${index}`}
-      message={message}
-      domId={markerId(message, index)}
-      conversationId={sessionId}
-      learningEnabled={learningEnabled && !busy}
-      onRegenerate={!busy && message.role === 'assistant' && index === messages.length - 1 ? onRegenerate : undefined}
-      onBranch={!busy && onBranch ? () => onBranch(index) : undefined}
-    />
-  ));
+  return (
+    <CanvasConversation.Provider value={{ chatId: sessionId, anchor: canvasAnchor(messages) }}>
+      {messages.map((message, index) => (
+        <Message
+          key={message.id || `${message.role}-${index}`}
+          message={message}
+          domId={markerId(message, index)}
+          conversationId={sessionId}
+          learningEnabled={learningEnabled && !busy}
+          onRegenerate={!busy && message.role === 'assistant' && index === messages.length - 1 ? onRegenerate : undefined}
+          onBranch={!busy && onBranch ? () => onBranch(index) : undefined}
+        />
+      ))}
+    </CanvasConversation.Provider>
+  );
 });

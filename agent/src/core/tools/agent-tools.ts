@@ -1,4 +1,6 @@
 import type { ToolSet } from 'ai';
+import type { CanvasStore } from '../canvas/store.js';
+import { canvasToolSource } from '../canvas/tools.js';
 
 import { DaemonClient } from '../client.js';
 import { ContextStore } from '../context/store.js';
@@ -14,6 +16,7 @@ import { collectTools, daemonToolSource, searchCodeSource, webToolSource } from 
 
 interface AgentToolOptions {
   daemon: DaemonClient;
+  canvas?: CanvasStore;
   context: ContextStore;
   learning?: LearningStore;
   learningSettings?: () => LearningSettings;
@@ -34,6 +37,7 @@ export async function createAgentTools(opts: AgentToolOptions): Promise<ToolSet>
     }),
     ...(opts.learning ? [learningToolSource(opts.learning, opts.learningSettings)] : []),
     contextToolSource(opts.context),
+    ...(opts.canvas ? [canvasToolSource(opts.canvas)] : []),
     daemonToolSource({
       daemon: opts.daemon,
       onToolResult: (name, output) => {

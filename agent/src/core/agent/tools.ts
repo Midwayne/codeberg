@@ -1,3 +1,5 @@
+import { canvasFromEnv } from '../canvas/config.js';
+import { CANVAS_INSTRUCTIONS } from '../canvas/tools.js';
 import { requestProviderOptions } from '../cache.js';
 import { publishSkills } from '../context/skills.js';
 import { learningRecall } from '../learning/preferences.js';
@@ -23,6 +25,8 @@ export async function prepareSystem(
     skills,
     contextRoot: state.context.root,
   });
+  if (toolNames.some((name) => name.startsWith('canvas_'))) state.system += CANVAS_INSTRUCTIONS;
+
   const knowledgeIndex = await state.learning?.knowledgeIndex();
   if (knowledgeIndex) state.system += `\n\n${knowledgeIndex}`;
 
@@ -43,6 +47,7 @@ export async function prepareSystem(
 export async function buildTools(state: AgentState) {
   return createAgentTools({
     daemon: state.daemon,
+    canvas: canvasFromEnv(state.env),
     context: state.context,
     learning: state.learning?.store,
     learningSettings: state.learning ? () => state.learning!.settings : undefined,

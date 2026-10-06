@@ -1,3 +1,4 @@
+import type { CanvasStore } from '../../core/canvas/store.js';
 import { type ToolLoopAgent } from 'ai';
 import type { PromptCommand } from '../../core/hooks/index.js';
 import type { LearningService } from '../../core/learning/service.js';
@@ -27,6 +28,7 @@ export interface WebServerOptions {
   agent?: ToolLoopAgent;
   /** Shown in the page title bar; also returned from `/api/meta`. */
   title: string;
+  canvas?: CanvasStore;
   /**
    * Directory of the built React SPA (`web-ui/dist`). When present, it is
    * served at `/`; when absent or unbuilt, the dependency-free fallback page is

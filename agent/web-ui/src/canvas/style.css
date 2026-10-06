@@ -1,0 +1,12 @@
+.local-canvas .sidebar-trigger__label-element:has(input[aria-label="Library"]),
+.local-canvas .library-button,
+.local-canvas .excalidraw .App-menu_top .library-menu-browse-button {
+  display: none;
+}
+
+.canvas-preview .excalidraw .layer-ui__wrapper,
+.canvas-preview .excalidraw .App-bottom-bar,
+.canvas-preview .excalidraw .App-menu_top,
+.canvas-preview .excalidraw .App-menu_bottom {
+  display: none;
+}

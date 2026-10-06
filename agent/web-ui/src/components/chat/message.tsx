@@ -11,6 +11,7 @@ export type AnyPart = UIMessage['parts'][number];
 export interface ToolView {
   type: string;
   toolName?: string;
+  toolCallId?: string;
   state?: string;
   input?: unknown;
   output?: unknown;

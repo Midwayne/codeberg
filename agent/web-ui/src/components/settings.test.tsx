@@ -10,6 +10,7 @@ describe('settings', () => {
     expect(html).toContain('aria-label="MCP servers"');
     expect(html).toContain('aria-label="Skills"');
     expect(html).toContain('Open config directory');
+    expect(html).toContain('aria-label="Canvas"');
     expect(html).toContain('Resource usage');
     expect(html).toContain('Free up resources');
     expect(html).toContain('Choose a theme');

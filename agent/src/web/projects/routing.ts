@@ -61,7 +61,8 @@ export async function dispatchProject(
   res: ServerResponse,
   url: URL,
 ): Promise<void> {
-  const id = req.headers['x-codeberg-project'];
+  const id = req.headers['x-codeberg-project'] ??
+    (url.pathname.startsWith('/api/canvas/') ? url.searchParams.get('project') ?? undefined : undefined);
   if (id !== undefined && typeof id !== 'string')
     return sendText(res, 400, 'invalid project selection');
 
