@@ -66,7 +66,7 @@ help:
 	@echo "    make test TEST=<name>     Run one test (test_smoke test_chunker …)"
 	@echo "    make daemon-test          Run Go tests in daemon/"
 	@echo "    make agent-test           Run agent tests (vitest)"
-	@echo "    make agent-check          Typecheck, test, and build agent + web UI (requires npm deps)"
+	@echo "    make agent-check          Lint, typecheck, test, and build agent + web UI (requires npm deps)"
 	@echo "    make check                build-core + test (C core gate)"
 	@echo "    make format               clang-format (C), gofmt (Go), prettier (TS)"
 	@echo "  Misc"
@@ -156,7 +156,7 @@ agent-test:
 	cd $(AGENT) && npm install && npm test
 
 agent-check:
-	cd $(AGENT) && npm run typecheck && npm test && npm run build
+	cd $(AGENT) && npm run lint && npm run test:lint && npm run typecheck && npm test && npm run build
 	cd $(AGENT)/web-ui && npm run typecheck && npm run build
 
 # --- Package -----------------------------------------------------------------

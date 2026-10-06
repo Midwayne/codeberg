@@ -21,6 +21,7 @@ const MCP_FILE = 'mcp.json';
 /** A flag env var: anything but 0/false/off/no (case-insensitive) is "on". */
 function flag(value: string | undefined, fallback: boolean): boolean {
   if (value == null || value.trim() === '') return fallback;
+
   return !/^(0|false|off|no)$/i.test(value.trim());
 }
 
@@ -30,12 +31,15 @@ function splitList(v: string): string[] {
     const t = item.trim();
     if (t) out.push(t);
   }
+
   return out;
 }
 
 function expandHome(p: string, home: string): string {
   if (p === '~') return home;
+
   if (p.startsWith('~/')) return join(home, p.slice(2));
+
   return p;
 }
 
@@ -49,15 +53,18 @@ function asString(v: unknown): string {
 
 function asStringArray(v: unknown): string[] {
   if (!Array.isArray(v)) return [];
+
   return v.map((x) => String(x));
 }
 
 function interpolateMap(raw: unknown, ctx: McpInterpolateContext): Record<string, string> {
   if (!isRecord(raw)) return {};
+
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(raw)) {
     out[k] = interpolateMcpString(asString(v), ctx);
   }
+
   return out;
 }
 
@@ -78,6 +85,7 @@ export function interpolateMcpString(value: string, ctx: McpInterpolateContext):
 
 function resolveRef(raw: string, ctx: McpInterpolateContext): string {
   if (raw.startsWith('input:')) return '';
+
   const key = raw.startsWith('env:') ? raw.slice(4) : raw;
   switch (key) {
     case 'workspaceFolder':
@@ -116,6 +124,7 @@ function inferUrlKind(url: string): 'http' | 'sse' {
   } catch {
     // not a valid URL — fall through to a conservative substring check
   }
+
   return /(?:^|\/)sse(?:\/|$|\?)/i.test(url) ? 'sse' : 'http';
 }
 
@@ -128,16 +137,20 @@ function parseEnvFile(text: string, ctx: McpInterpolateContext): Record<string, 
   for (const rawLine of text.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (line === '' || line.startsWith('#')) continue;
+
     const stripped = line.startsWith('export ') ? line.slice('export '.length) : line;
     const eq = stripped.indexOf('=');
     if (eq <= 0) continue;
+
     const key = stripped.slice(0, eq).trim();
     let val = stripped.slice(eq + 1).trim();
     if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
       val = val.slice(1, -1);
     }
+
     if (key) out[key] = interpolateMcpString(val, ctx);
   }
+
   return out;
 }
 
@@ -162,8 +175,10 @@ export function parseMcpJson(
     parsed = JSON.parse(text) as unknown;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+
     return { servers: [], warnings: [`invalid JSON (${msg})`] };
   }
+
   if (!isRecord(parsed)) {
     return { servers: [], warnings: ['MCP config root must be a JSON object'] };
   }
@@ -179,6 +194,7 @@ export function parseMcpJson(
     const server = parseServer(name, raw, ctx, opts, warnings);
     if (server) servers.push(server);
   }
+
   return { servers, warnings };
 }
 
@@ -191,8 +207,10 @@ function parseServer(
 ): McpServer | undefined {
   if (!isRecord(raw)) {
     warnings.push(`server ${name}: entry must be an object`);
+
     return undefined;
   }
+
   if (isTruthy(raw.disabled) || (raw.enabled !== undefined && isExplicitFalse(raw.enabled))) {
     return undefined;
   }
@@ -202,8 +220,10 @@ function parseServer(
     const normalized = normalizeKind(raw.type);
     if (normalized === 'unknown') {
       warnings.push(`server ${name}: unknown type ${JSON.stringify(raw.type)}`);
+
       return undefined;
     }
+
     kind = normalized;
   }
 
@@ -213,46 +233,78 @@ function parseServer(
     if (command) kind = 'stdio';
     else if (url) kind = inferUrlKind(url);
   }
+
   if (kind === undefined) {
     warnings.push(`server ${name}: needs a command (stdio) or url (http/sse)`);
+
     return undefined;
   }
 
+  return parseTransport(name, kind, raw, { command, url }, ctx, opts, warnings);
+}
+
+function parseTransport(
+  name: string,
+  kind: McpTransportKind,
+  raw: Record<string, unknown>,
+  address: { command: string; url: string },
+  ctx: McpInterpolateContext,
+  opts: ParseMcpJsonOptions,
+  warnings: string[],
+): McpServer | undefined {
+  const { command, url } = address;
+
   switch (kind) {
-    case 'stdio': {
-      if (!command) {
-        warnings.push(`server ${name}: stdio transport requires command`);
-        return undefined;
-      }
-      const env = loadStdioEnv(raw, ctx, opts, warnings, name);
-      const cwdRaw = asString(raw.cwd).trim();
-      const server: McpStdioServer = {
-        name,
-        kind: 'stdio',
-        command,
-        args: asStringArray(raw.args).map((a) => interpolateMcpString(a, ctx)),
-        env,
-        ...(cwdRaw ? { cwd: interpolateMcpString(cwdRaw, ctx) } : {}),
-      };
-      return server;
-    }
+    case 'stdio':
+      return parseStdioServer(name, command, raw, ctx, opts, warnings);
     case 'http':
     case 'sse': {
       if (!url) {
         warnings.push(`server ${name}: ${kind} transport requires url`);
+
         return undefined;
       }
+
       const server: McpUrlServer = {
         name,
         kind,
         url,
         headers: interpolateMap(raw.headers, ctx),
       };
+
       return server;
     }
     default:
       return neverKind(kind);
   }
+}
+
+function parseStdioServer(
+  name: string,
+  command: string,
+  raw: Record<string, unknown>,
+  ctx: McpInterpolateContext,
+  opts: ParseMcpJsonOptions,
+  warnings: string[],
+): McpStdioServer | undefined {
+  if (!command) {
+    warnings.push(`server ${name}: stdio transport requires command`);
+
+    return undefined;
+  }
+
+  const env = loadStdioEnv(raw, ctx, opts, warnings, name);
+  const cwdRaw = asString(raw.cwd).trim();
+  const server: McpStdioServer = {
+    name,
+    kind: 'stdio',
+    command,
+    args: asStringArray(raw.args).map((a) => interpolateMcpString(a, ctx)),
+    env,
+    ...(cwdRaw ? { cwd: interpolateMcpString(cwdRaw, ctx) } : {}),
+  };
+
+  return server;
 }
 
 function loadStdioEnv(
@@ -276,6 +328,7 @@ function loadStdioEnv(
       Object.assign(fromFile, parseEnvFile(text, ctx));
     }
   }
+
   return { ...fromFile, ...interpolateMap(raw.env, ctx) };
 }
 
@@ -315,7 +368,9 @@ export function discoverMcpConfigPaths(opts: {
   for (const root of roots) {
     candidates.push(...projectMcpFiles(root));
   }
+
   candidates.push(...opts.extra);
+
   return candidates.filter((p) => exists(p));
 }
 
@@ -324,6 +379,7 @@ function workspaceForConfig(configPath: string, fallback: string): string {
   const parent = dirname(dir);
   const base = dir.split(/[/\\]/).pop();
   if (base === '.cursor' || base === '.codeberg') return parent;
+
   return fallback;
 }
 
@@ -349,6 +405,7 @@ export function mcpConfigFromEnv(
     env.CODEBERG_HOME && env.CODEBERG_HOME.trim() !== ''
       ? env.CODEBERG_HOME
       : join((io.homedir ?? homedir)(), '.codeberg');
+
   const cwd = io.cwd ?? process.cwd();
   const userHome = (io.homedir ?? homedir)();
   const exists = io.exists ?? defaultExists;
@@ -362,19 +419,17 @@ export function mcpConfigFromEnv(
     userHome,
     io: { ...io, cwd, exists },
   });
+
   warnings.push(...builtin.warnings);
   if (builtin.server) merged[builtin.server.name] = builtin.server;
 
   const files: string[] = [];
   if (userEnabled) {
-    const roots = indexedRootsFromEnv(env);
-    const extra = splitList(env.CODEBERG_MCP_CONFIG ?? '').map((p) => expandHome(p, userHome));
-    files.push(...discoverMcpConfigPaths({ home, roots, cwd, extra, exists }));
-    const projectFile = env.CODEBERG_PROJECT_HOME && join(env.CODEBERG_PROJECT_HOME, MCP_FILE);
-    if (projectFile && exists(projectFile)) files.push(projectFile);
-    const fallbackWorkspace = roots[0] ?? cwd;
+    const discovered = userMcpFiles(env, home, userHome, cwd, exists);
+    files.push(...discovered.files);
+
     for (const file of files) {
-      loadMcpFile(file, env, userHome, fallbackWorkspace, readFile, merged, warnings);
+      loadMcpFile(file, env, userHome, discovered.workspace, readFile, merged, warnings);
     }
   }
 
@@ -384,6 +439,22 @@ export function mcpConfigFromEnv(
     files,
     warnings,
   };
+}
+
+function userMcpFiles(
+  env: NodeJS.ProcessEnv,
+  home: string,
+  userHome: string,
+  cwd: string,
+  exists: (path: string) => boolean,
+) {
+  const roots = indexedRootsFromEnv(env);
+  const extra = splitList(env.CODEBERG_MCP_CONFIG ?? '').map((p) => expandHome(p, userHome));
+  const files = discoverMcpConfigPaths({ home, roots, cwd, extra, exists });
+  const projectFile = env.CODEBERG_PROJECT_HOME && join(env.CODEBERG_PROJECT_HOME, MCP_FILE);
+  if (projectFile && exists(projectFile)) files.push(projectFile);
+
+  return { files, workspace: roots[0] ?? cwd };
 }
 
 function loadMcpFile(
@@ -400,17 +471,22 @@ function loadMcpFile(
     warnings.push(`${file}: not readable`);
     return;
   }
+
   const ctx: McpInterpolateContext = {
     env,
     workspaceFolder: workspaceForConfig(file, fallbackWorkspace),
     userHome,
   };
+
   const parsed = parseMcpJson(text, ctx, { configDir: dirname(file), readFile });
   for (const w of parsed.warnings) {
     warnings.push(`${file}: ${w}`);
   }
+
   for (const server of parsed.servers) {
-    merged[server.name] = server.kind === 'stdio' && env.CODEBERG_PROJECT_HOME && !server.cwd
-      ? { ...server, cwd: fallbackWorkspace } : server;
+    merged[server.name] =
+      server.kind === 'stdio' && env.CODEBERG_PROJECT_HOME && !server.cwd
+        ? { ...server, cwd: fallbackWorkspace }
+        : server;
   }
 }

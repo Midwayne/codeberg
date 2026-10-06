@@ -80,7 +80,6 @@ function resetState(state: SourceState): void {
  */
 export function mcpToolSource(opts: McpToolSourceOptions): McpToolSource {
   const log = opts.log ?? ((message: string) => console.error(message));
-  const connect = opts.connect ?? ((server: McpServer) => connectMcpServer(server));
   const state = blankState();
   let hookedExit = false;
 
@@ -101,64 +100,89 @@ export function mcpToolSource(opts: McpToolSourceOptions): McpToolSource {
       for (const opened of state.opened) {
         if (opened.catalog.state === 'connected') out[opened.catalog.serverName] = opened.rawNames;
       }
+
       return out;
     },
     reports,
     activeToolNames: () => state.activation.activeNames(),
     activeTools: (allNames, messages) => state.activation.select(allNames, messages),
-    close: async () => {
-      const pending = state.opened.flatMap((opened) => (opened.handle ? [opened.handle] : []));
-      resetState(state);
-      await Promise.all(
-        pending.map(async (handle) => {
-          try {
-            await handle.close();
-          } catch {
-            // best-effort — process exit will reap stdio children anyway
-          }
-        }),
-      );
-    },
+    close: () => closeServers(state),
     tools: async (): Promise<ToolSet> => {
-      resetState(state);
-      if (!opts.config.enabled) return {};
-      for (const warning of opts.config.warnings) log(`› MCP: ${warning}`);
-      if (opts.config.servers.length === 0) return {};
+      const out = await loadServers(state, opts, log);
 
-      const results = await Promise.allSettled(
-        opts.config.servers.map(async (server) => {
-          const handle = await connect(server);
-          return { server, handle };
-        }),
-      );
-
-      const out: ToolSet = {};
-      const captureSchema = opts.context != null;
-      for (let i = 0; i < results.length; i++) {
-        state.opened.push(await openServer(opts.config.servers[i]!, results[i]!, out, captureSchema, log));
-      }
-      if (opts.context) {
-        state.published = await publishMcpCatalog(
-          opts.context,
-          state.opened.map((opened) => opened.catalog),
-        );
-      }
-      state.activation.setCallable(
-        state.opened.flatMap((opened) => opened.catalog.tools.map((entry) => entry.callable)),
-      );
-      if (state.opened.length > 0) {
-        out.load_mcp_tools = loadMcpTools(state);
-      }
       if (!hookedExit && state.opened.some((opened) => opened.handle)) {
         hookedExit = true;
         process.once('beforeExit', () => {
           void source.close();
         });
       }
+
       return out;
     },
   };
+
   return source;
+}
+
+async function closeServers(state: SourceState): Promise<void> {
+  const pending = state.opened.flatMap((opened) => (opened.handle ? [opened.handle] : []));
+  resetState(state);
+  await Promise.all(
+    pending.map(async (handle) => {
+      try {
+        await handle.close();
+      } catch {
+        // best-effort — process exit will reap stdio children anyway
+      }
+    }),
+  );
+}
+
+async function loadServers(
+  state: SourceState,
+  opts: McpToolSourceOptions,
+  log: (message: string) => void,
+): Promise<ToolSet> {
+  const connect = opts.connect ?? ((server: McpServer) => connectMcpServer(server));
+
+  resetState(state);
+  if (!opts.config.enabled) return {};
+
+  for (const warning of opts.config.warnings) log(`› MCP: ${warning}`);
+
+  if (opts.config.servers.length === 0) return {};
+
+  const results = await Promise.allSettled(
+    opts.config.servers.map(async (server) => {
+      const handle = await connect(server);
+
+      return { server, handle };
+    }),
+  );
+
+  const out: ToolSet = {};
+  const captureSchema = opts.context != null;
+  for (let i = 0; i < results.length; i++) {
+    state.opened.push(
+      await openServer(opts.config.servers[i]!, results[i]!, out, captureSchema, log),
+    );
+  }
+
+  if (opts.context) {
+    state.published = await publishMcpCatalog(
+      opts.context,
+      state.opened.map((opened) => opened.catalog),
+    );
+  }
+
+  state.activation.setCallable(
+    state.opened.flatMap((opened) => opened.catalog.tools.map((entry) => entry.callable)),
+  );
+  if (state.opened.length > 0) {
+    out.load_mcp_tools = loadMcpTools(state);
+  }
+
+  return out;
 }
 
 async function openServer(
@@ -171,13 +195,16 @@ async function openServer(
   if (result.status === 'rejected') {
     const detail = errorMessage(result.reason);
     log(`› MCP: failed to connect "${server.name}": ${detail}`);
+
     return {
       rawNames: [],
       catalog: { serverName: server.name, state: 'unavailable', detail, tools: [] },
     };
   }
+
   const registered = await registerTools(server, result.value.handle.tools, out, captureSchema);
   log(`› MCP: connected ${server.name} (${registered.tools.length} tools)`);
+
   return {
     handle: result.value.handle,
     rawNames: registered.rawNames,
@@ -196,14 +223,17 @@ async function registerTools(
       const prefixed = mcpToolName(server.name, toolName);
       const annotated = copyWithServerDescription(server.name, toolDef);
       const inputSchema = captureSchema ? await readJsonSchema(toolDef) : undefined;
+
       return { toolName, prefixed, annotated, inputSchema };
     }),
   );
+
   const rawNames: string[] = [];
   const tools: CatalogTool[] = [];
   for (const item of prepared) {
     rawNames.push(item.toolName);
     if (item.prefixed in out) continue;
+
     out[item.prefixed] = item.annotated;
     tools.push({
       name: item.toolName,
@@ -212,8 +242,10 @@ async function registerTools(
       ...(item.inputSchema !== undefined ? { inputSchema: item.inputSchema } : {}),
     });
   }
+
   rawNames.sort();
   tools.sort((a, b) => a.name.localeCompare(b.name));
+
   return { rawNames, tools };
 }
 
@@ -243,11 +275,13 @@ function loadMcpTools(state: SourceState): ToolSet[string] {
           server: opened.catalog.serverName,
           error: opened.catalog.detail ?? 'unavailable',
         }));
+
       return {
         loaded: result.loaded,
         missing: result.missing,
         catalogs: result.loaded.flatMap((name) => {
           const file = state.published?.files.get(name);
+
           return file ? [file] : [];
         }),
         unavailable,
@@ -270,14 +304,17 @@ function copyWithServerDescription(serverName: string, def: Tool): Tool {
   const desc = describeTool(def);
   const prefix = `MCP server "${serverName}"`;
   const description = desc ? `${prefix}: ${desc}` : prefix;
+
   return { ...def, description } as Tool;
 }
 
 async function readJsonSchema(def: Tool): Promise<unknown> {
   const schema = def.inputSchema;
   if (schema == null) return {};
+
   try {
     const converted = asSchema(schema);
+
     return (await converted.jsonSchema) ?? {};
   } catch {
     return {};

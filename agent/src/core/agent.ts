@@ -138,17 +138,22 @@ export class Agent implements Asker {
     this.web = opts.web ?? webConfigFromEnv();
     this.mcp = opts.mcp;
     this.context = opts.context ?? ContextStore.open(defaultContextRoot(this.env));
-    this.learning = opts.learning === false
-      ? undefined
-      : opts.learning ?? new LearningService({ root: defaultLearningRoot(this.env),
-          repositories: () => repositoryVersions(projectRoots(this.env, process.cwd())),
-          generator: fromAiSdk(opts.subagentModel ?? opts.model) });
+    this.learning =
+      opts.learning === false
+        ? undefined
+        : (opts.learning ??
+          new LearningService({
+            root: defaultLearningRoot(this.env),
+            repositories: () => repositoryVersions(projectRoots(this.env, process.cwd())),
+            generator: fromAiSdk(opts.subagentModel ?? opts.model),
+          }));
     this.ownsLearning = opts.learning === undefined;
   }
 
   /** Drop MCP server connections (stdio child processes, HTTP sessions). */
   async close(): Promise<void> {
     if (this.ownsLearning) this.learning?.stop();
+
     await this.mcpSource?.close();
   }
 
@@ -162,10 +167,20 @@ export class Agent implements Asker {
     writeModuleLog('agent', 'turn_started', { id, interface: 'cli' });
     try {
       const result = await this.askTurn(question, opts);
-      writeModuleLog('agent', 'turn_completed', { id, interface: 'cli', duration_ms: Date.now() - started });
+      writeModuleLog('agent', 'turn_completed', {
+        id,
+        interface: 'cli',
+        duration_ms: Date.now() - started,
+      });
+
       return result;
     } catch (error) {
-      writeModuleLog('agent', 'turn_failed', { id, interface: 'cli', duration_ms: Date.now() - started, error: String(error) });
+      writeModuleLog('agent', 'turn_failed', {
+        id,
+        interface: 'cli',
+        duration_ms: Date.now() - started,
+        error: String(error),
+      });
       throw error;
     }
   }
@@ -185,6 +200,7 @@ export class Agent implements Asker {
       ...(ledger ? [{ role: 'user' as const, content: ledger }] : []),
       { role: 'user', content: question },
     ];
+
     // Non-streaming `generate`: some OpenAI-compatible gateways stall mid-stream
     // when a response carries tool calls; `generate` returns the whole step at
     // once, and the timeout config bounds any stall.
@@ -192,6 +208,7 @@ export class Agent implements Asker {
     const sources = dedupe(this.sources);
     // Carry this turn's findings into the next turn's ledger.
     this.ledger.add(sources);
+
     return {
       answer: result.text,
       sources,
@@ -208,6 +225,7 @@ export class Agent implements Asker {
       summarize: (transcript) => this.summarize(transcript),
       archive: (transcript) => this.context.writeHistory(transcript),
     });
+
     // Recent turns stay verbatim, but a huge tool result in that tail is
     // moved to a file so the next turn does not re-ingest it.
     return externalizeToolResults(fitted, this.context);
@@ -243,68 +261,90 @@ export class Agent implements Asker {
       this.learningStarted ??= this.learning.initialize();
       await this.learningStarted;
     }
+
     if (!this.loop) {
-      try {
-        await this.daemon.waitReady(30_000);
-      } catch (err) {
-        if (!(err instanceof DaemonError && err.code === 'NOT_READY')) {
-          throw err;
-        }
-      }
-      // Sort tools so the system+tools prefix is byte-stable — a reordered tool
-      // list would invalidate the prompt cache on every process. Spill wrapping
-      // keeps that order and moves long results out of the transcript.
-      const tools = wrapToolOutputs(deterministicTools(await this.buildTools()), this.context);
-      const toolNames = Object.keys(tools);
-      const skills = await publishSkills(this.context, { env: this.env });
-      this.system = agentSystemPrompt({
-        learning: this.learning ? learningRecall(this.learning.settings) : false,
-        enabled: this.web.enabled,
-        search: Boolean(this.web.searxngUrl),
-        mcp: this.mcpSource?.reports() ?? [],
-        skills,
-        contextRoot: this.context.root,
-      });
-      const knowledgeIndex = await this.learning?.knowledgeIndex();
-      if (knowledgeIndex) this.system += `\n\n${knowledgeIndex}`;
-      let providerOptions = requestProviderOptions(this.system, toolNames, this.profile);
-      if (this.reasoning === 'max') {
-        providerOptions = {
-          ...providerOptions,
-          openai: { ...providerOptions?.openai, ...maxReasoningProviderOptions(this.profile.provider).openai },
-        };
-      }
-      const prune = pruneBudget(this.profile);
-      const loop = new ToolLoopAgent({
-        model: this.model,
-        // Cache the large, frozen system prompt instead of re-billing it on
-        // every tool round and every turn.
-        instructions: cachedInstructions(this.system, this.profile),
-        tools,
-        // Continue until the model answers instead of inheriting the SDK's
-        // default 20-step limit. Request and per-step timeouts still bound a run.
-        stopWhen: isLoopFinished(),
-        timeout: DEFAULT_TIMEOUT,
-        ...(providerOptions ? { providerOptions } : {}),
-        ...(this.reasoning && this.reasoning !== 'max' ? { reasoning: this.reasoning } : {}),
-        // In-loop results are spilled at execute. Here, drop the oldest tool
-        // pairs once the transcript crosses the high-water mark, and hide MCP
-        // tools until load_mcp_tools or the transcript already names them.
-        prepareStep: async ({ messages }) => {
-          const next =
-            totalTokens(messages) > prune
-              ? pruneMessages({
-                  messages,
-                  toolCalls: 'before-last-2-messages',
-                  emptyMessages: 'remove',
-                })
-              : messages;
-          return prepareStepPatch(messages, next, this.mcpSource?.activeTools(toolNames, next));
-        },
-      });
-      this.loop = wrapToolLoopAgentWithPromptHooks(loop, this.promptHooks);
+      await this.waitForDaemon();
+      this.loop = await this.createLoop();
     }
+
     return this.loop;
+  }
+
+  private async waitForDaemon(): Promise<void> {
+    try {
+      await this.daemon.waitReady(30_000);
+    } catch (err) {
+      if (!(err instanceof DaemonError && err.code === 'NOT_READY')) {
+        throw err;
+      }
+    }
+  }
+
+  private async createLoop(): Promise<ToolLoopAgent> {
+    // Sort tools to keep the cached system prefix stable across processes.
+    const tools = wrapToolOutputs(deterministicTools(await this.buildTools()), this.context);
+    const toolNames = Object.keys(tools);
+    const providerOptions = await this.prepareSystem(tools);
+
+    const prune = pruneBudget(this.profile);
+    const loop = new ToolLoopAgent({
+      model: this.model,
+      // Cache the large, frozen system prompt instead of re-billing it on
+      // every tool round and every turn.
+      instructions: cachedInstructions(this.system, this.profile),
+      tools,
+      // Continue until the model answers instead of inheriting the SDK's
+      // default 20-step limit. Request and per-step timeouts still bound a run.
+      stopWhen: isLoopFinished(),
+      timeout: DEFAULT_TIMEOUT,
+      ...(providerOptions ? { providerOptions } : {}),
+      ...(this.reasoning && this.reasoning !== 'max' ? { reasoning: this.reasoning } : {}),
+      // In-loop results are spilled at execute. Here, drop the oldest tool
+      // pairs once the transcript crosses the high-water mark, and hide MCP
+      // tools until load_mcp_tools or the transcript already names them.
+      prepareStep: async ({ messages }) => {
+        const next =
+          totalTokens(messages) > prune
+            ? pruneMessages({
+                messages,
+                toolCalls: 'before-last-2-messages',
+                emptyMessages: 'remove',
+              })
+            : messages;
+
+        return prepareStepPatch(messages, next, this.mcpSource?.activeTools(toolNames, next));
+      },
+    });
+
+    return wrapToolLoopAgentWithPromptHooks(loop, this.promptHooks);
+  }
+
+  private async prepareSystem(tools: Awaited<ReturnType<Agent['buildTools']>>) {
+    const toolNames = Object.keys(tools);
+    const skills = await publishSkills(this.context, { env: this.env });
+    this.system = agentSystemPrompt({
+      learning: this.learning ? learningRecall(this.learning.settings) : false,
+      enabled: this.web.enabled,
+      search: Boolean(this.web.searxngUrl),
+      mcp: this.mcpSource?.reports() ?? [],
+      skills,
+      contextRoot: this.context.root,
+    });
+    const knowledgeIndex = await this.learning?.knowledgeIndex();
+    if (knowledgeIndex) this.system += `\n\n${knowledgeIndex}`;
+
+    let providerOptions = requestProviderOptions(this.system, toolNames, this.profile);
+    if (this.reasoning === 'max') {
+      providerOptions = {
+        ...providerOptions,
+        openai: {
+          ...providerOptions?.openai,
+          ...maxReasoningProviderOptions(this.profile.provider).openai,
+        },
+      };
+    }
+
+    return providerOptions;
   }
 
   private async buildTools() {
@@ -319,6 +359,7 @@ export class Agent implements Asker {
           config: this.mcp ?? mcpConfigFromEnv(this.env),
           context: this.context,
         });
+
         return this.mcpSource;
       },
       defaultSearchK: DEFAULT_SEARCH_K,
@@ -333,6 +374,7 @@ function toPerformance(
   if (!perf) {
     return undefined;
   }
+
   return {
     outputTokensPerSecond: perf.effectiveOutputTokensPerSecond,
     responseTimeMs: perf.responseTimeMs,
@@ -349,5 +391,6 @@ function dedupe(results: SearchResult[]): SearchResult[] {
       out.push(r);
     }
   }
+
   return out;
 }

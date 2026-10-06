@@ -27,7 +27,7 @@ paths — use `CODEBERG_ROOT` or `cberg_config_*` helpers.
 | `make daemon-test` | `go test ./...` in `daemon/` |
 | `make build-agent` | `npm install` + build in `agent/` |
 | `make agent-test` | Vitest in `agent/` |
-| `make agent-check` | Typecheck, test, and build the agent and web UI (install both packages first) |
+| `make agent-check` | Lint, typecheck, test, and build the agent and web UI (install both packages first) |
 | `make build-dbmcp` | Build the built-in multi-db MCP server (`build/dbmcp`) |
 | `make update-dbmcp` | Pull upstream `multi-db-mcp-server` and rebuild |
 
@@ -38,6 +38,9 @@ layer for local verification.
 ## Coding standards
 
 - **Test-driven workflow.** Write a failing test for the behavior, implement, refactor.
+- **TypeScript backend:** functions must be at most 50 lines, including comments
+  and blank lines (`npm run lint --prefix agent`). Keep whitespace between logical
+  steps and extract focused helpers instead of packing statements to fit the limit.
 - **C core:** keep `codeberg.h` stable; document memory ownership; use exhaustive
   `switch` with a `default:` `never` check for discriminated unions and enums.
 - **Imports:** `#include` at the top of C files; TypeScript imports at module top.

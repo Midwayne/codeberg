@@ -74,6 +74,13 @@ Source map:
 function baseAgentSystem(learning: boolean | { knowledge: boolean; history: boolean }): string {
   const knowledge = typeof learning === 'boolean' ? learning : learning.knowledge;
   const history = typeof learning === 'boolean' ? learning : learning.history;
+
+  return (
+    toolInstructions(knowledge, history) + strategyInstructions(knowledge, history) + AGENT_GUIDANCE
+  );
+}
+
+function toolInstructions(knowledge: boolean, history: boolean): string {
   return `You are a code-search agent. Use tools iteratively until you have enough evidence to answer. Decide when the investigation is complete, then answer with citations.
 
 Available tools:
@@ -97,7 +104,11 @@ ${history ? '- search_learning: search raw graded interaction history when corre
 - list_dir / tree: explore repository or service structure.
 - head / tail / wc: quick file inspection.
 - pipe: run a read-only shell-style pipeline in ONE call, chaining rg/grep with filters (head, tail, wc, sort, uniq, cut, tr, nl, cat, paste, sed) using "|". Prefer this to combine a search with filtering — e.g. \`rg -l 'func main' --glob '*.go' | head -20\` or \`rg TODO | wc -l\` — instead of issuing separate grep + head/wc calls. No shell is run, so redirection, ";", "&", and "$()" are rejected and paths cannot escape the repo.
-- git_log / git_blame: inspect history when ownership or recent changes matter. Read-only.
+- git_log / git_blame: inspect history when ownership or recent changes matter. Read-only.`;
+}
+
+function strategyInstructions(knowledge: boolean, history: boolean): string {
+  return `
 
 General strategy:
 ${knowledge || history ? `0. For complex codebase questions, ${knowledge ? 'search_knowledge first' : ''}${knowledge && history ? ' and ' : ''}${history ? 'search_learning when prior attempts may help' : ''}; current source remains authoritative.` : ''}
@@ -112,7 +123,10 @@ ${knowledge || history ? `0. For complex codebase questions, ${knowledge ? 'sear
 9. Follow imports, function calls, client calls, repository methods, ORM models, queries, and configuration references.
 10. Search across repositories/services when the code indicates microservice boundaries or shared dependencies.
 11. Prefer a single pipe call over several grep/read_file/head/wc calls when the work is expressible as a pipeline.
-12. Stop only when you can answer with cited evidence, or when further tracing is blocked by missing code.
+12. Stop only when you can answer with cited evidence, or when further tracing is blocked by missing code.`;
+}
+
+const AGENT_GUIDANCE = `
 
 Database queries:
 Respect the index. Always look for the query in the indexed code before you execute it against a database. Find the statement and its call site with the code-search tools. Execute against the database only after that, unless the user has explicitly defined the path to take.
@@ -211,7 +225,6 @@ Example of a well-formed data-source answer:
 ${DATA_SOURCE_EXAMPLE}
 
 Do not guess. Do not rely on repository names, file names, or symbol names alone. Always verify with retrieved code.`;
-}
 
 export const AGENT_SYSTEM = baseAgentSystem(true);
 
@@ -254,29 +267,9 @@ export function agentSystemPrompt(web: AgentSystemPromptOptions): string {
       '- A conversation_summary names one or more history files. The summary is lossy. Search those files for paths, line ranges, symbols, commands, errors, and decisions before you treat them as unknown or redo the work.',
     );
   }
-  if (web.enabled) {
-    lines.push('', 'Web tools (use only when the codebase alone cannot answer):');
-    if (web.search) {
-      lines.push(
-        '- web_search: find official documentation, API references, RFCs, changelogs, or error explanations on the public web. Returns title, url, and snippet.',
-      );
-    }
-    lines.push(
-      '- fetch_url: read the full text of a specific http(s) URL — a web_search result, or a link found in code, comments, or docs.',
-      '',
-      'Web strategy:',
-      "- Use the local code tools first. Reach for the web only to resolve external facts: third-party/library/framework behavior, language or stdlib semantics, protocol/spec details, version-specific changes, or an error message's documented meaning.",
-    );
-    if (web.search) {
-      lines.push(
-        '- Usually web_search to locate the authoritative page, then fetch_url to read it.',
-      );
-    }
-    lines.push(
-      '- Cite web sources as [title](url); keep code citations as [path:start-end]. Prefer official/primary sources.',
-      '- Never send proprietary code, secrets, or internal identifiers to the web, and never fetch private/internal hosts.',
-    );
-  }
+
+  lines.push(...webInstructions(web));
+
   if (mcp.length > 0) {
     lines.push(
       '',
@@ -286,6 +279,7 @@ export function agentSystemPrompt(web: AgentSystemPromptOptions): string {
       ...mcp.map((server) => formatMcpServer(server)),
     );
   }
+
   if (skills.length > 0) {
     lines.push(
       '',
@@ -299,7 +293,37 @@ export function agentSystemPrompt(web: AgentSystemPromptOptions): string {
       );
     }
   }
+
   return lines.join('\n');
+}
+
+function webInstructions(web: AgentSystemPromptOptions): string[] {
+  if (!web.enabled) return [];
+
+  const lines: string[] = [];
+  lines.push('', 'Web tools (use only when the codebase alone cannot answer):');
+  if (web.search) {
+    lines.push(
+      '- web_search: find official documentation, API references, RFCs, changelogs, or error explanations on the public web. Returns title, url, and snippet.',
+    );
+  }
+
+  lines.push(
+    '- fetch_url: read the full text of a specific http(s) URL — a web_search result, or a link found in code, comments, or docs.',
+    '',
+    'Web strategy:',
+    "- Use the local code tools first. Reach for the web only to resolve external facts: third-party/library/framework behavior, language or stdlib semantics, protocol/spec details, version-specific changes, or an error message's documented meaning.",
+  );
+  if (web.search) {
+    lines.push('- Usually web_search to locate the authoritative page, then fetch_url to read it.');
+  }
+
+  lines.push(
+    '- Cite web sources as [title](url); keep code citations as [path:start-end]. Prefer official/primary sources.',
+    '- Never send proprietary code, secrets, or internal identifiers to the web, and never fetch private/internal hosts.',
+  );
+
+  return lines;
 }
 
 function formatMcpServer(server: McpServerReport): string {
@@ -307,6 +331,7 @@ function formatMcpServer(server: McpServerReport): string {
     case 'unavailable': {
       const detail = server.detail ? ` (${clip(server.detail, 240)})` : '';
       const status = server.catalogDir ? ` Status file: ${server.catalogDir}/STATUS.txt.` : '';
+
       return `- ${server.name}: unavailable${detail}.${status}`;
     }
     case 'connected': {
@@ -315,15 +340,19 @@ function formatMcpServer(server: McpServerReport): string {
         listed.length === 0
           ? 'no tools'
           : listed.map((entry) => `${entry.name} (${entry.callable})`).join(', ');
+
       const extra =
         server.tools.length > listed.length
           ? `, and ${server.tools.length - listed.length} more (list the server folder)`
           : '';
+
       const folder = server.catalogDir ? ` Folder: ${server.catalogDir}.` : '';
+
       return `- ${server.name}: connected. Tools: ${names}${extra}.${folder}`;
     }
     default: {
       const _never: never = server.state;
+
       return _never;
     }
   }
@@ -336,5 +365,6 @@ function formatSkill(skill: SkillSummary): string {
 function clip(text: string, max: number): string {
   const flat = text.replace(/\s+/g, ' ').trim();
   if (flat.length <= max) return flat;
+
   return `${flat.slice(0, max - 1)}…`;
 }

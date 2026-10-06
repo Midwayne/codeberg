@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   agent:
-    name: Agent + web UI (typecheck, test, build)
+    name: Agent + web UI (lint, typecheck, test, build)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

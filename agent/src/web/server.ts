@@ -6,8 +6,13 @@ import { pipeAgentUIStreamToResponse, type ToolLoopAgent } from 'ai';
 import { promptCommandCatalog, type PromptCommand } from '../core/hooks/index.js';
 import { writeModuleLog } from '../core/module-log.js';
 import { CHAT_PAGE_HTML } from './page.js';
-import { readJson, sendJson, sendText } from './http.js';
-import { routeChat, routeMeta, type ChatResponder, type ResolvedModelSelection } from './chat-routes.js';
+import { readJson, sameOrigin, sendJson, sendText } from './http.js';
+import {
+  routeChat,
+  routeMeta,
+  type ChatResponder,
+  type ResolvedModelSelection,
+} from './chat-routes.js';
 import { routeSessions } from './sessions/routes.js';
 import { serveStatic } from './static.js';
 import { WebSessionStore } from './sessions/store.js';
@@ -87,65 +92,135 @@ export function createRequestHandler(
     (async (res, messages, selection) =>
       pipeAgentUIStreamToResponse({
         response: res,
-        agent: selection && opts.selectAgent ? await opts.selectAgent(selection) : requireAgent(opts.agent),
+        agent:
+          selection && opts.selectAgent
+            ? await opts.selectAgent(selection)
+            : requireAgent(opts.agent),
         uiMessages: messages,
       }));
+
   const sessions = opts.sessionStore ?? new WebSessionStore();
-  const resources = opts.resources ?? new ResourceSettings({ sessions, learning: opts.learning, daemonUrl: opts.daemonUrl });
-  let activeWrites = 0;
-  let cleanupRequested = false;
+  const resources =
+    opts.resources ??
+    new ResourceSettings({ sessions, learning: opts.learning, daemonUrl: opts.daemonUrl });
+  const writes = new RequestWriteGate(resources);
 
   return (req, res) => {
     let path: string;
-    try { path = new URL(req.url ?? '/', 'http://localhost').pathname; }
-    catch { sendText(res, 400, 'invalid request URL'); return; }
-    const cleanup = req.method === 'POST' && path === '/api/settings/cleanup';
-    const write = !['GET', 'HEAD', 'OPTIONS'].includes(req.method ?? '') && !cleanup;
-    if ((write && (resources.busy || cleanupRequested)) || (cleanup && (activeWrites > 0 || cleanupRequested))) {
-      sendText(res, 409, 'Codeberg is busy. Retry after current writes finish.');
+    try {
+      path = new URL(req.url ?? '/', 'http://localhost').pathname;
+    } catch {
+      sendText(res, 400, 'invalid request URL');
       return;
     }
-    if (write) activeWrites++;
-    if (cleanup) cleanupRequested = true;
-    let routeFinished = false;
-    let responseFinished = false;
-    let released = false;
-    const releaseWrite = () => {
-      if (!write || released || !routeFinished || !responseFinished) return;
-      released = true;
-      activeWrites--;
+
+    const release = writes.acquire(req, res, path);
+    if (!release) return;
+
+    const fail = logRequest(req, res, path);
+    void route(req, res, opts, respond, sessions, resources).catch(fail).finally(release);
+  };
+}
+
+class RequestWriteGate {
+  private activeWrites = 0;
+  private cleanupRequested = false;
+
+  constructor(private readonly resources: ResourceSettings) {}
+
+  acquire(req: IncomingMessage, res: ServerResponse, path: string): (() => void) | undefined {
+    const cleanup = req.method === 'POST' && path === '/api/settings/cleanup';
+    const write = !['GET', 'HEAD', 'OPTIONS'].includes(req.method ?? '') && !cleanup;
+    const busyWrite = write && (this.resources.busy || this.cleanupRequested);
+    const busyCleanup = cleanup && (this.activeWrites > 0 || this.cleanupRequested);
+
+    if (busyWrite || busyCleanup) {
+      sendText(res, 409, 'Codeberg is busy. Retry after current writes finish.');
+
+      return undefined;
+    }
+
+    if (write) this.activeWrites++;
+
+    if (cleanup) this.cleanupRequested = true;
+
+    const finishWrite = write ? trackWrite(res, () => this.activeWrites--) : undefined;
+
+    return () => {
+      finishWrite?.();
+      if (cleanup) this.cleanupRequested = false;
     };
-    if (write) {
-      const finished = () => { responseFinished = true; releaseWrite(); };
-      res.once('finish', finished);
-      res.once('close', finished);
-    }
-    const chat = req.method === 'POST' && path === CHAT_PATH;
-    const id = chat ? randomUUID() : undefined;
-    const started = Date.now();
-    if (id) {
-      writeModuleLog('agent', 'turn_started', { id });
-      res.once('finish', () => {
-        if (res.statusCode < 500) writeModuleLog('agent', 'turn_completed', { id, duration_ms: Date.now() - started, status: res.statusCode });
-      });
-      res.once('close', () => {
-        if (!res.writableEnded) writeModuleLog('agent', 'turn_disconnected', { id, duration_ms: Date.now() - started });
-      });
-    }
-    route(req, res, opts, respond, sessions, resources).catch((err: unknown) => {
-      if (id) writeModuleLog('agent', 'turn_failed', { id, duration_ms: Date.now() - started, error: String(err) });
-      else if (req.url?.startsWith(LEARNING_PATH)) writeModuleLog('learning-agent', 'request_failed', { error: String(err) });
-      // `respond` writes the SSE headers itself, so only set a status if the
-      // stream had not started yet.
-      if (!res.headersSent) {
-        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
-      }
-      res.end(`internal error: ${String(err)}`);
-    }).finally(() => {
-      routeFinished = true;
-      releaseWrite();
-      if (cleanup) cleanupRequested = false;
+  }
+}
+
+/** Release a write only after both routing and streaming have finished. */
+function trackWrite(res: ServerResponse, release: () => void): () => void {
+  let routeFinished = false;
+  let responseFinished = false;
+  let released = false;
+
+  const releaseWrite = () => {
+    if (released || !routeFinished || !responseFinished) return;
+
+    released = true;
+    release();
+  };
+
+  const finished = () => {
+    responseFinished = true;
+    releaseWrite();
+  };
+
+  res.once('finish', finished);
+  res.once('close', finished);
+
+  return () => {
+    routeFinished = true;
+    releaseWrite();
+  };
+}
+
+function logRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  path: string,
+): (error: unknown) => void {
+  const chat = req.method === 'POST' && path === CHAT_PATH;
+  const id = chat ? randomUUID() : undefined;
+  const started = Date.now();
+  if (id) {
+    writeModuleLog('agent', 'turn_started', { id });
+    res.once('finish', () => {
+      if (res.statusCode < 500)
+        writeModuleLog('agent', 'turn_completed', {
+          id,
+          duration_ms: Date.now() - started,
+          status: res.statusCode,
+        });
     });
+    res.once('close', () => {
+      if (!res.writableEnded)
+        writeModuleLog('agent', 'turn_disconnected', { id, duration_ms: Date.now() - started });
+    });
+  }
+
+  return (err: unknown) => {
+    if (id)
+      writeModuleLog('agent', 'turn_failed', {
+        id,
+        duration_ms: Date.now() - started,
+        error: String(err),
+      });
+    else if (req.url?.startsWith(LEARNING_PATH))
+      writeModuleLog('learning-agent', 'request_failed', { error: String(err) });
+
+    // `respond` writes the SSE headers itself, so only set a status if the
+    // stream had not started yet.
+    if (!res.headersSent) {
+      res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+    }
+
+    res.end(`internal error: ${String(err)}`);
   };
 }
 
@@ -161,32 +236,27 @@ async function route(
   const path = url.pathname;
 
   if (path === '/api/settings/resources' || path === '/api/settings/cleanup') {
-    try {
-      res.setHeader('Cache-Control', 'no-store');
-      if (path === '/api/settings/resources') {
-        if (req.method !== 'GET') return sendText(res, 405, 'method not allowed');
-        const after = url.searchParams.get('after') ?? '0';
-        if (!/^\d+$/.test(after) || !Number.isSafeInteger(Number(after))) throw new ResourceSettingsError('invalid history cursor');
-        const body = await resources.usage(Number(after));
-        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(body);
-        return;
-      }
-      if (req.method === 'GET') {
-        const days = url.searchParams.get('olderThanDays') ?? '30';
-        if (!/^\d+$/.test(days)) throw new ResourceSettingsError('invalid cleanup age');
-        return sendJson(res, 200, await resources.preview(Number(days)));
-      }
-      if (req.method !== 'POST') return sendText(res, 405, 'method not allowed');
-      if (req.headers.origin && req.headers.origin !== `http://${req.headers.host}` && req.headers.origin !== `https://${req.headers.host}`) return sendText(res, 403, 'cross-origin cleanup is not allowed');
-      if (!req.headers['content-type']?.startsWith('application/json')) return sendText(res, 415, 'application/json required');
-      const body = await readJson(req);
-      return sendJson(res, 200, await resources.cleanup(body));
-    } catch (error) {
-      if (error instanceof ResourceSettingsError) return sendText(res, error.status, error.message);
-      throw error;
-    }
+    return routeResources(req, res, resources, url);
   }
+
+  if (path === MODELS_PATH && opts.modelSettings) return routeModels(req, res, opts.modelSettings);
+
+  if (path.startsWith('/api/')) {
+    return routeApi(req, res, opts, respond, sessions, url);
+  }
+
+  return servePage(req, res, opts, path);
+}
+
+async function routeApi(
+  req: IncomingMessage,
+  res: ServerResponse,
+  opts: WebServerOptions,
+  respond: ChatResponder,
+  sessions: WebSessionStore,
+  url: URL,
+): Promise<void> {
+  const path = url.pathname;
 
   if (req.method === 'POST' && path === CHAT_PATH) {
     return routeChat(req, res, opts.modelSettings, respond);
@@ -195,22 +265,13 @@ async function route(
   if (req.method === 'GET' && path === META_PATH) {
     return routeMeta(res, {
       title: opts.title,
-      learningEnabled: Boolean(opts.learning?.settings.enabled && opts.learning.settings.history && opts.learning.settings.historyCapture),
+      learningEnabled: Boolean(
+        opts.learning?.settings.enabled &&
+          opts.learning.settings.history &&
+          opts.learning.settings.historyCapture,
+      ),
       modelSettings: opts.modelSettings,
     });
-  }
-
-  if (path === MODELS_PATH && opts.modelSettings) {
-    if (req.method === 'GET') return sendJson(res, 200, await opts.modelSettings.current());
-    if (req.method === 'PUT') {
-      try {
-        return sendJson(res, 200, await opts.modelSettings.update(await readJson(req)));
-      } catch (error) {
-        if (error instanceof ModelSelectionError) return sendText(res, 400, error.message);
-        throw error;
-      }
-    }
-    return sendText(res, 405, 'method not allowed');
   }
 
   if (req.method === 'GET' && path === COMMANDS_PATH) {
@@ -225,6 +286,7 @@ async function route(
 
   if (path === CHAT_SEARCH_PATH) {
     if (req.method !== 'GET') return sendText(res, 405, 'method not allowed');
+
     return sendJson(res, 200, await sessions.search(url.searchParams.get('q') ?? ''));
   }
 
@@ -233,18 +295,87 @@ async function route(
     return;
   }
 
-  // Unknown API routes 404 rather than falling through to the SPA, so a bad
-  // method or path doesn't silently return HTML.
-  if (path.startsWith('/api/')) {
-    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-    res.end('not found');
-    return;
+  return sendText(res, 404, 'not found');
+}
+
+async function routeResources(
+  req: IncomingMessage,
+  res: ServerResponse,
+  resources: ResourceSettings,
+  url: URL,
+): Promise<void> {
+  const path = url.pathname;
+
+  try {
+    res.setHeader('Cache-Control', 'no-store');
+    if (path === '/api/settings/resources') {
+      if (req.method !== 'GET') return sendText(res, 405, 'method not allowed');
+
+      const after = url.searchParams.get('after') ?? '0';
+      if (!/^\d+$/.test(after) || !Number.isSafeInteger(Number(after)))
+        throw new ResourceSettingsError('invalid history cursor');
+
+      const body = await resources.usage(Number(after));
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(body);
+      return;
+    }
+
+    if (req.method === 'GET') {
+      const days = url.searchParams.get('olderThanDays') ?? '30';
+      if (!/^\d+$/.test(days)) throw new ResourceSettingsError('invalid cleanup age');
+
+      return sendJson(res, 200, await resources.preview(Number(days)));
+    }
+
+    if (req.method !== 'POST') return sendText(res, 405, 'method not allowed');
+
+    if (!sameOrigin(req)) return sendText(res, 403, 'cross-origin cleanup is not allowed');
+
+    if (!req.headers['content-type']?.startsWith('application/json'))
+      return sendText(res, 415, 'application/json required');
+
+    const body = await readJson(req);
+
+    return sendJson(res, 200, await resources.cleanup(body));
+  } catch (error) {
+    if (error instanceof ResourceSettingsError) return sendText(res, error.status, error.message);
+
+    throw error;
+  }
+}
+
+async function routeModels(
+  req: IncomingMessage,
+  res: ServerResponse,
+  settings: ModelSettingsStore,
+): Promise<void> {
+  if (req.method === 'GET') return sendJson(res, 200, await settings.current());
+
+  if (req.method === 'PUT') {
+    try {
+      return sendJson(res, 200, await settings.update(await readJson(req)));
+    } catch (error) {
+      if (error instanceof ModelSelectionError) return sendText(res, 400, error.message);
+
+      throw error;
+    }
   }
 
+  return sendText(res, 405, 'method not allowed');
+}
+
+async function servePage(
+  req: IncomingMessage,
+  res: ServerResponse,
+  opts: WebServerOptions,
+  path: string,
+): Promise<void> {
   if (req.method === 'GET') {
     if (await serveStatic(res, opts.staticRoot, path)) {
       return;
     }
+
     // Fallback: the embedded dependency-free page (no build needed).
     const html = CHAT_PAGE_HTML.replaceAll('{{TITLE}}', escapeHtml(opts.title));
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -259,10 +390,13 @@ async function route(
 /** Builds (but does not start) the HTTP server. Call `.listen()` to run it. */
 export function createWebServer(opts: WebServerOptions): Server {
   const sessions = opts.sessionStore ?? new WebSessionStore();
-  const resources = opts.resources ?? new ResourceSettings({ sessions, learning: opts.learning, daemonUrl: opts.daemonUrl });
+  const resources =
+    opts.resources ??
+    new ResourceSettings({ sessions, learning: opts.learning, daemonUrl: opts.daemonUrl });
   const server = createServer(createRequestHandler({ ...opts, sessionStore: sessions, resources }));
   server.on('listening', () => resources.start());
   server.on('close', () => resources.stop());
+
   return server;
 }
 
@@ -276,5 +410,6 @@ function escapeHtml(s: string): string {
 
 function requireAgent(agent: ToolLoopAgent | undefined): ToolLoopAgent {
   if (!agent) throw new Error('Select an available chat model.');
+
   return agent;
 }

@@ -12,6 +12,19 @@ Requires a running `codeberg-d`. Semantic search (`search_code`) needs vector in
 (`CBERG_MODEL` + `CBERG_INDEX_PATH` on the daemon); file and chunk tools work in
 chunk-only mode.
 
+## Development checks
+
+Use Node.js 22.13+ on the 22.x line, or Node.js 24+.
+Run `npm run lint` to check backend TypeScript under `src/`. Functions must be
+at most 50 lines, including signatures, braces, comments, and blank lines.
+Keep whitespace between logical steps and extract focused helpers when a
+function grows too large. Test files, generated output, and `web-ui/` are excluded.
+The rule uses ESLint's [max-lines-per-function](https://eslint.org/docs/latest/rules/max-lines-per-function).
+
+`npm run test:lint` checks the limit's boundaries and file scope.
+From the repository root, `make agent-check` runs lint, lint configuration tests,
+typechecking, tests, and builds; CI runs the same command.
+
 ## Environment variables
 
 Both agent binaries (`codeberg-ask`, `codeberg-web`) read the same core set;
