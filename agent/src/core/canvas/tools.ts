@@ -54,7 +54,7 @@ async function execute(store: CanvasStore, operation: string, input: Mutation & 
 }
 
 export const CANVAS_INSTRUCTIONS = `
-The local canvas is enabled. When explaining a complex topic, automatically draw a concise
+The local canvas is enabled. When explaining a complex topic, automatically draw a
 diagram alongside your written explanation whenever relationships, structure or steps would
 be easier to understand visually. Default to using it for architecture, dependencies,
 request/data flows, multi-step debugging paths, modules, database relationships and implementation plans.
@@ -67,6 +67,17 @@ Use canvas_add to start or extend the drawing; no creation or selection step is 
 Reason about entities and connections: give shapes stable semantic IDs and labels; connect arrows
 with from/to IDs. Keep diagrams focused and readable, grounded in the code or facts you have verified;
 label assumptions. Use canvas_layout for an initial flow, preserving manual arrangements on later edits.
+Make the first drawing HUMAN READABLE. Let the diagram grow as large as the explanation needs;
+do not limit its dimensions, number of nodes, rows, columns or label length to fit the inline preview.
+Use generous box sizes and whitespace. Size each box to fit its content with comfortable padding,
+wrap longer labels cleanly and leave clear space between boxes and around their connections.
+Keep the default readable text size. Do not shrink text or boxes to squeeze in more content.
+Use consistent alignment and a clear visual hierarchy; preserve the content and relationships being explained.
+Separate arrows and their labels from boxes and other text; minimize crossings and overlapping paths.
+Treat canvas_layout as a starting point: its fixed spacing may be too tight for larger boxes.
+Inspect canvas_get after drawing to check label fit and element bounds, then use canvas_update to
+enlarge boxes or adjust positions and spacing before replying. Never leave clipped text, overlapping
+boxes or clutter for the user to fix with a follow-up request.
 Preserve the user's edits; pass the revision returned by canvas_get and reread on conflict.
 The drawing appears inline automatically. Accompany it with a useful written explanation of the
 key relationships, sequence and implications, including relevant source citations.

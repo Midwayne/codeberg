@@ -8,6 +8,11 @@ Start Codeberg normally, open **Settings → Canvas**, and enable **local canvas
 When enabled, the agent is instructed to draw diagrams automatically alongside text
 for complex explanations, architecture, dependencies and flows. You can also ask
 for a diagram directly, or request text only. Simple answers stay in text.
+Drawing instructions explicitly require HUMAN READABLE diagrams, with generously
+sized boxes, readable text, clear spacing and clean connections. Diagrams can grow
+as large as needed; there are no prompt limits on dimensions, node counts or label
+lengths. The agent is instructed to check text fit and overlaps and refine the
+layout before presenting its explanation.
 A canvas card appears directly in the response, followed by the explanation.
 Each chat has exactly one canvas: no names, creation
 form, selector or separate panel. Later tool calls update that same drawing and
