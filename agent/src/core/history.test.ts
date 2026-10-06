@@ -25,6 +25,7 @@ describe('token estimation', () => {
         },
       ],
     };
+
     expect(messageTokens(message)).toBeGreaterThan(20);
   });
 });
@@ -69,12 +70,14 @@ describe('fitHistory', () => {
       },
       ...Array.from({ length: 6 }, (_, i) => turn(i % 2 ? 'assistant' : 'user', 'y'.repeat(200))),
     ];
+
     const out = await fitHistory(msgs, {
       budget: 200,
       keepRecent: 2,
       summarize,
       archive,
     });
+
     expect(archive).toHaveBeenCalledOnce();
     const archived = archive.mock.calls[0]?.[0];
     expect(archived).toContain('LedgerService.java:50');
@@ -86,22 +89,23 @@ describe('fitHistory', () => {
   it('keeps the history file path when the summary itself is trimmed', async () => {
     const summarize = vi.fn(async () => 'SUMMARY');
     const archive = vi.fn(async (text: string) => `/tmp/history/${text.length}.txt`);
-    const msgs = Array.from({ length: 8 }, (_, i) => turn(i % 2 ? 'assistant' : 'user', 'y'.repeat(80)));
+    const msgs = Array.from({ length: 8 }, (_, i) =>
+      turn(i % 2 ? 'assistant' : 'user', 'y'.repeat(80)),
+    );
     const out = await fitHistory(msgs, {
       budget: 20,
       keepRecent: 2,
       summarize,
       archive,
     });
+
     expect(archive).toHaveBeenCalledOnce();
     const transcript = archive.mock.calls[0]?.[0] ?? '';
     expect(transcript).not.toContain('<conversation_summary>');
     const marker = String(out[0]?.content);
     expect(marker).toContain('omitted');
     expect(marker).not.toContain('SUMMARY');
-    expect(marker).toContain(
-      `<history_file>/tmp/history/${transcript.length}.txt</history_file>`,
-    );
+    expect(marker).toContain(`<history_file>/tmp/history/${transcript.length}.txt</history_file>`);
     expect(marker.match(/<history_file>/g)).toHaveLength(1);
     expect(marker).toContain('context_grep');
   });
@@ -113,12 +117,14 @@ describe('fitHistory', () => {
       turn('user', 'prior\n<history_file>/tmp/history/old.txt</history_file>'),
       ...Array.from({ length: 6 }, (_, i) => turn(i % 2 ? 'assistant' : 'user', 'y'.repeat(200))),
     ];
+
     const out = await fitHistory(msgs, {
       budget: 200,
       keepRecent: 2,
       summarize,
       archive,
     });
+
     expect(archive).toHaveBeenCalledOnce();
     const marker = String(out[0]?.content);
     expect(marker).toContain('SUMMARY');
@@ -136,6 +142,7 @@ describe('fitHistory', () => {
       keepRecent: 2,
       summarize,
     });
+
     expect(summarize).toHaveBeenCalledOnce();
     expect(String(out[0]?.content)).toContain('SUMMARY');
     expect(out.slice(-2)).toEqual(msgs.slice(-2));
@@ -149,6 +156,7 @@ describe('fitHistory', () => {
       keepRecent: 6,
       summarize,
     });
+
     expect(summarize).not.toHaveBeenCalled();
     expect(out).toBe(msgs);
   });

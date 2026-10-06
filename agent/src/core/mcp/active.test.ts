@@ -9,7 +9,13 @@ import {
 } from './active.js';
 
 describe('selectActiveTools', () => {
-  const all = ['search_code', 'grep', 'load_mcp_tools', 'mcp_github_list_issues', 'mcp_github_create_issue'];
+  const all = [
+    'search_code',
+    'grep',
+    'load_mcp_tools',
+    'mcp_github_list_issues',
+    'mcp_github_create_issue',
+  ];
 
   it('hides MCP tools until they are loaded', () => {
     expect(selectActiveTools(all, [])).toEqual(['search_code', 'grep', 'load_mcp_tools']);
@@ -68,6 +74,7 @@ describe('mcpToolsReferenced', () => {
         ],
       },
     ];
+
     expect(mcpToolsReferenced(messages)).toEqual(['mcp_github_list_issues']);
   });
 });

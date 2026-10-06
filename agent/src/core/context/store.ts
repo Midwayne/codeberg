@@ -3,8 +3,8 @@ import { mkdirSync, realpathSync } from 'node:fs';
 import { appendFile, mkdir, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 
-import { codebergDataHome } from '../paths.js';
 import { toolOutputText } from '../message.js';
+import { codebergDataHome } from '../paths.js';
 
 /** Context files for one user (`$CODEBERG_HOME/context`). Stable across runs so
  *  a resumed chat can still open the history file named in its summary. */
@@ -25,12 +25,14 @@ export class ContextStore {
 
   static open(root: string): ContextStore {
     mkdirSync(root, { recursive: true });
+
     return new ContextStore(root);
   }
 
   /** Permit reads under `root` (a skill directory, for example). */
   allow(root: string): void {
     if (!root) return;
+
     this.extra.push(resolve(root));
   }
 
@@ -41,6 +43,7 @@ export class ContextStore {
    */
   resolve(requested: string): string | null {
     if (!requested || requested.includes('\0')) return null;
+
     const candidate = isAbsolute(requested) ? resolve(requested) : resolve(this.root, requested);
     let real: string;
     try {
@@ -48,9 +51,11 @@ export class ContextStore {
     } catch {
       return null;
     }
+
     for (const root of this.realRoots()) {
       if (contains(root, real)) return real;
     }
+
     return null;
   }
 
@@ -60,6 +65,7 @@ export class ContextStore {
     const abs = join(this.root, safeRel(rel));
     await mkdir(join(abs, '..'), { recursive: true });
     await writeFile(abs, body, 'utf8');
+
     return abs;
   }
 
@@ -81,9 +87,12 @@ export class ContextStore {
       await writeFile(abs, body, { encoding: 'utf8', flag: 'wx' });
     } catch (err) {
       if (isAlreadyExists(err)) return abs;
+
       throw err;
     }
+
     await appendFile(join(this.root, 'tools', 'INDEX.txt'), `${toolName}\t${abs}\n`, 'utf8');
+
     return abs;
   }
 
@@ -95,6 +104,7 @@ export class ContextStore {
     const argsText = toolOutputText(args).replace(/\s+/g, ' ').slice(0, 500);
     const entry = `===== ${new Date().toISOString()} ${toolName} =====\n$ ${argsText}\n${output}\n`;
     await appendFile(abs, entry, 'utf8');
+
     return abs;
   }
 
@@ -107,6 +117,7 @@ export class ContextStore {
         // The directory may not exist yet; skip until it does.
       }
     }
+
     return out;
   }
 }
@@ -117,6 +128,7 @@ export function safeSegment(name: string): string {
     .replace(/[^A-Za-z0-9._-]+/g, '_')
     .replace(/^_+|_+$/g, '')
     .slice(0, 80);
+
   return cleaned || 'item';
 }
 
@@ -124,10 +136,12 @@ function safeRel(rel: string): string {
   if (!rel || rel.includes('\0') || isAbsolute(rel)) {
     throw new Error(`invalid context path: ${rel}`);
   }
+
   const parts = rel.split(/[/\\]/).filter((part) => part && part !== '.');
   if (parts.length === 0 || parts.some((part) => part === '..')) {
     throw new Error(`invalid context path: ${rel}`);
   }
+
   return parts.join(sep);
 }
 
@@ -146,5 +160,6 @@ function isAlreadyExists(err: unknown): boolean {
 
 function contains(root: string, target: string): boolean {
   const rel = relative(root, target);
+
   return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel));
 }

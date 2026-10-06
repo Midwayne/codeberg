@@ -37,14 +37,17 @@ export class EvidenceLedger {
     if (this.seen.size === 0) {
       return null;
     }
+
     const rows = [...this.seen.values()]
       .slice(-this.max)
       .reverse()
       .map((r) => {
         const repo = r.repo ? `[${r.repo}] ` : '';
         const sym = r.symbol ? ` ${r.symbol}` : '';
+
         return `- ${repo}${r.path}:${r.start_line}-${r.end_line}${sym}`;
       });
+
     return (
       '<evidence_ledger>\n' +
       'Code already retrieved this conversation ' +

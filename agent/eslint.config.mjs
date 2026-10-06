@@ -10,6 +10,7 @@ export default [
       sourceType: 'module',
     },
     rules: {
+      'max-lines': ['error', { max: 199, skipBlankLines: false, skipComments: false }],
       'max-lines-per-function': [
         'error',
         {

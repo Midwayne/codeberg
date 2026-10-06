@@ -9,9 +9,11 @@ describe('wrapToolLoopAgentWithCompaction', () => {
     const loop = {
       stream: async (p: { prompt: ModelMessage[] }) => {
         seen = p.prompt;
+
         return { fullStream: [] };
       },
     } as unknown as ToolLoopAgent;
+
     const compact = vi.fn(async () => [{ role: 'user', content: 'compacted' } as ModelMessage]);
 
     const wrapped = wrapToolLoopAgentWithCompaction(loop, compact);
@@ -32,6 +34,7 @@ describe('wrapToolLoopAgentWithCompaction', () => {
     const loop = {
       generate: async (p: { messages: ModelMessage[] }) => {
         seen = p.messages;
+
         return { text: 'ok' };
       },
     } as unknown as ToolLoopAgent;

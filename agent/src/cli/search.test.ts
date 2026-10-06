@@ -18,8 +18,10 @@ describe('parseSearchArgs', () => {
       'main',
       '--hybrid',
     ]);
+
     expect(opts).not.toBe('help');
     if (opts === 'help') return;
+
     expect(opts.query).toBe('chunking');
     expect(opts.k).toBe(5);
     expect(opts.repo).toBe('main');

@@ -42,13 +42,16 @@ describe('withMessageTransforms', () => {
     const loop = {
       stream: async (p: { prompt: ModelMessage[] }) => {
         calls.push({ method: 'stream', messages: p.prompt });
+
         return { ok: true };
       },
       generate: async (p: { messages: ModelMessage[] }) => {
         calls.push({ method: 'generate', messages: p.messages });
+
         return { ok: true };
       },
     } as unknown as ToolLoopAgent;
+
     return { loop, calls };
   }
 

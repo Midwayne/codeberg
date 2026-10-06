@@ -1,8 +1,8 @@
+import type { ModelMessage } from 'ai';
 import { createHash } from 'node:crypto';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { ModelMessage } from 'ai';
 import { describe, expect, it } from 'vitest';
 
 import { externalizeToolResults } from './externalize.js';
@@ -25,6 +25,7 @@ describe('externalizeToolResults', () => {
         ],
       },
     ];
+
     const out = await externalizeToolResults(messages, store);
     expect(out).toBe(messages);
   });
@@ -45,6 +46,7 @@ describe('externalizeToolResults', () => {
         ],
       },
     ];
+
     const out = await externalizeToolResults(messages, store);
     expect(out).not.toBe(messages);
     const part = out[0]?.role === 'tool' ? out[0].content[0] : undefined;
@@ -52,6 +54,7 @@ describe('externalizeToolResults', () => {
     if (part?.type !== 'tool-result' || part.output.type !== 'text') {
       throw new Error('expected a text tool result');
     }
+
     expect(part.output.value).toContain('[spilled to ');
     const hash = createHash('sha256').update(value).digest('hex').slice(0, 16);
     expect(part.output.value).toContain(`read_file-${hash}.txt`);
@@ -74,15 +77,18 @@ describe('externalizeToolResults', () => {
         ],
       },
     ];
+
     const out = await externalizeToolResults(messages, store);
     const message = out[0];
     if (message?.role !== 'assistant' || typeof message.content === 'string') {
       throw new Error('expected assistant parts');
     }
+
     const part = message.content[1];
     if (part?.type !== 'tool-result' || part.output.type !== 'text') {
       throw new Error('expected a spilled tool result');
     }
+
     expect(part.output.value).toContain('[spilled to ');
     expect(message.content[0]).toEqual({ type: 'text', text: 'reading' });
   });

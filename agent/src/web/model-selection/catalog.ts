@@ -8,8 +8,8 @@ import {
   type ModelInput,
   type ModelSelection,
 } from '../../core/model-types.js';
-import type { ReasoningEffort } from '../../core/types.js';
 import { maxReasoningProviderOptions } from '../../core/reasoning.js';
+import type { ReasoningEffort } from '../../core/types.js';
 import { profileFor } from '../../providers/profiles.js';
 
 export interface ModelCatalogOptions {

@@ -43,6 +43,7 @@ describe('agentSystemPrompt', () => {
         },
       ],
     });
+
     expect(p).toContain('github');
     expect(p).toContain('linear');
     expect(p).toContain('mcp_github_list_issues');
@@ -59,16 +60,20 @@ describe('agentSystemPrompt', () => {
       'Always look for the query in the indexed code before you execute it against a database',
     );
     expect(AGENT_SYSTEM).toContain('unless the user has explicitly defined the path to take');
-    expect(AGENT_SYSTEM).toContain('What query loads a user\'s orders?');
+    expect(AGENT_SYSTEM).toContain("What query loads a user's orders?");
     expect(AGENT_SYSTEM).toContain('How many orders are open right now?');
     expect(AGENT_SYSTEM).toContain('SELECT status, count(*) FROM orders GROUP BY status');
     expect(AGENT_SYSTEM).toContain('Does the orders table the API writes match');
     expect(AGENT_SYSTEM).toContain('Show me the schema.');
-    expect(AGENT_SYSTEM).toContain('Write a query for orders placed yesterday that are still unpaid.');
+    expect(AGENT_SYSTEM).toContain(
+      'Write a query for orders placed yesterday that are still unpaid.',
+    );
     expect(AGENT_SYSTEM).toContain('Should I run this?');
-    expect(AGENT_SYSTEM).toContain('which database indexes migrations or existing queries already use');
+    expect(AGENT_SYSTEM).toContain(
+      'which database indexes migrations or existing queries already use',
+    );
     expect(AGENT_SYSTEM).toContain('This reads unpaid orders created yesterday');
-    expect(AGENT_SYSTEM).toContain("SELECT id, status, created_at");
+    expect(AGENT_SYSTEM).toContain('SELECT id, status, created_at');
     expect(AGENT_SYSTEM).toContain('leave the live database alone');
     expect(AGENT_SYSTEM).toContain('Do not compose a new statement');
     expect(AGENT_SYSTEM).not.toContain('postgres_list_databases');
@@ -84,6 +89,7 @@ describe('agentSystemPrompt', () => {
         },
       ],
     });
+
     expect(p).toContain('Respect the index');
     expect(p).toContain('mcp_databases_query');
     expect(p).toContain('load_mcp_tools');
@@ -111,6 +117,7 @@ describe('agentSystemPrompt', () => {
         },
       ],
     });
+
     expect(p).toContain('load_mcp_tools');
     expect(p).toContain('mcp_github_list_issues');
     expect(p).toContain('/tmp/context/mcp/github');
@@ -134,6 +141,7 @@ describe('agentSystemPrompt', () => {
         },
       ],
     });
+
     expect(p).toContain('review-diff');
     expect(p).toContain('Summarize risk in a diff.');
     expect(p).toContain('/repo/.agents/skills/review-diff/SKILL.md');

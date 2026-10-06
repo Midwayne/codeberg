@@ -29,6 +29,7 @@ describe('normalizeSearchHit', () => {
       score: 0.88,
       snippet: 'func Foo()',
     });
+
     expect(hit?.start_line).toBe(12);
     expect(hit?.end_line).toBe(18);
   });

@@ -51,6 +51,7 @@ describe('mcpToolSource', () => {
         close: async () => {},
       }),
     });
+
     const tools = await source.tools();
     expect(Object.keys(tools)).toEqual(['mcp_github_list_issues', 'load_mcp_tools']);
     expect((tools.mcp_github_list_issues as { description?: string }).description).toBe(
@@ -71,6 +72,7 @@ describe('mcpToolSource', () => {
       config: cfg({ warnings: ['database MCP is enabled but no spec file was found'] }),
       log,
     });
+
     expect(Object.keys(await source.tools())).toEqual([]);
     expect(log).toHaveBeenCalledWith('› MCP: database MCP is enabled but no spec file was found');
     expect(source.connectedTools()).toEqual({});
@@ -86,12 +88,14 @@ describe('mcpToolSource', () => {
       log,
       connect: async (server) => {
         if (server.name === 'github') throw new Error('spawn npx ENOENT');
+
         return {
           tools: { ping: { description: 'ping' } as never },
           close: async () => {},
         };
       },
     });
+
     const tools = await source.tools();
     expect(Object.keys(tools)).toEqual(['mcp_linear_ping', 'load_mcp_tools']);
     expect(source.connectedServers()).toEqual(['linear']);
@@ -111,6 +115,7 @@ describe('mcpToolSource', () => {
         close: async () => {},
       }),
     });
+
     const tools = await colliding.tools();
     expect((tools.mcp_github_list_issues as unknown as { tag: string }).tag).toBe('dot');
   });
@@ -126,6 +131,7 @@ describe('mcpToolSource', () => {
       context,
       connect: async (server) => {
         if (server.name === 'slack') throw new Error('HTTP 401 Unauthorized');
+
         return {
           tools: {
             list_issues: {
@@ -141,6 +147,7 @@ describe('mcpToolSource', () => {
         };
       },
     });
+
     const tools = await source.tools();
     expect(tools).toHaveProperty('mcp_github_list_issues');
     expect(tools).toHaveProperty('load_mcp_tools');
@@ -179,15 +186,20 @@ describe('mcpToolSource', () => {
     expect(status).toContain('401');
 
     const load = tools.load_mcp_tools as unknown as {
-      execute: (input: { names: string[] }, options: unknown) => Promise<{
+      execute: (
+        input: { names: string[] },
+        options: unknown,
+      ) => Promise<{
         loaded: string[];
         missing: string[];
       }>;
     };
+
     const loaded = await load.execute(
       { names: ['mcp_github_list_issues', 'mcp_slack_missing'] },
       {},
     );
+
     expect(loaded.loaded).toEqual(['mcp_github_list_issues']);
     expect(loaded.missing).toEqual(['mcp_slack_missing']);
     expect(source.activeToolNames()).toEqual(['mcp_github_list_issues']);
@@ -201,6 +213,7 @@ describe('mcpToolSource', () => {
         throw new Error('down');
       },
     });
+
     const tools = await source.tools();
     expect(Object.keys(tools)).toEqual(['load_mcp_tools']);
     expect(source.reports()).toEqual([
@@ -227,14 +240,19 @@ describe('mcpToolSource', () => {
         close: async () => {},
       }),
     });
+
     await source.tools();
     const reports = source.reports();
     expect(reports.map((report) => report.name)).toEqual(['a/b', 'a_b']);
     expect(reports[0]?.catalogDir).toBe(join(root, 'mcp', catalogFolder('a/b')));
     expect(reports[1]?.catalogDir).toBe(join(root, 'mcp', catalogFolder('a_b')));
     expect(reports[0]?.catalogDir).not.toBe(reports[1]?.catalogDir);
-    expect(readFileSync(join(reports[0]!.catalogDir!, 'left.json'), 'utf8')).toContain('"server": "a/b"');
-    expect(readFileSync(join(reports[1]!.catalogDir!, 'right.json'), 'utf8')).toContain('"server": "a_b"');
+    expect(readFileSync(join(reports[0]!.catalogDir!, 'left.json'), 'utf8')).toContain(
+      '"server": "a/b"',
+    );
+    expect(readFileSync(join(reports[1]!.catalogDir!, 'right.json'), 'utf8')).toContain(
+      '"server": "a_b"',
+    );
   });
 
   it('closes every connected client', async () => {
@@ -251,6 +269,7 @@ describe('mcpToolSource', () => {
         },
       }),
     });
+
     await source.tools();
     await source.close();
     expect(closed.sort()).toEqual(['github', 'other']);
@@ -269,6 +288,7 @@ describe('connectMcpServer', () => {
       StdioTransport: FakeStdio as never,
       createClient: async ({ transport }) => {
         expect(transport).toBeInstanceOf(FakeStdio);
+
         return { tools: async () => ({}), close: async () => {} };
       },
     });
@@ -291,6 +311,7 @@ describe('connectMcpServer', () => {
       {
         createClient: async ({ transport }) => {
           transports.push(transport);
+
           return { tools: async () => ({}), close: async () => {} };
         },
       },

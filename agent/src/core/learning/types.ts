@@ -6,6 +6,7 @@ export const FEEDBACK_LABELS = [
 ] as const;
 
 export type FeedbackLabel = (typeof FEEDBACK_LABELS)[number];
+
 export type FeedbackRating = 0 | 1 | 2 | 3;
 
 export interface RepositoryVersion {
@@ -100,6 +101,7 @@ export interface FeedbackEvent extends LearningEventBase {
 export type LearningEvent = AttemptEvent | FeedbackEvent;
 
 export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
 export type FailureCategory =
   | 'NETWORK_ERROR'
   | 'MODEL_ERROR'
@@ -131,12 +133,21 @@ export interface KnowledgeJob {
 }
 
 export type KnowledgeCategory = 'services' | 'flows' | 'concepts' | 'debugging';
+
 export type KnowledgeConfidence = 'low' | 'medium' | 'high';
+
 export type KnowledgeStatus = 'active' | 'needs_verification' | 'archived';
 
 export interface KnowledgeClaim {
   statement: string;
-  evidence: { repo: string; path: string; quote: string; symbol?: string; start_line?: number; end_line?: number }[];
+  evidence: {
+    repo: string;
+    path: string;
+    quote: string;
+    symbol?: string;
+    start_line?: number;
+    end_line?: number;
+  }[];
 }
 
 export interface KnowledgeArtifact {

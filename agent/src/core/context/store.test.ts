@@ -17,7 +17,9 @@ describe('ContextStore', () => {
     const second = await store.writeToolOutput('grep', body);
     expect(second).toBe(first);
     expect(first).toContain('grep-');
-    const index = readFileSync(join(store.root, 'tools', 'INDEX.txt'), 'utf8').trim().split('\n');
+    const index = readFileSync(join(store.root, 'tools', 'INDEX.txt'), 'utf8')
+      .trim()
+      .split('\n');
     expect(index).toEqual([`grep\t${first}`]);
   });
 

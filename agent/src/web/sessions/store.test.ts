@@ -1,15 +1,17 @@
+import type { UIMessage } from 'ai';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { UIMessage } from 'ai';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { WebSessionStore, isValidSessionId } from './store.js';
 
 const dirs: string[] = [];
+
 function tempStore(): WebSessionStore {
   const dir = mkdtempSync(join(tmpdir(), 'codeberg-sessions-'));
   dirs.push(dir);
+
   return new WebSessionStore(dir);
 }
 afterEach(() => {
@@ -45,6 +47,7 @@ describe('WebSessionStore', () => {
       messages: [userMsg('m1', 'hi')],
       parentId: 'abc123',
     };
+
     await store.save(record);
     expect(await store.load('child')).toEqual(record);
 
@@ -108,9 +111,17 @@ describe('WebSessionStore', () => {
     await store.upsert({ id: 'chat', title: 'Example', messages: [userMsg('a', 'first')] });
     await Promise.all([
       store.setFlags('chat', { pinned: true, archived: true }),
-      store.upsert({ id: 'chat', title: 'Example', messages: [userMsg('a', 'first'), userMsg('b', 'second')] }),
+      store.upsert({
+        id: 'chat',
+        title: 'Example',
+        messages: [userMsg('a', 'first'), userMsg('b', 'second')],
+      }),
     ]);
     const record = await store.load('chat');
-    expect(record).toMatchObject({ pinned: true, archived: true, messages: [userMsg('a', 'first'), userMsg('b', 'second')] });
+    expect(record).toMatchObject({
+      pinned: true,
+      archived: true,
+      messages: [userMsg('a', 'first'), userMsg('b', 'second')],
+    });
   });
 });

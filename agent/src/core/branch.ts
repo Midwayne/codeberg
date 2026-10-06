@@ -31,13 +31,16 @@ export function branchEndIndex<T extends { role: string }>(
   if (messages.length === 0) {
     return -1;
   }
+
   let i = Math.min(Math.max(Math.trunc(throughIndex), 0), messages.length - 1);
   if (!Number.isFinite(i)) {
     i = messages.length - 1;
   }
+
   if (messages[i]?.role === 'user' && messages[i + 1]?.role === 'assistant') {
     return i + 1;
   }
+
   return i;
 }
 
@@ -52,13 +55,16 @@ export function branchTranscript<T extends { role: string }>(
   if (messages.length === 0) {
     return [];
   }
+
   const last = messages.length - 1;
   const requested = opts.throughIndex ?? last;
   const end = branchEndIndex(messages, requested);
   if (end < 0) {
     return [];
   }
+
   const cloned = cloneTranscript(messages.slice(0, end + 1));
+
   return opts.remap ? cloned.map(opts.remap) : cloned;
 }
 
@@ -68,5 +74,6 @@ const BRANCH_SUFFIX = ' (branch)';
 export function branchTitle(sourceTitle: string, empty = 'New chat'): string {
   const clean = sourceTitle.replace(/\s+/g, ' ').trim();
   const base = clean || empty;
+
   return base.endsWith(BRANCH_SUFFIX) ? base : `${base}${BRANCH_SUFFIX}`;
 }

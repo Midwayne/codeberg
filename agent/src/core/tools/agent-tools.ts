@@ -4,12 +4,12 @@ import { DaemonClient } from '../client.js';
 import { ContextStore } from '../context/store.js';
 import { contextToolSource } from '../context/tools.js';
 import { extractEvidence } from '../evidence-extract.js';
+import type { LearningSettings } from '../learning/preferences.js';
+import type { LearningStore } from '../learning/store.js';
+import { learningToolSource } from '../learning/tools.js';
 import type { McpToolSource } from '../mcp/tools.js';
 import type { SearchResult } from '../types.js';
 import type { WebConfig } from '../web/types.js';
-import { learningToolSource } from '../learning/tools.js';
-import type { LearningSettings } from '../learning/preferences.js';
-import type { LearningStore } from '../learning/store.js';
 import { collectTools, daemonToolSource, searchCodeSource, webToolSource } from './index.js';
 
 interface AgentToolOptions {

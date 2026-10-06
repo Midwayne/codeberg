@@ -17,22 +17,7 @@ export function webTools(config: WebConfig, deps?: WebDeps): ToolSet {
   if (!config.enabled) return {};
 
   const tools: ToolSet = {
-    fetch_url: tool({
-      description:
-        'Fetch an http(s) web page or text/JSON resource and return its readable text. ' +
-        'Use to read external documentation, RFCs, changelogs, issue threads, or any URL ' +
-        'found in the code or in a web_search result. Private/loopback hosts are blocked; ' +
-        'long pages are truncated.',
-      inputSchema: jsonSchema<{ url: string }>({
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          url: { type: 'string', description: 'Absolute http(s) URL to fetch' },
-        },
-        required: ['url'],
-      }),
-      execute: async ({ url }) => fetchUrl(url, config, deps),
-    }),
+    fetch_url: fetchTool(config, deps),
   };
 
   const provider = webSearchProviderFromConfig(config, deps);
@@ -56,10 +41,30 @@ export function webTools(config: WebConfig, deps?: WebDeps): ToolSet {
       }),
       execute: async ({ query, count }) => {
         const n = Math.min(Math.max(1, count ?? config.searchCount), MAX_SEARCH_COUNT);
+
         return { results: await provider.search(query, { count: n }) };
       },
     });
   }
 
   return tools;
+}
+
+function fetchTool(config: WebConfig, deps?: WebDeps) {
+  return tool({
+    description:
+      'Fetch an http(s) web page or text/JSON resource and return its readable text. ' +
+      'Use to read external documentation, RFCs, changelogs, issue threads, or any URL ' +
+      'found in the code or in a web_search result. Private/loopback hosts are blocked; ' +
+      'long pages are truncated.',
+    inputSchema: jsonSchema<{ url: string }>({
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        url: { type: 'string', description: 'Absolute http(s) URL to fetch' },
+      },
+      required: ['url'],
+    }),
+    execute: async ({ url }) => fetchUrl(url, config, deps),
+  });
 }

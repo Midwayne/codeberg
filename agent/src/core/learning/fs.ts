@@ -12,6 +12,7 @@ export async function appendDurable(path: string, value: unknown): Promise<void>
       await file.read(last, 0, 1, size - 1);
       if (last[0] !== 0x0a) separator = '\n';
     }
+
     // One O_APPEND write keeps concurrent process records from interleaving.
     // The leading newline quarantines an incomplete tail left by a killed writer.
     await file.write(`${separator}${JSON.stringify(value)}\n`);
@@ -35,14 +36,24 @@ export async function writeJsonImmutable(path: string, value: unknown): Promise<
     try {
       await file.writeFile(JSON.stringify(value, null, 2) + '\n', 'utf8');
       await file.sync();
-    } finally { await file.close(); }
-    try { await link(temp, path); } catch (error) {
+    } finally {
+      await file.close();
+    }
+
+    try {
+      await link(temp, path);
+    } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'EEXIST') return false;
+
       throw error;
     }
+
     await syncDirectory(dir);
+
     return true;
-  } finally { await unlink(temp); }
+  } finally {
+    await unlink(temp);
+  }
 }
 
 export async function writeAtomic(path: string, value: string): Promise<void> {
@@ -57,11 +68,13 @@ export async function writeAtomic(path: string, value: string): Promise<void> {
     } finally {
       await file.close();
     }
+
     await rename(temp, path);
   } catch (error) {
     await unlink(temp).catch(() => {});
     throw error;
   }
+
   await syncDirectory(dir);
 }
 

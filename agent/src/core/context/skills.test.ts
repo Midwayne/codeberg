@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { ContextStore } from './store.js';
 import { discoverSkills, parseSkillDocument, publishSkills } from './skills.js';
+import { ContextStore } from './store.js';
 
 describe('parseSkillDocument', () => {
   it('reads a folded description and falls back to the directory name', () => {
@@ -22,6 +22,7 @@ Do the thing.
 `,
       'fallback',
     );
+
     expect(parsed).toEqual({
       name: 'review-diff',
       description: 'Summarize risk in a diff.',
@@ -47,6 +48,7 @@ Check callers before editing.
 `,
       'fallback',
     );
+
     expect(parsed).toEqual({
       name: 'fallback',
       description: 'Check callers before editing.',
@@ -71,6 +73,7 @@ describe('discoverSkills', () => {
       cwd: project,
       userRoots: [home],
     });
+
     expect(found.map((skill) => skill.name)).toEqual(['notes', 'review']);
     expect(found.find((skill) => skill.name === 'review')?.description).toBe('from project');
     expect(found.find((skill) => skill.name === 'review')?.file).toContain('.codeberg');
@@ -85,6 +88,7 @@ describe('discoverSkills', () => {
       cwd: project,
       userRoots: [],
     });
+
     expect(skills.map((skill) => skill.name)).toEqual(['review']);
     const index = readFileSync(join(store.root, 'skills', 'INDEX.md'), 'utf8');
     expect(index).toContain('## review');

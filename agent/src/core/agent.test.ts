@@ -6,12 +6,12 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { ModelProfile } from '../providers/profiles.js';
 import { Agent } from './agent.js';
 import { DaemonClient, DEFAULT_DAEMON_URL } from './client.js';
 import { ContextStore } from './context/store.js';
 import type { Generator } from './types.js';
 import { webConfigFromEnv } from './web/config.js';
-import type { ModelProfile } from '../providers/profiles.js';
 
 // contextWindow 2000 -> history budget 1000 tokens (~4000 chars).
 const smallWindow: ModelProfile = {
@@ -39,6 +39,7 @@ describe('Agent.compactHistory', () => {
       { role: 'user', content: 'short' },
       { role: 'assistant', content: 'answer' },
     ];
+
     const out = await agent.compactHistory(messages);
     expect(out).toBe(messages);
     expect(summarize).not.toHaveBeenCalled();
@@ -52,6 +53,7 @@ describe('Agent.compactHistory', () => {
       role: i % 2 ? 'assistant' : 'user',
       content: turn,
     }));
+
     const out = await agent.compactHistory(messages);
     expect(summarize).toHaveBeenCalledOnce();
     expect(String(out[0]?.content)).toContain('SUMMARY');
@@ -62,21 +64,38 @@ describe('Agent.compactHistory', () => {
 
 describe('Agent tool budget', () => {
   it('passes max chat effort through Responses provider options without dropping the prompt cache key', async () => {
-    const model = new MockLanguageModelV4({ doGenerate: async () => ({
-      content: [{ type: 'text', text: 'Done' }],
-      finishReason: { unified: 'stop', raw: undefined },
-      usage: { inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 1, text: 1, reasoning: 0 } },
-      warnings: [],
-    }) });
+    const model = new MockLanguageModelV4({
+      doGenerate: async () => ({
+        content: [{ type: 'text', text: 'Done' }],
+        finishReason: { unified: 'stop', raw: undefined },
+        usage: {
+          inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+          outputTokens: { total: 1, text: 1, reasoning: 0 },
+        },
+        warnings: [],
+      }),
+    });
+
     const daemon = new DaemonClient(DEFAULT_DAEMON_URL);
-    vi.spyOn(daemon, 'waitReady').mockResolvedValue({ ready: true, chunks: 0, version: 'test', vectors_enabled: false });
+    vi.spyOn(daemon, 'waitReady').mockResolvedValue({
+      ready: true,
+      chunks: 0,
+      version: 'test',
+      vectors_enabled: false,
+    });
     vi.spyOn(daemon, 'listTools').mockResolvedValue([]);
-    const agent = new Agent({ model, daemon, learning: false, reasoning: 'max',
+    const agent = new Agent({
+      model,
+      daemon,
+      learning: false,
+      reasoning: 'max',
       profile: { provider: 'openai', modelId: 'gpt-max', contextWindow: 128000, cache: 'openai' },
-      promptHooks: [], web: webConfigFromEnv({ CODEBERG_WEB_USE: 'false' }),
+      promptHooks: [],
+      web: webConfigFromEnv({ CODEBERG_WEB_USE: 'false' }),
       mcp: { enabled: false, servers: [], files: [], warnings: [] },
       context: ContextStore.open(mkdtempSync(join(tmpdir(), 'cberg-max-'))),
     });
+
     await (await agent.toolLoopAgent()).generate({ prompt: 'Hi' });
     expect(model.doGenerateCalls[0].reasoning).toBeUndefined();
     expect(model.doGenerateCalls[0].providerOptions?.openai).toMatchObject({
@@ -91,19 +110,39 @@ describe('Agent tool budget', () => {
       doGenerate: async () => ({
         content: [{ type: 'text', text: 'Done' }],
         finishReason: { unified: 'stop', raw: undefined },
-        usage: { inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 1, text: 1, reasoning: 0 } },
+        usage: {
+          inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+          outputTokens: { total: 1, text: 1, reasoning: 0 },
+        },
         warnings: [],
       }),
     });
+
     const daemon = new DaemonClient(DEFAULT_DAEMON_URL);
-    vi.spyOn(daemon, 'waitReady').mockResolvedValue({ ready: true, chunks: 0, version: 'test', vectors_enabled: false });
+    vi.spyOn(daemon, 'waitReady').mockResolvedValue({
+      ready: true,
+      chunks: 0,
+      version: 'test',
+      vectors_enabled: false,
+    });
     vi.spyOn(daemon, 'listTools').mockResolvedValue([]);
-    const agent = new Agent({ model, daemon, learning: false, promptHooks: [], web: webConfigFromEnv({ CODEBERG_WEB_USE: 'false' }), mcp: { enabled: false, servers: [], files: [], warnings: [] }, context: ContextStore.open(mkdtempSync(join(tmpdir(), 'cberg-disabled-'))) });
+    const agent = new Agent({
+      model,
+      daemon,
+      learning: false,
+      promptHooks: [],
+      web: webConfigFromEnv({ CODEBERG_WEB_USE: 'false' }),
+      mcp: { enabled: false, servers: [], files: [], warnings: [] },
+      context: ContextStore.open(mkdtempSync(join(tmpdir(), 'cberg-disabled-'))),
+    });
+
     expect(agent.learningService()).toBeUndefined();
     const loop = await agent.toolLoopAgent();
     await loop.generate({ prompt: 'Hi' });
     const tools = model.doGenerateCalls[0].tools ?? [];
-    expect(tools.some((entry) => entry.name === 'search_knowledge' || entry.name === 'search_learning')).toBe(false);
+    expect(
+      tools.some((entry) => entry.name === 'search_knowledge' || entry.name === 'search_learning'),
+    ).toBe(false);
   });
   it.each(['generate', 'stream'] as const)(
     'continues past the SDK default limit until the model answers (%s)',
@@ -116,6 +155,7 @@ describe('Agent tool budget', () => {
           if (answering) {
             expect(JSON.stringify(prompt)).toContain('[spilled to ');
           }
+
           return {
             content: answering
               ? [
@@ -144,6 +184,7 @@ describe('Agent tool budget', () => {
           };
         },
       });
+
       const daemon = new DaemonClient(DEFAULT_DAEMON_URL);
       vi.spyOn(daemon, 'waitReady').mockResolvedValue({
         ready: true,
@@ -171,6 +212,7 @@ describe('Agent tool budget', () => {
         mcp: { enabled: false, servers: [], files: [], warnings: [] },
         context: ContextStore.open(mkdtempSync(join(tmpdir(), 'cberg-budget-'))),
       });
+
       const loop = await agent.toolLoopAgent();
       let text: string;
       if (mode === 'generate') {
@@ -180,6 +222,7 @@ describe('Agent tool budget', () => {
         await result.consumeStream();
         text = await result.text;
       }
+
       expect(text).toContain('Partial findings');
       expect(callTool).toHaveBeenCalledTimes(21);
       expect(model.doGenerateCalls).toHaveLength(22);

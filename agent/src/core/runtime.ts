@@ -10,6 +10,7 @@ export function assertAgentRuntime(
       `Codeberg requires Node.js 22 or newer (found ${version}). Upgrade Node.js and check node --version on PATH.`,
     );
   }
+
   if (typeof abortSignalAny !== 'function') {
     throw new Error(
       `AbortSignal.any is unavailable in Node.js ${version}; Codeberg requires a standard Node.js 22+ runtime.`,

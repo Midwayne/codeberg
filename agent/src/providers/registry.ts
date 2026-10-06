@@ -12,6 +12,7 @@ export class ProviderRegistry {
 
   register(provider: ModelProvider): this {
     this.providers.set(provider.name, provider);
+
     return this;
   }
 
@@ -25,12 +26,14 @@ export class ProviderRegistry {
     if (sep <= 0) {
       throw new Error(`invalid model spec "${spec}", want provider:model`);
     }
+
     const name = spec.slice(0, sep);
     const modelId = spec.slice(sep + 1);
     const provider = this.providers.get(name);
     if (!provider) {
       throw new Error(`unknown provider "${name}"`);
     }
+
     return provider.model(modelId);
   }
 

@@ -69,13 +69,16 @@ export async function publishMcpCatalog(
           callable: file.callable,
         })),
       );
+
       const first = written[0]?.abs;
       if (first) dirs.set(entry.serverName, dirname(first));
+
       for (const file of written) {
         if (file.callable) files.set(file.callable, file.abs);
       }
     }),
   );
+
   return { dirs, files };
 }
 

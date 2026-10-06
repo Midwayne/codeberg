@@ -17,6 +17,7 @@ function write(path: string, body: string): void {
 
 function present(paths: string[]): (path: string) => boolean {
   const set = new Set(paths);
+
   return (path) => set.has(path);
 }
 
@@ -29,6 +30,7 @@ describe('builtin database MCP', () => {
       { CODEBERG_HOME: home, CODEBERG_MCP_USE: 'false' },
       { cwd: home, exists: present([spec]), readFile: () => null },
     );
+
     expect(cfg.enabled).toBe(false);
     expect(cfg.servers).toEqual([]);
   });
@@ -52,6 +54,7 @@ describe('builtin database MCP', () => {
         exists: present([spec, bin, join(root, 'Makefile'), join(root, 'agent')]),
       },
     );
+
     expect(cfg.enabled).toBe(true);
     expect(cfg.warnings).toEqual([]);
     expect(cfg.servers).toHaveLength(1);
@@ -79,6 +82,7 @@ describe('builtin database MCP', () => {
       },
       { cwd: home, exists: present([yml, yaml, bin]) },
     );
+
     const server = cfg.servers[0] as McpStdioServer;
     expect(server.args).toEqual(['-spec', yml]);
   });
@@ -96,12 +100,14 @@ describe('builtin database MCP', () => {
       },
       { cwd: home, exists: present([yaml, bin]) },
     );
+
     expect((withYaml.servers[0] as McpStdioServer).args).toEqual(['-spec', yaml]);
 
     const missing = mcpConfigFromEnv(
       { CODEBERG_HOME: home, CODEBERG_DBMCP_USE: 'true', CODEBERG_MCP_USE: 'false' },
       { cwd: home, exists: () => false },
     );
+
     expect(missing.enabled).toBe(true);
     expect(missing.servers).toEqual([]);
     expect(missing.warnings.join('\n')).toContain('spec.yml');
@@ -133,6 +139,7 @@ describe('builtin database MCP', () => {
             : null,
       },
     );
+
     const server = cfg.servers.find((s) => s.name === 'databases') as McpStdioServer;
     expect(server.command).toBe('custom-dbmcp');
     expect(server.args).toEqual(['--other']);
@@ -152,6 +159,7 @@ describe('builtin database MCP', () => {
       },
       { cwd: home, exists: present([spec, bin, join(home, 'spec.yml')]) },
     );
+
     expect((cfg.servers[0] as McpStdioServer).args).toEqual(['-spec', spec]);
   });
 });

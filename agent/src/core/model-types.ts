@@ -1,7 +1,8 @@
 import type { ReasoningEffort } from './types.js';
 
 export const MODEL_INPUTS = ['text', 'vision', 'audio', 'video', 'pdf'] as const;
-export type ModelInput = typeof MODEL_INPUTS[number];
+
+export type ModelInput = (typeof MODEL_INPUTS)[number];
 
 export interface ModelSelection {
   /** Stable provider:key, independent of the provider's actual model name. */

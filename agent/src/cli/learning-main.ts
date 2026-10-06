@@ -1,16 +1,16 @@
 #!/usr/bin/env node
-import { dreamingCommand } from './dreaming.js';
-import { join } from 'node:path';
 import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { dreamingCommand } from './dreaming.js';
 
 import { DatasetStore, type Provenance } from '../core/learning/datasets.js';
+import { exportDataset, type ExportType } from '../core/learning/export.js';
+import { writeAtomic } from '../core/learning/fs.js';
 import {
   historicalEvalMetrics,
   scoreRetrievalRuns,
   type RetrievalRun,
 } from '../core/learning/metrics.js';
-import { exportDataset, type ExportType } from '../core/learning/export.js';
-import { writeAtomic } from '../core/learning/fs.js';
 import { LearningStore, defaultLearningRoot } from '../core/learning/store.js';
 
 import { prepareProjectStorage } from '../core/projects.js';

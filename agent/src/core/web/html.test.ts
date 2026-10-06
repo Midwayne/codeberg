@@ -14,6 +14,7 @@ describe('htmlToText', () => {
         <p>First paragraph.</p>
         <p>Second &mdash; with an entity &#65;.</p>
       </body></html>`;
+
     const { title, text } = htmlToText(html);
 
     expect(title).toBe('Docs & Guides');

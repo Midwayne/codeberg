@@ -9,6 +9,7 @@ describe('ProviderRegistry', () => {
       name: 'test',
       model: (id) => ({ modelId: id }) as never,
     };
+
     reg.register(stub);
     const m = reg.resolve('test:foo');
     expect((m as { modelId: string }).modelId).toBe('foo');

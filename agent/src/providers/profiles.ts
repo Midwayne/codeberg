@@ -64,6 +64,7 @@ export function profileFor(spec: string, env: NodeJS.ProcessEnv = process.env): 
   const override = Number(env.CODEBERG_CONTEXT_WINDOW);
   const contextWindow =
     Number.isFinite(override) && override > 0 ? Math.floor(override) : windowFor(provider, modelId);
+
   return { provider, modelId, contextWindow, cache: cacheFor(provider) };
 }
 

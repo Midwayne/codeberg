@@ -25,6 +25,7 @@ describe('searxngProvider', () => {
     const calls: string[] = [];
     const p = provider((async (input: unknown) => {
       calls.push(String(input));
+
       return res({
         json: {
           results: [
@@ -53,6 +54,7 @@ describe('searxngProvider', () => {
           results: [{ url: 'https://1' }, { url: 'https://2' }, { url: 'https://3' }],
         },
       })) as unknown as typeof fetch);
+
     expect(await p.search('q', { count: 2 })).toHaveLength(2);
   });
 

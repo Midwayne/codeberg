@@ -32,37 +32,7 @@ export async function fetchUrl(
       throw new Error(`fetch failed: ${res.status} ${res.statusText} for ${url}`);
     }
 
-    const contentType = (res.headers.get('content-type') ?? '').toLowerCase();
-    const finalUrl = res.url || url.toString();
-    const { body, truncated: bodyTruncated } = await readCapped(res, config.maxBytes);
-
-    if (contentType.includes('html') || (contentType === '' && /^\s*</.test(body))) {
-      const page = htmlToText(body);
-      const capped = capText(page.text, config.maxChars);
-      return {
-        url: finalUrl,
-        title: page.title,
-        text: capped.text,
-        truncated: bodyTruncated || capped.truncated,
-      };
-    }
-
-    if (contentType.includes('json') || contentType.startsWith('text/') || contentType === '') {
-      const capped = capText(body, config.maxChars);
-      return {
-        url: finalUrl,
-        title: '',
-        text: capped.text,
-        truncated: bodyTruncated || capped.truncated,
-      };
-    }
-
-    return {
-      url: finalUrl,
-      title: '',
-      text: `[unsupported content-type: ${contentType || 'unknown'}]`,
-      truncated: false,
-    };
+    return await decodePage(res, url.toString(), config);
   } finally {
     clearTimeout(timer);
   }
@@ -97,9 +67,11 @@ async function fetchNoOpenRedirect(
     if (!location) {
       return res;
     }
+
     if (hop >= MAX_REDIRECTS) {
       throw new Error(`too many redirects (>${MAX_REDIRECTS}) starting at ${start}`);
     }
+
     // Resolve relative redirects against the current URL, then re-validate.
     let next: URL;
     try {
@@ -107,6 +79,7 @@ async function fetchNoOpenRedirect(
     } catch {
       throw new Error(`invalid redirect target "${location}" from ${current}`);
     }
+
     assertFetchableUrl(next.toString(), { allowPrivate: config.allowPrivate });
     current = next;
   }
@@ -136,7 +109,9 @@ async function readCapped(
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
+
       if (!value) continue;
+
       if (total + value.byteLength > maxBytes) {
         const remaining = Math.max(0, maxBytes - total);
         out += decoder.decode(value.subarray(0, remaining));
@@ -144,13 +119,16 @@ async function readCapped(
         await reader.cancel().catch(() => {});
         break;
       }
+
       total += value.byteLength;
       out += decoder.decode(value, { stream: true });
     }
+
     return { body: out, truncated };
   }
 
   const text = await res.text();
+
   return text.length > maxBytes
     ? { body: text.slice(0, maxBytes), truncated: true }
     : { body: text, truncated: false };
@@ -158,5 +136,42 @@ async function readCapped(
 
 function capText(text: string, maxChars: number): { text: string; truncated: boolean } {
   if (text.length <= maxChars) return { text, truncated: false };
+
   return { text: `${text.slice(0, maxChars)}\n\n[truncated]`, truncated: true };
+}
+
+async function decodePage(res: Response, url: string, config: WebConfig): Promise<WebPage> {
+  const contentType = (res.headers.get('content-type') ?? '').toLowerCase();
+  const finalUrl = res.url || url;
+  const { body, truncated: bodyTruncated } = await readCapped(res, config.maxBytes);
+
+  if (contentType.includes('html') || (contentType === '' && /^\s*</.test(body))) {
+    const page = htmlToText(body);
+    const capped = capText(page.text, config.maxChars);
+
+    return {
+      url: finalUrl,
+      title: page.title,
+      text: capped.text,
+      truncated: bodyTruncated || capped.truncated,
+    };
+  }
+
+  if (contentType.includes('json') || contentType.startsWith('text/') || contentType === '') {
+    const capped = capText(body, config.maxChars);
+
+    return {
+      url: finalUrl,
+      title: '',
+      text: capped.text,
+      truncated: bodyTruncated || capped.truncated,
+    };
+  }
+
+  return {
+    url: finalUrl,
+    title: '',
+    text: `[unsupported content-type: ${contentType || 'unknown'}]`,
+    truncated: false,
+  };
 }

@@ -57,12 +57,14 @@ function mainContent(html: string): string {
   if (main && main[1] && main[1].trim()) {
     return main[1];
   }
+
   const articles = [...html.matchAll(/<article[^>]*>([\s\S]*?)<\/article>/gi)]
     .map((m) => m[1] ?? '')
     .filter((a) => a.trim());
   if (articles.length > 0) {
     return articles.reduce((a, b) => (b.length > a.length ? b : a));
   }
+
   return html
     .replace(/<nav[\s\S]*?<\/nav>/gi, ' ')
     .replace(/<header[\s\S]*?<\/header>/gi, ' ')
@@ -90,8 +92,10 @@ function decodeEntities(input: string): string {
     if (code[0] === '#') {
       const isHex = code[1] === 'x' || code[1] === 'X';
       const cp = isHex ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10);
+
       return Number.isFinite(cp) ? safeFromCodePoint(cp) : match;
     }
+
     return NAMED_ENTITIES[code.toLowerCase()] ?? match;
   });
 }

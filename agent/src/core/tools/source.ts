@@ -26,5 +26,6 @@ export async function collectTools(sources: readonly ToolSource[]): Promise<Tool
       }
     }
   }
+
   return out;
 }

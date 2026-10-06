@@ -1,10 +1,10 @@
 import { jsonSchema, tool, type ToolSet } from 'ai';
 
-import { formatLineRange } from '../search-hit.js';
 import type { DaemonClient } from '../client.js';
+import { formatLineRange } from '../search-hit.js';
 import type { SearchResult } from '../types.js';
-import type { ToolSource } from './source.js';
 import { daemonToolError } from './daemon-error.js';
+import type { ToolSource } from './source.js';
 
 const MAX_EXPANDED_HITS = 3;
 const MAX_BODY_CHARS_PER_HIT = 2_500;

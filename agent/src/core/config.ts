@@ -1,13 +1,13 @@
-import { currentProjectEnvironment } from './projects.js';
-import { ContextStore, defaultContextRoot } from './context/store.js';
-import { Agent } from './agent.js';
-import { DaemonClient } from './client.js';
 import { defaultProviders } from '../providers/index.js';
 import { profileFor } from '../providers/profiles.js';
+import { Agent } from './agent.js';
+import { DaemonClient } from './client.js';
+import { ContextStore, defaultContextRoot } from './context/store.js';
 import type { EntryConfig } from './entry.js';
-import type { ReasoningEffort } from './types.js';
 import type { LearningService } from './learning/service.js';
+import { currentProjectEnvironment } from './projects.js';
 import { assertAgentRuntime } from './runtime.js';
+import type { ReasoningEffort } from './types.js';
 
 export interface AgentConfig {
   env?: NodeJS.ProcessEnv;
@@ -35,6 +35,7 @@ export function reasoningFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): ReasoningEffort | undefined {
   const value = env.CODEBERG_REASONING;
+
   return value && (REASONING_EFFORTS as string[]).includes(value)
     ? (value as ReasoningEffort)
     : undefined;
@@ -45,18 +46,24 @@ export function createAgent(config: AgentConfig): Agent {
   const env = config.env ?? currentProjectEnvironment();
   const registry = defaultProviders();
   const model = registry.resolve(config.modelSpec);
-  const learningEnabled = config.learning === undefined ? learningEnabledFromEnv(env) : config.learning !== false;
-  const subagentModel = learningEnabled && !config.learning
-    ? registry.resolve(config.subagentModelSpec ?? config.modelSpec)
-    : undefined;
+  const learningEnabled =
+    config.learning === undefined ? learningEnabledFromEnv(env) : config.learning !== false;
+  const subagentModel =
+    learningEnabled && !config.learning
+      ? registry.resolve(config.subagentModelSpec ?? config.modelSpec)
+      : undefined;
+
   return new Agent({
     model,
     env,
     context: ContextStore.open(defaultContextRoot(env)),
     subagentModel,
     learning: learningEnabled ? config.learning : false,
-    daemon: new DaemonClient(!config.env && env.CODEBERG_PROJECT_ID
-      ? `${config.daemonUrl.replace(/\/$/, '')}/projects/${env.CODEBERG_PROJECT_ID}` : config.daemonUrl),
+    daemon: new DaemonClient(
+      !config.env && env.CODEBERG_PROJECT_ID
+        ? `${config.daemonUrl.replace(/\/$/, '')}/projects/${env.CODEBERG_PROJECT_ID}`
+        : config.daemonUrl,
+    ),
     reasoning: config.reasoning,
     // Resolve the model's memory limit + caching strategy from the same spec so
     // the agent budgets context and marks the cache prefix correctly.
@@ -67,7 +74,9 @@ export function createAgent(config: AgentConfig): Agent {
 }
 
 export function learningEnabledFromEnv(env: NodeJS.ProcessEnv = process.env): boolean {
-  return !['false', '0', 'off', 'no'].includes((env.CODEBERG_LEARNING_USE ?? '').trim().toLowerCase());
+  return !['false', '0', 'off', 'no'].includes(
+    (env.CODEBERG_LEARNING_USE ?? '').trim().toLowerCase(),
+  );
 }
 
 export function createAgentFromEntry(entry: EntryConfig): Agent {

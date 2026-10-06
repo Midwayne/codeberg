@@ -2,12 +2,13 @@ import { watch, type FSWatcher } from 'node:fs';
 import { realpath } from 'node:fs/promises';
 import { basename, dirname, resolve, sep } from 'node:path';
 
-import { sourceKey } from './memory-source.js';
 import { writeModuleLog } from '../module-log.js';
+import { sourceKey } from './memory-source.js';
 import type { LearningStore } from './store.js';
 import type { RepositoryVersion } from './types.js';
 
 type WatchedFiles = Map<string, Set<string>>;
+
 type DirectoryWatch = { watcher: FSWatcher; files: WatchedFiles };
 
 const MAX_WATCHERS = 256;
@@ -24,10 +25,12 @@ export class KnowledgeSourceWatcher {
 
   async sync(): Promise<void> {
     if (this.stopped) return;
+
     const [artifacts, repositories] = await Promise.all([
       this.store.knowledgeArtifacts(),
       this.store.repositories(),
     ]);
+
     const desired = new Map<string, WatchedFiles>();
 
     for (const ref of artifacts.flatMap((artifact) => artifact.source_refs ?? [])) {
@@ -43,15 +46,19 @@ export class KnowledgeSourceWatcher {
     }
 
     if (this.stopped) return;
+
     this.updateExisting(desired);
     this.watchNewDirectories(desired);
   }
 
-  resume(): void { this.stopped = false; }
+  resume(): void {
+    this.stopped = false;
+  }
 
   stop(): void {
     this.stopped = true;
     for (const { watcher } of this.directories.values()) watcher.close();
+
     this.directories.clear();
   }
 
@@ -70,6 +77,7 @@ export class KnowledgeSourceWatcher {
   private watchNewDirectories(desired: Map<string, WatchedFiles>): void {
     for (const [directory, files] of desired) {
       if (this.directories.has(directory) || this.directories.size >= MAX_WATCHERS) continue;
+
       try {
         const watcher = watch(directory, { persistent: false }, (_event, filename) => {
           const watchedFiles = this.directories.get(directory)?.files;
@@ -80,6 +88,7 @@ export class KnowledgeSourceWatcher {
             : new Set([...watchedFiles.values()].flatMap((sources) => [...sources]));
           if (changed?.size) this.onChange(changed);
         });
+
         watcher.on('error', (error) => {
           this.directories.delete(directory);
           watcher.close();
@@ -100,10 +109,12 @@ async function sourceDirectory(
   repositories: RepositoryVersion[],
 ): Promise<string | undefined> {
   if (!repositories.some((repository) => repository.path === repoPath)) return undefined;
+
   const root = await realpath(repoPath).catch(() => undefined);
   if (!root) return undefined;
 
   const directory = await realpath(dirname(resolve(root, filePath))).catch(() => undefined);
   if (directory === root || directory?.startsWith(`${root}${sep}`)) return directory;
+
   return undefined;
 }

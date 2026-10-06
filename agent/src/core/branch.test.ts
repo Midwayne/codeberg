@@ -79,6 +79,7 @@ describe('branchTranscript', () => {
       throughIndex: 1,
       remap: (m) => ({ ...m, id: `b-${m.id}` }),
     });
+
     expect(branched.map((m) => m.id)).toEqual(['b-u1', 'b-a1']);
     expect(transcript[0]!.id).toBe('u1');
   });

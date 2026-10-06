@@ -26,6 +26,7 @@ export function wrapToolOutputs(tools: ToolSet, store: ContextStore): ToolSet {
       wrapped[name] = def;
       continue;
     }
+
     const toModelOutput = (def as Executable).toModelOutput;
     if (typeof toModelOutput === 'function') {
       wrapped[name] = {
@@ -33,33 +34,34 @@ export function wrapToolOutputs(tools: ToolSet, store: ContextStore): ToolSet {
         // Provider-defined converters such as MCP require their raw result.
         // Spill only after that converter has produced model-facing output.
         execute: async (args: unknown, options: unknown) => execute.call(def, args, options),
-        toModelOutput: async (options: {
-          toolCallId: string;
-          input: unknown;
-          output: unknown;
-        }) => {
+        toModelOutput: async (options: { toolCallId: string; input: unknown; output: unknown }) => {
           const output = await toModelOutput.call(def, options);
           const text = toolResultOutputText(output);
           try {
             await recordTerminal(store, name, options.input, text);
             const preview = await spillText(store, name, text);
+
             return preview ? { type: 'text' as const, value: preview } : output;
           } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             console.error(`› context: failed to spill ${name}: ${message}`);
+
             return output;
           }
         },
       } as unknown as ToolSet[string];
       continue;
     }
+
     wrapped[name] = {
       ...(def as object),
       execute: async (args: unknown, options: unknown) => {
         const result = await execute.call(def, args, options);
+
         return presentToolOutput(store, name, args, result);
       },
     } as ToolSet[string];
   }
+
   return wrapped;
 }

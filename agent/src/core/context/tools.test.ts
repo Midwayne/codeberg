@@ -12,7 +12,10 @@ function tempStore(): ContextStore {
 
 type Exec = (input: Record<string, unknown>, opts: unknown) => Promise<string>;
 
-function execOf(tools: ReturnType<typeof contextTools>, name: keyof ReturnType<typeof contextTools>): Exec {
+function execOf(
+  tools: ReturnType<typeof contextTools>,
+  name: keyof ReturnType<typeof contextTools>,
+): Exec {
   return (tools[name] as { execute: Exec }).execute;
 }
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { fetchUrl } from './client.js';
 import type { WebConfig, WebDeps } from './types.js';
@@ -23,6 +23,7 @@ function res(r: {
   url?: string;
 }): Response {
   const lower = Object.fromEntries(Object.entries(r.headers).map(([k, v]) => [k.toLowerCase(), v]));
+
   return {
     ok: r.status >= 200 && r.status < 300,
     status: r.status,
@@ -39,9 +40,11 @@ function res(r: {
  *  recording every URL it was asked to fetch. */
 function sequence(responses: Response[], calls?: URL[]): WebDeps {
   let i = 0;
+
   return {
     fetchImpl: (async (input: unknown) => {
       if (calls) calls.push(new URL(String(input)));
+
       return responses[Math.min(i++, responses.length - 1)];
     }) as unknown as typeof fetch,
   };
@@ -65,6 +68,7 @@ describe('fetchUrl redirect handling', () => {
       ],
       calls,
     );
+
     const out = await fetchUrl('https://example.com/start', cfg(), deps);
     expect(out.text).toContain('done');
     expect(calls.map((u) => u.href)).toEqual([
@@ -89,6 +93,7 @@ describe('fetchUrl redirect handling', () => {
       ],
       calls,
     );
+
     await expect(fetchUrl('https://example.com/start', cfg(), deps)).rejects.toThrow(
       /private|blocked/,
     );
@@ -102,4 +107,40 @@ describe('fetchUrl redirect handling', () => {
       /too many redirects/,
     );
   });
+});
+
+it('keeps the request timeout active while reading a stalled response body', async () => {
+  vi.useFakeTimers();
+  let stream: ReadableStreamDefaultController<Uint8Array> | undefined;
+  let signal: AbortSignal | null | undefined;
+
+  const deps: WebDeps = {
+    fetchImpl: async (_input, init) => {
+      signal = init?.signal;
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          stream = controller;
+          signal?.addEventListener('abort', () => controller.error(new Error('body timed out')));
+        },
+      });
+
+      return new Response(body, { headers: { 'content-type': 'text/plain' } });
+    },
+  };
+
+  try {
+    const result = fetchUrl('https://example.com/stalled', cfg({ timeoutMs: 100 }), deps).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+
+    await vi.advanceTimersByTimeAsync(100);
+    expect(signal?.aborted).toBe(true);
+    expect(await result).toMatchObject({ message: 'body timed out' });
+    expect(vi.getTimerCount()).toBe(0);
+  } finally {
+    if (!signal?.aborted) stream?.close();
+
+    vi.useRealTimers();
+  }
 });

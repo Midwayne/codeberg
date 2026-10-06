@@ -22,6 +22,7 @@ export class ChatSession {
 
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener);
+
     return () => this.listeners.delete(listener);
   }
 
@@ -39,6 +40,7 @@ export class ChatSession {
       sources: result.sources,
     });
     this.notify();
+
     return result;
   }
 
@@ -56,6 +58,7 @@ export class ChatSession {
   branch(throughIndex = this.turns.length - 1): ChatSession {
     const forked = new ChatSession({ agent: this.agent });
     forked.turns.push(...branchTranscript(this.turns, { throughIndex }));
+
     return forked;
   }
 

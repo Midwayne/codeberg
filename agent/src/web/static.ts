@@ -22,6 +22,7 @@ export async function serveStatic(
           'Cache-Control': 'public, max-age=31536000, immutable',
         });
         res.end(data);
+
         return true;
       } catch {
         // not an asset — fall through to the SPA index
@@ -33,6 +34,7 @@ export async function serveStatic(
     const html = await readFile(join(staticRoot, 'index.html'));
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(html);
+
     return true;
   } catch {
     return false;
@@ -44,6 +46,7 @@ function safeJoin(root: string, urlPath: string): string | null {
   const decoded = decodeURIComponent(urlPath);
   const full = resolve(join(root, decoded));
   const base = resolve(root);
+
   return full === base || full.startsWith(base + sep) ? full : null;
 }
 

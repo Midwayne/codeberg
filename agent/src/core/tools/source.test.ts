@@ -18,6 +18,7 @@ describe('collectTools', () => {
       src('first', { dup: { tag: 'first' } as never }),
       src('second', { dup: { tag: 'second' } as never }),
     ]);
+
     expect((merged.dup as unknown as { tag: string }).tag).toBe('first');
   });
 
@@ -26,6 +27,7 @@ describe('collectTools', () => {
       name: 'async',
       tools: async () => ({ z: {} as never }),
     };
+
     expect(Object.keys(await collectTools([asyncSource]))).toEqual(['z']);
   });
 });

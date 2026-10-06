@@ -4,5 +4,6 @@ export function titleFromText(text: string, empty = 'New chat'): string {
   if (!clean) {
     return empty;
   }
+
   return clean.length > 60 ? `${clean.slice(0, 59)}…` : clean;
 }

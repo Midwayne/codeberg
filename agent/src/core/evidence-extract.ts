@@ -19,6 +19,7 @@ export function extractEvidence(toolName: string, output: unknown): SearchResult
   if (limit != null && hits.length > limit) {
     return hits.slice(0, limit);
   }
+
   return hits;
 }
 
@@ -47,15 +48,18 @@ export function extractHybridHits(output: unknown): HybridHit[] {
   if (!Array.isArray(output)) {
     return [];
   }
+
   const out: HybridHit[] = [];
   for (const row of output) {
     if (!row || typeof row !== 'object' || !('hit' in row)) {
       continue;
     }
+
     const hit = normalizeSearchHit((row as { hit: unknown }).hit);
     if (!hit) {
       continue;
     }
+
     const r = row as { final_score?: number; grep_boost?: number };
     const finalScore = Number(r.final_score);
     const boost = Number(r.grep_boost ?? 0);
@@ -65,6 +69,7 @@ export function extractHybridHits(output: unknown): HybridHit[] {
       ...(boost > 0 ? { grep_boost: boost } : {}),
     });
   }
+
   return out;
 }
 
@@ -72,11 +77,13 @@ export function extractSearchHits(output: unknown): SearchResult[] {
   if (!Array.isArray(output)) {
     return [];
   }
+
   return output.map(normalizeSearchHit).filter((h): h is SearchResult => h != null);
 }
 
 export function extractChunkDetail(output: unknown): SearchResult[] {
   const hit = normalizeSearchHit(output);
+
   return hit ? [hit] : [];
 }
 
@@ -84,17 +91,20 @@ export function extractGrepMatches(output: unknown): SearchResult[] {
   if (!Array.isArray(output)) {
     return [];
   }
+
   const out: SearchResult[] = [];
   for (const row of output) {
     if (!row || typeof row !== 'object') {
       continue;
     }
+
     const m = row as Record<string, unknown>;
     const path = typeof m.path === 'string' ? m.path : '';
     const line = Number(m.line ?? 0);
     if (!path || line <= 0) {
       continue;
     }
+
     out.push({
       id: 0,
       ...(typeof m.repo === 'string' && m.repo ? { repo: m.repo } : {}),
@@ -106,6 +116,7 @@ export function extractGrepMatches(output: unknown): SearchResult[] {
       snippet: typeof m.text === 'string' ? m.text : '',
     });
   }
+
   return out;
 }
 
@@ -114,16 +125,20 @@ export function extractFindReferences(output: unknown): SearchResult[] {
   if (Array.isArray(output)) {
     return extractGrepMatches(output);
   }
+
   if (!output || typeof output !== 'object') {
     return [];
   }
+
   const row = output as Record<string, unknown>;
   if (Array.isArray(row.graph)) {
     return extractGraphEdges(row.graph);
   }
+
   if (Array.isArray(row.matches)) {
     return extractGrepMatches(row.matches);
   }
+
   return [];
 }
 
@@ -131,6 +146,7 @@ export function extractGraphHops(output: unknown): SearchResult[] {
   if (!Array.isArray(output)) {
     return [];
   }
+
   return extractGraphEdges(output);
 }
 
@@ -140,19 +156,23 @@ function extractGraphEdges(rows: unknown[]): SearchResult[] {
     if (!row || typeof row !== 'object') {
       continue;
     }
+
     const e = row as Record<string, unknown>;
     const path =
       (typeof e.src_path === 'string' && e.src_path) ||
       (typeof e.path === 'string' && e.path) ||
       '';
+
     const line = Number(e.line ?? e.start_line ?? 0);
     const symbol =
       (typeof e.src_name === 'string' && e.src_name) ||
       (typeof e.name === 'string' && e.name) ||
       '';
+
     if (!path) {
       continue;
     }
+
     const start = line > 0 ? line : 1;
     out.push({
       id: typeof e.src === 'number' ? e.src : 0,
@@ -167,5 +187,6 @@ function extractGraphEdges(rows: unknown[]): SearchResult[] {
           : '',
     });
   }
+
   return out;
 }

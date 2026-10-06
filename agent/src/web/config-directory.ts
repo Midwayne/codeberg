@@ -5,12 +5,23 @@ import { promisify } from 'node:util';
 
 const run = promisify(execFile);
 
-export function configDirectoryCommand(path: string, platform: string = process.platform): { command: string; args: string[]; env?: NodeJS.ProcessEnv } {
+export function configDirectoryCommand(
+  path: string,
+  platform: string = process.platform,
+): { command: string; args: string[]; env?: NodeJS.ProcessEnv } {
   switch (platform) {
-    case 'darwin': return { command: '/usr/bin/open', args: [path] };
-    case 'linux': return { command: 'xdg-open', args: [path] };
-    case 'win32': return { command: 'powershell.exe', args: ['-NoProfile', '-Command', 'Invoke-Item -LiteralPath $env:CODEBERG_CONFIG_DIRECTORY'], env: { ...process.env, CODEBERG_CONFIG_DIRECTORY: path } };
-    default: throw new Error('A system file manager is unavailable on this platform.');
+    case 'darwin':
+      return { command: '/usr/bin/open', args: [path] };
+    case 'linux':
+      return { command: 'xdg-open', args: [path] };
+    case 'win32':
+      return {
+        command: 'powershell.exe',
+        args: ['-NoProfile', '-Command', 'Invoke-Item -LiteralPath $env:CODEBERG_CONFIG_DIRECTORY'],
+        env: { ...process.env, CODEBERG_CONFIG_DIRECTORY: path },
+      };
+    default:
+      throw new Error('A system file manager is unavailable on this platform.');
   }
 }
 

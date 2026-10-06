@@ -22,6 +22,7 @@ export function spillPreview(
   resultCount?: number,
 ): string {
   const count = resultCount == null ? '' : `; result_count=${resultCount}`;
+
   return [
     `[spilled to ${file} — ${text.length} chars${count}; the middle is only in that file]`,
     '<head>',
@@ -46,7 +47,9 @@ export async function spillText(
   resultCount?: number,
 ): Promise<string | undefined> {
   if (text.length <= limit || isSpillPreview(text)) return undefined;
+
   const file = await store.writeToolOutput(toolName, text);
+
   return spillPreview(file, text, SPILL_HEAD_CHARS, SPILL_TAIL_CHARS, resultCount);
 }
 
@@ -58,6 +61,7 @@ export async function recordTerminal(
   text: string,
 ): Promise<void> {
   if (!TERMINAL_TOOLS.has(toolName)) return;
+
   await store.appendTerminal(toolName, args, text);
 }
 
@@ -83,10 +87,12 @@ export async function presentToolOutput(
       limit,
       Array.isArray(output) ? output.length : undefined,
     );
+
     return preview ?? output;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`› context: failed to spill ${toolName}: ${message}`);
+
     return output;
   }
 }

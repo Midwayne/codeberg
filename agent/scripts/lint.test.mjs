@@ -30,6 +30,28 @@ test('counts blank lines and comment-only lines', async () => {
   assert.equal((await lint(`function example(value: number) {\n${body}\n}`)).errorCount, 1);
 });
 
+test('allows 199 file lines and rejects 200, including a final newline', async () => {
+  const atLimit = 'export {};\n' + Array.from({ length: 198 }, () => '// File content.').join('\n');
+  const overLimit = atLimit + '\n// One line too many.';
+
+  for (const ending of ['', '\n']) {
+    assert.equal((await lint(atLimit + ending)).errorCount, 0);
+    const result = await lint(overLimit + ending);
+    assert.equal(result.errorCount, 1);
+    assert.equal(result.messages[0].ruleId, 'max-lines');
+    assert.equal(result.messages[0].severity, 2);
+  }
+});
+
+test('counts blank and comment-only lines toward the file limit', async () => {
+  const code =
+    'export {};\n' + Array.from({ length: 199 }, (_, i) => (i % 2 ? '' : '// Comment.')).join('\n');
+  assert.equal(
+    (await lint(code)).messages.some((message) => message.ruleId === 'max-lines'),
+    true,
+  );
+});
+
 test('checks arrow functions, class methods, and immediately invoked functions', async () => {
   const body = functionBody(49);
   const examples = [

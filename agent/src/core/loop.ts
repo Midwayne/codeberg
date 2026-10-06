@@ -1,7 +1,9 @@
 import type { ModelMessage, ToolLoopAgent } from 'ai';
 
 type StreamParams = Parameters<ToolLoopAgent['stream']>[0];
+
 type GenerateParams = Parameters<ToolLoopAgent['generate']>[0];
+
 type CallParams = StreamParams | GenerateParams;
 
 /** Replacement implementations for a wrapped loop's two call methods. */
@@ -21,15 +23,19 @@ export function overrideLoopMethods(loop: ToolLoopAgent, overrides: LoopOverride
   if (!overrides.stream && !overrides.generate) {
     return loop;
   }
+
   return new Proxy(loop, {
     get(target, prop) {
       if (prop === 'stream' && overrides.stream) {
         return overrides.stream;
       }
+
       if (prop === 'generate' && overrides.generate) {
         return overrides.generate;
       }
+
       const value = Reflect.get(target, prop, target);
+
       return typeof value === 'function' ? value.bind(target) : value;
     },
   }) as ToolLoopAgent;
@@ -56,17 +62,21 @@ export function withMessageTransforms(
   if (transforms.length === 0) {
     return loop;
   }
+
   const apply = async <T extends CallParams>(params: T): Promise<T> => {
     const messages = readMessages(params);
     if (!messages) {
       return params;
     }
+
     let next = messages;
     for (const transform of transforms) {
       next = await transform(next);
     }
+
     return next === messages ? params : writeMessages(params, next);
   };
+
   return overrideLoopMethods(loop, {
     stream: async (params) => loop.stream(await apply(params)),
     generate: async (params) => loop.generate(await apply(params)),
@@ -77,9 +87,11 @@ function readMessages(params: CallParams): ModelMessage[] | null {
   if ('messages' in params && Array.isArray(params.messages)) {
     return params.messages;
   }
+
   if ('prompt' in params && Array.isArray(params.prompt)) {
     return params.prompt;
   }
+
   return null;
 }
 
@@ -87,5 +99,6 @@ function writeMessages<T extends CallParams>(params: T, messages: ModelMessage[]
   if ('messages' in params && Array.isArray(params.messages)) {
     return { ...params, messages } as T;
   }
+
   return { ...params, prompt: messages } as T;
 }

@@ -40,6 +40,7 @@ describe('parseMcpJson', () => {
       }),
       ctx,
     );
+
     expect(warnings).toEqual([]);
     expect(servers).toHaveLength(1);
     const s = servers[0] as McpStdioServer;
@@ -63,6 +64,7 @@ describe('parseMcpJson', () => {
       }),
       ctx,
     );
+
     const byName = Object.fromEntries(servers.map((s) => [s.name, s as McpUrlServer]));
     expect(byName.docs.kind).toBe('http');
     expect(byName.docs.url).toBe('https://example.com/mcp');
@@ -76,6 +78,7 @@ describe('parseMcpJson', () => {
       JSON.stringify({ servers: { fs: { command: 'npx', args: ['-y', 'server-fs'] } } }),
       ctx,
     );
+
     expect(servers.map((s) => s.name)).toEqual(['fs']);
   });
 
@@ -87,6 +90,7 @@ describe('parseMcpJson', () => {
       }),
       ctx,
     );
+
     expect((servers[0] as McpStdioServer).command).toBe('from-mcpServers');
   });
 
@@ -102,6 +106,7 @@ describe('parseMcpJson', () => {
       }),
       ctx,
     );
+
     expect(servers.map((s) => s.name)).toEqual(['ok']);
     expect(warnings.some((w) => w.includes('empty'))).toBe(true);
   });
@@ -123,6 +128,7 @@ describe('parseMcpJson', () => {
       }),
       ctx,
     );
+
     const remote = servers.find((s) => s.name === 'remote') as McpUrlServer;
     const local = servers.find((s) => s.name === 'local') as McpStdioServer;
     expect(remote.url).toBe('https://example.com/mcp?ws=/proj');
@@ -144,6 +150,7 @@ describe('parseMcpJson', () => {
       }),
       ctx,
     );
+
     expect((servers[0] as McpUrlServer).kind).toBe('http');
   });
 });
@@ -241,6 +248,7 @@ describe('mcpConfigFromEnv', () => {
       { CODEBERG_HOME: home, CODEBERG_ROOT: repo },
       { cwd: repo, homedir: () => '/unused' },
     );
+
     expect(cfg.enabled).toBe(true);
     expect(cfg.files).toHaveLength(2);
     const github = cfg.servers.find((s) => s.name === 'github') as McpStdioServer;
@@ -294,6 +302,7 @@ describe('mcpConfigFromEnv', () => {
       { CODEBERG_HOME: home, CODEBERG_ROOTS: `alpha\t${a}\nbeta\t${b}` },
       { cwd: '/unrelated' },
     );
+
     expect(cfg.servers.map((s) => s.name).sort()).toEqual(['a', 'b']);
   });
 });

@@ -27,16 +27,19 @@ export function searxngProvider(opts: {
           signal: controller.signal,
           headers: { accept: 'application/json', 'user-agent': USER_AGENT },
         });
+
         if (!res.ok) {
           throw new Error(
             `web search failed: ${res.status} ${res.statusText} ` +
               '(is the SearXNG JSON format enabled?)',
           );
         }
+
         const data = (await res.json()) as {
           results?: Array<{ title?: string; url?: string; content?: string }>;
         };
         const results = Array.isArray(data.results) ? data.results : [];
+
         return results
           .map((r) => ({
             title: (r.title ?? '').trim(),

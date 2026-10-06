@@ -18,6 +18,7 @@ describe('webConfigFromEnv', () => {
     for (const v of ['0', 'false', 'off', 'No', 'FALSE']) {
       expect(webConfigFromEnv({ CODEBERG_WEB_USE: v }).enabled).toBe(false);
     }
+
     expect(webConfigFromEnv({ CODEBERG_WEB_USE: '1' }).enabled).toBe(true);
     expect(webConfigFromEnv({ CODEBERG_WEB_USE: 'yes' }).enabled).toBe(true);
   });
@@ -34,6 +35,7 @@ describe('webConfigFromEnv', () => {
       CODEBERG_WEB_TIMEOUT_MS: 'abc',
       CODEBERG_WEB_ALLOW_PRIVATE: '1',
     });
+
     expect(c.maxChars).toBe(1234);
     expect(c.timeoutMs).toBeGreaterThan(0); // junk falls back to default
     expect(c.allowPrivate).toBe(true);

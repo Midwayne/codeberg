@@ -28,16 +28,16 @@ export function daemonToolSource(opts: DaemonToolSourceOptions): ToolSource {
         if (HIDDEN_DAEMON_TOOLS.has(spec.name)) {
           continue;
         }
+
         set[spec.name] = dynamicTool({
           description: spec.description,
           inputSchema: jsonSchema(spec.schema),
           execute: async (args) => {
             try {
-              const result = await opts.daemon.callTool(
-                spec.name,
-                args as Record<string, unknown>,
-              );
+              const result = await opts.daemon.callTool(spec.name, args as Record<string, unknown>);
+
               opts.onToolResult?.(spec.name, result);
+
               return result;
             } catch (error) {
               return daemonToolError(error);
@@ -45,6 +45,7 @@ export function daemonToolSource(opts: DaemonToolSourceOptions): ToolSource {
           },
         });
       }
+
       return set;
     },
   };

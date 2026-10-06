@@ -1,14 +1,16 @@
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import type { UIMessage } from 'ai';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import type { ServerResponse } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { AddressInfo } from 'node:net';
-import type { ServerResponse } from 'node:http';
-import type { UIMessage } from 'ai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { reasoningFromEnv } from '../core/config.js';
-import { LearningService } from '../core/learning/service.js';
 import type { DatasetExample } from '../core/learning/datasets.js';
+import { LearningService } from '../core/learning/service.js';
+import { ModelSettingsStore } from './model-selection/settings.js';
+import { ResourceSettings } from './resources.js';
 import {
   CHAT_PATH,
   CHAT_SEARCH_PATH,
@@ -20,9 +22,7 @@ import {
   type WebServerOptions,
 } from './server.js';
 import { WebSessionStore } from './sessions/store.js';
-import { ModelSettingsStore } from './model-selection/settings.js';
 import { formatWebTitle } from './title.js';
-import { ResourceSettings } from './resources.js';
 
 // `agent` is unused when `respond` is injected; cast a stub so the tests can
 // drive routing without a live model.
@@ -39,23 +39,38 @@ async function start(opts: Partial<WebServerOptions> = {}): Promise<string> {
     agent: stubAgent,
     title: 'test-title',
     sessionStore,
-    resources: new ResourceSettings({ home: sessionStore.dir, sessions: sessionStore, learning: opts.learning, env: {}, monitor: {
-      start() {}, stop() {}, invalidateDisk() {},
-      read: () => JSON.stringify({ current: { memory: { usedBytes: process.memoryUsage().rss } }, history: [] }),
-    } }),
+    resources: new ResourceSettings({
+      home: sessionStore.dir,
+      sessions: sessionStore,
+      learning: opts.learning,
+      env: {},
+      monitor: {
+        start() {},
+        stop() {},
+        invalidateDisk() {},
+        read: () =>
+          JSON.stringify({
+            current: { memory: { usedBytes: process.memoryUsage().rss } },
+            history: [],
+          }),
+      },
+    }),
     ...opts,
   });
+
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const { port } = server.address() as AddressInfo;
   close = () =>
     new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   baseUrl = `http://127.0.0.1:${port}`;
+
   return baseUrl;
 }
 
 function tempSessionStore(): WebSessionStore {
   const dir = mkdtempSync(join(tmpdir(), 'codeberg-web-sessions-'));
   tempDirs.push(dir);
+
   return new WebSessionStore(dir);
 }
 
@@ -64,20 +79,42 @@ function tempLearning(): LearningService {
   tempDirs.push(dir);
   const service = new LearningService({ root: dir });
   learningServices.push(service);
+
   return service;
 }
 
-async function reviewedCandidates(learning: LearningService, conversationId: string, path: string): Promise<DatasetExample[]> {
+async function reviewedCandidates(
+  learning: LearningService,
+  conversationId: string,
+  path: string,
+): Promise<DatasetExample[]> {
   await learning.store.recordSession(conversationId, [
     { id: 'u1', role: 'user', parts: [{ type: 'text', text: `Where is ${path} implemented?` }] },
-    { id: 'a1', role: 'assistant', parts: [
-      { type: 'dynamic-tool', toolName: 'search_code', toolCallId: 't1', state: 'output-available',
-        input: { query: path }, output: [{ path, snippet: 'export function calculate() {}' }] },
-      { type: 'text', text: `It is implemented in ${path}.` },
-    ] },
+    {
+      id: 'a1',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'dynamic-tool',
+          toolName: 'search_code',
+          toolCallId: 't1',
+          state: 'output-available',
+          input: { query: path },
+          output: [{ path, snippet: 'export function calculate() {}' }],
+        },
+        { type: 'text', text: `It is implemented in ${path}.` },
+      ],
+    },
   ] as UIMessage[]);
-  const attempt = (await learning.store.attempts()).find((row) => row.conversation_id === conversationId)!;
-  await learning.store.recordFeedback({ attemptId: attempt.attempt_id, rating: 3, label: 'solved' });
+  const attempt = (await learning.store.attempts()).find(
+    (row) => row.conversation_id === conversationId,
+  )!;
+  await learning.store.recordFeedback({
+    attemptId: attempt.attempt_id,
+    rating: 3,
+    label: 'solved',
+  });
+
   return learning.datasets.extract(attempt.interaction_id);
 }
 
@@ -87,6 +124,7 @@ function makeStaticRoot(): string {
   writeFileSync(join(dir, 'index.html'), '<!doctype html><title>spa</title><div id=root></div>');
   mkdirSync(join(dir, 'assets'));
   writeFileSync(join(dir, 'assets', 'app-abc123.js'), "console.log('hi')");
+
   return dir;
 }
 
@@ -98,6 +136,7 @@ afterEach(async () => {
     service.stop();
     await service.waitForCurrent();
   }
+
   while (tempDirs.length) rmSync(tempDirs.pop()!, { recursive: true, force: true });
 });
 
@@ -112,11 +151,17 @@ describe('web server', () => {
     expect((await usage.json()).current.memory.usedBytes).toBeGreaterThan(0);
     const preview = await fetch(baseUrl + '/api/settings/cleanup?olderThanDays=30');
     expect((await preview.json()).categories[0]).toMatchObject({ category: 'chats', count: 1 });
-    const clean = (body: unknown, origin?: string) => fetch(baseUrl + '/api/settings/cleanup', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', ...(origin ? { Origin: origin } : {}) }, body: JSON.stringify(body),
-    });
+    const clean = (body: unknown, origin?: string) =>
+      fetch(baseUrl + '/api/settings/cleanup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(origin ? { Origin: origin } : {}) },
+        body: JSON.stringify(body),
+      });
+
     expect((await clean({ categories: ['chats'], olderThanDays: -1 })).status).toBe(400);
-    expect((await clean({ categories: ['chats'], olderThanDays: 30 }, 'https://other.example')).status).toBe(403);
+    expect(
+      (await clean({ categories: ['chats'], olderThanDays: 30 }, 'https://other.example')).status,
+    ).toBe(403);
     expect((await clean({ categories: ['chats'], olderThanDays: 30 })).status).toBe(200);
     expect(await sessions.list()).toEqual([]);
     expect((await fetch(baseUrl + '/api/settings/resources', { method: 'PUT' })).status).toBe(405);
@@ -125,53 +170,93 @@ describe('web server', () => {
   it('rejects cleanup while a chat write is in flight', async () => {
     let finish: (() => void) | undefined;
     let started: (() => void) | undefined;
-    const inFlight = new Promise<void>((resolve) => { started = resolve; });
-    await start({ respond: async (res) => {
-      started?.();
-      await new Promise<void>((resolve) => { finish = resolve; });
-      res.end('ok');
-    } });
-    const chat = fetch(baseUrl + CHAT_PATH, { method: 'POST', body: JSON.stringify({ messages: [] }) });
+    const inFlight = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    await start({
+      respond: async (res) => {
+        started?.();
+        await new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+        res.end('ok');
+      },
+    });
+    const chat = fetch(baseUrl + CHAT_PATH, {
+      method: 'POST',
+      body: JSON.stringify({ messages: [] }),
+    });
+
     await inFlight;
     try {
-      const res = await fetch(baseUrl + '/api/settings/cleanup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ categories: ['chats'], olderThanDays: 0 }) });
+      const res = await fetch(baseUrl + '/api/settings/cleanup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ categories: ['chats'], olderThanDays: 0 }),
+      });
+
       expect(res.status).toBe(409);
-    } finally { finish?.(); await chat; }
+    } finally {
+      finish?.();
+      await chat;
+    }
   });
 
   it('keeps cleanup blocked until a streaming response finishes even if its responder returns early', async () => {
     let finish: (() => void) | undefined;
-    await start({ respond: async (res) => {
-      res.writeHead(200, { 'Content-Type': 'text/plain' });
-      res.write('streaming');
-      finish = () => res.end('done');
-    } });
-    const response = await fetch(baseUrl + CHAT_PATH, { method: 'POST', body: JSON.stringify({ messages: [] }) });
+    await start({
+      respond: async (res) => {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.write('streaming');
+        finish = () => res.end('done');
+      },
+    });
+    const response = await fetch(baseUrl + CHAT_PATH, {
+      method: 'POST',
+      body: JSON.stringify({ messages: [] }),
+    });
+
     try {
       const cleanup = await fetch(baseUrl + '/api/settings/cleanup', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ categories: ['chats'], olderThanDays: 0 }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ categories: ['chats'], olderThanDays: 0 }),
       });
+
       expect(cleanup.status).toBe(409);
-    } finally { finish?.(); await response.text(); }
+    } finally {
+      finish?.();
+      await response.text();
+    }
   });
 
   it('records chat turn completion and errors in agent.log without storing messages', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'codeberg-agent-log-'));
     tempDirs.push(dir);
     vi.stubEnv('CODEBERG_LOG_DIR', dir);
-    await start({ respond: async (res, messages) => {
-      if (messages.includes('fail')) throw new Error('model unavailable');
-      res.end('ok');
-    } });
-    const send = (messages: string[]) => fetch(baseUrl + CHAT_PATH, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages }),
+    await start({
+      respond: async (res, messages) => {
+        if (messages.includes('fail')) throw new Error('model unavailable');
+
+        res.end('ok');
+      },
     });
+    const send = (messages: string[]) =>
+      fetch(baseUrl + CHAT_PATH, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages }),
+      });
+
     expect((await send(['private prompt'])).status).toBe(200);
     expect((await send(['fail'])).status).toBe(500);
     const log = readFileSync(join(dir, 'agent.log'), 'utf8');
-    expect(log.split('\n').filter(Boolean).map((line) => JSON.parse(line).event)).toEqual([
-      'turn_started', 'turn_completed', 'turn_started', 'turn_failed',
-    ]);
+    expect(
+      log
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => JSON.parse(line).event),
+    ).toEqual(['turn_started', 'turn_completed', 'turn_started', 'turn_failed']);
     expect(log).not.toContain('private prompt');
     expect(log).toContain('model unavailable');
   });
@@ -205,42 +290,73 @@ describe('web server', () => {
     await start({ title: 'gpt-5.6-sol · reasoning: high' });
     const res = await fetch(baseUrl + META_PATH);
     expect(res.headers.get('content-type')).toContain('application/json');
-    expect(await res.json()).toEqual({ title: 'gpt-5.6-sol · reasoning: high', capabilities: { learning: false } });
+    expect(await res.json()).toEqual({
+      title: 'gpt-5.6-sol · reasoning: high',
+      capabilities: { learning: false },
+    });
   });
 
   it('persists independent UI model selections and binds each chat request to a snapshot', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'codeberg-models-'));
     tempDirs.push(dir);
-    writeFileSync(join(dir, 'models.yml'), 'providers:\n  openai:\n    models:\n      small:\n        model: alpha\n        context_window: 50000\n        efforts: [low, high]\n      large:\n        model: alpha\n        context_window: 90000\n        efforts: [none, low]\n');
+    writeFileSync(
+      join(dir, 'models.yml'),
+      'providers:\n  openai:\n    models:\n      small:\n        model: alpha\n        context_window: 50000\n        efforts: [low, high]\n      large:\n        model: alpha\n        context_window: 90000\n        efforts: [none, low]\n',
+    );
     const models = new ModelSettingsStore({
       home: dir,
       defaultChat: { key: 'openai:small', effort: 'low' },
       defaultLearning: { key: 'openai:large', effort: 'none' },
     });
+
     const received: string[] = [];
-    await start({ modelSettings: models, respond: async (res, _messages, selected) => {
-      received.push(`${selected?.key}:${selected?.model}:${selected?.effort}:${selected?.contextWindow}`);
-      res.end('ok');
-    } });
+    await start({
+      modelSettings: models,
+      respond: async (res, _messages, selected) => {
+        received.push(
+          `${selected?.key}:${selected?.model}:${selected?.effort}:${selected?.contextWindow}`,
+        );
+        res.end('ok');
+      },
+    });
 
     const initial = await (await fetch(`${baseUrl}/api/models`)).json();
     expect(initial.chat).toEqual({ key: 'openai:small', effort: 'low' });
     expect(initial.learning).toEqual({ key: 'openai:large', effort: 'none' });
-    const send = () => fetch(baseUrl + CHAT_PATH, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"messages":[]}' });
+    const send = () =>
+      fetch(baseUrl + CHAT_PATH, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{"messages":[]}',
+      });
+
     expect((await send()).status).toBe(200);
     const saved = await fetch(`${baseUrl}/api/models`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat: { key: 'openai:large', effort: 'low' }, learning: { key: 'openai:small', effort: 'high' } }),
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat: { key: 'openai:large', effort: 'low' },
+        learning: { key: 'openai:small', effort: 'high' },
+      }),
     });
+
     expect(saved.status).toBe(200);
     expect((await (await fetch(baseUrl + META_PATH)).json()).title).toContain('large');
     expect((await send()).status).toBe(200);
-    expect(received).toEqual(['openai:small:openai:alpha:low:50000', 'openai:large:openai:alpha:low:90000']);
+    expect(received).toEqual([
+      'openai:small:openai:alpha:low:50000',
+      'openai:large:openai:alpha:low:90000',
+    ]);
 
     const invalid = await fetch(`${baseUrl}/api/models`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat: { key: 'openai:unlisted', effort: 'high' }, learning: initial.learning }),
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat: { key: 'openai:unlisted', effort: 'high' },
+        learning: initial.learning,
+      }),
     });
+
     expect(invalid.status).toBe(400);
     expect((await (await fetch(`${baseUrl}/api/models`)).json()).chat.key).toBe('openai:large');
   });
@@ -248,7 +364,9 @@ describe('web server', () => {
   it('passes supported files through and rejects unsupported inputs before running the agent', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'codeberg-models-'));
     tempDirs.push(dir);
-    writeFileSync(join(dir, 'models.yml'), `providers:
+    writeFileSync(
+      join(dir, 'models.yml'),
+      `providers:
   google:
     models:
       multi:
@@ -258,26 +376,50 @@ describe('web server', () => {
       plain:
         context_window: 32000
         efforts: [none]
-`);
-    const store = new ModelSettingsStore({ home: dir,
+`,
+    );
+    const store = new ModelSettingsStore({
+      home: dir,
       defaultChat: { key: 'google:multi', effort: 'none' },
-      defaultLearning: { key: 'google:plain', effort: 'none' } });
-    const respond = vi.fn(async (res: ServerResponse, _messages: unknown[]) => { res.end('ok'); });
-    await start({ modelSettings: store, respond });
-    const send = (mediaType: string, url = `data:${mediaType};base64,AQID`) => fetch(baseUrl + CHAT_PATH, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: [{ id: 'u1', role: 'user', parts: [
-        { type: 'text', text: 'What is this?' }, { type: 'file', mediaType, filename: 'sample', url },
-      ] }] }),
+      defaultLearning: { key: 'google:plain', effort: 'none' },
     });
+
+    const respond = vi.fn(async (res: ServerResponse, _messages: unknown[]) => {
+      res.end('ok');
+    });
+    await start({ modelSettings: store, respond });
+    const send = (mediaType: string, url = `data:${mediaType};base64,AQID`) =>
+      fetch(baseUrl + CHAT_PATH, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [
+            {
+              id: 'u1',
+              role: 'user',
+              parts: [
+                { type: 'text', text: 'What is this?' },
+                { type: 'file', mediaType, filename: 'sample', url },
+              ],
+            },
+          ],
+        }),
+      });
+
     for (const mediaType of ['image/png', 'audio/mpeg', 'video/mp4', 'application/pdf']) {
       expect((await send(mediaType)).status).toBe(200);
     }
+
     expect(respond).toHaveBeenCalledTimes(4);
-    expect(respond.mock.calls[0][1]).toMatchObject([{ parts: [{ type: 'text' }, { type: 'file', mediaType: 'image/png' }] }]);
+    expect(respond.mock.calls[0][1]).toMatchObject([
+      { parts: [{ type: 'text' }, { type: 'file', mediaType: 'image/png' }] },
+    ]);
     expect((await send('application/zip')).status).toBe(400);
     expect((await send('image/png', 'https://example.com/image.png')).status).toBe(400);
-    await store.update({ chat: { key: 'google:plain', effort: 'none' }, learning: { key: 'google:plain', effort: 'none' } });
+    await store.update({
+      chat: { key: 'google:plain', effort: 'none' },
+      learning: { key: 'google:plain', effort: 'none' },
+    });
     expect((await send('image/png')).status).toBe(400);
     expect(respond).toHaveBeenCalledTimes(4);
   });
@@ -286,19 +428,20 @@ describe('web server', () => {
     await start({ sessionStore: tempSessionStore() });
     expect((await fetch(`${baseUrl}/api/learning/status`)).status).toBe(404);
     const saved = await fetch(`${baseUrl}${SESSIONS_PATH}/disabled`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: 'Works without learning', messages: [] }),
     });
+
     expect(saved.status).toBe(200);
-    expect((await (await fetch(`${baseUrl}${SESSIONS_PATH}/disabled`)).json()).title).toBe('Works without learning');
+    expect((await (await fetch(`${baseUrl}${SESSIONS_PATH}/disabled`)).json()).title).toBe(
+      'Works without learning',
+    );
   });
 
   it('shows only the model name and configured reasoning in both web headers', async () => {
     await start({
-      title: formatWebTitle(
-        'openai:gpt-5.6-sol',
-        reasoningFromEnv({ CODEBERG_REASONING: 'high' }),
-      ),
+      title: formatWebTitle('openai:gpt-5.6-sol', reasoningFromEnv({ CODEBERG_REASONING: 'high' })),
     });
 
     expect(await (await fetch(baseUrl + META_PATH)).json()).toEqual({
@@ -378,6 +521,7 @@ describe('web server', () => {
       res.writeHead(200, { 'Content-Type': 'text/plain' });
       res.end('streamed');
     };
+
     await start({ respond });
 
     const messages = [{ id: '1', role: 'user', parts: [{ type: 'text', text: 'hi' }] }];
@@ -400,6 +544,7 @@ describe('web server', () => {
       await new Promise<void>((resolve) => release.set(marker, resolve));
       res.end(`response-${marker}`);
     };
+
     await start({ respond });
 
     const post = (marker: string) =>
@@ -408,6 +553,7 @@ describe('web server', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: [{ marker }] }),
       }).then((response) => response.text());
+
     const responseA = post('a');
     const responseB = post('b');
 
@@ -427,6 +573,7 @@ describe('web server', () => {
       received = messages;
       res.end('ok');
     };
+
     await start({ respond });
 
     await fetch(baseUrl + CHAT_PATH, {
@@ -458,11 +605,13 @@ describe('web server', () => {
         parts: [{ type: 'text', text: 'via tokens' }],
       },
     ];
+
     const put = await fetch(`${url}/abc123`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: 'auth', messages }),
     });
+
     expect(put.status).toBe(200);
 
     // It shows up in the list with a turn count.
@@ -484,6 +633,7 @@ describe('web server', () => {
         parentId: 'abc123',
       }),
     });
+
     expect(branchPut.status).toBe(200);
     const branched = await (await fetch(`${url}/child1`)).json();
     expect(branched.parentId).toBe('abc123');
@@ -512,45 +662,80 @@ describe('web server', () => {
     expect(await (await fetch(url)).json()).toEqual([]);
   });
 
-  it.each(['delete', 'cleanup'] as const)('keeps saving an existing branch after parent %s', async (removal) => {
-    const sessions = tempSessionStore();
-    await start({ sessionStore: sessions });
-    const url = `${baseUrl}${SESSIONS_PATH}`;
-    const messages: UIMessage[] = [{ id: 'u1', role: 'user', parts: [{ type: 'text', text: 'Initial question' }] }];
-    const put = (id: string, body: unknown) => fetch(`${url}/${id}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-    });
-    expect((await put('parent', { title: 'Parent', messages })).status).toBe(200);
-    expect((await put('branch', { title: 'Branch', messages, parentId: 'parent' })).status).toBe(200);
-    const original = await sessions.load('branch');
+  it.each(['delete', 'cleanup'] as const)(
+    'keeps saving an existing branch after parent %s',
+    async (removal) => {
+      const sessions = tempSessionStore();
+      await start({ sessionStore: sessions });
+      const url = `${baseUrl}${SESSIONS_PATH}`;
+      const messages: UIMessage[] = [
+        { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'Initial question' }] },
+      ];
+      const put = (id: string, body: unknown) =>
+        fetch(`${url}/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
 
-    if (removal === 'delete') {
-      expect((await fetch(`${url}/parent`, { method: 'DELETE' })).status).toBe(204);
-    } else {
-      const parent = await sessions.load('parent');
-      await sessions.save({ ...parent!, updatedAt: 1 });
-      expect((await fetch(baseUrl + '/api/settings/cleanup', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ categories: ['chats'], olderThanDays: 30 }),
-      })).status).toBe(200);
-    }
-    expect(await sessions.load('parent')).toBeNull();
+      expect((await put('parent', { title: 'Parent', messages })).status).toBe(200);
+      expect((await put('branch', { title: 'Branch', messages, parentId: 'parent' })).status).toBe(
+        200,
+      );
+      const original = await sessions.load('branch');
 
-    const updatedMessages: UIMessage[] = [...messages, { id: 'u2', role: 'user', parts: [{ type: 'text', text: 'Continue the branch' }] }];
-    expect((await put('branch', { title: 'Updated branch', messages: updatedMessages, parentId: 'parent' })).status).toBe(200);
-    expect(await (await fetch(`${url}/branch`)).json()).toMatchObject({
-      title: 'Updated branch', messages: updatedMessages, parentId: 'parent', createdAt: original!.createdAt,
-    });
-  });
+      if (removal === 'delete') {
+        expect((await fetch(`${url}/parent`, { method: 'DELETE' })).status).toBe(204);
+      } else {
+        const parent = await sessions.load('parent');
+        await sessions.save({ ...parent!, updatedAt: 1 });
+        expect(
+          (
+            await fetch(baseUrl + '/api/settings/cleanup', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ categories: ['chats'], olderThanDays: 30 }),
+            })
+          ).status,
+        ).toBe(200);
+      }
+
+      expect(await sessions.load('parent')).toBeNull();
+
+      const updatedMessages: UIMessage[] = [
+        ...messages,
+        { id: 'u2', role: 'user', parts: [{ type: 'text', text: 'Continue the branch' }] },
+      ];
+
+      expect(
+        (
+          await put('branch', {
+            title: 'Updated branch',
+            messages: updatedMessages,
+            parentId: 'parent',
+          })
+        ).status,
+      ).toBe(200);
+      expect(await (await fetch(`${url}/branch`)).json()).toMatchObject({
+        title: 'Updated branch',
+        messages: updatedMessages,
+        parentId: 'parent',
+        createdAt: original!.createdAt,
+      });
+    },
+  );
 
   it('rejects missing parents when creating a branch or changing its lineage', async () => {
     const sessions = tempSessionStore();
     await start({ sessionStore: sessions });
     const url = `${baseUrl}${SESSIONS_PATH}`;
-    const put = (id: string, parentId?: string) => fetch(`${url}/${id}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: id, messages: [], parentId }),
-    });
+    const put = (id: string, parentId?: string) =>
+      fetch(`${url}/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: id, messages: [], parentId }),
+      });
+
     expect((await put('new-branch', 'missing')).status).toBe(404);
     expect(await sessions.load('new-branch')).toBeNull();
     expect((await put('parent')).status).toBe(200);
@@ -562,21 +747,36 @@ describe('web server', () => {
 
   it('pins, archives, searches message text across all chats, and preserves flags when prompting again', async () => {
     let prompted: unknown[] | undefined;
-    await start({ sessionStore: tempSessionStore(), respond: async (res, messages) => {
-      prompted = messages;
-      res.end('ok');
-    } });
+    await start({
+      sessionStore: tempSessionStore(),
+      respond: async (res, messages) => {
+        prompted = messages;
+        res.end('ok');
+      },
+    });
     const url = `${baseUrl}${SESSIONS_PATH}`;
-    const put = (id: string, title: string, text: string, answer?: string) => fetch(`${url}/${id}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, messages: [
-        { id: 'u', role: 'user', parts: [{ type: 'text', text }] },
-        ...(answer ? [{ id: 'a', role: 'assistant', parts: [{ type: 'text', text: answer }] }] : []),
-      ] }),
-    });
-    const patch = (id: string, body: unknown) => fetch(`${url}/${id}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-    });
+    const put = (id: string, title: string, text: string, answer?: string) =>
+      fetch(`${url}/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          messages: [
+            { id: 'u', role: 'user', parts: [{ type: 'text', text }] },
+            ...(answer
+              ? [{ id: 'a', role: 'assistant', parts: [{ type: 'text', text: answer }] }]
+              : []),
+          ],
+        }),
+      });
+
+    const patch = (id: string, body: unknown) =>
+      fetch(`${url}/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
     await put('first', 'First chat', 'Searchable secret phrase');
     await put('second', 'Other chat', 'Something else', 'The unique answer is here');
     expect((await patch('first', { pinned: true, archived: true })).status).toBe(200);
@@ -586,23 +786,55 @@ describe('web server', () => {
     expect(results.map((item: { id: string }) => item.id)).toEqual(['first']);
     expect(results[0]).toMatchObject({ pinned: true, archived: true });
     const hits = await (await fetch(`${baseUrl}${CHAT_SEARCH_PATH}?q=secret%20phrase`)).json();
-    expect(hits).toMatchObject([{ id: 'first', messageId: 'u', role: 'user', archived: true, snippet: 'Searchable secret phrase' }]);
-    expect((await (await fetch(`${baseUrl}${CHAT_SEARCH_PATH}?q=other%20chat`)).json())[0]).toMatchObject({ id: 'second', role: 'title' });
-    expect((await (await fetch(`${baseUrl}${CHAT_SEARCH_PATH}?q=unique%20answer`)).json())[0]).toMatchObject({ id: 'second', messageId: 'a', role: 'assistant', snippet: 'The unique answer is here' });
-    expect((await (await fetch(`${url}?q=other%20chat`)).json()).map((item: { id: string }) => item.id)).toEqual(['second']);
-    expect((await (await fetch(url)).json()).map((item: { id: string }) => item.id)).toContain('first');
+    expect(hits).toMatchObject([
+      {
+        id: 'first',
+        messageId: 'u',
+        role: 'user',
+        archived: true,
+        snippet: 'Searchable secret phrase',
+      },
+    ]);
+    expect(
+      (await (await fetch(`${baseUrl}${CHAT_SEARCH_PATH}?q=other%20chat`)).json())[0],
+    ).toMatchObject({ id: 'second', role: 'title' });
+    expect(
+      (await (await fetch(`${baseUrl}${CHAT_SEARCH_PATH}?q=unique%20answer`)).json())[0],
+    ).toMatchObject({
+      id: 'second',
+      messageId: 'a',
+      role: 'assistant',
+      snippet: 'The unique answer is here',
+    });
+    expect(
+      (await (await fetch(`${url}?q=other%20chat`)).json()).map((item: { id: string }) => item.id),
+    ).toEqual(['second']);
+    expect((await (await fetch(url)).json()).map((item: { id: string }) => item.id)).toContain(
+      'first',
+    );
 
     const archived = await (await fetch(`${url}/first`)).json();
-    expect((await fetch(baseUrl + CHAT_PATH, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: archived.messages }),
-    })).status).toBe(200);
+    expect(
+      (
+        await fetch(baseUrl + CHAT_PATH, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: archived.messages }),
+        })
+      ).status,
+    ).toBe(200);
     expect(prompted).toEqual(archived.messages);
     await put('first', 'First chat', 'Searchable secret phrase and a new prompt');
-    expect(await (await fetch(`${url}/first`)).json()).toMatchObject({ pinned: true, archived: true });
+    expect(await (await fetch(`${url}/first`)).json()).toMatchObject({
+      pinned: true,
+      archived: true,
+    });
 
     expect((await patch('first', { pinned: false, archived: false })).status).toBe(200);
-    expect(await (await fetch(`${url}/first`)).json()).toMatchObject({ pinned: false, archived: false });
+    expect(await (await fetch(`${url}/first`)).json()).toMatchObject({
+      pinned: false,
+      archived: false,
+    });
     expect((await patch('missing', { pinned: true })).status).toBe(404);
     expect((await patch('first', { messages: [] })).status).toBe(400);
     expect((await patch('first', { archived: 'yes' })).status).toBe(400);
@@ -622,6 +854,7 @@ describe('web server', () => {
       { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'Where is X produced?' }] },
       { id: 'a1', role: 'assistant', parts: [{ type: 'text', text: 'Builder.build produces X.' }] },
     ];
+
     await fetch(`${baseUrl}${SESSIONS_PATH}/conversation1`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -637,6 +870,7 @@ describe('web server', () => {
         label: 'solved',
       }),
     });
+
     expect(solved.status).toBe(201);
     const solvedBody = await solved.json();
     expect(solvedBody.jobStatus).toBe('pending');
@@ -652,6 +886,7 @@ describe('web server', () => {
         reason: 'scheduled orders differ',
       }),
     });
+
     expect(changed.status).toBe(201);
     const events = await learning.store.events();
     const feedback = events.flatMap((event) =>
@@ -686,17 +921,30 @@ describe('web server', () => {
     const first = await reviewedCandidates(learning, 'first', 'src/First.ts');
     const second = await reviewedCandidates(learning, 'second', 'src/Second.ts');
     const third = await reviewedCandidates(learning, 'third', 'src/Third.ts');
-    const post = (id: string, body: unknown) => fetch(`${baseUrl}/api/learning/review/${id}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-    });
+    const post = (id: string, body: unknown) =>
+      fetch(`${baseUrl}/api/learning/review/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
 
     const initial = await (await fetch(`${baseUrl}/api/learning/review`)).json();
-    expect(initial.stats).toMatchObject({ ready: first.length + second.length + third.length,
-      training: 0, eval: 0, dismissed: 0 });
-    expect(initial.candidates).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: first[0].id, query: 'Where is src/First.ts implemented?',
-        kind: first[0].kind, eligible: true }),
-    ]));
+    expect(initial.stats).toMatchObject({
+      ready: first.length + second.length + third.length,
+      training: 0,
+      eval: 0,
+      dismissed: 0,
+    });
+    expect(initial.candidates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: first[0].id,
+          query: 'Where is src/First.ts implemented?',
+          kind: first[0].kind,
+          eligible: true,
+        }),
+      ]),
+    );
     expect(JSON.stringify(initial)).not.toContain('successful_trajectory');
 
     const sft = first.find((row) => row.kind === 'sft')!;
@@ -704,17 +952,27 @@ describe('web server', () => {
     expect((await post(sft.id, { decision: 'training' })).status).toBe(409);
     const retrieval = second.find((row) => row.kind === 'retrieval')!;
     expect((await post(retrieval.id, { decision: 'eval' })).status).toBe(400);
-    expect((await post(retrieval.id, { decision: 'eval', oracle: { files: ['src/Second.ts'] } })).status).toBe(201);
+    expect(
+      (await post(retrieval.id, { decision: 'eval', oracle: { files: ['src/Second.ts'] } })).status,
+    ).toBe(201);
     expect((await post(third[0].id, { decision: 'dismiss' })).status).toBe(201);
     expect((await post(third[0].id, { decision: 'dismiss' })).status).toBe(409);
     expect((await post(third[0].id, { decision: 'training' })).status).toBe(409);
     expect((await post('bad-id', { decision: 'dismiss' })).status).toBe(400);
-    expect((await (await fetch(`${baseUrl}/api/learning/review/${sft.id}`)).json()).payload.answer).toContain('src/First.ts');
+    expect(
+      (await (await fetch(`${baseUrl}/api/learning/review/${sft.id}`)).json()).payload.answer,
+    ).toContain('src/First.ts');
 
     const result = await (await fetch(`${baseUrl}/api/learning/review`)).json();
-    expect(result.stats).toMatchObject({ training: 1, eval: 1, dismissed: 1,
-      ready: first.length + second.length + third.length - 3 });
-    expect(result.candidates.find((row: { id: string }) => row.id === sft.id).state).toBe('training');
+    expect(result.stats).toMatchObject({
+      training: 1,
+      eval: 1,
+      dismissed: 1,
+      ready: first.length + second.length + third.length - 3,
+    });
+    expect(result.candidates.find((row: { id: string }) => row.id === sft.id).state).toBe(
+      'training',
+    );
     expect((await learning.datasets.active('training')).map((row) => row.id)).toContain(sft.id);
     expect((await learning.datasets.active('eval')).map((row) => row.id)).toContain(retrieval.id);
   });
@@ -724,14 +982,21 @@ describe('web server', () => {
     await start({ learning });
     const examples = await reviewedCandidates(learning, 'old-review', 'src/Old.ts');
     const attempt = (await learning.store.attempts())[0];
-    await learning.store.recordFeedback({ attemptId: attempt.attempt_id, rating: 1, label: 'partially_useful' });
+    await learning.store.recordFeedback({
+      attemptId: attempt.attempt_id,
+      rating: 1,
+      label: 'partially_useful',
+    });
 
     const view = await (await fetch(`${baseUrl}/api/learning/review`)).json();
     expect(view.stats).toMatchObject({ total: examples.length, ready: 0, stale: examples.length });
     expect(view.candidates[0]).toMatchObject({ state: 'stale', eligible: false });
     const res = await fetch(`${baseUrl}/api/learning/review/${examples[0].id}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision: 'training' }),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ decision: 'training' }),
     });
+
     expect(res.status).toBe(409);
   });
 });
@@ -739,15 +1004,31 @@ describe('web server', () => {
 it('updates learning settings live, validates patches, and retains settings access while paused', async () => {
   const learning = tempLearning();
   await start({ learning });
-  const update = (patch: unknown) => fetch(`${baseUrl}/api/learning/settings`, {
-    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
-  });
+  const update = (patch: unknown) =>
+    fetch(`${baseUrl}/api/learning/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+
   expect((await update({ knowledge: false, evals: false })).status).toBe(200);
-  expect(await (await fetch(`${baseUrl}/api/learning/settings`)).json()).toMatchObject({ knowledge: false, evals: false, history: true });
+  expect(await (await fetch(`${baseUrl}/api/learning/settings`)).json()).toMatchObject({
+    knowledge: false,
+    evals: false,
+    history: true,
+  });
   expect((await update({ history: 'false' })).status).toBe(400);
   expect((await update({ enabled: false })).status).toBe(200);
   expect((await (await fetch(`${baseUrl}/api/meta`)).json()).capabilities.learning).toBe(false);
-  expect((await fetch(`${baseUrl}/api/learning/feedback`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status).toBe(409);
+  expect(
+    (
+      await fetch(`${baseUrl}/api/learning/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      })
+    ).status,
+  ).toBe(409);
   expect((await update({ enabled: true })).status).toBe(200);
   expect((await (await fetch(`${baseUrl}/api/meta`)).json()).capabilities.learning).toBe(true);
 });
@@ -757,8 +1038,11 @@ it('blocks evaluation promotion when evaluations are off, preserving candidates 
   await learning.updateSettings({ evals: false });
   await start({ learning });
   const response = await fetch(`${baseUrl}/api/learning/review/${examples[0]!.id}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision: 'eval', oracle: { files: ['src/Example.ts'] } }),
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ decision: 'eval', oracle: { files: ['src/Example.ts'] } }),
   });
+
   expect(response.status).toBe(409);
   expect(await learning.datasets.list('eval')).toEqual([]);
   expect((await learning.datasets.list('candidates')).length).toBeGreaterThan(0);

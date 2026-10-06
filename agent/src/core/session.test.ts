@@ -14,9 +14,11 @@ function fakeAsker(answers: string[]): {
   const asker: Asker = {
     ask: async (_q, opts): Promise<AskResult> => {
       calls.push(opts?.messages ?? []);
+
       return { answer: answers[i++] ?? '', sources: [] };
     },
   };
+
   return { asker, calls };
 }
 

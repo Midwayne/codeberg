@@ -7,17 +7,28 @@ export interface MessageSearchHit {
   snippet: string;
 }
 
-export function messageSearchHits(messages: readonly UIMessage[], query: string): MessageSearchHit[] {
+export function messageSearchHits(
+  messages: readonly UIMessage[],
+  query: string,
+): MessageSearchHit[] {
   const needle = query.trim().toLocaleLowerCase();
   if (!needle) return [];
+
   const hits: MessageSearchHit[] = [];
   for (const [index, message] of messages.entries()) {
     if (message.role !== 'user' && message.role !== 'assistant') continue;
+
     const text = message.parts
-      .filter((part): part is Extract<UIMessage['parts'][number], { type: 'text' }> => part.type === 'text')
-      .map((part) => part.text).join(' ');
+      .filter(
+        (part): part is Extract<UIMessage['parts'][number], { type: 'text' }> =>
+          part.type === 'text',
+      )
+      .map((part) => part.text)
+      .join(' ');
+
     const at = text.toLocaleLowerCase().indexOf(needle);
     if (at < 0) continue;
+
     const start = Math.max(0, at - 55);
     const end = Math.min(text.length, at + needle.length + 95);
     hits.push({
@@ -26,5 +37,6 @@ export function messageSearchHits(messages: readonly UIMessage[], query: string)
       snippet: `${start ? '…' : ''}${text.slice(start, end).replace(/\s+/g, ' ').trim()}${end < text.length ? '…' : ''}`,
     });
   }
+
   return hits;
 }

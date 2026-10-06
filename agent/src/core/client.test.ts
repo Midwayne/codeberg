@@ -51,6 +51,7 @@ describe('DaemonClient', () => {
       expect(url.searchParams.get('path_glob')).toBe('daemon/*');
       expect(url.searchParams.get('kind')).toBe('function');
       expect(url.searchParams.get('min_score')).toBe('0.8');
+
       return Response.json({
         results: [
           {
@@ -64,6 +65,7 @@ describe('DaemonClient', () => {
         ],
       });
     });
+
     vi.stubGlobal('fetch', fetchMock);
 
     const client = new DaemonClient(DEFAULT_DAEMON_URL);
@@ -74,6 +76,7 @@ describe('DaemonClient', () => {
       kind: 'function',
       min_score: 0.8,
     });
+
     expect(hits[0]?.repo).toBe('alpha');
   });
 
@@ -133,6 +136,7 @@ describe('DaemonClient', () => {
       'fetch',
       vi.fn(async () => {
         calls++;
+
         return Response.json({
           ready: calls >= 2,
           chunks: 1,

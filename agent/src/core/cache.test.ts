@@ -1,8 +1,8 @@
 import type { ToolSet } from 'ai';
 import { describe, expect, it } from 'vitest';
 
-import { cachedInstructions, deterministicTools, requestProviderOptions } from './cache.js';
 import type { ModelProfile } from '../providers/profiles.js';
+import { cachedInstructions, deterministicTools, requestProviderOptions } from './cache.js';
 
 const anthropic: ModelProfile = {
   provider: 'anthropic',
@@ -10,12 +10,14 @@ const anthropic: ModelProfile = {
   contextWindow: 1_000_000,
   cache: 'anthropic',
 };
+
 const openai: ModelProfile = {
   provider: 'openai',
   modelId: 'gpt-4o',
   contextWindow: 128_000,
   cache: 'openai',
 };
+
 const plain: ModelProfile = {
   provider: 'google',
   modelId: 'gemini',

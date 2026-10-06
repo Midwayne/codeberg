@@ -19,6 +19,7 @@ export function chunkKey(r: Pick<SearchResult, 'repo' | 'id' | 'path' | 'start_l
   if (r.id > 0) {
     return `${r.repo ?? ''}#${r.id}`;
   }
+
   return `${r.repo ?? ''}@${r.path}:${r.start_line}`;
 }
 

@@ -20,8 +20,10 @@ export async function externalizeToolResults(
   for (const message of messages) {
     const rewritten = await externalizeMessage(message, store, limit);
     if (rewritten !== message) changed = true;
+
     next.push(rewritten);
   }
+
   return changed ? next : messages;
 }
 
@@ -36,15 +38,19 @@ async function externalizeMessage(
       return message;
     case 'assistant': {
       if (typeof message.content === 'string') return message;
+
       const { content, changed } = await spillToolResultParts(message.content, store, limit);
+
       return changed ? { ...message, content } : message;
     }
     case 'tool': {
       const { content, changed } = await spillToolResultParts(message.content, store, limit);
+
       return changed ? { ...message, content } : message;
     }
     default: {
       const _never: never = message;
+
       return _never;
     }
   }
@@ -66,10 +72,13 @@ async function spillToolResultParts<P extends { type: string }>(
       content.push(part);
       continue;
     }
+
     const spilled = await spillResult(part, store, limit);
     if (spilled !== part) changed = true;
+
     content.push(spilled as unknown as P);
   }
+
   return { content, changed };
 }
 
@@ -80,5 +89,6 @@ async function spillResult(
 ): Promise<ToolResultPart> {
   const preview = await spillText(store, part.toolName, toolResultOutputText(part.output), limit);
   if (preview === undefined) return part;
+
   return { ...part, output: { type: 'text', value: preview } };
 }

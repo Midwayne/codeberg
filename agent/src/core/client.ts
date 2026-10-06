@@ -46,6 +46,7 @@ export class DaemonClient {
     if (!res.ok) {
       throw parseError(res.status, body);
     }
+
     return body;
   }
 
@@ -57,6 +58,7 @@ export class DaemonClient {
       if (h.ready) {
         return h;
       }
+
       await sleep(250);
     }
     throw new DaemonError('NOT_READY', 'daemon indexer not ready', 503);
@@ -68,18 +70,23 @@ export class DaemonClient {
     if (opts.k != null) {
       url.searchParams.set('k', String(opts.k));
     }
+
     if (opts.repo) {
       url.searchParams.set('repo', opts.repo);
     }
+
     if (opts.path_glob) {
       url.searchParams.set('path_glob', opts.path_glob);
     }
+
     if (opts.kind) {
       url.searchParams.set('kind', opts.kind);
     }
+
     if (opts.min_score != null) {
       url.searchParams.set('min_score', String(opts.min_score));
     }
+
     const res = await fetch(url);
     const body = (await res.json()) as {
       results: SearchResult[];
@@ -87,6 +94,7 @@ export class DaemonClient {
     if (!res.ok) {
       throw parseError(res.status, body);
     }
+
     return body.results
       .map((r) => normalizeSearchHit(r))
       .filter((r): r is SearchResult => r != null);
@@ -101,9 +109,11 @@ export class DaemonClient {
         schema: Record<string, unknown>;
       }[];
     } & DaemonErrorBody;
+
     if (!res.ok) {
       throw parseError(res.status, body);
     }
+
     return body.tools.map((t) => ({
       name: t.name,
       description: t.description,
@@ -117,10 +127,12 @@ export class DaemonClient {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, args }),
     });
+
     const body = (await res.json()) as { result: unknown } & DaemonErrorBody;
     if (!res.ok) {
       throw parseError(res.status, body);
     }
+
     return body.result;
   }
 }
@@ -129,6 +141,7 @@ function parseError(status: number, body: DaemonErrorBody | { message?: string }
   if ('code' in body && body.code) {
     return new DaemonError(body.code, body.message, status);
   }
+
   return new DaemonError('DAEMON_ERROR', String(body.message ?? status), status);
 }
 

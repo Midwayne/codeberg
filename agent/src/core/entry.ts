@@ -33,7 +33,9 @@ export function parseEntryArgs(
 export function entryUsage(program: string): string {
   return (
     `Usage: ${program} [provider:model] <question>\n` +
-    'Env: CODEBERG_DAEMON_URL (default ' + DEFAULT_DAEMON_URL + ')\n' +
+    'Env: CODEBERG_DAEMON_URL (default ' +
+    DEFAULT_DAEMON_URL +
+    ')\n' +
     '     CODEBERG_MODEL=openai:gpt-4o-mini\n' +
     '     CODEBERG_SUBAGENT_MODEL=openai:gpt-4o-mini (defaults to CODEBERG_MODEL)\n' +
     'Providers: openai, anthropic, google (when API keys set)'

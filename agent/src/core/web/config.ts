@@ -8,11 +8,13 @@ const DEFAULT_SEARCH_COUNT = 6;
 /** A flag env var: anything but 0/false/off/no (case-insensitive) is "on". */
 function flag(value: string | undefined, fallback: boolean): boolean {
   if (value == null || value.trim() === '') return fallback;
+
   return !/^(0|false|off|no)$/i.test(value.trim());
 }
 
 function positiveInt(value: string | undefined, fallback: number): number {
   const n = Number(value);
+
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
 }
 

@@ -1,22 +1,25 @@
 import type { LanguageModel, ToolLoopAgent } from 'ai';
+import { boundLearningContext } from './learning-input.js';
 
-import { createAgent } from '../../core/config.js';
 import { wrapToolLoopAgentWithCompaction } from '../../core/compaction.js';
+import { createAgent } from '../../core/config.js';
 import { fromAiSdk } from '../../core/generator.js';
 import type { LearningService } from '../../core/learning/service.js';
-import type { Generator } from '../../core/types.js';
 import { writeLearningTrace } from '../../core/module-log.js';
-import type { ModelSettingsStore } from './settings.js';
+import type { Generator } from '../../core/types.js';
 import type { ResolvedModelSelection } from '../chat-routes.js';
+import type { ModelSettingsStore } from './settings.js';
 
 /** A loop's model, effort, and history budget are immutable for its lifetime. */
 export class ModelAgentPool {
   private readonly loops = new Map<string, Promise<ToolLoopAgent>>();
 
-  constructor(private readonly options: {
-    build: (selection: ResolvedModelSelection) => Promise<ToolLoopAgent>;
-    close?: () => Promise<void>;
-  }) {}
+  constructor(
+    private readonly options: {
+      build: (selection: ResolvedModelSelection) => Promise<ToolLoopAgent>;
+      close?: () => Promise<void>;
+    },
+  ) {}
 
   forSelection(selection: ResolvedModelSelection): Promise<ToolLoopAgent> {
     const key = JSON.stringify(selection);
@@ -28,6 +31,7 @@ export class ModelAgentPool {
       });
       this.loops.set(key, loop);
     }
+
     return loop;
   }
 
@@ -36,8 +40,13 @@ export class ModelAgentPool {
   }
 }
 
-export function createWebModelPool(daemonUrl: string, learning: LearningService | false, env?: NodeJS.ProcessEnv): ModelAgentPool {
+export function createWebModelPool(
+  daemonUrl: string,
+  learning: LearningService | false,
+  env?: NodeJS.ProcessEnv,
+): ModelAgentPool {
   const agents: Array<{ close(): Promise<void> }> = [];
+
   return new ModelAgentPool({
     build: async (selection) => {
       const core = createAgent({
@@ -48,6 +57,7 @@ export function createWebModelPool(daemonUrl: string, learning: LearningService 
         contextWindow: selection.contextWindow,
         learning,
       });
+
       agents.push(core);
       try {
         return wrapToolLoopAgentWithCompaction(await core.toolLoopAgent(), core.historyCompactor());
@@ -69,6 +79,7 @@ export function createLearningGenerator(
   resolveModel: (spec: string) => LanguageModel,
 ): Generator {
   const models = new Map<string, LanguageModel>();
+
   return {
     generate: async (prompt) => {
       const { learning, models: catalog } = await settings.current();
@@ -79,10 +90,19 @@ export function createLearningGenerator(
         model = resolveModel(modelSpec);
         models.set(modelSpec, model);
       }
+
       const contextWindow = selected?.contextWindow;
-      const bounded = contextWindow ? boundLearningContext(prompt.prompt, prompt.system, contextWindow) : prompt.prompt;
-      writeLearningTrace('model_request', { job_id: prompt.traceId, model: modelSpec,
-        effort: learning.effort, system: prompt.system, prompt: bounded });
+      const bounded = contextWindow
+        ? boundLearningContext(prompt.prompt, prompt.system, contextWindow)
+        : prompt.prompt;
+      writeLearningTrace('model_request', {
+        job_id: prompt.traceId,
+        model: modelSpec,
+        effort: learning.effort,
+        system: prompt.system,
+        prompt: bounded,
+      });
+
       return fromAiSdk(model, learning.effort, modelSpec).generate({
         ...prompt,
         prompt: bounded,
@@ -91,180 +111,6 @@ export function createLearningGenerator(
   };
 }
 
-export function boundLearningContext(input: string, system: string, contextWindow: number): string {
-  // Reserve roughly half the token window for output and account for system text.
-  const maxChars = Math.max(512, Math.floor(contextWindow * 2) - system.length);
-  if (input.length <= maxChars) return input;
-  // Consolidation must retain whole records and all exceptions. Decline a pass
-  // rather than exposing disconnected fragments to a smaller learning model.
-  try {
-    if (JSON.parse(input)?.mode === 'consolidate_knowledge') return JSON.stringify({
-      mode: 'consolidate_knowledge', insufficient_evidence: true,
-      instruction: 'Return {"summary":"Knowledge does not fit this model context.","merges":[],"links":[]}.',
-    });
-  } catch { /* Other generators may send plain text. */ }
-  const knowledge = parseKnowledgeInput(input);
-  if (knowledge) return compactKnowledgeInput(knowledge, maxChars);
+export { ReloadableAgentPool } from './reloadable.js';
 
-  const excerpt = Math.floor(maxChars * 0.4);
-  return JSON.stringify({
-    truncated: true,
-    opening_context: input.slice(0, excerpt),
-    ending_context: input.slice(-excerpt),
-  });
-}
-
-interface KnowledgeInput extends Record<string, unknown> {
-  authoritative_attempt_id: string;
-  interaction: Record<string, unknown> & { attempts: unknown[] };
-}
-
-function parseKnowledgeInput(input: string): KnowledgeInput | undefined {
-  try {
-    const value = JSON.parse(input) as unknown;
-    if (isRecord(value) && typeof value.authoritative_attempt_id === 'string' &&
-      isRecord(value.interaction) && Array.isArray(value.interaction.attempts)) {
-      return value as KnowledgeInput;
-    }
-  } catch {
-    // Other generators may send plain text rather than the knowledge JSON input.
-  }
-  return undefined;
-}
-
-function compactKnowledgeInput(data: KnowledgeInput, maxChars: number): string {
-  const attempts = data.interaction.attempts.filter(isRecord);
-  const authoritative = attempts.find((attempt) => attempt.attempt_id === data.authoritative_attempt_id);
-  const observations = Array.isArray(data.current_source_observations) ? data.current_source_observations : [];
-  const artifacts = Array.isArray(data.existing_artifacts) ? data.existing_artifacts : [];
-  const feedback = Array.isArray(data.interaction.feedback) ? data.interaction.feedback : [];
-
-  const summary = {
-    truncated: true,
-    mode: data.mode,
-    authoritative_attempt_id: data.authoritative_attempt_id,
-    authoritative_attempt: data.authoritative_attempt,
-    current_source_observations: observations.slice(0, 8).map((item) => compactObservation(item, 3_000)),
-    interaction: {
-      attempts: attempts.slice(-4).map((attempt) => summarizeAttempt(attempt, authoritative)),
-      feedback: feedback.slice(-12),
-    },
-    existing_artifacts: artifacts.slice(0, 3),
-  };
-  const compact = JSON.stringify(summary);
-  if (compact.length <= maxChars) return compact;
-
-  const focused = {
-    ...summary,
-    current_source_observations: summary.current_source_observations.slice(0, 3)
-      .map((item) => compactObservation(item, 1_500)),
-    interaction: {
-      attempts: summary.interaction.attempts.filter((attempt) => attempt.attempt_id === data.authoritative_attempt_id),
-      feedback: summary.interaction.feedback.slice(-4),
-    },
-    existing_artifacts: summary.existing_artifacts.map((artifact) => isRecord(artifact)
-      ? { category: artifact.category, slug: artifact.slug, title: artifact.title,
-          body: typeof artifact.body === 'string' ? artifact.body.slice(0, 900) : undefined }
-      : artifact),
-  };
-  const limited = JSON.stringify(focused);
-  if (limited.length <= maxChars) return limited;
-
-  // Never send disconnected string fragments as if they were complete source evidence.
-  return JSON.stringify({
-    truncated: true,
-    insufficient_evidence: true,
-    authoritative_attempt_id: data.authoritative_attempt_id,
-    instruction: 'Source evidence does not fit this context. Return {"action":"none"}.',
-  });
-}
-
-function summarizeAttempt(attempt: Record<string, unknown>, authoritative?: Record<string, unknown>) {
-  if (attempt !== authoritative) {
-    return {
-      attempt_id: attempt.attempt_id,
-      user_query: attempt.user_query,
-      answer: attempt.answer,
-      evidence_used: attempt.evidence_used,
-    };
-  }
-
-  const tools = Array.isArray(attempt.tools_invoked) ? attempt.tools_invoked.filter(isRecord) : [];
-  return {
-    ...attempt,
-    trajectory: undefined,
-    retrieved_results: undefined,
-    tools_invoked: tools.slice(-10).map((tool) => ({
-      name: tool.name,
-      input: tool.input,
-      output: compactOutput(tool.output, 1_800),
-    })),
-  };
-}
-
-function compactObservation(value: unknown, maxChars: number): unknown {
-  if (!isRecord(value)) return value;
-  return {
-    ...value,
-    excerpt: typeof value.excerpt === 'string' ? value.excerpt.slice(0, maxChars) : undefined,
-  };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
-}
-
-function compactOutput(value: unknown, maxChars: number): unknown {
-  const text = JSON.stringify(value);
-  if (!text || text.length <= maxChars) return value;
-  return { truncated: true, opening_excerpt: text.slice(0, maxChars / 2),
-    ending_excerpt: text.slice(-maxChars / 2) };
-}
-
-interface PoolGeneration {
-  pool: ModelAgentPool;
-  revision: number;
-  users: number;
-  retired: boolean;
-}
-
-/** Extension edits affect subsequent turns; in-flight turns retain their MCP
- * clients until their stream and response have both finished. */
-export class ReloadableAgentPool {
-  private current?: PoolGeneration;
-  private readonly generations = new Set<PoolGeneration>();
-  constructor(private readonly build: () => ModelAgentPool) {}
-
-  async acquire(selection: ResolvedModelSelection, revision: number) {
-    let previous: PoolGeneration | undefined;
-    if (!this.current || this.current.revision !== revision) {
-      previous = this.current;
-      if (previous) previous.retired = true;
-      this.current = { pool: this.build(), revision, users: 0, retired: false };
-      this.generations.add(this.current);
-    }
-    // Capture ownership before yielding: concurrent requests share this generation.
-    const generation = this.current;
-    generation.users++;
-    let released = false;
-    const release = async () => {
-      if (released) return;
-      released = true;
-      generation.users--;
-      await this.retire(generation);
-    };
-    try {
-      if (previous) await this.retire(previous);
-      return { agent: await generation.pool.forSelection(selection), release };
-    }
-    catch (error) { await release(); throw error; }
-  }
-  private async retire(generation: PoolGeneration) {
-    if (!generation.retired || generation.users > 0 || !this.generations.delete(generation)) return;
-    await generation.pool.close();
-  }
-  async close() {
-    for (const generation of this.generations) generation.retired = true;
-    await Promise.all([...this.generations].map((generation) => this.retire(generation)));
-  }
-}
+export { boundLearningContext } from './learning-input.js';

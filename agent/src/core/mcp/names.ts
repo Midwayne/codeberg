@@ -13,6 +13,7 @@ function shortHash(s: string): string {
     h ^= s.charCodeAt(i);
     h = Math.imul(h, 16777619);
   }
+
   return (h >>> 0).toString(36);
 }
 
@@ -25,10 +26,12 @@ export function mcpToolName(server: string, tool: string): string {
   const t = sanitize(tool) || 'tool';
   const name = `mcp_${s}_${t}`;
   if (name.length <= MAX_TOOL_NAME) return name;
+
   const prefix = `mcp_${s}_`;
   const budget = MAX_TOOL_NAME - prefix.length;
   if (budget < 8) {
     return `mcp_${shortHash(`${server}:${tool}`)}`.slice(0, MAX_TOOL_NAME);
   }
+
   return prefix + t.slice(0, budget);
 }

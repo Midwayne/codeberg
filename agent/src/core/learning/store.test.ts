@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import type { UIMessage } from 'ai';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { exportDataset } from './export.js';
 import { DatasetStore } from './datasets.js';
+import { exportDataset } from './export.js';
 import { writeAtomic } from './fs.js';
 import { LearningStore, serializeArtifact } from './store.js';
 
@@ -19,12 +19,17 @@ afterEach(async () => {
 async function store(): Promise<LearningStore> {
   const root = await mkdtemp(join(tmpdir(), 'codeberg-learning-'));
   roots.push(root);
+
   return new LearningStore(root);
 }
 
 function transcript(answerId = 'a1'): UIMessage[] {
   return [
-    { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'Where is fulfillmentType produced?' }] },
+    {
+      id: 'u1',
+      role: 'user',
+      parts: [{ type: 'text', text: 'Where is fulfillmentType produced?' }],
+    },
     {
       id: answerId,
       role: 'assistant',
@@ -58,8 +63,12 @@ describe('LearningStore', () => {
   it('keeps knowledge interaction text usable without copying attached file bytes', async () => {
     const learning = await store();
     const messages = transcript();
-    messages[0].parts.push({ type: 'file', mediaType: 'image/png', filename: 'diagram.png',
-      url: 'data:image/png;base64,AQID' });
+    messages[0].parts.push({
+      type: 'file',
+      mediaType: 'image/png',
+      filename: 'diagram.png',
+      url: 'data:image/png;base64,AQID',
+    });
     await learning.recordSession('with-image', messages);
     const attempts = await learning.attempts();
     expect(attempts[0].user_query).toBe('Where is fulfillmentType produced?');
@@ -68,16 +77,30 @@ describe('LearningStore', () => {
   it('keeps pre-versioned knowledge readable for explicit historical inspection', async () => {
     const learning = await store();
     const legacy = {
-      id: 'knowledge-legacy', title: 'Legacy shipping flow', category: 'flows' as const,
-      slug: 'legacy-shipping-flow', created_at: '2025-01-01', updated_at: '2025-01-01',
-      last_verified_at: '2025-01-01', repositories: ['old-repo'],
-      source_interactions: ['interaction-legacy'], source_commits: {},
-      confidence: 'high' as const, status: 'active' as const, body: 'Historical shipping process.',
+      id: 'knowledge-legacy',
+      title: 'Legacy shipping flow',
+      category: 'flows' as const,
+      slug: 'legacy-shipping-flow',
+      created_at: '2025-01-01',
+      updated_at: '2025-01-01',
+      last_verified_at: '2025-01-01',
+      repositories: ['old-repo'],
+      source_interactions: ['interaction-legacy'],
+      source_commits: {},
+      confidence: 'high' as const,
+      status: 'active' as const,
+      body: 'Historical shipping process.',
     };
-    await writeAtomic(join(learning.root, 'knowledge', 'flows', 'legacy-shipping-flow.md'), serializeArtifact(legacy));
+
+    await writeAtomic(
+      join(learning.root, 'knowledge', 'flows', 'legacy-shipping-flow.md'),
+      serializeArtifact(legacy),
+    );
     expect((await learning.knowledgeArtifacts())[0]).toMatchObject(legacy);
     expect(await learning.searchKnowledge('shipping')).toEqual([]);
-    expect(await learning.searchKnowledge('shipping', 10, { includeUnverified: true })).toMatchObject([
+    expect(
+      await learning.searchKnowledge('shipping', 10, { includeUnverified: true }),
+    ).toMatchObject([
       { artifact: { id: 'knowledge-legacy', body: 'Historical shipping process.' } },
     ]);
   });
@@ -85,20 +108,41 @@ describe('LearningStore', () => {
   it('ranks a rare relevant concept over repetition of common terms in any query order', async () => {
     const learning = await store();
     const artifact = {
-      category: 'flows' as const, created_at: '2026-09-26', updated_at: '2026-09-26',
-      last_verified_at: '2026-09-26', repositories: ['core'], source_interactions: ['interaction-old'],
-      source_commits: {}, confidence: 'medium' as const, status: 'needs_verification' as const,
+      category: 'flows' as const,
+      created_at: '2026-09-26',
+      updated_at: '2026-09-26',
+      last_verified_at: '2026-09-26',
+      repositories: ['core'],
+      source_interactions: ['interaction-old'],
+      source_commits: {},
+      confidence: 'medium' as const,
+      status: 'needs_verification' as const,
     };
-    await writeAtomic(join(learning.root, 'knowledge', 'flows', 'mpm-units.md'), serializeArtifact({
-      ...artifact, id: 'mpm', title: 'MPM remaining available units', slug: 'mpm-units',
-      body: 'Subtract store-close from the open total.',
-    }));
-    await writeAtomic(join(learning.root, 'knowledge', 'flows', 'unrelated-units.md'), serializeArtifact({
-      ...artifact, id: 'unrelated', title: 'Units availability', slug: 'unrelated-units',
-      body: `${'remaining '.repeat(5)}${'available '.repeat(5)}${'units '.repeat(5)}`,
-    }));
 
-    const hits = await learning.searchKnowledge('units available remaining MPM', 10, { includeUnverified: true });
+    await writeAtomic(
+      join(learning.root, 'knowledge', 'flows', 'mpm-units.md'),
+      serializeArtifact({
+        ...artifact,
+        id: 'mpm',
+        title: 'MPM remaining available units',
+        slug: 'mpm-units',
+        body: 'Subtract store-close from the open total.',
+      }),
+    );
+    await writeAtomic(
+      join(learning.root, 'knowledge', 'flows', 'unrelated-units.md'),
+      serializeArtifact({
+        ...artifact,
+        id: 'unrelated',
+        title: 'Units availability',
+        slug: 'unrelated-units',
+        body: `${'remaining '.repeat(5)}${'available '.repeat(5)}${'units '.repeat(5)}`,
+      }),
+    );
+
+    const hits = await learning.searchKnowledge('units available remaining MPM', 10, {
+      includeUnverified: true,
+    });
     expect(hits.map((hit) => hit.artifact.id)).toEqual(['mpm', 'unrelated']);
     expect(hits[0].score).toBeGreaterThan(hits[1].score);
   });
@@ -118,6 +162,7 @@ describe('LearningStore', () => {
       join(learning.root, 'events', `${new Date().toISOString().slice(0, 10)}.jsonl`),
       'utf8',
     );
+
     expect(raw).not.toContain('secret-value');
   });
 
@@ -130,6 +175,7 @@ describe('LearningStore', () => {
       rating: 3,
       label: 'solved',
     });
+
     const corrected = await learning.recordFeedback({
       attemptId: attempt.attempt_id,
       rating: 1,
@@ -189,6 +235,7 @@ describe('LearningStore', () => {
       { id: 'u2', role: 'user', parts: [{ type: 'text', text: 'Actually, that only maps it.' }] },
       { id: 'a2', role: 'assistant', parts: [{ type: 'text', text: 'The builder produces it.' }] },
     ] as UIMessage[];
+
     await learning.recordSession('conversation-1', messages);
     const attempts = await learning.attempts();
     expect(attempts).toHaveLength(2);
@@ -214,20 +261,36 @@ describe('LearningStore', () => {
     await learning.recordFeedback({ attemptId: attempt.attempt_id, rating: 3, label: 'solved' });
     const datasets = new DatasetStore(learning);
     const candidates = await datasets.extract(attempt.interaction_id);
-    await datasets.promote(candidates.find((row) => row.kind === 'sft')!.id, 'training', { provenance: 'user_confirmed' });
-    await datasets.promote(candidates.find((row) => row.kind === 'retrieval')!.id, 'training', { provenance: 'user_confirmed' });
+    await datasets.promote(candidates.find((row) => row.kind === 'sft')!.id, 'training', {
+      provenance: 'user_confirmed',
+    });
+    await datasets.promote(candidates.find((row) => row.kind === 'retrieval')!.id, 'training', {
+      provenance: 'user_confirmed',
+    });
     const rows = await exportDataset(learning, 'openai-chat');
-    expect(rows).toEqual([{ messages: [
-      { role: 'user', content: attempt.user_query },
-      { role: 'assistant', content: attempt.answer },
-    ] }]);
-    expect(await exportDataset(learning, 'query-positive-negative')).toEqual([{
-      query: attempt.user_query,
-      positive: ['src/FulfillmentContextBuilder.ts\nFulfillmentContextBuilder.build\nreturn { fulfillmentType }'],
-      negative: [], // an uncited hit with no source text is not a trainable negative
-    }]);
+    expect(rows).toEqual([
+      {
+        messages: [
+          { role: 'user', content: attempt.user_query },
+          { role: 'assistant', content: attempt.answer },
+        ],
+      },
+    ]);
+    expect(await exportDataset(learning, 'query-positive-negative')).toEqual([
+      {
+        query: attempt.user_query,
+        positive: [
+          'src/FulfillmentContextBuilder.ts\nFulfillmentContextBuilder.build\nreturn { fulfillmentType }',
+        ],
+        negative: [], // an uncited hit with no source text is not a trainable negative
+      },
+    ]);
     expect(await exportDataset(learning, 'eval')).toEqual([]);
-    await learning.recordFeedback({ attemptId: attempt.attempt_id, rating: 0, label: 'not_useful' });
+    await learning.recordFeedback({
+      attemptId: attempt.attempt_id,
+      rating: 0,
+      label: 'not_useful',
+    });
     expect(await datasets.active('training')).toEqual([]);
     expect(await datasets.list('training')).toHaveLength(2); // immutable audit history
     expect(await exportDataset(learning, 'openai-chat')).toEqual([]); // reviewed revision is now stale

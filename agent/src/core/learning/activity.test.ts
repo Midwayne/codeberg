@@ -1,13 +1,18 @@
 import { mkdtemp, rm } from 'node:fs/promises';
-import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { LearningService } from './service.js';
 import { DatasetStore } from './datasets.js';
+import { LearningService } from './service.js';
 
 const services: LearningService[] = [];
 afterEach(async () => {
-  for (const service of services.splice(0)) { service.stop(); await service.waitForCurrent(); await rm(service.store.root, { recursive: true, force: true }); }
+  for (const service of services.splice(0)) {
+    service.stop();
+    await service.waitForCurrent();
+    await rm(service.store.root, { recursive: true, force: true });
+  }
+
   vi.restoreAllMocks();
 });
 
@@ -15,6 +20,7 @@ async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'codeberg-activity-'));
   const service = new LearningService({ root, repositories: async () => [] });
   services.push(service);
+
   return service;
 }
 
@@ -32,15 +38,25 @@ describe('learning execution state', () => {
   it('is active only while a claimed job runs and clears after completion or failure', async () => {
     const service = await fixture();
     let finish: (() => void) | undefined;
-    vi.spyOn(DatasetStore.prototype, 'extract').mockImplementationOnce(async () => {
-      await new Promise<void>((resolve) => { finish = resolve; });
-      return [];
-    }).mockRejectedValueOnce(new Error('PERMANENT_ERROR: extraction failed'));
+    vi.spyOn(DatasetStore.prototype, 'extract')
+      .mockImplementationOnce(async () => {
+        await new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+
+        return [];
+      })
+      .mockRejectedValueOnce(new Error('PERMANENT_ERROR: extraction failed'));
     await service.queue.enqueueDataset('first');
     service.worker!.wake();
     await vi.waitFor(() => expect(finish).toBeDefined());
-    try { expect(service.isUpdating()).toBe(true); }
-    finally { finish?.(); await service.waitForCurrent(); }
+    try {
+      expect(service.isUpdating()).toBe(true);
+    } finally {
+      finish?.();
+      await service.waitForCurrent();
+    }
+
     expect(service.isUpdating()).toBe(false);
     await service.queue.enqueueDataset('second');
     service.worker!.wake();

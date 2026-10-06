@@ -20,6 +20,7 @@ describe('promptCommandCatalog', () => {
       command: { trigger: '/a', title: 'A', summary: 'sa', description: 'da' },
       rewrite: () => undefined,
     };
+
     expect(promptCommandCatalog([a, enhancePromptHook])).toEqual([
       a.command,
       enhancePromptHook.command,

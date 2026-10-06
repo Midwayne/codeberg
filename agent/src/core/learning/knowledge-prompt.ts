@@ -1,5 +1,5 @@
-import { redactSecrets } from './redact.js';
 import type { SourceObservation } from './memory-source.js';
+import { redactSecrets } from './redact.js';
 import type { AttemptRecord, FeedbackRecord, KnowledgeArtifact } from './types.js';
 
 export const EXTRACTION_SYSTEM = `You maintain a reusable, source-grounded codebase knowledge base. Do not produce training data, a transcript summary, or an answer to the user.
@@ -27,6 +27,7 @@ export function knowledgePrompt(input: {
   observations: SourceObservation[];
 }): string {
   const { refresh, final, currentFeedback, interaction, existing, observations } = input;
+
   return JSON.stringify({
     mode: refresh ? 'refresh' : 'extract',
     authoritative_attempt_id: final.attempt_id,

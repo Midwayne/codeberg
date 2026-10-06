@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { parseSearchArgs, runSearch, searchUsage, SearchCliError } from './search.js';
+import { parseSearchArgs, runSearch, SearchCliError, searchUsage } from './search.js';
 
 async function main(): Promise<void> {
   try {
@@ -8,6 +8,7 @@ async function main(): Promise<void> {
       console.log(searchUsage('codeberg-search'));
       return;
     }
+
     await runSearch(parsed);
   } catch (err) {
     if (err instanceof SearchCliError) {
@@ -15,6 +16,7 @@ async function main(): Promise<void> {
       console.error(searchUsage('codeberg-search'));
       process.exit(1);
     }
+
     throw err;
   }
 }

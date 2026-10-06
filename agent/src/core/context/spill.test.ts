@@ -1,11 +1,10 @@
+import { tool, type ToolSet } from 'ai';
 import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { tool, type ToolSet } from 'ai';
 import { describe, expect, it } from 'vitest';
 
-import { ContextStore } from './store.js';
 import {
   isSpillPreview,
   presentToolOutput,
@@ -13,6 +12,7 @@ import {
   spillPreview,
   spillResultCount,
 } from './spill.js';
+import { ContextStore } from './store.js';
 import { wrapToolOutputs } from './wrap.js';
 
 describe('spillPreview', () => {
@@ -27,7 +27,11 @@ describe('spillPreview', () => {
 
   it('preserves the top-level result count for structured arrays', async () => {
     const store = ContextStore.open(mkdtempSync(join(tmpdir(), 'cberg-spill-count-')));
-    const output = Array.from({ length: 42 }, (_, i) => ({ path: `file-${i}`, body: 'x'.repeat(400) }));
+    const output = Array.from({ length: 42 }, (_, i) => ({
+      path: `file-${i}`,
+      body: 'x'.repeat(400),
+    }));
+
     const seen = await presentToolOutput(store, 'grep', { pattern: 'x' }, output, 100);
     expect(isSpillPreview(seen)).toBe(true);
     expect(spillResultCount(seen)).toBe(42);
@@ -56,7 +60,9 @@ describe('presentToolOutput', () => {
     expect(String(seen)).toContain(file);
     expect(readFileSync(file, 'utf8')).toBe(body);
     await presentToolOutput(store, 'grep', { pattern: 'x' }, body);
-    const index = readFileSync(join(store.root, 'tools', 'INDEX.txt'), 'utf8').trim().split('\n');
+    const index = readFileSync(join(store.root, 'tools', 'INDEX.txt'), 'utf8')
+      .trim()
+      .split('\n');
     expect(index).toEqual([`grep\t${file}`]);
   });
 });
@@ -71,9 +77,11 @@ describe('wrapToolOutputs', () => {
         execute: async () => 'z'.repeat(SPILL_CHARS + 10),
       }),
     };
+
     const wrapped = wrapToolOutputs(tools, store);
-    const execute = (wrapped.grep as { execute: (args: unknown, opts: unknown) => Promise<unknown> })
-      .execute;
+    const execute = (
+      wrapped.grep as { execute: (args: unknown, opts: unknown) => Promise<unknown> }
+    ).execute;
     const seen = await execute({}, {});
     expect(isSpillPreview(String(seen))).toBe(true);
   });
@@ -84,6 +92,7 @@ describe('wrapToolOutputs', () => {
       content: [{ type: 'text', text: 'z'.repeat(SPILL_CHARS + 10) }],
       isError: false,
     };
+
     const tools: ToolSet = {
       mcp_query: {
         description: 'MCP query',
@@ -93,21 +102,28 @@ describe('wrapToolOutputs', () => {
           if (!output || typeof output !== 'object' || !('content' in output)) {
             throw new TypeError('expected MCP result');
           }
+
           return { type: 'content', value: (output as typeof raw).content } as const;
         },
       } as ToolSet[string],
     };
+
     const wrapped = wrapToolOutputs(tools, store);
-    const execute = (wrapped.mcp_query as {
-      execute: (args: unknown, opts: unknown) => Promise<unknown>;
-    }).execute;
-    const toModelOutput = (wrapped.mcp_query as unknown as {
-      toModelOutput: (opts: {
-        toolCallId: string;
-        input: unknown;
-        output: unknown;
-      }) => PromiseLike<{ type: string; value: unknown }> | { type: string; value: unknown };
-    }).toModelOutput;
+    const execute = (
+      wrapped.mcp_query as {
+        execute: (args: unknown, opts: unknown) => Promise<unknown>;
+      }
+    ).execute;
+
+    const toModelOutput = (
+      wrapped.mcp_query as unknown as {
+        toModelOutput: (opts: {
+          toolCallId: string;
+          input: unknown;
+          output: unknown;
+        }) => PromiseLike<{ type: string; value: unknown }> | { type: string; value: unknown };
+      }
+    ).toModelOutput;
 
     const output = await execute({}, {});
     expect(output).toBe(raw);

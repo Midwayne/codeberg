@@ -5,12 +5,15 @@ export interface DreamingPlan {
   merges: { target_id: string; source_ids: string[]; reason: string }[];
   links: { from_id: string; to_id: string; reason: string }[];
 }
+
 export interface DreamingChange {
   before: KnowledgeArtifact;
   after: KnowledgeArtifact;
   reason: string;
 }
+
 export type DreamingDecision = 'apply' | 'undo' | 'dismiss';
+
 export interface DreamingReport {
   schema_version: 1;
   id: string;

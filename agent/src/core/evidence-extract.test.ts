@@ -20,6 +20,7 @@ describe('extractEvidence', () => {
         final_score: 0.95,
       },
     ]);
+
     expect(hits[0]?.score).toBe(0.95);
   });
 
@@ -43,6 +44,7 @@ describe('extractEvidence', () => {
       end_line: 5,
       body: 'package main',
     });
+
     expect(hits).toHaveLength(1);
     expect(hits[0]?.id).toBe(7);
   });
@@ -58,6 +60,7 @@ describe('extractEvidence', () => {
       line: i + 1,
       text: 'hit',
     }));
+
     expect(extractEvidence('grep', rows)).toHaveLength(20);
   });
 
@@ -77,6 +80,7 @@ describe('extractEvidence', () => {
         },
       ],
     });
+
     expect(hits).toHaveLength(1);
     expect(hits[0]?.path).toBe('a.go');
     expect(hits[0]?.symbol).toBe('caller');
@@ -97,6 +101,7 @@ describe('extractEvidence', () => {
         src_path: 'b.go',
       },
     ]);
+
     expect(hits).toHaveLength(1);
     expect(hits[0]?.path).toBe('b.go');
     expect(hits[0]?.snippet).toContain('helper');

@@ -38,9 +38,10 @@ layer for local verification.
 ## Coding standards
 
 - **Test-driven workflow.** Write a failing test for the behavior, implement, refactor.
-- **TypeScript backend:** functions must be at most 50 lines, including comments
-  and blank lines (`npm run lint --prefix agent`). Keep whitespace between logical
-  steps and extract focused helpers instead of packing statements to fit the limit.
+- **TypeScript backend:** functions must be at most 50 lines and source files under 200 lines
+  (199 maximum), including comments and blank lines (`npm run lint --prefix agent`).
+  Keep whitespace between logical steps and extract focused helpers instead of packing
+  statements to fit the limits.
 - **C core:** keep `codeberg.h` stable; document memory ownership; use exhaustive
   `switch` with a `default:` `never` check for discriminated unions and enums.
 - **Imports:** `#include` at the top of C files; TypeScript imports at module top.

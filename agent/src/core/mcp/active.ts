@@ -11,6 +11,7 @@ export function isDeferredMcpTool(name: string): boolean {
  *  `loaded`. Order follows `all`. */
 export function selectActiveTools(all: readonly string[], loaded: readonly string[]): string[] {
   const keep = new Set(loaded);
+
   return all.filter((name) => !isDeferredMcpTool(name) || keep.has(name));
 }
 
@@ -38,22 +39,28 @@ export class McpToolActivation {
     const seen = new Set<string>();
     for (const raw of names) {
       if (typeof raw !== 'string') continue;
+
       const name = raw.trim();
       if (!name || seen.has(name)) continue;
+
       seen.add(name);
       if (!this.callable.has(name)) {
         missing.push(name);
         continue;
       }
+
       if (!this.order.includes(name)) this.order.push(name);
+
       loaded.push(name);
     }
+
     return { loaded, missing };
   }
 
   /** Undefined when `allNames` has no deferred MCP tools. */
   select(allNames: readonly string[], messages: readonly ModelMessage[]): string[] | undefined {
     if (!allNames.some((name) => isDeferredMcpTool(name))) return undefined;
+
     return selectActiveTools(allNames, [...this.order, ...mcpToolsReferenced(messages)]);
   }
 }
@@ -66,6 +73,7 @@ export function prepareStepPatch(
 ): { messages?: ModelMessage[]; activeTools?: string[] } | undefined {
   const messagesChanged = next !== messages;
   if (!messagesChanged && !activeTools) return undefined;
+
   return {
     ...(messagesChanged ? { messages: next } : {}),
     ...(activeTools ? { activeTools } : {}),
@@ -79,13 +87,17 @@ export function mcpToolsReferenced(messages: readonly ModelMessage[]): string[] 
   for (const message of messages) {
     const content = message.content;
     if (typeof content === 'string') continue;
+
     for (const part of content) {
       if (part.type !== 'tool-call' && part.type !== 'tool-result') continue;
+
       const name = part.toolName;
       if (!isDeferredMcpTool(name) || seen.has(name)) continue;
+
       seen.add(name);
       found.push(name);
     }
   }
+
   return found;
 }

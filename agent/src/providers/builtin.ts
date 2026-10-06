@@ -6,6 +6,7 @@ import type { ModelProvider } from './registry.js';
 
 function env(name: string): string | undefined {
   const v = process.env[name];
+
   return v && v.length > 0 ? v : undefined;
 }
 
@@ -27,6 +28,7 @@ function requireEnv(name: string, provider: string): string {
   if (!value) {
     throw new ProviderConfigError(name, provider);
   }
+
   return value;
 }
 
@@ -34,6 +36,7 @@ export function openaiProvider(): ModelProvider {
   const openai = createOpenAI({
     apiKey: requireEnv('OPENAI_API_KEY', 'openai'),
   });
+
   return { name: 'openai', model: (id) => openai(id) };
 }
 
@@ -41,6 +44,7 @@ export function anthropicProvider(): ModelProvider {
   const anthropic = createAnthropic({
     apiKey: requireEnv('ANTHROPIC_API_KEY', 'anthropic'),
   });
+
   return { name: 'anthropic', model: (id) => anthropic(id) };
 }
 
@@ -48,6 +52,7 @@ export function googleProvider(): ModelProvider {
   const google = createGoogleGenerativeAI({
     apiKey: requireEnv('GOOGLE_GENERATIVE_AI_API_KEY', 'google'),
   });
+
   return { name: 'google', model: (id) => google(id) };
 }
 
@@ -69,6 +74,7 @@ function openAICompatible(opts: {
     baseURL: env(opts.baseURLEnv) ?? opts.baseURLDefault,
     apiKey: env(opts.keyEnv) ?? opts.keyDefault,
   });
+
   return { name: opts.name, model: (id) => client.chat(id) };
 }
 
@@ -116,6 +122,7 @@ export function registerBuiltinProviders(registry: { register(p: ModelProvider):
       if (err instanceof ProviderConfigError) {
         continue;
       }
+
       throw err;
     }
   }

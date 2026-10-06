@@ -72,6 +72,8 @@ export async function connectMcpServer(
     clientName: 'codeberg',
     initializationOptions: { timeout: INIT_TIMEOUT_MS },
   });
+
   const tools = await client.tools();
+
   return { tools, close: () => client.close() };
 }

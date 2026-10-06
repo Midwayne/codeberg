@@ -2,9 +2,13 @@ import type { AssistantContent, ModelMessage, ToolContent, ToolResultPart, UserC
 
 /** ai-sdk tool-result payload. Not re-exported from `ai`; it is the `output` of a tool-result part. */
 type ToolResultOutput = ToolResultPart['output'];
+
 type ToolResultContentPart = Extract<ToolResultOutput, { type: 'content' }>['value'][number];
+
 type UserPart = Exclude<UserContent, string>[number];
+
 type AssistantPart = Exclude<AssistantContent, string>[number];
+
 type ToolPart = ToolContent[number];
 
 /**
@@ -18,6 +22,7 @@ export function messageText(message: ModelMessage): string {
   if (typeof content === 'string') {
     return content;
   }
+
   return content.map((part) => (part.type === 'text' ? part.text : '')).join('');
 }
 
@@ -25,9 +30,12 @@ export function messageText(message: ModelMessage): string {
  *  cannot be serialized (cycles, bigint). */
 export function toolOutputText(output: unknown): string {
   if (typeof output === 'string') return output;
+
   if (output == null) return '';
+
   try {
     const json = JSON.stringify(output, null, 2);
+
     return json ?? String(output);
   } catch {
     return String(output);
@@ -49,6 +57,7 @@ export function toolResultOutputText(output: ToolResultOutput): string {
       return output.value.map(contentPartText).filter(Boolean).join('\n');
     default: {
       const _never: never = output;
+
       return _never;
     }
   }
@@ -72,6 +81,7 @@ function contentPartText(part: ToolResultContentPart): string {
       return '[custom]';
     default: {
       const _never: never = part;
+
       return _never;
     }
   }
@@ -94,6 +104,7 @@ export function messageTranscript(message: ModelMessage): string {
       return message.content.map(toolPartText).filter(Boolean).join('\n');
     default: {
       const _never: never = message;
+
       return _never;
     }
   }
@@ -101,6 +112,7 @@ export function messageTranscript(message: ModelMessage): string {
 
 function joinParts<T>(content: string | readonly T[], render: (part: T) => string): string {
   if (typeof content === 'string') return content;
+
   return content.map(render).filter(Boolean).join('\n');
 }
 
@@ -113,6 +125,7 @@ function userPartText(part: UserPart): string {
       return '[file]';
     default: {
       const _never: never = part;
+
       return _never;
     }
   }
@@ -136,6 +149,7 @@ function assistantPartText(part: AssistantPart): string {
       return '[tool-approval-request]';
     default: {
       const _never: never = part;
+
       return _never;
     }
   }
@@ -149,6 +163,7 @@ function toolPartText(part: ToolPart): string {
       return '[tool-approval-response]';
     default: {
       const _never: never = part;
+
       return _never;
     }
   }
@@ -161,10 +176,12 @@ export function lastUserMessageIndex(messages: readonly ModelMessage[]): number 
       return i;
     }
   }
+
   return -1;
 }
 
 export function lastUserMessage(messages: readonly ModelMessage[]): ModelMessage | undefined {
   const i = lastUserMessageIndex(messages);
+
   return i >= 0 ? messages[i] : undefined;
 }

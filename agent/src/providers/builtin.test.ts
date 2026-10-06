@@ -28,6 +28,7 @@ describe('registerBuiltinProviders', () => {
     for (const k of keys) {
       delete process.env[k];
     }
+
     try {
       fn();
     } finally {

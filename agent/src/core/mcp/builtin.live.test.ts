@@ -41,6 +41,7 @@ describe.skipIf(!existsSync(BIN))('builtin database MCP handshake', () => {
       },
       { cwd: home },
     );
+
     expect(cfg.servers.map((s) => s.name)).toEqual(['databases']);
     const source = mcpToolSource({ config: cfg, log: () => {} });
     try {
@@ -57,6 +58,7 @@ describe.skipIf(!existsSync(BIN))('builtin database MCP handshake', () => {
           options: { toolCallId: string },
         ) => Promise<unknown>;
       };
+
       const result = await list.execute({}, { toolCallId: 'live' });
       expect(JSON.stringify(result)).toContain('cache');
     } finally {

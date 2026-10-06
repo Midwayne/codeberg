@@ -16,10 +16,12 @@ chunk-only mode.
 
 Use Node.js 22.13+ on the 22.x line, or Node.js 24+.
 Run `npm run lint` to check backend TypeScript under `src/`. Functions must be
-at most 50 lines, including signatures, braces, comments, and blank lines.
+at most 50 lines and source files must stay under 200 lines (199 maximum).
+Both limits count comments and blank lines; function signatures and braces count too.
 Keep whitespace between logical steps and extract focused helpers when a
-function grows too large. Test files, generated output, and `web-ui/` are excluded.
-The rule uses ESLint's [max-lines-per-function](https://eslint.org/docs/latest/rules/max-lines-per-function).
+function or module grows too large. Test files, generated output, and `web-ui/` are excluded.
+The checks use ESLint's [max-lines-per-function](https://eslint.org/docs/latest/rules/max-lines-per-function)
+and [max-lines](https://eslint.org/docs/latest/rules/max-lines). A final newline does not add an empty line.
 
 `npm run test:lint` checks the limit's boundaries and file scope.
 From the repository root, `make agent-check` runs lint, lint configuration tests,

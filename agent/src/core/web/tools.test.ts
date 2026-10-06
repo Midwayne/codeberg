@@ -43,6 +43,7 @@ function depsReturning(response: Response, capture?: { url?: string }): WebDeps 
   return {
     fetchImpl: (async (input: unknown) => {
       if (capture) capture.url = String(input);
+
       return response;
     }) as unknown as typeof fetch,
   };
@@ -79,6 +80,7 @@ describe('fetch_url tool', () => {
       cfg(),
       depsReturning(fakeResponse({ body: '<title>T</title><p>Hello world</p>' })),
     );
+
     const out = await run(tools.fetch_url, { url: 'https://example.com' });
     expect(out.title).toBe('T');
     expect(out.text).toContain('Hello world');
@@ -90,6 +92,7 @@ describe('fetch_url tool', () => {
       cfg({ maxChars: 5 }),
       depsReturning(fakeResponse({ body: '<p>abcdefghij</p>' })),
     );
+
     const out = await run(tools.fetch_url, { url: 'https://example.com' });
     expect(out.truncated).toBe(true);
     expect(out.text).toContain('[truncated]');
@@ -100,9 +103,11 @@ describe('fetch_url tool', () => {
     const deps: WebDeps = {
       fetchImpl: (async () => {
         called = true;
+
         return fakeResponse({ body: '' });
       }) as unknown as typeof fetch,
     };
+
     const tools = webTools(cfg(), deps);
     await expect(run(tools.fetch_url, { url: 'http://localhost:8080' })).rejects.toThrow(/private/);
     expect(called).toBe(false);
@@ -118,10 +123,12 @@ describe('web_search tool', () => {
         { title: 'C', content: 'no url' },
       ],
     });
+
     const tools = webTools(
       cfg({ searxngUrl: 'http://sx:8888' }),
       depsReturning(fakeResponse({ body, contentType: 'application/json' })),
     );
+
     const out = await run(tools.web_search, { query: 'q' });
     expect(out.results).toEqual([
       { title: 'A', url: 'https://a', snippet: 'snip' },
@@ -141,6 +148,7 @@ describe('web_search tool', () => {
         capture,
       ),
     );
+
     await run(tools.web_search, { query: 'hello world' });
     expect(capture.url).toContain('http://sx:8888/search');
     expect(capture.url).toContain('q=hello+world');

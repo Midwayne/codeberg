@@ -42,8 +42,10 @@ const HISTORY_FILE_RE = /<history_file>([^<]+)<\/history_file>/g;
 
 export function boundTranscript(full: string, maxChars = SUMMARY_INPUT_CHARS): string {
   if (full.length <= maxChars) return full;
+
   const tailChars = Math.min(24_000, Math.floor(maxChars / 3));
   const headChars = maxChars - tailChars;
+
   return `${full.slice(0, headChars)}\n\n[middle of the transcript omitted here; the history file has the full text]\n\n${full.slice(-tailChars)}`;
 }
 
@@ -89,11 +91,14 @@ export async function fitHistory(
   if (totalTokens(summarized) <= opts.budget) {
     return summarized;
   }
+
   return [historyMarker(undefined, older.length, files), ...recent];
 }
 
 function renderTranscript(messages: readonly ModelMessage[]): string {
-  return messages.map((message) => `## ${message.role}\n${messageTranscript(message)}`).join('\n\n');
+  return messages
+    .map((message) => `## ${message.role}\n${messageTranscript(message)}`)
+    .join('\n\n');
 }
 
 async function archiveTranscript(
@@ -101,13 +106,16 @@ async function archiveTranscript(
   transcript: string,
 ): Promise<string | undefined> {
   if (!archive) return undefined;
+
   try {
     const path = await archive(transcript);
     const trimmed = path?.trim();
+
     return trimmed ? trimmed : undefined;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`› context: failed to archive history: ${message}`);
+
     return undefined;
   }
 }
@@ -120,6 +128,7 @@ function historyFilesIn(messages: readonly ModelMessage[]): string[] {
       if (file) out.push(file);
     }
   }
+
   return out;
 }
 
@@ -128,9 +137,11 @@ function dedupe(paths: readonly string[]): string[] {
   const out: string[] = [];
   for (const path of paths) {
     if (seen.has(path)) continue;
+
     seen.add(path);
     out.push(path);
   }
+
   return out;
 }
 
@@ -143,12 +154,14 @@ function historyMarker(
     files.length === 0
       ? ''
       : `\n${files.map((file) => `<history_file>${file}</history_file>`).join('\n')}\nThe summary omits detail. Search each history file with context_grep before treating a missing path, symbol, line range, command, or decision as unknown.`;
+
   if (summary != null) {
     return {
       role: 'user',
       content: `<conversation_summary>\n${summary}\n</conversation_summary>${fileBlock}`,
     };
   }
+
   return {
     role: 'user',
     content: `[${omittedCount} earlier message(s) omitted to fit the context window]${fileBlock}`,

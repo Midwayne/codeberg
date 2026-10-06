@@ -14,11 +14,13 @@ describe('agent runtime compatibility', () => {
     const original = AbortSignal.any;
     Object.defineProperty(AbortSignal, 'any', { configurable: true, value: undefined });
     try {
-      expect(() => createAgentFromEntry({
-        modelSpec: 'openai:gpt-4o-mini',
-        daemonUrl: 'http://127.0.0.1:48080',
-        question: '',
-      })).toThrow(/AbortSignal\.any.*Node\.js 22/);
+      expect(() =>
+        createAgentFromEntry({
+          modelSpec: 'openai:gpt-4o-mini',
+          daemonUrl: 'http://127.0.0.1:48080',
+          question: '',
+        }),
+      ).toThrow(/AbortSignal\.any.*Node\.js 22/);
     } finally {
       Object.defineProperty(AbortSignal, 'any', { configurable: true, value: original });
     }

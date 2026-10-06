@@ -13,9 +13,14 @@ function run(toolDef: unknown, input: unknown): Promise<any> {
 describe('daemonToolSource', () => {
   it('exposes missing files rather than a generic tool failure', async () => {
     const daemon = {
-      listTools: vi.fn(async () => [{ name: 'read_file', description: 'read', schema: { type: 'object' } }]),
-      callTool: vi.fn(async () => { throw new DaemonError('NOT_FOUND', 'codeberg: not found: missing.kt', 404); }),
+      listTools: vi.fn(async () => [
+        { name: 'read_file', description: 'read', schema: { type: 'object' } },
+      ]),
+      callTool: vi.fn(async () => {
+        throw new DaemonError('NOT_FOUND', 'codeberg: not found: missing.kt', 404);
+      }),
     } as unknown as DaemonClient;
+
     const set = await daemonToolSource({ daemon }).tools();
     expect(await run(set.read_file, { path: 'missing.kt' })).toEqual({
       error: 'NOT_FOUND: codeberg: not found: missing.kt',
@@ -54,6 +59,7 @@ describe('daemonToolSource', () => {
       daemon,
       onToolResult: (name) => captured.push(name),
     }).tools();
+
     expect(Object.keys(set).sort()).toEqual(['get_chunk', 'grep', 'hybrid_search', 'read_file']);
 
     const out = await run(set.grep, { pattern: 'x' });

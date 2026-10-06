@@ -11,6 +11,7 @@ function stableKey(parts: string[]): string {
     h ^= joined.charCodeAt(i);
     h = Math.imul(h, 16777619);
   }
+
   return (h >>> 0).toString(36);
 }
 
@@ -33,6 +34,7 @@ export function cachedInstructions(system: string, profile: ModelProfile): Instr
       },
     };
   }
+
   return system;
 }
 
@@ -55,6 +57,7 @@ export function requestProviderOptions(
       },
     };
   }
+
   return undefined;
 }
 
@@ -68,5 +71,6 @@ export function deterministicTools(tools: ToolSet): ToolSet {
   for (const name of Object.keys(tools).sort()) {
     sorted[name] = tools[name]!;
   }
+
   return sorted;
 }

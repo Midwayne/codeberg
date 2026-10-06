@@ -23,6 +23,7 @@ export function parseExtractionResponse(raw: string): ExtractionResponse {
       // Models sometimes wrap valid JSON in prose.
     }
   }
+
   const detail = raw.trim() ? `malformed JSON (${raw.length} chars)` : 'an empty response';
   throw new Error(`INVALID_RESPONSE: knowledge extractor returned ${detail}`);
 }
@@ -33,7 +34,8 @@ export function validateResponse(response: ExtractionResponse): void {
     !['services', 'flows', 'concepts', 'debugging'].includes(response.category ?? '') ||
     !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(response.slug ?? '') ||
     !response.title?.trim() ||
-    !Array.isArray(response.claims) || !response.claims.length ||
+    !Array.isArray(response.claims) ||
+    !response.claims.length ||
     !['low', 'medium', 'high'].includes(response.confidence ?? '') ||
     !['active', 'needs_verification'].includes(response.status ?? '')
   ) {
@@ -53,12 +55,15 @@ function jsonObjects(raw: string): string[] {
       if (escaped) escaped = false;
       else if (char === '\\') escaped = true;
       else if (char === '"') quoted = false;
+
       continue;
     }
+
     if (char === '"') {
       quoted = true;
     } else if (char === '{') {
       if (depth === 0) start = index;
+
       depth++;
     } else if (char === '}' && depth > 0) {
       depth--;
@@ -68,5 +73,6 @@ function jsonObjects(raw: string): string[] {
       }
     }
   }
+
   return objects;
 }
