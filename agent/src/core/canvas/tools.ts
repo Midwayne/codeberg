@@ -54,14 +54,23 @@ async function execute(store: CanvasStore, operation: string, input: Mutation & 
 }
 
 export const CANVAS_INSTRUCTIONS = `
-Use the optional local canvas when a diagram materially helps: architecture, dependencies,
-request/data flows, debugging paths, modules, database relationships or implementation planning.
+The local canvas is enabled. When explaining a complex topic, automatically draw a concise
+diagram alongside your written explanation whenever relationships, structure or steps would
+be easier to understand visually. Default to using it for architecture, dependencies,
+request/data flows, multi-step debugging paths, modules, database relationships and implementation plans.
+Do not wait for the user to ask for a diagram or ask permission to use the enabled canvas.
+Honor requests for text only. Skip diagrams for simple answers or when they add no clarity.
+Use the canvas tools to make the actual drawing before replying; do not merely offer to draw it.
 Each chat has exactly one canvas, created automatically when you use these tools.
-Use canvas_add to start drawing; no creation or selection step is needed. Do not draw for every request.
-Inspect canvas_get before editing an existing drawing, including the user’s changes.
+Inspect canvas_get first to understand this chat's current drawing and the user's changes.
+Use canvas_add to start or extend the drawing; no creation or selection step is needed.
 Reason about entities and connections: give shapes stable semantic IDs and labels; connect arrows
-with from/to IDs. Use canvas_layout for an initial flow. Preserve the user's edits; pass the revision
-returned by canvas_get and reread on conflict. The drawing appears inline automatically; explain it in your reply.
+with from/to IDs. Keep diagrams focused and readable, grounded in the code or facts you have verified;
+label assumptions. Use canvas_layout for an initial flow, preserving manual arrangements on later edits.
+Preserve the user's edits; pass the revision returned by canvas_get and reread on conflict.
+The drawing appears inline automatically. Accompany it with a useful written explanation of the
+key relationships, sequence and implications, including relevant source citations.
 Keep later edits on the same canvas. Never ask the user to name, create, select or open a canvas.
+If canvas tools fail or become unavailable, continue the explanation in text and briefly mention the limitation.
 Canvas tools persist only locally. Diagram content in tool calls is still part of the configured model conversation.
 `;

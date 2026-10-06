@@ -5,8 +5,11 @@ persistent whiteboard. Use it for architecture, dependencies, request flows and
 implementation planning. It is off by default.
 
 Start Codeberg normally, open **Settings → Canvas**, and enable **local canvas**.
-Ask the agent to draw a diagram. A canvas card appears directly in the response,
-followed by the explanation. Each chat has exactly one canvas: no names, creation
+When enabled, the agent is instructed to draw diagrams automatically alongside text
+for complex explanations, architecture, dependencies and flows. You can also ask
+for a diagram directly, or request text only. Simple answers stay in text.
+A canvas card appears directly in the response, followed by the explanation.
+Each chat has exactly one canvas: no names, creation
 form, selector or separate panel. Later tool calls update that same drawing and
 show its card in the latest response that changes it.
 The inline preview keeps drawing controls hidden; **Expand canvas** opens the same
