@@ -13,6 +13,8 @@
  *
  * Only prose is rewritten: fenced code blocks and inline code spans pass
  * through verbatim (bracketed text inside code is code, not a citation).
+ * Citation-only lines attach to preceding prose so model-inserted blank lines
+ * do not turn each source chip into a separate markdown paragraph.
  */
 
 export const CITE_TAG = 'cite-chip';
@@ -38,6 +40,7 @@ const CODE_REGION = /(?:^|\n)(?:```|~~~)[\s\S]*?(?:\n(?:```|~~~)[^\n]*|$)|`[^`\n
 
 /** Rewrite citations in prose to cite-chip tags, numbering unique sources in order. */
 export function transformCitations(markdown: string): string {
+  markdown = attachCitationLines(markdown);
   let out = '';
   let last = 0;
   const ordinals = new Map<string, number>();
@@ -48,6 +51,38 @@ export function transformCitations(markdown: string): string {
   }
   out += rewrite(markdown.slice(last), ordinals);
   return out;
+}
+
+/** Treat citation-only lines as references to the preceding prose, not new blocks. */
+function attachCitationLines(markdown: string): string {
+  const codeRegions = [...markdown.matchAll(CODE_REGION)];
+  const lines: string[] = [];
+  let offset = 0;
+  let codeIndex = 0;
+  let previousContent: number | undefined;
+
+  for (const line of markdown.split('\n')) {
+    const contentOffset = offset + line.search(/\S|$/);
+    let region = codeRegions[codeIndex];
+    while (region && region.index + region[0].length <= contentOffset) {
+      region = codeRegions[++codeIndex];
+    }
+    const inCode = region != null && region.index <= contentOffset;
+    const citationOnly = !inCode && line.trim() !== '' && line.replace(CITATION, '').trim() === '';
+    const previous = previousContent == null ? '' : (lines[previousContent] ?? '');
+    // Code blocks, tables, rules, and raw HTML need their existing block boundaries.
+    const blockBoundary = /^(?:\s*(?:```|~~~|<|\|)|\s*(?:[-*_]\s*){3,}$)/.test(previous);
+
+    if (citationOnly && previousContent != null && !blockBoundary) {
+      lines[previousContent] = `${previous.trimEnd().replace(/\\$/, '')} ${line.trim()}`;
+      lines.length = previousContent + 1;
+    } else {
+      lines.push(line);
+      if (line.trim()) previousContent = lines.length - 1;
+    }
+    offset += line.length + 1;
+  }
+  return lines.join('\n');
 }
 
 function rewrite(prose: string, ordinals: Map<string, number>): string {
