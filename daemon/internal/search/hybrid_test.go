@@ -38,9 +38,11 @@ func TestFuseFindsLexicalOnlyAndPromotesOverlappingChunks(t *testing.T) {
 	if len(out) != 3 || out[0].Hit.ID != 2 || out[0].GrepBoost != 1 {
 		t.Fatalf("overlapping chunk should rank first: %+v", out)
 	}
+
 	if out[1].Hit.Path != "vector.go" || out[2].Hit.Path != "exact.go" || out[2].Hit.StartLine != 5 || out[2].Hit.ID != 0 {
 		t.Fatalf("lexical-only line should be included without duplicating overlap: %+v", out)
 	}
+
 	if out[0].FinalScore <= out[1].FinalScore {
 		t.Fatalf("combined evidence should outrank vector alone: %+v", out)
 	}
@@ -60,9 +62,11 @@ func TestFuseLexicalOnlyAndRepoScopedDedup(t *testing.T) {
 
 func TestFuseTruncatesToK(t *testing.T) {
 	vectors := make([]indexctl.SearchResult, 5)
+
 	for i := range vectors {
 		vectors[i] = indexctl.SearchResult{ID: uint64(i + 1), Repo: "main", Path: "f.go"}
 	}
+
 	if got := len(Fuse(vectors, nil, 2, "xyz")); got != 2 {
 		t.Fatalf("want 2 results, got %d", got)
 	}
@@ -70,16 +74,21 @@ func TestFuseTruncatesToK(t *testing.T) {
 
 func TestFusePreservesVectorCoverageAgainstRepeatedLexicalLines(t *testing.T) {
 	vectors := make([]indexctl.SearchResult, 8)
+
 	for i := range vectors {
 		vectors[i] = indexctl.SearchResult{ID: uint64(i + 1), Repo: "main", Path: fmt.Sprintf("vector%d.go", i)}
 	}
+
 	lexical := make([]workspace.GrepMatch, 20)
+
 	for i := range lexical {
 		lexical[i] = workspace.GrepMatch{Repo: "main", Path: "repeated.go", Line: uint32(i + 1), Text: "exactIdentifier"}
 	}
+
 	lexical = append(lexical, workspace.GrepMatch{Repo: "main", Path: "another.go", Line: 1, Text: "exactIdentifier"})
 	out := Fuse(vectors, lexical, 8, "exactIdentifier")
 	vectorCount, lexicalCount := 0, 0
+
 	for _, item := range out {
 		if item.Hit.ID == 0 {
 			lexicalCount++
@@ -87,6 +96,7 @@ func TestFusePreservesVectorCoverageAgainstRepeatedLexicalLines(t *testing.T) {
 			vectorCount++
 		}
 	}
+
 	if vectorCount < 4 || lexicalCount != 2 {
 		t.Fatalf("one lexical candidate per file, at least half vector evidence: %+v", out)
 	}
@@ -109,18 +119,22 @@ func TestFusePromotesFileWithVectorAndLexicalEvidenceOnDifferentLines(t *testing
 
 func TestFuseDiversifiesFilesBeforeFillingFromOneFile(t *testing.T) {
 	vectors := make([]indexctl.SearchResult, 8)
+
 	for i := range vectors {
 		path := "crowded.go"
 		if i >= 5 {
 			path = fmt.Sprintf("other%d.go", i)
 		}
+
 		vectors[i] = indexctl.SearchResult{ID: uint64(i + 1), Repo: "main", Path: path}
 	}
+
 	out := Fuse(vectors, nil, 5, "xyz")
 	if len(out) != 5 || out[0].Hit.Path != "crowded.go" || out[1].Hit.Path != "crowded.go" ||
 		out[2].Hit.Path != "crowded.go" || out[3].Hit.Path != "other5.go" {
 		t.Fatalf("show other relevant files before a fourth chunk from one file: %+v", out)
 	}
+
 	// A file-scoped query can still return all requested chunks if there are no alternatives.
 	if got := len(Fuse(vectors[:5], nil, 5, "xyz")); got != 5 {
 		t.Fatalf("fill remaining slots from the same file: %d", got)
@@ -131,9 +145,11 @@ func TestLexicalPatternPrefersIdentifierAndEscapesIt(t *testing.T) {
 	if got := LexicalPattern("where is calculateOutstandingUnits defined?"); got != `(?i)\bcalculateoutstandingunits\b` {
 		t.Fatalf("pattern: %q", got)
 	}
+
 	if got := LexicalPattern("go io"); got != "" {
 		t.Fatalf("no useful terms should skip grep: %q", got)
 	}
+
 	if got := LexicalPattern("authentication goes through loadShipmentDetails"); got != `(?i)\bloadshipmentdetails\b` {
 		t.Fatalf("prefer identifier over natural language: %q", got)
 	}
@@ -149,10 +165,12 @@ func TestPrioritizeLexicalProductionWithoutHidingTests(t *testing.T) {
 	if got[0].Path != "service/src/main/Foo.java" || got[2].Path != "service/build/generated/Foo.java" {
 		t.Fatalf("production code should rank before generated/test code: %+v", got)
 	}
+
 	got = PrioritizeLexical(matches, "find tests for Foo")
 	if got[0].Path != "service/src/test/FooSpec.groovy" {
 		t.Fatalf("explicit tests query should promote test code: %+v", got)
 	}
+
 	unsorted := []workspace.GrepMatch{
 		{Repo: "main", Path: "service/src/main/Z.go", Line: 4},
 		{Repo: "main", Path: "service/src/main/A.go", Line: 8},
@@ -174,6 +192,7 @@ func TestFusePrefersSourceOverBuildAndTestArtifacts(t *testing.T) {
 	if out[0].Hit.Path != "service/src/main/Foo.kt" || out[2].Hit.Path != "service/src/test/FooSpec.groovy" {
 		t.Fatalf("generated/test hits should not crowd out production source: %+v", out)
 	}
+
 	forTests := Fuse(vectors, lexical, 3, "find tests for exactIdentifier")
 	if forTests[0].Hit.Path != "service/src/test/FooSpec.groovy" {
 		t.Fatalf("explicit test query should favor test result: %+v", forTests)
@@ -191,15 +210,19 @@ func TestFuseDoesNotReplaceRelevantMethodsWithImports(t *testing.T) {
 		{Repo: "main", Path: "model.go", Line: 3, Text: "OrderByDateView"},
 	}
 	out := Fuse(vectors, lexical, 3, "OrderByDateView shipByDeadline")
+
 	for _, hit := range out {
 		if hit.Hit.Path == "transformer.go" && hit.Hit.ID == 0 {
 			t.Fatalf("import line should not displace indexed methods: %+v", out)
 		}
 	}
+
 	ids := make(map[uint64]bool)
+
 	for _, hit := range out {
 		ids[hit.Hit.ID] = true
 	}
+
 	if !ids[1] || !ids[2] {
 		t.Fatalf("keep both relevant methods: %+v", out)
 	}

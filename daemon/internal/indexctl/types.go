@@ -104,11 +104,11 @@ type GraphHop struct {
 
 // GraphStats is per-repo graph size from graph_stats.
 type GraphStats struct {
-	Repo       string          `json:"repo"`
-	Nodes      int             `json:"nodes"`
-	Refs       int             `json:"refs"`
-	Enabled    bool            `json:"enabled"`
-	Languages  []GraphLangStat `json:"languages,omitempty"`
+	Repo      string          `json:"repo"`
+	Nodes     int             `json:"nodes"`
+	Refs      int             `json:"refs"`
+	Enabled   bool            `json:"enabled"`
+	Languages []GraphLangStat `json:"languages,omitempty"`
 }
 
 // GraphLangStat is one language's FILE-node count from graph_stats.

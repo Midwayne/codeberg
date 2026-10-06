@@ -18,6 +18,7 @@ func TestTokenizePipeline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tokenize: %v", err)
 	}
+
 	want := [][]string{
 		{"rg", "-l", "func main", "--glob", "*.go"},
 		{"head", "-20"},
@@ -25,6 +26,7 @@ func TestTokenizePipeline(t *testing.T) {
 	if len(stages) != len(want) {
 		t.Fatalf("stages = %v, want %v", stages, want)
 	}
+
 	for i := range want {
 		if strings.Join(stages[i], "\x00") != strings.Join(want[i], "\x00") {
 			t.Fatalf("stage %d = %v, want %v", i, stages[i], want[i])
@@ -71,12 +73,14 @@ func TestValidateStage(t *testing.T) {
 		{"dotdot traversal", []string{"rg", "TODO", "../other"}, false},
 		{"absolute via flag value", []string{"rg", "--glob=/etc/*", "x"}, false},
 	}
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			err := subprocess.ValidateStage(tc.argv)
 			if tc.ok && err != nil {
 				t.Fatalf("want ok, got %v", err)
 			}
+
 			if !tc.ok && err == nil {
 				t.Fatal("want rejection, got nil")
 			}
@@ -97,9 +101,11 @@ func TestPipeToolEndToEnd(t *testing.T) {
 	if len(lines) != 1 {
 		t.Fatalf("stdout lines = %v, want 1", lines)
 	}
+
 	if !strings.HasSuffix(lines[0], ".go") {
 		t.Fatalf("unexpected file %q", lines[0])
 	}
+
 	if out.Truncated {
 		t.Fatal("unexpected truncation")
 	}
@@ -116,6 +122,7 @@ func TestPipeToolRejectsUnsafe(t *testing.T) {
 	if !errors.Is(err, workspace.ErrEscape) {
 		t.Fatalf("absolute path: got %v", err)
 	}
+
 	_, err = tool.Call(context.Background(), mustArgs(t, `rg TODO > out`))
 	if !errors.Is(err, ErrUnsafePipe) {
 		t.Fatalf("redirection: got %v", err)
@@ -156,6 +163,7 @@ func mustWrite(t *testing.T, dir, name, content string) {
 
 func nonEmptyLines(s string) []string {
 	var out []string
+
 	for _, l := range strings.Split(s, "\n") {
 		if strings.TrimSpace(l) != "" {
 			out = append(out, l)

@@ -25,6 +25,8 @@ paths — use `CODEBERG_ROOT` or `cberg_config_*` helpers.
 | `make check` | `build` + `test` for the C core |
 | `make build-daemon` | Build Go `codeberg-d` (requires `cberg-index`) |
 | `make daemon-test` | `go test ./...` in `daemon/` |
+| `make daemon-lint` | Daemon file/function size limits and Go formatting |
+| `make daemon-check` | Lint, vet, test, and build the Go daemon |
 | `make build-agent` | `npm install` + build in `agent/` |
 | `make agent-test` | Vitest in `agent/` |
 | `make agent-check` | Lint, typecheck, test, and build the agent and web UI (install both packages first) |
@@ -32,16 +34,29 @@ paths — use `CODEBERG_ROOT` or `cberg_config_*` helpers.
 | `make update-dbmcp` | Pull upstream `multi-db-mcp-server` and rebuild |
 
 CI (`.github/workflows/ci.yml`) builds and tests the C core, and separately
-typechecks, tests, and builds the agent and web UI on Ubuntu. Match the relevant
+lints, typechecks, tests, and builds the agent and web UI on Ubuntu, plus
+lints, vets, tests, and builds the Go daemon. Match the relevant
 layer for local verification.
 
 ## Coding standards
 
 - **Test-driven workflow.** Write a failing test for the behavior, implement, refactor.
+- **Readability and maintainability:** when writing or editing code, add blank
+  lines between logical steps and declarations so humans can follow the flow.
+  Group related statements, keep validation, setup, processing, and cleanup
+  visually distinct, and avoid packing multiple operations onto one line. Apply
+  this to production code and tests, and use the language's standard formatter.
+  Never remove useful whitespace to meet size limits; extract focused helpers
+  and split files by responsibility instead. Readability-only changes must
+  preserve functionality.
 - **TypeScript backend:** functions must be at most 50 lines and source files under 200 lines
   (199 maximum), including comments and blank lines (`npm run lint --prefix agent`).
   Keep whitespace between logical steps and extract focused helpers instead of packing
   statements to fit the limits.
+- **Go daemon:** production files must be at most 199 lines and functions at
+  most 50 lines, including comments and blank lines (`make daemon-lint`). Methods
+  and anonymous functions count too; test and generated files are excluded from
+  size checks. Use `gofmt`, space logical steps, and extract focused helpers.
 - **C core:** keep `codeberg.h` stable; document memory ownership; use exhaustive
   `switch` with a `default:` `never` check for discriminated unions and enums.
 - **Imports:** `#include` at the top of C files; TypeScript imports at module top.
@@ -100,7 +115,7 @@ make check
 **Go daemon:**
 
 ```bash
-make daemon-test
+make daemon-check
 ```
 
 **TypeScript agent:**

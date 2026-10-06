@@ -14,6 +14,7 @@ func TestFakeIndexerReportsNotReady(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if st.Ready {
 		t.Fatal("zero FakeIndexer must not silently report ready")
 	}
@@ -23,6 +24,7 @@ func TestFakeIndexerReportsNotReady(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if st.Ready || st.Version != "v0" {
 		t.Fatalf("explicit not-ready lost: %+v", st)
 	}

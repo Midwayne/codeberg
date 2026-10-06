@@ -25,78 +25,37 @@ func ValidateSedScript(script string) error {
 	// Parse every command, including commands inside address blocks. Splitting
 	// on semicolons misses nested commands and delimiters inside expressions.
 	depth := 0
+
 	for i := 0; i < len(script); {
 		c := script[i]
 		if strings.ContainsRune(" \t\r\n;", rune(c)) {
 			i++
 			continue
 		}
+
 		if (c >= '0' && c <= '9') || strings.ContainsRune("$,+~!", rune(c)) {
 			i++
 			continue
 		}
+
 		if c == '/' || c == '\\' {
-			delim := c
-			i++
-			if c == '\\' {
-				if i == len(script) {
-					return ErrUnsafeSed
-				}
-				delim = script[i]
-				i++
+			next, err := sedAddress(script, i, c)
+			if err != nil {
+				return err
 			}
-			var ok bool
-			i, ok = sedDelimited(script, i, delim)
-			if !ok {
-				return ErrUnsafeSed
-			}
+
+			i = next
 			continue
 		}
-		i++
-		if !allowedSedCommands[c] {
-			return fmt.Errorf("%w: %q", ErrUnsafeSed, string(c))
+
+		next, nextDepth, err := sedCommand(script, i+1, c, depth)
+		if err != nil {
+			return err
 		}
-		switch c {
-		case '{':
-			depth++
-		case '}':
-			depth--
-			if depth < 0 {
-				return ErrUnsafeSed
-			}
-		case '#':
-			for i < len(script) && script[i] != '\n' {
-				i++
-			}
-		case ':', 'b', 't', 'T':
-			for i < len(script) && !strings.ContainsRune(";\n}", rune(script[i])) {
-				i++
-			}
-		case 's', 'y':
-			if i == len(script) {
-				return ErrUnsafeSed
-			}
-			delim := script[i]
-			if delim == '\\' || delim == '\n' {
-				return ErrUnsafeSed
-			}
-			i++
-			for n := 0; n < 2; n++ {
-				var ok bool
-				i, ok = sedDelimited(script, i, delim)
-				if !ok {
-					return ErrUnsafeSed
-				}
-			}
-			for i < len(script) && !strings.ContainsRune(";\n}", rune(script[i])) {
-				flag := script[i]
-				if flag != ' ' && flag != '\t' && (c != 's' || (!strings.ContainsRune("gpIiMm", rune(flag)) && (flag < '0' || flag > '9'))) {
-					return fmt.Errorf("%w: substitution flag %q", ErrUnsafeSed, flag)
-				}
-				i++
-			}
-		}
+
+		i, depth = next, nextDepth
 	}
+
 	if depth != 0 {
 		return ErrUnsafeSed
 	}
@@ -110,6 +69,7 @@ func ValidateSedArgs(args []string) error {
 
 	for i := 0; i < len(args); i++ {
 		a := args[i]
+
 		switch {
 		case a == "-n" || a == "--quiet" || a == "--silent":
 		case a == "-e" || a == "--expression":
@@ -149,9 +109,11 @@ func sedDelimited(s string, i int, delim byte) (int, bool) {
 			i += 2
 			continue
 		}
+
 		if s[i] == delim {
 			return i + 1, true
 		}
+
 		i++
 	}
 	return i, false

@@ -15,6 +15,7 @@ func (s *Server) callTool(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorBody("INVALID_JSON", "invalid json"))
 		return
 	}
+
 	if req.Name == "" {
 		writeJSON(w, http.StatusBadRequest, errorBody("MISSING_NAME", "missing name"))
 		return

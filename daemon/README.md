@@ -31,6 +31,20 @@ Outputs: `core/build/bin/cberg-index`, `core/build/bin/codeberg-d`.
 
 `cberg-index` requires ONNX Runtime on the linker path when using vector indexing.
 
+## Development checks
+
+```sh
+make daemon-lint    # size limits and gofmt, no C build needed
+make daemon-check   # lint, vet, tests, and Go build
+```
+
+[.lint.json](.lint.json) mirrors the agent's limits: 199 lines per production
+file and 50 lines per function, counting blank lines and comments. Methods and
+anonymous functions are checked, including all platform-specific source files.
+Test and generated files are excluded from size checks; tests must still pass
+`gofmt`. Keep whitespace between logical steps and extract focused helpers when
+needed. CI runs `make daemon-check`.
+
 ## Configuration
 
 | Variable | Required | Purpose |
@@ -127,6 +141,7 @@ export CBERG_INDEX_PATH=/tmp/codeberg.usearch
 ```
 daemon/
 ├── cmd/codeberg-d/       HTTP + git pull + tool harness
+├── cmd/daemon-lint/      size and formatting checks
 ├── docs/                 http.md, ipc.md, architecture.md
 ├── internal/
 │   ├── bootstrap/        startup readiness polling
@@ -136,6 +151,7 @@ daemon/
 │   ├── gitpull/          periodic git pull
 │   ├── httpserver/       JSON HTTP API
 │   ├── indexctl/         Unix socket client to cberg-index
+│   ├── sizelint/         Go syntax-based lint rules
 │   ├── search/           hybrid vector + lexical reranking
 │   ├── subprocess/       safe pipe tool (allowlist, no shell)
 │   ├── supervisor/       spawn and restart cberg-index

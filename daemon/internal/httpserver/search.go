@@ -21,6 +21,7 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, errorBody("INVALID_K", "invalid k"))
 			return
 		}
+
 		k = n
 	}
 
@@ -31,6 +32,7 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, errorBody("INVALID_MIN_SCORE", "invalid min_score"))
 			return
 		}
+
 		minScore = float32(f)
 	}
 

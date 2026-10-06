@@ -16,6 +16,7 @@ func (c *Client) Status(ctx context.Context) (Status, error) {
 	if err := roundTrip(ctx, c.socket, "status", &out); err != nil {
 		return Status{}, err
 	}
+
 	if !out.OK {
 		return Status{}, mapIndexerError(out.Error)
 	}
@@ -38,6 +39,7 @@ func (c *Client) GetChunk(ctx context.Context, repo string, id uint64) (ChunkDet
 	if err := roundTrip(ctx, c.socket, encodeChunk(repo, id), &out); err != nil {
 		return ChunkDetail{}, err
 	}
+
 	if !out.OK {
 		return ChunkDetail{}, mapIndexerError(out.Error)
 	}
@@ -58,6 +60,7 @@ func (c *Client) SearchGraph(ctx context.Context, opts GraphSearchOptions) ([]Gr
 	if err := roundTrip(ctx, c.socket, encodeSearchGraph(opts), &out); err != nil {
 		return nil, err
 	}
+
 	if !out.OK {
 		return nil, mapIndexerError(out.Error)
 	}
@@ -69,6 +72,7 @@ func (c *Client) TracePath(ctx context.Context, opts TracePathOptions) ([]GraphH
 	if err := roundTrip(ctx, c.socket, encodeTracePath(opts), &out); err != nil {
 		return nil, err
 	}
+
 	if !out.OK {
 		return nil, mapIndexerError(out.Error)
 	}
@@ -80,6 +84,7 @@ func (c *Client) GraphStats(ctx context.Context, repo string) (GraphStats, error
 	if err := roundTrip(ctx, c.socket, encodeGraphStats(repo), &out); err != nil {
 		return GraphStats{}, err
 	}
+
 	if !out.OK {
 		return GraphStats{}, mapIndexerError(out.Error)
 	}
@@ -91,6 +96,7 @@ func (c *Client) GraphRefs(ctx context.Context, opts GraphRefsOptions) ([]GraphE
 	if err := roundTrip(ctx, c.socket, encodeGraphRefs(opts), &out); err != nil {
 		return nil, err
 	}
+
 	if !out.OK {
 		return nil, mapIndexerError(out.Error)
 	}
@@ -102,6 +108,7 @@ func (c *Client) GraphHubs(ctx context.Context, opts GraphHubsOptions) ([]GraphH
 	if err := roundTrip(ctx, c.socket, encodeGraphHubs(opts), &out); err != nil {
 		return nil, err
 	}
+
 	if !out.OK {
 		return nil, mapIndexerError(out.Error)
 	}
@@ -113,6 +120,7 @@ func roundHits(ctx context.Context, socket, req string) ([]SearchResult, error) 
 	if err := roundTrip(ctx, socket, req, &out); err != nil {
 		return nil, err
 	}
+
 	if !out.OK {
 		return nil, mapIndexerError(out.Error)
 	}

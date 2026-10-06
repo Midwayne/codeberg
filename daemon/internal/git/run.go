@@ -60,11 +60,13 @@ func parseLog(out string) []string {
 // ParseLogFields splits formatted log lines on fieldSep into field slices.
 func ParseLogFields(out, fieldSep string, fieldCount int) [][]string {
 	var rows [][]string
+
 	for _, line := range parseLog(out) {
 		f := strings.Split(line, fieldSep)
 		if len(f) != fieldCount {
 			continue
 		}
+
 		rows = append(rows, f)
 	}
 

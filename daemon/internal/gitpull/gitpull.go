@@ -18,8 +18,10 @@ func Run(ctx context.Context, dirs []string, interval time.Duration) {
 	if interval <= 0 || len(dirs) == 0 {
 		return
 	}
+
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -29,6 +31,7 @@ func Run(ctx context.Context, dirs []string, interval time.Duration) {
 				if _, err := os.Stat(filepath.Join(dir, ".git")); err != nil {
 					continue
 				}
+
 				if _, err := git.RunWithTimeout(ctx, dir, 0, "pull", "--ff-only"); err != nil {
 					log.Printf("git pull %s: %v", dir, err)
 				}

@@ -38,41 +38,7 @@ func gitLogTool(ws *workspace.Workspace) Tool {
 		"Recent commits (hash, author, date, subject) for a repo or path.",
 		schema,
 		func(ctx context.Context, a gitLogArgs) (any, error) {
-			root, err := ws.RepoRoot(a.Repo)
-			if err != nil {
-				return nil, err
-			}
-
-			limit := a.Limit
-			if limit <= 0 || limit > maxGitLogLimit {
-				limit = defaultGitLogLimit
-			}
-
-			gitArgs := []string{
-				"log", "--no-color", fmt.Sprintf("--max-count=%d", limit),
-				"--date=short", "--pretty=format:%H" + logFieldSep + "%an" + logFieldSep + "%ad" + logFieldSep + "%s",
-			}
-			if a.Path != "" {
-				rel, relErr := workspace.SafeRel(a.Path)
-				if relErr != nil {
-					return nil, relErr
-				}
-				gitArgs = append(gitArgs, "--", rel)
-			}
-
-			out, err := git.Run(ctx, root, gitArgs...)
-			if err != nil {
-				return nil, err
-			}
-
-			var commits []commit
-			for _, f := range git.ParseLogFields(out, logFieldSep, logFieldCount) {
-				commits = append(commits, commit{
-					Hash: f[0], Author: f[1], Date: f[2], Subject: f[3],
-				})
-			}
-
-			return commits, nil
+			return runGitLog(ctx, ws, a)
 		})
 }
 
@@ -93,39 +59,86 @@ func gitBlameTool(ws *workspace.Workspace) Tool {
 		"Per-line authorship for a file or line range.",
 		schema,
 		func(ctx context.Context, a gitBlameArgs) (any, error) {
-			root, err := ws.RepoRoot(a.Repo)
-			if err != nil {
-				return nil, err
-			}
-
-			rel, err := workspace.SafeRel(a.Path)
-			if err != nil {
-				return nil, err
-			}
-			if rel == "." {
-				return nil, fmt.Errorf("%w: git_blame requires a file path", ErrInvalidArgs)
-			}
-
-			gitArgs := []string{"blame"}
-			if a.StartLine > 0 {
-				span := fmt.Sprintf("%d", a.StartLine)
-				if a.EndLine >= a.StartLine {
-					span = fmt.Sprintf("%d,%d", a.StartLine, a.EndLine)
-				}
-				gitArgs = append(gitArgs, "-L", span)
-			}
-			gitArgs = append(gitArgs, "--", rel)
-
-			out, err := git.Run(ctx, root, gitArgs...)
-			if err != nil {
-				return nil, err
-			}
-
-			truncated := false
-			if len(out) > maxBlameOutput {
-				out, truncated = out[:maxBlameOutput], true
-			}
-
-			return gitBlameResult{Blame: out, Truncated: truncated}, nil
+			return runGitBlame(ctx, ws, a)
 		})
+}
+
+func runGitLog(ctx context.Context, ws *workspace.Workspace, a gitLogArgs) (any, error) {
+	root, err := ws.RepoRoot(a.Repo)
+	if err != nil {
+		return nil, err
+	}
+
+	limit := a.Limit
+	if limit <= 0 || limit > maxGitLogLimit {
+		limit = defaultGitLogLimit
+	}
+
+	gitArgs := []string{
+		"log", "--no-color", fmt.Sprintf("--max-count=%d", limit),
+		"--date=short", "--pretty=format:%H" + logFieldSep + "%an" + logFieldSep + "%ad" + logFieldSep + "%s",
+	}
+	if a.Path != "" {
+		rel, relErr := workspace.SafeRel(a.Path)
+		if relErr != nil {
+			return nil, relErr
+		}
+
+		gitArgs = append(gitArgs, "--", rel)
+	}
+
+	out, err := git.Run(ctx, root, gitArgs...)
+	if err != nil {
+		return nil, err
+	}
+
+	var commits []commit
+
+	for _, f := range git.ParseLogFields(out, logFieldSep, logFieldCount) {
+		commits = append(commits, commit{
+			Hash: f[0], Author: f[1], Date: f[2], Subject: f[3],
+		})
+	}
+
+	return commits, nil
+}
+
+func runGitBlame(ctx context.Context, ws *workspace.Workspace, a gitBlameArgs) (any, error) {
+	root, err := ws.RepoRoot(a.Repo)
+	if err != nil {
+		return nil, err
+	}
+
+	rel, err := workspace.SafeRel(a.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	if rel == "." {
+		return nil, fmt.Errorf("%w: git_blame requires a file path", ErrInvalidArgs)
+	}
+
+	gitArgs := []string{"blame"}
+	if a.StartLine > 0 {
+		span := fmt.Sprintf("%d", a.StartLine)
+		if a.EndLine >= a.StartLine {
+			span = fmt.Sprintf("%d,%d", a.StartLine, a.EndLine)
+		}
+
+		gitArgs = append(gitArgs, "-L", span)
+	}
+
+	gitArgs = append(gitArgs, "--", rel)
+
+	out, err := git.Run(ctx, root, gitArgs...)
+	if err != nil {
+		return nil, err
+	}
+
+	truncated := false
+	if len(out) > maxBlameOutput {
+		out, truncated = out[:maxBlameOutput], true
+	}
+
+	return gitBlameResult{Blame: out, Truncated: truncated}, nil
 }

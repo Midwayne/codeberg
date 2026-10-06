@@ -15,6 +15,7 @@ func TestWorkerNames(t *testing.T) {
 		{"python", "python /app/custom.py", "", "", "python"},
 		{"python3", "python3 /app/my_embedding_worker.py", "", "", "python3"},
 	}
+
 	for _, test := range tests {
 		if got := workerName(test.command, test.arguments, test.model, test.backend); got != test.expected {
 			t.Errorf("%s %s: got %q want %q", test.command, test.arguments, got, test.expected)

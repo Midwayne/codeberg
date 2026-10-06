@@ -20,6 +20,7 @@ func startMockIndexer(t *testing.T, handler func(req string) []byte) string {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	t.Cleanup(func() { _ = ln.Close() })
 
 	go func() {
@@ -28,12 +29,14 @@ func startMockIndexer(t *testing.T, handler func(req string) []byte) string {
 			if err != nil {
 				return
 			}
+
 			buf := make([]byte, 4096)
 			n, _ := conn.Read(buf)
 			resp := handler(string(buf[:n]))
 			if resp != nil {
 				_, _ = conn.Write(resp)
 			}
+
 			_ = conn.Close()
 		}
 	}()
@@ -60,9 +63,11 @@ func TestClientStatusAndSearch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if !st.Ready || st.Chunks != 3 || st.Version != "v0.1.0" {
 		t.Fatalf("status: %+v", st)
 	}
+
 	if len(st.Repos) != 2 || st.Repos[0].Key != "alpha" || st.Repos[1].Ready {
 		t.Fatalf("per-repo status: %+v", st.Repos)
 	}
@@ -71,6 +76,7 @@ func TestClientStatusAndSearch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if len(hits) != 1 || hits[0].Path != "a.go" || hits[0].Repo != "alpha" || hits[0].Snippet == "" {
 		t.Fatalf("search: %+v", hits)
 	}
@@ -100,6 +106,7 @@ func TestClientSearchEscapesTabs(t *testing.T) {
 	if _, err := c.Search(context.Background(), indexctl.SearchOptions{Query: "a\tb", K: 3}); err != nil {
 		t.Fatal(err)
 	}
+
 	if gotLine != "search\ta b\t3\n" {
 		t.Fatalf("query tab not sanitized: %q", gotLine)
 	}
@@ -116,6 +123,7 @@ func TestClientSearchRepoScoped(t *testing.T) {
 	if _, err := c.Search(context.Background(), indexctl.SearchOptions{Query: "q", K: 3, Repo: "beta"}); err != nil {
 		t.Fatal(err)
 	}
+
 	if gotLine != "search\tq\t3\tbeta\n" {
 		t.Fatalf("repo not appended: %q", gotLine)
 	}
@@ -134,6 +142,7 @@ func TestClientGetChunk(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if detail.ID != 5 || detail.Body != "func Fn(){}" || detail.Repo != "alpha" {
 		t.Fatalf("chunk: %+v", detail)
 	}
@@ -152,6 +161,7 @@ func TestClientSearchWithFilters(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+
 	if gotLine != "search\tauth\t5\talpha\tdaemon/*\tfunction\t0.800000\n" {
 		t.Fatalf("filter wire: %q", gotLine)
 	}
@@ -164,6 +174,7 @@ func TestWaitIndexer(t *testing.T) {
 		if !ready {
 			ready = true
 		}
+
 		b, _ := json.Marshal(resp)
 		return append(b, '\n')
 	})
@@ -175,6 +186,7 @@ func TestWaitIndexer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if !st.Ready {
 		t.Fatal("expected ready")
 	}

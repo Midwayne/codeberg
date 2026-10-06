@@ -15,10 +15,12 @@ func (s *Server) localResources(w http.ResponseWriter, r *http.Request) bool {
 		http.Error(w, "resource monitoring is local only", http.StatusForbidden)
 		return false
 	}
+
 	if s.resources == nil {
 		http.Error(w, "resource monitoring unavailable", http.StatusServiceUnavailable)
 		return false
 	}
+
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Codeberg-Pid", strconv.Itoa(os.Getpid()))
 	return true
@@ -28,6 +30,7 @@ func (s *Server) resourceUsage(w http.ResponseWriter, r *http.Request) {
 	if !s.localResources(w, r) {
 		return
 	}
+
 	var after int64
 	if value := r.URL.Query().Get("after"); value != "" {
 		var err error
@@ -37,6 +40,7 @@ func (s *Server) resourceUsage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
 	writeJSON(w, http.StatusOK, s.resources.Usage(after))
 }
 
@@ -44,6 +48,7 @@ func (s *Server) registerResourceClient(w http.ResponseWriter, r *http.Request) 
 	if !s.localResources(w, r) {
 		return
 	}
+
 	var body struct {
 		PID int `json:"pid"`
 	}
@@ -53,10 +58,12 @@ func (s *Server) registerResourceClient(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "invalid web process", http.StatusBadRequest)
 		return
 	}
+
 	if err := s.resources.Register(body.PID); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
 	w.WriteHeader(http.StatusAccepted)
 }
 
@@ -64,6 +71,7 @@ func (s *Server) refreshResourceDisk(w http.ResponseWriter, r *http.Request) {
 	if !s.localResources(w, r) {
 		return
 	}
+
 	s.resources.InvalidateDisk()
 	w.WriteHeader(http.StatusAccepted)
 }

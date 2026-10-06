@@ -33,20 +33,19 @@ func main() {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	home := os.Getenv("CODEBERG_HOME")
-	if home == "" {
-		userHome, _ := os.UserHomeDir()
-		home = filepath.Join(userHome, ".codeberg")
-	}
+	home := codebergHome()
+
 	projectManager, err := projects.New(ctx, home, cfg.Indexer)
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	defer projectManager.Close()
 	cfg.Indexer, err = projectManager.InitialConfig()
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	rootPID, _ := strconv.Atoi(os.Getenv("CODEBERG_RESOURCE_ROOT_PID"))
 	metrics := resources.New(resources.Options{Home: home, ModelPath: cfg.Model, IndexPath: cfg.Index,
 		LogDir: os.Getenv("CODEBERG_LOG_DIR"), RootPID: rootPID, EmbeddingBackend: cfg.EmbedBackend})
@@ -57,27 +56,52 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	defer sup.Stop()
 
 	idx := indexctl.NewClient(cfg.Socket)
 
 	// Serve the project UI while the initial index is still being built.
-	go func() {
-		readyCtx, readyCancel := context.WithTimeout(ctx, bootstrap.StartupTimeout(len(cfg.Roots)))
-		defer readyCancel()
-		st, err := bootstrap.WaitIndexer(readyCtx, idx)
-		if err != nil {
-			log.Printf("initial project indexing: %v", err)
-			return
-		}
-		log.Printf("indexer ready: %d chunks, version %s", st.Chunks, st.Version)
-		metrics.InvalidateDisk()
-	}()
+	go waitForInitialIndex(ctx, cfg, idx, metrics)
 
 	go gitpull.Run(ctx, cfg.GitDirs, cfg.GitPull)
 
+	httpSrv := serveProjects(cfg, idx, metrics, projectManager)
+
+	<-ctx.Done()
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+	_ = httpSrv.Shutdown(shutdownCtx)
+}
+
+func codebergHome() string {
+	home := os.Getenv("CODEBERG_HOME")
+	if home == "" {
+		userHome, _ := os.UserHomeDir()
+		home = filepath.Join(userHome, ".codeberg")
+	}
+
+	return home
+}
+
+func waitForInitialIndex(ctx context.Context, cfg config.Daemon, idx *indexctl.Client, metrics *resources.Collector) {
+	readyCtx, readyCancel := context.WithTimeout(ctx, bootstrap.StartupTimeout(len(cfg.Roots)))
+	defer readyCancel()
+	st, err := bootstrap.WaitIndexer(readyCtx, idx)
+	if err != nil {
+		log.Printf("initial project indexing: %v", err)
+		return
+	}
+
+	log.Printf("indexer ready: %d chunks, version %s", st.Chunks, st.Version)
+	metrics.InvalidateDisk()
+}
+
+func serveProjects(cfg config.Daemon, idx *indexctl.Client, metrics *resources.Collector, projectManager *projects.Manager) *http.Server {
 	repos := make([]workspace.RepoInfo, 0, len(cfg.Roots))
 	roots := make([]string, 0, len(cfg.Roots))
+
 	for _, r := range cfg.Roots {
 		repos = append(repos, workspace.RepoInfo{Key: r.Key, Root: r.Root})
 		roots = append(roots, r.Key+"="+r.Root)
@@ -100,9 +124,5 @@ func main() {
 		}
 	}()
 
-	<-ctx.Done()
-
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer shutdownCancel()
-	_ = httpSrv.Shutdown(shutdownCtx)
+	return httpSrv
 }

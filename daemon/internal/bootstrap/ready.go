@@ -22,6 +22,7 @@ func StartupTimeout(repos int) time.Duration {
 			return d
 		}
 	}
+
 	if repos < 1 {
 		repos = 1
 	}
@@ -30,6 +31,7 @@ func StartupTimeout(repos int) time.Duration {
 	if d < minimumStartupTimeout {
 		return minimumStartupTimeout
 	}
+
 	if max := 60 * time.Minute; d > max {
 		return max
 	}
@@ -41,11 +43,13 @@ func StartupTimeout(repos int) time.Duration {
 // On timeout, the last Status error (if any) is included for diagnosis.
 func WaitIndexer(ctx context.Context, c *indexctl.Client) (indexctl.Status, error) {
 	var lastErr error
+
 	for {
 		st, err := c.Status(ctx)
 		if err == nil && st.Ready {
 			return st, nil
 		}
+
 		if err != nil {
 			lastErr = err
 		}

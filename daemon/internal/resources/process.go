@@ -14,28 +14,35 @@ var excludedProcess = regexp.MustCompile(`(?i)^(ps|open|xdg-open|firefox|chrome|
 
 func selectTree(rows []ProcessCounter, roots []int) []ProcessCounter {
 	selected, blocked := map[int]bool{}, map[int]bool{}
+
 	for _, pid := range roots {
 		selected[pid] = true
 	}
+
 	for _, row := range rows {
 		if excludedProcess.MatchString(filepath.Base(row.Command)) {
 			blocked[row.PID] = true
 		}
 	}
+
 	for changed := true; changed; {
 		changed = false
+
 		for _, row := range rows {
 			if blocked[row.PPID] && !blocked[row.PID] {
 				blocked[row.PID] = true
 				changed = true
 			}
+
 			if selected[row.PPID] && !selected[row.PID] && !blocked[row.PID] {
 				selected[row.PID] = true
 				changed = true
 			}
 		}
 	}
+
 	result := make([]ProcessCounter, 0)
+
 	for _, row := range rows {
 		if selected[row.PID] && !blocked[row.PID] {
 			result = append(result, row)
@@ -63,6 +70,7 @@ func psArguments(ctx context.Context, pid int) string {
 	if err != nil {
 		return ""
 	}
+
 	if len(output) > 8192 {
 		output = output[:8192]
 	}
@@ -71,11 +79,13 @@ func psArguments(ctx context.Context, pid int) string {
 
 func parsePS(output string) []ProcessCounter {
 	rows := make([]ProcessCounter, 0)
+
 	for _, line := range strings.Split(output, "\n") {
 		fields := strings.Fields(line)
 		if len(fields) < 10 {
 			continue
 		}
+
 		pid, e1 := strconv.Atoi(fields[0])
 		ppid, e2 := strconv.Atoi(fields[1])
 		rss, e3 := strconv.ParseInt(fields[3], 10, 64)
@@ -84,6 +94,7 @@ func parsePS(output string) []ProcessCounter {
 		if e1 != nil || e2 != nil || e3 != nil || e4 != nil || !ok {
 			continue
 		}
+
 		rows = append(rows, ProcessCounter{PID: pid, PPID: ppid, Command: strings.Join(fields[9:], " "),
 			CPUTimeMS: cpu, MemoryBytes: rss * 1024, StartedAt: start.UnixMilli()})
 	}
@@ -98,18 +109,23 @@ func cpuTimeMS(raw string) (float64, bool) {
 		if err != nil {
 			return 0, false
 		}
+
 		raw = rest
 	}
+
 	parts := strings.Split(raw, ":")
 	if len(parts) < 2 || len(parts) > 3 {
 		return 0, false
 	}
+
 	seconds := 0.0
+
 	for _, part := range parts {
 		value, err := strconv.ParseFloat(part, 64)
 		if err != nil {
 			return 0, false
 		}
+
 		seconds = seconds*60 + value
 	}
 	return (days*86400 + seconds) * 1000, true

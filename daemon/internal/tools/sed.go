@@ -45,6 +45,7 @@ func sedTool(ws *workspace.Workspace) Tool {
 			if a.Quiet {
 				argv = append(argv, "-n")
 			}
+
 			argv = append(argv, "-e", a.Script)
 
 			cmd := exec.CommandContext(ctx, "sed", argv...)

@@ -38,6 +38,7 @@ func TestIndexerEnvOmitsEmptyIndexQuant(t *testing.T) {
 	}
 
 	env := indexerEnv(cfg)
+
 	for _, e := range env {
 		if strings.HasPrefix(e, config.EnvIndexQuant+"=") {
 			t.Fatalf("did not expect %s when unset, got %v", config.EnvIndexQuant, env)

@@ -17,11 +17,13 @@ func TestParseDiffHunks(t *testing.T) {
 	if !ok {
 		t.Fatalf("missing a.go: %+v", h)
 	}
+
 	for _, want := range []uint32{11, 12, 22} {
 		if _, ok := lines[want]; !ok {
 			t.Fatalf("missing line %d in %+v", want, lines)
 		}
 	}
+
 	paths := DiffPaths(h)
 	if len(paths) != 1 || paths[0] != "a.go" {
 		t.Fatalf("DiffPaths: %+v", paths)

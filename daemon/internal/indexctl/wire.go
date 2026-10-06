@@ -15,6 +15,7 @@ func encodeSearch(opts SearchOptions) string {
 	if opts.Repo != "" || hasFilters {
 		fields = append(fields, sanitizeTab(opts.Repo))
 	}
+
 	if hasFilters {
 		fields = append(fields, sanitizeTab(opts.PathGlob), sanitizeTab(opts.Kind))
 		if opts.MinScore > 0 {
@@ -57,6 +58,7 @@ func encodeTracePath(opts TracePathOptions) string {
 	if depth <= 0 {
 		depth = 2
 	}
+
 	limit := opts.Limit
 	if limit <= 0 {
 		limit = 64

@@ -8,12 +8,8 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"slices"
 	"strings"
 	"time"
-
-	"codeberg.org/codeberg/daemon/internal/workspace"
 )
 
 const (
@@ -27,25 +23,6 @@ type Result struct {
 	Stdout    string `json:"stdout"`
 	Truncated bool   `json:"truncated"`
 	ExitCodes []int  `json:"exit_codes"`
-}
-
-var allowedCommands = map[string]bool{
-	"rg": true, "grep": true, "head": true, "tail": true, "wc": true,
-	"sort": true, "uniq": true, "cut": true, "tr": true, "nl": true,
-	"cat": true, "paste": true, "sed": true,
-}
-
-var deniedFlags = map[string]map[string]bool{
-	"rg": {
-		"--pre": true, "--pre-glob": true, "--hostname-bin": true,
-		"--search-zip": true, "-z": true,
-	},
-	"sort": {
-		"-o": true, "--output": true, "--files0-from": true,
-	},
-	"sed": {
-		"-i": true, "--in-place": true, "-f": true, "--file": true,
-	},
 }
 
 // RunPipeline executes a validated read-only pipeline rooted at dir.
@@ -62,207 +39,6 @@ func RunPipeline(ctx context.Context, dir, command string) (Result, error) {
 	}
 
 	return executePipeline(ctx, dir, command, stages)
-}
-
-// TokenizePipeline splits a command string into per-stage argv lists.
-func TokenizePipeline(command string) ([][]string, error) {
-	if strings.TrimSpace(command) == "" {
-		return nil, fmt.Errorf("%w: empty command", ErrInvalid)
-	}
-
-	var (
-		stages [][]string
-		cur    []string
-		tok    strings.Builder
-		hasTok bool
-	)
-
-	flushTok := func() {
-		if hasTok {
-			cur = append(cur, tok.String())
-			tok.Reset()
-			hasTok = false
-		}
-	}
-	flushStage := func() error {
-		flushTok()
-		if len(cur) == 0 {
-			return fmt.Errorf("%w: empty pipeline stage", ErrUnsafe)
-		}
-		stages = append(stages, cur)
-		cur = nil
-		return nil
-	}
-
-	r := []rune(command)
-	for i := 0; i < len(r); i++ {
-		switch c := r[i]; c {
-		case '\'':
-			hasTok = true
-			i++
-			for i < len(r) && r[i] != '\'' {
-				tok.WriteRune(r[i])
-				i++
-			}
-			if i >= len(r) {
-				return nil, fmt.Errorf("%w: unterminated single quote", ErrInvalid)
-			}
-		case '"':
-			hasTok = true
-			i++
-			for i < len(r) && r[i] != '"' {
-				if r[i] == '\\' && i+1 < len(r) && (r[i+1] == '"' || r[i+1] == '\\') {
-					tok.WriteRune(r[i+1])
-					i += 2
-					continue
-				}
-				tok.WriteRune(r[i])
-				i++
-			}
-			if i >= len(r) {
-				return nil, fmt.Errorf("%w: unterminated double quote", ErrInvalid)
-			}
-		case '\\':
-			if i+1 < len(r) {
-				tok.WriteRune(r[i+1])
-				hasTok = true
-				i++
-			}
-		case ' ', '\t':
-			flushTok()
-		case '|':
-			if err := flushStage(); err != nil {
-				return nil, err
-			}
-		case '>', '<', ';', '&', '$', '`', '(', ')', '{', '}', '\n', '\r':
-			return nil, fmt.Errorf("%w: shell operator %q", ErrUnsafe, string(c))
-		default:
-			tok.WriteRune(c)
-			hasTok = true
-		}
-	}
-
-	if err := flushStage(); err != nil {
-		return nil, err
-	}
-
-	return stages, nil
-}
-
-// ValidateStage checks one pipeline stage against the read-only allowlist.
-func ValidateStage(argv []string) error {
-	return validateStage(argv)
-}
-
-func validateStage(argv []string) error {
-	if len(argv) == 0 {
-		return fmt.Errorf("%w: empty stage", ErrUnsafe)
-	}
-
-	cmd := argv[0]
-	if !allowedCommands[cmd] {
-		return fmt.Errorf("%w: command %q", ErrUnsafe, cmd)
-	}
-
-	denied := deniedFlags[cmd]
-	for _, arg := range argv[1:] {
-		flagCore := arg
-		if strings.HasPrefix(arg, "-") {
-			if before, _, found := strings.Cut(arg, "="); found {
-				flagCore = before
-			}
-		}
-		if denied[flagCore] {
-			return fmt.Errorf("%w: flag %q for %q", ErrUnsafe, flagCore, cmd)
-		}
-		if err := checkPathToken(arg); err != nil {
-			return err
-		}
-	}
-
-	if cmd == "sed" {
-		return ValidateSedArgs(argv[1:])
-	}
-	if cmd == "sort" {
-		return validateSortArgs(argv[1:])
-	}
-
-	return nil
-}
-
-func validateSortArgs(args []string) error {
-	// Exact option names prevent GNU long-option abbreviations and short-option
-	// clusters from smuggling helper execution or file-writing options through.
-	flags := map[string]bool{"--ignore-leading-blanks": false, "--dictionary-order": false,
-		"--ignore-case": false, "--general-numeric-sort": false, "--human-numeric-sort": false,
-		"--ignore-nonprinting": false, "--month-sort": false, "--numeric-sort": false,
-		"--reverse": false, "--version-sort": false, "--stable": false, "--unique": false,
-		"--zero-terminated": false, "--check": false, "--merge": false,
-		"--random-sort": false,
-		"--debug": false, "--help": false, "--version": false,
-		"--key": true, "--field-separator": true, "--buffer-size": true, "--parallel": true,
-		"--sort": true, "--batch-size": true}
-	for i := 0; i < len(args); i++ {
-		a := args[i]
-		if a == "--" {
-			break
-		}
-		if strings.HasPrefix(a, "--") {
-			name, _, inline := strings.Cut(a, "=")
-			value, ok := flags[name]
-			if !ok || (inline && !value && name != "--check") {
-				return fmt.Errorf("%w: sort option %q", ErrUnsafe, a)
-			}
-			if value && !inline {
-				i++
-				if i == len(args) {
-					return ErrInvalid
-				}
-			}
-		} else if strings.HasPrefix(a, "-") && a != "-" {
-			for j := 1; j < len(a); j++ {
-				c := a[j]
-				if strings.ContainsRune("ktS", rune(c)) {
-					if j+1 == len(a) {
-						i++
-						if i == len(args) {
-							return ErrInvalid
-						}
-					}
-					break
-				}
-				if !strings.ContainsRune("bdfghinMrRsucCmVz", rune(c)) {
-					return fmt.Errorf("%w: sort option %q", ErrUnsafe, a)
-				}
-			}
-		}
-	}
-	return nil
-}
-
-func checkPathToken(arg string) error {
-	candidates := []string{arg}
-	if _, after, found := strings.Cut(arg, "="); found {
-		candidates = append(candidates, after)
-	}
-
-	for _, c := range candidates {
-		if c == "" {
-			continue
-		}
-		if filepath.IsAbs(c) {
-			return fmt.Errorf("%w: absolute path %q", workspace.ErrEscape, c)
-		}
-		if hasDotDot(c) {
-			return fmt.Errorf("%w: %q", workspace.ErrEscape, c)
-		}
-	}
-
-	return nil
-}
-
-func hasDotDot(p string) bool {
-	return slices.Contains(strings.Split(strings.ReplaceAll(p, "\\", "/"), "/"), "..")
 }
 
 func executePipeline(ctx context.Context, root, command string, stages [][]string) (Result, error) {
@@ -331,10 +107,12 @@ func scrubbedEnv() []string {
 
 	for _, kv := range base {
 		key, _, _ := strings.Cut(kv, "=")
+
 		switch key {
 		case "RIPGREP_CONFIG_PATH", "GIT_TERMINAL_PROMPT":
 			continue
 		}
+
 		out = append(out, kv)
 	}
 

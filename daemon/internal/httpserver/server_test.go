@@ -35,10 +35,13 @@ func TestHealthAndSearch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer res.Body.Close()
+
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("health status %d", res.StatusCode)
 	}
+
 	var health struct {
 		PID            int                   `json:"pid"`
 		VectorsEnabled bool                  `json:"vectors_enabled"`
@@ -47,12 +50,15 @@ func TestHealthAndSearch(t *testing.T) {
 	if err := json.NewDecoder(res.Body).Decode(&health); err != nil {
 		t.Fatal(err)
 	}
+
 	if !health.VectorsEnabled {
 		t.Fatal("expected vectors_enabled true")
 	}
+
 	if health.PID != os.Getpid() {
 		t.Fatalf("health pid: got %d, want %d", health.PID, os.Getpid())
 	}
+
 	if len(health.Repos) != 1 || health.Repos[0].Key != "main" {
 		t.Fatalf("health repos: %+v", health.Repos)
 	}
@@ -61,6 +67,7 @@ func TestHealthAndSearch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer res2.Body.Close()
 	var body struct {
 		Results []indexctl.SearchResult `json:"results"`
@@ -68,9 +75,11 @@ func TestHealthAndSearch(t *testing.T) {
 	if err := json.NewDecoder(res2.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
+
 	if len(body.Results) != 1 || body.Results[0].Path != "main.go" || body.Results[0].Repo != "main" {
 		t.Fatalf("results: %+v", body.Results)
 	}
+
 	if idx.GotSearch.Repo != "main" || idx.GotSearch.PathGlob != "*.go" {
 		t.Fatalf("search opts not plumbed: %+v", idx.GotSearch)
 	}
@@ -87,10 +96,13 @@ func TestSearchMissingQuery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer res.Body.Close()
+
 	if res.StatusCode != http.StatusBadRequest {
 		t.Fatalf("status %d", res.StatusCode)
 	}
+
 	var body struct {
 		OK      bool   `json:"ok"`
 		Code    string `json:"code"`
@@ -99,6 +111,7 @@ func TestSearchMissingQuery(t *testing.T) {
 	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
+
 	if body.Code != "MISSING_QUERY" {
 		t.Fatalf("code %q", body.Code)
 	}
@@ -109,6 +122,7 @@ func TestCallTool(t *testing.T) {
 	if err := os.WriteFile(root+"/hello.txt", []byte("hi"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+
 	idx := testutil.StubIndexer()
 	ws := testutil.WsSingle(root)
 	srv := New(idx, tools.Default(ws, idx))
@@ -121,7 +135,9 @@ func TestCallTool(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer res.Body.Close()
+
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("status %d", res.StatusCode)
 	}
@@ -132,6 +148,7 @@ func TestCallPipeTool(t *testing.T) {
 	if err := os.WriteFile(root+"/a.go", []byte("package main\n// TODO\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+
 	idx := testutil.StubIndexer()
 	ws := testutil.WsSingle(root)
 	srv := New(idx, tools.Default(ws, idx))
@@ -149,9 +166,11 @@ func TestCallPipeTool(t *testing.T) {
 
 	res := call(`rg -l TODO --glob "*.go" | head -1`)
 	defer res.Body.Close()
+
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("pipe status %d", res.StatusCode)
 	}
+
 	var body struct {
 		Result struct {
 			Stdout string `json:"stdout"`
@@ -160,33 +179,40 @@ func TestCallPipeTool(t *testing.T) {
 	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
+
 	if body.Result.Stdout == "" {
 		t.Fatal("expected non-empty pipe stdout")
 	}
 
 	res2 := call(`rg TODO > out`)
 	defer res2.Body.Close()
+
 	if res2.StatusCode != http.StatusBadRequest {
 		t.Fatalf("unsafe pipe status %d, want 400", res2.StatusCode)
 	}
+
 	var errBody struct {
 		Code string `json:"code"`
 	}
 	if err := json.NewDecoder(res2.Body).Decode(&errBody); err != nil {
 		t.Fatal(err)
 	}
+
 	if errBody.Code != "UNSAFE_PIPE" {
 		t.Fatalf("unsafe pipe code %q, want UNSAFE_PIPE", errBody.Code)
 	}
 
 	res3 := call(``)
 	defer res3.Body.Close()
+
 	if res3.StatusCode != http.StatusBadRequest {
 		t.Fatalf("empty pipe status %d, want 400", res3.StatusCode)
 	}
+
 	if err := json.NewDecoder(res3.Body).Decode(&errBody); err != nil {
 		t.Fatal(err)
 	}
+
 	if errBody.Code != "INVALID_ARGS" {
 		t.Fatalf("empty pipe code %q, want INVALID_ARGS", errBody.Code)
 	}
@@ -197,6 +223,7 @@ func TestCallUnsafeSedTool(t *testing.T) {
 	if err := os.WriteFile(root+"/a.txt", []byte("hello\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+
 	idx := testutil.StubIndexer()
 	ws := testutil.WsSingle(root)
 	srv := New(idx, tools.Default(ws, idx))
@@ -211,16 +238,20 @@ func TestCallUnsafeSedTool(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer res.Body.Close()
+
 	if res.StatusCode != http.StatusBadRequest {
 		t.Fatalf("unsafe sed status %d, want 400", res.StatusCode)
 	}
+
 	var body struct {
 		Code string `json:"code"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
+
 	if body.Code != "UNSAFE_SED" {
 		t.Fatalf("unsafe sed code %q, want UNSAFE_SED", body.Code)
 	}
@@ -237,16 +268,20 @@ func TestSearchInvalidMinScore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer res.Body.Close()
+
 	if res.StatusCode != http.StatusBadRequest {
 		t.Fatalf("status %d", res.StatusCode)
 	}
+
 	var body struct {
 		Code string `json:"code"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
+
 	if body.Code != "INVALID_MIN_SCORE" {
 		t.Fatalf("code %q", body.Code)
 	}
@@ -266,7 +301,9 @@ func TestCallToolForbiddenPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer res.Body.Close()
+
 	if res.StatusCode != http.StatusForbidden {
 		t.Fatalf("status %d want 403", res.StatusCode)
 	}
@@ -289,16 +326,20 @@ func TestCallToolGetChunk(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer res.Body.Close()
+
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("status %d", res.StatusCode)
 	}
+
 	var body struct {
 		Result indexctl.ChunkDetail `json:"result"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
+
 	if body.Result.ID != 42 || body.Result.Body == "" {
 		t.Fatalf("get_chunk result: %+v", body.Result)
 	}
@@ -315,6 +356,7 @@ func TestSearchToolRegistered(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer res.Body.Close()
 	var body struct {
 		Tools []struct {
@@ -324,13 +366,16 @@ func TestSearchToolRegistered(t *testing.T) {
 	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
+
 	found := false
+
 	for _, tool := range body.Tools {
 		if tool.Name == "search" {
 			found = true
 			break
 		}
 	}
+
 	if !found {
 		t.Fatal("search tool not registered")
 	}

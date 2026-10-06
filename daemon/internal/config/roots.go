@@ -13,6 +13,7 @@ func FormatRoots(roots []domain.Repo) string {
 	}
 
 	records := make([]string, len(roots))
+
 	for i, r := range roots {
 		records[i] = r.Key + "\t" + r.Root
 	}

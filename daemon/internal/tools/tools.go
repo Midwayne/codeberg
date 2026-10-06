@@ -61,11 +61,13 @@ func (r *Registry) Register(t Tool) {
 	if _, ok := r.byName[name]; !ok {
 		r.order = append(r.order, name)
 	}
+
 	r.byName[name] = t
 }
 
 func (r *Registry) List() []Spec {
 	specs := make([]Spec, 0, len(r.order))
+
 	for _, name := range r.order {
 		specs = append(specs, r.byName[name].Spec())
 	}

@@ -37,6 +37,24 @@ jobs:
       - name: Check agent and web UI
         run: make agent-check
 
+  daemon:
+    name: Go daemon (lint, vet, test, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: daemon/go.mod
+          cache-dependency-path: daemon/go.sum
+
+      - name: Install daemon test tools
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Check daemon
+        run: make daemon-check
+
   core:
     name: C core (build + test)
     runs-on: ubuntu-latest

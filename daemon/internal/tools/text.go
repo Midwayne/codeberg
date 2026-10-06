@@ -23,6 +23,7 @@ func headTailTool(ws *workspace.Workspace, name string, fromEnd bool, descriptio
 	if fromEnd {
 		edge = "trailing"
 	}
+
 	schema := fmt.Sprintf(`{
   "type": "object",
   "additionalProperties": false,
@@ -87,6 +88,7 @@ func sliceLines(lines []string, n int, fromEnd bool) ([]string, int) {
 	if n > len(lines) {
 		n = len(lines)
 	}
+
 	if fromEnd {
 		return lines[len(lines)-n:], n
 	}

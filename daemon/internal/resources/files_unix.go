@@ -19,15 +19,18 @@ func volume(path string) (*Disk, error) {
 	if path == "" {
 		path = "."
 	}
+
 	for {
 		var stat syscall.Statfs_t
 		err := syscall.Statfs(path, &stat)
 		if err == nil {
 			return &Disk{TotalBytes: int64(stat.Blocks) * int64(stat.Bsize), AvailableBytes: int64(stat.Bavail) * int64(stat.Bsize)}, nil
 		}
+
 		if !errors.Is(err, os.ErrNotExist) || filepath.Dir(path) == path {
 			return nil, err
 		}
+
 		path = filepath.Dir(path)
 	}
 }

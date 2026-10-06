@@ -17,9 +17,11 @@ func TestSymbolTouchesHunk(t *testing.T) {
 	if !symbolTouchesHunk(10, 20, lines) {
 		t.Fatal("expected overlap")
 	}
+
 	if symbolTouchesHunk(1, 5, lines) {
 		t.Fatal("expected miss")
 	}
+
 	if symbolTouchesHunk(10, 20, nil) {
 		t.Fatal("empty hunks must not match")
 	}
@@ -44,16 +46,20 @@ func TestGetArchitectureUsesHubsAndLanguages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	res, ok := out.(getArchitectureResult)
 	if !ok {
 		t.Fatalf("type: %T", out)
 	}
+
 	if res.Nodes != 10 || len(res.Hubs) != 1 || res.Hubs[0].Degree != 5 {
 		t.Fatalf("hubs: %+v", res)
 	}
+
 	if len(res.Languages) != 2 || res.Languages[0].Lang != "go" {
 		t.Fatalf("languages: %+v", res.Languages)
 	}
+
 	if len(res.Entrypoints) != 1 || res.Entrypoints[0].Name != "main" {
 		t.Fatalf("entrypoints: %+v", res.Entrypoints)
 	}
@@ -75,6 +81,7 @@ func TestDetectChangesHunkFilterAndPathPrefix(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "a.go"), []byte("package main\n\nfunc Keep() {}\n\nfunc Touch() {}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+
 	run("add", "a.go")
 	run("commit", "-m", "init")
 	if err := os.WriteFile(filepath.Join(root, "a.go"), []byte("package main\n\nfunc Keep() {}\n\nfunc Touch() { x := 1; _ = x }\n"), 0o644); err != nil {
@@ -98,19 +105,24 @@ func TestDetectChangesHunkFilterAndPathPrefix(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	res, ok := out.(detectChangesResult)
 	if !ok {
 		t.Fatalf("type: %T", out)
 	}
+
 	if res.Fallback != "working-tree-vs-HEAD" {
 		t.Fatalf("expected fallback, got %+v", res)
 	}
+
 	if len(res.Direct) != 1 || res.Direct[0].Name != "Touch" {
 		t.Fatalf("hunk filter direct: %+v", res.Direct)
 	}
+
 	if idx.lastTrace.PathPrefix != "a.go" || idx.lastTrace.Name != "Touch" {
 		t.Fatalf("trace path prefix: %+v", idx.lastTrace)
 	}
+
 	if len(res.Indirect) != 1 || res.Indirect[0].Name != "Caller" {
 		t.Fatalf("indirect: %+v", res.Indirect)
 	}

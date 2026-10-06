@@ -18,58 +18,37 @@ var linuxClock struct {
 }
 
 func nativeProcesses(ctx context.Context) ([]ProcessCounter, error) {
-	linuxClock.Do(func() {
-		clockCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		defer cancel()
-		output, err := exec.CommandContext(clockCtx, "getconf", "CLK_TCK").Output()
-		if err == nil {
-			linuxClock.ticks, _ = strconv.ParseFloat(strings.TrimSpace(string(output)), 64)
-		}
-		stat, _ := os.ReadFile("/proc/stat")
-		for _, line := range strings.Split(string(stat), "\n") {
-			if strings.HasPrefix(line, "btime ") {
-				linuxClock.bootMS, _ = strconv.ParseFloat(strings.TrimPrefix(line, "btime "), 64)
-				linuxClock.bootMS *= 1000
-			}
-		}
-	})
+	linuxClock.Do(func() { initLinuxClock(ctx) })
+
 	if linuxClock.ticks <= 0 || linuxClock.bootMS <= 0 {
 		return psProcesses(ctx)
 	}
+
 	entries, err := os.ReadDir("/proc")
 	if err != nil {
 		return nil, err
 	}
+
 	rows := make([]ProcessCounter, 0, len(entries))
+
 	for _, entry := range entries {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
+
 		pid, err := strconv.Atoi(entry.Name())
 		if err != nil {
 			continue
 		}
+
 		data, err := os.ReadFile("/proc/" + entry.Name() + "/stat")
 		if err != nil {
 			continue
 		} // Processes may exit between enumeration and read.
-		raw := string(data)
-		left, right := strings.IndexByte(raw, '('), strings.LastIndexByte(raw, ')')
-		if left < 0 || right <= left {
-			continue
+
+		if row, ok := parseLinuxProcess(pid, data); ok {
+			rows = append(rows, row)
 		}
-		fields := strings.Fields(raw[right+1:])
-		if len(fields) < 22 {
-			continue
-		}
-		ppid, _ := strconv.Atoi(fields[1])
-		user, _ := strconv.ParseFloat(fields[11], 64)
-		system, _ := strconv.ParseFloat(fields[12], 64)
-		start, _ := strconv.ParseFloat(fields[19], 64)
-		rss, _ := strconv.ParseInt(fields[21], 10, 64)
-		rows = append(rows, ProcessCounter{PID: pid, PPID: ppid, Command: raw[left+1 : right],
-			CPUTimeMS: (user + system) / linuxClock.ticks * 1000, StartedAt: int64(linuxClock.bootMS + start/linuxClock.ticks*1000),
-			MemoryBytes: rss * int64(os.Getpagesize())})
 	}
 	return rows, nil
 }
@@ -84,11 +63,53 @@ func nativeArguments(ctx context.Context, pid int) string {
 	if ctx.Err() != nil {
 		return ""
 	}
+
 	file, err := os.Open("/proc/" + strconv.Itoa(pid) + "/cmdline")
 	if err != nil {
 		return ""
 	}
+
 	defer file.Close()
 	data, _ := io.ReadAll(io.LimitReader(file, 8192))
 	return strings.ReplaceAll(string(data), "\x00", " ")
+}
+
+func initLinuxClock(ctx context.Context) {
+	clockCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	output, err := exec.CommandContext(clockCtx, "getconf", "CLK_TCK").Output()
+	if err == nil {
+		linuxClock.ticks, _ = strconv.ParseFloat(strings.TrimSpace(string(output)), 64)
+	}
+
+	stat, _ := os.ReadFile("/proc/stat")
+
+	for _, line := range strings.Split(string(stat), "\n") {
+		if strings.HasPrefix(line, "btime ") {
+			linuxClock.bootMS, _ = strconv.ParseFloat(strings.TrimPrefix(line, "btime "), 64)
+			linuxClock.bootMS *= 1000
+		}
+	}
+}
+
+func parseLinuxProcess(pid int, data []byte) (ProcessCounter, bool) {
+	raw := string(data)
+	left, right := strings.IndexByte(raw, '('), strings.LastIndexByte(raw, ')')
+	if left < 0 || right <= left {
+		return ProcessCounter{}, false
+	}
+
+	fields := strings.Fields(raw[right+1:])
+	if len(fields) < 22 {
+		return ProcessCounter{}, false
+	}
+
+	ppid, _ := strconv.Atoi(fields[1])
+	user, _ := strconv.ParseFloat(fields[11], 64)
+	system, _ := strconv.ParseFloat(fields[12], 64)
+	start, _ := strconv.ParseFloat(fields[19], 64)
+	rss, _ := strconv.ParseInt(fields[21], 10, 64)
+	return ProcessCounter{PID: pid, PPID: ppid, Command: raw[left+1 : right],
+		CPUTimeMS: (user + system) / linuxClock.ticks * 1000, StartedAt: int64(linuxClock.bootMS + start/linuxClock.ticks*1000),
+		MemoryBytes: rss * int64(os.Getpagesize())}, true
 }
