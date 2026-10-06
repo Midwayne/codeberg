@@ -147,3 +147,17 @@ describe('resource settings', () => {
   });
 
 });
+
+it('cleans up old dreaming snapshots with knowledge, keeping recently decided revision families', async () => {
+  const { learning, resources } = await fixture();
+  const base = { schema_version: 1 as const, created_at: '2000-01-01', summary: 'Old knowledge report', considered: 0, omitted: 0, changes: [], status: 'proposed' as const, decisions: [] };
+  await learning.dreamingReports.save({ ...base, id: 'dream-old' });
+  await learning.dreamingReports.save({ ...base, id: 'dream-reviewed' });
+  await learning.dreamingReports.decide('dream-reviewed', 'dismiss', learning.store);
+  expect((await resources.cleanup({ categories: ['knowledge'], olderThanDays: 30 })).deleted).toBe(1);
+  expect(await learning.dreamingReports.get('dream-old')).toBeUndefined();
+  expect(await learning.dreamingReports.get('dream-reviewed')).toMatchObject({ status: 'dismissed' });
+  await learning.waitForCurrent();
+  expect((await resources.cleanup({ categories: ['knowledge'], olderThanDays: 0 })).deleted).toBe(2);
+  expect(await learning.dreamingReports.list()).toEqual([]);
+});

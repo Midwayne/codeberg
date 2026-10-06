@@ -265,6 +265,8 @@ export class Agent implements Asker {
         skills,
         contextRoot: this.context.root,
       });
+      const knowledgeIndex = await this.learning?.knowledgeIndex();
+      if (knowledgeIndex) this.system += `\n\n${knowledgeIndex}`;
       let providerOptions = requestProviderOptions(this.system, toolNames, this.profile);
       if (this.reasoning === 'max') {
         providerOptions = {

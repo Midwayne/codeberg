@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { dreamingCommand } from './dreaming.js';
 import { join } from 'node:path';
 import { readFile } from 'node:fs/promises';
 
@@ -16,6 +17,14 @@ async function main(): Promise<void> {
   const store = new LearningStore();
   const datasets = new DatasetStore(store);
   switch (command) {
+    case 'dream':
+    case 'dream-reports':
+    case 'dream-report':
+    case 'dream-apply':
+    case 'dream-undo':
+    case 'dream-dismiss':
+      console.log(JSON.stringify(await dreamingCommand(command, args, store), null, 2));
+      return;
     case 'search-learning':
       console.log(JSON.stringify(await store.searchLearning(args.join(' ')), null, 2));
       return;
@@ -73,7 +82,7 @@ async function main(): Promise<void> {
       return;
     }
     default:
-       console.error('Usage: codeberg-learning search-learning <query> | search-knowledge [--all] <query> | list-knowledge | list | show <interaction-id> | stats | metrics | score <runs.jsonl> | candidates | extract <interaction-id> | promote <example-id> <eval|training> <provenance> [oracle.json] | export --type eval|embedding|openai-chat|query-positive-negative|preference|knowledge');
+       console.error('Usage: codeberg-learning dream | dream-reports | dream-report <id> | dream-apply <id> | dream-undo <id> | dream-dismiss <id> | search-learning <query> | search-knowledge [--all] <query> | list-knowledge | list | show <interaction-id> | stats | metrics | score <runs.jsonl> | candidates | extract <interaction-id> | promote <example-id> <eval|training> <provenance> [oracle.json] | export --type eval|embedding|openai-chat|query-positive-negative|preference|knowledge');
       process.exitCode = 1;
   }
 }

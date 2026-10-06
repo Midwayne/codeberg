@@ -1,3 +1,4 @@
+import { DreamingPanel } from '@/components/dreaming';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { KNOWLEDGE_CATEGORIES, DATASET_KINDS } from '@agent/core/learning/preferences';
 import { loadLearningSettings, saveLearningSettings, type LearningSettings } from '@/lib/learning-settings';
@@ -47,6 +48,7 @@ export function LearningSettingsPanel({ onSaved }: { onSaved?: () => void }) {
     {settings === undefined && !error && <div role="status" className="space-y-4" aria-label="Loading learning settings"><div className="h-20 rounded-xl bg-muted" /><div className="h-40 rounded-xl bg-muted" /><span className="sr-only">Loading learning settings…</span></div>}
     {settings === null && <p className="rounded-xl border border-border p-4 text-sm leading-6 text-muted-foreground">Learning is disabled by the launcher. Set CODEBERG_LEARNING_USE=true and restart Codeberg to configure its components here. Existing data is kept.</p>}
     {settings && <LearningSettingsView settings={settings} busy={busy} onChange={(next) => { void change(next); }} />}
+    {settings && <DreamingPanel key={project?.id ?? 'default'} enabled={settings.enabled && settings.knowledge} />}
     {settings && <p role="status" className="min-h-5 text-xs text-muted-foreground">{busy ? 'Saving…' : saved ? 'Saved. Changes apply to new chat turns and background jobs.' : 'Changes save automatically for this project.'}</p>}
   </section>;
 }
@@ -67,6 +69,7 @@ export function LearningSettingsView({ settings, busy, onChange }: { settings: L
           <Toggle label="Learn from solved answers" description="Call the learning model to create knowledge from new solved feedback." checked={settings.knowledgeCapture} disabled={locked || !settings.knowledge} onChange={(value) => set('knowledgeCapture', value)} small />
           <Toggle label="Use knowledge in chats" description="Let the agent search saved findings. Results add context tokens when used." checked={settings.knowledgeRecall} disabled={locked || !settings.knowledge} onChange={(value) => set('knowledgeRecall', value)} small />
           <Toggle label="Automatic source refresh" description="Recheck saved findings when their source changes. Refreshes can call the learning model." checked={settings.knowledgeRefresh} disabled={locked || !settings.knowledge} onChange={(value) => set('knowledgeRefresh', value)} small />
+          <Toggle label="Daily knowledge consolidation" description="Generate one reviewable report each day while Codeberg is running. Reports are applied only when you choose Apply report." checked={settings.dreaming} disabled={locked || !settings.knowledge} onChange={(value) => set('dreaming', value)} small />
           <Components label="Knowledge categories" disabled={locked || !settings.knowledge}>
             {KNOWLEDGE_CATEGORIES.map((key) => <Toggle key={key} label={categoryLabels[key]} checked={settings.categories[key]} disabled={locked || !settings.knowledge} onChange={(value) => onChange({ ...settings, categories: { ...settings.categories, [key]: value } })} small />)}
           </Components>

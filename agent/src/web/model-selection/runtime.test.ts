@@ -182,3 +182,10 @@ it('shares one new pool between simultaneous turns while a retired pool closes',
  expect(builds).toBe(2); expect(leases[0].agent).toBe(leases[1].agent);
  await Promise.all(leases.map((lease) => lease.release())); await pool.close();
 });
+
+it('declines oversized consolidation context instead of sending fragments of knowledge records', () => {
+  const input = JSON.stringify({ mode: 'consolidate_knowledge', artifacts: [{ body: 'important exception '.repeat(2000) }] });
+  const bounded = JSON.parse(boundLearningContext(input, 'consolidate', 512));
+  expect(bounded).toMatchObject({ mode: 'consolidate_knowledge', insufficient_evidence: true });
+  expect(bounded.opening_context).toBeUndefined();
+});

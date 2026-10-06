@@ -5,7 +5,7 @@ import { LearningSettingsView } from './learning-settings';
 
 it('explains token impact and exposes independently named controls', () => {
   const html = renderToStaticMarkup(<LearningSettingsView settings={DEFAULT_LEARNING_SETTINGS} busy={false} onChange={() => undefined} />);
-  for (const label of ['Enable learning', 'Codebase knowledge', 'Learning history', 'Dataset capture', 'Training review', 'Evaluations', 'Learn from solved answers', 'Record chats and feedback', 'Use knowledge in chats', 'Automatic source refresh', 'Services', 'Flows', 'Concepts', 'Debugging']) expect(html).toContain(label);
+  for (const label of ['Enable learning', 'Codebase knowledge', 'Learning history', 'Dataset capture', 'Training review', 'Evaluations', 'Learn from solved answers', 'Record chats and feedback', 'Use knowledge in chats', 'Automatic source refresh', 'Daily knowledge consolidation', 'Services', 'Flows', 'Concepts', 'Debugging']) expect(html).toContain(label);
   expect(html).toContain('Background model calls');
   expect(html).toContain('No model calls');
   expect(html).toContain('role="switch"');

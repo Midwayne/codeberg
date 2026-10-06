@@ -37,14 +37,14 @@ running may finish; changes to available chat tools apply on subsequent turns.
 
 | Component | Controls | Token impact |
 | --- | --- | --- |
-| Codebase knowledge | Learn from solved answers; Use knowledge in chats; Automatic source refresh | Extraction and refresh call the learning model; recalled results add chat context |
+| Codebase knowledge | Learn from solved answers; Use knowledge in chats; Automatic source refresh; Daily knowledge consolidation | Extraction and refresh call the learning model; recalled results add chat context |
 | Learning history | Record chats and feedback; Use history in chats | Recording is local; recalled attempts add chat context |
 | Dataset capture | Training review; Evaluations; individual example types | Local extraction and explicit review make no model calls |
 
 Family switches pause all their subcomponents without clearing their selected
 choices. For recall without background knowledge calls, leave **Codebase
 knowledge** and **Use knowledge in chats** on, then turn off **Learn from solved
-answers** and **Automatic source refresh**. Similarly, historical recall can
+answers**, **Automatic source refresh**, and **Daily knowledge consolidation**. Similarly, historical recall can
 stay on while **Record chats and feedback** is off. New knowledge and dataset
 capture depend on recorded interactions; queued work from earlier recording can
 continue independently. Feedback controls are hidden when recording is paused.
@@ -57,6 +57,12 @@ evidence, Solved answer, Better answer, Verifiable task, Incorrect result, and
 Possible incorrect result. Turning off a type stops new candidate writes for it;
 existing examples are kept. Training and evaluation switches control new reviewed
 approvals. Evaluations are held-out data, not automatic model runs or retraining.
+
+Knowledge consolidation reports are generated manually in this section, with
+optional daily proposals off by default. Review before/after notes, apply a
+report, or undo its view. Original extraction records remain intact; stale
+proposals cannot be applied. See
+[knowledge consolidation](continuous-learning.md#knowledge-consolidation-dreaming).
 
 Settings are stored atomically in `learning/settings.json` under the project's
 configured data directory. Invalid patches are rejected before writing. A failed

@@ -27,6 +27,10 @@ export class DurableJobQueue {
     return this.enqueue('extract_dataset', interactionId, options);
   }
 
+  async enqueueDreaming(runId: string): Promise<KnowledgeJob> {
+    return this.enqueue('consolidate_knowledge', runId, {});
+  }
+
   private async enqueue(type: KnowledgeJob['type'], interactionId: string, options: { requeueCompleted?: boolean; sourceRefresh?: boolean }): Promise<KnowledgeJob> {
     const jobId = stableId('job', type, interactionId);
     const existing = await this.find(jobId);

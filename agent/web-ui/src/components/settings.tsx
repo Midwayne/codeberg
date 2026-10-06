@@ -28,7 +28,7 @@ const labels: Record<CleanupCategory, string> = { chats: 'Saved chats', training
 const descriptions: Record<CleanupCategory, string> = {
   chats: 'Saved conversations, including archived chats. Pinned chats are kept.',
   training: 'Candidates and their training, evaluation, and dismissed copies. Recently reviewed examples are kept together.',
-  knowledge: 'Generated service, flow, concept, and debugging documents. Original repository files are kept.',
+  knowledge: 'Generated service, flow, concept, and debugging documents, plus consolidation reports and revisions. Original repository files are kept.',
 };
 const buttonClass = 'min-h-11 rounded-lg border border-border px-3 py-2 text-sm hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50';
 

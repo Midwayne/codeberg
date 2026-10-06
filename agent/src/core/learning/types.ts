@@ -111,7 +111,7 @@ export type FailureCategory =
 
 export interface KnowledgeJob {
   job_id: string;
-  type: 'extract_knowledge' | 'extract_dataset';
+  type: 'extract_knowledge' | 'extract_dataset' | 'consolidate_knowledge';
   interaction_id: string;
   source_revision?: string;
   extraction_version?: number;
@@ -132,7 +132,7 @@ export interface KnowledgeJob {
 
 export type KnowledgeCategory = 'services' | 'flows' | 'concepts' | 'debugging';
 export type KnowledgeConfidence = 'low' | 'medium' | 'high';
-export type KnowledgeStatus = 'active' | 'needs_verification';
+export type KnowledgeStatus = 'active' | 'needs_verification' | 'archived';
 
 export interface KnowledgeClaim {
   statement: string;
@@ -158,6 +158,9 @@ export interface KnowledgeArtifact {
   source_refs?: { repo: string; path: string; symbol?: string }[];
   source_hashes?: Record<string, string>;
   claims?: KnowledgeClaim[];
+  /** Navigation hints created by consolidation, never independent evidence. */
+  related_ids?: string[];
+  merged_into?: string;
   /** Explicit solved user corrections, retained as provisional notes rather than source-verified claims. */
   user_confirmed_notes?: {
     interaction_id: string;

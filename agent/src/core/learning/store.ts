@@ -1,3 +1,5 @@
+import { projectDreamingKnowledge } from './dreaming/projection.js';
+import { DreamingReports } from './dreaming/reports.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { readdir, readFile } from 'node:fs/promises';
@@ -251,11 +253,14 @@ export class LearningStore {
   }
 
   async searchKnowledge(query: string, limit = 10, options: { includeUnverified?: boolean; categories?: Partial<Record<KnowledgeArtifact['category'], boolean>> } = {}): Promise<KnowledgeSearchHit[]> {
-    const artifacts = options.includeUnverified ? await this.knowledgeArtifacts() : await this.currentKnowledgeArtifacts();
+    const artifacts = options.includeUnverified ? (await this.projectedKnowledgeArtifacts()).filter((artifact) => artifact.status !== 'archived') : await this.currentKnowledgeArtifacts();
     const currentIds = options.includeUnverified
       ? new Set((await this.currentKnowledgeArtifacts()).map((artifact) => artifact.id))
       : undefined;
+    const navigationKey = query.trim().replace(/^\[\[|\]\]$/g, '');
     return rankKnowledge(query, artifacts.filter((artifact) => options.categories?.[artifact.category] !== false))
+      .map((hit) => navigationKey === hit.artifact.id || navigationKey === `${hit.artifact.category}/${hit.artifact.slug}`
+        ? { ...hit, score: Number.MAX_SAFE_INTEGER } : hit)
       .filter((hit) => hit.score > 0)
       .sort((a, b) => b.score - a.score || b.artifact.updated_at.localeCompare(a.artifact.updated_at))
       .slice(0, Math.max(1, limit))
@@ -268,7 +273,15 @@ export class LearningStore {
 
   /** Active facts only, checked against events even before an async invalidation job runs. */
   async currentKnowledgeArtifacts(): Promise<KnowledgeArtifact[]> {
-    const [artifacts, events, repositories] = await Promise.all([this.knowledgeArtifacts(), this.events(), this.repositories()]);
+    return (await this.freshKnowledgeArtifacts(await this.projectedKnowledgeArtifacts())).map((artifact) => {
+      if (!artifact.user_confirmed_notes?.length) return artifact;
+      const { user_confirmed_notes: _notes, ...verified } = artifact;
+      return { ...verified, body: artifact.body.split('\n## User-confirmed notes (not source-verified)\n')[0].trim() };
+    });
+  }
+
+  private async freshKnowledgeArtifacts(artifacts: KnowledgeArtifact[]): Promise<KnowledgeArtifact[]> {
+    const [events, repositories] = await Promise.all([this.events(), this.repositories()]);
     const revisions = interactionRevisions(events);
     const feedbackFresh = artifacts.filter((artifact) => artifact.status === 'active' && artifact.source_interactions.length > 0 &&
       artifact.source_interactions.every((id) =>
@@ -277,11 +290,18 @@ export class LearningStore {
     const sourceCache = new Map<string, Promise<SourceObservation>>();
     const states = await Promise.all(feedbackFresh.map(async (artifact) => ({ artifact,
       fresh: (await memorySourceState(artifact, repositories, sourceCache)).fresh })));
-    return states.filter((entry) => entry.fresh).map(({ artifact }) => {
-      if (!artifact.user_confirmed_notes?.length) return artifact;
-      const { user_confirmed_notes: _notes, ...verified } = artifact;
-      return { ...verified, body: artifact.body.split('\n## User-confirmed notes (not source-verified)\n')[0].trim() };
-    });
+    return states.filter((entry) => entry.fresh).map(({ artifact }) => artifact);
+  }
+
+  /** Views only hide duplicates while every underlying note remains freshly verified. */
+  async projectedKnowledgeArtifacts(): Promise<KnowledgeArtifact[]> {
+    const artifacts = await this.knowledgeArtifacts();
+    const reports = new DreamingReports(this.root);
+    // Existing installations pay no extra source scan when no view is applied.
+    const applied = (await reports.list()).filter((report) => report.status === 'applied');
+    if (!applied.length) return artifacts;
+    const freshIds = new Set((await this.freshKnowledgeArtifacts(artifacts)).map((artifact) => artifact.id));
+    return projectDreamingKnowledge(artifacts, applied, freshIds);
   }
 
   async knowledgeArtifacts(): Promise<KnowledgeArtifact[]> {

@@ -1,3 +1,7 @@
+import { isDailyDreaming } from './dreaming/scheduler.js';
+import { withUserNotes } from './artifact-body.js';
+import { DreamingConsolidator } from './dreaming/consolidator.js';
+import { DreamingReports } from './dreaming/reports.js';
 import { DEFAULT_LEARNING_SETTINGS, type LearningSettings } from './preferences.js';
 import { readFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
@@ -101,14 +105,18 @@ export class KnowledgeWorker {
       this.processing = true;
       writeModuleLog('learning-agent', 'job_started', { id: job.job_id, type: job.type });
       try {
-        const interaction = await this.store.interaction(job.interaction_id);
-        job.source_revision = sourceRevision(interaction.attempts, interaction.feedback);
-        if (job.type === 'extract_dataset') await this.datasets.extract(job.interaction_id, this.settings().kinds);
-        else {
-          job.extraction_version = KNOWLEDGE_EXTRACTION_VERSION;
-          const artifacts = (await this.store.knowledgeArtifacts()).filter((artifact) => artifact.source_interactions.includes(job.interaction_id));
-          if (artifacts[0]) job.source_code_revision = (await memorySourceState(artifacts[0], await this.store.repositories())).revision;
-          await this.process(job);
+        if (job.type === 'consolidate_knowledge') {
+          await new DreamingConsolidator(this.store, new DreamingReports(this.store.root), this.generator!, () => this.settings().categories).plan(job.interaction_id);
+        } else {
+          const interaction = await this.store.interaction(job.interaction_id);
+          job.source_revision = sourceRevision(interaction.attempts, interaction.feedback);
+          if (job.type === 'extract_dataset') await this.datasets.extract(job.interaction_id, this.settings().kinds);
+          else {
+            job.extraction_version = KNOWLEDGE_EXTRACTION_VERSION;
+            const artifacts = (await this.store.knowledgeArtifacts()).filter((artifact) => artifact.source_interactions.includes(job.interaction_id));
+            if (artifacts[0]) job.source_code_revision = (await memorySourceState(artifacts[0], await this.store.repositories())).revision;
+            await this.process(job);
+          }
         }
         await this.queue.complete(job);
         writeModuleLog('learning-agent', 'job_completed', { id: job.job_id, type: job.type });
@@ -297,16 +305,17 @@ export class KnowledgeWorker {
   private jobEnabled(job: KnowledgeJob): boolean {
     const settings = this.settings();
     if (!settings.enabled) return false;
+    if (job.type === 'consolidate_knowledge' && isDailyDreaming(job.interaction_id) && !settings.dreaming) return false;
     return job.type === 'extract_dataset' ? settings.datasets && Object.values(settings.kinds).some(Boolean)
-      : Boolean(this.generator) && settings.knowledge && Object.values(settings.categories).some(Boolean) && (job.source_refresh ? settings.knowledgeRefresh : settings.knowledgeCapture);
+      : Boolean(this.generator) && settings.knowledge && Object.values(settings.categories).some(Boolean) && (job.type === 'consolidate_knowledge' || (job.source_refresh ? settings.knowledgeRefresh : settings.knowledgeCapture));
   }
 
   private enabledType(): 'extract_knowledge' | 'extract_dataset' | undefined | false {
     const settings = this.settings();
     if (!settings.enabled) return false;
-    const knowledge = Boolean(this.generator) && settings.knowledge && (settings.knowledgeCapture || settings.knowledgeRefresh) && Object.values(settings.categories).some(Boolean);
+    const knowledge = Boolean(this.generator) && settings.knowledge && Object.values(settings.categories).some(Boolean);
     const datasets = settings.datasets && Object.values(settings.kinds).some(Boolean);
-    return knowledge && datasets ? undefined : knowledge ? 'extract_knowledge' : datasets ? 'extract_dataset' : false;
+    return knowledge ? undefined : datasets ? 'extract_dataset' : false;
   }
 
   private async scheduleRetry(): Promise<void> {
@@ -326,13 +335,6 @@ export class KnowledgeWorker {
     }, delay);
     this.retryTimer.unref();
   }
-}
-
-function withUserNotes(body: string, notes?: KnowledgeArtifact['user_confirmed_notes']): string {
-  const base = body.split('\n## User-confirmed notes (not source-verified)\n')[0].trim();
-  if (!notes?.length) return base;
-  return `${base}\n\n## User-confirmed notes (not source-verified)\n` +
-    notes.map((note) => `- ${note.text} (user-confirmed, ${note.confirmed_at})`).join('\n');
 }
 
 function artifactRevision(artifact: KnowledgeArtifact, interactionId: string): string | undefined {

@@ -142,6 +142,8 @@ not built, the server falls back to a dependency-free single-file page, so
 | `GET` | `/api/sessions/<id>` | load one saved chat, or 404 |
 | `PUT` | `/api/sessions/<id>` | upsert `{ title?, messages }` → `{ ok: true }` |
 | `DELETE` | `/api/sessions/<id>` | delete a saved chat → 204 |
+| `GET` / `POST` | `/api/learning/dreaming` | list recent consolidation reports and jobs / queue a report |
+| `GET` / `POST` | `/api/learning/dreaming/<id>` | inspect snapshots / apply, undo, or dismiss a report |
 | `GET` | `/api/settings/resources` | Codeberg process CPU/resident memory, stored-data disk usage, and bounded history |
 | `GET` | `/api/settings/cleanup?olderThanDays=30` | preview eligible files and reclaimable bytes per category |
 | `POST` | `/api/settings/cleanup` | delete selected chats, training data, and/or knowledge documents |
@@ -531,3 +533,9 @@ against a database, unless the user has explicitly defined the path to take.
 A missing spec, missing binary, or a server that exits is skipped. `make
 update-dbmcp` pulls upstream `main` and rebuilds; new tools show up from the
 server without agent code changes.
+
+Knowledge consolidation is available under **Settings → Learning**. Generate a
+report, inspect the proposed changes, then apply or undo the view. Optional daily
+proposal generation is off by default. The CLI offers `codeberg learning dream`,
+`dream-reports`, `dream-report <id>`, `dream-apply <id>`, `dream-undo <id>` and
+`dream-dismiss <id>`. See [knowledge consolidation](../docs/continuous-learning.md#knowledge-consolidation-dreaming).

@@ -1,3 +1,4 @@
+import { routeDreaming } from './dreaming-routes.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import {
@@ -20,6 +21,8 @@ export async function routeLearning(
   sessions: WebSessionStore,
   url: URL,
 ): Promise<void> {
+  if (url.pathname === `${LEARNING_PATH}/dreaming` || url.pathname.startsWith(`${LEARNING_PATH}/dreaming/`)) return routeDreaming(req, res, learning, url);
+
   if (url.pathname === `${LEARNING_PATH}/settings`) {
     res.setHeader('Cache-Control', 'no-store');
     if (req.method === 'GET') return sendJson(res, 200, await learning.getSettings());

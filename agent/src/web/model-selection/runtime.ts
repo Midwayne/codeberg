@@ -95,6 +95,14 @@ export function boundLearningContext(input: string, system: string, contextWindo
   // Reserve roughly half the token window for output and account for system text.
   const maxChars = Math.max(512, Math.floor(contextWindow * 2) - system.length);
   if (input.length <= maxChars) return input;
+  // Consolidation must retain whole records and all exceptions. Decline a pass
+  // rather than exposing disconnected fragments to a smaller learning model.
+  try {
+    if (JSON.parse(input)?.mode === 'consolidate_knowledge') return JSON.stringify({
+      mode: 'consolidate_knowledge', insufficient_evidence: true,
+      instruction: 'Return {"summary":"Knowledge does not fit this model context.","merges":[],"links":[]}.',
+    });
+  } catch { /* Other generators may send plain text. */ }
   const knowledge = parseKnowledgeInput(input);
   if (knowledge) return compactKnowledgeInput(knowledge, maxChars);
 

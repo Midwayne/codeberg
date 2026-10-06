@@ -10,6 +10,8 @@ export interface LearningSettings {
   knowledgeCapture: boolean;
   knowledgeRecall: boolean;
   knowledgeRefresh: boolean;
+  /** Generate daily consolidation proposals without automatically applying them. */
+  dreaming: boolean;
   datasets: boolean;
   training: boolean;
   evals: boolean;
@@ -18,7 +20,7 @@ export interface LearningSettings {
 }
 export const DEFAULT_LEARNING_SETTINGS: LearningSettings = {
   enabled: true, history: true, historyCapture: true, historyRecall: true, knowledge: true, knowledgeCapture: true,
-  knowledgeRecall: true, knowledgeRefresh: true, datasets: true, training: true, evals: true,
+  knowledgeRecall: true, knowledgeRefresh: true, dreaming: false, datasets: true, training: true, evals: true,
   categories: { services: true, flows: true, concepts: true, debugging: true },
   kinds: { retrieval: true, sft: true, preferences: true, rlvr: true, hard_negatives: true, hard_negative_candidates: true },
 };

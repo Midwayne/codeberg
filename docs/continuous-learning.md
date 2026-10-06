@@ -81,10 +81,11 @@ revision changes the worker rechecks the latest solved attempt. Restart
 reconciliation compares revisions as well as job timestamps.
 Verified knowledge search and knowledge export check current event revisions at
 read time, so an old fact is hidden immediately after a downgrade, even before
-the worker updates its on-disk status. The agent's `search_knowledge` also
-returns matching historical artifacts as explicitly labeled
-`needs_verification` hints; these require source checking before use. The
-offline CLI defaults to verified results; use `search-knowledge --all <query>`
+the worker updates its on-disk status. The agent's `search_knowledge` excludes
+stale and unverified artifacts, including when looking up an exact artifact ID.
+Each call checks tracked source hashes, repository commits and feedback revisions
+again; it does not wait for the background refresh or daily consolidation.
+The offline CLI also defaults to verified results; use `search-knowledge --all <query>`
 or `list-knowledge` to inspect historical records. Search ranks document titles
 and bodies with BM25 rather than substring counts.
 
@@ -273,3 +274,89 @@ The browser session format preserves complete UI tool calls and outputs, so the
 initial recorder is attached to browser-session persistence. The one-shot CLI
 does not expose equivalent explicit feedback UI and is not silently treated as
 a graded learning interaction.
+
+## Knowledge consolidation (dreaming)
+
+**Settings → Learning → Knowledge consolidation** generates a reviewable report
+across existing knowledge. Select a report to inspect each original and proposed
+note, its claims, source investigations, related notes, and reason for the change.
+**Apply report** activates the consolidated view; **Undo report** deactivates it
+without overwriting newer extraction work. **Dismiss report** keeps the proposal
+in history without changing recall. Reports with no changes cannot be applied.
+Generation runs through the existing durable queue, leases, bounded retries and
+activity indicator. Chats remain usable while a report runs.
+
+The **Daily knowledge consolidation** switch defaults off. When enabled, Codeberg
+queues one proposal per UTC day while running, including a catch-up for the
+current day on restart. It does not replay every missed day or apply reports
+without a review action. Turning off the daily switch pauses queued daily jobs;
+manual requests remain independent of the extraction and source-refresh switches.
+The overall Learning and Codebase knowledge switches pause consolidation too.
+The learning model and enabled knowledge categories determine eligible work.
+
+The first version consolidates already learned facts. It does not infer new
+codebase facts from ungraded conversations, capture global personal preferences,
+or update model weights. The model proposes same-category merge groups and
+navigation links. Deterministic code unions all existing claims, rechecks their
+quotes against current local files, preserves source revisions, and carries
+provisional user notes separately. A merge that would lose claims or exceed the
+existing twelve-claim limit is rejected. Conflicting notes should be linked or
+left separate for further investigation. Links are hints, not verified causal
+relationships. Notes are never removed merely because they are old or unused.
+
+Each pass includes at most 32 whole notes and 60,000 characters of note input.
+Reports disclose how many eligible notes were omitted. Changed and previously
+unreviewed notes are considered first; later passes rotate through older notes.
+For a learning model whose context cannot hold the complete bounded input, the
+request explicitly declines consolidation rather than passing disconnected text
+fragments. This can produce an empty report explaining the context limitation.
+
+Storage is a reversible projection:
+
+```text
+learning/dreaming/
+├── dream-<id>.json                 # immutable proposal, input revisions, before/after snapshots
+└── dream-<id>/00000001.json        # immutable apply/dismiss/undo decision revision
+```
+
+The original `knowledge/*/*.md` files stay canonical for extraction and refresh.
+Search and knowledge export resolve applied views before returning results.
+A view applies only while all of its input notes match their recorded revisions
+and remain source- and feedback-current. A changed input automatically falls back
+to original records, with stale records still excluded from verified recall.
+Dependent views resolve in revision order and also fall back when their inputs
+no longer match. Concurrent decisions atomically publish one immutable receipt;
+a losing request receives a conflict instead of overwriting another decision.
+There is no multi-file knowledge rewrite to recover after a crash. Knowledge
+cleanup includes report snapshots and decision receipts, preserving an entire
+revision family if any decision is newer than the chosen cutoff.
+
+New agent contexts include a small index of up to 24 current titles and note
+paths when knowledge recall is enabled. The index is navigation data; detailed
+claims still require `search_knowledge` and current source checking. Browser
+model pools rebuild after knowledge updates and apply/undo decisions.
+
+CLI commands use the current configured project:
+
+```sh
+codeberg learning dream                         # generate with CODEBERG_SUBAGENT_MODEL or CODEBERG_MODEL
+codeberg learning dream-reports
+codeberg learning dream-report dream-<id>
+codeberg learning dream-apply dream-<id>
+codeberg learning dream-undo dream-<id>
+codeberg learning dream-dismiss dream-<id>
+```
+
+Only generation needs provider credentials. CLI generation records a durable
+queue request before calling the model; if another running Codeberg process
+claims it, the CLI returns the job for inspection. Inspection and decisions work
+offline. The CLI uses the model environment variables; browser jobs use the
+current Settings → Models learning selection.
+
+The core modules remain separate: `dreaming/planner.ts` bounds input and validates
+model decisions; `consolidator.ts` constructs lossless source-grounded changes;
+`reports.ts` owns immutable versions and decisions; `projection.ts` resolves
+views and `revision.ts` fingerprints their inputs;
+`scheduler.ts` supplies durable daily keys; and `review.ts` supplies the dashboard
+wire shape. API routing, CLI orchestration and React review components consume
+these modules rather than implementing consolidation rules themselves.

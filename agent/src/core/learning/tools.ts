@@ -18,9 +18,9 @@ export function learningToolSource(store: LearningStore, settings: () => Learnin
       } : {}),
       ...(learningRecall(settings()).knowledge ? { search_knowledge: tool({
         description:
-          'Search distilled codebase knowledge, including historical findings marked needs_verification. Check artifact status and repository commit; stale findings are hints, not current facts. Confirm against current source.',
+          'Search distilled codebase knowledge whose tracked source files, repository commits and feedback revisions are current at read time. Stale and unverified records are excluded. Use artifact IDs or category/slug paths to follow related_ids and index entries. Confirm claims against current source before relying on them.',
         inputSchema: searchSchema,
-        execute: ({ query, limit }) => learningRecall(settings()).knowledge ? store.searchKnowledge(query, limit, { includeUnverified: true, categories: settings().categories }) : [],
+        execute: ({ query, limit }) => learningRecall(settings()).knowledge ? store.searchKnowledge(query, limit, { categories: settings().categories }) : [],
       }),
       } : {}),
     }),
