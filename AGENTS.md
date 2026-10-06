@@ -49,10 +49,15 @@ layer for local verification.
   Never remove useful whitespace to meet size limits; extract focused helpers
   and split files by responsibility instead. Readability-only changes must
   preserve functionality.
-- **TypeScript backend:** functions must be at most 50 lines and source files under 200 lines
-  (199 maximum), including comments and blank lines (`npm run lint --prefix agent`).
-  Keep whitespace between logical steps and extract focused helpers instead of packing
-  statements to fit the limits.
+- **TypeScript agent backend:** production functions must be at most 50 lines
+  and source files at most 199 lines, including comments and blank lines
+  (`npm run lint --prefix agent`). Write agent code and tests with blank lines
+  between logical steps and declarations so they are human-readable and
+  maintainable. Group related statements and keep validation, setup, processing,
+  and cleanup visually distinct. Avoid packing multiple operations onto one
+  line or removing useful whitespace to satisfy the limits; extract focused
+  helpers and split files by responsibility instead. Readability-only changes
+  must preserve functionality.
 - **Go daemon:** production files must be at most 199 lines and functions at
   most 50 lines, including comments and blank lines (`make daemon-lint`). Methods
   and anonymous functions count too; test and generated files are excluded from
