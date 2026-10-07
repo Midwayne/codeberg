@@ -6,6 +6,7 @@ import type { ChatResponder, ResolvedModelSelection } from '../chat-routes.js';
 import { type ModelSettingsStore } from '../model-selection/settings.js';
 import { ResourceSettings } from '../resources.js';
 import { WebSessionStore } from '../sessions/store.js';
+import type { UsageStore } from '../usage/store.js';
 
 /** The endpoint the browser chat client posts its message history to. */
 export const CHAT_PATH = '/api/chat';
@@ -24,6 +25,8 @@ export const CHAT_SEARCH_PATH = '/api/chat-search';
 export const MODELS_PATH = '/api/models';
 
 export interface WebServerOptions {
+  /** Shared durable model accounting across every project. */
+  usage?: UsageStore;
   /** The ai-sdk agent driving each turn. */
   agent?: ToolLoopAgent;
   /** Shown in the page title bar; also returned from `/api/meta`. */

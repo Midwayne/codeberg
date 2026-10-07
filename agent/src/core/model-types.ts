@@ -1,4 +1,5 @@
 import type { ReasoningEffort } from './types.js';
+import type { ModelPricing } from './usage.js';
 
 export const MODEL_INPUTS = ['text', 'vision', 'audio', 'video', 'pdf'] as const;
 
@@ -11,6 +12,7 @@ export interface ModelSelection {
 }
 
 export interface CatalogModel {
+  pricing?: ModelPricing;
   key: string;
   /** Provider:model name sent to the model API. Several keys may share it. */
   model: string;

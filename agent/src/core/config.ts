@@ -1,4 +1,5 @@
 import { defaultProviders } from '../providers/index.js';
+import type { LanguageModel } from 'ai';
 import { profileFor } from '../providers/profiles.js';
 import { Agent } from './agent.js';
 import { DaemonClient } from './client.js';
@@ -10,6 +11,7 @@ import { assertAgentRuntime } from './runtime.js';
 import type { ReasoningEffort } from './types.js';
 
 export interface AgentConfig {
+  transformModel?: (model: LanguageModel) => LanguageModel;
   env?: NodeJS.ProcessEnv;
   modelSpec: string;
   subagentModelSpec?: string;
@@ -45,7 +47,8 @@ export function createAgent(config: AgentConfig): Agent {
   assertAgentRuntime();
   const env = config.env ?? currentProjectEnvironment();
   const registry = defaultProviders();
-  const model = registry.resolve(config.modelSpec);
+  const resolved = registry.resolve(config.modelSpec);
+  const model = config.transformModel ? config.transformModel(resolved) : resolved;
   const learningEnabled =
     config.learning === undefined ? learningEnabledFromEnv(env) : config.learning !== false;
   const subagentModel =

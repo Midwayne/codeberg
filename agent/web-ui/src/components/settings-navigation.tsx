@@ -10,12 +10,13 @@ import { cn } from '../lib/utils';
 import { type Settings } from './settings';
 import { ResourceUsagePanel } from './resource-usage';
 import { CleanupPanel } from './cleanup';
+import { ModelUsagePanel } from './model-usage';
+
+type SettingsSection = (typeof sections)[number]['id'];
 
 export type SettingsNavigationProps = {
-  section: 'appearance' | 'projects' | 'mcps' | 'skills' | 'learning' | 'canvas' | 'usage' | 'cleanup';
-  setSection: React.Dispatch<
-    React.SetStateAction<'appearance' | 'projects' | 'mcps' | 'skills' | 'learning' | 'canvas' | 'usage' | 'cleanup'>
-  >;
+  section: SettingsSection;
+  setSection: React.Dispatch<React.SetStateAction<SettingsSection>>;
 };
 
 export function SettingsNavigation({ section, setSection }: SettingsNavigationProps) {
@@ -42,7 +43,7 @@ export function SettingsNavigation({ section, setSection }: SettingsNavigationPr
 }
 
 export type SettingsPanelsProps = Pick<Parameters<typeof Settings>[0], 'onLearningSaved'> & {
-  section: 'appearance' | 'projects' | 'mcps' | 'skills' | 'learning' | 'canvas' | 'usage' | 'cleanup';
+  section: SettingsSection;
 };
 
 export function SettingsPanels({ section, onLearningSaved }: SettingsPanelsProps) {
@@ -66,7 +67,8 @@ export function SettingsPanels({ section, onLearningSaved }: SettingsPanelsProps
               {id === 'skills' && <ProjectExtensions kind="skill" />}
               {id === 'canvas' && <CanvasSettings />}
               {id === 'learning' && <LearningSettingsPanel onSaved={onLearningSaved} />}
-              {id === 'usage' && <ResourceUsagePanel />}
+              {id === 'usage' && <ModelUsagePanel />}
+              {id === 'resources' && <ResourceUsagePanel />}
               {id === 'cleanup' && <CleanupPanel />}
             </>
           )}
@@ -77,10 +79,10 @@ export function SettingsPanels({ section, onLearningSaved }: SettingsPanelsProps
 }
 
 export type SettingsTabProps = Pick<Parameters<typeof SettingsNavigation>[0], 'section' | 'setSection'> & {
-  id: 'appearance' | 'projects' | 'mcps' | 'skills' | 'learning' | 'canvas' | 'usage' | 'cleanup';
-  label: 'Appearance' | 'Projects' | 'MCP servers' | 'Skills' | 'Learning' | 'Canvas' | 'Resource usage' | 'Free up resources';
+  id: SettingsSection;
+  label: (typeof sections)[number]['label'];
   Icon: (typeof sections)[number]['icon'];
-  shortLabel: 'Appearance' | 'Projects' | 'MCPs' | 'Skills' | 'Learning' | 'Canvas' | 'Usage' | 'Cleanup';
+  shortLabel: (typeof sections)[number]['shortLabel'];
 };
 
 export function SettingsTab({ id, label, section, setSection, Icon, shortLabel }: SettingsTabProps) {

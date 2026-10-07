@@ -4,13 +4,13 @@ import { route } from './server/routes.js';
 import type { WebServerOptions } from './server/types.js';
 import { RequestWriteGate } from './server/write-gate.js';
 
-import { pipeAgentUIStreamToResponse, type ToolLoopAgent } from 'ai';
-
 import type { ChatResponder } from './chat-routes.js';
 import { sendText } from './http.js';
 import { LEARNING_PATH } from './learning-routes.js';
 import { ResourceSettings } from './resources.js';
 import { WebSessionStore } from './sessions/store.js';
+import { sharedUsageStore } from './usage/shared.js';
+import { defaultChatResponder } from './usage/respond.js';
 export { LEARNING_PATH };
 
 /** Streams an agent turn to a Node response, given the client's UI messages. */
@@ -26,17 +26,11 @@ export type { ChatResponder, ResolvedModelSelection } from './chat-routes.js';
 export function createRequestHandler(
   opts: WebServerOptions,
 ): (req: IncomingMessage, res: ServerResponse) => void {
+  const usage = opts.usage ?? sharedUsageStore();
+  opts = { ...opts, usage };
+
   const respond: ChatResponder =
-    opts.respond ??
-    (async (res, messages, selection) =>
-      pipeAgentUIStreamToResponse({
-        response: res,
-        agent:
-          selection && opts.selectAgent
-            ? await opts.selectAgent(selection)
-            : requireAgent(opts.agent),
-        uiMessages: messages,
-      }));
+    opts.respond ?? defaultChatResponder(opts, usage);
 
   const sessions = opts.sessionStore ?? new WebSessionStore();
   const resources =
@@ -72,12 +66,6 @@ export function createWebServer(opts: WebServerOptions): Server {
   server.on('close', () => resources.stop());
 
   return server;
-}
-
-function requireAgent(agent: ToolLoopAgent | undefined): ToolLoopAgent {
-  if (!agent) throw new Error('Select an available chat model.');
-
-  return agent;
 }
 
 export type { WebServerOptions } from './server/types.js';

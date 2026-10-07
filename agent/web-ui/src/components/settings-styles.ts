@@ -1,4 +1,4 @@
-import { Activity, BookOpen, Brain, FolderOpen, Palette, PencilRuler, Puzzle, Trash2 } from 'lucide-react';
+import { Activity, BarChart3, BookOpen, Brain, FolderOpen, Palette, PencilRuler, Puzzle, Trash2 } from 'lucide-react';
 
 import { type CleanupCategory } from '../lib/resources';
 
@@ -9,7 +9,8 @@ export const sections = [
   { id: 'skills', label: 'Skills', shortLabel: 'Skills', icon: BookOpen },
   { id: 'canvas', label: 'Canvas', shortLabel: 'Canvas', icon: PencilRuler },
   { id: 'learning', label: 'Learning', shortLabel: 'Learning', icon: Brain },
-  { id: 'usage', label: 'Resource usage', shortLabel: 'Usage', icon: Activity },
+  { id: 'usage', label: 'Usage', shortLabel: 'Usage', icon: BarChart3 },
+  { id: 'resources', label: 'Resource usage', shortLabel: 'Resources', icon: Activity },
   { id: 'cleanup', label: 'Free up resources', shortLabel: 'Cleanup', icon: Trash2 },
 ] as const;
 

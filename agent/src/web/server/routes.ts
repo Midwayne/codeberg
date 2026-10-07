@@ -11,6 +11,7 @@ import { routeSessions } from '../sessions/routes.js';
 import { WebSessionStore } from '../sessions/store.js';
 import { serveStatic } from '../static.js';
 import { routeResources } from './resources.js';
+import { routeUsage } from '../usage/routes.js';
 import {
   CHAT_PATH,
   CHAT_SEARCH_PATH,
@@ -31,6 +32,10 @@ export async function route(
 ): Promise<void> {
   const url = new URL(req.url ?? '/', 'http://localhost');
   const path = url.pathname;
+
+  if (path === '/api/settings/usage' && opts.usage) {
+    return routeUsage(req, res, opts.usage, url);
+  }
 
   if (path === '/api/settings/resources' || path === '/api/settings/cleanup') {
     return routeResources(req, res, resources, url);

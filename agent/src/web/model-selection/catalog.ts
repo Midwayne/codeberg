@@ -11,6 +11,7 @@ import {
 import { maxReasoningProviderOptions } from '../../core/reasoning.js';
 import type { ReasoningEffort } from '../../core/types.js';
 import { profileFor } from '../../providers/profiles.js';
+import { parsePricing } from '../usage/pricing.js';
 
 export interface ModelCatalogOptions {
   catalogPath: string;
@@ -147,6 +148,7 @@ function parseCatalogModel(provider: string, id: string, definition: unknown): C
   }
 
   return {
+    pricing: parsePricing(value.pricing, `${provider}:${id}`),
     key: `${provider}:${id}`,
     model: `${provider}:${modelId}`,
     provider,

@@ -44,6 +44,7 @@ export function createWebModelPool(
   daemonUrl: string,
   learning: LearningService | false,
   env?: NodeJS.ProcessEnv,
+  transformModel?: (model: LanguageModel, selection: ResolvedModelSelection) => LanguageModel,
 ): ModelAgentPool {
   const agents: Array<{ close(): Promise<void> }> = [];
 
@@ -56,6 +57,7 @@ export function createWebModelPool(
         reasoning: selection.effort === 'provider-default' ? undefined : selection.effort,
         contextWindow: selection.contextWindow,
         learning,
+        transformModel: transformModel ? (model) => transformModel(model, selection) : undefined,
       });
 
       agents.push(core);
@@ -77,6 +79,7 @@ export function createWebModelPool(
 export function createLearningGenerator(
   settings: Pick<ModelSettingsStore, 'current'>,
   resolveModel: (spec: string) => LanguageModel,
+  transformModel?: (model: LanguageModel, key: string, spec: string) => LanguageModel,
 ): Generator {
   const models = new Map<string, LanguageModel>();
 
@@ -103,7 +106,9 @@ export function createLearningGenerator(
         prompt: bounded,
       });
 
-      return fromAiSdk(model, learning.effort, modelSpec).generate({
+      const tracked = transformModel ? transformModel(model, learning.key, modelSpec) : model;
+
+      return fromAiSdk(tracked, learning.effort, modelSpec).generate({
         ...prompt,
         prompt: bounded,
       });

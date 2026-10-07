@@ -74,6 +74,35 @@ Older saved settings containing `model` instead of `key` are mapped to the first
 matching entry when the catalog is upgraded.
 Do not put credentials in `models.yml`.
 
+## Usage pricing
+
+Each model entry can define `pricing` in **USD per million tokens** for
+[Settings → Usage](settings.md#model-usage-and-estimated-spending). These example
+rates are illustrative; replace them with your provider or gateway's rates:
+
+```yaml
+pricing:
+  input: 2
+  output: 10
+  cache_read: 0.2
+  cache_write: 2.5
+```
+
+`input` and `output` are required when `pricing` is present. `cache_read` and
+`cache_write` are optional, but cached calls need the matching rates to produce
+a cost estimate. All rates must be finite, non-negative numbers. Explicit zero
+rates are supported for free or local models. Omit `pricing` to track tokens
+without a cost estimate. Pricing is attached to the catalog key, so variants of
+the same API model can have different gateway or context-tier rates.
+
+Input totals include cache reads and writes. Cost is calculated by subtracting
+those counts from input before applying the standard input rate, then adding
+each cache category and total output (including reasoning tokens) at its rate.
+Missing required usage or rates produces **Unpriced**. Estimates are saved with
+the call and are not recalculated after a catalog edit. Configure separate model
+keys for different pricing tiers; automatic context-tier and modality pricing
+are not inferred.
+
 Without `models.yml`, the browser offers the configured `CODEBERG_MODEL` and
 `CODEBERG_SUBAGENT_MODEL` as fallback choices. To add more choices or set precise
 context windows and effort lists, create the YAML file above.

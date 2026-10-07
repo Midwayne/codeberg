@@ -18,7 +18,9 @@ import {
 import { ResourceSettings } from '../resources.js';
 import { createRequestHandler, type ChatResponder } from '../server.js';
 import { WebSessionStore } from '../sessions/store.js';
-import type { ProjectRuntimeOptions } from './types.js';
+import type { OwnedRuntime, ProjectRuntimeOptions } from './types.js';
+import { sharedUsageStore } from '../usage/shared.js';
+import { projectUsageTracker } from '../usage/project.js';
 
 // The built React SPA lives at `web-ui/dist`, one level up from this bundle
 // (`dist/web.js`). Override with CODEBERG_WEB_ROOT; if it is unbuilt, the server
@@ -33,11 +35,14 @@ export async function buildProjectHandler(project: Project, options: ProjectRunt
   const env = projectEnvironment(process.env, project, catalog);
   const canvas = canvasFromEnv(env);
   const home = projectDataHome(codebergHome(), project.id);
+  const usage = sharedUsageStore();
+  const track = projectUsageTracker(usage, modelSettings, project);
   const learning = learningEnabledFromEnv()
     ? new LearningService({
         root: join(home, 'learning'),
         repositories: () => repositoryVersions(project.roots.map((root) => root.root)),
-        generator: createLearningGenerator(modelSettings, (spec) => providers.resolve(spec)),
+        generator: createLearningGenerator(modelSettings, (spec) => providers.resolve(spec),
+          (model, key, spec) => track(model, key, spec, 'learning')),
       })
     : undefined;
 
@@ -51,19 +56,12 @@ export async function buildProjectHandler(project: Project, options: ProjectRunt
     daemonUrl: entry.daemonUrl,
   });
 
-  const pool = new ReloadableAgentPool(() => createWebModelPool(daemonUrl, learning ?? false, env));
+  const pool = new ReloadableAgentPool(() => createWebModelPool(daemonUrl, learning ?? false, env,
+    (model, selection) => track(model, selection.key, selection.model, 'chat')));
   const runtime = { learning, resources, pool, canvas };
   owned.push(runtime);
   resources.start();
-  // Recover durable work independently of chat; failed initialization can retry.
-  try {
-    if (learning) await learning.initialize();
-  } catch (error) {
-    learning?.stop();
-    resources.stop();
-    owned.splice(owned.indexOf(runtime), 1);
-    throw error;
-  }
+  await initializeRuntime(runtime, owned);
 
   return createRequestHandler({
     daemonUrl,
@@ -72,10 +70,24 @@ export async function buildProjectHandler(project: Project, options: ProjectRunt
     resources,
     learning,
     modelSettings,
+    usage,
     respond: projectResponder(pool, extensions, learning, canvas),
     title,
     staticRoot: process.env.CODEBERG_WEB_ROOT ?? defaultStaticRoot(),
   });
+}
+
+async function initializeRuntime(runtime: OwnedRuntime, owned: OwnedRuntime[]) {
+  // Recover durable work independently of chat; failed initialization can retry.
+  try {
+    await runtime.learning?.initialize();
+  } catch (error) {
+    runtime.learning?.stop();
+    runtime.resources.stop();
+    owned.splice(owned.indexOf(runtime), 1);
+
+    throw error;
+  }
 }
 
 export function projectResponder(
