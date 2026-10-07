@@ -13,6 +13,9 @@ sized boxes, readable text, clear spacing and clean connections. Diagrams can gr
 as large as needed; there are no prompt limits on dimensions, node counts or label
 lengths. The agent is instructed to check text fit and overlaps and refine the
 layout before presenting its explanation.
+It also asks for a coordinated color palette, contrasting labels, meaningful
+shape choices (services, stores, actors and decisions), and a legend when useful.
+Color reinforces roles; labels and shapes keep the diagram understandable without it.
 A canvas card appears directly in the response, followed by the explanation.
 Each chat has exactly one canvas: no names, creation
 form, selector or separate panel. Its card stays at the first drawing response;
@@ -78,11 +81,21 @@ canvas. Disabling the feature keeps all existing drawings.
 Canvas tools resolve the current conversation automatically at execution time,
 including when multiple requests share a pooled agent. A first tool call creates
 the scene lazily. CLI tool sources have their own local conversation ID.
-Mutations accept an optional `revision`; there is no canvas name or selection input.
-Use the revision returned by `canvas_get`; a stale revision fails with a useful
-conflict error. Mutations return metadata, not the entire scene. `canvas_get`
+Agent mutations require `revision`; there is no canvas name or selection input.
+Use the revision returned by `canvas_get` or the last successful mutation, and
+execute dependent writes sequentially. A stale revision returns a structured
+`CANVAS_REVISION_CONFLICT` with expected/current revisions, `applied: false`,
+`retryable` and recovery instructions. The agent must reread and rebuild the
+remaining patch around the latest user edits, rather than merely replacing the
+revision and replaying stale changes. A second edit during retry follows the same
+process. Web and CLI turns stop accepting canvas writes after three conflicts;
+reads remain available, and the next turn gets a fresh retry budget. The agent
+continues in text if contention persists or a non-conflict error prevents saving.
+Mutations return metadata, not the entire scene. `canvas_get`
 returns at most 100 entities by default, supports `offset`/`limit` (maximum 200),
-and accepts `raw: true` for explicit full-scene access.
+and accepts `raw: true` for explicit full-scene access. Compact reads include
+stroke/fill colors. Paginated reads must share a revision; discard mixed-revision
+pages and reread if the user changes the scene between pages.
 
 For example, `canvas_add` accepts:
 
@@ -90,8 +103,8 @@ For example, `canvas_add` accepts:
 {
   "revision": 0,
   "elements": [
-    { "id": "checkout", "type": "rectangle", "text": "Checkout API" },
-    { "id": "inventory", "type": "ellipse", "text": "Inventory" },
+    { "id": "checkout", "type": "rectangle", "text": "Checkout API", "backgroundColor": "#d0ebff", "strokeColor": "#1864ab" },
+    { "id": "inventory", "type": "ellipse", "text": "Inventory", "backgroundColor": "#d3f9d8", "strokeColor": "#2b8a3e" },
     { "id": "availability", "type": "arrow", "from": "checkout", "to": "inventory", "text": "GET /availability" }
   ]
 }

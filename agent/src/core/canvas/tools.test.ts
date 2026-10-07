@@ -22,10 +22,10 @@ it('registers only when opted in and fails safely if disabled during a turn', as
   const tools = await source.tools();
   expect(Object.keys(tools)).toHaveLength(6);
   const execute = tools.canvas_add!.execute!;
-  expect(await execute({ elements: [{ type: 'rectangle' }] }, { toolCallId: 'test', messages: [], context: undefined })).toMatchObject({ kind: 'canvas', url: expect.stringContaining('/canvas?chat=') });
+  expect(await execute({ revision: 0, elements: [{ type: 'rectangle' }] }, { toolCallId: 'test', messages: [], context: undefined })).toMatchObject({ kind: 'canvas', url: expect.stringContaining('/canvas?chat=') });
 
   await store.configure(false);
-  expect(await execute({ elements: [{ type: 'rectangle' }] }, { toolCallId: 'test', messages: [], context: undefined })).toMatchObject({ error: expect.stringContaining('disabled') });
+  expect(await execute({ revision: 1, elements: [{ type: 'rectangle' }] }, { toolCallId: 'test', messages: [], context: undefined })).toMatchObject({ error: expect.stringContaining('disabled') });
 });
 
 it('uses project storage and the configured local web port', () => {

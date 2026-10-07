@@ -22,7 +22,7 @@ it('binds pooled tool execution to the submitted chat ID and copies drawings thr
     }
     void routeChat(req, res, undefined, async (response) => {
       await new Promise((resolve) => setTimeout(resolve, 5));
-      const result = await tools.canvas_add!.execute!({ elements: [{ id: 'api', type: 'rectangle', text: 'API' }] },
+      const result = await tools.canvas_add!.execute!({ revision: 0, elements: [{ id: 'api', type: 'rectangle', text: 'API' }] },
         { toolCallId: 'draw', messages: [], context: undefined });
       sendJson(response, 200, result);
     });

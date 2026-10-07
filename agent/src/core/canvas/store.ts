@@ -4,7 +4,7 @@ import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { atomicWrite, readData, withCanvasLock } from './storage.js';
 import { mutate } from './mutations.js';
-import { CanvasError, validName, type Mutation, type Scene } from './types.js';
+import { CanvasError, CanvasRevisionConflict, validName, type Mutation, type Scene } from './types.js';
 import { portableAppState, validateScene } from './validation.js';
 
 export class CanvasStore {
@@ -149,6 +149,7 @@ export class CanvasStore {
       elements: entities.slice(offset, offset + limit).map((element) => ({
         id: element.id, type: element.type, x: element.x, y: element.y,
         width: element.width, height: element.height,
+        strokeColor: element.strokeColor, backgroundColor: element.backgroundColor,
         text: (element.text ?? live.find((label) => label.containerId === element.id)?.text)?.slice(0, 2000),
         from: element.startBinding?.elementId, to: element.endBinding?.elementId,
       })) };
@@ -177,7 +178,7 @@ export class CanvasStore {
 
   private checkRevision(scene: Scene, revision?: number): void {
     if (revision !== undefined && revision !== scene.revision) {
-      throw new CanvasError(`Canvas revision conflict: expected ${revision}, current ${scene.revision}. Read canvas_get and retry.`, 409);
+      throw new CanvasRevisionConflict(revision, scene.revision);
     }
   }
 

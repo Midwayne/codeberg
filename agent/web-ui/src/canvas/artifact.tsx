@@ -10,7 +10,10 @@ import './motion.css';
 
 export function CanvasArtifact({ part }: { part: ToolView }) {
   const { chatId, anchor } = useContext(CanvasConversation);
-  const output = part.output as { kind?: string; error?: string } | undefined;
+  const output = part.output as { kind?: string; error?: string; code?: string; retryable?: boolean } | undefined;
+  if (output?.code === 'CANVAS_REVISION_CONFLICT' && output.retryable === true) {
+    return <p role="status" className="my-2 text-sm text-muted-foreground">Canvas changed before this edit could be saved.</p>;
+  }
   if (output?.error) return <ToolError name="Canvas" message={output.error} />;
 
   if (!chatId || anchor !== part.toolCallId || output?.kind !== 'canvas') return null;

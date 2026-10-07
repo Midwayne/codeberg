@@ -54,6 +54,12 @@ export class CanvasError extends Error {
   }
 }
 
+export class CanvasRevisionConflict extends CanvasError {
+  constructor(readonly expectedRevision: number, readonly currentRevision: number) {
+    super(`Canvas revision conflict: expected ${expectedRevision}, current ${currentRevision}. Read canvas_get and retry.`, 409);
+  }
+}
+
 export function validName(name: unknown): asserts name is string {
   if (typeof name !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(name) ||
       ['index', 'settings'].includes(name)) {

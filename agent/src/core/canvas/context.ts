@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { CanvasError } from './types.js';
+import { withCanvasRecovery } from './recovery.js';
 
 const context = new AsyncLocalStorage<{ chatId?: string }>();
 
@@ -19,5 +20,5 @@ export function canvasChatId(fallback: string): string {
 }
 
 export function withCanvasChat<T>(chatId: string | undefined, action: () => T): T {
-  return context.run({ chatId }, action);
+  return context.run({ chatId }, () => withCanvasRecovery(action));
 }

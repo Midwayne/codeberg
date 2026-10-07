@@ -1,5 +1,6 @@
 import type { ModelMessage } from 'ai';
 import { randomUUID } from 'node:crypto';
+import { withCanvasRecovery } from '../canvas/recovery.js';
 import { LearningService } from '../learning/service.js';
 import { writeModuleLog } from '../module-log.js';
 import type { AskOptions, AskResult } from '../types.js';
@@ -69,7 +70,7 @@ export async function askTurn(
   // Non-streaming `generate`: some OpenAI-compatible gateways stall mid-stream
   // when a response carries tool calls; `generate` returns the whole step at
   // once, and the timeout config bounds any stall.
-  const result = await loop.generate({ messages });
+  const result = await withCanvasRecovery(() => loop.generate({ messages }));
   const sources = dedupe(state.sources);
   // Carry this turn's findings into the next turn's ledger.
   state.ledger.add(sources);

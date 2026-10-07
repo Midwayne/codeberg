@@ -72,3 +72,21 @@ it('leaves unused chats alone and keeps tool failures visible', () => {
   expect(html).not.toContain('<iframe');
   expect(html).toContain('Canvas is disabled.');
 });
+
+it('shows revision conflicts as neutral feedback and keeps terminal failures visible', () => {
+  const failed = drawing('conflict');
+  const part = failed.parts[0] as { output: unknown };
+  part.output = { error: 'Canvas changed before this edit could be saved.',
+    code: 'CANVAS_REVISION_CONFLICT', retryable: true };
+  const html = transcript([failed]);
+
+  expect(html).toContain('Canvas changed before this edit could be saved.');
+  expect(html).not.toContain('text-destructive');
+  expect(html).not.toContain('expected 1');
+  expect(html).not.toContain('<iframe');
+  expect(transcript([failed, drawing('recovered')]).match(/<iframe/g)).toHaveLength(1);
+
+  part.output = { error: 'Canvas kept changing. Your saved edits are preserved.',
+    code: 'CANVAS_REVISION_CONFLICT', retryable: false };
+  expect(transcript([failed])).toContain('text-destructive');
+});

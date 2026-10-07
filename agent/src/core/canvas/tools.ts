@@ -4,8 +4,9 @@ import { jsonSchema, tool, type ToolSet } from 'ai';
 import { writeModuleLog } from '../module-log.js';
 import type { ToolSource } from '../tools/source.js';
 import type { CanvasStore } from './store.js';
-import type { Mutation } from './types.js';
+import { CanvasRevisionConflict, type Mutation } from './types.js';
 import { canvasSchemas } from './schemas.js';
+import { conflictResult, mutationProblem } from './recovery.js';
 
 const descriptions: Record<string, string> = {
   get: 'Read compact entities and relationships, including the user’s edits. Inspect before modifying; use revision on mutations. Paginate with offset/limit. raw=true returns the full scene only when necessary.',
@@ -29,6 +30,8 @@ export function canvasToolSource(store: CanvasStore): ToolSource {
           try {
             return await execute(store.forChat(canvasChatId(localChatId)), operation, input);
           } catch (error) {
+            if (error instanceof CanvasRevisionConflict) return conflictResult(error);
+
             writeModuleLog('agent', 'canvas_failed', { operation, error: String(error) });
             return { error: String(error) };
           }
@@ -48,6 +51,9 @@ async function execute(store: CanvasStore, operation: string, input: Mutation & 
     const scene = await store.current();
     return input.raw ? scene : store.describe(scene, Math.max(0, input.offset ?? 0), Math.max(1, Math.min(200, input.limit ?? 100)));
   }
+  const problem = mutationProblem(input.revision);
+  if (problem) return problem;
+
   const scene = await store.change(operation, input);
 
   return store.summary(scene);
@@ -73,12 +79,33 @@ Use generous box sizes and whitespace. Size each box to fit its content with com
 wrap longer labels cleanly and leave clear space between boxes and around their connections.
 Keep the default readable text size. Do not shrink text or boxes to squeeze in more content.
 Use consistent alignment and a clear visual hierarchy; preserve the content and relationships being explained.
+Make diagrams visually pleasing to a human reader. Use a small, coordinated color palette to distinguish
+roles or layers, with light backgroundColor fills and dark strokeColor outlines; for example blue services
+(#d0ebff / #1864ab), green data stores (#d3f9d8 / #2b8a3e), and amber decisions (#fff3bf / #e67700).
+Keep labels legible with strong contrast. Use colors consistently and explain their meaning with a small
+legend when it is not obvious; labels and shapes must carry the meaning even without color.
+Choose shapes by meaning: rectangles for services or modules, ellipses for actors or data stores,
+diamonds for decisions, and text for notes. Use arrows for directed flows and lines for undirected links.
+Use varied shapes when they clarify different roles, while keeping equivalent roles visually consistent.
 Separate arrows and their labels from boxes and other text; minimize crossings and overlapping paths.
 Treat canvas_layout as a starting point: its fixed spacing may be too tight for larger boxes.
 Inspect canvas_get after drawing to check label fit and element bounds, then use canvas_update to
 enlarge boxes or adjust positions and spacing before replying. Never leave clipped text, overlapping
 boxes or clutter for the user to fix with a follow-up request.
-Preserve the user's edits; pass the revision returned by canvas_get and reread on conflict.
+Preserve the user's edits. Every mutation requires revision from canvas_get or the last successful mutation.
+Run dependent mutations sequentially, using the new revision returned by each successful write.
+Treat CANVAS_REVISION_CONFLICT as recoverable contention: the rejected mutation applied nothing.
+Read canvas_get again, inspect the user's latest edits, and rebuild only the intended changes still needed.
+Never just swap in currentRevision and replay a stale patch, omit revision, clear the drawing to bypass
+a conflict, or undo the user's moves, labels, colors, shapes or connections to restore your earlier plan.
+If the user edits again during retry, repeat the read/reassess process. Allow at most two recovery retries;
+after three conflicts in a turn, or any retryable=false result, stop canvas writes and continue in text.
+Do not retry validation, disabled-canvas or storage errors as revision conflicts.
+For paginated reads, inspect all affected entities and connections. Pages must have the same revision;
+if it changes between pages, discard the mixed snapshot and reread. Use raw=true when full detail is needed.
+If an intended addition already exists, do not duplicate it; if a target was deleted or a connection changed,
+reassess instead of recreating or reconnecting it blindly. Keep successful earlier writes and retry only
+the remaining work. Verify the final scene after success before claiming the diagram was updated.
 The drawing appears inline automatically. Accompany it with a useful written explanation of the
 key relationships, sequence and implications, including relevant source citations.
 Keep later edits on the same canvas. Never ask the user to name, create, select or open a canvas.

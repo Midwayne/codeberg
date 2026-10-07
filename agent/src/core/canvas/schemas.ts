@@ -15,7 +15,8 @@ const element: JSONSchema7 = {
 export function canvasSchemas(operation: string): JSONSchema7 {
   const properties: Record<string, JSONSchema7> = {};
   if (['add', 'update', 'delete', 'clear', 'layout'].includes(operation)) {
-    properties.revision = { type: 'integer', minimum: 0 };
+    properties.revision = { type: 'integer', minimum: 0,
+      description: 'Required base revision from canvas_get or the last successful mutation. Reread and rebuild changes on conflict.' };
   }
   if (['add', 'update'].includes(operation)) properties.elements = {
     type: 'array', minItems: 1, maxItems: 500,
@@ -30,6 +31,7 @@ export function canvasSchemas(operation: string): JSONSchema7 {
     limit: { type: 'integer', minimum: 1, maximum: 200 },
   });
   const required = ['add', 'update'].includes(operation) ? ['elements'] : operation === 'delete' ? ['ids'] : [];
+  if (properties.revision) required.push('revision');
 
   return { type: 'object', properties, required, additionalProperties: false };
 }

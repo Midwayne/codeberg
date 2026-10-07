@@ -21,7 +21,7 @@ it('automatically creates one canvas per chat even when chats share cached tools
 
   const results = await Promise.all(['one', 'two'].map((id) => withCanvasChat(id, async () => {
     await new Promise((resolve) => setTimeout(resolve, 5));
-    return tools.canvas_add!.execute!({ elements: [{ id, type: 'rectangle', text: id }] }, options);
+    return tools.canvas_add!.execute!({ revision: 0, elements: [{ id, type: 'rectangle', text: id }] }, options);
   })));
   expect(results[0]).toMatchObject({ kind: 'canvas', chatId: 'one', url: '/canvas?project=demo&chat=one' });
   expect(results[1]).toMatchObject({ kind: 'canvas', chatId: 'two' });
