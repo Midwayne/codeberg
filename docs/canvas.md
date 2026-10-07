@@ -15,10 +15,15 @@ lengths. The agent is instructed to check text fit and overlaps and refine the
 layout before presenting its explanation.
 A canvas card appears directly in the response, followed by the explanation.
 Each chat has exactly one canvas: no names, creation
-form, selector or separate panel. Later tool calls update that same drawing and
-show its card in the latest response that changes it.
+form, selector or separate panel. Its card stays at the first drawing response;
+later tool calls update that same preview without reloading it. The card shows
+**Agent is editing…** while drawing tools run.
 The inline preview keeps drawing controls hidden; **Expand canvas** opens the same
 scene in a full-window Excalidraw editor, where you can edit alongside the agent.
+The scene enters with a brief fade and a small upward settle. Incoming changes
+crossfade over 180 ms with a brief **Canvas updated** indication, while manual
+editing stays immediate. Reduced motion uses a fade-only entrance and static
+update feedback; expanding with the keyboard skips the entrance transition.
 The full-screen editor's top-left menu provides Excalidraw's built-in **Save to…**
 and **Export image…** actions. Save an editable `.excalidraw` file or export a PNG
 or SVG using its standard dialog. JPG and PDF are not provided by this version.

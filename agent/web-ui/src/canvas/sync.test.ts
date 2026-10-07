@@ -20,7 +20,33 @@ it('debounces dragging, persists browser changes, and applies incoming agent upd
   expect(sync.base!.elements[0]!.x).toBe(200);
   expect(sync.local).toBeUndefined();
   sync.receive({ ...sync.base!, revision: 2, elements: [] });
-  expect(apply).toHaveBeenLastCalledWith(expect.objectContaining({ revision: 2 }));
+  expect(apply).toHaveBeenLastCalledWith(expect.objectContaining({ revision: 2 }), true);
+  sync.stop();
+});
+
+it('animates remote content changes but not initial loads, revision echoes, or browser saves', async () => {
+  vi.useFakeTimers();
+  const apply = vi.fn();
+  const fetch = vi.fn(async (_input, init) => new Response(JSON.stringify({ ...JSON.parse(init!.body as string), revision: 3 })));
+  const sync = new CanvasSync({ fetch: fetch as typeof globalThis.fetch, apply, status: vi.fn(), conflict: vi.fn() });
+  sync.receive(base);
+
+  expect(apply).toHaveBeenLastCalledWith(base, false);
+
+  sync.receive({ ...base, revision: 1 });
+
+  expect(apply).toHaveBeenLastCalledWith(expect.objectContaining({ revision: 1 }), false);
+
+  const remote = { ...base, revision: 2, elements: [{ id: 'note', type: 'text', text: 'agent' }] } as Scene;
+  sync.receive(remote);
+
+  expect(apply).toHaveBeenLastCalledWith(remote, true);
+
+  sync.stage([{ ...remote.elements[0]!, text: 'mine' }], {}, {});
+  await vi.advanceTimersByTimeAsync(300);
+  sync.receive(sync.base!);
+
+  expect(apply).toHaveBeenCalledTimes(3);
   sync.stop();
 });
 

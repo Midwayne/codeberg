@@ -6,6 +6,7 @@ import type { Scene } from '@agent/core/canvas/types';
 import { canvasEmbedded, canvasFetch, canvasProject } from './api';
 import { CanvasSync } from './sync';
 import { sceneFingerprint } from './merge';
+import { useSceneMotion } from './use-scene-motion';
 
 export function useEditor() {
   const [api, setApi] = useState<ExcalidrawImperativeAPI>();
@@ -13,12 +14,16 @@ export function useEditor() {
   const [status, setStatus] = useState('Connecting to local canvas…');
   const [conflict, setConflict] = useState(false);
   const applied = useRef('');
+  const motion = useSceneMotion();
   const fetch = useMemo(canvasFetch, []);
   const sync = useMemo(() => new CanvasSync({ fetch, status: setStatus, conflict: setConflict,
-    apply: (next) => {
+    apply: (next, animate) => {
       const elements = restoreElements(next.elements as unknown as ExcalidrawElement[], null);
       applied.current = sceneFingerprint({ ...next, elements: elements as unknown as Scene['elements'] });
+
       if (api) {
+        motion.transition(animate && !browserIsEditing(api.getAppState()));
+
         api.addFiles(Object.values(next.files) as BinaryFiles[string][]);
         api.updateScene({ elements, appState: { ...api.getAppState(), ...next.appState } });
         if (canvasEmbedded() || api.getAppState().name !== next.name) {
@@ -28,7 +33,7 @@ export function useEditor() {
       }
       setScene(next);
     },
-  }), [api, fetch]);
+  }), [api, fetch, motion.transition]);
   useCanvasEvents(api, sync, setStatus);
   usePreviewFit(api);
 
@@ -42,7 +47,12 @@ export function useEditor() {
 
     sync.stage(next.elements, appState, files);
   };
-  return { api, setApi, scene, status, conflict, sync, fetch, onChange };
+  return { api, setApi, scene, status, conflict, sync, fetch, onChange, motion };
+}
+
+function browserIsEditing(state: AppState): boolean {
+  return Boolean(state.newElement || state.editingTextElement || state.editingLinearElement ||
+    state.selectedElementsAreBeingDragged || state.isResizing || state.isRotating);
 }
 
 function useCanvasEvents(api: ExcalidrawImperativeAPI | undefined, sync: CanvasSync, status: (value: string) => void) {

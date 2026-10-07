@@ -14,7 +14,6 @@ export default function CanvasEditor() {
         <h1 className="text-sm font-medium">Canvas</h1>
         <p role="status" className="text-xs text-muted-foreground">{state.status}</p>
       </header>}
-      {embedded && !state.scene && <p role="status" className="p-4 text-xs text-muted-foreground">{state.status}</p>}
       {state.conflict && (
         <div role="alert" className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3 text-sm">
           <span>Unsaved edits are kept in this tab.</span>
@@ -26,17 +25,24 @@ export default function CanvasEditor() {
           </button>
         </div>
       )}
-      <div className={`local-canvas min-h-0 flex-1 ${embedded ? 'canvas-preview' : ''}`}>
-        <Excalidraw viewModeEnabled={embedded} zenModeEnabled={embedded} excalidrawAPI={state.setApi} onChange={state.onChange}
-          initialData={{ appState: { currentItemFontFamily: 5 } }}
-          validateEmbeddable={() => false} onLinkOpen={(_element, event) => event.preventDefault()}
-          UIOptions={{ canvasActions: { loadScene: false, saveToActiveFile: false,
-            export: { saveFileToDisk: true }, saveAsImage: true } }}>
-          <MainMenu>
-            {!embedded && <MainMenu.DefaultItems.Export />}
-            {!embedded && <MainMenu.DefaultItems.SaveAsImage />}
-          </MainMenu>
-        </Excalidraw>
+      <div className="relative min-h-0 flex-1">
+        {!state.scene && <p role="status" className="canvas-loading p-4 text-xs text-muted-foreground">{state.status}</p>}
+        <div ref={state.motion.surface} inert={!state.scene} data-ready={Boolean(state.scene)}
+          data-motion={new URL(location.href).searchParams.get('motion')}
+          className={`canvas-surface local-canvas h-full ${embedded ? 'canvas-preview' : ''}`}>
+          <Excalidraw viewModeEnabled={embedded} zenModeEnabled={embedded} excalidrawAPI={state.setApi} onChange={state.onChange}
+            initialData={{ appState: { currentItemFontFamily: 5 } }}
+            validateEmbeddable={() => false} onLinkOpen={(_element, event) => event.preventDefault()}
+            UIOptions={{ canvasActions: { loadScene: false, saveToActiveFile: false,
+              export: { saveFileToDisk: true }, saveAsImage: true } }}>
+            <MainMenu>
+              {!embedded && <MainMenu.DefaultItems.Export />}
+              {!embedded && <MainMenu.DefaultItems.SaveAsImage />}
+            </MainMenu>
+          </Excalidraw>
+        </div>
+        <p role="status" className="canvas-update-feedback rounded-md bg-background px-3 py-1.5 text-xs text-muted-foreground"
+          data-active={state.motion.updated}>{state.motion.updated ? 'Canvas updated' : ''}</p>
       </div>
     </main>
   );

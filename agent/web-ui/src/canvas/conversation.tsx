@@ -2,7 +2,7 @@ import { createContext } from 'react';
 import type { UIMessage } from 'ai';
 import type { ToolView } from '../components/chat/message';
 
-export const CanvasConversation = createContext<{ chatId: string; anchor?: string }>({ chatId: '' });
+export const CanvasConversation = createContext<{ chatId: string; anchor?: string; editing?: boolean }>({ chatId: '' });
 
 export function isCanvasDrawing(part: ToolView): boolean {
   const name = part.type === 'dynamic-tool' ? part.toolName : part.type.slice(5);
@@ -10,7 +10,7 @@ export function isCanvasDrawing(part: ToolView): boolean {
 }
 
 export function canvasAnchor(messages: UIMessage[]): string | undefined {
-  for (const message of [...messages].reverse()) {
+  for (const message of messages) {
     if (message.role !== 'assistant') continue;
 
     for (const part of message.parts) {
@@ -22,4 +22,15 @@ export function canvasAnchor(messages: UIMessage[]): string | undefined {
     }
   }
   return undefined;
+}
+
+export function canvasEditing(messages: UIMessage[]): boolean {
+  const latest = messages.at(-1);
+  if (latest?.role !== 'assistant') return false;
+
+  return latest.parts.some((part) => {
+    const tool = part as ToolView;
+
+    return isCanvasDrawing(tool) && ['input-streaming', 'input-available'].includes(tool.state ?? '');
+  });
 }

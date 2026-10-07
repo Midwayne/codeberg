@@ -6,6 +6,7 @@ import { useProjectApi } from '../lib/project-api';
 import { useCanvasSettings } from './use-settings';
 import type { ToolView } from '../components/chat/message';
 import { ToolError } from '../components/chat/tool-status';
+import './motion.css';
 
 export function CanvasArtifact({ part }: { part: ToolView }) {
   const { chatId, anchor } = useContext(CanvasConversation);
@@ -20,13 +21,20 @@ export function CanvasArtifact({ part }: { part: ToolView }) {
 function CanvasCard({ chatId }: { chatId: string }) {
   const { project } = useProjectApi();
   const { enabled } = useCanvasSettings();
+  const { editing } = useContext(CanvasConversation);
 
   return (
     <section aria-label="Canvas" className="my-3 overflow-hidden rounded-xl border border-border bg-background">
       <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-1.5">
         <span className="flex items-center gap-2 text-xs text-muted-foreground"><PenTool className="size-3.5" />Canvas</span>
+        <span role="status" className="canvas-editing ml-auto text-xs text-muted-foreground" data-active={Boolean(editing && enabled !== false)}>
+          <span className="canvas-editing-dot" aria-hidden="true" />{editing && enabled !== false ? 'Agent is editing…' : ''}
+        </span>
         {enabled !== false && <a href={canvasUrl(chatId, project?.id)} target="_blank" rel="noreferrer"
-          aria-label="Expand canvas" className="flex min-h-9 min-w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring">
+          onClick={(event) => {
+            event.currentTarget.href = canvasUrl(chatId, project?.id) + (event.detail === 0 ? '&motion=none' : '');
+          }}
+          aria-label="Expand canvas" className="flex min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring">
           <Expand className="size-4" />
         </a>}
       </div>

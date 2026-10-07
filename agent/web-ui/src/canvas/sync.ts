@@ -12,7 +12,7 @@ export class CanvasSync {
 
   constructor(private readonly options: {
     fetch: typeof fetch;
-    apply: (scene: Scene) => void;
+    apply: (scene: Scene, animate: boolean) => void;
     status: (message: string) => void;
     conflict: (value: boolean) => void;
   }) {}
@@ -28,10 +28,11 @@ export class CanvasSync {
 
     try {
       const next = this.local && this.base ? mergeScenes(this.base, this.local, scene) : scene;
+      const animate = Boolean(this.base && sceneFingerprint(this.base) !== sceneFingerprint(scene));
       this.base = scene;
       if (this.local) this.local = next;
 
-      this.options.apply(next);
+      this.options.apply(next, animate);
       this.options.status(this.local ? 'Saving your changes…' : 'Saved');
       if (this.local) this.schedule();
     } catch (error) {

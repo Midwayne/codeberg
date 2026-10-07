@@ -1,4 +1,4 @@
-import { CanvasConversation, canvasAnchor } from '../../canvas/conversation';
+import { CanvasConversation, canvasAnchor, canvasEditing } from '../../canvas/conversation';
 import type { UIMessage } from 'ai';
 import { memo } from 'react';
 
@@ -22,7 +22,7 @@ export const MessageList = memo(function MessageList({
   onBranch?: (throughIndex: number) => void;
 }) {
   return (
-    <CanvasConversation.Provider value={{ chatId: sessionId, anchor: canvasAnchor(messages) }}>
+    <CanvasConversation.Provider value={{ chatId: sessionId, anchor: canvasAnchor(messages), editing: busy && canvasEditing(messages) }}>
       {messages.map((message, index) => (
         <Message
           key={message.id || `${message.role}-${index}`}
