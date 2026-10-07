@@ -1,3 +1,4 @@
+import { LoadingBoundary } from './loading';
 import { ProjectDetails } from './project-details';
 
 import { useEffect, useState } from 'react';
@@ -30,23 +31,22 @@ export function ProjectsPanel() {
       {error && (
         <ErrorNotice title="Could not load projects" detail={error} onRetry={() => setRetry((value) => value + 1)} />
       )}
-      {!catalog && !error && (
-        <p role="status" className="text-sm text-muted-foreground">
-          Loading projects…
-        </p>
-      )}
-      {catalog?.projects.length === 0 && (
-        <p className="text-sm leading-6 text-muted-foreground">
-          No projects yet. Use Add project in the chat sidebar to choose a repository.
-        </p>
-      )}
-      <ProjectList
-        catalog={catalog}
-        selectedProject={selectedProject}
-        setCatalog={setCatalog}
-        onProjectRenamed={onProjectRenamed}
-      />
-      <ProjectCatalogLocation catalog={catalog} />
+      <LoadingBoundary loading={!catalog && !error} label="Loading projects…" kind="list">
+        <div className="space-y-6">
+          {catalog?.projects.length === 0 && (
+            <p className="text-sm leading-6 text-muted-foreground">
+              No projects yet. Use Add project in the chat sidebar to choose a repository.
+            </p>
+          )}
+          <ProjectList
+            catalog={catalog}
+            selectedProject={selectedProject}
+            setCatalog={setCatalog}
+            onProjectRenamed={onProjectRenamed}
+          />
+          <ProjectCatalogLocation catalog={catalog} />
+        </div>
+      </LoadingBoundary>
     </section>
   );
 }

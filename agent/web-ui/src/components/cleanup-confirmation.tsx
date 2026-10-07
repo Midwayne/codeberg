@@ -12,27 +12,30 @@ export function CleanupConfirmation({
   setConfirming,
 }: CleanupConfirmationProps) {
   return (
-    confirming && (
-      <div className="space-y-3 rounded-xl border border-destructive p-4">
-        <p className="text-sm">
-          Permanently delete {count} matching files from {selected.map((category) => labels[category]).join(', ')}? This
-          cannot be undone.
-        </p>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void remove()}
-            className="rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground disabled:opacity-50"
-          >
-            {busy ? 'Deleting…' : 'Confirm deletion'}
-          </button>
-          <button type="button" disabled={busy} onClick={() => setConfirming(false)} className={buttonClass}>
-            Cancel
-          </button>
-        </div>
+    <div
+      className="ui-confirmation space-y-3 rounded-xl border border-destructive p-4"
+      data-present={confirming}
+      inert={!confirming}
+      aria-hidden={!confirming}
+    >
+      <p className="text-sm">
+        Permanently delete {count} matching files from {selected.map((category) => labels[category]).join(', ')}? This
+        cannot be undone.
+      </p>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void remove()}
+          className="rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground disabled:opacity-50"
+        >
+          {busy ? 'Deleting…' : 'Confirm deletion'}
+        </button>
+        <button type="button" disabled={busy} onClick={() => setConfirming(false)} className={buttonClass}>
+          Cancel
+        </button>
       </div>
-    )
+    </div>
   );
 }
 

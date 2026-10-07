@@ -4,10 +4,13 @@ import { ProjectShell } from './components/projects';
 
 import type { ReactNode } from 'react';
 
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, useEffect, useRef, useState } from 'react';
 
 import { Workspace } from './components/workspace/workspace';
 import { ModelSettingsPanel } from './components/model-settings';
+import { LoadingBoundary } from './components/loading';
+import { LoadingSuspense } from './components/loading-suspense';
+import { MotionPresence } from './components/motion-presence';
 
 import { useMediaQuery } from './lib/use-media-query';
 
@@ -96,10 +99,8 @@ export function ProjectWorkspaceView(state: ProjectWorkspaceViewProps) {
       <WorkspaceHeader state={state} />
       {state.notice}
       <div className={state.trainingOpen || state.settingsOpen ? 'hidden' : 'flex min-h-0 flex-1'}>
-        {state.loading ? (
-          <PanelLoading label="Loading projects…" />
-        ) : (
-          <Workspace
+        <LoadingBoundary loading={state.loading} label="Loading projects…" kind="workspace" className="min-h-0 flex-1">
+          {!state.loading && <Workspace
             projectControls={state.toolbar}
             sidebarOpen={state.sidebarOpen && !state.settingsOpen && !state.trainingOpen}
             onSidebarClose={() => state.setSidebarOpen(false)}
@@ -110,20 +111,20 @@ export function ProjectWorkspaceView(state: ProjectWorkspaceViewProps) {
               state.setSearchOpen(false);
               state.searchButton.current?.focus();
             }}
-          />
-        )}
+          />}
+        </LoadingBoundary>
       </div>
       {state.trainingOpen && (
-        <Suspense fallback={<PanelLoading label="Loading training review…" />}>
+        <LoadingSuspense label="Loading training review…" className="min-h-0 flex-1">
           <TrainingReview />
-        </Suspense>
+        </LoadingSuspense>
       )}
       {state.settingsOpen && (
-        <Suspense fallback={<PanelLoading label="Loading settings…" />}>
+        <LoadingSuspense label="Loading settings…" className="min-h-0 flex-1">
           <Settings onClose={state.closeSettings} onLearningSaved={state.refreshMeta} />
-        </Suspense>
+        </LoadingSuspense>
       )}
-      {state.modelsOpen && (
+      <MotionPresence visible={state.modelsOpen}>
         <ModelSettingsPanel
           onClose={() => {
             state.setModelsOpen(false);
@@ -131,18 +132,8 @@ export function ProjectWorkspaceView(state: ProjectWorkspaceViewProps) {
           }}
           onSaved={state.refreshMeta}
         />
-      )}
+      </MotionPresence>
     </div>
-  );
-}
-
-export type PanelLoadingProps = { label: string };
-
-function PanelLoading({ label }: PanelLoadingProps) {
-  return (
-    <main role="status" className="min-h-0 flex-1 p-6 text-sm text-muted-foreground">
-      {label}
-    </main>
   );
 }
 

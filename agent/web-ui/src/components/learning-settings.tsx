@@ -1,3 +1,4 @@
+import { LoadingBoundary } from './loading';
 import { DatasetSettings, HistorySettings } from './learning-datasets';
 import { KnowledgeSettings } from './learning-knowledge';
 import { Toggle } from './learning-controls';
@@ -39,22 +40,7 @@ function LearningSettingsPanelView({
         </p>
       </div>
       <LearningSettingsError error={error} settings={settings} setRetry={setRetry} />
-      <LearningSettingsLoading settings={settings} error={error} />
-      {settings === null && (
-        <p className="rounded-xl border border-border p-4 text-sm leading-6 text-muted-foreground">
-          Learning is disabled by the launcher. Set CODEBERG_LEARNING_USE=true and restart Codeberg to configure its
-          components here. Existing data is kept.
-        </p>
-      )}
-      {settings && (
-        <LearningSettingsView
-          settings={settings}
-          busy={busy}
-          onChange={(next) => {
-            void change(next);
-          }}
-        />
-      )}
+      <LearningSettingsContent settings={settings} error={error} busy={busy} change={change} />
       {settings && <DreamingPanel key={project?.id ?? 'default'} enabled={settings.enabled && settings.knowledge} />}
       {settings && (
         <p role="status" className="min-h-5 text-xs text-muted-foreground">
@@ -66,6 +52,20 @@ function LearningSettingsPanelView({
         </p>
       )}
     </section>
+  );
+}
+
+function LearningSettingsContent({ settings, error, busy, change }: Pick<LearningSettingsPanelViewProps, 'settings' | 'error' | 'busy' | 'change'>) {
+  return (
+    <LoadingBoundary loading={settings === undefined && !error} label="Loading learning settings…" kind="section">
+      {settings === null && (
+        <p className="rounded-xl border border-border p-4 text-sm leading-6 text-muted-foreground">
+          Learning is disabled by the launcher. Set CODEBERG_LEARNING_USE=true and restart Codeberg to configure its
+          components here. Existing data is kept.
+        </p>
+      )}
+      {settings && <LearningSettingsView settings={settings} busy={busy} onChange={(next) => void change(next)} />}
+    </LoadingBoundary>
   );
 }
 
@@ -123,20 +123,5 @@ function LearningSettingsError({ error, settings, setRetry }: LearningSettingsEr
         onRetry={() => setRetry((value) => value + 1)}
       />
     ))
-  );
-}
-
-export type LearningSettingsLoadingProps = Pick<Parameters<typeof LearningSettingsPanelView>[0], 'settings' | 'error'>;
-
-function LearningSettingsLoading({ settings, error }: LearningSettingsLoadingProps) {
-  return (
-    settings === undefined &&
-    !error && (
-      <div role="status" className="space-y-4" aria-label="Loading learning settings">
-        <div className="h-20 rounded-xl bg-muted" />
-        <div className="h-40 rounded-xl bg-muted" />
-        <span className="sr-only">Loading learning settings…</span>
-      </div>
-    )
   );
 }

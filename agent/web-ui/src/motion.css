@@ -1,0 +1,110 @@
+/* Extend the existing canvas easing and control-feedback timing vocabulary. */
+:root {
+  --ui-ease-out: cubic-bezier(0.19, 1, 0.22, 1);
+  --ui-ease-feedback: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+dialog[data-ui-dialog] {
+  --ui-enter: 220ms;
+  --ui-exit: 150ms;
+  --ui-closed-transform: scale(0.95);
+  opacity: 0;
+  transform: var(--ui-closed-transform);
+  transform-origin: center;
+  transition: opacity var(--ui-exit) var(--ui-ease-out),
+    transform var(--ui-exit) var(--ui-ease-out),
+    display var(--ui-exit) allow-discrete,
+    overlay var(--ui-exit) allow-discrete;
+}
+
+dialog[data-ui-dialog='anchored'] {
+  --ui-enter: 180ms;
+  transform-origin: top right;
+}
+
+dialog[data-ui-dialog='drawer'] {
+  --ui-exit: 180ms;
+  --ui-closed-transform: translateX(-100%);
+  transform-origin: left center;
+}
+
+dialog[data-ui-dialog][open] {
+  opacity: 1;
+  transform: none;
+  transition-duration: var(--ui-enter);
+}
+
+dialog[data-ui-dialog]::backdrop {
+  opacity: 0;
+  transition: opacity 150ms var(--ui-ease-feedback),
+    display 150ms allow-discrete,
+    overlay 150ms allow-discrete;
+}
+
+dialog[data-ui-dialog][open]::backdrop {
+  opacity: 1;
+}
+
+@starting-style {
+  dialog[data-ui-dialog][open] {
+    opacity: 0;
+    transform: var(--ui-closed-transform);
+  }
+
+  dialog[data-ui-dialog][open]::backdrop {
+    opacity: 0;
+  }
+}
+
+.ui-confirmation {
+  opacity: 0;
+  transform: translateY(4px);
+  transform-origin: top center;
+  visibility: hidden;
+  transition: opacity 150ms var(--ui-ease-out),
+    transform 150ms var(--ui-ease-out), visibility 150ms;
+}
+
+.ui-confirmation[data-present='true'] {
+  opacity: 1;
+  transform: none;
+  visibility: visible;
+  transition-duration: 180ms;
+}
+
+.ui-success {
+  opacity: 0;
+  transition: opacity 150ms var(--ui-ease-feedback);
+}
+
+.ui-success[data-present='true'] {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  dialog[data-ui-dialog] {
+    --ui-enter: 100ms;
+    --ui-exit: 100ms;
+    --ui-closed-transform: none;
+  }
+
+  dialog[data-ui-dialog]::backdrop,
+  .ui-confirmation,
+  .ui-success {
+    transition-duration: 100ms;
+  }
+
+  .ui-confirmation,
+  .ui-confirmation[data-present='true'] {
+    transform: none;
+    transition-duration: 100ms;
+  }
+}
+
+/* Capture-phase input tracking makes keyboard-triggered state changes instant. */
+:root[data-ui-motion='instant'] dialog[data-ui-dialog],
+:root[data-ui-motion='instant'] dialog[data-ui-dialog]::backdrop,
+:root[data-ui-motion='instant'] .ui-confirmation,
+:root[data-ui-motion='instant'] .ui-success {
+  transition: none;
+}

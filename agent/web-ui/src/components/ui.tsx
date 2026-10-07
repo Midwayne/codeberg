@@ -1,7 +1,5 @@
 import { AlertTriangle, Check, ChevronDown, ChevronRight, Copy } from 'lucide-react';
 import {
-  useEffect,
-  useRef,
   useState,
   type ButtonHTMLAttributes,
   type ReactNode,
@@ -10,6 +8,8 @@ import {
 } from 'react';
 
 import { cn } from '../lib/utils';
+
+export { Dialog, type DialogProps } from './dialog';
 
 /** Quiet trigger, with native selection, labels, and keyboard behavior intact. */
 export type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & { wrapperClassName?: string };
@@ -45,56 +45,6 @@ export function IconButton({ className, ...props }: IconButtonProps) {
       )}
       {...props}
     />
-  );
-}
-
-/** Native modality supplies focus containment, Escape, and background inertness. */
-export type DialogProps = {
-  open?: boolean;
-  label: string;
-  onClose: () => void;
-  className?: string;
-  children: ReactNode;
-};
-
-export function Dialog({ open = true, label, onClose, className, children }: DialogProps) {
-  const ref = useRef<HTMLDialogElement>(null);
-  const opener = useRef<HTMLElement>(null);
-  useEffect(() => {
-    const dialog = ref.current;
-    if (!dialog) return;
-    if (open && !dialog.open) {
-      opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      dialog.showModal();
-    }
-    if (!open && dialog.open) dialog.close();
-    return () => {
-      if (!dialog.open) return;
-      dialog.close();
-      if (opener.current?.isConnected) opener.current.focus();
-    };
-  }, [open]);
-  return (
-    <dialog
-      ref={ref}
-      aria-label={label}
-      onCancel={(event) => {
-        event.preventDefault();
-        ref.current?.close();
-      }}
-      onClose={() => {
-        if (ref.current && !ref.current.open) onClose();
-      }}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) ref.current?.close();
-      }}
-      className={cn(
-        'max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl border-0 bg-popover p-0 text-popover-foreground shadow-xl',
-        className,
-      )}
-    >
-      <div className="flex h-full flex-col">{children}</div>
-    </dialog>
   );
 }
 

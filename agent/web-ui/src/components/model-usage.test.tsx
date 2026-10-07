@@ -24,6 +24,15 @@ describe('Usage view', () => {
     expect(html).not.toContain('Included');
   });
 
+  it('keeps existing metrics visible and announces a pending refresh', () => {
+    const html = renderToStaticMarkup(<UsageView {...props} report={report} loading />);
+
+    expect(html).toContain('Updating usage…');
+    expect(html).toContain('Estimated spend');
+    expect(html).toContain('aria-busy="true"');
+    expect(html).not.toContain('inert=""');
+  });
+
   it('marks missing prices and token reporting instead of presenting them as free usage', () => {
     const html = renderToStaticMarkup(<UsageView {...props} report={{ ...report,
       totals: { ...totals, requests: 1, unpricedRequests: 1, unreportedRequests: 1 },

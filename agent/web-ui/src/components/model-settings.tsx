@@ -1,3 +1,4 @@
+import { LoadingBoundary } from './loading';
 import { useModelSettingsPanel, type Choices } from '../lib/use-model-settings';
 import { X } from 'lucide-react';
 
@@ -28,6 +29,7 @@ function ModelSettingsPanelView({
 }: ModelSettingsPanelViewProps) {
   return (
     <Dialog
+      motion="anchored"
       label="Model settings"
       onClose={onClose}
       className="fixed inset-auto top-20 right-4 m-0 max-h-[calc(100dvh-6rem)] w-[28rem] bg-background"
@@ -45,14 +47,10 @@ function ModelSettingsPanelView({
             <X className="size-4" />
           </IconButton>
         </div>
-        {draft && settings ? (
-          <ModelSettingsForm models={settings.models} value={draft} onChange={setDraft} />
-        ) : !error ? (
-          <p role="status" className="text-sm text-muted-foreground">
-            Loading models…
-          </p>
-        ) : null}
-        <ModelSettingsError error={error} draft={draft} save={save} setAttempt={setAttempt} />
+        <LoadingBoundary loading={!draft && !error} label="Loading models…" kind="form">
+          {draft && settings && <ModelSettingsForm models={settings.models} value={draft} onChange={setDraft} />}
+          <ModelSettingsError error={error} draft={draft} save={save} setAttempt={setAttempt} />
+        </LoadingBoundary>
         <ModelSettingsActions onClose={onClose} draft={draft} saving={saving} />
       </form>
     </Dialog>

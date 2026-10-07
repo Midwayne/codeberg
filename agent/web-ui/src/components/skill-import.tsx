@@ -1,6 +1,7 @@
 import { SkillDropZone } from './skill-drop-zone';
 import { SkillPreviewList } from './skill-preview';
 import { useSkillImport } from '../lib/use-skill-import';
+import { SuccessNotice } from './success-notice';
 
 import { type SkillFile } from '../lib/skill-files';
 
@@ -54,11 +55,10 @@ export function SkillImportView(state: SkillImportViewProps) {
           {state.error}
         </p>
       )}
-      {state.saved && (
-        <p role="status" className="text-sm">
-          {state.saved}
-        </p>
-      )}
+      <SuccessNotice
+        message={state.saved}
+        sizingText={`20 skills imported into ${state.scopeLabel}. Available on the next chat turn.`}
+      />
     </section>
   );
 }

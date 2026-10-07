@@ -1,3 +1,4 @@
+import { LoadingBoundary } from './loading';
 import { ExtensionForm } from './extension-form';
 import { useExtensions } from '../lib/use-extensions';
 
@@ -81,30 +82,26 @@ function ExtensionCatalogView({ state }: ExtensionCatalogViewProps) {
   return (
     <section aria-label={`Available ${state.title}`}>
       <h3 className="mb-2 text-sm font-medium">Available {state.title === 'Skills' ? 'skills' : 'MCP servers'}</h3>
-      {!state.catalog ? (
-        state.catalogError ? (
+      <LoadingBoundary loading={!state.catalog && !state.catalogError} label={`Loading ${state.title.toLowerCase()}…`} kind="list">
+        {state.catalogError && !state.catalog ? (
           <p className="text-xs text-muted-foreground">Catalog unavailable.</p>
+        ) : !state.entries?.length ? (
+          <p className="text-xs text-muted-foreground">None available yet.</p>
         ) : (
-          <p role="status" className="text-xs text-muted-foreground">
-            Loading…
-          </p>
-        )
-      ) : !state.entries?.length ? (
-        <p className="text-xs text-muted-foreground">None available yet.</p>
-      ) : (
-        <ul className="divide-y divide-border">
-          {state.entries.map((item) => (
-            <li key={item.name} className="flex items-start justify-between gap-3 py-3 text-sm">
-              <div className="min-w-0">
-                <p className="break-words">{item.name}</p>
-              </div>
-              <span className="shrink-0 text-xs text-muted-foreground">
-                {item.scope ?? ('kind' in item ? item.kind : '')}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
+          <ul className="divide-y divide-border">
+            {state.entries.map((item) => (
+              <li key={item.name} className="flex items-start justify-between gap-3 py-3 text-sm">
+                <div className="min-w-0">
+                  <p className="break-words">{item.name}</p>
+                </div>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {item.scope ?? ('kind' in item ? item.kind : '')}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </LoadingBoundary>
     </section>
   );
 }

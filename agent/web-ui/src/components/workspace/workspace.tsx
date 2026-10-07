@@ -85,6 +85,7 @@ export function WorkspaceView(state: WorkspaceViewProps) {
       {state.desktop && state.sidebarOpen && state.sidebar}
       {!state.desktop && (
         <Dialog
+          motion="drawer"
           open={state.sidebarOpen}
           label="Projects and chats"
           onClose={state.onSidebarClose}

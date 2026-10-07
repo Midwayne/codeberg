@@ -1,3 +1,4 @@
+import { LoadingStatus } from '../components/loading';
 import { Excalidraw, MainMenu } from '@excalidraw/excalidraw';
 import '@excalidraw/excalidraw/index.css';
 import { useEditor } from './use-editor';
@@ -26,7 +27,7 @@ export default function CanvasEditor() {
         </div>
       )}
       <div className="relative min-h-0 flex-1">
-        {!state.scene && <p role="status" className="canvas-loading p-4 text-xs text-muted-foreground">{state.status}</p>}
+        <LoadingStatus active={!state.scene} label={state.status} className="canvas-loading justify-center p-4" />
         <div ref={state.motion.surface} inert={!state.scene} data-ready={Boolean(state.scene)}
           data-motion={new URL(location.href).searchParams.get('motion')}
           className={`canvas-surface local-canvas h-full ${embedded ? 'canvas-preview' : ''}`}>

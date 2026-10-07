@@ -1,3 +1,4 @@
+import { LoadingBoundary } from './loading';
 import { ArrowLeft } from 'lucide-react';
 
 import { ErrorNotice } from './ui';
@@ -12,7 +13,7 @@ export function ReviewSelection({ state }: ReviewSelectionProps) {
       id="training-example"
       ref={state.detailRef}
       tabIndex={-1}
-      aria-busy={!!state.selected && !state.example && !state.review.detailError}
+      aria-busy={!!state.selected && state.example?.id !== state.selected.id && !state.review.detailError}
       className={`min-w-0 scroll-mt-4 rounded-xl border border-border bg-card ${state.mobileDetails ? 'block' : 'hidden lg:block'}`}
       aria-label="Example details"
     >
@@ -27,25 +28,29 @@ export function ReviewSelection({ state }: ReviewSelectionProps) {
           Back to examples
         </button>
       </div>
+      <ReviewSelectionContent state={state} />
+    </section>
+  );
+}
+
+function ReviewSelectionContent({ state }: ReviewSelectionProps) {
+  const ready = Boolean(state.selected && state.example?.id === state.selected.id);
+  const loading = Boolean(state.selected && !ready && !state.review.detailError);
+
+  return (
+    <LoadingBoundary loading={loading} label="Loading example…" kind="detail">
       {state.review.detailError ? (
         <div className="p-4">
-          <ErrorNotice
-            title="Could not load this example"
-            detail={state.review.detailError}
-            onRetry={state.review.retryDetail}
-          />
+          <ErrorNotice title="Could not load this example" detail={state.review.detailError} onRetry={state.review.retryDetail} />
         </div>
       ) : state.selected && state.example?.id === state.selected.id ? (
         <SelectedReviewDetail state={{ ...state, selected: state.selected, example: state.example }} />
       ) : (
-        <div
-          role={state.selected ? 'status' : undefined}
-          className="flex min-h-64 items-center justify-center px-6 text-center text-sm text-muted-foreground"
-        >
-          {state.selected ? 'Loading example…' : 'Select an example to inspect its answer and evidence.'}
+        <div className="flex min-h-64 items-center justify-center px-6 text-center text-sm text-muted-foreground">
+          Select an example to inspect its answer and evidence.
         </div>
       )}
-    </section>
+    </LoadingBoundary>
   );
 }
 

@@ -1,3 +1,4 @@
+import { LoadingBoundary } from './loading';
 import { actionClass } from './button-styles';
 import { DreamingReportView } from './dreaming-report';
 import { useDreamingPanel } from '../lib/use-dreaming-panel';
@@ -38,22 +39,19 @@ function DreamingPanelView(state: DreamingPanelViewProps) {
       <p role="status" className="text-sm text-muted-foreground">
         {state.notice || (state.pending ? 'Preparing a knowledge report…' : '')}
       </p>
-      {!state.dashboard && !state.error && (
-        <p role="status" className="text-sm text-muted-foreground">
-          Loading reports…
-        </p>
-      )}
       <DreamingJobErrors state={state} />
-      {state.dashboard && (
-        <DreamingReportList
-          dashboard={state.dashboard}
-          selectedId={state.report?.id}
-          busy={state.busy}
-          onSelect={(id) => {
-            void state.select(id);
-          }}
-        />
-      )}
+      <LoadingBoundary loading={!state.dashboard && !state.error} label="Loading reports…" kind="list">
+        {state.dashboard && (
+          <DreamingReportList
+            dashboard={state.dashboard}
+            selectedId={state.report?.id}
+            busy={state.busy}
+            onSelect={(id) => {
+              void state.select(id);
+            }}
+          />
+        )}
+      </LoadingBoundary>
       {state.report && (
         <DreamingReportView
           report={state.report}

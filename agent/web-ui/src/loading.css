@@ -1,0 +1,142 @@
+.ui-loading-boundary {
+  display: grid;
+  min-width: 0;
+  min-height: 12rem;
+  isolation: isolate;
+}
+
+.ui-loading-boundary[data-kind='form'] { min-height: 30.5rem; }
+.ui-loading-boundary[data-kind='control'] { min-height: 7rem; }
+.ui-loading-boundary[data-kind='list'] { min-height: 10rem; }
+.ui-loading-boundary[data-kind='chart'] { min-height: 24rem; }
+.ui-loading-boundary[data-kind='detail'] { min-height: 16rem; }
+.ui-loading-boundary[data-kind='workspace'],
+.ui-loading-boundary[data-kind='canvas'] { min-height: 0; }
+
+.ui-loaded-content,
+.ui-loading-surface {
+  grid-area: 1 / 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.ui-loaded-content {
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 150ms var(--ui-ease-feedback);
+}
+
+.ui-loaded-content[data-ready='true'] {
+  opacity: 1;
+  visibility: visible;
+}
+
+.ui-loading-surface {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1rem;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 120ms var(--ui-ease-feedback), visibility 120ms;
+}
+
+.ui-loading-surface[data-present='true'] {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 180ms var(--ui-ease-feedback);
+  transition-delay: 80ms;
+}
+
+@starting-style {
+  .ui-loading-surface[data-present='true'] { opacity: 0; }
+}
+
+.ui-loading-scaffold,
+.ui-loading-sidebar {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+}
+
+.ui-loading-line,
+.ui-loading-block,
+.ui-loading-composer {
+  display: block;
+  border-radius: var(--radius-md);
+  background: var(--muted);
+}
+
+.ui-loading-line { width: 70%; height: 0.75rem; }
+.ui-loading-line:first-child { width: 35%; }
+.ui-loading-line:last-child { width: 50%; }
+.ui-loading-block { height: 2.75rem; }
+.ui-loading-section .ui-loading-block { height: 3.5rem; }
+.ui-loading-chart .ui-loading-block { height: 8rem; }
+.ui-loading-canvas .ui-loading-block { height: 5rem; }
+.ui-loading-form .ui-loading-line { width: 30%; }
+.ui-loading-list .ui-loading-line { display: none; }
+.ui-loading-list .ui-loading-block { height: 3rem; }
+.ui-loading-control .ui-loading-line { display: none; }
+.ui-loading-control .ui-loading-block { height: 2.5rem; }
+.ui-loading-control .ui-loading-block ~ .ui-loading-block { display: none; }
+
+.ui-loading-workspace { display: flex; min-height: 0; flex: 1; gap: 2rem; }
+.ui-loading-sidebar { display: none; width: 16rem; flex-shrink: 0; }
+.ui-loading-conversation { display: flex; flex: 1; flex-direction: column; justify-content: space-between; gap: 3rem; }
+.ui-loading-composer { height: 5rem; margin-top: auto; }
+
+.ui-loading-status {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms var(--ui-ease-feedback), visibility 120ms;
+}
+
+.ui-loading-status[data-present='true'] { opacity: 1; visibility: visible; }
+.ui-loading-indicator { animation: ui-loading-spin 800ms linear infinite; }
+[data-present='false'] .ui-loading-indicator { animation-play-state: paused; }
+
+@keyframes ui-loading-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (min-width: 768px) {
+  .ui-loading-sidebar { display: grid; }
+  .ui-loading-surface { padding: 1.5rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-loading-indicator { animation: none; }
+  .ui-loading-surface,
+  .ui-loading-surface[data-present='true'],
+  .ui-loaded-content,
+  .ui-loading-status { transition-duration: 100ms; transition-delay: 0ms; }
+}
+
+:root[data-ui-motion='instant'] .ui-loading-indicator { animation: none; }
+:root[data-ui-motion='instant'] .ui-loading-surface,
+:root[data-ui-motion='instant'] .ui-loaded-content,
+:root[data-ui-motion='instant'] .ui-loading-status { transition: none; }
+
+.ui-lazy-content {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  opacity: 1;
+  transition: opacity 150ms var(--ui-ease-feedback);
+}
+
+@starting-style {
+  .ui-lazy-content { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-lazy-content { transition-duration: 100ms; }
+}
+
+:root[data-ui-motion='instant'] .ui-lazy-content { transition: none; }
+.ui-loading-status.canvas-loading { display: flex; }

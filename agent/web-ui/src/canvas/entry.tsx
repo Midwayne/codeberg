@@ -1,4 +1,5 @@
-import { lazy, Suspense } from 'react';
+import { LoadingSuspense } from '../components/loading-suspense';
+import { lazy } from 'react';
 import { CanvasBoundary } from './boundary';
 import './motion.css';
 
@@ -6,9 +7,11 @@ import './motion.css';
 const Editor = lazy(() => import('./editor'));
 
 export function CanvasPage() {
-  return <CanvasBoundary><Suspense fallback={
-    <div className="relative h-dvh bg-background text-foreground">
-      <p role="status" className="canvas-loading p-6 text-xs text-muted-foreground">Loading local canvas…</p>
-    </div>
-  }><Editor /></Suspense></CanvasBoundary>;
+  return (
+    <CanvasBoundary>
+      <LoadingSuspense label="Loading local canvas…" kind="canvas" className="h-dvh bg-background text-foreground">
+        <Editor />
+      </LoadingSuspense>
+    </CanvasBoundary>
+  );
 }

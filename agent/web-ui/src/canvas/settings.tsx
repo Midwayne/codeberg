@@ -1,3 +1,4 @@
+import { LoadingBoundary } from '../components/loading';
 import { Toggle } from '../components/learning-controls';
 import { useCanvasSettings } from './use-settings';
 
@@ -16,10 +17,12 @@ export function CanvasSettings() {
       {state.error && <div role="alert" className="text-sm">{state.error}{' '}
         <button className="underline underline-offset-4" onClick={() => void state.refresh()}>Retry</button>
       </div>}
-      {state.enabled === undefined ? <p role="status" className="text-sm">Loading canvas settings…</p> : (
-        <Toggle label="Enable local canvas" description="Make canvas tools available to the agent on new chat turns. Existing drawings are kept when disabled."
-          checked={state.enabled} disabled={state.busy} onChange={(enabled) => void state.change(enabled)} />
-      )}
+      <LoadingBoundary loading={state.enabled === undefined && !state.error} label="Loading canvas settings…" kind="control">
+        {state.enabled !== undefined && (
+          <Toggle label="Enable local canvas" description="Make canvas tools available to the agent on new chat turns. Existing drawings are kept when disabled."
+            checked={state.enabled} disabled={state.busy} onChange={(enabled) => void state.change(enabled)} />
+        )}
+      </LoadingBoundary>
       <p className="max-w-prose text-sm leading-6 text-muted-foreground">
         The canvas and fonts run locally, without cloud storage. Canvas tools share diagram content with your configured agent model.
       </p>

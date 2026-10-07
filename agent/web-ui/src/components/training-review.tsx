@@ -1,3 +1,4 @@
+import { LoadingBoundary, LoadingStatus } from './loading';
 import { ReviewSelection } from './review-selection';
 import { ReviewQueue } from './review-queue';
 import { TrainingSummary } from './training-summary';
@@ -32,12 +33,7 @@ export function TrainingReviewView(state: TrainingReviewViewProps) {
         )}
         <ReviewHeader state={state} />
 
-        {state.dashboard && <TrainingSummary stats={state.dashboard.stats} />}
-        {state.review.loading && (
-          <p role="status" className="text-sm text-muted-foreground">
-            {state.dashboard ? 'Refreshing training data…' : 'Loading training data…'}
-          </p>
-        )}
+        <LoadingStatus active={state.review.loading && Boolean(state.dashboard)} label="Refreshing training data…" />
         {state.review.dashboardError && (
           <ErrorNotice
             title={state.dashboard ? 'Could not refresh training data' : 'Could not load training data'}
@@ -51,15 +47,23 @@ export function TrainingReviewView(state: TrainingReviewViewProps) {
           </p>
         )}
 
-        {state.dashboard && (
-          <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(16rem,21rem)_minmax(0,1fr)]">
-            <ReviewQueue state={{ ...state, dashboard: state.dashboard }} />
-
-            <ReviewSelection state={state} />
-          </div>
-        )}
+        <ReviewContent state={state} />
       </div>
     </main>
+  );
+}
+
+function ReviewContent({ state }: { state: TrainingReviewViewProps }) {
+  return (
+    <LoadingBoundary loading={!state.dashboard && !state.review.dashboardError} label="Loading training data…" kind="detail">
+      {state.dashboard && <div className="space-y-6">
+        <TrainingSummary stats={state.dashboard.stats} />
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(16rem,21rem)_minmax(0,1fr)]">
+          <ReviewQueue state={{ ...state, dashboard: state.dashboard }} />
+          <ReviewSelection state={state} />
+        </div>
+      </div>}
+    </LoadingBoundary>
   );
 }
 

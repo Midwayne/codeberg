@@ -1,3 +1,4 @@
+import { LoadingBoundary } from './loading';
 import { useProjectApi } from '../lib/project-api';
 
 import { useEffect, useRef, useState } from 'react';
@@ -81,15 +82,9 @@ export function ResourceUsagePanelView({
           }}
         />
       )}
-      {usage ? (
-        <ResourceUsageView usage={usage} range={range} onRange={setRange} />
-      ) : (
-        !error && (
-          <p role="status" className="text-sm text-muted-foreground">
-            Loading resource usage…
-          </p>
-        )
-      )}
+      <LoadingBoundary loading={!usage && !error} label="Loading resource usage…" kind="chart">
+        {usage && <ResourceUsageView usage={usage} range={range} onRange={setRange} />}
+      </LoadingBoundary>
     </>
   );
 }

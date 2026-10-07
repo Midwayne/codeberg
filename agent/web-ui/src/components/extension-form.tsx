@@ -1,6 +1,7 @@
 import { Plus } from 'lucide-react';
 
 import { type ExtensionsView } from './extensions';
+import { SuccessNotice } from './success-notice';
 
 export const control =
   'min-h-11 w-full rounded-lg border border-input bg-background px-3 py-2 text-base sm:text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
@@ -19,11 +20,10 @@ export function ExtensionForm({ state }: ExtensionFormProps) {
           {state.error}
         </p>
       )}
-      {state.saved && (
-        <p role="status" className="text-sm">
-          {state.saved}
-        </p>
-      )}
+      <SuccessNotice
+        message={state.saved}
+        sizingText={state.saved || `${state.name || 'An extension'} added. Available on the next chat turn.`}
+      />
       <button
         type="submit"
         disabled={state.busy || state.importing}

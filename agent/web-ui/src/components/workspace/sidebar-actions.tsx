@@ -3,6 +3,7 @@ import { Archive, ArchiveRestore, Pin, PinOff, Trash2 } from 'lucide-react';
 import { type SessionSummary } from '../../lib/sessions';
 
 import { Dialog } from '../ui';
+import { MotionPresence } from '../motion-presence';
 import { type SidebarMenuProps, type SidebarDeleteProps } from './session-sidebar';
 
 export type DeleteChatDialogProps = {
@@ -123,18 +124,20 @@ export function SidebarMenu({ state }: SidebarMenuProps) {
 
 export function SidebarDelete({ state }: SidebarDeleteProps) {
   return (
-    state.deleting && (
-      <DeleteChatDialog
-        title={state.deleting.title}
-        onClose={() => {
-          state.setDeleting(undefined);
-          state.triggerRef.current?.focus();
-        }}
-        onDelete={() => {
-          state.onDelete(state.deleting!.id);
-          state.setDeleting(undefined);
-        }}
-      />
-    )
+    <MotionPresence visible={Boolean(state.deleting)}>
+      {state.deleting && (
+        <DeleteChatDialog
+          title={state.deleting.title}
+          onClose={() => {
+            state.setDeleting(undefined);
+            state.triggerRef.current?.focus();
+          }}
+          onDelete={() => {
+            state.onDelete(state.deleting!.id);
+            state.setDeleting(undefined);
+          }}
+        />
+      )}
+    </MotionPresence>
   );
 }

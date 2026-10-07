@@ -9,18 +9,21 @@ export function useModelUsage() {
   const [preset, setPreset] = useState('mtd');
   const [page, setPage] = useState(1);
   const [report, setReport] = useState<UsageReport>();
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
-    setReport(undefined);
+    setLoading(true);
     setError('');
     void loadUsage(range, page, api, controller.signal).then((value) => {
       if (!controller.signal.aborted) setReport(value);
     }).catch((failure: unknown) => {
       if (!controller.signal.aborted) setError(String(failure));
+    }).finally(() => {
+      if (!controller.signal.aborted) setLoading(false);
     });
 
     return () => controller.abort();
@@ -37,7 +40,7 @@ export function useModelUsage() {
     setPreset(value);
   };
 
-  return { range, preset, page, report, error, exporting, onRange, onPreset, onPage: setPage,
+  return { range, preset, page, report, error, loading, exporting, onRange, onPreset, onPage: setPage,
     onRetry: () => setRetry((value) => value + 1),
     onExport: () => runExport(range, api, setExporting, setError) };
 }
