@@ -170,6 +170,16 @@ changes may occur in minor releases and are called out explicitly.
   (60%) are computed from `min(context window, CODEBERG_CONTEXT_BUDGET)`,
   default 200K tokens, instead of the full 1M window, keeping requests below
   long-context pricing tiers.
+- **Parallel tool calls for every provider** — the system prompt tells the
+  model to put every independent tool call in one response (they already run
+  concurrently), OpenAI-wire providers are sent `parallel_tool_calls: true`
+  (llama.cpp defaults it off), and `ollama`/`llamacpp`/unknown providers get a
+  `batch` tool that runs up to 8 calls in one tool call
+  (`CODEBERG_TOOL_BATCH` overrides). Fewer responses per answer means less
+  transcript re-sent per question on every provider.
+- **Indexer request queueing** — the daemon caps in-flight `cberg-index`
+  connections per socket and retries on `EAGAIN`, so bursts of parallel tool
+  calls queue instead of failing with `resource temporarily unavailable`.
 - **Compaction model** — history summaries run on `CODEBERG_SUBAGENT_MODEL`
   when it is set, not the chat model.
 - **Spill threshold** — structured tool results are measured at their compact

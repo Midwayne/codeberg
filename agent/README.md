@@ -46,6 +46,7 @@ or from a checkout.
 | `CODEBERG_REASONING` | all | reasoning effort: `provider-default`, `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` (Responses-compatible models only); anything else is ignored |
 | `CODEBERG_CONTEXT_WINDOW` | all | override the model's inferred context window (tokens) — mainly for local `ollama`/`llamacpp` servers, whose real window depends on how they were started |
 | `CODEBERG_CONTEXT_BUDGET` | all | tokens the history (50%) and in-loop pruning (60%) budgets are computed from, capped by the window (default 200,000 — keeps requests under the long-context price tier of 1M-window models) |
+| `CODEBERG_TOOL_BATCH` | all | register the `batch` tool (up to 8 independent calls in one tool call). Default on for `ollama`, `llamacpp`, and unknown providers, which may return one tool call per response; off for `anthropic`, `openai`, `google`, which call tools in parallel natively |
 | `CODEBERG_SUBAGENT_MODEL` | CLI | `provider:model` for background work: learning extraction and history-compaction summaries (default: `CODEBERG_MODEL`). A cheaper model here cuts compaction cost |
 | `CODEBERG_WEB_USE` | all | master switch for `fetch_url`/`web_search` (default on; `0`/`false`/`off`/`no` disables) |
 | `CODEBERG_SEARXNG_URL` | all | SearXNG endpoint backing `web_search` |
