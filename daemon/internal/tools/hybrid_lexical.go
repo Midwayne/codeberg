@@ -71,22 +71,32 @@ func filterLexicalKind(ctx context.Context, idx indexctl.Indexer, matches []work
 				continue
 			}
 
-			chunkKey := fmt.Sprintf("%s\x00%d", match.Repo, chunk.ID)
-			kind, ok := kinds[chunkKey]
-			if !ok {
-				detail, err := idx.GetChunk(ctx, match.Repo, chunk.ID)
-				if err == nil {
-					kind = detail.Kind
-				}
-
-				kinds[chunkKey] = kind
-			}
-
-			if strings.EqualFold(kind, requestedKind) {
+			if strings.EqualFold(outlineChunkKind(ctx, idx, match.Repo, chunk, kinds), requestedKind) {
 				filtered = append(filtered, match)
 				break
 			}
 		}
 	}
 	return filtered
+}
+
+// outlineChunkKind prefers the kind carried on the outline hit and only falls
+// back to fetching the chunk (memoized in kinds) for indexers that omit it.
+func outlineChunkKind(ctx context.Context, idx indexctl.Indexer, repo string, chunk indexctl.SearchResult, kinds map[string]string) string {
+	if chunk.Kind != "" {
+		return chunk.Kind
+	}
+
+	chunkKey := fmt.Sprintf("%s\x00%d", repo, chunk.ID)
+	if kind, ok := kinds[chunkKey]; ok {
+		return kind
+	}
+
+	kind := ""
+	if detail, err := idx.GetChunk(ctx, repo, chunk.ID); err == nil {
+		kind = detail.Kind
+	}
+
+	kinds[chunkKey] = kind
+	return kind
 }

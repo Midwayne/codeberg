@@ -35,6 +35,7 @@ struct cberg_strmap {
     uint64_t *values;
     size_t bucket_count; /* power of two */
     size_t count;
+    bool borrow_keys; /* keys belong to the caller; never copied or freed */
 };
 
 static inline uint64_t hash_key(const char *key) {
@@ -81,13 +82,23 @@ cberg_strmap *cberg_strmap_new(size_t bucket_count) {
     return map;
 }
 
+cberg_strmap *cberg_strmap_new_borrowed(size_t bucket_count) {
+    cberg_strmap *map = cberg_strmap_new(bucket_count);
+    if (map != NULL) {
+        map->borrow_keys = true;
+    }
+    return map;
+}
+
 void cberg_strmap_clear(cberg_strmap *map) {
     if (map == NULL || map->hashes == NULL) {
         return;
     }
     for (size_t i = 0; i < map->bucket_count; i++) {
         if (map->hashes[i] != 0) {
-            free(map->keys[i]);
+            if (!map->borrow_keys) {
+                free(map->keys[i]);
+            }
             map->keys[i] = NULL;
         }
     }
@@ -187,12 +198,12 @@ cberg_status cberg_strmap_set(cberg_strmap *map, const char *key, uint64_t value
         }
     }
 
-    char *kdup = cberg_strdup(key);
-    if (kdup == NULL) {
+    char *stored = map->borrow_keys ? (char *)key : cberg_strdup(key);
+    if (stored == NULL) {
         return CBERG_ERR_OUT_OF_MEMORY;
     }
     map->hashes[i] = h;
-    map->keys[i] = kdup;
+    map->keys[i] = stored;
     map->values[i] = value;
     map->count++;
     return CBERG_OK;

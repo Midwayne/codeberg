@@ -11,6 +11,7 @@ import (
 type HybridHit struct {
 	Hit              indexctl.SearchResult `json:"hit"`
 	GrepBoost        int                   `json:"grep_boost"`
+	MatchLine        uint32                `json:"match_line,omitempty"`
 	FinalScore       float32               `json:"final_score"`
 	Context          string                `json:"context,omitempty"`
 	ContextStartLine uint32                `json:"context_start_line,omitempty"`
@@ -23,6 +24,7 @@ type rankedHit struct {
 	vectorRank  int
 	lexicalRank int
 	grepBoost   int
+	matchLine   uint32 // best-ranked lexical line inside this hit
 }
 
 // Fuse combines independently retrieved vector chunks and lexical lines using

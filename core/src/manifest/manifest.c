@@ -18,6 +18,8 @@
  */
 #include "codeberg/codeberg.h"
 
+#include "chunk_rules.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -568,7 +570,14 @@ void cberg_manifest_diff_free(cberg_manifest_changes *changes) {
  * caller does a full rebuild.
  */
 #define CBERG_MANIFEST_MAGIC "CBMF"
-#define CBERG_MANIFEST_VERSION 1u
+
+#define CBERG_MANIFEST_FORMAT 1u
+
+/* The manifest is the baseline the chunk table was built from, so it is only
+ * valid under the chunking rules that produced it: the stored version pairs
+ * the file format with those rules. Files written before the pairing hold a
+ * bare 1 and are rejected, forcing one full re-chunk. */
+#define CBERG_MANIFEST_VERSION ((CBERG_MANIFEST_FORMAT << 16) | CBERG_CHUNK_RULES_VERSION)
 
 cberg_status cberg_manifest_save(const cberg_manifest *manifest, const char *path) {
     if (manifest == NULL || path == NULL) {

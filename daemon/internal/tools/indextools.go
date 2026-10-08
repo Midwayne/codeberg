@@ -30,7 +30,7 @@ func searchTool(idx indexctl.Indexer) Tool {
     "query": {"type": "string", "description": "natural-language search query"},
     "k": {"type": "integer", "description": "max results (default 10)"},
     "repo": {"type": "string", "description": "restrict to one repo key"},
-    "path_glob": {"type": "string", "description": "fnmatch glob on chunk paths, e.g. daemon/*"},
+    "path_glob": {"type": "string", "description": "rg-style glob on chunk paths, e.g. daemon/** or *.go (matches at any depth)"},
     "kind": {"type": "string", "description": "` + chunkKindFilterDesc + `"},
     "min_score": {"type": "number", "description": "minimum similarity score (0-1)"}
   },

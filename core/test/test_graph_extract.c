@@ -49,8 +49,11 @@ static void test_c_lang(void) {
         "#include <stdio.h>\n"
         "#include \"local.h\"\n"
         "static void helper(void) {}\n"
-        "int main(void) { helper(); return 0; }\n";
+        "static char *name_of(int id) { helper(); return 0; }\n"
+        "int main(void) { helper(); name_of(1); return 0; }\n";
     CHECK(corpus_index(&c, CBERG_LANG_C, "main.c", src) == CBERG_OK, "index c");
+    CHECK(named_edge(&c, "main", "name_of", CBERG_GEDGE_CALLS) != NULL, "c call to pointer-returning fn captured");
+    CHECK(named_edge(&c, "name_of", "helper", CBERG_GEDGE_CALLS) != NULL, "c call from pointer-returning fn captured");
     CHECK(module_imported(&c, "main.c", "stdio.h"), "c system include captured (brackets stripped)");
     CHECK(module_imported(&c, "main.c", "local.h"), "c quoted include captured");
     CHECK(named_edge(&c, "main", "helper", CBERG_GEDGE_CALLS) != NULL, "c call captured");

@@ -9,6 +9,84 @@ import (
 	"testing"
 )
 
+func grepFixture(t testing.TB, lines int) *Workspace {
+	t.Helper()
+
+	root := t.TempDir()
+	body := strings.Repeat("needle "+strings.Repeat("x", 200)+"\n", lines)
+
+	if err := os.WriteFile(root+"/big.txt", []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	return New([]RepoInfo{{Key: "main", Root: root}}, "main")
+}
+
+func TestGrepStopsAtLimit(t *testing.T) {
+	w := grepFixture(t, 5000)
+
+	hits, err := w.Grep(context.Background(), "needle", true, "main", "", 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(hits) != 7 {
+		t.Fatalf("got %d hits, want 7", len(hits))
+	}
+
+	for i, hit := range hits {
+		if hit.Repo != "main" || hit.Path != "big.txt" || !strings.HasPrefix(hit.Text, "needle") {
+			t.Fatalf("hit %d malformed: %+v", i, hit)
+		}
+	}
+}
+
+func TestGrepReturnsAllMatchesUnderLimit(t *testing.T) {
+	w := grepFixture(t, 3)
+
+	hits, err := w.Grep(context.Background(), "needle", true, "main", "", 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(hits) != 3 || hits[0].Line != 1 || hits[2].Line != 3 {
+		t.Fatalf("want lines 1..3, got %+v", hits)
+	}
+}
+
+func TestGrepNoMatchIsEmpty(t *testing.T) {
+	w := grepFixture(t, 3)
+
+	hits, err := w.Grep(context.Background(), "absent-token", true, "main", "", 50)
+	if err != nil || hits != nil {
+		t.Fatalf("no match: hits=%+v err=%v", hits, err)
+	}
+}
+
+func TestGrepInvalidRegexErrors(t *testing.T) {
+	w := grepFixture(t, 3)
+
+	if _, err := w.Grep(context.Background(), "(unclosed", false, "main", "", 50); err == nil {
+		t.Fatal("expected an error for an invalid regex")
+	}
+}
+
+// BenchmarkGrepLimit reports bytes allocated per call when far more lines
+// match than the caller asked for.
+func BenchmarkGrepLimit(b *testing.B) {
+	w := grepFixture(b, 100000)
+	ctx := context.Background()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		if _, err := w.Grep(ctx, "needle", true, "main", "", 20); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 func TestGrepBoundsMinifiedLines(t *testing.T) {
 	root := t.TempDir()
 	line := "needle" + strings.Repeat("x", 5*1024*1024)
@@ -40,45 +118,6 @@ func TestGrepBoundsMinifiedLines(t *testing.T) {
 		if !strings.Contains(hit.Text, "needle") {
 			t.Fatalf("%s: preview lost the match: %q", hit.Path, hit.Text)
 		}
-	}
-}
-
-func TestGrepStopsAtLimit(t *testing.T) {
-	root := writeMatchingTree(t, 20, 500)
-	w := New([]RepoInfo{{Key: "main", Root: root}}, "main")
-
-	hits, err := w.Grep(context.Background(), "match", true, "main", "", 7)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if len(hits) != 7 {
-		t.Fatalf("want exactly the limit, got %d", len(hits))
-	}
-
-	for _, hit := range hits {
-		if hit.Repo != "main" || hit.Line == 0 || !strings.Contains(hit.Text, "match") {
-			t.Fatalf("malformed hit: %+v", hit)
-		}
-	}
-}
-
-func TestGrepNoMatchesIsEmpty(t *testing.T) {
-	root := writeMatchingTree(t, 2, 5)
-	w := New([]RepoInfo{{Key: "main", Root: root}}, "main")
-
-	hits, err := w.Grep(context.Background(), "absent-token", true, "main", "", 10)
-	if err != nil || len(hits) != 0 {
-		t.Fatalf("want no hits and no error, got %+v, %v", hits, err)
-	}
-}
-
-func TestGrepReportsInvalidPattern(t *testing.T) {
-	root := writeMatchingTree(t, 1, 1)
-	w := New([]RepoInfo{{Key: "main", Root: root}}, "main")
-
-	if _, err := w.Grep(context.Background(), "(unclosed", false, "main", "", 10); err == nil {
-		t.Fatal("an invalid regex must surface as an error")
 	}
 }
 
