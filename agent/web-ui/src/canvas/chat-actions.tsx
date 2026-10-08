@@ -21,7 +21,7 @@ function CanvasAction({ sessionId }: { sessionId: string }) {
   const url = canvasUrl(sessionId, project?.id);
 
   return (
-    <nav aria-label="Chat actions" className="absolute right-3 top-3 z-30 sm:right-14">
+    <nav aria-label="Chat actions" className="absolute right-3 top-3 z-10 sm:right-14">
       <a href={url} target="_blank" rel="noreferrer"
         aria-label="Open canvas in a new window" title="Open canvas in a new window"
         onClick={(event) => {
