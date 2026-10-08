@@ -25,7 +25,7 @@ export type { ChatResponder, ResolvedModelSelection } from './chat-routes.js';
  */
 export function createRequestHandler(
   opts: WebServerOptions,
-): (req: IncomingMessage, res: ServerResponse) => void {
+): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   const usage = opts.usage ?? sharedUsageStore();
   opts = { ...opts, usage };
 
@@ -38,7 +38,7 @@ export function createRequestHandler(
     new ResourceSettings({ sessions, learning: opts.learning, daemonUrl: opts.daemonUrl });
   const writes = new RequestWriteGate(resources);
 
-  return (req, res) => {
+  return async (req, res) => {
     let path: string;
     try {
       path = new URL(req.url ?? '/', 'http://localhost').pathname;
@@ -51,7 +51,7 @@ export function createRequestHandler(
     if (!release) return;
 
     const fail = logRequest(req, res, path);
-    void route(req, res, opts, respond, sessions, resources).catch(fail).finally(release);
+    await route(req, res, opts, respond, sessions, resources).catch(fail).finally(release);
   };
 }
 

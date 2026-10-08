@@ -36,3 +36,13 @@ export function installShutdown(server: Server, owned: OwnedRuntime[]): void {
     for (const runtime of owned) void runtime.pool.close();
   });
 }
+
+export async function disposeProjectRuntime(owned: OwnedRuntime[], id: string): Promise<void> {
+  const runtimes = owned.filter((runtime) => runtime.projectId === id);
+  if (runtimes.some((runtime) => runtime.learning?.busy || runtime.resources.busy))
+    throw new Error('Project is busy. Try again after background jobs finish.');
+
+  stopRuntimes(runtimes);
+  await Promise.all(runtimes.map((runtime) => runtime.pool.close()));
+  for (const runtime of runtimes) owned.splice(owned.indexOf(runtime), 1);
+}

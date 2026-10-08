@@ -54,6 +54,22 @@ opens its chat and jumps to that message. Any chat can still be prompted normall
 pinning and archiving only change its sidebar organization. State is stored with
 each conversation in `$CODEBERG_HOME/web-sessions/`.
 
+## Follow-ups while working
+
+The composer stays available while the agent works. **Thinking…** appears in the
+chat while waiting, reasoning, or using tools, and disappears when response text
+starts appearing. Press Enter to queue a follow-up, including attachments;
+queued messages run in order and can be removed.
+
+Use the arrow beside a queued message, or the small **Steer** action beneath the
+composer, to use an instruction immediately. Steering stops the current response
+and starts a new turn with the instruction and the partial conversation so far.
+**Stop** pauses queued messages until you resume them. After a response fails,
+retry it before the queue continues.
+
+Queues stay with their chat when switching chats, but are held in browser memory;
+refreshing the page clears unsent follow-ups.
+
 ## Layout
 
 ```

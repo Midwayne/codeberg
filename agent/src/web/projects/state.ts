@@ -11,6 +11,10 @@ export class ProjectRequestRouterState {
 
   readonly handlers = new Map<string, ReturnType<ProjectRouterOptions['build']>>();
 
+  readonly deleting = new Set<string>();
+
+  readonly active = new Map<string, number>();
+
   constructor(readonly options: ProjectRouterOptions) {
     this.catalog = options.catalog;
     this.home = resolve(options.home ?? codebergHome());

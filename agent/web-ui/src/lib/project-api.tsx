@@ -22,6 +22,7 @@ export const ProjectApiContext = createContext<{
   project?: Project;
   fetch: typeof fetch;
   ready: boolean;
+  onProjectDeleted?: (catalog: ProjectCatalog) => void;
   onProjectRenamed?: (project: Project) => void;
 }>({ fetch: unscopedFetch, ready: true });
 export function useProjectApi() {

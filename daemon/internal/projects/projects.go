@@ -21,11 +21,17 @@ type Project struct {
 	LegacyIndex string `json:"legacyIndex,omitempty"`
 }
 
+type RemovedProject struct {
+	ID          string `json:"id"`
+	LegacyIndex string `json:"legacyIndex,omitempty"`
+}
+
 type Catalog struct {
-	Version   int       `json:"version"`
-	DefaultID string    `json:"defaultId"`
-	LegacyID  string    `json:"legacyId"`
-	Projects  []Project `json:"projects"`
+	Version   int              `json:"version"`
+	DefaultID string           `json:"defaultId"`
+	LegacyID  string           `json:"legacyId"`
+	Projects  []Project        `json:"projects"`
+	Removed   []RemovedProject `json:"removed,omitempty"`
 }
 
 type runtime struct {
@@ -57,7 +63,7 @@ func New(ctx context.Context, home string, cfg config.Indexer) (*Manager, error)
 		p.Name = "Existing workspace"
 	}
 
-	exists := false
+	exists, removed := false, false
 
 	for _, candidate := range m.catalog.Projects {
 		if candidate.ID == p.ID {
@@ -65,8 +71,12 @@ func New(ctx context.Context, home string, cfg config.Indexer) (*Manager, error)
 		}
 	}
 
-	if !exists {
-		if len(m.catalog.Projects) == 0 {
+	for _, candidate := range m.catalog.Removed {
+		removed = removed || candidate.ID == p.ID
+	}
+
+	if !exists && !removed {
+		if m.catalog.LegacyID == "" {
 			p.LegacyIndex = cfg.Index
 			m.catalog.LegacyID = p.ID
 		}
@@ -74,7 +84,10 @@ func New(ctx context.Context, home string, cfg config.Indexer) (*Manager, error)
 		m.catalog.Projects = append(m.catalog.Projects, p)
 	}
 
-	m.catalog.DefaultID = p.ID
+	if !removed {
+		m.catalog.DefaultID = p.ID
+	}
+
 	if err := m.save(); err != nil {
 		return nil, err
 	}

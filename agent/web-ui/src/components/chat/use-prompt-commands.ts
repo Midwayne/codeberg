@@ -27,9 +27,25 @@ export function usePromptCommands({ inputRef, value }: PromptCommandsOptions) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, MAX_HEIGHT)}px`;
+
+    resizePrompt(el);
   }, [value]);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    let width = 0;
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry || entry.contentRect.width === width) return;
+
+      width = entry.contentRect.width;
+      resizePrompt(el);
+    });
+    observer.observe(el);
+
+    return () => observer.disconnect();
+  }, [ref]);
 
   // Reset the highlight whenever the set of matches changes (new query).
   useEffect(() => {
@@ -37,6 +53,11 @@ export function usePromptCommands({ inputRef, value }: PromptCommandsOptions) {
   }, [query]);
 
   return { fileRef, setDismissed, ref, menuOpen, setActiveIndex, matches, activeIndex, commandId, commands, helpId };
+}
+
+function resizePrompt(element: HTMLTextAreaElement) {
+  element.style.height = 'auto';
+  element.style.height = `${Math.min(element.scrollHeight, MAX_HEIGHT)}px`;
 }
 
 export type PromptKeyboardOptions = { setValue: Parameters<typeof usePromptInput>[0]['onValueChange'] } & {

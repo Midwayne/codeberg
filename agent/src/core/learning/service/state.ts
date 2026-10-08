@@ -69,6 +69,8 @@ export class LearningServiceState {
 
   checking?: Promise<void>;
 
+  background?: Promise<void>;
+
   stopping = false;
 
   maintenance = false;

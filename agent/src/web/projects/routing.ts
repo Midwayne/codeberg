@@ -5,6 +5,8 @@ import { codebergHome } from '../../core/paths.js';
 import type { Project } from '../../core/projects.js';
 import { projectDataHome } from '../../core/projects.js';
 import { sameOrigin, sendJson, sendText } from '../http.js';
+import { servePage } from '../server/routes.js';
+import { deleteProject, trackRequest } from './delete.js';
 import { openConfig, pickDirectory, projects, renameProject } from './catalog.js';
 import type { ProjectRequestRouterState } from './state.js';
 
@@ -27,6 +29,8 @@ export async function route(
 ): Promise<void> {
   const url = new URL(req.url ?? '/', 'http://localhost');
   res.setHeader('Cache-Control', 'no-store');
+  if (!url.pathname.startsWith('/api/'))
+    return servePage(req, res, { title: state.options.title ?? 'Codeberg', staticRoot: state.options.staticRoot }, url.pathname);
 
   switch (url.pathname) {
     case '/api/config/open-directory':
@@ -38,7 +42,11 @@ export async function route(
   }
 
   const projectRoute = /^\/api\/projects\/([^/]+)$/.exec(url.pathname);
-  if (projectRoute) return renameProject(state, req, res, projectRoute[1]!);
+  if (projectRoute) {
+    return req.method === 'DELETE'
+      ? deleteProject(state, req, res, projectRoute[1]!)
+      : renameProject(state, req, res, projectRoute[1]!);
+  }
 
   return dispatchProject(state, req, res, url);
 }
@@ -71,6 +79,8 @@ export async function dispatchProject(
   );
   if (!project) return sendText(res, 404, 'project not found');
 
+  if (state.deleting.has(project.id)) return sendText(res, 409, 'project deletion in progress');
+
   if (url.pathname === '/api/project/retry') {
     if (req.method !== 'POST') return sendText(res, 405, 'method not allowed');
 
@@ -89,6 +99,34 @@ export async function dispatchProject(
     return sendJson(res, 200, await daemon(state, `/projects/${project.id}/health`));
   }
 
+  return dispatchHandler(state, req, res, url, project);
+}
+
+async function dispatchHandler(
+  state: ProjectRequestRouterState,
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+  project: Project,
+): Promise<void> {
+  if (state.deleting.has(project.id)) return sendText(res, 409, 'project deletion in progress');
+
+  // Canvas event streams are read-only and are closed by runtime disposal.
+  const release = url.pathname.endsWith('/events') ? undefined : trackRequest(state, project.id, res);
+  try {
+    await callHandler(state, req, res, url, project);
+  } finally {
+    release?.();
+  }
+}
+
+async function callHandler(
+  state: ProjectRequestRouterState,
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+  project: Project,
+): Promise<void> {
   if (
     (url.pathname === '/api/extensions' || url.pathname === '/api/extensions/skills/preview') &&
     state.options.extensions
@@ -100,7 +138,7 @@ export async function dispatchProject(
   }
 
   const selectedHandler = await projectHandler(state, project);
-  withProjectLog(
+  await withProjectLog(
     join(projectDataHome(state.options.home ?? codebergHome(), project.id), 'logs'),
     () => selectedHandler(req, res),
   );

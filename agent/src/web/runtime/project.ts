@@ -1,4 +1,5 @@
 import { canvasFromEnv } from '../../core/canvas/config.js';
+import { chatAbortSignal } from '../chat-abort.js';
 import type { CanvasStore } from '../../core/canvas/store.js';
 import { pipeAgentUIStreamToResponse } from 'ai';
 import { join } from 'node:path';
@@ -58,7 +59,7 @@ export async function buildProjectHandler(project: Project, options: ProjectRunt
 
   const pool = new ReloadableAgentPool(() => createWebModelPool(daemonUrl, learning ?? false, env,
     (model, selection) => track(model, selection.key, selection.model, 'chat')));
-  const runtime = { learning, resources, pool, canvas };
+  const runtime = { projectId: project.id, learning, resources, pool, canvas };
   owned.push(runtime);
   resources.start();
   await initializeRuntime(runtime, owned);
@@ -98,6 +99,7 @@ export function projectResponder(
 ): ChatResponder {
   return async (res, messages, selection) => {
     if (!selection) throw new Error('Choose a chat model first.');
+    const abortSignal = chatAbortSignal(res);
 
     const lease = await pool.acquire(
       selection,
@@ -127,6 +129,7 @@ export function projectResponder(
         response: res,
         agent: lease.agent,
         uiMessages: messages,
+        abortSignal,
       });
     } finally {
       routed = true;

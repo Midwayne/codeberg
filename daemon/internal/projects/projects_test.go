@@ -20,7 +20,11 @@ import (
 func setup(t *testing.T) (*Manager, string) {
 	t.Helper()
 	home := t.TempDir()
-	root := t.TempDir()
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	m, err := New(context.Background(), home, config.Indexer{Root: root, Roots: []domain.Repo{{Key: "original", Root: root}}, DefaultKey: "original"})
 	if err != nil {
 		t.Fatal(err)

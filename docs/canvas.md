@@ -23,6 +23,10 @@ later tool calls update that same preview without reloading it. The card shows
 **Agent is editing…** while drawing tools run.
 The inline preview keeps drawing controls hidden; **Expand canvas** opens the same
 scene in a full-window Excalidraw editor, where you can edit alongside the agent.
+A floating canvas button also appears at the top-right of chats with a drawing.
+It stays visible while scrolling and opens the same canvas in a new window, so
+you can return to it without finding the first drawing response. The action is
+hidden when local canvas is disabled.
 The scene enters with a brief fade and a small upward settle. Incoming changes
 crossfade over 180 ms with a brief **Canvas updated** indication, while manual
 editing stays immediate. Reduced motion uses a fade-only entrance and static

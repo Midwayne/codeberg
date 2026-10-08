@@ -22,7 +22,7 @@ export function PromptTextarea({ state }: PromptTextareaProps) {
       }}
       onPaste={(event) => {
         const images = clipboardImages(event.clipboardData.files, state.inputs);
-        if (!images.length || state.busy || state.disabled) return;
+        if (!images.length || state.disabled) return;
         event.preventDefault();
         const oversized = images.find((file) => file.size > MAX_FILE_SIZE);
         if (oversized) {
@@ -33,8 +33,9 @@ export function PromptTextarea({ state }: PromptTextareaProps) {
         state.setFileError('');
       }}
       onKeyDown={state.onKeyDown}
-      placeholder="Ask about the codebase…"
-      className="max-h-[200px] min-w-0 flex-1 resize-none bg-transparent px-2 py-3 text-base leading-6 outline-none placeholder:text-muted-foreground sm:text-sm"
+      disabled={state.disabled}
+      placeholder={state.busy ? 'Add a follow-up or steer the response…' : 'Ask about the codebase…'}
+      className="max-h-[200px] min-h-8 min-w-0 flex-1 resize-none bg-transparent px-1 py-1 text-base leading-6 outline-none placeholder:text-muted-foreground placeholder:italic"
     />
   );
 }

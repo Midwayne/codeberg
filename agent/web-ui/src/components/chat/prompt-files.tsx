@@ -1,9 +1,9 @@
-import { ArrowUp, Paperclip, Square, X } from 'lucide-react';
-
-import { cn } from '../../lib/utils';
+import { ChevronDown, Paperclip, X } from 'lucide-react';
 
 import { type PromptInputView } from './prompt-input';
 import { inputFor, MAX_FILE_SIZE } from '../../lib/prompt-files';
+
+export { PromptAction } from './prompt-actions';
 
 export type PromptAttachmentsProps = { state: Parameters<typeof PromptInputView>[0] };
 
@@ -36,46 +36,16 @@ export function PromptAttachments({ state }: PromptAttachmentsProps) {
         />
         <button
           type="button"
-          disabled={state.busy}
+          disabled={state.disabled}
           onClick={() => state.fileRef.current?.click()}
           aria-label="Attach files"
           title="Attach files"
-          className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent disabled:opacity-30"
+          className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-foreground hover:bg-accent disabled:opacity-30"
         >
-          <Paperclip className="size-4" />
+          <Paperclip aria-hidden="true" className="size-5" />
         </button>
       </>
     )
-  );
-}
-
-export type PromptActionProps = { state: Parameters<typeof PromptInputView>[0] };
-
-export function PromptAction({ state }: PromptActionProps) {
-  return state.busy ? (
-    <button
-      type="button"
-      onClick={state.onStop}
-      aria-label="Stop"
-      title="Stop"
-      className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-opacity hover:opacity-90"
-    >
-      <Square className="size-3.5 fill-current" />
-    </button>
-  ) : (
-    <button
-      type="button"
-      onClick={state.submit}
-      disabled={state.disabled || (!state.value.trim() && !state.files.length)}
-      aria-label="Send"
-      title="Send"
-      className={cn(
-        'inline-flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-opacity',
-        'hover:opacity-90 disabled:opacity-30',
-      )}
-    >
-      <ArrowUp className="size-4" />
-    </button>
   );
 }
 
@@ -84,24 +54,33 @@ export type PromptFilesProps = { state: Parameters<typeof PromptInputView>[0] };
 export function PromptFiles({ state }: PromptFilesProps) {
   return (
     state.files.length > 0 && (
-      <div className="flex flex-wrap gap-1.5 px-2 pb-2">
-        {state.files.map((file, index) => (
-          <span
-            key={`${file.name}-${index}`}
-            className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-md bg-muted pl-2 text-xs"
-          >
-            <span className="truncate">{file.name}</span>
-            <button
-              type="button"
-              className="inline-flex size-9 shrink-0 items-center justify-center rounded-md hover:bg-accent"
-              aria-label={`Remove ${file.name}`}
-              onClick={() => state.setFiles(state.files.filter((_, i) => i !== index))}
+      <details className="group relative shrink-0">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded-full bg-muted px-3 text-sm [&::-webkit-details-marker]:hidden">
+          {state.files.length} {state.files.length === 1 ? 'file' : 'files'}
+          <ChevronDown aria-hidden="true" className="size-3.5 text-muted-foreground group-open:rotate-180" />
+        </summary>
+        <div className="absolute bottom-full left-0 z-30 mb-3 max-h-56 w-[min(20rem,calc(100vw-3rem))] overflow-y-auto rounded-xl border border-border bg-popover p-1 text-popover-foreground">
+          {state.files.map((file, index) => (
+            <span
+              key={`${file.name}-${index}`}
+              className="flex min-w-0 items-center gap-2 rounded-lg pl-3 text-sm"
             >
-              <X className="size-3.5" />
-            </button>
-          </span>
-        ))}
-      </div>
+              <span className="min-w-0 flex-1 truncate" title={file.name}>{file.name}</span>
+              <button
+                type="button"
+                className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg hover:bg-accent"
+                aria-label={`Remove ${file.name}`}
+                onClick={() => {
+                  state.setFiles(state.files.filter((_, i) => i !== index));
+                  if (state.files.length === 1) state.ref?.current?.focus();
+                }}
+              >
+                <X aria-hidden="true" className="size-3.5" />
+              </button>
+            </span>
+          ))}
+        </div>
+      </details>
     )
   );
 }

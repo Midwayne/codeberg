@@ -9,6 +9,7 @@ import { ModelSettingsStore } from '../model-selection/settings.js';
 import { ResourceSettings } from '../resources.js';
 
 export interface OwnedRuntime {
+  projectId?: string;
   canvas?: CanvasStore;
   learning?: LearningService;
   resources: ResourceSettings;

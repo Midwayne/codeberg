@@ -13,6 +13,7 @@ export type PromptInputOptions = {
   disabled?: boolean;
   inputs: CatalogModel['inputs'];
   onSend: (text: string, files: FileList) => void;
+  onSteer?: (text: string, files: FileList) => void;
   onStop: () => void;
 };
 
@@ -24,23 +25,24 @@ export function usePromptInput({
   disabled = false,
   inputs,
   onSend,
+  onSteer,
   onStop,
 }: PromptInputOptions) {
   const files = usePromptFiles({ inputs });
   const commands = usePromptCommands({ inputRef, value });
-  const { submit } = createPromptSubmit({
+  const { submit, steer } = createPromptSubmit({
     ...files,
     value,
-    busy,
     disabled,
     onSend,
+    onSteer,
     setValue,
     fileRef: commands.fileRef,
     setDismissed: commands.setDismissed,
   });
   const keyboard = usePromptKeyboard({ ...commands, setValue, submit });
 
-  return { ...files, ...commands, ...keyboard, value, setValue, inputs, busy, disabled, onStop, submit };
+  return { ...files, ...commands, ...keyboard, value, setValue, inputs, busy, disabled, onStop, submit, steer };
 }
 
 export type PromptFilesOptions = Pick<Parameters<typeof usePromptInput>[0], 'inputs'>;
@@ -74,7 +76,7 @@ export function usePromptFiles({ inputs }: PromptFilesOptions) {
 
 export type PromptSubmitOptions = Pick<
   Parameters<typeof usePromptInput>[0],
-  'value' | 'busy' | 'disabled' | 'onSend'
+  'value' | 'disabled' | 'onSend' | 'onSteer'
 > & {
   files: File[];
   setValue: Parameters<typeof usePromptInput>[0]['onValueChange'];
@@ -87,21 +89,21 @@ export type PromptSubmitOptions = Pick<
 export function createPromptSubmit({
   value,
   files,
-  busy,
   disabled,
   onSend,
+  onSteer,
   setValue,
   setFiles,
   setFileError,
   fileRef,
   setDismissed,
 }: PromptSubmitOptions) {
-  function submit() {
+  function sendWith(send: PromptInputOptions['onSend']) {
     const text = value.trim();
-    if ((!text && !files.length) || busy || disabled) return;
+    if ((!text && !files.length) || disabled) return;
     const transfer = new DataTransfer();
     for (const file of files) transfer.items.add(file);
-    onSend(text, transfer.files);
+    send(text, transfer.files);
     setValue('');
     setFiles([]);
     setFileError('');
@@ -109,5 +111,5 @@ export function createPromptSubmit({
     setDismissed(false);
   }
 
-  return { submit };
+  return { submit: () => sendWith(onSend), steer: onSteer ? () => sendWith(onSteer) : undefined };
 }

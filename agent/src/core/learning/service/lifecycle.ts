@@ -30,11 +30,15 @@ export async function start(state: LearningServiceState): Promise<void> {
   wakeWorker(state);
   if (state.hasGenerator) {
     state.refreshTimer = setInterval(() => {
-      void refreshKnowledge(state)
+      if (state.background) return;
+
+      state.background = refreshKnowledge(state)
         .then(() => scheduleDreaming(state))
         .catch((error: unknown) => {
           console.error('knowledge refresh scan failed:', error);
           writeModuleLog('learning-agent', 'refresh_scan_failed', { error: String(error) });
+        }).finally(() => {
+          state.background = undefined;
         });
     }, 2 * 60_000);
     state.refreshTimer.unref();

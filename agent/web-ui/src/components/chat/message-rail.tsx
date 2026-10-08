@@ -34,7 +34,7 @@ export function MessageRailView(state: MessageRailViewProps) {
       ref={state.railRef}
       aria-label="Jump to message"
       className={cn(
-        'absolute inset-y-2 right-3 z-20 hidden w-7 cursor-pointer sm:block',
+        'absolute inset-y-2 right-3 z-30 hidden w-7 cursor-pointer sm:block',
         'opacity-90 transition-opacity duration-150',
         'hover:opacity-100 focus-within:opacity-100',
       )}

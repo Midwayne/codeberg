@@ -9,11 +9,12 @@ export type DialogProps = {
   onClose: () => void;
   className?: string;
   children: ReactNode;
+  preventClose?: boolean;
   motion?: 'center' | 'anchored' | 'drawer';
 };
 
 /** Native modality supplies focus containment, Escape, and background inertness. */
-export function Dialog({ open = true, label, onClose, className, children, motion = 'center' }: DialogProps) {
+export function Dialog({ open = true, label, onClose, className, children, motion = 'center', preventClose = false }: DialogProps) {
   const present = useMotionPresence();
   const visible = open && present;
   const ref = useNativeDialog(visible);
@@ -27,13 +28,13 @@ export function Dialog({ open = true, label, onClose, className, children, motio
       data-ui-dialog={motion}
       onCancel={(event) => {
         event.preventDefault();
-        ref.current?.close();
+        if (!preventClose) ref.current?.close();
       }}
       onClose={() => {
         if (visible && ref.current && !ref.current.open) onClose();
       }}
       onClick={(event) => {
-        if (event.target === event.currentTarget) ref.current?.close();
+        if (!preventClose && event.target === event.currentTarget) ref.current?.close();
       }}
       className={cn(
         'max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl border-0 bg-popover p-0 text-popover-foreground shadow-xl',

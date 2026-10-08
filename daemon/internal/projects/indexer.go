@@ -43,7 +43,11 @@ func (m *Manager) projectConfig(p Project) config.Indexer {
 // InitialConfig migrates local caches before the initial indexer starts. A remote
 // store retains its namespace to avoid silently rebuilding into another table.
 func (m *Manager) InitialConfig() (config.Indexer, error) {
-	p, _ := m.project(m.catalog.DefaultID)
+	p, ok := m.project(m.catalog.DefaultID)
+	if !ok {
+		return config.Indexer{}, nil
+	}
+
 	cfg := m.projectConfig(p)
 	// Preserve the configured initial IPC endpoint for existing local clients.
 	if m.base.Socket != "" {

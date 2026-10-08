@@ -52,21 +52,10 @@ func main() {
 	// Include indexing/bootstrap in history rather than starting only once ready.
 	metrics.Start(ctx)
 
-	sup, err := supervisor.Start(ctx, cfg.Indexer)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	defer sup.Stop()
-
+	stop := startInitialProject(ctx, cfg, metrics)
+	defer stop()
 	idx := indexctl.NewClient(cfg.Socket)
-
-	// Serve the project UI while the initial index is still being built.
-	go waitForInitialIndex(ctx, cfg, idx, metrics)
-
-	go gitpull.Run(ctx, cfg.GitDirs, cfg.GitPull)
-
-	httpSrv := serveProjects(cfg, idx, metrics, projectManager)
+	httpSrv := serveProjects(cfg, idx, metrics, projectManager, stop)
 
 	<-ctx.Done()
 
@@ -98,7 +87,7 @@ func waitForInitialIndex(ctx context.Context, cfg config.Daemon, idx *indexctl.C
 	metrics.InvalidateDisk()
 }
 
-func serveProjects(cfg config.Daemon, idx *indexctl.Client, metrics *resources.Collector, projectManager *projects.Manager) *http.Server {
+func serveProjects(cfg config.Daemon, idx *indexctl.Client, metrics *resources.Collector, projectManager *projects.Manager, stop func()) *http.Server {
 	repos := make([]workspace.RepoInfo, 0, len(cfg.Roots))
 	roots := make([]string, 0, len(cfg.Roots))
 
@@ -115,7 +104,10 @@ func serveProjects(cfg config.Daemon, idx *indexctl.Client, metrics *resources.C
 	address := net.JoinHostPort("127.0.0.1", cfg.HTTPPort)
 	log.Printf("codeberg-d: roots=[%s] http=%s socket=%s", strings.Join(roots, " "), address, cfg.Socket)
 
-	projectManager.WithGitPull(cfg.GitPull).BindDefault(srv.Handler())
+	projectManager.WithGitPull(cfg.GitPull)
+	if len(cfg.Roots) > 0 {
+		projectManager.BindDefault(srv.Handler(), stop)
+	}
 	httpSrv := &http.Server{Addr: address, Handler: projectManager.Handler(srv.Handler())}
 	go func() {
 		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -125,4 +117,28 @@ func serveProjects(cfg config.Daemon, idx *indexctl.Client, metrics *resources.C
 	}()
 
 	return httpSrv
+}
+
+func startInitialProject(ctx context.Context, cfg config.Daemon, metrics *resources.Collector) func() {
+	if len(cfg.Roots) == 0 {
+		return func() {}
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	sup, err := supervisor.Start(ctx, cfg.Indexer)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	go waitForInitialIndex(ctx, cfg, indexctl.NewClient(cfg.Socket), metrics)
+	dirs := make([]string, 0, len(cfg.Roots))
+	for _, root := range cfg.Roots {
+		dirs = append(dirs, root.Root)
+	}
+
+	go gitpull.Run(ctx, dirs, cfg.GitPull)
+	return func() {
+		sup.Stop()
+		cancel()
+	}
 }

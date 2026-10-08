@@ -2,8 +2,8 @@
 import { stat } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import { join } from 'node:path';
-import { buildProjectHandler } from './runtime/project.js';
-import { installShutdown } from './runtime/shutdown.js';
+import { buildProjectHandler, defaultStaticRoot } from './runtime/project.js';
+import { disposeProjectRuntime, installShutdown } from './runtime/shutdown.js';
 import type { OwnedRuntime, ProjectRuntimeOptions } from './runtime/types.js';
 
 import { DEFAULT_DAEMON_URL } from '../core/client.js';
@@ -120,9 +120,12 @@ function createProjectServer(options: ProjectRuntimeOptions): Server {
   return createServer(
     createProjectRequestHandler({
       catalog,
+      title: options.title,
+      staticRoot: process.env.CODEBERG_WEB_ROOT ?? defaultStaticRoot(),
       daemonUrl: entry.daemonUrl,
       extensions: (req, res, project) =>
         extensions.route(req, res, projectEnvironment(process.env, project, catalog)),
+      dispose: (id) => disposeProjectRuntime(options.owned, id),
       build: (project) => buildProjectHandler(project, options),
     }),
   );

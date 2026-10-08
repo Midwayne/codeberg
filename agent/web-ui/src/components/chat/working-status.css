@@ -1,0 +1,34 @@
+.thinking-label {
+  display: inline-block;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.thinking-letter {
+  opacity: 0.65;
+}
+
+/* Staggered opacity sends one soft highlight from the T to the ellipsis. */
+@media (prefers-reduced-motion: no-preference) {
+  .thinking-letter {
+    animation: thinking-sweep 2.1s cubic-bezier(0.645, 0.045, 0.355, 1) infinite both;
+  }
+}
+
+@keyframes thinking-sweep {
+  0%, 22%, 100% {
+    opacity: 0.65;
+  }
+  11% {
+    opacity: 1;
+  }
+}
+
+/* A steady label preserves the same status under reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  .thinking-letter {
+    animation: none;
+    opacity: 1;
+  }
+}
