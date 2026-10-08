@@ -1,7 +1,11 @@
 import type { SkillSummary } from './context/skills.js';
 import type { McpServerReport } from './mcp/catalog.js';
 import { AGENT_GUIDANCE } from './prompts/guidance.js';
-import { strategyInstructions, toolInstructions } from './prompts/instructions.js';
+import {
+  batchInstructions,
+  strategyInstructions,
+  toolInstructions,
+} from './prompts/instructions.js';
 
 function baseAgentSystem(learning: boolean | { knowledge: boolean; history: boolean }): string {
   const knowledge = typeof learning === 'boolean' ? learning : learning.knowledge;
@@ -24,6 +28,8 @@ export interface AgentSystemPromptOptions {
   skills?: readonly SkillSummary[];
   /** Absolute context root the dynamic-context tools read from. */
   contextRoot?: string;
+  /** Max calls when the `batch` tool is registered; omit when it is not. */
+  batch?: number;
 }
 
 const MAX_MCP_TOOLS_LISTED = 40;
@@ -43,6 +49,10 @@ export function agentSystemPrompt(web: AgentSystemPromptOptions): string {
   const skills = web.skills ?? [];
   const contextRoot = web.contextRoot;
   const lines = [web.learning === undefined ? AGENT_SYSTEM : baseAgentSystem(web.learning)];
+  if (web.batch) {
+    lines.push(batchInstructions(web.batch));
+  }
+
   if (contextRoot) {
     lines.push(
       '',

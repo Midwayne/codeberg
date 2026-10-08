@@ -51,6 +51,26 @@ describe('profileFor', () => {
   });
 });
 
+describe('tool batching', () => {
+  it('relies on native parallel calls for hosted frontier providers', () => {
+    for (const spec of ['anthropic:claude-opus-4-8', 'openai:gpt-5', 'google:gemini-2.5-pro']) {
+      expect(profileFor(spec, {}).toolBatch).toBe(false);
+    }
+  });
+
+  it('offers batch to local and unknown servers', () => {
+    for (const spec of ['ollama:qwen3', 'llamacpp:local', 'thinktank:x']) {
+      expect(profileFor(spec, {}).toolBatch).toBe(true);
+    }
+  });
+
+  it('honours CODEBERG_TOOL_BATCH either way', () => {
+    expect(profileFor('openai:gpt-5', { CODEBERG_TOOL_BATCH: 'on' }).toolBatch).toBe(true);
+    expect(profileFor('ollama:qwen3', { CODEBERG_TOOL_BATCH: 'off' }).toolBatch).toBe(false);
+    expect(profileFor('ollama:qwen3', { CODEBERG_TOOL_BATCH: 'maybe' }).toolBatch).toBe(true);
+  });
+});
+
 describe('budgets', () => {
   it('reserves half the window for history and 60% for the prune mark', () => {
     const p = profileFor('openai:gpt-4o', {});

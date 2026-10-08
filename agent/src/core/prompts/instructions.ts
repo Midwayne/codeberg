@@ -41,5 +41,20 @@ ${knowledge || history ? `0. For complex codebase questions, ${knowledge ? 'sear
 9. Follow imports, function calls, client calls, repository methods, ORM models, queries, and configuration references.
 10. Search across repositories/services when the code indicates microservice boundaries or shared dependencies.
 11. Prefer a single pipe call over several grep/read_file/head/wc calls when the work is expressible as a pipeline.
-12. Stop only when you can answer with cited evidence, or when further tracing is blocked by missing code.`;
+12. Stop only when you can answer with cited evidence, or when further tracing is blocked by missing code.
+
+Tool-call efficiency:
+Every response you send is a round trip that re-reads the whole conversation, so the number of responses drives cost and latency more than the number of tool calls.
+- Put every independent tool call in the same response. Calls are independent when none needs another's result: grep for three identifiers, read_file the files a search just returned, search_code and find_symbol for the same concept, outline two files. They run concurrently.
+- Wait for a result only when the next call needs it, for example the path or symbol a search will reveal.
+- Plan each response as a wave: what do I need next that I can already name? Ask for all of it at once, then reason over the results together.
+- Do not repeat a call whose result is already in the conversation or the evidence ledger.`;
+}
+
+/** Only for models given the `batch` tool. Kept out of the base prompt so the
+ *  model is never told about a tool that is not registered. */
+export function batchInstructions(maxCalls: number): string {
+  return `
+Batch tool:
+- batch: run up to ${maxCalls} independent tool calls in one call; results come back in order. Use it whenever a response would contain more than one independent call — it guarantees they all run in this step even if your runtime returns one tool call per response.`;
 }

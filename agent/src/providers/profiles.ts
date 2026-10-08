@@ -19,6 +19,9 @@ export interface ModelProfile {
   workingWindow?: number;
   /** How the frozen prefix (system + tools) is marked for prompt caching. */
   cache: CacheStrategy;
+  /** Register the `batch` tool, for models that may return only one tool
+   *  call per response. Unset means off. */
+  toolBatch?: boolean;
 }
 
 const ONE_MILLION = 1_000_000;
@@ -82,8 +85,39 @@ export function profileFor(spec: string, env: NodeJS.ProcessEnv = process.env): 
 
   const contextWindow = positiveTokens(env.CODEBERG_CONTEXT_WINDOW) ?? windowFor(provider, modelId);
   const workingWindow = positiveTokens(env.CODEBERG_CONTEXT_BUDGET) ?? DEFAULT_WORKING_WINDOW;
+  const toolBatch = toggle(env.CODEBERG_TOOL_BATCH) ?? !nativeParallelTools(provider);
 
-  return { provider, modelId, contextWindow, workingWindow, cache: cacheFor(provider) };
+  return {
+    provider,
+    modelId,
+    contextWindow,
+    workingWindow,
+    cache: cacheFor(provider),
+    toolBatch,
+  };
+}
+
+/** Hosted frontier APIs return several tool calls per response reliably.
+ *  Local and unknown OpenAI-compatible servers depend on the loaded model's
+ *  chat template, and many emit one call at most, so they get `batch`. */
+function nativeParallelTools(provider: string): boolean {
+  switch (provider) {
+    case 'anthropic':
+    case 'openai':
+    case 'google':
+      return true;
+    default:
+      return false;
+  }
+}
+
+function toggle(value: string | undefined): boolean | undefined {
+  const v = (value ?? '').trim().toLowerCase();
+  if (['1', 'true', 'on', 'yes'].includes(v)) return true;
+
+  if (['0', 'false', 'off', 'no'].includes(v)) return false;
+
+  return undefined;
 }
 
 /** Tokens the budgets below are fractions of: the window, capped by `workingWindow`. */

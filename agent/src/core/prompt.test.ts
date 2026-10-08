@@ -10,6 +10,20 @@ describe('agentSystemPrompt', () => {
     expect(AGENT_SYSTEM).toContain('retry once with fewer constraints');
   });
 
+  it('asks every model to group independent tool calls into one response', () => {
+    expect(AGENT_SYSTEM).toContain('Tool-call efficiency:');
+    expect(AGENT_SYSTEM).toContain('Put every independent tool call in the same response');
+    expect(AGENT_SYSTEM).toContain('Wait for a result only when the next call needs it');
+  });
+
+  it('describes batch only when the tool is registered', () => {
+    expect(AGENT_SYSTEM).not.toContain('- batch:');
+
+    const p = agentSystemPrompt({ enabled: false, search: false, batch: 8 });
+    expect(p).toContain('- batch: run up to 8 independent tool calls');
+    expect(p.startsWith(AGENT_SYSTEM)).toBe(true);
+  });
+
   it('is exactly AGENT_SYSTEM when web and MCP are off', () => {
     expect(agentSystemPrompt({ enabled: false, search: false })).toBe(AGENT_SYSTEM);
   });
