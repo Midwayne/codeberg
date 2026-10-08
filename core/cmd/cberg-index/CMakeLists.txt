@@ -26,3 +26,14 @@ target_include_directories(test_cberg_engine PRIVATE
 target_link_libraries(test_cberg_engine PRIVATE codeberg::codeberg)
 add_test(NAME test_cberg_engine COMMAND test_cberg_engine)
 set_tests_properties(test_cberg_engine PROPERTIES TIMEOUT 60)
+
+add_executable(test_cberg_vectors test_vectors.c indexer.c ipc.c)
+target_include_directories(test_cberg_vectors PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../src/common
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../src/chunk)
+target_link_libraries(test_cberg_vectors PRIVATE codeberg::codeberg)
+target_compile_definitions(test_cberg_vectors PRIVATE
+  CBERG_LOG_WORKER="${CMAKE_CURRENT_SOURCE_DIR}/embed_log_worker.py")
+add_test(NAME test_cberg_vectors COMMAND test_cberg_vectors)
+set_tests_properties(test_cberg_vectors PROPERTIES TIMEOUT 60)
