@@ -17,7 +17,7 @@ it.each(['submitted', 'streaming'] as const)('shows %s activity in the conversat
       <Chat chat={chat} sessionId="demo" learningEnabled={false} chatInputs={['text']} />
     </ProjectApiContext.Provider>,
   );
-  const [conversation = '', composer = ''] = html.split('<div class="shrink-0 border-t border-border bg-background">');
+  const [conversation = '', composer = ''] = html.split('<section aria-label="Message composer"');
   const label = 'Thinking…';
 
   expect(conversation).toContain(label);

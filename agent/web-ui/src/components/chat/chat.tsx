@@ -130,7 +130,7 @@ export type ChatComposerProps = { state: Parameters<typeof ChatView>[0] };
 
 function ChatComposer({ state }: ChatComposerProps) {
   return (
-    <div className="shrink-0 border-t border-border bg-background">
+    <section aria-label="Message composer" className="shrink-0 bg-background">
       <div className="mx-auto max-w-3xl px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-8">
         <QueuedFollowUps queue={state.queue} busy={state.busy} failed={state.status === 'error'} />
         <PromptInput
@@ -146,7 +146,7 @@ function ChatComposer({ state }: ChatComposerProps) {
           onStop={state.queue.stop}
         />
       </div>
-    </div>
+    </section>
   );
 }
 

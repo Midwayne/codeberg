@@ -35,7 +35,7 @@ export function PromptTextarea({ state }: PromptTextareaProps) {
       onKeyDown={state.onKeyDown}
       disabled={state.disabled}
       placeholder={state.busy ? 'Add a follow-up or steer the response…' : 'Ask about the codebase…'}
-      className="max-h-[200px] min-w-0 flex-1 resize-none bg-transparent px-2 py-3 text-base leading-6 outline-none placeholder:text-muted-foreground sm:text-sm"
+      className="max-h-[200px] min-h-8 min-w-0 flex-1 resize-none bg-transparent px-1 py-1 text-base leading-6 outline-none placeholder:text-muted-foreground placeholder:italic"
     />
   );
 }

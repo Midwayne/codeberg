@@ -3,8 +3,24 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { clipboardImages, PromptInput } from './prompt-input';
 import { createPromptSubmit } from './use-prompt-input';
+import { PromptFiles } from './prompt-files';
+import type { PromptInputViewProps } from './prompt-input';
 
 describe('PromptInput attachments', () => {
+  it('groups attachments behind a compact file count with named removal controls', () => {
+    const state = { files: [
+      { name: 'source.png', type: 'image/png' },
+      { name: 'spec.pdf', type: 'application/pdf' },
+      { name: 'diagram.png', type: 'image/png' },
+    ], setFiles: vi.fn() } as unknown as PromptInputViewProps;
+    const html = renderToStaticMarkup(<PromptFiles state={state} />);
+
+    expect(html).toContain('<details');
+    expect(html).toContain('3 files');
+    expect(html).toContain('aria-label="Remove spec.pdf"');
+    expect(html).toContain('diagram.png');
+  });
+
   it('keeps an active composer available for queued follow-ups and steering, with a separate Stop action', () => {
     const html = renderToStaticMarkup(
       <PromptInput value="Focus on the watcher" onValueChange={() => undefined} inputs={['text', 'vision']}
