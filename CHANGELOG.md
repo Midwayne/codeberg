@@ -162,8 +162,27 @@ changes may occur in minor releases and are called out explicitly.
 - **Compact JSON** — daemon HTTP responses no longer pretty-print every payload.
 - **Core tests** — `core/test/test_common.h` added for shared `CHECK` macro
   (migration of individual test files pending).
+- **Anthropic conversation caching** — every tool step marks the transcript
+  tail as a cache breakpoint (alongside the 1h system breakpoint), so earlier
+  tool results are billed at the cache-read rate instead of re-sent at full
+  price on every round.
+- **Working context budget** — history compaction (50%) and in-loop pruning
+  (60%) are computed from `min(context window, CODEBERG_CONTEXT_BUDGET)`,
+  default 200K tokens, instead of the full 1M window, keeping requests below
+  long-context pricing tiers.
+- **Compaction model** — history summaries run on `CODEBERG_SUBAGENT_MODEL`
+  when it is set, not the chat model.
+- **Spill threshold** — structured tool results are measured at their compact
+  wire size, so results that fit stay inline instead of costing a
+  `context_read` round trip.
+- **Daemon `grep`** — streams ripgrep output and stops rg at the result limit
+  instead of buffering every match (about 35× faster, ~1000× less memory on a
+  broad pattern), and previews lines longer than 512 columns.
 
 ### Fixed
+
+- **Daemon `grep` on minified files** — a single line over 4 MB no longer fails
+  the whole call with `bufio.Scanner: token too long`.
 
 - **History compaction** — the verbatim older transcript is archived once. A
   summary that still overflows becomes an omission marker that still names
