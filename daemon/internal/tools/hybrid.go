@@ -41,24 +41,17 @@ func runHybridSearch(ctx context.Context, idx indexctl.Indexer, ws *workspace.Wo
 		k = 64
 	}
 
-	candidates, searchErr := idx.Search(ctx, indexctl.SearchOptions{
-		Query:    a.Query,
-		K:        min(k*2, 64),
-		Repo:     a.Repo,
-		PathGlob: a.PathGlob,
-		Kind:     a.Kind,
-		MinScore: a.MinScore,
-	})
-	if searchErr != nil {
-		ie, ok := indexctl.AsIndexerError(searchErr)
-		if !ok || ie.Code != "NOT_IMPLEMENTED" {
-			return nil, searchErr
-		}
+	vectors := startVectorCandidates(ctx, idx, a, min(k*2, 64))
+	matches, lexicalErr := hybridLexicalMatches(ctx, ws, idx, a, min(k*4, 64))
+
+	result := <-vectors
+	candidates, searchErr := result.hits, result.err
+	if searchErr != nil && !vectorsUnavailable(searchErr) {
+		return nil, searchErr
 	}
 
-	matches, err := hybridLexicalMatches(ctx, ws, idx, a, min(k*4, 64))
-	if err != nil {
-		return nil, err
+	if lexicalErr != nil {
+		return nil, lexicalErr
 	}
 
 	if searchErr != nil && len(matches) == 0 {
@@ -68,4 +61,34 @@ func runHybridSearch(ctx context.Context, idx indexctl.Indexer, ws *workspace.Wo
 	hits := search.Fuse(candidates, matches, k, a.Query)
 	enrichHybridContext(ctx, idx, ws, hits)
 	return hits, nil
+}
+
+type vectorCandidates struct {
+	hits []indexctl.SearchResult
+	err  error
+}
+
+// startVectorCandidates runs the vector half on its own goroutine so the
+// indexer's embedding and ANN search overlap with the rg subprocess.
+func startVectorCandidates(ctx context.Context, idx indexctl.Indexer, a searchArgs, k int) <-chan vectorCandidates {
+	out := make(chan vectorCandidates, 1)
+
+	go func() {
+		hits, err := idx.Search(ctx, indexctl.SearchOptions{
+			Query:    a.Query,
+			K:        k,
+			Repo:     a.Repo,
+			PathGlob: a.PathGlob,
+			Kind:     a.Kind,
+			MinScore: a.MinScore,
+		})
+		out <- vectorCandidates{hits: hits, err: err}
+	}()
+
+	return out
+}
+
+func vectorsUnavailable(err error) bool {
+	ie, ok := indexctl.AsIndexerError(err)
+	return ok && ie.Code == "NOT_IMPLEMENTED"
 }

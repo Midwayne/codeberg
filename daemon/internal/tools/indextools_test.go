@@ -7,7 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"codeberg.org/codeberg/daemon/internal/indexctl"
 	"codeberg.org/codeberg/daemon/internal/search"
@@ -299,6 +301,52 @@ func TestHybridSearchKindUsesOutlineKind(t *testing.T) {
 		if got := len(out.([]search.HybridHit)); got != tc.want {
 			t.Fatalf("kind %q: got %d want %d", tc.kind, got, tc.want)
 		}
+	}
+}
+
+// overlapIndexer answers vector search only once the lexical half has asked
+// for an outline, so it deadlocks unless both halves run concurrently.
+type overlapIndexer struct {
+	testutil.FakeIndexer
+	lexicalStarted chan struct{}
+	once           sync.Once
+}
+
+func (o *overlapIndexer) Search(ctx context.Context, _ indexctl.SearchOptions) ([]indexctl.SearchResult, error) {
+	select {
+	case <-o.lexicalStarted:
+		return []indexctl.SearchResult{{ID: 9, Repo: "main", Path: "exact.go", StartLine: 1, EndLine: 1}}, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (o *overlapIndexer) FileOutline(ctx context.Context, repo, path string) ([]indexctl.SearchResult, error) {
+	o.once.Do(func() { close(o.lexicalStarted) })
+	return o.FakeIndexer.FileOutline(ctx, repo, path)
+}
+
+func TestHybridSearchOverlapsVectorAndLexicalRetrieval(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(root+"/exact.go", []byte("func checkoutSessionToken() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	idx := &overlapIndexer{lexicalStarted: make(chan struct{})}
+	idx.OutlineHits = []indexctl.SearchResult{{ID: 9, Repo: "main", Path: "exact.go", Kind: "function", StartLine: 1, EndLine: 1}}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	reg := Default(testutil.WsSingle(root), idx)
+	out, err := reg.Call(ctx, "hybrid_search", json.RawMessage(`{"query":"checkoutSessionToken","kind":"function"}`))
+	if err != nil {
+		t.Fatalf("vector search should not wait for lexical retrieval to finish: %v", err)
+	}
+
+	hits := out.([]search.HybridHit)
+	if len(hits) != 1 || hits[0].Hit.ID != 9 {
+		t.Fatalf("vector and lexical evidence should fuse into one hit: %+v", hits)
 	}
 }
 
