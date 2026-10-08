@@ -11,6 +11,7 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/un.h>
+#include <time.h>
 #include <unistd.h>
 
 static int failures;
@@ -130,6 +131,21 @@ static char *ipc_request(const char *socket_path, const char *req, size_t *out_l
     return buf;
 }
 
+static void hang_up_after_request(const char *socket_path, const char *req) {
+    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (fd < 0) {
+        return;
+    }
+
+    struct sockaddr_un addr = {0};
+    addr.sun_family = AF_UNIX;
+    strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path) - 1);
+    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == 0 && write(fd, req, strlen(req)) < 0) {
+        fprintf(stderr, "warning: request write failed\n");
+    }
+    close(fd);
+}
+
 static size_t count_substr(const char *s, const char *needle) {
     size_t n = 0;
     for (const char *p = strstr(s, needle); p != NULL; p = strstr(p + 1, needle)) {
@@ -195,6 +211,15 @@ static void check_ipc(cberg_engine *eng, const char *sock) {
     CHECK(resp != NULL && !has_raw_control(resp, len), "control chars escaped");
     CHECK(resp != NULL && strstr(resp, "\\u000c") != NULL && strstr(resp, "\\u001b") != NULL, "control chars as \\u escapes");
     free(resp);
+
+    /* A client that hangs up before reading must not take the indexer down
+     * with SIGPIPE (this test process is the indexer). */
+    for (int i = 0; i < 5; i++) {
+        snprintf(req, sizeof(req), "outline\t%s\tdense.go\n", eng->repos[0]->key);
+        hang_up_after_request(sock, req);
+    }
+    struct timespec settle = {.tv_sec = 0, .tv_nsec = 200 * 1000000L};
+    nanosleep(&settle, NULL);
 
     resp = ipc_request(sock, "symbol\tAdd\n", &len);
     CHECK(resp != NULL && strstr(resp, "\"symbol\":\"Add\",\"kind\":\"function\"") != NULL, "symbol results carry kind");

@@ -39,10 +39,22 @@ typedef struct cberg_ipc_server {
     pthread_t thread;
 } cberg_ipc_server;
 
+/* A client that hangs up early (e.g. a daemon request timing out) must cost
+ * that one reply, not raise SIGPIPE and kill the whole indexer. macOS lacks
+ * MSG_NOSIGNAL and sets SO_NOSIGPIPE on the accepted socket instead. */
+#ifdef MSG_NOSIGNAL
+#define IPC_SEND_FLAGS MSG_NOSIGNAL
+#else
+#define IPC_SEND_FLAGS 0
+#endif
+
 static int write_all(int fd, const char *buf, size_t len) {
     size_t off = 0;
     while (off < len) {
-        ssize_t n = write(fd, buf + off, len - off);
+        ssize_t n = send(fd, buf + off, len - off, IPC_SEND_FLAGS);
+        if (n < 0 && errno == EINTR) {
+            continue;
+        }
         if (n <= 0) {
             return -1;
         }
@@ -817,6 +829,10 @@ static void *ipc_thread(void *arg) {
             }
             continue;
         }
+#ifdef SO_NOSIGPIPE
+        int one = 1;
+        setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
+#endif
         handle_client(srv->eng, client);
         close(client);
     }
