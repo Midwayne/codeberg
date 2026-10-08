@@ -272,6 +272,36 @@ func TestHybridSearchKindFiltersLexicalCandidates(t *testing.T) {
 	}
 }
 
+func TestHybridSearchKindUsesOutlineKind(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(root+"/exact.go", []byte("func checkoutSessionToken() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	idx := &testutil.FakeIndexer{
+		OutlineHits: []indexctl.SearchResult{{ID: 9, Repo: "main", Path: "exact.go", Kind: "function", StartLine: 1, EndLine: 1}},
+		GetChunkFn: func(context.Context, string, uint64) (indexctl.ChunkDetail, error) {
+			t.Fatal("kind filter fetched a full chunk although the outline carries its kind")
+			return indexctl.ChunkDetail{}, nil
+		},
+	}
+	reg := Default(testutil.WsSingle(root), idx)
+
+	for _, tc := range []struct {
+		kind string
+		want int
+	}{{"method", 0}, {"function", 1}, {"FUNCTION", 1}} {
+		out, err := reg.Call(context.Background(), "hybrid_search", json.RawMessage(`{"query":"checkoutSessionToken","kind":"`+tc.kind+`"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if got := len(out.([]search.HybridHit)); got != tc.want {
+			t.Fatalf("kind %q: got %d want %d", tc.kind, got, tc.want)
+		}
+	}
+}
+
 func TestFindReferencesTool(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(root+"/use.go", []byte("package main\nfunc Foo() {}\nfunc FooBar() {}\n"), 0o644); err != nil {
