@@ -326,6 +326,14 @@ the agent can tell the user. Agent Skills (`SKILL.md` under `.agents/skills`,
 `.cursor/skills`, `.codeberg/skills`, or `~/.codeberg/skills`) contribute name
 and description only until the agent reads the file. In-loop tool-result
 pruning still runs at 60%. Override the window with `CODEBERG_CONTEXT_WINDOW`.
+**Tool calling:** each model response is a round trip that re-reads the
+transcript, so the agent is told to put every independent call in the same
+response; they run concurrently in one step. OpenAI-wire providers (`openai`,
+`ollama`, `llamacpp`) are sent `parallel_tool_calls: true` — llama.cpp's server
+defaults it off. Models on local or unknown servers also get `batch`, which
+runs up to 8 calls inside one tool call for runtimes that return a single call
+per response; its results share one inline budget and spill beyond it.
+
 On Anthropic models the system prompt carries a 1h cache breakpoint and every
 tool step marks the transcript tail cacheable, so earlier tool results are
 billed at the cache-read rate instead of being re-sent at full price.
