@@ -2,6 +2,7 @@ package search
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"codeberg.org/codeberg/daemon/internal/indexctl"
@@ -167,6 +168,33 @@ func TestLexicalPatternPrefersIdentifierAndEscapesIt(t *testing.T) {
 
 	if got := LexicalPattern("authentication goes through loadShipmentDetails"); got != `(?i)\bloadshipmentdetails\b` {
 		t.Fatalf("prefer identifier over natural language: %q", got)
+	}
+}
+
+func TestLexicalPatternBoundsOnlyWordEdges(t *testing.T) {
+	cases := []struct {
+		query, line string
+	}{
+		{"where is --max-count handled", `args := []string{"--max-count", n}`},
+		{"who uses @Injectable", "@Injectable()"},
+		{"where is $scope set", "let $scope = 1"},
+		{"find CBERG_INDEX_PATH", "getenv(\"CBERG_INDEX_PATH\")"},
+	}
+
+	for _, tc := range cases {
+		pattern := LexicalPattern(tc.query)
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			t.Fatalf("%q: %v", tc.query, err)
+		}
+
+		if !re.MatchString(tc.line) {
+			t.Fatalf("%q: pattern %q should match %q", tc.query, pattern, tc.line)
+		}
+	}
+
+	if re := regexp.MustCompile(LexicalPattern("find CBERG_INDEX_PATH")); re.MatchString("CBERG_INDEX_PATHS") {
+		t.Fatalf("word edges keep their boundary")
 	}
 }
 

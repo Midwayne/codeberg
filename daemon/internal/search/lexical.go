@@ -4,6 +4,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"codeberg.org/codeberg/daemon/internal/workspace"
 )
@@ -104,7 +106,28 @@ func LexicalPattern(query string) string {
 	if codeTerm != "" {
 		best = strings.ToLower(codeTerm)
 	}
-	return `(?i)\b` + regexp.QuoteMeta(best) + `\b`
+	return `(?i)` + wordBounded(best)
+}
+
+// wordBounded anchors only word-character edges: \b beside a leading "--",
+// "@" or "$" demands a word character before it, so " --flag" never matched.
+func wordBounded(term string) string {
+	pattern := regexp.QuoteMeta(term)
+	first, _ := utf8.DecodeRuneInString(term)
+	last, _ := utf8.DecodeLastRuneInString(term)
+
+	if isWordRune(first) {
+		pattern = `\b` + pattern
+	}
+
+	if isWordRune(last) {
+		pattern += `\b`
+	}
+	return pattern
+}
+
+func isWordRune(r rune) bool {
+	return r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r)
 }
 
 func lexicalPriority(path, request string) int {
