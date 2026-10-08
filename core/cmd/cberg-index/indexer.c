@@ -434,7 +434,10 @@ static int vector_status_retriable(cberg_status st) {
 }
 
 static void vector_retry_backoff(int attempt) {
-    usleep((useconds_t)(100000u * (unsigned)(attempt + 1)));
+    long ms = 100L * (attempt + 1);
+    struct timespec delay = {.tv_sec = ms / 1000, .tv_nsec = (ms % 1000) * 1000000L};
+
+    nanosleep(&delay, NULL);
 }
 
 typedef cberg_status (*vector_retry_fn)(cberg_repo *r, void *ctx);
