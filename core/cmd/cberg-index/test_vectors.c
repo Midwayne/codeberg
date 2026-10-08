@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -19,6 +20,14 @@ static int failures;
             fprintf(stderr, "FAIL: %s (%s:%d)\n", msg, __FILE__, __LINE__); \
             failures++;                                                     \
         }                                                                   \
+    } while (0)
+
+#define TEST_LABELED(lbl, cond, msg)                                                  \
+    do {                                                                              \
+        if (!(cond)) {                                                                \
+            fprintf(stderr, "FAIL [%s]: %s (%s:%d)\n", lbl, msg, __FILE__, __LINE__); \
+            failures++;                                                               \
+        }                                                                             \
     } while (0)
 
 #define N_FILES 24
@@ -78,6 +87,39 @@ static void write_file(const char *root, const char *rel, const char *body) {
 
 /* File i defines FUNCS_PER_FILE functions; the last one is byte-identical in
  * every file, so the repo carries N_FILES - 1 duplicate bodies. */
+static void write_nested_source(const char *root) {
+    char dir[512];
+    snprintf(dir, sizeof(dir), "%s/pkg", root);
+    mkdir(dir, 0755);
+    snprintf(dir, sizeof(dir), "%s/pkg/sub", root);
+    mkdir(dir, 0755);
+
+    write_file(root, "pkg/sub/deep.go", "package sub\n\nfunc Deep(a int) int {\n\treturn a * 7\n}\n");
+}
+
+/* path_glob uses rg semantics: only_nested demands every hit lies under
+ * pkg/sub; otherwise hits must exist and none may be the nested file when the
+ * glob negates it. */
+static void check_glob_search(cberg_engine *eng, const char *glob, int only_nested) {
+    cberg_search_filters filters = {.path_glob = glob, .kind = -1, .min_score = 0.0f};
+    cberg_engine_hit hits[16];
+    size_t found = 0;
+
+    cberg_status st = cberg_engine_search_hits(eng, "multiply", NULL, 16, &filters, hits, 16, &found);
+    TEST_LABELED(glob, st == CBERG_OK && found > 0, "filtered search returns hits");
+
+    int negated = glob[0] == '!';
+    for (size_t i = 0; i < found; i++) {
+        int nested = strcmp(hits[i].path, "pkg/sub/deep.go") == 0;
+        if (only_nested) {
+            TEST_LABELED(glob, nested, "hit lies under the glob");
+        }
+        if (negated) {
+            TEST_LABELED(glob, !nested, "negated glob excludes the nested file");
+        }
+    }
+}
+
 static void write_source(const char *root, int i, const char *tag) {
     char body[2048];
     int off = snprintf(body, sizeof(body), "package main\n\n");
@@ -206,6 +248,7 @@ int main(void) {
     for (int i = 0; i < N_FILES; i++) {
         write_source(root, i, "");
     }
+    write_nested_source(root);
 
     char model[512], index[512], sock[512], log_path[512];
     snprintf(model, sizeof(model), "%s/model.onnx", work);
@@ -270,6 +313,11 @@ int main(void) {
     }
     CHECK(cberg_repo_chunk_count(r) == chunks, "chunk count stable after edit");
     CHECK(index_population(r, chunks) == chunks, "index still holds every chunk id");
+
+    check_glob_search(&eng, "pkg/**", 1);
+    check_glob_search(&eng, "deep.go", 1);
+    check_glob_search(&eng, "**/*.go", 0);
+    check_glob_search(&eng, "!pkg/**", 0);
 
     text_set_free(&fresh);
     text_set_free(&logged);

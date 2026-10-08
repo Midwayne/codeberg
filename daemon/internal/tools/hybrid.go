@@ -16,7 +16,7 @@ func hybridSearchTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
     "query": {"type": "string", "description": "natural-language search query"},
     "k": {"type": "integer", "description": "max results (default 8)"},
     "repo": {"type": "string", "description": "restrict to one repo key"},
-    "path_glob": {"type": "string", "description": "fnmatch glob on chunk paths"},
+    "path_glob": {"type": "string", "description": "rg-style glob on chunk paths, e.g. daemon/** or *.go (matches at any depth)"},
     "kind": {"type": "string", "description": "` + chunkKindFilterDesc + `; lexical lines must belong to an indexed chunk of this kind"},
     "min_score": {"type": "number", "description": "minimum vector similarity score (0-1); lexical matches are independent"}
   },

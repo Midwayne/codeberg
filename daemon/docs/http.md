@@ -60,7 +60,7 @@ GET /search?q=<query>&k=10[&repo=<key>][&path_glob=<glob>][&kind=<kind>][&min_sc
 | `q` | _(required)_ | Natural-language query |
 | `k` | `10` | Max results |
 | `repo` | all ready repos | Restrict to one repo key |
-| `path_glob` | — | fnmatch glob on chunk paths (e.g. `daemon/*`) |
+| `path_glob` | — | rg-style glob on chunk paths (e.g. `daemon/**`; `*.go` matches at any depth) |
 | `kind` | — | Chunk kind: `function`, `method`, `class`, `struct`, `interface`, `window`, `section`, `key` |
 | `min_score` | — | Minimum similarity score (0–1) |
 

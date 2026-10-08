@@ -93,7 +93,7 @@ const char *cberg_indexer_version(void);
 #define CBERG_CHUNK_BODY_MAX 65536
 
 typedef struct cberg_search_filters {
-    const char *path_glob; /* fnmatch on chunk.path; NULL/empty = any */
+    const char *path_glob; /* rg-style glob on chunk.path (see pathglob.h); NULL/empty = any */
     int kind;              /* cberg_chunk_kind, or -1 for any */
     float min_score;       /* 0 = any */
 } cberg_search_filters;

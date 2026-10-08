@@ -78,6 +78,7 @@ set(CBERG_SOURCES
   src/common/config.c
   src/common/hash.c
   src/common/pathutil.c
+  src/common/pathglob.c
   src/common/walk_policy.c
   src/common/fileio.c
   src/common/strutil.c

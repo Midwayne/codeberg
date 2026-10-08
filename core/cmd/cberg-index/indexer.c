@@ -5,12 +5,12 @@
 #include "chunk_kind.h"
 #include "chunk_table_internal.h"
 #include "fileio.h"
+#include "pathglob.h"
 #include "pathutil.h"
 #include "u64map.h"
 
 #include <errno.h>
 #include <fcntl.h>
-#include <fnmatch.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1760,7 +1760,7 @@ static int chunk_passes_filters(const cberg_stored_chunk *sc, float score, const
     }
     if (f->path_glob != NULL && f->path_glob[0] != '\0') {
         const char *path = sc->chunk.path != NULL ? sc->chunk.path : "";
-        if (fnmatch(f->path_glob, path, FNM_PATHNAME) != 0) {
+        if (!cberg_path_glob_match(f->path_glob, path)) {
             return 0;
         }
     }

@@ -51,7 +51,7 @@ search\t<query>\t<k>[\t<repo>[\t<path_glob>[\t<kind>[\t<min_score>]]]]
 | query | yes | Natural-language query (tabs replaced with spaces) |
 | k | no | Max results (default 10) |
 | repo | no | Restrict to one repo key |
-| path_glob | no | fnmatch glob on chunk paths |
+| path_glob | no | rg-style glob on chunk paths (`*.go` matches at any depth, `**` spans directories, `{a,b}`, `!` negation) |
 | kind | no | Chunk kind filter (`function`, `method`, `class`, `struct`, `interface`, `window`, `section`, `key`) |
 | min_score | no | Minimum similarity score (float) |
 

@@ -55,7 +55,7 @@ const searchCodeSchema = jsonSchema<SearchCodeInput>({
     },
     path_glob: {
       type: 'string',
-      description: 'fnmatch glob on chunk paths',
+      description: 'rg-style glob on chunk paths, e.g. daemon/** or *.go (matches at any depth)',
     },
     kind: {
       type: 'string',
