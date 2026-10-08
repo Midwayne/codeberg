@@ -14,6 +14,9 @@ export interface ModelProfile {
   modelId: string;
   /** Total context window in tokens — the model's hard memory limit. */
   contextWindow: number;
+  /** Tokens the history and pruning budgets are computed from, when smaller
+   *  than `contextWindow`. Unset means the whole window. */
+  workingWindow?: number;
   /** How the frozen prefix (system + tools) is marked for prompt caching. */
   cache: CacheStrategy;
 }
@@ -57,15 +60,35 @@ function cacheFor(provider: string): CacheStrategy {
   }
 }
 
+/**
+ * Default ceiling on the tokens a request may carry, however large the window.
+ * Anthropic and Gemini bill input past 200K tokens at a long-context premium,
+ * and answer quality degrades as a code-search transcript grows, so a 1M
+ * window should not mean 500K tokens of history re-sent on every tool step.
+ * Raise it with CODEBERG_CONTEXT_BUDGET when the extra context is worth it.
+ */
+export const DEFAULT_WORKING_WINDOW = 200_000;
+
+function positiveTokens(value: string | undefined): number | undefined {
+  const n = Number(value);
+
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : undefined;
+}
+
 export function profileFor(spec: string, env: NodeJS.ProcessEnv = process.env): ModelProfile {
   const sep = spec.indexOf(':');
   const provider = sep > 0 ? spec.slice(0, sep) : '';
   const modelId = sep > 0 ? spec.slice(sep + 1) : spec;
-  const override = Number(env.CODEBERG_CONTEXT_WINDOW);
-  const contextWindow =
-    Number.isFinite(override) && override > 0 ? Math.floor(override) : windowFor(provider, modelId);
 
-  return { provider, modelId, contextWindow, cache: cacheFor(provider) };
+  const contextWindow = positiveTokens(env.CODEBERG_CONTEXT_WINDOW) ?? windowFor(provider, modelId);
+  const workingWindow = positiveTokens(env.CODEBERG_CONTEXT_BUDGET) ?? DEFAULT_WORKING_WINDOW;
+
+  return { provider, modelId, contextWindow, workingWindow, cache: cacheFor(provider) };
+}
+
+/** Tokens the budgets below are fractions of: the window, capped by `workingWindow`. */
+export function budgetWindow(profile: ModelProfile): number {
+  return Math.min(profile.contextWindow, profile.workingWindow ?? profile.contextWindow);
 }
 
 /** A permissive profile for callers that don't resolve a spec (tests, the
@@ -88,9 +111,9 @@ export const HISTORY_BUDGET_FRACTION = 0.5;
 export const PRUNE_BUDGET_FRACTION = 0.6;
 
 export function historyBudget(profile: ModelProfile): number {
-  return Math.floor(profile.contextWindow * HISTORY_BUDGET_FRACTION);
+  return Math.floor(budgetWindow(profile) * HISTORY_BUDGET_FRACTION);
 }
 
 export function pruneBudget(profile: ModelProfile): number {
-  return Math.floor(profile.contextWindow * PRUNE_BUDGET_FRACTION);
+  return Math.floor(budgetWindow(profile) * PRUNE_BUDGET_FRACTION);
 }
