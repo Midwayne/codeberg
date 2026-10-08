@@ -246,6 +246,8 @@ static cberg_status ensure_lang(cberg_chunker *ch, cberg_language lang, lang_des
             return CBERG_ERR_OUT_OF_MEMORY;
         }
         if (!ts_parser_set_language(ch->parsers[slot], desc.language())) {
+            ts_parser_delete(ch->parsers[slot]);
+            ch->parsers[slot] = NULL;
             return CBERG_ERR_INTERNAL;
         }
     }
@@ -1074,10 +1076,13 @@ static cberg_status query_chunk(cberg_chunker *ch, lang_desc desc, cberg_languag
             sym_start = ts_node_start_byte(name_node);
             sym_end = ts_node_end_byte(name_node);
             size_t sym_len = (size_t)(sym_end - sym_start);
-            if (sym_len >= sizeof(sym_buf)) {
-                status = CBERG_ERR_INVALID_ARGUMENT;
-                goto done;
+
+            /* Generated code can carry absurd identifiers; drop that one
+             * definition rather than failing the whole file. */
+            if (!chunk_ident_fits(path, kind, sym_len)) {
+                continue;
             }
+
             memcpy(sym_buf, src + sym_start, sym_len);
             sym_buf[sym_len] = '\0';
             sym_for_occ = sym_buf;

@@ -413,6 +413,24 @@ static void test_c(cberg_chunker *ch) {
     cberg_chunk_list_free(list);
 }
 
+static void test_c_long_symbol(cberg_chunker *ch) {
+    char src[4096];
+    char name[1200];
+
+    memset(name, 'x', sizeof(name) - 1);
+    name[sizeof(name) - 1] = '\0';
+    snprintf(src, sizeof(src), "int %s(void) { return 0; }\nint ok(void) { return 1; }\n", name);
+
+    cberg_chunk_list *list = NULL;
+    CHECK(cberg_chunker_parse(ch, CBERG_LANG_C, "long.c", src, strlen(src), &list) == CBERG_OK, "c long symbol parse");
+
+    const cberg_chunk *ok = find_symbol(list, "ok");
+    CHECK(ok != NULL && ok->kind == CBERG_CHUNK_FUNCTION, "c long symbol keeps other chunks");
+    CHECK(cberg_chunk_list_len(list) == 1, "c over-long symbol skipped");
+
+    cberg_chunk_list_free(list);
+}
+
 static void test_typescript_arrow(cberg_chunker *ch) {
     const char *src = "export const load = async (id: string) => {\n"
                       "  const inner = () => id;\n"
@@ -502,6 +520,7 @@ int main(void) {
     test_rust(ch);
     test_ruby(ch);
     test_c(ch);
+    test_c_long_symbol(ch);
     test_typescript_arrow(ch);
     test_javascript_arrow(ch);
     test_markdown(ch);
