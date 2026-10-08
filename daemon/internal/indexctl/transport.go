@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"time"
 )
 
@@ -15,8 +14,14 @@ import (
 const maxResponseBytes = 16 * 1024 * 1024
 
 func roundTrip(ctx context.Context, socket, req string, dest any) error {
-	d := net.Dialer{Timeout: 5 * time.Second}
-	conn, err := d.DialContext(ctx, "unix", socket)
+	release, err := acquireSlot(ctx, socket)
+	if err != nil {
+		return err
+	}
+
+	defer release()
+
+	conn, err := dialIndexer(ctx, socket)
 	if err != nil {
 		return fmt.Errorf("indexer connect: %w", err)
 	}
@@ -36,6 +41,11 @@ func roundTrip(ctx context.Context, socket, req string, dest any) error {
 		return fmt.Errorf("indexer write: %w", err)
 	}
 
+	return readReply(conn, dest)
+}
+
+// readReply decodes one newline-terminated JSON reply, bounded in size.
+func readReply(conn io.Reader, dest any) error {
 	reader := bufio.NewReader(io.LimitReader(conn, maxResponseBytes+1))
 	line, err := reader.ReadBytes('\n')
 	if err != nil {
