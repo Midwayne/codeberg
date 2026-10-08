@@ -1,4 +1,6 @@
 import { ChatError } from './chat-error';
+import { ChatCanvasActions } from '../../canvas/chat-actions';
+import { canvasAnchor } from '../../canvas/conversation';
 import { useChatScroll } from './use-chat-scroll';
 import { useProjectApi } from '../../lib/project-api';
 import type { UseChatHelpers } from '@ai-sdk/react';
@@ -53,6 +55,7 @@ export function useChatView({ chat, onBranch, sessionId, learningEnabled, chatIn
   return {
     scrollRef,
     messages,
+    hasCanvas: Boolean(canvasAnchor(messages)),
     setDraft,
     promptRef,
     sessionId,
@@ -80,8 +83,9 @@ export function ChatView(state: ChatViewProps) {
   return (
     <>
       <div className="relative flex min-h-0 flex-1 flex-col">
+        <ChatCanvasActions messages={state.messages} sessionId={state.sessionId} />
         <div ref={state.scrollRef} className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
-          <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 sm:px-8">
+          <div className={`mx-auto flex max-w-3xl flex-col gap-6 px-4 sm:px-8 ${state.hasCanvas ? 'pt-16 pb-6 lg:pt-6' : 'py-6'}`}>
             {state.messages.length === 0 && (
               <ChatEmptyState
                 onChoose={(question) => {
