@@ -153,7 +153,9 @@ All tools are read-only and sandboxed to their repo's root.
 independently with bounded per-file matches. It fuses reciprocal ranks, merges
 lexical lines inside vector chunks, favors files supported by both sources,
 and diversifies the top `k` across files. The top three hits carry at most
-6,000 characters of combined `context` with line ranges. Lexical-only hits use
+6,000 characters of combined `context` with line ranges; `match_line` is the
+best-ranked exact-text line in the hit, and truncated context stays centred on
+it. The vector and lexical halves run concurrently. Lexical-only hits use
 `id: 0`; use `read_file` for more context (not `get_chunk`). `repo` and
 `path_glob` scope both branches; `kind` filters indexed lexical lines;
 `min_score` filters the vector branch only. When vectors are unavailable,
