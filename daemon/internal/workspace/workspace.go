@@ -16,6 +16,7 @@ const (
 	scanBufInit       = 64 * 1024
 	scanBufMax        = 4 * 1024 * 1024
 	matchFields       = 3
+	grepMaxColumns    = 512
 	maxRawBytes       = 4 * 1024 * 1024
 	defaultTreeDepth  = 3
 	maxTreeEntries    = 2000
