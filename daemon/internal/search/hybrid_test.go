@@ -117,6 +117,21 @@ func TestFusePromotesFileWithVectorAndLexicalEvidenceOnDifferentLines(t *testing
 	}
 }
 
+func TestFuseRanksChunkContainingMatchAboveItsSibling(t *testing.T) {
+	vectors := []indexctl.SearchResult{
+		{ID: 1, Repo: "main", Path: "store.go", StartLine: 1, EndLine: 20},
+		{ID: 2, Repo: "main", Path: "store.go", StartLine: 40, EndLine: 60},
+	}
+	lexical := []workspace.GrepMatch{
+		{Repo: "main", Path: "store.go", Line: 45, Text: "func flushPending() {"},
+	}
+
+	out := Fuse(vectors, lexical, 2, "flushPending")
+	if len(out) != 2 || out[0].Hit.ID != 2 {
+		t.Fatalf("the chunk holding the exact match should outrank its sibling: %+v", out)
+	}
+}
+
 func TestFuseDiversifiesFilesBeforeFillingFromOneFile(t *testing.T) {
 	vectors := make([]indexctl.SearchResult, 8)
 
