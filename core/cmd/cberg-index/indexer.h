@@ -107,6 +107,7 @@ typedef struct cberg_engine_hit {
     const char *repo;
     char path[512];
     char symbol[256];
+    char kind[32];
     uint32_t start_line;
     uint32_t end_line;
     char snippet[CBERG_SNIPPET_MAX];

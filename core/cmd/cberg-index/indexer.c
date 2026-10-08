@@ -9,6 +9,7 @@
 #include "u64map.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <fnmatch.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1778,29 +1779,103 @@ static cberg_repo *find_repo(cberg_engine *eng, const char *repo_key) {
     return NULL;
 }
 
-static void fill_snippet(cberg_repo *r, const cberg_stored_chunk *sc, char *out, size_t cap) {
-    out[0] = '\0';
-    if (sc == NULL || cap == 0) {
-        return;
+/* A chunk's source file opened for span reads, so hits and chunk details read
+ * only the bytes they return instead of the whole file. */
+typedef struct {
+    int fd; /* -1 when the file could not be opened */
+    off_t size;
+} chunk_source;
+
+static chunk_source chunk_source_open(const cberg_repo *r, const char *rel) {
+    chunk_source src = {.fd = -1, .size = 0};
+    char path[4096];
+    snprintf(path, sizeof(path), "%s/%s", r->root, rel != NULL ? rel : "");
+
+    int fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) {
+        return src;
     }
-    size_t blen = 0;
-    char *body = chunk_body(r, sc, &blen);
-    if (body == NULL) {
-        return;
+
+    struct stat st;
+    if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) {
+        close(fd);
+        return src;
     }
+
+    src.fd = fd;
+    src.size = st.st_size;
+    return src;
+}
+
+static void chunk_source_close(chunk_source *src) {
+    if (src->fd >= 0) {
+        close(src->fd);
+    }
+    src->fd = -1;
+}
+
+static int span_in_file(const chunk_source *src, const cberg_stored_chunk *sc) {
     uint32_t start = sc->chunk.span.start_byte;
     uint32_t end = sc->chunk.span.end_byte;
-    if (end > blen || start > end) {
-        free(body);
+    return src->fd >= 0 && start <= end && (off_t)end <= src->size;
+}
+
+/* Reads up to len bytes of the span into out (NUL-terminated); returns the
+ * byte count, which is short only if the file shrank since fstat. */
+static size_t read_span(const chunk_source *src, const cberg_stored_chunk *sc, char *out, size_t len) {
+    off_t at = (off_t)sc->chunk.span.start_byte;
+    size_t got = 0;
+
+    while (got < len) {
+        ssize_t n = pread(src->fd, out + got, len - got, at + (off_t)got);
+        if (n < 0 && errno == EINTR) {
+            continue;
+        }
+        if (n <= 0) {
+            break;
+        }
+        got += (size_t)n;
+    }
+
+    out[got] = '\0';
+    return got;
+}
+
+static void snippet_from(const chunk_source *src, const cberg_stored_chunk *sc, char *out, size_t cap) {
+    out[0] = '\0';
+    if (sc == NULL || cap == 0 || !span_in_file(src, sc)) {
         return;
     }
-    size_t len = (size_t)(end - start);
+
+    size_t len = (size_t)(sc->chunk.span.end_byte - sc->chunk.span.start_byte);
     if (len >= cap) {
         len = cap - 1;
     }
-    memcpy(out, body + start, len);
-    out[len] = '\0';
-    free(body);
+    read_span(src, sc, out, len);
+}
+
+static void fill_snippet(cberg_repo *r, const cberg_stored_chunk *sc, char *out, size_t cap) {
+    out[0] = '\0';
+    if (sc == NULL) {
+        return;
+    }
+
+    chunk_source src = chunk_source_open(r, sc->chunk.path);
+    snippet_from(&src, sc, out, cap);
+    chunk_source_close(&src);
+}
+
+/* Copies a chunk's metadata into a hit; the snippet is filled separately. */
+static void fill_hit_meta(const cberg_repo *r, const cberg_stored_chunk *sc, uint64_t id, float score, cberg_engine_hit *h) {
+    h->id = id;
+    h->score = score;
+    h->repo = r->key;
+    snprintf(h->path, sizeof(h->path), "%s", sc->chunk.path != NULL ? sc->chunk.path : "");
+    snprintf(h->symbol, sizeof(h->symbol), "%s", sc->chunk.symbol != NULL ? sc->chunk.symbol : "");
+    snprintf(h->kind, sizeof(h->kind), "%s", cberg_chunk_kind_name(sc->chunk.kind));
+    h->start_line = sc->chunk.span.start_line;
+    h->end_line = sc->chunk.span.end_line;
+    h->snippet[0] = '\0';
 }
 
 #define CBERG_FILTER_FETCH_MAX 256
@@ -1867,14 +1942,7 @@ static cberg_status repo_search_hits(cberg_repo *r, const float *vec, size_t k, 
                 continue;
             }
             cberg_engine_hit *h = &hits[*found];
-            h->id = ids[i];
-            h->score = scores[i];
-            h->repo = r->key;
-            snprintf(h->path, sizeof(h->path), "%s", sc->chunk.path != NULL ? sc->chunk.path : "");
-            snprintf(h->symbol, sizeof(h->symbol), "%s", sc->chunk.symbol != NULL ? sc->chunk.symbol : "");
-            h->start_line = sc->chunk.span.start_line;
-            h->end_line = sc->chunk.span.end_line;
-            h->snippet[0] = '\0';
+            fill_hit_meta(r, sc, ids[i], scores[i], h);
             fill_snippet(r, sc, h->snippet, sizeof(h->snippet));
             (*found)++;
         }
@@ -2014,33 +2082,32 @@ static cberg_status fill_chunk_detail(cberg_repo *r, const cberg_stored_chunk *s
     snprintf(out->kind, sizeof(out->kind), "%s", cberg_chunk_kind_name(sc->chunk.kind));
     out->start_line = sc->chunk.span.start_line;
     out->end_line = sc->chunk.span.end_line;
-    fill_snippet(r, sc, out->snippet, sizeof(out->snippet));
 
-    size_t blen = 0;
-    char *file = chunk_body(r, sc, &blen);
-    if (file == NULL) {
+    chunk_source src = chunk_source_open(r, sc->chunk.path);
+    if (src.fd < 0) {
         return CBERG_ERR_IO;
     }
-    uint32_t start = sc->chunk.span.start_byte;
-    uint32_t end = sc->chunk.span.end_byte;
-    if (end > blen || start > end) {
-        free(file);
+    if (!span_in_file(&src, sc)) {
+        chunk_source_close(&src);
         return CBERG_ERR_INVALID_ARGUMENT;
     }
-    size_t len = (size_t)(end - start);
+
+    size_t len = (size_t)(sc->chunk.span.end_byte - sc->chunk.span.start_byte);
     out->truncated = len > CBERG_CHUNK_BODY_MAX ? 1 : 0;
     if (len > CBERG_CHUNK_BODY_MAX) {
         len = CBERG_CHUNK_BODY_MAX;
     }
     out->body = malloc(len + 1);
     if (out->body == NULL) {
-        free(file);
+        chunk_source_close(&src);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
-    memcpy(out->body, file + start, len);
-    out->body[len] = '\0';
-    out->body_len = len;
-    free(file);
+    out->body_len = read_span(&src, sc, out->body, len);
+    chunk_source_close(&src);
+
+    size_t snip = out->body_len < sizeof(out->snippet) ? out->body_len : sizeof(out->snippet) - 1;
+    memcpy(out->snippet, out->body, snip);
+    out->snippet[snip] = '\0';
     return CBERG_OK;
 }
 
@@ -2105,14 +2172,7 @@ static cberg_status repo_find_symbol(cberg_repo *r, const char *name, int kind, 
             continue;
         }
         cberg_engine_hit *h = &hits[*found];
-        h->id = sc->id;
-        h->score = 1.0f;
-        h->repo = r->key;
-        snprintf(h->path, sizeof(h->path), "%s", sc->chunk.path != NULL ? sc->chunk.path : "");
-        snprintf(h->symbol, sizeof(h->symbol), "%s", sc->chunk.symbol != NULL ? sc->chunk.symbol : "");
-        h->start_line = sc->chunk.span.start_line;
-        h->end_line = sc->chunk.span.end_line;
-        h->snippet[0] = '\0';
+        fill_hit_meta(r, sc, sc->id, 1.0f, h);
         fill_snippet(r, sc, h->snippet, sizeof(h->snippet));
         (*found)++;
     }
@@ -2170,24 +2230,21 @@ static cberg_status repo_file_outline(cberg_repo *r, const char *path, cberg_eng
         pthread_mutex_unlock(&r->mu);
         return CBERG_ERR_NOT_FOUND;
     }
+    chunk_source src = chunk_source_open(r, path);
     size_t n = cberg_chunk_table_len(r->table);
+
     for (size_t i = 0; i < n && *found < cap; i++) {
         const cberg_stored_chunk *sc = cberg_chunk_table_at(r->table, i);
         if (sc == NULL || sc->chunk.path == NULL || strcmp(sc->chunk.path, path) != 0) {
             continue;
         }
         cberg_engine_hit *h = &hits[*found];
-        h->id = sc->id;
-        h->score = 1.0f;
-        h->repo = r->key;
-        snprintf(h->path, sizeof(h->path), "%s", sc->chunk.path);
-        snprintf(h->symbol, sizeof(h->symbol), "%s", sc->chunk.symbol != NULL ? sc->chunk.symbol : "");
-        h->start_line = sc->chunk.span.start_line;
-        h->end_line = sc->chunk.span.end_line;
-        h->snippet[0] = '\0';
-        fill_snippet(r, sc, h->snippet, sizeof(h->snippet));
+        fill_hit_meta(r, sc, sc->id, 1.0f, h);
+        snippet_from(&src, sc, h->snippet, sizeof(h->snippet));
         (*found)++;
     }
+
+    chunk_source_close(&src);
     pthread_mutex_unlock(&r->mu);
     if (*found == 0) {
         return CBERG_ERR_NOT_FOUND;
