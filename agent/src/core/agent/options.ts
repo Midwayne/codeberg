@@ -24,7 +24,8 @@ export interface AgentOptions {
   /** Request-bound discovery environment for repository skills and MCPs. */
   env?: NodeJS.ProcessEnv;
   model: LanguageModel;
-  /** Model used by asynchronous knowledge extraction. Defaults to the main model. */
+  /** Model for background work: knowledge extraction and history-compaction
+   *  summaries. Defaults to the main model. */
   subagentModel?: LanguageModel;
   daemon: DaemonClient;
   generator?: Generator;
