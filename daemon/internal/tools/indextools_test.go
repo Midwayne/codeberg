@@ -304,6 +304,44 @@ func TestHybridSearchKindUsesOutlineKind(t *testing.T) {
 	}
 }
 
+func TestHybridSearchContextKeepsLexicalMatchInsideLongChunk(t *testing.T) {
+	var body strings.Builder
+
+	for line := 1; line <= 200; line++ {
+		if line == 150 {
+			body.WriteString("\tcheckoutSessionToken()\n")
+			continue
+		}
+		fmt.Fprintf(&body, "\tfiller%03d := strings.Repeat(\"x\", 24)\n", line)
+	}
+
+	root := t.TempDir()
+	if err := os.WriteFile(root+"/long.go", []byte(body.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	idx := &testutil.FakeIndexer{
+		SearchHits: []indexctl.SearchResult{{ID: 3, Repo: "main", Path: "long.go", StartLine: 1, EndLine: 200}},
+		Chunk:      indexctl.ChunkDetail{ID: 3, Repo: "main", Path: "long.go", StartLine: 1, EndLine: 200, Body: body.String()},
+	}
+	reg := Default(testutil.WsSingle(root), idx)
+
+	out, err := reg.Call(context.Background(), "hybrid_search", json.RawMessage(`{"query":"checkoutSessionToken","k":1}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	hits := out.([]search.HybridHit)
+	if len(hits) != 1 || hits[0].MatchLine != 150 {
+		t.Fatalf("fused chunk should record its exact-match line: %+v", hits)
+	}
+
+	if !strings.Contains(hits[0].Context, "checkoutSessionToken()") {
+		t.Fatalf("truncated context should keep the lexical match in view, got lines %d-%d",
+			hits[0].ContextStartLine, hits[0].ContextEndLine)
+	}
+}
+
 // overlapIndexer answers vector search only once the lexical half has asked
 // for an outline, so it deadlocks unless both halves run concurrently.
 type overlapIndexer struct {

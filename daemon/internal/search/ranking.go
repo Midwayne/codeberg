@@ -87,7 +87,12 @@ func scoreHits(items []*rankedHit, query string) []HybridHit {
 			}
 		}
 
-		out = append(out, HybridHit{Hit: item.hit, GrepBoost: item.grepBoost, FinalScore: float32(score * sourceWeight(item.hit.Path, query))})
+		out = append(out, HybridHit{
+			Hit:        item.hit,
+			GrepBoost:  item.grepBoost,
+			MatchLine:  item.matchLine,
+			FinalScore: float32(score * sourceWeight(item.hit.Path, query)),
+		})
 	}
 
 	return out
