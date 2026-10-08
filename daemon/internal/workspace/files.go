@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
 )
@@ -55,41 +54,21 @@ func (w *Workspace) ReadFile(repo, path string, startLine, endLine uint32) (File
 		return FileContent{}, err
 	}
 
-	data, err := os.ReadFile(full)
+	f, err := os.Open(full)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return FileContent{}, fmt.Errorf("%w: %s", ErrNotFound, path)
 		}
 		return FileContent{}, fmt.Errorf("codeberg: read file: %w", err)
 	}
+	defer f.Close()
 
-	lines := strings.Split(string(data), "\n")
-	total := uint32(len(lines))
-
-	start := startLine
-	if start == 0 {
-		start = 1
+	lw := newLineWindow(startLine, endLine, w.maxBytes)
+	if err := lw.readFrom(f); err != nil {
+		return FileContent{}, fmt.Errorf("codeberg: read file: %w", err)
 	}
 
-	end := endLine
-	if end == 0 || end > total {
-		end = total
-	}
-
-	if start > total {
-		start = total
-	}
-
-	if end < start {
-		end = start
-	}
-
-	content := strings.Join(lines[start-1:end], "\n")
-	if len(content) > w.maxBytes {
-		content = content[:w.maxBytes]
-	}
-
-	return FileContent{Content: content, StartLine: start, EndLine: end, TotalLines: total}, nil
+	return lw.result(startLine, endLine), nil
 }
 
 func (w *Workspace) ListDir(repo, path string) ([]DirEntry, error) {
