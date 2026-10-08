@@ -26,10 +26,10 @@ func (m *Manager) Handler(fallback http.Handler) http.Handler {
 		}
 
 		if !strings.HasPrefix(r.URL.Path, "/projects/") {
-			if r.URL.Path == "/health" {
-				m.serveHealth(fallback, w, r, m.catalog.DefaultID)
-			} else {
+			if r.URL.Path == "/resources" || strings.HasPrefix(r.URL.Path, "/resources/") {
 				fallback.ServeHTTP(w, r)
+			} else {
+				m.serveDefault(w, r)
 			}
 			return
 		}
@@ -54,7 +54,11 @@ func (m *Manager) serveProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(parts) == 1 {
-		m.serveRename(w, r, parts[0])
+		if r.Method == "DELETE" {
+			m.serveDelete(w, r, parts[0])
+		} else {
+			m.serveRename(w, r, parts[0])
+		}
 		return
 	}
 
@@ -77,4 +81,19 @@ func (m *Manager) serveProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	handler.ServeHTTP(w, next)
+}
+
+func (m *Manager) serveDefault(w http.ResponseWriter, r *http.Request) {
+	m.mu.Lock()
+	id := m.catalog.DefaultID
+	m.mu.Unlock()
+
+	if id == "" {
+		respond(w, 404, map[string]string{"message": "add a project first"})
+		return
+	}
+
+	next := r.Clone(r.Context())
+	next.URL.Path = "/projects/" + id + r.URL.Path
+	m.serveProject(w, next)
 }

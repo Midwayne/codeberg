@@ -2,10 +2,12 @@
 
 #include "indexer.h"
 #include "ipc.h"
+#include "wipe.h"
 
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static volatile sig_atomic_t g_stop;
 static cberg_engine *g_eng;
@@ -18,7 +20,15 @@ static void on_signal(int sig) {
     }
 }
 
-int main(void) {
+int main(int argc, char **argv) {
+    if (argc == 4 && strcmp(argv[1], "--wipe-index") == 0) {
+        return cberg_wipe_index(argv[2], argv[3]);
+    }
+    if (argc != 1) {
+        fprintf(stderr, "usage: cberg-index [--wipe-index BASE ROOT]\n");
+        return 1;
+    }
+
     signal(SIGINT, on_signal);
     signal(SIGTERM, on_signal);
 

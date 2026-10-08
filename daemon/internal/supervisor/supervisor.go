@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +20,7 @@ type Supervisor struct {
 	logFile *os.File
 	mu      sync.Mutex
 	closed  bool
+	done    chan struct{}
 }
 
 func Start(ctx context.Context, cfg config.Indexer) (*Supervisor, error) {
@@ -29,22 +29,13 @@ func Start(ctx context.Context, cfg config.Indexer) (*Supervisor, error) {
 		return nil, err
 	}
 
-	s := &Supervisor{cfg: cfg}
+	s := &Supervisor{cfg: cfg, done: make(chan struct{})}
 	if err := s.spawn(ctx, bin); err != nil {
 		return nil, err
 	}
 
 	go s.watch(ctx, bin)
 	return s, nil
-}
-
-func (s *Supervisor) Stop() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.closed = true
-	if s.cmd != nil && s.cmd.Process != nil {
-		_ = s.cmd.Process.Signal(os.Interrupt)
-	}
 }
 
 func (s *Supervisor) spawn(ctx context.Context, bin string) error {
@@ -71,23 +62,7 @@ func (s *Supervisor) spawn(ctx context.Context, bin string) error {
 
 	cmd.Stdout = out
 	cmd.Stderr = out
-	// Explicit project roots must override inherited multi-repository settings.
-	overrides := indexerEnv(s.cfg)
-	keys := map[string]bool{config.EnvRoots: true, config.EnvRoot: true, config.EnvIndexPath: true, config.EnvSocket: true}
-
-	for _, entry := range overrides {
-		key, _, _ := strings.Cut(entry, "=")
-		keys[key] = true
-	}
-
-	for _, entry := range os.Environ() {
-		key, _, _ := strings.Cut(entry, "=")
-		if !keys[key] {
-			cmd.Env = append(cmd.Env, entry)
-		}
-	}
-
-	cmd.Env = append(cmd.Env, overrides...)
+	cmd.Env = processEnv(s.cfg)
 
 	s.cmd = cmd
 	if err := cmd.Start(); err != nil {
@@ -106,6 +81,7 @@ func (s *Supervisor) closeLog() {
 }
 
 func (s *Supervisor) watch(ctx context.Context, bin string) {
+	defer close(s.done)
 	backoff := time.Second
 
 	for {

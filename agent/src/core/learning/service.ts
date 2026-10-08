@@ -118,6 +118,10 @@ export class LearningService {
     return feedback(this.state, input);
   }
 
+  get busy(): boolean {
+    return Boolean(this.state.background || this.state.checking || this.state.maintenance || this.isWorking());
+  }
+
   isWorking(): boolean {
     return isWorking(this.state);
   }

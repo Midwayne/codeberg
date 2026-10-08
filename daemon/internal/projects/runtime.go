@@ -6,10 +6,15 @@ import (
 	"time"
 )
 
-func (m *Manager) BindDefault(handler http.Handler) {
+func (m *Manager) BindDefault(handler http.Handler, stops ...func()) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.runtimes[m.catalog.DefaultID] = runtime{handler: handler, stop: func() {}, started: time.Now()}
+	stop := func() {}
+	if len(stops) > 0 {
+		stop = stops[0]
+	}
+
+	m.runtimes[m.catalog.DefaultID] = runtime{handler: handler, stop: stop, started: time.Now()}
 }
 
 func (m *Manager) activate(id string) (http.Handler, error) {

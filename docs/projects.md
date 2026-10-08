@@ -36,6 +36,31 @@ Project config lives in `projects/<id>/` (`mcp.json`, `skills/`, and `spec.yml`)
 global config stays at the top of `CODEBERG_HOME`. Repository-local config and
 explicit external config paths remain supported as described below.
 
+## Deleting a project
+
+Open **Settings → Projects**, then choose **Delete project** for a repository.
+The confirmation offers two choices:
+
+- **Delete indexed files only** (default): remove the project from the catalog
+  and delete its search indexes. Keep chats, history, knowledge, learning data
+  and project configuration. Adding the same repository again reuses its saved
+  knowledge and history while rebuilding the index.
+- **Delete entire history, including knowledge**: permanently delete the
+  indexes and all project-owned chats, context, knowledge, learning data, logs
+  and configuration. Adding the repository again starts with fresh project data.
+
+Repository directories and source files stay on disk. Global credentials,
+models, extensions and usage accounting remain global. Cancel or Escape closes
+the confirmation without deleting anything. Active requests and background
+learning must finish before deletion; a busy error leaves the project available
+and can be retried.
+
+Deleting the current project selects another registered project. Deleting the
+last project shows **Add project**. Deleted startup projects remain removed
+across daemon restarts until explicitly added again. The catalog retains only
+removed IDs and any legacy index namespace needed for compatibility; it does not
+retain deleted project history or knowledge.
+
 ## Indexing
 
 Each project has its own supervised indexer, vector namespace and file watcher.
@@ -139,11 +164,23 @@ use `/projects/<id>/health`, `/search`, `/tools` and `/tools/call`.
 `PATCH /projects/<id>` with `{"name":"New display name"}` renames a project
 without starting or restarting its indexer. It returns the updated project, 400
 for an invalid name, or 404 for an unknown ID. Cross-origin changes are rejected.
+`DELETE /projects/<id>` with `{"mode":"index"}` or `{"mode":"all"}` deletes a
+project and returns the updated catalog. It stops the project indexer and removes
+local caches and the project's configured remote vector namespace. Invalid
+modes return 400; unknown IDs return 404. Failures return an error and keep the
+project registered so deletion can be retried. The legacy migration owner ID
+remains stable even if that project is removed. With no registered projects,
+`defaultId` is empty and repository endpoints return 404 until a project is added.
+
 `POST /projects/<id>/retry` renews the startup readiness window. Unscoped APIs
 continue to address the startup project. Unknown project IDs return 404.
 
 Web requests use the `X-Codeberg-Project` header. `/api/projects` manages the
-catalog, and `PATCH /api/projects/<id>` proxies project renames. Web catalog
+catalog, and `PATCH /api/projects/<id>` proxies project renames.
+`DELETE /api/projects/<id>` accepts the same deletion modes, closes the project's
+web runtime and returns the updated catalog with config locations. Use this web
+endpoint while the web agent is running, so active storage requests and learning
+are checked before deleting data; busy projects return 409. Web catalog
 responses include `catalogPath` and a `configDirectory` for each project, using
 the web server's configured home. `/api/project/status` reports readiness,
 `/api/project/retry` retries the check, and `/api/extensions` lists or adds

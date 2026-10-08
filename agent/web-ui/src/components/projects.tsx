@@ -1,3 +1,4 @@
+import { useProjectDeletionFocus } from '../lib/use-project-deletion-focus';
 import { type useAddProject } from './project-add';
 import { AddProjectDialog } from './project-add-dialog';
 
@@ -22,6 +23,8 @@ export function ProjectShell(props: ProjectShellProps) {
 export type ProjectShellViewProps = ReturnType<typeof useProjectShell>;
 
 export function ProjectShellView(state: ProjectShellViewProps) {
+  const focusAfterDeletion = useProjectDeletionFocus();
+
   return (
     <ProjectApiContext.Provider
       key={state.project?.id ?? 'loading'}
@@ -29,6 +32,11 @@ export function ProjectShellView(state: ProjectShellViewProps) {
         project: state.project,
         fetch: state.api,
         ready: state.ready,
+        onProjectDeleted: (catalog) => {
+          state.setCatalog(catalog);
+          focusAfterDeletion();
+          if (!catalog.projects.some((project) => project.id === state.project?.id)) state.select(catalog.defaultId);
+        },
         onProjectRenamed: (updated) => {
           state.setCatalog(
             (current) =>
@@ -40,7 +48,9 @@ export function ProjectShellView(state: ProjectShellViewProps) {
         },
       }}
     >
-      {state.children(state.toolbar, !state.project, state.notice)}
+      {state.catalog?.projects.length === 0 ? (
+        <NoProjects onAdd={() => state.setAdding(true)} />
+      ) : state.children(state.toolbar, !state.project, state.notice)}
       {state.error && (
         <div className="fixed inset-x-4 bottom-4 z-40">
           <ErrorNotice
@@ -68,6 +78,7 @@ export type ProjectListProps = {
   catalog: ProjectCatalog | undefined;
   selectedProject: Project | undefined;
   setCatalog: React.Dispatch<React.SetStateAction<ProjectCatalog | undefined>>;
+  onProjectDeleted: ((catalog: ProjectCatalog) => void) | undefined;
   onProjectRenamed: ((project: Project) => void) | undefined;
 };
 
@@ -84,3 +95,20 @@ export { ProjectDetails } from './project-details';
 export { RenameProjectForm } from './project-rename';
 
 export { AddProject } from './project-add';
+
+function NoProjects({ onAdd }: { onAdd: () => void }) {
+  return (
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-4 p-6 text-center">
+      <h1 className="text-lg font-semibold">Add a project to get started</h1>
+      <p className="max-w-prose text-sm leading-6 text-muted-foreground">Choose a repository to index and explore.</p>
+      <button
+        type="button"
+        data-add-project
+        onClick={onAdd}
+        className="min-h-11 rounded-lg bg-primary px-4 text-sm text-primary-foreground"
+      >
+        Add project
+      </button>
+    </main>
+  );
+}

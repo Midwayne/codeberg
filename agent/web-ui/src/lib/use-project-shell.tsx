@@ -15,7 +15,7 @@ export function useProjectShell({ children }: ProjectShellOptions) {
   const [adding, setAdding] = useState(false);
   const project = catalog?.projects.find((project) => project.id === selected);
   const api = useMemo(() => (project ? projectFetch(project.id) : projectFetch('unselected')), [project?.id]);
-  const { status, setStatus } = useProjectStatus({ project, api, retry });
+  const { status, setStatus } = useProjectStatus({ project, api, retry, refreshCatalog: setRetry });
   useProjectCatalog({ setCatalog, setSelected, setError, retry });
 
   function select(id: string) {
@@ -43,16 +43,17 @@ export function useProjectShell({ children }: ProjectShellOptions) {
       setStatus={setStatus}
     />
   );
-  return { project, api, ready, setCatalog, children, toolbar, notice, error, setRetry, adding, setAdding, select };
+  return { catalog, project, api, ready, setCatalog, children, toolbar, notice, error, setRetry, adding, setAdding, select };
 }
 
 export type ProjectStatusOptions = {
   project: Project | undefined;
   api: typeof fetch;
   retry: number;
+  refreshCatalog?: React.Dispatch<React.SetStateAction<number>>;
 };
 
-export function useProjectStatus({ project, api, retry }: ProjectStatusOptions) {
+export function useProjectStatus({ project, api, retry, refreshCatalog }: ProjectStatusOptions) {
   const [status, setStatus] = useState<{ id: string; value?: ProjectStatus; error?: string }>();
 
   useEffect(() => {
@@ -65,6 +66,7 @@ export function useProjectStatus({ project, api, retry }: ProjectStatusOptions) 
         const response = await api('/api/project/status', {
           signal: AbortSignal.any([controller.signal, AbortSignal.timeout(7000)]),
         });
+        if (response.status === 404) refreshCatalog?.((value) => value + 1);
         if (!response.ok) throw new Error(await response.text());
         const value = (await response.json()) as ProjectStatus;
         ready = value.ready;

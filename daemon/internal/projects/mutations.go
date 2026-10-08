@@ -46,9 +46,26 @@ func (m *Manager) Add(name, root string) (Project, error) {
 		}
 	}
 
-	m.catalog.Projects = append(m.catalog.Projects, p)
+	return m.addProject(p)
+}
+
+func (m *Manager) addProject(p Project) (Project, error) {
+	previous := m.catalog
+	for i, removed := range m.catalog.Removed {
+		if removed.ID == p.ID {
+			p.LegacyIndex = removed.LegacyIndex
+			m.catalog.Removed = append(append([]RemovedProject{}, m.catalog.Removed[:i]...), m.catalog.Removed[i+1:]...)
+			break
+		}
+	}
+
+	m.catalog.Projects = append(append([]Project{}, m.catalog.Projects...), p)
+	if m.catalog.DefaultID == "" {
+		m.catalog.DefaultID = p.ID
+	}
+
 	if err := m.save(); err != nil {
-		m.catalog.Projects = m.catalog.Projects[:len(m.catalog.Projects)-1]
+		m.catalog = previous
 		return Project{}, err
 	}
 	return p, nil

@@ -2,6 +2,8 @@ package supervisor
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	"codeberg.org/codeberg/daemon/internal/config"
 )
@@ -65,4 +67,24 @@ func embeddingEnv(env []string, cfg config.Indexer) []string {
 	}
 
 	return env
+}
+
+// Preserve loader/certificate settings while overriding inherited project roots.
+func processEnv(cfg config.Indexer) []string {
+	overrides := indexerEnv(cfg)
+	keys := map[string]bool{config.EnvRoots: true, config.EnvRoot: true, config.EnvIndexPath: true, config.EnvSocket: true}
+	for _, entry := range overrides {
+		key, _, _ := strings.Cut(entry, "=")
+		keys[key] = true
+	}
+
+	var env []string
+	for _, entry := range os.Environ() {
+		key, _, _ := strings.Cut(entry, "=")
+		if !keys[key] {
+			env = append(env, entry)
+		}
+	}
+
+	return append(env, overrides...)
 }

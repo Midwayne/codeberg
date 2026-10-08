@@ -7,7 +7,7 @@ import { useProjectApi, type ProjectCatalog } from '../lib/project-api';
 import { type ProjectListProps } from './projects';
 
 export function ProjectsPanel() {
-  const { project: selectedProject, onProjectRenamed } = useProjectApi();
+  const { project: selectedProject, onProjectRenamed, onProjectDeleted } = useProjectApi();
   const [catalog, setCatalog] = useState<ProjectCatalog>();
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
@@ -43,6 +43,7 @@ export function ProjectsPanel() {
             selectedProject={selectedProject}
             setCatalog={setCatalog}
             onProjectRenamed={onProjectRenamed}
+            onProjectDeleted={onProjectDeleted}
           />
           <ProjectCatalogLocation catalog={catalog} />
         </div>
@@ -72,7 +73,7 @@ export function ProjectCatalogLocation({ catalog }: ProjectCatalogLocationProps)
   );
 }
 
-export function ProjectList({ catalog, selectedProject, setCatalog, onProjectRenamed }: ProjectListProps) {
+export function ProjectList({ catalog, selectedProject, setCatalog, onProjectRenamed, onProjectDeleted }: ProjectListProps) {
   return (
     <div className="divide-y divide-border">
       {catalog?.projects.map((project) => (
@@ -80,6 +81,10 @@ export function ProjectList({ catalog, selectedProject, setCatalog, onProjectRen
           key={project.id}
           project={project}
           current={project.id === selectedProject?.id}
+          onDeleted={(next) => {
+            setCatalog(next);
+            onProjectDeleted?.(next);
+          }}
           onRenamed={(updated) => {
             setCatalog(
               (current) =>
@@ -99,11 +104,11 @@ export function ProjectList({ catalog, selectedProject, setCatalog, onProjectRen
 function ProjectsHeading() {
   return (
     <div className="space-y-2">
-      <h2 id="projects-heading" className="text-lg font-semibold">
+      <h2 id="projects-heading" data-projects-heading tabIndex={-1} className="text-lg font-semibold focus-visible:outline-2 focus-visible:outline-ring">
         Projects
       </h2>
       <p className="max-w-prose text-sm leading-6 text-muted-foreground">
-        Manage project names and find their config files.
+        Rename or delete projects and find their config files.
       </p>
     </div>
   );

@@ -58,7 +58,7 @@ export async function buildProjectHandler(project: Project, options: ProjectRunt
 
   const pool = new ReloadableAgentPool(() => createWebModelPool(daemonUrl, learning ?? false, env,
     (model, selection) => track(model, selection.key, selection.model, 'chat')));
-  const runtime = { learning, resources, pool, canvas };
+  const runtime = { projectId: project.id, learning, resources, pool, canvas };
   owned.push(runtime);
   resources.start();
   await initializeRuntime(runtime, owned);

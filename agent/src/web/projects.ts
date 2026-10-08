@@ -18,7 +18,10 @@ export class ProjectRequestRouter {
 export interface ProjectRouterOptions {
   catalog: ProjectCatalog;
   home?: string;
+  staticRoot?: string;
+  title?: string;
   daemonUrl: string;
+  dispose?: (id: string) => Promise<void>;
   build: (project: Project) => Promise<(req: IncomingMessage, res: ServerResponse) => void>;
   extensions?: (req: IncomingMessage, res: ServerResponse, project: Project) => Promise<void>;
   openConfigDirectory?: (path: string) => Promise<void>;
