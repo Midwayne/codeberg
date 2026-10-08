@@ -169,6 +169,21 @@ static void file_cache_free(file_cache *fc) {
     fc->cap = 0;
 }
 
+/* Drop every body except the most recent one, so a file whose chunks straddle
+ * an embed batch boundary is still read only once. */
+static void file_cache_keep_last(file_cache *fc) {
+    if (fc->len <= 1) {
+        return;
+    }
+
+    for (size_t i = 0; i + 1 < fc->len; i++) {
+        free(fc->items[i].data);
+    }
+
+    fc->items[0] = fc->items[fc->len - 1];
+    fc->len = 1;
+}
+
 /* Slice sc's body from the file cache, reading the file on path change. */
 static cberg_status cache_slice(cberg_repo *r, file_cache *fc, const cberg_stored_chunk *sc, const char **text, size_t *len) {
     cached_body *cb = (fc->len > 0 && strcmp(fc->items[fc->len - 1].path, sc->chunk.path) == 0)
@@ -207,8 +222,10 @@ static cberg_status cache_slice(cberg_repo *r, file_cache *fc, const cberg_store
 /*
  * Embed unique bodies only (keyed by content_hash; full-hash confirm after 8-byte
  * map key). Duplicates reuse the representative vector. Batched under embed_mu.
+ * Grouping needs only hashes, so bodies are read per batch (representatives
+ * only) and released once embedded rather than held for the whole upsert.
  */
-static cberg_status embed_unique(cberg_repo *r, cberg_index *index, const char **texts, const size_t *lens, const uint8_t **hashes, const uint64_t *ids, size_t count, int show, size_t *done, size_t total, size_t *out_unique) {
+static cberg_status embed_unique(cberg_repo *r, cberg_index *index, const cberg_stored_chunk *const *rows, size_t count, int show, size_t *done, size_t total, size_t *out_unique) {
     if (out_unique != NULL) {
         *out_unique = 0;
     }
@@ -225,6 +242,7 @@ static cberg_status embed_unique(cberg_repo *r, cberg_index *index, const char *
     size_t *group_start = NULL;
     size_t *members = NULL;
     size_t *cursor = NULL;
+    file_cache fc = {0};
     cberg_status st = CBERG_ERR_OUT_OF_MEMORY;
     if (seen == NULL || reps == NULL || group_of == NULL || btexts == NULL || blens == NULL) {
         goto done;
@@ -236,11 +254,12 @@ static cberg_status embed_unique(cberg_repo *r, cberg_index *index, const char *
      * first group for a prefix, so a collision leaves the original mapping intact. */
     size_t n_groups = 0;
     for (size_t u = 0; u < count; u++) {
+        const uint8_t *hash = rows[u]->chunk.content_hash;
         uint64_t key;
-        memcpy(&key, hashes[u], sizeof(key));
+        memcpy(&key, hash, sizeof(key));
         uint64_t hit = 0;
         int found = key != 0 && cberg_u64map_get(seen, key, &hit);
-        if (found && memcmp(hashes[u], hashes[reps[hit]], CBERG_HASH_LEN) == 0) {
+        if (found && memcmp(hash, rows[reps[hit]]->chunk.content_hash, CBERG_HASH_LEN) == 0) {
             group_of[u] = (size_t)hit;
             continue;
         }
@@ -283,11 +302,15 @@ static cberg_status embed_unique(cberg_repo *r, cberg_index *index, const char *
             bn = BATCH_SIZE;
         }
         for (size_t b = 0; b < bn; b++) {
-            btexts[b] = texts[reps[g + b]];
-            blens[b] = lens[reps[g + b]];
+            st = cache_slice(r, &fc, rows[reps[g + b]], &btexts[b], &blens[b]);
+            if (st != CBERG_OK) {
+                goto done;
+            }
         }
+
         float *vecs = NULL;
         st = engine_embed(r->eng, btexts, blens, bn, &vecs);
+        file_cache_keep_last(&fc);
         if (st != CBERG_OK) {
             cberg_vectors_free(vecs);
             goto done;
@@ -296,7 +319,7 @@ static cberg_status embed_unique(cberg_repo *r, cberg_index *index, const char *
             size_t k = g + b;
             const float *v = vecs + b * dim;
             for (size_t m = group_start[k]; m < group_start[k + 1]; m++) {
-                st = cberg_index_add(index, ids[members[m]], v);
+                st = cberg_index_add(index, rows[members[m]]->id, v);
                 if (st != CBERG_OK) {
                     cberg_vectors_free(vecs);
                     goto done;
@@ -316,6 +339,7 @@ static cberg_status embed_unique(cberg_repo *r, cberg_index *index, const char *
     }
 
 done:
+    file_cache_free(&fc);
     cberg_u64map_free(seen);
     free(reps);
     free(group_of);
@@ -337,40 +361,22 @@ static cberg_status apply_vectors(cberg_repo *r, const cberg_changes *ch) {
         return cberg_index_save(r->index);
     }
 
-    const char **texts = NULL;
-    size_t *lens = NULL;
-    uint64_t *ids = NULL;
-    const uint8_t **hashes = NULL;
-    file_cache fc = {0};
+    const cberg_stored_chunk **rows = NULL;
     cberg_status st = CBERG_OK;
 
     if (upsert_len > 0) {
-        texts = calloc(upsert_len, sizeof(*texts));
-        lens = calloc(upsert_len, sizeof(*lens));
-        ids = calloc(upsert_len, sizeof(*ids));
-        hashes = calloc(upsert_len, sizeof(*hashes));
-        if (texts == NULL || lens == NULL || ids == NULL || hashes == NULL) {
+        rows = calloc(upsert_len, sizeof(*rows));
+        if (rows == NULL) {
             st = CBERG_ERR_OUT_OF_MEMORY;
             goto done;
         }
+
         size_t u = 0;
         for (size_t i = 0; i < ch->added_len; i++) {
-            st = cache_slice(r, &fc, &ch->added[i], &texts[u], &lens[u]);
-            if (st != CBERG_OK) {
-                goto done;
-            }
-            ids[u] = ch->added[i].id;
-            hashes[u] = ch->added[i].chunk.content_hash;
-            u++;
+            rows[u++] = &ch->added[i];
         }
         for (size_t i = 0; i < ch->modified_len; i++) {
-            st = cache_slice(r, &fc, &ch->modified[i], &texts[u], &lens[u]);
-            if (st != CBERG_OK) {
-                goto done;
-            }
-            ids[u] = ch->modified[i].id;
-            hashes[u] = ch->modified[i].chunk.content_hash;
-            u++;
+            rows[u++] = &ch->modified[i];
         }
 
         /* Embed unique bodies only: code upserts carry many byte-identical chunks
@@ -379,7 +385,7 @@ static cberg_status apply_vectors(cberg_repo *r, const cberg_changes *ch) {
         int show = upsert_len >= PROGRESS_MIN;
         size_t done_n = 0;
         size_t unique = 0;
-        st = embed_unique(r, r->index, texts, lens, hashes, ids, upsert_len, show, &done_n, upsert_len, &unique);
+        st = embed_unique(r, r->index, rows, upsert_len, show, &done_n, upsert_len, &unique);
         if (st != CBERG_OK) {
             goto done;
         }
@@ -412,11 +418,7 @@ static cberg_status apply_vectors(cberg_repo *r, const cberg_changes *ch) {
     st = cberg_index_save(r->index);
 
 done:
-    file_cache_free(&fc);
-    free(hashes);
-    free(ids);
-    free(lens);
-    free(texts);
+    free(rows);
     return st;
 }
 
@@ -651,6 +653,10 @@ static cberg_status sync_table(cberg_repo *r, chunk_batch *batch) {
     if (st != CBERG_OK) {
         return st;
     }
+
+    /* The table and graph hold their own copies now; free the per-file lists
+     * and fragments before embedding instead of carrying them through it. */
+    batch_reset(batch);
     return sync_vectors(r, &ch);
 }
 
@@ -1440,6 +1446,7 @@ static cberg_status apply_path_changes(cberg_repo *r, char **rechunk, size_t rec
             cberg_graph_remove_file(r->graph, graph_drop[i]);
         }
     }
+    batch_reset(&batch);
     st = sync_vectors(r, &ch);
 
 done:
