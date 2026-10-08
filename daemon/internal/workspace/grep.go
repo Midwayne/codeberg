@@ -2,10 +2,10 @@ package workspace
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -70,20 +70,49 @@ func grepRoot(ctx context.Context, dir, pattern string, literal bool, pathGlob s
 
 	args = append(args, "--", pattern, ".")
 
-	cmd := exec.CommandContext(ctx, "rg", args...)
+	return runGrep(exec.CommandContext(ctx, "rg", args...), dir, limit)
+}
+
+// runGrep streams rg's output and stops it once limit matches are collected,
+// so memory tracks the requested matches rather than everything rg finds.
+func runGrep(cmd *exec.Cmd, dir string, limit int) ([]GrepMatch, error) {
 	cmd.Dir = dir
 
-	out, err := cmd.Output()
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
-			return nil, nil
-		}
 		return nil, fmt.Errorf("codeberg: grep: %w", err)
 	}
 
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("codeberg: grep: %w", err)
+	}
+
+	matches, scanErr := scanGrep(stdout, limit)
+	stoppedEarly := scanErr != nil || len(matches) >= limit
+
+	if stoppedEarly {
+		_ = cmd.Process.Kill()
+	}
+
+	waitErr := cmd.Wait()
+	if stoppedEarly {
+		return matches, scanErr
+	}
+
+	if waitErr != nil {
+		var exitErr *exec.ExitError
+		if errors.As(waitErr, &exitErr) && exitErr.ExitCode() == 1 {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("codeberg: grep: %w", waitErr)
+	}
+
+	return matches, nil
+}
+
+func scanGrep(r io.Reader, limit int) ([]GrepMatch, error) {
 	var matches []GrepMatch
-	sc := bufio.NewScanner(bytes.NewReader(out))
+	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, scanBufInit), scanBufMax)
 
 	for sc.Scan() {
