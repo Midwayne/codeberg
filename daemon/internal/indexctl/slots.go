@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"runtime"
 	"sync"
 	"syscall"
 	"time"
@@ -56,7 +57,9 @@ func dialIndexer(ctx context.Context, socket string) (net.Conn, error) {
 
 	for {
 		conn, err := d.DialContext(ctx, "unix", socket)
-		if err == nil || !errors.Is(err, syscall.EAGAIN) {
+		backlogFull := errors.Is(err, syscall.EAGAIN) ||
+			(runtime.GOOS == "darwin" && errors.Is(err, syscall.ECONNREFUSED))
+		if err == nil || !backlogFull {
 			return conn, err
 		}
 

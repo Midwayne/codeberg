@@ -18,7 +18,13 @@ import (
 func startSerialIndexer(t *testing.T, backlog int, work time.Duration) (string, func() int) {
 	t.Helper()
 
-	sock := filepath.Join(t.TempDir(), "idx.sock")
+	// Keep the socket path below macOS's sockaddr_un limit, even with a long TMPDIR.
+	dir, err := os.MkdirTemp("", "idx-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	sock := filepath.Join(dir, "idx.sock")
 
 	fd, err := syscall.Socket(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
 	if err != nil {
@@ -33,7 +39,9 @@ func startSerialIndexer(t *testing.T, backlog int, work time.Duration) (string, 
 		t.Fatal(err)
 	}
 
-	ln, err := net.FileListener(os.NewFile(uintptr(fd), sock))
+	file := os.NewFile(uintptr(fd), sock)
+	ln, err := net.FileListener(file)
+	_ = file.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
