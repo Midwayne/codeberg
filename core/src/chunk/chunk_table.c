@@ -9,6 +9,7 @@
 #include "arena.h"
 #include "binio.h"
 #include "cacheline.h"
+#include "chunk_table_internal.h"
 #include "grow.h"
 #include "strmap.h"
 #include "u64map.h"
@@ -262,6 +263,13 @@ static void table_free_change_lists(cberg_chunk_table *table) {
     table->added_cap = 0;
     table->modified_cap = 0;
     table->deleted_cap = 0;
+}
+
+void cberg_chunk_table_release_changes(cberg_chunk_table *table) {
+    if (table == NULL) {
+        return;
+    }
+    table_free_change_lists(table);
 }
 
 static void table_discard(cberg_chunk_table *table) {

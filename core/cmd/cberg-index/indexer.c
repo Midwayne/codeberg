@@ -3,6 +3,7 @@
 #include "indexer.h"
 
 #include "chunk_kind.h"
+#include "chunk_table_internal.h"
 #include "fileio.h"
 #include "pathutil.h"
 #include "u64map.h"
@@ -1686,10 +1687,21 @@ cberg_status cberg_engine_step(cberg_engine *eng, size_t *out_events) {
     return CBERG_OK;
 }
 
-/* glibc keeps freed heap pages mapped, so one transient spike (parsing a huge
- * generated file, a cold bootstrap's batch) would otherwise pin RSS at its
- * high-water mark for the life of the process. */
-static void release_free_memory(void) {
+/* Runs only when the watch loop goes idle, so none of it lands on bootstrap or
+ * sync latency. The last sync's change lists are dead once its vectors are
+ * applied, but after a cold sync they hold one row per chunk until the next
+ * sync. glibc keeps freed heap pages mapped, so one transient spike (parsing a
+ * huge generated file, a cold bootstrap's batch) would otherwise pin RSS at
+ * its high-water mark for the life of the process. */
+static void release_free_memory(cberg_engine *eng) {
+    for (size_t i = 0; i < eng->repos_len; i++) {
+        cberg_repo *r = eng->repos[i];
+
+        pthread_mutex_lock(&r->mu);
+        cberg_chunk_table_release_changes(r->table);
+        pthread_mutex_unlock(&r->mu);
+    }
+
 #ifdef __GLIBC__
     malloc_trim(0);
 #endif
@@ -1714,7 +1726,7 @@ cberg_status cberg_engine_run(cberg_engine *eng) {
         if (handled == 0) {
             /* Trim once per busy->idle transition, off every request path. */
             if (dirty) {
-                release_free_memory();
+                release_free_memory(eng);
                 dirty = 0;
             }
 
