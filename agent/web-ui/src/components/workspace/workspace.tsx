@@ -38,7 +38,7 @@ export function useWorkspaceView({
   searchOpen,
   onSearchClose,
 }: WorkspaceProps) {
-  const { chat, sessions, sessionId, sessionError, resume, startNew, branchFrom, remove, setFlags } =
+  const { chat, turns, sessions, sessionId, sessionError, resume, startNew, branchFrom, remove, setFlags } =
     useWorkspaceSession();
   const [jump, setJump] = useState<{ sessionId: string; messageId: string; nonce: number }>();
   const desktop = useMediaQuery('(min-width: 768px)');
@@ -64,6 +64,7 @@ export function useWorkspaceView({
     sidebar,
     onSidebarClose,
     chat,
+    turns,
     sessionId,
     learningEnabled,
     chatInputs,
@@ -97,6 +98,7 @@ export function WorkspaceView(state: WorkspaceViewProps) {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <Chat
           chat={state.chat}
+          turns={state.turns}
           sessionId={state.sessionId}
           learningEnabled={state.learningEnabled}
           chatInputs={state.chatInputs}

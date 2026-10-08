@@ -1,6 +1,7 @@
 import { usePromptInput } from './use-prompt-input';
 import { PromptTextarea } from './prompt-textarea';
 import { PromptAttachments, PromptFiles, PromptAction } from './prompt-files';
+import { PromptSteer } from './prompt-actions';
 
 import { type RefObject } from 'react';
 
@@ -12,7 +13,7 @@ export { MAX_HEIGHT, MAX_FILE_SIZE, inputFor, clipboardImages } from '../../lib/
 
 /**
  * Auto-growing composer. Enter sends, Shift+Enter inserts a newline. The action
- * button becomes a stop control while a turn is streaming.
+ * button queues a follow-up during a turn; Stop and Steer remain separate actions.
  *
  * Typing a leading slash opens a command autocomplete (driven by the server's
  * `/api/commands` catalog): ↑/↓ to move, Enter/Tab to accept, Esc to dismiss,
@@ -27,6 +28,7 @@ export type PromptInputProps = {
   disabled?: boolean;
   inputs: CatalogModel['inputs'];
   onSend: (text: string, files: FileList) => void;
+  onSteer?: (text: string, files: FileList) => void;
   onStop: () => void;
 };
 
@@ -63,9 +65,13 @@ export function PromptInputView(state: PromptInputViewProps) {
           <PromptAction state={state} />
         </div>
       </div>
-      <p id={state.helpId} className="mt-2 text-center text-xs leading-5 text-muted-foreground">
-        <span className="hidden sm:inline">Enter to send · Shift+Enter for newline · </span>Type / for commands
-      </p>
+      <div className="mt-1 flex flex-wrap items-center justify-center gap-x-2">
+        <p id={state.helpId} className="text-center text-xs leading-5 text-muted-foreground">
+          <span>{state.busy ? 'Enter to queue' : 'Enter to send'} · </span>
+          <span className="hidden sm:inline">Shift+Enter for newline · </span>Type / for commands
+        </p>
+        <PromptSteer state={state} />
+      </div>
     </div>
   );
 }

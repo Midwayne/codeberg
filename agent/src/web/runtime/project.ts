@@ -1,4 +1,5 @@
 import { canvasFromEnv } from '../../core/canvas/config.js';
+import { chatAbortSignal } from '../chat-abort.js';
 import type { CanvasStore } from '../../core/canvas/store.js';
 import { pipeAgentUIStreamToResponse } from 'ai';
 import { join } from 'node:path';
@@ -98,6 +99,7 @@ export function projectResponder(
 ): ChatResponder {
   return async (res, messages, selection) => {
     if (!selection) throw new Error('Choose a chat model first.');
+    const abortSignal = chatAbortSignal(res);
 
     const lease = await pool.acquire(
       selection,
@@ -127,6 +129,7 @@ export function projectResponder(
         response: res,
         agent: lease.agent,
         uiMessages: messages,
+        abortSignal,
       });
     } finally {
       routed = true;

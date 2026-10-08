@@ -1,9 +1,24 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { clipboardImages, PromptInput } from './prompt-input';
+import { createPromptSubmit } from './use-prompt-input';
 
 describe('PromptInput attachments', () => {
+  it('keeps an active composer available for queued follow-ups and steering, with a separate Stop action', () => {
+    const html = renderToStaticMarkup(
+      <PromptInput value="Focus on the watcher" onValueChange={() => undefined} inputs={['text', 'vision']}
+        busy={true} onSend={() => undefined} onSteer={() => undefined} onStop={() => undefined} />,
+    );
+
+    expect(html).toContain('aria-label="Queue follow-up"');
+    expect(html).toContain('aria-label="Steer now"');
+    expect(html).toContain('aria-label="Stop response"');
+    expect(html).toContain('Enter to queue');
+    expect(html).toContain('Add a follow-up or steer the response');
+    expect(html).not.toContain('disabled=""');
+  });
+
   it('labels the composer and preserves a suggested question as an editable draft', () => {
     const html = renderToStaticMarkup(<PromptInput value="Where is the main entry point?" onValueChange={() => undefined} inputs={['text']} busy={false} onSend={() => undefined} onStop={() => undefined} />);
     expect(html).toContain('aria-label="Message"');
@@ -31,5 +46,33 @@ describe('PromptInput attachments', () => {
     expect(clipboardImages(clipboard, ['text', 'pdf'])).toEqual([]);
     expect(clipboardImages(clipboard, ['text', 'vision'])).toEqual([image]);
     expect(clipboardImages([] as unknown as FileList, ['text', 'vision'])).toEqual([]);
+  });
+
+  it('submits queued and steering drafts with their attachments and clears only the accepted draft', () => {
+    vi.stubGlobal('DataTransfer', class {
+      files: File[] = [];
+      items = { add: (file: File) => this.files.push(file) };
+    });
+    const file = { name: 'diagram.png', type: 'image/png' } as File;
+    const send = vi.fn();
+    const steer = vi.fn();
+    const clear = vi.fn();
+    const state = { value: '  Follow up  ', files: [file], disabled: false, onSend: send, onSteer: steer,
+      setValue: clear, setFiles: vi.fn(), setFileError: vi.fn(), fileRef: { current: null }, setDismissed: vi.fn() };
+
+    try {
+      const actions = createPromptSubmit(state);
+      actions.submit();
+      actions.steer?.();
+
+      expect(send).toHaveBeenCalledWith('Follow up', [file]);
+      expect(steer).toHaveBeenCalledWith('Follow up', [file]);
+      expect(clear).toHaveBeenCalledWith('');
+
+      createPromptSubmit({ ...state, disabled: true }).submit();
+      expect(send).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

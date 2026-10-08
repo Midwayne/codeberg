@@ -47,5 +47,5 @@ export function useWorkspaceSession() {
     setSessionError,
   });
 
-  return { chat, sessions, sessionId, sessionError, resume, startNew, branchFrom, remove, setFlags };
+  return { chat, turns: active.turns, sessions, sessionId, sessionError, resume, startNew, branchFrom, remove, setFlags };
 }

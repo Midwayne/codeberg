@@ -1,9 +1,9 @@
-import { ArrowUp, Paperclip, Square, X } from 'lucide-react';
-
-import { cn } from '../../lib/utils';
+import { Paperclip, X } from 'lucide-react';
 
 import { type PromptInputView } from './prompt-input';
 import { inputFor, MAX_FILE_SIZE } from '../../lib/prompt-files';
+
+export { PromptAction } from './prompt-actions';
 
 export type PromptAttachmentsProps = { state: Parameters<typeof PromptInputView>[0] };
 
@@ -36,7 +36,7 @@ export function PromptAttachments({ state }: PromptAttachmentsProps) {
         />
         <button
           type="button"
-          disabled={state.busy}
+          disabled={state.disabled}
           onClick={() => state.fileRef.current?.click()}
           aria-label="Attach files"
           title="Attach files"
@@ -46,36 +46,6 @@ export function PromptAttachments({ state }: PromptAttachmentsProps) {
         </button>
       </>
     )
-  );
-}
-
-export type PromptActionProps = { state: Parameters<typeof PromptInputView>[0] };
-
-export function PromptAction({ state }: PromptActionProps) {
-  return state.busy ? (
-    <button
-      type="button"
-      onClick={state.onStop}
-      aria-label="Stop"
-      title="Stop"
-      className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-opacity hover:opacity-90"
-    >
-      <Square className="size-3.5 fill-current" />
-    </button>
-  ) : (
-    <button
-      type="button"
-      onClick={state.submit}
-      disabled={state.disabled || (!state.value.trim() && !state.files.length)}
-      aria-label="Send"
-      title="Send"
-      className={cn(
-        'inline-flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-opacity',
-        'hover:opacity-90 disabled:opacity-30',
-      )}
-    >
-      <ArrowUp className="size-4" />
-    </button>
   );
 }
 

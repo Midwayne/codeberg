@@ -5,8 +5,11 @@ import { useChatScroll } from './use-chat-scroll';
 import { useProjectApi } from '../../lib/project-api';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import type { UIMessage } from 'ai';
-import { Loader2 } from 'lucide-react';
 import { useRef, useState } from 'react';
+import type { TurnQueue } from '../../sessions/turn-queue';
+import { useTurnQueue } from './use-turn-queue';
+import { WorkingStatus } from './working-status';
+import { QueuedFollowUps } from './queued-follow-ups';
 
 import { MessageList } from './message-list';
 import { MessageRail } from './message-rail';
@@ -21,6 +24,7 @@ import { type CatalogModel } from '../../lib/models';
 // operation: this component only reports the message index to branch through.
 export type ChatProps = {
   chat: UseChatHelpers<UIMessage>;
+  turns?: TurnQueue;
   onBranch?: (throughIndex: number) => void;
   sessionId: string;
   learningEnabled: boolean;
@@ -36,6 +40,7 @@ export function Chat(props: ChatProps) {
 
 export type ChatViewOptions = {
   chat: UseChatHelpers<UIMessage>;
+  turns?: TurnQueue;
   onBranch?: (throughIndex: number) => void;
   sessionId: string;
   learningEnabled: boolean;
@@ -43,10 +48,11 @@ export type ChatViewOptions = {
   jump?: { messageId: string; nonce: number };
 };
 
-export function useChatView({ chat, onBranch, sessionId, learningEnabled, chatInputs, jump }: ChatViewOptions) {
+export function useChatView({ chat, turns, onBranch, sessionId, learningEnabled, chatInputs, jump }: ChatViewOptions) {
   const { ready } = useProjectApi();
-  const { messages, sendMessage, status, stop, regenerate, error } = chat;
-  const busy = status === 'submitted' || status === 'streaming';
+  const { messages, status, error } = chat;
+  const queue = useTurnQueue(turns, chat);
+  const busy = status === 'submitted' || status === 'streaming' || queue.snapshot.steering;
   const branchAt = !busy && onBranch ? onBranch : undefined;
   const [draft, setDraft] = useState('');
   const promptRef = useRef<HTMLTextAreaElement>(null);
@@ -62,7 +68,7 @@ export function useChatView({ chat, onBranch, sessionId, learningEnabled, chatIn
     learningEnabled,
     busy,
     ready,
-    regenerate,
+    regenerate: queue.retry,
     onBranch,
     status,
     error,
@@ -72,8 +78,7 @@ export function useChatView({ chat, onBranch, sessionId, learningEnabled, chatIn
     branchAt,
     draft,
     chatInputs,
-    sendMessage,
-    stop,
+    queue,
   };
 }
 
@@ -106,12 +111,7 @@ export function ChatView(state: ChatViewProps) {
               onBranch={state.onBranch}
             />
 
-            {state.status === 'submitted' && (
-              <div role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="size-4 animate-spin motion-reduce:animate-none" />
-                Thinking…
-              </div>
-            )}
+            <WorkingStatus status={state.status} messages={state.messages} steering={state.queue.snapshot.steering} />
 
             <ChatError state={state} />
 
@@ -132,15 +132,18 @@ function ChatComposer({ state }: ChatComposerProps) {
   return (
     <div className="shrink-0 border-t border-border bg-background">
       <div className="mx-auto max-w-3xl px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-8">
+        <QueuedFollowUps queue={state.queue} busy={state.busy} failed={state.status === 'error'} />
         <PromptInput
+          key={state.sessionId}
           value={state.draft}
           onValueChange={state.setDraft}
           inputRef={state.promptRef}
           busy={state.busy}
           disabled={!state.ready}
           inputs={state.chatInputs}
-          onSend={(text, files) => state.sendMessage({ text, ...(files.length ? { files } : {}) })}
-          onStop={state.stop}
+          onSend={state.queue.send}
+          onSteer={state.queue.steer}
+          onStop={state.queue.stop}
         />
       </div>
     </div>

@@ -34,6 +34,36 @@ async function fixture(options: Partial<WebServerOptions> = {}) {
 }
 
 describe('usage API', () => {
+  it('aborts the model request when the browser stops a response', async () => {
+    let signal: AbortSignal | undefined;
+    let controller: ReadableStreamDefaultController | undefined;
+    const model = new MockLanguageModelV4({ doStream: async (options) => {
+      signal = options.abortSignal;
+
+      return { stream: new ReadableStream({ start(next) {
+        controller = next;
+        next.enqueue({ type: 'text-start', id: 'text' });
+        next.enqueue({ type: 'text-delta', id: 'text', delta: 'Working' });
+        signal?.addEventListener('abort', () => next.error(new DOMException('Stopped', 'AbortError')));
+      } }) };
+    } });
+    const { url } = await fixture({ agent: new ToolLoopAgent({ model }) });
+    const stop = new AbortController();
+    const response = await fetch(url.replace('/settings/usage', '/chat'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: stop.signal,
+      body: JSON.stringify({ messages: [{ id: 'question', role: 'user', parts: [{ type: 'text', text: 'Hello' }] }] }),
+    });
+
+    await response.body!.getReader().read();
+    stop.abort();
+
+    try {
+      await expect.poll(() => signal?.aborted).toBe(true);
+    } finally {
+      if (!signal?.aborted) controller?.close();
+    }
+  });
+
   it('captures real streamed agent steps through the default web responder', async () => {
     const model = new MockLanguageModelV4({ doStream: async () => ({
       stream: new ReadableStream({ start(controller) {

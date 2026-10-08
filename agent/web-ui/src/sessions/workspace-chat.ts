@@ -1,7 +1,8 @@
 import { Chat } from '@ai-sdk/react';
 import type { ChatTransport, UIMessage } from 'ai';
 
-import { deriveTitle } from '../lib/sessions';
+import { TurnQueue } from './turn-queue';
+import { chatPersistence } from './workspace-persistence';
 
 export interface WorkspaceChatSave {
   id: string;
@@ -15,6 +16,7 @@ export interface WorkspaceChat {
   title?: string;
   parentId?: string;
   chat: Chat<UIMessage>;
+  turns: TurnQueue;
   dispose: () => void;
 }
 
@@ -28,10 +30,6 @@ interface CreateWorkspaceChatOptions {
   onPersist?: () => void;
 }
 
-function signature(messages: readonly UIMessage[]): string {
-  return `${messages.length}:${messages.at(-1)?.id ?? ''}`;
-}
-
 /** Creates one independently streaming chat whose completion persists to its owning session. */
 export function createWorkspaceChat({
   id,
@@ -43,35 +41,24 @@ export function createWorkspaceChat({
   onPersist,
 }: CreateWorkspaceChatOptions): WorkspaceChat {
   let disposed = false;
-  let savedSignature = signature(messages);
   const chat = new Chat<UIMessage>({
     id,
     messages,
     ...(transport ? { transport } : {}),
-    onFinish: ({ messages: finishedMessages, isError }) => {
-      if (disposed || isError || finishedMessages.length === 0) return;
-      const nextSignature = signature(finishedMessages);
-      if (nextSignature === savedSignature) return;
-      savedSignature = nextSignature;
-      void persist({
-        id,
-        title: title ?? deriveTitle(finishedMessages),
-        messages: finishedMessages,
-        ...(parentId ? { parentId } : {}),
-      })
-        .then(onPersist)
-        .catch(() => undefined);
-    },
+    onFinish: chatPersistence({ id, messages, title, parentId, persist, onPersist,
+      disposed: () => disposed, setMessages: (next) => { chat.messages = next; } }),
   });
+  const turns = new TurnQueue(chat);
 
   return {
     id,
     title,
     parentId,
     chat,
+    turns,
     dispose: () => {
       disposed = true;
-      void chat.stop();
+      turns.dispose();
     },
   };
 }
