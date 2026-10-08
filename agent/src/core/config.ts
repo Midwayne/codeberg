@@ -51,9 +51,10 @@ export function createAgent(config: AgentConfig): Agent {
   const model = config.transformModel ? config.transformModel(resolved) : resolved;
   const learningEnabled =
     config.learning === undefined ? learningEnabledFromEnv(env) : config.learning !== false;
+  const subagentSpec = config.subagentModelSpec ?? config.modelSpec;
   const subagentModel =
-    learningEnabled && !config.learning
-      ? registry.resolve(config.subagentModelSpec ?? config.modelSpec)
+    subagentSpec !== config.modelSpec || (learningEnabled && !config.learning)
+      ? registry.resolve(subagentSpec)
       : undefined;
 
   return new Agent({

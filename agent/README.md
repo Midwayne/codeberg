@@ -45,6 +45,9 @@ or from a checkout.
 | `CODEBERG_HOME` | web, MCP | state root for sessions and `~/.codeberg/mcp.json` (default `~/.codeberg`) |
 | `CODEBERG_REASONING` | all | reasoning effort: `provider-default`, `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` (Responses-compatible models only); anything else is ignored |
 | `CODEBERG_CONTEXT_WINDOW` | all | override the model's inferred context window (tokens) — mainly for local `ollama`/`llamacpp` servers, whose real window depends on how they were started |
+| `CODEBERG_CONTEXT_BUDGET` | all | tokens the history (50%) and in-loop pruning (60%) budgets are computed from, capped by the window (default 200,000 — keeps requests under the long-context price tier of 1M-window models) |
+| `CODEBERG_TOOL_BATCH` | all | register the `batch` tool (up to 8 independent calls in one tool call). Default on for `ollama`, `llamacpp`, and unknown providers, which may return one tool call per response; off for `anthropic`, `openai`, `google`, which call tools in parallel natively |
+| `CODEBERG_SUBAGENT_MODEL` | CLI | `provider:model` for background work: learning extraction and history-compaction summaries (default: `CODEBERG_MODEL`). A cheaper model here cuts compaction cost |
 | `CODEBERG_WEB_USE` | all | master switch for `fetch_url`/`web_search` (default on; `0`/`false`/`off`/`no` disables) |
 | `CODEBERG_SEARXNG_URL` | all | SearXNG endpoint backing `web_search` |
 | `CODEBERG_WEB_ALLOW_PRIVATE` | all | allow `fetch_url` to hit loopback/private hosts (default off) |
@@ -314,7 +317,8 @@ their names are `mcp_<server>_<tool>`. See [docs/mcp.md](../docs/mcp.md).
 under `$CODEBERG_HOME/context` (one file per distinct body) and the model sees a head/tail plus the path
 (`context_grep`, `context_tail`, `context_read`) instead of a truncated blob.
 Pipe/shell output is appended under `context/terminals/`. When history exceeds
-50% of the window it is summarized, and the verbatim older turns stay in a
+50% of the working window (the context window capped by
+`CODEBERG_CONTEXT_BUDGET`) it is summarized, and the verbatim older turns stay in a
 history file named in that summary so a later turn can search them. MCP tool
 schemas stay in per-server folders and are loaded with `load_mcp_tools` only
 when needed; a server that fails to connect (including auth) stays visible so
@@ -322,6 +326,17 @@ the agent can tell the user. Agent Skills (`SKILL.md` under `.agents/skills`,
 `.cursor/skills`, `.codeberg/skills`, or `~/.codeberg/skills`) contribute name
 and description only until the agent reads the file. In-loop tool-result
 pruning still runs at 60%. Override the window with `CODEBERG_CONTEXT_WINDOW`.
+**Tool calling:** each model response is a round trip that re-reads the
+transcript, so the agent is told to put every independent call in the same
+response; they run concurrently in one step. OpenAI-wire providers (`openai`,
+`ollama`, `llamacpp`) are sent `parallel_tool_calls: true` — llama.cpp's server
+defaults it off. Models on local or unknown servers also get `batch`, which
+runs up to 8 calls inside one tool call for runtimes that return a single call
+per response; its results share one inline budget and spill beyond it.
+
+On Anthropic models the system prompt carries a 1h cache breakpoint and every
+tool step marks the transcript tail cacheable, so earlier tool results are
+billed at the cache-read rate instead of being re-sent at full price.
 
 **Chunk-only daemon:** file tools (`grep`, `find_symbol`, …) work without vectors;
 `search_code` needs `vectors_enabled: true` on `GET /health`.

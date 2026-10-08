@@ -1,11 +1,12 @@
 import { isLoopFinished, pruneMessages, ToolLoopAgent } from 'ai';
 import { pruneBudget } from '../../providers/profiles.js';
-import { cachedInstructions, deterministicTools } from '../cache.js';
+import { cachedInstructions, deterministicTools, withConversationCache } from '../cache.js';
 import { DaemonError } from '../client.js';
 import { wrapToolOutputs } from '../context/wrap.js';
 import { totalTokens } from '../history.js';
 import { wrapToolLoopAgentWithPromptHooks } from '../hooks/index.js';
 import { prepareStepPatch } from '../mcp/active.js';
+import { batchTool } from '../tools/batch.js';
 import { DEFAULT_TIMEOUT } from './options.js';
 import type { AgentState } from './state.js';
 import { buildTools, prepareSystem } from './tools.js';
@@ -40,7 +41,12 @@ export async function waitForDaemon(state: AgentState): Promise<void> {
 
 export async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
   // Sort tools to keep the cached system prefix stable across processes.
-  const tools = wrapToolOutputs(deterministicTools(await buildTools(state)), state.context);
+  // `batch` wraps the raw tools: it spills each result against its own budget.
+  const raw = await buildTools(state);
+  const tools = deterministicTools({
+    ...wrapToolOutputs(raw, state.context),
+    ...(state.profile.toolBatch ? batchTool(raw, state.context) : {}),
+  });
   const toolNames = Object.keys(tools);
   const providerOptions = await prepareSystem(state, tools);
 
@@ -58,10 +64,11 @@ export async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
     ...(providerOptions ? { providerOptions } : {}),
     ...(state.reasoning && state.reasoning !== 'max' ? { reasoning: state.reasoning } : {}),
     // In-loop results are spilled at execute. Here, drop the oldest tool
-    // pairs once the transcript crosses the high-water mark, and hide MCP
-    // tools until load_mcp_tools or the transcript already names them.
+    // pairs once the transcript crosses the high-water mark, mark the
+    // transcript tail cacheable, and hide MCP tools until load_mcp_tools or
+    // the transcript already names them.
     prepareStep: async ({ messages }) => {
-      const next =
+      const pruned =
         totalTokens(messages) > prune
           ? pruneMessages({
               messages,
@@ -69,6 +76,8 @@ export async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
               emptyMessages: 'remove',
             })
           : messages;
+
+      const next = withConversationCache(pruned, state.profile);
 
       return prepareStepPatch(messages, next, state.mcpSource?.activeTools(toolNames, next));
     },

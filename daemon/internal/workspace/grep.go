@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -54,8 +55,54 @@ func (w *Workspace) grep(ctx context.Context, pattern string, literal bool, repo
 	return hits, nil
 }
 
+// grepRoot streams rg output and stops rg once limit matches are read, so a
+// broad pattern costs only what the caller keeps rather than buffering every
+// match in the tree.
 func grepRoot(ctx context.Context, dir, pattern string, literal bool, pathGlob string, limit, perFileLimit int) ([]GrepMatch, error) {
-	args := []string{"--no-heading", "--line-number", "--with-filename", "--color=never", "--no-messages"}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "rg", grepArgs(pattern, literal, pathGlob, perFileLimit)...)
+	cmd.Dir = dir
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("codeberg: grep: %w", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("codeberg: grep: %w", err)
+	}
+
+	matches, scanErr := scanGrep(stdout, limit)
+	full := len(matches) >= limit
+	if full || scanErr != nil {
+		cancel()
+	}
+
+	waitErr := cmd.Wait()
+	if scanErr != nil {
+		return nil, fmt.Errorf("codeberg: grep: %w", scanErr)
+	}
+
+	if full {
+		return matches, nil
+	}
+
+	return grepResult(matches, waitErr, &stderr)
+}
+
+func grepArgs(pattern string, literal bool, pathGlob string, perFileLimit int) []string {
+	args := []string{
+		"--no-heading", "--line-number", "--with-filename", "--color=never", "--no-messages",
+		// Minified bundles and generated data put megabytes on one line; a
+		// preview keeps the match location without flooding the model.
+		"--max-columns", strconv.Itoa(grepMaxColumns), "--max-columns-preview",
+	}
+
 	if perFileLimit > 0 {
 		args = append(args, "--max-count", strconv.Itoa(perFileLimit))
 	}
@@ -68,50 +115,12 @@ func grepRoot(ctx context.Context, dir, pattern string, literal bool, pathGlob s
 		args = append(args, "--glob", pathGlob)
 	}
 
-	args = append(args, "--", pattern, ".")
-
-	return runGrep(exec.CommandContext(ctx, "rg", args...), dir, limit)
-}
-
-// runGrep streams rg's output and stops it once limit matches are collected,
-// so memory tracks the requested matches rather than everything rg finds.
-func runGrep(cmd *exec.Cmd, dir string, limit int) ([]GrepMatch, error) {
-	cmd.Dir = dir
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, fmt.Errorf("codeberg: grep: %w", err)
-	}
-
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("codeberg: grep: %w", err)
-	}
-
-	matches, scanErr := scanGrep(stdout, limit)
-	stoppedEarly := scanErr != nil || len(matches) >= limit
-
-	if stoppedEarly {
-		_ = cmd.Process.Kill()
-	}
-
-	waitErr := cmd.Wait()
-	if stoppedEarly {
-		return matches, scanErr
-	}
-
-	if waitErr != nil {
-		var exitErr *exec.ExitError
-		if errors.As(waitErr, &exitErr) && exitErr.ExitCode() == 1 {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("codeberg: grep: %w", waitErr)
-	}
-
-	return matches, nil
+	return append(args, "--", pattern, ".")
 }
 
 func scanGrep(r io.Reader, limit int) ([]GrepMatch, error) {
 	var matches []GrepMatch
+
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, scanBufInit), scanBufMax)
 
@@ -123,11 +132,30 @@ func scanGrep(r io.Reader, limit int) ([]GrepMatch, error) {
 
 		matches = append(matches, m)
 		if len(matches) >= limit {
-			break
+			return matches, nil
 		}
 	}
 
 	return matches, sc.Err()
+}
+
+// grepResult interprets rg's exit after its output was fully read: status 1
+// means no matches, anything else is a failure worth reporting.
+func grepResult(matches []GrepMatch, waitErr error, stderr *bytes.Buffer) ([]GrepMatch, error) {
+	if waitErr == nil {
+		return matches, nil
+	}
+
+	var exitErr *exec.ExitError
+	if errors.As(waitErr, &exitErr) && exitErr.ExitCode() == 1 {
+		return nil, nil
+	}
+
+	if msg := strings.TrimSpace(stderr.String()); msg != "" {
+		return nil, fmt.Errorf("codeberg: grep: %w: %s", waitErr, msg)
+	}
+
+	return nil, fmt.Errorf("codeberg: grep: %w", waitErr)
 }
 
 func parseGrep(line string) (GrepMatch, bool) {

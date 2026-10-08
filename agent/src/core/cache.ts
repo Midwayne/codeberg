@@ -1,4 +1,4 @@
-import type { Instructions, ToolSet } from 'ai';
+import type { Instructions, ModelMessage, ToolSet } from 'ai';
 
 import type { ModelProfile } from '../providers/profiles.js';
 
@@ -59,6 +59,84 @@ export function requestProviderOptions(
   }
 
   return undefined;
+}
+
+/**
+ * Anthropic only caches up to an explicit breakpoint, and the system prompt is
+ * the only one `cachedInstructions` sets. Without more, every tool round
+ * re-bills the whole transcript (all earlier tool results) at the full input
+ * rate. Mark two rolling breakpoints on the transcript tail:
+ *
+ * - the last message, which writes this step's prefix to the cache;
+ * - the message that ended the previous step (just before the latest
+ *   assistant turn), which reads what the previous step wrote even when a
+ *   step adds more blocks than the provider's lookback window.
+ *
+ * Together with the system breakpoint that is 3 of Anthropic's 4. Other cache
+ * strategies return the input unchanged.
+ */
+export function withConversationCache(
+  messages: ModelMessage[],
+  profile: ModelProfile,
+): ModelMessage[] {
+  if (profile.cache !== 'anthropic' || messages.length === 0) {
+    return messages;
+  }
+
+  // The tool loop carries each step's prepared messages into the next, so
+  // breakpoints from earlier steps must be cleared or they pile up past the
+  // provider limit, which then ignores the newest (most valuable) ones.
+  const targets = tailBreakpoints(messages);
+
+  return messages.map((message, i) =>
+    targets.has(i) ? withCacheBreakpoint(message) : withoutCacheBreakpoint(message),
+  );
+}
+
+function tailBreakpoints(messages: readonly ModelMessage[]): Set<number> {
+  const last = messages.length - 1;
+
+  let lastAssistant = -1;
+  for (let i = last; i >= 0; i--) {
+    if (messages[i]!.role === 'assistant') {
+      lastAssistant = i;
+      break;
+    }
+  }
+
+  const previousStep = lastAssistant - 1;
+  const candidates = previousStep >= 0 ? [last, previousStep] : [last];
+
+  return new Set(candidates.filter((i) => messages[i]!.role !== 'system'));
+}
+
+function withCacheBreakpoint(message: ModelMessage): ModelMessage {
+  const anthropic = message.providerOptions?.anthropic;
+
+  return {
+    ...message,
+    providerOptions: {
+      ...message.providerOptions,
+      anthropic: { ...anthropic, cacheControl: { type: 'ephemeral' } },
+    },
+  } as ModelMessage;
+}
+
+function withoutCacheBreakpoint(message: ModelMessage): ModelMessage {
+  const anthropic = message.providerOptions?.anthropic;
+  if (!anthropic || !('cacheControl' in anthropic)) {
+    return message;
+  }
+
+  const { cacheControl: _cleared, ...rest } = anthropic;
+  const { anthropic: _old, ...others } = message.providerOptions!;
+  const providerOptions = Object.keys(rest).length > 0 ? { ...others, anthropic: rest } : others;
+
+  const { providerOptions: _previous, ...bare } = message;
+
+  return (
+    Object.keys(providerOptions).length > 0 ? { ...bare, providerOptions } : bare
+  ) as ModelMessage;
 }
 
 /**

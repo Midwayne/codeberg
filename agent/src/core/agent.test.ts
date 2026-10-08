@@ -236,3 +236,44 @@ describe('Agent tool budget', () => {
     },
   );
 });
+
+describe('history compaction model', () => {
+  it('summarizes overflow with the subagent model instead of the chat model', async () => {
+    const usage = {
+      inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+      outputTokens: { total: 1, text: 1, reasoning: 0 },
+    };
+
+    const reply = (text: string) => async () => ({
+      content: [{ type: 'text' as const, text }],
+      finishReason: { unified: 'stop' as const, raw: undefined },
+      usage,
+      warnings: [],
+    });
+
+    const chat = new MockLanguageModelV4({ doGenerate: reply('CHAT') });
+    const subagent = new MockLanguageModelV4({ doGenerate: reply('SUMMARY') });
+
+    const agent = new Agent({
+      model: chat,
+      subagentModel: subagent,
+      daemon: new DaemonClient(DEFAULT_DAEMON_URL),
+      learning: false,
+      profile: { provider: 'test', modelId: 'test', contextWindow: 2000, cache: 'none' },
+      context: ContextStore.open(mkdtempSync(join(tmpdir(), 'cberg-compact-model-'))),
+    });
+
+    const turns = Array.from({ length: 12 }, (_, i) => ({
+      role: i % 2 ? ('assistant' as const) : ('user' as const),
+      content: 'x'.repeat(600),
+    }));
+
+    const out = await agent.compactHistory(turns);
+
+    expect(String(out[0]?.content)).toContain('SUMMARY');
+    expect(subagent.doGenerateCalls).toHaveLength(1);
+    expect(chat.doGenerateCalls).toHaveLength(0);
+
+    await agent.close();
+  });
+});

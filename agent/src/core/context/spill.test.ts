@@ -65,6 +65,25 @@ describe('presentToolOutput', () => {
       .split('\n');
     expect(index).toEqual([`grep\t${file}`]);
   });
+
+  it('measures structured output at its compact wire size, not the indented rendering', async () => {
+    const store = ContextStore.open(mkdtempSync(join(tmpdir(), 'cberg-spill-wire-')));
+    const output = Array.from({ length: 60 }, (_, i) => ({
+      repo: 'core',
+      path: `src/file-${i}.c`,
+      line: i + 1,
+      text: 'x'.repeat(120),
+    }));
+
+    const compact = JSON.stringify(output).length;
+    const indented = JSON.stringify(output, null, 2).length;
+    expect(compact).toBeLessThanOrEqual(SPILL_CHARS);
+    expect(indented).toBeGreaterThan(SPILL_CHARS);
+
+    const seen = await presentToolOutput(store, 'grep', { pattern: 'x' }, output);
+
+    expect(seen).toBe(output);
+  });
 });
 
 describe('wrapToolOutputs', () => {

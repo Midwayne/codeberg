@@ -66,7 +66,9 @@ export class AgentState {
     this.env = opts.env ?? process.env;
     this.model = opts.model;
     this.daemon = opts.daemon;
-    this.generator = opts.generator ?? fromAiSdk(opts.model);
+    // History summaries are background work: run them on the subagent model
+    // when one is configured, not the (usually pricier) chat model.
+    this.generator = opts.generator ?? fromAiSdk(opts.subagentModel ?? opts.model);
     this.reasoning = opts.reasoning;
     this.profile = opts.profile ?? DEFAULT_PROFILE;
     this.promptHooks = opts.promptHooks ?? DEFAULT_PROMPT_HOOKS;

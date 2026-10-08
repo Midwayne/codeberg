@@ -91,7 +91,9 @@ export {
 } from './core/web/index.js';
 export { ProviderRegistry, type ModelProvider } from './providers/index.js';
 export {
+  budgetWindow,
   DEFAULT_PROFILE,
+  DEFAULT_WORKING_WINDOW,
   historyBudget,
   profileFor,
   pruneBudget,

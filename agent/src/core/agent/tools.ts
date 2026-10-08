@@ -7,7 +7,9 @@ import { mcpConfigFromEnv } from '../mcp/config.js';
 import { mcpToolSource } from '../mcp/tools.js';
 import { agentSystemPrompt } from '../prompt.js';
 import { maxReasoningProviderOptions } from '../reasoning.js';
+import { mergeProviderOptions, parallelToolProviderOptions } from '../tool-calls.js';
 import { createAgentTools } from '../tools/agent-tools.js';
+import { BATCH_TOOL, MAX_BATCH_CALLS } from '../tools/batch.js';
 import { DEFAULT_SEARCH_K } from './options.js';
 import type { AgentState } from './state.js';
 
@@ -24,24 +26,18 @@ export async function prepareSystem(
     mcp: state.mcpSource?.reports() ?? [],
     skills,
     contextRoot: state.context.root,
+    batch: toolNames.includes(BATCH_TOOL) ? MAX_BATCH_CALLS : undefined,
   });
   if (toolNames.some((name) => name.startsWith('canvas_'))) state.system += CANVAS_INSTRUCTIONS;
 
   const knowledgeIndex = await state.learning?.knowledgeIndex();
   if (knowledgeIndex) state.system += `\n\n${knowledgeIndex}`;
 
-  let providerOptions = requestProviderOptions(state.system, toolNames, state.profile);
-  if (state.reasoning === 'max') {
-    providerOptions = {
-      ...providerOptions,
-      openai: {
-        ...providerOptions?.openai,
-        ...maxReasoningProviderOptions(state.profile.provider).openai,
-      },
-    };
-  }
-
-  return providerOptions;
+  return mergeProviderOptions(
+    requestProviderOptions(state.system, toolNames, state.profile),
+    parallelToolProviderOptions(state.profile),
+    state.reasoning === 'max' ? maxReasoningProviderOptions(state.profile.provider) : undefined,
+  );
 }
 
 export async function buildTools(state: AgentState) {
