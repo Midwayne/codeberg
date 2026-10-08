@@ -1,6 +1,6 @@
 import { isLoopFinished, pruneMessages, ToolLoopAgent } from 'ai';
 import { pruneBudget } from '../../providers/profiles.js';
-import { cachedInstructions, deterministicTools } from '../cache.js';
+import { cachedInstructions, deterministicTools, withConversationCache } from '../cache.js';
 import { DaemonError } from '../client.js';
 import { wrapToolOutputs } from '../context/wrap.js';
 import { totalTokens } from '../history.js';
@@ -58,10 +58,11 @@ export async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
     ...(providerOptions ? { providerOptions } : {}),
     ...(state.reasoning && state.reasoning !== 'max' ? { reasoning: state.reasoning } : {}),
     // In-loop results are spilled at execute. Here, drop the oldest tool
-    // pairs once the transcript crosses the high-water mark, and hide MCP
-    // tools until load_mcp_tools or the transcript already names them.
+    // pairs once the transcript crosses the high-water mark, mark the
+    // transcript tail cacheable, and hide MCP tools until load_mcp_tools or
+    // the transcript already names them.
     prepareStep: async ({ messages }) => {
-      const next =
+      const pruned =
         totalTokens(messages) > prune
           ? pruneMessages({
               messages,
@@ -69,6 +70,8 @@ export async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
               emptyMessages: 'remove',
             })
           : messages;
+
+      const next = withConversationCache(pruned, state.profile);
 
       return prepareStepPatch(messages, next, state.mcpSource?.activeTools(toolNames, next));
     },
