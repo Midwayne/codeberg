@@ -12,6 +12,11 @@ typedef struct cberg_strmap cberg_strmap;
 typedef void (*cberg_strmap_visit_fn)(const char *key, uint64_t value, void *ctx);
 
 cberg_strmap *cberg_strmap_new(size_t bucket_count);
+
+/* Like cberg_strmap_new, but set() stores the caller's key pointer instead of
+ * a private copy. Every key must stay valid and unchanged until the map is
+ * cleared or freed (e.g. keys owned by an arena that outlives the map). */
+cberg_strmap *cberg_strmap_new_borrowed(size_t bucket_count);
 void cberg_strmap_free(cberg_strmap *map);
 void cberg_strmap_clear(cberg_strmap *map);
 
