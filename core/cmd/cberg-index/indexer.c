@@ -17,6 +17,10 @@
 #include <time.h>
 #include <unistd.h>
 
+#ifdef __GLIBC__
+#include <malloc.h>
+#endif
+
 #define BATCH_SIZE 32
 #define PROGRESS_MIN 128  /* only show embed progress for upserts at least this large */
 #define PROGRESS_STEP 512 /* ...and roughly every this many chunks */
@@ -1682,7 +1686,19 @@ cberg_status cberg_engine_step(cberg_engine *eng, size_t *out_events) {
     return CBERG_OK;
 }
 
+/* glibc keeps freed heap pages mapped, so one transient spike (parsing a huge
+ * generated file, a cold bootstrap's batch) would otherwise pin RSS at its
+ * high-water mark for the life of the process. */
+static void release_free_memory(void) {
+#ifdef __GLIBC__
+    malloc_trim(0);
+#endif
+}
+
 cberg_status cberg_engine_run(cberg_engine *eng) {
+    /* Start dirty: bootstrap ran just before the loop. */
+    int dirty = 1;
+
     for (;;) {
         if (eng->stop) {
             return CBERG_OK;
@@ -1692,7 +1708,16 @@ cberg_status cberg_engine_run(cberg_engine *eng) {
         if (st != CBERG_OK) {
             return st;
         }
+        if (handled != 0) {
+            dirty = 1;
+        }
         if (handled == 0) {
+            /* Trim once per busy->idle transition, off every request path. */
+            if (dirty) {
+                release_free_memory();
+                dirty = 0;
+            }
+
             /* Idle: every watcher was drained non-blocking, so pace the loop.
              * A signal interrupts the sleep and the stop check runs first. */
             struct timespec ts = {.tv_sec = eng->poll_ms / 1000, .tv_nsec = (long)(eng->poll_ms % 1000) * 1000000L};

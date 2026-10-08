@@ -80,7 +80,8 @@ cberg_status cberg_repo_bootstrap(cberg_repo *r);
  * changes. *out_events (nullable) receives the number of events handled. */
 cberg_status cberg_engine_step(cberg_engine *eng, size_t *out_events);
 
-/* The watch loop: step until stop, sleeping poll_ms between idle passes. */
+/* The watch loop: step until stop, sleeping poll_ms between idle passes. It
+ * returns freed heap to the OS whenever it goes idle after doing work. */
 cberg_status cberg_engine_run(cberg_engine *eng);
 
 size_t cberg_repo_chunk_count(cberg_repo *r);
