@@ -66,6 +66,24 @@ export async function recordTerminal(
 }
 
 /**
+ * Characters the provider actually sends for `output`. Structured results go
+ * over the wire as compact JSON, so judging them by the indented rendering
+ * (about a third larger) would spill results that fit and cost the model an
+ * extra context_read round trip.
+ */
+export function wireChars(output: unknown): number {
+  if (typeof output === 'string') return output.length;
+
+  if (output == null) return 0;
+
+  try {
+    return (JSON.stringify(output) ?? String(output)).length;
+  } catch {
+    return String(output).length;
+  }
+}
+
+/**
  * What the model should see for one freshly executed tool. Short results pass
  * through. Long ones are replaced with a preview. Terminal tools are logged
  * here, at execute time; a resumed transcript is not logged again.
@@ -80,6 +98,8 @@ export async function presentToolOutput(
   const text = toolOutputText(output);
   try {
     await recordTerminal(store, toolName, args, text);
+    if (wireChars(output) <= limit) return output;
+
     const preview = await spillText(
       store,
       toolName,
