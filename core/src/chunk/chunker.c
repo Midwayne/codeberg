@@ -48,18 +48,31 @@ static const char *const GO_QUERY =
 
 static const char *const C_QUERY =
     "(function_definition declarator: (function_declarator declarator: (identifier) @name)) @function\n"
+    "(function_definition declarator: (pointer_declarator declarator: (function_declarator declarator: (identifier) @name))) @function\n"
+    "(function_definition declarator: (pointer_declarator declarator: (pointer_declarator declarator: (function_declarator declarator: (identifier) @name)))) @function\n"
+    "(function_definition declarator: (pointer_declarator declarator: (pointer_declarator declarator: (pointer_declarator declarator: (function_declarator declarator: (identifier) @name))))) @function\n"
     "(struct_specifier name: (type_identifier) @name body: (field_declaration_list)) @struct\n";
+
+/* Module-level `const f = () => {}` style definitions; nested ones stay part of
+ * their enclosing chunk so local callbacks do not explode the chunk count. */
+#define JS_CONST_FUNCTION_VALUE "[(arrow_function) (function_expression) (generator_function)]"
+#define JS_CONST_FUNCTION_DECL "(lexical_declaration (variable_declarator name: (identifier) @name value: " JS_CONST_FUNCTION_VALUE "))"
+#define JS_CONST_FUNCTION_QUERY \
+    "(program " JS_CONST_FUNCTION_DECL " @function)\n" \
+    "(program (export_statement declaration: " JS_CONST_FUNCTION_DECL " @function))\n"
 
 static const char *const JAVASCRIPT_QUERY =
     "(function_declaration name: (identifier) @name) @function\n"
     "(class_declaration name: (identifier) @name) @class\n"
-    "(method_definition name: (property_identifier) @name) @method\n";
+    "(method_definition name: (property_identifier) @name) @method\n"
+    JS_CONST_FUNCTION_QUERY;
 
 static const char *const TYPESCRIPT_QUERY =
     "(function_declaration name: (identifier) @name) @function\n"
     "(class_declaration name: (type_identifier) @name) @class\n"
     "(interface_declaration name: (type_identifier) @name) @interface\n"
-    "(method_definition name: (property_identifier) @name) @method\n";
+    "(method_definition name: (property_identifier) @name) @method\n"
+    JS_CONST_FUNCTION_QUERY;
 
 static const char *const PYTHON_QUERY =
     "(function_definition name: (identifier) @name) @function\n"
