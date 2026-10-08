@@ -55,6 +55,10 @@ func hybridContext(ctx context.Context, idx indexctl.Indexer, ws *workspace.Work
 
 		body, startLine, matchLine = detail.Body, detail.StartLine, detail.StartLine
 		alreadyTruncated = detail.Truncated
+
+		if hit.MatchLine > detail.StartLine {
+			matchLine = hit.MatchLine
+		}
 	} else {
 		line := hit.Hit.StartLine
 		start := uint32(1)

@@ -39,6 +39,15 @@ static cberg_status chunk_format_ident(char *buf, size_t cap, const char *path, 
     return CBERG_OK;
 }
 
+bool chunk_ident_fits(const char *path, cberg_chunk_kind kind, size_t sym_len) {
+    int prefix = snprintf(NULL, 0, "%s::%d::", path, (int)kind);
+    if (prefix < 0) {
+        return false;
+    }
+
+    return (size_t)prefix + sym_len < CBERG_CHUNK_IDENT_MAX;
+}
+
 cberg_status chunk_format_key(char *buf, size_t cap, const char *path, cberg_chunk_kind kind, const char *symbol, uint32_t index) {
     char ident[CBERG_CHUNK_IDENT_MAX];
     cberg_status st = chunk_format_ident(ident, sizeof(ident), path, kind, symbol);

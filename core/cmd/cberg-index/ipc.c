@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <pthread.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,10 +39,22 @@ typedef struct cberg_ipc_server {
     pthread_t thread;
 } cberg_ipc_server;
 
+/* A client that hangs up early (e.g. a daemon request timing out) must cost
+ * that one reply, not raise SIGPIPE and kill the whole indexer. macOS lacks
+ * MSG_NOSIGNAL and sets SO_NOSIGPIPE on the accepted socket instead. */
+#ifdef MSG_NOSIGNAL
+#define IPC_SEND_FLAGS MSG_NOSIGNAL
+#else
+#define IPC_SEND_FLAGS 0
+#endif
+
 static int write_all(int fd, const char *buf, size_t len) {
     size_t off = 0;
     while (off < len) {
-        ssize_t n = write(fd, buf + off, len - off);
+        ssize_t n = send(fd, buf + off, len - off, IPC_SEND_FLAGS);
+        if (n < 0 && errno == EINTR) {
+            continue;
+        }
         if (n <= 0) {
             return -1;
         }
@@ -50,26 +63,82 @@ static int write_all(int fd, const char *buf, size_t len) {
     return 0;
 }
 
+/* JSON strings may not carry raw control characters; the daemon's decoder
+ * rejects the whole response if one slips through (form feeds in C sources,
+ * ANSI escapes in logs). Escapes are never split when out fills up. */
 static void json_escape(const char *in, char *out, size_t cap) {
     size_t j = 0;
-    for (size_t i = 0; in[i] != '\0' && j + 2 < cap; i++) {
-        char c = in[i];
+    for (size_t i = 0; in[i] != '\0'; i++) {
+        unsigned char c = (unsigned char)in[i];
+        char esc[8];
+        size_t n = 0;
+
         if (c == '"' || c == '\\') {
-            out[j++] = '\\';
-        }
-        if (c == '\n') {
-            out[j++] = '\\';
-            c = 'n';
+            n = (size_t)snprintf(esc, sizeof(esc), "\\%c", c);
+        } else if (c == '\n') {
+            n = (size_t)snprintf(esc, sizeof(esc), "\\n");
         } else if (c == '\r') {
-            out[j++] = '\\';
-            c = 'r';
+            n = (size_t)snprintf(esc, sizeof(esc), "\\r");
         } else if (c == '\t') {
-            out[j++] = '\\';
-            c = 't';
+            n = (size_t)snprintf(esc, sizeof(esc), "\\t");
+        } else if (c < 0x20) {
+            n = (size_t)snprintf(esc, sizeof(esc), "\\u%04x", c);
+        } else {
+            esc[0] = (char)c;
+            n = 1;
         }
-        out[j++] = c;
+
+        if (j + n >= cap) {
+            break;
+        }
+        memcpy(out + j, esc, n);
+        j += n;
     }
     out[j] = '\0';
+}
+
+/* Bytes kept free at the end of every list response for its closing
+ * `],"truncated":false}\n`, so the trailer always fits. */
+#define IPC_TAIL_RESERVE 64
+
+/* Appends formatted text at *off only when all of it fits before cap; on
+ * overflow resp is left as it was and 0 is returned, so lists end on a whole
+ * item instead of a clipped one (or past the buffer). */
+static int json_appendf(char *resp, size_t cap, size_t *off, const char *fmt, ...) {
+    if (*off >= cap) {
+        return 0;
+    }
+
+    va_list ap;
+    va_start(ap, fmt);
+    int w = vsnprintf(resp + *off, cap - *off, fmt, ap);
+    va_end(ap);
+
+    if (w < 0 || (size_t)w >= cap - *off) {
+        resp[*off] = '\0';
+        return 0;
+    }
+    *off += (size_t)w;
+    return 1;
+}
+
+static size_t list_cap(size_t resp_size) {
+    return resp_size - IPC_TAIL_RESERVE;
+}
+
+/* Starts list item i: writes the separator and remembers where the item began
+ * so a failed write can roll back. */
+static size_t list_item_begin(char *resp, size_t cap, size_t *off, size_t i) {
+    size_t mark = *off;
+    if (i > 0) {
+        json_appendf(resp, cap, off, ",");
+    }
+    return mark;
+}
+
+static void list_item_rollback(char *resp, size_t *off, size_t mark) {
+    *off = mark;
+    resp[mark] = '\0';
 }
 
 static void handle_status(cberg_engine *eng, int fd) {
@@ -125,28 +194,64 @@ static char *null_if_empty(char *s) {
     return (s != NULL && s[0] == '\0') ? NULL : s;
 }
 
-static void write_hit_json(char *resp, size_t cap, size_t *off, const cberg_engine_hit *h) {
-    char esc_repo[256];
-    char esc_path[512];
-    char esc_symbol[256];
-    char esc_snippet[CBERG_SNIPPET_MAX * 2];
+#define IPC_ESC_REPO 256
+#define IPC_ESC_PATH 512
+#define IPC_ESC_SYMBOL 256
+#define IPC_ESC_KIND 64
+#define IPC_ESC_SNIPPET (CBERG_SNIPPET_MAX * 2)
+
+/* Upper bound on one write_hit_json object: escaped fields plus keys/numbers. */
+#define IPC_HIT_JSON_MAX (IPC_ESC_REPO + IPC_ESC_PATH + IPC_ESC_SYMBOL + IPC_ESC_KIND + IPC_ESC_SNIPPET + 256)
+
+static int write_hit_json(char *resp, size_t cap, size_t *off, const cberg_engine_hit *h) {
+    char esc_repo[IPC_ESC_REPO];
+    char esc_path[IPC_ESC_PATH];
+    char esc_symbol[IPC_ESC_SYMBOL];
+    char esc_kind[IPC_ESC_KIND];
+    char esc_snippet[IPC_ESC_SNIPPET];
     json_escape(h->repo != NULL ? h->repo : "", esc_repo, sizeof(esc_repo));
     json_escape(h->path, esc_path, sizeof(esc_path));
     json_escape(h->symbol, esc_symbol, sizeof(esc_symbol));
+    json_escape(h->kind, esc_kind, sizeof(esc_kind));
     json_escape(h->snippet, esc_snippet, sizeof(esc_snippet));
-    int w = snprintf(resp + *off, cap - *off, "{\"id\":%llu,\"score\":%.6f,\"repo\":\"%s\",\"path\":\"%s\",\"symbol\":\"%s\","
-                                              "\"start_line\":%u,\"end_line\":%u,\"snippet\":\"%s\"}",
-                     (unsigned long long)h->id,
-                     (double)h->score,
-                     esc_repo,
-                     esc_path,
-                     esc_symbol,
-                     h->start_line,
-                     h->end_line,
-                     esc_snippet);
-    if (w > 0) {
-        *off += (size_t)w;
+    return json_appendf(resp, cap, off, "{\"id\":%llu,\"score\":%.6f,\"repo\":\"%s\",\"path\":\"%s\",\"symbol\":\"%s\","
+                                        "\"kind\":\"%s\",\"start_line\":%u,\"end_line\":%u,\"snippet\":\"%s\"}",
+                        (unsigned long long)h->id,
+                        (double)h->score,
+                        esc_repo,
+                        esc_path,
+                        esc_symbol,
+                        esc_kind,
+                        h->start_line,
+                        h->end_line,
+                        esc_snippet);
+}
+
+/* Writes {"ok":true,"results":[...]}. The buffer is sized for every hit at
+ * its escaped worst, so results are never clipped. */
+static void write_hits_response(int fd, const cberg_engine_hit *hits, size_t found) {
+    size_t resp_size = found * IPC_HIT_JSON_MAX + IPC_TAIL_RESERVE + 64;
+    char *resp = malloc(resp_size);
+    if (resp == NULL) {
+        const char *err = "{\"ok\":false,\"error\":\"out of memory\"}\n";
+        write_all(fd, err, strlen(err));
+        return;
     }
+
+    size_t cap = list_cap(resp_size);
+    size_t off = (size_t)snprintf(resp, resp_size, "{\"ok\":true,\"results\":[");
+
+    for (size_t i = 0; i < found; i++) {
+        size_t mark = list_item_begin(resp, cap, &off, i);
+        if (!write_hit_json(resp, cap, &off, &hits[i])) {
+            list_item_rollback(resp, &off, mark);
+            break;
+        }
+    }
+
+    snprintf(resp + off, resp_size - off, "]}\n");
+    write_all(fd, resp, strlen(resp));
+    free(resp);
 }
 
 static void handle_search(cberg_engine *eng, int fd, char *args) {
@@ -189,16 +294,7 @@ static void handle_search(cberg_engine *eng, int fd, char *args) {
         write_all(fd, resp, strlen(resp));
         return;
     }
-    char resp[32768];
-    size_t off = (size_t)snprintf(resp, sizeof(resp), "{\"ok\":true,\"results\":[");
-    for (size_t i = 0; i < found && off + 512 < sizeof(resp); i++) {
-        if (i > 0) {
-            resp[off++] = ',';
-        }
-        write_hit_json(resp, sizeof(resp), &off, &hits[i]);
-    }
-    snprintf(resp + off, sizeof(resp) - off, "]}\n");
-    write_all(fd, resp, strlen(resp));
+    write_hits_response(fd, hits, found);
 }
 
 static void handle_chunk(cberg_engine *eng, int fd, char *args) {
@@ -290,16 +386,7 @@ static void handle_symbol(cberg_engine *eng, int fd, char *args) {
         write_all(fd, resp, strlen(resp));
         return;
     }
-    char resp[32768];
-    size_t off = (size_t)snprintf(resp, sizeof(resp), "{\"ok\":true,\"results\":[");
-    for (size_t i = 0; i < found && off + 512 < sizeof(resp); i++) {
-        if (i > 0) {
-            resp[off++] = ',';
-        }
-        write_hit_json(resp, sizeof(resp), &off, &hits[i]);
-    }
-    snprintf(resp + off, sizeof(resp) - off, "]}\n");
-    write_all(fd, resp, strlen(resp));
+    write_hits_response(fd, hits, found);
 }
 
 static void handle_outline(cberg_engine *eng, int fd, char *args) {
@@ -321,16 +408,7 @@ static void handle_outline(cberg_engine *eng, int fd, char *args) {
         write_all(fd, resp, strlen(resp));
         return;
     }
-    char resp[65536];
-    size_t off = (size_t)snprintf(resp, sizeof(resp), "{\"ok\":true,\"results\":[");
-    for (size_t i = 0; i < found && off + 512 < sizeof(resp); i++) {
-        if (i > 0) {
-            resp[off++] = ',';
-        }
-        write_hit_json(resp, sizeof(resp), &off, &hits[i]);
-    }
-    snprintf(resp + off, sizeof(resp) - off, "]}\n");
-    write_all(fd, resp, strlen(resp));
+    write_hits_response(fd, hits, found);
 }
 
 static const char *graph_err(cberg_status st) {
@@ -340,7 +418,7 @@ static const char *graph_err(cberg_status st) {
     return cberg_status_str(st);
 }
 
-static void write_gnode_json(char *resp, size_t cap, size_t *off, const cberg_engine_graph_node *n) {
+static int write_gnode_json(char *resp, size_t cap, size_t *off, const cberg_engine_graph_node *n) {
     char esc_repo[256];
     char esc_kind[64];
     char esc_name[512];
@@ -351,16 +429,13 @@ static void write_gnode_json(char *resp, size_t cap, size_t *off, const cberg_en
     json_escape(n->name, esc_name, sizeof(esc_name));
     json_escape(n->qname, esc_qname, sizeof(esc_qname));
     json_escape(n->path, esc_path, sizeof(esc_path));
-    int w = snprintf(resp + *off, cap - *off,
-                     "{\"id\":%llu,\"repo\":\"%s\",\"kind\":\"%s\",\"name\":\"%s\",\"qname\":\"%s\","
-                     "\"path\":\"%s\",\"start_line\":%u,\"end_line\":%u}",
-                     (unsigned long long)n->id, esc_repo, esc_kind, esc_name, esc_qname, esc_path, n->start_line, n->end_line);
-    if (w > 0) {
-        *off += (size_t)w;
-    }
+    return json_appendf(resp, cap, off,
+                        "{\"id\":%llu,\"repo\":\"%s\",\"kind\":\"%s\",\"name\":\"%s\",\"qname\":\"%s\","
+                        "\"path\":\"%s\",\"start_line\":%u,\"end_line\":%u}",
+                        (unsigned long long)n->id, esc_repo, esc_kind, esc_name, esc_qname, esc_path, n->start_line, n->end_line);
 }
 
-static void write_gedge_json(char *resp, size_t cap, size_t *off, const cberg_engine_graph_edge *e) {
+static int write_gedge_json(char *resp, size_t cap, size_t *off, const cberg_engine_graph_edge *e) {
     char esc_kind[64];
     char esc_res[64];
     char esc_src_name[512];
@@ -373,14 +448,11 @@ static void write_gedge_json(char *resp, size_t cap, size_t *off, const cberg_en
     json_escape(e->dst_name, esc_dst_name, sizeof(esc_dst_name));
     json_escape(e->src_path, esc_src_path, sizeof(esc_src_path));
     json_escape(e->dst_path, esc_dst_path, sizeof(esc_dst_path));
-    int w = snprintf(resp + *off, cap - *off,
-                     "{\"src\":%llu,\"dst\":%llu,\"kind\":\"%s\",\"resolution\":\"%s\",\"confidence\":%.4f,"
-                     "\"line\":%u,\"src_name\":\"%s\",\"dst_name\":\"%s\",\"src_path\":\"%s\",\"dst_path\":\"%s\"}",
-                     (unsigned long long)e->src, (unsigned long long)e->dst, esc_kind, esc_res, (double)e->confidence, e->line,
-                     esc_src_name, esc_dst_name, esc_src_path, esc_dst_path);
-    if (w > 0) {
-        *off += (size_t)w;
-    }
+    return json_appendf(resp, cap, off,
+                        "{\"src\":%llu,\"dst\":%llu,\"kind\":\"%s\",\"resolution\":\"%s\",\"confidence\":%.4f,"
+                        "\"line\":%u,\"src_name\":\"%s\",\"dst_name\":\"%s\",\"src_path\":\"%s\",\"dst_path\":\"%s\"}",
+                        (unsigned long long)e->src, (unsigned long long)e->dst, esc_kind, esc_res, (double)e->confidence, e->line,
+                        esc_src_name, esc_dst_name, esc_src_path, esc_dst_path);
 }
 
 static size_t ipc_clamp_want(size_t limit, size_t cap) {
@@ -428,12 +500,14 @@ static void handle_search_graph(cberg_engine *eng, int fd, char *args) {
     int truncated = ipc_cap_truncated(found, want, limit, IPC_GRAPH_NODES_CAP);
     char resp[65536];
     size_t off = (size_t)snprintf(resp, sizeof(resp), "{\"ok\":true,\"results\":[");
+    size_t cap = list_cap(sizeof(resp));
     size_t written = 0;
-    for (; written < found && off + 512 < sizeof(resp); written++) {
-        if (written > 0) {
-            resp[off++] = ',';
+    for (; written < found; written++) {
+        size_t mark = list_item_begin(resp, cap, &off, written);
+        if (!write_gnode_json(resp, cap, &off, &nodes[written])) {
+            list_item_rollback(resp, &off, mark);
+            break;
         }
-        write_gnode_json(resp, sizeof(resp), &off, &nodes[written]);
     }
     if (written < found) {
         truncated = 1;
@@ -487,20 +561,20 @@ static void handle_trace_path(cberg_engine *eng, int fd, char *args) {
     int truncated = ipc_cap_truncated(found, want, limit, IPC_GRAPH_HOPS_CAP);
     char resp[131072];
     size_t off = (size_t)snprintf(resp, sizeof(resp), "{\"ok\":true,\"hops\":[");
+    size_t cap = list_cap(sizeof(resp));
     size_t written = 0;
-    for (; written < found && off + 768 < sizeof(resp); written++) {
-        if (written > 0) {
-            resp[off++] = ',';
-        }
-        char edge_buf[1536];
+    for (; written < found; written++) {
+        char edge_buf[4096];
         size_t eoff = 0;
-        write_gedge_json(edge_buf, sizeof(edge_buf), &eoff, &hops[written].edge);
+        if (!write_gedge_json(edge_buf, sizeof(edge_buf), &eoff, &hops[written].edge)) {
+            break;
+        }
+
         /* edge_buf is {"src":...}; splice depth after the opening brace. */
-        if (eoff > 1 && edge_buf[0] == '{') {
-            int w = snprintf(resp + off, sizeof(resp) - off, "{\"depth\":%u,%s", hops[written].depth, edge_buf + 1);
-            if (w > 0) {
-                off += (size_t)w;
-            }
+        size_t mark = list_item_begin(resp, cap, &off, written);
+        if (!json_appendf(resp, cap, &off, "{\"depth\":%u,%s", hops[written].depth, edge_buf + 1)) {
+            list_item_rollback(resp, &off, mark);
+            break;
         }
     }
     if (written < found) {
@@ -569,20 +643,20 @@ static void handle_graph_hubs(cberg_engine *eng, int fd, char *args) {
     int truncated = ipc_cap_truncated(found, want, limit, IPC_GRAPH_HUBS_CAP);
     char resp[65536];
     size_t off = (size_t)snprintf(resp, sizeof(resp), "{\"ok\":true,\"results\":[");
+    size_t cap = list_cap(sizeof(resp));
     size_t written = 0;
-    for (; written < found && off + 640 < sizeof(resp); written++) {
-        if (written > 0) {
-            resp[off++] = ',';
+    for (; written < found; written++) {
+        size_t mark = list_item_begin(resp, cap, &off, written);
+        if (!write_gnode_json(resp, cap, &off, &hubs[written].node)) {
+            list_item_rollback(resp, &off, mark);
+            break;
         }
-        size_t before = off;
-        write_gnode_json(resp, sizeof(resp), &off, &hubs[written].node);
+
         /* Replace trailing '}' with ,"degree":N} */
-        if (off > before && resp[off - 1] == '}') {
-            off--;
-            int w = snprintf(resp + off, sizeof(resp) - off, ",\"degree\":%u}", hubs[written].degree);
-            if (w > 0) {
-                off += (size_t)w;
-            }
+        off--;
+        if (!json_appendf(resp, cap, &off, ",\"degree\":%u}", hubs[written].degree)) {
+            list_item_rollback(resp, &off, mark);
+            break;
         }
     }
     if (written < found) {
@@ -626,12 +700,14 @@ static void handle_graph_refs(cberg_engine *eng, int fd, char *args) {
     int truncated = ipc_cap_truncated(found, want, limit, IPC_GRAPH_REFS_CAP);
     char resp[65536];
     size_t off = (size_t)snprintf(resp, sizeof(resp), "{\"ok\":true,\"results\":[");
+    size_t cap = list_cap(sizeof(resp));
     size_t written = 0;
-    for (; written < found && off + 768 < sizeof(resp); written++) {
-        if (written > 0) {
-            resp[off++] = ',';
+    for (; written < found; written++) {
+        size_t mark = list_item_begin(resp, cap, &off, written);
+        if (!write_gedge_json(resp, cap, &off, &edges[written])) {
+            list_item_rollback(resp, &off, mark);
+            break;
         }
-        write_gedge_json(resp, sizeof(resp), &off, &edges[written]);
     }
     if (written < found) {
         truncated = 1;
@@ -753,6 +829,10 @@ static void *ipc_thread(void *arg) {
             }
             continue;
         }
+#ifdef SO_NOSIGPIPE
+        int one = 1;
+        setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
+#endif
         handle_client(srv->eng, client);
         close(client);
     }

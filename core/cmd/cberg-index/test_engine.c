@@ -189,6 +189,12 @@ int main(void) {
                   "trace_path roundtrip");
             CHECK(strstr(resp, "\"ok\":true") != NULL, "trace_path ok");
 
+            CHECK(ipc_roundtrip(socket_path, "outline\talpha\ta.go\n", resp, sizeof(resp)) == 0, "outline roundtrip");
+            CHECK(strstr(resp, "\"symbol\":\"Add\",\"kind\":\"function\"") != NULL, "outline results carry kind");
+
+            CHECK(ipc_roundtrip(socket_path, "symbol\tAdd\talpha\n", resp, sizeof(resp)) == 0, "symbol roundtrip");
+            CHECK(strstr(resp, "\"kind\":\"function\"") != NULL, "symbol results carry kind");
+
             cberg_ipc_stop(ipc);
 
             /* An unowned socket left by a crashed process can still be reclaimed. */

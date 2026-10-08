@@ -80,7 +80,8 @@ cberg_status cberg_repo_bootstrap(cberg_repo *r);
  * changes. *out_events (nullable) receives the number of events handled. */
 cberg_status cberg_engine_step(cberg_engine *eng, size_t *out_events);
 
-/* The watch loop: step until stop, sleeping poll_ms between idle passes. */
+/* The watch loop: step until stop, sleeping poll_ms between idle passes. It
+ * returns freed heap to the OS whenever it goes idle after doing work. */
 cberg_status cberg_engine_run(cberg_engine *eng);
 
 size_t cberg_repo_chunk_count(cberg_repo *r);
@@ -92,7 +93,7 @@ const char *cberg_indexer_version(void);
 #define CBERG_CHUNK_BODY_MAX 65536
 
 typedef struct cberg_search_filters {
-    const char *path_glob; /* fnmatch on chunk.path; NULL/empty = any */
+    const char *path_glob; /* rg-style glob on chunk.path (see pathglob.h); NULL/empty = any */
     int kind;              /* cberg_chunk_kind, or -1 for any */
     float min_score;       /* 0 = any */
 } cberg_search_filters;
@@ -106,6 +107,7 @@ typedef struct cberg_engine_hit {
     const char *repo;
     char path[512];
     char symbol[256];
+    char kind[32];
     uint32_t start_line;
     uint32_t end_line;
     char snippet[CBERG_SNIPPET_MAX];

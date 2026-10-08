@@ -3,12 +3,14 @@
 #include "indexer.h"
 
 #include "chunk_kind.h"
+#include "chunk_table_internal.h"
 #include "fileio.h"
+#include "pathglob.h"
 #include "pathutil.h"
 #include "u64map.h"
 
 #include <errno.h>
-#include <fnmatch.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,6 +18,10 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+
+#ifdef __GLIBC__
+#include <malloc.h>
+#endif
 
 #define BATCH_SIZE 32
 #define PROGRESS_MIN 128  /* only show embed progress for upserts at least this large */
@@ -169,6 +175,21 @@ static void file_cache_free(file_cache *fc) {
     fc->cap = 0;
 }
 
+/* Drop every body except the most recent one, so a file whose chunks straddle
+ * an embed batch boundary is still read only once. */
+static void file_cache_keep_last(file_cache *fc) {
+    if (fc->len <= 1) {
+        return;
+    }
+
+    for (size_t i = 0; i + 1 < fc->len; i++) {
+        free(fc->items[i].data);
+    }
+
+    fc->items[0] = fc->items[fc->len - 1];
+    fc->len = 1;
+}
+
 /* Slice sc's body from the file cache, reading the file on path change. */
 static cberg_status cache_slice(cberg_repo *r, file_cache *fc, const cberg_stored_chunk *sc, const char **text, size_t *len) {
     cached_body *cb = (fc->len > 0 && strcmp(fc->items[fc->len - 1].path, sc->chunk.path) == 0)
@@ -207,8 +228,10 @@ static cberg_status cache_slice(cberg_repo *r, file_cache *fc, const cberg_store
 /*
  * Embed unique bodies only (keyed by content_hash; full-hash confirm after 8-byte
  * map key). Duplicates reuse the representative vector. Batched under embed_mu.
+ * Grouping needs only hashes, so bodies are read per batch (representatives
+ * only) and released once embedded rather than held for the whole upsert.
  */
-static cberg_status embed_unique(cberg_repo *r, cberg_index *index, const char **texts, const size_t *lens, const uint8_t **hashes, const uint64_t *ids, size_t count, int show, size_t *done, size_t total, size_t *out_unique) {
+static cberg_status embed_unique(cberg_repo *r, cberg_index *index, const cberg_stored_chunk *const *rows, size_t count, int show, size_t *done, size_t total, size_t *out_unique) {
     if (out_unique != NULL) {
         *out_unique = 0;
     }
@@ -225,6 +248,7 @@ static cberg_status embed_unique(cberg_repo *r, cberg_index *index, const char *
     size_t *group_start = NULL;
     size_t *members = NULL;
     size_t *cursor = NULL;
+    file_cache fc = {0};
     cberg_status st = CBERG_ERR_OUT_OF_MEMORY;
     if (seen == NULL || reps == NULL || group_of == NULL || btexts == NULL || blens == NULL) {
         goto done;
@@ -236,11 +260,12 @@ static cberg_status embed_unique(cberg_repo *r, cberg_index *index, const char *
      * first group for a prefix, so a collision leaves the original mapping intact. */
     size_t n_groups = 0;
     for (size_t u = 0; u < count; u++) {
+        const uint8_t *hash = rows[u]->chunk.content_hash;
         uint64_t key;
-        memcpy(&key, hashes[u], sizeof(key));
+        memcpy(&key, hash, sizeof(key));
         uint64_t hit = 0;
         int found = key != 0 && cberg_u64map_get(seen, key, &hit);
-        if (found && memcmp(hashes[u], hashes[reps[hit]], CBERG_HASH_LEN) == 0) {
+        if (found && memcmp(hash, rows[reps[hit]]->chunk.content_hash, CBERG_HASH_LEN) == 0) {
             group_of[u] = (size_t)hit;
             continue;
         }
@@ -283,11 +308,15 @@ static cberg_status embed_unique(cberg_repo *r, cberg_index *index, const char *
             bn = BATCH_SIZE;
         }
         for (size_t b = 0; b < bn; b++) {
-            btexts[b] = texts[reps[g + b]];
-            blens[b] = lens[reps[g + b]];
+            st = cache_slice(r, &fc, rows[reps[g + b]], &btexts[b], &blens[b]);
+            if (st != CBERG_OK) {
+                goto done;
+            }
         }
+
         float *vecs = NULL;
         st = engine_embed(r->eng, btexts, blens, bn, &vecs);
+        file_cache_keep_last(&fc);
         if (st != CBERG_OK) {
             cberg_vectors_free(vecs);
             goto done;
@@ -296,7 +325,7 @@ static cberg_status embed_unique(cberg_repo *r, cberg_index *index, const char *
             size_t k = g + b;
             const float *v = vecs + b * dim;
             for (size_t m = group_start[k]; m < group_start[k + 1]; m++) {
-                st = cberg_index_add(index, ids[members[m]], v);
+                st = cberg_index_add(index, rows[members[m]]->id, v);
                 if (st != CBERG_OK) {
                     cberg_vectors_free(vecs);
                     goto done;
@@ -316,6 +345,7 @@ static cberg_status embed_unique(cberg_repo *r, cberg_index *index, const char *
     }
 
 done:
+    file_cache_free(&fc);
     cberg_u64map_free(seen);
     free(reps);
     free(group_of);
@@ -337,40 +367,22 @@ static cberg_status apply_vectors(cberg_repo *r, const cberg_changes *ch) {
         return cberg_index_save(r->index);
     }
 
-    const char **texts = NULL;
-    size_t *lens = NULL;
-    uint64_t *ids = NULL;
-    const uint8_t **hashes = NULL;
-    file_cache fc = {0};
+    const cberg_stored_chunk **rows = NULL;
     cberg_status st = CBERG_OK;
 
     if (upsert_len > 0) {
-        texts = calloc(upsert_len, sizeof(*texts));
-        lens = calloc(upsert_len, sizeof(*lens));
-        ids = calloc(upsert_len, sizeof(*ids));
-        hashes = calloc(upsert_len, sizeof(*hashes));
-        if (texts == NULL || lens == NULL || ids == NULL || hashes == NULL) {
+        rows = calloc(upsert_len, sizeof(*rows));
+        if (rows == NULL) {
             st = CBERG_ERR_OUT_OF_MEMORY;
             goto done;
         }
+
         size_t u = 0;
         for (size_t i = 0; i < ch->added_len; i++) {
-            st = cache_slice(r, &fc, &ch->added[i], &texts[u], &lens[u]);
-            if (st != CBERG_OK) {
-                goto done;
-            }
-            ids[u] = ch->added[i].id;
-            hashes[u] = ch->added[i].chunk.content_hash;
-            u++;
+            rows[u++] = &ch->added[i];
         }
         for (size_t i = 0; i < ch->modified_len; i++) {
-            st = cache_slice(r, &fc, &ch->modified[i], &texts[u], &lens[u]);
-            if (st != CBERG_OK) {
-                goto done;
-            }
-            ids[u] = ch->modified[i].id;
-            hashes[u] = ch->modified[i].chunk.content_hash;
-            u++;
+            rows[u++] = &ch->modified[i];
         }
 
         /* Embed unique bodies only: code upserts carry many byte-identical chunks
@@ -379,7 +391,7 @@ static cberg_status apply_vectors(cberg_repo *r, const cberg_changes *ch) {
         int show = upsert_len >= PROGRESS_MIN;
         size_t done_n = 0;
         size_t unique = 0;
-        st = embed_unique(r, r->index, texts, lens, hashes, ids, upsert_len, show, &done_n, upsert_len, &unique);
+        st = embed_unique(r, r->index, rows, upsert_len, show, &done_n, upsert_len, &unique);
         if (st != CBERG_OK) {
             goto done;
         }
@@ -412,11 +424,7 @@ static cberg_status apply_vectors(cberg_repo *r, const cberg_changes *ch) {
     st = cberg_index_save(r->index);
 
 done:
-    file_cache_free(&fc);
-    free(hashes);
-    free(ids);
-    free(lens);
-    free(texts);
+    free(rows);
     return st;
 }
 
@@ -427,7 +435,10 @@ static int vector_status_retriable(cberg_status st) {
 }
 
 static void vector_retry_backoff(int attempt) {
-    usleep((useconds_t)(100000u * (unsigned)(attempt + 1)));
+    long ms = 100L * (attempt + 1);
+    struct timespec delay = {.tv_sec = ms / 1000, .tv_nsec = (ms % 1000) * 1000000L};
+
+    nanosleep(&delay, NULL);
 }
 
 typedef cberg_status (*vector_retry_fn)(cberg_repo *r, void *ctx);
@@ -651,6 +662,10 @@ static cberg_status sync_table(cberg_repo *r, chunk_batch *batch) {
     if (st != CBERG_OK) {
         return st;
     }
+
+    /* The table and graph hold their own copies now; free the per-file lists
+     * and fragments before embedding instead of carrying them through it. */
+    batch_reset(batch);
     return sync_vectors(r, &ch);
 }
 
@@ -1440,6 +1455,7 @@ static cberg_status apply_path_changes(cberg_repo *r, char **rechunk, size_t rec
             cberg_graph_remove_file(r->graph, graph_drop[i]);
         }
     }
+    batch_reset(&batch);
     st = sync_vectors(r, &ch);
 
 done:
@@ -1675,7 +1691,30 @@ cberg_status cberg_engine_step(cberg_engine *eng, size_t *out_events) {
     return CBERG_OK;
 }
 
+/* Runs only when the watch loop goes idle, so none of it lands on bootstrap or
+ * sync latency. The last sync's change lists are dead once its vectors are
+ * applied, but after a cold sync they hold one row per chunk until the next
+ * sync. glibc keeps freed heap pages mapped, so one transient spike (parsing a
+ * huge generated file, a cold bootstrap's batch) would otherwise pin RSS at
+ * its high-water mark for the life of the process. */
+static void release_free_memory(cberg_engine *eng) {
+    for (size_t i = 0; i < eng->repos_len; i++) {
+        cberg_repo *r = eng->repos[i];
+
+        pthread_mutex_lock(&r->mu);
+        cberg_chunk_table_release_changes(r->table);
+        pthread_mutex_unlock(&r->mu);
+    }
+
+#ifdef __GLIBC__
+    malloc_trim(0);
+#endif
+}
+
 cberg_status cberg_engine_run(cberg_engine *eng) {
+    /* Start dirty: bootstrap ran just before the loop. */
+    int dirty = 1;
+
     for (;;) {
         if (eng->stop) {
             return CBERG_OK;
@@ -1685,7 +1724,16 @@ cberg_status cberg_engine_run(cberg_engine *eng) {
         if (st != CBERG_OK) {
             return st;
         }
+        if (handled != 0) {
+            dirty = 1;
+        }
         if (handled == 0) {
+            /* Trim once per busy->idle transition, off every request path. */
+            if (dirty) {
+                release_free_memory(eng);
+                dirty = 0;
+            }
+
             /* Idle: every watcher was drained non-blocking, so pace the loop.
              * A signal interrupts the sleep and the stop check runs first. */
             struct timespec ts = {.tv_sec = eng->poll_ms / 1000, .tv_nsec = (long)(eng->poll_ms % 1000) * 1000000L};
@@ -1712,7 +1760,7 @@ static int chunk_passes_filters(const cberg_stored_chunk *sc, float score, const
     }
     if (f->path_glob != NULL && f->path_glob[0] != '\0') {
         const char *path = sc->chunk.path != NULL ? sc->chunk.path : "";
-        if (fnmatch(f->path_glob, path, FNM_PATHNAME) != 0) {
+        if (!cberg_path_glob_match(f->path_glob, path)) {
             return 0;
         }
     }
@@ -1731,29 +1779,103 @@ static cberg_repo *find_repo(cberg_engine *eng, const char *repo_key) {
     return NULL;
 }
 
-static void fill_snippet(cberg_repo *r, const cberg_stored_chunk *sc, char *out, size_t cap) {
-    out[0] = '\0';
-    if (sc == NULL || cap == 0) {
-        return;
+/* A chunk's source file opened for span reads, so hits and chunk details read
+ * only the bytes they return instead of the whole file. */
+typedef struct {
+    int fd; /* -1 when the file could not be opened */
+    off_t size;
+} chunk_source;
+
+static chunk_source chunk_source_open(const cberg_repo *r, const char *rel) {
+    chunk_source src = {.fd = -1, .size = 0};
+    char path[4096];
+    snprintf(path, sizeof(path), "%s/%s", r->root, rel != NULL ? rel : "");
+
+    int fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) {
+        return src;
     }
-    size_t blen = 0;
-    char *body = chunk_body(r, sc, &blen);
-    if (body == NULL) {
-        return;
+
+    struct stat st;
+    if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) {
+        close(fd);
+        return src;
     }
+
+    src.fd = fd;
+    src.size = st.st_size;
+    return src;
+}
+
+static void chunk_source_close(chunk_source *src) {
+    if (src->fd >= 0) {
+        close(src->fd);
+    }
+    src->fd = -1;
+}
+
+static int span_in_file(const chunk_source *src, const cberg_stored_chunk *sc) {
     uint32_t start = sc->chunk.span.start_byte;
     uint32_t end = sc->chunk.span.end_byte;
-    if (end > blen || start > end) {
-        free(body);
+    return src->fd >= 0 && start <= end && (off_t)end <= src->size;
+}
+
+/* Reads up to len bytes of the span into out (NUL-terminated); returns the
+ * byte count, which is short only if the file shrank since fstat. */
+static size_t read_span(const chunk_source *src, const cberg_stored_chunk *sc, char *out, size_t len) {
+    off_t at = (off_t)sc->chunk.span.start_byte;
+    size_t got = 0;
+
+    while (got < len) {
+        ssize_t n = pread(src->fd, out + got, len - got, at + (off_t)got);
+        if (n < 0 && errno == EINTR) {
+            continue;
+        }
+        if (n <= 0) {
+            break;
+        }
+        got += (size_t)n;
+    }
+
+    out[got] = '\0';
+    return got;
+}
+
+static void snippet_from(const chunk_source *src, const cberg_stored_chunk *sc, char *out, size_t cap) {
+    out[0] = '\0';
+    if (sc == NULL || cap == 0 || !span_in_file(src, sc)) {
         return;
     }
-    size_t len = (size_t)(end - start);
+
+    size_t len = (size_t)(sc->chunk.span.end_byte - sc->chunk.span.start_byte);
     if (len >= cap) {
         len = cap - 1;
     }
-    memcpy(out, body + start, len);
-    out[len] = '\0';
-    free(body);
+    read_span(src, sc, out, len);
+}
+
+static void fill_snippet(cberg_repo *r, const cberg_stored_chunk *sc, char *out, size_t cap) {
+    out[0] = '\0';
+    if (sc == NULL) {
+        return;
+    }
+
+    chunk_source src = chunk_source_open(r, sc->chunk.path);
+    snippet_from(&src, sc, out, cap);
+    chunk_source_close(&src);
+}
+
+/* Copies a chunk's metadata into a hit; the snippet is filled separately. */
+static void fill_hit_meta(const cberg_repo *r, const cberg_stored_chunk *sc, uint64_t id, float score, cberg_engine_hit *h) {
+    h->id = id;
+    h->score = score;
+    h->repo = r->key;
+    snprintf(h->path, sizeof(h->path), "%s", sc->chunk.path != NULL ? sc->chunk.path : "");
+    snprintf(h->symbol, sizeof(h->symbol), "%s", sc->chunk.symbol != NULL ? sc->chunk.symbol : "");
+    snprintf(h->kind, sizeof(h->kind), "%s", cberg_chunk_kind_name(sc->chunk.kind));
+    h->start_line = sc->chunk.span.start_line;
+    h->end_line = sc->chunk.span.end_line;
+    h->snippet[0] = '\0';
 }
 
 #define CBERG_FILTER_FETCH_MAX 256
@@ -1820,14 +1942,7 @@ static cberg_status repo_search_hits(cberg_repo *r, const float *vec, size_t k, 
                 continue;
             }
             cberg_engine_hit *h = &hits[*found];
-            h->id = ids[i];
-            h->score = scores[i];
-            h->repo = r->key;
-            snprintf(h->path, sizeof(h->path), "%s", sc->chunk.path != NULL ? sc->chunk.path : "");
-            snprintf(h->symbol, sizeof(h->symbol), "%s", sc->chunk.symbol != NULL ? sc->chunk.symbol : "");
-            h->start_line = sc->chunk.span.start_line;
-            h->end_line = sc->chunk.span.end_line;
-            h->snippet[0] = '\0';
+            fill_hit_meta(r, sc, ids[i], scores[i], h);
             fill_snippet(r, sc, h->snippet, sizeof(h->snippet));
             (*found)++;
         }
@@ -1967,33 +2082,32 @@ static cberg_status fill_chunk_detail(cberg_repo *r, const cberg_stored_chunk *s
     snprintf(out->kind, sizeof(out->kind), "%s", cberg_chunk_kind_name(sc->chunk.kind));
     out->start_line = sc->chunk.span.start_line;
     out->end_line = sc->chunk.span.end_line;
-    fill_snippet(r, sc, out->snippet, sizeof(out->snippet));
 
-    size_t blen = 0;
-    char *file = chunk_body(r, sc, &blen);
-    if (file == NULL) {
+    chunk_source src = chunk_source_open(r, sc->chunk.path);
+    if (src.fd < 0) {
         return CBERG_ERR_IO;
     }
-    uint32_t start = sc->chunk.span.start_byte;
-    uint32_t end = sc->chunk.span.end_byte;
-    if (end > blen || start > end) {
-        free(file);
+    if (!span_in_file(&src, sc)) {
+        chunk_source_close(&src);
         return CBERG_ERR_INVALID_ARGUMENT;
     }
-    size_t len = (size_t)(end - start);
+
+    size_t len = (size_t)(sc->chunk.span.end_byte - sc->chunk.span.start_byte);
     out->truncated = len > CBERG_CHUNK_BODY_MAX ? 1 : 0;
     if (len > CBERG_CHUNK_BODY_MAX) {
         len = CBERG_CHUNK_BODY_MAX;
     }
     out->body = malloc(len + 1);
     if (out->body == NULL) {
-        free(file);
+        chunk_source_close(&src);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
-    memcpy(out->body, file + start, len);
-    out->body[len] = '\0';
-    out->body_len = len;
-    free(file);
+    out->body_len = read_span(&src, sc, out->body, len);
+    chunk_source_close(&src);
+
+    size_t snip = out->body_len < sizeof(out->snippet) ? out->body_len : sizeof(out->snippet) - 1;
+    memcpy(out->snippet, out->body, snip);
+    out->snippet[snip] = '\0';
     return CBERG_OK;
 }
 
@@ -2058,14 +2172,7 @@ static cberg_status repo_find_symbol(cberg_repo *r, const char *name, int kind, 
             continue;
         }
         cberg_engine_hit *h = &hits[*found];
-        h->id = sc->id;
-        h->score = 1.0f;
-        h->repo = r->key;
-        snprintf(h->path, sizeof(h->path), "%s", sc->chunk.path != NULL ? sc->chunk.path : "");
-        snprintf(h->symbol, sizeof(h->symbol), "%s", sc->chunk.symbol != NULL ? sc->chunk.symbol : "");
-        h->start_line = sc->chunk.span.start_line;
-        h->end_line = sc->chunk.span.end_line;
-        h->snippet[0] = '\0';
+        fill_hit_meta(r, sc, sc->id, 1.0f, h);
         fill_snippet(r, sc, h->snippet, sizeof(h->snippet));
         (*found)++;
     }
@@ -2123,24 +2230,21 @@ static cberg_status repo_file_outline(cberg_repo *r, const char *path, cberg_eng
         pthread_mutex_unlock(&r->mu);
         return CBERG_ERR_NOT_FOUND;
     }
+    chunk_source src = chunk_source_open(r, path);
     size_t n = cberg_chunk_table_len(r->table);
+
     for (size_t i = 0; i < n && *found < cap; i++) {
         const cberg_stored_chunk *sc = cberg_chunk_table_at(r->table, i);
         if (sc == NULL || sc->chunk.path == NULL || strcmp(sc->chunk.path, path) != 0) {
             continue;
         }
         cberg_engine_hit *h = &hits[*found];
-        h->id = sc->id;
-        h->score = 1.0f;
-        h->repo = r->key;
-        snprintf(h->path, sizeof(h->path), "%s", sc->chunk.path);
-        snprintf(h->symbol, sizeof(h->symbol), "%s", sc->chunk.symbol != NULL ? sc->chunk.symbol : "");
-        h->start_line = sc->chunk.span.start_line;
-        h->end_line = sc->chunk.span.end_line;
-        h->snippet[0] = '\0';
-        fill_snippet(r, sc, h->snippet, sizeof(h->snippet));
+        fill_hit_meta(r, sc, sc->id, 1.0f, h);
+        snippet_from(&src, sc, h->snippet, sizeof(h->snippet));
         (*found)++;
     }
+
+    chunk_source_close(&src);
     pthread_mutex_unlock(&r->mu);
     if (*found == 0) {
         return CBERG_ERR_NOT_FOUND;

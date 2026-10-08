@@ -57,6 +57,7 @@ func (r *lexicalRanking) add(match workspace.GrepMatch, fileKey string) {
 		if overlapping.lexicalRank == 0 {
 			r.rank++
 			overlapping.lexicalRank = r.rank
+			overlapping.matchLine = match.Line
 		}
 
 		overlapping.grepBoost++
@@ -79,7 +80,7 @@ func (r *lexicalRanking) add(match workspace.GrepMatch, fileKey string) {
 			Repo: match.Repo, Path: match.Path, StartLine: match.Line, EndLine: match.Line,
 			Snippet: string(preview),
 		},
-		lexicalRank: r.rank, grepBoost: 1,
+		lexicalRank: r.rank, grepBoost: 1, matchLine: match.Line,
 	}
 	r.items = append(r.items, item)
 }

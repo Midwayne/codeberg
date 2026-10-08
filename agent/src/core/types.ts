@@ -33,7 +33,7 @@ export interface SearchOptions {
   k?: number;
   /** Restrict the search to one repo key; omit to search every indexed repo. */
   repo?: string;
-  /** fnmatch glob on chunk paths, e.g. daemon/* */
+  /** rg-style glob on chunk paths, e.g. daemon/** or *.go */
   path_glob?: string;
   /** chunk kind: function, method, class, struct, interface, window, section */
   kind?: string;

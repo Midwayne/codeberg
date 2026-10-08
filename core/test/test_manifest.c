@@ -268,6 +268,20 @@ int main(void) {
     cberg_manifest *corrupt = NULL;
     CHECK(cberg_manifest_load(mpath, &corrupt) == CBERG_ERR_NOT_FOUND, "truncated manifest rejected");
     CHECK(corrupt == NULL, "corrupt manifest load leaves NULL");
+
+    /* A well-formed manifest written under older chunking rules is stale: the
+     * chunk table it vouches for was produced by different queries. */
+    FILE *oldf = fopen(mpath, "wb");
+    CHECK(oldf != NULL, "open old-rules manifest path");
+    uint32_t old_version = 1;
+    uint64_t old_count = 0;
+    fwrite("CBMF", 1, 4, oldf);
+    fwrite(&old_version, sizeof old_version, 1, oldf);
+    fwrite(&old_count, sizeof old_count, 1, oldf);
+    fclose(oldf);
+    cberg_manifest *old_rules = NULL;
+    CHECK(cberg_manifest_load(mpath, &old_rules) == CBERG_ERR_NOT_FOUND, "manifest from older chunk rules rejected");
+    cberg_manifest_free(old_rules);
     remove(mpath);
 
     cberg_manifest_free(f1);

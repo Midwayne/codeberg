@@ -73,7 +73,9 @@ func scoreHits(items []*rankedHit, query string) []HybridHit {
 		var score float64
 		if item.vectorRank > 0 {
 			score += 1 / (rrfOffset + float64(item.vectorRank))
-			if rank := lexicalFileRank[key]; rank > 0 {
+			if item.lexicalRank > 0 {
+				score += lexicalWeight / (rrfOffset + float64(item.lexicalRank))
+			} else if rank := lexicalFileRank[key]; rank > 0 {
 				score += fileWeight * lexicalWeight / (rrfOffset + float64(rank))
 			}
 		}
@@ -85,7 +87,12 @@ func scoreHits(items []*rankedHit, query string) []HybridHit {
 			}
 		}
 
-		out = append(out, HybridHit{Hit: item.hit, GrepBoost: item.grepBoost, FinalScore: float32(score * sourceWeight(item.hit.Path, query))})
+		out = append(out, HybridHit{
+			Hit:        item.hit,
+			GrepBoost:  item.grepBoost,
+			MatchLine:  item.matchLine,
+			FinalScore: float32(score * sourceWeight(item.hit.Path, query)),
+		})
 	}
 
 	return out

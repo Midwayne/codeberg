@@ -186,9 +186,43 @@ int main(void) {
     CHECK(gch.added_len == 1 && gch.modified_len == 0, "exactly one new chunk after load");
     CHECK(gch.added[0].id >= 4, "new id continues past restored ids");
 
+    /* Key lookup survives restored rows plus a later sync's new arena. */
+    CHECK(cberg_chunk_table_find_by_key(restored, "p.go::1::D#0") != NULL, "find_by_key new row after load");
+    CHECK(cberg_chunk_table_find_by_key(restored, "p.go::1::A#0") != NULL, "find_by_key restored row after sync");
+
     cberg_chunk_table_free(restored);
     cberg_chunk_table_free(src);
     remove(tpath);
+
+    /* The table owns its keys: callers may reuse key buffers right after a
+     * sync, and lookups must keep resolving across further syncs, including a
+     * batch that repeats a key. */
+    {
+        cberg_chunk_table *owned = cberg_chunk_table_new();
+        cberg_changes och = {0};
+
+        char k0[32], k1[32];
+        snprintf(k0, sizeof(k0), "own::1::A#0");
+        snprintf(k1, sizeof(k1), "own::1::B#0");
+        cberg_chunk first[] = {make_chunk(k0, 1), make_chunk(k1, 2)};
+        CHECK(cberg_chunk_table_sync(owned, first, 2, &och) == CBERG_OK, "owned cold sync");
+
+        memset(k0, 'x', sizeof(k0) - 1);
+        memset(k1, 'y', sizeof(k1) - 1);
+        CHECK(cberg_chunk_table_find_by_key(owned, "own::1::A#0") != NULL, "lookup after caller reuses key buffer");
+        CHECK(cberg_chunk_table_find_by_key(owned, "own::1::B#0") != NULL, "second lookup after buffer reuse");
+
+        cberg_chunk again[] = {make_chunk("own::1::A#0", 3), make_chunk("own::1::A#0", 4), make_chunk("own::1::C#0", 5)};
+        CHECK(cberg_chunk_table_sync(owned, again, 3, &och) == CBERG_OK, "owned resync with repeated key");
+        CHECK(cberg_chunk_table_len(owned) == 2, "repeated key collapses; B deleted");
+
+        const cberg_stored_chunk *a_row = cberg_chunk_table_find_by_key(owned, "own::1::A#0");
+        CHECK(a_row != NULL && a_row->chunk.content_hash[0] == 4, "repeated key resolves to the later row");
+        CHECK(cberg_chunk_table_find_by_key(owned, "own::1::C#0") != NULL, "new key resolves");
+        CHECK(cberg_chunk_table_find_by_key(owned, "own::1::B#0") == NULL, "dropped key no longer resolves");
+
+        cberg_chunk_table_free(owned);
+    }
 
     cberg_chunk_table_free(table);
     return failures == 0 ? 0 : 1;

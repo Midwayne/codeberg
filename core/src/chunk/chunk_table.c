@@ -9,6 +9,7 @@
 #include "arena.h"
 #include "binio.h"
 #include "cacheline.h"
+#include "chunk_table_internal.h"
 #include "grow.h"
 #include "strmap.h"
 #include "u64map.h"
@@ -171,7 +172,8 @@ static cberg_status table_init_for_sync(cberg_chunk_table *next, size_t est_len)
         return CBERG_ERR_OUT_OF_MEMORY;
     }
     size_t map_buckets = cberg_round_pow2(est_len < 64 ? 64 : (est_len * 4 + 2) / 3);
-    next->key_index = cberg_strmap_new(map_buckets);
+    /* Keys are entry strings in next->arena, which lives exactly as long as this map. */
+    next->key_index = cberg_strmap_new_borrowed(map_buckets);
     next->id_index = cberg_u64map_new(map_buckets);
     if (next->key_index == NULL || next->id_index == NULL) {
         return CBERG_ERR_OUT_OF_MEMORY;
@@ -205,7 +207,7 @@ static cberg_status table_append(cberg_chunk_table *table, cberg_stored_chunk st
     table->entries[index] = stored;
     table->len++;
     if (table->key_index == NULL) {
-        table->key_index = cberg_strmap_new(CBERG_MAP_INITIAL);
+        table->key_index = cberg_strmap_new_borrowed(CBERG_MAP_INITIAL);
         if (table->key_index == NULL) {
             table->len--;
             /* arena-owned; discarded with table->arena */
@@ -261,6 +263,13 @@ static void table_free_change_lists(cberg_chunk_table *table) {
     table->added_cap = 0;
     table->modified_cap = 0;
     table->deleted_cap = 0;
+}
+
+void cberg_chunk_table_release_changes(cberg_chunk_table *table) {
+    if (table == NULL) {
+        return;
+    }
+    table_free_change_lists(table);
 }
 
 static void table_discard(cberg_chunk_table *table) {
@@ -455,7 +464,9 @@ cberg_status cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk 
     next->next_id = table->next_id;
 
     cberg_status status = CBERG_OK;
-    size_t est_len = table->len + count;
+    /* Every row of `next` comes from `incoming` (unseen live rows become
+     * deletes, not entries), so count bounds its length exactly. */
+    size_t est_len = count;
     status = table_init_for_sync(next, est_len);
     if (status != CBERG_OK) {
         table_discard(next);
