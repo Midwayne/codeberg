@@ -624,7 +624,7 @@ Implemented in the same `codeberg.h` ABI. **Full API:** [API.md](API.md#embeddin
 | `cberg-index` CLI | C binary — bootstrap walk, then watcher loop → chunk → sync → embed → index |
 | Persistence | Chunk table, manifest, and index snapshots via `*_save` / `*_load`; see [CBERG_INDEX.md](CBERG_INDEX.md) |
 
-HNSW defaults: `connectivity=16`, `expansion_add=128`, `expansion_search=64`. `cberg_search_query` raises ef to `max(min_ef, k * oversample)` per query (defaults: min 64, oversample 4). ONNX embed batches up to 8 texts per inference when possible.
+HNSW defaults: `connectivity=16`, `expansion_add=128`, `expansion_search=64`. `cberg_search_query` raises ef to `max(min_ef, k * oversample)` per query (defaults: min 64, oversample 4). ONNX embed length-sorts each call and runs up to 16 texts per inference (`CBERG_EMBED_BATCH`).
 
 Embedding runs only on `changes.added` and `changes.modified`; `changes.deleted` removes vectors by `id`.
 

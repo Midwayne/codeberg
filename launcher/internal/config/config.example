@@ -148,6 +148,7 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # env only:
 # CBERG_EMBED_THREADS=8
 # CBERG_EMBED_COREML=1
+# CBERG_EMBED_BATCH=16
 
 # =============================================================================
 # Agent / chat (agent scope)

@@ -96,7 +96,8 @@ ONNX Runtime session for sentence-encoder models: tokenize → run → mean-pool
 | Name | Value |
 |------|-------|
 | `MAX_SEQ` | 256 max tokens per sequence |
-| `MAX_BATCH` | 8 texts per inference batch |
+| `DEFAULT_BATCH` | 16 texts per inference `Run` (override with `CBERG_EMBED_BATCH`) |
+| `MAX_BATCH` | 1024, upper bound accepted from `CBERG_EMBED_BATCH` |
 
 ### `onnx_impl`
 
@@ -164,7 +165,7 @@ pooled vector back to `out + order[...] * dim` (caller order).
 ### `cberg_onnx_embed(impl, texts, lens, count, out)` — internal
 
 Tokenizes all `count` rows up front, length-sorts them (`sort_indices_by_len`), then
-runs inference in `run_group` batches of up to `MAX_BATCH`. Each batch pads only to
+runs inference in `run_group` batches of up to `impl->batch` rows. Each batch pads only to
 its own longest row instead of the whole call's, cutting padding compute for the
 mixed-length chunks that dominate a codebase. Results are scattered back so `out[i]`
 maps to `texts[i]`; `out` must hold `count * dim` floats.
@@ -202,6 +203,25 @@ Read by `cberg-index` when it opens the embedder:
 | --- | --- |
 | `CBERG_EMBED_THREADS` | Caps ONNX intra-op threads (`cfg->num_threads`). Unset or `<= 0` uses all physical cores. |
 | `CBERG_EMBED_COREML` | Apple Silicon only. Set to a non-zero value to append the CoreML execution provider (GPU/ANE). Default (unset) is CPU. |
+| `CBERG_EMBED_BATCH` | Rows per ONNX `Run`, `1..1024` (default 16). Rows are length-sorted first, so smaller runs pad less; on CPU 8–16 is fastest, while accelerators (CoreML) may prefer larger runs. |
+
+### Measuring
+
+`core/build/bench/bench_embed <root> [max_chunks] [call sizes...]` chunks a real
+tree and times embedding at each call size (texts per `cberg_embedder_embed`).
+Set `CBERG_BENCH_SORT_WINDOW=1024` to pre-sort by byte length the way
+`cberg-index` does. On a 4-vCPU Linux VM with the int8 jina model and 1,249 chunks
+of `agent/src` (medians of 3 runs):
+
+| Setup | chunks/s |
+| --- | --- |
+| Unsorted calls of 32, 32 rows per `Run` (previous indexer) | 21.6 |
+| Byte-sorted window of 1024, calls of 96, 16 rows per `Run` (current indexer) | 65.5 |
+| Whole set in one call, 16 rows per `Run` | 68.6 |
+| Whole set in one call, 32 / 64 / 128 rows per `Run` | 59.3 / 51.1 / 42.6 |
+
+Chunking the same files takes about 0.2 s, so embedding dominates a cold index
+by two orders of magnitude.
 
 CoreML helps fp16/fp32 models, but a heavily-quantized (int8) model partitions into
 many CPU/CoreML subgraphs and is usually **slower** than CPU due to the cross-device
