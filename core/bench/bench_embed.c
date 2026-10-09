@@ -214,18 +214,52 @@ static void sort_windows(corpus *c, size_t window) {
     c->lens = lens;
 }
 
-static int embed_all(cberg_embedder *emb, const corpus *c, size_t call, double *out_s) {
+/* Mirror cberg-index's per-call text budget (CBERG_BENCH_CALL_BUDGET bytes,
+ * each text clamped to 1 KiB); 0 disables it. */
+static size_t budgeted_len(const corpus *c, size_t start, size_t n, size_t budget) {
+    if (budget == 0) {
+        return n;
+    }
+
+    size_t used = 0;
+    size_t bn = 0;
+    while (bn < n) {
+        size_t cost = c->lens[start + bn] < 1024 ? c->lens[start + bn] : 1024;
+        if (bn > 0 && used + cost > budget) {
+            break;
+        }
+
+        used += cost;
+        bn++;
+    }
+    return bn;
+}
+
+/* Total time, plus the slowest single call: in cberg-index that is the longest
+ * a search query can wait on embed_mu. */
+static int embed_all(cberg_embedder *emb, const corpus *c, size_t call, double *out_s, double *out_max_call) {
+    const char *budget_env = getenv("CBERG_BENCH_CALL_BUDGET");
+    size_t budget = budget_env != NULL ? (size_t)strtoul(budget_env, NULL, 10) : 0;
+
     cberg_bench_timer t;
     cberg_bench_start(&t);
+    *out_max_call = 0.0;
 
-    for (size_t i = 0; i < c->len; i += call) {
-        size_t n = c->len - i < call ? c->len - i : call;
+    for (size_t i = 0, n = 0; i < c->len; i += n) {
+        n = budgeted_len(c, i, c->len - i < call ? c->len - i : call, budget);
         float *vecs = NULL;
 
+        cberg_bench_timer ct;
+        cberg_bench_start(&ct);
         if (cberg_embedder_embed(emb, c->texts + i, c->lens + i, n, &vecs) != CBERG_OK) {
             return -1;
         }
+        cberg_bench_stop(&ct);
         cberg_vectors_free(vecs);
+
+        if (cberg_bench_seconds(&ct) > *out_max_call) {
+            *out_max_call = cberg_bench_seconds(&ct);
+        }
     }
 
     cberg_bench_stop(&t);
@@ -255,14 +289,15 @@ static int run_embeds(const corpus *c, const char *model, int argc, char **argv)
     for (int i = 0; i < n_sizes && rc == 0; i++) {
         size_t call = (size_t)strtoul(sizes[i], NULL, 10);
         double s = 0.0;
+        double max_call = 0.0;
 
-        if (call == 0 || embed_all(emb, c, call, &s) != 0) {
+        if (call == 0 || embed_all(emb, c, call, &s, &max_call) != 0) {
             fprintf(stderr, "bench_embed: embed failed at call size %s\n", sizes[i]);
             rc = 1;
             break;
         }
 
-        printf("embed call=%-6zu %9.3f s  %8.1f chunks/s\n", call, s, (double)c->len / s);
+        printf("embed call=%-6zu %9.3f s  %8.1f chunks/s  max call %6.3f s\n", call, s, (double)c->len / s, max_call);
         fflush(stdout);
     }
 
