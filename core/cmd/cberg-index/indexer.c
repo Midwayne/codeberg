@@ -23,7 +23,8 @@
 #include <malloc.h>
 #endif
 
-#define BATCH_SIZE 32
+#define EMBED_WINDOW 1024 /* chunks read and length-sorted together before embedding */
+#define EMBED_CALL 96     /* chunks per embedder call, i.e. per embed_mu hold */
 #define PROGRESS_MIN 128  /* only show embed progress for upserts at least this large */
 #define PROGRESS_STEP 512 /* ...and roughly every this many chunks */
 
@@ -225,11 +226,149 @@ static cberg_status cache_slice(cberg_repo *r, file_cache *fc, const cberg_store
     return CBERG_OK;
 }
 
+/* Receives the vector for item `item` (an index into the rows handed to
+ * embed_window). The vector is only valid for the duration of the call. */
+typedef cberg_status (*embed_sink)(void *ctx, size_t item, const float *vec);
+
+typedef struct {
+    size_t len;
+    size_t item;
+} sized_item;
+
+static int sized_item_cmp(const void *a, const void *b) {
+    const sized_item *x = a;
+    const sized_item *y = b;
+
+    if (x->len != y->len) {
+        return x->len < y->len ? -1 : 1;
+    }
+    return x->item < y->item ? -1 : x->item > y->item;
+}
+
+static void free_texts(char **texts, size_t n) {
+    for (size_t i = 0; i < n; i++) {
+        free(texts[i]);
+    }
+    free(texts);
+}
+
+/* Copy each row's body out of the file cache, so the window holds only the
+ * bytes it embeds rather than every whole file it touched. */
+static cberg_status read_window(cberg_repo *r, const cberg_stored_chunk *const *rows, size_t n, char **texts, sized_item *items) {
+    file_cache fc = {0};
+    cberg_status st = CBERG_OK;
+
+    for (size_t i = 0; i < n && st == CBERG_OK; i++) {
+        const char *text = NULL;
+        size_t len = 0;
+
+        st = cache_slice(r, &fc, rows[i], &text, &len);
+        if (st != CBERG_OK) {
+            break;
+        }
+
+        texts[i] = malloc(len > 0 ? len : 1);
+        if (texts[i] == NULL) {
+            st = CBERG_ERR_OUT_OF_MEMORY;
+            break;
+        }
+        memcpy(texts[i], text, len);
+
+        items[i].len = len;
+        items[i].item = i;
+        file_cache_keep_last(&fc);
+    }
+
+    file_cache_free(&fc);
+    return st;
+}
+
+/*
+ * Embed rows[0..n) (n <= EMBED_WINDOW) shortest-first in calls of EMBED_CALL.
+ * Batched transformer cost tracks each batch's longest text, so sorting the
+ * whole window by length keeps padding low, while bounded calls keep each
+ * embed_mu hold short enough that interactive searches are not starved. Byte
+ * length is a close proxy for token count and needs no tokenizer here.
+ */
+static cberg_status embed_window(cberg_repo *r, const cberg_stored_chunk *const *rows, size_t n, embed_sink sink, void *ctx) {
+    size_t dim = cberg_embedder_dim(r->eng->embedder);
+    char **texts = calloc(n, sizeof(*texts));
+    sized_item *items = malloc(n * sizeof(*items));
+    const char *btexts[EMBED_CALL];
+    size_t blens[EMBED_CALL];
+
+    cberg_status st = CBERG_ERR_OUT_OF_MEMORY;
+    if (texts == NULL || items == NULL) {
+        goto done;
+    }
+
+    st = read_window(r, rows, n, texts, items);
+    if (st != CBERG_OK) {
+        goto done;
+    }
+    qsort(items, n, sizeof(*items), sized_item_cmp);
+
+    for (size_t c = 0; c < n && st == CBERG_OK; c += EMBED_CALL) {
+        size_t bn = n - c < EMBED_CALL ? n - c : EMBED_CALL;
+        for (size_t b = 0; b < bn; b++) {
+            btexts[b] = texts[items[c + b].item];
+            blens[b] = items[c + b].len;
+        }
+
+        float *vecs = NULL;
+        st = engine_embed(r->eng, btexts, blens, bn, &vecs);
+        for (size_t b = 0; b < bn && st == CBERG_OK; b++) {
+            st = sink(ctx, items[c + b].item, vecs + b * dim);
+        }
+        cberg_vectors_free(vecs);
+    }
+
+done:
+    if (texts != NULL) {
+        free_texts(texts, n);
+    }
+    free(items);
+    return st;
+}
+
+typedef struct {
+    cberg_repo *repo;
+    cberg_index *index;
+    const cberg_stored_chunk *const *rows;
+    const size_t *group_start;
+    const size_t *members;
+    size_t base; /* group index of the window's first representative */
+    int show;
+    size_t *done;
+    size_t total;
+    size_t mark;
+} unique_sink;
+
+/* Fan one representative's vector out to every chunk sharing its body. */
+static cberg_status add_group_vector(void *v, size_t item, const float *vec) {
+    unique_sink *u = v;
+    size_t k = u->base + item;
+
+    for (size_t m = u->group_start[k]; m < u->group_start[k + 1]; m++) {
+        cberg_status st = cberg_index_add(u->index, u->rows[u->members[m]]->id, vec);
+        if (st != CBERG_OK) {
+            return st;
+        }
+
+        (*u->done)++;
+        if (u->show && (*u->done >= u->mark || *u->done == u->total)) {
+            fprintf(stderr, "cberg-index[%s]: embedded %zu/%zu chunks (%zu%%)\n", u->repo->key, *u->done, u->total, *u->done * 100 / u->total);
+            u->mark += PROGRESS_STEP;
+        }
+    }
+    return CBERG_OK;
+}
+
 /*
  * Embed unique bodies only (keyed by content_hash; full-hash confirm after 8-byte
- * map key). Duplicates reuse the representative vector. Batched under embed_mu.
- * Grouping needs only hashes, so bodies are read per batch (representatives
- * only) and released once embedded rather than held for the whole upsert.
+ * map key). Duplicates reuse the representative vector. Grouping needs only
+ * hashes, so bodies are read per embed window (representatives only) and
+ * released once embedded rather than held for the whole upsert.
  */
 static cberg_status embed_unique(cberg_repo *r, cberg_index *index, const cberg_stored_chunk *const *rows, size_t count, int show, size_t *done, size_t total, size_t *out_unique) {
     if (out_unique != NULL) {
@@ -238,19 +377,15 @@ static cberg_status embed_unique(cberg_repo *r, cberg_index *index, const cberg_
     if (count == 0) {
         return CBERG_OK;
     }
-    size_t dim = cberg_embedder_dim(r->eng->embedder);
-
     cberg_u64map *seen = cberg_u64map_new(count * 2);
     size_t *reps = malloc(count * sizeof(*reps));         /* group -> a representative item index */
     size_t *group_of = malloc(count * sizeof(*group_of)); /* item -> its group index */
-    const char **btexts = malloc(BATCH_SIZE * sizeof(*btexts));
-    size_t *blens = malloc(BATCH_SIZE * sizeof(*blens));
     size_t *group_start = NULL;
     size_t *members = NULL;
     size_t *cursor = NULL;
-    file_cache fc = {0};
+    const cberg_stored_chunk **wrows = NULL;
     cberg_status st = CBERG_ERR_OUT_OF_MEMORY;
-    if (seen == NULL || reps == NULL || group_of == NULL || btexts == NULL || blens == NULL) {
+    if (seen == NULL || reps == NULL || group_of == NULL) {
         goto done;
     }
 
@@ -281,7 +416,7 @@ static cberg_status embed_unique(cberg_repo *r, cberg_index *index, const cberg_
     }
 
     /* Pass 2: CSR-group the items so a representative and all its duplicates are
-     * contiguous in `members`, letting each embed batch be freed before the next. */
+     * contiguous in `members`, letting each embed window be freed before the next. */
     group_start = calloc(n_groups + 1, sizeof(*group_start));
     members = malloc(count * sizeof(*members));
     cursor = malloc(n_groups * sizeof(*cursor));
@@ -300,60 +435,47 @@ static cberg_status embed_unique(cberg_repo *r, cberg_index *index, const cberg_
         members[cursor[group_of[u]]++] = u;
     }
 
-    size_t mark = (*done / PROGRESS_STEP + 1) * PROGRESS_STEP;
+    unique_sink sink = {
+        .repo = r,
+        .index = index,
+        .rows = rows,
+        .group_start = group_start,
+        .members = members,
+        .show = show,
+        .done = done,
+        .total = total,
+        .mark = (*done / PROGRESS_STEP + 1) * PROGRESS_STEP,
+    };
+
+    size_t wcap = n_groups < EMBED_WINDOW ? n_groups : EMBED_WINDOW;
+    wrows = malloc(wcap * sizeof(*wrows));
+    if (wrows == NULL) {
+        st = CBERG_ERR_OUT_OF_MEMORY;
+        goto done;
+    }
+
     st = CBERG_OK;
-    for (size_t g = 0; g < n_groups;) {
-        size_t bn = n_groups - g;
-        if (bn > BATCH_SIZE) {
-            bn = BATCH_SIZE;
-        }
-        for (size_t b = 0; b < bn; b++) {
-            st = cache_slice(r, &fc, rows[reps[g + b]], &btexts[b], &blens[b]);
-            if (st != CBERG_OK) {
-                goto done;
-            }
+    for (size_t g = 0; g < n_groups && st == CBERG_OK; g += EMBED_WINDOW) {
+        size_t wn = n_groups - g < EMBED_WINDOW ? n_groups - g : EMBED_WINDOW;
+        for (size_t b = 0; b < wn; b++) {
+            wrows[b] = rows[reps[g + b]];
         }
 
-        float *vecs = NULL;
-        st = engine_embed(r->eng, btexts, blens, bn, &vecs);
-        file_cache_keep_last(&fc);
-        if (st != CBERG_OK) {
-            cberg_vectors_free(vecs);
-            goto done;
-        }
-        for (size_t b = 0; b < bn; b++) {
-            size_t k = g + b;
-            const float *v = vecs + b * dim;
-            for (size_t m = group_start[k]; m < group_start[k + 1]; m++) {
-                st = cberg_index_add(index, rows[members[m]]->id, v);
-                if (st != CBERG_OK) {
-                    cberg_vectors_free(vecs);
-                    goto done;
-                }
-                (*done)++;
-                if (show && (*done >= mark || *done == total)) {
-                    fprintf(stderr, "cberg-index[%s]: embedded %zu/%zu chunks (%zu%%)\n", r->key, *done, total, *done * 100 / total);
-                    mark += PROGRESS_STEP;
-                }
-            }
-        }
-        cberg_vectors_free(vecs);
-        g += bn;
+        sink.base = g;
+        st = embed_window(r, wrows, wn, add_group_vector, &sink);
     }
-    if (out_unique != NULL) {
+    if (st == CBERG_OK && out_unique != NULL) {
         *out_unique = n_groups;
     }
 
 done:
-    file_cache_free(&fc);
     cberg_u64map_free(seen);
     free(reps);
     free(group_of);
     free(group_start);
     free(members);
     free(cursor);
-    free(btexts);
-    free(blens);
+    free(wrows);
     return st;
 }
 
@@ -462,6 +584,35 @@ static cberg_status rebuild_index_op(cberg_repo *r, void *ctx) {
     return rebuild_index(r);
 }
 
+/* Embed every chunk in the table into `target`, reusing vectors across
+ * identical bodies exactly like an incremental upsert. Caller holds r->mu. */
+static cberg_status embed_table(cberg_repo *r, cberg_index *target) {
+    size_t n = cberg_chunk_table_len(r->table);
+    if (n == 0) {
+        return CBERG_OK;
+    }
+
+    const cberg_stored_chunk **rows = malloc(n * sizeof(*rows));
+    if (rows == NULL) {
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+
+    size_t count = 0;
+    for (size_t i = 0; i < n; i++) {
+        const cberg_stored_chunk *sc = cberg_chunk_table_at(r->table, i);
+        if (sc != NULL) {
+            rows[count++] = sc;
+        }
+    }
+
+    size_t done = 0;
+    int show = count >= PROGRESS_MIN;
+    cberg_status st = embed_unique(r, target, rows, count, show, &done, count, NULL);
+
+    free(rows);
+    return st;
+}
+
 static cberg_status rebuild_index(cberg_repo *r) {
     if (!r->eng->vectors || r->eng->embedder == NULL || r->index == NULL) {
         return CBERG_OK;
@@ -489,87 +640,13 @@ static cberg_status rebuild_index(cberg_repo *r) {
         target = temp_idx;
     }
 
-    size_t n = cberg_chunk_table_len(r->table);
-    for (size_t i = 0; i < n;) {
-        size_t end = i + BATCH_SIZE;
-        if (end > n) {
-            end = n;
+    cberg_status fill = embed_table(r, target);
+    if (fill != CBERG_OK) {
+        if (temp_idx != NULL) {
+            cberg_index_close(temp_idx);
+            unlink(temp);
         }
-        size_t batch_n = end - i;
-        const char **texts = calloc(batch_n, sizeof(*texts));
-        size_t *lens = calloc(batch_n, sizeof(*lens));
-        uint64_t *ids = calloc(batch_n, sizeof(*ids));
-        file_cache fc = {0};
-        size_t count = 0;
-        cberg_status st;
-        if (texts == NULL || lens == NULL || ids == NULL) {
-            st = CBERG_ERR_OUT_OF_MEMORY;
-            free(texts);
-            free(lens);
-            free(ids);
-            if (temp_idx != NULL) {
-                cberg_index_close(temp_idx);
-                if (temp[0] != '\0') {
-                    unlink(temp);
-                }
-            }
-            return st;
-        }
-        for (size_t j = i; j < end; j++) {
-            const cberg_stored_chunk *sc = cberg_chunk_table_at(r->table, j);
-            if (sc == NULL) {
-                continue;
-            }
-            st = cache_slice(r, &fc, sc, &texts[count], &lens[count]);
-            if (st != CBERG_OK) {
-                file_cache_free(&fc);
-                free(texts);
-                free(lens);
-                free(ids);
-                if (temp_idx != NULL) {
-                    cberg_index_close(temp_idx);
-                    unlink(temp);
-                }
-                return st;
-            }
-            ids[count] = sc->id;
-            count++;
-        }
-        if (count > 0) {
-            float *vecs = NULL;
-            st = engine_embed(r->eng, texts, lens, count, &vecs);
-            file_cache_free(&fc);
-            free(texts);
-            free(lens);
-            if (st != CBERG_OK) {
-                free(ids);
-                if (temp_idx != NULL) {
-                    cberg_index_close(temp_idx);
-                    unlink(temp);
-                }
-                return st;
-            }
-            for (size_t k = 0; k < count; k++) {
-                st = cberg_index_add(target, ids[k], vecs + k * dim);
-                if (st != CBERG_OK) {
-                    cberg_vectors_free(vecs);
-                    free(ids);
-                    if (temp_idx != NULL) {
-                        cberg_index_close(temp_idx);
-                        unlink(temp);
-                    }
-                    return st;
-                }
-            }
-            cberg_vectors_free(vecs);
-            free(ids);
-        } else {
-            file_cache_free(&fc);
-            free(texts);
-            free(lens);
-            free(ids);
-        }
-        i = end;
+        return fill;
     }
 
     if (cberg_index_provider_rebuild_inplace(cfg->provider)) {
