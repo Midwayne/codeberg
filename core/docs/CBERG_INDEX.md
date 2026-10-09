@@ -90,9 +90,12 @@ for query embed, then one `repo->mu` at a time. Never `embed_mu` → `repo->mu`.
 
 **Embed scheduling:** upserts and index rebuilds embed each unique body once, reading
 up to 1024 bodies (`EMBED_WINDOW`) at a time, sorting them by byte length, and
-handing them to the embedder in calls of 96 (`EMBED_CALL`). Sorting keeps each
-inference batch's padding low; bounded calls keep each `embed_mu` hold to roughly a
-second on CPU so a search query never waits behind a whole cold index.
+handing them to the embedder in calls of at most 96 bodies (`EMBED_CALL`) and at
+most 32 KiB of text with each body counted up to 1 KiB (`EMBED_CALL_BUDGET`), so at
+most 32 bodies that fill the 256-token window. Sorting keeps each inference batch's
+padding low. Bounding calls by count and volume keeps the worst `embed_mu` hold no
+longer than the old unsorted 32-chunk calls (about 1.3–1.9 s on a 4-vCPU VM), so a
+search query never waits behind a whole cold index.
 
 ---
 

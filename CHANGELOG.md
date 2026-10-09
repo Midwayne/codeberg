@@ -138,11 +138,13 @@ changes may occur in minor releases and are called out explicitly.
 
 - **About 3× faster embedding on CPU** — `cberg-index` reads up to 1024 unique
   chunk bodies at a time, sorts them by length, and sends them to the embedder
-  in calls of 96, so each inference batch pads far less. ONNX now runs 16 rows
-  per inference by default, which measured faster than 32 on CPU (tune with the
-  new `CBERG_EMBED_BATCH`). Index rebuilds also reuse vectors for identical
-  bodies. Measured with the new `core/bench/bench_embed` on 1,249 chunks
-  (4-vCPU VM, int8 jina model): about 21.6 → 65.5 chunks/s.
+  in calls capped at 96 bodies and a 32 KiB text budget, so each inference batch
+  pads far less while search queries still wait no longer for the embed lock.
+  ONNX now runs 16 rows per inference by default, which measured faster than 32
+  on CPU (tune with the new `CBERG_EMBED_BATCH`). Index rebuilds also reuse
+  vectors for identical bodies. Measured with the new `core/bench/bench_embed`
+  on 1,249 chunks (4-vCPU VM, int8 jina model): about 20.6 → 61.1 chunks/s, and
+  a cold `cberg-index` bootstrap of 1,893 chunks went from about 96 s to 37 s.
 - **`CODEBERG_ROOT` vs multi-repo** — when `CODEBERG_ROOT` is set, only the
   named path(s) are indexed. `--all` / `--repos` (`CODEBERG_ALL` /
   `CODEBERG_REPOS`) require an **unset** `CODEBERG_ROOT`; the two modes no

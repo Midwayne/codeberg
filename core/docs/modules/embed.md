@@ -209,14 +209,22 @@ Read by `cberg-index` when it opens the embedder:
 
 `core/build/bench/bench_embed <root> [max_chunks] [call sizes...]` chunks a real
 tree and times embedding at each call size (texts per `cberg_embedder_embed`).
-Set `CBERG_BENCH_SORT_WINDOW=1024` to pre-sort by byte length the way
-`cberg-index` does. On a 4-vCPU Linux VM with the int8 jina model and 1,249 chunks
-of `agent/src` (medians of 3 runs):
+Set `CBERG_BENCH_SORT_WINDOW=1024` and `CBERG_BENCH_CALL_BUDGET=32768` to sort by
+byte length and bound calls the way `cberg-index` does; each line also reports the
+slowest single call (the longest a search can wait on `embed_mu`). On a 4-vCPU Linux
+VM with the int8 jina model and 1,249 chunks of `agent/src` (medians of 3 runs):
+
+| Setup | chunks/s | slowest call |
+| --- | --- | --- |
+| Unsorted calls of 32, 32 rows per `Run` (previous indexer) | 20.6 | 1.76 s |
+| Byte-sorted window of 1024, calls ≤ 96 texts and ≤ 32 KiB, 16 rows per `Run` (current indexer) | 61.1 | 1.31 s |
+
+Without the 32 KiB budget, calls of 96 reach 65.5 chunks/s, but the call holding
+the window's longest bodies takes about 5 s. Other runs, all from one call holding
+the whole set (chunks/s only):
 
 | Setup | chunks/s |
 | --- | --- |
-| Unsorted calls of 32, 32 rows per `Run` (previous indexer) | 21.6 |
-| Byte-sorted window of 1024, calls of 96, 16 rows per `Run` (current indexer) | 65.5 |
 | Whole set in one call, 16 rows per `Run` | 68.6 |
 | Whole set in one call, 32 / 64 / 128 rows per `Run` | 59.3 / 51.1 / 42.6 |
 
