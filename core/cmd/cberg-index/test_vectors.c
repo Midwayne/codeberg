@@ -34,6 +34,9 @@ static int failures;
 #define N_FILES 60
 #define FUNCS_PER_FILE 3
 #define MAX_EMBED_CALL 96
+#define MAX_LONG_PER_CALL 32 /* texts of >= 1 KiB, which fill the 256-token window */
+#define N_LONG_FUNCS 40
+#define LONG_FUNC_LINES 120
 
 typedef struct {
     char **items;
@@ -97,6 +100,25 @@ static void write_nested_source(const char *root) {
     mkdir(dir, 0755);
 
     write_file(root, "pkg/sub/deep.go", "package sub\n\nfunc Deep(a int) int {\n\treturn a * 7\n}\n");
+}
+
+/* Enough distinct >= 1 KiB functions that the embed token budget, not the
+ * per-call count, has to split them. */
+static void write_long_source(const char *root) {
+    size_t cap = 64 + (size_t)N_LONG_FUNCS * (64 + LONG_FUNC_LINES * 24);
+    char *body = malloc(cap);
+    size_t off = (size_t)snprintf(body, cap, "package main\n\n");
+
+    for (int f = 0; f < N_LONG_FUNCS; f++) {
+        off += (size_t)snprintf(body + off, cap - off, "func Long%d() int {\n\tx := 0\n", f);
+        for (int line = 0; line < LONG_FUNC_LINES; line++) {
+            off += (size_t)snprintf(body + off, cap - off, "\tx += %d * %d\n", f, line);
+        }
+        off += (size_t)snprintf(body + off, cap - off, "\treturn x\n}\n\n");
+    }
+
+    write_file(root, "long.go", body);
+    free(body);
 }
 
 /* path_glob uses rg semantics: only_nested demands every hit lies under
@@ -223,8 +245,9 @@ static void check_length_sorted(const text_set *logged) {
     CHECK(unsorted == 0, "bootstrap bodies are embedded in length order");
 }
 
-/* Every embed call stays within the per-call cap, and a repo larger than one
- * call really is split across several. */
+/* Every embed call stays within the per-call cap and the token budget (at most
+ * MAX_LONG_PER_CALL full-window texts), and a repo larger than one call really
+ * is split across several. */
 static void check_call_sizes(const char *calls_path, size_t want_texts) {
     FILE *f = fopen(calls_path, "r");
     CHECK(f != NULL, "embed call log exists");
@@ -233,20 +256,29 @@ static void check_call_sizes(const char *calls_path, size_t want_texts) {
     }
 
     size_t count = 0;
+    size_t long_texts = 0;
     size_t calls = 0;
     size_t total = 0;
+    size_t total_long = 0;
     size_t oversized = 0;
+    size_t over_budget = 0;
 
-    while (fscanf(f, "%zu", &count) == 1) {
+    while (fscanf(f, "%zu %zu", &count, &long_texts) == 2) {
         calls++;
         total += count;
+        total_long += long_texts;
         if (count > MAX_EMBED_CALL) {
             oversized++;
+        }
+        if (long_texts > MAX_LONG_PER_CALL) {
+            over_budget++;
         }
     }
     fclose(f);
 
     CHECK(oversized == 0, "no embed call exceeds the per-call cap");
+    CHECK(total_long > MAX_LONG_PER_CALL, "long bodies exceed one call's token budget");
+    CHECK(over_budget == 0, "no embed call exceeds the token budget");
     CHECK(calls > 1, "bootstrap spans several embed calls");
     CHECK(total == want_texts, "call sizes add up to the embedded texts");
 }
@@ -314,6 +346,7 @@ int main(void) {
         write_source(root, i, "");
     }
     write_nested_source(root);
+    write_long_source(root);
 
     char model[512], index[512], sock[512], log_path[512], calls_path[512];
     snprintf(model, sizeof(model), "%s/model.onnx", work);

@@ -2,8 +2,8 @@
 
 Each record is "<byte length>\\n<text bytes>\\n" so the C test can replay the
 exact bodies the indexer sent, including embedded newlines. When
-$CBERG_TEST_EMBED_CALLS is set, each call's text count is appended there as one
-line. Texts mentioning "Shared" embed to (0, 0, 1) so a search for "Shared" can
+$CBERG_TEST_EMBED_CALLS is set, each call appends one "<texts> <long texts>"
+line, where long texts are at least 1024 bytes. Texts mentioning "Shared" embed to (0, 0, 1) so a search for "Shared" can
 prove every duplicate kept the right vector; everything else is (len, 1, 1).
 """
 
@@ -34,11 +34,13 @@ def vector(text):
 
 while header := sys.stdin.buffer.read(4):
     count = struct.unpack("=I", header)[0]
-    if calls is not None:
-        calls.write(b"%d\n" % count)
+    long_texts = 0
     for _ in range(count):
         size = struct.unpack("=I", exact(4))[0]
         text = exact(size)
+        long_texts += size >= 1024
         log.write(b"%d\n" % size + text + b"\n")
         sys.stdout.buffer.write(struct.pack("=3f", *vector(text)))
+    if calls is not None:
+        calls.write(b"%d %d\n" % (count, long_texts))
     sys.stdout.buffer.flush()

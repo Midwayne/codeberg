@@ -24,7 +24,11 @@
 #endif
 
 #define EMBED_WINDOW 1024 /* chunks read and length-sorted together before embedding */
-#define EMBED_CALL 96     /* chunks per embedder call, i.e. per embed_mu hold */
+#define EMBED_CALL 96     /* max chunks per embedder call, i.e. per embed_mu hold */
+/* Inference cost grows with tokens, and the 256-token model window fills at
+ * about 1 KiB of code, so a call is also capped at 32 full-window bodies. */
+#define EMBED_TEXT_COST_MAX 1024
+#define EMBED_CALL_BUDGET (32 * EMBED_TEXT_COST_MAX)
 #define PROGRESS_MIN 128  /* only show embed progress for upserts at least this large */
 #define PROGRESS_STEP 512 /* ...and roughly every this many chunks */
 
@@ -283,12 +287,31 @@ static cberg_status read_window(cberg_repo *r, const cberg_stored_chunk *const *
     return st;
 }
 
+/* How many sorted items starting at items[0] fit one call: at most EMBED_CALL
+ * and at most EMBED_CALL_BUDGET bytes of (window-clamped) text, but never 0. */
+static size_t call_len(const sized_item *items, size_t n) {
+    size_t budget = 0;
+    size_t bn = 0;
+
+    while (bn < n && bn < EMBED_CALL) {
+        size_t cost = items[bn].len < EMBED_TEXT_COST_MAX ? items[bn].len : EMBED_TEXT_COST_MAX;
+        if (bn > 0 && budget + cost > EMBED_CALL_BUDGET) {
+            break;
+        }
+
+        budget += cost;
+        bn++;
+    }
+    return bn;
+}
+
 /*
- * Embed rows[0..n) (n <= EMBED_WINDOW) shortest-first in calls of EMBED_CALL.
+ * Embed rows[0..n) (n <= EMBED_WINDOW) shortest-first in bounded calls.
  * Batched transformer cost tracks each batch's longest text, so sorting the
- * whole window by length keeps padding low, while bounded calls keep each
- * embed_mu hold short enough that interactive searches are not starved. Byte
- * length is a close proxy for token count and needs no tokenizer here.
+ * whole window by length keeps padding low, while capping each call by count
+ * and by text volume keeps every embed_mu hold short enough that interactive
+ * searches are not starved, even for the window's longest bodies. Byte length
+ * is a close proxy for token count and needs no tokenizer here.
  */
 static cberg_status embed_window(cberg_repo *r, const cberg_stored_chunk *const *rows, size_t n, embed_sink sink, void *ctx) {
     size_t dim = cberg_embedder_dim(r->eng->embedder);
@@ -308,8 +331,8 @@ static cberg_status embed_window(cberg_repo *r, const cberg_stored_chunk *const 
     }
     qsort(items, n, sizeof(*items), sized_item_cmp);
 
-    for (size_t c = 0; c < n && st == CBERG_OK; c += EMBED_CALL) {
-        size_t bn = n - c < EMBED_CALL ? n - c : EMBED_CALL;
+    for (size_t c = 0, bn = 0; c < n && st == CBERG_OK; c += bn) {
+        bn = call_len(items + c, n - c);
         for (size_t b = 0; b < bn; b++) {
             btexts[b] = texts[items[c + b].item];
             blens[b] = items[c + b].len;
