@@ -10,7 +10,7 @@ The agent uses tools to investigate your selected project. Your question is the 
 | `read_file`, `head`, `tail`, and `sed` | Read current source or a focused range. |
 | `list_dir` and `tree` | Understand directory structure. |
 | `git_log` and `git_blame` | Inspect change history when the directory is a Git repository. |
-| Context and knowledge tools | Reuse retrieved evidence or previously saved knowledge. |
+| Context and knowledge tools | Reuse retrieved evidence or [accumulated codebase knowledge](/docs/knowledge) to improve later answers. |
 
 The daemon's source tools are read-only and scoped to configured roots. They are not a general terminal or a source-code editor. Optional integrations add their own capabilities, so an [MCP server](/docs/mcps) may expose writes to an external service.
 

@@ -8,6 +8,7 @@ import projects from './content/projects.md?raw';
 import indexing from './content/indexing.md?raw';
 import tools from './content/tools.md?raw';
 import learning from './content/learning.md?raw';
+import knowledge from './content/knowledge.md?raw';
 import storage from './content/storage.md?raw';
 import troubleshooting from './content/troubleshooting.md?raw';
 
@@ -38,8 +39,10 @@ export const docPages: DocPage[] = [
     summary: 'How source files become searchable chunks and vectors.' },
   { id: 'tools', title: 'Tools and answers', group: 'Concepts', content: tools,
     summary: 'What the agent can read, how it searches, and how to inspect evidence.' },
-  { id: 'learning', title: 'Learning and knowledge', group: 'Concepts', content: learning,
-    summary: 'Control background learning, saved knowledge, and model usage.' },
+  { id: 'knowledge', title: 'Knowledge', group: 'Concepts', content: knowledge,
+    summary: 'Help the agent answer better as Codeberg accumulates useful codebase knowledge.' },
+  { id: 'learning', title: 'Learning', group: 'Concepts', content: learning,
+    summary: 'Collect reviewed data for custom model post-training, evaluation, and RL environments.' },
   { id: 'storage', title: 'Data and maintenance', group: 'Guides', content: storage,
     summary: 'Know what is stored, what leaves your machine, and how to clean up.' },
   { id: 'troubleshooting', title: 'Troubleshooting', group: 'Guides', content: troubleshooting,

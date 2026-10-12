@@ -1,8 +1,19 @@
 # Continuous learning
 
-Codeberg records graded browser-agent interactions as durable local data and
-extracts reusable codebase knowledge in the background. It never updates model
-weights online.
+Codeberg has two distinct goals. Knowledge accumulates reusable, source-backed
+findings so the agent can answer better as Codeberg is used more. Learning
+records graded interactions and builds reviewed, provenance-rich data for
+post-training custom embedding models, rerankers, and LLMs. Tasks, tool
+trajectories, repository versions, and proposed verifiers can also seed
+reproducible reinforcement-learning environments.
+
+The capabilities share storage plumbing and a Settings page, with separate
+knowledge and dataset controls. Knowledge improves the running agent through
+recalled context. Learning captures, reviews, exports, and scores training and
+evaluation data; model weight updates and executable RL environment runners are
+external workflows. The user-facing guides are
+`agent/web-ui/src/docs/content/knowledge.md` and
+`agent/web-ui/src/docs/content/learning.md`.
 
 ## Storage
 
@@ -261,7 +272,9 @@ share the same interaction and exact user query; inspect context before using
 these pairs for preference tuning. `query-positive-negative` writes
 `{"query":"...","positive":["path\\nsymbol\\nsource snippet"],"negative":["..."]}`
 from solved, answer-referenced results with source snippets. Negatives are
-**unjudged candidates**, not verified irrelevant; review them before training.
+included only from reviewed or explicitly rejected file paths.
+Retrieved-but-uncited results remain unjudged and are not automatically exported
+as negative labels.
 Each line is JSONL. Split train/eval by interaction (not attempt) to avoid
 correction leakage. The canonical append-only events preserve provenance, while
 these portable projections omit machine-specific paths and raw tool payloads.

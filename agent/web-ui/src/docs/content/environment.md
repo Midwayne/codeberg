@@ -130,7 +130,7 @@ Remote vector storage still needs the local sidecars and an embedding model. Cha
 
 ## MCP servers, databases, and learning
 
-**Config or environment.** These enable optional capabilities; their detailed setup lives in [MCP servers](/docs/mcps) and [Learning and knowledge](/docs/learning).
+**Config or environment.** These enable optional capabilities; their detailed setup lives in [MCP servers](/docs/mcps), [Knowledge](/docs/knowledge), and [Learning](/docs/learning).
 
 | Variable | Value or default | What it changes |
 | --- | --- | --- |

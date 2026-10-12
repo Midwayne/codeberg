@@ -84,13 +84,18 @@ Their canonical content is `agent/web-ui/src/docs/content/*.md`, organized by
 `agent/web-ui/src/docs/catalog.ts` and served in the built web UI at `/docs`.
 These docs must be maintained alongside the implementation, not as an optional
 follow-up. When changing models, configuration, MCPs, skills, tools, projects,
-indexing, learning, storage, or onboarding, update the relevant user-facing
+indexing, knowledge, learning, storage, or onboarding, update the relevant user-facing
 pages in the same change. Keep commands, defaults, examples, UI labels, and
 troubleshooting steps accurate; document prerequisites and current limitations.
 Explain what users can actually do today rather than planned capabilities.
 Keep internal cross-links and headings valid, and verify the docs remain usable
 before any project or chat model is configured. Repository/developer references
 under `docs/` supplement these pages; they do not replace the in-app guide.
+
+Keep the two goals distinct: Knowledge accumulates useful codebase findings so
+the agent answers better as Codeberg is used more. Learning collects reviewed
+data for custom embedding/LLM post-training, evaluation, and RL environments.
+Shared settings and storage do not make these the same capability.
 
 ## Cursor Cloud specific instructions
 
