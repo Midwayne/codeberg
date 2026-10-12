@@ -15,7 +15,8 @@
 #endif
 
 #define MAX_SEQ 256
-#define MAX_BATCH 32
+#define DEFAULT_BATCH 16
+#define MAX_BATCH 1024
 
 static void ort_discard(const OrtApi *ort, OrtStatus *status) {
     if (status != NULL) {
@@ -55,6 +56,7 @@ typedef struct {
     OrtMemoryInfo *mem;
     cberg_tok *tok;
     size_t dim;
+    size_t batch;
     int n_inputs;
     char *input_names[8];
     input_kind input_kinds[8];
@@ -73,6 +75,23 @@ static void derive_dir(const char *path, char *out, size_t out_len) {
         return;
     }
     snprintf(out, out_len, "%.*s", (int)dir_len, path);
+}
+
+/* Rows per ORT Run (CBERG_EMBED_BATCH, 1..MAX_BATCH). Inputs are length-sorted
+ * first, so this trades per-Run overhead against the padding of each group. On
+ * CPU, 8-16 rows beat 32+ (bench_embed); accelerators may prefer larger runs. */
+static size_t batch_from_env(void) {
+    const char *s = getenv("CBERG_EMBED_BATCH");
+    if (s == NULL || s[0] == '\0') {
+        return DEFAULT_BATCH;
+    }
+
+    long n = strtol(s, NULL, 10);
+    if (n < 1 || n > MAX_BATCH) {
+        fprintf(stderr, "cberg-embed: ignoring CBERG_EMBED_BATCH='%s' (want 1..%d)\n", s, MAX_BATCH);
+        return DEFAULT_BATCH;
+    }
+    return (size_t)n;
 }
 
 static input_kind classify_input(const char *name) {
@@ -134,6 +153,7 @@ cberg_status cberg_onnx_open(const cberg_embed_config *cfg, void **out_impl, siz
         return CBERG_ERR_OUT_OF_MEMORY;
     }
     impl->ort = ort;
+    impl->batch = batch_from_env();
 
     cberg_status status = CBERG_ERR_INTERNAL;
     OrtSessionOptions *opts = NULL;
@@ -398,8 +418,8 @@ cberg_status cberg_onnx_embed(void *handle, const char *const *texts, const size
 
     for (size_t g = 0; g < count;) {
         size_t gc = count - g;
-        if (gc > MAX_BATCH) {
-            gc = MAX_BATCH;
+        if (gc > impl->batch) {
+            gc = impl->batch;
         }
         st = run_group(impl, tokbuf, seq_lens, order, g, gc, out);
         if (st != CBERG_OK) {

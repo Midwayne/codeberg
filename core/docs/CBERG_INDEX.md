@@ -29,6 +29,7 @@ full indexing loop for one or many repository roots in a single process. The Go
 | `CBERG_POLL_MS` | no | Watcher idle sleep between steps (default 1000) |
 | `CBERG_EMBED_THREADS` | no | ONNX intra-op thread cap (inherited env) |
 | `CBERG_EMBED_COREML` | no | Apple Silicon CoreML provider opt-in |
+| `CBERG_EMBED_BATCH` | no | Rows per ONNX inference run, `1..1024` (default 16) |
 
 ¹ Exactly one of `CODEBERG_ROOT` / `CODEBERG_ROOTS`. Unresolvable roots in
    `CODEBERG_ROOTS` records are skipped with a warning. Comma-separated
@@ -86,6 +87,15 @@ flowchart TB
 
 **Lock order:** `repo->mu` → `embed_mu` during indexing; search takes `embed_mu` alone
 for query embed, then one `repo->mu` at a time. Never `embed_mu` → `repo->mu`.
+
+**Embed scheduling:** upserts and index rebuilds embed each unique body once, reading
+up to 1024 bodies (`EMBED_WINDOW`) at a time, sorting them by byte length, and
+handing them to the embedder in calls of at most 96 bodies (`EMBED_CALL`) and at
+most 32 KiB of text with each body counted up to 1 KiB (`EMBED_CALL_BUDGET`), so at
+most 32 bodies that fill the 256-token window. Sorting keeps each inference batch's
+padding low. Bounding calls by count and volume keeps the worst `embed_mu` hold no
+longer than the old unsorted 32-chunk calls (about 1.3–1.9 s on a 4-vCPU VM), so a
+search query never waits behind a whole cold index.
 
 ---
 

@@ -1,8 +1,9 @@
 /* Exercises the vector pipeline end to end with a logging embed worker: every
  * unique chunk body is embedded exactly once (duplicates reuse a vector), every
  * chunk id lands in the index, and a watched edit re-embeds only the bodies
- * that changed. The repo spans several embed batches so batch boundaries that
- * split a file are covered too. */
+ * that changed. The repo spans several embed calls, so bodies reach the
+ * embedder length-sorted and in bounded calls, and the sort must not scramble
+ * which chunk ids receive which vector. */
 #include "indexer.h"
 
 #include <stdio.h>
@@ -30,8 +31,12 @@ static int failures;
         }                                                                             \
     } while (0)
 
-#define N_FILES 24
+#define N_FILES 60
 #define FUNCS_PER_FILE 3
+#define MAX_EMBED_CALL 96
+#define MAX_LONG_PER_CALL 32 /* texts of >= 1 KiB, which fill the 256-token window */
+#define N_LONG_FUNCS 40
+#define LONG_FUNC_LINES 120
 
 typedef struct {
     char **items;
@@ -95,6 +100,25 @@ static void write_nested_source(const char *root) {
     mkdir(dir, 0755);
 
     write_file(root, "pkg/sub/deep.go", "package sub\n\nfunc Deep(a int) int {\n\treturn a * 7\n}\n");
+}
+
+/* Enough distinct >= 1 KiB functions that the embed token budget, not the
+ * per-call count, has to split them. */
+static void write_long_source(const char *root) {
+    size_t cap = 64 + (size_t)N_LONG_FUNCS * (64 + LONG_FUNC_LINES * 24);
+    char *body = malloc(cap);
+    size_t off = (size_t)snprintf(body, cap, "package main\n\n");
+
+    for (int f = 0; f < N_LONG_FUNCS; f++) {
+        off += (size_t)snprintf(body + off, cap - off, "func Long%d() int {\n\tx := 0\n", f);
+        for (int line = 0; line < LONG_FUNC_LINES; line++) {
+            off += (size_t)snprintf(body + off, cap - off, "\tx += %d * %d\n", f, line);
+        }
+        off += (size_t)snprintf(body + off, cap - off, "\treturn x\n}\n\n");
+    }
+
+    write_file(root, "long.go", body);
+    free(body);
 }
 
 /* path_glob uses rg semantics: only_nested demands every hit lies under
@@ -207,6 +231,79 @@ static void check_embedded_once(const text_set *logged, const text_set *expected
     }
 }
 
+/* Bodies go to the embedder shortest-first within a sort window, so a repo
+ * smaller than one window arrives in non-decreasing length order. */
+static void check_length_sorted(const text_set *logged) {
+    size_t unsorted = 0;
+
+    for (size_t i = 1; i < logged->len; i++) {
+        if (logged->lens[i] < logged->lens[i - 1]) {
+            unsorted++;
+        }
+    }
+
+    CHECK(unsorted == 0, "bootstrap bodies are embedded in length order");
+}
+
+/* Every embed call stays within the per-call cap and the token budget (at most
+ * MAX_LONG_PER_CALL full-window texts), and a repo larger than one call really
+ * is split across several. */
+static void check_call_sizes(const char *calls_path, size_t want_texts) {
+    FILE *f = fopen(calls_path, "r");
+    CHECK(f != NULL, "embed call log exists");
+    if (f == NULL) {
+        return;
+    }
+
+    size_t count = 0;
+    size_t long_texts = 0;
+    size_t calls = 0;
+    size_t total = 0;
+    size_t total_long = 0;
+    size_t oversized = 0;
+    size_t over_budget = 0;
+
+    while (fscanf(f, "%zu %zu", &count, &long_texts) == 2) {
+        calls++;
+        total += count;
+        total_long += long_texts;
+        if (count > MAX_EMBED_CALL) {
+            oversized++;
+        }
+        if (long_texts > MAX_LONG_PER_CALL) {
+            over_budget++;
+        }
+    }
+    fclose(f);
+
+    CHECK(oversized == 0, "no embed call exceeds the per-call cap");
+    CHECK(total_long > MAX_LONG_PER_CALL, "long bodies exceed one call's token budget");
+    CHECK(over_budget == 0, "no embed call exceeds the token budget");
+    CHECK(calls > 1, "bootstrap spans several embed calls");
+    CHECK(total == want_texts, "call sizes add up to the embedded texts");
+}
+
+/* The worker gives "Shared" bodies (and the query) their own axis, so the top
+ * N_FILES hits must be exactly the duplicated Shared chunks. A wrong scatter
+ * after the length sort would hand that vector to some other chunk. */
+static void check_shared_vectors(cberg_engine *eng) {
+    cberg_search_filters filters = {.path_glob = NULL, .kind = -1, .min_score = 0.0f};
+    cberg_engine_hit hits[N_FILES];
+    size_t found = 0;
+
+    cberg_status st = cberg_engine_search_hits(eng, "Shared", NULL, N_FILES, &filters, hits, N_FILES, &found);
+    CHECK(st == CBERG_OK && found == N_FILES, "search returns one hit per Shared duplicate");
+
+    size_t wrong = 0;
+    for (size_t i = 0; i < found; i++) {
+        if (strcmp(hits[i].symbol, "Shared") != 0 || hits[i].score < 0.99f) {
+            wrong++;
+        }
+    }
+
+    CHECK(wrong == 0, "every Shared duplicate carries the Shared vector");
+}
+
 static void step_until_log_grows(cberg_engine *eng, const char *log_path, size_t have) {
     for (int i = 0; i < 200; i++) {
         size_t handled = 0;
@@ -249,12 +346,14 @@ int main(void) {
         write_source(root, i, "");
     }
     write_nested_source(root);
+    write_long_source(root);
 
-    char model[512], index[512], sock[512], log_path[512];
+    char model[512], index[512], sock[512], log_path[512], calls_path[512];
     snprintf(model, sizeof(model), "%s/model.onnx", work);
     snprintf(index, sizeof(index), "%s/idx.usearch", work);
     snprintf(sock, sizeof(sock), "%s/sock", work);
     snprintf(log_path, sizeof(log_path), "%s/embedded.log", work);
+    snprintf(calls_path, sizeof(calls_path), "%s/calls.log", work);
     write_file(work, "model.onnx", "");
 
     unsetenv("CODEBERG_ROOTS");
@@ -266,6 +365,7 @@ int main(void) {
     setenv("CBERG_EMBED_BACKEND", "llama", 1);
     setenv("CBERG_EMBED_WORKER", CBERG_LOG_WORKER, 1);
     setenv("CBERG_TEST_EMBED_LOG", log_path, 1);
+    setenv("CBERG_TEST_EMBED_CALLS", calls_path, 1);
 
     cberg_engine eng;
     cberg_status st = cberg_engine_open(&eng);
@@ -288,9 +388,11 @@ int main(void) {
     text_set logged = {0};
     table_unique_bodies(r, &expected);
     read_log(log_path, &logged);
-    CHECK(expected.len > 32, "unique bodies span more than one embed batch");
+    CHECK(expected.len > MAX_EMBED_CALL, "unique bodies span more than one embed call");
     CHECK(expected.len < chunks, "repo carries duplicate bodies");
     check_embedded_once(&logged, &expected, "bootstrap");
+    check_length_sorted(&logged);
+    check_call_sizes(calls_path, logged.len);
     CHECK(index_population(r, chunks) == chunks, "every chunk id is in the index");
 
     /* Watched edit: only the rewritten file's new bodies are embedded. */
@@ -318,6 +420,7 @@ int main(void) {
     check_glob_search(&eng, "deep.go", 1);
     check_glob_search(&eng, "**/*.go", 0);
     check_glob_search(&eng, "!pkg/**", 0);
+    check_shared_vectors(&eng);
 
     text_set_free(&fresh);
     text_set_free(&logged);
