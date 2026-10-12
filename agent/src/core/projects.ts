@@ -40,10 +40,12 @@ export function currentProjectEnvironment(env: NodeJS.ProcessEnv = process.env):
   if (env.CODEBERG_PROJECT_HOME) return env;
 
   const home = codebergHome(env);
-  if (!existsSync(join(home, 'projects-migrated.json'))) return env;
+  if (!existsSync(join(home, 'projects.json'))) return env;
 
   const catalog = JSON.parse(readFileSync(join(home, 'projects.json'), 'utf8')) as ProjectCatalog;
   const data = codebergDataHome(env);
+  if (data === home) return env;
+
   const project = catalog.projects.find((project) => projectDataHome(home, project.id) === data);
   if (!project) throw new Error('Project storage has no registered owner.');
 

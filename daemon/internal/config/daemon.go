@@ -65,8 +65,13 @@ func loadIndexer() (Indexer, error) {
 	if socket == "" {
 		socket = "/tmp/codeberg-index.sock"
 	}
+	var root string
+	if len(roots) > 0 {
+		root = roots[0].Root
+	}
+
 	return Indexer{
-		Root:         roots[0].Root,
+		Root:         root,
 		Roots:        roots,
 		DefaultKey:   defaultKey,
 		Model:        model,

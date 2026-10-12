@@ -45,7 +45,8 @@ codeberg
 cd launcher
 ./install.sh            # builds and symlinks `codeberg` into a PATH dir
 # or, manually:
-go build -o "$(go env GOPATH)/bin/codeberg" ./cmd/codeberg
+go build -o bin/codeberg ./cmd/codeberg
+ln -sf "$PWD/bin/codeberg" "$(go env GOPATH)/bin/codeberg"
 ```
 
 ### Source checkout vs. prebuilt install
@@ -67,10 +68,17 @@ The launcher runs the same two ways:
 
 ```sh
 codeberg config init    # writes a starter ~/.codeberg/config (from config.example)
-# edit it: set CODEBERG_ROOT (repo to index) + CODEBERG_MODEL (provider:model)
-#          and the matching API key (ANTHROPIC_API_KEY / OPENAI_API_KEY / …)
+# edit it: set CODEBERG_MODEL (provider:model) and the matching API key
+#          (ANTHROPIC_API_KEY / OPENAI_API_KEY / …)
 codeberg                # builds anything missing, downloads the model, opens chat
 ```
+
+Neither `CODEBERG_ROOT` nor `CODEBERG_REPO` is required for a normal install.
+With no startup root, Codeberg restores saved projects or shows **Add a project
+to get started**. Choose a folder in the browser to begin. `CODEBERG_ROOT` and
+`--root` remain optional ways to preselect a repository. Component files are
+located automatically from the installed payload or source checkout; use
+`launcher/install.sh` for a source installation on PATH.
 
 On the very first `codeberg`, expect a one-time build of the components and a
 ~160 MB embedding-model download (skip the latter with `--no-vector` for

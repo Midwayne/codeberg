@@ -88,13 +88,17 @@ func (m *Manager) loadCatalog() error {
 			seen[p.ID] = true
 		}
 
-		if !validID(m.catalog.LegacyID) || (len(m.catalog.Projects) > 0 && !seen[m.catalog.DefaultID]) || (len(m.catalog.Projects) == 0 && m.catalog.DefaultID != "") {
+		if (m.catalog.LegacyID != "" && !validID(m.catalog.LegacyID)) || (len(m.catalog.Projects) > 0 && !seen[m.catalog.DefaultID]) || (len(m.catalog.Projects) == 0 && m.catalog.DefaultID != "") {
 			return fmt.Errorf("project catalog has no valid default or migration owner")
 		}
 	} else if !os.IsNotExist(err) {
 		return err
 	} else {
 		m.catalog.Version = 1
+	}
+
+	if m.catalog.Projects == nil {
+		m.catalog.Projects = []Project{}
 	}
 
 	return nil

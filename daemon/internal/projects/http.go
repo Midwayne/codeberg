@@ -89,6 +89,11 @@ func (m *Manager) serveDefault(w http.ResponseWriter, r *http.Request) {
 	m.mu.Unlock()
 
 	if id == "" {
+		if r.URL.Path == "/health" {
+			respond(w, 200, map[string]any{"ready": true, "status": "idle", "chunks": 0})
+			return
+		}
+
 		respond(w, 404, map[string]string{"message": "add a project first"})
 		return
 	}

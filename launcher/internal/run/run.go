@@ -161,11 +161,11 @@ func Run(c *config.Config) error {
 	} else if len(c.Roots) == 1 {
 		fmt.Fprintf(os.Stderr, "› starting daemon — indexing %s\n", c.Roots[0].Root)
 	} else {
-		fmt.Fprintf(os.Stderr, "› starting daemon — indexing %s\n", c.Root)
+		fmt.Fprintln(os.Stderr, "› starting daemon — open the browser to add a project")
 	}
 	if c.NoIndex {
 		fmt.Fprintf(os.Stderr, "  (--no-index: nothing registered or written; semantic search is off this run — full log: %s)\n\n", logPath)
-	} else {
+	} else if len(c.Roots) > 0 {
 		fmt.Fprintf(os.Stderr, "  (first run builds the index; live progress below — full log: %s)\n\n", logPath)
 	}
 	if err := waitHealthy(c.DaemonURL, stopped, len(c.Roots)); err != nil {

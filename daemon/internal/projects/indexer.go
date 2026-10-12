@@ -45,7 +45,7 @@ func (m *Manager) projectConfig(p Project) config.Indexer {
 func (m *Manager) InitialConfig() (config.Indexer, error) {
 	p, ok := m.project(m.catalog.DefaultID)
 	if !ok {
-		return config.Indexer{}, nil
+		return m.base, nil
 	}
 
 	cfg := m.projectConfig(p)

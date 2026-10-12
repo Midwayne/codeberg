@@ -252,3 +252,19 @@ it.each(['relative', 'tilde', 'normalized'])(
     expect(external.CODEBERG_DBMCP_SPEC).toBe(binary);
   },
 );
+
+it('starts with an empty catalog without inventing a migration owner', async () => {
+  const dir = await home();
+  const empty: ProjectCatalog = { version: 1, defaultId: '', legacyId: '', projects: [] };
+
+  await migrateProjectData(dir, empty);
+  expect(await stat(join(dir, 'projects-migrated.json')).catch(() => null)).toBeNull();
+
+  const fresh = { ...catalog, legacyId: '' };
+  await writeFile(join(dir, 'projects.json'), JSON.stringify(fresh));
+  await prepareProjectStorage({ CODEBERG_HOME: dir });
+
+  const env = currentProjectEnvironment({ CODEBERG_HOME: dir });
+  expect(env.CODEBERG_PROJECT_ID).toBe(fresh.defaultId);
+  expect(codebergDataHome({ CODEBERG_HOME: dir })).toBe(projectDataHome(dir, fresh.defaultId));
+});

@@ -58,6 +58,20 @@ func New(ctx context.Context, home string, cfg config.Indexer) (*Manager, error)
 		return nil, err
 	}
 
+	if len(cfg.Roots) > 0 {
+		m.registerStartup(cfg)
+	}
+
+	if err := m.save(); err != nil {
+		return nil, err
+	}
+
+	m.start = m.startIndexer
+	return m, nil
+}
+
+// Only explicitly configured roots create a startup workspace or migration owner.
+func (m *Manager) registerStartup(cfg config.Indexer) {
 	p := Project{ID: projectID(cfg.Roots), Name: filepath.Base(cfg.Root), Roots: cfg.Roots}
 	if len(cfg.Roots) > 1 {
 		p.Name = "Existing workspace"
@@ -87,11 +101,4 @@ func New(ctx context.Context, home string, cfg config.Indexer) (*Manager, error)
 	if !removed {
 		m.catalog.DefaultID = p.ID
 	}
-
-	if err := m.save(); err != nil {
-		return nil, err
-	}
-
-	m.start = m.startIndexer
-	return m, nil
 }

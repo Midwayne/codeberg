@@ -49,8 +49,8 @@ needed. CI runs `make daemon-check`.
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `CODEBERG_ROOT` | yes¹ | Repository tree to index: one path, or comma-separated list (only those dirs) |
-| `CODEBERG_ROOTS` | yes¹ | `key\tpath` records, newline-separated — every repo to serve (supersedes `CODEBERG_ROOT` when set) |
+| `CODEBERG_ROOT` | no | Repository tree to index: one path, or comma-separated list (only those dirs) |
+| `CODEBERG_ROOTS` | no | `key\tpath` records, newline-separated — every repo to serve (supersedes `CODEBERG_ROOT` when set) |
 | `CBERG_MODEL` | for vectors | Path to ONNX model |
 | `CBERG_INDEX_PATH` | for vectors | Index **base path**; per-repo sidecars at `<base>.<roothash>[.chunks\|.manifest]` |
 | `CBERG_INDEX_BACKEND` | no | `usearch` (default), `qdrant`, or `pgvector` (`postgres` alias) |
@@ -65,7 +65,9 @@ needed. CI runs `make daemon-check`.
 | `CODEBERG_GIT_PULL_INTERVAL_SEC` | no | `git pull --ff-only` interval; 0 = disabled |
 | `CODEBERG_GIT_DIR` | no | Git repo(s) for pull (default: every served root with a `.git`) |
 
-¹ Exactly one of `CODEBERG_ROOT` / `CODEBERG_ROOTS` is required.
+With neither root variable set, the daemon restores the saved project catalog.
+A fresh catalog is empty; `/health` reports `status: "idle"` without starting an
+indexer, and projects can be added through the browser or `POST /projects`.
 
 Vector backend setup (Qdrant, pgvector, schemas, Docker):
 [core/docs/VECTOR_INDEX_PROVIDERS.md](../core/docs/VECTOR_INDEX_PROVIDERS.md).

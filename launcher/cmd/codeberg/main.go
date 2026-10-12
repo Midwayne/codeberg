@@ -201,7 +201,7 @@ func cmdRun(args []string) error {
 			return err
 		}
 		c.Roots = roots
-	default:
+	case c.Root != "":
 		paths := config.RootPaths(c.Root)
 		// Soft-register a single root so --all can find it later; multi-path and
 		// --no-index go through Select (register=false leaves no registry trace).
@@ -660,9 +660,9 @@ CONFIGURE (changeable any time after install)
   each session, so a new root or model is picked up automatically).
 
 COMMON TASKS
-  First run:        codeberg config set CODEBERG_ROOT=~/proj \
-                      CODEBERG_MODEL=anthropic:claude-haiku-4-5 \
+  First run:        codeberg config set CODEBERG_MODEL=anthropic:claude-haiku-4-5 \
                       ANTHROPIC_API_KEY=sk-ant-… ; codeberg
+                      (choose Add project in the browser)
   Switch model:     codeberg config set CODEBERG_MODEL=openai:gpt-4o ; codeberg
   Index another repo: codeberg ~/other                   (registers it; overrides --root)
   Search all repos: unset CODEBERG_ROOT, then codeberg --all
@@ -674,7 +674,7 @@ COMMON TASKS
   What's installed: codeberg doctor
 
 KEY SETTINGS
-  CODEBERG_ROOT     repository to index (--root); comma-separated for several.
+  CODEBERG_ROOT     optional startup repository (--root); comma-separated for several.
                     Mutually exclusive with CODEBERG_ALL / CODEBERG_REPOS.
   CODEBERG_ALL      true = search all registered repos (--all); requires unset ROOT
   CODEBERG_REPOS    comma-separated dirs/keys to serve (--repos); requires unset ROOT

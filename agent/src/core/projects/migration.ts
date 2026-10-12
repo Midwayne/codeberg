@@ -9,6 +9,8 @@ import { type ProjectCatalog, projectDataHome } from './types.js';
 /** Rename rather than copy durable queues and datasets. Interrupted upgrades
  * resume each missing source independently. Never overwrite a destination. */
 export async function migrateProjectData(home: string, catalog: ProjectCatalog): Promise<void> {
+  if (!catalog.legacyId) return;
+
   home = resolve(home);
   await mkdir(home, { recursive: true, mode: 0o700 });
   const unlock = await lockMigration(home);

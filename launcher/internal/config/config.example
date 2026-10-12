@@ -30,13 +30,14 @@
 #        Paths must not contain commas — there is no escape syntax.
 #
 #   B) CODEBERG_ROOT unset
-#      → use the registry built by prior `codeberg <dir>` runs:
+#      → restore saved browser projects, or show Add project on first launch.
+#        To use the registry built by prior `codeberg <dir>` runs:
 #        CODEBERG_ALL=true   or  codeberg --all     (every registered repo)
 #        CODEBERG_REPOS=a,b  or  codeberg --repos   (a chosen subset)
 #
 # See docs/multi-repo.md for the full picture (registry format, repo keys, …).
 #
-CODEBERG_ROOT=/path/to/your/repo
+# CODEBERG_ROOT=/path/to/your/repo
 
 # LLM the agent uses, as provider:model.
 # Providers: anthropic, openai, google, ollama (local), llamacpp (local).
@@ -67,7 +68,7 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # Managed data directory (config, models, index, logs). Default: ~/.codeberg
 # CODEBERG_HOME=~/.codeberg
 
-# Source checkout to build from when not using a prebuilt install.
+# Source checkout override. Normally discovered from cwd or the launcher binary.
 # CODEBERG_REPO=/path/to/codeberg
 
 # Prebuilt artifact directory (Homebrew / release layout). Overrides build-from-source.

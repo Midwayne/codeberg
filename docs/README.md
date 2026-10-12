@@ -86,8 +86,9 @@ make build-daemon
 make test
 ```
 
-Set **`CODEBERG_ROOT`** to the codebase tree you index, or **`CODEBERG_ROOTS`**
-to serve several at once (see [../README.md](../README.md) and
+Start `codeberg` and use **Add project** in the browser. Optionally set
+**`CODEBERG_ROOT`** to preselect a codebase, or **`CODEBERG_ROOTS`** when running
+the daemon directly to serve several at once (see [../README.md](../README.md) and
 [multi-repo.md](multi-repo.md)).
 
 ## Project governance

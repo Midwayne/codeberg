@@ -71,12 +71,15 @@ export function codebergDataHome(env: NodeJS.ProcessEnv = process.env): string {
 
   const home = codebergHome(env);
   try {
-    if (!existsSync(join(home, 'projects-migrated.json'))) return home;
+    if (!existsSync(join(home, 'projects.json'))) return home;
 
     const catalog = JSON.parse(readFileSync(join(home, 'projects.json'), 'utf8')) as {
       defaultId: string;
+      legacyId: string;
       projects: { id: string; roots: { root: string }[] }[];
     };
+
+    if (catalog.legacyId && !existsSync(join(home, 'projects-migrated.json'))) return home;
 
     const configuredRoots = indexedRootsFromEnv(env);
     // The daemon skips missing keyed roots before registering its workspace.

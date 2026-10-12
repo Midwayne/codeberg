@@ -76,7 +76,7 @@ func loadRootRecords(raw string) ([]domain.Repo, string, error) {
 func loadRootPaths() ([]domain.Repo, string, error) {
 	root := os.Getenv(EnvRoot)
 	if root == "" {
-		return nil, "", missing(EnvRoot)
+		return nil, "", nil
 	}
 
 	paths := splitList(root)

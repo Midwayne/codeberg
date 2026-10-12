@@ -35,8 +35,9 @@ installers (a Homebrew tap) will build on that for a later release.
 ## Index root(s)
 
 The **index root** is the codebase tree Codeberg watches and indexes. At the
-library/daemon level it's not hardcoded — configure one with the
-`CODEBERG_ROOT` environment variable:
+library/daemon level it's not hardcoded. Start `codeberg` and choose **Add
+project** in the browser; saved projects are restored on later launches.
+`CODEBERG_ROOT` is an optional way to select a startup repository:
 
 ```sh
 export CODEBERG_ROOT=/path/to/your/repository
@@ -44,7 +45,7 @@ export CODEBERG_ROOT=/path/to/your/repository
 
 | Variable | Purpose |
 |----------|---------|
-| `CODEBERG_ROOT` | Path(s) to index when pinned: one directory, or comma-separated list. When set, only these trees are indexed; `--all` / `--repos` are not allowed. Unset to search the registry instead. |
+| `CODEBERG_ROOT` | Path(s) to index when pinned: one directory, or comma-separated list. When set, only these trees are indexed; `--all` / `--repos` are not allowed. Unset to use saved browser projects, or the registry with `--all` / `--repos`. |
 | `CODEBERG_ROOTS` | `key\tpath` records, newline-separated — every repo the daemon serves (built by the launcher from `CODEBERG_ROOT` or the registry; supersedes `CODEBERG_ROOT` when set directly) |
 
 Library helpers (for daemons and CLI tools):

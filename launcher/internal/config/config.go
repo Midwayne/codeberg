@@ -419,10 +419,8 @@ func (c *Config) ValidateForRun() error {
 		return fmt.Errorf("%s is set — only the root(s) named there are indexed; unset %s or drop --all / %s",
 			KeyRoot, KeyRoot, KeyReposSel)
 	}
-	if !c.All && len(c.Repos) == 0 {
-		if c.Root == "" {
-			missing = append(missing, KeyRoot+" (the repository to index)")
-		} else if paths := RootPaths(c.Root); len(paths) == 0 {
+	if c.Root != "" {
+		if paths := RootPaths(c.Root); len(paths) == 0 {
 			return fmt.Errorf("%s is empty or invalid", KeyRoot)
 		} else {
 			for _, path := range paths {

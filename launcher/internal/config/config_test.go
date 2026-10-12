@@ -343,3 +343,37 @@ func TestEmbeddingSelectionIsolatesExistingIndex(t *testing.T) {
 		t.Fatal("explicit index base must be namespaced too")
 	}
 }
+
+func TestLaunchWithoutRootOrRepoEnvironment(t *testing.T) {
+	for _, key := range []string{KeyRoot, KeyRepo, KeyAll, KeyReposSel, KeyDist} {
+		t.Setenv(key, "")
+	}
+
+	home := t.TempDir()
+	if _, err := InitFile(filepath.Join(home, "config")); err != nil {
+		t.Fatal(err)
+	}
+
+	c, err := Load(Overrides{Home: home})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if c.Repo == "" || c.Root != "" {
+		t.Fatalf("checkout should be discovered without selecting a project: repo=%q root=%q", c.Repo, c.Root)
+	}
+
+	if err := c.ValidateForRun(); err != nil {
+		t.Fatalf("launch without project environment: %v", err)
+	}
+}
+
+func TestPrebuiltLaunchWithoutRootOrSourceCheckout(t *testing.T) {
+	dist := t.TempDir()
+	writeArtifacts(t, dist)
+
+	c := &Config{Dist: dist, Model: "anthropic:claude"}
+	if err := c.ValidateForRun(); err != nil {
+		t.Fatalf("installed app must not require a source checkout or project: %v", err)
+	}
+}

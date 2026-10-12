@@ -9,17 +9,17 @@ import (
 	"time"
 )
 
-func TestLoadDaemonRequiresRoot(t *testing.T) {
+func TestLoadDaemonWithoutRoots(t *testing.T) {
 	t.Setenv(EnvRoot, "")
 	t.Setenv(EnvRoots, "")
-	_, err := LoadDaemon()
-	if err == nil {
-		t.Fatal("expected error without CODEBERG_ROOT")
+
+	cfg, err := LoadDaemon()
+	if err != nil {
+		t.Fatalf("empty startup must be allowed: %v", err)
 	}
 
-	var cfgErr *Error
-	if !errors.As(err, &cfgErr) || cfgErr.Var != EnvRoot {
-		t.Fatalf("got %v", err)
+	if cfg.Root != "" || cfg.DefaultKey != "" || len(cfg.Roots) != 0 {
+		t.Fatalf("unexpected startup repository: %#v", cfg.Indexer)
 	}
 }
 
