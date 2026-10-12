@@ -1,6 +1,7 @@
 import { GraduationCap, PanelLeft, Search, Settings2, SlidersHorizontal } from 'lucide-react';
 
 import { IconButton } from '../ui';
+import { DocsLink } from '../docs-link';
 
 import { type ProjectWorkspaceView, type useProjectWorkspace } from '../../App';
 
@@ -41,6 +42,7 @@ export function WorkspaceHeader({ state }: WorkspaceHeaderProps) {
         <TrainingButton state={state} />
         <ModelsButton state={state} />
         <SettingsButton state={state} />
+        <DocsLink />
       </div>
     </header>
   );

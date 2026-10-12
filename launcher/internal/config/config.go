@@ -408,7 +408,6 @@ func (c *Config) ResolveRoot() (root string, prebuilt bool) {
 
 // ValidateForRun checks the fields required to actually launch.
 func (c *Config) ValidateForRun() error {
-	var missing []string
 	if root, _ := c.ResolveRoot(); root == "" {
 		return fmt.Errorf("could not locate codeberg's components — neither a prebuilt install (%s) nor a source checkout with core/, daemon/ and agent/ (%s).\n"+
 			"Note this is about the launcher's OWN files, NOT %s (the repo you want to index).\n"+
@@ -430,20 +429,14 @@ func (c *Config) ValidateForRun() error {
 			}
 		}
 	}
-	// The browser can choose its initial model from the validated models.yml catalog.
-	_, catalogErr := os.Stat(filepath.Join(c.Home, "models.yml"))
-	if c.Model == "" && catalogErr != nil {
-		missing = append(missing, KeyModel+" (provider:model, e.g. anthropic:claude-haiku-4-5)")
-	} else if c.Model != "" && !strings.Contains(c.Model, ":") {
+	// The browser shell and setup docs remain available before model setup.
+	if c.Model != "" && !strings.Contains(c.Model, ":") {
 		return fmt.Errorf("%s must be provider:model, got %q", KeyModel, c.Model)
 	}
 	if c.SubagentModel != "" && !strings.Contains(c.SubagentModel, ":") {
 		return fmt.Errorf("%s must be provider:model, got %q", KeySubagentModel, c.SubagentModel)
 	}
-	if len(missing) > 0 {
-		return fmt.Errorf("missing required config:\n  - %s\nset them in %s, via flags, or the environment (try `codeberg config init`)",
-			strings.Join(missing, "\n  - "), c.ConfigPath)
-	}
+
 	return nil
 }
 

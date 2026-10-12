@@ -171,8 +171,9 @@ The daemon never receives the LLM key.
 
 To switch chat and background-learning models without restarting, define
 [`~/.codeberg/models.yml`](../docs/models.md) and use the browser's top-right
-**Model settings** button. The launcher no longer requires `CODEBERG_MODEL` when
-the catalog exists; model and effort choices persist in
+**Model settings** button. The launcher allows the web shell and **Docs** to open
+before model setup. Chat requires a valid model and provider; `CODEBERG_MODEL`
+can be omitted when a catalog supplies it. Model and effort choices persist in
 `~/.codeberg/model-settings.json`.
 
 Configuration is changeable any time after install — there's no need to

@@ -1,0 +1,29 @@
+/* Command search and its selection highlight stay immediate at every input frequency. */
+dialog.docs-search-dialog[data-ui-dialog] {
+  height: min(36rem, calc(100dvh - 2rem));
+  margin-inline: auto;
+  margin-top: min(12dvh, 6rem);
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+
+dialog.docs-search-dialog[data-ui-dialog]::backdrop {
+  opacity: 1;
+  transition: none;
+}
+
+.docs-search-dialog [role='option'] {
+  transition: none;
+}
+
+@media (max-width: 639px) {
+  dialog.docs-search-dialog[data-ui-dialog] {
+    height: min(36rem, calc(100dvh - 2rem));
+    margin-top: 1rem;
+  }
+
+  .docs-search-dialog [role='combobox'] {
+    font-size: 1rem;
+  }
+}

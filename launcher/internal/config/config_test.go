@@ -377,3 +377,13 @@ func TestPrebuiltLaunchWithoutRootOrSourceCheckout(t *testing.T) {
 		t.Fatalf("installed app must not require a source checkout or project: %v", err)
 	}
 }
+
+func TestLaunchBeforeModelSetup(t *testing.T) {
+	dist := t.TempDir()
+	writeArtifacts(t, dist)
+
+	c := &Config{Dist: dist, Home: t.TempDir()}
+	if err := c.ValidateForRun(); err != nil {
+		t.Fatalf("users must be able to read setup docs before configuring a model: %v", err)
+	}
+}

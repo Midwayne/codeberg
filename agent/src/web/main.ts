@@ -1,14 +1,11 @@
 #!/usr/bin/env node
-import { stat } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import { join } from 'node:path';
 import { buildProjectHandler, defaultStaticRoot } from './runtime/project.js';
 import { disposeProjectRuntime, installShutdown } from './runtime/shutdown.js';
 import type { OwnedRuntime, ProjectRuntimeOptions } from './runtime/types.js';
 
-import { DEFAULT_DAEMON_URL } from '../core/client.js';
 import { reasoningFromEnv } from '../core/config.js';
-import { entryUsage, parseEntryArgs } from '../core/entry.js';
 import { writeModuleLog } from '../core/module-log.js';
 import { codebergHome } from '../core/paths.js';
 import { migrateProjectData, projectEnvironment, type ProjectCatalog } from '../core/projects.js';
@@ -16,12 +13,13 @@ import { defaultProviders } from '../providers/index.js';
 import { ExtensionStore } from './extensions.js';
 import { ModelSettingsStore } from './model-selection/settings.js';
 import { createProjectRequestHandler } from './projects.js';
-import { formatWebTitle } from './title.js';
+import { startupTitle, webEntry } from './startup.js';
 
 // Serves the interactive chat UI over HTTP. The route streams the shared
 // `toolLoopAgent()`'s UI-message output
 // to a browser client that owns the conversation state. The CLI's
-// seeded-question flow does not apply; pass `provider:model`.
+// seeded-question flow does not apply. Model setup is required for chat,
+// while the shell and documentation remain available before setup.
 //
 // The web path now gets prompt caching, in-loop pruning (both ride on
 // `toolLoopAgent()`), AND cross-turn history compaction — the browser holds the
@@ -43,7 +41,7 @@ const HOST = '127.0.0.1';
 
 async function main(): Promise<void> {
   process.env.CODEBERG_LOG_DIR ??= join(codebergHome(), 'logs');
-  const entry = await webEntry();
+  const entry = webEntry();
 
   const providers = defaultProviders();
   const modelSettings = new ModelSettingsStore({
@@ -55,11 +53,9 @@ async function main(): Promise<void> {
     availableProvider: (provider) => Boolean(providers.get(provider)),
   });
 
-  const selected = await modelSettings.current();
   const catalog = await loadProjectCatalog(entry.daemonUrl);
   const extensions = new ExtensionStore(codebergHome());
   const owned: OwnedRuntime[] = [];
-  const chosen = selected.models.find((model) => model.key === selected.chat.key)!;
   const server = createProjectServer({
     catalog,
     entry,
@@ -67,7 +63,7 @@ async function main(): Promise<void> {
     modelSettings,
     providers,
     owned,
-    title: formatWebTitle(chosen.model, selected.chat.effort),
+    title: await startupTitle(modelSettings),
   });
 
   writeModuleLog('agent', 'started');
@@ -78,28 +74,6 @@ async function main(): Promise<void> {
   });
 
   installShutdown(server, owned);
-}
-
-async function webEntry() {
-  const entry = parseEntryArgs(process.argv);
-  if (!entry) {
-    const catalog = join(codebergHome(), 'models.yml');
-    const exists = await stat(catalog)
-      .then((value) => value.isFile())
-      .catch(() => false);
-    if (!exists) {
-      console.error(entryUsage('codeberg-web'));
-      process.exit(1);
-    }
-
-    return {
-      modelSpec: '',
-      question: '',
-      daemonUrl: process.env.CODEBERG_DAEMON_URL ?? DEFAULT_DAEMON_URL,
-    };
-  }
-
-  return entry;
 }
 
 async function loadProjectCatalog(daemonUrl: string): Promise<ProjectCatalog> {

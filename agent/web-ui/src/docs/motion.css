@@ -1,0 +1,103 @@
+/* Topic changes settle quickly; navigation and input remain available throughout. */
+.docs-topic-enter {
+  opacity: 1;
+  transform: none;
+  transition: opacity 160ms var(--ui-ease-out), transform 160ms var(--ui-ease-out);
+}
+
+@starting-style {
+  .docs-topic-enter[data-direction='forward'] {
+    opacity: 0.5;
+    transform: translateX(6px);
+  }
+
+  .docs-topic-enter[data-direction='backward'] {
+    opacity: 0.5;
+    transform: translateX(-6px);
+  }
+}
+
+.docs-chevron {
+  transform: none;
+  transition: transform 160ms var(--ui-ease-out);
+}
+
+.docs-mobile-navigation[open] .docs-chevron {
+  transform: rotate(180deg);
+}
+
+.docs-mobile-navigation[open] .docs-mobile-topics {
+  opacity: 1;
+  transform: none;
+  transition: opacity 160ms var(--ui-ease-out), transform 160ms var(--ui-ease-out);
+}
+
+@starting-style {
+  .docs-mobile-navigation[open] .docs-mobile-topics {
+    opacity: 0.5;
+    transform: translateY(-4px);
+  }
+}
+
+.docs-action svg,
+.docs-next svg,
+.docs-previous svg {
+  transform: none;
+  transition: transform 140ms var(--ui-ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .docs-next:hover svg {
+    transform: translateX(2px);
+  }
+
+  .docs-previous:hover svg,
+  .docs-action:hover svg {
+    transform: translateX(-2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .docs-topic-enter,
+  .docs-mobile-navigation[open] .docs-mobile-topics {
+    transform: none;
+    transition: opacity 100ms var(--ui-ease-out);
+  }
+
+  @starting-style {
+    .docs-topic-enter[data-direction],
+    .docs-mobile-navigation[open] .docs-mobile-topics {
+      opacity: 0.5;
+      transform: none;
+    }
+  }
+
+  .docs-chevron {
+    transition: none;
+  }
+
+  .docs-action:hover svg,
+  .docs-next:hover svg,
+  .docs-previous:hover svg {
+    transform: none;
+    transition: none;
+  }
+}
+
+/* Keyboard selection is immediate, including interrupting an in-flight transition. */
+:root[data-ui-motion='instant'] .docs-topic-enter,
+:root[data-ui-motion='instant'] .docs-mobile-topics,
+:root[data-ui-motion='instant'] .docs-chevron,
+:root[data-ui-motion='instant'] .docs-action svg,
+:root[data-ui-motion='instant'] .docs-next svg,
+:root[data-ui-motion='instant'] .docs-previous svg {
+  transition: none;
+}
+
+@starting-style {
+  :root[data-ui-motion='instant'] .docs-topic-enter[data-direction],
+  :root[data-ui-motion='instant'] .docs-mobile-navigation[open] .docs-mobile-topics {
+    opacity: 1;
+    transform: none;
+  }
+}

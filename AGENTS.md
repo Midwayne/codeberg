@@ -77,6 +77,21 @@ layer for local verification.
   tests stay green; otherwise revert and document the negative result. Prefer
   existing benches under `core/bench/` over one-off scripts.
 
+## User-facing documentation
+
+The docs opened from the app header are the end user's setup and usage guide.
+Their canonical content is `agent/web-ui/src/docs/content/*.md`, organized by
+`agent/web-ui/src/docs/catalog.ts` and served in the built web UI at `/docs`.
+These docs must be maintained alongside the implementation, not as an optional
+follow-up. When changing models, configuration, MCPs, skills, tools, projects,
+indexing, learning, storage, or onboarding, update the relevant user-facing
+pages in the same change. Keep commands, defaults, examples, UI labels, and
+troubleshooting steps accurate; document prerequisites and current limitations.
+Explain what users can actually do today rather than planned capabilities.
+Keep internal cross-links and headings valid, and verify the docs remain usable
+before any project or chat model is configured. Repository/developer references
+under `docs/` supplement these pages; they do not replace the in-app guide.
+
 ## Cursor Cloud specific instructions
 
 Cloud agents boot from `.cursor/environment.json`. The install hook runs
@@ -84,7 +99,8 @@ Cloud agents boot from `.cursor/environment.json`. The install hook runs
 
 ### Environment variables
 
-Set these when running the daemon or agent (use the repo root as `CODEBERG_ROOT`):
+Startup roots are optional; add projects in the browser. To preselect a root
+when running the daemon or agent, use:
 
 ```bash
 export CODEBERG_ROOT="$(git rev-parse --show-toplevel)"
@@ -92,7 +108,7 @@ export CODEBERG_ROOT="$(git rev-parse --show-toplevel)"
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `CODEBERG_ROOT` | For daemon/agent runs | Repository tree to index |
+| `CODEBERG_ROOT` | No | Optional startup repository tree to index |
 | `CBERG_MODEL` | For vector search | Path to ONNX embedding model |
 | `CBERG_INDEX_PATH` | For vector search | usearch index base path (local sidecars + default vector store) |
 | `CBERG_INDEX_BACKEND` | No | `usearch` (default), `qdrant`, or `pgvector` (`postgres` alias) — see `core/docs/VECTOR_INDEX_PROVIDERS.md` |

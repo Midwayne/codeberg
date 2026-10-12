@@ -1,5 +1,10 @@
 # Codeberg documentation
 
+The end-user guide is available from **Docs** in the app header, including
+before a project or model is configured. Its maintained Markdown sources live
+in `agent/web-ui/src/docs/content/`. This directory contains supplemental
+developer and technical references.
+
 Project-wide overview. **libcodeberg** details live under [core/docs](../core/docs/).
 
 ## Repository layout
