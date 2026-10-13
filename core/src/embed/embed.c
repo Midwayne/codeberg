@@ -73,7 +73,8 @@ size_t cberg_embedder_dim(const cberg_embedder *embedder) {
     return embedder == NULL ? 0 : embedder->dim;
 }
 
-cberg_status cberg_embedder_embed(cberg_embedder *embedder, const char *const *texts, const size_t *text_lens, size_t count, float **out_vectors) {
+static cberg_status embed_batch(cberg_embedder *embedder, const char *const *texts, const size_t *text_lens,
+                               size_t count, int query, float **out_vectors) {
     if (embedder == NULL || texts == NULL || text_lens == NULL || out_vectors == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
@@ -90,7 +91,7 @@ cberg_status cberg_embedder_embed(cberg_embedder *embedder, const char *const *t
     cberg_status st;
     switch (embedder->provider) {
     case CBERG_EMBED_WORKER:
-        st = cberg_worker_embed(embedder->impl, texts, text_lens, count, vectors);
+        st = cberg_worker_embed(embedder->impl, texts, text_lens, count, query, vectors);
         break;
     case CBERG_EMBED_ONNX:
 #ifdef CBERG_WITH_ONNX
@@ -108,6 +109,16 @@ cberg_status cberg_embedder_embed(cberg_embedder *embedder, const char *const *t
     }
     *out_vectors = vectors;
     return CBERG_OK;
+}
+
+cberg_status cberg_embedder_embed(cberg_embedder *embedder, const char *const *texts,
+                                 const size_t *lens, size_t count, float **out_vectors) {
+    return embed_batch(embedder, texts, lens, count, 0, out_vectors);
+}
+
+cberg_status cberg_embedder_embed_query(cberg_embedder *embedder, const char *const *texts,
+                                      const size_t *lens, size_t count, float **out_vectors) {
+    return embed_batch(embedder, texts, lens, count, 1, out_vectors);
 }
 
 void cberg_vectors_free(float *vectors) {

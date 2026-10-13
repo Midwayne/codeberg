@@ -1,3 +1,4 @@
+import os
 import struct
 import sys
 
@@ -14,8 +15,14 @@ def exact(n):
 
 while header := sys.stdin.buffer.read(4):
     count = struct.unpack("=I", header)[0]
+    query = False
+    if os.environ.get("CBERG_EMBED_BACKEND") in ("sentence-transformers", "gemma-mlx"):
+        query = bool(count & 0x80000000)
+        count &= 0x7fffffff
+
     for _ in range(count):
         size = struct.unpack("=I", exact(4))[0]
         text = exact(size)
-        sys.stdout.buffer.write(struct.pack("=3f", float(len(text)), 0.0, 1.0))
+        vector = (0.0, 1.0, 0.0) if query else (float(len(text)), 0.0, 1.0)
+        sys.stdout.buffer.write(struct.pack("=3f", *vector))
     sys.stdout.buffer.flush()

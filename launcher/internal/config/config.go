@@ -38,7 +38,7 @@ const (
 	KeyHTTPPort      = "CODEBERG_HTTP_PORT"             // daemon listen port (daemon scope)
 	KeyEmbedModel    = "CBERG_MODEL"                    // embedding model path (daemon scope)
 	KeyEmbedding     = "CODEBERG_EMBEDDING_MODEL"       // registry selection (launcher scope)
-	KeyEmbedBackend  = "CBERG_EMBED_BACKEND"            // ONNX, MLX, or llama.cpp (daemon scope)
+	KeyEmbedBackend  = "CBERG_EMBED_BACKEND"            // ONNX or external worker (daemon scope)
 	KeyIndexPath     = "CBERG_INDEX_PATH"               // vector index base path (daemon scope)
 	KeySocket        = "CBERG_SOCKET"                   // cberg-index IPC socket (daemon scope)
 	KeyPollMS        = "CBERG_POLL_MS"                  // watcher poll ms (daemon scope)
@@ -465,7 +465,7 @@ func (c *Config) DaemonEnv() map[string]string {
 	}
 	if c.Vector {
 		embedModel := c.EmbedModel
-		if c.EmbedBackend == "mlx" {
+		if c.EmbedBackend == "mlx" || c.EmbedBackend == "gemma-mlx" || c.EmbedBackend == "sentence-transformers" {
 			embedModel = filepath.Dir(embedModel)
 		}
 		e[KeyEmbedModel] = embedModel
@@ -474,8 +474,9 @@ func (c *Config) DaemonEnv() map[string]string {
 		if c.EmbedBackend != "onnx" {
 			root, _ := c.ResolveRoot()
 			e["CBERG_EMBED_WORKER"] = filepath.Join(root, "scripts", "embedding_worker.py")
-			if c.EmbedBackend == "mlx" {
-				e["CBERG_EMBED_PYTHON"] = filepath.Join(c.Home, "embedding-venv", "bin", "python")
+			if c.EmbedBackend == "mlx" || c.EmbedBackend == "gemma-mlx" || c.EmbedBackend == "sentence-transformers" {
+				model, _ := embedding.Lookup(c.Embedding)
+				e["CBERG_EMBED_PYTHON"] = filepath.Join(model.VenvPath(c.Home), "bin", "python")
 			}
 			if bin := os.Getenv("CBERG_LLAMA_SERVER"); bin != "" {
 				e["CBERG_LLAMA_SERVER"] = bin

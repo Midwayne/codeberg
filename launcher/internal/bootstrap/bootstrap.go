@@ -163,9 +163,10 @@ func ensureSearxng(c *config.Config, force bool) {
 // that ships under root (the source checkout or the dist dir).
 func ensureModel(c *config.Config, root string) error {
 	ready := exists(c.EmbedModel)
-	if c.EmbedBackend == "mlx" {
+	if c.EmbedBackend == "mlx" || c.EmbedBackend == "gemma-mlx" || c.EmbedBackend == "sentence-transformers" {
+		model, _ := embedding.Lookup(c.Embedding)
 		ready = ready && exists(filepath.Join(filepath.Dir(c.EmbedModel), "tokenizer.json")) &&
-			exists(filepath.Join(c.Home, "embedding-venv", "bin", "python"))
+			exists(filepath.Join(model.VenvPath(c.Home), "bin", "python"))
 	}
 	if ready {
 		label := c.Embedding
@@ -182,7 +183,7 @@ func ensureModel(c *config.Config, root string) error {
 		}
 		step("preparing embedding model " + c.Embedding)
 		cmd := exec.Command("python3", filepath.Join(root, "scripts", "embedding_setup.py"),
-			c.Embedding, model.HuggingFace, c.EmbedModel, filepath.Join(c.Home, "embedding-venv"))
+			c.Embedding, model.HuggingFace, c.EmbedModel, model.VenvPath(c.Home))
 		cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("embedding setup: %w", err)

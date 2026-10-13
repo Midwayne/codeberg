@@ -1,5 +1,7 @@
 Chat models produce answers. Learning models perform background knowledge work. Embedding models turn source chunks into vectors for search. Configuring one does not configure the others.
 
+For semantic search, new installations use **EmbeddingGemma 2** with its text encoder only, in **FP32**: MLX on Apple Silicon, Sentence Transformers elsewhere. Qwen variants and Jina remain selectable, and existing model selections are kept. Embedding selection is configured through `CODEBERG_EMBEDDING_MODEL` or the launcher's `--embedding` flag. See [Indexing and search](/docs/indexing) for runtime prerequisites and how to switch models.
+
 ## Choose a provider
 
 Set the model as `provider:model` and supply the matching credential through the launcher config or process environment.

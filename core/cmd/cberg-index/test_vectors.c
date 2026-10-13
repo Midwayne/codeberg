@@ -332,7 +332,7 @@ static void cleanup(const char *root, const char *work) {
     }
 }
 
-int main(void) {
+int main(int argc, char **argv) {
     char root_tmpl[] = "/tmp/cberg-vectors-root-XXXXXX";
     char work_tmpl[] = "/tmp/cberg-vectors-work-XXXXXX";
     char *root = mkdtemp(root_tmpl);
@@ -362,7 +362,7 @@ int main(void) {
     setenv("CBERG_INDEX_PATH", index, 1);
     setenv("CBERG_SOCKET", sock, 1);
     setenv("CBERG_POLL_MS", "50", 1);
-    setenv("CBERG_EMBED_BACKEND", "llama", 1);
+    setenv("CBERG_EMBED_BACKEND", argc > 1 ? argv[1] : "llama", 1);
     setenv("CBERG_EMBED_WORKER", CBERG_LOG_WORKER, 1);
     setenv("CBERG_TEST_EMBED_LOG", log_path, 1);
     setenv("CBERG_TEST_EMBED_CALLS", calls_path, 1);

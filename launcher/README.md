@@ -81,7 +81,7 @@ located automatically from the installed payload or source checkout; use
 `launcher/install.sh` for a source installation on PATH.
 
 On the very first `codeberg`, expect a one-time build of the components and a
-~160 MB embedding-model download (skip the latter with `--no-vector` for
+embedding runtime and model download (skip these with `--no-vector` for
 chunk-only mode). Both are cached afterwards — **the model is downloaded once**
 into `~/.codeberg/models/` (not the repo), so it is reused across repo rebuilds,
 re-clones, and multiple checkouts and is **never re-pulled** while it is present.
@@ -90,14 +90,34 @@ re-clones, and multiple checkouts and is **never re-pulled** while it is present
 
 On a fresh interactive install, the launcher asks which embedding model to use
 **before downloading it**; select its number and press Enter. The default is
-Qwen3-Embedding-0.6B in **FP16** with MLX on Apple Silicon, or FP16 with
-llama.cpp elsewhere. Existing Jina installations retain their model and index.
-The menu also offers **4B** and MLX **BF16**, plus smaller 8-bit/4-bit downloads.
+**EmbeddingGemma 2**, using only the text encoder in **FP32** through Sentence
+Transformers on CPU/CUDA, or **MLX on Apple Silicon** (the Mac default).
+Existing model selections and Jina installations retain their model and index.
+Qwen selections also offer **4B** and MLX **BF16**, plus smaller 8-bit/4-bit downloads.
 For a non-interactive install or a later switch, use `--embedding` with a model
-ID such as `qwen3-fp16-mlx`, `qwen3-bf16-mlx`, `qwen3-4b-fp16-mlx`,
+ID such as `embeddinggemma-2-fp32-mlx`, `embeddinggemma-2`, `qwen3-fp16-mlx`, `qwen3-bf16-mlx`, `qwen3-4b-fp16-mlx`,
 `qwen3-4b-bf16-mlx`, `qwen3-fp16-llama`, `qwen3-4b-fp16-llama`, or
 `jina-onnx`. Save a choice with
-`codeberg config set CODEBERG_EMBEDDING_MODEL=qwen3-fp16-mlx`.
+`codeberg config set CODEBERG_EMBEDDING_MODEL=embeddinggemma-2`.
+
+EmbeddingGemma 2 needs Python **3.10+** with venv/pip. For Sentence Transformers, the launcher installs
+Sentence Transformers 6.1.0, Transformers 5.19.0, PyTorch, and processor dependencies in
+`~/.codeberg/embeddinggemma-venv`, downloads `google/embeddinggemma-2`, then saves
+only the text encoder and embedding modules locally in FP32. Allow several GB
+of disk space for packages, the Hub cache, and saved model (about 1.1 GB of FP32
+text weights). Inference runs locally on CPU, including Apple Silicon, or CUDA;
+every device uses FP32. ONNX and llama.cpp are not needed for this model.
+
+The Apple Silicon option, `embeddinggemma-2-fp32-mlx`, uses MLX-VLM 0.7.8 in
+`~/.codeberg/embeddinggemma-mlx-venv`. It converts Google's original checkpoint
+to unquantized FP32, disabling and dropping vision/audio encoders before saving
+the text model. Both conversion and inference use FP32. It has its own model
+and index directories, so switching preserves the Sentence Transformers cache.
+Saved choices remain in use until changed explicitly.
+
+Codeberg uses 768d normalized vectors, an 8,192-token limit, and separate
+`CodeRetrieval` query / `Document` prompts. Image/audio/video inputs are not
+exposed. See [Google's model card](https://huggingface.co/google/embeddinggemma-2).
 
 MLX is prepared in a managed Python virtual environment; llama.cpp requires
 `llama-server` on PATH (or `CBERG_LLAMA_SERVER=/path/to/llama-server`). The Qwen
@@ -106,12 +126,12 @@ alternatives use less space and memory. A model switch creates a separate index 
 under `~/.codeberg/index/<model-id>/`, so the first search re-embeds the source
 tree; switching back reuses the previous index. The original Jina index remains
 at `~/.codeberg/index/codeberg.usearch.*`. An explicitly configured
-`CBERG_INDEX_PATH` is also suffixed by the selected Qwen model ID.
+`CBERG_INDEX_PATH` is also suffixed by the selected non-Jina model ID.
 
 ### Dependencies (auto-installed)
 
 The build needs a C toolchain + `make`, **CMake**, **Go** ≥ 1.22, **Node** ≥ 22
-+ npm, `git`, and the **ONNX Runtime** library (for vector embeddings). Before
++ npm, and `git`. **ONNX Runtime** is needed only for ONNX embeddings. Before
 building, the launcher checks each and installs the missing ones through the host
 package manager — **Homebrew** on macOS, **apt** on Linux (`onnxruntime` is not in
 apt; install a [release](https://github.com/microsoft/onnxruntime/releases) and

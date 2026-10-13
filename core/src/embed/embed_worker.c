@@ -19,6 +19,7 @@ typedef struct {
     FILE *output;
     pid_t pid;
     size_t dim;
+    int task_protocol;
 } worker_impl;
 
 void cberg_worker_close(void *handle) {
@@ -63,6 +64,7 @@ cberg_status cberg_worker_open(const cberg_embed_config *cfg, void **out, size_t
         return CBERG_ERR_OUT_OF_MEMORY;
     }
     w->pid = pid;
+    w->task_protocol = strcmp(backend, "sentence-transformers") == 0 || strcmp(backend, "gemma-mlx") == 0;
     w->input = fdopen(to_child[1], "wb");
     w->output = fdopen(from_child[0], "rb");
     if (w->input == NULL || w->output == NULL) {
@@ -84,9 +86,9 @@ cberg_status cberg_worker_open(const cberg_embed_config *cfg, void **out, size_t
     return CBERG_OK;
 }
 
-cberg_status cberg_worker_embed(void *handle, const char *const *texts, const size_t *lens, size_t count, float *out) {
+cberg_status cberg_worker_embed(void *handle, const char *const *texts, const size_t *lens, size_t count, int query, float *out) {
     worker_impl *w = handle;
-    if (count > UINT32_MAX) return CBERG_ERR_INVALID_ARGUMENT;
+    if (count > (w->task_protocol ? UINT32_MAX >> 1 : UINT32_MAX)) return CBERG_ERR_INVALID_ARGUMENT;
     /* A failed worker closes its pipe; return IO instead of letting SIGPIPE
      * terminate the entire indexer. Block only in this calling thread. */
     sigset_t blocked, old, before, after;
@@ -96,6 +98,10 @@ cberg_status cberg_worker_embed(void *handle, const char *const *texts, const si
     sigpending(&before);
     cberg_status status = CBERG_OK;
     uint32_t n = (uint32_t)count;
+    /* Only the new runtime understands task modes; existing workers retain
+     * their count-only protocol even when called through semantic search. */
+    if (w->task_protocol && query) n |= UINT32_C(0x80000000);
+
     if (fwrite(&n, sizeof(n), 1, w->input) != 1) { status = CBERG_ERR_IO; goto done; }
     for (size_t i = 0; i < count; i++) {
         if (lens[i] > UINT32_MAX) { status = CBERG_ERR_INVALID_ARGUMENT; goto done; }

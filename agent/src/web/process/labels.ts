@@ -17,7 +17,7 @@ export function processLabel(command: string): string {
 }
 
 export function workerName(command: string, arguments_ = '', model = '', backend = ''): string {
-  let embedding = command.includes('/embedding-venv/');
+  let embedding = /\/(?:embedding-venv|embeddinggemma-(?:mlx-)?venv)\//.test(command);
   let search = command.includes('/searxng/venv/');
   const fields = arguments_.trim().split(/\s+/);
   fields.forEach((field, i) => {
@@ -41,7 +41,9 @@ export function workerName(command: string, arguments_ = '', model = '', backend
 
   const details = [
     ...(lower.includes('qwen3') ? ['Qwen3'] : []),
-    ...(backend === 'mlx' ? ['MLX'] : backend === 'llama' ? ['llama.cpp'] : []),
+    ...(lower.includes('embeddinggemma-2') ? ['EmbeddingGemma 2'] : []),
+    ...(backend === 'mlx' || backend === 'gemma-mlx' ? ['MLX'] : backend === 'llama' ? ['llama.cpp']
+      : backend === 'sentence-transformers' ? ['Sentence Transformers'] : []),
   ];
 
   return details.length ? `Embedding worker — ${details.join('/')}` : 'Embedding worker';

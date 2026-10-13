@@ -12,7 +12,7 @@ The browser opens at `http://127.0.0.1:48088` by default. Keep the launcher runn
 
 Today, installation is a source workflow, not a one-click installer. From a Codeberg checkout, run `./launcher/install.sh` to build and link the launcher onto PATH. It finds the checkout through that link and builds missing components on launch. Run `codeberg doctor` if a required toolchain is missing. You do not need to set `CODEBERG_REPO` or `CODEBERG_ROOT` for this workflow.
 
-To start without downloading an embedding model, use `codeberg --no-vector`. File tools and lexical search still work. See [Indexing and search](/docs/indexing) before enabling semantic search.
+New installs default to text-only FP32 EmbeddingGemma 2 for semantic search, using MLX on Apple Silicon or Sentence Transformers elsewhere. Setup requires Python 3.10+, network access, and space for its managed runtime and weights. Existing embedding choices are retained. To start without downloading an embedding model, use `codeberg --no-vector`. File tools and lexical search still work. See [Indexing and search](/docs/indexing) for model choices and requirements.
 
 ## Connect a chat model
 

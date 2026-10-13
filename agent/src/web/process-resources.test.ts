@@ -26,6 +26,22 @@ function row(
 describe('Codeberg process attribution', () => {
   it('names known Python workers by their Codeberg component and preserves unknown Python names', () => {
     expect(
+      workerName('/home/.codeberg/embeddinggemma-mlx-venv/bin/python', '', '/models/embeddinggemma-2-fp32-mlx', 'gemma-mlx'),
+    ).toBe('Embedding worker — EmbeddingGemma 2/MLX');
+
+    expect(
+      workerName('python3', 'python3 /app/embedding_worker.py gemma-mlx /models/embeddinggemma-2-fp32-mlx'),
+    ).toBe('Embedding worker — EmbeddingGemma 2/MLX');
+
+    expect(
+      workerName('/home/.codeberg/embeddinggemma-venv/bin/python', '', '/models/embeddinggemma-2', 'sentence-transformers'),
+    ).toBe('Embedding worker — EmbeddingGemma 2/Sentence Transformers');
+
+    expect(
+      workerName('python3', 'python3 /app/embedding_worker.py sentence-transformers /models/embeddinggemma-2'),
+    ).toBe('Embedding worker — EmbeddingGemma 2/Sentence Transformers');
+
+    expect(
       workerName('/home/.codeberg/embedding-venv/bin/python', '', '/models/qwen3-fp16-mlx', 'mlx'),
     ).toBe('Embedding worker — Qwen3/MLX');
     expect(workerName('/home/.codeberg/searxng/venv/bin/python')).toBe('Web search — SearXNG');

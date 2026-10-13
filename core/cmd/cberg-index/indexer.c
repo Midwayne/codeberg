@@ -4,6 +4,7 @@
 
 #include "chunk_kind.h"
 #include "chunk_table_internal.h"
+#include "embed_internal.h"
 #include "fileio.h"
 #include "pathglob.h"
 #include "pathutil.h"
@@ -43,9 +44,11 @@ static cberg_status bootstrap_warm(cberg_repo *r);
  * thread-safe, and both the indexing (main) thread and the IPC search thread
  * embed. Callers must NOT hold embed_mu already; holding a repo->mu is fine
  * (lock order repo->mu -> embed_mu). */
-static cberg_status engine_embed(cberg_engine *eng, const char *const *texts, const size_t *lens, size_t count, float **out_vectors) {
+static cberg_status engine_embed(cberg_engine *eng, const char *const *texts, const size_t *lens, size_t count,
+                                int query, float **out_vectors) {
     pthread_mutex_lock(&eng->embed_mu);
-    cberg_status st = cberg_embedder_embed(eng->embedder, texts, lens, count, out_vectors);
+    cberg_status st = query ? cberg_embedder_embed_query(eng->embedder, texts, lens, count, out_vectors)
+                            : cberg_embedder_embed(eng->embedder, texts, lens, count, out_vectors);
     pthread_mutex_unlock(&eng->embed_mu);
     return st;
 }
@@ -339,7 +342,7 @@ static cberg_status embed_window(cberg_repo *r, const cberg_stored_chunk *const 
         }
 
         float *vecs = NULL;
-        st = engine_embed(r->eng, btexts, blens, bn, &vecs);
+        st = engine_embed(r->eng, btexts, blens, bn, 0, &vecs);
         for (size_t b = 0; b < bn && st == CBERG_OK; b++) {
             st = sink(ctx, items[c + b].item, vecs + b * dim);
         }
@@ -1315,7 +1318,8 @@ cberg_status cberg_engine_open(cberg_engine *eng) {
         if (stat(eng->model_path, &mst) != 0) {
             fprintf(stderr,
                     "cberg-index: embedding model not found: '%s'\n"
-                    "  fetch one with scripts/fetch-model.sh and point CBERG_MODEL at its .onnx,\n"
+                    "  prepare a selected model with codeberg build --embedding <model-id>,\n"
+                    "  or fetch an ONNX model with scripts/fetch-model.sh and set CBERG_MODEL,\n"
                     "  or unset CBERG_MODEL and CBERG_INDEX_PATH to run chunk-only.\n",
                     eng->model_path);
             cberg_engine_close(eng);
@@ -1324,7 +1328,8 @@ cberg_status cberg_engine_open(cberg_engine *eng) {
         cberg_embed_config ecfg = {0};
         const char *embed_backend = getenv("CBERG_EMBED_BACKEND");
         ecfg.provider = (embed_backend != NULL &&
-                         (strcmp(embed_backend, "mlx") == 0 || strcmp(embed_backend, "llama") == 0))
+                         (strcmp(embed_backend, "mlx") == 0 || strcmp(embed_backend, "llama") == 0 ||
+                          strcmp(embed_backend, "sentence-transformers") == 0 || strcmp(embed_backend, "gemma-mlx") == 0))
                             ? CBERG_EMBED_WORKER : CBERG_EMBED_ONNX;
         ecfg.model_path = eng->model_path;
         /* CBERG_EMBED_THREADS caps ONNX intra-op threads; unset or <= 0 uses all cores. */
@@ -2116,7 +2121,7 @@ cberg_status cberg_engine_search_hits(cberg_engine *eng, const char *query, cons
     const char *texts[1] = {query};
     size_t lens[1] = {strlen(query)};
     float *vec = NULL;
-    cberg_status st = engine_embed(eng, texts, lens, 1, &vec);
+    cberg_status st = engine_embed(eng, texts, lens, 1, 1, &vec);
     if (st != CBERG_OK) {
         return st;
     }

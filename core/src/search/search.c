@@ -1,4 +1,5 @@
 #include "codeberg/codeberg.h"
+#include "embed_internal.h"
 
 #include <stdlib.h>
 
@@ -46,7 +47,7 @@ cberg_status cberg_search_query(cberg_embedder *embedder, cberg_index *index, co
     const char *texts[1] = {query};
     size_t lens[1] = {query_len};
     float *vectors = NULL;
-    cberg_status st = cberg_embedder_embed(embedder, texts, lens, 1, &vectors);
+    cberg_status st = cberg_embedder_embed_query(embedder, texts, lens, 1, &vectors);
     if (st != CBERG_OK) {
         return st;
     }

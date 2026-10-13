@@ -123,11 +123,17 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # Set false to skip embedding-model download and disable semantic search.
 # CODEBERG_VECTOR=true
 
-# Path to ONNX embedding model (default under CODEBERG_HOME/models/…).
+# New installs default to EmbeddingGemma 2; existing model selections are kept.
+# Apple Silicon defaults to embeddinggemma-2-fp32-mlx (text-only FP32).
+# Other platforms default to embeddinggemma-2 (Sentence Transformers FP32).
+# Options also include jina-onnx and Qwen3 MLX/llama.cpp variants.
+# CODEBERG_EMBEDDING_MODEL=embeddinggemma-2
+# Custom ONNX path when no registry selection is configured.
 # CBERG_MODEL=/abs/path/to/jina-embeddings-v2-base-code/model.onnx
 
 # Vector index base path; per-repo sidecars at <base>.<roothash>[.chunks|.manifest].
-# Default under CODEBERG_HOME/index/codeberg.usearch.
+# Selected models use CODEBERG_HOME/index/<model-id>/codeberg.usearch.
+# Existing Jina installations keep CODEBERG_HOME/index/codeberg.usearch.
 # CBERG_INDEX_PATH=/abs/path/to/codeberg.usearch
 
 # usearch stored scalar kind for new index files: i8 (default) or f32.

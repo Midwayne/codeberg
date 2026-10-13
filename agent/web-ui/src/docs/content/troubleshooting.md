@@ -14,6 +14,10 @@ Confirm the repository still exists and is readable. Inspect `projects/<id>/logs
 
 Run `codeberg doctor` for component and toolchain diagnostics. Correct the error, restart if configuration changed, then choose **Retry** in the app. For a quick chunk-only check, launch with `codeberg --no-vector`. Cold indexing with embeddings can take several minutes; the chunk count is not a progress percentage.
 
+For the default EmbeddingGemma 2 model, check that `python3` is 3.10 or newer and can create a venv with pip. First setup downloads Python packages and Google's Hugging Face checkpoint, so network access and several GB of free disk space are required. Run `codeberg build --embedding embeddinggemma-2` to retry an incomplete setup. Its managed runtime is `embeddinggemma-venv` under Codeberg home; ONNX Runtime and `llama-server` are not prerequisites for this model. See [Indexing and search](/docs/indexing).
+
+For the MLX option on Apple Silicon, retry with `codeberg build --embedding embeddinggemma-2-fp32-mlx`. It uses `embeddinggemma-mlx-venv` and a separate FP32 model directory. MLX requires an Apple Silicon Mac; on other platforms select `embeddinggemma-2` instead. Both options index only text and code.
+
 ## An MCP server or skill is missing
 
 Check **Settings → MCP servers** or **Skills** and the selected scope. A project extension only applies to that project. Verify that the file is in a supported discovery directory and that another definition has not overridden the same name.

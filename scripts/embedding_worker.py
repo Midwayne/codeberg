@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Persistent binary-protocol adapter for MLX and llama.cpp embeddings.
+"""Persistent binary-protocol adapter for local embedding runtimes.
 
 stdin: uint32 count, then repeated uint32 utf8 length + bytes;
 stdout: READY <dimension> newline, then count * dimension native float32s.
 All diagnostics go to stderr so the indexer's protocol stays unambiguous.
+For EmbeddingGemma runtimes, count's high bit marks a query batch; the
+remaining 31 bits are the count. Other runtimes retain their existing protocol.
 """
 
 import json
+import math
 from contextlib import redirect_stdout
 import os
 import socket
@@ -15,6 +18,53 @@ import subprocess
 import sys
 import time
 import urllib.request
+
+
+def sentence_transformers_embedder(path: str):
+    import torch
+    from sentence_transformers import SentenceTransformer
+
+    # Use FP32 on every device; FP16 produces NaNs for Gemma 2.
+    cuda = torch.cuda.is_available()
+    model = SentenceTransformer(
+        path, device="cuda" if cuda else "cpu", local_files_only=True,
+        config_kwargs={"vision_config": None, "audio_config": None},
+        model_kwargs={"torch_dtype": torch.float32})
+    model.max_seq_length = 8192
+
+    def embed(texts, query=False):
+        vectors = model.encode(
+            texts, prompt_name="CodeRetrieval" if query else "Document",
+            batch_size=8, normalize_embeddings=True, convert_to_tensor=True,
+            show_progress_bar=False)
+        return vectors.float().tolist()
+
+    return embed, lambda: None
+
+
+def gemma_mlx_embedder(path: str):
+    from embedding_gemma_mlx import embedder
+
+    return embedder(path)
+
+
+def load_embedder(backend: str, path: str):
+    if backend == "sentence-transformers":
+        return sentence_transformers_embedder(path)
+    if backend == "gemma-mlx":
+        return gemma_mlx_embedder(path)
+    if backend == "mlx":
+        return mlx_embedder(path)
+    if backend == "llama":
+        return llama_embedder(path)
+    raise ValueError(f"unknown embedding backend: {backend}")
+
+
+def validate_vectors(vectors, count: int, dim: int) -> None:
+    if len(vectors) != count or any(len(vector) != dim for vector in vectors):
+        raise ValueError("embedding output shape changed")
+    if any(not math.isfinite(value) for vector in vectors for value in vector):
+        raise ValueError("non-finite embedding output")
 
 
 def read_exact(n: int) -> bytes:
@@ -93,7 +143,7 @@ def main(backend: str, path: str):
     # Dependencies may print model-loading progress; stdout is reserved for the
     # binary protocol read by cberg-index.
     with redirect_stdout(sys.stderr):
-        embed, stop = (mlx_embedder(path) if backend == "mlx" else llama_embedder(path))
+        embed, stop = load_embedder(backend, path)
     try:
         # Detect model / endpoint errors before telling the indexer it is ready.
         with redirect_stdout(sys.stderr):
@@ -101,18 +151,22 @@ def main(backend: str, path: str):
         dim = len(first[0])
         if not dim or dim > 16384:
             raise ValueError(f"invalid embedding dimension: {dim}")
+        validate_vectors(first, 1, dim)
         sys.stdout.buffer.write(f"READY {dim}\n".encode())
         sys.stdout.buffer.flush()
         while header := sys.stdin.buffer.read(4):
             if len(header) != 4:
                 raise EOFError("short batch header")
             count = struct.unpack("=I", header)[0]
+            query = False
+            if backend in ("sentence-transformers", "gemma-mlx"):
+                query = bool(count & 0x80000000)
+                count &= 0x7fffffff
             texts = [read_exact(struct.unpack("=I", read_exact(4))[0]).decode("utf-8")
                      for _ in range(count)]
             with redirect_stdout(sys.stderr):
-                vectors = embed(texts)
-            if len(vectors) != count or any(len(v) != dim for v in vectors):
-                raise ValueError("embedding output shape changed")
+                vectors = embed(texts, query=query) if backend in ("sentence-transformers", "gemma-mlx") else embed(texts)
+            validate_vectors(vectors, count, dim)
             for vector in vectors:
                 sys.stdout.buffer.write(struct.pack(f"={dim}f", *vector))
             sys.stdout.buffer.flush()

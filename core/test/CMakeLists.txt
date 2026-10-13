@@ -37,6 +37,15 @@ add_test(NAME test_index_providers COMMAND test_index_providers)
 cberg_add_test(test_embed)
 cberg_add_test(test_embed_worker)
 target_compile_definitions(test_embed_worker PRIVATE CBERG_WORKER_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/embed_worker_mock.py")
+cberg_add_test(test_embed_gemma_worker)
+target_compile_definitions(test_embed_gemma_worker PRIVATE CBERG_WORKER_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/embed_worker_mock.py")
+add_test(NAME test_embed_gemma_mlx_worker COMMAND test_embed_gemma_worker gemma-mlx)
 cberg_add_test(test_search)
 
 set_tests_properties(test_embed test_search PROPERTIES SKIP_RETURN_CODE 77)
+
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(Python3_FOUND)
+  add_test(NAME test_embedding_scripts COMMAND ${Python3_EXECUTABLE} -m unittest
+    discover -s ${CMAKE_SOURCE_DIR}/../scripts -p "test_embedding_*.py")
+endif()

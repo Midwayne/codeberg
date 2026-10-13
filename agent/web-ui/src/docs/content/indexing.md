@@ -14,9 +14,19 @@ A **chunk** is a searchable piece of source. An **embedding** is its numeric rep
 
 Start with `codeberg --no-vector`, or save `CODEBERG_VECTOR=false`, for chunk-only operation. Exact text search, file reads, and source navigation still work. Semantic vector search requires an embedding model and its runtime.
 
-The launcher offers an embedding choice before a first download. Existing configured models and indexes are reused. Available selections include Jina with ONNX, and Qwen embedding variants with MLX on Apple Silicon or llama.cpp. The weights and runtime are separate from your cloud chat provider's API key.
+The launcher offers an embedding choice before a first download. **EmbeddingGemma 2** is the default for new installs, including unattended launches: `embeddinggemma-2-fp32-mlx` on Apple Silicon, or `embeddinggemma-2` with Sentence Transformers elsewhere. Both use only the text encoder in FP32. Existing configured models and Jina installations keep their model and index. Jina with ONNX and all Qwen variants with MLX on Apple Silicon or llama.cpp remain available. Embedding weights and runtime are separate from your cloud chat provider's API key.
 
-You can choose a supported model explicitly, for example `codeberg --embedding jina-onnx`. Use `codeberg --help` and the launcher's embedding prompt for the available choices. ONNX requires its runtime library; MLX uses a managed Python environment; llama.cpp needs `llama-server`. Downloads and cold indexing can take time. Stop the launcher before changing runtime configuration, then restart.
+Choose a model for one launch with `codeberg --embedding embeddinggemma-2`, or save it with `codeberg config set CODEBERG_EMBEDDING_MODEL=embeddinggemma-2`. Use `--embedding jina-onnx` to select Jina, or a Qwen ID such as `qwen3-fp16-mlx` or `qwen3-fp16-llama`. The launcher's prompt lists all choices. Stop the launcher before switching models, then restart. Each model gets its own index and sidecars; switching triggers a first index build without deleting previous indexes. Switching back reuses that model's cache.
+
+On Apple Silicon, select the native MLX option with `codeberg --embedding embeddinggemma-2-fp32-mlx`, or save `CODEBERG_EMBEDDING_MODEL=embeddinggemma-2-fp32-mlx`. It runs through MLX-VLM in the separate `CODEBERG_HOME/embeddinggemma-mlx-venv` runtime. Setup converts Google's original weights to unquantized FP32 and saves only the text model. Its model directory and index are separate from the Sentence Transformers option and Qwen's MLX runtime. An existing saved `embeddinggemma-2` choice remains on Sentence Transformers until you switch explicitly.
+
+Both options require **Python 3.10 or newer** with venv and pip support. Initial setup needs network access and several GB of free disk space for dependencies, downloaded weights, and the saved model. Subsequent inference uses local files.
+
+For `embeddinggemma-2`, the launcher installs Sentence Transformers and PyTorch in `CODEBERG_HOME/embeddinggemma-venv`, downloads Google's checkpoint from Hugging Face, and saves a text-only model under `CODEBERG_HOME/models/embeddinggemma-2`.
+
+Both EmbeddingGemma options use its 270M text encoder for code and text search, with 768-dimensional normalized vectors, an 8,192-token input limit including prompts, and distinct code-query and document prompts. Longer inputs are truncated. Setup and inference use **FP32**: MLX on Apple Silicon, or Sentence Transformers on CPU/CUDA. Vision and audio encoders are disabled; image, audio, and video indexing are not exposed. FP16 is incompatible with this model. See [Google's model card](https://huggingface.co/google/embeddinggemma-2) for the model and its requirements.
+
+EmbeddingGemma 2 does not need ONNX or `llama-server`. Jina requires ONNX Runtime; Qwen MLX uses its separate managed Python environment; Qwen llama.cpp needs `llama-server`. Downloads and cold indexing can take time.
 
 ## Understand readiness
 

@@ -34,10 +34,16 @@ def vector(text):
 
 while header := sys.stdin.buffer.read(4):
     count = struct.unpack("=I", header)[0]
+    query = False
+    if os.environ.get("CBERG_EMBED_BACKEND") in ("sentence-transformers", "gemma-mlx"):
+        query = bool(count & 0x80000000)
+        count &= 0x7fffffff
     long_texts = 0
     for _ in range(count):
         size = struct.unpack("=I", exact(4))[0]
         text = exact(size)
+        if os.environ.get("CBERG_EMBED_BACKEND") in ("sentence-transformers", "gemma-mlx"):
+            assert query == (text in (b"Shared", b"multiply")), "incorrect embedding task"
         long_texts += size >= 1024
         log.write(b"%d\n" % size + text + b"\n")
         sys.stdout.buffer.write(struct.pack("=3f", *vector(text)))

@@ -7,11 +7,12 @@ import (
 )
 
 var pythonProcess = regexp.MustCompile(`^python(\d+(\.\d+)*)?$`)
+var embeddingVenv = regexp.MustCompile(`/(?:embedding-venv|embeddinggemma-(?:mlx-)?venv)/`)
 
 // Only fixed component labels leave the collector; command arguments stay local.
 func workerName(command, arguments, model, backend string) string {
 	path := filepath.ToSlash(command)
-	embedding := strings.Contains(path, "/embedding-venv/")
+	embedding := embeddingVenv.MatchString(path)
 	search := strings.Contains(path, "/searxng/venv/")
 	fields := strings.Fields(arguments)
 
@@ -57,12 +58,17 @@ func embeddingName(model, backend string) string {
 	if strings.Contains(lower, "qwen3") {
 		details = append(details, "Qwen3")
 	}
+	if strings.Contains(lower, "embeddinggemma-2") {
+		details = append(details, "EmbeddingGemma 2")
+	}
 
 	switch backend {
-	case "mlx":
+	case "mlx", "gemma-mlx":
 		details = append(details, "MLX")
 	case "llama":
 		details = append(details, "llama.cpp")
+	case "sentence-transformers":
+		details = append(details, "Sentence Transformers")
 	}
 
 	if len(details) == 0 {

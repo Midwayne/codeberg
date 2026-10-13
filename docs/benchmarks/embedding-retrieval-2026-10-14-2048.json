@@ -1,0 +1,2253 @@
+{
+  "date": "2026-10-14",
+  "hardware": "Apple M4 MacBook Air, 10 CPU cores, 24 GB unified memory, macOS 26.6.2",
+  "note": "This report preserves the 2,048-token experiment. The current Gemma limit is 8,192 tokens; see the [main report](embedding-retrieval-2026-10-14.md). Gemma was rerun with the requested 2,048-token input cap in both FP32 text-only runtimes. Qwen and Jina results are retained from the earlier same-day run on this machine with unchanged adapters and identical frozen inputs. Earlier 8,192-token Gemma raw results remain under build/embedding-benchmark/; current rerun artifacts are under build/embedding-benchmark/2048/.",
+  "manifest": {
+    "corpus.json": "cb38477342c1898da3aafa487c080960f65288fcb7c4825a6510fec262dfe4c3",
+    "cases.json": "9fee8d6dafbd803d6dac8a2386324683da85f176407a9198155cf127d77107a1",
+    "head": "0f8ff1c032fe8657b29f2365da24b78ef5f69e7d",
+    "working_tree_diff_sha256": "64c8b80ee8976216c38ace1c1634c370540ff75c9195dd5fb7f167da3094fda8",
+    "fixture_sha256": "df42c4dff5733d2d87bccdb33da9c79fa631b6a35ba4cf1e9407340cb2c76062",
+    "original_working_tree_diff_sha256": "2a1770d0e099d79070403941f658287769fa03fca7d814e03ac8fcb86995708c",
+    "gemma_input_limit": 2048,
+    "comparison_results": "Qwen and Jina retained from earlier same-day run; adapters unchanged"
+  },
+  "results": {
+    "gemma-mlx": {
+      "backend": "gemma-mlx",
+      "dimension": 768,
+      "model_load_seconds": 3.8458260420011356,
+      "corpus_embedding_seconds": 127.8463988751173,
+      "metrics": {
+        "overall": {
+          "queries": 64,
+          "hit_at_1": 0.40625,
+          "hit_at_5": 0.640625,
+          "hit_at_10": 0.75,
+          "mrr": 0.5272411924664587,
+          "pair_accuracy": 0.5555555555555556
+        },
+        "categories": {
+          "long_context": {
+            "queries": 8,
+            "hit_at_1": 0.0,
+            "hit_at_5": 0.0,
+            "hit_at_10": 0.0,
+            "mrr": 0.0047256282429962255,
+            "pair_accuracy": 0.5
+          },
+          "minimal_pairs": {
+            "queries": 28,
+            "hit_at_1": 0.35714285714285715,
+            "hit_at_5": 0.6428571428571429,
+            "hit_at_10": 0.8214285714285714,
+            "mrr": 0.5128555379434802,
+            "pair_accuracy": 0.5714285714285714
+          },
+          "repository": {
+            "queries": 28,
+            "hit_at_1": 0.5714285714285714,
+            "hit_at_5": 0.8214285714285714,
+            "hit_at_10": 0.8928571428571429,
+            "mrr": 0.690917008196141,
+            "pair_accuracy": null
+          }
+        }
+      },
+      "query_latency": {
+        "median_ms": 16.30218801437877,
+        "p95_ms": 32.711003551958136,
+        "trials_ms": [
+          15.045375504996628,
+          15.03187499474734,
+          25.123999977950007,
+          17.942353995749727,
+          15.782083006342873
+        ],
+        "requests": 320
+      },
+      "exact_rank_ms_per_query": 1.4725501250723028,
+      "throughput": {
+        "sample_chunks": 256,
+        "trial_seconds": [
+          25.556684960029088,
+          26.46148754103342,
+          25.673586292017717,
+          22.371836206992157,
+          22.19228187506087
+        ],
+        "median_chunks_per_second": 10.016948614438318
+      },
+      "tokens": {
+        "limit": 2048,
+        "p50": 135.0,
+        "p95": 504.25,
+        "max": 2455,
+        "truncated_documents": 11,
+        "long_fixture_tokens": [
+          2447,
+          2447,
+          2453,
+          2432,
+          2450,
+          2455,
+          2441,
+          2437
+        ]
+      },
+      "corpus_sha256": "cb38477342c1898da3aafa487c080960f65288fcb7c4825a6510fec262dfe4c3",
+      "cases_sha256": "9fee8d6dafbd803d6dac8a2386324683da85f176407a9198155cf127d77107a1",
+      "system": {
+        "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+        "python": "3.14.8"
+      },
+      "versions": {
+        "mlx": "0.32.3",
+        "mlx-vlm": "0.7.8",
+        "mlx-embeddings": "0.1.0",
+        "torch": "2.14.1",
+        "transformers": "5.19.0",
+        "sentence-transformers": "6.1.0",
+        "onnxruntime": "1.27.0"
+      },
+      "peak_rss_bytes": 2463334400,
+      "case_ranks": [
+        {
+          "id": "r01",
+          "category": "repository",
+          "rank": 103
+        },
+        {
+          "id": "r02",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r03",
+          "category": "repository",
+          "rank": 11
+        },
+        {
+          "id": "r04",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r05",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r06",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r07",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r08",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r09",
+          "category": "repository",
+          "rank": 2
+        },
+        {
+          "id": "r10",
+          "category": "repository",
+          "rank": 2
+        },
+        {
+          "id": "r11",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r12",
+          "category": "repository",
+          "rank": 7
+        },
+        {
+          "id": "r13",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r14",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r15",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r16",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r17",
+          "category": "repository",
+          "rank": 2
+        },
+        {
+          "id": "r18",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r19",
+          "category": "repository",
+          "rank": 3
+        },
+        {
+          "id": "r20",
+          "category": "repository",
+          "rank": 53
+        },
+        {
+          "id": "r21",
+          "category": "repository",
+          "rank": 6
+        },
+        {
+          "id": "r22",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r23",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r24",
+          "category": "repository",
+          "rank": 2
+        },
+        {
+          "id": "r25",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r26",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r27",
+          "category": "repository",
+          "rank": 4
+        },
+        {
+          "id": "r28",
+          "category": "repository",
+          "rank": 3
+        },
+        {
+          "id": "expiry-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "expiry-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "cached-null-a",
+          "category": "minimal_pairs",
+          "rank": 6,
+          "pair_win": false
+        },
+        {
+          "id": "cached-null-b",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "optimistic-write-a",
+          "category": "minimal_pairs",
+          "rank": 43,
+          "pair_win": true
+        },
+        {
+          "id": "optimistic-write-b",
+          "category": "minimal_pairs",
+          "rank": 9,
+          "pair_win": false
+        },
+        {
+          "id": "rollback-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "rollback-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "linked-cancellation-a",
+          "category": "minimal_pairs",
+          "rank": 102,
+          "pair_win": true
+        },
+        {
+          "id": "linked-cancellation-b",
+          "category": "minimal_pairs",
+          "rank": 273,
+          "pair_win": false
+        },
+        {
+          "id": "path-boundary-a",
+          "category": "minimal_pairs",
+          "rank": 8,
+          "pair_win": false
+        },
+        {
+          "id": "path-boundary-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": true
+        },
+        {
+          "id": "normalization-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "normalization-b",
+          "category": "minimal_pairs",
+          "rank": 3,
+          "pair_win": false
+        },
+        {
+          "id": "pagination-a",
+          "category": "minimal_pairs",
+          "rank": 22,
+          "pair_win": false
+        },
+        {
+          "id": "pagination-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": true
+        },
+        {
+          "id": "dedupe-lifetime-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "dedupe-lifetime-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "zero-preserved-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "zero-preserved-b",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "lease-token-a",
+          "category": "minimal_pairs",
+          "rank": 8,
+          "pair_win": false
+        },
+        {
+          "id": "lease-token-b",
+          "category": "minimal_pairs",
+          "rank": 4,
+          "pair_win": true
+        },
+        {
+          "id": "constant-time-a",
+          "category": "minimal_pairs",
+          "rank": 15,
+          "pair_win": true
+        },
+        {
+          "id": "constant-time-b",
+          "category": "minimal_pairs",
+          "rank": 10,
+          "pair_win": false
+        },
+        {
+          "id": "atomic-replace-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "atomic-replace-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "redaction-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "redaction-b",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "long-expiry-a",
+          "category": "long_context",
+          "rank": 151,
+          "pair_win": true
+        },
+        {
+          "id": "long-expiry-b",
+          "category": "long_context",
+          "rank": 218,
+          "pair_win": false
+        },
+        {
+          "id": "long-owner-a",
+          "category": "long_context",
+          "rank": 175,
+          "pair_win": true
+        },
+        {
+          "id": "long-owner-b",
+          "category": "long_context",
+          "rank": 124,
+          "pair_win": false
+        },
+        {
+          "id": "long-null-a",
+          "category": "long_context",
+          "rank": 860,
+          "pair_win": true
+        },
+        {
+          "id": "long-null-b",
+          "category": "long_context",
+          "rank": 755,
+          "pair_win": false
+        },
+        {
+          "id": "long-zero-a",
+          "category": "long_context",
+          "rank": 388,
+          "pair_win": true
+        },
+        {
+          "id": "long-zero-b",
+          "category": "long_context",
+          "rank": 129,
+          "pair_win": false
+        }
+      ]
+    },
+    "gemma-st": {
+      "backend": "sentence-transformers",
+      "dimension": 768,
+      "model_load_seconds": 4.585205833951477,
+      "corpus_embedding_seconds": 213.37345271010417,
+      "metrics": {
+        "overall": {
+          "queries": 64,
+          "hit_at_1": 0.40625,
+          "hit_at_5": 0.640625,
+          "hit_at_10": 0.75,
+          "mrr": 0.5272411924664587,
+          "pair_accuracy": 0.5555555555555556
+        },
+        "categories": {
+          "long_context": {
+            "queries": 8,
+            "hit_at_1": 0.0,
+            "hit_at_5": 0.0,
+            "hit_at_10": 0.0,
+            "mrr": 0.0047256282429962255,
+            "pair_accuracy": 0.5
+          },
+          "minimal_pairs": {
+            "queries": 28,
+            "hit_at_1": 0.35714285714285715,
+            "hit_at_5": 0.6428571428571429,
+            "hit_at_10": 0.8214285714285714,
+            "mrr": 0.5128555379434802,
+            "pair_accuracy": 0.5714285714285714
+          },
+          "repository": {
+            "queries": 28,
+            "hit_at_1": 0.5714285714285714,
+            "hit_at_5": 0.8214285714285714,
+            "hit_at_10": 0.8928571428571429,
+            "mrr": 0.690917008196141,
+            "pair_accuracy": null
+          }
+        }
+      },
+      "query_latency": {
+        "median_ms": 33.04691650555469,
+        "p95_ms": 41.86179373937194,
+        "trials_ms": [
+          34.62887549540028,
+          32.162916992092505,
+          32.17600000789389,
+          33.03827150375582,
+          32.26129099493846
+        ],
+        "requests": 320
+      },
+      "exact_rank_ms_per_query": 0.3290429685876006,
+      "throughput": {
+        "sample_chunks": 256,
+        "trial_seconds": [
+          32.75200470798882,
+          31.115104874945246,
+          31.110132500063628,
+          31.158792958012782,
+          33.42562125099357
+        ],
+        "median_chunks_per_second": 8.215979365598857
+      },
+      "tokens": {
+        "limit": 2048,
+        "p50": 135.0,
+        "p95": 504.25,
+        "max": 2455,
+        "truncated_documents": 11,
+        "long_fixture_tokens": [
+          2447,
+          2447,
+          2453,
+          2432,
+          2450,
+          2455,
+          2441,
+          2437
+        ]
+      },
+      "corpus_sha256": "cb38477342c1898da3aafa487c080960f65288fcb7c4825a6510fec262dfe4c3",
+      "cases_sha256": "9fee8d6dafbd803d6dac8a2386324683da85f176407a9198155cf127d77107a1",
+      "system": {
+        "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+        "python": "3.14.8"
+      },
+      "versions": {
+        "mlx": "0.32.3",
+        "mlx-vlm": "0.7.8",
+        "mlx-embeddings": "0.1.0",
+        "torch": "2.14.1",
+        "transformers": "5.19.0",
+        "sentence-transformers": "6.1.0",
+        "onnxruntime": "1.27.0"
+      },
+      "peak_rss_bytes": 6742245376,
+      "case_ranks": [
+        {
+          "id": "r01",
+          "category": "repository",
+          "rank": 103
+        },
+        {
+          "id": "r02",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r03",
+          "category": "repository",
+          "rank": 11
+        },
+        {
+          "id": "r04",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r05",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r06",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r07",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r08",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r09",
+          "category": "repository",
+          "rank": 2
+        },
+        {
+          "id": "r10",
+          "category": "repository",
+          "rank": 2
+        },
+        {
+          "id": "r11",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r12",
+          "category": "repository",
+          "rank": 7
+        },
+        {
+          "id": "r13",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r14",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r15",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r16",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r17",
+          "category": "repository",
+          "rank": 2
+        },
+        {
+          "id": "r18",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r19",
+          "category": "repository",
+          "rank": 3
+        },
+        {
+          "id": "r20",
+          "category": "repository",
+          "rank": 53
+        },
+        {
+          "id": "r21",
+          "category": "repository",
+          "rank": 6
+        },
+        {
+          "id": "r22",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r23",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r24",
+          "category": "repository",
+          "rank": 2
+        },
+        {
+          "id": "r25",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r26",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r27",
+          "category": "repository",
+          "rank": 4
+        },
+        {
+          "id": "r28",
+          "category": "repository",
+          "rank": 3
+        },
+        {
+          "id": "expiry-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "expiry-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "cached-null-a",
+          "category": "minimal_pairs",
+          "rank": 6,
+          "pair_win": false
+        },
+        {
+          "id": "cached-null-b",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "optimistic-write-a",
+          "category": "minimal_pairs",
+          "rank": 43,
+          "pair_win": true
+        },
+        {
+          "id": "optimistic-write-b",
+          "category": "minimal_pairs",
+          "rank": 9,
+          "pair_win": false
+        },
+        {
+          "id": "rollback-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "rollback-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "linked-cancellation-a",
+          "category": "minimal_pairs",
+          "rank": 102,
+          "pair_win": true
+        },
+        {
+          "id": "linked-cancellation-b",
+          "category": "minimal_pairs",
+          "rank": 273,
+          "pair_win": false
+        },
+        {
+          "id": "path-boundary-a",
+          "category": "minimal_pairs",
+          "rank": 8,
+          "pair_win": false
+        },
+        {
+          "id": "path-boundary-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": true
+        },
+        {
+          "id": "normalization-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "normalization-b",
+          "category": "minimal_pairs",
+          "rank": 3,
+          "pair_win": false
+        },
+        {
+          "id": "pagination-a",
+          "category": "minimal_pairs",
+          "rank": 22,
+          "pair_win": false
+        },
+        {
+          "id": "pagination-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": true
+        },
+        {
+          "id": "dedupe-lifetime-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "dedupe-lifetime-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "zero-preserved-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "zero-preserved-b",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "lease-token-a",
+          "category": "minimal_pairs",
+          "rank": 8,
+          "pair_win": false
+        },
+        {
+          "id": "lease-token-b",
+          "category": "minimal_pairs",
+          "rank": 4,
+          "pair_win": true
+        },
+        {
+          "id": "constant-time-a",
+          "category": "minimal_pairs",
+          "rank": 15,
+          "pair_win": true
+        },
+        {
+          "id": "constant-time-b",
+          "category": "minimal_pairs",
+          "rank": 10,
+          "pair_win": false
+        },
+        {
+          "id": "atomic-replace-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "atomic-replace-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "redaction-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "redaction-b",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "long-expiry-a",
+          "category": "long_context",
+          "rank": 151,
+          "pair_win": true
+        },
+        {
+          "id": "long-expiry-b",
+          "category": "long_context",
+          "rank": 218,
+          "pair_win": false
+        },
+        {
+          "id": "long-owner-a",
+          "category": "long_context",
+          "rank": 175,
+          "pair_win": true
+        },
+        {
+          "id": "long-owner-b",
+          "category": "long_context",
+          "rank": 124,
+          "pair_win": false
+        },
+        {
+          "id": "long-null-a",
+          "category": "long_context",
+          "rank": 860,
+          "pair_win": true
+        },
+        {
+          "id": "long-null-b",
+          "category": "long_context",
+          "rank": 755,
+          "pair_win": false
+        },
+        {
+          "id": "long-zero-a",
+          "category": "long_context",
+          "rank": 388,
+          "pair_win": true
+        },
+        {
+          "id": "long-zero-b",
+          "category": "long_context",
+          "rank": 129,
+          "pair_win": false
+        }
+      ]
+    },
+    "qwen-mlx": {
+      "backend": "mlx",
+      "dimension": 1024,
+      "model_load_seconds": 3.7909775829757564,
+      "corpus_embedding_seconds": 186.14642804430332,
+      "metrics": {
+        "overall": {
+          "queries": 64,
+          "hit_at_1": 0.328125,
+          "hit_at_5": 0.6875,
+          "hit_at_10": 0.75,
+          "mrr": 0.49071271645124714,
+          "pair_accuracy": 0.5277777777777778
+        },
+        "categories": {
+          "long_context": {
+            "queries": 8,
+            "hit_at_1": 0.0,
+            "hit_at_5": 0.0,
+            "hit_at_10": 0.0,
+            "mrr": 0.004985507846577928,
+            "pair_accuracy": 0.5
+          },
+          "minimal_pairs": {
+            "queries": 28,
+            "hit_at_1": 0.32142857142857145,
+            "hit_at_5": 0.75,
+            "hit_at_10": 0.7857142857142857,
+            "mrr": 0.5356082528785305,
+            "pair_accuracy": 0.5357142857142857
+          },
+          "repository": {
+            "queries": 28,
+            "hit_at_1": 0.42857142857142855,
+            "hit_at_5": 0.8214285714285714,
+            "hit_at_10": 0.9285714285714286,
+            "mrr": 0.5845963824824406,
+            "pair_accuracy": null
+          }
+        }
+      },
+      "query_latency": {
+        "median_ms": 35.38852100609802,
+        "p95_ms": 83.4415916644503,
+        "trials_ms": [
+          36.59787549986504,
+          35.04256246378645,
+          35.7553540088702,
+          34.19791648047976,
+          35.96014599315822
+        ],
+        "requests": 320
+      },
+      "exact_rank_ms_per_query": 1.0253535156152793,
+      "throughput": {
+        "sample_chunks": 256,
+        "trial_seconds": [
+          60.30296024895506,
+          52.143299792078324,
+          49.78057704202365,
+          68.7305468749837,
+          68.82694679108681
+        ],
+        "median_chunks_per_second": 4.245231062341356
+      },
+      "tokens": {
+        "limit": 512,
+        "p50": 104.0,
+        "p95": 417.5,
+        "max": 2239,
+        "truncated_documents": 67,
+        "long_fixture_tokens": [
+          2234,
+          2234,
+          2239,
+          2220,
+          2236,
+          2239,
+          2229,
+          2225
+        ]
+      },
+      "corpus_sha256": "cb38477342c1898da3aafa487c080960f65288fcb7c4825a6510fec262dfe4c3",
+      "cases_sha256": "9fee8d6dafbd803d6dac8a2386324683da85f176407a9198155cf127d77107a1",
+      "system": {
+        "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+        "python": "3.14.8"
+      },
+      "versions": {
+        "mlx": "0.32.3",
+        "mlx-vlm": "0.7.8",
+        "mlx-embeddings": "0.1.0",
+        "torch": "2.14.1",
+        "transformers": "5.19.0",
+        "sentence-transformers": "6.1.0",
+        "onnxruntime": "1.27.0"
+      },
+      "peak_rss_bytes": 2033844224,
+      "case_ranks": [
+        {
+          "id": "r01",
+          "category": "repository",
+          "rank": 2
+        },
+        {
+          "id": "r02",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r03",
+          "category": "repository",
+          "rank": 5
+        },
+        {
+          "id": "r04",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r05",
+          "category": "repository",
+          "rank": 4
+        },
+        {
+          "id": "r06",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r07",
+          "category": "repository",
+          "rank": 2
+        },
+        {
+          "id": "r08",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r09",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r10",
+          "category": "repository",
+          "rank": 3
+        },
+        {
+          "id": "r11",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r12",
+          "category": "repository",
+          "rank": 5
+        },
+        {
+          "id": "r13",
+          "category": "repository",
+          "rank": 2
+        },
+        {
+          "id": "r14",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r15",
+          "category": "repository",
+          "rank": 4
+        },
+        {
+          "id": "r16",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r17",
+          "category": "repository",
+          "rank": 2
+        },
+        {
+          "id": "r18",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r19",
+          "category": "repository",
+          "rank": 9
+        },
+        {
+          "id": "r20",
+          "category": "repository",
+          "rank": 914
+        },
+        {
+          "id": "r21",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r22",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r23",
+          "category": "repository",
+          "rank": 33
+        },
+        {
+          "id": "r24",
+          "category": "repository",
+          "rank": 10
+        },
+        {
+          "id": "r25",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r26",
+          "category": "repository",
+          "rank": 2
+        },
+        {
+          "id": "r27",
+          "category": "repository",
+          "rank": 7
+        },
+        {
+          "id": "r28",
+          "category": "repository",
+          "rank": 4
+        },
+        {
+          "id": "expiry-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "expiry-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "cached-null-a",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "cached-null-b",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "optimistic-write-a",
+          "category": "minimal_pairs",
+          "rank": 13,
+          "pair_win": true
+        },
+        {
+          "id": "optimistic-write-b",
+          "category": "minimal_pairs",
+          "rank": 7,
+          "pair_win": false
+        },
+        {
+          "id": "rollback-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "rollback-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "linked-cancellation-a",
+          "category": "minimal_pairs",
+          "rank": 88,
+          "pair_win": true
+        },
+        {
+          "id": "linked-cancellation-b",
+          "category": "minimal_pairs",
+          "rank": 17,
+          "pair_win": false
+        },
+        {
+          "id": "path-boundary-a",
+          "category": "minimal_pairs",
+          "rank": 17,
+          "pair_win": false
+        },
+        {
+          "id": "path-boundary-b",
+          "category": "minimal_pairs",
+          "rank": 14,
+          "pair_win": true
+        },
+        {
+          "id": "normalization-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "normalization-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "pagination-a",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "pagination-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": true
+        },
+        {
+          "id": "dedupe-lifetime-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "dedupe-lifetime-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "zero-preserved-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "zero-preserved-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "lease-token-a",
+          "category": "minimal_pairs",
+          "rank": 5,
+          "pair_win": true
+        },
+        {
+          "id": "lease-token-b",
+          "category": "minimal_pairs",
+          "rank": 23,
+          "pair_win": false
+        },
+        {
+          "id": "constant-time-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "constant-time-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "atomic-replace-a",
+          "category": "minimal_pairs",
+          "rank": 3,
+          "pair_win": true
+        },
+        {
+          "id": "atomic-replace-b",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "redaction-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "redaction-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "long-expiry-a",
+          "category": "long_context",
+          "rank": 204,
+          "pair_win": true
+        },
+        {
+          "id": "long-expiry-b",
+          "category": "long_context",
+          "rank": 78,
+          "pair_win": false
+        },
+        {
+          "id": "long-owner-a",
+          "category": "long_context",
+          "rank": 329,
+          "pair_win": true
+        },
+        {
+          "id": "long-owner-b",
+          "category": "long_context",
+          "rank": 282,
+          "pair_win": false
+        },
+        {
+          "id": "long-null-a",
+          "category": "long_context",
+          "rank": 1309,
+          "pair_win": true
+        },
+        {
+          "id": "long-null-b",
+          "category": "long_context",
+          "rank": 1123,
+          "pair_win": false
+        },
+        {
+          "id": "long-zero-a",
+          "category": "long_context",
+          "rank": 341,
+          "pair_win": true
+        },
+        {
+          "id": "long-zero-b",
+          "category": "long_context",
+          "rank": 91,
+          "pair_win": false
+        }
+      ]
+    },
+    "jina-onnx": {
+      "backend": "jina-onnx",
+      "dimension": 768,
+      "model_load_seconds": 2.74364791699918,
+      "corpus_embedding_seconds": 106.8938840419869,
+      "metrics": {
+        "overall": {
+          "queries": 64,
+          "hit_at_1": 0.234375,
+          "hit_at_5": 0.6875,
+          "hit_at_10": 0.734375,
+          "mrr": 0.4393747915554834,
+          "pair_accuracy": 0.4444444444444444
+        },
+        "categories": {
+          "long_context": {
+            "queries": 8,
+            "hit_at_1": 0.0,
+            "hit_at_5": 0.0,
+            "hit_at_10": 0.0,
+            "mrr": 0.006696578829613651,
+            "pair_accuracy": 0.375
+          },
+          "minimal_pairs": {
+            "queries": 28,
+            "hit_at_1": 0.21428571428571427,
+            "hit_at_5": 0.8928571428571429,
+            "hit_at_10": 0.8928571428571429,
+            "mrr": 0.5060741341991342,
+            "pair_accuracy": 0.4642857142857143
+          },
+          "repository": {
+            "queries": 28,
+            "hit_at_1": 0.32142857142857145,
+            "hit_at_5": 0.6785714285714286,
+            "hit_at_10": 0.7857142857142857,
+            "mrr": 0.49629779540493824,
+            "pair_accuracy": null
+          }
+        }
+      },
+      "query_latency": {
+        "median_ms": 10.917042003711686,
+        "p95_ms": 14.747136019286701,
+        "trials_ms": [
+          11.104478995548561,
+          10.997854493325576,
+          11.097833514213562,
+          10.601563000818714,
+          10.656687489245087
+        ],
+        "requests": 320
+      },
+      "exact_rank_ms_per_query": 0.5851328123753774,
+      "throughput": {
+        "sample_chunks": 256,
+        "trial_seconds": [
+          14.410375042061787,
+          13.532107293023728,
+          13.77182945801178,
+          13.77713629300706,
+          13.408875917026307
+        ],
+        "median_chunks_per_second": 18.5886705016574
+      },
+      "tokens": {
+        "limit": 256,
+        "p50": 118.5,
+        "p95": 463.25,
+        "max": 2169,
+        "truncated_documents": 451,
+        "long_fixture_tokens": [
+          1838,
+          1838,
+          1843,
+          1824,
+          1840,
+          1845,
+          1831,
+          1827
+        ]
+      },
+      "corpus_sha256": "cb38477342c1898da3aafa487c080960f65288fcb7c4825a6510fec262dfe4c3",
+      "cases_sha256": "9fee8d6dafbd803d6dac8a2386324683da85f176407a9198155cf127d77107a1",
+      "system": {
+        "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+        "python": "3.14.8"
+      },
+      "versions": {
+        "mlx": "0.32.3",
+        "mlx-vlm": "0.7.8",
+        "mlx-embeddings": "0.1.0",
+        "torch": "2.14.1",
+        "transformers": "5.19.0",
+        "sentence-transformers": "6.1.0",
+        "onnxruntime": "1.27.0"
+      },
+      "peak_rss_bytes": 1419509760,
+      "case_ranks": [
+        {
+          "id": "r01",
+          "category": "repository",
+          "rank": 37
+        },
+        {
+          "id": "r02",
+          "category": "repository",
+          "rank": 10
+        },
+        {
+          "id": "r03",
+          "category": "repository",
+          "rank": 3
+        },
+        {
+          "id": "r04",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r05",
+          "category": "repository",
+          "rank": 22
+        },
+        {
+          "id": "r06",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r07",
+          "category": "repository",
+          "rank": 2
+        },
+        {
+          "id": "r08",
+          "category": "repository",
+          "rank": 2
+        },
+        {
+          "id": "r09",
+          "category": "repository",
+          "rank": 2
+        },
+        {
+          "id": "r10",
+          "category": "repository",
+          "rank": 3
+        },
+        {
+          "id": "r11",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r12",
+          "category": "repository",
+          "rank": 9
+        },
+        {
+          "id": "r13",
+          "category": "repository",
+          "rank": 13
+        },
+        {
+          "id": "r14",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r15",
+          "category": "repository",
+          "rank": 4
+        },
+        {
+          "id": "r16",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r17",
+          "category": "repository",
+          "rank": 3
+        },
+        {
+          "id": "r18",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r19",
+          "category": "repository",
+          "rank": 2
+        },
+        {
+          "id": "r20",
+          "category": "repository",
+          "rank": 12
+        },
+        {
+          "id": "r21",
+          "category": "repository",
+          "rank": 14
+        },
+        {
+          "id": "r22",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r23",
+          "category": "repository",
+          "rank": 2
+        },
+        {
+          "id": "r24",
+          "category": "repository",
+          "rank": 165
+        },
+        {
+          "id": "r25",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r26",
+          "category": "repository",
+          "rank": 2
+        },
+        {
+          "id": "r27",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r28",
+          "category": "repository",
+          "rank": 8
+        },
+        {
+          "id": "expiry-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "expiry-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "cached-null-a",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "cached-null-b",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "optimistic-write-a",
+          "category": "minimal_pairs",
+          "rank": 15,
+          "pair_win": false
+        },
+        {
+          "id": "optimistic-write-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "rollback-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "rollback-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "linked-cancellation-a",
+          "category": "minimal_pairs",
+          "rank": 16,
+          "pair_win": false
+        },
+        {
+          "id": "linked-cancellation-b",
+          "category": "minimal_pairs",
+          "rank": 4,
+          "pair_win": true
+        },
+        {
+          "id": "path-boundary-a",
+          "category": "minimal_pairs",
+          "rank": 5,
+          "pair_win": false
+        },
+        {
+          "id": "path-boundary-b",
+          "category": "minimal_pairs",
+          "rank": 3,
+          "pair_win": true
+        },
+        {
+          "id": "normalization-a",
+          "category": "minimal_pairs",
+          "rank": 3,
+          "pair_win": false
+        },
+        {
+          "id": "normalization-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": true
+        },
+        {
+          "id": "pagination-a",
+          "category": "minimal_pairs",
+          "rank": 11,
+          "pair_win": false
+        },
+        {
+          "id": "pagination-b",
+          "category": "minimal_pairs",
+          "rank": 3,
+          "pair_win": true
+        },
+        {
+          "id": "dedupe-lifetime-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "dedupe-lifetime-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "zero-preserved-a",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "zero-preserved-b",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "lease-token-a",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "lease-token-b",
+          "category": "minimal_pairs",
+          "rank": 4,
+          "pair_win": true
+        },
+        {
+          "id": "constant-time-a",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": true
+        },
+        {
+          "id": "constant-time-b",
+          "category": "minimal_pairs",
+          "rank": 4,
+          "pair_win": false
+        },
+        {
+          "id": "atomic-replace-a",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": true
+        },
+        {
+          "id": "atomic-replace-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "redaction-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "redaction-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "long-expiry-a",
+          "category": "long_context",
+          "rank": 34,
+          "pair_win": true
+        },
+        {
+          "id": "long-expiry-b",
+          "category": "long_context",
+          "rank": 61,
+          "pair_win": false
+        },
+        {
+          "id": "long-owner-a",
+          "category": "long_context",
+          "rank": 517,
+          "pair_win": false
+        },
+        {
+          "id": "long-owner-b",
+          "category": "long_context",
+          "rank": 442,
+          "pair_win": false
+        },
+        {
+          "id": "long-null-a",
+          "category": "long_context",
+          "rank": 1971,
+          "pair_win": false
+        },
+        {
+          "id": "long-null-b",
+          "category": "long_context",
+          "rank": 1879,
+          "pair_win": true
+        },
+        {
+          "id": "long-zero-a",
+          "category": "long_context",
+          "rank": 982,
+          "pair_win": true
+        },
+        {
+          "id": "long-zero-b",
+          "category": "long_context",
+          "rank": 661,
+          "pair_win": false
+        }
+      ]
+    },
+    "qwen_instruction_reference": {
+      "metrics": {
+        "overall": {
+          "queries": 64,
+          "hit_at_1": 0.34375,
+          "hit_at_5": 0.71875,
+          "hit_at_10": 0.796875,
+          "mrr": 0.5116690230043459,
+          "pair_accuracy": 0.5277777777777778
+        },
+        "categories": {
+          "long_context": {
+            "queries": 8,
+            "hit_at_1": 0.0,
+            "hit_at_5": 0.0,
+            "hit_at_10": 0.0,
+            "mrr": 0.006184537492121089,
+            "pair_accuracy": 0.5
+          },
+          "minimal_pairs": {
+            "queries": 28,
+            "hit_at_1": 0.32142857142857145,
+            "hit_at_5": 0.7857142857142857,
+            "hit_at_10": 0.8571428571428571,
+            "mrr": 0.5421807359307359,
+            "pair_accuracy": 0.5357142857142857
+          },
+          "repository": {
+            "queries": 28,
+            "hit_at_1": 0.4642857142857143,
+            "hit_at_5": 0.8571428571428571,
+            "hit_at_10": 0.9642857142857143,
+            "mrr": 0.6255814487957345,
+            "pair_accuracy": null
+          }
+        }
+      },
+      "query_latency": {
+        "median_ms": 42.56941651692614,
+        "p95_ms": 48.98787534039002,
+        "trials_ms": [
+          44.49177099741064,
+          42.13810447254218,
+          43.5784790024627,
+          41.9266874960158,
+          42.49412551871501
+        ],
+        "requests": 320
+      },
+      "case_ranks": [
+        {
+          "id": "r01",
+          "category": "repository",
+          "rank": 2
+        },
+        {
+          "id": "r02",
+          "category": "repository",
+          "rank": 2
+        },
+        {
+          "id": "r03",
+          "category": "repository",
+          "rank": 3
+        },
+        {
+          "id": "r04",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r05",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r06",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r07",
+          "category": "repository",
+          "rank": 2
+        },
+        {
+          "id": "r08",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r09",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r10",
+          "category": "repository",
+          "rank": 4
+        },
+        {
+          "id": "r11",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r12",
+          "category": "repository",
+          "rank": 3
+        },
+        {
+          "id": "r13",
+          "category": "repository",
+          "rank": 2
+        },
+        {
+          "id": "r14",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r15",
+          "category": "repository",
+          "rank": 4
+        },
+        {
+          "id": "r16",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r17",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r18",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r19",
+          "category": "repository",
+          "rank": 7
+        },
+        {
+          "id": "r20",
+          "category": "repository",
+          "rank": 148
+        },
+        {
+          "id": "r21",
+          "category": "repository",
+          "rank": 3
+        },
+        {
+          "id": "r22",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r23",
+          "category": "repository",
+          "rank": 5
+        },
+        {
+          "id": "r24",
+          "category": "repository",
+          "rank": 6
+        },
+        {
+          "id": "r25",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r26",
+          "category": "repository",
+          "rank": 1
+        },
+        {
+          "id": "r27",
+          "category": "repository",
+          "rank": 6
+        },
+        {
+          "id": "r28",
+          "category": "repository",
+          "rank": 3
+        },
+        {
+          "id": "expiry-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "expiry-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "cached-null-a",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "cached-null-b",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "optimistic-write-a",
+          "category": "minimal_pairs",
+          "rank": 11,
+          "pair_win": true
+        },
+        {
+          "id": "optimistic-write-b",
+          "category": "minimal_pairs",
+          "rank": 4,
+          "pair_win": false
+        },
+        {
+          "id": "rollback-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "rollback-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "linked-cancellation-a",
+          "category": "minimal_pairs",
+          "rank": 60,
+          "pair_win": true
+        },
+        {
+          "id": "linked-cancellation-b",
+          "category": "minimal_pairs",
+          "rank": 8,
+          "pair_win": false
+        },
+        {
+          "id": "path-boundary-a",
+          "category": "minimal_pairs",
+          "rank": 11,
+          "pair_win": false
+        },
+        {
+          "id": "path-boundary-b",
+          "category": "minimal_pairs",
+          "rank": 10,
+          "pair_win": true
+        },
+        {
+          "id": "normalization-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "normalization-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "pagination-a",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "pagination-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": true
+        },
+        {
+          "id": "dedupe-lifetime-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "dedupe-lifetime-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "zero-preserved-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "zero-preserved-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "lease-token-a",
+          "category": "minimal_pairs",
+          "rank": 3,
+          "pair_win": true
+        },
+        {
+          "id": "lease-token-b",
+          "category": "minimal_pairs",
+          "rank": 11,
+          "pair_win": false
+        },
+        {
+          "id": "constant-time-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "constant-time-b",
+          "category": "minimal_pairs",
+          "rank": 4,
+          "pair_win": false
+        },
+        {
+          "id": "atomic-replace-a",
+          "category": "minimal_pairs",
+          "rank": 3,
+          "pair_win": true
+        },
+        {
+          "id": "atomic-replace-b",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "redaction-a",
+          "category": "minimal_pairs",
+          "rank": 1,
+          "pair_win": true
+        },
+        {
+          "id": "redaction-b",
+          "category": "minimal_pairs",
+          "rank": 2,
+          "pair_win": false
+        },
+        {
+          "id": "long-expiry-a",
+          "category": "long_context",
+          "rank": 195,
+          "pair_win": true
+        },
+        {
+          "id": "long-expiry-b",
+          "category": "long_context",
+          "rank": 80,
+          "pair_win": false
+        },
+        {
+          "id": "long-owner-a",
+          "category": "long_context",
+          "rank": 346,
+          "pair_win": true
+        },
+        {
+          "id": "long-owner-b",
+          "category": "long_context",
+          "rank": 268,
+          "pair_win": false
+        },
+        {
+          "id": "long-null-a",
+          "category": "long_context",
+          "rank": 1260,
+          "pair_win": true
+        },
+        {
+          "id": "long-null-b",
+          "category": "long_context",
+          "rank": 1225,
+          "pair_win": false
+        },
+        {
+          "id": "long-zero-a",
+          "category": "long_context",
+          "rank": 184,
+          "pair_win": true
+        },
+        {
+          "id": "long-zero-b",
+          "category": "long_context",
+          "rank": 55,
+          "pair_win": false
+        }
+      ]
+    }
+  }
+}

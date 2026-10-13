@@ -6,6 +6,10 @@ func TestWorkerNames(t *testing.T) {
 	tests := []struct {
 		command, arguments, model, backend, expected string
 	}{
+		{"/home/user/.codeberg/embeddinggemma-mlx-venv/bin/python", "", "/models/embeddinggemma-2-fp32-mlx", "gemma-mlx", "Embedding worker — EmbeddingGemma 2/MLX"},
+		{"python3", "python3 /app/embedding_worker.py gemma-mlx /models/embeddinggemma-2-fp32-mlx", "", "", "Embedding worker — EmbeddingGemma 2/MLX"},
+		{"/home/user/.codeberg/embeddinggemma-venv/bin/python", "", "/models/embeddinggemma-2", "sentence-transformers", "Embedding worker — EmbeddingGemma 2/Sentence Transformers"},
+		{"python3", "python3 /app/embedding_worker.py sentence-transformers /models/embeddinggemma-2", "", "", "Embedding worker — EmbeddingGemma 2/Sentence Transformers"},
 		{"/home/user/.codeberg/embedding-venv/bin/python", "", "/models/qwen3-fp16-mlx", "mlx", "Embedding worker — Qwen3/MLX"},
 		{"/home/user/.codeberg/searxng/venv/bin/python", "", "", "", "Web search — SearXNG"},
 		{"python3", "python3 /app/scripts/embedding_worker.py mlx /models/qwen3-fp16-mlx", "", "", "Embedding worker — Qwen3/MLX"},

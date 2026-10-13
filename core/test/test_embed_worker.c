@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 #include "codeberg/codeberg.h"
 
+#undef NDEBUG
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>

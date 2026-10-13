@@ -1,19 +1,22 @@
 # Module: `src/embed/`
 
-Local text embedding via ONNX Runtime and semantic query orchestration in `search/`.
+Local text embedding via ONNX Runtime or a persistent Python worker, and semantic query orchestration in `search/`.
 
-**Files:** `embed.c`, `embed_onnx.c`, `tokenize.c`  
+**Files:** `embed.c`, `embed_worker.c`, `embed_onnx.c`, `tokenize.c`
 **Headers:** `embed_internal.h`, `tokenize.h`  
 **Build flag:** `CBERG_WITH_ONNX` (requires ONNX Runtime + onnxruntime-extensions tokenizer)
 
-**Default model:** jina-embeddings-v2-base-code (768 dimensions). Fetch with
-`scripts/fetch-model.sh` at repo root.
+**Launcher default:** EmbeddingGemma 2, text-only FP32 (768 dimensions), using
+the `gemma-mlx` worker on Apple Silicon or `sentence-transformers` elsewhere.
+Select `codeberg --embedding embeddinggemma-2-fp32-mlx` on Apple Silicon, or
+`codeberg --embedding embeddinggemma-2` for Sentence Transformers. Qwen MLX/llama.cpp variants and Jina ONNX
+remain available. `scripts/fetch-model.sh` downloads Jina only.
 
 ---
 
 ## `embed.c`
 
-Public embedder facade; dispatches to ONNX backend.
+Public embedder facade; dispatches to ONNX or the external worker backend.
 
 ### `cberg_embedder` (opaque)
 
@@ -191,7 +194,25 @@ Vectors are suitable for cosine similarity in `cberg_index` (usearch cosine metr
 ## Error handling without ONNX
 
 If CMake does not find ONNX Runtime, `embed_onnx.c` and `tokenize.c` are omitted;
-`embed.c` returns `CBERG_ERR_NOT_IMPLEMENTED` for open/embed.
+`embed.c` returns `CBERG_ERR_NOT_IMPLEMENTED` for ONNX open/embed. Worker
+backends (EmbeddingGemma 2, Qwen MLX, and Qwen llama.cpp) still work.
+
+## Worker query and document modes
+
+The public C ABI is unchanged. `cberg_embedder_embed` embeds corpus documents;
+search and indexer query orchestration use private `cberg_embedder_embed_query`.
+For `sentence-transformers` and `gemma-mlx`, the high bit of the worker batch count marks a
+query; the remaining 31 bits carry its size. This distinguishes one document
+from one query. MLX and llama.cpp keep their original count-only protocol.
+
+The Gemma worker uses Google's saved Sentence Transformers modules for pooling,
+projection, and normalization, with `CodeRetrieval` queries and `Document`
+corpus inputs. Both setup and inference disable audio/vision encoders and force
+FP32. The worker validates output shape and finite values before returning
+float32 vectors. Its saved local model supports offline inference. The separate
+MLX adapter converts Google's original weights with MLX-VLM, removes disabled
+encoders, saves unquantized FP32 text weights, and uses the same task prefixes.
+Both worker runtimes use an 8,192-token input limit; Qwen's MLX adapter is unchanged.
 
 ---
 
