@@ -38,10 +38,14 @@ def prepare(repo: str, target: str) -> None:
     import mlx.core as mx
     from mlx.utils import tree_flatten
     from mlx_vlm.models.embedding_gemma2 import Model, ModelConfig
-    from huggingface_hub import snapshot_download
     from transformers import AutoTokenizer
 
-    source = Path(snapshot_download(repo_id=repo, allow_patterns=["*.json", "*.safetensors", "*.model"]))
+    source = Path(repo)
+    if not source.is_dir():
+        from huggingface_hub import snapshot_download
+
+        source = Path(snapshot_download(repo_id=repo, allow_patterns=["*.json", "*.safetensors", "*.model"]))
+
     config = text_config(json.loads((source / "config.json").read_text()))
     model = Model(ModelConfig.from_dict(config))
     load_weights(model, source, mx)

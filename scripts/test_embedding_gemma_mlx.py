@@ -38,12 +38,13 @@ class GemmaMLXTest(unittest.TestCase):
         mx = SimpleNamespace(float32="float32", load=mock.Mock(return_value={}),
                              eval=mock.Mock(), save_safetensors=mock.Mock())
         tokenizer = mock.Mock()
+        download = mock.Mock(return_value=str(source))
         modules = {
             "mlx": SimpleNamespace(core=mx), "mlx.core": mx,
             "mlx.utils": SimpleNamespace(tree_flatten=lambda params: list(params.items())),
             "mlx_vlm.models.embedding_gemma2": SimpleNamespace(
                 Model=constructor, ModelConfig=SimpleNamespace(from_dict=lambda cfg: cfg)),
-            "huggingface_hub": SimpleNamespace(snapshot_download=lambda **kwargs: str(source)),
+            "huggingface_hub": SimpleNamespace(snapshot_download=download),
             "transformers": SimpleNamespace(AutoTokenizer=SimpleNamespace(
                 from_pretrained=lambda *args, **kwargs: tokenizer)),
         }
@@ -61,6 +62,13 @@ class GemmaMLXTest(unittest.TestCase):
         self.assertEqual(mx.save_safetensors.call_args.args[1],
                          {"language_model.weight": "fp32 weight"})
         tokenizer.save_pretrained.assert_called_once_with(target)
+
+        download.reset_mock()
+        download.side_effect = AssertionError("local conversion must not contact the Hub")
+        with mock.patch.dict(sys.modules, modules):
+            adapter.prepare(str(source), str(root / "offline-output"))
+
+        download.assert_not_called()
 
     def test_mlx_queries_and_documents_use_different_prompts_and_8192_token_limit(self):
         adapter = load_adapter()
