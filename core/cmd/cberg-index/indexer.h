@@ -3,6 +3,7 @@
 
 #include <pthread.h>
 #include <signal.h>
+#include <stdatomic.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -43,6 +44,8 @@ typedef struct cberg_repo {
 
     pthread_mutex_t mu;
     int ready;
+    atomic_size_t published_chunks; /* health snapshots never take mu */
+    atomic_int published_ready;
 } cberg_repo;
 
 struct cberg_engine {
@@ -65,7 +68,7 @@ struct cberg_engine {
     size_t repos_len;
 
     volatile sig_atomic_t stop;
-    volatile sig_atomic_t bootstrapped; /* all repos attempted (some may have failed) */
+    atomic_int bootstrapped; /* all repos attempted (some may have failed) */
 };
 
 /* Opens the engine from the environment: CODEBERG_ROOTS ("<key>\t<path>"

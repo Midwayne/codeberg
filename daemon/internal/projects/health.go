@@ -2,7 +2,6 @@ package projects
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"os"
 	"time"
@@ -47,16 +46,14 @@ func (m *Manager) serveHealth(handler http.Handler, w http.ResponseWriter, r *ht
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
 	handler.ServeHTTP(&buffered, r.WithContext(ctx))
-	var health struct {
-		Ready bool `json:"ready"`
-	}
-	_ = json.Unmarshal(buffered.body, &health)
 	m.mu.Lock()
 	rt := m.runtimes[id]
 	p, _ := m.project(id)
 	m.mu.Unlock()
 
-	if !health.Ready && !rt.started.IsZero() && time.Since(rt.started) > bootstrap.StartupTimeout(len(p.Roots)) {
+	// A responding indexer may still be doing a long cold embedding pass.
+	// The startup deadline diagnoses unreachable IPC, not healthy progress.
+	if buffered.status >= 400 && !rt.started.IsZero() && time.Since(rt.started) > bootstrap.StartupTimeout(len(p.Roots)) {
 		respond(w, 503, map[string]any{"ready": false, "status": "error", "message": "Project indexing has not become ready. Check the project indexer log and retry."})
 		return
 	}

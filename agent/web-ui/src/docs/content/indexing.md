@@ -34,7 +34,9 @@ The startup project's indexer begins on launch. Other project indexers start whe
 
 While indexing, saved chats remain readable and you can draft a question. Sending and regenerating wait for readiness. The count represents chunks currently available, not a percentage of a known total. A large initial embedding run can take several minutes; subsequent launches reuse persisted caches where possible.
 
-If the directory disappears or indexing does not become ready, the UI reports an error. Restore the directory, inspect the project's `logs/indexer.log`, correct the runtime or configuration, and use **Retry**. Repeated process crashes need the underlying error fixed; Retry does not install a missing library.
+EmbeddingGemma cold indexing can take longer on large trees or CPU runtimes. A responding project stays in the indexing state until that pass finishes, even if it exceeds the usual startup wait. Status checks run independently of embedding and search requests. During a watched update, the project retains its last completed readiness; searches may wait for the update to finish. Chunk counts update after parsing and can stay unchanged while a batch is being embedded.
+
+If the directory disappears or the indexer remains unreachable past the startup wait, the UI reports an error. Restore the directory, inspect the project's `logs/indexer.log`, correct the runtime or configuration, and use **Retry**. Repeated process crashes need the underlying error fixed; Retry does not install a missing library. A long embedding batch alone does not require Retry. The launcher's daemon startup wait is separate: set `CODEBERG_HEALTH_TIMEOUT=30m` (or a longer Go duration) if model loading or an unreachable indexer causes launcher startup to time out.
 
 ## Know where indexes live
 

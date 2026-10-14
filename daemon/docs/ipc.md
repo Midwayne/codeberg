@@ -4,6 +4,14 @@ Unix domain socket protocol between `cberg-index` (C) and `codeberg-d` (Go).
 
 Socket path: `CBERG_SOCKET` env (default `/tmp/codeberg-index.sock`).
 
+Status probes use a separate `<CBERG_SOCKET>.health` listener and connection
+queue, so embedding or a slow command cannot block health checks. This listener
+accepts only `status`; the main socket continues accepting every command,
+including `status`. The daemon falls back to the main socket for older indexers
+without a health listener. Keep the configured socket path short enough for the
+`.health` suffix to fit the OS Unix socket path limit; otherwise the indexer
+logs a warning and serves status on the main socket only.
+
 One `cberg-index` process serves one or more repository roots: `CODEBERG_ROOTS`
 (`<key>\t<path>` records, newline-separated) or the single-root `CODEBERG_ROOT`
 fallback (key = basename). Chunk ids restart at 1 per repo, so `(repo, id)` is
@@ -37,6 +45,10 @@ Response:
   failed to bootstrap stays `ready:false` in `repos` without holding the whole
   daemon unhealthy.
 - `vectors_enabled` — `CBERG_MODEL` and `CBERG_INDEX_PATH` are set.
+- Status reads published snapshots without taking the repo or embedder lock.
+  Chunk counts update after chunk synchronization; readiness updates when a
+  bootstrap or watched update completes. An in-flight update retains the last
+  completed readiness while ordinary searches wait for the update's lock.
 
 ### `search`
 

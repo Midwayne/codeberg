@@ -34,7 +34,10 @@
 
 typedef struct cberg_ipc_server {
     cberg_engine *eng;
-    int listen_fd;
+    atomic_int listen_fd;
+    char socket_path[sizeof(((struct sockaddr_un *)0)->sun_path)];
+    int status_only;
+    struct cberg_ipc_server *health;
     int lock_fd;
     pthread_t thread;
 } cberg_ipc_server;
@@ -716,7 +719,7 @@ static void handle_graph_refs(cberg_engine *eng, int fd, char *args) {
     write_all(fd, resp, strlen(resp));
 }
 
-static void handle_client(cberg_engine *eng, int fd) {
+static void handle_client(cberg_engine *eng, int fd, int status_only) {
     struct pollfd pfd = {.fd = fd, .events = POLLIN};
     int pr = poll(&pfd, 1, 5000);
     if (pr <= 0) {
@@ -735,6 +738,12 @@ static void handle_client(cberg_engine *eng, int fd) {
 
     if (strcmp(line, "status") == 0) {
         handle_status(eng, fd);
+        return;
+    }
+
+    if (status_only) {
+        const char *error = "{\"ok\":false,\"error\":\"health socket accepts status only\"}\n";
+        write_all(fd, error, strlen(error));
         return;
     }
 
@@ -833,28 +842,35 @@ static void *ipc_thread(void *arg) {
         int one = 1;
         setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
 #endif
-        handle_client(srv->eng, client);
+        handle_client(srv->eng, client, srv->status_only);
         close(client);
     }
     return NULL;
 }
 
-int cberg_ipc_start(cberg_engine *eng, cberg_ipc_server **out) {
+static int ipc_start_at(cberg_engine *eng, const char *socket_path, int status_only, cberg_ipc_server **out) {
     cberg_ipc_server *srv = calloc(1, sizeof(*srv));
     if (srv == NULL) {
         return -1;
     }
+    if (strlen(socket_path) >= sizeof(srv->socket_path)) {
+        free(srv);
+        return -1;
+    }
+    strcpy(srv->socket_path, socket_path);
+    srv->status_only = status_only;
+    atomic_init(&srv->listen_fd, -1);
     srv->eng = eng;
 
     /* Serialize owners even during startup. Leave the lock file in place so a
      * waiting launcher never locks a different inode after it is removed. */
-    size_t lock_len = strlen(eng->socket_path) + sizeof(".lock");
+    size_t lock_len = strlen(socket_path) + sizeof(".lock");
     char *lock_path = malloc(lock_len);
     if (lock_path == NULL) {
         free(srv);
         return -1;
     }
-    snprintf(lock_path, lock_len, "%s.lock", eng->socket_path);
+    snprintf(lock_path, lock_len, "%s.lock", socket_path);
     srv->lock_fd = open(lock_path, O_CREAT | O_RDWR, 0600);
     free(lock_path);
     if (srv->lock_fd < 0) {
@@ -868,7 +884,7 @@ int cberg_ipc_start(cberg_engine *eng, cberg_ipc_server **out) {
     }
 
     struct stat st;
-    if (lstat(eng->socket_path, &st) == 0) {
+    if (lstat(socket_path, &st) == 0) {
         if (!S_ISSOCK(st.st_mode)) {
             close(srv->lock_fd);
             free(srv);
@@ -878,11 +894,11 @@ int cberg_ipc_start(cberg_engine *eng, cberg_ipc_server **out) {
         struct sockaddr_un existing;
         memset(&existing, 0, sizeof(existing));
         existing.sun_family = AF_UNIX;
-        strncpy(existing.sun_path, eng->socket_path, sizeof(existing.sun_path) - 1);
+        strncpy(existing.sun_path, socket_path, sizeof(existing.sun_path) - 1);
         int connected = probe >= 0 && connect(probe, (struct sockaddr *)&existing, sizeof(existing)) == 0;
         int probe_errno = errno;
         if (probe >= 0) close(probe);
-        if (connected || probe < 0 || probe_errno != ECONNREFUSED || unlink(eng->socket_path) != 0) {
+        if (connected || probe < 0 || probe_errno != ECONNREFUSED || unlink(socket_path) != 0) {
             close(srv->lock_fd);
             free(srv);
             return -1;
@@ -902,7 +918,7 @@ int cberg_ipc_start(cberg_engine *eng, cberg_ipc_server **out) {
     struct sockaddr_un addr;
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, eng->socket_path, sizeof(addr.sun_path) - 1);
+    strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path) - 1);
 
     if (bind(srv->listen_fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
         close(srv->listen_fd);
@@ -912,7 +928,7 @@ int cberg_ipc_start(cberg_engine *eng, cberg_ipc_server **out) {
     }
     if (listen(srv->listen_fd, 8) != 0) {
         close(srv->listen_fd);
-        unlink(eng->socket_path);
+        unlink(socket_path);
         close(srv->lock_fd);
         free(srv);
         return -1;
@@ -930,9 +946,31 @@ int cberg_ipc_start(cberg_engine *eng, cberg_ipc_server **out) {
     }
     if (rc != 0) {
         close(srv->listen_fd);
-        unlink(eng->socket_path);
+        unlink(socket_path);
         close(srv->lock_fd);
         free(srv);
+        return -1;
+    }
+
+    *out = srv;
+    return 0;
+}
+
+int cberg_ipc_start(cberg_engine *eng, cberg_ipc_server **out) {
+    cberg_ipc_server *srv = NULL;
+    if (ipc_start_at(eng, eng->socket_path, 0, &srv) != 0) {
+        return -1;
+    }
+
+    char health_path[sizeof(srv->socket_path) + sizeof(".health")];
+    snprintf(health_path, sizeof(health_path), "%s.health", eng->socket_path);
+    if (strlen(health_path) >= sizeof(srv->socket_path)) {
+        fprintf(stderr, "cberg-index: socket path too long for independent health listener; shorten CBERG_SOCKET\n");
+        *out = srv;
+        return 0;
+    }
+    if (ipc_start_at(eng, health_path, 1, &srv->health) != 0) {
+        cberg_ipc_stop(srv);
         return -1;
     }
 
@@ -944,6 +982,7 @@ void cberg_ipc_stop(cberg_ipc_server *srv) {
     if (srv == NULL) {
         return;
     }
+    cberg_ipc_stop(srv->health);
     srv->eng->stop = 1;
     int fd = srv->listen_fd;
     srv->listen_fd = -1;
@@ -952,7 +991,7 @@ void cberg_ipc_stop(cberg_ipc_server *srv) {
         close(fd);
     }
     pthread_join(srv->thread, NULL);
-    unlink(srv->eng->socket_path);
+    unlink(srv->socket_path);
     close(srv->lock_fd);
     free(srv);
 }

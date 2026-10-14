@@ -732,6 +732,7 @@ static cberg_status sync_chunks(cberg_repo *r, chunk_batch *batch, cberg_changes
         return st;
     }
     apply_graph_fragments(r, batch);
+    atomic_store(&r->published_chunks, cberg_chunk_table_len(r->table));
     if (out_ch != NULL) {
         *out_ch = ch;
     }
@@ -949,17 +950,18 @@ const char *cberg_indexer_version(void) {
 }
 
 size_t cberg_repo_chunk_count(cberg_repo *r) {
-    pthread_mutex_lock(&r->mu);
-    size_t n = cberg_chunk_table_len(r->table);
-    pthread_mutex_unlock(&r->mu);
-    return n;
+    return atomic_load(&r->published_chunks);
 }
 
 int cberg_repo_ready(cberg_repo *r) {
-    pthread_mutex_lock(&r->mu);
-    int ready = r->ready;
-    pthread_mutex_unlock(&r->mu);
-    return ready;
+    return atomic_load(&r->published_ready);
+}
+
+/* Called under mu after a bootstrap/watch pass, including failed passes.
+ * Health reports the last committed readiness while embedding is in flight. */
+static void publish_status(cberg_repo *r) {
+    atomic_store(&r->published_chunks, cberg_chunk_table_len(r->table));
+    atomic_store(&r->published_ready, r->ready);
 }
 
 size_t cberg_engine_chunk_count(cberg_engine *eng) {
@@ -1023,6 +1025,8 @@ static cberg_status engine_add_repo(cberg_engine *eng, const char *key, const ch
         return CBERG_ERR_OUT_OF_MEMORY;
     }
     pthread_mutex_init(&r->mu, NULL);
+    atomic_init(&r->published_chunks, 0);
+    atomic_init(&r->published_ready, 0);
     r->eng = eng;
     r->key = strdup(key);
     r->root = strdup(root);
@@ -1181,6 +1185,7 @@ static cberg_status open_repos_from_env(cberg_engine *eng) {
 
 cberg_status cberg_engine_open(cberg_engine *eng) {
     memset(eng, 0, sizeof(*eng));
+    atomic_init(&eng->bootstrapped, 0);
     pthread_mutex_init(&eng->embed_mu, NULL);
 
     const char *model = getenv("CBERG_MODEL");
@@ -1423,6 +1428,7 @@ cberg_status cberg_repo_bootstrap(cberg_repo *r) {
             if (st == CBERG_OK) {
                 r->ready = 1;
             }
+            publish_status(r);
             pthread_mutex_unlock(&r->mu);
             return st;
         }
@@ -1433,6 +1439,7 @@ cberg_status cberg_repo_bootstrap(cberg_repo *r) {
         r->ready = 1;
         save_state(r);
     }
+    publish_status(r);
     pthread_mutex_unlock(&r->mu);
     return st;
 }
@@ -1760,6 +1767,7 @@ static cberg_status repo_step(cberg_repo *r, size_t *out_events) {
         save_chunk_table(r);
         save_graph(r);
     }
+    publish_status(r);
     pthread_mutex_unlock(&r->mu);
 
     for (size_t i = 0; i < rechunk_n; i++) {

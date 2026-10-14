@@ -13,7 +13,7 @@ func NewClient(socket string) *Client {
 
 func (c *Client) Status(ctx context.Context) (Status, error) {
 	var out statusResponse
-	if err := roundTrip(ctx, c.socket, "status", &out); err != nil {
+	if err := c.statusReply(ctx, &out); err != nil {
 		return Status{}, err
 	}
 

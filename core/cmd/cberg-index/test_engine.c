@@ -94,6 +94,35 @@ static int ipc_roundtrip(const char *socket_path, const char *req, char *resp, s
     return 0;
 }
 
+static void check_busy_health(cberg_engine *eng, const char *socket_path) {
+    cberg_repo *r = eng->repos[0];
+    char health_path[256], resp[8192] = {0};
+    snprintf(health_path, sizeof(health_path), "%s.health", socket_path);
+
+    /* A watched embedding pass holds the repo lock; an ordinary IPC request
+     * then blocks the serial command server behind that pass. */
+    pthread_mutex_lock(&r->mu);
+    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    struct sockaddr_un addr = {.sun_family = AF_UNIX};
+    strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path) - 1);
+    CHECK(fd >= 0 && connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == 0, "busy client connects");
+    const char *request = "symbol\tAdd\talpha\n";
+    CHECK(write(fd, request, strlen(request)) == (ssize_t)strlen(request), "busy client sends");
+
+    CHECK(ipc_roundtrip(health_path, "status\n", resp, sizeof(resp)) == 0,
+          "health responds while indexing and command IPC are busy");
+    CHECK(strstr(resp, "\"ready\":true") != NULL, "busy index retains readiness");
+    CHECK(strstr(resp, "\"chunks\":0") == NULL, "busy index retains published chunks");
+    pthread_mutex_unlock(&r->mu);
+
+    CHECK(read(fd, resp, sizeof(resp)) > 0, "ordinary IPC resumes after indexing");
+    close(fd);
+
+    CHECK(ipc_roundtrip(health_path, "search\tfoo\t5\n", resp, sizeof(resp)) == 0,
+          "health rejects commands without doing embedding work");
+    CHECK(strstr(resp, "\"ok\":false") != NULL, "health is status-only");
+}
+
 int main(void) {
     char tmpl_a[] = "/tmp/cberg-engine-a-XXXXXX";
     char tmpl_b[] = "/tmp/cberg-engine-b-XXXXXX";
@@ -167,6 +196,8 @@ int main(void) {
             CHECK(strstr(resp, "\"key\":\"alpha\"") != NULL, "status lists alpha");
             CHECK(strstr(resp, "\"key\":\"beta\"") != NULL, "status lists beta");
 
+            check_busy_health(&eng, socket_path);
+
             /* Chunk-only search is NOT_IMPLEMENTED, but the parse must accept
              * both the 3-field and 4-field (repo-scoped) forms. */
             CHECK(ipc_roundtrip(socket_path, "search\tfoo\t5\n", resp, sizeof(resp)) == 0, "search 3-field");
@@ -197,6 +228,10 @@ int main(void) {
 
             cberg_ipc_stop(ipc);
 
+            char health_path[256];
+            snprintf(health_path, sizeof(health_path), "%s.health", socket_path);
+            CHECK(access(health_path, F_OK) != 0, "shutdown removes the health socket");
+
             /* An unowned socket left by a crashed process can still be reclaimed. */
             eng.stop = 0;
             int stale = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -211,6 +246,8 @@ int main(void) {
             if (recovered != NULL) {
                 CHECK(ipc_roundtrip(socket_path, "status\n", resp, sizeof(resp)) == 0,
                       "reclaimed socket accepts requests");
+                CHECK(ipc_roundtrip(health_path, "status\n", resp, sizeof(resp)) == 0,
+                      "reclaimed health socket accepts requests");
                 cberg_ipc_stop(recovered);
             }
         }
