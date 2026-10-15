@@ -7,7 +7,7 @@ export function codebergHome(env: NodeJS.ProcessEnv = process.env): string {
   return env.CODEBERG_HOME ?? join(homedir(), '.codeberg');
 }
 
-/** Indexed-repo directories from CODEBERG_ROOTS (preferred) or CODEBERG_ROOT. */
+/** Indexed repositories passed internally by the launcher or project catalog. */
 export function indexedRootsFromEnv(env: NodeJS.ProcessEnv): string[] {
   const roots = env.CODEBERG_ROOTS;
   if (roots != null && roots.trim() !== '') {
@@ -23,7 +23,7 @@ export function indexedRootsFromEnv(env: NodeJS.ProcessEnv): string[] {
     return out.filter(Boolean);
   }
 
-  return splitComma(env.CODEBERG_ROOT ?? '');
+  return [];
 }
 
 /** Nearest ancestor of `cwd` that contains `.git`, or `cwd` itself. */
@@ -52,16 +52,6 @@ export function projectRoots(
   if (indexed.length > 0) return indexed;
 
   return [findGitRoot(cwd, exists)];
-}
-
-function splitComma(value: string): string[] {
-  const out: string[] = [];
-  for (const item of value.split(',')) {
-    const trimmed = item.trim();
-    if (trimmed) out.push(trimmed);
-  }
-
-  return out;
 }
 
 /** Project-owned data. Global credentials/models continue to use codebergHome.

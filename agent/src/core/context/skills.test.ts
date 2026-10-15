@@ -69,7 +69,7 @@ describe('discoverSkills', () => {
     writeSkill(join(project, '.agents', 'skills', 'notes'), 'notes', 'take notes');
 
     const found = await discoverSkills({
-      env: { CODEBERG_ROOT: project },
+      env: { CODEBERG_ROOTS: `repo\t${project}` },
       cwd: project,
       userRoots: [home],
     });
@@ -84,7 +84,7 @@ describe('discoverSkills', () => {
     writeSkill(join(project, '.agents', 'skills', 'review'), 'review', 'from project');
     const store = ContextStore.open(mkdtempSync(join(tmpdir(), 'cberg-skills-ctx-')));
     const skills = await publishSkills(store, {
-      env: { CODEBERG_ROOT: project },
+      env: { CODEBERG_ROOTS: `repo\t${project}` },
       cwd: project,
       userRoots: [],
     });

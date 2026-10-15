@@ -12,7 +12,7 @@ import (
 // pass-through). Used to warn on probable typos in `config set`.
 func KnownKeys() []string {
 	keys := []string{
-		KeyRoot, KeyModel, KeySubagentModel, KeyDaemonURL, KeyHTTPPort, KeyEmbedModel, KeyEmbedding, KeyIndexPath,
+		KeyModel, KeySubagentModel, KeyDaemonURL, KeyHTTPPort, KeyEmbedModel, KeyEmbedding, KeyIndexPath,
 		KeySocket, KeyPollMS, KeyIndexBin, KeyGitPullSec, KeyGitDir, KeyReasoning,
 		KeyVector, KeyWebPort, KeyWebUse, KeyWebSearchUse, KeyLearningUse, KeySearxngURL, KeySearxngPort,
 		KeyAll, KeyReposSel, KeyNoIndex, KeyHome, KeyRepo, KeyDist,
@@ -37,8 +37,6 @@ func IsKnownKey(key string) bool {
 // whether the key is recognized. Useful for `config get`.
 func (c *Config) Get(key string) (string, bool) {
 	switch key {
-	case KeyRoot:
-		return c.Root, true
 	case KeyModel:
 		return c.Model, true
 	case KeySubagentModel:

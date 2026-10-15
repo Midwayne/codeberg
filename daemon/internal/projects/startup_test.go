@@ -104,3 +104,50 @@ func TestSavedLegacyProjectRestoresWithoutStartupRoots(t *testing.T) {
 		t.Fatalf("existing project was not restored: %#v, %v", cfg, err)
 	}
 }
+
+func TestDeletedStartupProjectRestartsIdle(t *testing.T) {
+	for _, mode := range []string{"index", "all"} {
+		t.Run(mode, func(t *testing.T) {
+			original, home := setup(t)
+			project := original.catalog.Projects[0]
+			base := original.base
+			base.Model = "embedding.onnx"
+			base.Index = filepath.Join(home, "index", "codeberg.usearch")
+			base.Socket = filepath.Join(home, "index.sock")
+
+			if _, err := original.Delete(project.ID, mode); err != nil {
+				t.Fatal(err)
+			}
+
+			original.Close()
+			restored, err := New(context.Background(), home, base)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			defer restored.Close()
+			cfg, err := restored.InitialConfig()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if cfg.Root != "" || len(cfg.Roots) != 0 || cfg.DefaultKey != "" {
+				t.Fatalf("deleted startup roots must not start an indexer: %#v", cfg)
+			}
+
+			if cfg.Model != base.Model || cfg.Index != base.Index || cfg.Socket != base.Socket {
+				t.Fatalf("idle config must preserve settings for future projects: %#v", cfg)
+			}
+
+			added, err := restored.Add("New project", t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			cfg, err = restored.InitialConfig()
+			if err != nil || cfg.Root != added.Roots[0].Root {
+				t.Fatalf("new UI project must replace deleted startup roots: %#v, %v", cfg, err)
+			}
+		})
+	}
+}

@@ -49,8 +49,7 @@ needed. CI runs `make daemon-check`.
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `CODEBERG_ROOT` | no | Repository tree to index: one path, or comma-separated list (only those dirs) |
-| `CODEBERG_ROOTS` | no | `key\tpath` records, newline-separated — every repo to serve (supersedes `CODEBERG_ROOT` when set) |
+| `CODEBERG_ROOTS` | no | Internal `key\tpath` records, newline-separated; normally supplied from the project catalog |
 | `CBERG_MODEL` | for vectors | Path to ONNX model |
 | `CBERG_INDEX_PATH` | for vectors | Index **base path**; per-repo sidecars at `<base>.<roothash>[.chunks\|.manifest]` |
 | `CBERG_INDEX_BACKEND` | no | `usearch` (default), `qdrant`, or `pgvector` (`postgres` alias) |
@@ -107,35 +106,27 @@ resolved repo's root — never the process's other repos. `pipe` chains
 ## Run
 
 ```sh
-export CODEBERG_ROOT=/path/to/repo
+export CODEBERG_ROOTS=$'repo\t/path/to/repo'
 export CBERG_MODEL=models/jina-embeddings-v2-base-code/model.onnx
 export CBERG_INDEX_PATH=/tmp/codeberg.usearch
 ./core/build/bin/codeberg-d
 curl 'http://localhost:8080/search?q=add+function&k=5'
 ```
 
-Multi-repo, run by hand (the launcher does this for you via `--all`/`--repos`,
-or comma-separated `CODEBERG_ROOT` when pinning explicit paths). Paths must not
-contain commas. `codeberg-d` expands a comma list into `CODEBERG_ROOTS` before
-spawning `cberg-index` — the C binary itself does not split commas:
+For normal use, run `codeberg` and choose projects in the browser. The daemon
+restores its catalog on startup and remains healthy and idle when it is empty.
+No indexer starts until a project is added.
 
-```sh
-export CODEBERG_ROOT=/path/to/api,/path/to/frontend   # or CODEBERG_ROOTS below
-export CBERG_MODEL=models/jina-embeddings-v2-base-code/model.onnx
-export CBERG_INDEX_PATH=/tmp/codeberg.usearch
-./core/build/bin/codeberg-d
-curl 'http://localhost:8080/search?q=add+function&k=5'            # both repos, merged by score
-curl 'http://localhost:8080/search?q=add+function&k=5&repo=api'   # just api
-```
-
-Keyed records (required when talking to `cberg-index` directly — same shape as
-`~/.codeberg/repos`):
+For advanced direct daemon runs, supply keyed records (the launcher normally
+builds these from its explicit arguments or terminal registry):
 
 ```sh
 export CODEBERG_ROOTS=$'api\t/path/to/api\nfrontend\t/path/to/frontend'
 export CBERG_MODEL=models/jina-embeddings-v2-base-code/model.onnx
 export CBERG_INDEX_PATH=/tmp/codeberg.usearch
 ./core/build/bin/codeberg-d
+curl 'http://localhost:8080/search?q=add+function&k=5'            # both repos
+curl 'http://localhost:8080/search?q=add+function&k=5&repo=api'   # just api
 ```
 
 ## Layout

@@ -245,7 +245,7 @@ describe('mcpConfigFromEnv', () => {
     );
 
     const cfg = mcpConfigFromEnv(
-      { CODEBERG_HOME: home, CODEBERG_ROOT: repo },
+      { CODEBERG_HOME: home, CODEBERG_ROOTS: `repo\t${repo}` },
       { cwd: repo, homedir: () => '/unused' },
     );
 

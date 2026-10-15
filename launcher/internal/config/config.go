@@ -26,7 +26,6 @@ import (
 // so a value works whether it is set in the config file, the environment, or
 // (via the matching flag) on the command line.
 const (
-	KeyRoot          = "CODEBERG_ROOT"                  // repo to index (daemon scope)
 	KeyRoots         = "CODEBERG_ROOTS"                 // key\tpath records of every served repo (daemon scope)
 	KeyAll           = "CODEBERG_ALL"                   // "true" => serve every registered repo
 	KeyReposSel      = "CODEBERG_REPOS"                 // comma-separated dirs/keys to serve together
@@ -210,7 +209,7 @@ func Load(o Overrides) (*Config, error) {
 		Passthrough: map[string]string{},
 	}
 
-	c.Root = resolve(KeyRoot, o.Root)
+	c.Root = o.Root
 	c.Model = resolve(KeyModel, o.Model)
 	c.SubagentModel = resolve(KeySubagentModel, o.SubagentModel)
 	// Default off the crowded 8080 (used by countless dev servers) to an
@@ -235,8 +234,8 @@ func Load(o Overrides) (*Config, error) {
 	c.WebPort = firstNonEmpty(resolve(KeyWebPort, o.WebPort), DefaultWebPort)
 
 	// All: serve every registered repo combined instead of a single root.
-	// Default off; --all (or CODEBERG_ALL=true) turns it on. Requires an
-	// unset CODEBERG_ROOT — explicit roots always win over the registry.
+	// Default off; --all (or CODEBERG_ALL=true) turns it on. An explicit
+	// --root cannot combine with registry selection.
 	c.All = false
 	if o.All != nil {
 		c.All = *o.All
@@ -417,19 +416,18 @@ func (c *Config) ValidateForRun() error {
 		return fmt.Errorf("could not locate codeberg's components — neither a prebuilt install (%s) nor a source checkout with core/, daemon/ and agent/ (%s).\n"+
 			"Note this is about the launcher's OWN files, NOT %s (the repo you want to index).\n"+
 			"Install via Homebrew, or run codeberg from inside a checkout / set it: codeberg config set %s=/path/to/codeberg  (or pass --repo).",
-			KeyDist, KeyRepo, KeyRoot, KeyRepo)
+			KeyDist, KeyRepo, "--root", KeyRepo)
 	}
 	if c.Root != "" && (c.All || len(c.Repos) > 0) {
-		return fmt.Errorf("%s is set — only the root(s) named there are indexed; unset %s or drop --all / %s",
-			KeyRoot, KeyRoot, KeyReposSel)
+		return fmt.Errorf("--root cannot be combined with --all or --repos")
 	}
 	if c.Root != "" {
 		if paths := RootPaths(c.Root); len(paths) == 0 {
-			return fmt.Errorf("%s is empty or invalid", KeyRoot)
+			return fmt.Errorf("--root is empty or invalid")
 		} else {
 			for _, path := range paths {
 				if fi, err := os.Stat(path); err != nil || !fi.IsDir() {
-					return fmt.Errorf("%s is not a directory: %s", KeyRoot, path)
+					return fmt.Errorf("--root is not a directory: %s", path)
 				}
 			}
 		}
@@ -446,7 +444,7 @@ func (c *Config) ValidateForRun() error {
 }
 
 // DaemonEnv builds the environment overlay for codeberg-d. The daemon forwards
-// CODEBERG_ROOT(S)/CBERG_* to the C cberg-index when it spawns it.
+// CODEBERG_ROOTS/CBERG_* to the C cberg-index when it spawns it.
 func (c *Config) DaemonEnv() map[string]string {
 	e := map[string]string{
 		KeyHome:     c.Home,
@@ -460,13 +458,6 @@ func (c *Config) DaemonEnv() map[string]string {
 			records = append(records, r.Key+"\t"+r.Root)
 		}
 		e[KeyRoots] = strings.Join(records, "\n")
-	}
-	// Compat: single-path CODEBERG_ROOT alongside CODEBERG_ROOTS; omit for
-	// --all/--repos and multi-path lists (those use CODEBERG_ROOTS only).
-	if !c.All && len(c.Repos) == 0 {
-		if paths := RootPaths(c.Root); len(paths) == 1 {
-			e[KeyRoot] = paths[0]
-		}
 	}
 	if c.Vector {
 		embedModel := c.EmbedModel
@@ -536,9 +527,6 @@ func (c *Config) AgentEnv() map[string]string {
 		}
 		e[KeyRoots] = strings.Join(records, "\n")
 	}
-	if !c.All && len(c.Repos) == 0 {
-		putIf(e, KeyRoot, c.Root)
-	}
 	for k, v := range c.Passthrough {
 		e[k] = v
 	}
@@ -588,7 +576,7 @@ func firstNonEmpty(vals ...string) string {
 	return ""
 }
 
-// RootPaths returns the directories named by CODEBERG_ROOT. Comma-separated
+// RootPaths returns the directories named by --root. Comma-separated
 // values list multiple roots; a single path returns a one-element slice.
 func RootPaths(root string) []string {
 	return splitList(root)

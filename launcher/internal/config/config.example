@@ -17,27 +17,12 @@
 # Required (launcher)
 # =============================================================================
 
-# --- What to index: CODEBERG_ROOT vs registry multi-repo ----------------------
-#
-# Two mutually exclusive ways to choose which repositories a session indexes:
-#
-#   A) CODEBERG_ROOT set (this variable, --root, or CODEBERG_ROOT in the shell)
-#      → index ONLY the path(s) named here. Nothing from the repo registry is
-#        added. --all and CODEBERG_REPOS are rejected while this is set.
-#      → one path:   CODEBERG_ROOT=/path/to/api
-#      → several:    CODEBERG_ROOT=/path/to/api,/path/to/frontend
-#        (comma-separated; exactly those directories, no more).
-#        Paths must not contain commas — there is no escape syntax.
-#
-#   B) CODEBERG_ROOT unset
-#      → restore saved browser projects, or show Add project on first launch.
-#        To use the registry built by prior `codeberg <dir>` runs:
-#        CODEBERG_ALL=true   or  codeberg --all     (every registered repo)
-#        CODEBERG_REPOS=a,b  or  codeberg --repos   (a chosen subset)
-#
-# See docs/multi-repo.md for the full picture (registry format, repo keys, …).
-#
-# CODEBERG_ROOT=/path/to/your/repo
+# --- Projects ---------------------------------------------------------------
+# Run codeberg and add/select projects in the browser. Saved projects are restored
+# on restart; with none, the app shows Add project without starting an indexer.
+# Optional terminal selection: codeberg /path/to/repo, --root /a,/b, --all,
+# or --repos api,frontend. Explicit --root cannot combine with --all / --repos.
+# See docs/multi-repo.md for the terminal registry.
 
 # LLM the agent uses, as provider:model.
 # Providers: anthropic, openai, google, ollama (local), llamacpp (local).
@@ -75,15 +60,15 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # CODEBERG_DIST=/opt/homebrew/libexec/codeberg
 
 # =============================================================================
-# Repository selection (only when CODEBERG_ROOT is unset)
+# Optional terminal repository selection
 # =============================================================================
 
 # Serve every repo registered with `codeberg <dir>` (multi-repo combined search).
-# Mutually exclusive with CODEBERG_ROOT.
+# Mutually exclusive with --root.
 # CODEBERG_ALL=false
 
 # Comma-separated subset of registered dirs/keys to serve together.
-# Mutually exclusive with CODEBERG_ROOT.
+# Mutually exclusive with --root.
 # CODEBERG_REPOS=proj-a,proj-b
 
 # One-off run: register nothing, build no vector index (file tools + chat only).

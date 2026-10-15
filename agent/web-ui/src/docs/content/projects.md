@@ -6,7 +6,11 @@ Choose **Add project** and select an existing directory on the machine running C
 
 The project selector in the chat sidebar controls the current browser tab. On phones, open the sidebar to find it. Selection is saved in that tab and its `?project=` URL; another tab can investigate a different project. Switching projects keeps live responses and queued follow-ups running in their original chats. Returning to a project restores its selected chat and current progress; completed responses are saved there.
 
-With no startup root, Codeberg restores saved projects or shows **Add a project to get started**. Use `codeberg /absolute/repository`, `--root`, or `CODEBERG_ROOT` only when you want an explicit startup project. The directory containing Codeberg itself is not automatically your project.
+Start `codeberg` and choose **Add project**. Codeberg restores saved projects on later launches or shows **Add a project to get started** when none are registered. No repository environment variable is needed. The directory containing Codeberg itself is not automatically your project.
+
+With no projects, the daemon stays idle without starting an indexer. Deleting the last project returns to **Add a project to get started**, including after a restart. Add a project there whenever you are ready. A deleted startup project stays removed even if you restart with the same optional directory argument.
+
+For terminal workflows, `codeberg /absolute/repository` or `codeberg --root /absolute/repository` selects an explicit startup project.
 
 ## What belongs to a project
 

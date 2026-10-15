@@ -31,7 +31,7 @@ Rework the cmd into a **multi-root engine** (`cberg_engine` + `cberg_repo`,
   serialized through `engine_embed()` under `embed_mu`), the chunker, the IPC
   socket, poll cadence, and the repo list. Roots come from `CODEBERG_ROOTS`
   (`<key>\t<path>` records, newline-separated — the launcher registry's shape);
-  `CODEBERG_ROOT` remains the single-root fallback with the basename as key.
+  Single-root projects use one keyed record through the same transport.
   Unresolvable roots are skipped with a warning, never fatal.
 - **Repo (per-root):** chunk table, manifest, watcher, HNSW index, `ready`
   flag, and its own mutex. On-disk layout is unchanged —

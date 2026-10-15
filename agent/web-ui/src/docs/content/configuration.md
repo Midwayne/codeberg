@@ -6,7 +6,7 @@ Codeberg keeps global configuration in its **home directory**, normally `~/.code
 codeberg config
 codeberg config edit
 codeberg config set CODEBERG_WEB_PORT=48088
-codeberg config unset CODEBERG_ROOT
+codeberg config unset CODEBERG_REASONING
 ```
 
 `config` shows resolved values with secrets masked. `edit` opens the config in your editor. `set` saves a `KEY=VALUE`; `unset` removes that saved key. A value still exported in your shell can take precedence after you unset it in the file.
@@ -37,7 +37,6 @@ Choose a different home with the `CODEBERG_HOME` process environment or the `--h
 | `CODEBERG_REASONING` | Initial chat reasoning effort. |
 | `CODEBERG_WEB_PORT` | Browser server port; default `48088`. |
 | `CODEBERG_HTTP_PORT` | Daemon port through the launcher; default `48080`. |
-| `CODEBERG_ROOT` | Optional startup repository; leave unset to use saved projects or Add project. |
 | `CODEBERG_REPO` | Developer override for Codeberg's own checkout; normally auto-discovered. |
 | `CODEBERG_VECTOR=false` | Disable embeddings for this launch. |
 | `CODEBERG_EMBEDDING_MODEL` | Embedding model selection; see Indexing and search. |

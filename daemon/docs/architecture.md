@@ -42,7 +42,7 @@ flowchart TB
 | Package | Role |
 |---------|------|
 | `cmd/codeberg-d` | Wiring: config → supervisor → bootstrap → HTTP + git pull |
-| `internal/config` | `CODEBERG_ROOT` / `CODEBERG_ROOTS`, git pull dirs, socket path |
+| `internal/config` | Internal `CODEBERG_ROOTS`, git pull dirs, socket path |
 | `internal/supervisor` | Spawn, restart, and stop `cberg-index` |
 | `internal/bootstrap` | Block until indexer reports `ready` (timeout scales with repo count) |
 | `internal/indexctl` | Unix socket client — status, search, tool proxies |
@@ -63,7 +63,7 @@ Indexer implementation: `core/cmd/cberg-index/` — see
 
 1. **Load config** from environment (`config.LoadDaemon`).
 2. **Start supervisor** — exec `cberg-index` with forwarded env:
-   `CODEBERG_ROOT` or `CODEBERG_ROOTS`, `CBERG_SOCKET`, `CBERG_POLL_MS`,
+   `CODEBERG_ROOTS`, `CBERG_SOCKET`, `CBERG_POLL_MS`,
    optional `CBERG_MODEL`, `CBERG_INDEX_PATH`. Other env (e.g. `CBERG_EMBED_THREADS`)
    is inherited from the daemon process.
 3. **Wait for ready** — `bootstrap.WaitIndexer` polls IPC `status` every 200 ms until

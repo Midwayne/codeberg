@@ -10,6 +10,28 @@ import (
 	"codeberg.org/codeberg/launcher/internal/registry"
 )
 
+func TestRemovedRootSettingIsIgnored(t *testing.T) {
+	home := t.TempDir()
+	path := filepath.Join(home, "config")
+	if err := os.WriteFile(path, []byte("CODEBERG_ROOT=/missing/saved/root\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("CODEBERG_ROOT", "/missing/environment/root")
+	c, err := Load(Overrides{Home: home, ConfigFile: path})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if c.Root != "" || IsKnownKey("CODEBERG_ROOT") {
+		t.Fatalf("removed startup setting must not select a project: %q", c.Root)
+	}
+
+	if _, known := c.Get("CODEBERG_ROOT"); known {
+		t.Fatal("removed startup setting must not be exposed by config get")
+	}
+}
+
 // writeArtifacts lays out a minimal dist/checkout tree under root so ResolveRoot
 // sees all three required artifacts.
 func writeArtifacts(t *testing.T, root string) {
@@ -150,15 +172,15 @@ func TestDaemonEnvRoots(t *testing.T) {
 	if got, want := e[KeyRoots], "alpha\t/one\nbeta\t/two"; got != want {
 		t.Fatalf("roots env: got %q want %q", got, want)
 	}
-	if _, ok := e[KeyRoot]; ok {
+	if _, ok := e["CODEBERG_ROOT"]; ok {
 		t.Fatal("--all must not pin a single CODEBERG_ROOT")
 	}
 
 	c.All = false
 	c.Roots = c.Roots[:1]
 	e = c.DaemonEnv()
-	if e[KeyRoot] != "/one" {
-		t.Fatalf("single-root mode should keep CODEBERG_ROOT, got %q", e[KeyRoot])
+	if _, ok := e["CODEBERG_ROOT"]; ok {
+		t.Fatal("single-root mode must use only keyed records")
 	}
 	if e[KeyRoots] != "alpha\t/one" {
 		t.Fatalf("single-root mode should still send the keyed record, got %q", e[KeyRoots])
@@ -207,7 +229,7 @@ func TestReposSelectionParsing(t *testing.T) {
 	c.Root = "/from-config-file"
 	c.HTTPPort, c.Socket = "48080", "/tmp/s.sock"
 	e := c.DaemonEnv()
-	if _, ok := e[KeyRoot]; ok {
+	if _, ok := e["CODEBERG_ROOT"]; ok {
 		t.Fatal("--repos must not send CODEBERG_ROOT")
 	}
 	if e[KeyRoots] != "a\t/a\nc\t/c" {
@@ -220,7 +242,7 @@ func TestValidateForRunReposSkipsRoot(t *testing.T) {
 	writeArtifacts(t, dist)
 	c := &Config{Dist: dist, Model: "anthropic:claude", Repos: []string{"a"}}
 	if err := c.ValidateForRun(); err != nil {
-		t.Fatalf("--repos must not require a root when CODEBERG_ROOT is unset: %v", err)
+		t.Fatalf("--repos must not require a root without --root: %v", err)
 	}
 }
 
@@ -230,7 +252,7 @@ func TestValidateForRunRejectsRootWithAll(t *testing.T) {
 	root := t.TempDir()
 	c := &Config{Dist: dist, Model: "anthropic:claude", Root: root, All: true}
 	if err := c.ValidateForRun(); err == nil {
-		t.Fatal("CODEBERG_ROOT + --all must be rejected")
+		t.Fatal("--root + --all must be rejected")
 	}
 }
 
@@ -240,7 +262,7 @@ func TestValidateForRunRejectsRootWithRepos(t *testing.T) {
 	root := t.TempDir()
 	c := &Config{Dist: dist, Model: "anthropic:claude", Root: root, Repos: []string{"a"}}
 	if err := c.ValidateForRun(); err == nil {
-		t.Fatal("CODEBERG_ROOT + --repos must be rejected")
+		t.Fatal("--root + --repos must be rejected")
 	}
 }
 
@@ -249,7 +271,7 @@ func TestValidateForRunRejectsEmptyRootList(t *testing.T) {
 	writeArtifacts(t, dist)
 	c := &Config{Dist: dist, Model: "anthropic:claude", Root: ",,"}
 	if err := c.ValidateForRun(); err == nil {
-		t.Fatal("malformed CODEBERG_ROOT must be rejected")
+		t.Fatal("malformed --root must be rejected")
 	}
 }
 
@@ -259,7 +281,7 @@ func TestValidateForRunRejectsInvalidPathInList(t *testing.T) {
 	good := t.TempDir()
 	c := &Config{Dist: dist, Model: "anthropic:claude", Root: good + ",/definitely/not/a/dir"}
 	if err := c.ValidateForRun(); err == nil {
-		t.Fatal("invalid path in comma-separated CODEBERG_ROOT must be rejected")
+		t.Fatal("invalid path in comma-separated --root must be rejected")
 	}
 }
 
@@ -274,7 +296,7 @@ func TestDaemonEnvMultiRootOmitsSingleRootEnv(t *testing.T) {
 		},
 	}
 	e := c.DaemonEnv()
-	if _, ok := e[KeyRoot]; ok {
+	if _, ok := e["CODEBERG_ROOT"]; ok {
 		t.Fatal("multi-path CODEBERG_ROOT must not set CODEBERG_ROOT env")
 	}
 	if e[KeyRoots] != "one\t/one\ntwo\t/two" {
@@ -297,7 +319,6 @@ func TestInitFileWritesEmbeddedExample(t *testing.T) {
 	}
 	body := string(data)
 	for _, want := range []string{
-		"CODEBERG_ROOT=",
 		"CODEBERG_MODEL=",
 		"config.example",
 		"docs/multi-repo.md",
@@ -345,7 +366,7 @@ func TestEmbeddingSelectionIsolatesExistingIndex(t *testing.T) {
 }
 
 func TestLaunchWithoutRootOrRepoEnvironment(t *testing.T) {
-	for _, key := range []string{KeyRoot, KeyRepo, KeyAll, KeyReposSel, KeyDist} {
+	for _, key := range []string{"CODEBERG_ROOT", KeyRepo, KeyAll, KeyReposSel, KeyDist} {
 		t.Setenv(key, "")
 	}
 

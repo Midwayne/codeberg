@@ -48,24 +48,24 @@ CBERG_API const char *cberg_version(void);
 
 /* --- Configuration ------------------------------------------------------ */
 
-/*
- * Environment variable for the codebase tree to index (not hardcoded in the library).
- * Example: export CODEBERG_ROOT=/path/to/your/repo
- */
-#define CBERG_INDEX_ROOT_ENV "CODEBERG_ROOT"
+/* Internal keyed repository transport: "<key>\t<path>" records, newline-separated.
+ * Normally supplied by the daemon from the project catalog. */
+#define CBERG_INDEX_ROOT_ENV "CODEBERG_ROOTS"
 
-/* Name of the index-root environment variable ("CODEBERG_ROOT"). */
+/* Name of the internal keyed-roots environment variable. */
 CBERG_API const char *cberg_config_index_root_env_name(void);
 
 /*
- * Value of CODEBERG_ROOT, or NULL when unset/empty. The pointer is valid until the
- * next setenv/unsetenv in this process; do not free.
+ * Path of a single keyed repository, or NULL when unset, malformed, or multiple
+ * repositories are supplied. The pointer is valid until the next setenv/unsetenv
+ * in this process; do not free. This helper never chooses from multiple roots.
  */
 CBERG_API const char *cberg_config_index_root(void);
 
 /*
- * Resolves CODEBERG_ROOT with realpath into out (symlink roots are allowed; the
- * physical target path is written). Returns CBERG_ERR_NOT_FOUND when unset.
+ * Resolves the single keyed root with realpath into out (symlink roots are
+ * allowed; the physical target path is written). Returns CBERG_ERR_NOT_FOUND
+ * when there is no single keyed root.
  */
 CBERG_API cberg_status cberg_config_resolve_index_root(char *out, size_t out_cap);
 

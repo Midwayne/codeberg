@@ -41,17 +41,17 @@ it('adds global and project MCPs and skills with project precedence and no sibli
     content: '---\nname: review\ndescription: Global review\n---\nReview.',
   });
   expect(
-    mcpConfigFromEnv({ CODEBERG_HOME: home, CODEBERG_ROOT: home, CODEBERG_PROJECT_HOME: a })
+    mcpConfigFromEnv({ CODEBERG_HOME: home, CODEBERG_ROOTS: `repo\t${home}`, CODEBERG_PROJECT_HOME: a })
       .servers[0],
   ).toMatchObject({ command: 'project' });
   expect(
-    mcpConfigFromEnv({ CODEBERG_HOME: home, CODEBERG_ROOT: home, CODEBERG_PROJECT_HOME: b })
+    mcpConfigFromEnv({ CODEBERG_HOME: home, CODEBERG_ROOTS: `repo\t${home}`, CODEBERG_PROJECT_HOME: b })
       .servers[0],
   ).toMatchObject({ command: 'global' });
   expect(
     (
       await discoverSkills({
-        env: { CODEBERG_HOME: home, CODEBERG_ROOT: home, CODEBERG_PROJECT_HOME: a },
+        env: { CODEBERG_HOME: home, CODEBERG_ROOTS: `repo\t${home}`, CODEBERG_PROJECT_HOME: a },
         userRoots: [join(home, 'skills')],
       })
     )[0]?.description,
@@ -150,7 +150,7 @@ it.each(['global', 'project'])(
     const env = {
       CODEBERG_HOME: home,
       CODEBERG_PROJECT_HOME: projectHome,
-      CODEBERG_ROOT: repository,
+      CODEBERG_ROOTS: `repo\t${repository}`,
     };
 
     const store = new ExtensionStore(home);

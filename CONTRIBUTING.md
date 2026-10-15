@@ -69,8 +69,7 @@ make test TEST=test_embed
   (all NULL-safe). Use exhaustive `switch` handling for discriminated unions and
   enums (`default:` with a `never` check).
 - **Imports:** keep `#include` at the top of each translation unit.
-- **Index root:** never hardcode a repository path. Use `CODEBERG_ROOT` /
-  `cberg_config_*` or an explicit argument to `cberg_watcher_open`.
+- **Index root:** never hardcode a repository path. Use project catalog roots or an explicit argument to `cberg_watcher_open`.
 - **Secrets:** do not commit API keys, PATs, or model credentials.
 
 ## Tests

@@ -27,12 +27,12 @@ inputs; paths and symbols are used for labeling and reporting.
 
 ## Reproduce
 
-Run from a source checkout. `CODEBERG_ROOT` must point to that checkout. Use a
+Run from a source checkout. Pass that checkout explicitly with `--root`. Use a
 working C shared library from `make build`; alternatively use an isolated build
 without ONNX when the local ONNX runtime cannot load:
 
 ```sh
-export CODEBERG_ROOT="$(git rev-parse --show-toplevel)"
+REPOSITORY_ROOT="$(git rev-parse --show-toplevel)"
 cmake -S core -B build/embedding-benchmark/core-build \
   -DCMAKE_BUILD_TYPE=Release -DONNXRUNTIME_INCLUDE_DIR=OFF -DONNXRUNTIME_LIB=OFF
 cmake --build build/embedding-benchmark/core-build -j10
@@ -49,7 +49,7 @@ Sentence Transformers / ONNX only. Adjust the shared library extension from
 
 ```sh
 build/embedding-benchmark/venv/bin/python core/bench/retrieval_corpus.py \
-  --root "$CODEBERG_ROOT" \
+  --root "$REPOSITORY_ROOT" \
   --library build/embedding-benchmark/core-build/libcodeberg.dylib \
   --output build/embedding-benchmark
 

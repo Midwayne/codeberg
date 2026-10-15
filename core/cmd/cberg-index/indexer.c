@@ -1129,8 +1129,7 @@ static cberg_status engine_add_repo(cberg_engine *eng, const char *key, const ch
     return CBERG_OK;
 }
 
-/* Resolve the roots to serve: CODEBERG_ROOTS ("<key>\t<path>" per line) wins;
- * CODEBERG_ROOT alone is the single-root fallback with key = basename. A root
+/* Resolve the roots to serve from CODEBERG_ROOTS ("<key>\t<path>" per line). A root
  * that fails to resolve is skipped with a warning — a registry entry whose tree
  * was deleted must not keep every other repo from indexing. */
 static cberg_status open_repos_from_env(cberg_engine *eng) {
@@ -1168,19 +1167,7 @@ static cberg_status open_repos_from_env(cberg_engine *eng) {
         return CBERG_OK;
     }
 
-    const char *root = getenv("CODEBERG_ROOT");
-    if (root == NULL || root[0] == '\0') {
-        return CBERG_ERR_NOT_FOUND;
-    }
-    char resolved[4096];
-    if (cberg_config_resolve_index_root(resolved, sizeof(resolved)) != CBERG_OK) {
-        if (realpath(root, resolved) == NULL) {
-            return CBERG_ERR_INVALID_ARGUMENT;
-        }
-    }
-    const char *base = strrchr(resolved, '/');
-    base = (base != NULL && base[1] != '\0') ? base + 1 : "root";
-    return engine_add_repo(eng, base, resolved);
+    return CBERG_ERR_NOT_FOUND;
 }
 
 cberg_status cberg_engine_open(cberg_engine *eng) {

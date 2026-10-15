@@ -71,9 +71,9 @@ struct cberg_engine {
     atomic_int bootstrapped; /* all repos attempted (some may have failed) */
 };
 
-/* Opens the engine from the environment: CODEBERG_ROOTS ("<key>\t<path>"
- * records, newline-separated) or the single-root CODEBERG_ROOT fallback
- * (key = basename). Unresolvable roots are skipped with a warning. */
+/* Opens the engine from the internal CODEBERG_ROOTS environment ("<key>\t<path>"
+ * records, newline-separated). Repository keys are preserved.
+ * Unresolvable roots are skipped with a warning. */
 cberg_status cberg_engine_open(cberg_engine *eng);
 void cberg_engine_close(cberg_engine *eng);
 

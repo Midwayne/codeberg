@@ -2,7 +2,7 @@
 
 ## Context
 
-codeberg currently indexes and searches exactly one directory: `CODEBERG_ROOT` flows launcher → daemon → one C `cberg-index` process holding one chunk table / watcher / HNSW index. The goal is a multi-directory architecture: `codeberg <dir>` keeps single-repo behavior (and registers the dir), while `codeberg --all` searches all previously-indexed repos combined. Indexing stays on-demand — a repo is only indexed when you run against it; `--all` warm-starts every registered repo at daemon boot.
+The original single-directory design passed one repository path through launcher → daemon → one C `cberg-index` process holding one chunk table / watcher / HNSW index. The goal is a multi-directory architecture: `codeberg <dir>` keeps single-repo behavior (and registers the dir), while `codeberg --all` searches all previously-indexed repos combined. Indexing stays on-demand — a repo is only indexed when you run against it; `--all` warm-starts every registered repo at daemon boot.
 
 **Decisions made with the user:**
 - **Auto-registry**: every root ever run is remembered in `~/.codeberg/repos`; `--all` = all registered roots.
@@ -17,7 +17,7 @@ All work happens in the `codeberg` repo (canonical upstream), not `codeberg-inte
 
 - **Repo key**: basename of the realpath'd root; on collision append `-<first 6 hex of roothash>` (same hash as `root_suffix()` in indexer.c). Launcher registry is the single source of truth for key→path.
 - **Registry file** `~/.codeberg/repos`: one `<key>\t<abs-path>` per line, `#` comments, atomic temp+rename writes.
-- **`CODEBERG_ROOTS` env**: newline-separated `<key>\t<path>` records (same shape as registry lines). When set it wins; `CODEBERG_ROOT` stays as single-root fallback (backward compat).
+- **`CODEBERG_ROOTS` env**: newline-separated `<key>\t<path>` records (same shape as registry lines). Single-root projects use one record through the same internal transport.
 - **Chunk ids collide across repos** (each table starts at 1) — `(repo, id)` is the identity downstream.
 
 ## Step 1 — Launcher registry (lands alone, no behavior change)
@@ -38,7 +38,7 @@ The risky core step. Files: `core/cmd/cberg-index/{indexer.h,indexer.c,main.c,ip
 - `cberg_engine`: model_path, index_base, socket_path, poll_ms, vectors, **one `cberg_embedder*` + `pthread_mutex_t embed_mu`**, `cberg_repo **repos`, stop flag.
 - `cberg_repo`: back-pointer to engine, key, root, derived index/chunks/manifest paths (move path derivation from indexer.c:716-731 verbatim), chunker, table, manifest, watcher, HNSW index, per-repo `mu`, ready flag.
 - Lifecycle: `cberg_engine_open` (env parse + embedder once) → `cberg_repo_open` per root → `cberg_repo_bootstrap` per repo **sequentially** (embedder is the bottleneck anyway; check `eng->stop` between repos) → `cberg_engine_run` → `cberg_engine_close`.
-- Env: `CODEBERG_ROOTS` parsed as key\tpath records, realpath each, dead path = warn + skip (must not kill daemon). Fallback `CODEBERG_ROOT` → one repo, key = basename.
+- Env: `CODEBERG_ROOTS` parsed as key\tpath records, realpath each, dead path = warn + skip (must not kill daemon). Single-root projects use one keyed record.
 - **Embedder serialization**: single wrapper `engine_embed()` holding `embed_mu`; the raw `cberg_embedder_embed` call appears exactly once in the cmd. Convert call sites: `embed_unique` (~indexer.c:274), `rebuild_index` (~:468), query embed. Lock order strictly `repo->mu → embed_mu`; search embeds under `embed_mu` alone, then takes one `repo->mu` at a time. Keep `embed_mu` inside embed_unique's batch loop, not around it (search queries wait ≤ one batch).
 - Prefix all log lines with `cberg-index[<key>]:` — gives the launcher per-repo progress for free through the existing startup tee.
 
@@ -48,7 +48,7 @@ The risky core step. Files: `core/cmd/cberg-index/{indexer.h,indexer.c,main.c,ip
 
 **2d.** `ipc.c` switches handle to `eng` but keeps the wire protocol identical in this step (`status` = all-ready / summed chunks).
 
-Tests: existing `core/test/*` stay green; add `cberg_search_vector` cases to `test_search.c`. New `core/cmd/cberg-index/test_engine.c` (registered like `test_cberg_walk`): chunk-only mode, two temp roots via `CODEBERG_ROOTS` — both bootstrap, independent tables, a write in root A only changes A after a poll cycle, `CODEBERG_ROOT` fallback works. Manual regression gate: single-repo run produces identical on-disk files, warm-start log, and search results.
+Tests: existing `core/test/*` stay green; add `cberg_search_vector` cases to `test_search.c`. New `core/cmd/cberg-index/test_engine.c` (registered like `test_cberg_walk`): chunk-only mode, two temp roots via `CODEBERG_ROOTS` — both bootstrap, independent tables, a write in root A only changes A after a poll cycle, single keyed-root startup works. Manual regression gate: single-repo run produces identical on-disk files, warm-start log, and search results.
 
 ## Step 3 — IPC protocol v2
 
@@ -62,8 +62,8 @@ Test: socket round-trip in `test_engine.c` (send `status`, `search\tfoo\t5\trepo
 ## Step 4 — Daemon: multi-root config, fan-out, workspace, gitpull
 
 Files under `daemon/`:
-1. **config** (`internal/config/config.go`): `EnvRoots`, `RepoRoot{Key, Path}`, `Roots []RepoRoot`, `DefaultKey string`. `CODEBERG_ROOTS` set → parse/resolve, skip+log dead paths, `DefaultKey=""`; else single-root → `Roots=[{basename, root}]`, `DefaultKey=basename`.
-2. **supervisor** (`internal/supervisor/supervisor.go:49-59`): forward `CODEBERG_ROOTS` to the C process; keep `CODEBERG_ROOT` for single-root.
+1. **config** (`internal/config/config.go`): `EnvRoots`, `RepoRoot{Key, Path}`, `Roots []RepoRoot`, `DefaultKey string`. `CODEBERG_ROOTS` set → parse/resolve, skip+log dead paths, `DefaultKey=""` for multiple records, or the supplied key for a single record. Empty startup roots restore the project catalog or leave the daemon idle.
+2. **supervisor** (`internal/supervisor/supervisor.go:49-59`): forward `CODEBERG_ROOTS` to the C process for both single-root and multi-root projects.
 3. **indexctl** (`internal/indexctl/client.go`): `SearchResult.Repo string`; `Status.Repos []RepoStatus`; `Search(ctx, query, k, repo)` appends `\t<repo>` only when non-empty.
 4. **httpserver** (`internal/httpserver/server.go`): `/search` gains optional `repo` query param; `/health` includes per-repo readiness.
 5. **workspace** (`internal/workspace/workspace.go`): `New(repos []config.RepoRoot, defaultKey string)`; `rootFor(repo)` (lines 84-86) resolves the map — empty repo → default root, or in `--all` mode an error listing available keys. Add `Repos()` accessor.
@@ -78,7 +78,7 @@ Tests: config parseRoots, workspace multi-root + escape checks per root, httpser
 Files: `launcher/cmd/codeberg/main.go`, `launcher/internal/config/config.go`, `launcher/internal/run/run.go`:
 1. `--all` bool flag in `parseShared`, `KeyAll="CODEBERG_ALL"` env + config key, `Config.All bool`. Explicit `--root` + `--all` → error; config-file root is simply ignored under `--all`.
 2. `Config.Roots []registry.Entry`: `--all` → `registry.Load` filtered by `os.Stat` (warn+skip dead; zero live entries → error "no repos registered yet — run codeberg <dir> first"); otherwise the single upserted entry. `ValidateForRun` skips the root requirement when `All`.
-3. `DaemonEnv()` (config.go:338-353): always emit `CODEBERG_ROOTS` encoded from `c.Roots`; keep `CODEBERG_ROOT` in single-root mode, omit in `--all`.
+3. `DaemonEnv()` (config.go:338-353): always emit `CODEBERG_ROOTS` encoded from `c.Roots` for both single-root and multi-root projects.
 4. `run.Run`: startup message "indexing N repo(s): k1, k2…"; `healthDeadline()` default scales `max(15m, 5m × len(Roots))`, `CODEBERG_HEALTH_TIMEOUT` still wins. Per-repo progress comes free from the `cberg-index[key]:` stderr prefixes.
 5. `--all` composes with the browser UI with no extra work. Update `usage()`.
 

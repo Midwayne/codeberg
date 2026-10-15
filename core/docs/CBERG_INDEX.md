@@ -14,8 +14,7 @@ full indexing loop for one or many repository roots in a single process. The Go
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `CODEBERG_ROOT` | yes¹ | Single repository root (key = basename). `codeberg-d` also accepts a comma-separated list and maps it to `CODEBERG_ROOTS` before spawning this binary — the C indexer itself does not split commas |
-| `CODEBERG_ROOTS` | yes¹ | `key\tpath` records, newline-separated (multi-repo; supersedes `CODEBERG_ROOT` when set) |
+| `CODEBERG_ROOTS` | yes¹ | Internal `key\tpath` records, newline-separated, supplied by the daemon from the project catalog |
 | `CBERG_MODEL` | for vectors | Path to ONNX `model.onnx` |
 | `CBERG_INDEX_PATH` | for vectors | **Base** path for per-repo index files and local sidecars |
 | `CBERG_INDEX_BACKEND` | no | `usearch` (default), `qdrant`, or `pgvector` (`postgres` alias) — see [VECTOR_INDEX_PROVIDERS.md](VECTOR_INDEX_PROVIDERS.md) |
@@ -31,10 +30,9 @@ full indexing loop for one or many repository roots in a single process. The Go
 | `CBERG_EMBED_COREML` | no | Apple Silicon CoreML provider opt-in |
 | `CBERG_EMBED_BATCH` | no | Rows per ONNX inference run, `1..1024` (default 16) |
 
-¹ Exactly one of `CODEBERG_ROOT` / `CODEBERG_ROOTS`. Unresolvable roots in
-   `CODEBERG_ROOTS` records are skipped with a warning. Comma-separated
-   `CODEBERG_ROOT` is a `codeberg-d` convenience only — set `CODEBERG_ROOTS`
-   (or let the launcher build it) when talking to `cberg-index` directly.
+¹ The indexer requires at least one usable keyed root; missing paths are skipped
+   with a warning. The daemon does not start an indexer when the project catalog
+   is empty. Normal users select directories through Add project in the browser.
 
 Without `CBERG_MODEL` the engine runs in **chunk-only mode** (chunk table +
 manifest + watcher + optional graph; no vectors). Set `CBERG_INDEX_PATH` even
@@ -156,7 +154,7 @@ With `qdrant` or `pgvector`, vectors live in a remote collection/table named
 Full setup, schemas, and server instructions:
 [VECTOR_INDEX_PROVIDERS.md](VECTOR_INDEX_PROVIDERS.md).
 
-Changing `CODEBERG_ROOT` to a different tree produces a different `<roothash>` —
+Changing a project root to a different tree produces a different `<roothash>` —
 caches never collide. Reverting to a prior root reuses its sidecars for warm start.
 
 `cberg_chunk_table_save` / `load` and `cberg_manifest_save` / `load` use atomic
@@ -172,7 +170,7 @@ and cold-reindexes. See [VECTOR_INDEX_PROVIDERS.md](VECTOR_INDEX_PROVIDERS.md#co
 
 ```sh
 make build-core    # produces core/build/bin/cberg-index
-export CODEBERG_ROOT=/path/to/repo
+export CODEBERG_ROOTS=$'repo\t/path/to/repo'
 export CBERG_MODEL=models/jina-embeddings-v2-base-code/model.onnx
 export CBERG_INDEX_PATH=/tmp/codeberg.usearch
 ./core/build/bin/cberg-index

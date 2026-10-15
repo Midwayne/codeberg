@@ -246,10 +246,11 @@ int main(void) {
     char sock[512];
     snprintf(sock, sizeof(sock), "%s/sock", root);
 
-    unsetenv("CODEBERG_ROOTS");
     unsetenv("CBERG_MODEL");
     unsetenv("CBERG_INDEX_PATH");
-    setenv("CODEBERG_ROOT", root, 1);
+    char roots[4096];
+    snprintf(roots, sizeof(roots), "repo\t%s", root);
+    setenv("CODEBERG_ROOTS", roots, 1);
     setenv("CBERG_SOCKET", sock, 1);
     setenv("CBERG_POLL_MS", "50", 1);
 

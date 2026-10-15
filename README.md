@@ -72,20 +72,18 @@ maintainer workflow and manual archive installation.
 The **index root** is the codebase tree Codeberg watches and indexes. At the
 library/daemon level it's not hardcoded. Start `codeberg` and choose **Add
 project** in the browser; saved projects are restored on later launches.
-`CODEBERG_ROOT` is an optional way to select a startup repository:
+For an explicit terminal startup project, use `codeberg /path/to/repository` or
+`codeberg --root /path/to/api,/path/to/frontend`. With no saved projects, the UI
+shows **Add a project to get started**, and the daemon remains idle. Deleting
+all projects returns to that state, including after a restart.
 
-```sh
-export CODEBERG_ROOT=/path/to/your/repository
-```
-
-| Variable | Purpose |
-|----------|---------|
-| `CODEBERG_ROOT` | Path(s) to index when pinned: one directory, or comma-separated list. When set, only these trees are indexed; `--all` / `--repos` are not allowed. Unset to use saved browser projects, or the registry with `--all` / `--repos`. |
-| `CODEBERG_ROOTS` | `key\tpath` records, newline-separated — every repo the daemon serves (built by the launcher from `CODEBERG_ROOT` or the registry; supersedes `CODEBERG_ROOT` when set directly) |
+`CODEBERG_ROOTS` is the internal newline-separated `key<TAB>path` transport
+from the project catalog or launcher to the daemon and indexer. Normal users
+manage repository paths through the UI.
 
 Library helpers (for daemons and CLI tools):
 
-- `cberg_config_index_root()` — read `CODEBERG_ROOT` from the environment
+- `cberg_config_index_root()` — read a single keyed repository path from the internal roots transport; returns NULL for multiple repositories
 - `cberg_config_resolve_index_root(buf, cap)` — `realpath` into `buf` (validates the path exists)
 - `cberg_watcher_open(root, …)` — pass the same path when opening the filesystem watcher
 
@@ -175,7 +173,6 @@ Optional embedding tests:
 
 ```sh
 scripts/fetch-model.sh
-export CODEBERG_ROOT=/path/to/your/repository   # if your tooling reads it
 export CBERG_TEST_MODEL=models/jina-embeddings-v2-base-code/model.onnx
 make test TEST=test_embed
 ```

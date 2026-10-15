@@ -1,6 +1,6 @@
 /* Exercises the multi-root engine in chunk-only mode (no embedding model):
  * CODEBERG_ROOTS parsing with dead-entry skipping, independent per-repo
- * bootstrap and watch handling, the CODEBERG_ROOT single-root fallback, and
+ * bootstrap and watch handling, single keyed roots, and
  * the IPC wire shape (per-repo status, repo-scoped search parsing). */
 #include "indexer.h"
 #include "ipc.h"
@@ -254,16 +254,20 @@ int main(void) {
     }
     cberg_engine_close(&eng);
 
-    /* Single-root fallback: CODEBERG_ROOT alone, key = basename. */
+    /* The removed startup setting cannot select an unregistered repository. */
     unsetenv("CODEBERG_ROOTS");
     setenv("CODEBERG_ROOT", root_a, 1);
     st = cberg_engine_open(&eng);
-    CHECK(st == CBERG_OK, "engine opens from CODEBERG_ROOT");
+    CHECK(st == CBERG_ERR_NOT_FOUND, "removed root setting is ignored");
+
+    /* A single keyed root retains its configured key. */
+    snprintf(roots, sizeof(roots), "chosen\t%s", root_a);
+    setenv("CODEBERG_ROOTS", roots, 1);
+    st = cberg_engine_open(&eng);
+    CHECK(st == CBERG_OK, "engine opens from a single keyed record");
     if (st == CBERG_OK) {
-        CHECK(eng.repos_len == 1, "one repo in fallback mode");
-        const char *base = strrchr(root_a, '/');
-        base = base != NULL ? base + 1 : root_a;
-        CHECK(eng.repos_len == 1 && strcmp(eng.repos[0]->key, base) == 0, "fallback key is basename");
+        CHECK(eng.repos_len == 1 && strcmp(eng.repos[0]->key, "chosen") == 0,
+              "single repo preserves its key");
         cberg_engine_close(&eng);
     }
 

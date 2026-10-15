@@ -22,7 +22,7 @@ Every symbol exported from `include/codeberg/codeberg.h`. Internal helpers live 
 | `CBERG_ERR_INTERNAL` | Tree-sitter failure, usearch/ONNX internal error, unexpected state |
 | `CBERG_ERR_IO` | File open/load/save, inotify/FSEvents setup failure |
 | `CBERG_ERR_UNSUPPORTED_LANGUAGE` | Reserved; chunker uses window fallback instead of failing |
-| `CBERG_ERR_NOT_FOUND` | Index remove when id absent; `*_load` when snapshot missing or incompatible version; `cberg_config_resolve_index_root` when `CODEBERG_ROOT` unset or path missing |
+| `CBERG_ERR_NOT_FOUND` | Index remove when id absent; `*_load` when snapshot missing or incompatible version; `cberg_config_resolve_index_root` when there is no single keyed root or its path is missing |
 | `CBERG_ERR_OUT_OF_MEMORY` | `malloc` / arena allocation failed |
 | `CBERG_ERR_TIMEOUT` | `cberg_watcher_poll` blocked and timed out (Linux inotify path) |
 | `CBERG_ERR_NOT_IMPLEMENTED` | Feature compiled out (no ONNX / no usearch) |
@@ -42,19 +42,19 @@ Returns the library version string (from repo `VERSION`, e.g. `"v0.0.1"`). Stati
 
 ### `CBERG_INDEX_ROOT_ENV`
 
-Macro: `"CODEBERG_ROOT"` — environment variable naming the codebase tree to index.
+Macro: `"CODEBERG_ROOTS"` — internal newline-separated `key<TAB>path` repository records supplied by the daemon.
 
 ### `cberg_config_index_root_env_name(void)`
 
-Returns `"CODEBERG_ROOT"`.
+Returns `"CODEBERG_ROOTS"`.
 
 ### `cberg_config_index_root(void)`
 
-Reads `CODEBERG_ROOT` from the environment. Returns NULL if unset or empty. Pointer is process-lifetime; do not free.
+Returns the path from a single keyed `CODEBERG_ROOTS` record. Returns NULL when unset, malformed, or multiple records are present. The pointer remains valid until the next environment mutation; do not free.
 
 ### `cberg_config_resolve_index_root(char *out, size_t out_cap)`
 
-Writes `realpath(CODEBERG_ROOT)` into `out`. Symlink roots are allowed. **Returns:** `CBERG_OK`, `CBERG_ERR_NOT_FOUND`, `CBERG_ERR_IO`, `CBERG_ERR_INVALID_ARGUMENT`.
+Writes the resolved path of the single keyed repository into `out`. Symlink roots are allowed. **Returns:** `CBERG_OK`, `CBERG_ERR_NOT_FOUND`, `CBERG_ERR_IO`, `CBERG_ERR_INVALID_ARGUMENT`.
 
 ---
 
@@ -367,7 +367,7 @@ empty → `0`.
 
 Opens recursive watch on `root`. `root` must exist (`realpath` at open; `CBERG_ERR_IO`
 if missing). **Symlink roots** are supported. **Symlinks inside** the tree are followed
-when walking and registering watches. See also `CODEBERG_ROOT` / `cberg_config_*`.
+when walking and registering watches. See also the single keyed-root `cberg_config_*` helpers.
 
 **Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_OUT_OF_MEMORY`, `CBERG_ERR_IO`.
 

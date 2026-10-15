@@ -202,7 +202,7 @@ Fallible functions return `cberg_status`. Out-parameters are valid only on `CBER
 | `cberg_embedder` | `open`, `embed`, `close` | `embed/embed.c` | [embed.md](modules/embed.md) |
 | `cberg_index` | `open`, `add`, `remove`, `search`, `save` | `search/index.c` | [search.md](modules/search.md) |
 | — | `cberg_search_query`, `cberg_search_vector` | `search/search.c` | [search.md](modules/search.md) |
-| — | `cberg_config_*` (`CODEBERG_ROOT`) | `common/config.c` | [common.md](modules/common.md) |
+| — | `cberg_config_*` (single keyed root) | `common/config.c` | [common.md](modules/common.md) |
 | — | `cberg_hash`, `cberg_fingerprint` | `common/hash.c` | [common.md](modules/common.md) |
 | — | `cberg_language_from_path` | `common/lang.c` | [common.md](modules/common.md) |
 
@@ -578,7 +578,7 @@ not exposed in the public header.
 | `test_smoke` | Version string, status strings |
 | `test_hash` | `cberg_hash` digest |
 | `test_lang` | Extension → language mapping |
-| `test_config` | `CODEBERG_ROOT` resolution |
+| `test_config` | Single keyed-root resolution |
 | `test_chunker` | Extension detection, Go symbols, window fallback |
 | `test_chunk_table` | Cold sync, modify one hash, delete all, save/load |
 | `test_manifest` | Build, root stability, add/modify/delete diff, subtree pruning, empty repo, incremental rebuild |

@@ -212,12 +212,12 @@ dist: build-core build-daemon build-agent build-web-ui build-dbmcp
 
 run-core run-index: build-core
 	@$(call load_env,$(DAEMON_ENV)); \
-	echo "› cberg-index  root=$${CODEBERG_ROOT:-<unset>}  socket=$${CBERG_SOCKET:-/tmp/codeberg-index.sock}"; \
+	echo "› cberg-index  socket=$${CBERG_SOCKET:-/tmp/codeberg-index.sock}"; \
 	exec "$(BIN)/cberg-index"
 
 run-daemon: build-daemon
 	@$(call load_env,$(DAEMON_ENV)); \
-	echo "› codeberg-d  http=:$${CODEBERG_HTTP_PORT:-8080}  root=$${CODEBERG_ROOT:-<unset>}"; \
+	echo "› codeberg-d  http=:$${CODEBERG_HTTP_PORT:-8080}"; \
 	exec "$(BIN)/codeberg-d"
 
 # Usage: make run-agent q="<question>"

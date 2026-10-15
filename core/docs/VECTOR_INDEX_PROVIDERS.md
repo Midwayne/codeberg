@@ -23,7 +23,7 @@ All backends need ONNX embedding enabled:
 ```sh
 export CBERG_MODEL=models/jina-embeddings-v2-base-code/model.onnx
 export CBERG_INDEX_PATH=/tmp/codeberg.usearch   # base path; see “Per-repo layout”
-export CODEBERG_ROOT=/path/to/repo
+export CODEBERG_ROOTS=$'repo\t/path/to/repo'
 ```
 
 Pick a backend with `CBERG_INDEX_BACKEND` (default: `usearch`).
@@ -118,7 +118,7 @@ Example with `CBERG_INDEX_PATH=/data/codeberg.idx` and repo `/srv/api`:
 # remote: collection/table codeberg_<hash-of-full-index-path>
 ```
 
-Changing `CODEBERG_ROOT` to a different tree yields a different `<roothash>` —
+Changing a project root to a different tree yields a different `<roothash>` —
 caches never collide. Reverting to a prior root reuses its sidecars and remote
 collection/table for a warm start.
 

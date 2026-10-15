@@ -10,7 +10,7 @@ int main(void) {
         fprintf(stderr, "FAIL: version should match VERSION file (vX.Y.Z), got %s\n", version ? version : "(null)");
         return 1;
     }
-    if (strcmp(cberg_config_index_root_env_name(), "CODEBERG_ROOT") != 0) {
+    if (strcmp(cberg_config_index_root_env_name(), "CODEBERG_ROOTS") != 0) {
         fprintf(stderr, "FAIL: index root env name\n");
         return 1;
     }

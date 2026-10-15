@@ -10,13 +10,11 @@ import (
 
 func indexerEnv(cfg config.Indexer) []string {
 	env := []string{
-		config.EnvRoot + "=" + cfg.Root,
 		config.EnvSocket + "=" + cfg.Socket,
 		fmt.Sprintf("%s=%d", config.EnvPollMS, cfg.PollMS),
 	}
 
-	// Preserve configured keys even for a single root; the engine otherwise
-	// derives a basename key that may differ from the daemon's workspace key.
+	// Preserve the project's repository keys, including for single-root projects.
 	if len(cfg.Roots) > 0 {
 		env = append(env, config.EnvRoots+"="+config.FormatRoots(cfg.Roots))
 	}
@@ -72,7 +70,7 @@ func embeddingEnv(env []string, cfg config.Indexer) []string {
 // Preserve loader/certificate settings while overriding inherited project roots.
 func processEnv(cfg config.Indexer) []string {
 	overrides := indexerEnv(cfg)
-	keys := map[string]bool{config.EnvRoots: true, config.EnvRoot: true, config.EnvIndexPath: true, config.EnvSocket: true}
+	keys := map[string]bool{config.EnvRoots: true, config.EnvIndexPath: true, config.EnvSocket: true}
 	for _, entry := range overrides {
 		key, _, _ := strings.Cut(entry, "=")
 		keys[key] = true

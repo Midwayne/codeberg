@@ -67,7 +67,7 @@ codeberg learning export --type preference
 codeberg learning export --type eval
 ```
 
-Run these against the intended project, for example with its `CODEBERG_ROOT` exported. Training exports require current approved examples of the corresponding kind; they can be empty before review.
+Run these against the intended project. The CLI uses the saved default project when no internal keyed roots are supplied; browser tab selections do not change that default. Training exports require current approved examples of the corresponding kind; they can be empty before review.
 
 | Export type | Intended use |
 | --- | --- |

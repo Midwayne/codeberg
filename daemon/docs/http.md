@@ -6,8 +6,9 @@ Project-aware endpoints and compatibility behavior are described in [Projects](.
 Pure Go daemon. Semantic search and chunk-index operations are proxied to the
 C `cberg-index` process over a Unix socket.
 
-The daemon serves one or more repos (`CODEBERG_ROOTS` records, or the single
-`CODEBERG_ROOT`). Each repo has a stable key; search results and grep/glob hits
+The daemon restores the project catalog; each active project serves one or more
+repos through internal `CODEBERG_ROOTS` records. With no projects it stays idle.
+Each repo has a stable key; search results and grep/glob hits
 carry it, and tools accept it as `repo`.
 
 ## Endpoints

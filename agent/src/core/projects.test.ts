@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { ContextStore, defaultContextRoot } from './context/store.js';
 import { defaultLearningRoot } from './learning/store.js';
 import { mcpConfigFromEnv } from './mcp/config.js';
-import { codebergDataHome } from './paths.js';
+import { codebergDataHome, indexedRootsFromEnv } from './paths.js';
 import {
   currentProjectEnvironment,
   migrateProjectData,
@@ -16,6 +16,10 @@ import {
 } from './projects.js';
 
 const homes: string[] = [];
+
+it('ignores the removed startup root environment setting', () => {
+  expect(indexedRootsFromEnv({ CODEBERG_ROOT: '/obsolete/root' })).toEqual([]);
+});
 
 async function home() {
   const dir = await mkdtemp(join(tmpdir(), 'cberg-project-'));
@@ -74,7 +78,7 @@ describe('project storage', () => {
 
     const env = projectEnvironment(original, catalog.projects[1]!, catalog);
     expect(env.CODEBERG_ROOTS).toBe('new\t/repo/new');
-    expect(env.CODEBERG_ROOT).toBe('/repo/new');
+    expect(env.CODEBERG_ROOT).toBeUndefined();
     expect(original.CODEBERG_ROOTS).toBe('other\t/other');
     expect(env.CODEBERG_DBMCP_SPEC).toBe('/data/projects/p-abcdef0123456789/spec.yml');
     expect(env.CBERG_INDEX_PATH).toBe('/data/projects/p-abcdef0123456789/index/codeberg.usearch');
@@ -121,8 +125,8 @@ it('upgrades CLI storage and isolates context and learning defaults by canonical
   await mkdir(join(dir, 'learning'));
   await writeFile(join(dir, 'learning', 'old'), 'legacy');
   await prepareProjectStorage({ CODEBERG_HOME: dir });
-  const a = currentProjectEnvironment({ CODEBERG_HOME: dir, CODEBERG_ROOT: firstRoot });
-  const b = currentProjectEnvironment({ CODEBERG_HOME: dir, CODEBERG_ROOT: secondRoot });
+  const a = currentProjectEnvironment({ CODEBERG_HOME: dir, CODEBERG_ROOTS: `repo\t${firstRoot}` });
+  const b = currentProjectEnvironment({ CODEBERG_HOME: dir, CODEBERG_ROOTS: `repo\t${secondRoot}` });
   expect(defaultLearningRoot(a)).not.toBe(defaultLearningRoot(b));
   expect(await readFile(join(defaultLearningRoot(a), 'old'), 'utf8')).toBe('legacy');
   const first = ContextStore.open(defaultContextRoot(a));

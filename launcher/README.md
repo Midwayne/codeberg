@@ -101,10 +101,10 @@ codeberg config init    # writes a starter ~/.codeberg/config (from config.examp
 codeberg                # builds anything missing, downloads the model, opens chat
 ```
 
-Neither `CODEBERG_ROOT` nor `CODEBERG_REPO` is required for a normal install.
+No repository environment variable is required for a normal install.
 With no startup root, Codeberg restores saved projects or shows **Add a project
-to get started**. Choose a folder in the browser to begin. `CODEBERG_ROOT` and
-`--root` remain optional ways to preselect a repository. Component files are
+to get started**. Choose a folder in the browser to begin. `--root` remains an
+optional way to preselect a repository. Component files are
 located automatically from the installed payload or source checkout; use
 `launcher/install.sh` for a source installation on PATH.
 
@@ -205,13 +205,13 @@ permissions. Subsequent runs warm-start from the persisted index and come up in 
 Config is resolved from four layers, **highest precedence first**:
 
 1. CLI flags (`--root`, `--all`, `--repos`, `--no-index`, `--model`, `--port`, `--no-vector`, …)
-2. process environment (`CODEBERG_ROOT`, `CODEBERG_ALL`, `CODEBERG_REPOS`, `CODEBERG_NO_INDEX`, `CODEBERG_MODEL`, `CODEBERG_SUBAGENT_MODEL`, `ANTHROPIC_API_KEY`, …)
+2. process environment (`CODEBERG_ALL`, `CODEBERG_REPOS`, `CODEBERG_NO_INDEX`, `CODEBERG_MODEL`, `CODEBERG_SUBAGENT_MODEL`, `ANTHROPIC_API_KEY`, …)
 3. `~/.codeberg/config` (KEY=VALUE; same names as the env vars). See
    [`launcher/internal/config/config.example`](internal/config/config.example) for every supported key.
 4. built-in defaults
 
 The launcher splits these back into the two scopes the components read —
-**daemon scope** (`CODEBERG_ROOT`, `CBERG_MODEL` embedding model, `CBERG_INDEX_PATH`,
+**daemon scope** (`CBERG_MODEL` embedding model, `CBERG_INDEX_PATH`,
 port, socket) and **agent scope** (`CODEBERG_MODEL` LLM,
 `CODEBERG_SUBAGENT_MODEL` background knowledge LLM, `CODEBERG_DAEMON_URL`,
 `CODEBERG_REASONING`, API keys) — and injects each into the right child process.
@@ -228,16 +228,16 @@ Configuration is changeable any time after install — there's no need to
 reinstall. Each run reads config fresh and the daemon restarts per session, so a
 new root or model is picked up on the next `codeberg`.
 
-When `CODEBERG_ROOT` is set (in config or via `--root`), **only** those
+When `--root` is supplied, **only** those
 directories are indexed — comma-separate several paths to index a fixed set.
-Unset `CODEBERG_ROOT` to search across the repo registry with `--all` or
-`--repos` instead; the two modes do not combine.
+Use `--all` or `--repos` to search the terminal registry instead; these flags
+cannot combine with `--root`. Normal startup restores browser projects.
 
 ```sh
 codeberg config                       # print the resolved config (secrets masked)
 codeberg config path                  # where the config file lives
 codeberg config get CODEBERG_MODEL    # print one resolved value
-codeberg config set CODEBERG_ROOT=~/proj CODEBERG_MODEL=openai:gpt-4o   # set keys
+codeberg config set CODEBERG_MODEL=openai:gpt-4o   # set keys
 codeberg config unset CODEBERG_REASONING   # remove a key
 codeberg config edit                  # open the config file in $EDITOR
 codeberg doctor                       # toolchains, binaries, model, and config
@@ -249,7 +249,7 @@ preserves your comments; `config get` prints the fully-resolved value across all
 layers. See `codeberg help` for common workflows.
 
 > **Note on editing config inside the chat.** There is no mid-chat `/config`.
-> Configuration lives in the file and flags above; changing `CODEBERG_ROOT` or
+> Configuration lives in the file and flags above; changing the startup directory or
 > the embedding model requires a daemon restart because the core reads them at
 > startup.
 
@@ -296,7 +296,7 @@ codeberg repos                  # see what's registered
 Each indexed directory gets its **own** vector index, keyed by a hash of the
 resolved root path: the core writes `<CBERG_INDEX_PATH>.<roothash>` plus
 `.chunks`/`.manifest` sidecars under `~/.codeberg/index/`. So switching
-`--root`/`CODEBERG_ROOT` never mixes chunks between repos. In `--all`/`--repos`
+`--root` never mixes chunks between repos. In `--all`/`--repos`
 mode, one `cberg-index` process opens **one index per served repo** (sharing a
 single embedding model) rather than the one this section originally described
 for single-root mode — see [docs/multi-repo.md](../docs/multi-repo.md#architecture-implementation-notes).

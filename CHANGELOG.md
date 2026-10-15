@@ -56,9 +56,9 @@ changes may occur in minor releases and are called out explicitly.
 - **`config.example`** — comprehensive launcher/daemon/agent configuration
   reference at `launcher/internal/config/config.example`. `codeberg config init`
   writes a minimal starter file; see the example for every knob.
-- **Comma-separated `CODEBERG_ROOT`** — pin one or more directories to index
-  (`CODEBERG_ROOT=/a,/b`). The launcher and `codeberg-d` forward them as
-  `CODEBERG_ROOTS` with registry-compatible repo keys.
+- **Explicit startup directories** — pin one or more directories with
+  `codeberg --root /a,/b`. The launcher forwards them as internal keyed records
+  with registry-compatible repo keys.
 - **Rust and Ruby chunking** — new vendored grammars `tree-sitter-rust`
   (v0.24.0) and `tree-sitter-ruby` (v0.23.1) with symbol-aware queries:
   Rust functions (including those in `impl` blocks), structs, enums (as
@@ -145,11 +145,9 @@ changes may occur in minor releases and are called out explicitly.
   vectors for identical bodies. Measured with the new `core/bench/bench_embed`
   on 1,249 chunks (4-vCPU VM, int8 jina model): about 20.6 → 61.1 chunks/s, and
   a cold `cberg-index` bootstrap of 1,893 chunks went from about 92 s to 35 s.
-- **`CODEBERG_ROOT` vs multi-repo** — when `CODEBERG_ROOT` is set, only the
-  named path(s) are indexed. `--all` / `--repos` (`CODEBERG_ALL` /
-  `CODEBERG_REPOS`) require an **unset** `CODEBERG_ROOT`; the two modes no
-  longer combine (previously a configured root was silently ignored under
-  `--all`). See [docs/multi-repo.md](docs/multi-repo.md#codeberg_root-vs-the-registry).
+- **Explicit startup paths vs multi-repo** — `--root` cannot combine with
+  `--all` / `--repos`. Normal startup restores browser projects. See
+  [docs/multi-repo.md](docs/multi-repo.md#project-selection-and-the-registry).
 - **Daemon package layout** — responsibilities split for clarity:
   - `bootstrap` — startup timeout and indexer readiness polling
   - `domain` — shared `Repo{Key, Root}` type
@@ -282,7 +280,7 @@ changes may occur in minor releases and are called out explicitly.
   chaining `rg`/`grep` with text filters (`head`, `tail`, `wc`, `sort`, `uniq`,
   `cut`, `tr`, `nl`, `cat`, `paste`, `sed`) using `|`, so the agent can search and
   filter in a single round-trip instead of several tool calls. No shell is invoked:
-  the command is tokenized and each stage exec'd directly rooted at `CODEBERG_ROOT`;
+  the command is tokenized and each stage exec'd directly rooted at the selected repository;
   redirection/substitution/`;`/`&` and write/exec flags (`rg --pre`, `sort -o`,
   `sed -i`) are rejected, paths cannot escape the root, and `awk`/`xargs` are
   excluded. Output is bounded and the run is time-limited. The agent picks it up
@@ -368,8 +366,8 @@ changes may occur in minor releases and are called out explicitly.
 - **Embedding and search** — optional ONNX Runtime path with jina-embeddings-v2-base-code
   (768-dim) via onnxruntime-extensions tokenizer; usearch HNSW cosine index and
   `cberg_search_query` nearest-neighbor lookup.
-- **Configuration** — `CODEBERG_ROOT` environment variable and `cberg_config_*`
-  helpers; symlink roots and in-tree symlinks supported.
+- **Configuration** — explicit repository paths and `cberg_config_*` helpers;
+  symlink roots and in-tree symlinks supported.
 - **Documentation** — `core/docs/` (architecture, full public API, per-module
   internals, ADRs); project `docs/` index.
 - **Build and test** — top-level Makefile, CMake build, ctest suite

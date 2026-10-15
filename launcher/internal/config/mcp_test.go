@@ -62,7 +62,7 @@ func TestAgentEnvPropagatesRootsAndMcpConfig(t *testing.T) {
 	if e[KeyRoots] != "alpha\t/one\nbeta\t/two" {
 		t.Fatalf("roots env: got %q", e[KeyRoots])
 	}
-	if _, ok := e[KeyRoot]; ok {
+	if _, ok := e["CODEBERG_ROOT"]; ok {
 		t.Fatal("--all must not pin CODEBERG_ROOT on the agent")
 	}
 	if e[KeyMcpConfig] != "/extra/mcp.json" {

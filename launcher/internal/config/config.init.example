@@ -4,11 +4,9 @@
 # Full reference (every knob): launcher/internal/config/config.example
 
 # --- project and model ----------------------------------------------------
-# Optional startup repository; otherwise add projects in the browser.
-# Comma-separate for several pinned paths, e.g.
-# /path/api,/path/frontend. Unset CODEBERG_ROOT to use --all / --repos on the
-# registry instead (the two modes do not combine). See docs/multi-repo.md.
-# CODEBERG_ROOT=/path/to/your/repo
+# Add and select projects in the browser. No repository setting is needed.
+# Optional terminal selection: codeberg /path/to/repo or codeberg --all.
+# See docs/multi-repo.md for the terminal registry.
 
 # LLM as provider:model (anthropic, openai, google, ollama, llamacpp).
 CODEBERG_MODEL=anthropic:claude-haiku-4-5

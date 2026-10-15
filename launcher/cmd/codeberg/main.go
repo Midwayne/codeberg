@@ -110,7 +110,7 @@ func cmdLearning(args []string) error {
 func parseShared(name string, args []string) (*config.Overrides, error) {
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	o := &config.Overrides{}
-	fs.StringVar(&o.Root, "root", "", "repository tree to index (CODEBERG_ROOT)")
+	fs.StringVar(&o.Root, "root", "", "optional startup repository tree to index")
 	fs.StringVar(&o.Repos, "repos", "", "comma-separated dirs or repo keys to serve together (CODEBERG_REPOS)")
 	fs.StringVar(&o.Model, "model", "", "LLM as provider:model (CODEBERG_MODEL)")
 	fs.StringVar(&o.SubagentModel, "subagent-model", "", "background/subagent LLM as provider:model")
@@ -329,8 +329,7 @@ func cmdConfig(args []string) error {
 			return err
 		}
 		if created {
-			fmt.Printf("wrote %s — set %s and %s, then run `codeberg`\n",
-				c.ConfigPath, config.KeyRoot, config.KeyModel)
+			fmt.Printf("wrote %s — run `codeberg` and add a project in the browser\n", c.ConfigPath)
 		} else {
 			fmt.Printf("%s already exists (not overwritten)\n", c.ConfigPath)
 		}
@@ -662,19 +661,17 @@ COMMON TASKS
                       (choose Add project in the browser)
   Switch model:     codeberg config set CODEBERG_MODEL=openai:gpt-4o ; codeberg
   Index another repo: codeberg ~/other                   (registers it; overrides --root)
-  Search all repos: unset CODEBERG_ROOT, then codeberg --all
+  Search all repos: codeberg --all
                       (everything ever indexed; see: codeberg repos)
-  Pin several repos: codeberg config set CODEBERG_ROOT=~/a,~/b ; codeberg
-  A chosen subset:  codeberg --repos ~/proj-a,api        (dirs and/or repo keys; ROOT unset)
+  Pin several repos: codeberg --root ~/a,~/b
+  A chosen subset:  codeberg --repos ~/proj-a,api        (dirs and/or repo keys)
   Leave no trace:   codeberg ~/scratch --no-index        (not registered, no index)
   No embeddings:    codeberg config set CODEBERG_VECTOR=false ; codeberg
   What's installed: codeberg doctor
 
 KEY SETTINGS
-  CODEBERG_ROOT     optional startup repository (--root); comma-separated for several.
-                    Mutually exclusive with CODEBERG_ALL / CODEBERG_REPOS.
-  CODEBERG_ALL      true = search all registered repos (--all); requires unset ROOT
-  CODEBERG_REPOS    comma-separated dirs/keys to serve (--repos); requires unset ROOT
+  CODEBERG_ALL      true = search all registered repos (--all)
+  CODEBERG_REPOS    comma-separated dirs/keys to serve (--repos)
   CODEBERG_NO_INDEX true = register nothing, no index  (--no-index)
   CODEBERG_MODEL    LLM as provider:model          (--model)
                      optional when $CODEBERG_HOME/models.yml exists

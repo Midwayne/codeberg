@@ -71,7 +71,7 @@ sources, exit:
 
 ```sh
 export OPENAI_API_KEY=...
-export CODEBERG_ROOT=...
+# Uses the saved default project; add projects in the browser first.
 codeberg-ask openai:gpt-4o-mini "how is authentication handled?"
 
 # or via env, e.g. from a script:

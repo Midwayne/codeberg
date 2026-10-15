@@ -16,7 +16,6 @@ export function projectEnvironment(
     ...env,
     CODEBERG_PROJECT_HOME: data,
     CODEBERG_PROJECT_ID: project.id,
-    CODEBERG_ROOT: project.roots.map((root) => root.root).join(','),
     CODEBERG_LOG_DIR: join(data, 'logs'),
     CODEBERG_ROOTS: project.roots.map((root) => `${root.key}\t${root.root}`).join('\n'),
   };

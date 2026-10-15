@@ -91,9 +91,10 @@ make build-daemon
 make test
 ```
 
-Start `codeberg` and use **Add project** in the browser. Optionally set
-**`CODEBERG_ROOT`** to preselect a codebase, or **`CODEBERG_ROOTS`** when running
-the daemon directly to serve several at once (see [../README.md](../README.md) and
+Start `codeberg` and use **Add project** in the browser. For terminal workflows,
+`codeberg /path/to/repository` selects a startup project. The internal
+**`CODEBERG_ROOTS`** transport supplies keyed roots when running
+the daemon directly (see [../README.md](../README.md) and
 [multi-repo.md](multi-repo.md)).
 
 ## Project governance

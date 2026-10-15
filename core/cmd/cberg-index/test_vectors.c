@@ -356,8 +356,9 @@ int main(int argc, char **argv) {
     snprintf(calls_path, sizeof(calls_path), "%s/calls.log", work);
     write_file(work, "model.onnx", "");
 
-    unsetenv("CODEBERG_ROOTS");
-    setenv("CODEBERG_ROOT", root, 1);
+    char roots[4096];
+    snprintf(roots, sizeof(roots), "repo\t%s", root);
+    setenv("CODEBERG_ROOTS", roots, 1);
     setenv("CBERG_MODEL", model, 1);
     setenv("CBERG_INDEX_PATH", index, 1);
     setenv("CBERG_SOCKET", sock, 1);

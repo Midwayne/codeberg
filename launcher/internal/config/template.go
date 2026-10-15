@@ -46,7 +46,7 @@ func (c *Config) Summary() string {
 		{"repo", orUnset(c.Repo)},
 		{"home", c.Home},
 		{"config file", c.ConfigPath},
-		{KeyRoot, orUnset(c.Root)},
+		{"--root", orUnset(c.Root)},
 		{KeyAll, fmt.Sprintf("%t", c.All)},
 		{KeyModel, orUnset(c.Model)},
 		{KeySubagentModel, orUnset(c.SubagentModel)},

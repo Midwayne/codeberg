@@ -45,7 +45,13 @@ func (m *Manager) projectConfig(p Project) config.Indexer {
 func (m *Manager) InitialConfig() (config.Indexer, error) {
 	p, ok := m.project(m.catalog.DefaultID)
 	if !ok {
-		return m.base, nil
+		// Deleted startup projects must not launch an unregistered indexer.
+		cfg := m.base
+		cfg.Root = ""
+		cfg.Roots = nil
+		cfg.DefaultKey = ""
+
+		return cfg, nil
 	}
 
 	cfg := m.projectConfig(p)

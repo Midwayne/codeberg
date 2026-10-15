@@ -13,8 +13,8 @@ without a health listener. Keep the configured socket path short enough for the
 logs a warning and serves status on the main socket only.
 
 One `cberg-index` process serves one or more repository roots: `CODEBERG_ROOTS`
-(`<key>\t<path>` records, newline-separated) or the single-root `CODEBERG_ROOT`
-fallback (key = basename). Chunk ids restart at 1 per repo, so `(repo, id)` is
+(`<key>\t<path>` records, newline-separated), supplied internally from a project.
+Chunk ids restart at 1 per repo, so `(repo, id)` is
 a result's identity.
 
 ## Framing

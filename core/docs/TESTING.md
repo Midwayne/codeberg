@@ -18,7 +18,7 @@ make check                   # build + test (CI gate)
 | `test_smoke` | `test/` | `cberg_version`, `cberg_status_str` |
 | `test_hash` | `test/` | `cberg_hash` |
 | `test_lang` | `test/` | `cberg_language_from_path` |
-| `test_config` | `test/` | `CODEBERG_ROOT` / `cberg_config_resolve_index_root` |
+| `test_config` | `test/` | Single keyed-root `cberg_config_resolve_index_root` |
 | `test_chunker` | `test/` | Parse, symbols, window fallback |
 | `test_chunk_table` | `test/` | Sync add/modify/delete, save/load round-trip |
 | `test_graph` | `test/` | Graph apply / query / trace / confidence / persistence |
@@ -46,7 +46,7 @@ make check                   # build + test (CI gate)
 | `CBERG_TEST_QDRANT_URL` | `test_index_providers` | Qdrant base URL (e.g. `http://127.0.0.1:6333`) |
 | `CBERG_TEST_POSTGRES_URL` | `test_index_providers` | PostgreSQL URL with pgvector extension |
 | `LD_LIBRARY_PATH` | ONNX tests | Directory containing `libonnxruntime.so` |
-| `CODEBERG_ROOT` | Some integration tests | Index root when exercising config helpers |
+| `CODEBERG_ROOTS` | Some integration tests | Internal keyed roots when exercising config helpers |
 
 ### SKIP 77 (optional ONNX)
 

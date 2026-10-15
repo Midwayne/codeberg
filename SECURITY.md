@@ -16,7 +16,7 @@ versions, reproduction steps, impact, and any known mitigations.
 
 ## Secrets and sensitive data
 
-- **`CODEBERG_ROOT`** and other paths point at local code on disk; do not commit
+- **Project repository paths** and other paths point at local code on disk; do not commit
   credentials, API keys, or private repository contents into this project.
 - Embedding models and ONNX Runtime are loaded from paths you configure locally
   (for example `CBERG_TEST_MODEL` in tests). Keep model downloads and runtime

@@ -12,7 +12,7 @@ embeds vectors, and exposes search via a Go daemon and TypeScript agent.
 | `agent/` | TypeScript agent (`codeberg-ask`, `codeberg-web`) over the daemon API |
 
 The public C ABI is in `core/include/codeberg/codeberg.h`. Never hardcode repository
-paths — use `CODEBERG_ROOT` or `cberg_config_*` helpers.
+paths — use project catalog roots, explicit path arguments, or `cberg_config_*` helpers.
 
 ## Common commands
 
@@ -104,16 +104,16 @@ Cloud agents boot from `.cursor/environment.json`. The install hook runs
 
 ### Environment variables
 
-Startup roots are optional; add projects in the browser. To preselect a root
-when running the daemon or agent, use:
+Add projects in the browser. For advanced direct component runs, pass internal
+keyed roots to the daemon or agent:
 
 ```bash
-export CODEBERG_ROOT="$(git rev-parse --show-toplevel)"
+export CODEBERG_ROOTS="$(printf 'repo\t%s' "$(git rev-parse --show-toplevel)")"
 ```
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `CODEBERG_ROOT` | No | Optional startup repository tree to index |
+| `CODEBERG_ROOTS` | No | Internal keyed roots for direct component runs; normal startup uses the UI catalog |
 | `CBERG_MODEL` | For vector search | Path to ONNX embedding model |
 | `CBERG_INDEX_PATH` | For vector search | usearch index base path (local sidecars + default vector store) |
 | `CBERG_INDEX_BACKEND` | No | `usearch` (default), `qdrant`, or `pgvector` (`postgres` alias) — see `core/docs/VECTOR_INDEX_PROVIDERS.md` |
@@ -156,7 +156,7 @@ make agent-check
 **End-to-end agent (optional — needs LLM API key in secrets):**
 
 ```bash
-export CODEBERG_ROOT="$(git rev-parse --show-toplevel)"
+export CODEBERG_ROOTS="$(printf 'repo\t%s' "$(git rev-parse --show-toplevel)")"
 # Terminal 1: daemon (chunk-only mode works without ONNX)
 make run-daemon
 
@@ -215,7 +215,7 @@ export LD_LIBRARY_PATH="/opt/onnxruntime/lib:${LD_LIBRARY_PATH:-}"
 Set in `daemon/.env` or the shell before `make run-daemon`:
 
 ```bash
-export CODEBERG_ROOT="$(git rev-parse --show-toplevel)"
+export CODEBERG_ROOTS="$(printf 'repo\t%s' "$(git rev-parse --show-toplevel)")"
 export CBERG_MODEL=models/jina-embeddings-v2-base-code/model.onnx
 export CBERG_INDEX_PATH=/tmp/codeberg.usearch
 export LD_LIBRARY_PATH="/opt/onnxruntime/lib:${LD_LIBRARY_PATH:-}"
@@ -266,8 +266,8 @@ cd agent && npm ci && npm install @rollup/rollup-linux-x64-gnu --no-save && npm 
 ### Running the daemon (chunk-only demo)
 
 ```bash
-export CODEBERG_ROOT="$(git rev-parse --show-toplevel)"
-make run-daemon   # background in tmux; indexes CODEBERG_ROOT
+export CODEBERG_ROOTS="$(printf 'repo\t%s' "$(git rev-parse --show-toplevel)")"
+make run-daemon   # background in tmux; indexes the supplied keyed roots
 curl -s http://127.0.0.1:8080/health
 curl -s -X POST http://127.0.0.1:8080/tools/call \
   -H 'Content-Type: application/json' \

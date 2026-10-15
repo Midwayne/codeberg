@@ -9,10 +9,10 @@ keeps the form and any previously entered path. No source files are uploaded.
 On Linux, the native picker requires `zenity` or `kdialog` and a desktop session;
 manual entry remains available when a native dialog cannot open.
 
-Start `codeberg` without `CODEBERG_ROOT` or `CODEBERG_REPO`. With no saved
+Start `codeberg` and select a project in the browser. With no saved
 projects, the browser shows **Add a project to get started**. Added projects
 persist across restarts; the saved default opens on the next launch.
-`codeberg <directory>`, `--root`, and `CODEBERG_ROOT` remain supported for an
+`codeberg <directory>` and `--root` remain supported for an
 explicit startup project. Installed components and source checkouts are
 located automatically.
 

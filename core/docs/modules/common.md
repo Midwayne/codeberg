@@ -32,11 +32,11 @@ Process configuration via environment variables (no hardcoded index paths in the
 
 ### `cberg_config_index_root_env_name(void)` — public
 
-Returns `CBERG_INDEX_ROOT_ENV` (`"CODEBERG_ROOT"`).
+Returns `CBERG_INDEX_ROOT_ENV` (`"CODEBERG_ROOTS"`).
 
 ### `cberg_config_index_root(void)` — public
 
-`getenv(CODEBERG_ROOT)`; NULL when unset or empty.
+Returns the path from a single keyed internal repository record; NULL when unset, malformed, or multiple records are supplied. The pointer belongs to the environment; do not free it.
 
 ### `cberg_config_resolve_index_root(out, out_cap)` — public
 

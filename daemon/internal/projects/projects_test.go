@@ -228,7 +228,7 @@ func TestInheritedRootsCannotLeakIntoProjectIndexer(t *testing.T) {
 	p, _ := m.Add("Child", root)
 	bin := filepath.Join(home, "fake-indexer")
 	output := filepath.Join(home, "seen-root")
-	script := "#!/bin/sh\nprintf '%s|%s' \"$CODEBERG_ROOT\" \"${CODEBERG_ROOTS-unset}\" > '" + output + "'\nsleep 30\n"
+	script := "#!/bin/sh\nprintf '%s' \"${CODEBERG_ROOTS-unset}\" > '" + output + "'\nsleep 30\n"
 	if err := os.WriteFile(bin, []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -242,7 +242,7 @@ func TestInheritedRootsCannotLeakIntoProjectIndexer(t *testing.T) {
 	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
 		data, err := os.ReadFile(output)
 		if err == nil {
-			if string(data) != p.Roots[0].Root+"|"+config.FormatRoots(p.Roots) {
+			if string(data) != config.FormatRoots(p.Roots) {
 				t.Fatalf("leaked roots %q", data)
 			}
 			return

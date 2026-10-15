@@ -27,9 +27,8 @@ Use `true` or `false` for switches, plain integers for ports and token counts, a
 | Variable | Value or default | What it changes |
 | --- | --- | --- |
 | `CODEBERG_HOME` | Directory; normally `~/.codeberg` | Global config, model files, project catalog, and managed data. Set it before launching; moving data is a separate step. |
-| `CODEBERG_ROOT` | Optional absolute directory, or comma-separated directories | Preselect the repositories for this launch. Unset restores saved browser projects or shows Add project. Paths containing commas cannot use this list format. |
-| `CODEBERG_ALL` | Boolean; `false` | Serve all repositories in the launcher's registry. Requires `CODEBERG_ROOT` to be unset. |
-| `CODEBERG_REPOS` | Comma-separated registered keys or directories | Serve a chosen registry subset. Requires `CODEBERG_ROOT` to be unset. |
+| `CODEBERG_ALL` | Boolean; `false` | Serve all repositories in the launcher's registry. Cannot combine with an explicit `--root` argument. |
+| `CODEBERG_REPOS` | Comma-separated registered keys or directories | Serve a chosen registry subset. Cannot combine with an explicit `--root` argument. |
 | `CODEBERG_NO_INDEX` | Boolean; `false` | Skip registry additions and vector indexing for the launch. File tools and chat remain available; this is not a switch for deleting history. |
 | `CODEBERG_REPO` | Optional directory | Override the location of Codeberg's own source checkout when automatic discovery fails. This is different from the project you want to index. |
 | `CODEBERG_DIST` | Optional prebuilt artifact directory | Run an existing built payload instead of building from a source checkout. This override does not install a release. |
