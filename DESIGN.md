@@ -127,6 +127,8 @@ The recorded headline is the Settings heading and mobile empty-chat heading. Emp
 
 A full dynamic-viewport flex shell keeps a stable header and separates scrolling conversation content from the bottom composer. Conversation and composer share a centered maximum width (48rem); the empty state narrows to (36rem). The desktop chat list is (18rem) wide. Below the medium breakpoint it becomes a native modal drawer, at most (20rem) wide with a (3rem) viewport margin. Selecting or starting a chat closes that drawer.
 
+While the agent thinks, the accessible status label stays contained in the transcript. Auto-scroll pins that container to its full content height, including bottom padding, while preserving manual scrolling into history and message navigation.
+
 Settings uses a centered maximum width (72rem), with page padding (1rem), increasing to (2rem) at the small breakpoint. At the medium breakpoint its (12rem) navigation rail sits beside flexible content; below it, eight section buttons use two columns on phones and three from the small breakpoint. Theme previews use one column, two from (360px), and three at the extra-large breakpoint. The shared spacing rhythm is a quarter rem, with half steps where needed. Composer bottom padding respects the safe-area inset.
 
 ## Elevation & Depth

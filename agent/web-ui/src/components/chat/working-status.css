@@ -1,4 +1,6 @@
 .thinking-label {
+  /* Keep the absolute sr-only text inside the scrolling transcript. */
+  position: relative;
   display: inline-block;
   font-weight: 500;
   letter-spacing: 0.01em;

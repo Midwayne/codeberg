@@ -5,7 +5,7 @@ import { useEffect, useRef } from 'react';
 
 import { MESSAGE_ID_ATTR } from '../../lib/message-rail';
 
-import { type useChatView } from './chat';
+import type { useChatView } from './chat';
 
 export type ChatScrollOptions = Pick<Parameters<typeof useChatView>[0], 'jump'> & {
   messages: UIMessage[];
@@ -13,7 +13,6 @@ export type ChatScrollOptions = Pick<Parameters<typeof useChatView>[0], 'jump'> 
 };
 
 export function useChatScroll({ jump, messages, status }: ChatScrollOptions) {
-  const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const holdAutoScroll = useRef(false);
   const holdTimer = useRef(0);
@@ -39,9 +38,12 @@ export function useChatScroll({ jump, messages, status }: ChatScrollOptions) {
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || holdAutoScroll.current) return;
+
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
-    if (nearBottom) bottomRef.current?.scrollIntoView({ block: 'end' });
+
+    // Include bottom padding and scroll only the transcript, never the page.
+    if (nearBottom) el.scrollTop = el.scrollHeight;
   }, [messages, status]);
 
-  return { scrollRef, bottomRef, holdAutoScroll, holdTimer };
+  return { scrollRef, holdAutoScroll, holdTimer };
 }

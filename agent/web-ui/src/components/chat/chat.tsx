@@ -56,7 +56,7 @@ export function useChatView({ chat, turns, onBranch, sessionId, learningEnabled,
   const branchAt = !busy && onBranch ? onBranch : undefined;
   const [draft, setDraft] = useState('');
   const promptRef = useRef<HTMLTextAreaElement>(null);
-  const { scrollRef, bottomRef, holdAutoScroll, holdTimer } = useChatScroll({ jump, messages, status });
+  const { scrollRef, holdAutoScroll, holdTimer } = useChatScroll({ jump, messages, status });
 
   return {
     scrollRef,
@@ -72,7 +72,6 @@ export function useChatView({ chat, turns, onBranch, sessionId, learningEnabled,
     onBranch,
     status,
     error,
-    bottomRef,
     holdAutoScroll,
     holdTimer,
     branchAt,
@@ -114,8 +113,6 @@ export function ChatView(state: ChatViewProps) {
             <WorkingStatus status={state.status} messages={state.messages} steering={state.queue.snapshot.steering} />
 
             <ChatError state={state} />
-
-            <div ref={state.bottomRef} />
           </div>
         </div>
         <ChatNavigation state={state} />
