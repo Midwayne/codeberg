@@ -65,12 +65,18 @@ describe('model usage', () => {
       costUsd: 1, unpricedRequests: 1, unreportedRequests: 1 });
     expect(summary.daily).toHaveLength(2);
     expect(summary.models.map((model) => model.model)).toEqual(['custom:model', 'custom:other']);
+    expect(summary.kinds.chat).toMatchObject({ requests: 1, inputTokens: 0, outputTokens: 0, unreportedRequests: 1 });
+    expect(summary.kinds.learning).toMatchObject({ requests: 1, inputTokens: 1000, outputTokens: 200, unreportedRequests: 0 });
   });
 
   it('returns an empty history on first use and reports corrupt records', async () => {
     const directory = await fixture();
     const store = new UsageStore(directory);
     expect(await store.read('2026-10-01', '2026-10-03')).toEqual([]);
+    expect(summarizeUsage([]).kinds).toMatchObject({
+      chat: { requests: 0, inputTokens: 0, outputTokens: 0 },
+      learning: { requests: 0, inputTokens: 0, outputTokens: 0 },
+    });
 
     await writeFile(join(directory, '2026-10.jsonl'), '{broken}\n');
     await expect(store.read('2026-10-01', '2026-10-03')).rejects.toThrow();

@@ -1,5 +1,5 @@
 import { LoadingBoundary, LoadingStatus } from './loading';
-import type { UsageReport } from '@agent/core/usage';
+import type { UsageFilter, UsageReport } from '@agent/core/usage';
 import { useModelUsage } from '../lib/use-model-usage';
 import { UsageControls, type UsageControlsProps } from './usage-controls';
 import { UsageCoverage, UsageMetrics } from './usage-summary';
@@ -33,16 +33,16 @@ export function UsageView({ report, error, loading = !report, onPage, onRetry, .
       {error && <ErrorNotice title="Could not load or export usage" detail={error} onRetry={onRetry ?? (() => undefined)} />}
       <LoadingStatus active={loading && Boolean(report)} label="Updating usage…" />
       <LoadingBoundary loading={!report && !error} label="Loading usage…" kind="chart">
-        {report && <UsageContent report={report} onPage={onPage} />}
+        {report && <UsageContent report={report} onPage={onPage} kind={controls.kind} />}
       </LoadingBoundary>
     </section>
   );
 }
 
-function UsageContent({ report, onPage }: { report: UsageReport; onPage: (page: number) => void }) {
+function UsageContent({ report, onPage, kind }: { report: UsageReport; onPage: (page: number) => void; kind: UsageFilter }) {
   return (
     <div className="space-y-5">
-      <UsageMetrics totals={report.totals} />
+      <UsageMetrics totals={report.totals} kinds={report.kinds} kind={kind} />
       {Boolean(report.failedWrites) && <p role="alert" className="text-sm text-destructive">{report.failedWrites} requests could not be saved since the server started. Usage totals are incomplete. Check the server’s storage and logs.</p>}
       <UsageCoverage totals={report.totals} />
       {report.totals.requests > 0 ? <>
@@ -50,8 +50,8 @@ function UsageContent({ report, onPage }: { report: UsageReport; onPage: (page: 
         {report.models.length > 0 && <UsageModels models={report.models} />}
         <UsageHistory report={report} onPage={onPage} />
       </> : <div className="rounded-xl border border-dashed border-border px-5 py-10 text-center">
-        <h3 className="font-medium">No usage recorded for this period</h3>
-        <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">Tracking starts with new model calls after this update. Send a chat or run a learning job, then refresh to see its usage. Earlier usage is unavailable.</p>
+        <h3 className="font-medium">No {kind === 'all' ? '' : `${kind} `}usage recorded for this period</h3>
+        <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">Tracking starts with new model calls after this update. Choose another activity or date range, or refresh after a matching call completes. Earlier usage is unavailable.</p>
       </div>}
     </div>
   );

@@ -9,32 +9,37 @@ loaded only when their section is opened. Failed resource requests show a
 **Try again** action; failed cleanup previews disable selection until totals
 are available.
 
-## Model usage and estimated spending
+## Model token usage
 
 Open **Usage** to see model usage across **all projects** in this Codeberg home.
 Choose **1d**, **7d**, **30d**, **MTD**, **Last month**, or a custom date range
 (up to 366 days). Dates and daily buckets use UTC; both displayed dates are
 inclusive. **Refresh** retrieves calls completed since the last load.
 
-The view shows estimated USD spend, reported input/output tokens, completed model
-requests, a daily tokens/spend chart, totals by model, and request history with
-project attribution. The chart supports pointer and keyboard inspection. On
-phones, models and requests become lists with visible cost and token details.
-**Export CSV** downloads every recorded call in the chosen period, including
-input, output, cache read/write tokens and cost, across all history pages.
+The view shows provider-reported input and output tokens, a daily chart, totals
+by model, and request history with project attribution. **All** shows separate
+**Chat** and **Learning** contributions under each token total. Choose **Chat**
+or **Learning** to filter totals, charts, model breakdowns and request history.
+Changing activity resets pagination while keeping the date range. Chat includes
+conversation summarization; Learning includes background learning worker calls,
+including knowledge jobs. These usage categories do not merge the distinct
+Knowledge and Learning capabilities. Existing recorded history supports the split,
+even when both activities use the same model.
 
-Configure optional [model pricing](models.md#usage-pricing) in `models.yml` to
-calculate estimates. Missing rates, cache rates or required token counts show
-**Unpriced**, rather than zero. Partial spend totals exclude unpriced calls and
-say how many were excluded. Providers that omit token usage remain visible in
-history; only reported counts contribute to token totals.
+The chart switches between input and output tokens and supports pointer and
+keyboard inspection. On phones, models and requests become lists.
+**Export CSV** downloads every matching call in the chosen activity and period,
+including project, type, model, model key, input and output tokens, across all
+history pages. Cache breakdowns and spend estimates are omitted from the view
+and CSV. No model pricing configuration is required. Providers that omit token
+usage remain visible as **Not reported** in history; only reported counts
+contribute to token totals.
 
 Accounting starts with new calls after this update. It records each completed
 provider call in browser chat, including tool-loop steps and history summaries,
-and background learning calls. It does not reconstruct old spend or include CLI
+and background learning calls. It does not reconstruct unrecorded usage or include CLI
 calls, external API usage, embeddings, subscriptions, taxes, or failed/aborted
-calls for which the provider returned no final usage. Estimates are local
-accounting; the provider's invoice remains authoritative.
+calls for which the provider returned no final usage. Recorded usage is local accounting; the provider's invoice remains authoritative.
 
 Records are appended to `$CODEBERG_HOME/usage/YYYY-MM.jsonl`, shared by project
 runtimes. Prices are captured when each call starts; later pricing edits affect
@@ -45,7 +50,10 @@ are logged and shown as incomplete totals until the server restarts.
 
 The read-only API is `GET /api/settings/usage?start=YYYY-MM-DD&end=YYYY-MM-DD&page=1`.
 The API's `end` is exclusive; pages contain 25 records, while totals cover the
-whole range. Add `format=csv` to export the whole range. Responses use `no-store`.
+whole filtered range. Add `kind=chat` or `kind=learning` to filter activity;
+omitting it or using `kind=all` includes both. Invalid activity values return 400.
+The JSON `kinds` field contains separate chat and learning totals for the matching
+rows. Add `format=csv` to export the whole filtered range. Responses use `no-store`.
 
 ## Appearance
 

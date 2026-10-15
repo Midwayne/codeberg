@@ -1,4 +1,4 @@
-import type { UsageReport } from '@agent/core/usage';
+import type { UsageFilter, UsageReport } from '@agent/core/usage';
 
 export type UsageRange = { start: string; end: string };
 export const usagePresets = [['1d', '1d'], ['7d', '7d'], ['30d', '30d'], ['mtd', 'MTD'], ['last-month', 'Last month']] as const;
@@ -16,23 +16,23 @@ export function usageRange(preset: string, now = new Date()): UsageRange {
 
 export const inclusiveEnd = (end: string) => date(Date.parse(end) - 86_400_000);
 export const exclusiveEnd = (end: string) => end ? date(Date.parse(end) + 86_400_000) : '';
-export const usageQuery = (range: UsageRange, page = 1) => new URLSearchParams({ ...range, page: String(page) }).toString();
+export const usageQuery = (range: UsageRange, page = 1, kind: UsageFilter = 'all') => new URLSearchParams({ ...range, page: String(page), kind }).toString();
 
-export async function loadUsage(range: UsageRange, page: number, api: typeof fetch, signal: AbortSignal): Promise<UsageReport> {
-  const response = await api(`/api/settings/usage?${usageQuery(range, page)}`, { cache: 'no-store', signal });
+export async function loadUsage(range: UsageRange, page: number, api: typeof fetch, signal: AbortSignal, kind: UsageFilter = 'all'): Promise<UsageReport> {
+  const response = await api(`/api/settings/usage?${usageQuery(range, page, kind)}`, { cache: 'no-store', signal });
   if (!response.ok) throw new Error(await response.text());
 
   return response.json() as Promise<UsageReport>;
 }
 
-export async function exportUsage(range: UsageRange, api: typeof fetch) {
-  const response = await api(`/api/settings/usage?${usageQuery(range)}&format=csv`, { cache: 'no-store' });
+export async function exportUsage(range: UsageRange, api: typeof fetch, kind: UsageFilter = 'all') {
+  const response = await api(`/api/settings/usage?${usageQuery(range, 1, kind)}&format=csv`, { cache: 'no-store' });
   if (!response.ok) throw new Error(await response.text());
 
   const url = URL.createObjectURL(await response.blob());
   const link = document.createElement('a');
   link.href = url;
-  link.download = `codeberg-usage-${range.start}.csv`;
+  link.download = `codeberg-usage-${kind}-${range.start}.csv`;
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

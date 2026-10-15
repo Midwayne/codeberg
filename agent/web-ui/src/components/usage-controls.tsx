@@ -1,4 +1,5 @@
 import { Download } from 'lucide-react';
+import type { UsageFilter } from '@agent/core/usage';
 import { buttonClass } from './button-styles';
 import { exclusiveEnd, inclusiveEnd, usagePresets, type UsageRange } from '../lib/model-usage';
 
@@ -9,25 +10,43 @@ export type UsageControlsProps = {
   onPreset: (preset: string) => void;
   onExport: () => void;
   exporting: boolean;
+  kind: UsageFilter;
+  onKind: (kind: UsageFilter) => void;
 };
 
-export function UsageControls({ range, preset, onRange, onPreset, onExport, exporting }: UsageControlsProps) {
+export function UsageControls({ range, preset, onRange, onPreset, onExport, exporting, kind, onKind }: UsageControlsProps) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <DateRange range={range} onRange={onRange} />
-        <div className="flex flex-wrap gap-1" role="group" aria-label="Usage period">
-          {usagePresets.map(([id, label]) => (
-            <button type="button" key={id} aria-pressed={preset === id} onClick={() => onPreset(id)}
-              className={`min-h-11 rounded-lg px-3 text-sm ${preset === id ? 'bg-accent font-medium' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}`}>
-              {label}
-            </button>
-          ))}
+    <div className="space-y-3">
+      <UsageActivity kind={kind} onKind={onKind} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <DateRange range={range} onRange={onRange} />
+          <div className="flex flex-wrap gap-1" role="group" aria-label="Usage period">
+            {usagePresets.map(([id, label]) => (
+              <button type="button" key={id} aria-pressed={preset === id} onClick={() => onPreset(id)}
+                className={`min-h-11 rounded-lg px-3 text-sm ${preset === id ? 'bg-accent font-medium' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
+        <button type="button" onClick={onExport} disabled={exporting} className={`${buttonClass} flex items-center gap-2`}>
+          <Download className="size-4" aria-hidden="true" />{exporting ? 'Exporting…' : 'Export CSV'}
+        </button>
       </div>
-      <button type="button" onClick={onExport} disabled={exporting} className={`${buttonClass} flex items-center gap-2`}>
-        <Download className="size-4" aria-hidden="true" />{exporting ? 'Exporting…' : 'Export CSV'}
-      </button>
+    </div>
+  );
+}
+
+function UsageActivity({ kind, onKind }: Pick<UsageControlsProps, 'kind' | 'onKind'>) {
+  const options = [['all', 'All'], ['chat', 'Chat'], ['learning', 'Learning']] as const;
+
+  return (
+    <div role="group" aria-label="Usage activity" className="flex flex-wrap gap-1">
+      {options.map(([id, label]) => (
+        <button type="button" key={id} aria-pressed={kind === id} onClick={() => onKind(id)}
+          className={`min-h-11 rounded-lg px-3 text-sm ${kind === id ? 'bg-accent font-medium' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}`}>{label}</button>
+      ))}
     </div>
   );
 }

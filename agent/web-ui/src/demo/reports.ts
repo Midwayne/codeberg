@@ -1,21 +1,23 @@
-import type { UsageReport, UsageTotals } from '@agent/core/usage';
+import type { UsageRecord, UsageReport } from '@agent/core/usage';
+import { summarizeUsage } from '../../../src/web/usage/summary';
 import type { ResourceSample, ResourceUsage } from '../lib/resources';
-
-const totals: UsageTotals = {
-  requests: 8, inputTokens: 18000, outputTokens: 3200, cacheReadTokens: 4000,
-  cacheWriteTokens: 0, costUsd: 0.08, unpricedRequests: 0, unreportedRequests: 0,
-};
 
 export function usageReport(url: URL): UsageReport {
   const start = url.searchParams.get('start') ?? '2026-10-01';
   const end = url.searchParams.get('end') ?? '2026-10-08';
+  const kind = url.searchParams.get('kind') ?? 'all';
+  const page = Number(url.searchParams.get('page') ?? 1);
+  const records: UsageRecord[] = (['chat', 'learning'] as const).map((activity, index) => ({
+    id: `demo-${activity}`, timestamp: Date.parse(start) + index * 60_000,
+    model: 'Demo model', key: 'demo:model', kind: activity, projectName: 'Codeberg demo',
+    inputTokens: index ? 6000 : 12000, outputTokens: index ? 800 : 2400,
+    cacheReadTokens: 0, cacheWriteTokens: 0, costUsd: null,
+  }));
+  const rows = records.filter((row) => kind === 'all' || row.kind === kind);
 
   return {
-    totals, start, end, page: Number(url.searchParams.get('page') ?? 1), pageSize: 20,
-    daily: [{ ...totals, date: start }], models: [{ ...totals, model: 'Demo model' }],
-    records: [{ id: 'demo-call', timestamp: Date.now(), model: 'Demo model', key: 'demo:model',
-      kind: 'chat', projectName: 'Codeberg demo', inputTokens: 18000, outputTokens: 3200,
-      cacheReadTokens: 4000, cacheWriteTokens: 0, costUsd: 0.08 }],
+    ...summarizeUsage(rows), start, end, page, pageSize: 25,
+    records: rows.slice((page - 1) * 25, page * 25),
   };
 }
 

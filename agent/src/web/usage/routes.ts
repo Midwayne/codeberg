@@ -11,7 +11,10 @@ export async function routeUsage(req: IncomingMessage, res: ServerResponse, stor
   const range = parseRange(url.searchParams);
   if (!range) return sendText(res, 400, 'Choose valid UTC dates within one year and a positive page number.');
 
-  const rows = await store.read(range.start, range.end);
+  const kind = url.searchParams.get('kind') ?? 'all';
+  if (kind !== 'all' && kind !== 'chat' && kind !== 'learning') return sendText(res, 400, 'Choose all, chat, or learning usage.');
+
+  const rows = (await store.read(range.start, range.end)).filter((row) => kind === 'all' || row.kind === kind);
   if (url.searchParams.get('format') === 'csv') {
     res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="codeberg-usage-${range.start}.csv"` });

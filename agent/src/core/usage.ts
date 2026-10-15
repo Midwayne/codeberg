@@ -13,12 +13,15 @@ export interface UsageTokens {
   cacheWriteTokens: number | null;
 }
 
+export type UsageKind = 'chat' | 'learning';
+export type UsageFilter = UsageKind | 'all';
+
 export interface UsageRecord extends UsageTokens {
   id: string;
   timestamp: number;
   model: string;
   key: string;
-  kind: 'chat' | 'learning';
+  kind: UsageKind;
   project?: string;
   projectName?: string;
   costUsd: number | null;
@@ -37,6 +40,7 @@ export interface UsageTotals {
 
 export interface UsageSummary {
   totals: UsageTotals;
+  kinds: Record<UsageKind, UsageTotals>;
   daily: (UsageTotals & { date: string })[];
   models: (UsageTotals & { model: string })[];
 }

@@ -118,10 +118,51 @@ describe('usage API', () => {
   it('rejects malformed, reversed, excessive ranges and unsupported methods', async () => {
     const { url } = await fixture();
     for (const query of ['?start=oops', '?start=2026-02-30&end=2026-03-02',
-      '?start=2026-10-03&end=2026-10-01', '?start=2020-01-01&end=2026-10-01', '?page=0']) {
+      '?start=2026-10-03&end=2026-10-01', '?start=2020-01-01&end=2026-10-01', '?page=0', '?kind=other', '?kind=']) {
       expect((await fetch(url + query)).status).toBe(400);
     }
     expect((await fetch(url, { method: 'POST' })).status).toBe(405);
+  });
+
+  it('filters activity before totals, daily/model aggregation, pagination and CSV export', async () => {
+    const { usage, url } = await fixture();
+    await Promise.all(Array.from({ length: 52 }, (_, index) => usage.record({
+      project: 'Alpha', model: 'custom:shared', key: 'custom:key', kind: index % 2 ? 'chat' : 'learning',
+      inputTokens: index % 2 ? 10 : 100, outputTokens: index % 2 ? 2 : null,
+      cacheReadTokens: null, cacheWriteTokens: null, costUsd: null,
+      timestamp: Date.UTC(2026, 9, index % 2 ? 1 : 2, 0, index),
+    })));
+    const query = '?start=2026-10-01&end=2026-10-03';
+    const all = await (await fetch(url + query + '&kind=all')).json();
+
+    expect(all.totals.requests).toBe(52);
+    expect(all.kinds.chat).toMatchObject({ requests: 26, inputTokens: 260, outputTokens: 52 });
+    expect(all.kinds.learning).toMatchObject({ requests: 26, inputTokens: 2600, unreportedRequests: 26 });
+
+    for (const kind of ['chat', 'learning']) {
+      const report = await (await fetch(url + query + `&kind=${kind}&page=2`)).json();
+
+      expect(report.totals).toEqual(all.kinds[kind]);
+      expect(report.records).toHaveLength(1);
+      expect(report.records[0].kind).toBe(kind);
+      expect(report.models).toHaveLength(1);
+      expect(report.models[0]).toMatchObject(all.kinds[kind]);
+      expect(report.daily).toHaveLength(1);
+      expect(report.daily[0]).toMatchObject(all.kinds[kind]);
+
+      const csv = await (await fetch(url + query + `&kind=${kind}&format=csv&page=2`)).text();
+
+      expect(csv.split('\r\n')).toHaveLength(28);
+      expect(csv).toContain(`"${kind}"`);
+      expect(csv).not.toContain(`"${kind === 'chat' ? 'learning' : 'chat'}"`);
+    }
+
+    const empty = await (await fetch(url + '?start=2026-10-02&end=2026-10-03&kind=chat')).json();
+
+    expect(empty.totals.requests).toBe(0);
+    expect(empty.records).toEqual([]);
+    expect(empty.daily).toEqual([]);
+    expect(empty.models).toEqual([]);
   });
 
   it('paginates requests while keeping period totals and model breakdown intact', async () => {

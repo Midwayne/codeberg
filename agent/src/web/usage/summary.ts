@@ -18,6 +18,7 @@ function add(total: UsageTotals, row: UsageRecord) {
 
 export function summarizeUsage(rows: UsageRecord[]): UsageSummary {
   const totals = empty();
+  const kinds = { chat: empty(), learning: empty() };
   const daily = new Map<string, UsageTotals>();
   const models = new Map<string, UsageTotals>();
 
@@ -26,13 +27,14 @@ export function summarizeUsage(rows: UsageRecord[]): UsageSummary {
     const day = daily.get(date) ?? empty();
     const model = models.get(row.model) ?? empty();
     add(totals, row);
+    add(kinds[row.kind], row);
     add(day, row);
     add(model, row);
     daily.set(date, day);
     models.set(row.model, model);
   }
 
-  return { totals,
+  return { totals, kinds,
     daily: [...daily].sort(([a], [b]) => a.localeCompare(b)).map(([date, total]) => ({ date, ...total })),
     models: [...models].sort(([a], [b]) => a.localeCompare(b)).map(([model, total]) => ({ model, ...total })),
   };
