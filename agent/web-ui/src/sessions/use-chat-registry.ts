@@ -6,15 +6,17 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { newSessionId, saveSession } from '../lib/sessions';
 import { createWorkspaceChat, type WorkspaceChat } from './workspace-chat';
+import type { ProjectChats } from './project-chat-registry';
 
 export type ChatRegistryOptions = {
   api: typeof fetch;
+  registry: ProjectChats;
   refreshRef: React.RefObject<() => Promise<void>>;
   chats: React.RefObject<Map<string, WorkspaceChat>>;
   seededRailPreview: React.RefObject<boolean>;
 };
 
-export function useChatRegistry({ api, refreshRef, chats, seededRailPreview }: ChatRegistryOptions) {
+export function useChatRegistry({ api, registry, refreshRef, chats, seededRailPreview }: ChatRegistryOptions) {
   const createChat = useCallback(
     (id: string, messages: UIMessage[], parentId?: string, title?: string) => {
       const next = createWorkspaceChat({
@@ -24,14 +26,26 @@ export function useChatRegistry({ api, refreshRef, chats, seededRailPreview }: C
         title,
         persist: (record) => saveSession(record, api),
         transport: new DefaultChatTransport({ api: '/api/chat', fetch: api }),
-        onPersist: () => void refreshRef.current(),
+        onPersist: registry.persisted,
       });
       chats.current.set(id, next);
       return next;
     },
-    [api],
+    [api, registry],
   );
-  const [active, setActive] = useState(() => createChat(newSessionId(), []));
+  const [active, updateActive] = useState(() => {
+    const initial = registry.active ?? createChat(newSessionId(), []);
+    registry.active = initial;
+
+    return initial;
+  });
+  const setActive: React.Dispatch<React.SetStateAction<WorkspaceChat>> = useCallback((next) => {
+    const selected = typeof next === 'function' ? next(registry.active!) : next;
+    registry.active = selected;
+    updateActive(selected);
+  }, [registry]);
+
+  useEffect(() => registry.subscribe(() => void refreshRef.current()), [registry, refreshRef]);
   const chat = useChat({ chat: active.chat });
   const sessionId = active.id;
 

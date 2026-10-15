@@ -154,3 +154,27 @@ it('preserves an instruction if Stop is pressed while steering is in progress', 
   expect(turns.getSnapshot().items.map((item) => item.text)).toEqual(['New direction']);
   expect(turns.getSnapshot().paused).toBe(true);
 });
+
+it('retries a prompt that failed before it entered the conversation without regenerating an older answer', async () => {
+  let attempts = 0;
+  let regenerated = false;
+  const chat = {
+    status: 'ready' as const,
+    sendMessage: async () => {
+      attempts++;
+      if (attempts === 1) throw new Error('Unable to read attachment');
+    },
+    stop: async () => {},
+    regenerate: async () => { regenerated = true; },
+  };
+  const { TurnQueue } = await import('./turn-queue');
+  const queue = new TurnQueue(chat);
+  queue.submit({ text: 'Question with attachment' });
+  await expect.poll(() => queue.getSnapshot().error).toBe('Unable to read attachment');
+
+  queue.retry();
+
+  await expect.poll(() => attempts).toBe(2);
+  expect(regenerated).toBe(false);
+  expect(queue.getSnapshot().items).toEqual([]);
+});

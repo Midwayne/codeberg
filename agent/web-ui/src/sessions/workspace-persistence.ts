@@ -1,12 +1,12 @@
 import type { ChatInit, UIMessage } from 'ai';
 
 import { deriveTitle } from '../lib/sessions';
+import { ChatSaveState } from './chat-save-state';
 import { interruptedMessages } from './interrupted-messages';
 import type { WorkspaceChatSave } from './workspace-chat';
 
 type PersistenceOptions = {
   id: string;
-  messages: UIMessage[];
   title?: string;
   parentId?: string;
   persist: (record: WorkspaceChatSave) => Promise<void>;
@@ -15,32 +15,53 @@ type PersistenceOptions = {
   setMessages: (messages: UIMessage[]) => void;
 };
 
-function signature(messages: readonly UIMessage[]): string {
-  return `${messages.length}:${messages.at(-1)?.id ?? ''}`;
-}
-
-export function chatPersistence(options: PersistenceOptions): NonNullable<ChatInit<UIMessage>['onFinish']> {
-  let savedSignature = signature(options.messages);
+/** Serialize submission and completion writes so older snapshots cannot overwrite newer turns. */
+export function chatPersistence(options: PersistenceOptions) {
   let saving = Promise.resolve();
+  let latest: UIMessage[] = [];
+  const state = new ChatSaveState(() => save(latest));
 
-  return ({ messages, isError, isAbort }) => {
-    if (options.disposed() || isError || !messages.length) return;
+  const save = (messages: UIMessage[]) => {
+    if (options.disposed() || !messages.length) return Promise.resolve();
 
-    const finished = isAbort ? interruptedMessages(messages) : messages;
-    if (isAbort) options.setMessages(finished);
-
-    const nextSignature = signature(finished);
-    if (nextSignature === savedSignature) return;
-    savedSignature = nextSignature;
-
-    const record = { id: options.id, title: options.title ?? deriveTitle(finished), messages: finished,
-      ...(options.parentId ? { parentId: options.parentId } : {}) };
+    latest = messages;
+    const record = {
+      id: options.id,
+      title: options.title ?? deriveTitle(messages),
+      messages,
+      ...(options.parentId ? { parentId: options.parentId } : {}),
+    };
     saving = saving.catch(() => undefined).then(async () => {
       if (options.disposed()) return;
 
-      await options.persist(record);
-      options.onPersist?.();
+      try {
+        await options.persist(record);
+        state.saved();
+        options.onPersist?.();
+      } catch (error) {
+        state.failed(error);
+        throw error;
+      }
     });
-    void saving.catch(() => undefined);
+
+    return saving;
+  };
+
+  return { save, state, onFinish: finishPersistence(options, save), settled: () => saving.catch(() => undefined) };
+}
+
+function finishPersistence(
+  options: PersistenceOptions,
+  save: (messages: UIMessage[]) => Promise<void>,
+): NonNullable<ChatInit<UIMessage>['onFinish']> {
+  return ({ messages, isError, isAbort }) => {
+    if (options.disposed()) return;
+
+    const finished = isAbort || isError
+      ? interruptedMessages(messages, isError ? 'Response interrupted. Retry to continue.' : 'Stopped by user.')
+      : messages;
+    if (isAbort || isError) options.setMessages(finished);
+
+    void save(finished).catch(() => undefined);
   };
 }

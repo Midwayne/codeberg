@@ -6,7 +6,8 @@ import { AddProjectDialog } from './project-add-dialog';
 import { ProjectDetails } from './project-details';
 import { useProjectShell } from '../lib/use-project-shell';
 
-import { type ReactNode } from 'react';
+import { useContext, type ReactNode } from 'react';
+import { ProjectChatsContext } from '../sessions/project-chats';
 
 import { ErrorNotice } from './ui';
 import { ProjectApiContext, type Project, type ProjectCatalog } from '../lib/project-api';
@@ -24,7 +25,7 @@ export function ProjectShell(props: ProjectShellProps) {
 export type ProjectShellViewProps = ReturnType<typeof useProjectShell>;
 
 export function ProjectShellView(state: ProjectShellViewProps) {
-  const focusAfterDeletion = useProjectDeletionFocus();
+  const onProjectDeleted = useProjectDeletion(state);
 
   return (
     <ProjectApiContext.Provider
@@ -33,11 +34,7 @@ export function ProjectShellView(state: ProjectShellViewProps) {
         project: state.project,
         fetch: state.api,
         ready: state.ready,
-        onProjectDeleted: (catalog) => {
-          state.setCatalog(catalog);
-          focusAfterDeletion();
-          if (!catalog.projects.some((project) => project.id === state.project?.id)) state.select(catalog.defaultId);
-        },
+        onProjectDeleted,
         onProjectRenamed: (updated) => {
           state.setCatalog(
             (current) =>
@@ -118,4 +115,16 @@ function NoProjects({ onAdd }: { onAdd: () => void }) {
       </main>
     </div>
   );
+}
+
+function useProjectDeletion(state: ProjectShellViewProps) {
+  const focusAfterDeletion = useProjectDeletionFocus();
+  const chats = useContext(ProjectChatsContext);
+
+  return (catalog: ProjectCatalog) => {
+    chats?.retain(catalog.projects.map((project) => project.id));
+    state.setCatalog(catalog);
+    focusAfterDeletion();
+    if (!catalog.projects.some((project) => project.id === state.project?.id)) state.select(catalog.defaultId);
+  };
 }

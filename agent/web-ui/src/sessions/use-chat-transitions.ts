@@ -14,6 +14,7 @@ export type ChatBranchOptions = {
   refresh: () => Promise<void>;
   setActive: React.Dispatch<React.SetStateAction<WorkspaceChat>>;
   createChat: (id: string, messages: UIMessage[], parentId?: string, title?: string) => WorkspaceChat;
+  setSessionError: (error: string) => void;
 };
 
 export function useChatBranch({
@@ -24,6 +25,7 @@ export function useChatBranch({
   refresh,
   setActive,
   createChat,
+  setSessionError,
 }: ChatBranchOptions) {
   const branchFrom = useCallback(
     async (throughIndex: number) => {
@@ -31,23 +33,30 @@ export function useChatBranch({
       const intent = ++transitionIntent.current;
       const sourceId = active.id;
       const sourceMessages = chat.messages;
-      // Persist the parent first so the lineage target exists on disk.
-      await saveSession(
-        {
-          id: sourceId,
-          title: active.title ?? deriveTitle(sourceMessages),
-          messages: sourceMessages,
-          parentId: active.parentId,
-        },
-        api,
-      );
-      const next = createChatBranch(sourceMessages, throughIndex, sourceId);
-      await saveSession(next, api);
-      void refresh();
-      if (intent !== transitionIntent.current) return;
-      setActive(createChat(next.id, next.messages, next.parentId, next.title));
+
+      try {
+        // Persist the parent first so the lineage target exists on disk.
+        await saveSession(
+          {
+            id: sourceId,
+            title: active.title ?? deriveTitle(sourceMessages),
+            messages: sourceMessages,
+            parentId: active.parentId,
+          },
+          api,
+        );
+
+        const next = createChatBranch(sourceMessages, throughIndex, sourceId);
+        await saveSession(next, api);
+        void refresh();
+
+        if (intent !== transitionIntent.current) return;
+        setActive(createChat(next.id, next.messages, next.parentId, next.title));
+      } catch (error) {
+        setSessionError(error instanceof Error ? error.message : 'Could not branch chat.');
+      }
     },
-    [active, chat, createChat, refresh, api],
+    [active, chat, createChat, refresh, api, setSessionError],
   );
 
   return { branchFrom };
@@ -72,11 +81,17 @@ export function useChatTransitions({
   createChat,
   sessionId,
 }: ChatTransitionsOptions) {
+  useEffect(() => () => {
+    transitionIntent.current++;
+  }, [transitionIntent]);
+
   const resume = useCallback(
     async (id: string) => {
       const intent = ++transitionIntent.current;
       const existing = chats.current.get(id);
       if (existing) {
+        if (existing.disposed) return;
+
         setActive(existing);
         return;
       }
@@ -96,8 +111,20 @@ export function useChatTransitions({
     setActive(createChat(newSessionId(), []));
   }, [createChat]);
 
+  useStorageCleanup({ transitionIntent, chats, sessionId, startNew, refresh });
+
+  return { startNew, resume };
+}
+
+type StorageCleanupOptions = Pick<ChatTransitionsOptions, 'transitionIntent' | 'chats' | 'sessionId' | 'refresh'> & {
+  startNew: () => void;
+};
+
+function useStorageCleanup({ transitionIntent, chats, sessionId, startNew, refresh }: StorageCleanupOptions) {
   useEffect(() => {
     const cleaned = (event: Event) => {
+      transitionIntent.current++;
+
       const ids = (event as CustomEvent<{ deletedChatIds?: string[] }>).detail?.deletedChatIds ?? [];
       for (const id of ids) {
         chats.current.get(id)?.dispose();
@@ -108,7 +135,5 @@ export function useChatTransitions({
     };
     window.addEventListener('codeberg:storage-cleaned', cleaned);
     return () => window.removeEventListener('codeberg:storage-cleaned', cleaned);
-  }, [sessionId, startNew, refresh, api]);
-
-  return { startNew, resume };
+  }, [sessionId, startNew, refresh, transitionIntent, chats]);
 }

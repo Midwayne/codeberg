@@ -8,20 +8,23 @@ import { useRef, useState } from 'react';
 
 import { useSessions } from '../lib/use-sessions';
 
-import { type WorkspaceChat } from './workspace-chat';
+import { useProjectChats } from './project-chats';
+import { workspaceSummaries } from './workspace-summaries';
 
 /** Owns the conversation lifecycle shared by the chat and session sidebar. */
 export function useWorkspaceSession() {
   const { fetch: api } = useProjectApi();
   const [sessionError, setSessionError] = useState('');
-  const { sessions, refresh } = useSessions();
+  const { sessions: savedSessions, refresh } = useSessions();
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
-  const chats = useRef(new Map<string, WorkspaceChat>());
+  const registry = useProjectChats();
+  const chats = useRef(registry.chats);
   const transitionIntent = useRef(0);
   const seededRailPreview = useRef(false);
   const { setActive, createChat, sessionId, chat, active } = useChatRegistry({
     api,
+    registry,
     refreshRef,
     chats,
     seededRailPreview,
@@ -36,7 +39,7 @@ export function useWorkspaceSession() {
     sessionId,
   });
 
-  const { branchFrom } = useChatBranch({ chat, transitionIntent, active, api, refresh, setActive, createChat });
+  const { branchFrom } = useChatBranch({ chat, transitionIntent, active, api, refresh, setActive, createChat, setSessionError });
   const { remove, setFlags } = useSessionMutations({
     transitionIntent,
     chats,
@@ -47,5 +50,7 @@ export function useWorkspaceSession() {
     setSessionError,
   });
 
-  return { chat, turns: active.turns, sessions, sessionId, sessionError, resume, startNew, branchFrom, remove, setFlags };
+  const sessions = workspaceSummaries(savedSessions, registry.chats);
+
+  return { chat, persistence: active.persistence, turns: active.turns, sessions, sessionId, sessionError, resume, startNew, branchFrom, remove, setFlags };
 }

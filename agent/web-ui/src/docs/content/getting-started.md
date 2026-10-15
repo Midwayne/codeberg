@@ -54,6 +54,16 @@ Try “Where is authentication implemented?” or “Trace the request from this
 
 The agent chooses its [tools](/docs/tools) as it investigates. You can inspect their output in the conversation. A chat model must be configured before a chat request can succeed.
 
+## Keep chats while you work
+
+Sending the first prompt saves the chat immediately and adds it to the sidebar, before the agent answers. Follow-up prompts are also saved before the next response starts. An unsuccessful model request still leaves your submitted question in the chat. If a connection drops after the agent has produced useful output, that partial answer is saved too; unfinished tool calls are marked as interrupted.
+
+You can start another chat, return to an existing chat, open Settings or Training review, or switch projects while a response runs. Each chat keeps its own response and queued follow-ups; returning to it shows its current progress. Completed responses are saved to the original chat and project.
+
+If saving fails, the chat stays in the sidebar for this tab and shows **Chat changes aren’t saved yet**. Keep the tab open and choose **Retry save** after restoring the connection or freeing disk space. This retries storage without asking the model again. An in-memory chat cannot survive a reload until it saves successfully.
+
+Use **Stop** to interrupt a response. Keep the browser tab open while the agent works: reloading, closing it, or navigating that tab to another website interrupts its live requests. The Docs button opens documentation in a separate tab.
+
 ## Customize when you need to
 
 - [MCP servers](/docs/mcps) connect external services and tools.

@@ -1,3 +1,4 @@
+import { ProjectChatsProvider } from './sessions/project-chats';
 import { WorkspaceHeader } from './components/workspace/workspace-header';
 import { useWorkspaceMeta } from './lib/use-workspace-meta';
 import { ProjectShell } from './components/projects';
@@ -22,9 +23,11 @@ const TrainingReview = lazy(() =>
 
 export function App() {
   return (
-    <ProjectShell>
-      {(toolbar, loading, notice) => <ProjectWorkspace toolbar={toolbar} loading={loading} notice={notice} />}
-    </ProjectShell>
+    <ProjectChatsProvider>
+      <ProjectShell>
+        {(toolbar, loading, notice) => <ProjectWorkspace toolbar={toolbar} loading={loading} notice={notice} />}
+      </ProjectShell>
+    </ProjectChatsProvider>
   );
 }
 

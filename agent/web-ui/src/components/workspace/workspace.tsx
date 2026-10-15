@@ -1,6 +1,7 @@
 import { WorkspaceSidebar, WorkspaceSearch } from './workspace-controls';
 
 import { Chat } from '../chat/chat';
+import { ChatSaveNotice } from '../chat/chat-save-notice';
 
 import { useWorkspaceSession } from '../../sessions/use-workspace-session';
 import { useState, type ReactNode } from 'react';
@@ -38,7 +39,7 @@ export function useWorkspaceView({
   searchOpen,
   onSearchClose,
 }: WorkspaceProps) {
-  const { chat, turns, sessions, sessionId, sessionError, resume, startNew, branchFrom, remove, setFlags } =
+  const { chat, persistence, turns, sessions, sessionId, sessionError, resume, startNew, branchFrom, remove, setFlags } =
     useWorkspaceSession();
   const [jump, setJump] = useState<{ sessionId: string; messageId: string; nonce: number }>();
   const desktop = useMediaQuery('(min-width: 768px)');
@@ -64,6 +65,7 @@ export function useWorkspaceView({
     sidebar,
     onSidebarClose,
     chat,
+    persistence,
     turns,
     sessionId,
     learningEnabled,
@@ -96,6 +98,7 @@ export function WorkspaceView(state: WorkspaceViewProps) {
         </Dialog>
       )}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <ChatSaveNotice state={state.persistence} />
         <Chat
           chat={state.chat}
           turns={state.turns}

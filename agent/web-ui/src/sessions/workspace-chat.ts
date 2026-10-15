@@ -1,8 +1,10 @@
 import { Chat } from '@ai-sdk/react';
-import type { ChatTransport, UIMessage } from 'ai';
+import { DefaultChatTransport, type ChatTransport, type UIMessage } from 'ai';
 
 import { TurnQueue } from './turn-queue';
 import { chatPersistence } from './workspace-persistence';
+import { persistingTransport } from './persisting-transport';
+import type { ChatSaveState } from './chat-save-state';
 
 export interface WorkspaceChatSave {
   id: string;
@@ -17,7 +19,10 @@ export interface WorkspaceChat {
   parentId?: string;
   chat: Chat<UIMessage>;
   turns: TurnQueue;
-  dispose: () => void;
+  persistence: ChatSaveState;
+  readonly disposed: boolean;
+  readonly createdAt: number;
+  dispose: () => Promise<void>;
 }
 
 interface CreateWorkspaceChatOptions {
@@ -41,12 +46,22 @@ export function createWorkspaceChat({
   onPersist,
 }: CreateWorkspaceChatOptions): WorkspaceChat {
   let disposed = false;
+  const persistence = chatPersistence({
+    id,
+    title,
+    parentId,
+    persist,
+    onPersist,
+    disposed: () => disposed,
+    setMessages: (next) => {
+      chat.messages = next;
+    },
+  });
   const chat = new Chat<UIMessage>({
     id,
     messages,
-    ...(transport ? { transport } : {}),
-    onFinish: chatPersistence({ id, messages, title, parentId, persist, onPersist,
-      disposed: () => disposed, setMessages: (next) => { chat.messages = next; } }),
+    transport: persistingTransport(transport ?? new DefaultChatTransport(), persistence.save),
+    onFinish: persistence.onFinish,
   });
   const turns = new TurnQueue(chat);
 
@@ -56,9 +71,13 @@ export function createWorkspaceChat({
     parentId,
     chat,
     turns,
-    dispose: () => {
+    persistence: persistence.state,
+    createdAt: Date.now(),
+    get disposed() { return disposed; },
+    dispose: async () => {
       disposed = true;
       turns.dispose();
+      await persistence.settled();
     },
   };
 }

@@ -26,13 +26,21 @@ export function useSessionMutations({
     async (id: string) => {
       transitionIntent.current++;
       const removed = chats.current.get(id);
-      removed?.dispose();
-      chats.current.delete(id);
+      const settled = removed?.dispose();
       if (id === sessionId) startNew();
-      await deleteSession(id, api);
-      void refresh();
+
+      try {
+        await settled;
+        await deleteSession(id, api);
+        setSessionError('');
+      } catch (error) {
+        setSessionError(error instanceof Error ? error.message : 'Could not delete chat.');
+      } finally {
+        chats.current.delete(id);
+        void refresh();
+      }
     },
-    [sessionId, startNew, refresh, api],
+    [sessionId, startNew, refresh, api, setSessionError],
   );
 
   const setFlags = useCallback(

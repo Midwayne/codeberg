@@ -79,8 +79,10 @@ export class TurnQueue {
   retry = () => {
     if (this.disposed || this.active) return;
 
+    const failedBeforeSubmission = Boolean(this.snapshot.error && this.snapshot.items.length);
     this.update({ paused: false, error: undefined });
-    this.start(() => this.chat.regenerate());
+    if (failedBeforeSubmission) this.drain();
+    else this.start(() => this.chat.regenerate());
   };
 
   dispose = () => {

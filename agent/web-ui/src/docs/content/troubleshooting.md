@@ -8,6 +8,12 @@ Edit the config with `codeberg config edit`, save, and restart. Environment vari
 
 The docs and project shell remain available before model setup. Chat requests will fail until a valid model and provider are available. Do not paste credentials into a conversation to troubleshoot them.
 
+## Chat changes are not saved
+
+**Chat changes aren’t saved yet** means Codeberg could not write the chat to local storage or reach the web server. The live conversation and queued follow-ups remain in the current browser tab. Keep that tab open, check the launcher is still running and the disk has free space, then choose **Retry save**. This saves the latest conversation without generating another answer. Do not reload or close the tab while this warning is visible.
+
+If the model connection fails, useful partial output is retained and unfinished tools are marked as interrupted. The response's **Retry** asks the model again; **Retry save** only writes chat history.
+
 ## Indexing stays pending or fails
 
 Confirm the repository still exists and is readable. Inspect `projects/<id>/logs/indexer.log` in Codeberg home. A missing embedding runtime, model file, or remote vector service can stop indexing; the supervisor's retries do not repair those dependencies.

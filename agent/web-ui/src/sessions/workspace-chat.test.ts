@@ -95,12 +95,12 @@ describe('workspace chats', () => {
     finishText(requestA, 'text-a');
     await sendA;
 
-    expect(saves.map(({ id }) => id)).toEqual(['chat-b', 'chat-a']);
-    expect(saves.find(({ id }) => id === 'chat-a')?.messages.map(text)).toEqual([
+    expect(saves.map(({ id }) => id)).toEqual(['chat-a', 'chat-b', 'chat-b', 'chat-a']);
+    expect(saves.filter(({ id }) => id === 'chat-a').at(-1)?.messages.map(text)).toEqual([
       'question A',
       'answer A continued',
     ]);
-    expect(saves.find(({ id }) => id === 'chat-b')?.messages.map(text)).toEqual([
+    expect(saves.filter(({ id }) => id === 'chat-b').at(-1)?.messages.map(text)).toEqual([
       'previous question',
       'previous answer',
       'question B',

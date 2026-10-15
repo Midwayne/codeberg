@@ -67,27 +67,21 @@ export type SaveSessionInput = {
 };
 
 export async function saveSession(input: SaveSessionInput, fetcher: typeof fetch = fetch): Promise<void> {
-  try {
-    await fetcher(`${BASE}/${encodeURIComponent(input.id)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: input.title,
-        messages: input.messages,
-        ...(input.parentId ? { parentId: input.parentId } : {}),
-      }),
-    });
-  } catch {
-    // Best-effort: a failed save must never disrupt the live chat.
-  }
+  const response = await fetcher(`${BASE}/${encodeURIComponent(input.id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title: input.title,
+      messages: input.messages,
+      ...(input.parentId ? { parentId: input.parentId } : {}),
+    }),
+  });
+  if (!response.ok) throw new Error(`Could not save chat (${response.status})`);
 }
 
 export async function deleteSession(id: string, fetcher: typeof fetch = fetch): Promise<void> {
-  try {
-    await fetcher(`${BASE}/${encodeURIComponent(id)}`, { method: 'DELETE' });
-  } catch {
-    // ignore — the sidebar refresh will reconcile
-  }
+  const response = await fetcher(`${BASE}/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (!response.ok && response.status !== 404) throw new Error(`Could not delete chat (${response.status})`);
 }
 
 /** A short, file-safe id, within the server's `[A-Za-z0-9_-]{1,64}` guard. */
