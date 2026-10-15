@@ -31,9 +31,10 @@ import (
 	"codeberg.org/codeberg/launcher/internal/run"
 	"codeberg.org/codeberg/launcher/internal/searxng"
 	"codeberg.org/codeberg/launcher/internal/uninstall"
+	"codeberg.org/codeberg/launcher/internal/update"
 )
 
-var version = "0.1.0"
+var version = "dev"
 
 func main() {
 	if err := dispatch(os.Args[1:]); err != nil {
@@ -180,6 +181,11 @@ func cmdRun(args []string) error {
 	if err := c.ValidateForRun(); err != nil {
 		return err
 	}
+
+	_, prebuilt := c.ResolveRoot()
+	stopUpdateCheck := update.Start(version, prebuilt, os.Stderr)
+	defer stopUpdateCheck()
+
 	switch {
 	case c.All:
 		entries, err := registry.Load(c.Home)

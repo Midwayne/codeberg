@@ -51,6 +51,14 @@ To roll back, run the installer with the previous `CODEBERG_VERSION`.
 Configuration, projects, chats, indexes, and model downloads stay in
 `CODEBERG_HOME` (default `~/.codeberg`). The installer does not change that data.
 
+The launcher checks the same `releases/latest` URL in the background once per
+launch and prints a terminal notice for a newer stable version. It never blocks
+startup or installs an update; failed checks are silent and time out after two
+seconds. Version comparisons use numeric major, minor, and patch components.
+Prerelease tags and unstamped development builds skip notifications. Source
+installs through `launcher/install.sh` stamp the launcher from `VERSION`; direct
+`go build` commands produce `dev` unless `-ldflags "-X main.version=vX.Y.Z"` is set.
+
 For manual installation, download an archive and `SHA256SUMS` from the same
 release, verify with `sha256sum --check` (or `shasum -a 256 --check` on macOS),
 and extract it into a new directory. Keep `bin/` beside `libexec/`, then run

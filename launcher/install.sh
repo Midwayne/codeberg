@@ -4,9 +4,10 @@ set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
 out="$here/bin/codeberg"
+version=$(tr -d '\n' < "$here/../VERSION")
 
 echo "› building codeberg…"
-( cd "$here" && go build -o "$out" ./cmd/codeberg )
+( cd "$here" && go build -ldflags "-X main.version=$version" -o "$out" ./cmd/codeberg )
 
 # Pick the first writable directory already on PATH.
 for dir in "$HOME/.local/bin" "$HOME/bin" "/usr/local/bin"; do

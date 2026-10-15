@@ -59,6 +59,14 @@ with `CODEBERG_INSTALL_DIR` and `CODEBERG_BIN_DIR` (absolute paths), or pin a
 release with `CODEBERG_VERSION`; set variables on `sh` in the command above.
 See [release packaging](../docs/releases.md) for details and current limitations.
 
+On startup, `codeberg` checks GitHub's latest published release in the background.
+If a newer stable version is available, it prints a terminal notice with the
+release link and upgrade instructions. Startup continues immediately; offline,
+failed, or slow checks are silently skipped after a two-second timeout. This is
+a notice only: Codeberg does not download or install updates automatically.
+The check runs once per launch, not continuously during a session. Development
+builds without a stamped stable version skip the check.
+
 ## Install from source (developer workflow)
 
 ```sh

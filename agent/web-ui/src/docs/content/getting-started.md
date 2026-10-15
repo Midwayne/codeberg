@@ -22,6 +22,8 @@ This needs a published release with the platform archives; if none is available 
 
 Stop Codeberg and re-run the installer to upgrade. Configuration and downloaded models under `~/.codeberg` are preserved; previous packages are retained in the install directory. `CODEBERG_VERSION` pins a release (for example, `v0.1.0`); `CODEBERG_INSTALL_DIR` and `CODEBERG_BIN_DIR` override the two installation directories. Set these variables on `sh` in the command above. Custom paths must be absolute.
 
+When you run `codeberg`, it checks GitHub's latest published release in the background. A newer stable version produces a terminal notice with a release link and upgrade instructions. The app starts immediately even if the check fails or you are offline; checks time out after two seconds. Updates are installed manually using the instructions above. There is no browser update banner or continuous checking during a session. Development builds without a stamped stable version skip the check.
+
 For a source installation, run `./launcher/install.sh` from a Codeberg checkout. It builds and links the launcher onto PATH, then builds missing components on launch. This workflow requires the development toolchains. You do not need to set `CODEBERG_REPO` or `CODEBERG_ROOT` for either installation method.
 
 

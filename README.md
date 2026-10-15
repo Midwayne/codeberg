@@ -44,6 +44,11 @@ with the package. Re-run the installer to upgrade; stop Codeberg first. Your
 configuration and models stay in `~/.codeberg`, and previous release directories
 are retained. Windows and Alpine/musl Linux are not supported by these packages.
 
+Each `codeberg` launch checks for a newer stable GitHub release in the background
+and prints upgrade instructions in the terminal when one is available. Startup
+continues immediately, including offline or when the check fails or times out
+(two seconds). Updates are installed manually; no browser banner is shown.
+
 **A published release containing the platform archives is required.** Until the
 first prebuilt release is published, use the [source build](#build) and
 `./launcher/install.sh`. Source development still needs the prerequisites below.
