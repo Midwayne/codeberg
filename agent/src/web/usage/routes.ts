@@ -47,9 +47,9 @@ function validDate(value: string) {
 }
 
 function usageCsv(rows: UsageRecord[]) {
-  const header = 'Date (UTC),Project,Type,Model,Model key,Input tokens,Output tokens,Cache read tokens,Cache write tokens,Estimated cost (USD)';
+  const header = 'Date (UTC),Project,Type,Model,Model key,Input tokens,Output tokens';
   const lines = rows.map((row) => [new Date(row.timestamp).toISOString(), row.projectName ?? row.project ?? 'Unassigned',
-    row.kind, row.model, row.key, row.inputTokens, row.outputTokens, row.cacheReadTokens, row.cacheWriteTokens, row.costUsd]
+    row.kind, row.model, row.key, row.inputTokens, row.outputTokens]
     .map(csvCell).join(','));
 
   return [header, ...lines, ''].join('\r\n');

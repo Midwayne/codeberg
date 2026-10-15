@@ -37,13 +37,4 @@ export async function exportUsage(range: UsageRange, api: typeof fetch) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function formatCost(value: number | null): string {
-  if (value === null) return 'Unavailable';
-  if (value > 0 && value < 0.0001) return '<$0.0001';
-
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD',
-    minimumFractionDigits: value > 0 && value < 0.01 ? 4 : 2,
-    maximumFractionDigits: value > 0 && value < 0.01 ? 4 : 2 }).format(value);
-}
-
 export const formatTokens = (value: number) => new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(value);

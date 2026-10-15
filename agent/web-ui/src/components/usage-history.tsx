@@ -1,7 +1,7 @@
 import type { UsageRecord, UsageReport } from '@agent/core/usage';
-import { formatCost, formatTokens } from '../lib/model-usage';
+import { formatTokens } from '../lib/model-usage';
 import { buttonClass } from './button-styles';
-import { CacheDetails, UsageModelList, UsageRequestList } from './usage-mobile';
+import { UsageModelList, UsageRequestList } from './usage-mobile';
 
 export function UsageModels({ models }: Pick<UsageReport, 'models'>) {
   return (
@@ -11,13 +11,13 @@ export function UsageModels({ models }: Pick<UsageReport, 'models'>) {
       <div className="hidden overflow-x-auto rounded-xl border border-border sm:block">
         <table className="w-full min-w-[480px] text-left text-sm tabular-nums">
           <thead className="border-b border-border bg-muted/40 text-xs text-muted-foreground"><tr>
-            {['Model', 'Requests', 'Tokens', 'Estimated USD'].map((label) => <th key={label} scope="col" className="px-4 py-3 font-medium">{label}</th>)}
+            {['Model', 'Requests', 'Input tokens', 'Output tokens'].map((label) => <th key={label} scope="col" className="px-4 py-3 font-medium">{label}</th>)}
           </tr></thead>
           <tbody className="divide-y divide-border">{models.map((model) => <tr key={model.model}>
             <th scope="row" className="max-w-72 break-words px-4 py-3 font-medium">{model.model}</th>
             <td className="px-4 py-3">{model.requests.toLocaleString()}</td>
-            <td className="px-4 py-3">{formatTokens(model.inputTokens + model.outputTokens)}</td>
-            <td className="px-4 py-3">{formatCost(model.unpricedRequests === model.requests ? null : model.costUsd)}{model.unpricedRequests > 0 && model.unpricedRequests < model.requests ? ' + unpriced' : ''}</td>
+            <td className="px-4 py-3">{formatTokens(model.inputTokens)}</td>
+            <td className="px-4 py-3">{formatTokens(model.outputTokens)}</td>
           </tr>)}</tbody>
         </table>
       </div>
@@ -36,7 +36,7 @@ export function UsageHistory({ report, onPage }: { report: UsageReport; onPage: 
       <div className="hidden overflow-x-auto rounded-xl border border-border sm:block">
         <table className="w-full min-w-[720px] text-left text-sm tabular-nums">
           <thead className="border-b border-border bg-muted/40 text-xs text-muted-foreground"><tr>
-            {['Date (UTC)', 'Project', 'Type / Model', 'Input', 'Output', 'Estimated USD'].map((label) => <th key={label} scope="col" className="px-4 py-3 font-medium">{label}</th>)}
+            {['Date (UTC)', 'Project', 'Type / Model', 'Input tokens', 'Output tokens'].map((label) => <th key={label} scope="col" className="px-4 py-3 font-medium">{label}</th>)}
           </tr></thead>
           <tbody className="divide-y divide-border">{report.records.map((row) => <UsageRow key={row.id} row={row} />)}</tbody>
         </table>
@@ -62,9 +62,8 @@ function UsageRow({ row }: { row: UsageRecord }) {
       <td className="whitespace-nowrap px-4 py-3"><time dateTime={timestamp}>{timestamp.slice(0, 10)}<br />{timestamp.slice(11, 16)}</time></td>
       <td className="max-w-40 break-words px-4 py-3">{row.projectName ?? row.project ?? 'Unassigned'}</td>
       <td className="max-w-64 break-words px-4 py-3"><span className="text-xs text-muted-foreground">{row.kind === 'learning' ? 'Learning' : 'Chat'}</span><div title={row.key}>{row.model}</div></td>
-      <td className="px-4 py-3">{token(row.inputTokens)}<CacheDetails row={row} /></td>
+      <td className="px-4 py-3">{token(row.inputTokens)}</td>
       <td className="px-4 py-3">{token(row.outputTokens)}</td>
-      <td className="whitespace-nowrap px-4 py-3">{row.costUsd === null ? <span className="text-muted-foreground">Unpriced</span> : formatCost(row.costUsd)}</td>
     </tr>
   );
 }

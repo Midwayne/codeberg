@@ -11,12 +11,14 @@ const props = { range: { start: report.start, end: report.end }, preset: 'mtd', 
   onPreset: () => undefined, onPage: () => undefined, onExport: () => undefined, exporting: false };
 
 describe('Usage view', () => {
-  it('shows an honest first-use state and the full set of reference controls', () => {
+  it('shows input and output metrics with the date and export controls', () => {
     const html = renderToStaticMarkup(<UsageView {...props} report={report} />);
 
     expect(html).toContain('All projects');
-    expect(html).toContain('Estimated spend');
-    expect(html).toContain('Total tokens');
+    expect(html).toContain('Input tokens');
+    expect(html).toContain('Output tokens');
+    expect(html).not.toContain('Total tokens');
+    expect(html).not.toContain('Estimated spend');
     expect(html).toContain('Export CSV');
     expect(html).toContain('Last month');
     expect(html).toContain('No usage recorded');
@@ -28,12 +30,13 @@ describe('Usage view', () => {
     const html = renderToStaticMarkup(<UsageView {...props} report={report} loading />);
 
     expect(html).toContain('Updating usage…');
-    expect(html).toContain('Estimated spend');
+    expect(html).toContain('Input tokens');
+    expect(html).toContain('Output tokens');
     expect(html).toContain('aria-busy="true"');
     expect(html).not.toContain('inert=""');
   });
 
-  it('marks missing prices and token reporting instead of presenting them as free usage', () => {
+  it('marks missing token reporting without requiring model prices', () => {
     const html = renderToStaticMarkup(<UsageView {...props} report={{ ...report,
       totals: { ...totals, requests: 1, unpricedRequests: 1, unreportedRequests: 1 },
       records: [{ id: '1', timestamp: Date.UTC(2026, 9, 1), model: 'custom:model', key: 'custom:variant',
@@ -41,11 +44,31 @@ describe('Usage view', () => {
         cacheReadTokens: null, cacheWriteTokens: null, costUsd: null }],
     }} />);
 
-    expect(html).toContain('Unavailable');
-    expect(html).toContain('Unpriced');
+    expect(html).not.toContain('Unpriced');
+    expect(html).not.toContain('models.yml');
+    expect(html).toContain('incomplete token reporting');
     expect(html).toContain('Not reported');
     expect(html).toContain('Alpha');
     expect(html).toContain('Learning');
-    expect(html).toContain('models.yml');
+  });
+
+  it('shows reported input and output across charts and desktop/mobile history without cache or spend', () => {
+    const activity = { ...totals, requests: 1, inputTokens: 1234, outputTokens: 567,
+      cacheReadTokens: 900, cacheWriteTokens: 100, costUsd: 0.5 };
+    const html = renderToStaticMarkup(<UsageView {...props} report={{ ...report,
+      totals: activity,
+      daily: [{ ...activity, date: report.start }],
+      models: [{ ...activity, model: 'custom:model' }],
+      records: [{ id: '1', timestamp: Date.UTC(2026, 9, 1), model: 'custom:model', key: 'custom:variant',
+        projectName: 'Alpha', kind: 'chat', inputTokens: 1234, outputTokens: 567,
+        cacheReadTokens: 900, cacheWriteTokens: 100, costUsd: 0.5 }],
+    }} />);
+
+    expect(html).toContain('1.2K input');
+    expect(html).toContain('567 output');
+    expect(html).toContain('Daily input tokens chart');
+    expect(html).toContain('>Input tokens</th>');
+    expect(html).toContain('>Output tokens</th>');
+    expect(html).not.toMatch(/cache|estimated|unpriced|spend|USD|\$/i);
   });
 });

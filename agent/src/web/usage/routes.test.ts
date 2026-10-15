@@ -108,7 +108,11 @@ describe('usage API', () => {
     expect(report.records.map((row: { project: string }) => row.project).sort()).toEqual(['Alpha', 'Beta']);
     const csv = await fetch(url + query + '&format=csv&page=2');
     expect(csv.headers.get('content-type')).toContain('text/csv');
-    expect((await csv.text()).split('\r\n')).toHaveLength(4);
+    const content = await csv.text();
+
+    expect(content.split('\r\n')).toHaveLength(4);
+    expect(content.split('\r\n')[0]).toBe('Date (UTC),Project,Type,Model,Model key,Input tokens,Output tokens');
+    expect(content).not.toMatch(/cache|estimated|cost/i);
   });
 
   it('rejects malformed, reversed, excessive ranges and unsupported methods', async () => {

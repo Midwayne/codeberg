@@ -52,8 +52,8 @@ Open **Models** in the header. Choose the chat model and effort, then the learni
 
 Without a catalog, choices come from `CODEBERG_MODEL` and optional `CODEBERG_SUBAGENT_MODEL`. The learning model defaults to the chat model. With a valid catalog, `CODEBERG_MODEL` can be omitted. Catalog changes are read when settings are requested; provider credential changes require a restart.
 
-## Track estimated usage
+## Track token usage
 
-Open **Settings → Usage** for token totals, request history, and CSV export across projects. To estimate spend, add `pricing` to a catalog entry with `input` and `output` rates in USD per million tokens. Optional `cache_read` and `cache_write` rates cover cached calls. Use your actual provider rates; omit pricing to track tokens without a cost estimate.
+Open **Settings → Usage** for provider-reported **Input tokens** and **Output tokens** across projects. Choose a UTC date range to inspect daily activity, per-model counts, and request history, or export the selected range as CSV. The daily chart lets you switch between input and output tokens. Cache breakdowns and spend estimates are not displayed or included in the CSV.
 
-Estimates cover recorded browser and learning requests. They do not include subscriptions, embeddings, CLI usage, or external billing. Missing rates appear as **Unpriced**. Prices are captured with each call, so later edits do not rewrite past estimates.
+Tracking covers recorded browser chat, summarization, and learning calls, including individual tool-loop steps. It starts with newly recorded calls; earlier history, embeddings, CLI usage, and external usage are not included. Missing token counts appear as **Not reported**, and totals include only reported counts. No model pricing configuration is required to use this view.
