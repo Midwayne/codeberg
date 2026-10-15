@@ -41,7 +41,7 @@ jobs:
             test "$GITHUB_REF_NAME" = "$(tr -d '\n' < VERSION)"
           fi
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: launcher/go.mod
           cache-dependency-path: daemon/go.sum
