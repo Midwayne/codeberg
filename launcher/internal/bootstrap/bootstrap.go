@@ -131,7 +131,7 @@ func Ensure(c *config.Config, force bool) error {
 // problems are warnings, never fatal. Skipped when web use is off or an external
 // SearXNG is configured.
 func ensureSearxng(c *config.Config, force bool) {
-	if !c.WebUse || c.SearxngURL != "" {
+	if !c.WebUse || !c.WebSearchUse || c.SearxngURL != "" {
 		return
 	}
 	installed := searxng.Installed(c.Home)

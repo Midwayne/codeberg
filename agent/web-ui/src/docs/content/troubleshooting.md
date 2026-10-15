@@ -24,6 +24,12 @@ Check **Settings → MCP servers** or **Skills** and the selected scope. A proje
 
 For MCP, check JSON syntax, command availability or URL reachability, and required environment references. Inspect warnings and project logs. For skills, check UTF-8 Markdown, matching name and description, and import preview errors. Changes apply to a subsequent turn; existing streams keep their current context.
 
+## Web search settings fail or stop updating
+
+Web search is off by default. Enable it in **Settings → Tools**. If setup fails, turn it off and on to retry, then check `logs/searxng.log` in Codeberg home. A stalled request times out and offers **Retry**. Code chat and direct URL fetching remain available when search is unavailable, unless all web access is disabled in the launcher configuration.
+
+If the panel reports invalid saved settings, choose **Open config directory**, repair or remove `tool-settings.json`, and choose **Retry**. Removing this file resets the browser switch to its initial `CODEBERG_WEB_SEARCH_USE` preference, which defaults off. A failed save leaves an error visible; retry to check the setting actually stored on disk.
+
 ## Startup cannot find Codeberg components
 
 `CODEBERG_REPO` refers to Codeberg's own source checkout, not the repository you want to explore. For today's source install, use `./launcher/install.sh` in that checkout. Its symlink lets the launcher discover the component locations from any working directory.

@@ -6,6 +6,7 @@ import type { WebConfig, WebDeps } from './types.js';
 function cfg(over: Partial<WebConfig> = {}): WebConfig {
   return {
     enabled: true,
+    searchEnabled: false,
     searxngUrl: '',
     maxBytes: 1_000_000,
     maxChars: 20_000,

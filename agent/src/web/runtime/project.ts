@@ -22,6 +22,7 @@ import { WebSessionStore } from '../sessions/store.js';
 import type { OwnedRuntime, ProjectRuntimeOptions } from './types.js';
 import { sharedUsageStore } from '../usage/shared.js';
 import { projectUsageTracker } from '../usage/project.js';
+import type { ToolSettingsStore } from '../tools/settings.js';
 
 // The built React SPA lives at `web-ui/dist`, one level up from this bundle
 // (`dist/web.js`). Override with CODEBERG_WEB_ROOT; if it is unbuilt, the server
@@ -57,7 +58,7 @@ export async function buildProjectHandler(project: Project, options: ProjectRunt
     daemonUrl: entry.daemonUrl,
   });
 
-  const pool = new ReloadableAgentPool(() => createWebModelPool(daemonUrl, learning ?? false, env,
+  const pool = new ReloadableAgentPool((webEnv) => createWebModelPool(daemonUrl, learning ?? false, { ...env, ...webEnv },
     (model, selection) => track(model, selection.key, selection.model, 'chat')));
   const runtime = { projectId: project.id, learning, resources, pool, canvas };
   owned.push(runtime);
@@ -72,7 +73,7 @@ export async function buildProjectHandler(project: Project, options: ProjectRunt
     learning,
     modelSettings,
     usage,
-    respond: projectResponder(pool, extensions, learning, canvas),
+    respond: projectResponder(pool, extensions, learning, canvas, options.tools),
     title,
     staticRoot: process.env.CODEBERG_WEB_ROOT ?? defaultStaticRoot(),
   });
@@ -96,14 +97,17 @@ export function projectResponder(
   extensions: ExtensionStore,
   learning?: LearningService,
   canvas?: CanvasStore,
+  tools?: ToolSettingsStore,
 ): ChatResponder {
   return async (res, messages, selection) => {
     if (!selection) throw new Error('Choose a chat model first.');
     const abortSignal = chatAbortSignal(res);
+    const webEnv = await tools?.environment();
 
     const lease = await pool.acquire(
       selection,
-      (extensions.revision + (learning?.settingsRevision ?? 0)) * 2 + Number((await canvas?.available()) ?? false),
+      JSON.stringify([extensions.revision, learning?.settingsRevision ?? 0, await canvas?.available(), webEnv]),
+      webEnv,
     );
 
     let routed = false;

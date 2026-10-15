@@ -22,7 +22,7 @@ export async function prepareSystem(
   state.system = agentSystemPrompt({
     learning: state.learning ? learningRecall(state.learning.settings) : false,
     enabled: state.web.enabled,
-    search: Boolean(state.web.searxngUrl),
+    search: state.web.searchEnabled && Boolean(state.web.searxngUrl),
     mcp: state.mcpSource?.reports() ?? [],
     skills,
     contextRoot: state.context.root,

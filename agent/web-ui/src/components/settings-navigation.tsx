@@ -1,4 +1,5 @@
 import { CanvasSettings } from '../canvas/settings';
+import { ToolsSettings } from './tools-settings';
 import { sections } from './settings-styles';
 
 import { ProjectExtensions } from './extensions';
@@ -63,6 +64,7 @@ export function SettingsPanels({ section, onLearningSaved }: SettingsPanelsProps
             <>
               {id === 'appearance' && <AppearancePanel />}
               {id === 'projects' && <ProjectsPanel />}
+              {id === 'tools' && <ToolsSettings />}
               {id === 'mcps' && <ProjectExtensions kind="mcp" />}
               {id === 'skills' && <ProjectExtensions kind="skill" />}
               {id === 'canvas' && <CanvasSettings />}

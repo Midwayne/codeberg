@@ -3,7 +3,7 @@ import type { ModelAgentPool } from './runtime.js';
 
 export interface PoolGeneration {
   pool: ModelAgentPool;
-  revision: number;
+  revision: number | string;
   users: number;
   retired: boolean;
 }
@@ -14,15 +14,15 @@ export class ReloadableAgentPool {
   private current?: PoolGeneration;
   private readonly generations = new Set<PoolGeneration>();
 
-  constructor(private readonly build: () => ModelAgentPool) {}
+  constructor(private readonly build: (env?: NodeJS.ProcessEnv) => ModelAgentPool) {}
 
-  async acquire(selection: ResolvedModelSelection, revision: number) {
+  async acquire(selection: ResolvedModelSelection, revision: number | string, env?: NodeJS.ProcessEnv) {
     let previous: PoolGeneration | undefined;
     if (!this.current || this.current.revision !== revision) {
       previous = this.current;
       if (previous) previous.retired = true;
 
-      this.current = { pool: this.build(), revision, users: 0, retired: false };
+      this.current = { pool: this.build(env), revision, users: 0, retired: false };
       this.generations.add(this.current);
     }
 

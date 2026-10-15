@@ -6,6 +6,7 @@ import type { WebConfig, WebDeps } from './types.js';
 function cfg(over: Partial<WebConfig> = {}): WebConfig {
   return {
     enabled: true,
+    searchEnabled: true,
     searxngUrl: '',
     maxBytes: 1_000_000,
     maxChars: 20_000,
@@ -58,6 +59,9 @@ function run(t: unknown, input: unknown): Promise<any> {
 }
 
 describe('webTools registration', () => {
+  it('keeps URL fetching but omits search when search is disabled', () => {
+    expect(Object.keys(webTools(cfg({ searchEnabled: false, searxngUrl: 'http://sx:8888' })))).toEqual(['fetch_url']);
+  });
   it('registers nothing when web use is disabled', () => {
     expect(Object.keys(webTools(cfg({ enabled: false })))).toEqual([]);
   });

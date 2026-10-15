@@ -10,7 +10,7 @@ const MAX_SEARCH_COUNT = 10;
 /**
  * Build the agent's web tools from config. Returns an empty set when web use is
  * disabled. `fetch_url` is always present when enabled (no backend needed);
- * `web_search` only when a SearXNG endpoint is configured. `deps` injects the
+ * `web_search` only when search is enabled and a SearXNG endpoint is configured. `deps` injects the
  * fetch implementation for tests.
  */
 export function webTools(config: WebConfig, deps?: WebDeps): ToolSet {

@@ -6,12 +6,19 @@ describe('webConfigFromEnv', () => {
   it('enables web use by default with sensible limits', () => {
     const c = webConfigFromEnv({});
     expect(c.enabled).toBe(true);
+    expect(c.searchEnabled).toBe(false);
     expect(c.searxngUrl).toBe('');
     expect(c.allowPrivate).toBe(false);
     expect(c.maxBytes).toBeGreaterThan(0);
     expect(c.maxChars).toBeGreaterThan(0);
     expect(c.timeoutMs).toBeGreaterThan(0);
     expect(c.searchCount).toBeGreaterThan(0);
+  });
+
+  it('requires an explicit opt-in for search, even with an external endpoint', () => {
+    expect(webConfigFromEnv({ CODEBERG_SEARXNG_URL: 'http://sx:8888' }).searchEnabled).toBe(false);
+    expect(webConfigFromEnv({ CODEBERG_WEB_SEARCH_USE: 'true' }).searchEnabled).toBe(true);
+    expect(webConfigFromEnv({ CODEBERG_WEB_SEARCH_USE: 'false' }).searchEnabled).toBe(false);
   });
 
   it('treats 0/false/off/no (any case) as disabled', () => {

@@ -53,6 +53,7 @@ const (
 	KeyDist          = "CODEBERG_DIST"                  // prebuilt artifact dir (installs)
 	KeyWebPort       = "CODEBERG_WEB_PORT"              // web UI listen port (agent scope)
 	KeyWebUse        = "CODEBERG_WEB_USE"               // "false" => disable agent web tools (agent scope)
+	KeyWebSearchUse  = "CODEBERG_WEB_SEARCH_USE"        // opt into web search (default off)
 	KeySearxngURL    = "CODEBERG_SEARXNG_URL"           // external SearXNG for web_search (agent scope)
 	KeySearxngPort   = "CODEBERG_SEARXNG_PORT"          // preferred port for the managed SearXNG
 	KeyMcpUse        = "CODEBERG_MCP_USE"               // "false" => disable MCP tools (agent scope)
@@ -148,6 +149,7 @@ type Config struct {
 	Vector        bool
 	WebPort       string // codeberg-web listen port
 	WebUse        bool   // agent web tools (web_search + fetch_url) enabled
+	WebSearchUse  bool   // default search preference before a browser setting is saved
 	LearningUse   bool   // learning storage, retrieval tools, and feedback enabled
 	SearxngURL    string // external SearXNG instance; "" => launcher manages one
 	SearxngPort   string // preferred port for the managed SearXNG
@@ -259,13 +261,16 @@ func Load(o Overrides) (*Config, error) {
 		c.Vector = false
 	}
 
-	// Web tools (web_search + fetch_url) for the agent. On by default; disable
-	// with CODEBERG_WEB_USE=false. web_search is backed by a SearXNG instance:
-	// the launcher installs and manages a local one unless CODEBERG_SEARXNG_URL
-	// points at an existing instance.
+	// Direct URL fetching is on by default; search requires a separate opt-in.
+	// The master switch disables both. A browser preference overrides the
+	// initial search opt-in and controls the managed service on demand.
 	c.WebUse = true
 	if v := resolve(KeyWebUse, ""); v != "" {
 		c.WebUse = !isFalsey(v)
+	}
+	c.WebSearchUse = false
+	if v := resolve(KeyWebSearchUse, ""); v != "" {
+		c.WebSearchUse = !isFalsey(v)
 	}
 	c.LearningUse = true
 	if v := resolve(KeyLearningUse, ""); v != "" {
@@ -506,11 +511,10 @@ func (c *Config) AgentEnv() map[string]string {
 	}
 	// codeberg-web reads this for its local HTTP listener.
 	putIf(e, KeyWebPort, c.WebPort)
-	// Web tools: tell the agent whether they're enabled, and point web_search at
-	// an external SearXNG when configured. A launcher-managed instance is
-	// injected at launch time by the run package (its URL isn't known until it
-	// has started), taking precedence over nothing / falling back to this.
+	// Pass the master switch, initial search preference, and optional external
+	// endpoint. The browser server obtains managed endpoints via private control.
 	e[KeyWebUse] = fmt.Sprintf("%t", c.WebUse)
+	e[KeyWebSearchUse] = fmt.Sprintf("%t", c.WebSearchUse)
 	e[KeyLearningUse] = fmt.Sprintf("%t", c.LearningUse)
 	putIf(e, KeySearxngURL, c.SearxngURL)
 	// MCP: the agent discovers mcp.json itself; we pass home + indexed roots so

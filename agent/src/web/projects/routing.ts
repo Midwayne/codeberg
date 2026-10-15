@@ -5,6 +5,7 @@ import { codebergHome } from '../../core/paths.js';
 import type { Project } from '../../core/projects.js';
 import { projectDataHome } from '../../core/projects.js';
 import { sameOrigin, sendJson, sendText } from '../http.js';
+import { routeToolSettings } from '../tools/routes.js';
 import { servePage } from '../server/routes.js';
 import { deleteProject, trackRequest } from './delete.js';
 import { openConfig, pickDirectory, projects, renameProject } from './catalog.js';
@@ -33,6 +34,8 @@ export async function route(
     return servePage(req, res, { title: state.options.title ?? 'Codeberg', staticRoot: state.options.staticRoot }, url.pathname);
 
   switch (url.pathname) {
+    case '/api/settings/tools':
+      return routeToolSettings(req, res, state.tools);
     case '/api/config/open-directory':
       return openConfig(state, req, res);
     case '/api/projects/pick-directory':

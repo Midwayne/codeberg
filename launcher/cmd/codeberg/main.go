@@ -576,6 +576,8 @@ func cmdDoctor(args []string) error {
 	switch {
 	case !c.WebUse:
 		fmt.Println("  • disabled (CODEBERG_WEB_USE=false) — fetch_url also off")
+	case !c.WebSearchUse:
+		fmt.Println("  • off by default — enable in Settings → Tools (saved browser preference takes precedence)")
 	case c.SearxngURL != "":
 		fmt.Printf("  ✓ external SearXNG: %s\n", c.SearxngURL)
 	case searxng.Installed(c.Home):

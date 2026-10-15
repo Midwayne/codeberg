@@ -25,7 +25,7 @@ export function webSearchProviderFromConfig(
   config: WebConfig,
   deps: WebDeps = DEFAULT_DEPS,
 ): WebSearchProvider | undefined {
-  if (config.searxngUrl) {
+  if (config.enabled && config.searchEnabled && config.searxngUrl) {
     return searxngProvider({
       baseUrl: config.searxngUrl,
       timeoutMs: config.timeoutMs,

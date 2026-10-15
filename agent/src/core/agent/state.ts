@@ -72,7 +72,7 @@ export class AgentState {
     this.reasoning = opts.reasoning;
     this.profile = opts.profile ?? DEFAULT_PROFILE;
     this.promptHooks = opts.promptHooks ?? DEFAULT_PROMPT_HOOKS;
-    this.web = opts.web ?? webConfigFromEnv();
+    this.web = opts.web ?? webConfigFromEnv(this.env);
     this.mcp = opts.mcp;
     this.context = opts.context ?? ContextStore.open(defaultContextRoot(this.env));
     this.learning =

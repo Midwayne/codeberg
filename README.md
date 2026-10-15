@@ -118,12 +118,14 @@ binary, and installs `python3-pip` automatically on apt hosts.
 > (Linux) — see [`launcher/`](launcher/). Building by hand from this Makefile,
 > you install them yourself. Run `codeberg doctor` to see what's present.
 
-> **Web search** is optional and on by default. On first run the launcher
+> **Web search** is optional and off by default. Enable it in **Settings → Tools**.
+> Once enabled, the launcher
 > installs a local [SearXNG](https://github.com/searxng/searxng) (open-source, no
 > API key) into a managed Python venv under `~/.codeberg/searxng` and runs it
 > only while codeberg is running — it is stopped on exit, never left in the
-> background. Disable with `CODEBERG_WEB_USE=false`, or point at your own instance
-> with `CODEBERG_SEARXNG_URL`. Without Python, `web_search` is skipped and the
+> background. Turning the switch off cancels setup and stops the local service.
+> Point at your own instance with `CODEBERG_SEARXNG_URL` and enable search.
+> `CODEBERG_WEB_USE=false` disables all web access. Without Python, `web_search` is skipped and the
 > agent's `fetch_url` still works.
 
 ## Build

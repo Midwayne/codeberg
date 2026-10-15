@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Project, ProjectCatalog } from '../core/projects.js';
 import { handle } from './projects/routing.js';
 import { ProjectRequestRouterState } from './projects/state.js';
+import type { ToolSettingsStore } from './tools/settings.js';
 
 export class ProjectRequestRouter {
   private readonly state: ProjectRequestRouterState;
@@ -25,6 +26,7 @@ export interface ProjectRouterOptions {
   build: (project: Project) => Promise<(req: IncomingMessage, res: ServerResponse) => void>;
   extensions?: (req: IncomingMessage, res: ServerResponse, project: Project) => Promise<void>;
   openConfigDirectory?: (path: string) => Promise<void>;
+  tools?: ToolSettingsStore;
 }
 
 export function createProjectRequestHandler(options: ProjectRouterOptions) {

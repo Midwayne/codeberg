@@ -197,8 +197,12 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # Master switch — on by default. Set false to disable all web access.
 # CODEBERG_WEB_USE=true
 
+# Web search is off by default; direct URL fetching stays on. The browser's
+# Settings > Tools switch saves a global preference that overrides this default.
+# CODEBERG_WEB_SEARCH_USE=false
+
 # External SearXNG for web_search (no API key). When unset, the launcher installs
-# and runs a local instance on CODEBERG_SEARXNG_PORT.
+# and runs a local instance on CODEBERG_SEARXNG_PORT only while search is enabled.
 # CODEBERG_SEARXNG_URL=http://127.0.0.1:8888
 
 # Preferred port for launcher-managed SearXNG (default 48089).

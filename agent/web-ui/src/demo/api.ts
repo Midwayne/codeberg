@@ -35,6 +35,7 @@ function demoResponse(url: URL, init?: RequestInit): Response {
     '/api/commands': [],
     '/api/sessions': [],
     '/api/settings/canvas': canvas,
+    '/api/settings/tools': toolSettings,
     '/api/settings/resources': resourceReport(),
     '/api/settings/usage': usageReport(url),
     '/api/settings/cleanup': init?.method === 'POST'
@@ -44,6 +45,7 @@ function demoResponse(url: URL, init?: RequestInit): Response {
   const value = routes[url.pathname];
   if (value !== undefined) {
     if (init?.method === 'PUT' && typeof value === 'object' && value !== null) Object.assign(value, body);
+    if (value === toolSettings) toolSettings.status = toolSettings.webSearch ? 'ready' : 'disabled';
 
     return Response.json(value);
   }
@@ -51,6 +53,8 @@ function demoResponse(url: URL, init?: RequestInit): Response {
 
   return new Response('This action is unavailable in the motion demo.', { status: 404 });
 }
+
+const toolSettings = { webSearch: false, allowed: true, provider: 'managed', status: 'disabled' };
 
 function waitForDemo(delay: number, signal?: AbortSignal | null): Promise<void> {
   return new Promise((resolve, reject) => {

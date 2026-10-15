@@ -24,9 +24,17 @@ If an answer is too broad, narrow the request with a filename, directory, functi
 
 ## Optional web tools
 
-When web tools are enabled, the agent can search the web and fetch URLs. Web search uses a launcher-managed SearXNG instance or `CODEBERG_SEARXNG_URL`. Initial setup may continue in the background; web search can be unavailable until a later launch.
+**Web search is off by default.** Open **Settings → Tools → Web search** to enable it for all projects. The preference is saved automatically, survives restarts, and can be changed before choosing a chat model or adding a project.
 
-Set `CODEBERG_WEB_USE=false` to disable web search and URL fetching. This does not disable source search. A model can still use its prior knowledge, so ask it to distinguish source evidence from general explanations.
+With the `codeberg` launcher, enabling search installs and starts a local SearXNG service in the background. Initial setup requires Git, Python 3 with venv/pip, and network access, and can take several minutes. The panel shows setup progress or a failure; search becomes available on a new chat turn once the service is ready. If setup fails, turn search off and on to retry, and check `logs/searxng.log` in Codeberg home.
+
+Turning search off cancels setup and stops the launcher-managed search process immediately. It keeps the installed files so re-enabling does not require a fresh download. New chat turns omit `web_search`; an already-running turn keeps its original tool list and a search in progress may fail when the local service stops. Direct URL fetching (`fetch_url`) and source search remain available.
+
+To use an existing service, configure `CODEBERG_SEARXNG_URL` and enable the switch. Its SearXNG configuration must allow JSON search responses. Turning the switch off disables Codeberg's use of that service; it does not stop an externally managed server. When running `codeberg-web` directly without the launcher, an external service is required for search.
+
+`CODEBERG_WEB_SEARCH_USE=true` opts into search for terminal use and sets the browser's initial preference. A saved browser switch takes precedence over that initial preference. Merely setting a SearXNG URL does not enable search.
+
+Set `CODEBERG_WEB_USE=false` to disable both web search and URL fetching. This master switch prevents enabling search in Settings until the launcher configuration is changed and Codeberg is restarted. Source search still works. A model can still use its prior knowledge, so ask it to distinguish source evidence from general explanations.
 
 ## Skills and external tool catalogs
 

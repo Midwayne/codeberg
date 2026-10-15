@@ -7,6 +7,7 @@ import (
 
 func TestWebUseDefaultsOnAndPropagatesToAgent(t *testing.T) {
 	t.Setenv("CODEBERG_WEB_USE", "")
+	t.Setenv("CODEBERG_WEB_SEARCH_USE", "")
 	t.Setenv("CODEBERG_SEARXNG_URL", "")
 	c, err := Load(Overrides{Home: t.TempDir()})
 	if err != nil {
@@ -14,6 +15,9 @@ func TestWebUseDefaultsOnAndPropagatesToAgent(t *testing.T) {
 	}
 	if !c.WebUse {
 		t.Fatal("WebUse should default to true")
+	}
+	if c.WebSearchUse || c.AgentEnv()[KeyWebSearchUse] != "false" {
+		t.Fatal("Web search should default off without disabling direct URL fetching")
 	}
 	if c.SearxngPort != DefaultSearxngPort {
 		t.Fatalf("SearxngPort = %q; want %q", c.SearxngPort, DefaultSearxngPort)
@@ -27,6 +31,17 @@ func TestWebUseDefaultsOnAndPropagatesToAgent(t *testing.T) {
 	}
 	if v, ok := env[KeySearxngURL]; ok {
 		t.Fatalf("AgentEnv should carry no external SearXNG URL by default, got %q", v)
+	}
+}
+
+func TestWebSearchOptInPropagates(t *testing.T) {
+	t.Setenv("CODEBERG_WEB_SEARCH_USE", "true")
+	c, err := Load(Overrides{Home: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.WebSearchUse || c.AgentEnv()[KeyWebSearchUse] != "true" {
+		t.Fatal("Search opt-in should propagate to the agent")
 	}
 }
 

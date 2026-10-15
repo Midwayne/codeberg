@@ -38,7 +38,7 @@ export interface AgentOptions {
   /** Last-user-message rewrites such as `/enhance`. Pass [] to disable. */
   promptHooks?: readonly PromptHook[];
   /** Web-access configuration (web_search + fetch_url). Defaults to the
-   *  environment (CODEBERG_WEB_USE on by default). Pass `{ enabled: false, … }`
+   *  environment (URL fetching on, search off by default). Pass `{ enabled: false, … }`
    *  to disable web tools entirely. */
   web?: WebConfig;
   /** MCP servers from mcp.json plus the optional built-in database server.

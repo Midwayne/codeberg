@@ -14,6 +14,7 @@ import { ExtensionStore } from './extensions.js';
 import { ModelSettingsStore } from './model-selection/settings.js';
 import { createProjectRequestHandler } from './projects.js';
 import { startupTitle, webEntry } from './startup.js';
+import { ToolSettingsStore } from './tools/settings.js';
 
 // Serves the interactive chat UI over HTTP. The route streams the shared
 // `toolLoopAgent()`'s UI-message output
@@ -56,7 +57,10 @@ async function main(): Promise<void> {
   const catalog = await loadProjectCatalog(entry.daemonUrl);
   const extensions = new ExtensionStore(codebergHome());
   const owned: OwnedRuntime[] = [];
+  const tools = new ToolSettingsStore();
+  void tools.current().catch((error: unknown) => writeModuleLog('agent', 'web_search_start_failed', { error: String(error) }));
   const server = createProjectServer({
+    tools,
     catalog,
     entry,
     extensions,
@@ -99,6 +103,7 @@ function createProjectServer(options: ProjectRuntimeOptions): Server {
       daemonUrl: entry.daemonUrl,
       extensions: (req, res, project) =>
         extensions.route(req, res, projectEnvironment(process.env, project, catalog)),
+      tools: options.tools,
       dispose: (id) => disposeProjectRuntime(options.owned, id),
       build: (project) => buildProjectHandler(project, options),
     }),

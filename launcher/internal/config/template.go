@@ -54,6 +54,7 @@ func (c *Config) Summary() string {
 		{KeyHTTPPort, c.HTTPPort},
 		{KeyWebPort, c.WebPort},
 		{KeyWebUse, fmt.Sprintf("%t", c.WebUse)},
+		{KeyWebSearchUse, fmt.Sprintf("%t", c.WebSearchUse)},
 		{KeyLearningUse, fmt.Sprintf("%t", c.LearningUse)},
 		{KeySearxngURL, orUnset(c.SearxngURL) + searxngManagedNote(c)},
 		{KeyMcpUse, fmt.Sprintf("%t", c.McpUse)},
@@ -124,7 +125,7 @@ func orUnset(v string) string {
 // searxngManagedNote annotates the (unset) external SearXNG URL to make clear
 // the launcher manages a local instance when web use is on and none is set.
 func searxngManagedNote(c *Config) string {
-	if c.SearxngURL == "" && c.WebUse {
+	if c.SearxngURL == "" && c.WebUse && c.WebSearchUse {
 		return " (launcher-managed on :" + c.SearxngPort + ")"
 	}
 	return ""

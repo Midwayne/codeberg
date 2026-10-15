@@ -42,6 +42,7 @@ Choose a different home with the `CODEBERG_HOME` process environment or the `--h
 | `CODEBERG_VECTOR=false` | Disable embeddings for this launch. |
 | `CODEBERG_EMBEDDING_MODEL` | Embedding model selection; see Indexing and search. |
 | `CODEBERG_WEB_USE=false` | Disable the agent's web search and URL-fetch tools. |
+| `CODEBERG_WEB_SEARCH_USE=true` | Opt into web search, which defaults off. Settings → Tools saves the browser preference separately. |
 | `CODEBERG_MCP_USE=false` | Disable servers loaded from `mcp.json`. |
 | `CODEBERG_LEARNING_USE=false` | Disable learning, history, feedback, and background extraction. |
 | `CODEBERG_DBMCP_USE=true` | Enable the optional built-in database MCP server. |
@@ -57,6 +58,7 @@ The complete [Environment variables](/docs/environment) reference covers credent
 | `config` | Launcher configuration and provider credentials. |
 | `models.yml` | Allowed model choices, capabilities, windows, and optional prices. |
 | `model-settings.json` | Saved browser model selections; managed by the app. |
+| `tool-settings.json` | Global Web search preference; managed by Settings → Tools. |
 | `mcp.json` and `skills/` | Extensions shared across all projects. |
 | `projects.json` | Project catalog, roots, and startup default; managed by the app. |
 | `projects/<id>/` | One project's chats, knowledge, indexes, and extensions. |
@@ -96,6 +98,7 @@ These are useful to locate for backup or troubleshooting. Prefer their UI contro
 | File or directory | Contents | Use this control |
 | --- | --- | --- |
 | `model-settings.json` | Saved chat and learning model selections and reasoning efforts. | **Models** in the header. |
+| `tool-settings.json` | Global Web search switch, off by default. Disabling stops managed search; changes to agent tools apply on a new chat turn. | **Settings → Tools**. |
 | `projects.json` | Browser project catalog, roots, IDs, and startup default. | **Add project** and **Settings → Projects**. |
 | `repos` | Terminal repository registry used by `--all` and `--repos`, stored as tab-separated key/path records. | `codeberg repos` and terminal repository runs; this is separate from the browser catalog. |
 | `projects/<id>/learning/settings.json` | Per-project learning preferences. | **Settings → Learning**. |

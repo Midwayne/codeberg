@@ -114,8 +114,9 @@ Remote vector storage still needs the local sidecars and an embedding model. Cha
 
 | Variable | Value or default | What it changes |
 | --- | --- | --- |
-| `CODEBERG_WEB_USE` | Boolean; `true` | Enable `web_search` and `fetch_url`. |
-| `CODEBERG_SEARXNG_URL` | Optional URL | Use an existing SearXNG service. Otherwise the launcher manages a local instance. |
+| `CODEBERG_WEB_USE` | Boolean; `true` | Master switch for web tools. Search also requires its separate opt-in. |
+| `CODEBERG_WEB_SEARCH_USE` | Boolean; `false` | Opt into web search. Sets the initial browser preference; a saved Settings → Tools switch takes precedence. Direct URL fetching is independent. |
+| `CODEBERG_SEARXNG_URL` | Optional URL | Use an existing SearXNG service when search is enabled. Otherwise the launcher installs and manages a local instance on demand. |
 | `CODEBERG_SEARXNG_PORT` | Port; `48089` | Preferred managed SearXNG port; the launcher can choose a free port if occupied. |
 
 **Environment only** for request limits:

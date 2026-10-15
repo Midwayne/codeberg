@@ -22,6 +22,7 @@ function positiveInt(value: string | undefined, fallback: number): number {
  * Resolve the agent's web configuration from the environment.
  *
  * - `CODEBERG_WEB_USE` — master switch, **on by default**; set 0/false/off to disable.
+ * - `CODEBERG_WEB_SEARCH_USE` — search opt-in, off by default; URL fetching stays available.
  * - `CODEBERG_SEARXNG_URL` — SearXNG base URL that backs `web_search` (no key needed).
  * - `CODEBERG_WEB_ALLOW_PRIVATE` — allow fetching localhost/private hosts (default off).
  * - `CODEBERG_WEB_MAX_BYTES` / `CODEBERG_WEB_MAX_CHARS` / `CODEBERG_WEB_TIMEOUT_MS` /
@@ -30,6 +31,7 @@ function positiveInt(value: string | undefined, fallback: number): number {
 export function webConfigFromEnv(env: NodeJS.ProcessEnv = process.env): WebConfig {
   return {
     enabled: flag(env.CODEBERG_WEB_USE, true),
+    searchEnabled: flag(env.CODEBERG_WEB_SEARCH_USE, false),
     searxngUrl: (env.CODEBERG_SEARXNG_URL ?? '').trim().replace(/\/+$/, ''),
     maxBytes: positiveInt(env.CODEBERG_WEB_MAX_BYTES, DEFAULT_MAX_BYTES),
     maxChars: positiveInt(env.CODEBERG_WEB_MAX_CHARS, DEFAULT_MAX_CHARS),

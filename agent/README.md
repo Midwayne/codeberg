@@ -49,6 +49,7 @@ or from a checkout.
 | `CODEBERG_TOOL_BATCH` | all | register the `batch` tool (up to 8 independent calls in one tool call). Default on for `ollama`, `llamacpp`, and unknown providers, which may return one tool call per response; off for `anthropic`, `openai`, `google`, which call tools in parallel natively |
 | `CODEBERG_SUBAGENT_MODEL` | CLI | `provider:model` for background work: learning extraction and history-compaction summaries (default: `CODEBERG_MODEL`). A cheaper model here cuts compaction cost |
 | `CODEBERG_WEB_USE` | all | master switch for `fetch_url`/`web_search` (default on; `0`/`false`/`off`/`no` disables) |
+| `CODEBERG_WEB_SEARCH_USE` | all | search opt-in (default off); browser Settings → Tools saves its own global preference |
 | `CODEBERG_SEARXNG_URL` | all | SearXNG endpoint backing `web_search` |
 | `CODEBERG_WEB_ALLOW_PRIVATE` | all | allow `fetch_url` to hit loopback/private hosts (default off) |
 | `CODEBERG_WEB_MAX_BYTES` | all | `fetch_url` raw-body cap (default 1.5 MB) |
@@ -490,8 +491,9 @@ still warming (`NOT_READY` only); other errors (network, 500) propagate.
 
 ## Web access
 
-For advanced analysis the agent can reach the public web with two tools, on by
-default (disable all web access with `CODEBERG_WEB_USE=false`):
+For advanced analysis the agent can reach the public web with two tools. Direct
+URL fetching is on by default; search is off until enabled in **Settings → Tools**
+or with `CODEBERG_WEB_SEARCH_USE=true`. Disable all web access with `CODEBERG_WEB_USE=false`:
 
 | Tool | Backend | Needs |
 |------|---------|-------|
@@ -504,13 +506,18 @@ loopback/private hosts by default — a built-in SSRF guard — overridable with
 `CODEBERG_WEB_ALLOW_PRIVATE=1`.
 
 `web_search` queries SearXNG's JSON API and returns `{ title, url, snippet }`
-results. It is registered **only** when a SearXNG endpoint is known:
+results. It is registered **only** when search is enabled and a SearXNG endpoint is known:
 
 - Via the `codeberg` launcher, a local SearXNG is installed and managed for you
-  (a Python venv under `~/.codeberg/searxng`), started with codeberg and stopped
-  with it — nothing is left running in the background.
+  (a Python venv under `~/.codeberg/searxng`), started on demand and stopped
+  when disabled or when Codeberg exits. Setup can be cancelled with the same switch.
 - Standalone, point at any instance with `CODEBERG_SEARXNG_URL=http://host:port`
-  (its `search.formats` must include `json`).
+  and `CODEBERG_WEB_SEARCH_USE=true` (its `search.formats` must include `json`).
+
+The browser switch is global, persists in `<CODEBERG_HOME>/tool-settings.json`,
+and overrides the initial `CODEBERG_WEB_SEARCH_USE` preference. No project or
+model is required to change it. New turns pick up changes; running turns retain
+their original tool list. Externally managed services are never stopped by Codeberg.
 
 Both degrade gracefully: with no SearXNG, `web_search` is simply absent and
 `fetch_url` plus the code tools keep working. Never send proprietary code or
@@ -523,7 +530,7 @@ import { Agent, webConfigFromEnv } from "@codeberg/agent";
 
 const agent = new Agent({
   model, daemon,
-  web: { ...webConfigFromEnv(), searxngUrl: "http://127.0.0.1:8888" },
+  web: { ...webConfigFromEnv(), searchEnabled: true, searxngUrl: "http://127.0.0.1:8888" },
 });
 ```
 

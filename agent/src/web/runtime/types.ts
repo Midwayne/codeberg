@@ -7,6 +7,7 @@ import { ExtensionStore } from '../extensions.js';
 import { ReloadableAgentPool } from '../model-selection/runtime.js';
 import { ModelSettingsStore } from '../model-selection/settings.js';
 import { ResourceSettings } from '../resources.js';
+import type { ToolSettingsStore } from '../tools/settings.js';
 
 export interface OwnedRuntime {
   projectId?: string;
@@ -17,6 +18,7 @@ export interface OwnedRuntime {
 }
 
 export interface ProjectRuntimeOptions {
+  tools?: ToolSettingsStore;
   entry: NonNullable<ReturnType<typeof parseEntryArgs>>;
   catalog: ProjectCatalog;
   extensions: ExtensionStore;

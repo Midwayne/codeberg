@@ -332,6 +332,13 @@ func runCmd(ctx context.Context, w io.Writer, dir, name string, args ...string) 
 	cmd.Dir = dir
 	cmd.Stdout = w
 	cmd.Stderr = w
+	// git, pip and venv may spawn children that outlive their immediate parent.
+	// Cancelling setup must release the entire installer process group.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	}
+
 	return cmd.Run()
 }
 

@@ -331,3 +331,25 @@ it('declines oversized consolidation context instead of sending fragments of kno
   expect(bounded).toMatchObject({ mode: 'consolidate_knowledge', insufficient_evidence: true });
   expect(bounded.opening_context).toBeUndefined();
 });
+
+it('rebuilds chat tools when the search setting or its ready endpoint changes', async () => {
+  const seen: NodeJS.ProcessEnv[] = [];
+  const pool = new ReloadableAgentPool((env) => {
+    seen.push(env!);
+
+    return new ModelAgentPool({ build: async () => ({}) as ToolLoopAgent });
+  });
+  const choice = { key: 'test', model: 'openai:test', effort: 'low' as const, contextWindow: 50000 };
+
+  for (const env of [
+    { CODEBERG_WEB_SEARCH_USE: 'false', CODEBERG_SEARXNG_URL: '' },
+    { CODEBERG_WEB_SEARCH_USE: 'true', CODEBERG_SEARXNG_URL: '' },
+    { CODEBERG_WEB_SEARCH_USE: 'true', CODEBERG_SEARXNG_URL: 'http://127.0.0.1:49152' },
+    { CODEBERG_WEB_SEARCH_USE: 'false', CODEBERG_SEARXNG_URL: '' },
+  ]) {
+    await (await pool.acquire(choice, JSON.stringify(env), env)).release();
+  }
+
+  expect(seen.map((env) => env.CODEBERG_WEB_SEARCH_USE)).toEqual(['false', 'true', 'true', 'false']);
+  await pool.close();
+});
