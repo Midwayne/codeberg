@@ -21,7 +21,9 @@ def load_adapter():
 class GemmaMLXTest(unittest.TestCase):
     def test_conversion_disables_encoders_and_saves_only_fp32_text_weights(self):
         adapter = load_adapter()
-        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        root = Path(temporary.name)
         source, target = root / "source", root / "output"
         source.mkdir()
         config = {"vision_config": {}, "audio_config": {}, "dtype": "bfloat16",

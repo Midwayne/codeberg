@@ -42,7 +42,7 @@ Set `CODEBERG_VERSION=vX.Y.Z` on `sh` to pin a release. Use absolute
 
 ```sh
 curl -fsSL https://github.com/Midwayne/codeberg/releases/latest/download/install.sh |
-  CODEBERG_VERSION=v0.1.0 CODEBERG_INSTALL_DIR="$HOME/apps/codeberg" sh
+  CODEBERG_VERSION=v0.1.1 CODEBERG_INSTALL_DIR="$HOME/apps/codeberg" sh
 ```
 
 Stop the running app before upgrading, then repeat the installer. It retains old

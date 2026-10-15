@@ -40,7 +40,9 @@ class EmbeddingSetupTest(unittest.TestCase):
         setup = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(setup)
 
-        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        root = Path(temporary.name)
         target = root / "model" / "modules.json"
         env = root / "venv"
         python = env / "bin" / "python"
@@ -71,7 +73,9 @@ class EmbeddingSetupTest(unittest.TestCase):
         setup = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(setup)
 
-        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        root = Path(temporary.name)
         target = root / "model" / "modules.json"
         target.parent.mkdir()
         target.write_text("previous")
@@ -97,7 +101,9 @@ class EmbeddingSetupTest(unittest.TestCase):
         setup = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(setup)
 
-        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        root = Path(temporary.name)
         source = root / "cache" / "tokenizer.json"
         source.parent.mkdir()
         source.write_text("cached")
