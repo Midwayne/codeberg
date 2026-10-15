@@ -13,6 +13,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  launcher:
+    name: Launcher and prebuilt installer
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: launcher/go.mod
+          cache: false
+
+      - name: Test installer failure and upgrade paths
+        run: python3 -m unittest scripts/test_install.py
+
+      - name: Vet and test launcher
+        run: cd launcher && go vet ./... && go test ./...
+
   agent:
     name: Agent + web UI (lint, typecheck, test, build)
     runs-on: ubuntu-latest

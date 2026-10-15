@@ -65,7 +65,7 @@ func Run(c *config.Config) error {
 	if _, err := os.Stat(a.WebScript); err != nil {
 		return fmt.Errorf("web UI server missing (%s); run `codeberg build`", a.WebScript)
 	}
-	node, err := exec.LookPath("node")
+	node, err := c.NodeBinary()
 	if err != nil {
 		return fmt.Errorf("node not found on PATH (the agent needs Node >=22)")
 	}

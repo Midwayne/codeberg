@@ -1,0 +1,123 @@
+name: Prebuilt releases
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MACOSX_DEPLOYMENT_TARGET: '14.0'
+
+jobs:
+  package:
+    name: Package ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            platform: darwin-arm64
+            ort: osx-arm64
+          - runner: macos-15-intel
+            platform: darwin-x64
+            ort: osx-x86_64
+          - runner: ubuntu-22.04
+            platform: linux-x64
+            ort: linux-x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Check release version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            test "$GITHUB_REF_NAME" = "$(tr -d '\n' < VERSION)"
+          fi
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: launcher/go.mod
+          cache-dependency-path: daemon/go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install packaging tools
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            brew install ripgrep libpq
+            echo "CMAKE_PREFIX_PATH=$(brew --prefix libpq)" >> "$GITHUB_ENV"
+          else
+            sudo apt-get update
+            sudo apt-get install -y cmake libcurl4-openssl-dev libpq-dev ripgrep patchelf
+          fi
+
+      - name: Prepare ONNX Runtime
+        shell: bash
+        env:
+          ORT_PLATFORM: ${{ matrix.ort }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/onnxruntime"
+          curl -fSL --retry 3 "https://github.com/microsoft/onnxruntime/releases/download/v1.20.1/onnxruntime-$ORT_PLATFORM-1.20.1.tgz" -o "$RUNNER_TEMP/ort.tgz"
+          tar -xzf "$RUNNER_TEMP/ort.tgz" -C "$RUNNER_TEMP/onnxruntime" --strip-components=1
+          cmake -S core -B core/build -DCMAKE_BUILD_TYPE=Release -DONNXRUNTIME_ROOT="$RUNNER_TEMP/onnxruntime"
+
+      - name: Test installer and launcher
+        run: |
+          python3 -m unittest scripts/test_install.py
+          cd launcher && go test ./...
+
+      - name: Build distribution and test core
+        run: |
+          make dist
+          cd core/build && ctest --output-on-failure
+
+      - name: Bundle runtimes and native libraries
+        shell: bash
+        env:
+          CODEBERG_ORT_DIR: ${{ runner.temp }}/onnxruntime
+        run: |
+          scripts/package-release.sh
+
+      - name: Smoke test relocated package without system Node
+        run: python3 scripts/smoke-release.py build/release/codeberg-$(tr -d '\n' < VERSION)-${{ matrix.platform }}.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codeberg-${{ matrix.platform }}
+          path: build/release/*
+          retention-days: 7
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: package
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: codeberg-*
+          merge-multiple: true
+          path: release
+
+      - name: Publish verified assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          cat release/*.sha256 > release/SHA256SUMS
+          (cd release && sha256sum --check SHA256SUMS)
+          cp install.sh release/install.sh
+          gh release create "$GITHUB_REF_NAME" release/*.tar.gz release/SHA256SUMS release/install.sh --verify-tag --generate-notes --draft

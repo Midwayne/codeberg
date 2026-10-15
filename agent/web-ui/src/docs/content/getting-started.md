@@ -10,9 +10,22 @@ codeberg
 
 The browser opens at `http://127.0.0.1:48088` by default. Keep the launcher running; Ctrl+C in its terminal stops the app. You can open these docs before configuring a chat model or adding a project.
 
-Today, installation is a source workflow, not a one-click installer. From a Codeberg checkout, run `./launcher/install.sh` to build and link the launcher onto PATH. It finds the checkout through that link and builds missing components on launch. Run `codeberg doctor` if a required toolchain is missing. You do not need to set `CODEBERG_REPO` or `CODEBERG_ROOT` for this workflow.
+## Install without building
 
-New installs default to text-only FP32 EmbeddingGemma 2 for semantic search, using MLX on Apple Silicon or Sentence Transformers elsewhere. Setup requires Python 3.10+, network access, and space for its managed runtime and weights. Existing embedding choices are retained. To start without downloading an embedding model, use `codeberg --no-vector`. File tools and lexical search still work. See [Indexing and search](/docs/indexing) for model choices and requirements.
+Prebuilt releases support macOS 14+ on Apple Silicon and Intel, and Linux x64 with glibc (Ubuntu 22.04 or newer). Run:
+
+```sh
+curl -fsSL https://github.com/Midwayne/codeberg/releases/latest/download/install.sh | sh
+```
+
+This needs a published release with the platform archives; if none is available yet, use the source installation below. The installer verifies the archive checksum, installs under `~/.local/share/codeberg`, and links `~/.local/bin/codeberg`. It prints a PATH command if needed. Node, ripgrep, and native libraries are included, so you do not need Go, CMake, npm, or a compiler. Windows and Alpine/musl Linux packages are not available.
+
+Stop Codeberg and re-run the installer to upgrade. Configuration and downloaded models under `~/.codeberg` are preserved; previous packages are retained in the install directory. `CODEBERG_VERSION` pins a release (for example, `v0.1.0`); `CODEBERG_INSTALL_DIR` and `CODEBERG_BIN_DIR` override the two installation directories. Set these variables on `sh` in the command above. Custom paths must be absolute.
+
+For a source installation, run `./launcher/install.sh` from a Codeberg checkout. It builds and links the launcher onto PATH, then builds missing components on launch. This workflow requires the development toolchains. You do not need to set `CODEBERG_REPO` or `CODEBERG_ROOT` for either installation method.
+
+
+New installs default to text-only FP32 EmbeddingGemma 2 for semantic search, using MLX on Apple Silicon or Sentence Transformers elsewhere. Setup requires Python 3.10+, network access, and space for its managed runtime and weights. Existing embedding choices are retained. The prebuilt package also supports `codeberg --embedding jina-onnx`, which downloads Jina weights and uses the bundled ONNX runtime without Python. Optional web search requires Python and git, and git tools require git. To start without downloading an embedding model, use `codeberg --no-vector`. File tools and lexical search still work. See [Indexing and search](/docs/indexing) for model choices and requirements.
 
 ## Connect a chat model
 

@@ -26,7 +26,6 @@ import (
 	"codeberg.org/codeberg/launcher/internal/bootstrap"
 	"codeberg.org/codeberg/launcher/internal/cleanindex"
 	"codeberg.org/codeberg/launcher/internal/config"
-	"codeberg.org/codeberg/launcher/internal/deps"
 	"codeberg.org/codeberg/launcher/internal/embedding"
 	"codeberg.org/codeberg/launcher/internal/registry"
 	"codeberg.org/codeberg/launcher/internal/run"
@@ -34,7 +33,7 @@ import (
 	"codeberg.org/codeberg/launcher/internal/uninstall"
 )
 
-const version = "0.1.0"
+var version = "0.1.0"
 
 func main() {
 	if err := dispatch(os.Args[1:]); err != nil {
@@ -94,7 +93,11 @@ func cmdLearning(args []string) error {
 	if _, err := os.Stat(script); err != nil {
 		return fmt.Errorf("learning CLI is not built at %s; run codeberg build", script)
 	}
-	command := exec.Command("node", append([]string{script}, args...)...)
+	node, err := c.NodeBinary()
+	if err != nil {
+		return err
+	}
+	command := exec.Command(node, append([]string{script}, args...)...)
 	command.Stdin = os.Stdin
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
@@ -533,21 +536,7 @@ func cmdDoctor(args []string) error {
 		return err
 	}
 
-	fmt.Println("Toolchains:")
-	for _, t := range []string{"go", "node", "npm", "make", "cmake", "git"} {
-		if p, err := exec.LookPath(t); err == nil {
-			fmt.Printf("  ✓ %-12s %s\n", t, p)
-		} else {
-			fmt.Printf("  ✘ %-12s not found — `codeberg build` auto-installs it (brew/apt)\n", t)
-		}
-	}
-	// The ONNX runtime is a library, not a binary on PATH — check the way the
-	// core's CMake does, since it's what enables vector embeddings.
-	if deps.OnnxPresent() {
-		fmt.Printf("  ✓ %-12s installed (vector embeddings available)\n", "onnxruntime")
-	} else {
-		fmt.Printf("  ✘ %-12s not found — needed for vector mode; `codeberg build` installs it on macOS\n", "onnxruntime")
-	}
+	reportRuntime(c)
 
 	fmt.Println("\nComponents:")
 	root, prebuilt := c.ResolveRoot()

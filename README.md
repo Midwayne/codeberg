@@ -24,11 +24,41 @@ configuration.
 
 ## Install
 
-See [Prerequisites](#prerequisites) and [Build](#build), then run via the
-[`launcher/`](launcher/) — one `codeberg` command boots the daemon, indexer, and
-browser chat, and auto-installs missing toolchains. `make dist` assembles a portable,
-prebuilt tree the launcher can run from anywhere (`codeberg --dist DIR`); packaged
-installers (a Homebrew tap) will build on that for a later release.
+Install a prebuilt release on **macOS 14+ (Apple Silicon or Intel)** or
+**Linux x64 (glibc, Ubuntu 22.04 or newer)**:
+
+```sh
+curl -fsSL https://github.com/Midwayne/codeberg/releases/latest/download/install.sh | sh
+codeberg
+```
+
+The first command installs Codeberg; the second opens the browser app. No
+cloning or building is needed. After installation, run `codeberg` whenever you
+want to open the app, then add your project and configure a chat model.
+
+The installer downloads and verifies the matching release, installs it under
+`~/.local/share/codeberg`, and links `~/.local/bin/codeberg`. If that directory
+is not on PATH, it prints the line to add. No checkout, Go, CMake, npm, compiler,
+or administrator access is required. Node, ripgrep, and native libraries ship
+with the package. Re-run the installer to upgrade; stop Codeberg first. Your
+configuration and models stay in `~/.codeberg`, and previous release directories
+are retained. Windows and Alpine/musl Linux are not supported by these packages.
+
+**A published release containing the platform archives is required.** Until the
+first prebuilt release is published, use the [source build](#build) and
+`./launcher/install.sh`. Source development still needs the prerequisites below.
+
+Embedding models download separately on first use. The default EmbeddingGemma
+model needs Python 3.10+ with venv/pip; use `codeberg --embedding jina-onnx` for
+the bundled ONNX runtime without Python, or `codeberg --no-vector` to skip
+embedding downloads. Optional web search needs Python and git; git tools need git.
+Chat models and provider credentials are configured separately.
+
+To pin a version or change the install locations, set `CODEBERG_VERSION=vX.Y.Z`,
+`CODEBERG_INSTALL_DIR=/absolute/path`, or `CODEBERG_BIN_DIR=/absolute/path` on
+`sh` in the install command. See [release packaging](docs/releases.md) for the
+maintainer workflow and manual archive installation.
+
 [`launcher/internal/config/config.example`](launcher/internal/config/config.example) lists every launcher, daemon, and agent setting
 (`codeberg config init` writes a minimal starter `~/.codeberg/config`; see that file for the full reference).
 
@@ -77,7 +107,7 @@ for the CLI-level walkthrough.
 
 ## Prerequisites
 
-The build spans three toolchains plus a native library, so a fresh machine needs
+The **source build** spans three toolchains plus a native library, so a fresh machine needs
 all of the following before `make` or the launcher can succeed. Missing any of
 them is the most common first-run failure — `make` fails deep in a configure step
 without naming the package, so install these up front:

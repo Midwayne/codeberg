@@ -492,6 +492,7 @@ func (c *Config) DaemonEnv() map[string]string {
 	putIf(e, KeyIndexBin, c.IndexBin)
 	putIf(e, KeyGitPullSec, c.GitPullSec)
 	putIf(e, KeyGitDir, c.GitDir)
+	c.addRuntimePath(e)
 	return e
 }
 
@@ -541,6 +542,7 @@ func (c *Config) AgentEnv() map[string]string {
 	for k, v := range c.Passthrough {
 		e[k] = v
 	}
+	c.addRuntimePath(e)
 	return e
 }
 

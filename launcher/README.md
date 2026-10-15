@@ -39,7 +39,27 @@ codeberg
         └─ on exit / SIGTERM ▶ stop daemon ▶ daemon stops the core
 ```
 
-## Install (a `codeberg` command on PATH)
+## Install a prebuilt release
+
+```sh
+curl -fsSL https://github.com/Midwayne/codeberg/releases/latest/download/install.sh | sh
+codeberg
+```
+
+Requires a published release for macOS 14+ (arm64/x64) or Linux x64 with glibc
+(Ubuntu 22.04+). The checksum-verified bundle includes Node, ripgrep, and native
+libraries. No source checkout or build tools are needed. The default Python
+embedding models still need Python 3.10+ with venv/pip; `--embedding jina-onnx`
+uses bundled ONNX without Python, and `--no-vector` skips model setup.
+
+The installer links `~/.local/bin/codeberg` to a versioned directory under
+`~/.local/share/codeberg/releases`. Stop Codeberg and re-run it to upgrade.
+Previous packages and `~/.codeberg` data are retained. Override install locations
+with `CODEBERG_INSTALL_DIR` and `CODEBERG_BIN_DIR` (absolute paths), or pin a
+release with `CODEBERG_VERSION`; set variables on `sh` in the command above.
+See [release packaging](../docs/releases.md) for details and current limitations.
+
+## Install from source (developer workflow)
 
 ```sh
 cd launcher
@@ -62,7 +82,7 @@ The launcher runs the same two ways:
   the payload at `../libexec` relative to its own binary, so the tree works
   wherever it's extracted; a populated dist is preferred over a checkout, and you
   can also point at one with `--dist DIR` / `CODEBERG_DIST`. `codeberg doctor`
-  shows which it resolved. (Packaged installers will build on this later.)
+  shows which it resolved. Release bundles add Node, ripgrep, and relocatable native libraries to this tree.
 
 ## First run
 

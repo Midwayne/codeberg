@@ -31,6 +31,7 @@ JOBS       ?= $(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo
 # own binary, so an extracted tarball works wherever it lands.
 DISTDIR     ?= $(ROOT)/dist
 DIST_PREFIX ?=
+VERSION     := $(shell cat $(ROOT)/VERSION)
 
 # $(call load_env,FILE): source FILE (if present) into the recipe shell. One
 # logical line so the exported vars survive through to the exec/run that follows.
@@ -170,8 +171,8 @@ agent-check:
 # --- Package -----------------------------------------------------------------
 
 # `make dist` assembles a self-contained, relocatable tree the launcher runs
-# from without a source checkout or build toolchain — the groundwork a future
-# packaged installer (e.g. a Homebrew tap) builds on:
+# from without a source checkout or build toolchain — the input to
+# scripts/package-release.sh, which adds bundled runtimes and native libraries:
 #
 #   <DISTDIR>/bin/codeberg                                       the launcher
 #   <DISTDIR>/libexec/core/build/bin/{cberg-index,codeberg-d}    siblings; daemon finds the indexer
@@ -188,7 +189,7 @@ agent-check:
 #
 # Note: cberg-index keeps the ONNX Runtime rpath from build time, so it expects
 # the runtime at the same prefix at runtime; a tarball for other machines would
-# additionally bundle libonnxruntime + rewrite rpath.
+# additionally bundle libonnxruntime + rewrite rpath (package-release.sh does this).
 dist: build-core build-daemon build-agent build-web-ui build-dbmcp
 	@echo "› assembling dist into $(DISTDIR)"
 	rm -rf "$(DISTDIR)"
@@ -203,7 +204,7 @@ dist: build-core build-daemon build-agent build-web-ui build-dbmcp
 	cp "$(ROOT)/scripts/embedding_gemma_mlx.py" "$(DISTDIR)/libexec/scripts/"
 	cp "$(DBMCP_BIN)" "$(DISTDIR)/libexec/build/dbmcp"
 	cd "$(LAUNCHER)" && go build \
-	  -ldflags "-X codeberg.org/codeberg/launcher/internal/config.BuildDist=$(DIST_PREFIX)" \
+	  -ldflags "-X codeberg.org/codeberg/launcher/internal/config.BuildDist=$(DIST_PREFIX) -X main.version=$(VERSION)" \
 	  -o "$(DISTDIR)/bin/codeberg" ./cmd/codeberg
 	@echo "✓ dist ready — run: $(DISTDIR)/bin/codeberg"
 

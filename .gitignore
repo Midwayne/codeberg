@@ -11,6 +11,7 @@ agent/node_modules/
 agent/dist/
 launcher/bin/
 /dist/
+__pycache__/
 
 # Excalidraw fonts copied from the installed package at build time
 agent/web-ui/public/excalidraw/

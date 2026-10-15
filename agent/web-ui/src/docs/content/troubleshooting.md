@@ -32,7 +32,9 @@ If the panel reports invalid saved settings, choose **Open config directory**, r
 
 ## Startup cannot find Codeberg components
 
-`CODEBERG_REPO` refers to Codeberg's own source checkout, not the repository you want to explore. For today's source install, use `./launcher/install.sh` in that checkout. Its symlink lets the launcher discover the component locations from any working directory.
+`CODEBERG_REPO` refers to Codeberg's own source checkout, not the repository you want to explore. For a source install, use `./launcher/install.sh` in that checkout. Its symlink lets the launcher discover the component locations from any working directory.
+
+For a prebuilt installation, re-run the release installer to replace an incomplete package. Keep `bin/` and `libexec/` together when extracting an archive manually. `codeberg doctor` reports the packaged Node runtime; missing build tools do not block a prebuilt installation. A checksum or download failure leaves the previous command in place.
 
 A copied standalone launcher binary does not include the daemon, indexer, or web UI. Keep the source-install link or use an assembled distribution containing all components. `CODEBERG_REPO` or `--repo` is an optional development override; Add project supplies the source you want to index.
 
