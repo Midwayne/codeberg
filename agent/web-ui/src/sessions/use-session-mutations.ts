@@ -4,7 +4,7 @@ import { deleteSession, updateSessionFlags } from '../lib/sessions';
 import { type WorkspaceChat } from './workspace-chat';
 
 export type SessionMutationsOptions = {
-  transitionIntent: React.RefObject<number>;
+  cancelResume: () => void;
   chats: React.RefObject<Map<string, WorkspaceChat>>;
   sessionId: string;
   startNew: () => void;
@@ -14,7 +14,7 @@ export type SessionMutationsOptions = {
 };
 
 export function useSessionMutations({
-  transitionIntent,
+  cancelResume,
   chats,
   sessionId,
   startNew,
@@ -24,7 +24,7 @@ export function useSessionMutations({
 }: SessionMutationsOptions) {
   const remove = useCallback(
     async (id: string) => {
-      transitionIntent.current++;
+      cancelResume();
       const removed = chats.current.get(id);
       const settled = removed?.dispose();
       if (id === sessionId) startNew();
@@ -40,7 +40,7 @@ export function useSessionMutations({
         void refresh();
       }
     },
-    [sessionId, startNew, refresh, api, setSessionError],
+    [sessionId, startNew, refresh, api, setSessionError, cancelResume],
   );
 
   const setFlags = useCallback(

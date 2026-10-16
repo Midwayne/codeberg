@@ -1,16 +1,17 @@
 import type { UIMessage } from 'ai';
 import { PenTool } from 'lucide-react';
+import { memo } from 'react';
 
 import { canvasUrl } from './api';
 import { canvasAnchor } from './conversation';
 import { useCanvasSettings } from './use-settings';
 import { useProjectApi } from '../lib/project-api';
 
-export function ChatCanvasActions({ messages, sessionId }: { messages: UIMessage[]; sessionId: string }) {
+export const ChatCanvasActions = memo(function ChatCanvasActions({ messages, sessionId }: { messages: UIMessage[]; sessionId: string }) {
   if (!sessionId || !canvasAnchor(messages)) return null;
 
   return <CanvasAction sessionId={sessionId} />;
-}
+});
 
 function CanvasAction({ sessionId }: { sessionId: string }) {
   const { project } = useProjectApi();

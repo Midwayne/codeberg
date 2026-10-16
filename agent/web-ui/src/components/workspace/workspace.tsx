@@ -1,7 +1,6 @@
 import { WorkspaceSidebar, WorkspaceSearch } from './workspace-controls';
 
-import { Chat } from '../chat/chat';
-import { ChatSaveNotice } from '../chat/chat-save-notice';
+import { WorkspaceConversation } from './workspace-conversation';
 
 import { useWorkspaceSession } from '../../sessions/use-workspace-session';
 import { useState, type ReactNode } from 'react';
@@ -39,44 +38,29 @@ export function useWorkspaceView({
   searchOpen,
   onSearchClose,
 }: WorkspaceProps) {
-  const { chat, persistence, turns, sessions, sessionId, sessionError, resume, startNew, branchFrom, remove, setFlags } =
-    useWorkspaceSession();
+  const session = useWorkspaceSession();
   const [jump, setJump] = useState<{ sessionId: string; messageId: string; nonce: number }>();
   const desktop = useMediaQuery('(min-width: 768px)');
   const sidebar = (
     <WorkspaceSidebar
+      {...session}
       projectControls={projectControls}
       desktop={desktop}
       onSidebarClose={onSidebarClose}
-      sessions={sessions}
-      sessionError={sessionError}
-      sessionId={sessionId}
-      chat={chat}
-      resume={resume}
-      startNew={startNew}
-      branchFrom={branchFrom}
-      remove={remove}
-      setFlags={setFlags}
     />
   );
   return {
+    ...session,
     desktop,
     sidebarOpen,
     sidebar,
     onSidebarClose,
-    chat,
-    persistence,
-    turns,
-    sessionId,
     learningEnabled,
     chatInputs,
-    branchFrom,
     jump,
     searchOpen,
     onSearchClose,
-    sessions,
     setJump,
-    resume,
   };
 }
 
@@ -97,18 +81,7 @@ export function WorkspaceView(state: WorkspaceViewProps) {
           {state.sidebar}
         </Dialog>
       )}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <ChatSaveNotice state={state.persistence} />
-        <Chat
-          chat={state.chat}
-          turns={state.turns}
-          sessionId={state.sessionId}
-          learningEnabled={state.learningEnabled}
-          chatInputs={state.chatInputs}
-          onBranch={(index) => void state.branchFrom(index)}
-          jump={state.jump?.sessionId === state.sessionId ? state.jump : undefined}
-        />
-      </div>
+      <WorkspaceConversation {...state} />
       <WorkspaceSearch
         searchOpen={state.searchOpen}
         onSearchClose={state.onSearchClose}

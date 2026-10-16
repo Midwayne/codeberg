@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useChatScroll, type ChatScrollOptions } from './use-chat-scroll';
 
+vi.mock('./use-retained-scroll', () => ({ useRetainedScroll: vi.fn() }));
+
 vi.mock('react', async (importOriginal) => ({
   ...await importOriginal<typeof import('react')>(),
   useEffect: vi.fn(),

@@ -5,6 +5,7 @@ import appConfig from '../vite.config';
 export default mergeConfig(appConfig, {
   build: {
     outDir: 'node_modules/.cache/typing-bench',
-    rolldownOptions: { input: fileURLToPath(new URL('./index.html', import.meta.url)) },
+    rolldownOptions: { input: ['index.html', 'switching.html', 'cancel-activation.html']
+      .map((path) => fileURLToPath(new URL(path, import.meta.url))) },
   },
 });

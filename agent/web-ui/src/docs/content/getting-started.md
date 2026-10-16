@@ -62,6 +62,14 @@ Sending the first prompt saves the chat immediately and adds it to the sidebar, 
 
 You can start another chat, return to an existing chat, open Settings or Training review, or switch projects while a response runs. Each chat keeps its own response and queued follow-ups; returning to it shows its current progress. Completed responses are saved to the original chat and project.
 
+Switching between your three most recently viewed chats reuses their rendered conversations and keeps their reading positions and unsent attachments. Draft text stays with its own chat in this browser tab, including when you open older chats. Drafts and unsent attachments are not saved to disk: send them before reloading or closing the tab. Opening a saved chat for the first time loads its history. Older chats show the same loading skeleton while their messages are prepared again, reusing history already loaded in this tab.
+
+Audio and video attachments pause when you switch away from their chat, including while another chat loads. Returning to a retained chat keeps the playback position; press Play to resume.
+
+When you first open a saved chat, its sidebar row is selected immediately and the conversation area shows **Loading chat…** until its history is ready. Choose **Cancel** to return to the previous chat, or select another chat while it loads.
+
+If you select several chats quickly, only the latest selection opens; **Cancel** returns to the last chat you were viewing. This also works after history arrives while a conversation is still being prepared. If loading fails, choose **Retry** or **Back to previous chat**. A deleted chat is identified explicitly. The previous chat’s composer stays hidden during loading so prompts cannot be sent to the wrong conversation.
+
 If saving fails, the chat stays in the sidebar for this tab and shows **Chat changes aren’t saved yet**. Keep the tab open and choose **Retry save** after restoring the connection or freeing disk space. This retries storage without asking the model again. An in-memory chat cannot survive a reload until it saves successfully.
 
 Use **Stop** to interrupt a response. Keep the browser tab open while the agent works: reloading, closing it, or navigating that tab to another website interrupts its live requests. The Docs button opens documentation in a separate tab.

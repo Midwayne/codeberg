@@ -1,4 +1,4 @@
 {
   "extends": "../tsconfig.json",
-  "include": ["typing.tsx", "../src/vite-env.d.ts"]
+  "include": ["*.tsx", "../src/vite-env.d.ts"]
 }

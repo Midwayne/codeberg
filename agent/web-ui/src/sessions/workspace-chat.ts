@@ -20,6 +20,8 @@ export interface WorkspaceChat {
   chat: Chat<UIMessage>;
   turns: TurnQueue;
   persistence: ChatSaveState;
+  /** Unsent text belongs to this tab's session, independently of retained DOM. */
+  draft: { text: string };
   readonly disposed: boolean;
   readonly createdAt: number;
   dispose: () => Promise<void>;
@@ -72,6 +74,7 @@ export function createWorkspaceChat({
     chat,
     turns,
     persistence: persistence.state,
+    draft: { text: '' },
     createdAt: Date.now(),
     get disposed() { return disposed; },
     dispose: async () => {

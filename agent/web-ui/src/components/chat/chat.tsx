@@ -5,7 +5,7 @@ import { useChatScroll } from './use-chat-scroll';
 import { useProjectApi } from '../../lib/project-api';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import type { UIMessage } from 'ai';
-import { useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { TurnQueue } from '../../sessions/turn-queue';
 import { useTurnQueue } from './use-turn-queue';
 import { WorkingStatus } from './working-status';
@@ -19,8 +19,8 @@ import { messageIndexById } from '../../lib/branch';
 
 import { type CatalogModel } from '../../lib/models';
 
-// `useChat` lives in the parent `Workspace` (which also owns session state), so
-// `Chat` is presentational over the helpers it returns. Branching is a session
+// Each retained workspace view subscribes to its own session with `useChat`.
+// `Chat` presents those helpers. Branching is a session
 // operation: this component only reports the message index to branch through.
 export type ChatProps = {
   chat: UseChatHelpers<UIMessage>;
@@ -30,6 +30,7 @@ export type ChatProps = {
   learningEnabled: boolean;
   chatInputs: CatalogModel['inputs'];
   jump?: { messageId: string; nonce: number };
+  draftStore?: { text: string };
 };
 
 export function Chat(props: ChatProps) {
@@ -38,30 +39,30 @@ export function Chat(props: ChatProps) {
   return <ChatView {...state} />;
 }
 
-export type ChatViewOptions = {
-  chat: UseChatHelpers<UIMessage>;
-  turns?: TurnQueue;
-  onBranch?: (throughIndex: number) => void;
-  sessionId: string;
-  learningEnabled: boolean;
-  chatInputs: CatalogModel['inputs'];
-  jump?: { messageId: string; nonce: number };
-};
+export type ChatViewOptions = ChatProps;
 
-export function useChatView({ chat, turns, onBranch, sessionId, learningEnabled, chatInputs, jump }: ChatViewOptions) {
+export function useChatView({ chat, turns, onBranch, sessionId, learningEnabled, chatInputs, jump, draftStore }: ChatViewOptions) {
   const { ready } = useProjectApi();
   const { messages, status, error } = chat;
   const queue = useTurnQueue(turns, chat);
   const busy = status === 'submitted' || status === 'streaming' || queue.snapshot.steering;
   const branchAt = !busy && onBranch ? onBranch : undefined;
-  const [draft, setDraft] = useState('');
+  const [draft, updateDraft] = useState(draftStore?.text ?? '');
+
+  const setDraft = (text: string) => {
+    if (draftStore) draftStore.text = text;
+
+    updateDraft(text);
+  };
+
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const { scrollRef, holdAutoScroll, holdTimer } = useChatScroll({ jump, messages, status });
+  const hasCanvas = useMemo(() => Boolean(canvasAnchor(messages)), [messages]);
 
   return {
     scrollRef,
     messages,
-    hasCanvas: Boolean(canvasAnchor(messages)),
+    hasCanvas,
     setDraft,
     promptRef,
     sessionId,
@@ -84,6 +85,11 @@ export function useChatView({ chat, turns, onBranch, sessionId, learningEnabled,
 export type ChatViewProps = ReturnType<typeof useChatView>;
 
 export function ChatView(state: ChatViewProps) {
+  const { ready, regenerate } = state;
+  const onRegenerate = useCallback(() => {
+    if (ready) void regenerate();
+  }, [ready, regenerate]);
+
   return (
     <>
       <div className="relative flex min-h-0 flex-1 flex-col">
@@ -104,9 +110,7 @@ export function ChatView(state: ChatViewProps) {
               sessionId={state.sessionId}
               learningEnabled={state.learningEnabled}
               busy={state.busy}
-              onRegenerate={() => {
-                if (state.ready) void state.regenerate();
-              }}
+              onRegenerate={onRegenerate}
               onBranch={state.onBranch}
             />
 

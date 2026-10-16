@@ -3,8 +3,10 @@ import type { UIMessage } from 'ai';
 import { useCallback, useEffect } from 'react';
 import { createChatBranch } from '../lib/branch';
 
-import { deriveTitle, loadSession, newSessionId, saveSession } from '../lib/sessions';
+import { deriveTitle, newSessionId, saveSession } from '../lib/sessions';
 import { type WorkspaceChat } from './workspace-chat';
+import { createChatResume, type ChatLoad } from './chat-resume';
+import { restoreChatSelection } from './chat-activation';
 
 export type ChatBranchOptions = {
   chat: UseChatHelpers<UIMessage>;
@@ -65,65 +67,50 @@ export function useChatBranch({
 export type ChatTransitionsOptions = {
   transitionIntent: React.RefObject<number>;
   chats: React.RefObject<Map<string, WorkspaceChat>>;
+  renderedViews: React.RefObject<ReadonlySet<WorkspaceChat>>;
   setActive: React.Dispatch<React.SetStateAction<WorkspaceChat>>;
+  setLoad: React.Dispatch<React.SetStateAction<ChatLoad | undefined>>;
   api: typeof fetch;
   refresh: () => Promise<void>;
   createChat: (id: string, messages: UIMessage[], parentId?: string, title?: string) => WorkspaceChat;
   sessionId: string;
 };
 
-export function useChatTransitions({
-  transitionIntent,
-  chats,
-  setActive,
-  api,
-  refresh,
-  createChat,
-  sessionId,
-}: ChatTransitionsOptions) {
+export function useChatTransitions(options: ChatTransitionsOptions) {
+  const { transitionIntent, chats, renderedViews, setActive, setLoad, api, refresh, createChat, sessionId } = options;
+
   useEffect(() => () => {
     transitionIntent.current++;
   }, [transitionIntent]);
 
-  const resume = useCallback(
-    async (id: string) => {
-      const intent = ++transitionIntent.current;
-      const existing = chats.current.get(id);
-      if (existing) {
-        if (existing.disposed) return;
+  const resume = useCallback(createChatResume(options), [transitionIntent, chats, renderedViews, setActive, setLoad, api, refresh, createChat, sessionId]);
 
-        setActive(existing);
-        return;
-      }
-      const record = await loadSession(id, api);
-      if (intent !== transitionIntent.current) return;
-      if (!record) {
-        void refresh(); // it was deleted out from under us
-        return;
-      }
-      setActive(createChat(record.id, record.messages, record.parentId, record.title));
-    },
-    [createChat, refresh, api],
-  );
+  const cancelResume = useCallback(() => {
+    transitionIntent.current++;
+
+    restoreChatSelection(options);
+    setLoad(undefined);
+  }, [transitionIntent, chats, sessionId, setActive, setLoad]);
 
   const startNew = useCallback(() => {
-    transitionIntent.current++;
+    cancelResume();
     setActive(createChat(newSessionId(), []));
-  }, [createChat]);
+  }, [createChat, cancelResume, setActive]);
 
-  useStorageCleanup({ transitionIntent, chats, sessionId, startNew, refresh });
+  useStorageCleanup({ cancelResume, chats, sessionId, startNew, refresh });
 
-  return { startNew, resume };
+  return { startNew, resume, cancelResume };
 }
 
-type StorageCleanupOptions = Pick<ChatTransitionsOptions, 'transitionIntent' | 'chats' | 'sessionId' | 'refresh'> & {
+type StorageCleanupOptions = Pick<ChatTransitionsOptions, 'chats' | 'sessionId' | 'refresh'> & {
   startNew: () => void;
+  cancelResume: () => void;
 };
 
-function useStorageCleanup({ transitionIntent, chats, sessionId, startNew, refresh }: StorageCleanupOptions) {
+function useStorageCleanup({ cancelResume, chats, sessionId, startNew, refresh }: StorageCleanupOptions) {
   useEffect(() => {
     const cleaned = (event: Event) => {
-      transitionIntent.current++;
+      cancelResume();
 
       const ids = (event as CustomEvent<{ deletedChatIds?: string[] }>).detail?.deletedChatIds ?? [];
       for (const id of ids) {
@@ -135,5 +122,5 @@ function useStorageCleanup({ transitionIntent, chats, sessionId, startNew, refre
     };
     window.addEventListener('codeberg:storage-cleaned', cleaned);
     return () => window.removeEventListener('codeberg:storage-cleaned', cleaned);
-  }, [sessionId, startNew, refresh, transitionIntent, chats]);
+  }, [sessionId, startNew, refresh, cancelResume, chats]);
 }

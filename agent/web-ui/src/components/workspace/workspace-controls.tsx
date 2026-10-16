@@ -1,6 +1,7 @@
 import type { UseChatHelpers } from '@ai-sdk/react';
 import type { UIMessage } from 'ai';
 import { type SessionSummary } from '../../lib/sessions';
+import type { ChatLoad } from '../../sessions/chat-resume';
 
 import { ChatSearch } from './chat-search';
 import { SessionSidebar } from './session-sidebar';
@@ -19,6 +20,7 @@ export type WorkspaceSidebarProps = Pick<
   desktop: boolean;
   sessions: SessionSummary[];
   sessionError: string;
+  load?: ChatLoad;
   sessionId: string;
   chat: UseChatHelpers<UIMessage>;
   resume: (id: string) => Promise<void>;
@@ -34,6 +36,7 @@ export function WorkspaceSidebar({
   onSidebarClose,
   sessions,
   sessionError,
+  load,
   sessionId,
   chat,
   resume,
@@ -54,8 +57,8 @@ export function WorkspaceSidebar({
       }
       sessions={sessions}
       error={sessionError}
-      currentId={sessionId}
-      canBranch={chat.status === 'ready' && chat.messages.length > 0}
+      currentId={load?.id ?? sessionId}
+      canBranch={!load && chat.status === 'ready' && chat.messages.length > 0}
       onResume={(id) => {
         void resume(id);
         if (!desktop) onSidebarClose();

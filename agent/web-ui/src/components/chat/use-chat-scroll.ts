@@ -4,6 +4,7 @@ import type { UIMessage } from 'ai';
 import { useEffect, useRef } from 'react';
 
 import { MESSAGE_ID_ATTR } from '../../lib/message-rail';
+import { useRetainedScroll } from './use-retained-scroll';
 
 import type { useChatView } from './chat';
 
@@ -14,6 +15,7 @@ export type ChatScrollOptions = Pick<Parameters<typeof useChatView>[0], 'jump'> 
 
 export function useChatScroll({ jump, messages, status }: ChatScrollOptions) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  useRetainedScroll(scrollRef);
   const holdAutoScroll = useRef(false);
   const holdTimer = useRef(0);
   const handledJump = useRef<number | undefined>(undefined);

@@ -10,17 +10,21 @@ import { useSessions } from '../lib/use-sessions';
 
 import { useProjectChats } from './project-chats';
 import { workspaceSummaries } from './workspace-summaries';
+import type { ChatLoad } from './chat-resume';
+import type { WorkspaceChat } from './workspace-chat';
 
 /** Owns the conversation lifecycle shared by the chat and session sidebar. */
 export function useWorkspaceSession() {
   const { fetch: api } = useProjectApi();
   const [sessionError, setSessionError] = useState('');
+  const [load, setLoad] = useState<ChatLoad>();
   const { sessions: savedSessions, refresh } = useSessions();
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
   const registry = useProjectChats();
   const chats = useRef(registry.chats);
   const transitionIntent = useRef(0);
+  const renderedViews = useRef<ReadonlySet<WorkspaceChat>>(new Set());
   const seededRailPreview = useRef(false);
   const { setActive, createChat, sessionId, chat, active } = useChatRegistry({
     api,
@@ -29,10 +33,12 @@ export function useWorkspaceSession() {
     chats,
     seededRailPreview,
   });
-  const { startNew, resume } = useChatTransitions({
+  const { startNew, resume, cancelResume } = useChatTransitions({
     transitionIntent,
+    renderedViews,
     chats,
     setActive,
+    setLoad,
     api,
     refresh,
     createChat,
@@ -41,7 +47,7 @@ export function useWorkspaceSession() {
 
   const { branchFrom } = useChatBranch({ chat, transitionIntent, active, api, refresh, setActive, createChat, setSessionError });
   const { remove, setFlags } = useSessionMutations({
-    transitionIntent,
+    cancelResume,
     chats,
     sessionId,
     startNew,
@@ -52,5 +58,5 @@ export function useWorkspaceSession() {
 
   const sessions = workspaceSummaries(savedSessions, registry.chats);
 
-  return { chat, persistence: active.persistence, turns: active.turns, sessions, sessionId, sessionError, resume, startNew, branchFrom, remove, setFlags };
+  return { active, chat, renderedViews, sessions, sessionId, sessionError, load, cancelResume, resume, startNew, branchFrom, remove, setFlags };
 }

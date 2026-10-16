@@ -52,11 +52,19 @@ export async function updateSessionFlags(
 
 export async function loadSession(id: string, fetcher: typeof fetch = fetch): Promise<SessionRecord | null> {
   try {
-    const res = await fetcher(`${BASE}/${encodeURIComponent(id)}`);
-    return res.ok ? ((await res.json()) as SessionRecord) : null;
+    return await readSession(id, fetcher);
   } catch {
     return null;
   }
+}
+
+/** Interactive opens must distinguish a missing chat from a failed request. */
+export async function readSession(id: string, fetcher: typeof fetch = fetch): Promise<SessionRecord | null> {
+  const response = await fetcher(`${BASE}/${encodeURIComponent(id)}`);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Could not load chat (${response.status}). Try again.`);
+
+  return (await response.json()) as SessionRecord;
 }
 
 export type SaveSessionInput = {
