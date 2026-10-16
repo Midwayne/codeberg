@@ -22,6 +22,7 @@ async function selectChat(page, index, group) {
 try {
   for (const scenario of scenarios) {
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+    page.setDefaultTimeout(new URL(base).searchParams.get('content') === 'rich' ? 120_000 : 30_000);
     page.on('pageerror', (error) => errors.push(String(error)));
     const url = new URL(base);
     url.searchParams.set('scenario', scenario.key);

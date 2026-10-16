@@ -8,6 +8,7 @@ import { ProjectChatsContext } from '@/sessions/project-chats';
 import { ProjectChatRegistry } from '@/sessions/project-chat-registry';
 import { createWorkspaceChat } from '@/sessions/workspace-chat';
 import { switchingScenario } from './switching-scenarios';
+import { richSwitchingParts } from './switching-history';
 import '@/index.css';
 import '@/loading.css';
 import '@/motion.css';
@@ -15,13 +16,14 @@ import '@/motion.css';
 let transcriptReads = 0;
 let historyRequests = 0;
 const scenario = switchingScenario();
+const richHistory = new URLSearchParams(location.search).get('content') === 'rich';
 const registry = new ProjectChatRegistry();
 const project = { id: 'benchmark', name: 'Synthetic project', roots: [] };
 const chats = registry.forProject(project.id);
 const summaries = Array.from({ length: 5 }, (_, chatIndex) => {
   const id = `switch-${chatIndex}`;
   const messages: UIMessage[] = Array.from({ length: 200 }, (_, index) => {
-    const parts: UIMessage['parts'] = [{ type: 'text', text: index % 2
+    const parts: UIMessage['parts'] = richHistory ? richSwitchingParts(chatIndex, index) : [{ type: 'text', text: index % 2
       ? `## Finding ${index}\n\nThe request passes through **the daemon** before returning search results.\n\n- Parse the request\n- Find matching source chunks\n- Return citations\n\nUse the result to inspect the surrounding implementation.`
       : `Chat ${chatIndex}: how does request ${index} reach search?` }];
 
@@ -43,8 +45,15 @@ for (const [id, title] of [['cold', 'Cold saved chat'], ['retry', 'Retry saved c
     pinned: id === 'cold' && scenario.pinned.length > 0, archived: false });
 }
 
-const api: typeof fetch = async (input) => {
+const api: typeof fetch = async (input, init) => {
   const url = String(input);
+  if (init?.method === 'PUT') {
+    window.dispatchEvent(new CustomEvent('benchmark:saved-session', {
+      detail: { id: url.split('/').at(-1), ...JSON.parse(String(init.body)) },
+    }));
+
+    return Response.json({});
+  }
   if (url === '/api/sessions') return Response.json(summaries);
   if (url === '/api/settings/canvas') return Response.json({ enabled: false });
   if (url.startsWith('/api/sessions/')) {

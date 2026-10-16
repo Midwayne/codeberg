@@ -47,6 +47,8 @@ curl -fsSL https://github.com/Midwayne/codeberg/releases/latest/download/install
 
 Stop the running app before upgrading, then repeat the installer. It retains old
 release directories so running processes can finish and rollback stays possible.
+Restart Codeberg after the installer finishes and reload existing Codeberg browser
+tabs so they load the updated UI code.
 To roll back, run the installer with the previous `CODEBERG_VERSION`.
 Configuration, projects, chats, indexes, and model downloads stay in
 `CODEBERG_HOME` (default `~/.codeberg`). The installer does not change that data.

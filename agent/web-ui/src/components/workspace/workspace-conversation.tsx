@@ -1,3 +1,5 @@
+import { useCallback, useLayoutEffect, useRef } from 'react';
+
 import { ChatViews } from './chat-views';
 import { ChatLoadSurface } from './chat-load-surface';
 import type { WorkspaceViewProps } from './workspace';
@@ -6,6 +8,8 @@ type WorkspaceConversationProps = Pick<WorkspaceViewProps,
   'active' | 'renderedViews' | 'load' | 'sessions' | 'resume' | 'cancelResume' | 'learningEnabled' | 'chatInputs' | 'branchFrom' | 'jump' | 'sessionId'>;
 
 export function WorkspaceConversation(state: WorkspaceConversationProps) {
+  const onBranch = useBranchAction(state.branchFrom);
+
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <ChatViews
@@ -14,7 +18,7 @@ export function WorkspaceConversation(state: WorkspaceConversationProps) {
         hidden={Boolean(state.load)}
         learningEnabled={state.learningEnabled}
         chatInputs={state.chatInputs}
-        onBranch={(index) => void state.branchFrom(index)}
+        onBranch={onBranch}
         jump={state.jump?.sessionId === state.sessionId ? state.jump : undefined}
       />
       {state.load && (
@@ -27,4 +31,15 @@ export function WorkspaceConversation(state: WorkspaceConversationProps) {
       )}
     </div>
   );
+}
+
+/** Keep retained transcript props stable; actions use the last committed chat. */
+function useBranchAction(branchFrom: WorkspaceConversationProps['branchFrom']) {
+  const committed = useRef(branchFrom);
+
+  useLayoutEffect(() => {
+    committed.current = branchFrom;
+  }, [branchFrom]);
+
+  return useCallback((index: number) => void committed.current(index), []);
 }

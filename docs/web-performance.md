@@ -274,3 +274,67 @@ Verification after these corrections: `make agent-check` passed lint, typechecks
 802 tests, and both builds. The benchmark TypeScript configuration also passed.
 The typing, media, grouped switching, desktop/mobile switching, and queued
 activation cancellation browser checks all passed, with no browser errors.
+
+### Rich conversation follow-up
+
+Recordings of remaining lag prompted a test with SQL blocks, tables, and completed
+database tool results. The earlier switching fixture covered short markdown
+responses; those timings did not establish performance for these richer histories.
+Use `?content=rich` on the switching fixture to exercise 200 messages per chat,
+including 100 SQL blocks, tables, and collapsed tool payloads with 40 result rows.
+
+Two sources of work remained in v0.1.3. The workspace recreated its branch callback
+on every render, invalidating every retained `MessageList` despite unchanged
+messages. The branch callback now keeps its identity and reads the last committed
+action, so abandoned transitions cannot change its target. This removes transcript
+rescans on retained switches, while new messages and action availability still
+invalidate the list.
+
+Chrome profiling after that correction attributed roughly 1,168 ms to style
+recalculation and 601 ms to layout over 100 switches. Hiding and revealing Activity
+views still laid out the full rich transcript. Assistant replies now use browser
+content visibility with a remembered intrinsic size: their DOM, text, and controls
+remain available, while the browser skips layout and paint for off-screen reply
+contents. User prompt markers remain fully laid out for rail navigation. Browsers
+without content-visibility support retain the existing rendering behavior.
+
+Claim: these corrections reduce synchronous retained switching work for rich,
+unchanged conversations. Baseline application code is v0.1.3 (`d4ac296`). The same
+new rich fixture and production Chrome were used before and after, with five
+trials of 20 Pinned ↔ Recent selections each, and zero history requests:
+
+| Measurement | Before | After |
+|---|---:|---:|
+| Median synchronous switch | 28.910 ms | 9.650 ms |
+| Trial means, ms/switch | 28.030, 29.200, 29.825, 28.910, 28.780 | 9.400, 9.735, 9.650, 9.640, 9.730 |
+| Median time until ready | 29.315 ms | 10.005 ms |
+| Transcript content reads per 20 selections | 15,200–16,000 | 0 |
+| Median synchronous switch, 4× CPU throttling | 120.290 ms | 38.845 ms |
+| Throttled trial means, ms/switch | 111.105, 120.080, 124.295, 120.290, 123.345 | 38.900, 38.845, 37.860, 37.350, 39.065 |
+| Median time until ready, 4× CPU throttling | 122.090 ms | 40.315 ms |
+
+The callback correction alone measured 24.965 ms per switch; the layout correction
+accounts for the larger remaining reduction. These are local CPU measurements,
+including a throttled CPU model, not results from the user's device or a guarantee
+of field INP, GPU behavior, or a particular frame rate.
+
+Run `node bench/check-rich-switching.mjs` with the same browser environment overrides
+as the other checks; set `CPU_RATE=4` for throttled trials. It asserts zero content
+rescans, retained DOM and expanded tool panels, reading-position restoration, a
+rail jump deep into the transcript, response updates, and branching from the
+currently committed chat after switching. Its content-reuse assertion failed on
+v0.1.3. The grouped runner also accepts a `BENCH_URL` containing `?content=rich`.
+
+The rich grouped check passed all five scenarios. Retained Recent ↔ Recent,
+Pinned ↔ Pinned, and Pinned ↔ Recent medians were 9.225, 9.240, and 9.590 ms.
+Four-chat cycles still remount evicted views: synchronous feedback measured
+1.500–1.570 ms, with 349.890–368.915 ms until the richer transcript was ready.
+All 100 opens in each eviction scenario showed skeletons, with zero history GETs.
+This improves retained switching and off-screen layout; it does not make initial
+history mounting instantaneous.
+
+Final verification passed `make agent-check` (802 tests, lint, typechecks and
+builds), the benchmark TypeScript check, and browser checks for rich desktop/mobile
+reading positions, grouped navigation, cancellation, media playback, and typing.
+Reading-position assertions compare the visible target's viewport offset after
+layout settles, since content realization can change absolute scroll coordinates.
