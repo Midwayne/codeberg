@@ -23,6 +23,8 @@ func mapIndexerError(msg string) error {
 	code := "INDEXER_ERROR"
 
 	switch strings.ToLower(msg) {
+	case "index building; use grep, glob or read_file while indexing and graph creation finish":
+		code = "NOT_READY"
 	case "not implemented", "graph disabled":
 		code = "NOT_IMPLEMENTED"
 	case "not found":

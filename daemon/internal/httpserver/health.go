@@ -16,12 +16,16 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 		"status":          "ok",
 		"pid":             os.Getpid(),
 		"ready":           st.Ready,
+		"indexing":        st.Indexing,
 		"chunks":          st.Chunks,
 		"version":         st.Version,
 		"vectors_enabled": st.VectorsEnabled,
 	}
 	if len(st.Repos) > 0 {
 		body["repos"] = st.Repos
+	}
+	if st.Progress != nil {
+		body["progress"] = st.Progress
 	}
 
 	writeJSON(w, http.StatusOK, body)

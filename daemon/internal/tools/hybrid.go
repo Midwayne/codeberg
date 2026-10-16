@@ -2,6 +2,8 @@ package tools
 
 import (
 	"context"
+	"errors"
+	"syscall"
 
 	"codeberg.org/codeberg/daemon/internal/indexctl"
 	"codeberg.org/codeberg/daemon/internal/search"
@@ -54,10 +56,6 @@ func runHybridSearch(ctx context.Context, idx indexctl.Indexer, ws *workspace.Wo
 		return nil, lexicalErr
 	}
 
-	if searchErr != nil && len(matches) == 0 {
-		return nil, searchErr
-	}
-
 	hits := search.Fuse(candidates, matches, k, a.Query)
 	enrichHybridContext(ctx, idx, ws, hits)
 	return hits, nil
@@ -90,5 +88,6 @@ func startVectorCandidates(ctx context.Context, idx indexctl.Indexer, a searchAr
 
 func vectorsUnavailable(err error) bool {
 	ie, ok := indexctl.AsIndexerError(err)
-	return ok && ie.Code == "NOT_IMPLEMENTED"
+	return (ok && (ie.Code == "NOT_IMPLEMENTED" || ie.Code == "NOT_READY")) ||
+		errors.Is(err, syscall.ENOENT) || errors.Is(err, syscall.ECONNREFUSED)
 }

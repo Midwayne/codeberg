@@ -1,0 +1,10 @@
+.indexing-progress-bar {
+  transform-origin: left;
+  transition: transform 180ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .indexing-progress-bar {
+    transition: none;
+  }
+}

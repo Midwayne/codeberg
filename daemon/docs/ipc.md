@@ -37,7 +37,7 @@ status
 Response:
 
 ```json
-{"ok":true,"ready":true,"chunks":42,"version":"0.1.0","vectors_enabled":true,
+{"ok":true,"ready":true,"indexing":false,"chunks":42,"version":"0.1.0","vectors_enabled":true,
  "repos":[{"key":"codeberg","ready":true,"chunks":42}]}
 ```
 
@@ -45,6 +45,9 @@ Response:
   failed to bootstrap stays `ready:false` in `repos` without holding the whole
   daemon unhealthy.
 - `vectors_enabled` — `CBERG_MODEL` and `CBERG_INDEX_PATH` are set.
+- `progress` — optional `{repo, phase, completed, total}` snapshot. `phase` is `counting`, `graph`, `embedding`, or `finalizing`. Graph work counts files; embedding/finalizing counts chunks, including reused cached/duplicate chunks. `total:0` means the total is not known yet. Counts describe the active repository and stage.
+- `indexing` — bootstrap or a watched update is building search and graph data.
+  Commands return `ok:false` with an `index building; use grep, glob or read_file while indexing and graph creation finish` error instead of waiting for build locks.
 - Status reads published snapshots without taking the repo or embedder lock.
   Chunk counts update after chunk synchronization; readiness updates when a
   bootstrap or watched update completes. An in-flight update retains the last

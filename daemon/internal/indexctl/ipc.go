@@ -5,6 +5,8 @@ package indexctl
 type statusResponse struct {
 	OK             bool         `json:"ok"`
 	Ready          bool         `json:"ready"`
+	Indexing       bool         `json:"indexing"`
+	Progress       *Progress    `json:"progress,omitempty"`
 	Chunks         int          `json:"chunks"`
 	Version        string       `json:"version"`
 	VectorsEnabled bool         `json:"vectors_enabled"`

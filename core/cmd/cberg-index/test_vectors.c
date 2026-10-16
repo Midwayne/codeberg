@@ -332,6 +332,45 @@ static void cleanup(const char *root, const char *work) {
     }
 }
 
+typedef struct {
+    cberg_repo *repo;
+    cberg_status status;
+} bootstrap_task;
+
+static void *run_bootstrap(void *ctx) {
+    bootstrap_task *task = ctx;
+    task->status = cberg_repo_bootstrap(task->repo);
+    return NULL;
+}
+
+static void bootstrap_with_progress(cberg_repo *r) {
+    bootstrap_task task = {.repo = r};
+    pthread_t thread;
+    int started = pthread_create(&thread, NULL, run_bootstrap, &task);
+    CHECK(started == 0, "bootstrap thread starts");
+    if (started != 0) {
+        return;
+    }
+
+    int observed = 0;
+    for (int i = 0; i < 10000 && !cberg_repo_ready(r); i++) {
+        size_t completed = atomic_load(&r->progress_completed);
+        size_t total = atomic_load(&r->progress_total);
+        if (strcmp(atomic_load(&r->progress_phase), "embedding") == 0 && completed > 0 && completed < total) {
+            observed = 1;
+            break;
+        }
+        struct timespec delay = {.tv_nsec = 1000000L};
+        nanosleep(&delay, NULL);
+    }
+
+    pthread_join(thread, NULL);
+    CHECK(task.status == CBERG_OK, "bootstrap");
+    CHECK(observed, "completed chunks increase before embedding finishes");
+    CHECK(atomic_load(&r->progress_total) == cberg_repo_chunk_count(r), "progress total includes duplicate chunks");
+    CHECK(atomic_load(&r->progress_completed) == atomic_load(&r->progress_total), "completed count reaches the real total");
+}
+
 int main(int argc, char **argv) {
     char root_tmpl[] = "/tmp/cberg-vectors-root-XXXXXX";
     char work_tmpl[] = "/tmp/cberg-vectors-work-XXXXXX";
@@ -367,6 +406,7 @@ int main(int argc, char **argv) {
     setenv("CBERG_EMBED_WORKER", CBERG_LOG_WORKER, 1);
     setenv("CBERG_TEST_EMBED_LOG", log_path, 1);
     setenv("CBERG_TEST_EMBED_CALLS", calls_path, 1);
+    setenv("CBERG_TEST_EMBED_DELAY_MS", "20", 1);
 
     cberg_engine eng;
     cberg_status st = cberg_engine_open(&eng);
@@ -379,7 +419,7 @@ int main(int argc, char **argv) {
     cberg_repo *r = eng.repos[0];
 
     /* Cold bootstrap. */
-    CHECK(cberg_repo_bootstrap(r) == CBERG_OK, "bootstrap");
+    bootstrap_with_progress(r);
     eng.bootstrapped = 1;
 
     size_t chunks = cberg_repo_chunk_count(r);

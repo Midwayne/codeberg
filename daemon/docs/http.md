@@ -30,6 +30,7 @@ carry it, and tools accept it as `repo`.
   "status": "ok",
   "pid": 1234,
   "ready": true,
+  "indexing": false,
   "chunks": 12345,
   "version": "0.1.0",
   "vectors_enabled": true,
@@ -38,6 +39,8 @@ carry it, and tools accept it as `repo`.
 ```
 
 - `ready` — bootstrap finished and at least one repo is searchable.
+- `progress` — optional active repository/stage counts: `{ "repo": "codeberg", "phase": "embedding", "completed": 1500, "total": 2600 }`. Embedding/finalizing counts chunks; graph counts files. A zero total means the workload is still being determined.
+- `indexing` — bootstrap or a watched update is building the index and graph. File tools remain available; index-only requests return `503 NOT_READY` promptly during that work.
 - `pid` — daemon process ID, used to attribute resource usage for a local daemon.
   A remote daemon's PID must not be interpreted on the client's machine.
 - `vectors_enabled` — `CBERG_MODEL` + `CBERG_INDEX_PATH` are configured; when

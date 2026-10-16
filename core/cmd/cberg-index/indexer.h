@@ -46,6 +46,10 @@ typedef struct cberg_repo {
     int ready;
     atomic_size_t published_chunks; /* health snapshots never take mu */
     atomic_int published_ready;
+    atomic_size_t progress_completed;
+    atomic_size_t progress_total;
+    _Atomic(const char *) progress_phase; /* borrowed static literal */
+    atomic_int progress_active;
 } cberg_repo;
 
 struct cberg_engine {
@@ -63,6 +67,8 @@ struct cberg_engine {
     cberg_chunker *chunker;   /* main (bootstrap/watch) thread only */
     cberg_embedder *embedder; /* ONE per process; call only via engine_embed */
     pthread_mutex_t embed_mu; /* serializes every cberg_embedder_embed call */
+    pthread_mutex_t work_mu; /* IPC tries this lock; watched updates hold it */
+    atomic_int updating;
 
     cberg_repo **repos;
     size_t repos_len;

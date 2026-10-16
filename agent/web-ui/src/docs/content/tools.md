@@ -41,3 +41,7 @@ Set `CODEBERG_WEB_USE=false` to disable both web search and URL fetching. This m
 [Skills](/docs/skills) describe a workflow; they do not add callable source or service operations. MCP servers provide additional tool catalogs. The agent loads relevant MCP tools on demand rather than sending every server's full catalog with each request.
 
 An extension may require its own executable, credentials, network access, or service permissions. Describe the outcome you want and any boundaries, especially when a connected tool can change data.
+
+Indexing and graph creation do not block chat or file tools. During a build, `hybrid_search` uses lexical matches and `find_references` can fall back to grep. Index-only operations report `NOT_READY` promptly; the agent can continue with `grep`, `glob`, `read_file`, and directory tools. An unavailable index is not evidence that a symbol or file is absent.
+
+A hybrid search restricted by chunk `kind` needs the index to classify lexical matches. If that lookup is unavailable, the tool reports the error rather than returning an empty result. The agent can search without the kind filter or use grep and read the matching source directly.

@@ -23,6 +23,8 @@ func (c *Client) Status(ctx context.Context) (Status, error) {
 
 	return Status{
 		Ready:          out.Ready,
+		Indexing:       out.Indexing,
+		Progress:       out.Progress,
 		Chunks:         out.Chunks,
 		Version:        out.Version,
 		VectorsEnabled: out.VectorsEnabled,

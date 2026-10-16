@@ -13,6 +13,8 @@ import (
 func statusFor(err error) int {
 	if ie, ok := indexctl.AsIndexerError(err); ok {
 		switch ie.Code {
+		case "NOT_READY":
+			return http.StatusServiceUnavailable
 		case "NOT_IMPLEMENTED":
 			return http.StatusNotImplemented
 		case "NOT_FOUND":

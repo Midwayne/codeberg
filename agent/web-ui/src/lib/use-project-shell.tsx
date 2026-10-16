@@ -30,12 +30,13 @@ export function useProjectShell({ children }: ProjectShellOptions) {
     window.history.replaceState(null, '', url);
   }
   const currentStatus = status?.id === project?.id ? status : undefined;
-  const ready = currentStatus?.value?.ready === true;
+  const ready = Boolean(project);
   const toolbar = (
     <ProjectToolbar project={project} selected={selected} catalog={catalog} select={select} setAdding={setAdding} />
   );
-  const notice = project && !ready && (
+  const notice = project && (!currentStatus?.value?.ready || currentStatus.value.indexing) && (
     <ProjectNotice
+      key={project.id}
       currentStatus={currentStatus}
       project={project}
       api={api}
@@ -69,7 +70,7 @@ export function useProjectStatus({ project, api, retry, refreshCatalog }: Projec
         if (response.status === 404) refreshCatalog?.((value) => value + 1);
         if (!response.ok) throw new Error(await response.text());
         const value = (await response.json()) as ProjectStatus;
-        ready = value.ready;
+        ready = value.ready && !value.indexing;
         if (!controller.signal.aborted) setStatus({ id: project.id, value });
       } catch (reason) {
         if (!controller.signal.aborted) setStatus({ id: project.id, error: String(reason) });

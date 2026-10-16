@@ -40,6 +40,15 @@ static cberg_status apply_path_changes(cberg_repo *r, char **rechunk, size_t rec
 static cberg_status walk_and_sync(cberg_repo *r);
 static cberg_status bootstrap_warm(cberg_repo *r);
 
+/* One indexing thread writes progress; health readers never take repo locks.
+ * A zero total means the parsing pass has not determined its workload yet. */
+static void progress_begin(cberg_repo *r, const char *phase, size_t total, size_t completed) {
+    atomic_store(&r->progress_total, 0);
+    atomic_store(&r->progress_completed, completed);
+    atomic_store(&r->progress_phase, phase);
+    atomic_store(&r->progress_total, total);
+}
+
 /* The single choke point for the shared embedder: the ONNX session is not
  * thread-safe, and both the indexing (main) thread and the IPC search thread
  * embed. Callers must NOT hold embed_mu already; holding a repo->mu is fine
@@ -382,6 +391,7 @@ static cberg_status add_group_vector(void *v, size_t item, const float *vec) {
         }
 
         (*u->done)++;
+        atomic_fetch_add(&u->repo->progress_completed, 1);
         if (u->show && (*u->done >= u->mark || *u->done == u->total)) {
             fprintf(stderr, "cberg-index[%s]: embedded %zu/%zu chunks (%zu%%)\n", u->repo->key, *u->done, u->total, *u->done * 100 / u->total);
             u->mark += PROGRESS_STEP;
@@ -506,11 +516,15 @@ done:
 }
 
 static cberg_status apply_vectors(cberg_repo *r, const cberg_changes *ch) {
+    size_t total = cberg_chunk_table_len(r->table);
+    size_t upsert_len = ch->added_len + ch->modified_len;
+    progress_begin(r, "embedding", total, total >= upsert_len ? total - upsert_len : 0);
+
     if (!r->eng->vectors || r->eng->embedder == NULL || r->index == NULL) {
+        atomic_store(&r->progress_completed, total);
         return CBERG_OK;
     }
 
-    size_t upsert_len = ch->added_len + ch->modified_len;
     if (upsert_len == 0 && ch->deleted_len == 0) {
         return cberg_index_save(r->index);
     }
@@ -633,6 +647,7 @@ static cberg_status embed_table(cberg_repo *r, cberg_index *target) {
 
     size_t done = 0;
     int show = count >= PROGRESS_MIN;
+    progress_begin(r, "embedding", count, 0);
     cberg_status st = embed_unique(r, target, rows, count, show, &done, count, NULL);
 
     free(rows);
@@ -713,11 +728,13 @@ static void apply_graph_fragments(cberg_repo *r, chunk_batch *batch) {
     if (r->graph == NULL) {
         return;
     }
+    progress_begin(r, "graph", batch->frags_len, 0);
     for (size_t i = 0; i < batch->frags_len; i++) {
         cberg_status st = cberg_graph_apply(r->graph, batch->frags[i], graph_key_resolver, r->table);
         if (st != CBERG_OK) {
             fprintf(stderr, "cberg-index[%s]: warning: graph update failed for '%s': %s\n", r->key, cberg_graph_fragment_path(batch->frags[i]), cberg_status_str(st));
         }
+        atomic_store(&r->progress_completed, i + 1);
     }
 }
 
@@ -752,6 +769,8 @@ static cberg_status sync_vectors(cberg_repo *r, const cberg_changes *ch) {
         }
         r->ready = 1;
     }
+    progress_begin(r, "finalizing", cberg_chunk_table_len(r->table), cberg_chunk_table_len(r->table));
+
     /* Live per-sync line for the watch loop; bootstrap reports via embed progress
      * and the final "bootstrap complete" count instead. */
     if (r->ready && (ch->added_len != 0 || ch->modified_len != 0 || ch->deleted_len != 0)) {
@@ -962,6 +981,9 @@ int cberg_repo_ready(cberg_repo *r) {
 static void publish_status(cberg_repo *r) {
     atomic_store(&r->published_chunks, cberg_chunk_table_len(r->table));
     atomic_store(&r->published_ready, r->ready);
+    if (r->ready) {
+        progress_begin(r, "complete", cberg_chunk_table_len(r->table), cberg_chunk_table_len(r->table));
+    }
 }
 
 size_t cberg_engine_chunk_count(cberg_engine *eng) {
@@ -1027,6 +1049,10 @@ static cberg_status engine_add_repo(cberg_engine *eng, const char *key, const ch
     pthread_mutex_init(&r->mu, NULL);
     atomic_init(&r->published_chunks, 0);
     atomic_init(&r->published_ready, 0);
+    atomic_init(&r->progress_completed, 0);
+    atomic_init(&r->progress_total, 0);
+    atomic_init(&r->progress_phase, "pending");
+    atomic_init(&r->progress_active, 0);
     r->eng = eng;
     r->key = strdup(key);
     r->root = strdup(root);
@@ -1173,7 +1199,9 @@ static cberg_status open_repos_from_env(cberg_engine *eng) {
 cberg_status cberg_engine_open(cberg_engine *eng) {
     memset(eng, 0, sizeof(*eng));
     atomic_init(&eng->bootstrapped, 0);
+    atomic_init(&eng->updating, 0);
     pthread_mutex_init(&eng->embed_mu, NULL);
+    pthread_mutex_init(&eng->work_mu, NULL);
 
     const char *model = getenv("CBERG_MODEL");
     const char *index_path = getenv("CBERG_INDEX_PATH");
@@ -1367,6 +1395,7 @@ void cberg_engine_close(cberg_engine *eng) {
     free(eng->postgres_url);
     free(eng->socket_path);
     pthread_mutex_destroy(&eng->embed_mu);
+    pthread_mutex_destroy(&eng->work_mu);
     memset(eng, 0, sizeof(*eng));
 }
 
@@ -1404,6 +1433,8 @@ static cberg_status walk_and_sync(cberg_repo *r) {
 
 cberg_status cberg_repo_bootstrap(cberg_repo *r) {
     pthread_mutex_lock(&r->mu);
+    atomic_store(&r->progress_active, 1);
+    progress_begin(r, "counting", 0, 0);
 
     /* Warm path first: when a prior chunk table is on disk, reuse it so unchanged
      * chunks keep their ids (and embeddings). NOT_FOUND means there is no prior
@@ -1416,6 +1447,7 @@ cberg_status cberg_repo_bootstrap(cberg_repo *r) {
                 r->ready = 1;
             }
             publish_status(r);
+            atomic_store(&r->progress_active, 0);
             pthread_mutex_unlock(&r->mu);
             return st;
         }
@@ -1427,6 +1459,7 @@ cberg_status cberg_repo_bootstrap(cberg_repo *r) {
         save_state(r);
     }
     publish_status(r);
+    atomic_store(&r->progress_active, 0);
     pthread_mutex_unlock(&r->mu);
     return st;
 }
@@ -1598,6 +1631,7 @@ static void rebuild_graph(cberg_repo *r) {
         return;
     }
     fprintf(stderr, "cberg-index[%s]: graph sidecar missing or stale; re-extracting\n", r->key);
+    progress_begin(r, "graph", 0, 0);
     graph_walk_ctx ctx = {.repo = r};
     if (cberg_fs_walk_files(r->root, graph_rebuild_cb, &ctx) != 0) {
         fprintf(stderr, "cberg-index[%s]: warning: graph rebuild walk failed (%s); graph is partial\n", r->key, cberg_status_str(ctx.err != CBERG_OK ? ctx.err : CBERG_ERR_IO));
@@ -1743,7 +1777,11 @@ static cberg_status repo_step(cberg_repo *r, size_t *out_events) {
         free((void *)events[i].path);
     }
 
+    pthread_mutex_lock(&r->eng->work_mu);
+    atomic_store(&r->eng->updating, 1);
     pthread_mutex_lock(&r->mu);
+    atomic_store(&r->progress_active, 1);
+    progress_begin(r, "counting", 0, 0);
     st = apply_path_changes(r, rechunk, rechunk_n, deleted, deleted_n);
     if (st == CBERG_OK) {
         /* Persist chunk table + graph every sync so a restart never re-embeds
@@ -1755,7 +1793,11 @@ static cberg_status repo_step(cberg_repo *r, size_t *out_events) {
         save_graph(r);
     }
     publish_status(r);
+    atomic_store(&r->progress_active, 0);
     pthread_mutex_unlock(&r->mu);
+
+    atomic_store(&r->eng->updating, 0);
+    pthread_mutex_unlock(&r->eng->work_mu);
 
     for (size_t i = 0; i < rechunk_n; i++) {
         free(rechunk[i]);

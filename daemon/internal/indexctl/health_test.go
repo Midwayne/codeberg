@@ -32,7 +32,7 @@ func TestStatusDoesNotQueueBehindEmbeddingRequests(t *testing.T) {
 
 		line, _ := bufio.NewReader(conn).ReadString('\n')
 		if line == "status\n" {
-			_, _ = conn.Write([]byte("{\"ok\":true,\"ready\":true,\"chunks\":42}\n"))
+			_, _ = conn.Write([]byte("{\"ok\":true,\"ready\":true,\"chunks\":42,\"indexing\":true,\"progress\":{\"repo\":\"main\",\"phase\":\"embedding\",\"completed\":1500,\"total\":2600}}\n"))
 		}
 	}()
 
@@ -51,5 +51,8 @@ func TestStatusDoesNotQueueBehindEmbeddingRequests(t *testing.T) {
 	st, err := NewClient(socket).Status(ctx)
 	if err != nil || !st.Ready || st.Chunks != 42 {
 		t.Fatalf("health queued behind embedding work: %+v, %v", st, err)
+	}
+	if !st.Indexing || st.Progress == nil || st.Progress.Completed != 1500 || st.Progress.Total != 2600 {
+		t.Fatalf("lost measured progress: %+v", st)
 	}
 }

@@ -47,11 +47,11 @@ func hybridLexicalMatches(ctx context.Context, ws *workspace.Workspace, idx inde
 		return search.PrioritizeLexical(matches, a.Query), nil
 	}
 
-	filtered := filterLexicalKind(ctx, idx, matches, a.Kind)
-	return search.PrioritizeLexical(filtered, a.Query), nil
+	filtered, err := filterLexicalKind(ctx, idx, matches, a.Kind)
+	return search.PrioritizeLexical(filtered, a.Query), err
 }
 
-func filterLexicalKind(ctx context.Context, idx indexctl.Indexer, matches []workspace.GrepMatch, requestedKind string) []workspace.GrepMatch {
+func filterLexicalKind(ctx context.Context, idx indexctl.Indexer, matches []workspace.GrepMatch, requestedKind string) ([]workspace.GrepMatch, error) {
 	// A lexical line has no chunk kind. Resolve it against indexed spans only
 	// when the caller requested a kind; omit untyped/unindexed lines then.
 	filtered := make([]workspace.GrepMatch, 0, len(matches))
@@ -62,7 +62,12 @@ func filterLexicalKind(ctx context.Context, idx indexctl.Indexer, matches []work
 		key := match.Repo + "\x00" + match.Path
 		outline, ok := outlines[key]
 		if !ok {
-			outline, _ = idx.FileOutline(ctx, match.Repo, match.Path)
+			var err error
+			outline, err = idx.FileOutline(ctx, match.Repo, match.Path)
+			if err != nil {
+				return nil, err
+			}
+
 			outlines[key] = outline
 		}
 
@@ -71,32 +76,37 @@ func filterLexicalKind(ctx context.Context, idx indexctl.Indexer, matches []work
 				continue
 			}
 
-			if strings.EqualFold(outlineChunkKind(ctx, idx, match.Repo, chunk, kinds), requestedKind) {
+			kind, err := outlineChunkKind(ctx, idx, match.Repo, chunk, kinds)
+			if err != nil {
+				return nil, err
+			}
+
+			if strings.EqualFold(kind, requestedKind) {
 				filtered = append(filtered, match)
 				break
 			}
 		}
 	}
-	return filtered
+	return filtered, nil
 }
 
 // outlineChunkKind prefers the kind carried on the outline hit and only falls
 // back to fetching the chunk (memoized in kinds) for indexers that omit it.
-func outlineChunkKind(ctx context.Context, idx indexctl.Indexer, repo string, chunk indexctl.SearchResult, kinds map[string]string) string {
+func outlineChunkKind(ctx context.Context, idx indexctl.Indexer, repo string, chunk indexctl.SearchResult, kinds map[string]string) (string, error) {
 	if chunk.Kind != "" {
-		return chunk.Kind
+		return chunk.Kind, nil
 	}
 
 	chunkKey := fmt.Sprintf("%s\x00%d", repo, chunk.ID)
 	if kind, ok := kinds[chunkKey]; ok {
-		return kind
+		return kind, nil
 	}
 
-	kind := ""
-	if detail, err := idx.GetChunk(ctx, repo, chunk.ID); err == nil {
-		kind = detail.Kind
+	detail, err := idx.GetChunk(ctx, repo, chunk.ID)
+	if err != nil {
+		return "", err
 	}
 
-	kinds[chunkKey] = kind
-	return kind
+	kinds[chunkKey] = detail.Kind
+	return detail.Kind, nil
 }

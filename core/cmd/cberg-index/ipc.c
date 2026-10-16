@@ -144,6 +144,30 @@ static void list_item_rollback(char *resp, size_t *off, size_t mark) {
     resp[mark] = '\0';
 }
 
+static void append_progress(cberg_engine *eng, char *resp, size_t cap, size_t *off) {
+    cberg_repo *active = NULL;
+    for (size_t i = 0; i < eng->repos_len; i++) {
+        cberg_repo *r = eng->repos[i];
+        if (atomic_load(&r->progress_active)) {
+            active = r;
+            break;
+        }
+    }
+    if (active == NULL) {
+        return;
+    }
+
+    size_t total = atomic_load(&active->progress_total);
+    size_t completed = atomic_load(&active->progress_completed);
+    if (total > 0 && completed > total) {
+        completed = total;
+    }
+    char key[256];
+    json_escape(active->key, key, sizeof(key));
+    json_appendf(resp, cap, off, ",\"progress\":{\"repo\":\"%s\",\"phase\":\"%s\",\"completed\":%zu,\"total\":%zu}",
+                 key, atomic_load(&active->progress_phase), completed, total);
+}
+
 static void handle_status(cberg_engine *eng, int fd) {
     /* ready = the bootstrap pass finished and at least one repo is searchable;
      * the per-repo list tells consumers exactly which (a failed repo stays
@@ -158,11 +182,12 @@ static void handle_status(cberg_engine *eng, int fd) {
 
     char resp[8192];
     size_t off = (size_t)snprintf(resp, sizeof(resp), "{\"ok\":true,\"ready\":%s,\"chunks\":%zu,\"version\":\"%s\","
-                                                      "\"vectors_enabled\":%s,\"repos\":[",
+                                                      "\"vectors_enabled\":%s,\"indexing\":%s,\"repos\":[",
                                   ready ? "true" : "false",
                                   cberg_engine_chunk_count(eng),
                                   cberg_indexer_version(),
-                                  eng->vectors ? "true" : "false");
+                                  eng->vectors ? "true" : "false",
+                                  (!eng->bootstrapped || eng->updating) ? "true" : "false");
     for (size_t i = 0; i < eng->repos_len && off + 512 < sizeof(resp); i++) {
         cberg_repo *r = eng->repos[i];
         char esc_key[256];
@@ -173,7 +198,9 @@ static void handle_status(cberg_engine *eng, int fd) {
         }
         off += (size_t)w;
     }
-    snprintf(resp + off, sizeof(resp) - off, "]}\n");
+    json_appendf(resp, sizeof(resp), &off, "]");
+    append_progress(eng, resp, sizeof(resp), &off);
+    json_appendf(resp, sizeof(resp), &off, "}\n");
     write_all(fd, resp, strlen(resp));
 }
 
@@ -719,34 +746,7 @@ static void handle_graph_refs(cberg_engine *eng, int fd, char *args) {
     write_all(fd, resp, strlen(resp));
 }
 
-static void handle_client(cberg_engine *eng, int fd, int status_only) {
-    struct pollfd pfd = {.fd = fd, .events = POLLIN};
-    int pr = poll(&pfd, 1, 5000);
-    if (pr <= 0) {
-        return;
-    }
-    char line[8192];
-    ssize_t n = read(fd, line, sizeof(line) - 1);
-    if (n <= 0) {
-        return;
-    }
-    line[n] = '\0';
-    char *nl = strchr(line, '\n');
-    if (nl != NULL) {
-        *nl = '\0';
-    }
-
-    if (strcmp(line, "status") == 0) {
-        handle_status(eng, fd);
-        return;
-    }
-
-    if (status_only) {
-        const char *error = "{\"ok\":false,\"error\":\"health socket accepts status only\"}\n";
-        write_all(fd, error, strlen(error));
-        return;
-    }
-
+static void dispatch_command(cberg_engine *eng, int fd, char *line) {
     if (strncmp(line, "search\t", 7) == 0) {
         handle_search(eng, fd, line + 7);
         return;
@@ -805,6 +805,47 @@ static void handle_client(cberg_engine *eng, int fd, int status_only) {
     char err[128];
     snprintf(err, sizeof(err), "{\"ok\":false,\"error\":\"unknown command\"}\n");
     write_all(fd, err, strlen(err));
+}
+
+static void handle_client(cberg_engine *eng, int fd, int status_only) {
+    struct pollfd pfd = {.fd = fd, .events = POLLIN};
+    int pr = poll(&pfd, 1, 5000);
+    if (pr <= 0) {
+        return;
+    }
+    char line[8192];
+    ssize_t n = read(fd, line, sizeof(line) - 1);
+    if (n <= 0) {
+        return;
+    }
+    line[n] = '\0';
+    char *nl = strchr(line, '\n');
+    if (nl != NULL) {
+        *nl = '\0';
+    }
+
+    if (strcmp(line, "status") == 0) {
+        handle_status(eng, fd);
+        return;
+    }
+
+    if (status_only) {
+        const char *error = "{\"ok\":false,\"error\":\"health socket accepts status only\"}\n";
+        write_all(fd, error, strlen(error));
+        return;
+    }
+
+    /* Bootstrap owns the repo locks; watched updates also own work_mu.
+     * Acquire work_mu without waiting so no tool queues behind a build.
+     * Keep it through dispatch to prevent a build starting mid-query. */
+    if (!eng->bootstrapped || pthread_mutex_trylock(&eng->work_mu) != 0) {
+        const char *error = "{\"ok\":false,\"error\":\"index building; use grep, glob or read_file while indexing and graph creation finish\"}\n";
+        write_all(fd, error, strlen(error));
+        return;
+    }
+
+    dispatch_command(eng, fd, line);
+    pthread_mutex_unlock(&eng->work_mu);
 }
 
 static void *ipc_thread(void *arg) {

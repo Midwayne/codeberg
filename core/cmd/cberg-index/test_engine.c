@@ -99,8 +99,10 @@ static void check_busy_health(cberg_engine *eng, const char *socket_path) {
     char health_path[256], resp[8192] = {0};
     snprintf(health_path, sizeof(health_path), "%s.health", socket_path);
 
-    /* A watched embedding pass holds the repo lock; an ordinary IPC request
-     * then blocks the serial command server behind that pass. */
+    /* A watched pass owns the work and repo locks. Queries must return a
+     * fallback hint promptly while health retains the last published state. */
+    pthread_mutex_lock(&eng->work_mu);
+    eng->updating = 1;
     pthread_mutex_lock(&r->mu);
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     struct sockaddr_un addr = {.sun_family = AF_UNIX};
@@ -112,15 +114,57 @@ static void check_busy_health(cberg_engine *eng, const char *socket_path) {
     CHECK(ipc_roundtrip(health_path, "status\n", resp, sizeof(resp)) == 0,
           "health responds while indexing and command IPC are busy");
     CHECK(strstr(resp, "\"ready\":true") != NULL, "busy index retains readiness");
+    CHECK(strstr(resp, "\"indexing\":true") != NULL, "health reports watched indexing");
     CHECK(strstr(resp, "\"chunks\":0") == NULL, "busy index retains published chunks");
-    pthread_mutex_unlock(&r->mu);
 
-    CHECK(read(fd, resp, sizeof(resp)) > 0, "ordinary IPC resumes after indexing");
+    ssize_t n = read(fd, resp, sizeof(resp) - 1);
+    CHECK(n > 0, "ordinary IPC responds during indexing");
+    if (n > 0) {
+        resp[n] = '\0';
+        CHECK(strstr(resp, "index building") != NULL, "watched update returns fallback hint");
+    }
+    pthread_mutex_unlock(&r->mu);
+    eng->updating = 0;
+    pthread_mutex_unlock(&eng->work_mu);
+
     close(fd);
 
     CHECK(ipc_roundtrip(health_path, "search\tfoo\t5\n", resp, sizeof(resp)) == 0,
           "health rejects commands without doing embedding work");
     CHECK(strstr(resp, "\"ok\":false") != NULL, "health is status-only");
+}
+
+static void check_cold_queries(cberg_engine *eng, const char *socket_path) {
+    const char *requests[] = {
+        "search\tAdd\t5\n", "symbol\tAdd\talpha\n",
+        "outline\talpha\ta.go\n", "chunk\talpha\t1\n",
+        "search_graph\tAdd\talpha\n", "graph_stats\n",
+        "trace_path\tAdd\talpha\n", "graph_refs\tAdd\talpha\n", "graph_hubs\n",
+    };
+    char resp[8192];
+
+    eng->bootstrapped = 0;
+    atomic_store(&eng->repos[0]->progress_total, 2600);
+    atomic_store(&eng->repos[0]->progress_completed, 1500);
+    atomic_store(&eng->repos[0]->progress_phase, "embedding");
+    atomic_store(&eng->repos[0]->progress_active, 1);
+    pthread_mutex_lock(&eng->repos[0]->mu);
+
+    char health_path[256];
+    snprintf(health_path, sizeof(health_path), "%s.health", socket_path);
+    CHECK(ipc_roundtrip(health_path, "status\n", resp, sizeof(resp)) == 0, "progress responds during build");
+    CHECK(strstr(resp, "\"completed\":1500,\"total\":2600") != NULL, "health reports measured chunk counts");
+
+    for (size_t i = 0; i < sizeof(requests) / sizeof(requests[0]); i++) {
+        CHECK(ipc_roundtrip(socket_path, requests[i], resp, sizeof(resp)) == 0,
+              "cold query responds without waiting for bootstrap lock");
+        CHECK(strstr(resp, "index building") != NULL, "cold query explains readiness and fallback");
+    }
+
+    pthread_mutex_unlock(&eng->repos[0]->mu);
+    atomic_store(&eng->repos[0]->progress_phase, "complete");
+    atomic_store(&eng->repos[0]->progress_active, 0);
+    eng->bootstrapped = 1;
 }
 
 int main(void) {
@@ -197,6 +241,7 @@ int main(void) {
             CHECK(strstr(resp, "\"key\":\"beta\"") != NULL, "status lists beta");
 
             check_busy_health(&eng, socket_path);
+            check_cold_queries(&eng, socket_path);
 
             /* Chunk-only search is NOT_IMPLEMENTED, but the parse must accept
              * both the 3-field and 4-field (repo-scoped) forms. */

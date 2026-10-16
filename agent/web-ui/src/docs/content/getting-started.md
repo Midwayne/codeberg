@@ -20,7 +20,7 @@ curl -fsSL https://github.com/Midwayne/codeberg/releases/latest/download/install
 
 This needs a published release with the platform archives; if none is available yet, use the source installation below. The installer verifies the archive checksum, installs under `~/.local/share/codeberg`, and links `~/.local/bin/codeberg`. It prints a PATH command if needed. Node, ripgrep, and native libraries are included, so you do not need Go, CMake, npm, or a compiler. Windows and Alpine/musl Linux packages are not available.
 
-Stop Codeberg and re-run the installer to upgrade. Configuration and downloaded models under `~/.codeberg` are preserved; previous packages are retained in the install directory. `CODEBERG_VERSION` pins a release (for example, `v0.1.1`); `CODEBERG_INSTALL_DIR` and `CODEBERG_BIN_DIR` override the two installation directories. Set these variables on `sh` in the command above. Custom paths must be absolute.
+Stop Codeberg and re-run the installer to upgrade. Configuration and downloaded models under `~/.codeberg` are preserved; previous packages are retained in the install directory. `CODEBERG_VERSION` pins a release (for example, `v0.1.2`); `CODEBERG_INSTALL_DIR` and `CODEBERG_BIN_DIR` override the two installation directories. Set these variables on `sh` in the command above. Custom paths must be absolute.
 
 When you run `codeberg`, it checks GitHub's latest published release in the background. A newer stable version produces a terminal notice with a release link and upgrade instructions. The app starts immediately even if the check fails or you are offline; checks time out after two seconds. Updates are installed manually using the instructions above. There is no browser update banner or continuous checking during a session. Development builds without a stamped stable version skip the check.
 
@@ -46,7 +46,7 @@ For a local Ollama server that already has your chosen model loaded, set `CODEBE
 
 1. Choose **Add project**, then **Choose folder**, or enter an absolute directory path.
 2. Confirm the directory and optional display name, then add it.
-3. Wait for indexing readiness. Large repositories can take several minutes with embeddings.
+3. Start asking questions while indexing and graph creation run in the background. The bottom-left progress indicator can be minimized. Large repositories can take several minutes with embeddings; the agent can use grep and file tools immediately.
 
 Choose the source directory on the machine running Codeberg. The folder picker does not upload your repository. Adding a project saves it for later launches. You can inspect and rename it in **Settings → Projects**.
 

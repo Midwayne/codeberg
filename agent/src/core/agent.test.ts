@@ -77,12 +77,7 @@ describe('Agent tool budget', () => {
     });
 
     const daemon = new DaemonClient(DEFAULT_DAEMON_URL);
-    vi.spyOn(daemon, 'waitReady').mockResolvedValue({
-      ready: true,
-      chunks: 0,
-      version: 'test',
-      vectors_enabled: false,
-    });
+    const waitReady = vi.spyOn(daemon, 'waitReady').mockImplementation(() => new Promise(() => {}));
     vi.spyOn(daemon, 'listTools').mockResolvedValue([]);
     const agent = new Agent({
       model,
@@ -97,6 +92,7 @@ describe('Agent tool budget', () => {
     });
 
     await (await agent.toolLoopAgent()).generate({ prompt: 'Hi' });
+    expect(waitReady).not.toHaveBeenCalled();
     expect(model.doGenerateCalls[0].reasoning).toBeUndefined();
     expect(model.doGenerateCalls[0].providerOptions?.openai).toMatchObject({
       reasoningEffort: 'max',

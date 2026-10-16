@@ -21,9 +21,19 @@ type RepoStatus struct {
 	Chunks int    `json:"chunks"`
 }
 
+// Progress counts work in the active repository and indexing stage.
+type Progress struct {
+	Repo      string `json:"repo"`
+	Phase     string `json:"phase"`
+	Completed int    `json:"completed"`
+	Total     int    `json:"total"`
+}
+
 // Status is the aggregate indexer health returned by GET /health.
 type Status struct {
 	Ready          bool         `json:"ready"`
+	Indexing       bool         `json:"indexing"`
+	Progress       *Progress    `json:"progress,omitempty"`
 	Chunks         int          `json:"chunks"`
 	Version        string       `json:"version"`
 	VectorsEnabled bool         `json:"vectors_enabled"`

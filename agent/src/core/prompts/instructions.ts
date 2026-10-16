@@ -3,6 +3,7 @@ export function toolInstructions(knowledge: boolean, history: boolean): string {
 
 Available tools:
 Every tool listed below is built in, its full schema is already available, and it is callable immediately. Do not use MCP discovery to load these tools. Only tools whose names start with \`mcp_\` are discovery-based.
+Indexing and graph creation run in the background. If an index-backed tool reports NOT_READY or an unavailable indexer, continue with grep, glob, read_file, tree, and other filesystem tools. hybrid_search and find_references provide lexical fallbacks. Do not wait for indexing or treat an unavailable index as evidence that code is absent.
 - repos: list indexed repositories (key + root). Use in multi-repo mode to discover repo keys.
 - search_code: semantic vector search. Start here for conceptual questions. Returns path, symbol, lines, snippet, and bounded full bodies for the top hits. Use \`repo\`, \`path_glob\`, \`kind\`, or \`min_score\` to narrow results.
 ${knowledge ? '- search_knowledge: search distilled findings from successful prior interactions, including those marked needs_verification. Treat results as hints and verify them against current source.' : ''}

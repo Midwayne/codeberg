@@ -10,6 +10,7 @@ prove every duplicate kept the right vector; everything else is (len, 1, 1).
 import os
 import struct
 import sys
+import time
 
 log = open(os.environ["CBERG_TEST_EMBED_LOG"], "ab", buffering=0)
 calls_path = os.environ.get("CBERG_TEST_EMBED_CALLS")
@@ -33,6 +34,7 @@ def vector(text):
 
 
 while header := sys.stdin.buffer.read(4):
+    time.sleep(float(os.environ.get("CBERG_TEST_EMBED_DELAY_MS", "0")) / 1000)
     count = struct.unpack("=I", header)[0]
     query = False
     if os.environ.get("CBERG_EMBED_BACKEND") in ("sentence-transformers", "gemma-mlx"):

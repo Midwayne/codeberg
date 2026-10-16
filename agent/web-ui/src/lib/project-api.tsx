@@ -13,9 +13,18 @@ export interface ProjectCatalog {
 }
 export interface ProjectStatus {
   ready: boolean;
+  indexing?: boolean;
+  progress?: IndexProgress;
   chunks: number;
   status?: string;
   message?: string;
+}
+
+export interface IndexProgress {
+  repo: string;
+  phase: string;
+  completed: number;
+  total: number;
 }
 const unscopedFetch: typeof fetch = (...args) => globalThis.fetch(...args);
 export const ProjectApiContext = createContext<{

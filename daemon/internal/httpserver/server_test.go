@@ -21,6 +21,8 @@ func TestHealthAndSearch(t *testing.T) {
 		}},
 	}).WithStatus(indexctl.Status{
 		Ready:          true,
+		Indexing:       true,
+		Progress:       &indexctl.Progress{Repo: "main", Phase: "embedding", Completed: 1500, Total: 2600},
 		Chunks:         2,
 		Version:        "v0.1.0",
 		VectorsEnabled: true,
@@ -44,6 +46,8 @@ func TestHealthAndSearch(t *testing.T) {
 
 	var health struct {
 		PID            int                   `json:"pid"`
+		Indexing       bool                  `json:"indexing"`
+		Progress       *indexctl.Progress    `json:"progress"`
 		VectorsEnabled bool                  `json:"vectors_enabled"`
 		Repos          []indexctl.RepoStatus `json:"repos"`
 	}
@@ -53,6 +57,12 @@ func TestHealthAndSearch(t *testing.T) {
 
 	if !health.VectorsEnabled {
 		t.Fatal("expected vectors_enabled true")
+	}
+	if !health.Indexing {
+		t.Fatal("expected indexing activity independent of readiness")
+	}
+	if health.Progress == nil || health.Progress.Completed != 1500 || health.Progress.Total != 2600 {
+		t.Fatalf("lost measured progress: %+v", health.Progress)
 	}
 
 	if health.PID != os.Getpid() {

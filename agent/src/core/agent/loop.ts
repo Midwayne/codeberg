@@ -1,7 +1,6 @@
 import { isLoopFinished, pruneMessages, ToolLoopAgent } from 'ai';
 import { pruneBudget } from '../../providers/profiles.js';
 import { cachedInstructions, deterministicTools, withConversationCache } from '../cache.js';
-import { DaemonError } from '../client.js';
 import { wrapToolOutputs } from '../context/wrap.js';
 import { totalTokens } from '../history.js';
 import { wrapToolLoopAgentWithPromptHooks } from '../hooks/index.js';
@@ -22,21 +21,10 @@ export async function ensureLoop(state: AgentState): Promise<ToolLoopAgent> {
   }
 
   if (!state.loop) {
-    await waitForDaemon(state);
     state.loop = await createLoop(state);
   }
 
   return state.loop;
-}
-
-export async function waitForDaemon(state: AgentState): Promise<void> {
-  try {
-    await state.daemon.waitReady(30_000);
-  } catch (err) {
-    if (!(err instanceof DaemonError && err.code === 'NOT_READY')) {
-      throw err;
-    }
-  }
 }
 
 export async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
