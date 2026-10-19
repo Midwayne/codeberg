@@ -91,7 +91,7 @@ jobs:
       - name: Smoke test relocated package without system Node
         run: python3 scripts/smoke-release.py build/release/codeberg-$(tr -d '\n' < VERSION)-${{ matrix.platform }}.tar.gz
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: codeberg-${{ matrix.platform }}
           path: build/release/*
