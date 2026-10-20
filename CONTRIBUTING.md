@@ -4,6 +4,9 @@ Thanks for your interest in improving Codeberg! This guide covers how to set up,
 test, and submit changes across the **C core** (`core/`), **Go daemon** (`daemon/`),
 and **TypeScript agent** (`agent/`).
 
+For the full source installation and local run instructions, see
+[Developer setup](docs/development.md).
+
 ## Prerequisites
 
 - **CMake 3.20+** and a C/C++ toolchain (clang or gcc). Ninja is used

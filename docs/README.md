@@ -82,20 +82,10 @@ Project-wide overview. **libcodeberg** details live under [core/docs](../core/do
 | [core/docs/modules/](../core/docs/modules/) | Implementation reference (every source function) |
 | [core/docs/adr/](../core/docs/adr/) | Architecture decision records |
 
-## Build
+## Developer setup
 
-```sh
-git submodule update --init --recursive
-make build-core
-make build-daemon
-make test
-```
-
-Start `codeberg` and use **Add project** in the browser. For terminal workflows,
-`codeberg /path/to/repository` selects a startup project. The internal
-**`CODEBERG_ROOTS`** transport supplies keyed roots when running
-the daemon directly (see [../README.md](../README.md) and
-[multi-repo.md](multi-repo.md)).
+[development.md](development.md) covers prerequisites, source installation,
+component builds, configuration, verification, and indexing roots.
 
 ## Project governance
 

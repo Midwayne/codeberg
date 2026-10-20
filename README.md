@@ -1,203 +1,72 @@
 # Codeberg
 
-Codeberg is a complete agent harness for working with codebases. It brings together
-the agent runtime, project workspaces, browser chat and CLI, model configuration,
-tools, context management, memory, and continuous learning in one system.
+Codeberg is an agent harness built specifically for code search, with connections
+to all of your company's systems through MCP.
 
-The harness includes:
+It works really well with the setup I have at my workplace.
 
-- **Projects:** select a repository in the UI, with separate chats, memories,
-  learning data, and indexes for each project. Different tabs can work on different
-  projects. See [Projects](docs/projects.md).
-- **Agent runtime:** model and reasoning selection, tool execution, context
-  budgeting, and resumable, searchable chats. See [Agent](agent/README.md).
-- **Code retrieval:** fast semantic chunking, incremental indexing, vector search,
-  and a structural knowledge graph for callers, imports, and blast radius.
-  See [Core architecture](core/docs/CORE.md).
-- **MCPs and skills:** global and project-specific extensions, managed from the
-  settings UI or existing configuration files. See [Projects](docs/projects.md#mcps-and-skills).
-- **Memory and learning:** feedback, durable learning jobs, project knowledge, and
-  training datasets. See [Continuous learning](docs/continuous-learning.md).
+[![Watch the Codeberg UI demo](docs/assets/codeberg-ui-demo.png)](docs/assets/codeberg-ui-demo.mp4)
 
-One `codeberg` command launches the stack and manages its local processes and
-configuration.
+Click to watch a 22-second UI walkthrough with sample data: chat, model settings,
+MCP servers, skills, and training review.
 
 ## Install
 
-Install a prebuilt release on **macOS 14+ (Apple Silicon or Intel)** or
-**Linux x64 (glibc, Ubuntu 22.04 or newer)**:
+Supports **macOS 14+ (Apple Silicon or Intel)** and **Linux x64 with glibc
+(Ubuntu 22.04+)**.
 
 ```sh
 curl -fsSL https://github.com/Midwayne/codeberg/releases/latest/download/install.sh | sh
 codeberg
 ```
 
-The first command installs Codeberg; the second opens the browser app. No
-cloning or building is needed. After installation, run `codeberg` whenever you
-want to open the app, then add your project and configure a chat model.
-
-The installer downloads and verifies the matching release, installs it under
-`~/.local/share/codeberg`, and links `~/.local/bin/codeberg`. If that directory
-is not on PATH, it prints the line to add. No checkout, Go, CMake, npm, compiler,
-or administrator access is required. Node, ripgrep, and native libraries ship
-with the package. Re-run the installer to upgrade; stop Codeberg first. Your
-configuration and models stay in `~/.codeberg`, and previous release directories
-are retained. Windows and Alpine/musl Linux are not supported by these packages.
-
-Each `codeberg` launch checks for a newer stable GitHub release in the background
-and prints upgrade instructions in the terminal when one is available. Startup
-continues immediately, including offline or when the check fails or times out
-(two seconds). Updates are installed manually; no browser banner is shown.
-
-**A published release containing the platform archives is required.** Until the
-first prebuilt release is published, use the [source build](#build) and
-`./launcher/install.sh`. Source development still needs the prerequisites below.
-
-Embedding models download separately on first use. The default EmbeddingGemma
-model needs Python 3.10+ with venv/pip; use `codeberg --embedding jina-onnx` for
-the bundled ONNX runtime without Python, or `codeberg --no-vector` to skip
-embedding downloads. Optional web search needs Python and git; git tools need git.
-Chat models and provider credentials are configured separately.
-
-To pin a version or change the install locations, set `CODEBERG_VERSION=vX.Y.Z`,
-`CODEBERG_INSTALL_DIR=/absolute/path`, or `CODEBERG_BIN_DIR=/absolute/path` on
-`sh` in the install command. See [release packaging](docs/releases.md) for the
-maintainer workflow and manual archive installation.
-
-[`launcher/internal/config/config.example`](launcher/internal/config/config.example) lists every launcher, daemon, and agent setting
-(`codeberg config init` writes a minimal starter `~/.codeberg/config`; see that file for the full reference).
-
-## Index root(s)
-
-The **index root** is the codebase tree Codeberg watches and indexes. At the
-library/daemon level it's not hardcoded. Start `codeberg` and choose **Add
-project** in the browser; saved projects are restored on later launches.
-For an explicit terminal startup project, use `codeberg /path/to/repository` or
-`codeberg --root /path/to/api,/path/to/frontend`. With no saved projects, the UI
-shows **Add a project to get started**, and the daemon remains idle. Deleting
-all projects returns to that state, including after a restart.
-
-`CODEBERG_ROOTS` is the internal newline-separated `key<TAB>path` transport
-from the project catalog or launcher to the daemon and indexer. Normal users
-manage repository paths through the UI.
-
-Library helpers (for daemons and CLI tools):
-
-- `cberg_config_index_root()` — read a single keyed repository path from the internal roots transport; returns NULL for multiple repositories
-- `cberg_config_resolve_index_root(buf, cap)` — `realpath` into `buf` (validates the path exists)
-- `cberg_watcher_open(root, …)` — pass the same path when opening the filesystem watcher
-
-**Symlinks:** a root may point at a symlink; the watcher resolves it at open
-time and indexes the target tree. Symbolic links **inside** the tree are
-followed — symlinked directories are walked and watched like normal directories.
-
-**Multiple repos:** the launcher remembers every root you index and can search
-across all (or a chosen subset) of them combined —
-`codeberg <dir>` to index one, then `codeberg --all` or
-`codeberg --repos a,b`. See [docs/multi-repo.md](docs/multi-repo.md) for the
-full picture and [launcher/README.md](launcher/README.md#multi-repo-search)
-for the CLI-level walkthrough.
-
-## Layout
-
-| Path | Role |
-|------|------|
-| `core/` | C library — chunking, change tracking, watching, knowledge graph, ONNX embedding, usearch vector index ([docs](core/docs/)) |
-| `daemon/` | Go `codeberg-d` — HTTP, tools, git pull; supervises C `cberg-index` ([docs](daemon/README.md)) |
-| `agent/` | TypeScript ai-sdk agent — browser UI + one-shot CLI — over the daemon API ([docs](agent/README.md)) |
-| `launcher/` | Standalone `codeberg` CLI — boots the stack, resolves config, manages the repo registry ([docs](launcher/README.md)) |
-| `docs/` | Project overview, multi-repo guide, and links |
-
-## Prerequisites
-
-The **source build** spans three toolchains plus a native library, so a fresh machine needs
-all of the following before `make` or the launcher can succeed. Missing any of
-them is the most common first-run failure — `make` fails deep in a configure step
-without naming the package, so install these up front:
-
-| Dependency | Why | macOS (Homebrew) | Debian/Ubuntu (apt) |
-|------------|-----|------------------|---------------------|
-| C toolchain + `make` | compile `libcodeberg` / `cberg-index` | `xcode-select --install` | `build-essential` |
-| **CMake** | configure the C core | `brew install cmake` | `cmake` |
-| **Go** ≥ 1.22 | build `codeberg-d` (daemon) | `brew install go` | `golang-go` |
-| **Node** ≥ 22 + **npm** | build and run the TypeScript agent | `brew install node` | Install Node 22+ (distribution `nodejs` packages may be older) |
-| `git` | fetch the tree-sitter submodules | `brew install git` | `git` |
-| **ONNX Runtime** | vector embeddings (omit for chunk-only) | `brew install onnxruntime` | [release tarball](https://github.com/microsoft/onnxruntime/releases) or `ONNXRUNTIME_ROOT` |
-| **Python 3** ≥ 3.10 _(optional)_ | web search (`web_search` via SearXNG) | `brew install python` | `python3-venv python3-pip` |
-
-Check `node --version` in the shell that launches Codeberg. An older Node can
-start the web UI but fail on the first message because the AI SDK needs
-`AbortSignal.any`. Codeberg now checks the actual Node binary before starting
-the agent and points to the required upgrade instead of surfacing a chat error.
-
-The **ONNX Runtime** is a native library, not a CLI: CMake searches
-`/opt/homebrew/opt/onnxruntime`, `/usr/local`, `/opt/homebrew`, and `/usr`, or
-`ONNXRUNTIME_ROOT` if set. Without it the core still builds, but **chunk-only**
-(no vector search) — pass `--no-vector` / set `CODEBERG_VECTOR=false`. It is not
-packaged for apt, so on Linux install a release tarball and point
-`ONNXRUNTIME_ROOT` at it.
-
-**Python needs both packages on Debian/Ubuntu.** `python3-venv` alone is not
-enough: Debian strips `ensurepip`'s bundled wheels from the base `python3`
-package, so a venv created from it has **no pip** until `python3-pip` is also
-installed system-wide (it supplies the wheels `ensurepip` bootstraps from).
-Missing this shows up as `pip install SearXNG requirements` failing during
-`codeberg build`/first run. The launcher's dependency preflight
-(`deps.EnsurePython`) checks for a *working* pip, not just the `python3`
-binary, and installs `python3-pip` automatically on apt hosts.
-
-> **The `codeberg` launcher installs these for you.** On first run it checks each
-> dependency and auto-installs the missing ones via Homebrew (macOS) or apt
-> (Linux) — see [`launcher/`](launcher/). Building by hand from this Makefile,
-> you install them yourself. Run `codeberg doctor` to see what's present.
-
-> **Web search** is optional and off by default. Enable it in **Settings → Tools**.
-> Once enabled, the launcher
-> installs a local [SearXNG](https://github.com/searxng/searxng) (open-source, no
-> API key) into a managed Python venv under `~/.codeberg/searxng` and runs it
-> only while codeberg is running — it is stopped on exit, never left in the
-> background. Turning the switch off cancels setup and stops the local service.
-> Point at your own instance with `CODEBERG_SEARXNG_URL` and enable search.
-> `CODEBERG_WEB_USE=false` disables all web access. Without Python, `web_search` is skipped and the
-> agent's `fetch_url` still works.
-
-## Build
+The installer includes Node, ripgrep, and native libraries; no source build is
+needed. It adds the command to `~/.local/bin` and prints PATH instructions if
+needed. In the browser, add a project and configure your chat model and provider
+credentials. You can also open a repository directly:
 
 ```sh
-git submodule update --init --recursive
-make build-core
-make build-daemon   # codeberg-d (Go) + requires cberg-index from make build-core
+codeberg /path/to/repository
 ```
 
-Optional embedding tests:
+Semantic search downloads a separate embedding model on first use. The default
+requires **Python 3.10+ with venv and pip**. To use the bundled ONNX runtime
+without Python, start with `codeberg --embedding jina-onnx`. To skip embedding
+setup and use lexical search and file tools, run `codeberg --no-vector`.
+Indexing runs in the background; you can start chatting and searching files
+while it finishes.
 
-```sh
-scripts/fetch-model.sh
-export CBERG_TEST_MODEL=models/jina-embeddings-v2-base-code/model.onnx
-make test TEST=test_embed
-```
+Stop Codeberg and re-run the installer to upgrade. Configuration, chats, and
+indexes stay in `~/.codeberg`.
 
-See [core/docs/CORE.md](core/docs/CORE.md) for architecture; [core/docs/API.md](core/docs/API.md) for the full API.
+[Developer setup](docs/development.md)
+· [Setup and usage](agent/web-ui/src/docs/content/getting-started.md)
 
-## Version
+## Why its search is better
 
-Release version is tracked in [`VERSION`](VERSION) and exposed at runtime via
-`cberg_version()`. See [docs/RELEASING.md](docs/RELEASING.md) for the release
-process.
+Codeberg gives the agent more ways to find relevant code than grep alone or a
+standalone vector index:
 
-## Contributing
+- **Search by meaning and exact text.** Semantic search finds code from a
+  description even when you do not know its identifiers. Hybrid search retrieves
+  semantic and lexical candidates independently, combines their rankings, and
+  reinforces hits found by both. Exact matches can surface even when vector
+  search misses them.
+- **Retrieve functions and declarations.** Language-aware parsing preserves code
+  boundaries where supported. Results include paths, symbols, line ranges, and
+  bounded source context, with full chunks available when the agent needs more.
+- **Follow relationships.** Symbol lookup, references, and a structural graph
+  help trace callers, imports, and inheritance. Change analysis connects git
+  diff hunks to affected symbols and their dependents. Graph links include
+  confidence and resolution information; they are syntactic hints, not complete
+  type analysis.
+- **Keep search current.** File watchers update the index incrementally and reuse
+  unchanged embeddings. Saved indexes support warm restarts.
+- **Search across repositories.** Query registered repositories together or
+  select a subset, with repository, path, and symbol-kind filters to narrow the
+  results. See [multi-repo search](docs/multi-repo.md).
+- **Keep working during indexing.** Hybrid search can return lexical matches
+  while vectors are unavailable, and reference lookup can fall back to grep.
+  File reads and text search remain available during index builds.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). The project is **test-driven** — write a
-failing test for the behavior first. Run `make check` before opening a PR.
-
-## Security
-
-See [SECURITY.md](SECURITY.md) for how to report vulnerabilities.
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md).
-
-## License
-
-[MIT](LICENSE).
+See the [search tools](daemon/docs/http.md#index-and-search-tools) for details.
