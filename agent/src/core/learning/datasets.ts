@@ -10,7 +10,10 @@ import { LearningStore } from './store.js';
 export class DatasetStore {
   private readonly state: DatasetStoreState;
 
-  constructor(store: LearningStore) {
+  constructor(
+    store: LearningStore,
+    private readonly onEvalApproved?: () => Promise<void>,
+  ) {
     this.state = new DatasetStoreState(store);
   }
 
@@ -35,12 +38,15 @@ export class DatasetStore {
   }
 
   /** Reserve the entire query family, not just the example ID, for one split. */
-  promote(
+  async promote(
     id: string,
     split: 'eval' | 'training',
     review: { provenance: Provenance; oracle?: Record<string, unknown> },
   ): Promise<DatasetExample> {
-    return promote(this.state, id, split, review);
+    const example = await promote(this.state, id, split, review);
+    if (split === 'eval') await this.onEvalApproved?.();
+
+    return example;
   }
 
   /** A deliberate review decision; never delete the original candidate. */

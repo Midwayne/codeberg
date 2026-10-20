@@ -1,5 +1,6 @@
 import type { Generator } from '../types.js';
 import { DatasetStore } from './datasets.js';
+import type { AutomaticEvaluations } from './evaluation/automatic.js';
 import { DEFAULT_LEARNING_SETTINGS, type LearningSettings } from './preferences.js';
 import { DurableJobQueue } from './queue.js';
 import { LearningStore } from './store.js';
@@ -26,6 +27,7 @@ export class KnowledgeWorker {
     onKnowledgeChanged?: () => void,
     settings: () => LearningSettings = () => DEFAULT_LEARNING_SETTINGS,
     datasets = new DatasetStore(store),
+    evaluations?: AutomaticEvaluations,
   ) {
     this.state = new KnowledgeWorkerState(
       store,
@@ -34,6 +36,7 @@ export class KnowledgeWorker {
       onKnowledgeChanged,
       settings,
       datasets,
+      evaluations,
     );
   }
 

@@ -8,6 +8,8 @@ export function jobEnabled(state: KnowledgeWorkerState, job: KnowledgeJob): bool
   const settings = state.settings();
   if (!settings.enabled) return false;
 
+  if (job.type === 'evaluate_output') return Boolean(state.evaluations?.enabled());
+
   if (
     job.type === 'consolidate_knowledge' &&
     isDailyDreaming(job.interaction_id) &&
@@ -37,7 +39,11 @@ export function enabledType(
 
   const datasets = settings.datasets && Object.values(settings.kinds).some(Boolean);
 
-  return knowledge ? undefined : datasets ? 'extract_dataset' : false;
+  return knowledge || state.evaluations?.enabled()
+    ? undefined
+    : datasets
+      ? 'extract_dataset'
+      : false;
 }
 
 export async function scheduleRetry(state: KnowledgeWorkerState): Promise<void> {

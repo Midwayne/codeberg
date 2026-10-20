@@ -2,6 +2,7 @@ import { mkdir, open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeModuleLog } from '../../module-log.js';
 import { scheduleDreaming } from './dreaming.js';
+import { refreshEvaluations } from './evaluations.js';
 import { reconcileJobs } from './reconciliation.js';
 import { refreshKnowledge } from './refresh.js';
 import { getSettings, syncWatcher, wakeWorker } from './settings.js';
@@ -24,16 +25,18 @@ export async function start(state: LearningServiceState): Promise<void> {
   await reconcileJobs(state);
   await refreshKnowledge(state);
   await scheduleDreaming(state);
+  await refreshEvaluations(state);
   await state.worker?.initialize();
   await syncWatcher(state);
   state.initialized = true;
   wakeWorker(state);
-  if (state.hasGenerator) {
+  if (state.hasGenerator || state.evaluations) {
     state.refreshTimer = setInterval(() => {
       if (state.background) return;
 
       state.background = refreshKnowledge(state)
         .then(() => scheduleDreaming(state))
+        .then(() => refreshEvaluations(state))
         .catch((error: unknown) => {
           console.error('knowledge refresh scan failed:', error);
           writeModuleLog('learning-agent', 'refresh_scan_failed', { error: String(error) });

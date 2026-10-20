@@ -113,7 +113,7 @@ export type FailureCategory =
 
 export interface KnowledgeJob {
   job_id: string;
-  type: 'extract_knowledge' | 'extract_dataset' | 'consolidate_knowledge';
+  type: 'extract_knowledge' | 'extract_dataset' | 'consolidate_knowledge' | 'evaluate_output';
   interaction_id: string;
   source_revision?: string;
   extraction_version?: number;

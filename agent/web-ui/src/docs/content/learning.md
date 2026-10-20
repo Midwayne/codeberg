@@ -25,7 +25,7 @@ Recorded attempts can include ordered tool calls and observations, retrieved res
 
 ## Control background work
 
-Open **Settings → Learning** for the selected project. **Record chats and feedback** controls interaction capture. **Dataset capture** and its example types control dataset collection. **Training review** and **Evaluations** control new reviewed approvals; evaluations are held-out data, not automatic model runs.
+Open **Settings → Learning** for the selected project. **Record chats and feedback** controls interaction capture. **Dataset capture** and its example types control dataset collection. **Training review** controls training approvals. **Evaluations** controls held-out approvals and automatic background evaluation runs, which use the configured chat and learning models.
 
 Knowledge has its own switches on the same settings page. You can use accumulated knowledge without enabling training-data collection. The master **Enable learning** switch currently pauses knowledge, history, and dataset work together while retaining stored data and individual choices. A model request already running may finish.
 
@@ -83,8 +83,40 @@ There is currently no dedicated `--type rlvr` export or built-in RL trainer. RL 
 
 The custom embedding model and chat LLM have separate roles and runtime requirements. See [Indexing and search](/docs/indexing) and [Models and credentials](/docs/models) when configuring a trained model for use.
 
+### Automatic evaluations
+
+With **Enable learning**, **Dataset capture**, and **Evaluations** enabled, approving **Test the agent** automatically queues an evaluation. Codeberg also checks approved tasks on startup and every two minutes. Changing a model selection queues new comparisons; matching completed runs are reused across scans and restarts. Both models need to be configured under **Settings → Models**. No scoring command is needed.
+
+The automatic runner is a read-only retrieval-and-answer baseline: it searches the current project's index for up to ten passages, asks the selected chat model for a fresh answer, and uses the selected learning model to judge it. It does not receive the historical answer, reviewed reference, learning history, or knowledge recall. It measures this bounded baseline rather than the full interactive agent or an executable RL environment. Source commits must match the reviewed oracle; mismatches are saved as skipped results. Codeberg does not restore repositories or isolate uncommitted edits.
+
+Runs save retrieval metrics and independent output scores, with task, repository, model, effort, and rubric provenance. Inspect results with `codeberg learning eval-reports`, or read `/api/learning/evaluations` in the project API. Statuses distinguish completed, retrying, failed, superseded, and skipped runs. New feedback revisions or changed model/repository versions invalidate in-flight comparisons. Saved output and successful scores let retries resume without repeating completed model calls.
+
+One task runs at a time through the learner queue. Each model request allows at most 2,048 output tokens and two minutes; context is bounded, and oversized judge evidence produces an explicit failure. Transient failures retry with backoff for at most five attempts. Turning off **Evaluations**, **Dataset capture**, or **Enable learning** pauses new work; an in-flight request can finish. Automatic calls appear under learning usage and incur provider costs. Judge scores need calibration against human-reviewed examples before being used as release gates.
+
+### Score external runs
+
+`codeberg learning score-outputs runs.jsonl` evaluates candidate outputs against current reviewed held-out examples of any dataset kind. Add `expected` to the reviewed oracle when promoting the candidate; optionally add `"output_format":"json"`. A recorded answer or solved rating is never substituted for this independent reference. For example, an oracle file can contain `{"expected":"3","output_format":"json"}`. Retrieval examples still need their reviewed file, repository, symbol, or dependency-path oracle as well.
+
+Each line in the candidate run file supplies an exported eval ID, an `output` value, and optionally the candidate's `model` and actual retrieved `context`:
+
+```json
+{"eval_id":"example-...","output":"3","model":"candidate-v1","context":["The function returns 3."]}
+```
+
+The default checks are **exact_match** (literal value equality, with object key order ignored) and **valid_json** (JSON syntax when the oracle requests JSON). A JSON string and an object are different values for exact matching. Neither check measures the meaning of a prose answer, and JSON validity does not check a schema.
+
+For imported runs, add model judgments by selecting a judge explicitly:
+
+```sh
+codeberg learning score-outputs runs.jsonl --judge provider:model
+```
+
+Use a configured provider and its model ID. This sends the question, candidate output, and the applicable reference or context to that provider and incurs model costs. **Factuality** compares against the reviewed expected answer; **faithfulness** checks claims against the context actually supplied to the candidate. Each uses a versioned rubric with scores of 0, 0.5, or 1 and a brief diagnostic explanation. Context support does not establish that the context is true. Calibrate judge decisions against human-reviewed examples before choosing release thresholds; these scores do not approve training data automatically.
+
+Reports keep each metric separate, including its mean and scored, skipped, and error counts. Missing references or context skip the applicable check; provider and malformed-response errors stay separate from skips and cause a nonzero CLI exit status. Missing candidate runs are listed and excluded from means, so compare both coverage and quality. Unknown or duplicate IDs are rejected. Reports retain dataset revisions, repository commits, candidate model labels, and judge model/rubric versions. Save reports for the same task IDs and pinned candidate/judge models to compare changes; the command scores submitted outputs and does not rerun the candidate or restore repositories.
+
 ## Understand costs and persistence
 
-Recording local history, deriving dataset candidates, and explicit review do not themselves call a model. External post-training and evaluation runs have their own compute and provider costs. The separate knowledge workflow can make background model calls; see [Knowledge](/docs/knowledge) for its controls and costs.
+Recording local history and deriving dataset candidates use no model calls. Approving an evaluation can queue automatic model calls when evaluations are enabled; training approval does not start training. Automatic evaluations use the chat and learning models and appear under learning usage. External post-training and evaluation runs have their own compute and provider costs. The separate knowledge workflow can make background model calls; see [Knowledge](/docs/knowledge) for its controls and costs.
 
 Set `CODEBERG_LEARNING_USE=false` in the launcher config to disable the learning subsystem, then restart. Existing data remains available for later reuse. Deleting a project's entire history removes its saved learning and knowledge; deleting only indexes retains them. See [Data and maintenance](/docs/storage) before cleanup.

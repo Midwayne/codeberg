@@ -14,6 +14,7 @@ import type { Generator, ReasoningEffort, SearchResult } from '../types.js';
 import { webConfigFromEnv } from '../web/config.js';
 import type { WebConfig } from '../web/types.js';
 import type { AgentOptions } from './options.js';
+import { agentEvaluationRuntime } from './evaluations.js';
 
 export class AgentState {
   readonly env: NodeJS.ProcessEnv;
@@ -83,6 +84,7 @@ export class AgentState {
             root: defaultLearningRoot(this.env),
             repositories: () => repositoryVersions(projectRoots(this.env, process.cwd())),
             generator: fromAiSdk(opts.subagentModel ?? opts.model),
+            evaluation: agentEvaluationRuntime(opts),
           }));
     this.ownsLearning = opts.learning === undefined;
   }

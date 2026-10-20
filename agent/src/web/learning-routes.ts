@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { routeDreaming } from './dreaming-routes.js';
 import { getFeedback, postFeedback } from './learning/feedback-routes.js';
 import { reviewExample } from './learning/review-routes.js';
+import { routeEvaluations } from './learning/evaluation-routes.js';
 
 import { LearningSettingsError } from '../core/learning/preferences.js';
 import { reviewDashboard } from '../core/learning/review.js';
@@ -18,6 +19,12 @@ export async function routeLearning(
   sessions: WebSessionStore,
   url: URL,
 ): Promise<void> {
+  if (
+    url.pathname === `${LEARNING_PATH}/evaluations` ||
+    url.pathname.startsWith(`${LEARNING_PATH}/evaluations/`)
+  )
+    return routeEvaluations(req, res, learning, url);
+
   if (
     url.pathname === `${LEARNING_PATH}/dreaming` ||
     url.pathname.startsWith(`${LEARNING_PATH}/dreaming/`)

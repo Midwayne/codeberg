@@ -85,7 +85,7 @@ running may finish; changes to available chat tools apply on subsequent turns.
 | --- | --- | --- |
 | Codebase knowledge | Learn from solved answers; Use knowledge in chats; Automatic source refresh; Daily knowledge consolidation | Extraction and refresh call the learning model; recalled results add chat context |
 | Learning history | Record chats and feedback; Use history in chats | Recording is local; recalled attempts add chat context |
-| Dataset capture | Training review; Evaluations; individual example types | Local extraction and explicit review make no model calls |
+| Dataset capture | Training review; Evaluations; individual example types | Extraction is local; enabled automatic evaluations call the chat and learning models |
 
 Family switches pause all their subcomponents without clearing their selected
 choices. For recall without background knowledge calls, leave **Codebase
@@ -101,8 +101,15 @@ Debugging. Disabled categories are excluded from knowledge recall, refresh scans
 and generated artifacts. Expand **Example types** to independently capture Search
 evidence, Solved answer, Better answer, Verifiable task, Incorrect result, and
 Possible incorrect result. Turning off a type stops new candidate writes for it;
-existing examples are kept. Training and evaluation switches control new reviewed
-approvals. Evaluations are held-out data, not automatic model runs or retraining.
+existing examples are kept. Training review controls new training approvals.
+Evaluations controls held-out approvals and automatic background runs on reviewed
+tasks. The runner uses the saved chat model for a fresh retrieval-backed answer and
+the learning model for judging. Runs are queued after approval, model selection
+changes, and startup reconciliation, with a two-minute scan for missed changes.
+Unchanged completed runs are reused. Turning off Evaluations, Dataset capture, or
+Enable learning pauses evaluation work; an in-flight model call may finish.
+Read saved results with `codeberg learning eval-reports`. Evaluation calls appear
+under learning usage; they do not train or update model weights.
 
 Knowledge consolidation reports are generated manually in this section, with
 optional daily proposals off by default. Review before/after notes, apply a

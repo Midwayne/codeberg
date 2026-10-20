@@ -1,4 +1,4 @@
-import { enqueueDataset, enqueueDreaming, enqueueKnowledge } from './queue/enqueue.js';
+import { enqueue, enqueueDataset, enqueueDreaming, enqueueKnowledge } from './queue/enqueue.js';
 import { claim, complete, fail, release } from './queue/execution.js';
 import { DEFAULT_LEASE_MS, isTransientFailure } from './queue/policy.js';
 import { reconcileStates, recoverExpired, recoverRetryableFailures } from './queue/recovery.js';
@@ -34,6 +34,13 @@ export class DurableJobQueue {
 
   enqueueDreaming(runId: string): Promise<KnowledgeJob> {
     return enqueueDreaming(this.state, runId);
+  }
+
+  enqueueEvaluation(
+    runId: string,
+    options: { requeueCompleted?: boolean } = {},
+  ): Promise<KnowledgeJob> {
+    return enqueue(this.state, 'evaluate_output', runId, options);
   }
 
   recoverExpired(): Promise<number> {

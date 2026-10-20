@@ -12,6 +12,7 @@ import { WebSessionStore } from '../sessions/store.js';
 import { serveStatic } from '../static.js';
 import { routeResources } from './resources.js';
 import { routeUsage } from '../usage/routes.js';
+import type { LearningService } from '../../core/learning/service.js';
 import {
   CHAT_PATH,
   CHAT_SEARCH_PATH,
@@ -45,7 +46,7 @@ export async function route(
     return routeCanvas(req, res, opts.canvas, url);
   }
 
-  if (path === MODELS_PATH && opts.modelSettings) return routeModels(req, res, opts.modelSettings);
+  if (path === MODELS_PATH && opts.modelSettings) return routeModels(req, res, opts.modelSettings, opts.learning);
 
   if (path.startsWith('/api/')) {
     return routeApi(req, res, opts, respond, sessions, url);
@@ -108,12 +109,16 @@ export async function routeModels(
   req: IncomingMessage,
   res: ServerResponse,
   settings: ModelSettingsStore,
+  learning?: LearningService,
 ): Promise<void> {
   if (req.method === 'GET') return sendJson(res, 200, await settings.current());
 
   if (req.method === 'PUT') {
     try {
-      return sendJson(res, 200, await settings.update(await readJson(req)));
+      const result = await settings.update(await readJson(req));
+      await learning?.refreshEvaluations();
+
+      return sendJson(res, 200, result);
     } catch (error) {
       if (error instanceof ModelSelectionError) return sendText(res, 400, error.message);
 

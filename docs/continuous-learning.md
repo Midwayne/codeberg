@@ -71,6 +71,10 @@ dataset derivation are local; recalled findings/history add chat context, while
 knowledge extraction and refresh call the learning model. See
 [learning settings](settings.md#learning) for controls, persistence, and API details.
 
+With Evaluations enabled, reviewed held-out tasks also run automatically through
+the durable learner queue. The saved chat model generates candidate answers and
+the learning model grades them; both calls count as learning usage.
+
 Set `CODEBERG_LEARNING_USE=false` in the launcher
 config (`codeberg config set CODEBERG_LEARNING_USE=false`) or environment to stop
 recording interactions, disable learning tools/routes and hide browser feedback.
@@ -263,6 +267,77 @@ score results but do not execute the models. Eval export contains only reviewed
 held-out examples. Training-oriented embedding/query-positive-negative exports
 require promoted interactions, and only reviewed or explicitly rejected file
 paths become negatives; retrieved-but-uncited results remain unjudged.
+
+### Composable output evaluations
+
+#### Automatic execution
+
+Reviewed eval approval schedules a durable `evaluate_output` job. Startup,
+model-setting updates, and a two-minute reconciliation scan also discover work.
+The task key includes the complete reviewed example, source revision, repository
+versions, candidate/judge selections (model, effort, context window), and harness
+version. Matching completed runs survive restart without additional model calls.
+The master, dataset, and evaluation switches gate both scheduling and execution;
+knowledge switches do not disable evaluation. Without model configuration,
+reconciliation waits and retries on a subsequent scan.
+
+The version-one harness is a read-only RAG baseline, not the interactive agent:
+one project-scoped search (top ten), up to 24,000 source-context characters, then
+a fresh candidate response. It excludes historical answers, reviewed oracles,
+learning recall, tools, and training writes from candidate context. The selected
+learning model grades factuality and faithfulness; reviewed oracles alone supply
+expected answers. Retrieval scores use the same fresh ranked hits. Repository
+commit mismatches produce a skipped report. The runner does not restore source
+snapshots or isolate uncommitted working-tree changes.
+
+Model requests allow 2,048 output tokens, 120 seconds, and no provider-level
+retries. Oversized judge evidence fails explicitly instead of truncating the
+oracle. The shared queue executes one job at a time with at most five attempts
+and bounded backoff; candidate and successful scorer checkpoints prevent repeat
+calls after judge errors. Superseded source/model/repository revisions never
+publish a completed result. Terminal failures are not requeued by routine scans.
+
+`learning/evaluations/` contains immutable task snapshots, candidate/scorer
+checkpoints under `runs/`, and the latest attempt status under `reports/`.
+`codeberg learning eval-reports` and GET `/api/learning/evaluations[/<id>]`
+inspect saved reports. The list endpoint also returns pending/processing/failed
+eval jobs. Results remain readable while learning is paused. These are measured
+outputs and diagnostics, not automatic training approvals or calibrated release
+gates. Model aliases can change upstream; use pinned versions where supported.
+
+#### External run scoring
+
+The output evaluator follows the uniform scorer and score-metadata patterns in
+[Braintrust AutoEvals](https://github.com/braintrustdata/autoevals). It uses the
+existing provider abstraction and adds no dependency or hosted logging service.
+`codeberg learning score-outputs runs.jsonl [--judge provider:model]` reads only
+`DatasetStore.active('eval')`. Each run contains `{eval_id, output, model?, context?}`;
+`context` is an array of the actual passages supplied to the candidate.
+Unknown/duplicate IDs and missing outputs are rejected before grading.
+
+Reviewed `oracle.expected` enables literal exact matching and the optional
+factuality judge. `oracle.output_format: "json"` enables JSON syntax validation
+(not schema validation). Optional faithfulness grading uses candidate context.
+Reference answers are never inferred from payloads or solved ratings. An output
+can have valid JSON but wrong content, or be faithful to incorrect context;
+these scores remain independent rather than becoming a blended reward.
+
+`evaluateOutputs(examples, runs, scorers)` is exported for external runners;
+call it with current active eval rows. Custom sync/async `OutputScorer`s receive
+`{input, output, expected, context, output_format}` and return
+`{name, score, metadata?}`. Scores must be finite in [0,1] or null for a skip.
+Each scorer receives an isolated copy. Exceptions and invalid score objects are
+recorded per scorer so other checks continue. Means exclude errors and skips,
+with separate denominator counts and missing-run IDs. The CLI exits nonzero on
+scorer errors; low scores and incomplete coverage need caller-defined gates.
+
+Judge calls require explicit `--judge`, use fixed versioned rubrics, and retain
+model, selected grade, and a brief rationale. They do not run candidate tools or
+change reviews. Compare human labels to judge decisions before setting gates,
+pin model IDs where the provider supports it, and hold the same dataset and
+judge fixed across candidate comparisons. The report records dataset source
+revisions and repository commits, but does not restore a runnable environment.
+See the in-app learning guide for oracle and JSONL examples and provider costs.
 
 `openai-chat` writes strict `{"messages":[{"role":"user","content":"..."},
 {"role":"assistant","content":"..."}]}` rows for solved, standalone turns only.

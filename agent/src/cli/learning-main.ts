@@ -2,9 +2,11 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { dreamingCommand } from './dreaming.js';
+import { scoreOutputsFile } from './output-evals.js';
 
 import { DatasetStore, type Provenance } from '../core/learning/datasets.js';
 import { exportDataset, type ExportType } from '../core/learning/export.js';
+import { EvaluationReports } from '../core/learning/evaluation/reports.js';
 import { writeAtomic } from '../core/learning/fs.js';
 import {
   historicalEvalMetrics,
@@ -57,6 +59,9 @@ async function main(): Promise<void> {
     case 'score':
       await scoreFile(store, args);
       return;
+    case 'score-outputs':
+      await scoreOutputsFile(store, args);
+      return;
     default:
       await datasetCommand(store, command, args);
   }
@@ -91,6 +96,9 @@ async function datasetCommand(
       console.log(JSON.stringify(interaction, null, 2));
       return;
     }
+    case 'eval-reports':
+      console.log(JSON.stringify(await new EvaluationReports(store.root).list(), null, 2));
+      return;
     case 'candidates':
       console.log(JSON.stringify(await datasets.list('candidates'), null, 2));
       return;
@@ -111,7 +119,7 @@ async function datasetCommand(
     }
     default:
       console.error(
-        'Usage: codeberg-learning dream | dream-reports | dream-report <id> | dream-apply <id> | dream-undo <id> | dream-dismiss <id> | search-learning <query> | search-knowledge [--all] <query> | list-knowledge | list | show <interaction-id> | stats | metrics | score <runs.jsonl> | candidates | extract <interaction-id> | promote <example-id> <eval|training> <provenance> [oracle.json] | export --type eval|embedding|openai-chat|query-positive-negative|preference|knowledge',
+        'Usage: codeberg-learning dream | dream-reports | dream-report <id> | dream-apply <id> | dream-undo <id> | dream-dismiss <id> | search-learning <query> | search-knowledge [--all] <query> | list-knowledge | list | show <interaction-id> | stats | metrics | eval-reports | score <runs.jsonl> | score-outputs <runs.jsonl> [--judge provider:model] | candidates | extract <interaction-id> | promote <example-id> <eval|training> <provenance> [oracle.json] | export --type eval|embedding|openai-chat|query-positive-negative|preference|knowledge',
       );
       process.exitCode = 1;
   }

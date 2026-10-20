@@ -2,6 +2,8 @@ import { writeModuleLog } from '../../module-log.js';
 import type { Generator } from '../../types.js';
 import { DatasetStore } from '../datasets.js';
 import { DreamingReports } from '../dreaming/reports.js';
+import { AutomaticEvaluations } from '../evaluation/automatic.js';
+import type { EvaluationRuntime } from '../evaluation/automatic-types.js';
 import { DEFAULT_LEARNING_SETTINGS, type LearningSettings } from '../preferences.js';
 import { DurableJobQueue } from '../queue.js';
 import { LearningSettingsStore } from '../settings.js';
@@ -10,6 +12,7 @@ import { LearningStore, defaultLearningRoot } from '../store.js';
 import type { RepositoryVersion } from '../types.js';
 import { KnowledgeWorker } from '../worker.js';
 import { refreshKnowledge } from './refresh.js';
+import { refreshEvaluations } from './evaluations.js';
 import { syncWatcher } from './settings.js';
 
 export class LearningServiceState {
@@ -22,6 +25,8 @@ export class LearningServiceState {
   readonly worker?: KnowledgeWorker;
 
   readonly datasets: DatasetStore;
+
+  readonly evaluations?: AutomaticEvaluations;
 
   readonly hasGenerator: boolean;
 
@@ -85,6 +90,7 @@ export class LearningServiceState {
     options: {
       root?: string;
       generator?: Generator;
+      evaluation?: EvaluationRuntime;
       repositories?: () => Promise<RepositoryVersion[]>;
     } = {},
   ) {
@@ -94,7 +100,20 @@ export class LearningServiceState {
     this.queue = new DurableJobQueue(root);
     this.hasGenerator = Boolean(options.generator);
     this.settingsStore = new LearningSettingsStore(root);
-    this.datasets = new DatasetStore(this.store);
+    this.datasets = new DatasetStore(this.store, () => refreshEvaluations(this));
+    if (options.evaluation)
+      this.evaluations = new AutomaticEvaluations(
+        this.store,
+        this.datasets,
+        this.queue,
+        options.evaluation,
+        () =>
+          this.preferences.enabled &&
+          this.preferences.datasets &&
+          this.preferences.evals &&
+          !this.stopping &&
+          !this.maintenance,
+      );
     this.sourceWatcher = new KnowledgeSourceWatcher(this.store, (sources) => {
       void refreshKnowledge(this, sources).catch((error: unknown) => {
         console.error('knowledge source refresh failed:', error);
@@ -114,6 +133,7 @@ export class LearningServiceState {
       },
       () => this.preferences,
       this.datasets,
+      this.evaluations,
     );
   }
 }

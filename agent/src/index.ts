@@ -24,6 +24,16 @@ export {
 } from './core/hooks/index.js';
 export { DatasetStore, EXTRACTION_VERSION } from './core/learning/datasets.js';
 export { exportDataset, type ExportType } from './core/learning/export.js';
+export { judgeScorers } from './core/learning/evaluation/judge.js';
+export { evaluateOutputs } from './core/learning/evaluation/runner.js';
+export { outputScorers } from './core/learning/evaluation/scorers.js';
+export type {
+  EvalScore,
+  OutputReport,
+  OutputRun,
+  OutputScorer,
+  ScorerInput,
+} from './core/learning/evaluation/types.js';
 export { historicalEvalMetrics, scoreRetrievalRuns } from './core/learning/metrics.js';
 export { DurableJobQueue } from './core/learning/queue.js';
 export { LearningService } from './core/learning/service.js';

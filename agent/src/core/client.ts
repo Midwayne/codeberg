@@ -66,7 +66,7 @@ export class DaemonClient {
     throw new DaemonError('NOT_READY', 'daemon indexer not ready', 503);
   }
 
-  async search(query: string, opts: SearchOptions = {}): Promise<SearchResult[]> {
+  async search(query: string, opts: SearchOptions = {}, signal?: AbortSignal): Promise<SearchResult[]> {
     const url = this.endpoint('/search');
     url.searchParams.set('q', query);
     if (opts.k != null) {
@@ -89,7 +89,7 @@ export class DaemonClient {
       url.searchParams.set('min_score', String(opts.min_score));
     }
 
-    const res = await fetch(url);
+    const res = await fetch(url, { signal });
     const body = (await res.json()) as {
       results: SearchResult[];
     } & DaemonErrorBody;

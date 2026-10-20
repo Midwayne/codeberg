@@ -2,6 +2,8 @@ import { writeModuleLog } from '../../module-log.js';
 import { isDailyDreaming } from '../dreaming/scheduler.js';
 import type { LearningSettings } from '../preferences.js';
 import { scheduleDreaming } from './dreaming.js';
+import { refreshEvaluations } from './evaluations.js';
+import type { KnowledgeJob } from '../types.js';
 import { reconcileJobs } from './reconciliation.js';
 import { refreshKnowledge } from './refresh.js';
 import type { LearningServiceState } from './state.js';
@@ -28,6 +30,7 @@ export async function updateSettings(
 
       await reconcileJobs(state);
       await scheduleDreaming(state);
+      await refreshEvaluations(state);
     } catch (error) {
       writeModuleLog('learning-agent', 'settings_reconcile_failed', { error: String(error) });
     } finally {
@@ -41,11 +44,13 @@ export async function updateSettings(
 export function jobEnabled(
   state: LearningServiceState,
   job: {
-    type: 'extract_knowledge' | 'extract_dataset' | 'consolidate_knowledge';
+    type: KnowledgeJob['type'];
     source_refresh?: boolean;
     interaction_id?: string;
   },
 ): boolean {
+  if (job.type === 'evaluate_output') return Boolean(state.evaluations?.enabled());
+
   if (job.type === 'consolidate_knowledge')
     return (
       state.knowledgeEnabled &&

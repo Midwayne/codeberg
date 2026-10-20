@@ -77,7 +77,7 @@ export function DatasetSettings({ settings, locked, set, onChange }: DatasetSett
         />
         <Toggle
           label="Evaluations"
-          description="Allow independently checked examples to be saved as held-out test cases. No model calls."
+          description="Save independently checked test cases and run them automatically with the chat and learning models. Uses model tokens."
           checked={settings.evals}
           disabled={locked || !settings.datasets}
           onChange={(value) => set('evals', value)}

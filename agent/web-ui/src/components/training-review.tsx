@@ -81,8 +81,8 @@ function ReviewHeader({ state }: ReviewHeaderProps) {
           Training review
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-          Check an example, then decide whether it belongs in training or a held-out evaluation set. Approval saves data
-          for later use; it does not retrain the current model.
+          Review examples for training or held-out evaluation. Approved evaluations run automatically when enabled;
+          training approval saves data for later training.
         </p>
       </div>
       <IconButton

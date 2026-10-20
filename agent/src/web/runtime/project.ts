@@ -23,6 +23,7 @@ import type { OwnedRuntime, ProjectRuntimeOptions } from './types.js';
 import { sharedUsageStore } from '../usage/shared.js';
 import { projectUsageTracker } from '../usage/project.js';
 import type { ToolSettingsStore } from '../tools/settings.js';
+import { projectEvaluationRuntime } from './evaluations.js';
 
 // The built React SPA lives at `web-ui/dist`, one level up from this bundle
 // (`dist/web.js`). Override with CODEBERG_WEB_ROOT; if it is unbuilt, the server
@@ -39,17 +40,18 @@ export async function buildProjectHandler(project: Project, options: ProjectRunt
   const home = projectDataHome(codebergHome(), project.id);
   const usage = sharedUsageStore();
   const track = projectUsageTracker(usage, modelSettings, project);
+  const daemonUrl = `${entry.daemonUrl.replace(/\/$/, '')}/projects/${project.id}`;
   const learning = learningEnabledFromEnv()
     ? new LearningService({
         root: join(home, 'learning'),
         repositories: () => repositoryVersions(project.roots.map((root) => root.root)),
+        evaluation: projectEvaluationRuntime(daemonUrl, modelSettings, (spec) => providers.resolve(spec), track),
         generator: createLearningGenerator(modelSettings, (spec) => providers.resolve(spec),
           (model, key, spec) => track(model, key, spec, 'learning')),
       })
     : undefined;
 
   const sessions = new WebSessionStore(join(home, 'web-sessions'));
-  const daemonUrl = `${entry.daemonUrl.replace(/\/$/, '')}/projects/${project.id}`;
   const resources = new ResourceSettings({
     home,
     env,
