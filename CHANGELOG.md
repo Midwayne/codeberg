@@ -354,6 +354,31 @@ changes may occur in minor releases and are called out explicitly.
 - **Re-embedding the whole corpus on every restart** — the chunk table was rebuilt
   empty at startup, so bootstrap treated every chunk as new and re-embedded it.
 
+## [0.1.4] - 2026-10-20
+
+### Added
+
+- Automatic background evaluation of reviewed held-out learner tasks after
+  approval, model selection changes, and startup reconciliation. Runs save
+  retrieval and output scores with repository/model provenance, resume from
+  checkpoints, and use bounded retries and model requests. The Evaluations
+  setting controls execution. Read results with `codeberg learning eval-reports`.
+- Composable output scorers for literal matching, JSON validity, factuality,
+  and source grounding, with separate missing, skipped, and error counts.
+  External runners can submit outputs through `codeberg learning score-outputs`.
+
+### Changed
+
+- Reduce repeated work when switching between rich chat histories, including
+  transcript rendering and layout calculations.
+- Avoid replacing unchanged vector snapshots, rebuilding identical chunk sets,
+  and repeatedly constructing import-resolution source maps.
+- Share canvas notification feeds across browser subscribers and cache repeated
+  source observations while checking file identity and timestamps.
+- Unload idle embedding models after five minutes by default and reload them
+  on demand. Set `CBERG_EMBED_IDLE_SECONDS=0` to retain the model in memory.
+  The first embedding request after unloading includes model-loading latency.
+
 ## [0.1.0] - 2026-06-22
 
 ### Added
