@@ -20,6 +20,8 @@ Your source files stay in the directory you add. Codeberg stores its own configu
 
 Chats, retrieved context, knowledge, datasets, and logs can contain information about your code. Treat this directory as private data. **Settings → Projects** provides the exact location and ID of each project's storage. Appearance preferences are saved separately in the browser's local storage.
 
+The project's `context/checkpoints/` directory holds reusable conversation summaries and prefix fingerprints. It belongs with the history and tool-output archives under `context/`; checkpoints are reused across restarts only when the original messages and model policy still match. Original saved chat messages remain in `web-sessions/`.
+
 The docs you are reading are bundled with the web UI. Reading them does not need an LLM call, an indexed project, or an external documentation service.
 
 Topic links update within the docs view, keeping navigation in place. Keyboard navigation is immediate; the system's reduced-motion preference replaces movement with a brief fade.

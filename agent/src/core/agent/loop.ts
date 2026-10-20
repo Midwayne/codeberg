@@ -1,11 +1,12 @@
-import { isLoopFinished, pruneMessages, ToolLoopAgent } from 'ai';
-import { pruneBudget } from '../../providers/profiles.js';
+import { isLoopFinished, ToolLoopAgent } from 'ai';
 import { cachedInstructions, deterministicTools, withConversationCache } from '../cache.js';
 import { wrapToolOutputs } from '../context/wrap.js';
-import { totalTokens } from '../history.js';
 import { wrapToolLoopAgentWithPromptHooks } from '../hooks/index.js';
 import { prepareStepPatch } from '../mcp/active.js';
 import { batchTool } from '../tools/batch.js';
+import { manageContextModel } from '../request-budget/model.js';
+import { summarize } from './history.js';
+import { HISTORY_SUMMARY_SYSTEM } from '../prompts/history-summary.js';
 import { DEFAULT_TIMEOUT } from './options.js';
 import type { AgentState } from './state.js';
 import { buildTools, prepareSystem } from './tools.js';
@@ -38,9 +39,13 @@ export async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
   const toolNames = Object.keys(tools);
   const providerOptions = await prepareSystem(state, tools);
 
-  const prune = pruneBudget(state.profile);
   const loop = new ToolLoopAgent({
-    model: state.model,
+    model: manageContextModel(state.model, {
+      profile: state.profile,
+      context: state.context,
+      summarize: (transcript, limit, signal) => summarize(state, transcript, limit, signal),
+      checkpointPolicy: JSON.stringify([state.summaryProfile, HISTORY_SUMMARY_SYSTEM]),
+    }),
     // Cache the large, frozen system prompt instead of re-billing it on
     // every tool round and every turn.
     instructions: cachedInstructions(state.system, state.profile),
@@ -51,21 +56,10 @@ export async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
     timeout: DEFAULT_TIMEOUT,
     ...(providerOptions ? { providerOptions } : {}),
     ...(state.reasoning && state.reasoning !== 'max' ? { reasoning: state.reasoning } : {}),
-    // In-loop results are spilled at execute. Here, drop the oldest tool
-    // pairs once the transcript crosses the high-water mark, mark the
-    // transcript tail cacheable, and hide MCP tools until load_mcp_tools or
-    // the transcript already names them.
+    // The model boundary archives/compacts complete tool exchanges as needed.
+    // Keep the transcript cacheable and activate only requested MCP schemas.
     prepareStep: async ({ messages }) => {
-      const pruned =
-        totalTokens(messages) > prune
-          ? pruneMessages({
-              messages,
-              toolCalls: 'before-last-2-messages',
-              emptyMessages: 'remove',
-            })
-          : messages;
-
-      const next = withConversationCache(pruned, state.profile);
+      const next = withConversationCache(messages, state.profile);
 
       return prepareStepPatch(messages, next, state.mcpSource?.activeTools(toolNames, next));
     },

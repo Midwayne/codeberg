@@ -354,6 +354,29 @@ changes may occur in minor releases and are called out explicitly.
 - **Re-embedding the whole corpus on every restart** — the chunk table was rebuilt
   empty at startup, so bootstrap treated every chunk as new and re-embedded it.
 
+## [0.1.5] - 2026-10-20
+
+### Changed
+
+- Spill oversized tool results before summarizing history, keep recent complete
+  exchanges within a token budget, and reuse saved checkpoints across follow-ups
+  and restarts. Summaries use the summarizer's own context window and reject
+  incomplete output.
+- Budget complete model requests, including instructions, tool schemas,
+  attachments, answer space, and Anthropic's additional thinking allocation.
+  Recover from context-limit errors with up to three smaller model requests
+  without replaying completed local tools.
+- Support searchable context files up to 50 MiB with streamed reads, literal
+  search, bounded output, and continuation positions. Small-window models use
+  concise system instructions.
+- Simplify the README while preserving developer setup instructions, and update
+  the in-app model, context-tool, storage, and environment documentation.
+
+### Fixed
+
+- Preserve AI SDK string model identifiers when applying context budgeting,
+  resolving them through the configured default provider or gateway.
+
 ## [0.1.4] - 2026-10-20
 
 ### Added

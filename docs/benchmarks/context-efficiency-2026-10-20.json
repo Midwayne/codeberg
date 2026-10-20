@@ -1,0 +1,122 @@
+{
+  "date": "2026-10-20",
+  "runtime": "Node.js v24.19.0, macOS",
+  "trials_per_version": 5,
+  "parent_commit": "d9fc811c156d653b5d04687e1d423fd946886e11",
+  "claims": [
+    "Fewer summary calls for unchanged prefixes",
+    "Faster first-line reads and early literal matches"
+  ],
+  "limitations": [
+    "Synthetic fixtures and fake summaries; no live providers",
+    "No claims about full-file scan speed, peak memory, billing, or answer quality"
+  ],
+  "parent_8_mib": [
+    {
+      "summaryCalls": 3,
+      "readMs": 4.457666999999958,
+      "grepMs": 2.871832999999981
+    },
+    {
+      "summaryCalls": 3,
+      "readMs": 3.844875000000002,
+      "grepMs": 4.2940830000000005
+    },
+    {
+      "summaryCalls": 3,
+      "readMs": 3.968500000000006,
+      "grepMs": 2.626708000000008
+    },
+    {
+      "summaryCalls": 3,
+      "readMs": 2.4660410000000184,
+      "grepMs": 2.546625000000006
+    },
+    {
+      "summaryCalls": 3,
+      "readMs": 3.5940410000000043,
+      "grepMs": 2.5394170000000145
+    }
+  ],
+  "updated_8_mib": [
+    {
+      "summaryCalls": 1,
+      "readMs": 1.4572089999999776,
+      "grepMs": 0.47762500000004593
+    },
+    {
+      "summaryCalls": 1,
+      "readMs": 0.26308300000005147,
+      "grepMs": 0.24958399999997027
+    },
+    {
+      "summaryCalls": 1,
+      "readMs": 0.27737500000000637,
+      "grepMs": 0.2535000000000309
+    },
+    {
+      "summaryCalls": 1,
+      "readMs": 0.219791999999984,
+      "grepMs": 0.19462500000003047
+    },
+    {
+      "summaryCalls": 1,
+      "readMs": 0.225750000000005,
+      "grepMs": 0.22358299999996234
+    }
+  ],
+  "starting_workspace_50_mib": [
+    {
+      "summaryCalls": 3,
+      "readMs": 22.232417000000055,
+      "grepMs": 17.016500000000008
+    },
+    {
+      "summaryCalls": 3,
+      "readMs": 16.184416,
+      "grepMs": 19.963915999999983
+    },
+    {
+      "summaryCalls": 3,
+      "readMs": 22.057999999999993,
+      "grepMs": 24.192000000000007
+    },
+    {
+      "summaryCalls": 3,
+      "readMs": 24.68312499999996,
+      "grepMs": 17.010875
+    },
+    {
+      "summaryCalls": 3,
+      "readMs": 17.11658300000005,
+      "grepMs": 19.959165999999982
+    }
+  ],
+  "updated_50_mib": [
+    {
+      "summaryCalls": 1,
+      "readMs": 1.6528749999999945,
+      "grepMs": 0.5349160000000097
+    },
+    {
+      "summaryCalls": 1,
+      "readMs": 0.25020799999998644,
+      "grepMs": 0.2309579999999869
+    },
+    {
+      "summaryCalls": 1,
+      "readMs": 0.2858330000000251,
+      "grepMs": 0.22391599999997425
+    },
+    {
+      "summaryCalls": 1,
+      "readMs": 0.20529199999998582,
+      "grepMs": 0.20566700000000537
+    },
+    {
+      "summaryCalls": 1,
+      "readMs": 0.2597499999999968,
+      "grepMs": 0.25583299999999554
+    }
+  ]
+}

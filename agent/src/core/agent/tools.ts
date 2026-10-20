@@ -12,6 +12,7 @@ import { createAgentTools } from '../tools/agent-tools.js';
 import { BATCH_TOOL, MAX_BATCH_CALLS } from '../tools/batch.js';
 import { DEFAULT_SEARCH_K } from './options.js';
 import type { AgentState } from './state.js';
+import { budgetWindow } from '../../providers/profiles.js';
 
 export async function prepareSystem(
   state: AgentState,
@@ -27,6 +28,7 @@ export async function prepareSystem(
     skills,
     contextRoot: state.context.root,
     batch: toolNames.includes(BATCH_TOOL) ? MAX_BATCH_CALLS : undefined,
+    compact: budgetWindow(state.profile) <= 16_384,
   });
   if (toolNames.some((name) => name.startsWith('canvas_'))) state.system += CANVAS_INSTRUCTIONS;
 

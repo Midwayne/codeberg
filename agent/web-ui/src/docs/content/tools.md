@@ -20,6 +20,10 @@ Ask for a concrete path through the code: “Trace this endpoint to the storage 
 
 Expand tool output in the conversation to see what was returned. Source citations identify paths and lines; inspect the actual source before acting on a conclusion. Search can miss unfamiliar naming, unsupported source constructs, or files that are not indexed, and a model can still draw the wrong inference.
 
+Large tool results are saved locally with a preview and the full output's path. The agent can search these saved text files with `context_grep`, read selected lines with `context_read`, or inspect the end with `context_tail`. These tools support files up to **50 MiB** each. Reads and tails return at most 400 lines per call; grep returns at most 100 matches. Larger files are skipped or reported as too large, so narrow the original tool request when its output exceeds this limit.
+
+Text is read in chunks, so a focused read or an early literal match can finish without loading the full file. Output pages target 8,000 characters, with long lines broken into fragments of up to 2,000 characters. `context_read` supplies continuation line and column positions; the agent passes these as `start_line` and `start_column` to continue inside a huge JSON line. Columns are 1-based UTF-16 positions. Grep returns an excerpt around a match and a position to inspect, rather than sending the entire huge line. Regex searches preserve whole-line matching and may buffer one long line; full-file searches and numbered tails may still scan the entire file.
+
 If an answer is too broad, narrow the request with a filename, directory, function, error string, or expected behavior. A follow-up such as “Check the caller too” or “Show the source behind that claim” helps the agent verify the next link.
 
 ## Optional web tools

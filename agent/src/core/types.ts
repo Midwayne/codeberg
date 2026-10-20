@@ -45,6 +45,11 @@ export interface Prompt {
   system: string;
   prompt: string;
   traceId?: string;
+  /** Optional output ceiling for bounded background work such as checkpoints. */
+  maxOutputTokens?: number;
+  /** Checkpoints must not silently accept an empty or truncated generation. */
+  requireComplete?: boolean;
+  abortSignal?: AbortSignal;
 }
 
 export interface Generator {

@@ -1,30 +1,19 @@
 import type { ModelMessage } from 'ai';
 
 import { messageText, messageTranscript } from './message.js';
+import { recentHistoryStart } from './history-recent.js';
+import { totalTokens } from './history-tokens.js';
+import { IncompleteSummaryError, isContextOverflow } from './context-errors.js';
 
-/** Rough token estimate. We don't ship a tokenizer (it would be provider-
- *  specific and a build-time dependency); ~4 chars/token is close enough to
- *  decide *when* to compact, which is all the budget math needs. */
-export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4);
-}
-
-export function messageTokens(message: ModelMessage): number {
-  // Tool calls and tool results are most of a long session. messageText drops
-  // them, which would let a transcript of huge tool output look like it fits.
-  return estimateTokens(messageTranscript(message));
-}
-
-export function totalTokens(messages: readonly ModelMessage[]): number {
-  return messages.reduce((sum, m) => sum + messageTokens(m), 0);
-}
+export { estimateTokens, messageTokens, totalTokens } from './history-tokens.js';
 
 export type Summarize = (transcript: string) => Promise<string>;
 
 export interface FitOptions {
   /** Estimated-token ceiling for the returned transcript. */
   budget: number;
-  /** Turns at the tail kept verbatim no matter what (recency). */
+  /** Minimum messages kept verbatim, expanded to a whole user exchange.
+   *  By default, use 25% of the budget, capped at 15K estimated tokens. */
   keepRecent?: number;
   /** When provided, overflow is folded into one summary turn; otherwise the
    *  oldest turns are dropped behind a short marker. */
@@ -43,20 +32,19 @@ const HISTORY_FILE_RE = /<history_file>([^<]+)<\/history_file>/g;
 export function boundTranscript(full: string, maxChars = SUMMARY_INPUT_CHARS): string {
   if (full.length <= maxChars) return full;
 
-  const tailChars = Math.min(24_000, Math.floor(maxChars / 3));
-  const headChars = maxChars - tailChars;
+  const note = '\n\n[middle omitted; the history file has the full transcript]\n\n';
+  const available = Math.max(0, maxChars - note.length);
+  const tailChars = Math.min(24_000, Math.floor(available / 3));
+  const headChars = available - tailChars;
 
-  return `${full.slice(0, headChars)}\n\n[middle of the transcript omitted here; the history file has the full text]\n\n${full.slice(-tailChars)}`;
+  return `${full.slice(0, headChars)}${note}${tailChars ? full.slice(-tailChars) : ''}`.slice(0, maxChars);
 }
 
-const DEFAULT_KEEP_RECENT = 6;
-
 /**
- * Bring `messages` under `budget` (estimated tokens). The most recent
- * `keepRecent` messages are always preserved; everything older is either folded
- * into a single leading summary (when a summarizer is supplied) or dropped
- * behind a marker. Returns the input array unchanged when it already fits, so
- * the cacheable prefix is preserved on the common path.
+ * Fit history to an estimated token budget, retaining recent whole exchanges.
+ * The latest exchange is always preserved, even when it alone exceeds the
+ * budget. Older exchanges are summarized or replaced by an archive marker.
+ * Returns the input array unchanged when it fits, preserving cacheable prefixes.
  *
  * The older transcript is archived once. Prior `<history_file>` tags on those
  * turns are copied onto the new marker. If the summary still overflows, the
@@ -70,8 +58,7 @@ export async function fitHistory(
     return messages;
   }
 
-  const keepRecent = opts.keepRecent ?? DEFAULT_KEEP_RECENT;
-  const split = Math.max(0, messages.length - keepRecent);
+  const split = recentHistoryStart(messages, opts.budget, opts.keepRecent);
   const older = messages.slice(0, split);
   const recent = messages.slice(split);
   if (older.length === 0) {
@@ -86,13 +73,28 @@ export async function fitHistory(
     return [historyMarker(undefined, older.length, files), ...recent];
   }
 
-  const summary = await opts.summarize(boundTranscript(full));
+  const summary = await summarizeArchived(opts.summarize, full, files);
   const summarized = [historyMarker(summary, older.length, files), ...recent];
   if (totalTokens(summarized) <= opts.budget) {
     return summarized;
   }
 
   return [historyMarker(undefined, older.length, files), ...recent];
+}
+
+async function summarizeArchived(summarize: Summarize, full: string, files: readonly string[]) {
+  try {
+    const summary = await summarize(boundTranscript(full));
+    if (!summary.trim()) throw new IncompleteSummaryError();
+
+    return summary;
+  } catch (error) {
+    if (files.length > 0 && (error instanceof IncompleteSummaryError || isContextOverflow(error))) {
+      return undefined;
+    }
+
+    throw error;
+  }
 }
 
 function renderTranscript(messages: readonly ModelMessage[]): string {

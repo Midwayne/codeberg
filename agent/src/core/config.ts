@@ -1,6 +1,5 @@
 import { defaultProviders } from '../providers/index.js';
 import type { LanguageModel } from 'ai';
-import { profileFor } from '../providers/profiles.js';
 import { Agent } from './agent.js';
 import { DaemonClient } from './client.js';
 import { ContextStore, defaultContextRoot } from './context/store.js';
@@ -9,6 +8,7 @@ import type { LearningService } from './learning/service.js';
 import { currentProjectEnvironment } from './projects.js';
 import { assertAgentRuntime } from './runtime.js';
 import type { ReasoningEffort } from './types.js';
+import { agentProfiles } from './model-profiles.js';
 
 export interface AgentConfig {
   transformModel?: (model: LanguageModel) => LanguageModel;
@@ -69,11 +69,7 @@ export function createAgent(config: AgentConfig): Agent {
         : config.daemonUrl,
     ),
     reasoning: config.reasoning,
-    // Resolve the model's memory limit + caching strategy from the same spec so
-    // the agent budgets context and marks the cache prefix correctly.
-    profile: config.contextWindow
-      ? { ...profileFor(config.modelSpec), contextWindow: config.contextWindow }
-      : profileFor(config.modelSpec),
+    ...agentProfiles(config.modelSpec, subagentSpec, env, config.contextWindow),
   });
 }
 

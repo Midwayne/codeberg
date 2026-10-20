@@ -1,9 +1,10 @@
 import { ToolLoopAgent, type LanguageModel } from 'ai';
-import { DEFAULT_PROFILE, type ModelProfile } from '../../providers/profiles.js';
+import { DEFAULT_PROFILE, profileFor, type ModelProfile } from '../../providers/profiles.js';
 import { DaemonClient } from '../client.js';
 import { ContextStore, defaultContextRoot } from '../context/store.js';
 import { EvidenceLedger } from '../evidence.js';
 import { fromAiSdk } from '../generator.js';
+import { HistoryCheckpoints } from '../history-checkpoints.js';
 import { DEFAULT_PROMPT_HOOKS, type PromptHook } from '../hooks/index.js';
 import { LearningService } from '../learning/service.js';
 import { defaultLearningRoot, repositoryVersions } from '../learning/store.js';
@@ -29,6 +30,8 @@ export class AgentState {
 
   readonly profile: ModelProfile;
 
+  readonly summaryProfile: ModelProfile;
+
   readonly promptHooks: readonly PromptHook[];
 
   readonly web: WebConfig;
@@ -36,6 +39,8 @@ export class AgentState {
   readonly mcp: McpConfig | undefined;
 
   readonly context: ContextStore;
+
+  readonly checkpoints: HistoryCheckpoints;
 
   readonly learning?: LearningService;
 
@@ -72,10 +77,14 @@ export class AgentState {
     this.generator = opts.generator ?? fromAiSdk(opts.subagentModel ?? opts.model);
     this.reasoning = opts.reasoning;
     this.profile = opts.profile ?? DEFAULT_PROFILE;
+    this.summaryProfile = opts.summaryProfile ?? (opts.subagentModel && typeof opts.subagentModel === 'object'
+      ? profileFor(`${opts.subagentModel.provider.split('.')[0]}:${opts.subagentModel.modelId}`, {})
+      : this.profile);
     this.promptHooks = opts.promptHooks ?? DEFAULT_PROMPT_HOOKS;
     this.web = opts.web ?? webConfigFromEnv(this.env);
     this.mcp = opts.mcp;
     this.context = opts.context ?? ContextStore.open(defaultContextRoot(this.env));
+    this.checkpoints = new HistoryCheckpoints(this.context);
     this.learning =
       opts.learning === false
         ? undefined

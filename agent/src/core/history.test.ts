@@ -42,9 +42,9 @@ describe('fitHistory', () => {
       turn(i % 2 ? 'assistant' : 'user', 'x'.repeat(40)),
     );
     const out = await fitHistory(msgs, { budget: 30, keepRecent: 3 });
-    expect(out).toHaveLength(4); // marker + 3 recent
+    expect(out).toHaveLength(5); // marker + 4 recent (whole exchanges)
     expect(String(out[0]?.content)).toContain('omitted');
-    expect(out.slice(1)).toEqual(msgs.slice(-3));
+    expect(out.slice(1)).toEqual(msgs.slice(-4));
   });
 
   it('archives the verbatim older turns and points the summary at that file', async () => {

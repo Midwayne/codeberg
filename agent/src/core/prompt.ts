@@ -1,6 +1,7 @@
 import type { SkillSummary } from './context/skills.js';
 import type { McpServerReport } from './mcp/catalog.js';
 import { AGENT_GUIDANCE } from './prompts/guidance.js';
+import { compactAgentSystem } from './prompts/compact.js';
 import {
   batchInstructions,
   strategyInstructions,
@@ -30,6 +31,8 @@ export interface AgentSystemPromptOptions {
   contextRoot?: string;
   /** Max calls when the `batch` tool is registered; omit when it is not. */
   batch?: number;
+  /** Keep operational rules concise for models with small working windows. */
+  compact?: boolean;
 }
 
 const MAX_MCP_TOOLS_LISTED = 40;
@@ -48,7 +51,7 @@ export function agentSystemPrompt(web: AgentSystemPromptOptions): string {
   const mcp = web.mcp ?? [];
   const skills = web.skills ?? [];
   const contextRoot = web.contextRoot;
-  const lines = [web.learning === undefined ? AGENT_SYSTEM : baseAgentSystem(web.learning)];
+  const lines = [promptBase(web)];
   if (web.batch) {
     lines.push(batchInstructions(web.batch));
   }
@@ -91,6 +94,15 @@ export function agentSystemPrompt(web: AgentSystemPromptOptions): string {
   }
 
   return lines.join('\n');
+}
+
+function promptBase(web: AgentSystemPromptOptions): string {
+  const learning = web.learning ?? true;
+  const knowledge = typeof learning === 'boolean' ? learning : learning.knowledge;
+  const history = typeof learning === 'boolean' ? learning : learning.history;
+
+  return web.compact ? compactAgentSystem(knowledge, history) :
+    web.learning === undefined ? AGENT_SYSTEM : baseAgentSystem(web.learning);
 }
 
 function webInstructions(web: AgentSystemPromptOptions): string[] {

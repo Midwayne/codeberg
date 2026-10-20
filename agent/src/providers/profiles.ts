@@ -139,9 +139,8 @@ export const DEFAULT_PROFILE: ModelProfile = {
  *  schemas, freshly retrieved evidence, and the model's output. */
 export const HISTORY_BUDGET_FRACTION = 0.5;
 
-/** High-water mark (fraction of the window) at which the in-flight tool loop
- *  starts clearing old tool results. Higher than the history fraction because
- *  within a single ask we keep evidence around as long as it fits. */
+/** Legacy transcript-only threshold retained for callers. The agent now sizes
+ *  complete provider requests, including schemas, instructions, and output. */
 export const PRUNE_BUDGET_FRACTION = 0.6;
 
 export function historyBudget(profile: ModelProfile): number {

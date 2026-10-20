@@ -35,6 +35,8 @@ export interface AgentOptions {
    *  history compaction, and in-loop pruning. Defaults to an uncapped,
    *  cache-less profile so callers without a spec behave as before. */
   profile?: ModelProfile;
+  /** Window of the model used to summarize history; defaults to the chat profile. */
+  summaryProfile?: ModelProfile;
   /** Last-user-message rewrites such as `/enhance`. Pass [] to disable. */
   promptHooks?: readonly PromptHook[];
   /** Web-access configuration (web_search + fetch_url). Defaults to the

@@ -27,9 +27,8 @@ export class Agent implements Asker {
     return ask(this.state, question, opts);
   }
 
-  /** Compact a transcript to fit this model's history budget, summarizing the
-   *  overflow with the model itself. Exposed so the web wrapper can apply the
-   *  same policy to its browser-owned transcript. */
+  /** Fit this model's history budget with reusable checkpoints and the selected
+   *  summarizer. The web wrapper applies the same policy to browser history. */
   compactHistory(messages: ModelMessage[]): Promise<ModelMessage[]> {
     return compactHistory(this.state, messages);
   }
