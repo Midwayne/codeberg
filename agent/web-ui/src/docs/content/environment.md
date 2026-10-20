@@ -100,6 +100,7 @@ For catalog syntax, local server setup, and saved model choices, see [Models and
 | `CBERG_VECTORDB_API_KEY` | Optional secret | Qdrant authentication. |
 | `CBERG_POSTGRES_URL` | Connection string; required for pgvector | PostgreSQL database with the pgvector extension installed. |
 | `CBERG_EMBED_THREADS` | Integer; automatic when unset or non-positive | ONNX intra-op thread limit. |
+| `CBERG_EMBED_IDLE_SECONDS` | Integer `0`–`86400`; `300` | Unload an idle embedding model after this many seconds. `0` keeps it resident. The next semantic query or embedding update reloads it, adding model-loading latency. Export before startup; environment only. |
 | `CBERG_EMBED_BATCH` | Integer `1`–`1024`; `16` | Rows per ONNX inference batch. Larger batches need more memory. |
 | `CBERG_EMBED_COREML` | `1` to enable; off by default | Opt into the CoreML execution provider on Apple builds that support it. Unsupported execution falls back to CPU. |
 | `CBERG_GRAPH` | On by default; `0`, `off`, or `false` disables | Build the syntactic graph sidecar used for symbol relationships. |

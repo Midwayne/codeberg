@@ -38,6 +38,8 @@ The page's master **Enable learning** switch pauses knowledge, history, and data
 
 Code changes can make an earlier explanation outdated. Saved knowledge retains evidence that can be rechecked; background extraction and refresh use the learning model selected in **Models**. The agent should verify recalled findings against current source when answering.
 
+Source checks reuse a bounded local memory cache to avoid rereading and hashing unchanged files. Every observation still checks the file's identity, size, and modification/change timestamps, and cached contents are reread after five minutes. The cache holds at most 256 files with an estimated 8 MiB text budget. It does not change knowledge capture, refresh, or training-data settings.
+
 Knowledge consolidation proposes changes that combine or improve saved explanations. Generate a report in Settings, inspect before-and-after notes and preserved sources, then apply or dismiss it. Applied reports offer Undo. Consolidation updates saved knowledge rather than training the model.
 
 ## Costs and persistence

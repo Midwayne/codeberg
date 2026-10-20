@@ -32,6 +32,10 @@ EmbeddingGemma 2 does not need ONNX or `llama-server`. Jina requires ONNX Runtim
 
 The startup project's indexer begins on launch. Other project indexers start when first used. Indexers remain running until Codeberg stops so each active project can keep watching its source files.
 
+After five minutes without embedding work, an indexer unloads its embedding model to release memory. Its saved vectors, graph, and file watcher remain available. The next semantic query or edit that needs new embeddings reloads the model; that first request can take longer. Lexical search does not require a model reload. To keep models resident, export `CBERG_EMBED_IDLE_SECONDS=0` before starting Codeberg. Other values from `1` to `86400` set the idle timeout in seconds; the default is `300`.
+
+Unchanged vector indexes are not rewritten on repeated save requests. Import resolution reuses its source-file map during ordinary edits and rebuilds it when file membership or package metadata changes. Actual index changes are still saved immediately; these reductions do not delay checkpoints.
+
 Indexing and graph creation run in the background. You can send questions, regenerate answers, and use tools as soon as a project is selected. Grep, file reads, directory browsing, and other filesystem tools work immediately. Hybrid search uses lexical matches and reference lookup falls back to grep while indexes are being built. Index-only tools report that the index is still building, so the agent can continue with file tools instead of waiting.
 
 A small progress panel in the bottom-left shows the current stage. Once parsing determines the total, indexing shows real counts such as **1,500 / 2,600 chunks**, and the bar fills as chunks are stored. Reused cached chunks and duplicate bodies count toward completion. Graph updates show processed files against their total. Before a total is known, the panel says **Counting chunks** or **Building graph** without displaying a percentage. Each repository and stage has its own workload; this is not an estimated percentage for the entire project.

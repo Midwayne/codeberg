@@ -19,11 +19,13 @@
 #include "arena.h"
 #include "fileio.h"
 #include "graph_internal.h"
+#include "import_cache.h"
 #include "pathutil.h"
 #include "strmap.h"
 #include "walk_policy.h"
 
-typedef struct {
+typedef struct cberg_import_cache {
+    cberg_strmap *file_set; /* source membership detects create+modify event coalescing */
     cberg_strmap *import_to_file; /* import string -> arena path */
     cberg_arena *arena;
     char **file_paths; /* all indexed-looking source paths (rel) */
@@ -51,7 +53,7 @@ static cberg_status pkg_add_file(pkg_index *idx, const char *rel) {
         return CBERG_ERR_OUT_OF_MEMORY;
     }
     idx->file_paths[idx->file_len++] = copy;
-    return CBERG_OK;
+    return cberg_strmap_set(idx->file_set, copy, 1);
 }
 
 /* Code languages only — not markdown/yaml/toml/json (those are UNKNOWN for imports). */
@@ -352,36 +354,60 @@ static void map_rust_sources(pkg_index *idx) {
     }
 }
 
-cberg_status cberg_graph_resolve_imports(cberg_graph *graph, const char *repo_root) {
-    if (graph == NULL || repo_root == NULL) {
-        return CBERG_ERR_INVALID_ARGUMENT;
+void cberg_import_cache_free(cberg_import_cache *cache) {
+    if (cache == NULL) {
+        return;
     }
-    pkg_index idx = {0};
-    idx.arena = cberg_arena_new();
-    idx.import_to_file = cberg_strmap_new(1024);
-    if (idx.arena == NULL || idx.import_to_file == NULL) {
-        cberg_arena_free(idx.arena);
-        cberg_strmap_free(idx.import_to_file);
+    free(cache->file_paths);
+    cberg_strmap_free(cache->file_set);
+    cberg_strmap_free(cache->import_to_file);
+    cberg_arena_free(cache->arena);
+    free(cache);
+}
+
+void cberg_import_cache_note(cberg_import_cache **cache, const char *path, int deleted) {
+    if (cache == NULL || *cache == NULL) {
+        return;
+    }
+    uint64_t present = 0;
+    if (!deleted && cberg_strmap_get((*cache)->file_set, path, &present)) {
+        return;
+    }
+    /* New/deleted paths, manifests and directory events may change resolution.
+     * Do not trust CREATE alone: watcher coalescing can turn it into MODIFY. */
+    cberg_import_cache_free(*cache);
+    *cache = NULL;
+}
+
+static cberg_status import_cache_build(const char *root, cberg_import_cache **out) {
+    pkg_index *idx = calloc(1, sizeof(*idx));
+    if (idx == NULL) {
         return CBERG_ERR_OUT_OF_MEMORY;
     }
-    if (cberg_fs_walk_files(repo_root, walk_cb, &idx) != 0) {
-        cberg_status st = idx.err != CBERG_OK ? idx.err : CBERG_ERR_IO;
-        free(idx.file_paths);
-        cberg_strmap_free(idx.import_to_file);
-        cberg_arena_free(idx.arena);
+    idx->arena = cberg_arena_new();
+    idx->file_set = cberg_strmap_new(1024);
+    idx->import_to_file = cberg_strmap_new(1024);
+    if (idx->arena == NULL || idx->file_set == NULL || idx->import_to_file == NULL) {
+        cberg_import_cache_free(idx);
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+    if (cberg_fs_walk_files(root, walk_cb, idx) != 0) {
+        cberg_status st = idx->err != CBERG_OK ? idx->err : CBERG_ERR_IO;
+        cberg_import_cache_free(idx);
         return st;
     }
-    scan_go_mod(&idx, repo_root);
-    map_js_sources(&idx);
-    map_python_sources(&idx);
-    map_rust_sources(&idx);
+    scan_go_mod(idx, root);
+    map_js_sources(idx);
+    map_python_sources(idx);
+    map_rust_sources(idx);
+    *out = idx;
+    return CBERG_OK;
+}
 
+static cberg_status resolve_with_cache(cberg_graph *graph, pkg_index *idx) {
     size_t node_count = 0;
     cberg_graph_counts(graph, &node_count, NULL);
     if (node_count == 0) {
-        free(idx.file_paths);
-        cberg_strmap_free(idx.import_to_file);
-        cberg_arena_free(idx.arena);
         return CBERG_OK;
     }
     /* Stable IDs — rewrite_import may compact and free graph->nodes, so we
@@ -391,9 +417,6 @@ cberg_status cberg_graph_resolve_imports(cberg_graph *graph, const char *repo_ro
     if (files == NULL || file_ids == NULL) {
         free(files);
         free(file_ids);
-        free(idx.file_paths);
-        cberg_strmap_free(idx.import_to_file);
-        cberg_arena_free(idx.arena);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
     size_t nfiles = 0;
@@ -401,9 +424,6 @@ cberg_status cberg_graph_resolve_imports(cberg_graph *graph, const char *repo_ro
     if (st != CBERG_OK) {
         free(files);
         free(file_ids);
-        free(idx.file_paths);
-        cberg_strmap_free(idx.import_to_file);
-        cberg_arena_free(idx.arena);
         return st;
     }
     for (size_t i = 0; i < nfiles; i++) {
@@ -422,9 +442,6 @@ cberg_status cberg_graph_resolve_imports(cberg_graph *graph, const char *repo_ro
     cberg_graph_edge *edges = calloc(refs_cap, sizeof(*edges));
     if (edges == NULL) {
         free(file_ids);
-        free(idx.file_paths);
-        cberg_strmap_free(idx.import_to_file);
-        cberg_arena_free(idx.arena);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
     for (size_t i = 0; i < nfiles; i++) {
@@ -440,15 +457,15 @@ cberg_status cberg_graph_resolve_imports(cberg_graph *graph, const char *repo_ro
             if (mod == NULL || mod->kind != CBERG_GNODE_MODULE) {
                 continue;
             }
-            if (!import_is_resolvable_shape(mod->name, idx.go_module)) {
+            if (!import_is_resolvable_shape(mod->name, idx->go_module)) {
                 continue;
             }
             const char *file = NULL;
             uint64_t mapped = 0;
-            if (cberg_strmap_get(idx.import_to_file, mod->name, &mapped)) {
+            if (cberg_strmap_get(idx->import_to_file, mod->name, &mapped)) {
                 file = (const char *)(uintptr_t)mapped;
             } else {
-                file = find_file_for_import(&idx, mod->name);
+                file = find_file_for_import(idx, mod->name);
             }
             if (file == NULL) {
                 continue;
@@ -478,8 +495,25 @@ cberg_status cberg_graph_resolve_imports(cberg_graph *graph, const char *repo_ro
     }
     free(edges);
     free(file_ids);
-    free(idx.file_paths);
-    cberg_strmap_free(idx.import_to_file);
-    cberg_arena_free(idx.arena);
     return CBERG_OK;
+}
+
+cberg_status cberg_graph_resolve_cached(cberg_graph *graph, const char *root, cberg_import_cache **cache) {
+    if (graph == NULL || root == NULL || cache == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    if (*cache == NULL) {
+        cberg_status st = import_cache_build(root, cache);
+        if (st != CBERG_OK) {
+            return st;
+        }
+    }
+    return resolve_with_cache(graph, *cache);
+}
+
+cberg_status cberg_graph_resolve_imports(cberg_graph *graph, const char *repo_root) {
+    cberg_import_cache *cache = NULL;
+    cberg_status st = cberg_graph_resolve_cached(graph, repo_root, &cache);
+    cberg_import_cache_free(cache);
+    return st;
 }

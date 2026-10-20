@@ -31,6 +31,7 @@ struct cberg_chunk_table {
     uint64_t next_id;
     uint8_t fingerprint[CBERG_HASH_LEN];
     cberg_arena *arena; /* owns entry key/path/symbol strings */
+    bool arena_has_deletions; /* compact deleted snapshot strings on the next sync */
 
     cberg_stored_chunk *added;
     size_t added_len;
@@ -435,6 +436,7 @@ static void table_commit(cberg_chunk_table *table, cberg_chunk_table *next) {
     table->id_index = next->id_index;
     table->next_id = next->next_id;
     table->arena = next->arena;
+    table->arena_has_deletions = next->deleted_len != 0;
     next->arena = NULL;
     memcpy(table->fingerprint, next->fingerprint, CBERG_HASH_LEN);
     table->added = next->added;
@@ -449,12 +451,36 @@ static void table_commit(cberg_chunk_table *table, cberg_chunk_table *next) {
     table_adopt_scratch(table, next);
 }
 
+/* An identical ordered set needs neither a replacement arena nor a fingerprint
+ * sort. Comparing unique live keys in order also rejects incoming duplicates. */
+static bool table_matches(cberg_chunk_table *table, const cberg_chunk *incoming, size_t count) {
+    if (count != table->len || table->arena_has_deletions) {
+        return false;
+    }
+
+    for (size_t i = 0; i < count; i++) {
+        if (incoming[i].key == NULL || strcmp(incoming[i].key, table->entries[i].chunk.key) != 0) {
+            return false;
+        }
+        if (memcmp(incoming[i].content_hash, table->entries[i].chunk.content_hash, CBERG_HASH_LEN) != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
 cberg_status cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk *incoming, size_t count, cberg_changes *out_changes) {
     if (table == NULL || out_changes == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     if (count > 0 && incoming == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
+    }
+
+    if (table_matches(table, incoming, count)) {
+        table_free_change_lists(table);
+        memset(out_changes, 0, sizeof(*out_changes));
+        return CBERG_OK;
     }
 
     cberg_chunk_table *next = calloc(1, sizeof(cberg_chunk_table));

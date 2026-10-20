@@ -1,7 +1,7 @@
-import { createHash } from 'node:crypto';
-import { readFile, realpath, stat } from 'node:fs/promises';
+import { realpath } from 'node:fs/promises';
 import { relative, resolve, sep } from 'node:path';
 import type { KnowledgeArtifact, RepositoryVersion } from '../types.js';
+import { readSourceFile } from './file-cache.js';
 
 export type SourceRef = NonNullable<KnowledgeArtifact['source_refs']>[number];
 
@@ -14,7 +14,7 @@ export interface SourceObservation extends SourceRef {
   unavailable?: string;
 }
 
-// Retain freshly read source for quote validation without sending whole files to the model.
+// Retain checked source for quote validation without sending whole files to the model.
 export const sourceText = new WeakMap<SourceObservation, string>();
 
 export function sourceTextFor(observation: SourceObservation): string | undefined {
@@ -43,12 +43,7 @@ export async function readSource(
     const actual = await realpath(path);
     if (!actual.startsWith(`${root}${sep}`)) throw new Error('source is outside the repository');
 
-    if ((await stat(actual)).size > 1_000_000)
-      throw new Error('source file exceeds safe read limit');
-
-    const content = await readFile(actual);
-    const text = content.toString('utf8');
-    const hash = createHash('sha256').update(content).digest('hex');
+    const { text, hash } = await readSourceFile(actual);
     const needle = ref.symbol?.split(/[.#:]/).at(-1);
     const position = needle ? Math.max(0, text.indexOf(needle) - 1_500) : 0;
     const excerpt = text.slice(position, position + 12_000);

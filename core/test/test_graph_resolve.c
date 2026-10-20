@@ -11,6 +11,7 @@
 #include "codeberg/codeberg.h"
 #include "test_common.h"
 #include "test_graph_common.h"
+#include "../src/graph/import_cache.h"
 
 static const cberg_graph_node *file_by_path(graph_corpus *c, const char *path) {
     const cberg_graph_node *nodes[64];
@@ -435,7 +436,50 @@ static void test_ambiguous_import_stays_module(void) {
     rm_tree(root);
 }
 
+static void test_cached_resolution(void) {
+    char root[] = "/tmp/cberg_cached_XXXXXX";
+    CHECK(mkdtemp(root) != NULL, "cache fixture");
+    write_file(root, "util.ts", "export function util() {}\n");
+    write_file(root, "app.ts", "import './util';\n");
+
+    graph_corpus c;
+    CHECK(corpus_open(&c) == 0, "cached corpus");
+    CHECK(corpus_index(&c, CBERG_LANG_TYPESCRIPT, "util.ts", "export function util() {}\n") == CBERG_OK, "cached target");
+    CHECK(corpus_index(&c, CBERG_LANG_TYPESCRIPT, "app.ts", "import './util';\n") == CBERG_OK, "cached importer");
+    cberg_import_cache *cache = NULL;
+    CHECK(cberg_graph_resolve_cached(c.graph, root, &cache) == CBERG_OK, "populate package map");
+    CHECK(edge_to_file(&c, "app.ts", "util.ts"), "cached resolution matches public resolver");
+
+    /* A body edit must reuse the package map without touching the source tree. */
+    cberg_import_cache_note(&cache, "app.ts", 0);
+    CHECK(cache != NULL, "known-file edit keeps map");
+    CHECK(corpus_index(&c, CBERG_LANG_TYPESCRIPT, "app.ts", "import './util';\nexport function app() {}\n") == CBERG_OK, "reparse importer");
+    char moved[512];
+    snprintf(moved, sizeof(moved), "%s-hidden", root);
+    CHECK(rename(root, moved) == 0, "temporarily hide tree");
+    CHECK(cberg_graph_resolve_cached(c.graph, root, &cache) == CBERG_OK, "cached pass needs no filesystem walk");
+    CHECK(edge_to_file(&c, "app.ts", "util.ts"), "edited importer resolves from cached map");
+    CHECK(rename(moved, root) == 0, "restore tree");
+
+    cberg_import_cache_note(&cache, "new.ts", 0);
+    CHECK(cache == NULL, "new file invalidates even when event is MODIFY");
+    write_file(root, "new.ts", "export function fresh() {}\n");
+    CHECK(corpus_index(&c, CBERG_LANG_TYPESCRIPT, "new.ts", "export function fresh() {}\n") == CBERG_OK, "new target");
+    CHECK(corpus_index(&c, CBERG_LANG_TYPESCRIPT, "app.ts", "import './new';\n") == CBERG_OK, "new import");
+    CHECK(cberg_graph_resolve_cached(c.graph, root, &cache) == CBERG_OK && edge_to_file(&c, "app.ts", "new.ts"), "new path resolves after invalidation");
+    cberg_import_cache_note(&cache, "go.mod", 0);
+    CHECK(cache == NULL, "module manifest invalidates map");
+    CHECK(cberg_graph_resolve_cached(c.graph, root, &cache) == CBERG_OK, "rebuild map");
+    cberg_import_cache_note(&cache, "new.ts", 1);
+    CHECK(cache == NULL, "deletion invalidates map");
+
+    cberg_import_cache_free(cache);
+    corpus_close(&c);
+    rm_tree(root);
+}
+
 int main(void) {
+    test_cached_resolution();
     test_stdlib_not_rewritten();
     test_slash_stdlib_not_rewritten();
     test_relative_and_module_path();

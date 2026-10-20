@@ -5,11 +5,14 @@
  * embedder length-sorted and in bounded calls, and the sort must not scramble
  * which chunk ids receive which vector. */
 #include "indexer.h"
+#include "ipc.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -371,6 +374,34 @@ static void bootstrap_with_progress(cberg_repo *r) {
     CHECK(atomic_load(&r->progress_completed) == atomic_load(&r->progress_total), "completed count reaches the real total");
 }
 
+static void check_ipc_reload(cberg_engine *eng) {
+    eng->embed_idle_seconds = 1;
+    eng->embed_last_used -= 2;
+    cberg_engine_trim_embedder(eng);
+
+    cberg_ipc_server *ipc = NULL;
+    CHECK(cberg_ipc_start(eng, &ipc) == 0, "start IPC after model unload");
+    if (ipc == NULL) return;
+
+    int client = socket(AF_UNIX, SOCK_STREAM, 0);
+    struct sockaddr_un addr = {.sun_family = AF_UNIX};
+    strncpy(addr.sun_path, eng->socket_path, sizeof(addr.sun_path) - 1);
+    struct timeval timeout = {.tv_sec = 2};
+    setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+    CHECK(connect(client, (struct sockaddr *)&addr, sizeof(addr)) == 0, "connect reload query");
+    const char *query = "search\tShared\t1\trepo\n";
+    CHECK(write(client, query, strlen(query)) == (ssize_t)strlen(query), "send reload query");
+    char buffer[4096];
+    ssize_t n;
+    size_t received = 0;
+    while ((n = read(client, buffer, sizeof(buffer))) > 0) received += (size_t)n;
+
+    CHECK(received > 0, "reloaded query responds");
+    CHECK(n == 0, "worker does not inherit query socket and prevent EOF");
+    close(client);
+    cberg_ipc_stop(ipc);
+}
+
 int main(int argc, char **argv) {
     char root_tmpl[] = "/tmp/cberg-vectors-root-XXXXXX";
     char work_tmpl[] = "/tmp/cberg-vectors-work-XXXXXX";
@@ -462,6 +493,26 @@ int main(int argc, char **argv) {
     check_glob_search(&eng, "**/*.go", 0);
     check_glob_search(&eng, "!pkg/**", 0);
     check_shared_vectors(&eng);
+
+    /* Unloading model memory must preserve index readiness and lazy reload. */
+    eng.embed_idle_seconds = 1;
+    cberg_engine_trim_embedder(&eng);
+    CHECK(eng.embedder != NULL, "recently used model stays loaded");
+    eng.embed_last_used -= 2;
+    pthread_mutex_lock(&eng.embed_mu);
+    cberg_engine_trim_embedder(&eng);
+    CHECK(eng.embedder != NULL, "busy embed mutex prevents eviction");
+    pthread_mutex_unlock(&eng.embed_mu);
+    cberg_engine_trim_embedder(&eng);
+    CHECK(eng.embedder == NULL, "idle model is released");
+    CHECK(cberg_repo_ready(r), "unloaded model retains index readiness");
+    check_shared_vectors(&eng);
+    CHECK(eng.embedder != NULL, "query reloads model");
+    eng.embed_idle_seconds = 0;
+    eng.embed_last_used -= 1000;
+    cberg_engine_trim_embedder(&eng);
+    CHECK(eng.embedder != NULL, "zero disables idle unloading");
+    check_ipc_reload(&eng);
 
     text_set_free(&fresh);
     text_set_free(&logged);

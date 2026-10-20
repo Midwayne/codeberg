@@ -5,6 +5,7 @@
 #include "chunk_kind.h"
 #include "chunk_table_internal.h"
 #include "embed_internal.h"
+#include "../../src/graph/import_cache.h"
 #include "fileio.h"
 #include "pathglob.h"
 #include "pathutil.h"
@@ -47,19 +48,6 @@ static void progress_begin(cberg_repo *r, const char *phase, size_t total, size_
     atomic_store(&r->progress_completed, completed);
     atomic_store(&r->progress_phase, phase);
     atomic_store(&r->progress_total, total);
-}
-
-/* The single choke point for the shared embedder: the ONNX session is not
- * thread-safe, and both the indexing (main) thread and the IPC search thread
- * embed. Callers must NOT hold embed_mu already; holding a repo->mu is fine
- * (lock order repo->mu -> embed_mu). */
-static cberg_status engine_embed(cberg_engine *eng, const char *const *texts, const size_t *lens, size_t count,
-                                int query, float **out_vectors) {
-    pthread_mutex_lock(&eng->embed_mu);
-    cberg_status st = query ? cberg_embedder_embed_query(eng->embedder, texts, lens, count, out_vectors)
-                            : cberg_embedder_embed(eng->embedder, texts, lens, count, out_vectors);
-    pthread_mutex_unlock(&eng->embed_mu);
-    return st;
 }
 
 typedef struct {
@@ -326,7 +314,7 @@ static size_t call_len(const sized_item *items, size_t n) {
  * is a close proxy for token count and needs no tokenizer here.
  */
 static cberg_status embed_window(cberg_repo *r, const cberg_stored_chunk *const *rows, size_t n, embed_sink sink, void *ctx) {
-    size_t dim = cberg_embedder_dim(r->eng->embedder);
+    size_t dim = r->eng->embed_dim;
     char **texts = calloc(n, sizeof(*texts));
     sized_item *items = malloc(n * sizeof(*items));
     const char *btexts[EMBED_CALL];
@@ -351,7 +339,7 @@ static cberg_status embed_window(cberg_repo *r, const cberg_stored_chunk *const 
         }
 
         float *vecs = NULL;
-        st = engine_embed(r->eng, btexts, blens, bn, 0, &vecs);
+        st = cberg_engine_embed(r->eng, btexts, blens, bn, 0, &vecs);
         for (size_t b = 0; b < bn && st == CBERG_OK; b++) {
             st = sink(ctx, items[c + b].item, vecs + b * dim);
         }
@@ -520,7 +508,7 @@ static cberg_status apply_vectors(cberg_repo *r, const cberg_changes *ch) {
     size_t upsert_len = ch->added_len + ch->modified_len;
     progress_begin(r, "embedding", total, total >= upsert_len ? total - upsert_len : 0);
 
-    if (!r->eng->vectors || r->eng->embedder == NULL || r->index == NULL) {
+    if (!r->eng->vectors || r->index == NULL) {
         atomic_store(&r->progress_completed, total);
         return CBERG_OK;
     }
@@ -655,11 +643,11 @@ static cberg_status embed_table(cberg_repo *r, cberg_index *target) {
 }
 
 static cberg_status rebuild_index(cberg_repo *r) {
-    if (!r->eng->vectors || r->eng->embedder == NULL || r->index == NULL) {
+    if (!r->eng->vectors || r->index == NULL) {
         return CBERG_OK;
     }
 
-    size_t dim = cberg_embedder_dim(r->eng->embedder);
+    size_t dim = r->eng->embed_dim;
     const cberg_index_config *cfg = &r->eng->index_cfg;
     cberg_index *target = r->index;
     cberg_index *temp_idx = NULL;
@@ -914,7 +902,7 @@ static void resolve_imports(cberg_repo *r) {
     if (r->graph == NULL || r->root == NULL) {
         return;
     }
-    cberg_status st = cberg_graph_resolve_imports(r->graph, r->root);
+    cberg_status st = cberg_graph_resolve_cached(r->graph, r->root, &r->import_cache);
     if (st != CBERG_OK) {
         fprintf(stderr, "cberg-index[%s]: warning: import resolution failed: %s\n", r->key, cberg_status_str(st));
     }
@@ -1021,6 +1009,7 @@ static void repo_close(cberg_repo *r) {
         cberg_chunk_table_free(r->table);
     }
     cberg_graph_free(r->graph);
+    cberg_import_cache_free(r->import_cache);
     free(r->key);
     free(r->root);
     free(r->index_path);
@@ -1111,7 +1100,7 @@ static cberg_status engine_add_repo(cberg_engine *eng, const char *key, const ch
     }
 
     if (eng->vectors) {
-        size_t dim = cberg_embedder_dim(eng->embedder);
+        size_t dim = eng->embed_dim;
         st = cberg_index_open(r->index_path, dim, &eng->index_cfg, &r->index);
         if (st == CBERG_ERR_CORRUPT) {
             /* Corrupt on-disk usearch file or remote collection/table with wrong
@@ -1345,19 +1334,7 @@ cberg_status cberg_engine_open(cberg_engine *eng) {
             cberg_engine_close(eng);
             return CBERG_ERR_IO;
         }
-        cberg_embed_config ecfg = {0};
-        const char *embed_backend = getenv("CBERG_EMBED_BACKEND");
-        ecfg.provider = (embed_backend != NULL &&
-                         (strcmp(embed_backend, "mlx") == 0 || strcmp(embed_backend, "llama") == 0 ||
-                          strcmp(embed_backend, "sentence-transformers") == 0 || strcmp(embed_backend, "gemma-mlx") == 0))
-                            ? CBERG_EMBED_WORKER : CBERG_EMBED_ONNX;
-        ecfg.model_path = eng->model_path;
-        /* CBERG_EMBED_THREADS caps ONNX intra-op threads; unset or <= 0 uses all cores. */
-        const char *embed_threads = getenv("CBERG_EMBED_THREADS");
-        if (embed_threads != NULL && embed_threads[0] != '\0') {
-            ecfg.num_threads = atoi(embed_threads);
-        }
-        st = cberg_embedder_open(&ecfg, &eng->embedder);
+        st = cberg_engine_open_embedder(eng);
         if (st != CBERG_OK) {
             fprintf(stderr, "cberg-index: failed to load embedding model '%s': %s\n", eng->model_path, cberg_status_str(st));
             cberg_engine_close(eng);
@@ -1512,6 +1489,13 @@ static cberg_status graph_drop_push(char ***list, size_t *len, size_t *cap, char
 }
 
 static cberg_status apply_path_changes(cberg_repo *r, char **rechunk, size_t rechunk_n, char **deleted, size_t deleted_n) {
+    for (size_t i = 0; i < rechunk_n; i++) {
+        cberg_import_cache_note(&r->import_cache, rechunk[i], 0);
+    }
+    for (size_t i = 0; i < deleted_n; i++) {
+        cberg_import_cache_note(&r->import_cache, deleted[i], 1);
+    }
+
     chunk_batch batch;
     batch_init(&batch);
 
@@ -1827,6 +1811,7 @@ cberg_status cberg_engine_step(cberg_engine *eng, size_t *out_events) {
         }
         total += n;
     }
+    cberg_engine_trim_embedder(eng);
     if (out_events != NULL) {
         *out_events = total;
     }
@@ -2141,7 +2126,7 @@ cberg_status cberg_engine_search_hits(cberg_engine *eng, const char *query, cons
     if (k > 64) {
         k = 64;
     }
-    if (!eng->vectors || eng->embedder == NULL) {
+    if (!eng->vectors) {
         return CBERG_ERR_NOT_IMPLEMENTED;
     }
     if (repo_key != NULL && repo_key[0] == '\0') {
@@ -2158,7 +2143,7 @@ cberg_status cberg_engine_search_hits(cberg_engine *eng, const char *query, cons
     const char *texts[1] = {query};
     size_t lens[1] = {strlen(query)};
     float *vec = NULL;
-    cberg_status st = engine_embed(eng, texts, lens, 1, 1, &vec);
+    cberg_status st = cberg_engine_embed(eng, texts, lens, 1, 1, &vec);
     if (st != CBERG_OK) {
         return st;
     }

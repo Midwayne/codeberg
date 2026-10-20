@@ -36,6 +36,12 @@ To use an existing service, configure `CODEBERG_SEARXNG_URL` and enable the swit
 
 Set `CODEBERG_WEB_USE=false` to disable both web search and URL fetching. This master switch prevents enabling search in Settings until the launcher configuration is changed and Codeberg is restarted. Source search still works. A model can still use its prior knowledge, so ask it to distinguish source evidence from general explanations.
 
+## Optional canvas
+
+Enable **Settings → Canvas** to use a drawing canvas attached to each chat. Open copies of the same chat share scene updates, so extra browser tabs do not each poll and parse the scene every half second.
+
+Changes normally appear shortly after a file update. On filesystems where notifications are unavailable or missed, a fallback check catches up within about 15 seconds. Closing the last connected canvas stops its watcher and timer.
+
 ## Skills and external tool catalogs
 
 [Skills](/docs/skills) describe a workflow; they do not add callable source or service operations. MCP servers provide additional tool catalogs. The agent loads relevant MCP tools on demand rather than sending every server's full catalog with each request.

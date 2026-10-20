@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 static cberg_status open_f32_add_save_reopen_i8(const char *path, size_t dim, const float *v, uint64_t id, cberg_index **out) {
@@ -146,6 +147,63 @@ static int test_quant_clear_honors_loaded_kind(void) {
     return failures - base;
 }
 
+static int test_clean_save(void) {
+    int base = failures;
+    char path[64];
+    test_temp_path(path, sizeof(path), "/tmp/cberg_clean_XXXXXX");
+
+    cberg_index *idx = NULL;
+    CHECK(cberg_index_open(path, 4, NULL, &idx) == CBERG_OK, "open clean-save fixture");
+    if (idx == NULL) return failures - base;
+
+    float vector[] = {1, 0, 0, 0};
+    CHECK(cberg_index_add(idx, 1, vector) == CBERG_OK, "add before save");
+    CHECK(cberg_index_save(idx) == CBERG_OK, "initial save");
+    struct stat before, after;
+    CHECK(stat(path, &before) == 0, "snapshot exists");
+    CHECK(cberg_index_save(idx) == CBERG_OK, "clean save succeeds");
+    CHECK(stat(path, &after) == 0 && before.st_ino == after.st_ino, "clean save does not replace snapshot");
+
+    cberg_index_close(idx);
+    CHECK(cberg_index_open(path, 4, NULL, &idx) == CBERG_OK, "reload snapshot");
+    CHECK(cberg_index_save(idx) == CBERG_OK, "loaded snapshot is clean");
+    CHECK(stat(path, &after) == 0 && before.st_ino == after.st_ino, "reload does not rewrite snapshot");
+
+    CHECK(cberg_index_remove(idx, 1) == CBERG_OK, "remove marks dirty");
+    CHECK(cberg_index_save(idx) == CBERG_OK, "save removal");
+    CHECK(stat(path, &after) == 0 && before.st_ino != after.st_ino, "dirty save replaces snapshot");
+
+    unlink(path);
+    CHECK(cberg_index_save(idx) == CBERG_OK && access(path, F_OK) == 0, "save restores externally removed snapshot");
+    CHECK(cberg_index_clear(idx) == CBERG_OK && cberg_index_save(idx) == CBERG_OK, "clear saves empty snapshot");
+
+    char blocked[80];
+    snprintf(blocked, sizeof(blocked), "%s.tmp", path);
+    CHECK(mkdir(blocked, 0700) == 0, "block temporary snapshot path");
+    char blocker[96];
+    snprintf(blocker, sizeof(blocker), "%s/keep", blocked);
+    FILE *keep = fopen(blocker, "w");
+    CHECK(keep != NULL, "retain blocked directory during save cleanup");
+    if (keep != NULL) fclose(keep);
+
+    CHECK(cberg_index_add(idx, 2, vector) == CBERG_OK, "dirty before failed save");
+    CHECK(cberg_index_save(idx) != CBERG_OK, "blocked save fails");
+    unlink(blocker);
+    CHECK(rmdir(blocked) == 0, "unblock snapshot path");
+    CHECK(cberg_index_save(idx) == CBERG_OK, "retry keeps pending mutations");
+    cberg_index_close(idx);
+
+    CHECK(cberg_index_open(path, 4, NULL, &idx) == CBERG_OK, "reopen retried save");
+    uint64_t id = 0;
+    float score = 0;
+    size_t found = 0;
+    CHECK(cberg_index_search(idx, vector, 1, NULL, &id, &score, &found) == CBERG_OK &&
+          found == 1 && id == 2, "retried mutation persisted");
+    cberg_index_close(idx);
+    unlink(path);
+    return failures - base;
+}
+
 int main(void) {
     char path[64];
     test_temp_path(path, sizeof path, "/tmp/cberg_index_XXXXXX");
@@ -171,6 +229,7 @@ int main(void) {
     failures += test_quant_reopen_across_kinds();
     failures += test_i8_orthogonal_ranking();
     failures += test_quant_clear_honors_loaded_kind();
+    failures += test_clean_save();
 
     if (failures == 0) {
         printf("ok - index\n");

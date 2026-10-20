@@ -879,6 +879,11 @@ static void *ipc_thread(void *arg) {
             }
             continue;
         }
+        /* A lazily restarted embedding worker must not retain client sockets. */
+        if (fcntl(client, F_SETFD, FD_CLOEXEC) != 0) {
+            close(client);
+            continue;
+        }
 #ifdef SO_NOSIGPIPE
         int one = 1;
         setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
@@ -912,7 +917,7 @@ static int ipc_start_at(cberg_engine *eng, const char *socket_path, int status_o
         return -1;
     }
     snprintf(lock_path, lock_len, "%s.lock", socket_path);
-    srv->lock_fd = open(lock_path, O_CREAT | O_RDWR, 0600);
+    srv->lock_fd = open(lock_path, O_CREAT | O_RDWR | O_CLOEXEC, 0600);
     free(lock_path);
     if (srv->lock_fd < 0) {
         free(srv);
@@ -950,7 +955,8 @@ static int ipc_start_at(cberg_engine *eng, const char *socket_path, int status_o
         return -1;
     }
     srv->listen_fd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (srv->listen_fd < 0) {
+    if (srv->listen_fd < 0 || fcntl(srv->listen_fd, F_SETFD, FD_CLOEXEC) != 0) {
+        if (srv->listen_fd >= 0) close(srv->listen_fd);
         close(srv->lock_fd);
         free(srv);
         return -1;

@@ -40,6 +40,7 @@ typedef struct cberg_repo {
     cberg_manifest *manifest; /* change-detection baseline; NULL until bootstrap */
     cberg_watcher *watcher;
     cberg_index *index;
+    struct cberg_import_cache *import_cache; /* owns package paths; guarded by mu */
     cberg_graph *graph; /* structural sidecar (ADR 0005); NULL when disabled */
 
     pthread_mutex_t mu;
@@ -65,7 +66,11 @@ struct cberg_engine {
     char *postgres_url;
 
     cberg_chunker *chunker;   /* main (bootstrap/watch) thread only */
-    cberg_embedder *embedder; /* ONE per process; call only via engine_embed */
+    cberg_embedder *embedder; /* ONE per process; call only via cberg_engine_embed */
+    cberg_embed_config embed_config; /* model_path borrows engine-owned storage */
+    size_t embed_dim; /* stable even while the model is unloaded */
+    unsigned embed_idle_seconds;
+    double embed_last_used; /* monotonic seconds; guarded by embed_mu */
     pthread_mutex_t embed_mu; /* serializes every cberg_embedder_embed call */
     pthread_mutex_t work_mu; /* IPC tries this lock; watched updates hold it */
     atomic_int updating;
@@ -82,6 +87,12 @@ struct cberg_engine {
  * Unresolvable roots are skipped with a warning. */
 cberg_status cberg_engine_open(cberg_engine *eng);
 void cberg_engine_close(cberg_engine *eng);
+
+/* Internal embedding lifecycle. Lazy reload and eviction serialize with inference. */
+cberg_status cberg_engine_open_embedder(cberg_engine *eng);
+void cberg_engine_trim_embedder(cberg_engine *eng);
+cberg_status cberg_engine_embed(cberg_engine *eng, const char *const *texts, const size_t *lens,
+                               size_t count, int query, float **out_vectors);
 
 cberg_status cberg_repo_bootstrap(cberg_repo *r);
 

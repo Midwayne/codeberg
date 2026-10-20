@@ -21,6 +21,7 @@ typedef struct usearch_backend {
     size_t expansion_search;
     usearch_scalar_kind_t quantization;
     char *path;
+    int dirty; /* Clear only after a successful snapshot replacement. */
 } usearch_backend;
 
 static usearch_scalar_kind_t quant_scalar_kind(cberg_index_quant quant) {
@@ -87,6 +88,7 @@ static cberg_status usearch_backend_add(void *impl, uint64_t id, const float *ve
     }
     usearch_error_t err = NULL;
 
+    b->dirty = 1; /* Replacement can remove the old vector before an add fails. */
     if (usearch_contains(b->idx, id, &err)) {
         usearch_remove(b->idx, id, &err);
         if (err != NULL) {
@@ -123,6 +125,7 @@ static cberg_status usearch_backend_remove(void *impl, uint64_t id) {
     if (!usearch_contains(b->idx, id, &err)) {
         return CBERG_ERR_NOT_FOUND;
     }
+    b->dirty = 1;
     usearch_remove(b->idx, id, &err);
     if (err != NULL) {
         return CBERG_ERR_INTERNAL;
@@ -169,6 +172,10 @@ static cberg_status usearch_backend_save(void *impl) {
     if (b == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
+    if (!b->dirty && file_exists(b->path)) {
+        return CBERG_OK;
+    }
+
     char tmp[4096];
     int n = snprintf(tmp, sizeof tmp, "%s.tmp", b->path);
     if (n < 0 || (size_t)n >= sizeof tmp) {
@@ -184,6 +191,7 @@ static cberg_status usearch_backend_save(void *impl) {
         remove(tmp);
         return CBERG_ERR_IO;
     }
+    b->dirty = 0;
     return CBERG_OK;
 }
 
@@ -192,6 +200,7 @@ static cberg_status usearch_backend_clear(void *impl) {
     if (b == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
+    b->dirty = 1;
     usearch_error_t err = NULL;
     usearch_free(b->idx, &err);
     b->idx = NULL;
@@ -289,6 +298,7 @@ static cberg_status usearch_open(const char *path, size_t dim, const cberg_index
     b->expansion_search = cfg->expansion_search;
     b->quantization = opts.quantization;
     b->path = cberg_strdup(path);
+    b->dirty = !loading;
     if (b->path == NULL) {
         usearch_backend_destroy(b);
         return CBERG_ERR_OUT_OF_MEMORY;

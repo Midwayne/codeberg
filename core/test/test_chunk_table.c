@@ -83,6 +83,31 @@ int main(void) {
     CHECK(dup_ch.modified_len == 0, "duplicate within new batch does not also emit modified");
     cberg_chunk_table_free(dup_table);
 
+    /* Fast no-op sync clears old changes, while reorders and duplicates retain
+     * the same semantics as a full transactional rebuild. */
+    {
+        cberg_chunk_table *live = cberg_chunk_table_new();
+        cberg_chunk rows[] = {make_chunk("one", 1), make_chunk("two", 2)};
+        cberg_changes changes = {0};
+        CHECK(cberg_chunk_table_sync(live, rows, 2, &changes) == CBERG_OK, "seed no-op fixture");
+        uint64_t first = changes.added[0].id;
+        uint8_t before[CBERG_HASH_LEN], after[CBERG_HASH_LEN];
+        cberg_chunk_table_fingerprint(live, before);
+        CHECK(cberg_chunk_table_sync(live, rows, 2, &changes) == CBERG_OK, "identical set");
+        CHECK(changes.added_len == 0 && changes.modified_len == 0 && changes.deleted_len == 0, "no stale change lists");
+        cberg_chunk_table_fingerprint(live, after);
+        CHECK(memcmp(before, after, sizeof(before)) == 0, "no-op fingerprint stable");
+        CHECK(cberg_chunk_table_find_by_key(live, "one")->id == first, "no-op identity stable");
+
+        cberg_chunk reversed[] = {rows[1], rows[0]};
+        CHECK(cberg_chunk_table_sync(live, reversed, 2, &changes) == CBERG_OK, "reorder set");
+        CHECK(strcmp(cberg_chunk_table_at(live, 0)->chunk.key, "two") == 0, "incoming order preserved");
+        cberg_chunk duplicate[] = {rows[1], rows[1]};
+        CHECK(cberg_chunk_table_sync(live, duplicate, 2, &changes) == CBERG_OK, "duplicate set");
+        CHECK(changes.deleted_len == 1 && cberg_chunk_table_len(live) == 1, "duplicate cannot hide deletion");
+        cberg_chunk_table_free(live);
+    }
+
     /* Failed sync must leave the live table and prior change arrays intact. */
     {
         cberg_chunk_table *live = cberg_chunk_table_new();
