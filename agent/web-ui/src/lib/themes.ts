@@ -20,7 +20,7 @@ function themeTokens(palette: Palette) {
     foreground: palette.foreground,
     card: palette.surface,
     'card-foreground': palette.foreground,
-    popover: palette.surface,
+    popover: palette.popover ?? palette.surface,
     'popover-foreground': palette.foreground,
     primary: palette.primary,
     'primary-foreground': palette.primaryForeground ?? palette.background,

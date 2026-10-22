@@ -2,6 +2,7 @@ export interface Palette {
   background: string;
   foreground: string;
   surface: string;
+  popover?: string;
   raised: string;
   mutedForeground: string;
   primary: string;
@@ -27,40 +28,43 @@ export const THEMES = [
   {
     id: 'dark',
     label: 'Dark',
-    description: 'Neutral charcoal',
+    description: 'Codex · soft charcoal',
     colorScheme: 'dark',
     palette: {
-      background: 'oklch(0.145 0 0)',
-      foreground: 'oklch(0.985 0 0)',
-      surface: 'oklch(0.205 0 0)',
-      raised: 'oklch(0.269 0 0)',
-      mutedForeground: 'oklch(0.708 0 0)',
-      primary: 'oklch(0.922 0 0)',
-      primaryForeground: 'oklch(0.205 0 0)',
+      background: '#212121',
+      foreground: '#dcdcdc',
+      surface: '#181818',
+      popover: '#303030',
+      raised: '#303030',
+      mutedForeground: '#afafaf',
+      primary: '#dcdcdc',
+      primaryForeground: '#212121',
       destructive: 'oklch(0.704 0.191 22.216)',
-      border: 'oklch(1 0 0 / 10%)',
-      input: 'oklch(1 0 0 / 15%)',
-      ring: 'oklch(0.556 0 0)',
+      border: '#ffffff14',
+      input: '#ffffff26',
+      ring: '#8f8f8f',
     },
   },
   {
     id: 'light',
     label: 'Light',
-    description: 'Crisp and minimal',
+    description: 'Codex · soft grey',
     colorScheme: 'light',
     palette: {
-      background: 'oklch(1 0 0)',
-      foreground: 'oklch(0.145 0 0)',
-      surface: 'oklch(1 0 0)',
-      raised: 'oklch(0.97 0 0)',
-      mutedForeground: 'oklch(0.556 0 0)',
-      primary: 'oklch(0.205 0 0)',
-      primaryForeground: 'oklch(0.985 0 0)',
+      background: '#f5f5f5',
+      foreground: '#282828',
+      surface: '#ededed',
+      popover: '#ffffff',
+      raised: '#e8e8e8',
+      mutedForeground: '#5d5d5d',
+      primary: '#303030',
+      primaryForeground: '#f5f5f5',
       destructive: 'oklch(0.577 0.245 27.325)',
-      secondaryForeground: 'oklch(0.205 0 0)',
+      secondaryForeground: '#282828',
       destructiveForeground: '#ffffff',
-      border: 'oklch(0.922 0 0)',
-      ring: 'oklch(0.708 0 0)',
+      border: '#0d0d0d14',
+      input: '#0d0d0d26',
+      ring: '#767676',
     },
   },
   {

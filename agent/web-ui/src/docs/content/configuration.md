@@ -106,7 +106,13 @@ These are useful to locate for backup or troubleshooting. Prefer their UI contro
 | `projects/<id>/index/` | Derived chunks, graph and vector sidecars. | Project indexing and resource cleanup. |
 | `projects/<id>/logs/`, `logs/`, `usage/` | Diagnostic logs and recorded usage. | Settings resource and usage views; inspect files for diagnostics. |
 
-Older upgraded workspaces can retain data at the home-level paths while migration is pending. Use the exact project paths shown in Settings rather than assuming an ID or moving files by hand. Browser appearance preferences live in local storage, not in a config file; change them in **Settings → Appearance**.
+Older upgraded workspaces can retain data at the home-level paths while migration is pending. Use the exact project paths shown in Settings rather than assuming an ID or moving files by hand.
+
+## Appearance
+
+Open **Settings → Appearance** to change the theme. **Dark** uses Codex-inspired soft charcoal surfaces and muted off-white text; **Light** uses soft grey surfaces and charcoal text. Both use subtle separators and visible keyboard focus indicators. Kanagawa, Tokyo Night, Catppuccin Mocha, Dracula, Nord, and Gruvbox are also available.
+
+Theme changes apply immediately across chat, settings, and docs. The choice is saved in this browser's local storage, separately from your Codeberg config, and restored on reload. Dark is the default. Appearance and docs are available before you add a project or configure a model. If browser storage is blocked, the theme can still change for the current page but may not survive a reload.
 
 ## Development env files
 

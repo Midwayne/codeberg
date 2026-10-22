@@ -50,11 +50,29 @@ describe('themes', () => {
     properties.clear();
     applyTheme('light');
     expect([...properties.keys()]).toEqual(tokens);
-    expect(properties.get('--background')).toBe('oklch(1 0 0)');
-    expect(properties.get('--foreground')).toBe('oklch(0.145 0 0)');
-    expect(properties.get('--accent-foreground')).toBe('oklch(0.205 0 0)');
+    expect(properties.get('--background')).toBe('#f5f5f5');
+    expect(properties.get('--foreground')).toBe('#282828');
+    expect(properties.get('--accent-foreground')).toBe('#282828');
     expect(root.style.colorScheme).toBe('light');
     expect(root.classList.toggle).toHaveBeenLastCalledWith('dark', false);
+  });
+
+  it('uses soft Codex neutrals with separate supporting and floating surfaces', () => {
+    applyTheme('dark');
+
+    expect(properties.get('--background')).toBe('#212121');
+    expect(properties.get('--foreground')).toBe('#dcdcdc');
+    expect(properties.get('--card')).toBe('#181818');
+    expect(properties.get('--popover')).toBe('#303030');
+
+    applyTheme('light');
+
+    expect(properties.get('--card')).toBe('#ededed');
+    expect(properties.get('--popover')).toBe('#ffffff');
+
+    applyTheme('kanagawa');
+
+    expect(properties.get('--popover')).toBe(properties.get('--card'));
   });
 
   it('still applies selections when browser storage is blocked', () => {

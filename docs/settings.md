@@ -93,6 +93,10 @@ rows. Add `format=csv` to export the whole filtered range. Responses use `no-sto
 
 ## Appearance
 
+Dark and Light use Codex-inspired neutrals: soft charcoal with off-white text,
+or soft grey with charcoal text. Subtle separators keep the workspace calm;
+keyboard focus remains visible. The named color themes retain their palettes.
+
 Choose **Dark**, **Light**, **Kanagawa** (Wave), **Tokyo Night** (Night),
 **Catppuccin Mocha**, **Dracula**, **Nord**, or **Gruvbox**. Each option shows a
 palette preview; the radio group supports Tab and arrow-key navigation.

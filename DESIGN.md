@@ -2,25 +2,25 @@
 name: Codeberg web workspace
 description: Existing semantic themes and compact controls for chat and settings.
 colors:
-  background: "oklch(0.145 0 0)"
-  foreground: "oklch(0.985 0 0)"
-  card: "oklch(0.205 0 0)"
-  card-foreground: "oklch(0.985 0 0)"
-  popover: "oklch(0.205 0 0)"
-  popover-foreground: "oklch(0.985 0 0)"
-  primary: "oklch(0.922 0 0)"
-  primary-foreground: "oklch(0.205 0 0)"
-  secondary: "oklch(0.269 0 0)"
-  secondary-foreground: "oklch(0.985 0 0)"
-  muted: "oklch(0.269 0 0)"
-  muted-foreground: "oklch(0.708 0 0)"
-  accent: "oklch(0.269 0 0)"
-  accent-foreground: "oklch(0.985 0 0)"
+  background: "#212121"
+  foreground: "#dcdcdc"
+  card: "#181818"
+  card-foreground: "#dcdcdc"
+  popover: "#303030"
+  popover-foreground: "#dcdcdc"
+  primary: "#dcdcdc"
+  primary-foreground: "#212121"
+  secondary: "#303030"
+  secondary-foreground: "#dcdcdc"
+  muted: "#303030"
+  muted-foreground: "#afafaf"
+  accent: "#303030"
+  accent-foreground: "#dcdcdc"
   destructive: "oklch(0.704 0.191 22.216)"
   destructive-foreground: "#000000"
-  border: "oklch(1 0 0 / 10%)"
-  input: "oklch(1 0 0 / 15%)"
-  ring: "oklch(0.556 0 0)"
+  border: "#ffffff14"
+  input: "#ffffff26"
+  ring: "#8f8f8f"
 typography:
   headline:
     fontFamily: "ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'"
@@ -103,7 +103,7 @@ This document records the existing web UI after a scoped refinement of chat and 
 - Readable compact text with larger touch controls.
 - Flat bordered surfaces; native disclosures, inputs, and dialogs.
 
-Scope: `agent/web-ui/`. The frontmatter records the default **Dark** theme. `src/lib/themes.ts` is authoritative for Light, Kanagawa, Tokyo Night, Catppuccin Mocha, Dracula, Nord, and Gruvbox; `src/index.css` provides the pre-JavaScript fallback. All themes use the same semantic roles. See [settings documentation](docs/settings.md) for selection and persistence.
+Scope: `agent/web-ui/`. The frontmatter records the default **Dark** theme. `src/lib/theme-palettes.ts` is authoritative for Light, Kanagawa, Tokyo Night, Catppuccin Mocha, Dracula, Nord, and Gruvbox; `src/index.css` provides the pre-JavaScript fallback. All themes use the same semantic roles. See [settings documentation](docs/settings.md) for selection and persistence.
 
 ## Colors
 
@@ -112,6 +112,8 @@ Scope: `agent/web-ui/`. The frontmatter records the default **Dark** theme. `src
 Primary and primary-foreground form the action pair for New chat, Send/Stop, and model Save. Accent provides hover and selected navigation backgrounds; these are separate semantic roles even when a neutral palette shares values.
 
 ### Neutral
+
+Dark and Light use Codex-inspired neutral colours: a charcoal canvas (#212121), off-white text (#dcdcdc), and darker supporting surfaces (#181818) in Dark; a soft grey canvas (#f5f5f5), charcoal text (#282828), and supporting surfaces (#ededed) in Light. Floating menus use #303030 and #ffffff respectively. Thin translucent borders separate surfaces without high contrast edges. Named colour themes retain their existing palettes.
 
 Background is the workspace canvas. Card and popover provide supporting surfaces; foreground and muted-foreground separate reading from metadata. Border and input define divisions and fields; ring marks keyboard focus. Destructive and its foreground identify irreversible actions and failures.
 
