@@ -15,7 +15,6 @@ import { MessageList } from './message-list';
 import { MessageRail } from './message-rail';
 import { PromptInput } from './prompt-input';
 import { ChatEmptyState } from './chat-empty';
-import { messageIndexById } from '../../lib/branch';
 
 import { type CatalogModel } from '../../lib/models';
 
@@ -46,7 +45,6 @@ export function useChatView({ chat, turns, onBranch, sessionId, learningEnabled,
   const { messages, status, error } = chat;
   const queue = useTurnQueue(turns, chat);
   const busy = status === 'submitted' || status === 'streaming' || queue.snapshot.steering;
-  const branchAt = !busy && onBranch ? onBranch : undefined;
   const [draft, updateDraft] = useState(draftStore?.text ?? '');
 
   const setDraft = (text: string) => {
@@ -75,7 +73,6 @@ export function useChatView({ chat, turns, onBranch, sessionId, learningEnabled,
     error,
     holdAutoScroll,
     holdTimer,
-    branchAt,
     draft,
     chatInputs,
     queue,
@@ -165,14 +162,6 @@ function ChatNavigation({ state }: ChatNavigationProps) {
           state.holdAutoScroll.current = false;
         }, 700);
       }}
-      onBranch={
-        state.branchAt
-          ? (id) => {
-              const index = messageIndexById(state.messages, id);
-              if (index >= 0) state.branchAt!(index);
-            }
-          : undefined
-      }
     />
   );
 }

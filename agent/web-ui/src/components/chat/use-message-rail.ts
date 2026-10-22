@@ -10,11 +10,9 @@ export type MessageRailOptions = {
   messages: UIMessage[];
   /** Fired before a tick scrolls the transcript, so the parent can pause pin-to-bottom. */
   onNavigate?: () => void;
-  /** Fork the chat through the user prompt this tick represents. */
-  onBranch?: (markerId: string) => void;
 };
 
-export function useMessageRail({ scrollRef, messages, onNavigate, onBranch }: MessageRailOptions) {
+export function useMessageRail({ scrollRef, messages, onNavigate }: MessageRailOptions) {
   const users = useMemo(() => collectUserMarkers(messages), [messages]);
   const promptById = useMemo(() => new Map(users.map((u) => [u.id, u.prompt])), [users]);
 
@@ -56,7 +54,6 @@ export function useMessageRail({ scrollRef, messages, onNavigate, onBranch }: Me
     previewLayout,
     tooltipRef,
     tooltipTop,
-    onBranch,
   };
 }
 

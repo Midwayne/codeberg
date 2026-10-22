@@ -16,8 +16,6 @@ export type MessageRailProps = {
   messages: UIMessage[];
   /** Fired before a tick scrolls the transcript, so the parent can pause pin-to-bottom. */
   onNavigate?: () => void;
-  /** Fork the chat through the user prompt this tick represents. */
-  onBranch?: (markerId: string) => void;
 };
 
 export function MessageRail(props: MessageRailProps) {

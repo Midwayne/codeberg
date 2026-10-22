@@ -1,5 +1,3 @@
-import { GitBranch } from 'lucide-react';
-
 import { promptPreview } from '../../lib/message-rail';
 import { cn } from '../../lib/utils';
 import { type MessageRailView } from './message-rail';
@@ -59,19 +57,6 @@ export function RailTooltip({ state }: RailTooltipProps) {
       >
         <p className="mb-1 text-[10px] font-medium tracking-wide text-muted-foreground">You</p>
         <p className="line-clamp-6 break-words">{promptPreview(state.promptById.get(state.previewId) ?? '')}</p>
-        {state.onBranch && (
-          <button
-            type="button"
-            className="mt-2 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            onClick={(e) => {
-              e.stopPropagation();
-              state.onBranch!(state.previewId!);
-            }}
-          >
-            <GitBranch className="size-3" />
-            Branch from here
-          </button>
-        )}
       </div>
     )
   );
