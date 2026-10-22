@@ -1,6 +1,7 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Streamdown } from 'streamdown';
 
+import { CitationTooltip } from './citation-tooltip';
 import { CITE_TAG, parseCiteSource, type Citation } from '../../lib/citations';
 import { transformCitations } from '../../lib/citations';
 
@@ -36,11 +37,27 @@ export type CitationChipProps = { citation: Citation; label: ReactNode };
 
 function CitationChip({ citation, label }: CitationChipProps) {
   const [copied, setCopied] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const anchor = useRef<HTMLButtonElement>(null);
+  const tooltipId = useId();
+  const open = hovered || focused;
+
   return (
-    <span className="group/cite relative inline-block">
+    <span className="inline-block" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
       <button
+        ref={anchor}
         type="button"
         aria-label={citation.source}
+        aria-describedby={open ? tooltipId : undefined}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onKeyDown={(event) => {
+          if (event.key !== 'Escape') return;
+
+          setHovered(false);
+          setFocused(false);
+        }}
         onClick={async () => {
           try {
             await navigator.clipboard.writeText(citation.source);
@@ -54,12 +71,11 @@ function CitationChip({ citation, label }: CitationChipProps) {
       >
         {label}
       </button>
-      <span
-        role="tooltip"
-        className="pointer-events-none absolute bottom-full left-0 z-50 mb-1.5 hidden w-max max-w-80 rounded-md border border-border bg-popover px-2 py-1 font-mono text-[11px] leading-snug break-all text-popover-foreground shadow-md group-hover/cite:block group-focus-within/cite:block"
-      >
-        {copied ? 'Copied!' : `${citation.path}:${citation.lines} — click to copy`}
-      </span>
+      {open && (
+        <CitationTooltip anchor={anchor} id={tooltipId}>
+          {copied ? 'Copied!' : `${citation.path}:${citation.lines} — click to copy`}
+        </CitationTooltip>
+      )}
     </span>
   );
 }

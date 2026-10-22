@@ -71,3 +71,7 @@ The minimal fallback page used without a built web UI does not offer automatic r
 Global launcher logs live in the home's `logs/`: `daemon.log`, `web.log`, and `searxng.log`. Project logs live in `projects/<id>/logs/`, including `indexer.log`, `agent.log`, and learning logs.
 
 Logs and context can reveal repository details. Remove credentials and private source information before sharing diagnostics. For a busy deletion or cleanup error, let active requests and background work finish, then retry; do not delete storage files underneath a running app.
+
+## Chat scrolling
+
+While you are at the bottom, the conversation follows new replies and content that finishes loading later. Scroll up to read history without following new output; scroll back to the bottom to resume. This also applies after a reply completes.

@@ -1,13 +1,21 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useChatScroll, type ChatScrollOptions } from './use-chat-scroll';
+import { createBottomFollower } from './chat-bottom';
 
 vi.mock('./use-retained-scroll', () => ({ useRetainedScroll: vi.fn() }));
+vi.mock('./chat-bottom', async (original) => ({
+  ...await original<typeof import('./chat-bottom')>(),
+  observeChatBottom: (element: HTMLElement, hold: { current: boolean }) => {
+    createBottomFollower(element, hold).sync();
+  },
+}));
 
 vi.mock('react', async (importOriginal) => ({
   ...await importOriginal<typeof import('react')>(),
   useEffect: vi.fn(),
+  useLayoutEffect: vi.fn(),
   useRef: vi.fn(),
 }));
 
@@ -40,6 +48,9 @@ beforeEach(() => {
 
   vi.mocked(useRef).mockImplementation((initial) => ({ current: initial === null ? viewport : initial }));
   vi.mocked(useEffect).mockImplementation((effect) => {
+    effects.push(effect);
+  });
+  vi.mocked(useLayoutEffect).mockImplementation((effect) => {
     effects.push(effect);
   });
 });
