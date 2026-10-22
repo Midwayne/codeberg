@@ -99,6 +99,14 @@ export class TurnQueue {
     else this.start(() => this.remote ? this.remote.retry() : this.chat.regenerate());
   };
 
+  regenerate = () => {
+    if (this.disposed || this.active || this.stopping || this.needsSynchronization) return;
+    if (this.chat.status === 'submitted' || this.chat.status === 'streaming') return;
+
+    this.update({ paused: false, error: undefined });
+    this.start(() => this.chat.regenerate());
+  };
+
   dispose = () => {
     this.disposed = true;
     this.intent++;

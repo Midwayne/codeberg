@@ -19,7 +19,7 @@ export function ChatError({ state }: ChatErrorProps) {
         <button
           type="button"
           disabled={!state.ready}
-          onClick={() => state.regenerate()}
+          onClick={() => state.queue.retry()}
           className="shrink-0 rounded-md border border-destructive/40 px-2 py-1 text-xs hover:bg-destructive/20"
         >
           Retry

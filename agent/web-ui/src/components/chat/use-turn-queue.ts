@@ -23,6 +23,7 @@ export function useTurnQueue(turns: TurnQueue | undefined, chat: UseChatHelpers<
   return { snapshot, send, steer,
     stop: turns?.stop ?? chat.stop,
     retry: turns?.retry ?? chat.regenerate,
+    regenerate: turns?.regenerate ?? chat.regenerate,
     remove: turns?.remove,
     resume: turns?.resume,
     steerQueued: turns?.steerQueued,

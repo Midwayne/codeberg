@@ -7,7 +7,14 @@ import type { useTurnQueue } from './use-turn-queue';
 const queue: ReturnType<typeof useTurnQueue> = {
   snapshot: { items: [{ id: 'one', text: 'Explain cancellation' }, { id: 'two', text: 'Then show the tests' }],
     paused: false, steering: false },
-  send: () => {}, steer: () => {}, stop: async () => {}, retry: () => {}, remove: () => {}, resume: () => {}, steerQueued: () => {},
+  send: () => {},
+  steer: () => {},
+  stop: async () => {},
+  retry: () => {},
+  regenerate: () => {},
+  remove: () => {},
+  resume: () => {},
+  steerQueued: () => {},
 };
 
 it('shows pending questions in order with distinct removal and steering actions', () => {

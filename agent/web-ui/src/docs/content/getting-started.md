@@ -80,6 +80,8 @@ After stopping or steering a search, Codeberg loads its saved partial answer and
 
 Only one search can run in a chat at a time. Retrying the same submission rejoins its existing run. If another browser tab submits a different question while that chat is busy, reconnect to the chat or stop its search first. A tab with outdated history must reload before submitting a follow-up.
 
+Use **Regenerate** on the latest answer to request a fresh answer in the same chat. This starts a new search and replaces that answer. The error banner's **Retry** instead reconnects to an existing running or completed search when possible. Queued follow-ups wait until regeneration or recovery finishes.
+
 Restarting Codeberg interrupts active searches. Saved results remain available, but Codeberg does not automatically execute their tools again: a tool interrupted before its outcome was saved may have finished outside Codeberg. Review the partial answer and start a new search to continue. The Docs button opens documentation in a separate tab.
 
 ## Customize when you need to

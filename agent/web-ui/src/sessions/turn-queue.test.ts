@@ -127,6 +127,24 @@ it('holds queued work after a failure until an explicit retry', async () => {
   transport.finish(2);
 });
 
+it('waits for explicit regeneration before sending queued follow-ups', async () => {
+  const { transport, turns, workspace } = fixture();
+  const first = workspace.chat.sendMessage({ text: 'First' });
+  await expect.poll(() => transport.requests.length).toBe(1);
+  transport.finish(0);
+  await first;
+
+  turns.regenerate();
+  await expect.poll(() => transport.requests.length).toBe(2);
+  turns.submit({ text: 'After the fresh answer' });
+  expect(transport.requests).toHaveLength(2);
+  transport.finish(1);
+
+  await expect.poll(() => transport.requests.map((request) => request.text)).toEqual(['First', 'First', 'After the fresh answer']);
+  transport.finish(2);
+  await expect.poll(() => workspace.chat.status).toBe('ready');
+});
+
 it('uses a selected queued instruction to steer while retaining the others in order', async () => {
   const { transport, turns } = fixture();
   turns.submit({ text: 'First' });
