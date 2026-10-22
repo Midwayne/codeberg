@@ -2,6 +2,7 @@ import { useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Streamdown } from 'streamdown';
 
 import { CitationTooltip } from './citation-tooltip';
+import { renderLinkConfirmation } from './link-confirmation';
 import { CITE_TAG, parseCiteSource, type Citation } from '../../lib/citations';
 import { transformCitations } from '../../lib/citations';
 
@@ -32,6 +33,7 @@ function CiteChipTag({ source, children }: CiteChipTagProps) {
 }
 
 const components = { [CITE_TAG]: CiteChipTag };
+const linkSafety = { enabled: true, renderModal: renderLinkConfirmation };
 
 export type CitationChipProps = { citation: Citation; label: ReactNode };
 
@@ -90,6 +92,7 @@ export default function Markdown({ children, className }: MarkdownProps) {
       components={components}
       allowedTags={allowedTags}
       literalTagContent={literalTagContent}
+      linkSafety={linkSafety}
     >
       {markdown}
     </Streamdown>

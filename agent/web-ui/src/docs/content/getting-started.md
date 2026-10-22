@@ -56,6 +56,8 @@ Try “Where is authentication implemented?” or “Trace the request from this
 
 The agent chooses its [tools](/docs/tools) as it investigates. You can inspect their output in the conversation. A chat model must be configured before a chat request can succeed.
 
+Links in answers show an **Open external link?** confirmation with the full destination. Choose **Open link** to open it in a new tab, or **Copy link** to copy the address. **Cancel**, the close button, or Escape dismisses the dialog and returns focus to the link. Long addresses scroll inside the dialog; the conversation stays inactive until you close it.
+
 ## Keep chats while you work
 
 Sending the first prompt saves the chat immediately and adds it to the sidebar, before the agent answers. Follow-up prompts are also saved before the next response starts. An unsuccessful model request still leaves your submitted question in the chat. The server owns each search run and saves its tool outcomes and response independently of the browser. A brief connection loss reconnects to the same run without starting the search again.
