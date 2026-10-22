@@ -7,6 +7,7 @@ import { LearningService } from '../learning/service.js';
 import type { McpConfig } from '../mcp/types.js';
 import type { Generator, ReasoningEffort } from '../types.js';
 import type { WebConfig } from '../web/types.js';
+import type { ModelInput } from '../model-types.js';
 
 export const DEFAULT_SEARCH_K = 8;
 
@@ -24,6 +25,8 @@ export interface AgentOptions {
   /** Request-bound discovery environment for repository skills and MCPs. */
   env?: NodeJS.ProcessEnv;
   model: LanguageModel;
+  /** Declared inputs for the selected catalog entry; unknown inputs fail browser eligibility closed. */
+  modelInputs?: readonly ModelInput[];
   /** Model for background work: knowledge extraction and history-compaction
    *  summaries. Defaults to the main model. */
   subagentModel?: LanguageModel;

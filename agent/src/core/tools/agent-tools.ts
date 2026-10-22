@@ -1,3 +1,4 @@
+import { browserToolSource } from '../browser/tools.js';
 import { searchBundleSource } from './search-bundle.js';
 import type { ToolSet } from 'ai';
 import type { CanvasStore } from '../canvas/store.js';
@@ -14,8 +15,13 @@ import type { McpToolSource } from '../mcp/tools.js';
 import type { SearchResult } from '../types.js';
 import type { WebConfig } from '../web/types.js';
 import { collectTools, daemonToolSource, searchCodeSource, webToolSource } from './index.js';
+import type { ModelInput } from '../model-types.js';
 
 interface AgentToolOptions {
+  env?: NodeJS.ProcessEnv;
+  browserModel?: string;
+  browserOwner?: string;
+  browserInputs?: readonly ModelInput[];
   daemon: DaemonClient;
   canvas?: CanvasStore;
   context: ContextStore;
@@ -41,6 +47,7 @@ export async function createAgentTools(opts: AgentToolOptions): Promise<ToolSet>
     ...(opts.learning ? [learningToolSource(opts.learning, opts.learningSettings)] : []),
     contextToolSource(opts.context),
     ...(opts.canvas ? [canvasToolSource(opts.canvas)] : []),
+    browserToolSource({ ...opts.env, CODEBERG_WEB_USE: String(opts.web.enabled) }, opts.browserModel, undefined, opts.browserOwner, opts.browserInputs),
     daemonToolSource({
       daemon: opts.daemon,
       onToolResult: (name, output) => {

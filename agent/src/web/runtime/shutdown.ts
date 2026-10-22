@@ -1,3 +1,4 @@
+import { closeBrowserSessions } from '../../core/browser/sessions.js';
 import { closeCanvasStreams } from '../canvas/stream.js';
 import { type Server } from 'node:http';
 import { writeModuleLog } from '../../core/module-log.js';
@@ -25,6 +26,7 @@ export function installShutdown(server: Server, owned: OwnedRuntime[]): void {
     stopRuntimes(owned);
     writeModuleLog('agent', 'stopping', { signal });
     writeModuleLog('learning-agent', 'stopping', { signal });
+    await closeBrowserSessions();
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await Promise.all(owned.map(async (runtime) => {
       await runtime.runs?.close();
@@ -47,6 +49,9 @@ export async function disposeProjectRuntime(owned: OwnedRuntime[], id: string): 
     throw new Error('Project is busy. Try again after background jobs finish.');
 
   stopRuntimes(runtimes);
-  await Promise.all(runtimes.map((runtime) => runtime.pool.close()));
+  await Promise.all(runtimes.map(async (runtime) => {
+    await runtime.runs?.close();
+    await runtime.pool.close();
+  }));
   for (const runtime of runtimes) owned.splice(owned.indexOf(runtime), 1);
 }

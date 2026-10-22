@@ -48,6 +48,8 @@ Every entry needs an integer `context_window` of at least 1,024 and a nonempty `
 
 `inputs` defaults to `[text]`. Add `vision`, `audio`, `video`, or `pdf` only when both the model and its API accept them. Attachments are limited to 20 MB per file; switching models must preserve support for attachments already in the conversation. Credentials belong in the environment or config, never in `models.yml`.
 
+[Browser Use](/docs/tools#browser-use-delegation) only starts sessions with a browser model declared to accept `vision`, even when its screenshot toggle is off. The example above declares that capability. Without a catalog, models are treated as text-only and cannot start browser sessions. The separate **Settings → Tools → Browser vision** toggle controls whether Browser Use sends screenshots on its next task; it does not declare or change a model's capabilities.
+
 ## Select models in the app
 
 Open **Models** in the header. Choose the chat model and effort, then the learning model and effort, and save. Changes affect new chat turns and new background jobs; work already running retains its selection. Choices persist across restarts and tabs.

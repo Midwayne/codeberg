@@ -1,3 +1,5 @@
+import { browserEnabled, browserVisionEnabled } from '../../core/browser/config.js';
+import { cancelBrowserTasks } from '../../core/browser/runner.js';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeJsonAtomic } from '../../core/learning/fs.js';
@@ -34,18 +36,36 @@ export class ToolSettingsStore {
     return this.serialize(async () => {
       const { settings, url } = await this.snapshot();
 
-      return { CODEBERG_WEB_SEARCH_USE: String(settings.webSearch), CODEBERG_SEARXNG_URL: url };
-    }).catch(() => ({ CODEBERG_WEB_SEARCH_USE: 'false', CODEBERG_SEARXNG_URL: '' }));
+      return { CODEBERG_WEB_SEARCH_USE: String(settings.webSearch && settings.status === 'ready'), CODEBERG_SEARXNG_URL: url,
+        CODEBERG_BROWSER_USE: String(settings.browserUse), CODEBERG_BROWSER_VISION: String(settings.browserVision),
+        CODEBERG_BROWSER_SETTINGS_PATH: this.path };
+    }).catch(() => ({ CODEBERG_WEB_SEARCH_USE: 'false', CODEBERG_SEARXNG_URL: '',
+      CODEBERG_BROWSER_USE: 'false', CODEBERG_BROWSER_VISION: 'false', CODEBERG_BROWSER_SETTINGS_PATH: this.path }));
   }
 
   update(input: unknown): Promise<ToolSettings> {
     return this.serialize(async () => {
-      const webSearch = (input as { webSearch?: unknown } | null)?.webSearch;
-      if (typeof webSearch !== 'boolean') throw new ToolSettingsError('webSearch must be a boolean.');
-      if (webSearch && !webConfigFromEnv(this.env).enabled)
+      const values = input as { webSearch?: unknown; browserUse?: unknown; browserVision?: unknown } | null;
+      if (!values || typeof values !== 'object' || Array.isArray(values) ||
+        (values.webSearch === undefined && values.browserUse === undefined && values.browserVision === undefined))
+        throw new ToolSettingsError('Provide webSearch, browserUse, or browserVision as a boolean.');
+      for (const key of ['webSearch', 'browserUse', 'browserVision'] as const) {
+        if (values[key] !== undefined && typeof values[key] !== 'boolean')
+          throw new ToolSettingsError(`${key} must be a boolean.`);
+      }
+      if ((values.webSearch === true || values.browserUse === true || values.browserVision === true) && !webConfigFromEnv(this.env).enabled)
         throw new ToolSettingsError('Web access is disabled by CODEBERG_WEB_USE=false.');
 
-      await writeJsonAtomic(this.path, { webSearch });
+      const previous = await this.preference().catch((error) => {
+        if (values.webSearch !== false && values.browserUse !== false && values.browserVision !== false) throw error;
+
+        return { webSearch: false, browserUse: false, browserVision: false };
+      });
+      const webSearch = values.webSearch === undefined ? previous.webSearch : values.webSearch;
+      const browserUse = values.browserUse === undefined ? previous.browserUse : values.browserUse;
+      const browserVision = values.browserVision === undefined ? previous.browserVision : values.browserVision;
+      await writeJsonAtomic(this.path, { webSearch, browserUse, browserVision });
+      if (!browserUse) await cancelBrowserTasks(this.path);
 
       return (await this.snapshot()).settings;
     });
@@ -58,31 +78,39 @@ export class ToolSettingsStore {
     return pending;
   }
 
-  private async preference(): Promise<boolean> {
+  private async preference(): Promise<{ webSearch: boolean; browserUse: boolean; browserVision: boolean }> {
     try {
       const stored = JSON.parse(await readFile(this.path, 'utf8'));
-      if (typeof stored?.webSearch !== 'boolean') throw new SyntaxError('Invalid tool settings.');
+      if (typeof stored?.webSearch !== 'boolean' ||
+        (stored.browserUse !== undefined && typeof stored.browserUse !== 'boolean') ||
+        (stored.browserVision !== undefined && typeof stored.browserVision !== 'boolean')) throw new SyntaxError('Invalid tool settings.');
 
-      return stored.webSearch;
+      return { webSearch: stored.webSearch, browserUse: stored.browserUse ?? browserEnabled(this.env),
+        browserVision: stored.browserVision ?? browserVisionEnabled(this.env) };
     } catch (error) {
       if (error instanceof SyntaxError)
         throw new Error('Saved tool settings are invalid. Open the config directory, repair or remove tool-settings.json, and retry.');
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
 
-      return webConfigFromEnv(this.env).searchEnabled;
+      return { webSearch: webConfigFromEnv(this.env).searchEnabled, browserUse: browserEnabled(this.env),
+        browserVision: browserVisionEnabled(this.env) };
     }
   }
 
   private async snapshot(): Promise<{ settings: ToolSettings; url: string }> {
     const config = webConfigFromEnv(this.env);
-    const webSearch = config.enabled && await this.preference();
+    const preferences = await this.preference();
+    const webSearch = config.enabled && preferences.webSearch;
+    const browserUse = config.enabled && preferences.browserUse;
     const managed = Boolean(this.env.CODEBERG_SEARCH_CONTROL_URL);
     const provider = config.searxngUrl ? 'external' : managed ? 'managed' : 'unavailable';
-    const worker = managed ? await this.control(webSearch && provider === 'managed') : undefined;
-    const status = !webSearch ? 'disabled' : provider === 'external' ? 'ready' : worker?.status ?? 'unavailable';
+    const worker = managed ? await this.control(webSearch && provider === 'managed').catch(searchControlError) : undefined;
+    const controlFailed = worker?.status === 'error' && (!webSearch || provider === 'managed');
+    const status = controlFailed ? 'error' : !webSearch ? 'disabled'
+      : provider === 'external' ? 'ready' : worker?.status ?? 'unavailable';
     const url = status === 'ready' ? config.searxngUrl || worker?.url || '' : '';
 
-    return { settings: { webSearch, allowed: config.enabled, provider, status,
+    return { settings: { webSearch, browserUse, browserVision: preferences.browserVision, allowed: config.enabled, provider, status,
       message: !config.enabled ? 'Web access is disabled by CODEBERG_WEB_USE=false.' : worker?.message }, url };
   }
 
@@ -91,12 +119,17 @@ export class ToolSettingsStore {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.env.CODEBERG_SEARCH_CONTROL_TOKEN ?? ''}` },
       body: JSON.stringify({ enabled }),
-      signal: AbortSignal.timeout(20_000),
+      // Leave time for the settings response before the UI's 20-second deadline.
+      signal: AbortSignal.timeout(5000),
     });
     if (!response.ok) throw new Error('Web search service unavailable. Restart Codeberg and retry.');
 
     return validateSearchStatus(await response.json(), enabled);
   }
+}
+
+function searchControlError(error: unknown): SearchStatus {
+  return { status: 'error', message: error instanceof Error ? error.message : 'Web search service unavailable. Restart Codeberg and retry.' };
 }
 
 function validateSearchStatus(value: unknown, enabled: boolean): SearchStatus {

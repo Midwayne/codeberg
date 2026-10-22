@@ -9,11 +9,13 @@ import { currentProjectEnvironment } from './projects.js';
 import { assertAgentRuntime } from './runtime.js';
 import type { ReasoningEffort } from './types.js';
 import { agentProfiles } from './model-profiles.js';
+import type { ModelInput } from './model-types.js';
 
 export interface AgentConfig {
   transformModel?: (model: LanguageModel) => LanguageModel;
   env?: NodeJS.ProcessEnv;
   modelSpec: string;
+  modelInputs?: readonly ModelInput[];
   subagentModelSpec?: string;
   daemonUrl: string;
   reasoning?: ReasoningEffort;
@@ -59,6 +61,7 @@ export function createAgent(config: AgentConfig): Agent {
 
   return new Agent({
     model,
+    modelInputs: config.modelInputs,
     env,
     context: ContextStore.open(defaultContextRoot(env)),
     subagentModel,

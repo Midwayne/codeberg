@@ -46,6 +46,11 @@ export async function prepareSystem(
 
 export async function buildTools(state: AgentState) {
   return createAgentTools({
+    env: state.env,
+    browserOwner: state.browserOwner,
+    browserInputs: state.modelInputs,
+    browserModel: state.profile.provider && state.profile.modelId
+      ? `${state.profile.provider}:${state.profile.modelId}` : undefined,
     daemon: state.daemon,
     canvas: canvasFromEnv(state.env),
     context: state.context,

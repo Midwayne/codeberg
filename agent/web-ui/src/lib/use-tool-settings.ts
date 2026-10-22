@@ -9,13 +9,13 @@ export function useToolSettings() {
   const saving = useRef(false);
   const load = useToolSettingsRequest(setSettings, setError);
   const refresh = useCallback(() => load(), [load]);
-  const change = async (webSearch: boolean) => {
+  const change = async (value: boolean | Partial<Pick<ToolSettings, 'browserUse' | 'browserVision'>>) => {
     if (saving.current) return;
 
     saving.current = true;
     setBusy(true);
     try {
-      await load({ method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ webSearch }) });
+      await load({ method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(typeof value === 'boolean' ? { webSearch: value } : value) });
     } finally {
       saving.current = false;
       setBusy(false);

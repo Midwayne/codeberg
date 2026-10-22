@@ -1,4 +1,4 @@
-import { DocsLink } from './docs-link';
+import { NoProjects } from './no-projects';
 import { useProjectDeletionFocus } from '../lib/use-project-deletion-focus';
 import { type useAddProject } from './project-add';
 import { AddProjectDialog } from './project-add-dialog';
@@ -93,29 +93,6 @@ export { ProjectDetails } from './project-details';
 export { RenameProjectForm } from './project-rename';
 
 export { AddProject } from './project-add';
-
-function NoProjects({ onAdd }: { onAdd: () => void }) {
-  return (
-    <div className="min-h-dvh bg-background text-foreground">
-      <header className="flex min-h-16 items-center justify-between border-b border-border px-4">
-        <span className="text-sm font-semibold">Codeberg</span>
-        <DocsLink />
-      </header>
-      <main className="flex min-h-[calc(100dvh-4rem)] flex-col items-center justify-center gap-4 p-6 text-center">
-        <h1 className="text-lg font-semibold">Add a project to get started</h1>
-        <p className="max-w-prose text-sm leading-6 text-muted-foreground">Choose a repository to index and explore.</p>
-        <button
-          type="button"
-          data-add-project
-          onClick={onAdd}
-          className="min-h-11 rounded-lg bg-primary px-4 text-sm text-primary-foreground"
-        >
-          Add project
-        </button>
-      </main>
-    </div>
-  );
-}
 
 function useProjectDeletion(state: ProjectShellViewProps) {
   const focusAfterDeletion = useProjectDeletionFocus();

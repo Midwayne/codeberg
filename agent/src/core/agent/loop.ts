@@ -11,6 +11,7 @@ import { HISTORY_SUMMARY_SYSTEM } from '../prompts/history-summary.js';
 import { DEFAULT_TIMEOUT } from './options.js';
 import type { AgentState } from './state.js';
 import { buildTools, prepareSystem } from './tools.js';
+import { modelTimeout } from './model-timeout.js';
 
 export async function toolLoopAgent(state: AgentState): Promise<ToolLoopAgent> {
   return ensureLoop(state);
@@ -39,22 +40,25 @@ export async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
   });
   const toolNames = Object.keys(tools);
   const providerOptions = await prepareSystem(state, tools);
+  const model = manageContextModel(state.model, {
+    profile: state.profile,
+    context: state.context,
+    summarize: (transcript, limit, signal) => summarize(state, transcript, limit, signal),
+    checkpointPolicy: JSON.stringify([state.summaryProfile, HISTORY_SUMMARY_SYSTEM]),
+  });
+  const browser = toolNames.includes('browser_task');
 
   const loop = new ToolLoopAgent({
-    model: manageContextModel(state.model, {
-      profile: state.profile,
-      context: state.context,
-      summarize: (transcript, limit, signal) => summarize(state, transcript, limit, signal),
-      checkpointPolicy: JSON.stringify([state.summaryProfile, HISTORY_SUMMARY_SYSTEM]),
-    }),
+    model: browser ? modelTimeout(model) : model,
     // Cache the large, frozen system prompt instead of re-billing it on
     // every tool round and every turn.
     instructions: cachedInstructions(state.system, state.profile),
     tools,
     // Continue until the model answers instead of inheriting the SDK's
-    // default 20-step limit. Request and per-step timeouts still bound a run.
+    // default 20-step limit. Browser tools wait without a run-wide deadline;
+    // their provider calls retain timeouts independently of tool execution.
     stopWhen: isLoopFinished(),
-    timeout: DEFAULT_TIMEOUT,
+    ...(browser ? {} : { timeout: DEFAULT_TIMEOUT }),
     ...(providerOptions ? { providerOptions } : {}),
     ...(state.reasoning && state.reasoning !== 'max' ? { reasoning: state.reasoning } : {}),
     // The model boundary archives/compacts complete tool exchanges as needed.

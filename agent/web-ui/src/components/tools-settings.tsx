@@ -1,3 +1,4 @@
+import { BrowserUseSettings } from './browser-use-settings';
 import type { ToolSettings } from '@agent/core/web/types.js';
 import { useToolSettings } from '../lib/use-tool-settings';
 import { LoadingBoundary } from './loading';
@@ -28,6 +29,7 @@ export function ToolsSettingsView({ settings, busy, error, refresh, change }: Re
             Direct URL fetching and code search remain available. An external search service is managed separately.
           </p>
           <SearchServiceStatus settings={settings} />
+          <BrowserUseSettings settings={settings} busy={busy} change={change} />
         </div>}
       </LoadingBoundary>
       <p role="status" className="text-xs text-muted-foreground">{busy ? 'Saving…' : 'Changes save automatically for all projects.'}</p>
@@ -40,7 +42,7 @@ function SearchServiceStatus({ settings }: { settings: ToolSettings }) {
     disabled: 'Web search is off. The local search service is stopped.',
     starting: 'Setting up web search… First setup can take several minutes. You can turn it off to cancel.',
     ready: settings.provider === 'external' ? 'Web search uses your external search service.' : 'Web search is ready.',
-    error: 'Web search could not start. Turn it off and on to retry.',
+    error: 'Web search service needs attention. Check the service message and retry.',
     unavailable: 'Start Codeberg with the launcher for local web search, or configure an external SearXNG service and restart.',
   };
 

@@ -1,3 +1,4 @@
+import { closeBrowserSessions } from '../browser/sessions.js';
 import type { ModelMessage } from 'ai';
 import { randomUUID } from 'node:crypto';
 import { withCanvasRecovery } from '../canvas/recovery.js';
@@ -12,6 +13,7 @@ import type { AgentState } from './state.js';
 export async function close(state: AgentState): Promise<void> {
   if (state.ownsLearning) state.learning?.stop();
 
+  await closeBrowserSessions({ owner: state.browserOwner });
   await state.mcpSource?.close();
 }
 

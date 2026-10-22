@@ -301,7 +301,7 @@ describe('web server', () => {
     tempDirs.push(dir);
     writeFileSync(
       join(dir, 'models.yml'),
-      'providers:\n  openai:\n    models:\n      small:\n        model: alpha\n        context_window: 50000\n        efforts: [low, high]\n      large:\n        model: alpha\n        context_window: 90000\n        efforts: [none, low]\n',
+      'providers:\n  openai:\n    models:\n      small:\n        model: alpha\n        context_window: 50000\n        efforts: [low, high]\n      large:\n        model: alpha\n        context_window: 90000\n        efforts: [none, low]\n        inputs: [text, vision]\n',
     );
     const models = new ModelSettingsStore({
       home: dir,
@@ -314,7 +314,7 @@ describe('web server', () => {
       modelSettings: models,
       respond: async (res, _messages, selected) => {
         received.push(
-          `${selected?.key}:${selected?.model}:${selected?.effort}:${selected?.contextWindow}`,
+          `${selected?.key}:${selected?.model}:${selected?.effort}:${selected?.contextWindow}:${selected?.inputs?.join(',')}`,
         );
         res.end('ok');
       },
@@ -344,8 +344,8 @@ describe('web server', () => {
     expect((await (await fetch(baseUrl + META_PATH)).json()).title).toContain('large');
     expect((await send()).status).toBe(200);
     expect(received).toEqual([
-      'openai:small:openai:alpha:low:50000',
-      'openai:large:openai:alpha:low:90000',
+      'openai:small:openai:alpha:low:50000:text',
+      'openai:large:openai:alpha:low:90000:text,vision',
     ]);
 
     const invalid = await fetch(`${baseUrl}/api/models`, {

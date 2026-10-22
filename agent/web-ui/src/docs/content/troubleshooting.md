@@ -34,7 +34,23 @@ For MCP, check JSON syntax, command availability or URL reachability, and requir
 
 Web search is off by default. Enable it in **Settings → Tools**. If setup fails, turn it off and on to retry, then check `logs/searxng.log` in Codeberg home. A stalled request times out and offers **Retry**. Code chat and direct URL fetching remain available when search is unavailable, unless all web access is disabled in the launcher configuration.
 
-If the panel reports invalid saved settings, choose **Open config directory**, repair or remove `tool-settings.json`, and choose **Retry**. Removing this file resets the browser switch to its initial `CODEBERG_WEB_SEARCH_USE` preference, which defaults off. A failed save leaves an error visible; retry to check the setting actually stored on disk.
+If the panel reports invalid saved settings, choose **Open config directory**, repair or remove `tool-settings.json`, and choose **Retry**. Removing this file resets both optional tool switches to their initial `CODEBERG_WEB_SEARCH_USE` and `CODEBERG_BROWSER_USE` preferences, which default off. A failed save leaves an error visible; retry to check the setting actually stored on disk.
+
+## Browser Use does not start or finish
+
+Enable **Settings → Tools → Browser Use**, then send a new turn asking Codeberg to perform a browser task. The switch authorizes delegation; it does not start a worker or open a browser by itself. `CODEBERG_WEB_USE=false` prevents enabling it.
+
+For “requires a model with vision enabled,” declare `inputs: [text, vision]` on the browser model in `models.yml`, then send a new turn. Missing input declarations default to text-only. An explicit `CODEBERG_BROWSER_MODEL` must match the provider/model name of a vision-capable catalog entry. **Browser vision** controls screenshot access separately and defaults off; switching it on cannot make a text-only model eligible. Retained browsers keep their original model, while screenshot preferences are read again for each follow-up task.
+
+For “Install uv,” install [uv](https://docs.astral.sh/uv/getting-started/installation/) on the Codeberg host, ensure the launch process can find it, or export `CODEBERG_BROWSER_UV=/absolute/path/to/uv` before startup. First use requires network access to install Python 3.12 and Browser Use 0.13.11. Check that uv can write its cache and the system temporary directory. Install Chrome or Chromium locally if browser discovery or automatic installation fails. On Linux, install its system libraries and use `CODEBERG_BROWSER_HEADLESS=true` without a desktop session.
+
+For model failures, check the selected chat provider's credentials or `CODEBERG_BROWSER_MODEL`. Custom provider names are not supported; use openai, anthropic, google, ollama, or llamacpp. Local models must support structured responses and vision. Browser model calls do not appear in Codeberg's Model usage totals.
+
+If Tools reports a Web search control error, restart Codeberg to restore the managed search service. Both tool switches remain available, and you can enable or disable Browser Use while search control is unavailable. Retained browsers continue using their original model after a chat-provider change; choosing an unsupported provider only prevents starting a new browser session without a supported `CODEBERG_BROWSER_MODEL` override.
+
+A fresh profile is created for each new browser session, so your personal browser logins are unavailable. Ask to “leave the browser open” to retain its tabs and session logins, then ask to continue or close that browser. Profiles and files/downloads remain until the session closes. The agent can use `browser_sessions` to find retained sessions in the current chat and `browser_close` to close one. Another chat cannot access them, and IDs become unavailable after closure or restarting Codeberg. If the browser was closed manually, its next task fails and closes the session; Codeberg does not silently reopen it. Start a new browser task only after checking whether earlier actions already took effect.
+
+Codeberg waits for long browser tasks without a wall-clock deadline or fixed task step limit, then resumes its main agent when the browser result arrives. It makes no main-agent model calls while waiting. Browser Use's own request timeouts, failure handling, and provider limits can still produce a failed or incomplete result. If a task appears stuck, inspect the local browser and choose **Stop** to cancel it. An idle retained browser has no idle deadline. Retained sessions use the model/provider settings selected when they were created. Disabling the toggle, deleting the owning chat/project, or exiting Codeberg closes retained browsers. **Stop** during a browser task also closes its session, but cannot undo actions already performed. Inspect the destination before retrying a task that changes data. See [Browser Use delegation](/docs/tools#browser-use-delegation).
 
 ## Startup cannot find Codeberg components
 
@@ -62,7 +78,7 @@ For **This chat has an active search**, return to that chat or stop its run befo
 
 If saving a new search fails before generation starts, restore storage access and choose **Retry**. Codeberg discards the incomplete admission so the same question can be submitted again; searches that already started retain their recorded outcomes.
 
-After a Codeberg restart, interrupted runs retain their partial output and tool records. Reconnecting also detects interruption while Codeberg was saving a new search, so the run reports an interruption instead of remaining stuck as running. These runs do not resume automatically; start a new search to continue. A tool with a saved start but no saved outcome is uncertain; inspect the evidence before retrying. Codeberg's built-in search tools are read-only, while connected MCP tools may have other effects.
+After a Codeberg restart, interrupted runs retain their partial output and tool records. Reconnecting also detects interruption while Codeberg was saving a new search, so the run reports an interruption instead of remaining stuck as running. These runs do not resume automatically; start a new search to continue. A tool with a saved start but no saved outcome is uncertain; inspect the evidence before retrying. Codeberg's built-in search tools are read-only, while Browser Use and connected MCP tools may have other effects.
 
 The minimal fallback page used without a built web UI does not offer automatic reconnection or saved-chat navigation. Use the normal built web UI to reopen and reconnect chats.
 

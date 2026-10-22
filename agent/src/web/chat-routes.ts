@@ -10,7 +10,7 @@ import type { ModelSettingsStore } from './model-selection/settings.js';
 import { formatWebTitle } from './title.js';
 
 /** A model choice bound to one chat request. */
-export type ResolvedModelSelection = ModelSelection & { model: string; contextWindow: number };
+export type ResolvedModelSelection = ModelSelection & { model: string; contextWindow: number; inputs?: ModelInput[] };
 
 export type ChatResponder = (
   res: ServerResponse,
@@ -43,7 +43,7 @@ export async function routeChat(
   if (error) return sendText(res, 400, error);
 
   const selection = selected && settings
-    ? { ...settings.chat, model: selected.model, contextWindow: selected.contextWindow }
+    ? { ...settings.chat, model: selected.model, contextWindow: selected.contextWindow, inputs: selected.inputs }
     : undefined;
 
   await withCanvasChat(body?.id, () => runs

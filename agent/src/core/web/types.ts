@@ -45,6 +45,8 @@ export interface WebDeps {
 
 /** Global browser tool preferences and managed search availability. */
 export interface ToolSettings {
+  browserUse: boolean;
+  browserVision: boolean;
   webSearch: boolean;
   allowed: boolean;
   provider: 'managed' | 'external' | 'unavailable';
@@ -58,7 +60,8 @@ export function isToolSettings(value: unknown): value is ToolSettings {
 
   const input = value as Record<string, unknown>;
 
-  return typeof input.webSearch === 'boolean' && typeof input.allowed === 'boolean' &&
+  return typeof input.browserUse === 'boolean' && typeof input.browserVision === 'boolean' &&
+    typeof input.webSearch === 'boolean' && typeof input.allowed === 'boolean' &&
     typeof input.provider === 'string' && ['managed', 'external', 'unavailable'].includes(input.provider) &&
     typeof input.status === 'string' && ['disabled', 'starting', 'ready', 'error', 'unavailable'].includes(input.status) &&
     (input.message === undefined || typeof input.message === 'string');

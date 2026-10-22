@@ -64,7 +64,9 @@ describe('model runtime', () => {
     expect(await pool.forSelection(alpha)).toBe(await pool.forSelection(alpha));
     await pool.forSelection(beta);
     await pool.forSelection({ ...alpha, contextWindow: 60_000 });
-    expect(build).toHaveBeenCalledTimes(3);
+    await pool.forSelection({ ...alpha, inputs: ['text'] });
+    await pool.forSelection({ ...alpha, inputs: ['text', 'vision'] });
+    expect(build).toHaveBeenCalledTimes(5);
     expect(build).toHaveBeenNthCalledWith(2, beta);
   });
 

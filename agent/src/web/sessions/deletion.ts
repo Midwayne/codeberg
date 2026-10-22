@@ -1,3 +1,4 @@
+import { closeBrowserSessions } from '../../core/browser/sessions.js';
 import { sessionRunBytes } from './run-storage.js';
 import { lstat, rm, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -7,6 +8,7 @@ import { serial } from './writing.js';
 
 export async function remove(state: WebSessionStoreState, id: string): Promise<void> {
   await serial(state, id, async () => {
+    await closeBrowserSessions({ owner: join(state.dir, id) });
     try {
       await unlink(join(state.dir, `${id}.json`));
       await rm(join(state.dir, '.runs', id), { recursive: true, force: true });
@@ -35,6 +37,7 @@ export async function removeOlder(
     if (!record || record.pinned || !(record.updatedAt < cutoff)) return undefined;
 
     const bytes = info.size + await sessionRunBytes(state.dir, id);
+    await closeBrowserSessions({ owner: join(state.dir, id) });
 
     await unlink(path);
     await rm(join(state.dir, '.runs', id), { recursive: true, force: true });

@@ -6,9 +6,9 @@ import { type sections, buttonClass } from './settings-styles';
 import { ArrowLeft } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-export type SettingsProps = { onClose: () => void; onLearningSaved?: () => void };
+export type SettingsProps = { onClose: () => void; onLearningSaved?: () => void; backLabel?: string };
 
-export function Settings({ onClose, onLearningSaved }: SettingsProps) {
+export function Settings({ onClose, onLearningSaved, backLabel = 'Back to chats' }: SettingsProps) {
   const [section, setSection] = useState<(typeof sections)[number]['id']>('appearance');
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
@@ -22,11 +22,11 @@ export function Settings({ onClose, onLearningSaved }: SettingsProps) {
             <button
               type="button"
               onClick={onClose}
-              aria-label="Back to chats"
+              aria-label={backLabel}
               className={`${buttonClass} flex items-center gap-2`}
             >
               <ArrowLeft className="size-4" />
-              <span className="hidden sm:inline">Back to chats</span>
+              <span className="hidden sm:inline">{backLabel}</span>
             </button>
             <h1 ref={heading} tabIndex={-1} className="text-2xl font-semibold tracking-tight outline-none">
               Settings

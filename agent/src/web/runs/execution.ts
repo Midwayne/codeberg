@@ -1,3 +1,5 @@
+import { browserConversation } from '../../core/browser/scope.js';
+import { join } from 'node:path';
 import { toolJournal, type ToolJournalContext } from '../../core/runs/tools.js';
 import type { LearningService } from '../../core/learning/service.js';
 import type { WebSessionStore } from '../sessions/store.js';
@@ -16,7 +18,7 @@ export async function executeRun(run: SearchRun, generate: ChatGenerator, sessio
       throw error;
     }
   } };
-  await toolJournal.run(context, async () => {
+  await browserConversation.run(join(sessions.dir, run.record.chatId), () => toolJournal.run(context, async () => {
     let generation: Awaited<ReturnType<ChatGenerator>> | undefined;
     try {
       generation = await generate({ messages: run.record.messages, selection: run.record.selection,
@@ -43,7 +45,7 @@ export async function executeRun(run: SearchRun, generate: ChatGenerator, sessio
         notify(run);
       }
     }
-  });
+  }));
 }
 
 async function consumeRun(run: SearchRun, stream: ReadableStream<import('ai').UIMessageChunk>) {

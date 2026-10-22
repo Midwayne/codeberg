@@ -4,7 +4,7 @@ Your source files stay in the directory you add. Codeberg stores its own configu
 
 ```text
 ~/.codeberg/
-  config, models.yml, model-settings.json
+  config, models.yml, model-settings.json, tool-settings.json
   mcp.json, skills/
   projects.json
   projects/<id>/
@@ -35,11 +35,15 @@ Topic links update within the docs view, keeping navigation in place. Keyboard n
 
 Use **Search docs** in the header, or press **⌘K / Ctrl+K**, to search all documentation titles and full text. Results include matching sections and excerpts; **↑ / ↓** selects a result, **Enter** opens it at the matching section, and **Escape** closes search. This search works locally without a project or model.
 
+The global `tool-settings.json` stores Web search and Browser Use preferences. Browser Use creates a separate temporary task directory outside project storage, containing its browser profile, downloads, and task files; it removes that directory when the browser session closes or an active browser task is cancelled. Explicitly retained sessions keep the directory, browser tabs, cookies, and any sign-ins until closed. Session IDs and ownership stay in memory and are not restored after a restart; deleting their chat or project closes them. uv caches the Python runtime and package dependencies in its normal user cache. Browser results can remain in saved chats, run journals, and context archives. Abrupt process termination or a machine crash may leave temporary files until the operating system clears them.
+
 ## What can leave your machine
 
 The folder picker does not upload a repository. However, when you use a cloud chat or learning provider, prompts and relevant tool results can include source excerpts, conversation history, and attachments sent to that provider. A local model uses the local endpoint you configured.
 
 Remote vector backends store vector data outside your machine. MCP servers receive the inputs sent to their tools; web tools make network requests. Review the endpoints and credentials you configure. Codeberg's local HTTP services bind to loopback; access them on the machine running the app.
+
+Browser Use runs its worker and browser locally. With a remote model, task instructions and page content are sent to that provider; screenshots are sent when Browser vision is enabled. Screenshot access defaults off and is saved separately in `tool-settings.json`. Browser Use Cloud, telemetry, and cloud sync are disabled. See [Browser Use delegation](/docs/tools#browser-use-delegation).
 
 ## Back up or move your data
 

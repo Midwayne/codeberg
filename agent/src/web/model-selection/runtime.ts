@@ -54,6 +54,7 @@ export function createWebModelPool(
         daemonUrl,
         env,
         modelSpec: selection.model,
+        modelInputs: selection.inputs,
         reasoning: selection.effort === 'provider-default' ? undefined : selection.effort,
         contextWindow: selection.contextWindow,
         learning,

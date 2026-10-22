@@ -1,6 +1,6 @@
 # Web settings and resource management
 
-Open **Settings** from the web header. The dedicated screen includes **Appearance**, **Projects**, **MCP servers**,
+Open **Settings** from the web header. The dedicated screen includes **Appearance**, **Projects**, **Tools**, **MCP servers**,
 **Skills**, **Learning**, **Canvas**, **Usage**, **Resource usage**, and **Free up resources**. The existing **Model settings**
 dialog has its own separate button in the main web header.
 Settings opens on **Appearance**. On desktop, section navigation sits beside the
@@ -8,6 +8,42 @@ content; on smaller screens it becomes a compact grid. Usage and cleanup are
 loaded only when their section is opened. Failed resource requests show a
 **Try again** action; failed cleanup previews disable selection until totals
 are available.
+
+## Optional browser delegation
+
+Enable **Settings → Tools → Browser Use** to let the Codeberg agent call `browser_task`.
+A separate Browser Use agent runs its own task loop in a local browser, returns a
+result and visited URLs, and closes afterward by default. Set `keep_open=true` when
+the user asks to retain it; the result includes `session_id`. Pass that ID for
+follow-up tasks, which keep the session open unless `keep_open=false`.
+`browser_sessions` lists retained sessions in the current chat and `browser_close`
+closes one. Retained sessions keep tabs, temporary profiles, and session logins
+until explicit close, chat/project deletion, disabling the feature, or shutdown.
+They are not restored after restart and make no model calls while idle.
+Codeberg waits for active Browser Use tasks without a wall-clock deadline or fixed
+step limit and resumes its main agent when their results arrive. Main-agent model
+requests retain their own timeout protection. Browser Use's own request timeouts,
+failure handling, and provider limits still apply. **Stop** cancels active work.
+The feature is off by default and starts no
+worker while idle. Settings is also available on the screen before adding a project.
+
+**Browser vision** is a separate off-by-default switch for screenshot access.
+Changes apply to the next delegated task, including retained-session follow-ups.
+The browser model must declare `inputs: [text, vision]` in `models.yml`, even when
+screenshots are off. Unknown/text-only models cannot start browser sessions.
+
+The integration requires uv and local Chrome/Chromium. First use provisions Python
+3.12 and Browser Use 0.13.11 through uv. It uses the selected chat model unless
+`CODEBERG_BROWSER_MODEL=provider:model` is exported before startup. Browser model
+calls are separate from the Usage totals. See the in-app
+[Tools guide](../agent/web-ui/src/docs/content/tools.md#browser-use-delegation) for
+supported providers, cancellation, temporary profiles, data handling, and limits.
+
+`GET /api/settings/tools` includes `browserUse` and `browserVision`. `PUT` accepts partial Boolean
+updates for `browserUse`, `browserVision`, and/or `webSearch`, preserving the other settings. Global
+preferences are saved in `$CODEBERG_HOME/tool-settings.json`; old files without
+`browserUse` or `browserVision` inherit their initial environment preferences. Turning Browser Use off
+cancels current workers and blocks cached agents from starting another task.
 
 ## Model token usage
 

@@ -131,6 +131,22 @@ Remote vector storage still needs the local sidecars and an embedding model. Cha
 | `CODEBERG_WEB_TIMEOUT_MS` | Milliseconds; `15000` | Web request timeout. |
 | `CODEBERG_WEB_SEARCH_COUNT` | Positive integer; `6` | Default number of web search results. |
 
+## Browser Use agent
+
+**Environment only.** Enable **Settings → Tools → Browser Use** to let Codeberg delegate tasks to a separate local browser agent. Enabling it does not launch a service. See [Browser Use delegation](/docs/tools#browser-use-delegation) for uv/browser prerequisites, model support, data handling, and limits.
+
+| Variable | Value or default | What it changes |
+| --- | --- | --- |
+| `CODEBERG_BROWSER_USE` | Boolean; `false` | Initial browser-delegation preference and terminal opt-in. The saved web setting takes precedence. |
+| `CODEBERG_BROWSER_VISION` | Boolean; `false` | Initial screenshot-access preference and terminal opt-in. Settings → Tools → Browser vision takes precedence in the web app. |
+| `CODEBERG_BROWSER_MODEL` | `provider:model`; current chat model | Separate Browser Use model. Supports openai, anthropic, google, ollama, and llamacpp with their existing provider credentials/endpoints. |
+| `CODEBERG_BROWSER_UV` | Executable path; `uv` on PATH | uv used to provision and run Python 3.12 plus the pinned Browser Use package on demand. |
+| `CODEBERG_BROWSER_HEADLESS` | `true` or `1`; `false` | Run the task browser without a visible window. Useful on Linux without a desktop. |
+
+`CODEBERG_WEB_USE=false` also disables browser delegation. Browser Use does not use the managed SearXNG service or Browser Use Cloud. Its model calls are currently outside Codeberg's Model usage totals. Explicitly retained browser sessions reuse their original model/provider settings until closed. Codeberg waits for delegated tasks without a wall-clock deadline or fixed task step limit; **Stop**, disabling Browser Use, and shutdown still cancel active work.
+
+Browser sessions require a model declared with `inputs: [text, vision]` in `models.yml`, including explicit browser-model overrides and direct terminal use. Unknown and text-only models are rejected even with screenshots off. Browser vision changes take effect on the next delegated task; running tasks keep their current screenshot setting.
+
 ## MCP servers, databases, and learning
 
 **Config or environment.** These enable optional capabilities; their detailed setup lives in [MCP servers](/docs/mcps), [Knowledge](/docs/knowledge), and [Learning](/docs/learning).

@@ -1,3 +1,4 @@
+import { closeBrowserSessions } from '../../core/browser/sessions.js';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import type { LearningService } from '../../core/learning/service.js';
@@ -86,6 +87,7 @@ export class SearchRuns {
     for (const run of runs) run.controller.abort('shutdown');
 
     await Promise.all(runs.map((run) => run.done));
+    await closeBrowserSessions({ ownerRoot: this.sessions.dir });
   }
 
   private async start(input: RunInput): Promise<SearchRun> {

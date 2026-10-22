@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { ToolLoopAgent, type LanguageModel } from 'ai';
 import { DEFAULT_PROFILE, profileFor, type ModelProfile } from '../../providers/profiles.js';
 import { DaemonClient } from '../client.js';
@@ -16,11 +17,16 @@ import { webConfigFromEnv } from '../web/config.js';
 import type { WebConfig } from '../web/types.js';
 import type { AgentOptions } from './options.js';
 import { agentEvaluationRuntime } from './evaluations.js';
+import type { ModelInput } from '../model-types.js';
 
 export class AgentState {
+  readonly browserOwner = randomUUID();
+
   readonly env: NodeJS.ProcessEnv;
 
   readonly model: LanguageModel;
+
+  readonly modelInputs?: readonly ModelInput[];
 
   readonly daemon: DaemonClient;
 
@@ -71,6 +77,7 @@ export class AgentState {
   constructor(opts: AgentOptions) {
     this.env = opts.env ?? process.env;
     this.model = opts.model;
+    this.modelInputs = opts.modelInputs;
     this.daemon = opts.daemon;
     // History summaries are background work: run them on the subagent model
     // when one is configured, not the (usually pricier) chat model.

@@ -40,6 +40,7 @@ it('keeps the docs entry visible before the first project is added', () => {
   />);
 
   expect(html).toContain('Add a project to get started');
+  expect(html).toContain('aria-label="Settings"');
   expect(html).toMatch(/<header[\s\S]*href="\/docs\/getting-started"[\s\S]*<\/header>/);
 });
 

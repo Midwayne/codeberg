@@ -27,6 +27,7 @@ type Execute = (args: unknown, options: ToolExecutionOptions<unknown>) => unknow
 export function isBatchable(name: string): boolean {
   return (
     name !== BATCH_TOOL &&
+    !name.startsWith('browser_') &&
     name !== 'load_mcp_tools' &&
     !name.startsWith('mcp_') &&
     !name.startsWith('canvas_')

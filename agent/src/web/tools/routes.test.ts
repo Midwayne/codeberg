@@ -9,14 +9,18 @@ import { ToolSettingsStore } from './settings.js';
 let server: Server;
 let home: string;
 let url: string;
+let env: NodeJS.ProcessEnv;
+const control = vi.fn<typeof fetch>();
 const build = vi.fn(async () => { throw new Error('No project or model should be needed.'); });
 
 beforeEach(async () => {
   home = await mkdtemp(join(tmpdir(), 'codeberg-tool-http-'));
+  env = { CODEBERG_SEARXNG_URL: 'https://search.example.com' };
+  control.mockReset();
   server = createServer(createProjectRequestHandler({
     catalog: { version: 1, defaultId: '', legacyId: '', projects: [] },
     home, daemonUrl: 'http://unused', build,
-    tools: new ToolSettingsStore({ home, env: { CODEBERG_SEARXNG_URL: 'https://search.example.com' } }),
+    tools: new ToolSettingsStore({ home, env, fetch: control }),
   }));
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   url = `http://127.0.0.1:${(server.address() as { port: number }).port}/api/settings/tools`;
@@ -81,4 +85,50 @@ it('handles an interrupted request body and continues serving settings', async (
   await closed;
 
   expect((await fetch(url)).status).toBe(200);
+});
+
+it('toggles browser delegation independently before project or model setup', async () => {
+  const response = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ browserUse: true }) });
+
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ browserUse: true, webSearch: false });
+  expect(await (await fetch(url)).json()).toMatchObject({ browserUse: true, webSearch: false });
+  expect(build).not.toHaveBeenCalled();
+});
+
+it('serves both switches and saves browser changes while search control is unavailable', async () => {
+  delete env.CODEBERG_SEARXNG_URL;
+  env.CODEBERG_SEARCH_CONTROL_URL = 'http://unavailable';
+  control.mockRejectedValue(new Error('search control unavailable'));
+
+  const initial = await fetch(url);
+  expect(initial.status).toBe(200);
+  expect(await initial.json()).toMatchObject({ webSearch: false, browserUse: false, status: 'error' });
+
+  for (const browserUse of [true, false]) {
+    const response = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ browserUse }) });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ browserUse, status: 'error' });
+    expect(await (await fetch(url)).json()).toMatchObject({ browserUse });
+  }
+
+  expect(build).not.toHaveBeenCalled();
+});
+
+it('persists vision independently and validates it before a model or project is configured', async () => {
+  expect(await (await fetch(url)).json()).toMatchObject({ browserUse: false, browserVision: false });
+  const response = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ browserVision: true }) });
+
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ browserVision: true, browserUse: false, webSearch: false });
+  const invalid = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ browserVision: 'yes' }) });
+
+  expect(invalid.status).toBe(400);
+  expect(await (await fetch(url)).json()).toMatchObject({ browserVision: true });
+  expect(build).not.toHaveBeenCalled();
 });
