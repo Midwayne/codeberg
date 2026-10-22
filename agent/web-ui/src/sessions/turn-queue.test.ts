@@ -1,7 +1,8 @@
 import type { ChatTransport, UIMessage, UIMessageChunk } from 'ai';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 
 import { createWorkspaceChat } from './workspace-chat';
+import { TurnQueue } from './turn-queue';
 
 class Transport implements ChatTransport<UIMessage> {
   requests: { text: string; signal?: AbortSignal; controller: ReadableStreamDefaultController<UIMessageChunk> }[] = [];
@@ -177,4 +178,46 @@ it('retries a prompt that failed before it entered the conversation without rege
   await expect.poll(() => attempts).toBe(2);
   expect(regenerated).toBe(false);
   expect(queue.getSnapshot().items).toEqual([]);
+});
+
+it('keeps follow-ups paused until saved history can be synchronized after Stop', async () => {
+  const sendMessage = vi.fn(async () => {});
+  const synchronize = vi.fn().mockRejectedValueOnce(new Error('Saved history unavailable')).mockResolvedValue(undefined);
+  const queue = new TurnQueue({ status: 'ready', sendMessage, stop: async () => {}, regenerate: async () => {} }, {
+    stop: async () => {}, retry: vi.fn(), synchronize,
+  });
+  await queue.stop();
+  queue.submit({ text: 'Next question' });
+
+  queue.resume();
+  expect(sendMessage).not.toHaveBeenCalled();
+  expect(queue.getSnapshot().error).toBe('Saved history unavailable');
+
+  queue.retry();
+
+  await expect.poll(() => sendMessage.mock.calls.length).toBe(1);
+  expect(synchronize).toHaveBeenCalledTimes(2);
+  expect(queue.getSnapshot().error).toBeUndefined();
+});
+
+it('shares a pending Stop synchronization and blocks Resume until it settles', async () => {
+  let release!: () => void;
+  const synchronize = vi.fn(() => new Promise<void>((resolve) => { release = resolve; }));
+  const sendMessage = vi.fn(async () => {});
+  const queue = new TurnQueue({ status: 'ready', sendMessage, stop: async () => {}, regenerate: async () => {} }, {
+    stop: async () => {}, retry: vi.fn(), synchronize,
+  });
+  const first = queue.stop();
+  await expect.poll(() => synchronize.mock.calls.length).toBe(1);
+  const second = queue.stop();
+  queue.submit({ text: 'Next question' });
+  queue.resume();
+
+  expect(sendMessage).not.toHaveBeenCalled();
+  release();
+  await Promise.all([first, second]);
+
+  expect(synchronize).toHaveBeenCalledTimes(1);
+  queue.resume();
+  await expect.poll(() => sendMessage.mock.calls.length).toBe(1);
 });

@@ -123,11 +123,12 @@ export class DaemonClient {
     }));
   }
 
-  async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+  async callTool(name: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
     const res = await fetch(this.endpoint('/tools/call'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, args }),
+      ...(signal ? { signal } : {}),
     });
 
     const body = (await res.json()) as { result: unknown } & DaemonErrorBody;

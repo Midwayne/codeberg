@@ -6,6 +6,7 @@ import { interruptedMessages } from './interrupted-messages';
 import type { WorkspaceChatSave } from './workspace-chat';
 
 type PersistenceOptions = {
+  serverOwned?: boolean;
   id: string;
   title?: string;
   parentId?: string;
@@ -57,10 +58,10 @@ function finishPersistence(
   return ({ messages, isError, isAbort }) => {
     if (options.disposed()) return;
 
-    const finished = isAbort || isError
+    const finished = !options.serverOwned && (isAbort || isError)
       ? interruptedMessages(messages, isError ? 'Response interrupted. Retry to continue.' : 'Stopped by user.')
       : messages;
-    if (isAbort || isError) options.setMessages(finished);
+    if (!options.serverOwned && (isAbort || isError)) options.setMessages(finished);
 
     void save(finished).catch(() => undefined);
   };

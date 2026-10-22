@@ -32,14 +32,17 @@ export function daemonToolSource(opts: DaemonToolSourceOptions): ToolSource {
         set[spec.name] = dynamicTool({
           description: spec.description,
           inputSchema: jsonSchema(spec.schema),
-          execute: async (args) => {
+          execute: async (args, options) => {
             try {
-              const result = await opts.daemon.callTool(spec.name, args as Record<string, unknown>);
+              const result = await opts.daemon.callTool(spec.name, args as Record<string, unknown>,
+                ...(options.abortSignal ? [options.abortSignal] as const : []));
 
               opts.onToolResult?.(spec.name, result);
 
               return result;
             } catch (error) {
+              options.abortSignal?.throwIfAborted();
+
               return daemonToolError(error);
             }
           },

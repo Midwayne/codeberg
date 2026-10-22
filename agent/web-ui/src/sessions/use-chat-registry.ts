@@ -1,4 +1,4 @@
-import { DefaultChatTransport } from 'ai';
+import { RunTransport } from './run-transport';
 
 import { useChat } from '@ai-sdk/react';
 import type { UIMessage } from 'ai';
@@ -25,7 +25,8 @@ export function useChatRegistry({ api, registry, refreshRef, chats, seededRailPr
         parentId,
         title,
         persist: (record) => saveSession(record, api),
-        transport: new DefaultChatTransport({ api: '/api/chat', fetch: api }),
+        transport: new RunTransport(api),
+        serverOwned: true,
         onPersist: registry.persisted,
       });
       chats.current.set(id, next);

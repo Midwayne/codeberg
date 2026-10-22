@@ -12,10 +12,13 @@ export class TurnQueue {
   private snapshot: QueueSnapshot = EMPTY_QUEUE;
   private listeners = new Set<() => void>();
   private active?: Promise<void>;
+  private stopping?: Promise<boolean>;
+  private needsSynchronization = false;
   private disposed = false;
   private intent = 0;
 
-  constructor(private chat: Pick<Chat<UIMessage>, 'sendMessage' | 'stop' | 'regenerate' | 'status'>) {}
+  constructor(private chat: Pick<Chat<UIMessage>, 'sendMessage' | 'stop' | 'regenerate' | 'status'>,
+    private readonly remote?: { stop: () => Promise<void | boolean>; retry: () => Promise<void>; synchronize?: () => Promise<void> }) {}
 
   getSnapshot = () => this.snapshot;
 
@@ -40,17 +43,22 @@ export class TurnQueue {
   };
 
   resume = () => {
-    if (this.chat.status === 'error') return;
+    if (this.chat.status === 'error' || this.stopping || this.needsSynchronization) return;
 
     this.update({ paused: false, error: undefined });
     this.drain();
   };
 
+  reconnect = (resumeStream: () => Promise<void>) => {
+    if (this.disposed || this.active) return;
+
+    this.start(resumeStream);
+  };
+
   stop = async () => {
     this.intent++;
     this.update({ paused: true, steering: false });
-    await this.chat.stop();
-    await this.active;
+    await this.stopActive();
   };
 
   steer = async (input: TurnInput) => {
@@ -59,8 +67,7 @@ export class TurnQueue {
     const intent = ++this.intent;
     const item = { ...input, id: crypto.randomUUID() };
     this.update({ paused: true, steering: true, items: [item, ...this.snapshot.items] });
-    await this.chat.stop();
-    await this.active;
+    if (!await this.stopActive()) return;
     if (this.disposed || intent !== this.intent) return;
 
     this.update({ paused: false, steering: false, error: undefined,
@@ -77,12 +84,19 @@ export class TurnQueue {
   };
 
   retry = () => {
-    if (this.disposed || this.active) return;
+    if (this.disposed || this.active || this.stopping) return;
+
+    if (this.needsSynchronization) {
+      void this.stopActive().then((stopped) => {
+        if (stopped && !this.disposed) this.resume();
+      });
+      return;
+    }
 
     const failedBeforeSubmission = Boolean(this.snapshot.error && this.snapshot.items.length);
     this.update({ paused: false, error: undefined });
     if (failedBeforeSubmission) this.drain();
-    else this.start(() => this.chat.regenerate());
+    else this.start(() => this.remote ? this.remote.retry() : this.chat.regenerate());
   };
 
   dispose = () => {
@@ -91,6 +105,31 @@ export class TurnQueue {
     this.update({ items: [], paused: true, steering: false });
     void this.chat.stop();
   };
+
+  private stopActive(): Promise<boolean> {
+    this.stopping ??= this.stopAndSynchronize().finally(() => {
+      this.stopping = undefined;
+    });
+
+    return this.stopping;
+  }
+
+  private async stopAndSynchronize(): Promise<boolean> {
+    try {
+      const stoppedOnServer = await this.remote?.stop();
+      this.needsSynchronization = stoppedOnServer !== false && Boolean(this.remote?.synchronize);
+      await this.chat.stop();
+      await this.active;
+      if (!this.disposed && this.needsSynchronization) await this.remote?.synchronize?.();
+
+      this.needsSynchronization = false;
+      return true;
+    } catch (error) {
+      this.update({ paused: true, steering: false, error: error instanceof Error ? error.message : 'Could not stop search.' });
+
+      return false;
+    }
+  }
 
   private update(patch: Partial<QueueSnapshot>) {
     this.snapshot = { ...this.snapshot, ...patch };

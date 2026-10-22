@@ -3,6 +3,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { useChatTransitions } from './use-chat-transitions';
 import { useSessionMutations } from './use-session-mutations';
 import { createWorkspaceChat, type WorkspaceChat } from './workspace-chat';
+import type { UIMessageChunk } from 'ai';
 
 const { cleanups } = vi.hoisted(() => ({ cleanups: [] as (() => void)[] }));
 
@@ -45,6 +46,46 @@ function fixture() {
 
   return { ...options, ...actions };
 }
+
+it.each(['preflight', 'streaming'])('sends follow-ups queued during resumed-stream %s', async (phase) => {
+  const state = fixture();
+  let stream!: ReadableStreamDefaultController<UIMessageChunk>;
+  let resume!: () => void;
+  const preflight = new Promise<void>((resolve) => { resume = resolve; });
+  const send = vi.fn(async () => new ReadableStream<UIMessageChunk>({ start(controller) {
+    controller.enqueue({ type: 'start', messageId: 'next' });
+    controller.enqueue({ type: 'finish' });
+    controller.close();
+  } }));
+  const workspace = createWorkspaceChat({ id: 'reopened', messages: [], persist: async () => {},
+    transport: { sendMessages: send,
+      reconnectToStream: async () => {
+        await preflight;
+
+        return new ReadableStream({ start(controller) {
+          stream = controller;
+          controller.enqueue({ type: 'start', messageId: 'resumed' });
+        } });
+      },
+    },
+  });
+  state.createChat.mockImplementation(() => workspace);
+  state.api.mockResolvedValueOnce(Response.json({ id: 'reopened', messages: [], serverRunId: 'run' }));
+
+  if (phase === 'streaming') resume();
+  await state.resume('reopened');
+  if (phase === 'streaming') await expect.poll(() => workspace.chat.status).toBe('streaming');
+  workspace.turns.submit({ text: 'Follow-up after reconnect' });
+  expect(send).not.toHaveBeenCalled();
+  resume();
+  await expect.poll(() => workspace.chat.status).toBe('streaming');
+  stream.enqueue({ type: 'finish' });
+  stream.close();
+
+  await expect.poll(() => send.mock.calls.length).toBe(1);
+  await expect.poll(() => workspace.chat.status).toBe('ready');
+  expect(workspace.turns.getSnapshot().items).toEqual([]);
+});
 
 it('shows feedback before rebuilding an evicted view without fetching its cached history again', async () => {
   const state = fixture();

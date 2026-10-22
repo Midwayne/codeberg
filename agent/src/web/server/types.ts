@@ -1,3 +1,5 @@
+import type { ChatGenerator } from '../runs/types.js';
+import type { SearchRuns } from '../runs/manager.js';
 import type { CanvasStore } from '../../core/canvas/store.js';
 import { type ToolLoopAgent } from 'ai';
 import type { PromptCommand } from '../../core/hooks/index.js';
@@ -25,6 +27,9 @@ export const CHAT_SEARCH_PATH = '/api/chat-search';
 export const MODELS_PATH = '/api/models';
 
 export interface WebServerOptions {
+  /** Server-owned search execution; disconnected subscribers do not cancel it. */
+  generate?: ChatGenerator;
+  runs?: SearchRuns;
   /** Shared durable model accounting across every project. */
   usage?: UsageStore;
   /** The ai-sdk agent driving each turn. */
@@ -39,9 +44,9 @@ export interface WebServerOptions {
    */
   staticRoot?: string;
   /**
-   * How a chat turn is streamed back. Defaults to piping the agent's
-   * UI-message stream. Override to layer on auth, persistence, or to test the
-   * routing without a live model.
+   * Legacy direct-response override, mainly for routing tests. Supplying this
+   * bypasses server-owned runs unless `runs` is also supplied. Use `generate`
+   * to customize generation while preserving durability and reconnect support.
    */
   respond?: ChatResponder;
   /**

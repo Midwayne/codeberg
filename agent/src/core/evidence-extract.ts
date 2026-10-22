@@ -25,6 +25,8 @@ export function extractEvidence(toolName: string, output: unknown): SearchResult
 
 export function extractToolHits(toolName: string, output: unknown): SearchResult[] {
   switch (toolName) {
+    case 'search_bundle':
+      return output && typeof output === 'object' && 'evidence' in output ? extractSearchHits(output.evidence) : [];
     case 'hybrid_search':
       return extractHybridHits(output);
     case 'find_symbol':

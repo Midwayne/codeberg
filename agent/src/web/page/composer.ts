@@ -46,8 +46,8 @@ function filePart(file) {
   });
 }
 
-// The conversation is held client-side and re-sent in full each turn, so the
-// server's /api/chat route stays stateless.
+// This minimal page resends its in-memory transcript. The full web UI uses
+// durable chat identifiers, saved history, and run reconnection.
 var history = [];
 
 // Slash-command autocomplete, fed by /api/commands (the agent's hook catalog).

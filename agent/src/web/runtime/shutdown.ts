@@ -7,6 +7,7 @@ export function stopRuntimes(owned: OwnedRuntime[]): void {
   for (const runtime of owned) {
     if (runtime.canvas) closeCanvasStreams(runtime.canvas);
 
+    void runtime.runs?.close();
     runtime.learning?.stop();
     runtime.resources.stop();
   }
@@ -25,7 +26,10 @@ export function installShutdown(server: Server, owned: OwnedRuntime[]): void {
     writeModuleLog('agent', 'stopping', { signal });
     writeModuleLog('learning-agent', 'stopping', { signal });
     await new Promise<void>((resolve) => server.close(() => resolve()));
-    await Promise.all(owned.map((runtime) => runtime.pool.close()));
+    await Promise.all(owned.map(async (runtime) => {
+      await runtime.runs?.close();
+      await runtime.pool.close();
+    }));
     process.exit(signal === 'SIGINT' ? 130 : 143);
   };
 
@@ -39,7 +43,7 @@ export function installShutdown(server: Server, owned: OwnedRuntime[]): void {
 
 export async function disposeProjectRuntime(owned: OwnedRuntime[], id: string): Promise<void> {
   const runtimes = owned.filter((runtime) => runtime.projectId === id);
-  if (runtimes.some((runtime) => runtime.learning?.busy || runtime.resources.busy))
+  if (runtimes.some((runtime) => runtime.learning?.busy || runtime.resources.busy || runtime.runs?.busy))
     throw new Error('Project is busy. Try again after background jobs finish.');
 
   stopRuntimes(runtimes);

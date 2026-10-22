@@ -34,14 +34,12 @@ async function fixture(options: Partial<WebServerOptions> = {}) {
 }
 
 describe('usage API', () => {
-  it('aborts the model request when the browser stops a response', async () => {
+  it('keeps a disconnected model request alive until an explicit server Stop', async () => {
     let signal: AbortSignal | undefined;
-    let controller: ReadableStreamDefaultController | undefined;
     const model = new MockLanguageModelV4({ doStream: async (options) => {
       signal = options.abortSignal;
 
       return { stream: new ReadableStream({ start(next) {
-        controller = next;
         next.enqueue({ type: 'text-start', id: 'text' });
         next.enqueue({ type: 'text-delta', id: 'text', delta: 'Working' });
         signal?.addEventListener('abort', () => next.error(new DOMException('Stopped', 'AbortError')));
@@ -51,17 +49,19 @@ describe('usage API', () => {
     const stop = new AbortController();
     const response = await fetch(url.replace('/settings/usage', '/chat'), {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: stop.signal,
-      body: JSON.stringify({ messages: [{ id: 'question', role: 'user', parts: [{ type: 'text', text: 'Hello' }] }] }),
+      body: JSON.stringify({ id: 'chat', messages: [{ id: 'question', role: 'user', parts: [{ type: 'text', text: 'Hello' }] }] }),
     });
 
     await response.body!.getReader().read();
     stop.abort();
 
-    try {
-      await expect.poll(() => signal?.aborted).toBe(true);
-    } finally {
-      if (!signal?.aborted) controller?.close();
-    }
+    expect(signal?.aborted).toBe(false);
+    const stopped = await fetch(url.replace('/settings/usage', '/chat/chat/stop'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ runId: response.headers.get('x-codeberg-run') }),
+    });
+    expect(stopped.status).toBe(200);
+    expect(signal?.aborted).toBe(true);
   });
 
   it('captures real streamed agent steps through the default web responder', async () => {

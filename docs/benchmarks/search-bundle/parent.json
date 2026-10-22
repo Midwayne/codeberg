@@ -1,0 +1,45 @@
+{
+  "mode": "baseline",
+  "samples": [
+    {
+      "trial": 0,
+      "latencyMs": 5.580832999999998,
+      "daemonCalls": 11,
+      "modelToolWaves": 2,
+      "estimatedOutputTokens": 15647,
+      "requiredFileRecall": 1
+    },
+    {
+      "trial": 1,
+      "latencyMs": 4.5106660000000005,
+      "daemonCalls": 11,
+      "modelToolWaves": 2,
+      "estimatedOutputTokens": 15647,
+      "requiredFileRecall": 1
+    },
+    {
+      "trial": 2,
+      "latencyMs": 3.9138339999999943,
+      "daemonCalls": 11,
+      "modelToolWaves": 2,
+      "estimatedOutputTokens": 15647,
+      "requiredFileRecall": 1
+    },
+    {
+      "trial": 3,
+      "latencyMs": 5.144750000000002,
+      "daemonCalls": 11,
+      "modelToolWaves": 2,
+      "estimatedOutputTokens": 15647,
+      "requiredFileRecall": 1
+    },
+    {
+      "trial": 4,
+      "latencyMs": 5.131459000000007,
+      "daemonCalls": 11,
+      "modelToolWaves": 2,
+      "estimatedOutputTokens": 15647,
+      "requiredFileRecall": 1
+    }
+  ]
+}

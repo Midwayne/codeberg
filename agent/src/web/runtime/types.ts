@@ -1,3 +1,4 @@
+import type { SearchRuns } from '../runs/manager.js';
 import type { CanvasStore } from '../../core/canvas/store.js';
 import { parseEntryArgs } from '../../core/entry.js';
 import { LearningService } from '../../core/learning/service.js';
@@ -11,6 +12,7 @@ import type { ToolSettingsStore } from '../tools/settings.js';
 
 export interface OwnedRuntime {
   projectId?: string;
+  runs?: SearchRuns;
   canvas?: CanvasStore;
   learning?: LearningService;
   resources: ResourceSettings;

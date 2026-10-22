@@ -68,3 +68,14 @@ describe('daemonToolSource', () => {
     expect(captured).toEqual(['grep']);
   });
 });
+
+it('forwards explicit run cancellation to daemon reads', async () => {
+  const daemon = {
+    listTools: vi.fn(async () => [{ name: 'read_file', description: 'read', schema: { type: 'object' } }]),
+    callTool: vi.fn(async () => ({ content: 'source' })),
+  } as unknown as DaemonClient;
+  const tools = await daemonToolSource({ daemon }).tools();
+  const controller = new AbortController();
+  await (tools.read_file.execute as any)({ path: 'auth.ts' }, { toolCallId: 't', messages: [], abortSignal: controller.signal });
+  expect(daemon.callTool).toHaveBeenCalledWith('read_file', { path: 'auth.ts' }, controller.signal);
+});

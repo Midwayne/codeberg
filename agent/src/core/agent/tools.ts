@@ -30,6 +30,8 @@ export async function prepareSystem(
     batch: toolNames.includes(BATCH_TOOL) ? MAX_BATCH_CALLS : undefined,
     compact: budgetWindow(state.profile) <= 16_384,
   });
+  if (toolNames.includes('search_bundle')) state.system += '\n\nsearch_bundle is an experimental read-only pipeline for up to four explicit repository/query pairs. Use repos to discover keys, then use it for cross-repository evidence. Inspect partial failures and omitted results before concluding absence.';
+
   if (toolNames.some((name) => name.startsWith('canvas_'))) state.system += CANVAS_INSTRUCTIONS;
 
   const knowledgeIndex = await state.learning?.knowledgeIndex();
@@ -59,6 +61,7 @@ export async function buildTools(state: AgentState) {
       return state.mcpSource;
     },
     defaultSearchK: DEFAULT_SEARCH_K,
+    searchBundle: ['true', '1', 'on', 'yes'].includes((state.env.CODEBERG_SEARCH_BUNDLE_USE ?? '').toLowerCase()),
     onResults: (hits) => state.sources.push(...hits),
   });
 }

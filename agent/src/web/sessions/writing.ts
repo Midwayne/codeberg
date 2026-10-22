@@ -10,10 +10,12 @@ export async function save(state: WebSessionStoreState, record: WebSessionRecord
 
 export async function upsert(
   state: WebSessionStoreState,
-  input: Pick<WebSessionRecord, 'id' | 'title' | 'messages'> & { parentId?: string },
+  input: Pick<WebSessionRecord, 'id' | 'title' | 'messages'> & { parentId?: string; serverRunId?: string },
 ): Promise<WebSessionRecord> {
   return serial(state, input.id, async () => {
     const existing = await load(state, input.id);
+    if (existing?.serverRunId && !input.serverRunId) return existing;
+
     const now = Date.now();
     const record: WebSessionRecord = {
       ...input,

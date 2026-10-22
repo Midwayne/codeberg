@@ -1,3 +1,4 @@
+import { searchBundleSource } from './search-bundle.js';
 import type { ToolSet } from 'ai';
 import type { CanvasStore } from '../canvas/store.js';
 import { canvasToolSource } from '../canvas/tools.js';
@@ -23,6 +24,7 @@ interface AgentToolOptions {
   web: WebConfig;
   mcp: () => McpToolSource;
   defaultSearchK: number;
+  searchBundle?: boolean;
   onResults: (hits: SearchResult[]) => void;
 }
 
@@ -35,6 +37,7 @@ export async function createAgentTools(opts: AgentToolOptions): Promise<ToolSet>
       defaultK: opts.defaultSearchK,
       onResults: opts.onResults,
     }),
+    ...(opts.searchBundle ? [searchBundleSource(opts)] : []),
     ...(opts.learning ? [learningToolSource(opts.learning, opts.learningSettings)] : []),
     contextToolSource(opts.context),
     ...(opts.canvas ? [canvasToolSource(opts.canvas)] : []),

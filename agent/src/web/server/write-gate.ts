@@ -6,13 +6,13 @@ export class RequestWriteGate {
   private activeWrites = 0;
   private cleanupRequested = false;
 
-  constructor(private readonly resources: ResourceSettings) {}
+  constructor(private readonly resources: ResourceSettings, private readonly searching = () => false) {}
 
   acquire(req: IncomingMessage, res: ServerResponse, path: string): (() => void) | undefined {
     const cleanup = req.method === 'POST' && path === '/api/settings/cleanup';
     const write = !['GET', 'HEAD', 'OPTIONS'].includes(req.method ?? '') && !cleanup;
     const busyWrite = write && (this.resources.busy || this.cleanupRequested);
-    const busyCleanup = cleanup && (this.activeWrites > 0 || this.cleanupRequested);
+    const busyCleanup = cleanup && (this.activeWrites > 0 || this.cleanupRequested || this.searching());
 
     if (busyWrite || busyCleanup) {
       sendText(res, 409, 'Codeberg is busy. Retry after current writes finish.');

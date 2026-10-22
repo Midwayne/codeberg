@@ -12,7 +12,7 @@ The docs and project shell remain available before model setup. Chat requests wi
 
 **Chat changes aren’t saved yet** means Codeberg could not write the chat to local storage or reach the web server. The live conversation and queued follow-ups remain in the current browser tab. Keep that tab open, check the launcher is still running and the disk has free space, then choose **Retry save**. This saves the latest conversation without generating another answer. Do not reload or close the tab while this warning is visible.
 
-If the model connection fails, useful partial output is retained and unfinished tools are marked as interrupted. The response's **Retry** asks the model again; **Retry save** only writes chat history.
+If the model connection fails, useful partial output is retained and unfinished tools are marked as interrupted. The response's **Retry** reconnects to a running or completed server search, or asks the model again if that run failed or stopped. **Retry save** only writes chat history.
 
 ## Indexing stays pending or fails
 
@@ -49,6 +49,22 @@ A copied standalone launcher binary does not include the daemon, indexer, or web
 The launcher defaults to web port `48088` and daemon port `48080`. If another process uses one, stop that process or choose a free port with `--web-port` or `--port`. A separately launched agent's `CODEBERG_DAEMON_URL` must match its daemon.
 
 If automatic browser opening fails, copy the URL printed in the launch terminal. Keep the terminal running. Source changes to the UI require a rebuilt web UI; `codeberg build` rebuilds components. Restart both the daemon and web agent after upgrading.
+
+## A search disconnects or a chat is busy
+
+A browser disconnect does not cancel a server search. The browser attempts reconnection up to three times, including retries when the reconnect request itself fails. Reopen the saved chat to reconnect after a longer outage; completed output is stored on the server. If Codeberg could not accept your question, **Retry** resubmits that question with its original request identity. This also works for a failed follow-up after earlier answers have completed.
+
+After automatic reconnection attempts run out, choose **Retry** to rebuild a running or completed response from its saved events. This replays the existing run without repeating model or tool calls, and replaces the partial response without duplicating it. If opening the replay fails, the previous partial answer stays visible for another retry.
+
+**Stop** sends a separate cancellation request. If Stop cannot reach Codeberg, its error means cancellation was not confirmed; reconnect and try again. If the search stops but its saved history cannot be loaded, follow-ups stay paused. Restore the connection and choose **Retry** to load that history before continuing.
+
+For **This chat has an active search**, return to that chat or stop its run before sending a different question. For **Chat history changed in another tab**, reload the chat to get the server's current transcript. Retrying the same request does not start another model run.
+
+If saving a new search fails before generation starts, restore storage access and choose **Retry**. Codeberg discards the incomplete admission so the same question can be submitted again; searches that already started retain their recorded outcomes.
+
+After a Codeberg restart, interrupted runs retain their partial output and tool records. Reconnecting also detects interruption while Codeberg was saving a new search, so the run reports an interruption instead of remaining stuck as running. These runs do not resume automatically; start a new search to continue. A tool with a saved start but no saved outcome is uncertain; inspect the evidence before retrying. Codeberg's built-in search tools are read-only, while connected MCP tools may have other effects.
+
+The minimal fallback page used without a built web UI does not offer automatic reconnection or saved-chat navigation. Use the normal built web UI to reopen and reconnect chats.
 
 ## Find the right logs
 

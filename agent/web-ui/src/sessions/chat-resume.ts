@@ -41,6 +41,8 @@ export function createChatResume(options: ChatTransitionsOptions) {
       }
       const next = createChat(record.id, record.messages, record.parentId, record.title);
 
+      if (record.serverRunId) next.turns.reconnect(next.chat.resumeStream);
+
       await activateChat(next, intent, options);
     } catch (error) {
       if (intent !== transitionIntent.current) return;

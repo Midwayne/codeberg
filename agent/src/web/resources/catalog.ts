@@ -1,3 +1,4 @@
+import { sessionRunBytes } from '../sessions/run-storage.js';
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileInfo, readRegularFile, readStoredFile, realDirectory } from './filesystem.js';
@@ -35,7 +36,11 @@ export async function listFiles(
 
       const path = join(dir, name);
       const file = await readStoredFile(path, name, category);
-      if (file) files.push(file);
+      if (file) {
+        if (category === 'chats') file.size += await sessionRunBytes(state.options.sessions.dir, file.id);
+
+        files.push(file);
+      }
     }
   }
 

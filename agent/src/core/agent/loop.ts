@@ -1,3 +1,4 @@
+import { recordToolExecutions } from '../runs/tools.js';
 import { isLoopFinished, ToolLoopAgent } from 'ai';
 import { cachedInstructions, deterministicTools, withConversationCache } from '../cache.js';
 import { wrapToolOutputs } from '../context/wrap.js';
@@ -31,7 +32,7 @@ export async function ensureLoop(state: AgentState): Promise<ToolLoopAgent> {
 export async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
   // Sort tools to keep the cached system prefix stable across processes.
   // `batch` wraps the raw tools: it spills each result against its own budget.
-  const raw = await buildTools(state);
+  const raw = recordToolExecutions(await buildTools(state));
   const tools = deterministicTools({
     ...wrapToolOutputs(raw, state.context),
     ...(state.profile.toolBatch ? batchTool(raw, state.context) : {}),

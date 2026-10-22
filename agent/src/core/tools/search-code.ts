@@ -75,11 +75,11 @@ function searchCodeTool(opts: SearchCodeOptions) {
       'Semantic code search. Returns relevant chunks with path, lines, snippet, and bounded full bodies for the top hits. ' +
       'Searches every indexed repo unless `repo` narrows it to one (keys via the repos tool).',
     inputSchema: searchCodeSchema,
-    execute: (input) => executeSearch(opts, input),
+    execute: (input, options) => executeSearch(opts, input, options.abortSignal),
   });
 }
 
-async function executeSearch(opts: SearchCodeOptions, input: SearchCodeInput) {
+async function executeSearch(opts: SearchCodeOptions, input: SearchCodeInput, signal?: AbortSignal) {
   try {
     const { query, k, repo, path_glob, kind, min_score } = input;
     const results = await opts.daemon.search(query, {
@@ -88,18 +88,20 @@ async function executeSearch(opts: SearchCodeOptions, input: SearchCodeInput) {
       path_glob,
       kind,
       min_score,
-    });
+    }, ...(signal ? [signal] as const : []));
 
     opts.onResults(results);
-    const expanded = await expandResults(opts.daemon, results, query);
+    const expanded = await expandResults(opts.daemon, results, query, signal);
 
     return results.map((hit, i) => ({ ...toToolChunk(hit), ...expanded.get(i) }));
   } catch (error) {
+    signal?.throwIfAborted();
+
     return daemonToolError(error);
   }
 }
 
-async function expandResults(daemon: DaemonClient, results: SearchResult[], query: string) {
+async function expandResults(daemon: DaemonClient, results: SearchResult[], query: string, signal?: AbortSignal) {
   const selected = selectExpansionHits(results, query);
   const bodies = await Promise.all(
     selected.map(async (i) => {
@@ -108,7 +110,7 @@ async function expandResults(daemon: DaemonClient, results: SearchResult[], quer
         const detail = await daemon.callTool('get_chunk', {
           repo: hit.repo,
           id: hit.id,
-        });
+        }, ...(signal ? [signal] as const : []));
 
         return detail &&
           typeof detail === 'object' &&
@@ -117,6 +119,8 @@ async function expandResults(daemon: DaemonClient, results: SearchResult[], quer
           ? { body: detail.body, truncated: 'truncated' in detail && detail.truncated === true }
           : undefined;
       } catch {
+        signal?.throwIfAborted();
+
         // Indexes can change between search and chunk lookup. The original
         // hit remains usable even when its expansion fails.
         return undefined;

@@ -15,6 +15,7 @@ export interface SessionSummary {
 
 /** Full saved chat — UI messages verbatim, so a resume re-renders faithfully. */
 export interface SessionRecord {
+  serverRunId?: string;
   id: string;
   title: string;
   createdAt: number;

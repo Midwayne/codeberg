@@ -9,6 +9,7 @@ Your source files stay in the directory you add. Codeberg stores its own configu
   projects.json
   projects/<id>/
     web-sessions/
+      .runs/<chat-id>/<run-id>/
     context/
     learning/
     index/
@@ -21,6 +22,12 @@ Your source files stay in the directory you add. Codeberg stores its own configu
 Chats, retrieved context, knowledge, datasets, and logs can contain information about your code. Treat this directory as private data. **Settings → Projects** provides the exact location and ID of each project's storage. Appearance preferences are saved separately in the browser's local storage.
 
 The project's `context/checkpoints/` directory holds reusable conversation summaries and prefix fingerprints. It belongs with the history and tool-output archives under `context/`; checkpoints are reused across restarts only when the original messages and model policy still match. Original saved chat messages remain in `web-sessions/`.
+
+Search runs store their request identity, status, tool starts/outcomes, and ordered response events under `web-sessions/.runs/`. These files can contain retrieved source and attachments. Each run's event journal is capped at 32 MiB; a run that reaches the limit stops with an error, so narrow the investigation. Completed and interrupted runs remain with their chat. Deleting a chat, including through age-based chat cleanup, also removes its run journals; active searches block cleanup and chat deletion.
+
+A server restart preserves completed tool outcomes. A start without a saved outcome means the call's result is uncertain, so no tool is automatically re-executed. This recovery reconstructs saved chat history; it does not resume model generation. See [Getting started](/docs/getting-started).
+
+Reconnecting by request identity also recovers searches interrupted before their chat history was saved. Their run records are marked interrupted without replacing a newer saved conversation or recreating a deleted chat.
 
 The docs you are reading are bundled with the web UI. Reading them does not need an LLM call, an indexed project, or an external documentation service.
 

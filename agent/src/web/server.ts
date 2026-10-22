@@ -1,3 +1,5 @@
+import { SearchRuns } from './runs/manager.js';
+import { defaultChatGenerator } from './usage/generate.js';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { logRequest } from './server/logging.js';
 import { route } from './server/routes.js';
@@ -19,9 +21,8 @@ export type { ChatResponder, ResolvedModelSelection } from './chat-routes.js';
 /**
  * The request handler bridging a browser chat client to the code-search agent.
  *
- * The chat route is intentionally stateless: the client holds the conversation
- * and posts the full message array each turn, so a request maps straight onto
- * `pipeAgentUIStreamToResponse`; persistence is handled by the session routes.
+ * Search runs own their cancellation, journal, and transcript. HTTP responses
+ * subscribe to them and can reconnect independently of generation.
  */
 export function createRequestHandler(
   opts: WebServerOptions,
@@ -36,7 +37,10 @@ export function createRequestHandler(
   const resources =
     opts.resources ??
     new ResourceSettings({ sessions, learning: opts.learning, daemonUrl: opts.daemonUrl });
-  const writes = new RequestWriteGate(resources);
+  const runs = opts.runs ?? (opts.respond ? undefined
+    : new SearchRuns(sessions, opts.generate ?? defaultChatGenerator(opts, usage), { learning: opts.learning }));
+  opts = { ...opts, runs };
+  const writes = new RequestWriteGate(resources, () => Boolean(runs?.busy));
 
   return async (req, res) => {
     let path: string;
@@ -51,7 +55,8 @@ export function createRequestHandler(
     if (!release) return;
 
     const fail = logRequest(req, res, path);
-    await route(req, res, opts, respond, sessions, resources).catch(fail).finally(release);
+    await (runs?.initialize() ?? Promise.resolve())
+      .then(() => route(req, res, opts, respond, sessions, resources)).catch(fail).finally(release);
   };
 }
 
@@ -61,7 +66,10 @@ export function createWebServer(opts: WebServerOptions): Server {
   const resources =
     opts.resources ??
     new ResourceSettings({ sessions, learning: opts.learning, daemonUrl: opts.daemonUrl });
-  const server = createServer(createRequestHandler({ ...opts, sessionStore: sessions, resources }));
+  const runs = opts.runs ?? (opts.respond ? undefined : new SearchRuns(sessions,
+    opts.generate ?? defaultChatGenerator(opts, opts.usage ?? sharedUsageStore()), { learning: opts.learning }));
+  const server = createServer(createRequestHandler({ ...opts, runs, sessionStore: sessions, resources }));
+  server.on('close', () => void runs?.close());
   server.on('listening', () => resources.start());
   server.on('close', () => resources.stop());
 

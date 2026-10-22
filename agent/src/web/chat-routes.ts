@@ -1,3 +1,6 @@
+import type { SearchRuns } from './runs/manager.js';
+import { submitSearch } from './runs/routes.js';
+import { sameOrigin } from './http.js';
 import { validChatId, withCanvasChat } from '../core/canvas/context.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
@@ -20,7 +23,10 @@ export async function routeChat(
   res: ServerResponse,
   modelSettings: ModelSettingsStore | undefined,
   respond: ChatResponder,
+  runs?: SearchRuns,
 ): Promise<void> {
+  if (!sameOrigin(req)) return sendText(res, 403, 'cross-origin chats are not allowed');
+
   const body = await readJson(req);
   if (body?.id !== undefined) {
     try {
@@ -36,19 +42,13 @@ export async function routeChat(
   const error = validateChatFiles(messages, selected?.inputs ?? ['text']);
   if (error) return sendText(res, 400, error);
 
-  await withCanvasChat(body?.id, () =>
-    respond(
-      res,
-      messages,
-      selected && settings
-        ? {
-            ...settings.chat,
-            model: selected.model,
-            contextWindow: selected.contextWindow,
-          }
-        : undefined,
-    ),
-  );
+  const selection = selected && settings
+    ? { ...settings.chat, model: selected.model, contextWindow: selected.contextWindow }
+    : undefined;
+
+  await withCanvasChat(body?.id, () => runs
+    ? submitSearch(res, body, selection, runs)
+    : respond(res, messages, selection));
 }
 
 export async function routeMeta(

@@ -13,6 +13,8 @@ export interface WebSessionRecord {
   messages: UIMessage[];
   /** Session this one was branched from, when created via Branch. */
   parentId?: string;
+  /** Latest server-owned search run; browser snapshots cannot replace its messages. */
+  serverRunId?: string;
   pinned?: boolean;
   archived?: boolean;
 }

@@ -1,3 +1,4 @@
+import { routeSearchRun } from '../runs/routes.js';
 import { routeCanvas } from '../canvas/routes.js';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { promptCommandCatalog } from '../../core/hooks/index.js';
@@ -66,8 +67,10 @@ export async function routeApi(
   const path = url.pathname;
 
   if (req.method === 'POST' && path === CHAT_PATH) {
-    return routeChat(req, res, opts.modelSettings, respond);
+    return routeChat(req, res, opts.modelSettings, respond, opts.runs);
   }
+
+  if (path.startsWith('/api/chat/') && opts.runs) return routeSearchRun(req, res, url, opts.runs);
 
   if (req.method === 'GET' && path === META_PATH) {
     return routeMeta(res, {
@@ -82,12 +85,11 @@ export async function routeApi(
   }
 
   if (req.method === 'GET' && path === COMMANDS_PATH) {
-    sendJson(res, 200, opts.commands ?? promptCommandCatalog());
-    return;
+    return sendJson(res, 200, opts.commands ?? promptCommandCatalog());
   }
 
   if (path === SESSIONS_PATH || path.startsWith(SESSIONS_PATH + '/')) {
-    await routeSessions(req, res, sessions, path, opts.learning, opts.canvas);
+    await protectedSessionRoute(req, res, opts, sessions, path);
     return;
   }
 
@@ -160,4 +162,14 @@ export function escapeHtml(s: string): string {
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;');
+}
+
+async function protectedSessionRoute(req: IncomingMessage, res: ServerResponse, opts: WebServerOptions,
+  sessions: WebSessionStore, path: string): Promise<void> {
+  if (req.method === 'DELETE' && opts.runs) {
+    const run = await opts.runs.find(path.slice(SESSIONS_PATH.length + 1));
+    if (run && !run.settled) return sendText(res, 409, 'Stop this search before deleting its chat.');
+  }
+
+  await routeSessions(req, res, sessions, path, opts.learning, opts.canvas);
 }

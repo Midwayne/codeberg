@@ -1,4 +1,5 @@
-import { lstat, unlink } from 'node:fs/promises';
+import { sessionRunBytes } from './run-storage.js';
+import { lstat, rm, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { load } from './reading.js';
 import type { WebSessionStoreState } from './state.js';
@@ -8,6 +9,7 @@ export async function remove(state: WebSessionStoreState, id: string): Promise<v
   await serial(state, id, async () => {
     try {
       await unlink(join(state.dir, `${id}.json`));
+      await rm(join(state.dir, '.runs', id), { recursive: true, force: true });
     } catch {
       // already gone / unreadable — nothing to do
     }
@@ -32,8 +34,11 @@ export async function removeOlder(
     const record = await load(state, id);
     if (!record || record.pinned || !(record.updatedAt < cutoff)) return undefined;
 
-    await unlink(path);
+    const bytes = info.size + await sessionRunBytes(state.dir, id);
 
-    return info.size;
+    await unlink(path);
+    await rm(join(state.dir, '.runs', id), { recursive: true, force: true });
+
+    return bytes;
   });
 }

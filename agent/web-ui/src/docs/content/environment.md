@@ -63,6 +63,7 @@ For catalog syntax, local server setup, and saved model choices, see [Models and
 | `CODEBERG_CONTEXT_WINDOW` | Positive token count; inferred from the model otherwise | Override the model's hard context window. Use the capacity actually loaded by your local server. |
 | `CODEBERG_SUMMARY_CONTEXT_WINDOW` | Positive token count; inferred separately when a different summarizer is configured | Window of the different `CODEBERG_SUBAGENT_MODEL` used for CLI/history summarization. A summarizer using the chat model shares its window, including a catalog override. |
 | `CODEBERG_CONTEXT_BUDGET` | Positive token count; `200000` | Working context ceiling, capped by each model's hard window. History, complete-request, and summary budgets use this ceiling. |
+| `CODEBERG_SEARCH_BUNDLE_USE` | Boolean; `false` | Opt into experimental read-only `search_bundle` composition across up to four repository/query pairs. Restart after changing the environment. It remains off pending full-agent evaluation. |
 | `CODEBERG_TOOL_BATCH` | Boolean; automatic by provider | Enable the `batch` tool for models that struggle to return several tool calls in one response. Local and unknown providers enable it by default. |
 
 ## Local services and ports

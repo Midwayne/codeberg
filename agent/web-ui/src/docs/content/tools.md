@@ -26,6 +26,14 @@ Text is read in chunks, so a focused read or an early literal match can finish w
 
 If an answer is too broad, narrow the request with a filename, directory, function, error string, or expected behavior. A follow-up such as “Check the caller too” or “Show the source behind that claim” helps the agent verify the next link.
 
+## Experimental search composition
+
+`search_bundle` is an opt-in, read-only evidence pipeline for investigations spanning repositories. Set `CODEBERG_SEARCH_BUNDLE_USE=true` in the environment before launching Codeberg, then restart. It is off by default while full-agent quality, provider-token usage, and latency are evaluated.
+
+The agent supplies one to four explicit repository/query pairs. The tool runs hybrid searches, collects matching symbols and source locations, and reads up to eight selected indexed chunks. Results preserve repository keys and line ranges. The complete bundle is limited to 10,000 serialized characters, with at most 6,000 characters of chunk bodies; omitted results, truncated bodies, and per-repository failures are explicit. Lexical-only matches retain their context without inventing an indexed chunk ID.
+
+This pipeline cannot run scripts, edit source, call MCP tools, or execute arbitrary commands. It uses the same registered repository boundaries as ordinary searches. Smaller output is not proof of a better answer: the agent may still need ordinary source tools to inspect omitted evidence. See [Environment variables](/docs/environment).
+
 ## Optional web tools
 
 **Web search is off by default.** Open **Settings → Tools → Web search** to enable it for all projects. The preference is saved automatically, survives restarts, and can be changed before choosing a chat model or adding a project.

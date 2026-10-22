@@ -58,7 +58,7 @@ The agent chooses its [tools](/docs/tools) as it investigates. You can inspect t
 
 ## Keep chats while you work
 
-Sending the first prompt saves the chat immediately and adds it to the sidebar, before the agent answers. Follow-up prompts are also saved before the next response starts. An unsuccessful model request still leaves your submitted question in the chat. If a connection drops after the agent has produced useful output, that partial answer is saved too; unfinished tool calls are marked as interrupted.
+Sending the first prompt saves the chat immediately and adds it to the sidebar, before the agent answers. Follow-up prompts are also saved before the next response starts. An unsuccessful model request still leaves your submitted question in the chat. The server owns each search run and saves its tool outcomes and response independently of the browser. A brief connection loss reconnects to the same run without starting the search again.
 
 You can start another chat, return to an existing chat, open Settings or Training review, or switch projects while a response runs. Each chat keeps its own response and queued follow-ups; returning to it shows its current progress. Completed responses are saved to the original chat and project.
 
@@ -72,7 +72,15 @@ If you select several chats quickly, only the latest selection opens; **Cancel**
 
 If saving fails, the chat stays in the sidebar for this tab and shows **Chat changes aren’t saved yet**. Keep the tab open and choose **Retry save** after restoring the connection or freeing disk space. This retries storage without asking the model again. An in-memory chat cannot survive a reload until it saves successfully.
 
-Use **Stop** to interrupt a response. Keep the browser tab open while the agent works: reloading, closing it, or navigating that tab to another website interrupts its live requests. The Docs button opens documentation in a separate tab.
+Use **Stop** to cancel the search on the server. Closing or reloading a browser tab only disconnects that tab; the search continues while Codeberg stays running. Reopen the saved chat to reconnect or read its completed answer. Unsent drafts and queued follow-ups remain local to the tab and do not survive a reload.
+
+If you stop a question while its initial history save is pending, Codeberg cancels that local submission before starting a search. Questions queued while a reopened chat reconnects are sent in order when its current response finishes.
+
+After stopping or steering a search, Codeberg loads its saved partial answer and tool outcomes before sending another question. If that history cannot be loaded, follow-ups stay paused; choose **Retry** after restoring the connection.
+
+Only one search can run in a chat at a time. Retrying the same submission rejoins its existing run. If another browser tab submits a different question while that chat is busy, reconnect to the chat or stop its search first. A tab with outdated history must reload before submitting a follow-up.
+
+Restarting Codeberg interrupts active searches. Saved results remain available, but Codeberg does not automatically execute their tools again: a tool interrupted before its outcome was saved may have finished outside Codeberg. Review the partial answer and start a new search to continue. The Docs button opens documentation in a separate tab.
 
 ## Customize when you need to
 

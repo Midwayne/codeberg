@@ -1,13 +1,13 @@
 import { canvasFromEnv } from '../../core/canvas/config.js';
-import { chatAbortSignal } from '../chat-abort.js';
+import { SearchRuns } from '../runs/manager.js';
+import type { ChatGenerator } from '../runs/types.js';
 import type { CanvasStore } from '../../core/canvas/store.js';
-import { pipeAgentUIStreamToResponse } from 'ai';
+import { createAgentUIStream } from 'ai';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { learningEnabledFromEnv } from '../../core/config.js';
 import { LearningService } from '../../core/learning/service.js';
 import { repositoryVersions } from '../../core/learning/store.js';
-import { writeModuleLog } from '../../core/module-log.js';
 import { codebergHome } from '../../core/paths.js';
 import { projectDataHome, projectEnvironment, type Project } from '../../core/projects.js';
 import { ExtensionStore } from '../extensions.js';
@@ -17,7 +17,7 @@ import {
   ReloadableAgentPool,
 } from '../model-selection/runtime.js';
 import { ResourceSettings } from '../resources.js';
-import { createRequestHandler, type ChatResponder } from '../server.js';
+import { createRequestHandler } from '../server.js';
 import { WebSessionStore } from '../sessions/store.js';
 import type { OwnedRuntime, ProjectRuntimeOptions } from './types.js';
 import { sharedUsageStore } from '../usage/shared.js';
@@ -62,7 +62,8 @@ export async function buildProjectHandler(project: Project, options: ProjectRunt
 
   const pool = new ReloadableAgentPool((webEnv) => createWebModelPool(daemonUrl, learning ?? false, { ...env, ...webEnv },
     (model, selection) => track(model, selection.key, selection.model, 'chat')));
-  const runtime = { projectId: project.id, learning, resources, pool, canvas };
+  const runs = new SearchRuns(sessions, projectGenerator(pool, extensions, learning, canvas, options.tools), { learning });
+  const runtime = { projectId: project.id, learning, resources, pool, canvas, runs };
   owned.push(runtime);
   resources.start();
   await initializeRuntime(runtime, owned);
@@ -75,7 +76,7 @@ export async function buildProjectHandler(project: Project, options: ProjectRunt
     learning,
     modelSettings,
     usage,
-    respond: projectResponder(pool, extensions, learning, canvas, options.tools),
+    runs,
     title,
     staticRoot: process.env.CODEBERG_WEB_ROOT ?? defaultStaticRoot(),
   });
@@ -94,16 +95,15 @@ async function initializeRuntime(runtime: OwnedRuntime, owned: OwnedRuntime[]) {
   }
 }
 
-export function projectResponder(
+export function projectGenerator(
   pool: ReloadableAgentPool,
   extensions: ExtensionStore,
   learning?: LearningService,
   canvas?: CanvasStore,
   tools?: ToolSettingsStore,
-): ChatResponder {
-  return async (res, messages, selection) => {
+): ChatGenerator {
+  return async ({ messages, selection, signal }) => {
     if (!selection) throw new Error('Choose a chat model first.');
-    const abortSignal = chatAbortSignal(res);
     const webEnv = await tools?.environment();
 
     const lease = await pool.acquire(
@@ -112,35 +112,13 @@ export function projectResponder(
       webEnv,
     );
 
-    let routed = false;
-    let finished = res.writableEnded || res.destroyed;
-    const release = () => {
-      if (routed && finished)
-        void lease
-          .release()
-          .catch((error: unknown) =>
-            writeModuleLog('agent', 'extension_cleanup_failed', { error: String(error) }),
-          );
-    };
-
-    const complete = () => {
-      finished = true;
-      release();
-    };
-
-    res.once('finish', complete);
-    res.once('close', complete);
     try {
-      await pipeAgentUIStreamToResponse({
-        response: res,
-        agent: lease.agent,
-        uiMessages: messages,
-        abortSignal,
-      });
-    } finally {
-      routed = true;
-      finished ||= res.writableEnded || res.destroyed;
-      release();
+      const stream = await createAgentUIStream({ agent: lease.agent, uiMessages: messages, abortSignal: signal });
+
+      return { stream, close: () => lease.release() };
+    } catch (error) {
+      await lease.release();
+      throw error;
     }
   };
 }

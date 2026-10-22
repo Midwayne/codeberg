@@ -1,6 +1,7 @@
 import { Chat } from '@ai-sdk/react';
-import { DefaultChatTransport, type ChatTransport, type UIMessage } from 'ai';
+import { type ChatTransport, type UIMessage } from 'ai';
 
+import { RunTransport } from './run-transport';
 import { TurnQueue } from './turn-queue';
 import { chatPersistence } from './workspace-persistence';
 import { persistingTransport } from './persisting-transport';
@@ -35,6 +36,7 @@ interface CreateWorkspaceChatOptions {
   transport?: ChatTransport<UIMessage>;
   persist: (record: WorkspaceChatSave) => Promise<void>;
   onPersist?: () => void;
+  serverOwned?: boolean;
 }
 
 /** Creates one independently streaming chat whose completion persists to its owning session. */
@@ -46,9 +48,12 @@ export function createWorkspaceChat({
   transport,
   persist,
   onPersist,
+  serverOwned = transport === undefined,
 }: CreateWorkspaceChatOptions): WorkspaceChat {
   let disposed = false;
+  const runTransport = transport instanceof RunTransport ? transport : transport ? undefined : new RunTransport();
   const persistence = chatPersistence({
+    serverOwned,
     id,
     title,
     parentId,
@@ -59,13 +64,14 @@ export function createWorkspaceChat({
       chat.messages = next;
     },
   });
+  const savedTransport = persistingTransport(transport ?? runTransport!, persistence.save);
   const chat = new Chat<UIMessage>({
     id,
     messages,
-    transport: persistingTransport(transport ?? new DefaultChatTransport(), persistence.save),
+    transport: savedTransport,
     onFinish: persistence.onFinish,
   });
-  const turns = new TurnQueue(chat);
+  const turns = createTurnQueue(chat, savedTransport.isPending, runTransport);
 
   return {
     id,
@@ -83,4 +89,21 @@ export function createWorkspaceChat({
       await persistence.settled();
     },
   };
+}
+
+function createTurnQueue(chat: Chat<UIMessage>, isPending: () => boolean, transport?: RunTransport) {
+  transport?.bindMessages(() => chat.messages);
+
+  return new TurnQueue(chat, transport ? {
+    stop: async () => {
+      if (isPending() && !transport.isReplaying) {
+        await chat.stop();
+        return false;
+      }
+      await transport.stop(chat.id);
+      return true;
+    },
+    retry: () => transport.retry(chat),
+    synchronize: () => transport.synchronize(chat),
+  } : undefined);
 }

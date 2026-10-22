@@ -29,7 +29,7 @@ export class WebSessionStore {
 
   /** Message saves preserve metadata even if a pin/archive action overlaps a turn. */
   upsert(
-    input: Pick<WebSessionRecord, 'id' | 'title' | 'messages'> & { parentId?: string },
+    input: Pick<WebSessionRecord, 'id' | 'title' | 'messages'> & { parentId?: string; serverRunId?: string },
   ): Promise<WebSessionRecord> {
     return upsert(this.state, input);
   }

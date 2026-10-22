@@ -88,7 +88,7 @@ async function saveSession(
 
   if (learning) {
     try {
-      await learning.recordSession(id, messages, record.parentId);
+      await learning.recordSession(id, record.messages, record.parentId);
     } catch (error) {
       // Chat persistence succeeded. A learning disk failure must not break it.
       console.error('learning session recording failed:', error);
