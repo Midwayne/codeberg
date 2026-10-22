@@ -354,6 +354,30 @@ changes may occur in minor releases and are called out explicitly.
 - **Re-embedding the whole corpus on every restart** — the chunk table was rebuilt
   empty at startup, so bootstrap treated every chunk as new and re-embedded it.
 
+## [0.1.7] - 2026-10-22
+
+### Added
+
+- Optional Browser Use delegation from **Settings → Tools**. A separate local
+  browser agent starts on demand, runs its own task loop, and returns results to
+  Codeberg. First use downloads Python 3.12 and Browser Use 0.13.11 through uv;
+  users must install uv and Chrome/Chromium on the Codeberg host.
+- Retain a browser when requested, continue tasks in its existing tabs and
+  sign-ins, list retained sessions, and explicitly close them. Sessions belong
+  to their chat and are cleaned up on closure, deletion, disabling Browser Use,
+  or shutdown.
+- Independent **Browser vision** screenshot preference, off by default. Browser
+  models must declare vision input support in `models.yml`, including when
+  screenshots are disabled. Settings are accessible before project setup.
+
+### Fixed
+
+- Wait for delegated browser tasks without a run-wide deadline or fixed step
+  limit, while retaining main-model request timeouts and explicit cancellation.
+- Keep Browser Use settings usable when the separate Web search control service
+  is unavailable, and preserve retained browser sessions across chat-provider
+  changes using their original browser model.
+
 ## [0.1.6] - 2026-10-22
 
 ### Added
