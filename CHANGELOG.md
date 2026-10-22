@@ -354,6 +354,28 @@ changes may occur in minor releases and are called out explicitly.
 - **Re-embedding the whole corpus on every restart** — the chunk table was rebuilt
   empty at startup, so bootstrap treated every chunk as new and re-embedded it.
 
+## [0.1.6] - 2026-10-22
+
+### Added
+
+- Persist search runs, response events, and tool outcomes independently of browser
+  connections. Reconnect to running or completed searches, explicitly stop them,
+  and retain partial results when a server restart interrupts a run.
+- Add an experimental read-only `search_bundle` tool for bounded evidence
+  collection across repositories, disabled by default and enabled with
+  `CODEBERG_SEARCH_BUNDLE_USE=true`.
+
+### Fixed
+
+- Keep **Regenerate** as a fresh search that replaces the latest answer, while
+  **Retry** recovers an existing search when possible. Preserve queued follow-ups
+  behind either action.
+- Show complete citation tooltips outside message clipping boundaries, wrap long
+  paths within the viewport, and support keyboard dismissal.
+- Follow the chat bottom through streaming updates and delayed content layout,
+  including after a response completes, while preserving manual history reading
+  and reading positions when switching chats.
+
 ## [0.1.5] - 2026-10-20
 
 ### Changed
