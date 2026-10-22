@@ -354,6 +354,17 @@ changes may occur in minor releases and are called out explicitly.
 - **Re-embedding the whole corpus on every restart** — the chunk table was rebuilt
   empty at startup, so bootstrap treated every chunk as new and re-embedded it.
 
+## [0.1.8] - 2026-10-23
+
+### Changed
+
+- Softer Codex-inspired Dark and Light themes, with charcoal and soft grey
+  surfaces, gentler text contrast, subtle separators, and distinct floating
+  menus. Keyboard focus and text contrast remain accessible; other themes
+  retain their existing palettes.
+- Remove branch actions from message navigation previews. The sidebar's
+  **Branch chat** action remains available.
+
 ## [0.1.7] - 2026-10-22
 
 ### Added
