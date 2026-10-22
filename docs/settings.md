@@ -32,8 +32,10 @@ Changes apply to the next delegated task, including retained-session follow-ups.
 The browser model must declare `inputs: [text, vision]` in `models.yml`, even when
 screenshots are off. Unknown/text-only models cannot start browser sessions.
 
-The integration requires uv and local Chrome/Chromium. First use provisions Python
-3.12 and Browser Use 0.13.11 through uv. It uses the selected chat model unless
+The integration requires uv and local Chrome/Chromium. First use installs Browser
+Use 0.13.11 through uv, using a compatible installed Python (>=3.11, <4.0),
+including versions later than 3.12. uv downloads Python only if no compatible
+interpreter is available. It uses the selected chat model unless
 `CODEBERG_BROWSER_MODEL=provider:model` is exported before startup. Browser model
 calls are separate from the Usage totals. See the in-app
 [Tools guide](../agent/web-ui/src/docs/content/tools.md#browser-use-delegation) for

@@ -140,7 +140,7 @@ Remote vector storage still needs the local sidecars and an embedding model. Cha
 | `CODEBERG_BROWSER_USE` | Boolean; `false` | Initial browser-delegation preference and terminal opt-in. The saved web setting takes precedence. |
 | `CODEBERG_BROWSER_VISION` | Boolean; `false` | Initial screenshot-access preference and terminal opt-in. Settings → Tools → Browser vision takes precedence in the web app. |
 | `CODEBERG_BROWSER_MODEL` | `provider:model`; current chat model | Separate Browser Use model. Supports openai, anthropic, google, ollama, and llamacpp with their existing provider credentials/endpoints. |
-| `CODEBERG_BROWSER_UV` | Executable path; `uv` on PATH | uv used to provision and run Python 3.12 plus the pinned Browser Use package on demand. |
+| `CODEBERG_BROWSER_UV` | Executable path; `uv` on PATH | uv used to run the pinned Browser Use package with Python >=3.11 and <4.0; downloads Python only if no compatible interpreter is available. |
 | `CODEBERG_BROWSER_HEADLESS` | `true` or `1`; `false` | Run the task browser without a visible window. Useful on Linux without a desktop. |
 
 `CODEBERG_WEB_USE=false` also disables browser delegation. Browser Use does not use the managed SearXNG service or Browser Use Cloud. Its model calls are currently outside Codeberg's Model usage totals. Explicitly retained browser sessions reuse their original model/provider settings until closed. Codeberg waits for delegated tasks without a wall-clock deadline or fixed task step limit; **Stop**, disabling Browser Use, and shutdown still cancel active work.

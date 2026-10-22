@@ -20,7 +20,7 @@ export class BrowserWorker {
 
   constructor(private readonly config: BrowserConfig, cwd: string) {
     this.child = spawn(config.env.CODEBERG_BROWSER_UV || 'uv', [
-      'run', '--no-project', '--no-config', '--python', '3.12', '--with', `browser-use==${BROWSER_USE_VERSION}`,
+      'run', '--no-project', '--no-config', '--python', '>=3.11,<4.0', '--with', `browser-use==${BROWSER_USE_VERSION}`,
       'python', '-I', '-u', '-c', BROWSER_WORKER,
     ], { cwd, env: workerEnvironment(config.env, config.provider), detached: process.platform !== 'win32',
       stdio: ['pipe', 'pipe', 'ignore'] });

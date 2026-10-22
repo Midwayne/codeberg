@@ -16,7 +16,8 @@ class Browser:
         assert kwargs['use_cloud'] is False
         assert kwargs['keep_alive'] is True
         assert kwargs['enable_default_extensions'] is False
-        store({'cwd': str(Path.cwd()), 'pid': os.getpid(), 'state': 'created', 'tasks': []})
+        store({'cwd': str(Path.cwd()), 'pid': os.getpid(), 'state': 'created', 'tasks': [],
+               'python_request': sys.argv[sys.argv.index('--python') + 1]})
         self.cdp_client = types.SimpleNamespace(send=types.SimpleNamespace(Browser=types.SimpleNamespace(getVersion=self.get_version)))
     async def get_version(self):
         if json.loads(marker.read_text()).get('manually_closed'):

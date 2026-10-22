@@ -34,6 +34,8 @@ it('runs the embedded worker with its own browser loop and cleans its temporary 
     status: 'completed', result: 'Browser task result', urls: ['https://example.com'],
   });
   const state = JSON.parse(await readFile(marker, 'utf8'));
+
+  expect(state.python_request).toBe('>=3.11,<4.0');
   expect(state.state).toBe('closed');
   await expect(readFile(join(state.cwd, 'profile'))).rejects.toThrow();
   await expect(import('node:fs/promises').then(({ stat }) => stat(state.cwd))).rejects.toThrow();

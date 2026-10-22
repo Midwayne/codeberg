@@ -198,6 +198,8 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Fixed
 
+- Browser Use accepts compatible installed Python versions (>=3.11, <4.0),
+  including versions later than 3.12, instead of requesting Python 3.12 specifically.
 - **Daemon `grep` on minified files** — a single line over 4 MB no longer fails
   the whole call with `bufio.Scanner: token too long`.
 
