@@ -28,6 +28,8 @@ During loading, the previous composer is hidden. **Cancel** returns to the last 
 
 Only one search runs per chat. Queued follow-ups wait for completion, regeneration, or recovery. After Stop or steering, saved partial history must load before another question is sent; choose **Retry** if recovery pauses follow-ups.
 
+You can keep the same chat open in multiple tabs. Simply viewing it does not block follow-ups. Codeberg uses the server's saved answers when continuing a chat. If another tab submits a new question or regenerates an answer, reload older tabs before continuing there.
+
 ## Recover a connection
 
 Codeberg automatically attempts reconnection up to three times. After a longer outage, reopen the saved chat or choose **Retry**. Saved response events rebuild the existing answer without repeating completed model or tool calls.
