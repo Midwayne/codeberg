@@ -67,6 +67,20 @@ it('provides direct URLs and useful recovery for unknown documentation topics', 
   expect(html).toContain('Getting started');
 });
 
+it('makes detailed workflows available as standalone guides', () => {
+  for (const id of ['chats', 'browser-use', 'evaluations']) {
+    const page = findDocPage(`/docs/${id}`);
+
+    expect(page?.group).toBe('Guides');
+
+    const html = renderToStaticMarkup(<DocsPage path={`/docs/${id}`} />);
+
+    expect(html).toContain(`href="/docs/${id}" aria-current="page"`);
+    expect(html).toContain('On this page');
+    expect(html).not.toContain('Page not found');
+  }
+});
+
 it('keeps published topics, cross-links, and section anchors consistent', () => {
   const ids = docPages.map((page) => page.id);
   expect(new Set(ids).size).toBe(ids.length);

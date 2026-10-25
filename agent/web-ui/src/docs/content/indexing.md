@@ -1,53 +1,70 @@
-Indexing makes your source tree searchable. It runs locally in the indexer process supervised by the daemon. The browser's project status shows whether that project's index is ready.
+Indexing runs locally in the background and updates as files change. Chat and embedding models are configured separately.
 
-## From files to evidence
+## Search modes
 
-1. **Read and parse:** Codeberg walks the source tree and uses language-aware parsing where supported.
-2. **Chunk:** It splits files into semantic pieces, such as functions and declarations. Each piece retains its source path and line range.
-3. **Embed, when enabled:** An embedding model converts chunks into vectors that can be compared to your question.
-4. **Search:** The agent combines available search methods and reads the relevant source before forming an answer.
-5. **Watch:** File changes update the index incrementally, rather than rebuilding every unchanged file each time.
+| Mode | Available tools | Requirements |
+| --- | --- | --- |
+| Lexical | Exact text search, file reads, source navigation. | `codeberg --no-vector`, or save `CODEBERG_VECTOR=false`. |
+| Semantic | Vector similarity alongside lexical and file tools. | Embedding model, runtime, and a compatible index. |
 
-A **chunk** is a searchable piece of source. An **embedding** is its numeric representation. The **vector index** stores those representations for similarity search. A **chat model** uses retrieved evidence to write an answer; it is a separate model and configuration.
+A **chunk** is a source piece with a path and line range. An **embedding** represents it numerically; the **vector index** stores embeddings for similarity search.
 
-## Choose lexical or semantic search
+## Choose an embedding model
 
-Start with `codeberg --no-vector`, or save `CODEBERG_VECTOR=false`, for chunk-only operation. Exact text search, file reads, and source navigation still work. Semantic vector search requires an embedding model and its runtime.
+New installs default to **EmbeddingGemma 2**, text encoder only, in FP32. Existing choices and Jina installations are retained.
 
-The launcher offers an embedding choice before a first download. **EmbeddingGemma 2** is the default for new installs, including unattended launches: `embeddinggemma-2-fp32-mlx` on Apple Silicon, or `embeddinggemma-2` with Sentence Transformers elsewhere. Both use only the text encoder in FP32. Existing configured models and Jina installations keep their model and index. Jina with ONNX and all Qwen variants with MLX on Apple Silicon or llama.cpp remain available. Embedding weights and runtime are separate from your cloud chat provider's API key.
+| Selection | Runtime | Requirements |
+| --- | --- | --- |
+| `embeddinggemma-2-fp32-mlx` | MLX-VLM; default on Apple Silicon. | Apple Silicon, Python 3.10+ with venv/pip. |
+| `embeddinggemma-2` | Sentence Transformers/PyTorch; default elsewhere. | Python 3.10+ with venv/pip; CPU/CUDA. |
+| `jina-onnx` | ONNX Runtime. | Runtime bundled with prebuilt packages; no Python. |
+| Qwen variants | MLX or llama.cpp. | Separate managed Python runtime for MLX, or `llama-server`. |
 
-Choose a model for one launch with `codeberg --embedding embeddinggemma-2`, or save it with `codeberg config set CODEBERG_EMBEDDING_MODEL=embeddinggemma-2`. Use `--embedding jina-onnx` to select Jina, or a Qwen ID such as `qwen3-fp16-mlx` or `qwen3-fp16-llama`. The launcher's prompt lists all choices. Stop the launcher before switching models, then restart. Each model gets its own index and sidecars; switching triggers a first index build without deleting previous indexes. Switching back reuses that model's cache.
+Choose for one launch, or save a default:
 
-On Apple Silicon, select the native MLX option with `codeberg --embedding embeddinggemma-2-fp32-mlx`, or save `CODEBERG_EMBEDDING_MODEL=embeddinggemma-2-fp32-mlx`. It runs through MLX-VLM in the separate `CODEBERG_HOME/embeddinggemma-mlx-venv` runtime. Setup converts Google's original weights to unquantized FP32 and saves only the text model. Its model directory and index are separate from the Sentence Transformers option and Qwen's MLX runtime. An existing saved `embeddinggemma-2` choice remains on Sentence Transformers until you switch explicitly.
+```sh
+codeberg --embedding embeddinggemma-2
+codeberg config set CODEBERG_EMBEDDING_MODEL=embeddinggemma-2
+```
 
-Both options require **Python 3.10 or newer** with venv and pip support. Initial setup needs network access and several GB of free disk space for dependencies, downloaded weights, and the saved model. Subsequent inference uses local files.
+Other IDs include `qwen3-fp16-mlx` and `qwen3-fp16-llama`; the launcher lists all choices. Stop Codeberg before switching, then restart. Each model has separate indexes and sidecars. First use builds its index; switching back reuses its cache.
 
-For `embeddinggemma-2`, the launcher installs Sentence Transformers and PyTorch in `CODEBERG_HOME/embeddinggemma-venv`, downloads Google's checkpoint from Hugging Face, and saves a text-only model under `CODEBERG_HOME/models/embeddinggemma-2`.
+## EmbeddingGemma setup
 
-Both EmbeddingGemma options use its 270M text encoder for code and text search, with 768-dimensional normalized vectors, an 8,192-token input limit including prompts, and distinct code-query and document prompts. Longer inputs are truncated. Setup and inference use **FP32**: MLX on Apple Silicon, or Sentence Transformers on CPU/CUDA. Vision and audio encoders are disabled; image, audio, and video indexing are not exposed. FP16 is incompatible with this model. See [Google's model card](https://huggingface.co/google/embeddinggemma-2) for the model and its requirements.
+First setup needs network access and several GB of space for dependencies and weights. Later inference uses local files. EmbeddingGemma needs neither ONNX nor `llama-server`.
 
-EmbeddingGemma 2 does not need ONNX or `llama-server`. Jina requires ONNX Runtime; Qwen MLX uses its separate managed Python environment; Qwen llama.cpp needs `llama-server`. Downloads and cold indexing can take time.
+| Selection | Managed runtime under Codeberg home |
+| --- | --- |
+| Sentence Transformers | `embeddinggemma-venv`; text model in `models/embeddinggemma-2`. |
+| MLX | `embeddinggemma-mlx-venv`; separate converted FP32 text model. |
 
-## Understand readiness
+An existing saved `embeddinggemma-2` choice stays on Sentence Transformers until explicitly changed. MLX setup converts Google's original weights and saves only the text model.
 
-The startup project's indexer begins on launch. Other project indexers start when first used. Indexers remain running until Codeberg stops so each active project can keep watching its source files.
+Both use the 270M text encoder, 768-dimensional normalized vectors, and an 8,192-token input limit including prompts. Longer inputs are truncated. Code queries and documents use distinct prompts. FP16 is incompatible; image, audio, and video indexing are unavailable. See [Google's model card](https://huggingface.co/google/embeddinggemma-2).
 
-After five minutes without embedding work, an indexer unloads its embedding model to release memory. Its saved vectors, graph, and file watcher remain available. The next semantic query or edit that needs new embeddings reloads the model; that first request can take longer. Lexical search does not require a model reload. To keep models resident, export `CBERG_EMBED_IDLE_SECONDS=0` before starting Codeberg. Other values from `1` to `86400` set the idle timeout in seconds; the default is `300`.
+## Read indexing progress
 
-Unchanged vector indexes are not rewritten on repeated save requests. Import resolution reuses its source-file map during ordinary edits and rebuilds it when file membership or package metadata changes. Actual index changes are still saved immediately; these reductions do not delay checkpoints.
+The startup project begins indexing on launch. Other indexers start on first use and keep watching until shutdown.
 
-Indexing and graph creation run in the background. You can send questions, regenerate answers, and use tools as soon as a project is selected. Grep, file reads, directory browsing, and other filesystem tools work immediately. Hybrid search uses lexical matches and reference lookup falls back to grep while indexes are being built. Index-only tools report that the index is still building, so the agent can continue with file tools instead of waiting.
+| Status | Meaning |
+| --- | --- |
+| **Counting chunks** | Parsing has not determined the total yet. |
+| Chunk counts, such as **1,500 / 2,600** | Measured stored chunks, including cached and duplicate bodies. |
+| **Building graph** or file counts | Graph work for the current repository/stage. |
+| **Finalizing search** | Remaining graph resolution and persistence. |
 
-A small progress panel in the bottom-left shows the current stage. Once parsing determines the total, indexing shows real counts such as **1,500 / 2,600 chunks**, and the bar fills as chunks are stored. Reused cached chunks and duplicate bodies count toward completion. Graph updates show processed files against their total. Before a total is known, the panel says **Counting chunks** or **Building graph** without displaying a percentage. Each repository and stage has its own workload; this is not an estimated percentage for the entire project.
+The bottom-left panel can be minimized. Counts describe each stage, rather than an estimated percentage for the whole project. They may pause during embedding batches. Cold indexing on large trees or CPUs can take several minutes.
 
-Use **Minimize indexing progress** to collapse the panel while keeping its counts and bar visible, or **Expand indexing progress** to restore the details. The bar moves only when measured progress changes. Reduced motion makes those changes immediate. **Finalizing search** covers the remaining graph resolution and persistence work; the panel disappears when preparation finishes.
+Chat, grep, file reads, and directory tools work immediately. Hybrid search uses lexical fallback; index-only tools report that preparation is in progress. Watched updates retain the last completed readiness and expose indexing activity.
 
-EmbeddingGemma cold indexing can take longer on large trees or CPU runtimes. A responding project stays in the indexing state until that pass finishes, even if it exceeds the usual startup wait. Status checks run independently of embedding and search requests. During a watched update, the project retains its last completed readiness and reports indexing activity. Index-backed requests return a building status promptly while that update holds the index; filesystem tools and lexical fallbacks remain available. Chunk counts update after parsing and can stay unchanged while a batch is being embedded.
+If the directory disappears or the indexer stays unreachable, inspect `projects/<id>/logs/indexer.log`, fix the dependency or path, then **Retry**. A long embedding batch alone does not need Retry. See [Troubleshooting](/docs/troubleshooting#indexing-stays-pending-or-fails).
 
-If the directory disappears or the indexer remains unreachable past the startup wait, the UI reports an error. Restore the directory, inspect the project's `logs/indexer.log`, correct the runtime or configuration, and use **Retry**. Repeated process crashes need the underlying error fixed; Retry does not install a missing library. A long embedding batch alone does not require Retry. The launcher's daemon startup wait is separate: set `CODEBERG_HEALTH_TIMEOUT=30m` (or a longer Go duration) if model loading or an unreachable indexer causes launcher startup to time out.
+## Memory and storage
 
-## Know where indexes live
+Idle embedding models unload after **300 seconds** to release memory. Saved vectors, graph, and file watching stay available. The next semantic query or embedding update reloads the model and may be slower; lexical search needs no reload.
 
-Each project uses its own local index directory and vector namespace under Codeberg home. The default backend is `usearch`. Advanced deployments can configure `CBERG_INDEX_BACKEND=qdrant` with `CBERG_VECTORDB_URL`, or `pgvector` with `CBERG_POSTGRES_URL`. Remote backends require their service to be configured and reachable; they store vector data outside your machine.
+Export `CBERG_EMBED_IDLE_SECONDS=0` to keep models resident, or choose `1`–`86400` seconds. See [Environment variables](/docs/environment).
 
-Deleting only indexed files leaves saved knowledge and chats intact. Re-adding the same source root rebuilds search data. See [Projects](/docs/projects) and [Data and maintenance](/docs/storage) before removing a project's full history.
+Project indexes use local `usearch` by default. Remote alternatives are `qdrant` with `CBERG_VECTORDB_URL`, or `pgvector` with `CBERG_POSTGRES_URL`. They require a reachable service, local sidecars, and embeddings; vector data leaves your machine.
+
+Deleting only indexes preserves chats and knowledge. Re-adding the same source root rebuilds search data. See [Data and maintenance](/docs/storage).

@@ -1,16 +1,24 @@
-A skill is a reusable instruction document. It tells the agent how to approach a task, such as reviewing a change, explaining an architecture, or following your team's conventions. A skill supplies guidance; an MCP server supplies callable tools.
+Skills give the agent reusable instructions for tasks such as API review or architecture explanations. [MCP servers](/docs/mcps) separately provide callable tools.
 
-## Write a skill in the app
+## Write a skill
 
-Open **Settings → Skills** and choose the current project or **All projects**. Enter a name, description, and instructions, then choose **Add skill**. The name uses letters, numbers, dashes, or underscores, and must be unique in that storage scope.
+1. Open **Settings → Skills**.
+2. Choose the current project or **All projects**.
+3. Enter a name, description, and instructions, then **Add skill**.
 
-Give the description a clear trigger: when should the agent use this skill? In the instructions, describe the task, required checks, expected output, and boundaries. Specific instructions are easier to apply than a long list of broad preferences.
+Names use letters, numbers, dashes, or underscores and must be unique in that scope. Describe when the skill should run, what to check, expected output, and boundaries.
 
-## Import an existing document
+## Import Markdown
 
-Use **Choose skill files** or drop Markdown files onto **Import skill files**. Review the preview, then choose **Import**. You can import up to 20 UTF-8 `.md` files, with a 256 KB limit per file. Invalid files report individual errors; existing skills are not overwritten.
+Choose **Choose skill files**, or drop files onto **Import skill files**. Review the preview, then **Import**.
 
-A reusable `SKILL.md` needs a name and description in YAML frontmatter:
+| Limit | Value |
+| --- | --- |
+| Files | Up to 20 UTF-8 `.md` files. |
+| Size | 256 KB per file. |
+| Existing names | Not overwritten. |
+
+A reusable `SKILL.md` needs YAML frontmatter:
 
 ```md
 ---
@@ -21,19 +29,29 @@ description: Use when reviewing changes to HTTP endpoints.
 # Review an API change
 
 Check request validation, status codes, compatibility, and tests.
-Explain the concrete impact of each issue and cite the relevant source.
+Explain each issue's concrete impact and cite the source.
 ```
 
-For imported files with another filename, the preview can derive the name from that filename. Confirm the result before importing. If only some imports succeed, the failed files remain available for review or retry.
+Other filenames can supply a derived name in the preview. Invalid files show individual errors; failed files remain available for review or retry after partial success.
 
-## Understand discovery and scope
+## Discovery and scope
 
-Global skills are discovered in `~/.agents/skills`, `~/.cursor/skills`, and the Codeberg home's `skills/`. Repository skills can live in `.agents/skills`, `.cursor/skills`, or `.codeberg/skills`. Skills added for one project live under `projects/<id>/skills/` in Codeberg home.
+Later locations override the same skill name:
 
-Later roots override a skill with the same name; the selected project's storage is checked after repository and global locations. You can inspect effective skills and their scope in Settings. Changes apply on a subsequent chat turn, while an existing stream retains its current tools and context.
+| Order | Locations |
+| --- | --- |
+| Global | `~/.agents/skills`, `~/.cursor/skills`, Codeberg home's `skills/`. |
+| Repository | `.agents/skills`, `.cursor/skills`, `.codeberg/skills`. |
+| Stored project | `projects/<id>/skills/` in Codeberg home. |
 
-## Use a skill in a question
+Each location accepts Markdown files or directories containing `SKILL.md`. Inspect effective skills and scopes in Settings. Changes apply to the next chat turn; active streams retain their current context.
 
-Mention the skill name or describe the task covered by its description. The agent sees the skill catalog and can read the full instructions when relevant. For example: “Use review-api-change to review this endpoint.”
+## Use a skill
 
-Skills do not install missing executables, create a provider connection, or add a database integration by themselves. Configure [models](/docs/models) and [MCP servers](/docs/mcps) separately when a workflow needs them.
+Mention its name or describe a task matching its trigger:
+
+```text
+Use review-api-change to review this endpoint.
+```
+
+The agent sees the catalog and reads relevant instructions. Skills do not install executables or connect providers/services; configure those separately.

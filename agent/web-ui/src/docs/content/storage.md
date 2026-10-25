@@ -1,60 +1,67 @@
-Your source files stay in the directory you add. Codeberg stores its own configuration and derived data separately, under `CODEBERG_HOME`, normally `~/.codeberg`.
+Source files stay in the directory you add. Codeberg stores configuration and derived data under `CODEBERG_HOME`, normally `~/.codeberg`.
 
-## What is stored locally
+## Local storage
 
 ```text
 ~/.codeberg/
   config, models.yml, model-settings.json, tool-settings.json
-  mcp.json, skills/
-  projects.json
+  mcp.json, skills/, projects.json
   projects/<id>/
-    web-sessions/
-      .runs/<chat-id>/<run-id>/
-    context/
-    learning/
-    index/
+    web-sessions/          # Saved chats
+      .runs/              # Search status, tool outcomes, response events
+    context/              # Retrieved text, archives, checkpoints
+    learning/             # History, knowledge, datasets, evaluations
+    canvas/               # Drawings, when enabled
+    index/                # Derived search data
     logs/
     mcp.json, skills/, spec.yml
-  usage/
-  logs/
+  usage/, logs/
 ```
 
-Chats, retrieved context, knowledge, datasets, and logs can contain information about your code. Treat this directory as private data. **Settings → Projects** provides the exact location and ID of each project's storage. Appearance preferences are saved separately in the browser's local storage.
+**Settings → Projects** shows exact IDs and paths. Chats, context, datasets, and logs can contain private source and attachments; treat the home directory as private data. Appearance stays in browser local storage.
 
-The project's `context/checkpoints/` directory holds reusable conversation summaries and prefix fingerprints. It belongs with the history and tool-output archives under `context/`; checkpoints are reused across restarts only when the original messages and model policy still match. Original saved chat messages remain in `web-sessions/`.
+Context checkpoints reuse summaries only while saved messages and model policy match. Original messages remain in `web-sessions/`.
 
-Search runs store their request identity, status, tool starts/outcomes, and ordered response events under `web-sessions/.runs/`. These files can contain retrieved source and attachments. Each run's event journal is capped at 32 MiB; a run that reaches the limit stops with an error, so narrow the investigation. Completed and interrupted runs remain with their chat. Deleting a chat, including through age-based chat cleanup, also removes its run journals; active searches block cleanup and chat deletion.
+Search journals retain request identity, tool starts/outcomes, and ordered events. Each has a **32 MiB** limit; reaching it stops the run with an error. Narrow the investigation. Deleting a chat, including age-based cleanup, removes its journals; active runs block deletion.
 
-A server restart preserves completed tool outcomes. A start without a saved outcome means the call's result is uncertain, so no tool is automatically re-executed. This recovery reconstructs saved chat history; it does not resume model generation. See [Getting started](/docs/getting-started).
+After restart, saved tool outcomes remain but generation does not resume automatically. A start without an outcome is uncertain. See [Chats](/docs/chats#recover-a-connection).
 
-Reconnecting by request identity also recovers searches interrupted before their chat history was saved. Their run records are marked interrupted without replacing a newer saved conversation or recreating a deleted chat.
+## Browser files
 
-The docs you are reading are bundled with the web UI. Reading them does not need an LLM call, an indexed project, or an external documentation service.
+Browser Use creates temporary profiles, task files, and downloads outside project storage. Retained sessions keep them until closure; IDs are in memory and do not survive restart. Closing the session, cancelling its active task, or deleting its chat/project removes the temporary directory. A crash may leave files for the operating system to clear.
 
-Topic links update within the docs view, keeping navigation in place. Keyboard navigation is immediate; the system's reduced-motion preference replaces movement with a brief fade.
+uv caches runtime dependencies separately in its user cache. Browser results may remain in chats, journals, and context. See [Browser Use](/docs/browser-use).
 
-Use **Search docs** in the header, or press **⌘K / Ctrl+K**, to search all documentation titles and full text. Results include matching sections and excerpts; **↑ / ↓** selects a result, **Enter** opens it at the matching section, and **Escape** closes search. This search works locally without a project or model.
+## Data sent to services
 
-The global `tool-settings.json` stores Web search and Browser Use preferences. Browser Use creates a separate temporary task directory outside project storage, containing its browser profile, downloads, and task files; it removes that directory when the browser session closes or an active browser task is cancelled. Explicitly retained sessions keep the directory, browser tabs, cookies, and any sign-ins until closed. Session IDs and ownership stay in memory and are not restored after a restart; deleting their chat or project closes them. uv caches the Python runtime and package dependencies in its normal user cache. Browser results can remain in saved chats, run journals, and context archives. Abrupt process termination or a machine crash may leave temporary files until the operating system clears them.
+The folder picker does not upload your repository. Configured services receive the data needed for their requests:
 
-## What can leave your machine
+| Service | Data that can leave the machine |
+| --- | --- |
+| Cloud chat/learning provider | Prompts, source excerpts, conversation history, attachments. |
+| Remote vector backend | Vector data; local sidecars are still needed. |
+| MCP server | Inputs sent to its tools. |
+| Web search / URL fetching | Network requests to configured services and destinations. |
+| Browser Use model provider | Task instructions, page content, screenshots when enabled. |
 
-The folder picker does not upload a repository. However, when you use a cloud chat or learning provider, prompts and relevant tool results can include source excerpts, conversation history, and attachments sent to that provider. A local model uses the local endpoint you configured.
+Local models use the endpoints you configure. Browser Use's worker/browser run locally; screenshots default off, and its cloud sync and telemetry are disabled. Codeberg's HTTP services bind to loopback.
 
-Remote vector backends store vector data outside your machine. MCP servers receive the inputs sent to their tools; web tools make network requests. Review the endpoints and credentials you configure. Codeberg's local HTTP services bind to loopback; access them on the machine running the app.
+The docs are bundled locally and require no LLM, project, or external documentation service.
 
-Browser Use runs its worker and browser locally. With a remote model, task instructions and page content are sent to that provider; screenshots are sent when Browser vision is enabled. Screenshot access defaults off and is saved separately in `tool-settings.json`. Browser Use Cloud, telemetry, and cloud sync are disabled. See [Browser Use delegation](/docs/tools#browser-use-delegation).
+## Back up or move data
 
-## Back up or move your data
+Stop Codeberg before copying its home for a consistent backup. Include project storage to retain chats and knowledge. Back up source repositories separately; Codeberg home does not contain a copy of them.
 
-Stop Codeberg before copying its home directory for a consistent backup. Keep credentials private, and include project storage if you want saved chats and knowledge. Source repositories need their own backup; they are not copied into Codeberg home.
+Changing `CODEBERG_HOME` selects another config/catalog without moving existing data. Project IDs follow canonical source paths, so moving a repository also changes its identity.
 
-Changing `CODEBERG_HOME` points the app at a different configuration and project catalog. It does not automatically move the old directory. Project IDs follow canonical repository paths, so moving a source repository is different from moving Codeberg's data directory.
+## Free up space
 
-## Free up space deliberately
+Open **Settings → Free up resources**, inspect the preview, and select what to remove. **Settings → Resource usage** shows memory, disk, and activity. Wait for active work if cleanup reports busy.
 
-Open **Settings → Free up resources**, review the cleanup preview, and choose the data to remove. Active work can block cleanup until it finishes. **Settings → Resource usage** helps inspect local memory, disk use, and activity.
+| Action | Removes | Retains |
+| --- | --- | --- |
+| Project: **Delete indexed files only** | Catalog entry and search indexes. | Chats, history, knowledge, config, source. |
+| Project: **Delete entire history, including knowledge** | Catalog entry and all saved project data. | Source files; shared models, credentials, usage, extensions. |
+| `codeberg clean-index` | Managed index caches. | Chats and learning data. |
 
-For an entire project, use **Settings → Projects → Delete project**. The default retains history and knowledge while removing search indexes. The full-history choice permanently removes project data. Both leave source files alone. Global models, credentials, usage accounting, and extensions are separate from project deletion.
-
-In the terminal, `codeberg clean-index` targets managed index caches without deleting chats or learning data. Use the app's project deletion flow when the web agent is running so it can check active requests and background work. Re-indexing can take time and may require another embedding pass.
+Use app project deletion while the web agent runs so it can check active work. Rebuilding indexes may require another embedding pass. See [Projects](/docs/projects#delete-a-project).

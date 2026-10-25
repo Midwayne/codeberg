@@ -28,7 +28,7 @@ export function BrowserUseSettings({ settings, busy, change }: {
         Requires uv and Chrome or Chromium on the machine running Codeberg. First use downloads the Python runtime
         and Browser Use package. Uses your chat model unless a browser model is configured; provider usage is billed separately.
         New sessions use a fresh browser profile; retained sessions reuse their tabs and logins.
-        {' '}<a href="/docs/tools#browser-use-delegation" className="underline underline-offset-4">Browser Use setup</a>
+        {' '}<a href="/docs/browser-use" className="underline underline-offset-4">Browser Use setup</a>
       </p>
     </div>
   );

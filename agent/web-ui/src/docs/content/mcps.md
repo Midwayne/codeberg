@@ -1,13 +1,13 @@
-An MCP server connects the agent to tools provided by another process or service. Examples include documentation lookup, issue trackers, and database queries. MCP is optional; Codeberg's built-in source tools work without it.
+MCP servers connect the agent to external tools, such as issue trackers or databases. Built-in source tools work without MCP.
 
-## Add a server in Settings
+## Add a server
 
-1. Select a project, then open **Settings → MCP servers**.
-2. Choose the current project's name or **All projects** as the scope.
-3. Enter a unique server name and its server configuration JSON.
-4. Choose **Add MCP server**. It becomes available on the next chat turn.
+1. Open **Settings → MCP servers**.
+2. Choose the current project or **All projects**.
+3. Enter a unique name and one server configuration object.
+4. Choose **Add MCP server**; use it on the next chat turn.
 
-The form accepts a single server object, not the entire `mcpServers` file. For an HTTP server, use its actual endpoint:
+For an HTTP server, replace the endpoint:
 
 ```json
 {
@@ -18,13 +18,20 @@ The form accepts a single server object, not the entire `mcpServers` file. For a
 }
 ```
 
-For a local server, provide `command` and `args`, for example `{"command":"your-mcp-server","args":[]}`. Install the executable separately and ensure it is available to Codeberg. A saved entry is configuration, not proof that the server is running or reachable.
+For a local process, install the executable separately:
 
-MCP servers can expose actions that change external data. Review the server's capabilities and credentials before connecting it, and state your intent clearly when asking the agent to perform an action.
+```json
+{
+  "command": "your-mcp-server",
+  "args": []
+}
+```
 
-## Use an existing configuration file
+A saved entry does not confirm the server is reachable. MCP tools may change external data; check capabilities and state the intended actions in your request.
 
-The global `mcp.json` uses this structure:
+## Configure a file
+
+Global `~/.codeberg/mcp.json` wraps named servers in `mcpServers`:
 
 ```json
 {
@@ -38,27 +45,40 @@ The global `mcp.json` uses this structure:
 }
 ```
 
-Codeberg discovers global `mcp.json`, repository `.cursor/mcp.json` and `.codeberg/mcp.json`, optional extra files from `CODEBERG_MCP_CONFIG`, and the selected project's stored configuration. Later definitions override the same name; project storage takes precedence. The `servers` key is also accepted; `mcpServers` wins on collisions within a file.
+Discovery order, lowest priority first:
 
-To reuse another global file:
+1. Global `mcp.json`.
+2. Repository `.cursor/mcp.json`, then `.codeberg/mcp.json`.
+3. Extra files in `CODEBERG_MCP_CONFIG`.
+4. Selected project's stored configuration.
+
+Later definitions replace matching names. `servers` is also accepted; `mcpServers` wins collisions within a file.
+
+To reuse another file:
 
 ```sh
 codeberg config set CODEBERG_MCP_CONFIG=~/.cursor/mcp.json
 ```
 
-String fields support `${env:NAME}` or `${NAME}` for environment values, `${workspaceFolder}` for the selected repository, and `${userHome}` for your home directory. Export extension credentials in the environment used to launch Codeberg; arbitrary MCP secrets are not automatically forwarded from the launcher's config file. Restart when changing process environment values.
+| Placeholder | Resolves to |
+| --- | --- |
+| `${env:NAME}`, `${NAME}` | Process environment value. |
+| `${workspaceFolder}` | Selected repository. |
+| `${userHome}` | User home directory. |
 
-## Understand tool loading
+Export extension secrets before launching; arbitrary secret names in launcher config are not forwarded. Restart after environment changes.
 
-The agent first sees the server's tool catalog, then loads the tools relevant to your request with `load_mcp_tools`. MCP tools are named `mcp_<server>_<tool>` and cannot replace built-in source tools. This keeps large catalogs out of every model request.
+## Tool loading
 
-If a server is missing, fails its handshake, or lacks credentials, inspect warnings in Settings and the project logs. Other tools can remain available. Set `CODEBERG_MCP_USE=false` to disable file-configured servers.
+The agent sees server catalogs and loads relevant tools through `load_mcp_tools`. Names use `mcp_<server>_<tool>` and cannot replace built-ins.
 
-## Optional database MCP
+For handshake or credential failures, inspect Settings warnings and project logs. Set `CODEBERG_MCP_USE=false` to disable file-configured servers.
 
-The built-in database server supports MongoDB, PostgreSQL, and Redis. It needs its binary, a connection spec, and `CODEBERG_DBMCP_USE=true`. A source install can build it with `make build-dbmcp`. A new project's default spec lives in its config directory as `spec.yml` or `spec.yaml`.
+## Database MCP
 
-An illustrative connection spec is:
+The built-in server supports MongoDB, PostgreSQL, and Redis. It needs its binary, a connection spec, and `CODEBERG_DBMCP_USE=true`. Source installs can run `make build-dbmcp`.
+
+Create `spec.yml` or `spec.yaml` in the project's config directory shown in Settings. For example:
 
 ```yaml
 connections:
@@ -68,4 +88,6 @@ connections:
     access: read_only
 ```
 
-Export the connection credential, use the access level you intend, then restart. `CODEBERG_DBMCP_BIN` can point at an existing executable. Use the config directory shown in Settings for a new project's spec; an upgraded legacy workspace can retain its explicit `CODEBERG_DBMCP_SPEC` path. The database switch is independent of `CODEBERG_MCP_USE`; a configured server named `databases` replaces the built-in command.
+Export the credential, choose the intended access level, and restart. `CODEBERG_DBMCP_BIN` overrides the executable; legacy workspaces may retain `CODEBERG_DBMCP_SPEC` paths.
+
+Database MCP is independent of `CODEBERG_MCP_USE`. A configured server named `databases` replaces the built-in command.

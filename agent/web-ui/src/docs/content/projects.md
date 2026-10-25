@@ -1,38 +1,50 @@
-A project connects a repository directory to its own search index, chats, knowledge, and extensions. It gives the agent a clear source tree to investigate and keeps the history of unrelated repositories separate.
+## Add a project
 
-## Add and select a project
+Run `codeberg`, then choose **Add project**. Select an existing directory on the Codeberg host with **Choose folder**, or enter an absolute path. On Linux, the picker needs `zenity` or `kdialog` and a desktop session; manual entry works without them.
 
-Choose **Add project** and select an existing directory on the machine running Codeberg. You can use the native folder picker or enter an absolute path. On Linux, the picker needs `zenity` or `kdialog` and a desktop session; manual entry works when a dialog cannot open.
+Projects return on later launches. With no projects, the daemon stays idle and the app shows **Add a project to get started**. Codeberg's own directory is not automatically added.
 
-The project selector in the chat sidebar controls the current browser tab. On phones, open the sidebar to find it. Selection is saved in that tab and its `?project=` URL; another tab can investigate a different project. Switching projects keeps live responses and queued follow-ups running in their original chats. Returning to a project restores its selected chat and current progress; completed responses are saved there.
+For an explicit startup project:
 
-Start `codeberg` and choose **Add project**. Codeberg restores saved projects on later launches or shows **Add a project to get started** when none are registered. No repository environment variable is needed. The directory containing Codeberg itself is not automatically your project.
+```sh
+codeberg /absolute/repository
+# Or: codeberg --root /absolute/repository
+```
 
-With no projects, the daemon stays idle without starting an indexer. Deleting the last project returns to **Add a project to get started**, including after a restart. Add a project there whenever you are ready. A deleted startup project stays removed even if you restart with the same optional directory argument.
+## Switch projects
 
-For terminal workflows, `codeberg /absolute/repository` or `codeberg --root /absolute/repository` selects an explicit startup project.
+Use the sidebar's project selector; open the sidebar on phones. Selection belongs to the current tab and its `?project=` URL, so different tabs can use different projects.
 
-## What belongs to a project
+Responses and queued follow-ups keep running in their original chats when you switch. Returning restores the selected chat and progress. See [Chats](/docs/chats).
 
-- Source roots, file watching, and search index namespaces.
-- Chats, branches, chat search, and feedback.
-- Saved knowledge, learning history, and datasets.
-- Project-specific MCP configuration, skills, and database specs.
+## Scope and identity
 
-Model choices, provider credentials, global extensions, and usage accounting belong to Codeberg home and are shared. Browser appearance is stored in that browser.
+| Project-specific | Shared |
+| --- | --- |
+| Source roots, watcher, indexes | Provider credentials and model choices |
+| Chats, branches, feedback | Global MCP servers and skills |
+| Knowledge, learning history, datasets | Usage accounting |
+| Project MCP servers, skills, database spec | Appearance within the same browser |
 
-Each project has a stable ID derived from its canonical source path. Adding a symlink to the same directory does not create a separate project. Renaming the display label keeps the ID and history. Moving a repository to another path changes its identity; do not move catalog files by hand to merge histories.
+IDs follow the canonical source path. Symlinks to the same directory share a project. Renaming its display label keeps history; moving the repository changes its identity. Do not merge histories by moving catalog files.
+
+Older multi-repository startup configurations remain one **Existing workspace**, preserving their repository keys and combined search.
 
 ## Inspect or rename
 
-Open **Settings → Projects**. The list shows the repository paths, stable ID, config directory, and current selection. Copy controls help you find files. Choose **Rename**, change the display label, then **Save name**; Cancel leaves the original label.
+Open **Settings → Projects** to see source paths, IDs, config directories, and current selection. Use the copy controls to locate files.
 
-An older multi-repository startup configuration remains a single **Existing workspace** project. Its repository keys and combined search behavior are preserved. New projects added through the browser are independent.
+Choose **Rename**, edit the label, then **Save name**. **Cancel** keeps the original label.
 
-## Delete with the right scope
+## Delete a project
 
-**Delete indexed files only** removes the project from the catalog and deletes its search indexes, while retaining chats, history, knowledge, and configuration. Re-adding the same directory reuses that data and rebuilds the index.
+Choose **Settings → Projects → Delete project**.
 
-**Delete entire history, including knowledge** removes the project's indexes and saved project data. Re-adding then starts with fresh data. Both options leave your source directory and source files on disk.
+| Option | Result when the same directory is added again |
+| --- | --- |
+| **Delete indexed files only** | Reuses retained chats, history, knowledge, and configuration; rebuilds search indexes. |
+| **Delete entire history, including knowledge** | Starts fresh; saved project data is permanently removed. |
 
-Active requests and background learning must finish before deletion. A busy error can be retried. Deleting the current project selects another one; deleting the last shows Add project. See [Data and maintenance](/docs/storage) for cleanup and backup guidance.
+Both remove the catalog entry and leave source files on disk. Wait for active requests and background learning before deleting; retry a busy error afterward.
+
+Deleting the current project selects another. Deleting the last returns to **Add project**, including after restart with the same optional directory argument. See [Data and maintenance](/docs/storage) before cleanup.

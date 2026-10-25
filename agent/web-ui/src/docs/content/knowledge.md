@@ -1,49 +1,44 @@
-**Knowledge helps the agent answer better as Codeberg is used more.** Useful findings from solved investigations become reusable, source-backed explanations. Later questions can draw on that accumulated understanding of your codebase, so the agent can build on what has already been established.
+Knowledge is project-specific and works through chat context, without updating model weights.
 
-**Learning** has a separate goal: collecting reviewed data for post-training custom embedding models and LLMs, and building RL environments. See [Learning](/docs/learning) for that workflow.
+[Learning](/docs/learning) separately collects reviewed data for custom model training and evaluation.
 
-## How knowledge improves answers
+## What knowledge keeps
 
-A solved investigation might establish how a service works, why a request takes a particular path, or what caused a bug. Codeberg can retain that explanation with its source evidence and recall it when another question covers the same area.
+| Category | Example |
+| --- | --- |
+| Services | How authentication is organized. |
+| Flows | How checkout reaches a payment provider. |
+| Concepts | What a domain-specific state means. |
+| Debugging findings | Why a retry failed and which source explains it. |
 
-For example, after you confirm an explanation of a checkout flow, a later question about its retry behavior can start from the saved understanding of that flow. The agent still checks the relevant source, but it has useful context from previous work instead of relying only on the current conversation.
+Findings retain source references and provenance. Later questions can build on confirmed investigations, but the agent should still check the current source. Raw attempts, corrections, and feedback live separately in learning history.
 
-Knowledge is project-specific. Findings from one repository do not silently become another project's knowledge. Its usefulness depends on the quality of confirmed investigations and keeping their evidence current.
+## Choose what runs
 
-> **Knowledge works through context.** Recalled findings help the running agent answer questions. Using knowledge does not require a training export or a model weight update.
+Open **Settings → Learning** for the selected project.
 
-## What is saved
+| Control | Purpose |
+| --- | --- |
+| **Codebase knowledge** | Enable the knowledge capability. |
+| **Use knowledge in chats** | Recall saved findings. |
+| **Learn from solved answers** | Extract new findings from confirmed solutions. |
+| **Automatic source refresh** | Update findings when relevant source changes. |
+| **Daily knowledge consolidation** | Propose combined or improved explanations; off by default. |
 
-Codebase knowledge stores reusable explanations of **services**, **flows**, **concepts**, and **debugging findings**. Artifacts retain source references and provenance so findings can be checked against the code they describe.
+Expand categories to choose what is collected or recalled. Disabling a category retains its files.
 
-Learning history separately retains raw attempts, corrections, and feedback. The agent can recall that history as well as distilled knowledge. Training examples have their own capture and review controls; they are covered in [Learning](/docs/learning).
+For recall without new background knowledge calls, keep the first two controls on and extraction, refresh, and consolidation off. **Record chats and feedback** and dataset capture can stay off.
 
-## Control knowledge
+> **Enable learning** is the shared master switch. Turning it off pauses knowledge, history, and dataset work while retaining data and individual choices. An in-flight model request may finish.
 
-Open **Settings → Learning** for the selected project. Knowledge and training-data controls currently share this settings page, while their purposes and switches are separate.
+## Review consolidation
 
-- **Codebase knowledge** enables the knowledge capability.
-- **Use knowledge in chats** controls whether saved findings can be recalled.
-- **Learn from solved answers** controls new knowledge extraction from confirmed solutions.
-- **Automatic source refresh** controls background updates when relevant source changes.
-- **Daily knowledge consolidation** controls optional daily proposals for combining or improving saved explanations; it is off by default.
+Generate a report in Settings. Inspect before-and-after notes and preserved sources, then **Apply** or **Dismiss**. Applied reports offer **Undo**.
 
-Expand knowledge categories to choose which material is collected or recalled. Disabling a category preserves its saved files.
-
-For recall without new background knowledge calls, leave **Codebase knowledge** and **Use knowledge in chats** enabled, and disable extraction, refresh, and daily consolidation. Knowledge recall can stay available while **Record chats and feedback** is disabled. Dataset capture and training review are separate choices.
-
-The page's master **Enable learning** switch pauses knowledge, history, and dataset work together while retaining stored data and individual choices. A model request already running may finish.
-
-## Keep findings current
-
-Code changes can make an earlier explanation outdated. Saved knowledge retains evidence that can be rechecked; background extraction and refresh use the learning model selected in **Models**. The agent should verify recalled findings against current source when answering.
-
-Source checks reuse a bounded local memory cache to avoid rereading and hashing unchanged files. Every observation still checks the file's identity, size, and modification/change timestamps, and cached contents are reread after five minutes. The cache holds at most 256 files with an estimated 8 MiB text budget. It does not change knowledge capture, refresh, or training-data settings.
-
-Knowledge consolidation proposes changes that combine or improve saved explanations. Generate a report in Settings, inspect before-and-after notes and preserved sources, then apply or dismiss it. Applied reports offer Undo. Consolidation updates saved knowledge rather than training the model.
+Consolidation changes saved explanations. Source refresh rechecks evidence; neither trains the model. Extraction, refresh, and consolidation use the learning model selected in **Models**.
 
 ## Costs and persistence
 
-Extraction, refresh, and consolidation can use model tokens. Recalled knowledge adds context to chat requests. Inspect **Settings → Usage** for recorded requests.
+Background knowledge work can consume model tokens; recall adds context to chat calls. Check **Settings → Usage**.
 
-Deleting only a project's indexes retains its history and knowledge. Deleting the project's entire history removes its saved knowledge as well. The global `CODEBERG_LEARNING_USE=false` switch disables the encompassing subsystem, including knowledge; existing stored data remains on disk. See [Data and maintenance](/docs/storage) before cleanup.
+Deleting only indexes retains knowledge. Deleting the project's entire history removes it. `CODEBERG_LEARNING_USE=false` disables the encompassing subsystem after restart and keeps stored data. See [Data and maintenance](/docs/storage).

@@ -1,4 +1,4 @@
-Environment variables control startup, providers, tools, and indexing. Most users only need a chat model and its credentials. Projects can be added in the app; a startup repository is optional.
+Most users only need a chat model and its credentials. Add projects in the app; a startup repository is optional.
 
 ## Set a value in the right place
 
@@ -133,7 +133,7 @@ Remote vector storage still needs the local sidecars and an embedding model. Cha
 
 ## Browser Use agent
 
-**Environment only.** Enable **Settings → Tools → Browser Use** to let Codeberg delegate tasks to a separate local browser agent. Enabling it does not launch a service. See [Browser Use delegation](/docs/tools#browser-use-delegation) for uv/browser prerequisites, model support, data handling, and limits.
+**Environment only.** Enable **Settings → Tools → Browser Use** for browser delegation. See [Browser Use](/docs/browser-use) for prerequisites, models, sessions, and limits.
 
 | Variable | Value or default | What it changes |
 | --- | --- | --- |

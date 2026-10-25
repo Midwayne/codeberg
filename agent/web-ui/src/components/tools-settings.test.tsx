@@ -41,7 +41,7 @@ it('explains on-demand delegation, setup, and cancellation without requiring a m
   expect(html).toContain('separate local agent');
   expect(html).toContain('only when the agent delegates a task');
   expect(html).toContain('Requires uv');
-  expect(html).toContain('/docs/tools#browser-use-delegation');
+  expect(html).toContain('/docs/browser-use');
   expect(html).toContain('cancels active browser tasks');
 });
 

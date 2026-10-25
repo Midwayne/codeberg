@@ -92,6 +92,12 @@ Keep internal cross-links and headings valid, and verify the docs remain usable
 before any project or chat model is configured. Repository/developer references
 under `docs/` supplement these pages; they do not replace the in-app guide.
 
+Write the guide for scanning: use short leads, task-focused headings, numbered
+steps for setup, fenced examples for copyable input, and tables for choices or
+limits. Keep Getting started focused on the first successful question. Put
+detailed workflows in linked guides, avoid repeating reference material, and
+retain prerequisites, defaults, scope, costs, and recovery steps when shortening.
+
 Keep the two goals distinct: Knowledge accumulates useful codebase findings so
 the agent answers better as Codeberg is used more. Learning collects reviewed
 data for custom embedding/LLM post-training, evaluation, and RL environments.
