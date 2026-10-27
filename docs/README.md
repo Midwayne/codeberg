@@ -7,6 +7,10 @@ developer and technical references.
 
 Project-wide overview. **libcodeberg** details live under [core/docs](../core/docs/).
 
+[How the indexer works](indexer-explained.md) explains automatic chunking, source
+graphs, embeddings, vector/hybrid search, live updates, and warm restarts, with
+worked examples and links to the implementation.
+
 ## Repository layout
 
 | Path                  | Role                                                            |
