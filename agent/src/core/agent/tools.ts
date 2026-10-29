@@ -31,6 +31,7 @@ export async function prepareSystem(
     contextRoot: state.context.root,
     batch: toolNames.includes(BATCH_TOOL) ? MAX_BATCH_CALLS : undefined,
     compact: budgetWindow(state.profile) <= 16_384,
+    decisions: toolNames.includes('decide'),
   });
   if (toolNames.includes('search_bundle')) state.system += '\n\nsearch_bundle is an experimental read-only pipeline for up to four explicit repository/query pairs. Use repos to discover keys, then use it for cross-repository evidence. Inspect partial failures and omitted results before concluding absence.';
 

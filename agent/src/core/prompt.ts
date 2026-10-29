@@ -2,6 +2,7 @@ import type { SkillSummary } from './context/skills.js';
 import type { McpServerReport } from './mcp/catalog.js';
 import { AGENT_GUIDANCE } from './prompts/guidance.js';
 import { compactAgentSystem } from './prompts/compact.js';
+import { DECISION_INSTRUCTIONS } from './prompts/decisions.js';
 import {
   batchInstructions,
   strategyInstructions,
@@ -33,6 +34,8 @@ export interface AgentSystemPromptOptions {
   batch?: number;
   /** Keep operational rules concise for models with small working windows. */
   compact?: boolean;
+  /** Encourage bounded judgments only when the decide tool is registered. */
+  decisions?: boolean;
 }
 
 const MAX_MCP_TOOLS_LISTED = 40;
@@ -51,7 +54,7 @@ export function agentSystemPrompt(web: AgentSystemPromptOptions): string {
   const mcp = web.mcp ?? [];
   const skills = web.skills ?? [];
   const contextRoot = web.contextRoot;
-  const lines = [promptBase(web)];
+  const lines = [promptBase(web), ...(web.decisions ? DECISION_INSTRUCTIONS : [])];
   if (web.batch) {
     lines.push(batchInstructions(web.batch));
   }

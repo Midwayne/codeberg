@@ -85,6 +85,7 @@ it('lets the main agent use decisions between search and file reading without na
     expect(JSON.stringify(model.doGenerateCalls[2]?.prompt)).toContain('"choice":"cache.ts"');
     for (const call of model.doGenerateCalls) {
       expect(call.tools?.map((item) => item.name)).toEqual(expect.arrayContaining(['grep', 'read_file', 'decide']));
+      expect(JSON.stringify(call.prompt)).toContain('Decisions strategy:');
     }
   } finally {
     await agent.close();
@@ -110,6 +111,7 @@ it('does not register or call a decisions API when disabled', async () => {
   try {
     await agent.ask('Hello');
     expect(model.doGenerateCalls[0]?.tools?.map((item) => item.name)).not.toContain('decide');
+    expect(JSON.stringify(model.doGenerateCalls[0]?.prompt)).not.toContain('Decisions strategy:');
     expect(fetch).not.toHaveBeenCalled();
   } finally {
     await agent.close();

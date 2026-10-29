@@ -72,6 +72,8 @@ Catalog edits are read when settings are requested. Credential and launcher-conf
 
 Enable a separate, optional `decide` tool for the main agent. It can call the tool whenever useful to choose candidate files, score search-result relevance, check evidence, or select a next step. Your chat model still discovers candidates and writes the answer; Codeberg can forward source excerpts directly to the decisions model before the chat model reads them. The agent decides when the tool is useful.
 
+When the tool is available, the agent's system instructions encourage using it before reading several candidate files or spending substantial reasoning on a bounded comparison. They state that the Decisions API is substantially cheaper for these judgments. The guidance favors existing snippets, direct file-range forwarding, and batched questions. Simple or deterministic judgments stay with the main agent; important conclusions still require source verification. This guidance is absent when Decisions is Off.
+
 1. Add `decision_models` under providers in `$CODEBERG_HOME/models.yml`. Keep your existing text `models` entries; at least one available text model is required.
 2. Set the matching API key in your launcher config or environment and restart Codeberg. Keep credentials out of `models.yml`.
 3. Open **Models → Decisions API**, select a model, and save. **Off** removes the tool. Changes apply to the next chat turn; active turns retain their selection.
