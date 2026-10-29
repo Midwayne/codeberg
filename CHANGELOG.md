@@ -356,6 +356,30 @@ changes may occur in minor releases and are called out explicitly.
 - **Re-embedding the whole corpus on every restart** — the chunk table was rebuilt
   empty at startup, so bootstrap treated every chunk as new and re-embedded it.
 
+## [0.1.10] - 2026-10-29
+
+### Added
+
+- Optional Decisions API models in `models.yml` and **Models → Decisions API**,
+  with OpenAI, TypeSafe, OpenRouter, and Cloudflare adapters. The main agent can
+  use `decide` for relevance checks, fixed choices, scores, and other bounded
+  judgments throughout an investigation.
+- Forward candidate file ranges directly to the decisions model and return
+  probabilities and coverage metadata without filling the chat model's context
+  with source bodies. Batch per-file relevance questions automatically, reuse
+  identical decisions within a run, and cache shared file evidence with OpenAI.
+- Separate **Decisions** input/output token accounting, activity filtering,
+  request history, and CSV exports. Older decision records retain their saved
+  Chat category.
+
+### Changed
+
+- When `decide` is available, system guidance explains its cost advantage and
+  encourages bounded comparisons, batched questions, and direct file forwarding,
+  while retaining source verification and ordinary tools for simple judgments.
+- Expand the in-app guide with decisions setup, usage, limits, and recovery, and
+  an explanation of indexing, chunking, graphs, and embeddings.
+
 ## [0.1.8] - 2026-10-23
 
 ### Changed
