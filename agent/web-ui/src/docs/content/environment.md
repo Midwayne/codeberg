@@ -45,6 +45,9 @@ Browser projects and the launcher's repository registry are separate catalogs. *
 | `CODEBERG_SUBAGENT_MODEL` | Defaults to the chat model | Initial model for background extraction and learning work. |
 | `CODEBERG_REASONING` | Provider default when unset | `provider-default`, `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. Actual support depends on the selected provider and model. |
 | `OPENAI_API_KEY` | Secret | Credential for the `openai` provider. |
+| `TYPESAFE_API_KEY` | Secret | Credential for TypeSafe decision models. |
+| `OPENROUTER_API_KEY` | Secret | Credential for OpenRouter decision models. |
+| `CLOUDFLARE_API_TOKEN` | Secret | Workers AI credential for a configured Cloudflare decisions endpoint. |
 | `ANTHROPIC_API_KEY` | Secret | Credential for the `anthropic` provider. |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | Secret | Credential for the `google` provider. |
 | `OLLAMA_BASE_URL` | `http://localhost:11434/v1` | OpenAI-compatible chat endpoint for the `ollama` provider. Include `/v1`. |

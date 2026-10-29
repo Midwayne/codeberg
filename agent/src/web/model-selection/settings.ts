@@ -5,6 +5,7 @@ import { writeJsonAtomic } from '../../core/learning/fs.js';
 import type { CatalogModel, ModelSelection, ModelSettings } from '../../core/model-types.js';
 import { codebergHome } from '../../core/paths.js';
 import { loadModelCatalog, object, validEffort, type ModelCatalogOptions } from './catalog.js';
+import { loadDecisionCatalog, resolveDecision } from '../../core/decisions/catalog.js';
 
 export { MODEL_INPUTS } from '../../core/model-types.js';
 export type {
@@ -21,15 +22,18 @@ export class ModelSettingsStore {
   private readonly catalog: ModelCatalogOptions;
   private readonly settingsPath: string;
   private writing: Promise<void> = Promise.resolve();
+  private readonly env: NodeJS.ProcessEnv;
 
   constructor(options: {
     home?: string;
+    env?: NodeJS.ProcessEnv;
     catalogPath?: string;
     defaultChat: ModelSelection;
     defaultLearning: ModelSelection;
     availableProvider?: (provider: string) => boolean;
   }) {
-    const home = options.home ?? codebergHome();
+    const home = options.home ?? codebergHome(options.env);
+    this.env = options.env ?? process.env;
     this.catalog = {
       catalogPath: options.catalogPath ?? join(home, 'models.yml'),
       defaultChat: options.defaultChat,
@@ -41,6 +45,7 @@ export class ModelSettingsStore {
 
   async current(): Promise<ModelSettings> {
     const models = await loadModelCatalog(this.catalog);
+    const catalog = await loadDecisionCatalog(this.catalog.catalogPath, this.env);
     let stored: unknown;
     try {
       stored = JSON.parse(await readFile(this.settingsPath, 'utf8'));
@@ -52,6 +57,8 @@ export class ModelSettingsStore {
 
     return {
       models,
+      decisionModels: catalog.decisionModels,
+      decisions: resolveDecision(catalog, values?.decisions),
       chat: this.resolve(values?.chat, this.catalog.defaultChat, models),
       learning: this.resolve(values?.learning, this.catalog.defaultLearning, models),
     };
@@ -66,7 +73,13 @@ export class ModelSettingsStore {
       const models = await loadModelCatalog(this.catalog);
       const chat = this.validate(values.chat, models);
       const learning = this.validate(values.learning, models);
-      await writeJsonAtomic(this.settingsPath, { chat, learning });
+      const current = await this.current();
+      const decisions = values.decisions === undefined ? current.decisions : values.decisions;
+      if (decisions !== null && !current.decisionModels?.some((model) => model.key === decisions)) {
+        throw new ModelSelectionError('unknown or unavailable decision model');
+      }
+
+      await writeJsonAtomic(this.settingsPath, { chat, learning, decisions });
     });
 
     this.writing = update.catch(() => undefined);

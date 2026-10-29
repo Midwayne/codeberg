@@ -44,6 +44,9 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # API key matching CODEBERG_MODEL (ollama and llamacpp need none).
 # ANTHROPIC_API_KEY=
 # OPENAI_API_KEY=
+# TYPESAFE_API_KEY=
+# OPENROUTER_API_KEY=
+# CLOUDFLARE_API_TOKEN=
 # GOOGLE_GENERATIVE_AI_API_KEY=
 
 # =============================================================================

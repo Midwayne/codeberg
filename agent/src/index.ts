@@ -8,6 +8,11 @@ export {
 } from './core/branch.js';
 export { cachedInstructions, deterministicTools, requestProviderOptions } from './core/cache.js';
 export { DaemonClient } from './core/client.js';
+export { requestDecision } from './core/decisions/client.js';
+export { decisionTools } from './core/decisions/tool.js';
+export type {
+  DecisionModel, DecisionQuestion, DecisionRequest, DecisionResult, DecisionFile, DecisionToolInput, DecisionToolResult,
+} from './core/decisions/types.js';
 export { wrapToolLoopAgentWithCompaction, type HistoryCompactor } from './core/compaction.js';
 export { createAgentFromEntry } from './core/config.js';
 export { entryUsage, parseEntryArgs, type EntryConfig } from './core/entry.js';

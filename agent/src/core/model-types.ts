@@ -1,5 +1,6 @@
 import type { ReasoningEffort } from './types.js';
 import type { ModelPricing } from './usage.js';
+import type { DecisionModel } from './decisions/types.js';
 
 export const MODEL_INPUTS = ['text', 'vision', 'audio', 'video', 'pdf'] as const;
 
@@ -26,8 +27,10 @@ export interface CatalogModel {
 export interface ModelSelections {
   chat: ModelSelection;
   learning: ModelSelection;
+  decisions?: string | null;
 }
 
 export interface ModelSettings extends ModelSelections {
   models: CatalogModel[];
+  decisionModels?: DecisionModel[];
 }

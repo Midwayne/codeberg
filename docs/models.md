@@ -1,5 +1,11 @@
 # Browser model settings
 
+The [in-app guide](../agent/web-ui/src/docs/content/models.md#use-a-decisions-api)
+also covers optional decisions providers and the agent's general-purpose `decide`
+tool. Configure `decision_models` alongside text models, then select **Models →
+Decisions API**. Decisions return bounded judgments; chat and learning retain
+their text models.
+
 Put your allowlist at `$CODEBERG_HOME/models.yml` (normally
 `~/.codeberg/models.yml`):
 

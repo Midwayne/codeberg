@@ -66,7 +66,14 @@ describe('model runtime', () => {
     await pool.forSelection({ ...alpha, contextWindow: 60_000 });
     await pool.forSelection({ ...alpha, inputs: ['text'] });
     await pool.forSelection({ ...alpha, inputs: ['text', 'vision'] });
-    expect(build).toHaveBeenCalledTimes(5);
+    await pool.forSelection({ ...alpha, decisionModel: null });
+    const routed = { ...alpha, decisionModel: {
+      key: 'openai:decisions', model: 'gpt-6-luna', provider: 'openai', label: 'Decisions',
+      api: 'openai' as const, endpoint: 'https://example.test/decisions', apiKeyEnv: 'OPENAI_API_KEY',
+    } };
+    expect(await pool.forSelection(routed)).toBe(await pool.forSelection(routed));
+    await pool.forSelection({ ...routed, decisionModel: { ...routed.decisionModel, endpoint: 'https://new.test/decisions' } });
+    expect(build).toHaveBeenCalledTimes(8);
     expect(build).toHaveBeenNthCalledWith(2, beta);
   });
 

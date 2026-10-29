@@ -15,6 +15,9 @@ export const models: ModelSettings = {
     contextWindow: 128000, efforts: ['low', 'high'], inputs: ['text'] }],
   chat: { key: 'demo:model', effort: 'low' },
   learning: { key: 'demo:model', effort: 'low' },
+  decisions: null,
+  decisionModels: [{ key: 'demo:decisions', provider: 'demo', model: 'decisions', label: 'Demo decisions',
+    api: 'openai', endpoint: 'https://example.invalid/decisions', apiKeyEnv: 'DEMO_DECISIONS_KEY' }],
 };
 
 export const canvas = { enabled: true };

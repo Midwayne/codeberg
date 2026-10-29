@@ -5,6 +5,8 @@ import { expect, it } from 'vitest';
 import { parseMcpJson } from '../core/mcp/config.js';
 import { parseSkillDocument } from '../core/context/skills.js';
 import { loadModelCatalog } from './model-selection/catalog.js';
+import { loadDecisionCatalog } from '../core/decisions/catalog.js';
+import { parse, stringify } from 'yaml';
 
 async function example(topic: string, language: string) {
   const path = new URL(`../../web-ui/src/docs/content/${topic}.md`, import.meta.url);
@@ -46,4 +48,33 @@ it('publishes valid MCP and skill examples', async () => {
   expect(mcp.warnings).toEqual([]);
   expect(mcp.servers).toHaveLength(1);
   expect(parseSkillDocument(await example('skills', 'md'), 'review-api-change')?.name).toBe('review-api-change');
+});
+
+it('publishes decision catalog overlays that work with the text-model example', async () => {
+  const path = new URL('../../web-ui/src/docs/content/models.md', import.meta.url);
+  const content = await readFile(path, 'utf8');
+  const blocks = [...content.matchAll(/```yaml\n([\s\S]*?)\n```/g)].map((match) => parse(match[1]!));
+  const catalog = blocks[0];
+  for (const overlay of blocks.slice(1)) {
+    catalog.decisions ??= overlay.decisions;
+    for (const [provider, definition] of Object.entries(overlay.providers)) {
+      catalog.providers[provider] = { ...catalog.providers[provider], ...definition as object };
+    }
+  }
+
+  const home = await mkdtemp(join(tmpdir(), 'codeberg-docs-decisions-'));
+  try {
+    const catalogPath = join(home, 'models.yml');
+    await writeFile(catalogPath, stringify(catalog));
+    const loaded = await loadDecisionCatalog(catalogPath, {
+      OPENAI_API_KEY: 'test', TYPESAFE_API_KEY: 'test', OPENROUTER_API_KEY: 'test', CLOUDFLARE_API_TOKEN: 'test',
+    });
+
+    expect(loaded.decisionModels).toHaveLength(4);
+    expect(loaded.decisions).toBe('openai:fast');
+    expect((await loadModelCatalog({ catalogPath, defaultChat: { key: '', effort: 'none' },
+      defaultLearning: { key: '', effort: 'none' } }))[0]?.key).toBe('openai:everyday');
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
 });

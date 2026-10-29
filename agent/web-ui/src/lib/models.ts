@@ -15,7 +15,7 @@ export async function loadModelSettings(): Promise<ModelSettings> {
   return response.json() as Promise<ModelSettings>;
 }
 
-export async function saveModelSettings(input: Pick<ModelSettings, 'chat' | 'learning'>): Promise<ModelSettings> {
+export async function saveModelSettings(input: Pick<ModelSettings, 'chat' | 'learning' | 'decisions'>): Promise<ModelSettings> {
   const response = await fetch('/api/models', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },

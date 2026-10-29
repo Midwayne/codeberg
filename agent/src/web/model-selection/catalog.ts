@@ -97,6 +97,8 @@ export async function loadModelCatalog(options: ModelCatalogOptions): Promise<Ca
       throw new Error(`invalid provider in models.yml: ${provider}`);
 
     const entries = object(object(definition)?.models);
+    if (!entries && object(definition)?.models === undefined && object(object(definition)?.decision_models)) continue;
+
     if (!entries) throw new Error(`models.yml provider ${provider} must define models`);
 
     for (const [id, definition] of Object.entries(entries)) {

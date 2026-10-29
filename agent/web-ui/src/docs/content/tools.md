@@ -38,6 +38,12 @@ Codeberg saves large results locally and gives the agent a preview and path.
 
 Pages target 8,000 characters. Long lines use fragments up to 2,000 characters; `context_read` returns continuation positions for `start_line` and `start_column` (1-based UTF-16). Grep returns excerpts and positions. Regex searches and tails may still scan or buffer large lines.
 
+## Optional decisions tool
+
+Select **Models → Decisions API** to add `decide`. The agent can use it at any point to select candidate files, score relevance, check evidence, compare hypotheses, suggest test priorities, or choose a next step. It can use search snippets or pass candidate paths/ranges: Codeberg forwards bounded source excerpts directly to the selected provider and returns judgments and coverage metadata without putting source bodies into the main model's context. Omit custom questions with files to batch independent per-file relevance probabilities automatically. The tool cannot discover candidates, generate prose, or execute actions.
+
+Decision calls have separate provider costs. They are optional and do not replace the chat model. See [Models and decisions setup](/docs/models#use-a-decisions-api) for providers, credentials, limits, and recovery.
+
 ## Optional web tools
 
 **Web search defaults off.** Enable **Settings → Tools → Web search** for all projects. The saved preference survives restarts and applies to new chat turns.

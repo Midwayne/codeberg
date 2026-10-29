@@ -22,6 +22,7 @@ import { WebSessionStore } from '../sessions/store.js';
 import type { OwnedRuntime, ProjectRuntimeOptions } from './types.js';
 import { sharedUsageStore } from '../usage/shared.js';
 import { projectUsageTracker } from '../usage/project.js';
+import { decisionUsageTracker } from '../usage/decisions.js';
 import type { ToolSettingsStore } from '../tools/settings.js';
 import { projectEvaluationRuntime } from './evaluations.js';
 
@@ -61,7 +62,7 @@ export async function buildProjectHandler(project: Project, options: ProjectRunt
   });
 
   const pool = new ReloadableAgentPool((webEnv) => createWebModelPool(daemonUrl, learning ?? false, { ...env, ...webEnv },
-    (model, selection) => track(model, selection.key, selection.model, 'chat')));
+    (model, selection) => track(model, selection.key, selection.model, 'chat'), decisionUsageTracker(usage, project)));
   const runs = new SearchRuns(sessions, projectGenerator(pool, extensions, learning, canvas, options.tools), { learning });
   const runtime = { projectId: project.id, learning, resources, pool, canvas, runs };
   owned.push(runtime);

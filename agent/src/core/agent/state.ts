@@ -18,8 +18,11 @@ import type { WebConfig } from '../web/types.js';
 import type { AgentOptions } from './options.js';
 import { agentEvaluationRuntime } from './evaluations.js';
 import type { ModelInput } from '../model-types.js';
+import type { DecisionModel, DecisionUsageSink } from '../decisions/types.js';
 
 export class AgentState {
+  readonly decisionModel?: DecisionModel | null;
+  readonly onDecisionUsage?: DecisionUsageSink;
   readonly browserOwner = randomUUID();
 
   readonly env: NodeJS.ProcessEnv;
@@ -75,6 +78,8 @@ export class AgentState {
   readonly ledger = new EvidenceLedger();
 
   constructor(opts: AgentOptions) {
+    this.decisionModel = opts.decisionModel;
+    this.onDecisionUsage = opts.onDecisionUsage;
     this.env = opts.env ?? process.env;
     this.model = opts.model;
     this.modelInputs = opts.modelInputs;

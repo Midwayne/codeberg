@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { loadModelSettings, saveModelSettings, type ModelSettings } from './models';
 
-export type Choices = Pick<ModelSettings, 'chat' | 'learning'>;
+export type Choices = Pick<ModelSettings, 'chat' | 'learning' | 'decisions'>;
 
 export type ModelSettingsPanelOptions = { onClose: () => void; onSaved: () => void };
 
@@ -21,7 +21,7 @@ export function useModelSettingsPanel({ onClose, onSaved }: ModelSettingsPanelOp
       .then((value) => {
         if (!active) return;
         setSettings(value);
-        setDraft({ chat: value.chat, learning: value.learning });
+        setDraft({ chat: value.chat, learning: value.learning, decisions: value.decisions ?? null });
       })
       .catch((failure: unknown) => {
         if (active) setError(String(failure));

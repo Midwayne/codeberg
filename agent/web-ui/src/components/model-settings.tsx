@@ -1,5 +1,7 @@
 import { LoadingBoundary } from './loading';
 import { useModelSettingsPanel, type Choices } from '../lib/use-model-settings';
+import { DecisionSettings } from './decision-settings';
+import type { DecisionModel } from '@agent/core/decisions/types.js';
 import { X } from 'lucide-react';
 
 import { Dialog, ErrorNotice, IconButton, Select } from './ui';
@@ -35,22 +37,24 @@ function ModelSettingsPanelView({
       className="fixed inset-auto top-20 right-4 m-0 max-h-[calc(100dvh-6rem)] w-[28rem] bg-background"
     >
       <form
-        className="p-5"
+        className="flex max-h-[calc(100dvh-6rem)] flex-col p-5"
         onSubmit={(event) => {
           event.preventDefault();
           void save();
         }}
       >
-        <div className="mb-5 flex items-center justify-between gap-3">
+        <div className="mb-5 flex shrink-0 items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">Model settings</h2>
           <IconButton ref={closeRef} onClick={onClose} aria-label="Close model settings">
             <X className="size-4" />
           </IconButton>
         </div>
-        <LoadingBoundary loading={!draft && !error} label="Loading models…" kind="form">
-          {draft && settings && <ModelSettingsForm models={settings.models} value={draft} onChange={setDraft} />}
-          <ModelSettingsError error={error} draft={draft} save={save} setAttempt={setAttempt} />
-        </LoadingBoundary>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <LoadingBoundary loading={!draft && !error} label="Loading models…" kind="form">
+            {draft && settings && <ModelSettingsForm models={settings.models} decisionModels={settings.decisionModels} value={draft} onChange={setDraft} />}
+            <ModelSettingsError error={error} draft={draft} save={save} setAttempt={setAttempt} />
+          </LoadingBoundary>
+        </div>
         <ModelSettingsActions onClose={onClose} draft={draft} saving={saving} />
       </form>
     </Dialog>
@@ -59,11 +63,12 @@ function ModelSettingsPanelView({
 
 export type ModelSettingsFormProps = {
   models: readonly CatalogModel[];
+  decisionModels?: readonly DecisionModel[];
   value: Choices;
   onChange: (value: Choices) => void;
 };
 
-export function ModelSettingsForm({ models, value, onChange }: ModelSettingsFormProps) {
+export function ModelSettingsForm({ models, decisionModels = [], value, onChange }: ModelSettingsFormProps) {
   return (
     <div className="space-y-4">
       <ChoiceFields
@@ -83,6 +88,8 @@ export function ModelSettingsForm({ models, value, onChange }: ModelSettingsForm
       <p className="text-xs leading-5 text-muted-foreground">
         Chat changes apply to the next message. Learning changes apply to the next background job.
       </p>
+      <DecisionSettings models={decisionModels} value={value.decisions}
+        onChange={(decisions) => onChange({ ...value, decisions })} />
     </div>
   );
 }
@@ -145,7 +152,7 @@ export type ModelSettingsActionsProps = Pick<
 
 function ModelSettingsActions({ onClose, draft, saving }: ModelSettingsActionsProps) {
   return (
-    <div className="mt-5 flex justify-end gap-2 border-t border-border pt-4">
+    <div className="mt-5 flex shrink-0 justify-end gap-2 border-t border-border pt-4">
       <button
         type="button"
         onClick={onClose}

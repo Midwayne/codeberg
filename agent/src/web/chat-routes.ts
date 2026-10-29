@@ -8,9 +8,12 @@ import type { ModelInput, ModelSelection } from '../core/model-types.js';
 import { readJson, sendText } from './http.js';
 import type { ModelSettingsStore } from './model-selection/settings.js';
 import { formatWebTitle } from './title.js';
+import type { DecisionModel } from '../core/decisions/types.js';
 
 /** A model choice bound to one chat request. */
-export type ResolvedModelSelection = ModelSelection & { model: string; contextWindow: number; inputs?: ModelInput[] };
+export type ResolvedModelSelection = ModelSelection & {
+  model: string; contextWindow: number; inputs?: ModelInput[]; decisionModel?: DecisionModel | null;
+};
 
 export type ChatResponder = (
   res: ServerResponse,
@@ -43,7 +46,8 @@ export async function routeChat(
   if (error) return sendText(res, 400, error);
 
   const selection = selected && settings
-    ? { ...settings.chat, model: selected.model, contextWindow: selected.contextWindow, inputs: selected.inputs }
+    ? { ...settings.chat, model: selected.model, contextWindow: selected.contextWindow, inputs: selected.inputs,
+      decisionModel: settings.decisionModels?.find((item) => item.key === settings.decisions) ?? null }
     : undefined;
 
   await withCanvasChat(body?.id, () => runs

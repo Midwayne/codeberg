@@ -13,6 +13,8 @@ import { BATCH_TOOL, MAX_BATCH_CALLS } from '../tools/batch.js';
 import { DEFAULT_SEARCH_K } from './options.js';
 import type { AgentState } from './state.js';
 import { budgetWindow } from '../../providers/profiles.js';
+import { configuredDecision } from '../decisions/catalog.js';
+import { decisionTools } from '../decisions/tool.js';
 
 export async function prepareSystem(
   state: AgentState,
@@ -45,7 +47,8 @@ export async function prepareSystem(
 }
 
 export async function buildTools(state: AgentState) {
-  return createAgentTools({
+  const decisions = state.decisionModel === undefined ? await configuredDecision(state.env) : state.decisionModel;
+  const tools = await createAgentTools({
     env: state.env,
     browserOwner: state.browserOwner,
     browserInputs: state.modelInputs,
@@ -69,4 +72,6 @@ export async function buildTools(state: AgentState) {
     searchBundle: ['true', '1', 'on', 'yes'].includes((state.env.CODEBERG_SEARCH_BUNDLE_USE ?? '').toLowerCase()),
     onResults: (hits) => state.sources.push(...hits),
   });
+
+  return { ...tools, ...decisionTools(decisions, { env: state.env, daemon: state.daemon, onUsage: state.onDecisionUsage }) };
 }

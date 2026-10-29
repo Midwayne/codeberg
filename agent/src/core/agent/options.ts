@@ -8,6 +8,7 @@ import type { McpConfig } from '../mcp/types.js';
 import type { Generator, ReasoningEffort } from '../types.js';
 import type { WebConfig } from '../web/types.js';
 import type { ModelInput } from '../model-types.js';
+import type { DecisionModel, DecisionUsageSink } from '../decisions/types.js';
 
 export const DEFAULT_SEARCH_K = 8;
 
@@ -22,6 +23,9 @@ export const DEFAULT_TIMEOUT = {
 } as const;
 
 export interface AgentOptions {
+  /** Optional decisions tool. Undefined loads the saved choice; null disables it. */
+  decisionModel?: DecisionModel | null;
+  onDecisionUsage?: DecisionUsageSink;
   /** Request-bound discovery environment for repository skills and MCPs. */
   env?: NodeJS.ProcessEnv;
   model: LanguageModel;

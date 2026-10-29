@@ -10,8 +10,11 @@ import { assertAgentRuntime } from './runtime.js';
 import type { ReasoningEffort } from './types.js';
 import { agentProfiles } from './model-profiles.js';
 import type { ModelInput } from './model-types.js';
+import type { DecisionModel, DecisionUsageSink } from './decisions/types.js';
 
 export interface AgentConfig {
+  onDecisionUsage?: DecisionUsageSink;
+  decisionModel?: DecisionModel | null;
   transformModel?: (model: LanguageModel) => LanguageModel;
   env?: NodeJS.ProcessEnv;
   modelSpec: string;
@@ -61,6 +64,8 @@ export function createAgent(config: AgentConfig): Agent {
 
   return new Agent({
     model,
+    decisionModel: config.decisionModel,
+    onDecisionUsage: config.onDecisionUsage,
     modelInputs: config.modelInputs,
     env,
     context: ContextStore.open(defaultContextRoot(env)),

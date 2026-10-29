@@ -9,6 +9,7 @@ import { writeLearningTrace } from '../../core/module-log.js';
 import type { Generator } from '../../core/types.js';
 import type { ResolvedModelSelection } from '../chat-routes.js';
 import type { ModelSettingsStore } from './settings.js';
+import type { DecisionUsageSink } from '../../core/decisions/types.js';
 
 /** A loop's model, effort, and history budget are immutable for its lifetime. */
 export class ModelAgentPool {
@@ -45,6 +46,7 @@ export function createWebModelPool(
   learning: LearningService | false,
   env?: NodeJS.ProcessEnv,
   transformModel?: (model: LanguageModel, selection: ResolvedModelSelection) => LanguageModel,
+  onDecisionUsage?: DecisionUsageSink,
 ): ModelAgentPool {
   const agents: Array<{ close(): Promise<void> }> = [];
 
@@ -54,6 +56,8 @@ export function createWebModelPool(
         daemonUrl,
         env,
         modelSpec: selection.model,
+        decisionModel: selection.decisionModel,
+        onDecisionUsage,
         modelInputs: selection.inputs,
         reasoning: selection.effort === 'provider-default' ? undefined : selection.effort,
         contextWindow: selection.contextWindow,
