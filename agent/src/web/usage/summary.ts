@@ -18,7 +18,7 @@ function add(total: UsageTotals, row: UsageRecord) {
 
 export function summarizeUsage(rows: UsageRecord[]): UsageSummary {
   const totals = empty();
-  const kinds = { chat: empty(), learning: empty() };
+  const kinds = { chat: empty(), learning: empty(), decisions: empty() };
   const daily = new Map<string, UsageTotals>();
   const models = new Map<string, UsageTotals>();
 

@@ -178,4 +178,35 @@ describe('usage API', () => {
     expect(report.totals).toMatchObject({ requests: 26, costUsd: 26 });
     expect(report.models[0]).toMatchObject({ requests: 26, inputTokens: 260 });
   });
+
+  it('separates decisions totals and filters decisions before pagination and CSV export', async () => {
+    const { usage, url } = await fixture();
+    const shared = { model: 'openai:gpt-6-luna', key: 'openai:shared', outputTokens: 0,
+      cacheReadTokens: 20, cacheWriteTokens: 10, costUsd: null, timestamp: Date.UTC(2026, 9, 1) };
+    await usage.record({ ...shared, kind: 'chat', inputTokens: 100 });
+    await usage.record({ ...shared, kind: 'learning', inputTokens: 200 });
+    for (let i = 0; i < 26; i++) await usage.record({ ...shared, kind: 'decisions', inputTokens: 50 });
+
+    const query = '?start=2026-10-01&end=2026-10-03';
+    const all = await (await fetch(url + query)).json();
+    expect(all.totals).toMatchObject({ requests: 28, inputTokens: 1600, outputTokens: 0 });
+    expect(all.kinds.chat).toMatchObject({ requests: 1, inputTokens: 100 });
+    expect(all.kinds.learning).toMatchObject({ requests: 1, inputTokens: 200 });
+    expect(all.kinds.decisions).toMatchObject({ requests: 26, inputTokens: 1300, outputTokens: 0 });
+
+    const response = await fetch(url + query + '&kind=decisions&page=2');
+    expect(response.status).toBe(200);
+    const decisions = await response.json();
+    expect(decisions.totals).toEqual(all.kinds.decisions);
+    expect(decisions.records).toHaveLength(1);
+    expect(decisions.records[0].kind).toBe('decisions');
+    expect(decisions.models[0]).toMatchObject(all.kinds.decisions);
+    expect(decisions.daily[0]).toMatchObject(all.kinds.decisions);
+
+    const csv = await (await fetch(url + query + '&kind=decisions&format=csv&page=2')).text();
+    expect(csv.split('\r\n')).toHaveLength(28);
+    expect(csv).toContain('"decisions"');
+    expect(csv).not.toContain('"chat"');
+    expect(csv).not.toContain('"learning"');
+  });
 });

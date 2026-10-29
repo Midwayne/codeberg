@@ -5,7 +5,7 @@ import { expect, it } from 'vitest';
 import { decisionUsageTracker } from './decisions.js';
 import { UsageStore } from './store.js';
 
-it('records decisions under Chat with distinct model attribution and absent counts as unreported', async () => {
+it('records decisions separately from chat and learning with absent counts as unreported', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'codeberg-decision-usage-'));
   try {
     const store = new UsageStore(dir);
@@ -18,7 +18,7 @@ it('records decisions under Chat with distinct model attribution and absent coun
     const rows = await store.read('2020-01-01', '2100-01-01');
 
     expect(rows).toHaveLength(2);
-    expect(rows.every((row) => row.kind === 'chat' && row.project === 'project' && row.key === model.key)).toBe(true);
+    expect(rows.every((row) => row.kind === 'decisions' && row.project === 'project' && row.key === model.key)).toBe(true);
     expect(rows.map((row) => row.inputTokens).sort()).toEqual([50, null].sort());
     expect(rows.map((row) => row.outputTokens).sort()).toEqual([0, null].sort());
     const recorded = rows.find((row) => row.inputTokens !== null)!;

@@ -13,7 +13,7 @@ THESIS: Let users inspect provider-reported input and output tokens across all p
 
 OWN-WORLD: Inherit Codeberg's semantic palettes, system sans, Lucide icons, native fields, compact navigation and restrained borders.
 
-STORY: Choose a UTC period and All / Chat / Learning activity, read separate input and output counts with activity contributions in All, inspect daily activity and per-model totals, then review or export individual provider calls with project attribution. Cache breakdowns and spend estimates are omitted from the view and CSV.
+STORY: Choose a UTC period and All / Chat / Learning / Decisions activity, read separate input and output counts with activity contributions in All, inspect daily activity and per-model totals, then review or export individual provider calls with project attribution. Cache breakdowns and spend estimates are omitted from the view and CSV.
 
 FIRST VIEWPORT: Usage heading and All projects scope; date range and quick presets; two metrics for input tokens and output tokens; a broad daily chart with an input/output selector. Model breakdown and paginated request history follow.
 

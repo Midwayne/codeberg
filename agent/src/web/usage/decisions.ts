@@ -5,7 +5,7 @@ import type { UsageStore } from './store.js';
 
 export function decisionUsageTracker(store: UsageStore, project?: Project): DecisionUsageSink {
   return (model, usage) => captureUsage(store, {
-    model: `${model.provider}:${model.model}`, key: model.key, kind: 'chat',
+    model: `${model.provider}:${model.model}`, key: model.key, kind: 'decisions',
     project: project?.id, projectName: project?.name,
   }, {
     inputTokens: { total: usage?.input_tokens, noCache: undefined,

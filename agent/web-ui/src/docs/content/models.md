@@ -178,7 +178,7 @@ Coverage metadata reports lines, character counts, and whether the excerpt cover
 
 The [OpenAI Decisions reference](https://developers.openai.com/api/reference/resources/decisions/methods/create) currently lists a 30-minute prompt-cache TTL and no `service_tier` request field. Codeberg does not apply Responses API Fast, Flex, Batch, or 12-hour retention options to Decisions. Cache writes can add charges; rates and availability depend on the selected provider.
 
-Decision calls add provider charges and a chat tool round trip. They may reduce source bodies sent to the chat model and repeated provider calls, but savings depend on the investigation; enabling the option does not guarantee lower cost. Browser decision calls are included under **Chat** in Usage with their own model attribution and provider-reported counts. Cache read/write counts are recorded when reported and are already part of the input-token total; they are not added again. CLI calls remain excluded. A 15-second timeout, provider error, or invalid answer returns a tool error; the main agent can continue using ordinary tools. For missing choices, check the credential and model ID, reload Models after catalog edits, or set **Off** to disable the integration.
+Decision calls add provider charges and a chat tool round trip. They may reduce source bodies sent to the chat model and repeated provider calls, but savings depend on the investigation; enabling the option does not guarantee lower cost. Browser decision calls are recorded separately under **Decisions** in Usage with their own model attribution and provider-reported counts. Cache read/write counts are recorded when reported and are already part of the input-token total; they are not added again. CLI calls remain excluded. A 15-second timeout, provider error, or invalid answer returns a tool error; the main agent can continue using ordinary tools. For missing choices, check the credential and model ID, reload Models after catalog edits, or set **Off** to disable the integration.
 
 ## How chat context stays bounded
 
@@ -196,15 +196,18 @@ If the current request still cannot fit, narrow attachments, reduce integrations
 
 ## Track token usage
 
-Open **Settings → Usage**. **All**, **Chat**, and **Learning** filter totals, the daily input/output chart, model counts, request history, and **Export CSV**. The UTC date range stays selected; changing activity resets pagination. CSV includes all matching pages.
+Open **Settings → Usage**. **All**, **Chat**, **Learning**, and **Decisions** filter totals, the daily input/output chart, model counts, request history, and **Export CSV**. The UTC date range stays selected; changing activity resets pagination. CSV includes all matching pages. The All view shows separate input/output contributions for the three activities.
 
 | Category | Includes |
 | --- | --- |
-| Chat | Recorded browser chat, conversation summarization, and decisions tool calls. |
+| Chat | Recorded browser chat and conversation summarization. |
 | Learning | Background worker calls, including knowledge jobs and automatic evaluations. |
+| Decisions | Provider calls made by the browser agent's `decide` tool; local result-cache hits do not add calls or tokens. |
 | Not reported | A request whose provider omitted token counts. |
 
 Totals include reported counts only. Embeddings, CLI calls, Browser Use calls, external usage, and usage before recording began are excluded. Cache breakdowns and spend estimates are omitted; pricing configuration is unnecessary.
+
+The Decisions category applies to newly recorded calls. Older decision records saved as Chat retain that category; they lack a reliable API-type marker for automatic reclassification. A model used for both chat and decisions is separated by activity for new calls, even when its provider model ID is identical.
 
 ## Embed the TypeScript agent
 

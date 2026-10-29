@@ -1,16 +1,23 @@
-import type { UsageRecord, UsageReport } from '@agent/core/usage';
+import { USAGE_KINDS, type UsageRecord, type UsageReport } from '@agent/core/usage';
 import { summarizeUsage } from '../../../src/web/usage/summary';
 import type { ResourceSample, ResourceUsage } from '../lib/resources';
+
+const demoTokens = {
+  chat: { inputTokens: 12000, outputTokens: 2400 },
+  learning: { inputTokens: 6000, outputTokens: 800 },
+  decisions: { inputTokens: 1500, outputTokens: 0 },
+};
 
 export function usageReport(url: URL): UsageReport {
   const start = url.searchParams.get('start') ?? '2026-10-01';
   const end = url.searchParams.get('end') ?? '2026-10-08';
   const kind = url.searchParams.get('kind') ?? 'all';
   const page = Number(url.searchParams.get('page') ?? 1);
-  const records: UsageRecord[] = (['chat', 'learning'] as const).map((activity, index) => ({
+  const records: UsageRecord[] = USAGE_KINDS.map((activity, index) => ({
     id: `demo-${activity}`, timestamp: Date.parse(start) + index * 60_000,
-    model: 'Demo model', key: 'demo:model', kind: activity, projectName: 'Codeberg demo',
-    inputTokens: index ? 6000 : 12000, outputTokens: index ? 800 : 2400,
+    model: activity === 'decisions' ? 'Demo decisions' : 'Demo model', key: `demo:${activity === 'decisions' ? 'decisions' : 'model'}`,
+    kind: activity, projectName: 'Codeberg demo',
+    ...demoTokens[activity],
     cacheReadTokens: 0, cacheWriteTokens: 0, costUsd: null,
   }));
   const rows = records.filter((row) => kind === 'all' || row.kind === kind);

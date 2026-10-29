@@ -1,5 +1,6 @@
 import type { UsageRecord, UsageReport } from '@agent/core/usage';
 import { formatTokens } from '../lib/model-usage';
+import { usageActivityLabels } from '../lib/usage-activities';
 
 export function UsageModelList({ models }: Pick<UsageReport, 'models'>) {
   return (
@@ -33,7 +34,7 @@ function MobileRequest({ row }: { row: UsageRecord }) {
         <time dateTime={timestamp} className="text-muted-foreground">{timestamp.slice(0, 10)} {timestamp.slice(11, 16)} UTC</time>
       </div>
       <p className="break-all text-sm font-medium">{row.model}</p>
-      <p className="break-words text-xs text-muted-foreground">{row.projectName ?? row.project ?? 'Unassigned'} · {row.kind === 'learning' ? 'Learning' : 'Chat'}</p>
+      <p className="break-words text-xs text-muted-foreground">{row.projectName ?? row.project ?? 'Unassigned'} · {usageActivityLabels[row.kind]}</p>
       <p className="text-xs text-muted-foreground tabular-nums">{token(row.inputTokens)} input · {token(row.outputTokens)} output</p>
     </>
   );

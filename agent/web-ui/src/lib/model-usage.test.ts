@@ -25,19 +25,20 @@ describe('usage ranges', () => {
       { cache: 'no-store', signal });
     expect(usageQuery(range, 1, 'chat')).toContain('kind=chat');
     expect(usageQuery(range, 1, 'all')).toContain('kind=all');
+    expect(usageQuery(range, 1, 'decisions')).toContain('kind=decisions');
   });
 
-  it('exports the selected activity with a distinct filename', async () => {
+  it.each(['learning', 'decisions'] as const)('exports %s with a distinct filename', async (kind) => {
     const range = { start: '2026-10-01', end: '2026-10-03' };
     const api = vi.fn().mockResolvedValue({ ok: true, blob: async () => new Blob(['csv']) });
     const link = { href: '', download: '', click: vi.fn() };
     vi.stubGlobal('document', { createElement: () => link });
 
-    await exportUsage(range, api, 'learning');
+    await exportUsage(range, api, kind);
 
-    expect(api).toHaveBeenCalledWith('/api/settings/usage?start=2026-10-01&end=2026-10-03&page=1&kind=learning&format=csv',
+    expect(api).toHaveBeenCalledWith(`/api/settings/usage?start=2026-10-01&end=2026-10-03&page=1&kind=${kind}&format=csv`,
       { cache: 'no-store' });
-    expect(link.download).toBe('codeberg-usage-learning-2026-10-01.csv');
+    expect(link.download).toBe(`codeberg-usage-${kind}-2026-10-01.csv`);
     expect(link.click).toHaveBeenCalledOnce();
   });
 });

@@ -2,6 +2,7 @@ import { Download } from 'lucide-react';
 import type { UsageFilter } from '@agent/core/usage';
 import { buttonClass } from './button-styles';
 import { exclusiveEnd, inclusiveEnd, usagePresets, type UsageRange } from '../lib/model-usage';
+import { usageActivities } from '../lib/usage-activities';
 
 export type UsageControlsProps = {
   range: UsageRange;
@@ -39,7 +40,7 @@ export function UsageControls({ range, preset, onRange, onPreset, onExport, expo
 }
 
 function UsageActivity({ kind, onKind }: Pick<UsageControlsProps, 'kind' | 'onKind'>) {
-  const options = [['all', 'All'], ['chat', 'Chat'], ['learning', 'Learning']] as const;
+  const options = [['all', 'All'], ...usageActivities] as const;
 
   return (
     <div role="group" aria-label="Usage activity" className="flex flex-wrap gap-1">

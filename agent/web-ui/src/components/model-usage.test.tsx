@@ -5,7 +5,7 @@ import type { UsageReport } from '@agent/core/usage';
 
 const totals = { requests: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0,
   costUsd: 0, unpricedRequests: 0, unreportedRequests: 0 };
-const report: UsageReport = { totals, kinds: { chat: totals, learning: totals }, records: [], daily: [], models: [], start: '2026-10-01',
+const report: UsageReport = { totals, kinds: { chat: totals, learning: totals, decisions: totals }, records: [], daily: [], models: [], start: '2026-10-01',
   end: '2026-10-08', page: 1, pageSize: 25 };
 const props = { range: { start: report.start, end: report.end }, preset: 'mtd', onRange: () => undefined,
   onPreset: () => undefined, onPage: () => undefined, onExport: () => undefined, exporting: false,
@@ -37,12 +37,13 @@ describe('Usage view', () => {
     expect(html).not.toContain('inert=""');
   });
 
-  it('separates chat and learning input/output contributions in the combined view', () => {
+  it('separates chat, learning and decisions input/output contributions in the combined view', () => {
     const html = renderToStaticMarkup(<UsageView {...props} report={{ ...report,
-      totals: { ...totals, requests: 2, inputTokens: 300, outputTokens: 50 },
+      totals: { ...totals, requests: 3, inputTokens: 350, outputTokens: 50 },
       kinds: {
         chat: { ...totals, requests: 1, inputTokens: 100, outputTokens: 20 },
         learning: { ...totals, requests: 1, inputTokens: 200, outputTokens: 30 },
+        decisions: { ...totals, requests: 1, inputTokens: 50, outputTokens: 0 },
       },
     }} />);
 
@@ -53,6 +54,8 @@ describe('Usage view', () => {
     expect(html).toMatch(/Learning<\/dt><dd[^>]*>200<\/dd>/);
     expect(html).toMatch(/Chat<\/dt><dd[^>]*>20<\/dd>/);
     expect(html).toMatch(/Learning<\/dt><dd[^>]*>30<\/dd>/);
+    expect(html).toMatch(/Decisions<\/dt><dd[^>]*>50<\/dd>/);
+    expect(html).toMatch(/Decisions<\/dt><dd[^>]*>0<\/dd>/);
   });
 
   it('names the selected activity and its empty state', () => {
@@ -98,5 +101,18 @@ describe('Usage view', () => {
     expect(html).toContain('>Input tokens</th>');
     expect(html).toContain('>Output tokens</th>');
     expect(html).not.toMatch(/cache|estimated|unpriced|spend|USD|\$/i);
+  });
+
+  it('labels decisions in activity controls and both desktop and mobile request history', () => {
+    const html = renderToStaticMarkup(<UsageView {...props} kind="decisions" report={{ ...report,
+      totals: { ...totals, requests: 1, inputTokens: 50, outputTokens: 0 },
+      records: [{ id: 'decision', timestamp: Date.UTC(2026, 9, 1), model: 'openai:gpt-6-luna', key: 'openai:decisions',
+        kind: 'decisions', inputTokens: 50, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, costUsd: null }],
+    }} />);
+
+    expect(html).toMatch(/aria-pressed="true"[^>]*>Decisions<\/button>/);
+    expect(html).toMatch(/>Decisions<\/span><div/);
+    expect(html).toContain('Unassigned · Decisions');
+    expect(html).not.toContain('tokens by activity');
   });
 });

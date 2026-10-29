@@ -13,7 +13,9 @@ export interface UsageTokens {
   cacheWriteTokens: number | null;
 }
 
-export type UsageKind = 'chat' | 'learning';
+export const USAGE_KINDS = ['chat', 'learning', 'decisions'] as const;
+
+export type UsageKind = (typeof USAGE_KINDS)[number];
 export type UsageFilter = UsageKind | 'all';
 
 export interface UsageRecord extends UsageTokens {

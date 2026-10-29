@@ -1,5 +1,6 @@
 import type { UsageFilter, UsageSummary, UsageTotals } from '@agent/core/usage';
 import { formatTokens } from '../lib/model-usage';
+import { usageActivities } from '../lib/usage-activities';
 
 export function UsageMetrics({ totals, kinds, kind }: Pick<UsageSummary, 'totals' | 'kinds'> & { kind: UsageFilter }) {
   const metrics = [
@@ -15,8 +16,11 @@ export function UsageMetrics({ totals, kinds, kind }: Pick<UsageSummary, 'totals
           <dd className="mt-3">
             <span className="text-2xl font-semibold tracking-tight tabular-nums">{formatTokens(totals[field])}</span>
             {kind === 'all' && <dl aria-label={`${label} by activity`} className="mt-3 space-y-1 border-t border-border pt-3 text-sm tabular-nums">
-              <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Chat</dt><dd>{formatTokens(kinds.chat[field])}</dd></div>
-              <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Learning</dt><dd>{formatTokens(kinds.learning[field])}</dd></div>
+              {usageActivities.map(([activity, label]) => (
+                <div key={activity} className="flex justify-between gap-3">
+                  <dt className="text-muted-foreground">{label}</dt><dd>{formatTokens(kinds[activity][field])}</dd>
+                </div>
+              ))}
             </dl>}
           </dd>
         </div>
@@ -28,7 +32,7 @@ export function UsageMetrics({ totals, kinds, kind }: Pick<UsageSummary, 'totals
 export function UsageCoverage({ totals }: { totals: UsageTotals }) {
   return (
     <div className="space-y-1 text-xs leading-5 text-muted-foreground">
-      <p>Provider-reported tokens. Chat includes conversation summarization; Learning includes background learning model calls.</p>
+      <p>Provider-reported tokens. Chat includes conversation summarization; Learning includes background learning model calls; Decisions includes decisions API calls.</p>
       {totals.unreportedRequests > 0 && <p>{totals.unreportedRequests.toLocaleString()} requests have incomplete token reporting. Token totals include only reported counts.</p>}
     </div>
   );

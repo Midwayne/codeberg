@@ -76,6 +76,7 @@ describe('model usage', () => {
     expect(summarizeUsage([]).kinds).toMatchObject({
       chat: { requests: 0, inputTokens: 0, outputTokens: 0 },
       learning: { requests: 0, inputTokens: 0, outputTokens: 0 },
+      decisions: { requests: 0, inputTokens: 0, outputTokens: 0 },
     });
 
     await writeFile(join(directory, '2026-10.jsonl'), '{broken}\n');

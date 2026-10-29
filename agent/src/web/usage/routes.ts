@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { sendJson, sendText } from '../http.js';
-import type { UsageRecord } from '../../core/usage.js';
+import { USAGE_KINDS, type UsageRecord } from '../../core/usage.js';
 import type { UsageStore } from './store.js';
 import { summarizeUsage } from './summary.js';
 
@@ -12,7 +12,9 @@ export async function routeUsage(req: IncomingMessage, res: ServerResponse, stor
   if (!range) return sendText(res, 400, 'Choose valid UTC dates within one year and a positive page number.');
 
   const kind = url.searchParams.get('kind') ?? 'all';
-  if (kind !== 'all' && kind !== 'chat' && kind !== 'learning') return sendText(res, 400, 'Choose all, chat, or learning usage.');
+  if (kind !== 'all' && !USAGE_KINDS.some((value) => value === kind)) {
+    return sendText(res, 400, 'Choose all, chat, learning, or decisions usage.');
+  }
 
   const rows = (await store.read(range.start, range.end)).filter((row) => kind === 'all' || row.kind === kind);
   if (url.searchParams.get('format') === 'csv') {
