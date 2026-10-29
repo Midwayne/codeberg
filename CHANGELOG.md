@@ -356,7 +356,7 @@ changes may occur in minor releases and are called out explicitly.
 - **Re-embedding the whole corpus on every restart** — the chunk table was rebuilt
   empty at startup, so bootstrap treated every chunk as new and re-embedded it.
 
-## [0.1.10] - 2026-10-29
+## [0.1.11] - 2026-10-29
 
 ### Added
 
@@ -379,6 +379,11 @@ changes may occur in minor releases and are called out explicitly.
   while retaining source verification and ordinary tools for simple judgments.
 - Expand the in-app guide with decisions setup, usage, limits, and recovery, and
   an explanation of indexing, chunking, graphs, and embeddings.
+
+### Fixed
+
+- Build macOS arm64 release packages on the supported macOS 15 runner, avoiding
+  the deprecated macOS 14 runner's brownouts and retirement.
 
 ## [0.1.8] - 2026-10-23
 
