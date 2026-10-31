@@ -28,10 +28,8 @@ func Ensure(c *config.Config, force bool) error {
 	root, prebuilt := c.ResolveRoot()
 	if prebuilt {
 		skip(c, "prebuilt components")
-		if c.Vector {
-			if err := ensureModel(c, root); err != nil {
-				return err
-			}
+		if err := ensureEmbedding(c, root, force); err != nil {
+			return err
 		}
 		if c.DbmcpUse {
 			bin := c.DbmcpBinary()
@@ -113,10 +111,8 @@ func Ensure(c *config.Config, force bool) error {
 		fmt.Fprintf(os.Stderr, "⚠ CODEBERG_DBMCP_BIN not found (%s); database MCP tools will be skipped\n", c.DbmcpBin)
 	}
 
-	if c.Vector {
-		if err := ensureModel(c, c.Repo); err != nil {
-			return err
-		}
+	if err := ensureEmbedding(c, c.Repo, force); err != nil {
+		return err
 	}
 	ensureSearxng(c, force)
 	return nil
@@ -157,6 +153,30 @@ func ensureSearxng(c *config.Config, force bool) {
 			"  web_search disabled; fetch_url and code search still work. "+
 			"Retry with `codeberg build`, or set CODEBERG_WEB_USE=false to silence this.\n", err)
 	}
+}
+
+// prepareModel is replaced in tests.
+var prepareModel = ensureModel
+
+// ensureEmbedding prepares the embedding model when semantic search is on. A
+// normal run that cannot prepare it (offline, mirror down, Python too old)
+// starts without semantic search instead of failing; existing indexes are left
+// untouched. An explicit `codeberg build` still reports the failure.
+func ensureEmbedding(c *config.Config, root string, force bool) error {
+	if !c.Vector {
+		return nil
+	}
+
+	err := prepareModel(c, root)
+	if err == nil || force {
+		return err
+	}
+
+	fmt.Fprintf(os.Stderr, "⚠ Semantic search is off for this run: the embedding model could not be prepared.\n"+
+		"  %v\n  Chat and exact-text search still work. Retry with `codeberg build`.\n", err)
+	c.Vector = false
+
+	return nil
 }
 
 // ensureModel downloads the embedding model if absent, using the fetch-model.sh

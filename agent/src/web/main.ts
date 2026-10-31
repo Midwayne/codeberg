@@ -13,7 +13,8 @@ import { defaultProviders } from '../providers/index.js';
 import { ExtensionStore } from './extensions.js';
 import { ModelSettingsStore } from './model-selection/settings.js';
 import { createProjectRequestHandler } from './projects.js';
-import { startupTitle, webEntry } from './startup.js';
+import { setupNotice, startupTitle, webEntry } from './startup.js';
+import { setupStatus } from './setup/status.js';
 import { ToolSettingsStore } from './tools/settings.js';
 
 // Serves the interactive chat UI over HTTP. The route streams the shared
@@ -74,7 +75,13 @@ async function main(): Promise<void> {
 
   const port = Number(process.env.CODEBERG_WEB_PORT ?? process.env.PORT ?? DEFAULT_PORT);
   server.listen(port, HOST, () => {
-    console.error(`codeberg-web listening on http://${HOST}:${port}`);
+    const url = `http://${HOST}:${port}`;
+    console.error(`codeberg-web listening on ${url}`);
+
+    void setupStatus(modelSettings).then((status) => {
+      const notice = setupNotice(status, url);
+      if (notice) process.stderr.write(notice);
+    });
   });
 
   installShutdown(server, owned);
@@ -104,6 +111,7 @@ function createProjectServer(options: ProjectRuntimeOptions): Server {
       extensions: (req, res, project) =>
         extensions.route(req, res, projectEnvironment(process.env, project, catalog)),
       tools: options.tools,
+      setup: () => setupStatus(options.modelSettings),
       dispose: (id) => disposeProjectRuntime(options.owned, id),
       build: (project) => buildProjectHandler(project, options),
     }),

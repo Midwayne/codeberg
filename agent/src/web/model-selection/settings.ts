@@ -64,6 +64,13 @@ export class ModelSettingsStore {
     };
   }
 
+  /** Providers the catalog names, whether or not their credentials are set. */
+  async catalogProviders(): Promise<string[]> {
+    const models = await loadModelCatalog({ ...this.catalog, availableProvider: undefined });
+
+    return [...new Set(models.map((model) => model.provider))].filter(Boolean);
+  }
+
   async update(input: unknown): Promise<ModelSettings> {
     const values = object(input);
     if (!values) throw new ModelSelectionError('settings must have chat and learning selections');

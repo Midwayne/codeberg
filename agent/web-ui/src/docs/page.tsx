@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { findDocPage } from './catalog';
 import { DocsNavigation } from './navigation';
@@ -11,7 +11,13 @@ import { DocsSearchDialog } from './search-dialog';
 import './styles.css';
 import './motion.css';
 
-export function DocsPage({ path = window.location.pathname }: { path?: string }) {
+export type DocsPageProps = {
+  path?: string;
+  /** First-run setup steps; while shown, the docs are the whole app. */
+  setup?: ReactNode;
+};
+
+export function DocsPage({ path = window.location.pathname, setup }: DocsPageProps) {
   const route = useDocsRoute(path);
   const page = findDocPage(route.path);
   const search = useDocsSearch();
@@ -23,7 +29,7 @@ export function DocsPage({ path = window.location.pathname }: { path?: string })
   return (
     <div onClick={route.navigate} className="min-h-dvh bg-background text-foreground">
       <a href="#docs-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-primary focus:p-3 focus:text-primary-foreground">Skip to documentation</a>
-      <DocsHeader search={<DocsSearchTrigger onClick={search.show} />} />
+      <DocsHeader search={<DocsSearchTrigger onClick={search.show} />} appLink={!setup} />
       <DocsGrid>
         <aside className="min-w-0">
           <div className="sticky top-24 hidden max-h-[calc(100dvh-7rem)] overflow-y-auto md:block"><DocsNavigation current={page} /></div>
@@ -33,6 +39,7 @@ export function DocsPage({ path = window.location.pathname }: { path?: string })
           </details>
         </aside>
         <main id="docs-content" tabIndex={-1} className="min-w-0 max-w-[72ch]">
+          {setup}
           {page ? <DocsArticle key={page.id} page={page} motion={route.motion} /> : <MissingTopic />}
         </main>
         {page && <aside className="hidden xl:block"><DocsContents page={page} /></aside>}

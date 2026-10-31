@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Project, ProjectCatalog } from '../core/projects.js';
 import { handle } from './projects/routing.js';
 import { ProjectRequestRouterState } from './projects/state.js';
+import type { SetupStatus } from './setup/status.js';
 import type { ToolSettingsStore } from './tools/settings.js';
 
 export class ProjectRequestRouter {
@@ -27,6 +28,8 @@ export interface ProjectRouterOptions {
   extensions?: (req: IncomingMessage, res: ServerResponse, project: Project) => Promise<void>;
   openConfigDirectory?: (path: string) => Promise<void>;
   tools?: ToolSettingsStore;
+  /** Reports whether chat can start; servers without a check are treated as ready. */
+  setup?: () => Promise<SetupStatus>;
 }
 
 export function createProjectRequestHandler(options: ProjectRouterOptions) {

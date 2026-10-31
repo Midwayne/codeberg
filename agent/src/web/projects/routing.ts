@@ -42,6 +42,8 @@ export async function route(
       return pickDirectory(state, req, res);
     case '/api/projects':
       return projects(state, req, res);
+    case '/api/setup':
+      return sendJson(res, 200, (await state.options.setup?.()) ?? { ready: true });
   }
 
   const projectRoute = /^\/api\/projects\/([^/]+)$/.exec(url.pathname);

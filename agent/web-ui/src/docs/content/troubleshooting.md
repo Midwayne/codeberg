@@ -1,5 +1,14 @@
 Start with the app's error and the relevant log. Chat providers, embeddings, and external tools have separate setup requirements.
 
+## Codeberg shows only the docs
+
+Chat needs a usable model. Until one is configured, every page shows the docs with a setup checklist naming the missing settings, such as `OPENAI_API_KEY`, or the configuration error.
+
+1. Run `codeberg config edit`, add the listed lines with your values, and save.
+2. Stop Codeberg with **Ctrl+C**, run `codeberg` again, then choose **Check again**.
+
+Settings are read at startup, so **Check again** finds new credentials only after a restart. The terminal prints the same summary when Codeberg starts.
+
 ## Models are unavailable
 
 1. Check `CODEBERG_MODEL` or `models.yml` and the provider credential. A catalog needs an available model with a valid window and effort list.

@@ -18,9 +18,11 @@ For a source install, run `./launcher/install.sh` from a Codeberg checkout. This
 codeberg
 ```
 
-The terminal shows the installed version and a progress line, then the browser URL. Open `http://127.0.0.1:48088` if the browser does not open automatically. Keep the terminal running; **Ctrl+C** stops Codeberg. Docs and Settings work before you configure a model or project.
+The terminal shows the installed version and a progress line, then the browser URL. Open `http://127.0.0.1:48088` if the browser does not open automatically. Keep the terminal running; **Ctrl+C** stops Codeberg.
 
-New installs use local **EmbeddingGemma 2** for semantic search. First setup needs Python 3.10+, network access, and several GB of disk space. Existing embedding choices are retained.
+Codeberg always starts. Until a chat model is usable, the browser shows only these docs, with a **Finish setting up Codeberg** checklist that lists exactly which settings are missing. Follow it with [Connect a model](#connect-a-model), restart, and choose **Check again**.
+
+New installs use local **EmbeddingGemma 2** for semantic search. First setup needs Python 3.10+, network access, and several GB of disk space. Existing embedding choices are retained. If the model cannot be prepared, for example offline, Codeberg starts without semantic search and prints a warning; run `codeberg build` to retry.
 
 To start without embedding downloads:
 

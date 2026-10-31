@@ -136,6 +136,13 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Changed
 
+- **First run always starts** — until a chat model is usable, the browser
+  shows only the docs with a setup checklist that names the missing
+  credentials (or the configuration error), the config lines to add, and a
+  **Check again** button. The terminal prints the same summary. If the
+  embedding model cannot be prepared, `codeberg` starts without semantic
+  search and warns; `codeberg build` still fails loudly. A new `GET /api/setup`
+  endpoint reports the status without a project.
 - **Quieter startup** — `codeberg` prints its version, a one-line progress
   spinner and then the browser URL, instead of component checks and live
   daemon/indexer logs. Update notices still appear. `codeberg --verbose` or
