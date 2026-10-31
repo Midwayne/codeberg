@@ -77,6 +77,10 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # One-off run: register nothing, build no vector index (file tools + chat only).
 # CODEBERG_NO_INDEX=false
 
+# Detailed startup output: component checks and live daemon/indexer logs
+# instead of the version, a spinner and the browser URL (same as --verbose).
+# CODEBERG_VERBOSE=false
+
 # Multi-repo record set for codeberg-d / cberg-index (key<TAB>path per line).
 # Normally built by the launcher from the registry — set manually only for advanced setups.
 # env only:

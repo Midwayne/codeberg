@@ -17,12 +17,12 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"codeberg.org/codeberg/launcher/internal/config"
+	"codeberg.org/codeberg/launcher/internal/console"
 	"codeberg.org/codeberg/launcher/internal/deps"
 )
 
@@ -54,7 +54,8 @@ func healthDeadline(repos int) time.Duration {
 }
 
 // Run boots the daemon, waits for health, runs the browser UI, and cleans up.
-func Run(c *config.Config) error {
+// Launcher status goes to term; the browser UI keeps writing to the terminal.
+func Run(c *config.Config, term *console.Terminal) error {
 	// root is where the binaries and agent live (a prebuilt dist or the source
 	// checkout's build tree); it is also the working directory for both children.
 	root, _ := c.ResolveRoot()
@@ -100,10 +101,11 @@ func Run(c *config.Config) error {
 	defer search.Close()
 
 	// --- start the daemon -----------------------------------------------------
-	// Daemon + indexer output always goes to the log file, and is mirrored to the
-	// terminal only during startup — so the user watches files being chunked and
-	// embedded, without those logs interleaving with the web server once it starts.
-	progress := newStartupTee(logFile, os.Stderr)
+	// Daemon + indexer output always goes to the log file. Verbose runs also
+	// mirror it to the terminal during startup, so developers can watch files
+	// being chunked and embedded without those logs interleaving with the web
+	// server once it starts.
+	progress := newStartupTee(logFile, term, c.Verbose)
 	daemon, err := startDaemon(a.DaemonBin, root, c, progress)
 	if err != nil {
 		return err
@@ -131,27 +133,15 @@ func Run(c *config.Config) error {
 	defer stop()
 
 	// --- wait for /health (indexing + embedding happen here) ------------------
-	if c.All || len(c.Repos) > 0 || len(c.Roots) > 1 {
-		keys := make([]string, 0, len(c.Roots))
-		for _, r := range c.Roots {
-			keys = append(keys, r.Key)
-		}
-		fmt.Fprintf(os.Stderr, "› starting daemon — indexing %d repo(s): %s\n", len(c.Roots), strings.Join(keys, ", "))
-	} else if len(c.Roots) == 1 {
-		fmt.Fprintf(os.Stderr, "› starting daemon — indexing %s\n", c.Roots[0].Root)
-	} else {
-		fmt.Fprintln(os.Stderr, "› starting daemon — open the browser to add a project")
-	}
-	if c.NoIndex {
-		fmt.Fprintf(os.Stderr, "  (--no-index: nothing registered or written; semantic search is off this run — full log: %s)\n\n", logPath)
-	} else if len(c.Roots) > 0 {
-		fmt.Fprintf(os.Stderr, "  (first run builds the index; live progress below — full log: %s)\n\n", logPath)
-	}
-	if err := waitHealthy(c.DaemonURL, stopped, len(c.Roots)); err != nil {
+	deadline := healthDeadline(len(c.Roots))
+	stopStatus := announceStartup(term, c, logPath)
+	if err := waitHealthy(c.DaemonURL, stopped, deadline); err != nil {
+		stopStatus()
 		progress.stopLive()
-		fmt.Fprint(os.Stderr, tailFile(logPath, 20))
+		fmt.Fprint(term, tailFile(logPath, 20))
 		return err
 	}
+	stopStatus()
 	progress.stopLive()
 
 	agentEnv := c.AgentEnv()
@@ -177,7 +167,10 @@ func Run(c *config.Config) error {
 	}()
 
 	url := fmt.Sprintf("http://127.0.0.1:%s", c.WebPort)
-	fmt.Fprintf(os.Stderr, "\n✓ daemon ready — serving the chat UI at %s\n  (opening your browser; press Ctrl-C here to stop)\n\n", url)
+	if c.Verbose {
+		fmt.Fprintln(term)
+	}
+	fmt.Fprint(term, readyMessage(url))
 	// The server binds a moment after node starts, so wait for the port to
 	// accept connections before opening the browser — best effort.
 	go openBrowserWhenReady(c.WebPort)
@@ -267,8 +260,8 @@ func startDaemon(bin, root string, c *config.Config, out io.Writer) (*exec.Cmd, 
 }
 
 // startupTee records daemon/indexer output to the log unconditionally, and
-// mirrors it to the terminal only while "live" — i.e. during startup, so the
-// user sees indexing/embedding progress before the browser UI starts.
+// mirrors it to the terminal only while "live" — i.e. during a verbose startup,
+// so developers see indexing/embedding progress before the browser UI starts.
 type startupTee struct {
 	mu   sync.Mutex
 	log  io.Writer
@@ -276,8 +269,8 @@ type startupTee struct {
 	live bool
 }
 
-func newStartupTee(logw, termw io.Writer) *startupTee {
-	return &startupTee{log: logw, term: termw, live: true}
+func newStartupTee(logw, termw io.Writer, live bool) *startupTee {
+	return &startupTee{log: logw, term: termw, live: live}
 }
 
 func (t *startupTee) Write(p []byte) (int, error) {
@@ -297,8 +290,7 @@ func (t *startupTee) stopLive() {
 
 // waitHealthy polls GET <url>/health until it returns 2xx, the daemon exits, or
 // the deadline passes.
-func waitHealthy(daemonURL string, daemonStopped <-chan struct{}, repos int) error {
-	deadline := healthDeadline(repos)
+func waitHealthy(daemonURL string, daemonStopped <-chan struct{}, deadline time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), deadline)
 	defer cancel()
 	client := &http.Client{Timeout: 2 * time.Second}
@@ -314,7 +306,7 @@ func waitHealthy(daemonURL string, daemonStopped <-chan struct{}, repos int) err
 				return nil
 			}
 		}
-		// Progress is shown by streaming the daemon/indexer log (see startupTee).
+		// Progress is a status line, or the mirrored daemon log when verbose.
 		select {
 		case <-daemonStopped:
 			return fmt.Errorf("daemon exited before becoming healthy")

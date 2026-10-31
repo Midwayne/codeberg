@@ -73,6 +73,9 @@ func (c *Config) Summary() string {
 	if c.NoIndex {
 		rows = append(rows, [2]string{KeyNoIndex, "true"})
 	}
+	if c.Verbose {
+		rows = append(rows, [2]string{KeyVerbose, "true"})
+	}
 	if c.Reasoning != "" {
 		rows = append(rows, [2]string{KeyReasoning, c.Reasoning})
 	}

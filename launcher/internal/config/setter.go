@@ -15,7 +15,7 @@ func KnownKeys() []string {
 		KeyModel, KeySubagentModel, KeyDaemonURL, KeyHTTPPort, KeyEmbedModel, KeyEmbedding, KeyIndexPath,
 		KeySocket, KeyPollMS, KeyIndexBin, KeyGitPullSec, KeyGitDir, KeyReasoning,
 		KeyVector, KeyWebPort, KeyWebUse, KeyWebSearchUse, KeyLearningUse, KeySearxngURL, KeySearxngPort,
-		KeyAll, KeyReposSel, KeyNoIndex, KeyHome, KeyRepo, KeyDist,
+		KeyAll, KeyReposSel, KeyNoIndex, KeyVerbose, KeyHome, KeyRepo, KeyDist,
 		KeyMcpUse, KeyMcpConfig, KeyDbmcpUse, KeyDbmcpSpec, KeyDbmcpBin,
 	}
 	keys = append(keys, passthroughKeys...)
@@ -71,6 +71,8 @@ func (c *Config) Get(key string) (string, bool) {
 		return strings.Join(c.Repos, ","), true
 	case KeyNoIndex:
 		return fmt.Sprintf("%t", c.NoIndex), true
+	case KeyVerbose:
+		return fmt.Sprintf("%t", c.Verbose), true
 	case KeyWebPort:
 		return c.WebPort, true
 	case KeyWebUse:

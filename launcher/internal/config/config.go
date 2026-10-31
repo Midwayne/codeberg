@@ -30,6 +30,7 @@ const (
 	KeyAll           = "CODEBERG_ALL"                   // "true" => serve every registered repo
 	KeyReposSel      = "CODEBERG_REPOS"                 // comma-separated dirs/keys to serve together
 	KeyNoIndex       = "CODEBERG_NO_INDEX"              // "true" => register nothing, build no vector index
+	KeyVerbose       = "CODEBERG_VERBOSE"               // "true" => detailed startup output instead of a spinner
 	KeyModel         = "CODEBERG_MODEL"                 // LLM provider:model (agent scope)
 	KeySubagentModel = "CODEBERG_SUBAGENT_MODEL"        // background/subagent provider:model (agent scope)
 	KeyLearningUse   = "CODEBERG_LEARNING_USE"          // "false" => disable learning, feedback, and background extraction
@@ -120,6 +121,7 @@ type Overrides struct {
 	Vector        *bool
 	All           *bool // serve every registered repo instead of one root
 	NoIndex       *bool // one-off run: register nothing, build no vector index
+	Verbose       *bool // detailed startup output (--verbose)
 	WebPort       string
 }
 
@@ -133,6 +135,7 @@ type Config struct {
 	All           bool             // serve every registered repo (--all)
 	Repos         []string         // explicit dirs/keys to serve together (--repos)
 	NoIndex       bool             // one-off run: register nothing, build no vector index
+	Verbose       bool             // detailed startup output instead of a spinner
 	Roots         []registry.Entry // the repos this run serves; filled by cmdRun
 	Model         string
 	SubagentModel string
@@ -261,6 +264,15 @@ func Load(o Overrides) (*Config, error) {
 	}
 	if c.NoIndex {
 		c.Vector = false
+	}
+
+	// Verbose: mirror component checks and daemon/indexer logs during startup.
+	// Off by default; the terminal shows the version, a spinner and the URL.
+	c.Verbose = false
+	if o.Verbose != nil {
+		c.Verbose = *o.Verbose
+	} else if v := resolve(KeyVerbose, ""); v != "" {
+		c.Verbose = !isFalsey(v)
 	}
 
 	// Direct URL fetching is on by default; search requires a separate opt-in.

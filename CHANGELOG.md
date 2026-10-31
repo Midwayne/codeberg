@@ -136,6 +136,11 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Changed
 
+- **Quieter startup** — `codeberg` prints its version, a one-line progress
+  spinner and then the browser URL, instead of component checks and live
+  daemon/indexer logs. Update notices still appear. `codeberg --verbose` or
+  `CODEBERG_VERBOSE=true` restores the detailed output; `codeberg build` stays
+  detailed, and logs are always written to `~/.codeberg/logs/`.
 - **About 3× faster embedding on CPU** — `cberg-index` reads up to 1024 unique
   chunk bodies at a time, sorts them by length, and sends them to the embedder
   in calls capped at 96 bodies and a 32 KiB text budget, so each inference batch

@@ -32,7 +32,7 @@ codeberg --no-vector
 
 These use separate managed Python runtimes and FP32 text models; neither needs ONNX or `llama-server`. See [Indexing and search](/docs/indexing).
 
-Cold indexing and embedding batches can be slow without indicating failure. Progress counts describe a stage, not the entire project. For launcher startup timeouts, export `CODEBERG_HEALTH_TIMEOUT=30m` or a longer Go duration.
+Cold indexing and embedding batches can be slow without indicating failure. Progress counts describe a stage, not the entire project. For launcher startup timeouts, export `CODEBERG_HEALTH_TIMEOUT=30m` or a longer Go duration. To watch indexing progress in the terminal, start with `codeberg --verbose`; logs are always written to `~/.codeberg/logs/`.
 
 ## An MCP server or skill is missing
 

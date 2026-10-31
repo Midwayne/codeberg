@@ -30,6 +30,7 @@ Use `true` or `false` for switches, plain integers for ports and token counts, a
 | `CODEBERG_ALL` | Boolean; `false` | Serve all repositories in the launcher's registry. Cannot combine with an explicit `--root` argument. |
 | `CODEBERG_REPOS` | Comma-separated registered keys or directories | Serve a chosen registry subset. Cannot combine with an explicit `--root` argument. |
 | `CODEBERG_NO_INDEX` | Boolean; `false` | Skip registry additions and vector indexing for the launch. File tools and chat remain available; this is not a switch for deleting history. |
+| `CODEBERG_VERBOSE` | Boolean; `false` | Show component checks and live daemon/indexer logs while starting, as `codeberg --verbose` does. Normally the terminal shows only the version, a progress line and the browser URL. |
 | `CODEBERG_REPO` | Optional directory | Override the location of Codeberg's own source checkout when automatic discovery fails. This is different from the project you want to index. |
 | `CODEBERG_DIST` | Optional prebuilt artifact directory | Run an existing built payload instead of building from a source checkout. This override does not install a release. |
 

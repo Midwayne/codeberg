@@ -214,6 +214,42 @@ func TestNoIndexForcesVectorOff(t *testing.T) {
 	}
 }
 
+func TestVerboseResolvesFromFlagThenSettings(t *testing.T) {
+	home := t.TempDir()
+	cfg := filepath.Join(home, "config")
+
+	c, err := Load(Overrides{Home: home, ConfigFile: cfg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Verbose {
+		t.Fatal("startup output must be quiet by default")
+	}
+
+	t.Setenv(KeyVerbose, "true")
+
+	c, err = Load(Overrides{Home: home, ConfigFile: cfg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.Verbose {
+		t.Fatal("CODEBERG_VERBOSE=true did not enable verbose startup")
+	}
+	if v, ok := c.Get(KeyVerbose); !ok || v != "true" || !IsKnownKey(KeyVerbose) {
+		t.Fatalf("Get(%s) = %q, %v", KeyVerbose, v, ok)
+	}
+
+	off := false
+
+	c, err = Load(Overrides{Home: home, ConfigFile: cfg, Verbose: &off})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Verbose {
+		t.Fatal("the flag must take precedence over the environment")
+	}
+}
+
 func TestReposSelectionParsing(t *testing.T) {
 	home := t.TempDir()
 	c, err := Load(Overrides{Home: home, ConfigFile: filepath.Join(home, "config"), Repos: " a , b ,,c "})

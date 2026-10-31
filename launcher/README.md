@@ -189,7 +189,10 @@ blow past, forcing a second run). For an exceptionally large tree, raise it:
 CODEBERG_HEALTH_TIMEOUT=30m codeberg     # any Go duration, e.g. 45m
 ```
 
-Live indexing progress streams to the terminal during the wait. The launcher
+During the wait the terminal shows the version and a one-line progress spinner,
+then the browser URL; update notices still appear. Run `codeberg --verbose` (or
+set `CODEBERG_VERBOSE=true`) to list component checks and stream live indexing
+progress instead. Non-interactive output prints plain lines. The launcher
 appends logs across runs under `~/.codeberg/logs/` (or `$CODEBERG_HOME/logs/`):
 `daemon.log` (daemon and mirrored indexer output), `indexer.log` (dedicated C
 indexer output), `searxng.log` (managed web search and its install), and
@@ -204,7 +207,7 @@ permissions. Subsequent runs warm-start from the persisted index and come up in 
 
 Config is resolved from four layers, **highest precedence first**:
 
-1. CLI flags (`--root`, `--all`, `--repos`, `--no-index`, `--model`, `--port`, `--no-vector`, …)
+1. CLI flags (`--root`, `--all`, `--repos`, `--no-index`, `--verbose`, `--model`, `--port`, `--no-vector`, …)
 2. process environment (`CODEBERG_ALL`, `CODEBERG_REPOS`, `CODEBERG_NO_INDEX`, `CODEBERG_MODEL`, `CODEBERG_SUBAGENT_MODEL`, `ANTHROPIC_API_KEY`, …)
 3. `~/.codeberg/config` (KEY=VALUE; same names as the env vars). See
    [`launcher/internal/config/config.example`](internal/config/config.example) for every supported key.
@@ -262,6 +265,7 @@ layers. See `codeberg help` for common workflows.
 | `codeberg --all` | search every registered repo, combined |
 | `codeberg --repos a,b` | search a chosen subset of dirs/keys, combined |
 | `codeberg --no-index` | one-off run: register nothing, build no vector index |
+| `codeberg --verbose` | show component checks and daemon/indexer logs while starting |
 | `codeberg repos` | list registered repos (what `--all` searches) |
 | `codeberg build` | force (re)build/download of components and model |
 | `codeberg doctor` | toolchain + artifact + config diagnostics |

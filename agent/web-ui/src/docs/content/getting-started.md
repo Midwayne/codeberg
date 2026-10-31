@@ -18,7 +18,7 @@ For a source install, run `./launcher/install.sh` from a Codeberg checkout. This
 codeberg
 ```
 
-Open `http://127.0.0.1:48088` if the browser does not open automatically. Keep the terminal running; **Ctrl+C** stops Codeberg. Docs and Settings work before you configure a model or project.
+The terminal shows the installed version and a progress line, then the browser URL. Open `http://127.0.0.1:48088` if the browser does not open automatically. Keep the terminal running; **Ctrl+C** stops Codeberg. Docs and Settings work before you configure a model or project.
 
 New installs use local **EmbeddingGemma 2** for semantic search. First setup needs Python 3.10+, network access, and several GB of disk space. Existing embedding choices are retained.
 

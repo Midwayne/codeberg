@@ -27,7 +27,7 @@ func exists(p string) bool { _, err := os.Stat(p); return err == nil }
 func Ensure(c *config.Config, force bool) error {
 	root, prebuilt := c.ResolveRoot()
 	if prebuilt {
-		skip("prebuilt components")
+		skip(c, "prebuilt components")
 		if c.Vector {
 			if err := ensureModel(c, root); err != nil {
 				return err
@@ -81,7 +81,7 @@ func Ensure(c *config.Config, force bool) error {
 			return err
 		}
 	} else {
-		skip("core + daemon")
+		skip(c, "core + daemon")
 	}
 
 	// agent/dist: `make build-agent` runs npm install + build.
@@ -90,7 +90,7 @@ func Ensure(c *config.Config, force bool) error {
 			return err
 		}
 	} else {
-		skip("agent")
+		skip(c, "agent")
 	}
 
 	// web-ui/dist (the browser SPA): `make build-web-ui` runs npm install + vite build.
@@ -99,7 +99,7 @@ func Ensure(c *config.Config, force bool) error {
 			return err
 		}
 	} else {
-		skip("agent (web UI)")
+		skip(c, "agent (web UI)")
 	}
 
 	if needDbmcp {
@@ -107,7 +107,7 @@ func Ensure(c *config.Config, force bool) error {
 			return err
 		}
 	} else if c.DbmcpUse && c.DbmcpBin == "" {
-		skip("database MCP (dbmcp)")
+		skip(c, "database MCP (dbmcp)")
 	}
 	if c.DbmcpUse && c.DbmcpBin != "" && !exists(c.DbmcpBin) {
 		fmt.Fprintf(os.Stderr, "⚠ CODEBERG_DBMCP_BIN not found (%s); database MCP tools will be skipped\n", c.DbmcpBin)
@@ -136,7 +136,7 @@ func ensureSearxng(c *config.Config, force bool) {
 	}
 	installed := searxng.Installed(c.Home)
 	if installed && !force {
-		skip("SearXNG (web search)")
+		skip(c, "SearXNG (web search)")
 		return
 	}
 	if !force {
@@ -173,7 +173,7 @@ func ensureModel(c *config.Config, root string) error {
 		if label == "" {
 			label = c.EmbedModel
 		}
-		skip("embedding model " + label + " (" + c.EmbedBackend + ")")
+		skip(c, "embedding model "+label+" ("+c.EmbedBackend+")")
 		return nil
 	}
 	if c.EmbedBackend != "onnx" {
@@ -222,5 +222,12 @@ func makeTarget(repo, target, label string) error {
 	return nil
 }
 
-func step(msg string)   { fmt.Fprintf(os.Stderr, "› %s\n", msg) }
-func skip(label string) { fmt.Fprintf(os.Stderr, "✓ %s already present\n", label) }
+func step(msg string) { fmt.Fprintf(os.Stderr, "› %s\n", msg) }
+
+// skip confirms an existing component. Normal runs stay quiet; --verbose and
+// `codeberg build` list every check.
+func skip(c *config.Config, label string) {
+	if c.Verbose {
+		fmt.Fprintf(os.Stderr, "✓ %s already present\n", label)
+	}
+}

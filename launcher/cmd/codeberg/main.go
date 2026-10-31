@@ -26,6 +26,7 @@ import (
 	"codeberg.org/codeberg/launcher/internal/bootstrap"
 	"codeberg.org/codeberg/launcher/internal/cleanindex"
 	"codeberg.org/codeberg/launcher/internal/config"
+	"codeberg.org/codeberg/launcher/internal/console"
 	"codeberg.org/codeberg/launcher/internal/embedding"
 	"codeberg.org/codeberg/launcher/internal/registry"
 	"codeberg.org/codeberg/launcher/internal/run"
@@ -130,6 +131,7 @@ func parseShared(name string, args []string) (*config.Overrides, error) {
 	vector := fs.Bool("vector", false, "force vector search on")
 	all := fs.Bool("all", false, "search across every previously indexed repo (see `codeberg repos`)")
 	noIndex := fs.Bool("no-index", false, "one-off run: register nothing, build no vector index (search off)")
+	verbose := fs.Bool("verbose", false, "show component checks and daemon/indexer logs during startup (CODEBERG_VERBOSE)")
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), "Usage: codeberg %s [flags]\n\nFlags:\n", name)
 		fs.PrintDefaults()
@@ -153,6 +155,10 @@ func parseShared(name string, args []string) (*config.Overrides, error) {
 		v := true
 		o.NoIndex = &v
 	}
+	if *verbose {
+		v := true
+		o.Verbose = &v
+	}
 	return o, nil
 }
 
@@ -165,6 +171,9 @@ func cmdRun(args []string) error {
 	if err != nil {
 		return err
 	}
+
+	term := console.New(os.Stderr, console.Interactive(os.Stderr) && !c.Verbose)
+	fmt.Fprintf(term, "Codeberg %s\n\n", version)
 	// Create a template config on first run so there is an obvious place to edit.
 	if created, _ := config.InitFile(c.ConfigPath); created {
 		fmt.Fprintf(os.Stderr, "› wrote a starter config at %s\n", c.ConfigPath)
@@ -183,7 +192,7 @@ func cmdRun(args []string) error {
 	}
 
 	_, prebuilt := c.ResolveRoot()
-	stopUpdateCheck := update.Start(version, prebuilt, os.Stderr)
+	stopUpdateCheck := update.Start(version, prebuilt, term)
 	defer stopUpdateCheck()
 
 	switch {
@@ -232,7 +241,7 @@ func cmdRun(args []string) error {
 	if err := bootstrap.Ensure(c, false); err != nil {
 		return err
 	}
-	return run.Run(c)
+	return run.Run(c, term)
 }
 
 func cmdBuild(args []string) error {
@@ -252,6 +261,10 @@ func cmdBuild(args []string) error {
 	} else if c.Repo == "" {
 		return fmt.Errorf("no source checkout found; run inside it or pass --repo")
 	}
+
+	// An explicit build always reports every component it checked.
+	c.Verbose = true
+
 	return bootstrap.Ensure(c, true)
 }
 
@@ -628,6 +641,7 @@ USAGE
   codeberg --all [flags]         search every previously indexed repo combined
   codeberg --repos a,b [flags]   serve a chosen set of dirs and/or repo keys
   codeberg --no-index [flags]    one-off run: register nothing, build no index
+  codeberg --verbose [flags]     show component checks and daemon/indexer logs
   codeberg build [flags]         (re)build/download components and the model
   codeberg doctor                check toolchains, binaries, and resolved config
   codeberg config [sub]          view/change configuration (see below)
@@ -673,6 +687,7 @@ KEY SETTINGS
   CODEBERG_ALL      true = search all registered repos (--all)
   CODEBERG_REPOS    comma-separated dirs/keys to serve (--repos)
   CODEBERG_NO_INDEX true = register nothing, no index  (--no-index)
+  CODEBERG_VERBOSE  true = detailed startup output     (--verbose)
   CODEBERG_MODEL    LLM as provider:model          (--model)
                      optional when $CODEBERG_HOME/models.yml exists
   CODEBERG_SUBAGENT_MODEL  background knowledge model; defaults to CODEBERG_MODEL
