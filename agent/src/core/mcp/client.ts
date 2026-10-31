@@ -21,6 +21,7 @@ export interface ConnectMcpDeps {
     transport: unknown;
     clientName?: string;
     initializationOptions?: { timeout?: number };
+    protocolVersionDiscovery?: boolean;
   }) => Promise<McpClientLike>;
   StdioTransport?: new (opts: {
     command: string;
@@ -28,6 +29,16 @@ export interface ConnectMcpDeps {
     env?: Record<string, string>;
     cwd?: string;
   }) => unknown;
+}
+
+/**
+ * Local servers can start slower than the SDK's one-second discovery window.
+ * Its fallback `initialize` then races the late discovery reply, and servers
+ * that treat discovery as session setup reject it as a duplicate. Remote
+ * servers keep the SDK default.
+ */
+function discoveryOptions(server: McpServer): { protocolVersionDiscovery?: false } {
+  return server.kind === 'stdio' ? { protocolVersionDiscovery: false } : {};
 }
 
 function neverKind(x: never): never {
@@ -71,6 +82,7 @@ export async function connectMcpServer(
     transport,
     clientName: 'codeberg',
     initializationOptions: { timeout: INIT_TIMEOUT_MS },
+    ...discoveryOptions(server),
   });
 
   const tools = await client.tools();

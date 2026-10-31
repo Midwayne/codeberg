@@ -27,6 +27,8 @@ For a local process, install the executable separately:
 }
 ```
 
+Local processes connect with the standard MCP `initialize` handshake and have 15 seconds to start, so slower launchers such as `uvx` or `npx` work. Remote HTTP and SSE servers can also negotiate newer MCP protocol versions.
+
 A saved entry does not confirm the server is reachable. MCP tools may change external data; check capabilities and state the intended actions in your request.
 
 ## Configure a file
