@@ -7,6 +7,25 @@ changes may occur in minor releases and are called out explicitly.
 
 ## [Unreleased]
 
+## [0.1.13] - 2026-11-01
+
+### Fixed
+
+- Automatically discover and stream scheduled responses in retained chats
+  without a page reload, while preserving drafts and active local work.
+- Hide the Scheduled runs bar when the chat has no schedule or background-tool
+  entries.
+- Wrap long text without spaces inside user-message bubbles, preserving the
+  full text and line breaks on desktop and mobile.
+
+### Changed
+
+- New scheduled follow-ups display a Resuming scheduled task marker with the
+  continuation prompt collapsed under Task details. They no longer appear as
+  user-message bubbles or add ticks to the user-message navigation rail.
+- Clarify that scheduled turns can write progress updates and final answers,
+  and choose successive waits to continue unfinished work in the same chat.
+
 ## [0.1.12] - 2026-11-01
 
 ### Added
