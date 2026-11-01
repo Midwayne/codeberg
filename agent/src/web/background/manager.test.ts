@@ -50,7 +50,9 @@ it('returns a durable handle without waiting, then saves the result exactly once
   pending.resolve({ matched: 42 });
   await vi.waitFor(async () => expect((await jobs.get('chat', job.id)).status).toBe('completed'));
   expect((await jobs.get('chat', job.id)).output).toEqual({ matched: 42 });
-  expect(release).toHaveBeenCalledOnce();
+
+  // The result is saved before the slot is released in `finally`.
+  await vi.waitFor(() => expect(release).toHaveBeenCalledOnce());
 });
 
 it('isolates chats, rejects changed duplicate arguments, and forwards cancellation', async () => {
