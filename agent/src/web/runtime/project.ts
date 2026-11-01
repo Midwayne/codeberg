@@ -1,3 +1,4 @@
+import { backgroundContext } from '../../core/background/context.js';
 import { canvasFromEnv } from '../../core/canvas/config.js';
 import { SearchRuns } from '../runs/manager.js';
 import type { ChatGenerator } from '../runs/types.js';
@@ -86,8 +87,10 @@ export async function buildProjectHandler(project: Project, options: ProjectRunt
 async function initializeRuntime(runtime: OwnedRuntime, owned: OwnedRuntime[]) {
   // Recover durable work independently of chat; failed initialization can retry.
   try {
+    await runtime.runs?.initialize();
     await runtime.learning?.initialize();
   } catch (error) {
+    await runtime.runs?.close();
     runtime.learning?.stop();
     runtime.resources.stop();
     owned.splice(owned.indexOf(runtime), 1);
@@ -112,6 +115,9 @@ export function projectGenerator(
       JSON.stringify([extensions.revision, learning?.settingsRevision ?? 0, await canvas?.available(), webEnv]),
       webEnv,
     );
+
+    const background = backgroundContext.getStore();
+    if (background) background.retain = lease.retain;
 
     try {
       const stream = await createAgentUIStream({ agent: lease.agent, uiMessages: messages, abortSignal: signal });

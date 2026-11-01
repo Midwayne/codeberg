@@ -1,4 +1,4 @@
-import { Activity, BarChart3, BookOpen, Brain, FolderOpen, Palette, PencilRuler, Puzzle, Trash2, Wrench } from 'lucide-react';
+import { Activity, BarChart3, BookOpen, Brain, Clock, FolderOpen, Palette, PencilRuler, Puzzle, Trash2, Wrench } from 'lucide-react';
 
 import { type CleanupCategory } from '../lib/resources';
 
@@ -6,6 +6,7 @@ export const sections = [
   { id: 'appearance', label: 'Appearance', shortLabel: 'Appearance', icon: Palette },
   { id: 'projects', label: 'Projects', shortLabel: 'Projects', icon: FolderOpen },
   { id: 'tools', label: 'Tools', shortLabel: 'Tools', icon: Wrench },
+  { id: 'schedules', label: 'Scheduled runs', shortLabel: 'Schedules', icon: Clock },
   { id: 'mcps', label: 'MCP servers', shortLabel: 'MCPs', icon: Puzzle },
   { id: 'skills', label: 'Skills', shortLabel: 'Skills', icon: BookOpen },
   { id: 'canvas', label: 'Canvas', shortLabel: 'Canvas', icon: PencilRuler },

@@ -15,6 +15,7 @@ import type { AgentState } from './state.js';
 import { budgetWindow } from '../../providers/profiles.js';
 import { configuredDecision } from '../decisions/catalog.js';
 import { decisionTools } from '../decisions/tool.js';
+import { BACKGROUND_INSTRUCTIONS } from '../background/tools.js';
 
 export async function prepareSystem(
   state: AgentState,
@@ -36,6 +37,7 @@ export async function prepareSystem(
   if (toolNames.includes('search_bundle')) state.system += '\n\nsearch_bundle is an experimental read-only pipeline for up to four explicit repository/query pairs. Use repos to discover keys, then use it for cross-repository evidence. Inspect partial failures and omitted results before concluding absence.';
 
   if (toolNames.some((name) => name.startsWith('canvas_'))) state.system += CANVAS_INSTRUCTIONS;
+  if (toolNames.includes('sleep_agent')) state.system += BACKGROUND_INSTRUCTIONS;
 
   const knowledgeIndex = await state.learning?.knowledgeIndex();
   if (knowledgeIndex) state.system += `\n\n${knowledgeIndex}`;

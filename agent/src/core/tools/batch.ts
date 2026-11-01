@@ -2,6 +2,7 @@ import { jsonSchema, tool, type ToolExecutionOptions, type ToolSet } from 'ai';
 
 import { presentToolOutput, SPILL_CHARS } from '../context/spill.js';
 import type { ContextStore } from '../context/store.js';
+import { isBackgroundControl } from '../background/names.js';
 
 export const BATCH_TOOL = 'batch';
 
@@ -26,7 +27,7 @@ type Execute = (args: unknown, options: ToolExecutionOptions<unknown>) => unknow
  *  keep their own calls. */
 export function isBatchable(name: string): boolean {
   return (
-    name !== BATCH_TOOL &&
+    !isBackgroundControl(name) &&
     !name.startsWith('browser_') &&
     name !== 'load_mcp_tools' &&
     !name.startsWith('mcp_') &&

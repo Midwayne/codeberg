@@ -10,10 +10,11 @@ const sessions: SessionSummary[] = [
   { id: 'recent', title: 'Recent conversation', updatedAt: 3, turns: 1, pinned: false, archived: false },
 ];
 
-function render(): string {
+function render(scheduledChatIds?: ReadonlySet<string>): string {
   return renderToStaticMarkup(<SessionSidebar
     projectControls={<select aria-label="Project"><option>Alpha</option></select>}
     sessions={sessions}
+    scheduledChatIds={scheduledChatIds}
     currentId="pin" canBranch={false} onResume={() => undefined}
     onNew={() => undefined} onBranch={() => undefined}
     onDelete={() => undefined} onSetFlags={() => undefined}
@@ -21,6 +22,13 @@ function render(): string {
 }
 
 describe('SessionSidebar', () => {
+  it('marks chats with active schedules using a named clock without changing their title', () => {
+    const html = render(new Set(['pin']));
+
+    expect(html.match(/aria-label="Has active scheduled runs or background tools"/g)).toHaveLength(1);
+    expect(html).toContain('Pinned conversation');
+    expect(render()).not.toContain('Has active scheduled runs or background tools');
+  });
   it('requires a separate destructive action and offers a safe cancel button', () => {
     const html = renderToStaticMarkup(<DeleteChatDialog title="A saved investigation" onClose={() => undefined} onDelete={() => undefined} />);
     expect(html).toContain('<dialog');

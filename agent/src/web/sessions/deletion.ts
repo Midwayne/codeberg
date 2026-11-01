@@ -12,6 +12,7 @@ export async function remove(state: WebSessionStoreState, id: string): Promise<v
     try {
       await unlink(join(state.dir, `${id}.json`));
       await rm(join(state.dir, '.runs', id), { recursive: true, force: true });
+      await rm(join(state.dir, '.jobs', id), { recursive: true, force: true });
     } catch {
       // already gone / unreadable — nothing to do
     }
@@ -41,6 +42,7 @@ export async function removeOlder(
 
     await unlink(path);
     await rm(join(state.dir, '.runs', id), { recursive: true, force: true });
+    await rm(join(state.dir, '.jobs', id), { recursive: true, force: true });
 
     return bytes;
   });

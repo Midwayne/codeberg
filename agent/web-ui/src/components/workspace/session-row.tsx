@@ -1,4 +1,4 @@
-import { GitBranch, MoreHorizontal } from 'lucide-react';
+import { Clock, GitBranch, MoreHorizontal } from 'lucide-react';
 
 import { cn, timeAgo } from '../../lib/utils';
 import { IconButton } from '../ui';
@@ -22,6 +22,7 @@ export function SessionRow({ s, state }: SessionRowProps) {
       >
         <span className="flex min-w-0 items-center gap-1">
           {s.parentId && <GitBranch className="size-3 shrink-0 text-muted-foreground" aria-label="Branched chat" />}
+          <ScheduleBadge active={state.scheduledChatIds?.has(s.id)} />
           <span className="line-clamp-2 leading-5 text-foreground">{s.title}</span>
         </span>
         <span className="mt-1 block truncate text-xs text-muted-foreground">
@@ -51,4 +52,10 @@ export function SessionRow({ s, state }: SessionRowProps) {
       </IconButton>
     </li>
   );
+}
+
+function ScheduleBadge({ active }: { active?: boolean }) {
+  return active && <span role="img" aria-label="Has active scheduled runs or background tools" title="Has active scheduled runs or background tools" className="shrink-0 text-muted-foreground">
+    <Clock className="size-3" aria-hidden="true" />
+  </span>;
 }

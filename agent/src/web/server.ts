@@ -41,6 +41,10 @@ export function createRequestHandler(
     : new SearchRuns(sessions, opts.generate ?? defaultChatGenerator(opts, usage), { learning: opts.learning }));
   opts = { ...opts, runs };
   const writes = new RequestWriteGate(resources, () => Boolean(runs?.busy));
+  if (runs) {
+    runs.schedules.canDispatch = () => !writes.busy;
+    runs.schedules.start();
+  }
 
   return async (req, res) => {
     let path: string;

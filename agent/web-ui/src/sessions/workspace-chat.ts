@@ -6,6 +6,7 @@ import { TurnQueue } from './turn-queue';
 import { chatPersistence } from './workspace-persistence';
 import { persistingTransport } from './persisting-transport';
 import type { ChatSaveState } from './chat-save-state';
+import { reloadWorkspaceChat } from './chat-reload';
 
 export interface WorkspaceChatSave {
   id: string;
@@ -26,6 +27,7 @@ export interface WorkspaceChat {
   readonly disposed: boolean;
   readonly createdAt: number;
   dispose: () => Promise<void>;
+  reload: (record: WorkspaceChatSave) => Promise<boolean>;
 }
 
 interface CreateWorkspaceChatOptions {
@@ -40,23 +42,15 @@ interface CreateWorkspaceChatOptions {
 }
 
 /** Creates one independently streaming chat whose completion persists to its owning session. */
-export function createWorkspaceChat({
-  id,
-  messages,
-  title,
-  parentId,
-  transport,
-  persist,
-  onPersist,
-  serverOwned = transport === undefined,
-}: CreateWorkspaceChatOptions): WorkspaceChat {
+export function createWorkspaceChat(options: CreateWorkspaceChatOptions): WorkspaceChat {
+  const { id, messages, title, parentId, transport, persist, onPersist, serverOwned = transport === undefined } = options;
   let disposed = false;
   const runTransport = transport instanceof RunTransport ? transport : transport ? undefined : new RunTransport();
   const persistence = chatPersistence({
     serverOwned,
     id,
-    title,
-    parentId,
+    get title() { return workspace.title; },
+    get parentId() { return workspace.parentId; },
     persist,
     onPersist,
     disposed: () => disposed,
@@ -73,7 +67,7 @@ export function createWorkspaceChat({
   });
   const turns = createTurnQueue(chat, savedTransport.isPending, runTransport);
 
-  return {
+  const workspace: WorkspaceChat = {
     id,
     title,
     parentId,
@@ -82,6 +76,7 @@ export function createWorkspaceChat({
     persistence: persistence.state,
     draft: { text: '' },
     createdAt: Date.now(),
+    reload: (record) => reloadWorkspaceChat(workspace, record, persistence.settled, () => runTransport?.reset()),
     get disposed() { return disposed; },
     dispose: async () => {
       disposed = true;
@@ -89,6 +84,8 @@ export function createWorkspaceChat({
       await persistence.settled();
     },
   };
+
+  return workspace;
 }
 
 function createTurnQueue(chat: Chat<UIMessage>, isPending: () => boolean, transport?: RunTransport) {

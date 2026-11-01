@@ -4,6 +4,7 @@ import { handle } from './projects/routing.js';
 import { ProjectRequestRouterState } from './projects/state.js';
 import type { SetupStatus } from './setup/status.js';
 import type { ToolSettingsStore } from './tools/settings.js';
+import { restoreScheduledProjects } from './projects/scheduled.js';
 
 export class ProjectRequestRouter {
   private readonly state: ProjectRequestRouterState;
@@ -14,6 +15,10 @@ export class ProjectRequestRouter {
 
   handle(req: IncomingMessage, res: ServerResponse): void {
     return handle(this.state, req, res);
+  }
+
+  restoreSchedules(): Promise<void> {
+    return restoreScheduledProjects(this.state);
   }
 }
 

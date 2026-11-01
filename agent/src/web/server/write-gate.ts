@@ -8,6 +8,10 @@ export class RequestWriteGate {
 
   constructor(private readonly resources: ResourceSettings, private readonly searching = () => false) {}
 
+  get busy(): boolean {
+    return this.activeWrites > 0 || this.cleanupRequested || this.resources.busy;
+  }
+
   acquire(req: IncomingMessage, res: ServerResponse, path: string): (() => void) | undefined {
     const cleanup = req.method === 'POST' && path === '/api/settings/cleanup';
     const write = !['GET', 'HEAD', 'OPTIONS'].includes(req.method ?? '') && !cleanup;

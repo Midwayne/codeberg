@@ -12,6 +12,9 @@ import { DEFAULT_TIMEOUT } from './options.js';
 import type { AgentState } from './state.js';
 import { buildTools, prepareSystem } from './tools.js';
 import { modelTimeout } from './model-timeout.js';
+import { backgroundTools } from '../background/tools.js';
+import { agentIsSleeping } from '../background/context.js';
+import { presentToolOutput } from '../context/spill.js';
 
 export async function toolLoopAgent(state: AgentState): Promise<ToolLoopAgent> {
   return ensureLoop(state);
@@ -33,7 +36,9 @@ export async function ensureLoop(state: AgentState): Promise<ToolLoopAgent> {
 export async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
   // Sort tools to keep the cached system prefix stable across processes.
   // `batch` wraps the raw tools: it spills each result against its own budget.
-  const raw = recordToolExecutions(await buildTools(state));
+  const base = await buildTools(state);
+  const raw = recordToolExecutions({ ...base, ...backgroundTools(base,
+    (name, args, output) => presentToolOutput(state.context, name, args, output)) });
   const tools = deterministicTools({
     ...wrapToolOutputs(raw, state.context),
     ...(state.profile.toolBatch ? batchTool(raw, state.context) : {}),
@@ -57,7 +62,7 @@ export async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
     // Continue until the model answers instead of inheriting the SDK's
     // default 20-step limit. Browser tools wait without a run-wide deadline;
     // their provider calls retain timeouts independently of tool execution.
-    stopWhen: isLoopFinished(),
+    stopWhen: [isLoopFinished(), agentIsSleeping],
     ...(browser ? {} : { timeout: DEFAULT_TIMEOUT }),
     ...(providerOptions ? { providerOptions } : {}),
     ...(state.reasoning && state.reasoning !== 'max' ? { reasoning: state.reasoning } : {}),

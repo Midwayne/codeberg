@@ -9,6 +9,8 @@ Source files stay in the directory you add. Codeberg stores configuration and de
   projects/<id>/
     web-sessions/          # Saved chats
       .runs/              # Search status, tool outcomes, response events
+      .schedules/         # Durable scheduled follow-ups and their status
+      .jobs/              # Background invocation status, progress and results
     context/              # Retrieved text, archives, checkpoints
     learning/             # History, knowledge, datasets, evaluations
     canvas/               # Drawings, when enabled
@@ -24,7 +26,9 @@ Context checkpoints reuse summaries only while saved messages and model policy m
 
 Search journals retain request identity, tool starts/outcomes, and ordered events. Each has a **32 MiB** limit; reaching it stops the run with an error. Narrow the investigation. Deleting a chat, including age-based cleanup, removes its journals; active runs block deletion.
 
-After restart, saved tool outcomes remain but generation does not resume automatically. A start without an outcome is uncertain. See [Chats](/docs/chats#recover-a-connection).
+After restart, saved tool outcomes remain but interrupted generation does not resume automatically. A start without an outcome is uncertain. Separately, [scheduled follow-ups](/docs/tools#schedule-a-follow-up) survive restarts and can start new turns when due. Deleted chats are never recreated by their schedules. See [Chats](/docs/chats#recover-a-connection).
+
+The project schedule queue retains prompts, model selections and status after cancellation or chat deletion. Delete the entire project history to erase that queue. Archiving a chat does not cancel its schedules.
 
 ## Browser files
 
@@ -65,3 +69,5 @@ Open **Settings → Free up resources**, inspect the preview, and select what to
 | `codeberg clean-index` | Managed index caches. | Chats and learning data. |
 
 Use app project deletion while the web agent runs so it can check active work. Rebuilding indexes may require another embedding pass. See [Projects](/docs/projects#delete-a-project).
+
+Background invocation records belong to their original chat and are included in chat storage accounting and cleanup. Completed results remain readable until that chat is deleted or cleaned up. Live background work blocks cleanup and chat deletion; cancel it and wait for it to settle first. A process restart preserves records but marks unfinished calls interrupted with an uncertain outcome. Wake-ups can inspect these records without repeating the original call.

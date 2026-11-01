@@ -14,6 +14,7 @@ import { LoadingSuspense } from './components/loading-suspense';
 import { MotionPresence } from './components/motion-presence';
 
 import { useMediaQuery } from './lib/use-media-query';
+import { ScheduleWorkspaceProvider } from './lib/schedule-workspace';
 
 // Secondary screens load only when opened; the chat stays on the critical path.
 const Settings = lazy(() => import('@/components/settings').then((module) => ({ default: module.Settings })));
@@ -36,7 +37,14 @@ export type ProjectWorkspaceProps = { toolbar: ReactNode; loading: boolean; noti
 export function ProjectWorkspace(props: ProjectWorkspaceProps) {
   const state = useProjectWorkspace(props);
 
-  return <ProjectWorkspaceView {...state} />;
+  return <ScheduleWorkspaceProvider enabled={!props.loading} onOpenChat={() => {
+    state.setSettingsOpen(false);
+    state.setTrainingOpen(false);
+    state.setModelsOpen(false);
+    if (state.settingsOpen) state.settingsButton.current?.focus();
+
+    if (!state.desktop) state.setSidebarOpen(false);
+  }}><ProjectWorkspaceView {...state} /></ScheduleWorkspaceProvider>;
 }
 
 export type ProjectWorkspaceOptions = {

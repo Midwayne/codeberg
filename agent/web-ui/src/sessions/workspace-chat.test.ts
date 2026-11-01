@@ -108,3 +108,33 @@ describe('workspace chats', () => {
     ]);
   });
 });
+
+it('keeps existing subscribers receiving streamed tokens after an idle history reload', async () => {
+  const transport = new ControlledTransport();
+  const saves: WorkspaceChatSave[] = [];
+  const workspace = createWorkspaceChat({ id: 'retained', title: 'Before reload', messages: [], transport,
+    persist: async (record) => { saves.push(record); } });
+  const observed: string[] = [];
+  const unsubscribe = workspace.chat['~registerMessagesCallback'](() => {
+    observed.push(workspace.chat.messages.map(text).join('|'));
+  });
+  const sdkChat = workspace.chat;
+  const history: WorkspaceChatSave = { id: workspace.id, title: 'Scheduled investigation', parentId: 'parent',
+    messages: [{ id: 'scheduled', role: 'assistant', parts: [{ type: 'text', text: 'Saved result' }] }] };
+
+  expect(await workspace.reload(history)).toBe(true);
+  expect(workspace.chat).toBe(sdkChat);
+  const sending = workspace.chat.sendMessage({ text: 'Continue' });
+  await expect.poll(() => transport.requests.length).toBe(1);
+  const request = transport.requests[0]!;
+  streamText(request, 'reply', 'text', 'First');
+  await expect.poll(() => observed.at(-1)).toContain('First');
+  request.controller.enqueue({ type: 'text-delta', id: 'text', delta: ' second' });
+  await expect.poll(() => observed.at(-1)).toContain('First second');
+  finishText(request, 'text');
+  await sending;
+
+  expect(saves.at(-1)).toMatchObject({ title: history.title, parentId: 'parent' });
+  unsubscribe();
+  await workspace.dispose();
+});

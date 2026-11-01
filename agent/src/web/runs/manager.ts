@@ -11,9 +11,14 @@ import { saveRunSession } from './persistence.js';
 import { notify, runStream } from './stream.js';
 import { RunError, type ChatGenerator, type RunInput, type SearchRun } from './types.js';
 import { validateHistory } from './validation.js';
+import { RunScheduler } from '../schedules/scheduler.js';
+import { BackgroundJobs } from '../background/manager.js';
+import { withRunScope } from './scope.js';
 
 /** One owner per project/chat. Completed calls are replayed as observations, never executed. */
 export class SearchRuns {
+  readonly schedules: RunScheduler;
+  readonly background: BackgroundJobs;
   private readonly active = new Map<string, SearchRun>();
   private readonly admissions = new Map<string, Promise<unknown>>();
   private readonly loading = new Map<string, Promise<SearchRun | undefined>>();
@@ -21,10 +26,13 @@ export class SearchRuns {
   private closed = false;
 
   constructor(readonly sessions: WebSessionStore, private readonly generate: ChatGenerator,
-    private readonly options: { learning?: LearningService } = {}) {}
+    private readonly options: { learning?: LearningService } = {}) {
+    this.schedules = new RunScheduler(this);
+    this.background = new BackgroundJobs(sessions.dir);
+  }
 
   get busy(): boolean {
-    return this.active.size > 0 || this.admissions.size > 0;
+    return this.active.size > 0 || this.admissions.size > 0 || this.schedules.busy || this.background.busy;
   }
 
   initialize(): Promise<void> {
@@ -82,6 +90,8 @@ export class SearchRuns {
 
   async close(): Promise<void> {
     this.closed = true;
+    await this.schedules.close();
+    await this.background.close();
     await Promise.allSettled([...this.admissions.values()]);
     const runs = [...this.active.values()];
     for (const run of runs) run.controller.abort('shutdown');
@@ -123,7 +133,8 @@ export class SearchRuns {
       }
       throw error;
     }
-    run.done = executeRun(run, this.generate, this.sessions, this.options.learning).catch((error) => {
+    run.done = withRunScope(this, run,
+      () => executeRun(run, this.generate, this.sessions, this.options.learning)).catch((error) => {
       run.record.status = 'failed';
       run.record.error = String(error);
       console.error('search run persistence failed:', error);
@@ -163,6 +174,7 @@ export class SearchRuns {
   }
 
   private async recover(): Promise<void> {
+    await this.background.initialize();
     for (const summary of await this.sessions.list()) {
       const session = await this.sessions.load(summary.id);
       if (!session?.serverRunId) continue;

@@ -30,6 +30,14 @@ Only one search runs per chat. Queued follow-ups wait for completion, regenerati
 
 You can keep the same chat open in multiple tabs. Simply viewing it does not block follow-ups. Codeberg uses the server's saved answers when continuing a chat. If another tab submits a new question or regenerates an answer, reload older tabs before continuing there.
 
+## Scheduled work
+
+Expand **Scheduled runs** above a conversation to inspect and cancel that chat's jobs. Background tools appear in the same list with a Cancel tool action. Its count and the small clock beside a sidebar chat title indicate pending schedules or active background work. **All** includes completed, cancelled and failed history.
+
+The expanded schedule list scrolls within the available chat space, leaving the canvas shortcut and message composer accessible on smaller screens.
+
+**Settings → Scheduled runs** shows all chats in the selected project. Choose **Open chat** on a schedule to reach its conversation; idle chats load the latest saved results while preserving draft text. Streaming, queued or unsaved local work stays intact. See [scheduling and cancellation](/docs/tools#schedule-a-follow-up) for timing, costs and recovery.
+
 ## Recover a connection
 
 Codeberg automatically attempts reconnection up to three times. After a longer outage, reopen the saved chat or choose **Retry**. Saved response events rebuild the existing answer without repeating completed model or tool calls.
@@ -54,3 +62,5 @@ Automatic reconnection and saved-chat navigation require the normal built web UI
 - Answer links show **Open external link?** with the destination. Choose **Open link**, **Copy link**, or **Cancel**; Escape also closes the dialog.
 
 Use **Search docs** or **⌘K / Ctrl+K** for local documentation search. **↑ / ↓** selects, **Enter** opens the matching section, and **Escape** closes it. Docs work without a project, model, or LLM call.
+
+For long tasks, the agent can [start background work and sleep](/docs/tools#let-a-long-tool-work-while-the-agent-sleeps), choosing when to check again. Each wake-up uses the latest saved chat history. Cancelling a wake-up leaves its tool running; cancel that tool separately if needed. Branching a chat copies its conversation only: schedules and background jobs remain owned by the original chat, and the new branch cannot inspect or cancel them through agent tools.

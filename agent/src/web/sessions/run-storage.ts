@@ -6,7 +6,9 @@ import { isValidSessionId } from './records.js';
 export async function sessionRunBytes(directory: string, id: string): Promise<number> {
   if (!isValidSessionId(id)) return 0;
 
-  return directoryBytes(join(directory, '.runs', id));
+  const sizes = await Promise.all(['.runs', '.jobs'].map((name) => directoryBytes(join(directory, name, id))));
+
+  return sizes.reduce((sum, size) => sum + size, 0);
 }
 
 async function directoryBytes(path: string): Promise<number> {

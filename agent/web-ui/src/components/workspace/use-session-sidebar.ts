@@ -5,6 +5,7 @@ export type SessionSidebarOptions = {
   projectControls?: ReactNode;
   sidebarActions?: ReactNode;
   sessions: SessionSummary[];
+  scheduledChatIds?: ReadonlySet<string>;
   error?: string;
   currentId: string;
   canBranch: boolean;
@@ -15,19 +16,8 @@ export type SessionSidebarOptions = {
   onSetFlags: (id: string, flags: { pinned?: boolean; archived?: boolean }) => void;
 };
 
-export function useSessionSidebar({
-  projectControls,
-  sidebarActions,
-  sessions,
-  error,
-  currentId,
-  canBranch,
-  onResume,
-  onNew,
-  onBranch,
-  onDelete,
-  onSetFlags,
-}: SessionSidebarOptions) {
+export function useSessionSidebar(options: SessionSidebarOptions) {
+  const { sessions } = options;
   const [view, setView] = useState<'active' | 'archived'>('active');
   const [menu, setMenu] = useState<{ id: string; top: number; left: number }>();
   const [deleting, setDeleting] = useState<SessionSummary>();
@@ -41,27 +31,17 @@ export function useSessionSidebar({
     { label: view === 'archived' ? 'Archived' : 'Recent', items: visible.filter((s) => !s.pinned) },
   ];
   return {
-    projectControls,
-    sidebarActions,
-    onNew,
-    onBranch,
-    canBranch,
+    ...options,
     setView,
     view,
-    sessions,
-    error,
     visible,
     groups,
-    currentId,
-    onResume,
     menu,
     setMenu,
     triggerRef,
     menuRef,
-    onSetFlags,
     setDeleting,
     deleting,
-    onDelete,
   };
 }
 

@@ -3,7 +3,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { useChatTransitions } from './use-chat-transitions';
 import { useSessionMutations } from './use-session-mutations';
 import { createWorkspaceChat, type WorkspaceChat } from './workspace-chat';
-import type { UIMessageChunk } from 'ai';
+import type { UIMessage, UIMessageChunk } from 'ai';
 
 const { cleanups } = vi.hoisted(() => ({ cleanups: [] as (() => void)[] }));
 
@@ -35,8 +35,8 @@ function fixture() {
   const refresh = vi.fn(async () => {});
   const setLoad = vi.fn();
   const api = vi.fn<typeof fetch>();
-  const createChat = vi.fn((id: string) => {
-    const chat = createWorkspaceChat({ id, messages: [], persist: async () => {} });
+  const createChat = vi.fn((id: string, messages: UIMessage[] = []) => {
+    const chat = createWorkspaceChat({ id, messages, persist: async () => {} });
     chats.current.set(id, chat);
 
     return chat;
@@ -115,6 +115,42 @@ it('opens a retained view immediately without scheduling a skeleton or another f
   expect(requestAnimationFrame).not.toHaveBeenCalled();
 
   await opening;
+});
+
+it('opens the latest scheduled chat history while preserving its unsent draft', async () => {
+  const state = fixture();
+  const retained = state.createChat('retained');
+  retained.draft.text = 'Unsent question';
+  const observer = vi.fn();
+  const unsubscribe = retained.chat['~registerMessagesCallback'](observer);
+  state.renderedViews.current.add(retained);
+  const messages = [{ id: 'scheduled-answer', role: 'assistant', parts: [{ type: 'text', text: 'Scheduled result' }] }];
+  state.api.mockResolvedValueOnce(Response.json({ id: 'retained', title: 'Updated title', messages }));
+
+  await state.resume('retained', { reload: true });
+
+  const selected = state.setActive.mock.calls.at(-1)?.[0] as WorkspaceChat;
+  expect(state.createChat).toHaveBeenCalledOnce();
+  expect(selected).toBe(retained);
+  expect(selected.title).toBe('Updated title');
+  expect(selected.chat.messages).toEqual(messages);
+  expect(observer).toHaveBeenCalled();
+  unsubscribe();
+  expect(selected.draft.text).toBe('Unsent question');
+  expect(retained.disposed).toBe(false);
+});
+
+it('keeps a retained chat with unsaved work or queued turns when opened from a schedule', async () => {
+  const state = fixture();
+  const retained = state.createChat('retained');
+  retained.persistence.failed(new Error('Save pending'));
+  state.renderedViews.current.add(retained);
+
+  await state.resume('retained', { reload: true });
+
+  expect(state.api).not.toHaveBeenCalled();
+  expect(state.setActive).toHaveBeenLastCalledWith(retained);
+  expect(retained.disposed).toBe(false);
 });
 
 it('cancels an evicted view while the skeleton is painting without accepting its deferred activation', async () => {

@@ -20,6 +20,10 @@ export class TurnQueue {
   constructor(private chat: Pick<Chat<UIMessage>, 'sendMessage' | 'stop' | 'regenerate' | 'status'>,
     private readonly remote?: { stop: () => Promise<void | boolean>; retry: () => Promise<void>; synchronize?: () => Promise<void> }) {}
 
+  get busy(): boolean {
+    return Boolean(this.active || this.stopping);
+  }
+
   getSnapshot = () => this.snapshot;
 
   subscribe = (listener: () => void) => {

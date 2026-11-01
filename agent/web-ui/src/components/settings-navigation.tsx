@@ -12,6 +12,7 @@ import { type Settings } from './settings';
 import { ResourceUsagePanel } from './resource-usage';
 import { CleanupPanel } from './cleanup';
 import { ModelUsagePanel } from './model-usage';
+import { ScheduledRunsPanel } from './scheduled-runs';
 
 type SettingsSection = (typeof sections)[number]['id'];
 
@@ -65,6 +66,7 @@ export function SettingsPanels({ section, onLearningSaved }: SettingsPanelsProps
               {id === 'appearance' && <AppearancePanel />}
               {id === 'projects' && <ProjectsPanel />}
               {id === 'tools' && <ToolsSettings />}
+              {id === 'schedules' && <ScheduledRunsPanel />}
               {id === 'mcps' && <ProjectExtensions kind="mcp" />}
               {id === 'skills' && <ProjectExtensions kind="skill" />}
               {id === 'canvas' && <CanvasSettings />}

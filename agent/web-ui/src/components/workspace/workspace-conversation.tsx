@@ -3,6 +3,7 @@ import { useCallback, useLayoutEffect, useRef } from 'react';
 import { ChatViews } from './chat-views';
 import { ChatLoadSurface } from './chat-load-surface';
 import type { WorkspaceViewProps } from './workspace';
+import { ChatScheduledRuns } from './chat-scheduled-runs';
 
 type WorkspaceConversationProps = Pick<WorkspaceViewProps,
   'active' | 'renderedViews' | 'load' | 'sessions' | 'resume' | 'cancelResume' | 'learningEnabled' | 'chatInputs' | 'branchFrom' | 'jump' | 'sessionId'>;
@@ -12,6 +13,7 @@ export function WorkspaceConversation(state: WorkspaceConversationProps) {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <ChatScheduledRuns key={state.sessionId} chatId={state.sessionId} />
       <ChatViews
         active={state.active}
         renderedViews={state.renderedViews}

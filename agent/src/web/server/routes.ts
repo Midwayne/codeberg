@@ -1,4 +1,5 @@
 import { routeSearchRun } from '../runs/routes.js';
+import { routeSchedules } from '../schedules/routes.js';
 import { routeCanvas } from '../canvas/routes.js';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { promptCommandCatalog } from '../../core/hooks/index.js';
@@ -34,6 +35,10 @@ export async function route(
 ): Promise<void> {
   const url = new URL(req.url ?? '/', 'http://localhost');
   const path = url.pathname;
+
+  if ((path === '/api/schedules' || path.startsWith('/api/schedules/')) && opts.runs) {
+    return routeSchedules(req, res, url, opts.runs);
+  }
 
   if (path === '/api/settings/usage' && opts.usage) {
     return routeUsage(req, res, opts.usage, url);
@@ -167,7 +172,12 @@ export function escapeHtml(s: string): string {
 async function protectedSessionRoute(req: IncomingMessage, res: ServerResponse, opts: WebServerOptions,
   sessions: WebSessionStore, path: string): Promise<void> {
   if (req.method === 'DELETE' && opts.runs) {
-    const run = await opts.runs.find(path.slice(SESSIONS_PATH.length + 1));
+    if (opts.runs.schedules.busy) return sendText(res, 409, 'Scheduled work is being admitted. Retry deleting this chat shortly.');
+
+    const chatId = path.slice(SESSIONS_PATH.length + 1);
+    if (opts.runs.background.hasActive(chatId)) return sendText(res, 409, 'Cancel background tools before deleting their chat.');
+
+    const run = await opts.runs.find(chatId);
     if (run && !run.settled) return sendText(res, 409, 'Stop this search before deleting its chat.');
   }
 

@@ -9,6 +9,7 @@ import { type CatalogModel } from '../../lib/models';
 import { Dialog } from '../ui';
 
 import { useMediaQuery } from '../../lib/use-media-query';
+import { useScheduledChatNavigation } from '../../sessions/use-scheduled-chat-navigation';
 
 /**
  * Composes the chat and sidebar around the shared session lifecycle.
@@ -39,6 +40,7 @@ export function useWorkspaceView({
   onSearchClose,
 }: WorkspaceProps) {
   const session = useWorkspaceSession();
+  useScheduledChatNavigation(session.resume);
   const [jump, setJump] = useState<{ sessionId: string; messageId: string; nonce: number }>();
   const desktop = useMediaQuery('(min-width: 768px)');
   const sidebar = (

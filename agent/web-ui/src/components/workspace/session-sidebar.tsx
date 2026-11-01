@@ -12,6 +12,7 @@ export type SessionSidebarProps = {
   projectControls?: ReactNode;
   sidebarActions?: ReactNode;
   sessions: SessionSummary[];
+  scheduledChatIds?: ReadonlySet<string>;
   error?: string;
   currentId: string;
   canBranch: boolean;

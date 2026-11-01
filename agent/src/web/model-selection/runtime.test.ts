@@ -362,3 +362,18 @@ it('rebuilds chat tools when the search setting or its ready endpoint changes', 
   expect(seen.map((env) => env.CODEBERG_WEB_SEARCH_USE)).toEqual(['false', 'true', 'true', 'false']);
   await pool.close();
 });
+
+it('keeps a detached tool connection alive after its foreground lease is released', async () => {
+  const close = vi.fn(async () => undefined);
+  const pool = new ReloadableAgentPool(() => new ModelAgentPool({ build: async () => ({}) as ToolLoopAgent, close }));
+  const choice = { key: 'test', model: 'openai:test', effort: 'low' as const, contextWindow: 50000 };
+  const lease = await pool.acquire(choice, 0);
+  const releaseWork = lease.retain();
+  await lease.release();
+  await pool.close();
+  expect(close).not.toHaveBeenCalled();
+
+  await releaseWork();
+  await releaseWork();
+  expect(close).toHaveBeenCalledOnce();
+});

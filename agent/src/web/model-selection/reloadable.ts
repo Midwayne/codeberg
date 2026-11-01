@@ -28,24 +28,29 @@ export class ReloadableAgentPool {
 
     // Capture ownership before yielding: concurrent requests share this generation.
     const generation = this.current;
+    const release = this.retain(generation);
+
+    try {
+      if (previous) await this.retire(previous);
+
+      return { agent: await generation.pool.forSelection(selection), release, retain: () => this.retain(generation) };
+    } catch (error) {
+      await release();
+      throw error;
+    }
+  }
+
+  private retain(generation: PoolGeneration): () => Promise<void> {
     generation.users++;
     let released = false;
-    const release = async () => {
+
+    return async () => {
       if (released) return;
 
       released = true;
       generation.users--;
       await this.retire(generation);
     };
-
-    try {
-      if (previous) await this.retire(previous);
-
-      return { agent: await generation.pool.forSelection(selection), release };
-    } catch (error) {
-      await release();
-      throw error;
-    }
   }
 
   private async retire(generation: PoolGeneration) {

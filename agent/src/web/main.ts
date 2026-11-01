@@ -12,7 +12,7 @@ import { migrateProjectData, projectEnvironment, type ProjectCatalog } from '../
 import { defaultProviders } from '../providers/index.js';
 import { ExtensionStore } from './extensions.js';
 import { ModelSettingsStore } from './model-selection/settings.js';
-import { createProjectRequestHandler } from './projects.js';
+import { ProjectRequestRouter } from './projects.js';
 import { setupNotice, startupTitle, webEntry } from './startup.js';
 import { setupStatus } from './setup/status.js';
 import { ToolSettingsStore } from './tools/settings.js';
@@ -102,20 +102,24 @@ async function loadProjectCatalog(daemonUrl: string): Promise<ProjectCatalog> {
 function createProjectServer(options: ProjectRuntimeOptions): Server {
   const { catalog, entry, extensions } = options;
 
-  return createServer(
-    createProjectRequestHandler({
-      catalog,
-      title: options.title,
-      staticRoot: process.env.CODEBERG_WEB_ROOT ?? defaultStaticRoot(),
-      daemonUrl: entry.daemonUrl,
-      extensions: (req, res, project) =>
-        extensions.route(req, res, projectEnvironment(process.env, project, catalog)),
-      tools: options.tools,
-      setup: () => setupStatus(options.modelSettings),
-      dispose: (id) => disposeProjectRuntime(options.owned, id),
-      build: (project) => buildProjectHandler(project, options),
-    }),
-  );
+  const router = new ProjectRequestRouter({
+    catalog,
+    title: options.title,
+    staticRoot: process.env.CODEBERG_WEB_ROOT ?? defaultStaticRoot(),
+    daemonUrl: entry.daemonUrl,
+    extensions: (req, res, project) =>
+      extensions.route(req, res, projectEnvironment(process.env, project, catalog)),
+    tools: options.tools,
+    setup: () => setupStatus(options.modelSettings),
+    dispose: (id) => disposeProjectRuntime(options.owned, id),
+    build: (project) => buildProjectHandler(project, options),
+  });
+  const server = createServer((req, res) => router.handle(req, res));
+  server.once('listening', () => {
+    void router.restoreSchedules().catch((error) => console.error('Schedule recovery failed:', error));
+  });
+
+  return server;
 }
 
 main().catch((err: unknown) => {

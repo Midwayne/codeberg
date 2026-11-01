@@ -12,6 +12,8 @@ import { IconButton } from '../ui';
 import { X } from 'lucide-react';
 
 import { type useWorkspaceView, type WorkspaceView } from './workspace';
+import { useScheduleWorkspace } from '../../lib/schedule-workspace';
+import { isActiveSchedule } from '../../lib/schedule-summary';
 
 export type WorkspaceSidebarProps = Pick<
   Parameters<typeof useWorkspaceView>[0],
@@ -45,8 +47,11 @@ export function WorkspaceSidebar({
   remove,
   setFlags,
 }: WorkspaceSidebarProps) {
+  const schedules = useScheduleWorkspace();
+
   return (
     <SessionSidebar
+      scheduledChatIds={new Set(schedules?.jobs?.filter(isActiveSchedule).map((job) => job.chatId))}
       projectControls={projectControls}
       sidebarActions={
         !desktop && (

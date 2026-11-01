@@ -132,3 +132,24 @@ it('does not reconnect a rejected submission to a different tab’s search', asy
   await expect(transport.retry(chat)).rejects.toThrow('another tab');
   expect(api).toHaveBeenCalledTimes(2);
 });
+
+it('discovers the latest scheduled run after an idle history reload clears the previous identity', async () => {
+  const api = vi.fn<typeof fetch>();
+  api.mockResolvedValueOnce(response([{ type: 'start', messageId: 'old-answer' }, { type: 'finish' }]));
+  const transport = new RunTransport(api, () => Promise.resolve());
+  const chat = new Chat({ id: 'chat', transport });
+  transport.bindMessages(() => chat.messages);
+  await chat.sendMessage({ text: 'Original question' });
+
+  transport.reset();
+  api.mockResolvedValueOnce(Response.json({ id: 'scheduled-run', status: 'running', eventCount: 0 }));
+  api.mockResolvedValueOnce(response([
+    { type: 'start', messageId: 'scheduled-answer' }, { type: 'text-start', id: 't' },
+    { type: 'text-delta', id: 't', delta: 'Scheduled result' }, { type: 'text-end', id: 't' }, { type: 'finish' },
+  ]));
+  await chat.resumeStream();
+
+  expect(String(api.mock.calls[1]![0])).toBe('/api/chat/chat/run');
+  expect(String(api.mock.calls[2]![0])).toBe('/api/chat/chat/stream?runId=scheduled-run&after=0');
+  expect(chat.messages.at(-1)?.parts).toEqual([{ type: 'text', text: 'Scheduled result', state: 'done' }]);
+});

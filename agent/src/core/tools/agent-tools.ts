@@ -16,6 +16,7 @@ import type { SearchResult } from '../types.js';
 import type { WebConfig } from '../web/types.js';
 import { collectTools, daemonToolSource, searchCodeSource, webToolSource } from './index.js';
 import type { ModelInput } from '../model-types.js';
+import { scheduleToolSource } from '../schedules/tools.js';
 
 interface AgentToolOptions {
   env?: NodeJS.ProcessEnv;
@@ -44,6 +45,7 @@ export async function createAgentTools(opts: AgentToolOptions): Promise<ToolSet>
       onResults: opts.onResults,
     }),
     ...(opts.searchBundle ? [searchBundleSource(opts)] : []),
+    scheduleToolSource(),
     ...(opts.learning ? [learningToolSource(opts.learning, opts.learningSettings)] : []),
     contextToolSource(opts.context),
     ...(opts.canvas ? [canvasToolSource(opts.canvas)] : []),

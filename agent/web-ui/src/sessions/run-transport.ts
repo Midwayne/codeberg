@@ -56,6 +56,17 @@ export class RunTransport implements ChatTransport<UIMessage> {
     this.messages = read;
   }
 
+  /** An idle history reload must discover the latest server run from its chat ID. */
+  reset(): void {
+    this.runId = undefined;
+    this.requestId = undefined;
+    this.after = 0;
+    this.opening = undefined;
+    this.signal = undefined;
+    this.submission = undefined;
+    this.replaying = false;
+  }
+
   get isReplaying(): boolean {
     return this.replaying;
   }

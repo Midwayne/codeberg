@@ -93,3 +93,9 @@ connections:
 Export the credential, choose the intended access level, and restart. `CODEBERG_DBMCP_BIN` overrides the executable; legacy workspaces may retain `CODEBERG_DBMCP_SPEC` paths.
 
 Database MCP is independent of `CODEBERG_MCP_USE`. A configured server named `databases` replaces the built-in command.
+
+## Long-running calls
+
+The agent can use [background tools and sleep](/docs/tools#let-a-long-tool-work-while-the-agent-sleeps) to start a call once and choose when to check its result. Calls keep their MCP connection after the turn ends; they still depend on Codeberg, the MCP process and any service timeouts.
+
+If a server already returns a native job handle, the agent can save it in a continuation prompt, sleep, then call that server's status tool. Use its native cancellation tool for the external job. Restarting Codeberg or editing MCP settings can restart a server; in-memory jobs may disappear. Codeberg marks unfinished detached invocations interrupted rather than replaying uncertain actions.
