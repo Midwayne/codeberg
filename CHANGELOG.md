@@ -7,7 +7,16 @@ changes may occur in minor releases and are called out explicitly.
 
 ## [Unreleased]
 
+## [0.1.12] - 2026-11-01
+
 ### Added
+
+- Durable chat schedules, agent-selected sleep/wake checks, and background tool
+  execution with saved status and results. Scheduled runs and background tools
+  are visible and cancellable across a project's chats and from each chat.
+- Sidebar scheduled-work indicators and Open chat links that refresh saved
+  history while preserving live subscriptions, drafts, and active local work.
+
 
 - **Dynamic context discovery** — long tool results (one file per distinct
   body), terminal/pipe logs, and
