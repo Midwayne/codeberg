@@ -16,6 +16,7 @@ import { ProjectRequestRouter } from './projects.js';
 import { setupNotice, startupTitle, webEntry } from './startup.js';
 import { setupStatus } from './setup/status.js';
 import { ToolSettingsStore } from './tools/settings.js';
+import { requestProjectService } from './projects/request.js';
 
 // Serves the interactive chat UI over HTTP. The route streams the shared
 // `toolLoopAgent()`'s UI-message output
@@ -88,12 +89,10 @@ async function main(): Promise<void> {
 }
 
 async function loadProjectCatalog(daemonUrl: string): Promise<ProjectCatalog> {
-  const response = await fetch(new URL('/projects', daemonUrl), {
-    signal: AbortSignal.timeout(5000),
-  });
+  const { response, body } = await requestProjectService(daemonUrl, '/projects');
   if (!response.ok) throw new Error('Restart codeberg-d after upgrading to enable projects.');
 
-  const catalog = (await response.json()) as ProjectCatalog;
+  const catalog = body as ProjectCatalog;
   await migrateProjectData(codebergHome(), catalog);
 
   return catalog;

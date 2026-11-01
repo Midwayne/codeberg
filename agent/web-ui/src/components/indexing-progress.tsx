@@ -21,7 +21,7 @@ export function ProjectNotice(props: ProjectNoticeProps) {
   const [minimized, setMinimized] = useState(false);
   const { currentStatus, project } = props;
   const error = currentStatus?.error;
-  const title = error ? 'Project index unavailable' : indexingPhase(currentStatus?.value?.progress);
+  const title = error ? 'Project status unavailable' : indexingPhase(currentStatus?.value?.progress);
 
   return (
     <aside aria-label={`Indexing ${project.name}`}
@@ -33,7 +33,7 @@ export function ProjectNotice(props: ProjectNoticeProps) {
           {minimized ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
         </IconButton>
       </div>
-      {!error && <IndexingMeter progress={currentStatus?.value?.progress} />}
+      {(!error || currentStatus?.value) && <IndexingMeter progress={currentStatus?.value?.progress} />}
       {!minimized && <ProgressDetails {...props} />}
     </aside>
   );

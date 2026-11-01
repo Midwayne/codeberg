@@ -91,4 +91,22 @@ describe('withMessageTransforms', () => {
     const loop = {} as ToolLoopAgent;
     expect(withMessageTransforms(loop, [])).toBe(loop);
   });
+
+  it.each(['stream', 'generate'] as const)('passes cancellation through transforms before %s', async (method) => {
+    const { loop, calls } = captureLoop();
+    const controller = new AbortController();
+    const transform = vi.fn(async (messages: ModelMessage[], signal?: AbortSignal) => {
+      expect(signal).toBe(controller.signal);
+      controller.abort(new Error('Stopped during preparation'));
+
+      return messages;
+    });
+    const wrapped = withMessageTransforms(loop, [transform]);
+
+    await expect(wrapped[method]({
+      prompt: [{ role: 'user', content: 'Explain auth' }], abortSignal: controller.signal,
+    })).rejects.toThrow('Stopped during preparation');
+
+    expect(calls).toEqual([]);
+  });
 });

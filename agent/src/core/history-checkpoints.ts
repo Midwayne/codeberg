@@ -25,6 +25,9 @@ export class HistoryCheckpoints {
   fit(messages: ModelMessage[], options: FitOptions, policy: string): Promise<ModelMessage[]> {
     const hashes = prefixHashes(messages);
     const key = digest(`${policy}:${options.budget}:${options.keepRecent}`);
+    // Independently cancellable turns must not share a live summarizer signal.
+    if (options.abortSignal) return this.run(messages, hashes, options, key);
+
     const request = `${key}:${hashes.at(-1) ?? ''}`;
     const existing = this.pending.get(request);
     if (existing) return existing;

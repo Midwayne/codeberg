@@ -10,6 +10,7 @@ import { servePage } from '../server/routes.js';
 import { deleteProject, trackRequest } from './delete.js';
 import { openConfig, pickDirectory, projects, renameProject } from './catalog.js';
 import type { ProjectRequestRouterState } from './state.js';
+import { ProjectServiceTimeout, requestProjectService } from './request.js';
 
 export function handle(
   state: ProjectRequestRouterState,
@@ -18,7 +19,8 @@ export function handle(
 ): void {
   void route(state, req, res).catch((error: unknown) => {
     if (!res.headersSent)
-      sendText(res, 503, error instanceof Error ? error.message : 'Project service unavailable');
+      sendText(res, error instanceof ProjectServiceTimeout ? 504 : 503,
+        error instanceof Error ? error.message : 'Project service unavailable');
     else res.end();
   });
 }
@@ -57,12 +59,7 @@ export async function route(
 }
 
 export async function daemon(state: ProjectRequestRouterState, path: string, init?: RequestInit) {
-  const response = await fetch(new URL(path, state.options.daemonUrl), {
-    ...init,
-    signal: AbortSignal.timeout(5000),
-  });
-
-  const body = await response.json();
+  const { response, body } = await requestProjectService(state.options.daemonUrl, path, init);
   if (!response.ok) throw new Error(body.message ?? 'Project service unavailable');
 
   return body;

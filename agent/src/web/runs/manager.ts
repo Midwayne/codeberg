@@ -14,6 +14,7 @@ import { validateHistory } from './validation.js';
 import { RunScheduler } from '../schedules/scheduler.js';
 import { BackgroundJobs } from '../background/manager.js';
 import { withRunScope } from './scope.js';
+import { RunStops } from './stopping.js';
 
 /** One owner per project/chat. Completed calls are replayed as observations, never executed. */
 export class SearchRuns {
@@ -22,6 +23,7 @@ export class SearchRuns {
   private readonly active = new Map<string, SearchRun>();
   private readonly admissions = new Map<string, Promise<unknown>>();
   private readonly loading = new Map<string, Promise<SearchRun | undefined>>();
+  private readonly stops = new RunStops();
   private initializing?: Promise<void>;
   private closed = false;
 
@@ -77,15 +79,8 @@ export class SearchRuns {
     return runStream(run, after);
   }
 
-  async stop(chatId: string, id: string, byRequest = false): Promise<void> {
-    await this.admissions.get(chatId);
-    if (byRequest) id = hash(`${chatId}:${id}`).slice(0, 32);
-
-    const run = await this.find(chatId, id);
-    if (!run) throw new RunError(404, 'search run not found');
-
-    if (!run.settled) run.controller.abort('stop');
-    await run.done;
+  stop(chatId: string, id: string, byRequest = false): Promise<void> {
+    return this.stops.stop(this, this.admissions.get(chatId), chatId, id, byRequest);
   }
 
   async close(): Promise<void> {
@@ -117,6 +112,7 @@ export class SearchRuns {
     if (this.active.has(input.chatId)) throw new RunError(409, 'This chat has an active search. Reconnect or stop it first.');
 
     await validateHistory(this.sessions, input);
+    this.stops.check(id);
     const journal = new RunJournal(join(this.sessions.dir, '.runs', input.chatId, id));
     const run: SearchRun = { record: { ...input, id, fingerprint, status: 'running', createdAt: Date.now() },
       journal, events: [], tools: [], controller: new AbortController(), listeners: new Set(), done: Promise.resolve() };

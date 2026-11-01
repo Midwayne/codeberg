@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { projectFetch, type Project, type ProjectCatalog, type ProjectStatus } from './project-api';
+import { projectFetch, type ProjectCatalog } from './project-api';
 import { ProjectToolbar, ProjectNotice } from '../components/project-controls';
+import { useProjectStatus } from './use-project-status';
+
+export { useProjectStatus, type ProjectStatusOptions } from './use-project-status';
 
 export type ProjectShellOptions = {
   children: (toolbar: ReactNode, loading: boolean, notice: ReactNode) => ReactNode;
@@ -34,7 +37,7 @@ export function useProjectShell({ children }: ProjectShellOptions) {
   const toolbar = (
     <ProjectToolbar project={project} selected={selected} catalog={catalog} select={select} setAdding={setAdding} />
   );
-  const notice = project && (!currentStatus?.value?.ready || currentStatus.value.indexing) && (
+  const notice = project && (currentStatus?.error || !currentStatus?.value?.ready || currentStatus.value.indexing) && (
     <ProjectNotice
       key={project.id}
       currentStatus={currentStatus}
@@ -45,46 +48,6 @@ export function useProjectShell({ children }: ProjectShellOptions) {
     />
   );
   return { catalog, project, api, ready, setCatalog, children, toolbar, notice, error, setRetry, adding, setAdding, select };
-}
-
-export type ProjectStatusOptions = {
-  project: Project | undefined;
-  api: typeof fetch;
-  retry: number;
-  refreshCatalog?: React.Dispatch<React.SetStateAction<number>>;
-};
-
-export function useProjectStatus({ project, api, retry, refreshCatalog }: ProjectStatusOptions) {
-  const [status, setStatus] = useState<{ id: string; value?: ProjectStatus; error?: string }>();
-
-  useEffect(() => {
-    if (!project) return;
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout>;
-    const poll = async () => {
-      let ready = false;
-      try {
-        const response = await api('/api/project/status', {
-          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(7000)]),
-        });
-        if (response.status === 404) refreshCatalog?.((value) => value + 1);
-        if (!response.ok) throw new Error(await response.text());
-        const value = (await response.json()) as ProjectStatus;
-        ready = value.ready && !value.indexing;
-        if (!controller.signal.aborted) setStatus({ id: project.id, value });
-      } catch (reason) {
-        if (!controller.signal.aborted) setStatus({ id: project.id, error: String(reason) });
-      }
-      if (!controller.signal.aborted) timer = setTimeout(() => void poll(), ready ? 10000 : 2000);
-    };
-    void poll();
-    return () => {
-      controller.abort();
-      clearTimeout(timer);
-    };
-  }, [project?.id, api, retry]);
-
-  return { status, setStatus };
 }
 
 export type ProjectCatalogOptions = {

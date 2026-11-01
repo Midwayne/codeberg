@@ -6,6 +6,7 @@ import { openConfigDirectory } from '../config-directory.js';
 import { readJson, requireJsonMutation, sameOrigin, sendJson, sendText } from '../http.js';
 import { daemon } from './routing.js';
 import type { ProjectRequestRouterState } from './state.js';
+import { requestProjectService } from './request.js';
 
 export async function openConfig(
   state: ProjectRequestRouterState,
@@ -104,14 +105,12 @@ export async function renameProject(
   if (!body || typeof body !== 'object')
     return sendJson(res, 400, { message: 'invalid project name' });
 
-  const response = await fetch(new URL(`/projects/${id}`, state.options.daemonUrl), {
+  const { response, body: result } = await requestProjectService(state.options.daemonUrl, `/projects/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: body.name }),
-    signal: AbortSignal.timeout(5000),
   });
 
-  const result = await response.json();
   if (!response.ok) return sendJson(res, response.status, result);
 
   const project = result as Project;

@@ -8,6 +8,8 @@ import { MockLanguageModelV4 } from 'ai/test';
 import { createWebServer } from '../server.js';
 import { WebSessionStore } from '../sessions/store.js';
 import { recordToolExecutions } from '../../core/runs/tools.js';
+import { webTools } from '../../core/web/tools.js';
+import { webConfigFromEnv } from '../../core/web/config.js';
 
 it('keeps browser/server transcripts consistent through real SDK tool streams and follow-ups', async () => {
   // Exercise the browser package at runtime without importing it into the agent's build root.
@@ -64,7 +66,7 @@ it('keeps browser/server transcripts consistent through real SDK tool streams an
   }
 });
 
-it('can ask a follow-up after explicitly stopping a search with an in-flight tool', async () => {
+it.each(['get_chunk', 'fetch_url', 'web_search'])('can ask a follow-up after stopping an in-flight %s', async (toolName) => {
   const workspacePath = '../../../web-ui/src/sessions/workspace-chat.js';
   const transportPath = '../../../web-ui/src/sessions/run-transport.js';
   const { createWorkspaceChat } = await import(workspacePath);
@@ -76,7 +78,8 @@ it('can ask a follow-up after explicitly stopping a search with an in-flight too
   const model = new MockLanguageModelV4({ doStream: async () => {
     const useTool = calls++ === 0;
     return { stream: new ReadableStream({ start(controller) {
-      if (useTool) controller.enqueue({ type: 'tool-call', toolCallId: 'pending', toolName: 'get_chunk', input: '{}' });
+      if (useTool) controller.enqueue({ type: 'tool-call', toolCallId: 'pending', toolName,
+        input: JSON.stringify(toolName === 'fetch_url' ? { url: 'https://example.com' } : { query: 'auth' }) });
       else {
         controller.enqueue({ type: 'text-start', id: 'text' });
         controller.enqueue({ type: 'text-delta', id: 'text', delta: 'Follow-up answer' });
@@ -88,11 +91,18 @@ it('can ask a follow-up after explicitly stopping a search with an in-flight too
       controller.close();
     } }) };
   } });
-  const tools = recordToolExecutions({ get_chunk: tool({ inputSchema: jsonSchema({ type: 'object', properties: {} }),
+  let toolSignal: AbortSignal | null | undefined;
+  const pending = async (signal?: AbortSignal | null): Promise<Response> => {
+    toolStarted = true;
+    toolSignal = signal;
+    return new Promise((_resolve, reject) => signal?.addEventListener('abort', () => reject(new Error('stopped')), { once: true }));
+  };
+  const tools = recordToolExecutions({ ...webTools(webConfigFromEnv({
+    CODEBERG_WEB_SEARCH_USE: 'true', CODEBERG_SEARXNG_URL: 'http://search:8888',
+  }), { fetchImpl: (_url, options) => pending(options?.signal) }),
+    get_chunk: tool({ inputSchema: jsonSchema({ type: 'object', properties: {} }),
     execute: async (_input, options) => {
-      toolStarted = true;
-      await new Promise((_resolve, reject) => options.abortSignal?.addEventListener('abort', () => reject(new Error('stopped'))));
-      return 'unreachable';
+      return pending(options.abortSignal);
     },
   }) });
   const server = createWebServer({ title: 'test', sessionStore: sessions, agent: new ToolLoopAgent({ model, tools }) });
@@ -105,6 +115,7 @@ it('can ask a follow-up after explicitly stopping a search with an in-flight too
     chat.turns.submit({ text: 'Find auth' });
     await vi.waitFor(() => expect(toolStarted).toBe(true));
     await chat.turns.stop();
+    expect(toolSignal?.aborted).toBe(true);
     expect(chat.chat.status).toBe('ready');
     expect((await sessions.load('chat'))?.messages).toEqual(chat.chat.messages);
     await chat.chat.sendMessage({ text: 'Try another route' });

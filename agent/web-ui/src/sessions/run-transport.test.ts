@@ -153,3 +153,41 @@ it('discovers the latest scheduled run after an idle history reload clears the p
   expect(String(api.mock.calls[2]![0])).toBe('/api/chat/chat/stream?runId=scheduled-run&after=0');
   expect(chat.messages.at(-1)?.parts).toEqual([{ type: 'text', text: 'Scheduled result', state: 'done' }]);
 });
+
+it.each(['status', 'stream'])('reports genuine failures during resume %s setup', async (phase) => {
+  const api = vi.fn<typeof fetch>(async (url) => {
+    if (String(url).endsWith('/run') && phase === 'stream') {
+      return Response.json({ id: 'run', status: 'running', eventCount: 0 });
+    }
+
+    throw new Error('Reconnect service unavailable');
+  });
+  const chat = new Chat({ id: 'chat', transport: new RunTransport(api) });
+
+  await chat.resumeStream();
+
+  expect(chat.status).toBe('error');
+  expect(chat.error?.message).toBe('Reconnect service unavailable');
+});
+
+it('discards a late stream response when Stop has already cancelled resume setup', async () => {
+  let releaseHeaders!: (response: Response) => void;
+  const cancel = vi.fn();
+  const api = vi.fn<typeof fetch>(async (url) => {
+    if (String(url).endsWith('/run')) return Response.json({ id: 'run', status: 'running', eventCount: 0 });
+    if (String(url).endsWith('/stop')) return Response.json({ ok: true });
+
+    return new Promise((resolve) => { releaseHeaders = resolve; });
+  });
+  const transport = new RunTransport(api);
+  const resumed = transport.reconnectToStream({ chatId: 'chat' });
+  await vi.waitFor(() => expect(releaseHeaders).toBeDefined());
+
+  await transport.stop('chat');
+  releaseHeaders(new Response(new ReadableStream({ cancel }), {
+    headers: { 'content-type': 'text/event-stream', 'x-codeberg-run': 'run' },
+  }));
+
+  expect(await resumed).toBeNull();
+  await vi.waitFor(() => expect(cancel).toHaveBeenCalledOnce());
+});

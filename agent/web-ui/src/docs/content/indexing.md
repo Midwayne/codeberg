@@ -55,6 +55,8 @@ The startup project begins indexing on launch. Other indexers start on first use
 
 The bottom-left panel can be minimized. Counts describe each stage, rather than an estimated percentage for the whole project. They may pause during embedding batches. Cold indexing on large trees or CPUs can take several minutes.
 
+Status checks allow up to 20 seconds for a response. One temporary connection failure keeps the last reported progress and checks again automatically. Repeated failures show a warning that the progress may be out of date; checking continues and clears the warning when the connection recovers. This applies during startup and watched updates.
+
 Chat, grep, file reads, and directory tools work immediately. Hybrid search uses lexical fallback; index-only tools report that preparation is in progress. Watched updates retain the last completed readiness and expose indexing activity.
 
 If the directory disappears or the indexer stays unreachable, inspect `projects/<id>/logs/indexer.log`, fix the dependency or path, then **Retry**. A long embedding batch alone does not need Retry. See [Troubleshooting](/docs/troubleshooting#indexing-stays-pending-or-fails).

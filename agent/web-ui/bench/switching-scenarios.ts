@@ -4,6 +4,7 @@ const scenarios = {
   mixed: { label: 'Pinned ↔ Recent', order: [0, 2], pinned: [0, 1] },
   pinnedCycle: { label: 'Four pinned chats', order: [0, 1, 3, 4], pinned: [0, 1, 3, 4] },
   mixedCycle: { label: 'Four chats across both groups', order: [0, 1, 2, 3], pinned: [0, 1] },
+  eightCycle: { label: 'Eight chats across both groups', order: [0, 1, 2, 3, 4, 5, 6, 7], pinned: [0, 1] },
 };
 
 export function switchingScenario() {

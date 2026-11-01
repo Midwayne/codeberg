@@ -10,6 +10,8 @@ export { estimateTokens, messageTokens, totalTokens } from './history-tokens.js'
 export type Summarize = (transcript: string) => Promise<string>;
 
 export interface FitOptions {
+  /** Cancellation belongs to this caller, including any summarizer request. */
+  abortSignal?: AbortSignal;
   /** Estimated-token ceiling for the returned transcript. */
   budget: number;
   /** Minimum messages kept verbatim, expanded to a whole user exchange.
@@ -54,6 +56,7 @@ export async function fitHistory(
   messages: ModelMessage[],
   opts: FitOptions,
 ): Promise<ModelMessage[]> {
+  opts.abortSignal?.throwIfAborted();
   if (totalTokens(messages) <= opts.budget) {
     return messages;
   }
@@ -67,6 +70,7 @@ export async function fitHistory(
 
   const full = renderTranscript(older);
   const archived = await archiveTranscript(opts.archive, full);
+  opts.abortSignal?.throwIfAborted();
   const files = dedupe([...historyFilesIn(older), ...(archived ? [archived] : [])]);
 
   if (!opts.summarize) {

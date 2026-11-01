@@ -94,7 +94,6 @@ function createTurnQueue(chat: Chat<UIMessage>, isPending: () => boolean, transp
   return new TurnQueue(chat, transport ? {
     stop: async () => {
       if (isPending() && !transport.isReplaying) {
-        await chat.stop();
         return false;
       }
       await transport.stop(chat.id);

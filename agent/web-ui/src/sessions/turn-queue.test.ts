@@ -239,3 +239,35 @@ it('shares a pending Stop synchronization and blocks Resume until it settles', a
   queue.resume();
   await expect.poll(() => sendMessage.mock.calls.length).toBe(1);
 });
+
+it.each([false, true])('stops the local response before server cancellation settles (failure: %s)', async (fails) => {
+  let finishStop!: () => void;
+  const stopping = new Promise<void>((resolve, reject) => {
+    finishStop = () => fails ? reject(new Error('Server unavailable')) : resolve();
+  });
+  const localStop = vi.fn(async () => {});
+  const sendMessage = vi.fn(async () => {});
+  const synchronize = vi.fn(async () => {});
+  const queue = new TurnQueue({ status: 'ready', sendMessage, stop: localStop, regenerate: async () => {} }, {
+    stop: () => stopping, retry: vi.fn(), synchronize,
+  });
+
+  const stopped = queue.stop();
+  await vi.waitFor(() => expect(localStop).toHaveBeenCalledOnce());
+  queue.submit({ text: 'Next question' });
+  queue.resume();
+  expect(sendMessage).not.toHaveBeenCalled();
+  expect(synchronize).not.toHaveBeenCalled();
+
+  finishStop();
+  await stopped;
+  queue.resume();
+
+  if (fails) {
+    expect(queue.getSnapshot().error).toBe('Server unavailable');
+    expect(sendMessage).not.toHaveBeenCalled();
+  } else {
+    expect(synchronize).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledOnce());
+  }
+});

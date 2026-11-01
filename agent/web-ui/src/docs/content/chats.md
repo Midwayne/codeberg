@@ -10,9 +10,9 @@ You can open another chat, Settings, Training review, or another project while a
 | --- | --- |
 | Submitted questions and saved answers | Server storage, with the original project. |
 | Unsent drafts, attachments, queued follow-ups | Current browser tab; lost on reload or close. |
-| Recent chats' reading and media positions | Retained for the three most recently viewed chats in the tab. |
+| Recent chats' reading and media positions | Retained for the eight most recently viewed chats in the current project. |
 
-Draft text stays with its chat when opening older chats too. Audio and video pause when you leave; press Play to resume. Older conversations may show **Loading chat…** while being prepared again.
+Recently viewed chats reopen without rebuilding their transcripts. Draft text stays with its chat when opening older chats too. Audio and video pause when you leave; press Play to resume. First-time opens and conversations outside the eight retained views may show **Loading chat…** while being prepared. Reloading the tab or switching projects releases those views.
 
 During loading, the previous composer is hidden. **Cancel** returns to the last viewed chat; selecting several chats opens only the latest. On failure, choose **Retry** or **Back to previous chat**. Deleted chats are identified explicitly.
 
@@ -20,13 +20,15 @@ During loading, the previous composer is hidden. **Cancel** returns to the last 
 
 | Action | What happens |
 | --- | --- |
-| **Stop** | Cancels the server search. If the initial save is still pending, cancels that submission before search begins. |
+| **Stop** | Stops this tab's response stream immediately and cancels the server search, including active model requests, history summarization, and cooperative tools. If the initial save is still pending, cancels that submission before search begins. |
 | Response **Retry** | Reconnects to the existing run when possible; can start again if it failed or stopped. |
 | **Retry save** | Writes chat history without asking the model again. |
 | **Regenerate** | Starts a fresh search and replaces the latest answer. |
 | Close or reload the tab | Disconnects that tab; an accepted search continues while Codeberg runs. |
 
-Only one search runs per chat. Queued follow-ups wait for completion, regeneration, or recovery. After Stop or steering, saved partial history must load before another question is sent; choose **Retry** if recovery pauses follow-ups.
+Only one search runs per chat. Queued follow-ups wait for completion, regeneration, or recovery. After Stop or steering, tool cleanup must finish and saved partial history must load before another question is sent; choose **Retry** if recovery pauses follow-ups. Stop cancels web search and URL fetching as well. Tools must support cancellation, and completed actions cannot be undone. Detached background tools have their own **Cancel tool** action in Scheduled runs.
+
+Stopping while a saved response reconnects also returns the chat to its ready state. Once cancellation and history recovery finish, you can resume queued follow-ups without retrying the stopped response.
 
 You can keep the same chat open in multiple tabs. Simply viewing it does not block follow-ups. Codeberg uses the server's saved answers when continuing a chat. If another tab submits a new question or regenerates an answer, reload older tabs before continuing there.
 

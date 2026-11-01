@@ -15,7 +15,9 @@ export function searxngProvider(opts: {
 }) {
   return {
     name: 'searxng',
-    async search(query: string, { count }: { count: number }): Promise<WebSearchResult[]> {
+    async search(query: string, { count, signal }: { count: number; signal?: AbortSignal }): Promise<WebSearchResult[]> {
+      signal?.throwIfAborted();
+
       const url = new URL('/search', opts.baseUrl);
       url.searchParams.set('q', query);
       url.searchParams.set('format', 'json');
@@ -24,7 +26,7 @@ export function searxngProvider(opts: {
       const timer = setTimeout(() => controller.abort(), opts.timeoutMs);
       try {
         const res = await opts.fetchImpl(url, {
-          signal: controller.signal,
+          signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
           headers: { accept: 'application/json', 'user-agent': USER_AGENT },
         });
 

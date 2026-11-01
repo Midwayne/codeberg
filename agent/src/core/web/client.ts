@@ -22,12 +22,15 @@ export async function fetchUrl(
   rawUrl: string,
   config: WebConfig,
   deps: WebDeps = DEFAULT_DEPS,
+  signal?: AbortSignal,
 ): Promise<WebPage> {
+  signal?.throwIfAborted();
   const url = assertFetchableUrl(rawUrl, { allowPrivate: config.allowPrivate });
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.timeoutMs);
   try {
-    const res = await fetchNoOpenRedirect(url, config, deps, controller.signal);
+    const res = await fetchNoOpenRedirect(url, config, deps,
+      signal ? AbortSignal.any([signal, controller.signal]) : controller.signal);
     if (!res.ok) {
       throw new Error(`fetch failed: ${res.status} ${res.statusText} for ${url}`);
     }

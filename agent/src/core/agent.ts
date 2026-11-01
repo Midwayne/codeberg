@@ -29,12 +29,12 @@ export class Agent implements Asker {
 
   /** Fit this model's history budget with reusable checkpoints and the selected
    *  summarizer. The web wrapper applies the same policy to browser history. */
-  compactHistory(messages: ModelMessage[]): Promise<ModelMessage[]> {
-    return compactHistory(this.state, messages);
+  compactHistory(messages: ModelMessage[], abortSignal?: AbortSignal): Promise<ModelMessage[]> {
+    return compactHistory(this.state, messages, abortSignal);
   }
 
   /** Bound compactor for callers that drive the loop directly (the web server). */
-  historyCompactor(): (messages: ModelMessage[]) => Promise<ModelMessage[]> {
+  historyCompactor(): (messages: ModelMessage[], abortSignal?: AbortSignal) => Promise<ModelMessage[]> {
     return historyCompactor(this.state);
   }
 

@@ -27,7 +27,7 @@ try {
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: cpuRate });
   await page.goto(url.href);
   await page.getByRole('heading', { name: 'Finding 199', exact: true }).waitFor();
-  for (const index of [2, 0]) {
+  for (const index of [1, 2, 3, 4, 5, 6, 7, 0]) {
     await page.getByTitle(`Synthetic chat ${index}`, { exact: true }).click();
     await page.locator(`[data-message-id="switch-${index}-0"]`).waitFor({ state: 'visible' });
   }
@@ -68,6 +68,9 @@ try {
   const restored = await readingPosition(page);
   console.log(JSON.stringify({ readingPosition: { position, restored } }));
   assert.ok(Math.abs(restored.offset - position.offset) < 1, `Reading position changed: ${JSON.stringify({ position, restored })}`);
+  if (process.env.BENCH_SCREENSHOTS_DIR) {
+    await page.screenshot({ path: `${process.env.BENCH_SCREENSHOTS_DIR}/chat-switching-desktop.png` });
+  }
 
   await page.evaluate(() => {
     globalThis.savedRecords = [];
@@ -86,7 +89,7 @@ try {
   await page.getByTitle('Synthetic chat 0', { exact: true }).click();
   await page.locator('[data-message-id="switch-0-180"]').scrollIntoViewIfNeeded();
   const mobilePosition = await readingPosition(page);
-  for (const index of [2, 0]) {
+  for (const index of [1, 2, 3, 4, 5, 6, 7, 0]) {
     await page.getByRole('button', { name: 'Show chats', exact: true }).click();
     await page.getByTitle(`Synthetic chat ${index}`, { exact: true }).click();
     await page.locator(`[data-message-id="switch-${index}-0"]`).waitFor({ state: 'visible' });
@@ -95,6 +98,9 @@ try {
   console.log(JSON.stringify({ mobileReadingPosition: { position: mobilePosition, restored: mobileRestored } }));
   assert.ok(Math.abs(mobileRestored.offset - mobilePosition.offset) < 1, `Mobile reading position changed: ${JSON.stringify({ mobilePosition, mobileRestored })}`);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  if (process.env.BENCH_SCREENSHOTS_DIR) {
+    await page.screenshot({ path: `${process.env.BENCH_SCREENSHOTS_DIR}/chat-switching-mobile.png` });
+  }
   assert.deepEqual(errors, []);
   console.log('PASS: Rich retained chats reuse transcript content, preserve disclosures and desktop/mobile reading position, support rail jumps, show new responses, and branch from the committed chat.');
 } finally {

@@ -9,6 +9,24 @@ type ReconnectOptions = {
 
 type Connection = { reader: ReadableStreamDefaultReader<UIMessageChunk>; cancelled: boolean; attempts: number };
 
+/** The SDK treats resume setup failures as errors, including expected Stop aborts. */
+export async function resumeWithoutAbortError(signal: AbortSignal,
+  open: () => Promise<ReadableStream<UIMessageChunk> | null>): Promise<ReadableStream<UIMessageChunk> | null> {
+  try {
+    signal.throwIfAborted();
+    const stream = await open();
+    if (!signal.aborted) return stream;
+
+    // A late response must not restart the SDK after cancellation.
+    void stream?.cancel(signal.reason).catch(() => undefined);
+    return null;
+  } catch (error) {
+    if (signal.aborted) return null;
+
+    throw error;
+  }
+}
+
 /** Keep one SDK stream alive across transport failures so text/tool parser state is retained. */
 export function reconnectingStream(initial: ReadableStream<UIMessageChunk>, options: ReconnectOptions): ReadableStream<UIMessageChunk> {
   const connection: Connection = { reader: initial.getReader(), cancelled: false, attempts: 0 };

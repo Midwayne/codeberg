@@ -8,23 +8,27 @@ import { summarizeWithinWindow } from './summary.js';
 export async function compactHistory(
   state: AgentState,
   messages: ModelMessage[],
+  abortSignal?: AbortSignal,
 ): Promise<ModelMessage[]> {
+  abortSignal?.throwIfAborted();
+
   // Recoverable tool output is cheaper to move to disk than to summarize.
   // Size the prepared transcript so a large resumed result cannot cause an
   // otherwise unnecessary model call or fill the summarizer's input.
   const prepared = await externalizeToolResults(messages, state.context);
 
   return state.checkpoints.fit(prepared, {
+    abortSignal,
     budget: historyBudget(state.profile),
-    summarize: (transcript) => summarize(state, transcript),
+    summarize: (transcript) => summarize(state, transcript, undefined, abortSignal),
     archive: (transcript) => state.context.writeHistory(transcript),
   }, JSON.stringify([state.profile, state.summaryProfile, HISTORY_SUMMARY_SYSTEM]));
 }
 
 export function historyCompactor(
   state: AgentState,
-): (messages: ModelMessage[]) => Promise<ModelMessage[]> {
-  return (messages) => compactHistory(state, messages);
+): (messages: ModelMessage[], abortSignal?: AbortSignal) => Promise<ModelMessage[]> {
+  return (messages, abortSignal) => compactHistory(state, messages, abortSignal);
 }
 
 export async function summarize(state: AgentState, transcript: string, outputLimit?: number, abortSignal?: AbortSignal): Promise<string> {

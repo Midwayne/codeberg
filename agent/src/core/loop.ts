@@ -44,6 +44,7 @@ export function overrideLoopMethods(loop: ToolLoopAgent, overrides: LoopOverride
 /** Transforms the outgoing message array of a loop call. Sync or async. */
 export type MessageTransform = (
   messages: ModelMessage[],
+  abortSignal?: AbortSignal,
 ) => ModelMessage[] | Promise<ModelMessage[]>;
 
 /**
@@ -64,6 +65,8 @@ export function withMessageTransforms(
   }
 
   const apply = async <T extends CallParams>(params: T): Promise<T> => {
+    params.abortSignal?.throwIfAborted();
+
     const messages = readMessages(params);
     if (!messages) {
       return params;
@@ -71,7 +74,8 @@ export function withMessageTransforms(
 
     let next = messages;
     for (const transform of transforms) {
-      next = await transform(next);
+      next = await transform(next, params.abortSignal);
+      params.abortSignal?.throwIfAborted();
     }
 
     return next === messages ? params : writeMessages(params, next);

@@ -10,6 +10,7 @@ const scenarios = [
   { key: 'mixed', order: [0, 2], pinned: [0, 1] },
   { key: 'pinnedCycle', order: [0, 1, 3, 4], pinned: [0, 1, 3, 4] },
   { key: 'mixedCycle', order: [0, 1, 2, 3], pinned: [0, 1] },
+  { key: 'eightCycle', order: [0, 1, 2, 3, 4, 5, 6, 7], pinned: [0, 1] },
 ];
 const errors = [];
 
@@ -49,7 +50,8 @@ try {
     const result = JSON.parse(await output.innerText());
     assert.equal(result.historyRequests, 0);
     const skeletonsDuringTrials = await page.evaluate(() => globalThis.skeletonLoads);
-    assert.equal(skeletonsDuringTrials > 0, scenario.order.length > 3);
+    assert.equal(skeletonsDuringTrials, 0, 'Warmed working sets must not show loading screens');
+    assert.deepEqual(result.transcriptReads, [0, 0, 0, 0, 0], 'Warmed switches must reuse transcript content');
 
     await selectChat(page, 0);
     const original = await page.locator('[data-message-id="switch-0-0"]').elementHandle();
@@ -59,7 +61,7 @@ try {
     }
     await selectChat(page, 0);
     const retained = await original.evaluate((element) => element.isConnected);
-    assert.equal(retained, scenario.order.length <= 3);
+    assert.equal(retained, true);
     assert.equal(await page.getByRole('status').filter({ hasText: 'Loading chat…' }).count(), 0);
     console.log(JSON.stringify({ ...result, skeletonsDuringTrials, originalTranscriptRetained: retained }));
 
@@ -79,7 +81,7 @@ try {
     await page.close();
   }
   assert.deepEqual(errors, []);
-  console.log('PASS: grouped selection, retained views without skeletons, evicted views with skeletons, no repeated history GETs, and stale-response isolation.');
+  console.log('PASS: two-, four-, and eight-chat working sets retain transcript DOM without loading screens, transcript reads, or history GETs; grouped selection and stale-response isolation work.');
 } finally {
   await browser.close();
 }

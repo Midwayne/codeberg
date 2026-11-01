@@ -1,6 +1,6 @@
 import { DefaultChatTransport, type ChatTransport, type UIMessage } from 'ai';
 import type { Chat } from '@ai-sdk/react';
-import { reconnectingStream, retryAdmission } from './run-reconnect';
+import { reconnectingStream, resumeWithoutAbortError, retryAdmission } from './run-reconnect';
 
 type Submission = Parameters<ChatTransport<UIMessage>['sendMessages']>[0];
 
@@ -12,6 +12,7 @@ export class RunTransport implements ChatTransport<UIMessage> {
   private after = 0;
   private opening?: Promise<unknown>;
   private signal?: AbortSignal;
+  private resumed?: AbortController;
   private messages?: () => UIMessage[];
   private submission?: Submission;
   private replaying = false;
@@ -41,15 +42,19 @@ export class RunTransport implements ChatTransport<UIMessage> {
   };
 
   reconnectToStream: ChatTransport<UIMessage>['reconnectToStream'] = async (request) => {
-    const signal = (request as typeof request & { abortSignal?: AbortSignal }).abortSignal;
+    // The SDK does not supply an abort signal when resuming a saved run.
+    this.resumed = new AbortController();
+    const signal = this.resumed.signal;
     this.signal = signal;
-    const state = await this.prepareResume(request.chatId);
-    if (state === 'missing' && !this.runId && this.submission) return this.admit(signal);
-    if (state !== 'resume') return null;
+    return resumeWithoutAbortError(signal, async () => {
+      const state = await this.prepareResume(request.chatId);
+      if (state === 'missing' && !this.runId && this.submission) return this.admit(signal);
+      if (state !== 'resume') return null;
 
-    const stream = await this.delegate.reconnectToStream(request);
+      const stream = await this.delegate.reconnectToStream(request);
 
-    return stream ? this.follow(stream, request.chatId, signal) : null;
+      return stream ? this.follow(stream, request.chatId, signal) : null;
+    });
   };
 
   bindMessages(read: () => UIMessage[]): void {
@@ -63,6 +68,7 @@ export class RunTransport implements ChatTransport<UIMessage> {
     this.after = 0;
     this.opening = undefined;
     this.signal = undefined;
+    this.resumed = undefined;
     this.submission = undefined;
     this.replaying = false;
   }
@@ -91,6 +97,7 @@ export class RunTransport implements ChatTransport<UIMessage> {
   }
 
   async stop(chatId: string): Promise<void> {
+    this.resumed?.abort();
     await this.opening?.catch(() => undefined);
     const response = await this.api(`/api/chat/${encodeURIComponent(chatId)}/stop`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

@@ -20,7 +20,7 @@ const richHistory = new URLSearchParams(location.search).get('content') === 'ric
 const registry = new ProjectChatRegistry();
 const project = { id: 'benchmark', name: 'Synthetic project', roots: [] };
 const chats = registry.forProject(project.id);
-const summaries = Array.from({ length: 5 }, (_, chatIndex) => {
+const summaries = Array.from({ length: 9 }, (_, chatIndex) => {
   const id = `switch-${chatIndex}`;
   const messages: UIMessage[] = Array.from({ length: 200 }, (_, index) => {
     const parts: UIMessage['parts'] = richHistory ? richSwitchingParts(chatIndex, index) : [{ type: 'text', text: index % 2

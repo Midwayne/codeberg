@@ -8,7 +8,7 @@ import { searxngProvider } from './searxng.js';
  */
 export interface WebSearchProvider {
   readonly name: string;
-  search(query: string, opts: { count: number }): Promise<WebSearchResult[]>;
+  search(query: string, opts: { count: number; signal?: AbortSignal }): Promise<WebSearchResult[]>;
 }
 
 const DEFAULT_DEPS: WebDeps = {

@@ -39,10 +39,10 @@ export function webTools(config: WebConfig, deps?: WebDeps): ToolSet {
         },
         required: ['query'],
       }),
-      execute: async ({ query, count }) => {
+      execute: async ({ query, count }, { abortSignal }) => {
         const n = Math.min(Math.max(1, count ?? config.searchCount), MAX_SEARCH_COUNT);
 
-        return { results: await provider.search(query, { count: n }) };
+        return { results: await provider.search(query, { count: n, signal: abortSignal }) };
       },
     });
   }
@@ -65,6 +65,6 @@ function fetchTool(config: WebConfig, deps?: WebDeps) {
       },
       required: ['url'],
     }),
-    execute: async ({ url }) => fetchUrl(url, config, deps),
+    execute: async ({ url }, { abortSignal }) => fetchUrl(url, config, deps, abortSignal),
   });
 }

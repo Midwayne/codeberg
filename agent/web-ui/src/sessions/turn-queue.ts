@@ -127,10 +127,10 @@ export class TurnQueue {
   }
 
   private async stopAndSynchronize(): Promise<boolean> {
+    this.needsSynchronization = Boolean(this.remote);
     try {
-      const stoppedOnServer = await this.remote?.stop();
+      const [stoppedOnServer] = await Promise.all([this.remote?.stop(), this.chat.stop()]);
       this.needsSynchronization = stoppedOnServer !== false && Boolean(this.remote?.synchronize);
-      await this.chat.stop();
       await this.active;
       if (!this.disposed && this.needsSynchronization) await this.remote?.synchronize?.();
 

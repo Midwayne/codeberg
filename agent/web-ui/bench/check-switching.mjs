@@ -40,11 +40,11 @@ try {
   assert.equal(await scroll.evaluate((element) => element.scrollTop), 500);
   await page.getByText('Background response arrived.', { exact: true }).waitFor();
 
-  for (const index of [2, 3, 4]) {
+  for (const index of [1, 2, 3, 4, 5, 6, 7, 8]) {
     await selectSyntheticChat(page, index);
   }
   assert.equal(await original.evaluate((element) => element.isConnected), false);
-  assert.equal(await page.locator('[data-message-id$="-0"]').count(), 3);
+  assert.equal(await page.locator('[data-message-id$="-0"]').count(), 8);
   await selectSyntheticChat(page, 0);
   assert.equal(await composer.inputValue(), 'Draft belongs to chat zero');
   await page.getByText('Background response arrived.', { exact: true }).waitFor();
@@ -111,7 +111,7 @@ try {
   await mobile.getByRole('button', { name: 'Cancel', exact: true }).click();
   assert.equal(await mobileComposer.inputValue(), 'Mobile draft zero');
 
-  for (const index of [2, 3, 4]) {
+  for (const index of [1, 2, 3, 4, 5, 6, 7, 8]) {
     await mobile.getByRole('button', { name: 'Show chats' }).click();
     await selectSyntheticChat(mobile, index);
   }

@@ -5,6 +5,7 @@ import { trackWrite } from '../server/write-gate.js';
 import { readJson, requireJsonMutation, sendJson } from '../http.js';
 import { daemon } from './routing.js';
 import type { ProjectRequestRouterState } from './state.js';
+import { ProjectServiceTimeout, requestProjectService } from './request.js';
 
 export async function deleteProject(
   state: ProjectRequestRouterState,
@@ -34,7 +35,7 @@ export async function deleteProject(
     return await removeProject(state, res, id, body.mode);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return sendJson(res, message.startsWith('Project is busy.') ? 409 : 503, { message });
+    return sendJson(res, error instanceof ProjectServiceTimeout ? 504 : message.startsWith('Project is busy.') ? 409 : 503, { message });
   } finally {
     state.deleting.delete(id);
   }
@@ -46,13 +47,11 @@ async function removeProject(
   id: string,
   mode: string,
 ) {
-  const response = await fetch(new URL(`/projects/${id}`, state.options.daemonUrl), {
+  const { response, body: result } = await requestProjectService(state.options.daemonUrl, `/projects/${id}`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ mode }),
-    signal: AbortSignal.timeout(120000),
-  });
-  const result = await response.json();
+  }, 120_000);
   if (!response.ok) return sendJson(res, response.status, result);
 
   state.catalog = result as ProjectCatalog;

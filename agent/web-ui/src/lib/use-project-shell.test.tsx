@@ -14,6 +14,8 @@ afterEach(() => vi.resetAllMocks());
 it.each([
   { value: { ready: false, chunks: 2600, progress: { repo: 'example', phase: 'embedding', completed: 1500, total: 2600 } } },
   { value: { ready: true, indexing: true, chunks: 2600, progress: { repo: 'example', phase: 'embedding', completed: 1500, total: 2600 } } },
+  { value: { ready: true, indexing: false, chunks: 2600, progress: { repo: 'example', phase: 'embedding', completed: 1500, total: 2600 } },
+    error: 'Could not check project status. Retrying automatically. Last reported progress may be out of date.' },
 ])('allows chat while its index is building: %j', (status) => {
   const project = { id: 'example', name: 'Example', roots: [] };
   const values = [{ defaultId: project.id, projects: [project] }, project.id, '', 0, false,
