@@ -12,6 +12,7 @@ import { useProjectChats } from './project-chats';
 import { workspaceSummaries } from './workspace-summaries';
 import type { ChatLoad } from './chat-resume';
 import type { WorkspaceChat } from './workspace-chat';
+import { useScheduledChatUpdates } from './use-scheduled-chat-updates';
 
 /** Owns the conversation lifecycle shared by the chat and session sidebar. */
 export function useWorkspaceSession() {
@@ -57,6 +58,8 @@ export function useWorkspaceSession() {
   });
 
   const sessions = workspaceSummaries(savedSessions, registry.chats);
+  const scheduledError = useScheduledChatUpdates(registry.chats, api);
 
-  return { active, chat, renderedViews, sessions, sessionId, sessionError, load, cancelResume, resume, startNew, branchFrom, remove, setFlags };
+  return { active, chat, renderedViews, sessions, sessionId, sessionError: sessionError || scheduledError,
+    load, cancelResume, resume, startNew, branchFrom, remove, setFlags };
 }

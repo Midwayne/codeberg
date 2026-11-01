@@ -1,4 +1,5 @@
 import type { ScheduleSummary } from '@agent/core/schedules/summary';
+import { scheduledFollowUpMessage } from '@agent/core/schedules/messages';
 
 const jobs: ScheduleSummary[] = [
   { id: 'demo-background', chatId: 'demo-chat-two', chatTitle: 'API review', chatDeleted: false,
@@ -27,7 +28,7 @@ export function scheduleDemoResponse(url: URL, init?: RequestInit): Response | u
   if (chat && !init?.method) return Response.json({
     id: chat.chatId, title: chat.chatTitle, createdAt: chat.createdAt, updatedAt: chat.createdAt,
     messages: [
-      { id: `${chat.id}-question`, role: 'user', parts: [{ type: 'text', text: chat.prompt }] },
+      scheduledFollowUpMessage(`${chat.id}-question`, chat.id, chat.prompt),
       { id: `${chat.id}-answer`, role: 'assistant', parts: [{ type: 'text', text: 'This simulated scheduled check has been saved in its originating chat. Expand Scheduled runs above to inspect this chat’s jobs.' }] },
     ],
   });

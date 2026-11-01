@@ -34,7 +34,7 @@ Each schedule also has **Open chat**, which opens its originating conversation a
 
 Background tools also appear here with their invocation status and a **Cancel tool** action. Cancelling requests a cooperative stop; the entry stays active until the call settles. If the call has already finished, a late cancellation preserves its final status and saved result or error. Cancelling a wake-up leaves its background tool running, and cancelling a background tool leaves its wake-up scheduled. Native MCP jobs use their own status/cancel tools.
 
-Inside a chat, expand **Scheduled runs** above the conversation to inspect and cancel only that chat's schedules. The count shows pending and running work; **All** includes that chat's schedule history. A small clock beside a sidebar chat title indicates it has a pending schedule or an active occurrence. It disappears after that work completes or cancellation settles.
+Inside a chat, the **Scheduled runs** bar appears only when that chat has schedules or background tool entries, including history. Expand it above the conversation to inspect and cancel only that chat's jobs. The count shows pending and running work; **All** includes that chat's schedule history. A small clock beside a sidebar chat title indicates it has a pending schedule or an active occurrence. It disappears after that work completes or cancellation settles.
 
 The view refreshes every five seconds while visible; **Refresh** checks immediately. Times use your browser's timezone. Switch projects to manage another project's schedules. You can cancel a retained schedule even after its chat was deleted.
 
@@ -47,7 +47,7 @@ The agent tools remain scoped to their own chat: ask “List this chat's schedul
 | `list_scheduled_runs` | Inspect schedules belonging to the current chat. |
 | `cancel_scheduled_run` | Cancel by `id`. An already started turn continues; use **Stop** to stop it. |
 
-Schedules stay in the same project and chat, retain the creating turn's model selection, and use the latest saved history. Results are saved as new turns; reopen or reload the chat to see them. Normal provider and MCP costs apply to every occurrence. Each chat retains its latest 100 schedules. Completed history is removed as needed to admit more work; up to 100 active schedules are allowed.
+Schedules stay in the same project and chat, retain the creating turn's model selection, and use the latest saved history. The agent writes responses and uses tools in that chat. Open chats automatically discover scheduled turns within the five-second refresh interval and stream their responses; no page reload is needed. Drafts stay intact, and updates wait while a chat has streaming, queued or unsaved local work. Normal provider and MCP costs apply to every occurrence. Each chat retains its latest 100 schedules. Completed history is removed as needed to admit more work; up to 100 active schedules are allowed.
 
 Keep Codeberg running and the computer awake. Closing the browser is fine. Schedules survive server restarts, and projects with saved schedules are loaded without opening a browser. Overdue time-based schedules run once when available; missed recurring intervals are skipped. Active turns and resource cleanup delay dispatch. A failed, stopped or interrupted scheduled turn stops that schedule; inspect its error and create a new schedule after fixing the cause. Deleting the chat cancels pending work on the next dispatch check.
 
@@ -61,6 +61,10 @@ For a browser chat task that may take minutes or hours, the agent can start work
 Start this scan once. Check in two minutes; if it is still running,
 choose when to check again. Keep checking until it completes, then summarize.
 ```
+
+A scheduled turn can also call `sleep_agent` again to continue unfinished work. Each wake-up resumes in the original chat, can write a progress update or final answer, and can choose another wait without a new user message. Use a recurring schedule for fixed intervals; repeated sleeps let the agent adapt the delay to the task.
+
+The chat marks each follow-up with **Resuming scheduled task…**. Its continuation prompt stays collapsed under **Task details**; the agent’s progress update or answer appears normally below it.
 
 | Tool | What it does |
 | --- | --- |

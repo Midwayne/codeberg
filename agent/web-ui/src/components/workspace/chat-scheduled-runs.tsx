@@ -1,5 +1,5 @@
 import { Clock } from 'lucide-react';
-import { useScheduleWorkspace } from '../../lib/schedule-workspace';
+import { useScheduleWorkspace, type ScheduleWorkspace } from '../../lib/schedule-workspace';
 import { useProjectApi } from '../../lib/project-api';
 import { isActiveSchedule } from '../../lib/schedule-summary';
 import { ScopedScheduledRuns } from '../scheduled-runs';
@@ -8,11 +8,16 @@ import { useChatScheduleSpace } from '../../lib/use-chat-schedule-space';
 
 export function ChatScheduledRuns({ chatId }: { chatId: string }) {
   const schedules = useScheduleWorkspace();
+
+  if (!schedules?.jobs?.some((job) => job.chatId === chatId)) return null;
+
+  return <ChatScheduledRunsDetails schedules={schedules} chatId={chatId} />;
+}
+
+function ChatScheduledRunsDetails({ schedules, chatId }: { schedules: ScheduleWorkspace; chatId: string }) {
   const { project } = useProjectApi();
   const details = useRef<HTMLDetailsElement>(null);
   const maximum = useChatScheduleSpace(details);
-  if (!schedules) return null;
-
   const count = schedules.jobs?.filter((job) => job.chatId === chatId && isActiveSchedule(job)).length ?? 0;
 
   return <details ref={details} className="shrink-0 border-b border-border">

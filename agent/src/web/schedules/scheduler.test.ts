@@ -58,6 +58,12 @@ it('persists a one-time wake-up across restart and dispatches once with latest h
   expect(f.generator).toHaveBeenCalledOnce();
   expect(f.generator.mock.calls[0]![0].messages).toHaveLength(3);
   expect(f.generator.mock.calls[0]![0].messages.at(-1)?.parts).toEqual([{ type: 'text', text: 'Check again' }]);
+  expect(f.generator.mock.calls[0]![0].messages.at(-1)?.metadata).toEqual({
+    codeberg: { kind: 'scheduled-follow-up', scheduleId: job.id },
+  });
+  expect((await f.sessions.load('chat'))?.messages.at(-2)?.metadata).toEqual({
+    codeberg: { kind: 'scheduled-follow-up', scheduleId: job.id },
+  });
   expect((await restarted.schedules.list('chat'))[0]?.status).toBe('completed');
 });
 
@@ -84,6 +90,26 @@ it('coalesces missed intervals and never overlaps an active chat', async () => {
   expect(stored.status).toBe('scheduled');
   expect(stored.dueAt).toBeGreaterThan(job.dueAt! + 600_000);
   expect(f.generator).toHaveBeenCalledTimes(2);
+});
+
+it('preserves scheduled message attribution when a human continues the saved chat', async () => {
+  const f = await fixture();
+  const job = await f.scheduler.create(f.context, { prompt: 'Check again', delay_seconds: 1 });
+  await f.scheduler.tick(job.dueAt!);
+  await (await f.runs.find('chat'))!.done;
+  const saved = (await f.sessions.load('chat'))!;
+  const messages = [...saved.messages, {
+    id: 'human-follow-up', role: 'user' as const, parts: [{ type: 'text' as const, text: 'Explain the result' }],
+  }];
+
+  const next = await f.runs.admit({ chatId: 'chat', requestId: 'human-follow-up', messages });
+  await next.done;
+
+  expect(f.generator).toHaveBeenCalledTimes(2);
+  expect(f.generator.mock.calls[1]![0].messages.slice(0, saved.messages.length)).toEqual(saved.messages);
+  expect((await f.sessions.load('chat'))?.messages.find((message) => message.id === `${job.id}-0`)?.metadata).toEqual({
+    codeberg: { kind: 'scheduled-follow-up', scheduleId: job.id },
+  });
 });
 
 it('cancels only schedules owned by this chat and survives restart', async () => {

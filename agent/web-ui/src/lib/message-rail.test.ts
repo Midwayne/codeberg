@@ -62,6 +62,14 @@ describe('markerId', () => {
 });
 
 describe('collectUserMarkers', () => {
+  it('keeps scheduled continuation prompts out of the user-message navigation rail', () => {
+    expect(collectUserMarkers([
+      { id: 'human', role: 'user', parts: [{ type: 'text', text: 'Monitor this job' }] },
+      { id: 'wake-0', role: 'user', parts: [{ type: 'text', text: 'Internal continuation' }],
+        metadata: { codeberg: { kind: 'scheduled-follow-up', scheduleId: 'wake' } } },
+    ])).toEqual([{ id: 'human', prompt: 'Monitor this job' }]);
+  });
+
   it('keeps only user turns, in order, with fallback ids', () => {
     const markers = collectUserMarkers([
       { id: 'a', role: 'assistant', parts: [{ type: 'text', text: 'hi' }] },

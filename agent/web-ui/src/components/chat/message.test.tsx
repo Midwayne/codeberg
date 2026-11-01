@@ -4,6 +4,45 @@ import type { UIMessage } from 'ai';
 
 import { Message } from './message';
 
+it('shows scheduled continuations as neutral markers with collapsed task details and no user actions', () => {
+  const message: UIMessage = {
+    id: 'wake-0', role: 'user', metadata: { codeberg: { kind: 'scheduled-follow-up', scheduleId: 'wake' } },
+    parts: [{ type: 'text', text: 'Inspect the existing background scan. Do not start it again.' }],
+  };
+  const html = renderToStaticMarkup(<Message message={message} onBranch={() => undefined} />);
+
+  expect(html).toContain('Resuming scheduled task…');
+  expect(html).toContain('data-message-id="wake-0"');
+  expect(html).toMatch(/<details[^>]*>\s*<summary[^>]*>Task details<\/summary>/);
+  expect(html).toContain(message.parts[0]!.type === 'text' ? message.parts[0]!.text : '');
+  expect(html).not.toMatch(/<details[^>]*\bopen(?:=|\s|>)/);
+  expect(html).not.toContain('bg-muted');
+  expect(html).not.toContain('items-end');
+  expect(html).not.toContain('Branch from here');
+});
+
+it('keeps human-authored messages as user bubbles even when they mention resuming', () => {
+  const message: UIMessage = { id: 'human', role: 'user', parts: [{ type: 'text', text: 'Resuming scheduled task…' }] };
+  const html = renderToStaticMarkup(<Message message={message} onBranch={() => undefined} />);
+
+  expect(html).toContain('bg-muted');
+  expect(html).toContain('items-end');
+  expect(html).toContain('Branch from here');
+  expect(html).not.toContain('Task details');
+});
+
+it('wraps unbroken user text inside its bubble while preserving the full text and newlines', () => {
+  const token = 'a'.repeat(2000);
+  const text = `Payload:\n${token}\nhttps://example.com/${token}`;
+  const message: UIMessage = { id: 'long-prompt', role: 'user', parts: [{ type: 'text', text }] };
+
+  const html = renderToStaticMarkup(<Message message={message} />);
+
+  expect(html).toContain(text);
+  expect(html).toMatch(/class="[^"]*whitespace-pre-wrap[^"]*\[overflow-wrap:anywhere\][^"]*"/);
+  expect(html).not.toContain('truncate');
+});
+
 describe('assistant activity group', () => {
   it('shows multimodal user attachments alongside text without exposing encoded bytes', () => {
     const message = { id: 'u', role: 'user', parts: [

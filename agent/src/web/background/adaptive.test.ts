@@ -8,7 +8,7 @@ import { sleepAgent } from '../../core/background/sleep.js';
 import { SearchRuns } from '../runs/manager.js';
 import { WebSessionStore } from '../sessions/store.js';
 
-it('ends turns while work runs, then checks and sleeps again at agent-selected times', async () => {
+it.each([false, true])('writes responses and sleeps again at agent-selected times (initially scheduled: %s)', async (scheduled) => {
   const directory = await mkdtemp(join(tmpdir(), 'codeberg-adaptive-'));
   const sessions = new WebSessionStore(directory);
   await sessions.upsert({ id: 'chat', title: 'Kafka scan', messages: [] });
@@ -22,6 +22,7 @@ it('ends turns while work runs, then checks and sleeps again at agent-selected t
     if (!jobId) jobId = (await scope.jobs.start(scope, { tool: 'scan', callId: 'scan', args: {} }, execute)).id;
 
     const job = await scope.jobs.get(scope.chatId, jobId);
+    const text = job.status === 'running' ? 'Scan is still running; I will check again later.' : 'Scan finished: 42 matches.';
     if (job.status === 'running') {
       await sleepAgent({ prompt: 'Inspect the existing scan; sleep again if unfinished', delay_seconds: delays.shift()!, job_ids: [jobId] });
     } else {
@@ -31,18 +32,30 @@ it('ends turns while work runs, then checks and sleeps again at agent-selected t
 
     return { stream: new ReadableStream<UIMessageChunk>({ start(controller) {
       controller.enqueue({ type: 'start', messageId: `answer-${messages.length}` });
+      controller.enqueue({ type: 'text-start', id: 'text' });
+      controller.enqueue({ type: 'text-delta', id: 'text', delta: text });
+      controller.enqueue({ type: 'text-end', id: 'text' });
       controller.enqueue({ type: 'finish', finishReason: 'stop' });
       controller.close();
     } }) };
   });
 
   try {
-    await (await runs.admit({ chatId: 'chat', requestId: 'initial', messages: [] })).done;
+    if (scheduled) {
+      const initial = await runs.schedules.create({ chatId: 'chat', sourceRunId: 'initial' }, {
+        prompt: 'Start the scan, wait as needed, and report the result here.', delay_seconds: 1,
+      });
+      await runs.schedules.tick(initial.dueAt!);
+      await (await runs.find('chat'))!.done;
+      await runs.schedules.tick(initial.dueAt! + 1);
+    } else {
+      await (await runs.admit({ chatId: 'chat', requestId: 'initial', messages: [] })).done;
+    }
     expect(runs.background.hasActive('chat')).toBe(true);
-    const first = (await runs.schedules.list('chat'))[0]!;
+    const first = (await runs.schedules.list('chat')).find((job) => job.status === 'scheduled')!;
     await runs.schedules.tick(first.dueAt!);
     await (await runs.find('chat'))!.done;
-    const second = (await runs.schedules.list('chat')).find((job) => job.id !== first.id)!;
+    const second = (await runs.schedules.list('chat')).find((job) => job.id !== first.id && job.status === 'scheduled')!;
     expect(second.dueAt! - second.createdAt).toBe(180_000);
     expect(execute).toHaveBeenCalledOnce();
 
@@ -53,6 +66,14 @@ it('ends turns while work runs, then checks and sleeps again at agent-selected t
     await runs.schedules.tick(second.dueAt! + 1);
     expect((await runs.schedules.list('chat')).every((job) => job.status === 'completed')).toBe(true);
     expect(execute).toHaveBeenCalledOnce();
+
+    const saved = await sessions.load('chat');
+    const answers = saved!.messages.filter((message) => message.role === 'assistant');
+    expect(answers.map((message) => message.parts)).toEqual([
+      [expect.objectContaining({ type: 'text', text: 'Scan is still running; I will check again later.' })],
+      [expect.objectContaining({ type: 'text', text: 'Scan is still running; I will check again later.' })],
+      [expect.objectContaining({ type: 'text', text: 'Scan finished: 42 matches.' })],
+    ]);
   } finally {
     finish(null);
     await runs.close();

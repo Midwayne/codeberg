@@ -1,5 +1,7 @@
 import { MessageBody, isActivityPart } from './message-body';
 import { MessageActions } from './message-actions';
+import { ScheduledFollowUp } from './scheduled-follow-up';
+import { isScheduledFollowUp } from '@agent/core/schedules/messages';
 
 import type { UIMessage } from 'ai';
 
@@ -37,7 +39,8 @@ export function Message({
   learningEnabled = true,
 }: MessageProps) {
   const isUser = message.role === 'user';
-  const showActions = Boolean(onRegenerate || onBranch || (!isUser && message.parts.length > 0));
+  const scheduled = isScheduledFollowUp(message);
+  const showActions = !scheduled && Boolean(onRegenerate || onBranch || (!isUser && message.parts.length > 0));
   const activityParts = isUser ? [] : message.parts.filter(isActivityPart);
   const firstActivityIndex = isUser ? -1 : message.parts.findIndex(isActivityPart);
 
@@ -46,14 +49,14 @@ export function Message({
     <div
       data-message-id={domId ?? message.id}
       style={isUser ? undefined : { contentVisibility: 'auto', containIntrinsicSize: 'auto 400px' }}
-      className={cn('group/message flex scroll-mt-3 flex-col gap-1', isUser ? 'items-end' : 'items-start')}
+      className={cn('group/message flex scroll-mt-3 flex-col gap-1', isUser && !scheduled ? 'items-end' : 'items-start')}
     >
-      <MessageBody
+      {scheduled ? <ScheduledFollowUp message={message} /> : <MessageBody
         isUser={isUser}
         message={message}
         firstActivityIndex={firstActivityIndex}
         activityParts={activityParts}
-      />
+      />}
       {showActions && (
         <MessageActions
           message={message}

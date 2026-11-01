@@ -1,4 +1,5 @@
 import type { SearchRuns } from '../runs/manager.js';
+import { scheduledFollowUpMessage } from '../../core/schedules/messages.js';
 import { RunError, type SearchRun } from '../runs/types.js';
 import { requestId, type ScheduledRun } from './types.js';
 
@@ -26,7 +27,7 @@ export async function admitScheduled(runs: SearchRuns, job: ScheduledRun, prompt
 
   try {
     const run = await runs.admit({ chatId: job.chatId, requestId: requestId(job), selection: job.selection,
-      messages: [...session.messages, { id: requestId(job), role: 'user', parts: [{ type: 'text', text: prompt }] }] });
+      messages: [...session.messages, scheduledFollowUpMessage(requestId(job), job.id, prompt)] });
     job.lastRunId = run.record.id;
   } catch (error) {
     if (!(error instanceof RunError) || error.status !== 409) throw error;

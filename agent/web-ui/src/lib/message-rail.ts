@@ -1,8 +1,10 @@
 /** Geometry + copy helpers for the ChatGPT-style conversation tick rail. */
+import { isScheduledFollowUp } from '@agent/core/schedules/messages';
 
 export interface RailMessage {
   id?: string;
   role: string;
+  metadata?: unknown;
   parts?: ReadonlyArray<{ type: string; text?: string }>;
 }
 
@@ -63,7 +65,7 @@ export type UserMarkersOptions = readonly RailMessage[];
 export function collectUserMarkers(messages: UserMarkersOptions): UserMarker[] {
   const out: UserMarker[] = [];
   for (const [i, m] of messages.entries()) {
-    if (m.role !== 'user') continue;
+    if (m.role !== 'user' || isScheduledFollowUp(m)) continue;
     out.push({ id: markerId(m, i), prompt: userPromptText(m) });
   }
   return out;
