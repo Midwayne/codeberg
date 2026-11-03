@@ -9,12 +9,15 @@ import (
 
 const chunkKindFilterDesc = "chunk kind: function, method, class, struct, interface, window, section, key"
 
-func registerIndexTools(r *Registry, idx indexctl.Indexer, ws *workspace.Workspace) {
-	r.Register(searchTool(idx))
+func registerIndexTools(r *Registry, idx indexctl.Indexer, ws *workspace.Workspace, vectors bool) {
+	if vectors {
+		r.Register(searchTool(idx))
+		r.Register(hybridSearchTool(idx, ws))
+	}
+
 	r.Register(getChunkTool(idx))
 	r.Register(findSymbolTool(idx))
 	r.Register(fileOutlineTool(idx))
-	r.Register(hybridSearchTool(idx, ws))
 	r.Register(searchGraphTool(idx))
 	r.Register(tracePathTool(idx))
 	r.Register(detectChangesTool(idx, ws))

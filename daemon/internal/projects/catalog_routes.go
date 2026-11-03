@@ -12,7 +12,7 @@ func (m *Manager) serveCatalog(w http.ResponseWriter, r *http.Request) {
 	case "GET":
 		m.mu.Lock()
 		defer m.mu.Unlock()
-		respond(w, 200, m.catalog)
+		respond(w, 200, m.catalogView(m.catalog))
 	case "POST":
 		m.serveAdd(w, r)
 	default:

@@ -20,6 +20,10 @@ import (
 
 func exists(p string) bool { _, err := os.Stat(p); return err == nil }
 
+// Replace build operations in tests without installing host dependencies.
+var ensureBuildDeps = deps.Ensure
+var buildComponent = makeTarget
+
 // Ensure builds/downloads whatever is missing. With force, it rebuilds the code
 // regardless (the model is only fetched when missing — it does not change). When
 // running from a prebuilt dist there is nothing to build, so it only ensures the
@@ -54,7 +58,7 @@ func Ensure(c *config.Config, force bool) error {
 	// The React SPA served by codeberg-web.
 	webUIIndex := filepath.Join(c.Repo, "agent", "web-ui", "dist", "index.html")
 
-	needDaemon := force || !exists(a.DaemonBin) || !exists(a.IndexBin)
+	needDaemon := force || !exists(a.DaemonBin) || !exists(a.IndexBin) || needsONNXBuild(c, a.IndexBin)
 	needAgent := force || !exists(a.WebScript)
 	needWebUI := force || !exists(webUIIndex)
 	// The built-in database MCP binary is only built when the user turned it on
@@ -67,7 +71,7 @@ func Ensure(c *config.Config, force bool) error {
 	// Skip the check when nothing needs (re)building: an up-to-date tree already
 	// proved the toolchain works, so don't gate a plain run on it.
 	if needDaemon || needAgent || needWebUI || needDbmcp {
-		if err := deps.Ensure(os.Stderr); err != nil {
+		if err := ensureBuildDeps(os.Stderr, c.Vector && c.EmbedBackend == "onnx"); err != nil {
 			return err
 		}
 	}
@@ -75,7 +79,11 @@ func Ensure(c *config.Config, force bool) error {
 	// codeberg-d + cberg-index: `make build-daemon` builds the core first if
 	// needed, then the Go daemon — so one target covers both binaries.
 	if needDaemon {
-		if err := makeTarget(c.Repo, "build-daemon", "core + daemon"); err != nil {
+		if err := buildComponent(c.Repo, "build-daemon", "core + daemon"); err != nil {
+			return err
+		}
+
+		if err := ensureONNX(c, a.IndexBin, force); err != nil {
 			return err
 		}
 	} else {
@@ -84,7 +92,7 @@ func Ensure(c *config.Config, force bool) error {
 
 	// agent/dist: `make build-agent` runs npm install + build.
 	if needAgent {
-		if err := makeTarget(c.Repo, "build-agent", "agent"); err != nil {
+		if err := buildComponent(c.Repo, "build-agent", "agent"); err != nil {
 			return err
 		}
 	} else {
@@ -93,7 +101,7 @@ func Ensure(c *config.Config, force bool) error {
 
 	// web-ui/dist (the browser SPA): `make build-web-ui` runs npm install + vite build.
 	if needWebUI {
-		if err := makeTarget(c.Repo, "build-web-ui", "agent (web UI)"); err != nil {
+		if err := buildComponent(c.Repo, "build-web-ui", "agent (web UI)"); err != nil {
 			return err
 		}
 	} else {
@@ -101,7 +109,7 @@ func Ensure(c *config.Config, force bool) error {
 	}
 
 	if needDbmcp {
-		if err := makeTarget(c.Repo, "build-dbmcp", "database MCP (dbmcp)"); err != nil {
+		if err := buildComponent(c.Repo, "build-dbmcp", "database MCP (dbmcp)"); err != nil {
 			return err
 		}
 	} else if c.DbmcpUse && c.DbmcpBin == "" {
@@ -167,12 +175,15 @@ func ensureEmbedding(c *config.Config, root string, force bool) error {
 		return nil
 	}
 
-	err := prepareModel(c, root)
+	return embeddingSetupResult(c, force, prepareModel(c, root))
+}
+
+func embeddingSetupResult(c *config.Config, force bool, err error) error {
 	if err == nil || force {
 		return err
 	}
 
-	fmt.Fprintf(os.Stderr, "⚠ Semantic search is off for this run: the embedding model could not be prepared.\n"+
+	fmt.Fprintf(os.Stderr, "⚠ Semantic search is off for this run: the embedding runtime or model could not be prepared.\n"+
 		"  %v\n  Chat and exact-text search still work. Retry with `codeberg build`.\n", err)
 	c.Vector = false
 

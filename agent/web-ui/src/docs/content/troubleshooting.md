@@ -32,14 +32,17 @@ codeberg doctor
 codeberg --no-vector
 ```
 
-`doctor` checks components and toolchains. `--no-vector` provides a lexical-only check. Correct missing dependencies or unreachable vector services, restart if config changed, then **Retry**. Supervisor retries cannot install missing libraries.
+`doctor` checks components and toolchains. `--no-vector` skips embedding setup and omits semantic search tools; exact-text, file, symbol, and graph tools remain available. See [Start without an embedding model](/docs/indexing#start-without-an-embedding-model) to save that mode or restore semantic search. Correct missing dependencies or unreachable vector services, restart if config changed, then **Retry**. Supervisor retries cannot install missing libraries.
+
+Routine indexing progress is hidden when embeddings are disabled. A project status error can still appear for a missing directory or an unavailable service; address that error and use **Retry**.
 
 | Embedding option | Check | Retry setup |
 | --- | --- | --- |
 | EmbeddingGemma 2 | Python 3.10+, venv/pip, network, several GB free. | `codeberg build --embedding embeddinggemma-2` |
 | EmbeddingGemma MLX | Same prerequisites, plus Apple Silicon. | `codeberg build --embedding embeddinggemma-2-fp32-mlx` |
+| Jina ONNX, source installation | ONNX Runtime headers and library. Install through Homebrew on macOS, or export `ONNXRUNTIME_ROOT` to the runtime prefix on Linux. | `codeberg build --vector --embedding jina-onnx` |
 
-These use separate managed Python runtimes and FP32 text models; neither needs ONNX or `llama-server`. See [Indexing and search](/docs/indexing).
+The EmbeddingGemma options use separate managed Python runtimes and FP32 text models; neither needs ONNX or `llama-server`. Jina's ONNX runtime is bundled in prebuilt installations. See [Indexing and search](/docs/indexing).
 
 Cold indexing and embedding batches can be slow without indicating failure. Progress counts describe a stage, not the entire project. For launcher startup timeouts, export `CODEBERG_HEALTH_TIMEOUT=30m` or a longer Go duration. To watch indexing progress in the terminal, start with `codeberg --verbose`; logs are always written to `~/.codeberg/logs/`.
 

@@ -49,9 +49,7 @@ func indexerEnv(cfg config.Indexer) []string {
 }
 
 func embeddingEnv(env []string, cfg config.Indexer) []string {
-	if cfg.Model != "" {
-		env = append(env, config.EnvModel+"="+cfg.Model)
-	}
+	env = append(env, config.EnvModel+"="+cfg.Model)
 
 	for key, value := range map[string]string{
 		config.EnvEmbedBackend: cfg.EmbedBackend,
@@ -59,9 +57,11 @@ func embeddingEnv(env []string, cfg config.Indexer) []string {
 		config.EnvEmbedPython:  cfg.EmbedPython,
 		config.EnvLlamaServer:  cfg.LlamaServer,
 	} {
-		if value != "" {
-			env = append(env, key+"="+value)
+		if cfg.Model == "" {
+			value = ""
 		}
+
+		env = append(env, key+"="+value)
 	}
 
 	return env

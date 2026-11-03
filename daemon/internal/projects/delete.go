@@ -33,7 +33,7 @@ func (m *Manager) serveDelete(w http.ResponseWriter, r *http.Request, id string)
 		return
 	}
 
-	respond(w, 200, catalog)
+	respond(w, 200, m.catalogView(catalog))
 }
 
 // Delete stops the writer before removing caches. Retained data uses the same

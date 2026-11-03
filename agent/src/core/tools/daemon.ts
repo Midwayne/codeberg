@@ -3,12 +3,15 @@ import { dynamicTool, jsonSchema, type ToolSet } from 'ai';
 import type { DaemonClient } from '../client.js';
 import { daemonToolError } from './daemon-error.js';
 import type { ToolSource } from './source.js';
+import type { ToolSpec } from '../types.js';
 
 /** Daemon tools bridged elsewhere — omit to avoid duplicate/conflicting schemas. */
 const HIDDEN_DAEMON_TOOLS = new Set(['search']);
 
 export interface DaemonToolSourceOptions {
   daemon: DaemonClient;
+  /** Reuse the catalogue already fetched for capability-based registration. */
+  specs?: readonly ToolSpec[];
   /** Called after each daemon tool executes with its raw result. */
   onToolResult?: (toolName: string, output: unknown) => void;
 }
@@ -24,7 +27,7 @@ export function daemonToolSource(opts: DaemonToolSourceOptions): ToolSource {
     name: 'daemon',
     tools: async (): Promise<ToolSet> => {
       const set: ToolSet = {};
-      for (const spec of await opts.daemon.listTools()) {
+      for (const spec of opts.specs ?? await opts.daemon.listTools()) {
         if (HIDDEN_DAEMON_TOOLS.has(spec.name)) {
           continue;
         }

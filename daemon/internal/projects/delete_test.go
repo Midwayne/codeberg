@@ -34,6 +34,10 @@ func TestDeleteProjectModesAndReuse(t *testing.T) {
 			if w.Code != 200 {
 				t.Fatalf("delete: %d %s", w.Code, w.Body)
 			}
+
+			if !strings.Contains(w.Body.String(), `"vectorsEnabled":false`) {
+				t.Fatalf("deletion must preserve the launch mode in its catalog response: %s", w.Body)
+			}
 			if !stopped || len(m.catalog.Projects) != 0 || m.catalog.DefaultID != "" {
 				t.Fatal("project still active")
 			}

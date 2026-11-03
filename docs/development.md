@@ -27,10 +27,11 @@ The **ONNX Runtime** is a native library, not a CLI: CMake searches
 `/opt/homebrew/opt/onnxruntime`, `/usr/local`, `/opt/homebrew`, and `/usr`, or
 the `ONNXRUNTIME_ROOT` CMake variable when supplied. Without it the core still
 builds, but Jina ONNX embedding is unavailable.
-Other embedding adapters have their own runtimes; use `--no-vector` /
-`CODEBERG_VECTOR=false` to skip all embedding setup. It is not
-packaged for apt, so on Linux install a release tarball and point
-`ONNXRUNTIME_ROOT` at it.
+ONNX Runtime is not packaged for apt, so on Linux install a release tarball and
+point `ONNXRUNTIME_ROOT` at it. Other embedding adapters have their own runtimes.
+Use `--no-vector` or `CODEBERG_VECTOR=false` to skip
+embedding setup and ONNX prerequisite checks. Semantic tools are omitted;
+exact-text, file, symbol, and graph tools remain available.
 
 **Python embedding models need Python 3.10+ with venv and pip.** The default
 EmbeddingGemma model downloads its managed runtime and weights on first use.
@@ -90,7 +91,8 @@ the checkout:
 
 In the browser, add a project and configure a chat model and its provider
 credentials. For a first run without embedding downloads, use
-`codeberg --no-vector`.
+`codeberg --no-vector`. Save `CODEBERG_VECTOR=false` to make that the default;
+restart with `--vector` to enable embeddings for one run.
 
 ## Build components manually
 
@@ -139,11 +141,14 @@ For development without the launcher, `make run-daemon` loads `daemon/.env` and
 [agent/.env.example](../agent/.env.example). Keep provider credentials in the
 agent configuration; the daemon does not need them. Do not commit secrets.
 
-For a chunk-only daemon, leave `CBERG_MODEL` and `CBERG_INDEX_PATH` unset in
-`daemon/.env`. Supply a keyed repository root in the shell:
+For a chunk-only daemon, set `CODEBERG_VECTOR=false` in `daemon/.env` or export
+it in the shell. This overrides an inherited `CBERG_MODEL`; the daemon omits
+`search` and `hybrid_search`, and the agent follows its advertised capabilities.
+Supply a keyed repository root in the shell:
 
 ```sh
 # Terminal 1, from the repository root
+export CODEBERG_VECTOR=false
 export CODEBERG_ROOTS="$(printf 'repo\t%s' "$(git rev-parse --show-toplevel)")"
 make run-daemon
 ```

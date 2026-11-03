@@ -10,9 +10,11 @@ export interface ProjectCatalog {
   defaultId: string;
   projects: Project[];
   catalogPath?: string;
+  vectorsEnabled?: boolean;
 }
 export interface ProjectStatus {
   ready: boolean;
+  vectors_enabled?: boolean;
   indexing?: boolean;
   progress?: IndexProgress;
   chunks: number;

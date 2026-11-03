@@ -33,13 +33,16 @@ export function useProjectShell({ children }: ProjectShellOptions) {
     window.history.replaceState(null, '', url);
   }
   const currentStatus = status?.id === project?.id ? status : undefined;
+  const vectorsEnabled = catalog?.vectorsEnabled ?? currentStatus?.value?.vectors_enabled;
+  const indexing = vectorsEnabled !== false && (!currentStatus?.value?.ready || currentStatus.value.indexing);
   const ready = Boolean(project);
   const toolbar = (
     <ProjectToolbar project={project} selected={selected} catalog={catalog} select={select} setAdding={setAdding} />
   );
-  const notice = project && (currentStatus?.error || !currentStatus?.value?.ready || currentStatus.value.indexing) && (
+  const notice = project && (currentStatus?.error || indexing) && (
     <ProjectNotice
       key={project.id}
+      vectorsEnabled={vectorsEnabled}
       currentStatus={currentStatus}
       project={project}
       api={api}

@@ -4,10 +4,35 @@ Indexing runs locally in the background and updates as files change. Chat and em
 
 | Mode | Available tools | Requirements |
 | --- | --- | --- |
-| Lexical | Exact text search, file reads, source navigation. | `codeberg --no-vector`, or save `CODEBERG_VECTOR=false`. |
+| Without embeddings | Exact text search, file reads, symbols, outlines, and graph navigation. | `codeberg --no-vector`, or save `CODEBERG_VECTOR=false`. |
 | Semantic | Vector similarity alongside lexical and file tools. | Embedding model, runtime, and a compatible index. |
 
 A **chunk** is a source piece with a path and line range. An **embedding** represents it numerically; the **vector index** stores embeddings for similarity search.
+
+## Start without an embedding model
+
+Skip embedding selection, downloads, and model workers for one launch:
+
+```sh
+codeberg --no-vector
+```
+
+To make this the default, save the setting and restart:
+
+```sh
+codeberg config set CODEBERG_VECTOR=false
+codeberg
+```
+
+This mode omits `search_code`, `hybrid_search`, and the experimental `search_bundle` from the agent's tools. The daemon also omits its semantic `search` tool. Use `grep`, `glob`, and `read_file` for discovery; symbol lookup, outlines, chunks, and graph tools become available as background parsing completes. Adding and switching projects uses the same mode.
+
+The UI hides routine project indexing progress in this mode. Parsing, graph construction, and file watching continue in the background. Actual project failures still show a status error with **Retry**.
+
+Chat still needs a configured chat model to answer questions. The app and setup docs open without one. Existing embedding downloads and vector indexes are retained. To restore semantic search, restart with `codeberg --vector`, or save `CODEBERG_VECTOR=true` and restart; normal embedding setup then applies.
+
+For Jina ONNX in a source installation, the launcher checks whether the existing indexer supports ONNX and rebuilds it when needed. On macOS it can install ONNX Runtime through Homebrew. On Linux, install the runtime and export `ONNXRUNTIME_ROOT` to its installation prefix before restarting. If ONNX remains unavailable after rebuilding, normal startup continues without semantic search and prints recovery steps; `codeberg build --vector --embedding jina-onnx` reports the failure.
+
+Embedding prerequisites are skipped, including Python model setup and the source launcher's ONNX dependency check. Optional web search and MCP servers keep their own runtime requirements. Chat provider usage and enabled external tools can still incur costs.
 
 ## Choose an embedding model
 
@@ -57,7 +82,7 @@ The bottom-left panel can be minimized. Counts describe each stage, rather than 
 
 Status checks allow up to 20 seconds for a response. One temporary connection failure keeps the last reported progress and checks again automatically. Repeated failures show a warning that the progress may be out of date; checking continues and clears the warning when the connection recovers. This applies during startup and watched updates.
 
-Chat, grep, file reads, and directory tools work immediately. Hybrid search uses lexical fallback; index-only tools report that preparation is in progress. Watched updates retain the last completed readiness and expose indexing activity.
+Chat, grep, file reads, and directory tools work immediately. When embeddings are enabled, hybrid search can use lexical fallback during indexing; index-only tools report that preparation is in progress. Watched updates retain the last completed readiness and expose indexing activity.
 
 If the directory disappears or the indexer stays unreachable, inspect `projects/<id>/logs/indexer.log`, fix the dependency or path, then **Retry**. A long embedding batch alone does not need Retry. See [Troubleshooting](/docs/troubleshooting#indexing-stays-pending-or-fails).
 

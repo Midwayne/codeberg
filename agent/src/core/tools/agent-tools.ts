@@ -37,14 +37,17 @@ interface AgentToolOptions {
 
 /** Owns tool ordering and evidence extraction for every agent turn. */
 export async function createAgentTools(opts: AgentToolOptions): Promise<ToolSet> {
+  const specs = await opts.daemon.listTools();
+  const vectors = specs.some((spec) => spec.name === 'search');
+
   // search_code stays first so it cannot be shadowed by another source.
   return collectTools([
-    searchCodeSource({
+    ...(vectors ? [searchCodeSource({
       daemon: opts.daemon,
       defaultK: opts.defaultSearchK,
       onResults: opts.onResults,
-    }),
-    ...(opts.searchBundle ? [searchBundleSource(opts)] : []),
+    })] : []),
+    ...(vectors && opts.searchBundle ? [searchBundleSource(opts)] : []),
     scheduleToolSource(),
     ...(opts.learning ? [learningToolSource(opts.learning, opts.learningSettings)] : []),
     contextToolSource(opts.context),
@@ -52,6 +55,7 @@ export async function createAgentTools(opts: AgentToolOptions): Promise<ToolSet>
     browserToolSource({ ...opts.env, CODEBERG_WEB_USE: String(opts.web.enabled) }, opts.browserModel, undefined, opts.browserOwner, opts.browserInputs),
     daemonToolSource({
       daemon: opts.daemon,
+      specs,
       onToolResult: (name, output) => {
         const hits = extractEvidence(name, output);
         if (hits.length > 0) {

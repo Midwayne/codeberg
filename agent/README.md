@@ -12,6 +12,13 @@ Requires a running `codeberg-d`. Semantic search (`search_code`) needs vector in
 (`CBERG_MODEL` + `CBERG_INDEX_PATH` on the daemon); file and chunk tools work in
 chunk-only mode.
 
+Launch the stack with `codeberg --no-vector`, or save
+`CODEBERG_VECTOR=false`, to skip embedding setup. The daemon omits `search` and
+`hybrid_search`; the agent omits `search_code` and experimental `search_bundle`
+and uses lexical search guidance. Exact-text, file, symbol, and graph tools stay
+available. See the [user guide](web-ui/src/docs/content/indexing.md#start-without-an-embedding-model)
+for prerequisites, persistence, and re-enabling embeddings.
+
 ## Development checks
 
 Use Node.js 22.13+ on the 22.x line, or Node.js 24+.
@@ -309,8 +316,9 @@ apply surface-specific wrappers:
 | CLI (`codeberg-ask`) | `ChatSession.ask` | Non-streaming `generate`; cross-turn evidence ledger |
 | Web (`codeberg-web`) | `wrapToolLoopAgentWithCompaction` | SSE `/api/chat`; `~/.codeberg/web-sessions/`; no evidence ledger |
 
-**Tool sources** merge in order (`collectTools`) — first wins. Built-in `search_code`
-always registers before the daemon bridge so daemon `search` cannot shadow it.
+**Tool sources** merge in order (`collectTools`) — first wins. The agent reads the
+daemon's advertised catalogue once. When it includes `search`, built-in
+`search_code` registers before the daemon bridge so daemon `search` cannot shadow it.
 MCP servers from `mcp.json` register last so they cannot shadow core tools;
 their names are `mcp_<server>_<tool>`. See [docs/mcp.md](../docs/mcp.md).
 
@@ -340,7 +348,8 @@ tool step marks the transcript tail cacheable, so earlier tool results are
 billed at the cache-read rate instead of being re-sent at full price.
 
 **Chunk-only daemon:** file tools (`grep`, `find_symbol`, …) work without vectors;
-`search_code` needs `vectors_enabled: true` on `GET /health`.
+`search_code`, `hybrid_search`, and `search_bundle` are absent. Capability-based
+registration uses `/tools`, so it does not wait for indexing readiness.
 
 ## Development
 
@@ -445,7 +454,9 @@ this composite key.
 
 ### Search workflow
 
-The agent prompt recommends a chunk-first strategy:
+With embeddings enabled, the agent prompt recommends a chunk-first strategy.
+Without embeddings, use `grep` and `glob` for discovery, then symbol, outline,
+chunk, graph, and file tools for navigation:
 
 1. **`search_code`** (built-in) — semantic vector search via `GET /search`.
    Returns path, symbol, lines, score, snippet, and bounded full bodies for a few

@@ -13,6 +13,16 @@ target_link_libraries(cberg-index PRIVATE codeberg::codeberg)
 set_target_properties(cberg-index PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
+add_test(NAME test_cberg_capabilities COMMAND cberg-index --capabilities)
+set_tests_properties(test_cberg_capabilities PROPERTIES
+  ENVIRONMENT "CBERG_MODEL=missing-model;CBERG_ROOTS=invalid-roots")
+if(CBERG_WITH_ONNX)
+  target_compile_definitions(cberg-index PRIVATE CBERG_WITH_ONNX)
+  set_tests_properties(test_cberg_capabilities PROPERTIES PASS_REGULAR_EXPRESSION "\"onnx\":true")
+else()
+  set_tests_properties(test_cberg_capabilities PROPERTIES PASS_REGULAR_EXPRESSION "\"onnx\":false")
+endif()
+
 add_executable(test_cberg_walk test_walk.c)
 target_include_directories(test_cberg_walk PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}

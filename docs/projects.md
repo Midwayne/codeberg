@@ -70,11 +70,13 @@ retain deleted project history or knowledge.
 
 Each project has its own supervised indexer, vector namespace and file watcher.
 The startup project begins immediately; other indexers start when first used.
-During initial indexing, the UI shows readiness and the available chunk count.
-Saved chats remain readable and the composer accepts drafts; sending and
-regenerating wait for readiness. Large repositories or embedding models can
-require several minutes. The display reports available chunks, rather than a
-percentage of an unknown total.
+With embeddings enabled, the UI shows progress and the available chunk count.
+`--no-vector` (or `CODEBERG_VECTOR=false`) hides routine
+indexing progress while parsing, graph construction, and file watching continue.
+Actual project failures still show a status error with **Retry**. Saved chats,
+chat requests, and file tools remain usable during indexing; index-only tools
+report `NOT_READY` until prepared. Large repositories or embedding models can
+require several minutes. Progress reports measured counts for each stage.
 
 An unavailable directory or prolonged index startup produces an error. Check
 `projects/<id>/logs/indexer.log`, restore the directory or correct the indexer
@@ -166,6 +168,9 @@ timeout. Unavailable native pickers return an error with a manual-entry fallback
 The daemon exposes `GET /projects` and `POST /projects` with
 `{"root":"/absolute/directory","name":"Optional label"}`. Project repository APIs
 use `/projects/<id>/health`, `/search`, `/tools` and `/tools/call`.
+`GET /projects` includes top-level `vectorsEnabled` launch metadata before any
+indexer starts. The same field is returned with successful deletion catalogs,
+preserved by the web proxy, and never saved to `projects.json`.
 `PATCH /projects/<id>` with `{"name":"New display name"}` renames a project
 without starting or restarting its indexer. It returns the updated project, 400
 for an invalid name, or 404 for an unknown ID. Cross-origin changes are rejected.

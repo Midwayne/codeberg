@@ -10,6 +10,7 @@ import './indexing-progress.css';
 type Status = { id: string; value?: ProjectStatus; error?: string };
 
 export type ProjectNoticeProps = {
+  vectorsEnabled?: boolean;
   currentStatus: Status | undefined;
   project: Project;
   api: typeof fetch;
@@ -19,21 +20,22 @@ export type ProjectNoticeProps = {
 
 export function ProjectNotice(props: ProjectNoticeProps) {
   const [minimized, setMinimized] = useState(false);
-  const { currentStatus, project } = props;
+  const { currentStatus, project, vectorsEnabled } = props;
   const error = currentStatus?.error;
   const title = error ? 'Project status unavailable' : indexingPhase(currentStatus?.value?.progress);
+  const label = vectorsEnabled === false ? 'project status' : 'indexing progress';
 
   return (
-    <aside aria-label={`Indexing ${project.name}`}
+    <aside aria-label={vectorsEnabled === false ? `Project status ${project.name}` : `Indexing ${project.name}`}
       className={`fixed bottom-36 left-3 z-30 max-w-[calc(100vw-1.5rem)] rounded-lg border border-border bg-popover text-popover-foreground md:bottom-4 ${minimized ? 'w-48' : 'w-72'}`}>
       <div className="flex items-center gap-2 pl-3">
         <p role="status" className="min-w-0 flex-1 truncate text-xs font-medium">{title}</p>
-        <IconButton aria-label={minimized ? 'Expand indexing progress' : 'Minimize indexing progress'}
+        <IconButton aria-label={`${minimized ? 'Expand' : 'Minimize'} ${label}`}
           aria-expanded={!minimized} onClick={() => setMinimized(!minimized)}>
           {minimized ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
         </IconButton>
       </div>
-      {(!error || currentStatus?.value) && <IndexingMeter progress={currentStatus?.value?.progress} />}
+      {vectorsEnabled !== false && (!error || currentStatus?.value) && <IndexingMeter progress={currentStatus?.value?.progress} />}
       {!minimized && <ProgressDetails {...props} />}
     </aside>
   );

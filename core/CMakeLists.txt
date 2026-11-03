@@ -104,11 +104,11 @@ set(CBERG_SOURCES
 
 find_path(ONNXRUNTIME_INCLUDE_DIR
   NAMES onnxruntime_c_api.h
-  HINTS ${ONNXRUNTIME_ROOT} /opt/homebrew/opt/onnxruntime /usr/local /opt/homebrew /usr
+  HINTS ${ONNXRUNTIME_ROOT} ENV ONNXRUNTIME_ROOT /opt/homebrew/opt/onnxruntime /usr/local /opt/homebrew /usr
   PATH_SUFFIXES include/onnxruntime include)
 find_library(ONNXRUNTIME_LIB
   NAMES onnxruntime
-  HINTS ${ONNXRUNTIME_ROOT} /opt/homebrew/opt/onnxruntime /usr/local /opt/homebrew /usr
+  HINTS ${ONNXRUNTIME_ROOT} ENV ONNXRUNTIME_ROOT /opt/homebrew/opt/onnxruntime /usr/local /opt/homebrew /usr
   PATH_SUFFIXES lib)
 if(ONNXRUNTIME_INCLUDE_DIR AND ONNXRUNTIME_LIB)
   set(CBERG_WITH_ONNX ON)

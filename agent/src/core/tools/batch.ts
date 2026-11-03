@@ -53,7 +53,7 @@ export function batchTool(tools: ToolSet, store: ContextStore): ToolSet {
       description:
         `Run up to ${MAX_BATCH_CALLS} independent tool calls at once and get every result in one response. ` +
         'Use it whenever you would otherwise make several calls whose inputs do not depend on each other ' +
-        '(e.g. grep three names, read two files, search_code and find_symbol together). ' +
+        '(e.g. grep three names or read two files). ' +
         'Results come back in call order; one failing call does not fail the others.',
       inputSchema: batchSchema(names),
       execute: (input, options) => runBatch(tools, store, input.calls, options),

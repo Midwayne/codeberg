@@ -112,7 +112,8 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # Vector search / embeddings (daemon scope — omit for chunk-only mode)
 # =============================================================================
 
-# Set false to skip embedding-model download and disable semantic search.
+# Set false to skip embedding setup and omit semantic search tools.
+# One-launch equivalent: codeberg --no-vector.
 # CODEBERG_VECTOR=true
 
 # New installs default to EmbeddingGemma 2; existing model selections are kept.

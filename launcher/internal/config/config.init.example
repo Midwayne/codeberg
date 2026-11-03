@@ -25,7 +25,7 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 
 # --- optional (uncomment to override defaults) ------------------------------
 # CODEBERG_HTTP_PORT=48080
-# CODEBERG_VECTOR=true
+# CODEBERG_VECTOR=true  # false skips embedding setup and semantic tools; or use --no-vector
 # Embedding model selected at first run; change to switch without deleting old indexes.
 # Default: text-only FP32 EmbeddingGemma 2 (MLX on Apple Silicon, ST elsewhere).
 # CODEBERG_EMBEDDING_MODEL=embeddinggemma-2-fp32-mlx  # Apple Silicon only

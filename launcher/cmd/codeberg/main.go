@@ -127,7 +127,7 @@ func parseShared(name string, args []string) (*config.Overrides, error) {
 	fs.StringVar(&o.Home, "home", "", "managed home dir (default ~/.codeberg)")
 	fs.StringVar(&o.ConfigFile, "config", "", "config file path (default <home>/config)")
 	fs.StringVar(&o.WebPort, "web-port", "", "web UI port (default "+config.DefaultWebPort+")")
-	noVector := fs.Bool("no-vector", false, "chunk-only mode (skip embedding model)")
+	noVector := fs.Bool("no-vector", false, "skip embedding model and semantic search tools")
 	vector := fs.Bool("vector", false, "force vector search on")
 	all := fs.Bool("all", false, "search across every previously indexed repo (see `codeberg repos`)")
 	noIndex := fs.Bool("no-index", false, "one-off run: register nothing, build no vector index (search off)")
@@ -637,10 +637,12 @@ indexer), waits for it to be healthy, and opens the agent chat — like claude.
 
 USAGE
   codeberg [flags]               boot everything and open the browser chat
+  codeberg run [flags]           explicit form of the default command
   codeberg <dir>                 index/search that directory (same as --root <dir>)
   codeberg --all [flags]         search every previously indexed repo combined
   codeberg --repos a,b [flags]   serve a chosen set of dirs and/or repo keys
   codeberg --no-index [flags]    one-off run: register nothing, build no index
+  codeberg --no-vector [flags]   skip embedding setup and semantic tools
   codeberg --verbose [flags]     show component checks and daemon/indexer logs
   codeberg build [flags]         (re)build/download components and the model
   codeberg doctor                check toolchains, binaries, and resolved config
@@ -651,6 +653,11 @@ USAGE
   codeberg uninstall             remove the command; ask before deleting data
   codeberg version
   codeberg help                  show this help
+
+FLAG REFERENCE
+  codeberg run --help            startup flags (also codeberg --help)
+  codeberg build --help          build flags
+  Launcher flag help currently prints usage and exits with status 1.
 
 CONFIGURE (changeable any time after install)
   codeberg config                print the resolved config (secrets masked)
@@ -680,7 +687,8 @@ COMMON TASKS
   Pin several repos: codeberg --root ~/a,~/b
   A chosen subset:  codeberg --repos ~/proj-a,api        (dirs and/or repo keys)
   Leave no trace:   codeberg ~/scratch --no-index        (not registered, no index)
-  No embeddings:    codeberg config set CODEBERG_VECTOR=false ; codeberg
+  No embeddings:    codeberg --no-vector                 (skip model and semantic tools)
+  Save that mode:   codeberg config set CODEBERG_VECTOR=false
   What's installed: codeberg doctor
 
 KEY SETTINGS
@@ -692,7 +700,7 @@ KEY SETTINGS
                      optional when $CODEBERG_HOME/models.yml exists
   CODEBERG_SUBAGENT_MODEL  background knowledge model; defaults to CODEBERG_MODEL
   CODEBERG_LEARNING_USE   false = disable learning and feedback (default true)
-  CODEBERG_VECTOR   false = chunk-only, skip model (--no-vector)
+  CODEBERG_VECTOR   false = skip model and semantic tools (--no-vector)
   CODEBERG_HTTP_PORT  daemon port (default 48080)  (--port)
   CODEBERG_WEB_PORT   browser UI port (default 48088)  (--web-port)
   CODEBERG_REASONING  reasoning effort             (--reasoning)

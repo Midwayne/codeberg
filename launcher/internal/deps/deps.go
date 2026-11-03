@@ -37,8 +37,8 @@ type requirement struct {
 }
 
 // requirements lists everything `make build-daemon` + `make build-agent` need.
-func requirements() []requirement {
-	return []requirement{
+func requirements(onnx bool) []requirement {
+	deps := []requirement{
 		{label: "git", check: hasBin("git"), brewPkg: "git", aptPkg: "git",
 			note: "needed to fetch the tree-sitter submodules"},
 		// make/cc come from the Xcode Command Line Tools on macOS (not brew) and
@@ -52,24 +52,29 @@ func requirements() []requirement {
 			note: "Node.js 22 or newer with AbortSignal.any — https://nodejs.org/"},
 		{label: "npm", check: hasBin("npm"), brewPkg: "node", aptPkg: "npm",
 			note: "ships with Node"},
-		{label: "onnxruntime", check: OnnxPresent, brewPkg: "onnxruntime", aptPkg: "",
+	}
+
+	if onnx {
+		deps = append(deps, requirement{label: "onnxruntime", check: OnnxPresent, brewPkg: "onnxruntime", aptPkg: "",
 			optional: true,
 			note: "powers vector embeddings; without it the core builds chunk-only " +
 				"(run with --no-vector). On Linux install a release from " +
-				"https://github.com/microsoft/onnxruntime/releases or set ONNXRUNTIME_ROOT"},
+				"https://github.com/microsoft/onnxruntime/releases or set ONNXRUNTIME_ROOT"})
 	}
+
+	return deps
 }
 
 // Ensure verifies the build prerequisites and, unless CODEBERG_SKIP_DEP_INSTALL
 // is set, installs the missing ones through the host package manager. It fails
 // only when a *required* dependency is still absent afterward; optional ones
 // (the ONNX runtime) merely warn.
-func Ensure(w io.Writer) error {
+func Ensure(w io.Writer, onnx bool) error {
 	pm := detectPkgManager()
 	autoInstall := pm != nil && !truthy(os.Getenv("CODEBERG_SKIP_DEP_INSTALL"))
 
 	var blocking []requirement
-	for _, r := range requirements() {
+	for _, r := range requirements(onnx) {
 		if r.check() {
 			continue
 		}

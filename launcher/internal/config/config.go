@@ -318,6 +318,9 @@ func Load(o Overrides) (*Config, error) {
 	// downloaded once and reused across repo moves/re-clones and checkouts.
 	// Stored absolute so the daemon resolves it regardless of cwd.
 	c.Embedding = resolve(KeyEmbedding, o.Embedding)
+	if !c.Vector {
+		c.Embedding = ""
+	}
 	embed := resolve(KeyEmbedModel, o.EmbedModel)
 	if c.Embedding != "" {
 		model, err := embedding.Lookup(c.Embedding)
@@ -498,6 +501,7 @@ func (c *Config) DaemonEnv() map[string]string {
 	putIf(e, KeyIndexBin, c.IndexBin)
 	putIf(e, KeyGitPullSec, c.GitPullSec)
 	putIf(e, KeyGitDir, c.GitDir)
+	c.addVectorMode(e)
 	c.addRuntimePath(e)
 	return e
 }
@@ -545,6 +549,7 @@ func (c *Config) AgentEnv() map[string]string {
 	for k, v := range c.Passthrough {
 		e[k] = v
 	}
+	c.addVectorMode(e)
 	c.addRuntimePath(e)
 	return e
 }

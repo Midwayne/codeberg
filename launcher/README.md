@@ -30,7 +30,7 @@ to launch — the daemon and the browser UI server — and the launcher manages 
 
 ```
 codeberg
-  ├─ ensure deps:  cmake, go, node/npm, git, onnxruntime  (auto-install: brew/apt)
+  ├─ ensure deps:  cmake, go, node/npm, git; onnxruntime for ONNX embeddings only
   ├─ ensure built: make build-daemon (core+daemon), make build-agent + build-web-ui
   ├─ ensure model: scripts/fetch-model.sh   (vector mode only)
   ├─ start codeberg-d ──spawns──▶ cberg-index      (logs: ~/.codeberg/logs)
@@ -50,7 +50,8 @@ Requires a published release for macOS 14+ (arm64/x64) or Linux x64 with glibc
 (Ubuntu 22.04+). The checksum-verified bundle includes Node, ripgrep, and native
 libraries. No source checkout or build tools are needed. The default Python
 embedding models still need Python 3.10+ with venv/pip; `--embedding jina-onnx`
-uses bundled ONNX without Python, and `--no-vector` skips model setup.
+uses bundled ONNX without Python, and `--no-vector`
+skips embedding setup and semantic tools.
 
 The installer links `~/.local/bin/codeberg` to a versioned directory under
 `~/.local/share/codeberg/releases`. Stop Codeberg and re-run it to upgrade.
@@ -108,11 +109,38 @@ optional way to preselect a repository. Component files are
 located automatically from the installed payload or source checkout; use
 `launcher/install.sh` for a source installation on PATH.
 
-On the very first `codeberg`, expect a one-time build of the components and a
-embedding runtime and model download (skip these with `--no-vector` for
-chunk-only mode). Both are cached afterwards — **the model is downloaded once**
+On the very first `codeberg`, expect a one-time build of the components and an
+embedding runtime and model download (skip embedding setup with `--no-vector`
+for chunk-only mode). Both are cached afterwards — **the model is downloaded once**
 into `~/.codeberg/models/` (not the repo), so it is reused across repo rebuilds,
 re-clones, and multiple checkouts and is **never re-pulled** while it is present.
+
+### Start without embeddings
+
+```sh
+codeberg --no-vector                          # this launch only
+codeberg config set CODEBERG_VECTOR=false     # save as the default
+codeberg                                     # use the saved mode
+```
+
+`--no-vector` skips embedding selection, downloads, workers, and ONNX prerequisite
+checks. This mode omits `search_code`,
+`hybrid_search`, and experimental `search_bundle` from the agent; the daemon also
+omits `search`. Exact-text and file tools remain usable, and symbol, outline,
+chunk, and graph tools become usable as parsing completes. The same mode applies
+to projects added or activated later.
+
+Existing embedding files and vector indexes are retained. Chat still needs its
+own configured model, and optional web search or MCP servers keep their runtime
+requirements. To restore embeddings, restart with `codeberg --vector`, or save
+`CODEBERG_VECTOR=true` and restart. Normal embedding setup then applies.
+
+Source installations check the existing indexer's ONNX capability when selecting
+Jina and rebuild it if needed, including after a `--no-vector` build. Homebrew can
+install ONNX Runtime on macOS; on Linux, install it and export `ONNXRUNTIME_ROOT`
+to its installation prefix. If the rebuilt indexer still lacks ONNX support, a
+normal run continues without semantic search and prints recovery steps; an
+explicit `codeberg build --vector --embedding jina-onnx` fails with the reason.
 
 ### Embedding model choice
 
@@ -163,8 +191,10 @@ The build needs a C toolchain + `make`, **CMake**, **Go** ≥ 1.22, **Node** ≥
 building, the launcher checks each and installs the missing ones through the host
 package manager — **Homebrew** on macOS, **apt** on Linux (`onnxruntime` is not in
 apt; install a [release](https://github.com/microsoft/onnxruntime/releases) and
-set `ONNXRUNTIME_ROOT`). Without ONNX the core still builds chunk-only, so the
-runtime only warns; the rest are required. `codeberg doctor` lists what's present.
+set `ONNXRUNTIME_ROOT`). The core can build without ONNX, so a missing ONNX
+runtime only warns; the other build dependencies are required. ONNX checks are skipped when embeddings
+are disabled or the selected model uses another runtime. `codeberg doctor` lists
+what's present.
 
 Set `CODEBERG_SKIP_DEP_INSTALL=1` to check-and-report without installing (e.g. on
 a locked-down host where you manage packages yourself).
@@ -265,15 +295,23 @@ layers. See `codeberg help` for common workflows.
 | `codeberg --all` | search every registered repo, combined |
 | `codeberg --repos a,b` | search a chosen subset of dirs/keys, combined |
 | `codeberg --no-index` | one-off run: register nothing, build no vector index |
+| `codeberg --no-vector` | skip embedding setup and semantic tools; keep file, symbol, and graph tools |
+| `codeberg --vector` | enable embeddings for this launch, overriding a saved disabled mode |
 | `codeberg --verbose` | show component checks and daemon/indexer logs while starting |
 | `codeberg repos` | list registered repos (what `--all` searches) |
 | `codeberg build` | force (re)build/download of components and model |
 | `codeberg doctor` | toolchain + artifact + config diagnostics |
 | `codeberg config` | print resolved config |
 | `codeberg config init` | write a starter `~/.codeberg/config` and `mcp.json` |
+| `codeberg learning <command>` | search learning/knowledge or export datasets |
 | `codeberg clean-index` | prune cached per-directory vector indexes |
 | `codeberg uninstall` | remove the command; ask before deleting model/data |
 | `codeberg version` | print version |
+| `codeberg help` | show the command overview, configuration subcommands, and common tasks |
+
+Use `codeberg run --help` (also `codeberg --help`) for startup flags and
+`codeberg build --help` for build flags. Currently, launcher flag help prints
+usage and exits with status `1`; `codeberg help` exits normally.
 
 ## Multi-repo search
 

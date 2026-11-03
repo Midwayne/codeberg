@@ -3,6 +3,16 @@ import { describe, expect, it } from 'vitest';
 import { AGENT_SYSTEM, agentSystemPrompt } from './prompt.js';
 
 describe('agentSystemPrompt', () => {
+  it.each([false, true])('uses lexical guidance without embeddings (compact: %s)', (compact) => {
+    const prompt = agentSystemPrompt({ enabled: false, search: false, vectors: false, compact });
+
+    expect(prompt).not.toContain('search_code');
+    expect(prompt).not.toContain('hybrid_search');
+    expect(prompt).not.toContain('Choose semantic search');
+    expect(prompt).toContain('grep');
+    expect(prompt).toContain('find_symbol');
+  });
+
   it('keeps built-in tools immediately available and limits discovery to MCP tools', () => {
     expect(AGENT_SYSTEM).toContain('Every tool listed below is built in');
     expect(AGENT_SYSTEM).toContain('Only tools whose names start with `mcp_` are discovery-based');

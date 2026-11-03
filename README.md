@@ -32,7 +32,8 @@ codeberg /path/to/repository
 Semantic search downloads a separate embedding model on first use. The default
 requires **Python 3.10+ with venv and pip**. To use the bundled ONNX runtime
 without Python, start with `codeberg --embedding jina-onnx`. To skip embedding
-setup and use lexical search and file tools, run `codeberg --no-vector`.
+setup and use exact-text, file, symbol, and graph tools, run `codeberg --no-vector`.
+Semantic search tools are omitted in this mode.
 Indexing runs in the background; you can start chatting and searching files
 while it finishes.
 
@@ -65,7 +66,7 @@ standalone vector index:
 - **Search across repositories.** Query registered repositories together or
   select a subset, with repository, path, and symbol-kind filters to narrow the
   results. See [multi-repo search](docs/multi-repo.md).
-- **Keep working during indexing.** Hybrid search can return lexical matches
+- **Keep working during indexing.** When enabled, hybrid search can return lexical matches
   while vectors are unavailable, and reference lookup can fall back to grep.
   File reads and text search remain available during index builds.
 

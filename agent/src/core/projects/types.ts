@@ -8,6 +8,7 @@ export interface Project {
 }
 
 export interface ProjectCatalog {
+  vectorsEnabled?: boolean;
   version: 1;
   defaultId: string;
   legacyId: string;

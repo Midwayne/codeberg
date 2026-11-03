@@ -1,9 +1,9 @@
 /** Small-window models need operational rules without repeated tool manuals or
  *  worked examples. Full argument schemas remain available in the tool list. */
-export function compactAgentSystem(knowledge: boolean, history: boolean): string {
+export function compactAgentSystem(knowledge: boolean, history: boolean, vectors = true): string {
   return [
     'You are a code-search agent. Investigate with the available tools until you can answer with cited evidence. Tool schemas describe their arguments; built-in tools are callable immediately. Only mcp_ tools require discovery.',
-    'Choose semantic search for concepts, grep for exact text, glob for paths, and graph tools for callers/callees or dependencies. Inspect returned bodies before fetching more. Use get_chunk for indexed bodies and read_file for missing surrounding lines. Discover repository keys with repos when needed.',
+    `${vectors ? 'Choose semantic search for concepts, grep for exact text' : 'Use grep for related concepts and exact text, and find_symbol for known symbols'}, glob for paths, and graph tools for callers/callees or dependencies. Inspect returned bodies before fetching more. Use get_chunk for indexed bodies and read_file for missing surrounding lines. Discover repository keys with repos when needed.`,
     'Indexing runs in the background. On NOT_READY or an unavailable index, use grep, glob, read_file, and directory tools; absence of index results does not prove absence of code.',
     knowledge ? 'For complex questions, search_knowledge can provide prior findings; verify them against current source.' : '',
     history ? 'Use search_learning when prior corrections or failed attempts may help.' : '',

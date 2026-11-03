@@ -97,7 +97,7 @@ func serveProjects(cfg config.Daemon, idx *indexctl.Client, metrics *resources.C
 	}
 
 	ws := workspace.New(repos, cfg.DefaultKey)
-	srv := httpserver.New(idx, tools.Default(ws, idx)).WithResources(metrics)
+	srv := httpserver.New(idx, tools.WithVectorSearch(ws, idx, cfg.Model != "")).WithResources(metrics)
 
 	// Repository APIs are local-only. Never expose unauthenticated tools on a
 	// wildcard interface; remote access must go through an authenticated proxy.

@@ -21,11 +21,21 @@ static void on_signal(int sig) {
 }
 
 int main(int argc, char **argv) {
+    if (argc == 2 && strcmp(argv[1], "--capabilities") == 0) {
+#ifdef CBERG_WITH_ONNX
+        puts("{\"onnx\":true}");
+#else
+        puts("{\"onnx\":false}");
+#endif
+        return 0;
+    }
+
     if (argc == 4 && strcmp(argv[1], "--wipe-index") == 0) {
         return cberg_wipe_index(argv[2], argv[3]);
     }
+
     if (argc != 1) {
-        fprintf(stderr, "usage: cberg-index [--wipe-index BASE ROOT]\n");
+        fprintf(stderr, "usage: cberg-index [--capabilities | --wipe-index BASE ROOT]\n");
         return 1;
     }
 

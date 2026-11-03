@@ -6,7 +6,8 @@ The C core is built on each target; the Go daemon and launcher, agent production
 modules, browser UI, database MCP server, Node 22, ripgrep, ONNX Runtime, and
 non-system native dependencies are included. Models and Python are not bundled.
 Python embedding adapters need Python 3.10+ with venv/pip. Jina ONNX and
-`--no-vector` work without Python. Optional SearXNG needs Python and git; git
+`--no-vector` work without Python for embeddings.
+Optional SearXNG needs Python and git; git
 features need git. External MCP servers may have their own runtime requirements.
 
 ## Publish a release

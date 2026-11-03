@@ -43,7 +43,7 @@ You can also export `CODEBERG_HOME`. Putting it inside an already-opened config 
 | `CODEBERG_REASONING` | Initial chat effort. |
 | `CODEBERG_WEB_PORT` | UI port; default `48088`. |
 | `CODEBERG_HTTP_PORT` | Launcher daemon port; default `48080`. Direct `codeberg-d` uses `8080`. |
-| `CODEBERG_VECTOR=false` | Skip embeddings and semantic search. |
+| `CODEBERG_VECTOR=false` | Start [without embeddings](/docs/indexing#start-without-an-embedding-model); omit semantic search tools. One-launch flag: `--no-vector`. |
 | `CODEBERG_EMBEDDING_MODEL` | [Embedding selection](/docs/indexing). |
 | `CODEBERG_WEB_USE=false` | Disable web search, URL fetching, and Browser Use. |
 | `CODEBERG_WEB_SEARCH_USE=true` | Initial web-search preference; a saved app switch takes precedence. |
@@ -51,7 +51,17 @@ You can also export `CODEBERG_HOME`. Putting it inside an already-opened config 
 | `CODEBERG_DBMCP_USE=true` | Enable the separate built-in database MCP. |
 | `CODEBERG_LEARNING_USE=false` | Disable knowledge, learning history, feedback, and dataset work. |
 
-Use the [Environment variables](/docs/environment) reference for all keys, defaults, and settings that require a shell export. `codeberg --help` lists flags.
+Use the [Environment variables](/docs/environment) reference for all keys, defaults, and settings that require a shell export.
+
+## Find commands and flags
+
+| Command | Shows |
+| --- | --- |
+| `codeberg help` | Command overview, configuration subcommands, and common tasks. |
+| `codeberg run --help` or `codeberg --help` | Startup flags, including `--no-vector` and `--vector`. |
+| `codeberg build --help` | Build flags. |
+
+Currently, launcher flag help prints usage and exits with status `1`. `codeberg help` exits normally. The command overview and flag lists are separate.
 
 ## Editable files
 

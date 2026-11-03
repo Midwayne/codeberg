@@ -98,10 +98,16 @@ absolute path doesn't change).
 
 | Invocation | Roots served | Registered? | Vector index built? |
 |---|---|---|---|
-| `codeberg <dir>` / `--root <dir>` | that directory (or comma-separated list) | yes (unless `--no-index`) | yes (unless `--no-vector`) |
+| `codeberg <dir>` / `--root <dir>` | that directory (or comma-separated list) | yes (unless `--no-index`) | yes, when embeddings are enabled |
 | `codeberg --all` | every registered repo (skipping dead paths) | n/a (reads registry) | yes, per repo |
 | `codeberg --repos a,b,...` | the named dirs/keys | dirs get registered | yes, per repo |
 | `--no-index` (with any of the above) | same roots | **no** | **no** |
+| `--no-vector` (with any of the above) | same roots | normal registration rules | **no** |
+
+`codeberg config set CODEBERG_VECTOR=false` saves the mode without embeddings across launches. It omits
+`search_code`, `hybrid_search`, and `search_bundle` while preserving exact-text,
+file, symbol, and graph tools. Restart with `--vector` to enable embeddings for
+one launch. See the [indexing guide](../agent/web-ui/src/docs/content/indexing.md#start-without-an-embedding-model).
 
 `--all` and `--repos` are mutually exclusive (`--repos` is `--all` scoped to a
 chosen subset). `--root` cannot combine with either. Select explicit paths

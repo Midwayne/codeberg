@@ -30,7 +30,7 @@ To start without embedding downloads:
 codeberg --no-vector
 ```
 
-Exact text search and file tools still work. For the bundled ONNX alternative without Python, use `codeberg --embedding jina-onnx`. See [Indexing and search](/docs/indexing) for all options.
+Exact text, file, symbol, and graph tools still work; semantic search tools are omitted. For the bundled ONNX alternative without Python, use `codeberg --embedding jina-onnx`. See [Indexing and search](/docs/indexing) for all options.
 
 ## Connect a model
 

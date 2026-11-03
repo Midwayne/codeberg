@@ -4,6 +4,7 @@ import type { ProjectCatalog } from '../core/projects.js';
 import { createProjectRequestHandler } from './projects.js';
 
 const initial: ProjectCatalog = {
+  vectorsEnabled: false,
   version: 1,
   defaultId: 'p-0123456789abcdef',
   legacyId: 'p-0123456789abcdef',
@@ -49,12 +50,12 @@ it.each(['index', 'all'])('deletes with %s mode, retires cached handlers, and re
   });
 
   expect(result.status).toBe(200);
-  expect((await result.json()).projects).toEqual([]);
+  expect(await result.json()).toMatchObject({ projects: [], vectorsEnabled: false });
   expect(calls).toEqual([mode]);
   expect(dispose).toHaveBeenCalledWith(initial.defaultId);
   expect((await fetch(`${base}/api/meta`)).status).toBe(404);
   catalog = structuredClone(initial);
-  await fetch(`${base}/api/projects`);
+  expect(await (await fetch(`${base}/api/projects`)).json()).toMatchObject({ vectorsEnabled: false });
   await fetch(`${base}/api/meta`);
   expect(build).toHaveBeenCalledTimes(2);
 });

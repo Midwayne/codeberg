@@ -70,7 +70,7 @@ func loadIndexer() (Indexer, error) {
 		root = roots[0].Root
 	}
 
-	return Indexer{
+	idx := Indexer{
 		Root:         root,
 		Roots:        roots,
 		DefaultKey:   defaultKey,
@@ -88,7 +88,10 @@ func loadIndexer() (Indexer, error) {
 		PollMS:       poll,
 		Socket:       socket,
 		Bin:          os.Getenv(EnvIndexerBin),
-	}, nil
+	}
+	disableEmbedding(&idx)
+
+	return idx, nil
 }
 
 func loadPollMS() (int, error) {

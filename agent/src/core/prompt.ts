@@ -9,12 +9,12 @@ import {
   toolInstructions,
 } from './prompts/instructions.js';
 
-function baseAgentSystem(learning: boolean | { knowledge: boolean; history: boolean }): string {
+function baseAgentSystem(learning: boolean | { knowledge: boolean; history: boolean }, vectors = true): string {
   const knowledge = typeof learning === 'boolean' ? learning : learning.knowledge;
   const history = typeof learning === 'boolean' ? learning : learning.history;
 
   return (
-    toolInstructions(knowledge, history) + strategyInstructions(knowledge, history) + AGENT_GUIDANCE
+    toolInstructions(knowledge, history, vectors) + strategyInstructions(knowledge, history, vectors) + AGENT_GUIDANCE
   );
 }
 
@@ -24,6 +24,8 @@ export interface AgentSystemPromptOptions {
   learning?: boolean | { knowledge: boolean; history: boolean };
   enabled: boolean;
   search: boolean;
+  /** Semantic tools advertised by the daemon; defaults on for compatibility. */
+  vectors?: boolean;
   /** Connected and unavailable MCP servers. Names only; schemas live in each catalog folder. */
   mcp?: readonly McpServerReport[];
   /** Name and description only. The SKILL.md path is read on demand. */
@@ -104,8 +106,8 @@ function promptBase(web: AgentSystemPromptOptions): string {
   const knowledge = typeof learning === 'boolean' ? learning : learning.knowledge;
   const history = typeof learning === 'boolean' ? learning : learning.history;
 
-  return web.compact ? compactAgentSystem(knowledge, history) :
-    web.learning === undefined ? AGENT_SYSTEM : baseAgentSystem(web.learning);
+  return web.compact ? compactAgentSystem(knowledge, history, web.vectors) :
+    baseAgentSystem(learning, web.vectors);
 }
 
 function webInstructions(web: AgentSystemPromptOptions): string[] {

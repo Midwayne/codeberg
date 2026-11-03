@@ -4,7 +4,7 @@ Describe the outcome you want. The agent chooses tools to search your selected p
 
 | Tools | Use |
 | --- | --- |
-| `search_code`, hybrid search | Find relevant source; semantic results require vectors. |
+| `search_code`, `hybrid_search` | Find relevant source; these tools are registered when embeddings are enabled. |
 | `grep`, `glob` | Match exact text or paths. |
 | `find_symbol`, chunk tools | Locate declarations and indexed source pieces. |
 | `read_file`, `head`, `tail`, `sed` | Read current files or focused ranges. |
@@ -97,7 +97,9 @@ Trace this endpoint to the storage layer. Check callers and cite each step.
 
 Expand tool output to inspect results. Hover or focus citations for full paths and line ranges; click to copy. Search can miss files or constructs, and the model can misinterpret results. Narrow broad answers with a filename, function, or error string.
 
-While indexing runs, file tools remain usable. Hybrid search uses lexical matches and reference lookup can fall back to grep. Index-only tools report `NOT_READY`; this does not mean a symbol is absent. If a chunk-kind filter cannot be checked, search without that filter or use grep.
+While indexing runs, file tools remain usable. When enabled, hybrid search uses lexical matches and reference lookup can fall back to grep. Index-only tools report `NOT_READY`; this does not mean a symbol is absent. If a chunk-kind filter cannot be checked, search without that filter or use grep.
+
+With `codeberg --no-vector` (or `CODEBERG_VECTOR=false`), `search_code`, `hybrid_search`, and `search_bundle` are omitted. Exact-text, file, symbol, and graph tools remain available. See [Start without an embedding model](/docs/indexing#start-without-an-embedding-model).
 
 ## Large tool results
 
@@ -154,6 +156,8 @@ Opt into `search_bundle` before launch:
 ```sh
 CODEBERG_SEARCH_BUNDLE_USE=true codeberg
 ```
+
+Requires embeddings to be enabled. `--no-vector` / `CODEBERG_VECTOR=false` omits this tool even when the experimental switch is on.
 
 This read-only pipeline combines one to four explicit repository/query pairs, hybrid results, symbols, and up to eight indexed chunks. It preserves repository keys and line ranges; truncation and per-repository failures are explicit.
 

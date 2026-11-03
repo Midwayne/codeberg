@@ -6,9 +6,14 @@ import (
 )
 
 func Default(ws *workspace.Workspace, idx indexctl.Indexer) *Registry {
+	return WithVectorSearch(ws, idx, true)
+}
+
+// WithVectorSearch builds the tool catalogue for the configured startup mode.
+func WithVectorSearch(ws *workspace.Workspace, idx indexctl.Indexer, vectors bool) *Registry {
 	r := NewRegistry()
 	r.Register(reposTool(ws))
-	registerIndexTools(r, idx, ws)
+	registerIndexTools(r, idx, ws, vectors)
 	r.Register(grepTool(ws))
 	r.Register(globTool(ws))
 	r.Register(readFileTool(ws))

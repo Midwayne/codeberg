@@ -91,10 +91,16 @@ On `SIGTERM` / `SIGINT`:
 
 | Mode | Env | Vector search | Chunk tools |
 |------|-----|---------------|-------------|
-| Chunk-only | No `CBERG_MODEL` / `CBERG_INDEX_PATH` | `GET /search`: `501 NOT_IMPLEMENTED`; `hybrid_search`: lexical-only | `find_symbol`, `file_outline`, `get_chunk`, grep, … |
+| Chunk-only | `CODEBERG_VECTOR=false`, or no `CBERG_MODEL` | `GET /search`: `501 NOT_IMPLEMENTED`; `search` and `hybrid_search` omitted from `/tools` | `find_symbol`, `file_outline`, `get_chunk`, graph tools, grep, … |
 | Full | Both set | `GET /search`, `search`, `hybrid_search` | All tools |
 
 `GET /health` exposes `vectors_enabled` and per-repo `ready` / `chunks`.
+
+The launcher selects chunk-only mode with `--no-vector`.
+The agent omits `search_code` and `search_bundle` when the daemon does not advertise
+`search`. Chunk parsing, graph construction, file watching, and project management
+continue. With embeddings enabled, hybrid search retains its lexical fallback
+during indexing.
 
 ---
 

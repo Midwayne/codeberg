@@ -23,6 +23,18 @@ carry it, and tools accept it as `repo`.
 | `GET` | `/tools` | List registered read-only agent tools |
 | `POST` | `/tools/call` | Run a tool: `{"name":"grep","args":{…}}` |
 
+With no embedding model configured, `/tools` omits `search` and `hybrid_search`;
+calls to those tool names return HTTP `404 NOT_FOUND`. Exact-text, file, chunk, symbol,
+and graph tools remain registered. `CODEBERG_VECTOR=false` explicitly disables
+embeddings even if `CBERG_MODEL` is inherited. The launcher exposes this mode as
+`codeberg --no-vector`.
+
+`GET /projects` and successful project-deletion responses include a top-level
+`vectorsEnabled` boolean for the configured launch mode. This response metadata
+is available before any indexer starts and is not stored in `projects.json`.
+The web proxy preserves it so the UI can hide routine indexing notices when
+embeddings are disabled; actionable project errors remain visible.
+
 ### `GET /health`
 
 ```json
@@ -171,9 +183,10 @@ prefers knowledge-graph edges (`source: "graph"`) and falls back to a word-bound
 can distrust textual links.
 
 `find_symbol`, `file_outline`, `get_chunk`, `search_graph`, and `trace_path` work in
-**chunk-only mode** (without ONNX / vector indexing). `search` requires
-`vectors_enabled`; `hybrid_search` can use its lexical branch. Graph tools return `501` / `graph disabled` when
-`CBERG_GRAPH=0`.
+**chunk-only mode** (without ONNX / vector indexing). Without an embedding model,
+`search` and `hybrid_search` are omitted from the tool registry. In embedding-enabled
+mode, `hybrid_search` can use its lexical branch while vectors are unavailable
+during indexing. Graph tools return `501` / `graph disabled` when `CBERG_GRAPH=0`.
 
 ### File and repo tools
 
@@ -234,7 +247,8 @@ directly with `Dir` set to the repo root. Therefore:
 The TypeScript agent bridges daemon tools via `daemonToolSource`, but **hides**
 the daemon `search` tool because the built-in `search_code` tool already wraps
 `GET /search` with a compact result shape and evidence-ledger capture. All
-other daemon tools (including `get_chunk`, `hybrid_search`, etc.) are available
-to the model automatically.
+other advertised daemon tools are available to the model automatically. When the
+daemon omits `search`, the agent omits `search_code` and `search_bundle` and uses
+lexical search guidance. No readiness wait is needed to choose the tool list.
 
 See [agent/README.md](../../agent/README.md) for the recommended search workflow.
