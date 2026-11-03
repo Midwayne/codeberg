@@ -1,0 +1,22 @@
+[
+  {
+    "trial": 1,
+    "output": "graph cold apply                 50.120 ms  250600.0 ns/op  (200 ops)\ngraph apply/remove churn          5.699 ms  113980.0 ns/op  (50 ops)\ngraph edges_to hub                0.450 ms    2250.0 ns/op  (200 ops)\ngraph BFS trace in                1.157 ms   11570.0 ns/op  (100 ops)\ngraph hubs top32                  2.850 ms   57000.0 ns/op  (50 ops)\ngraph save                        1.270 ms     373.4 ns/op  (3401 ops)\ngraph load                        1.189 ms     349.6 ns/op  (3401 ops)\n"
+  },
+  {
+    "trial": 2,
+    "output": "graph cold apply                 48.855 ms  244275.0 ns/op  (200 ops)\ngraph apply/remove churn          5.572 ms  111440.0 ns/op  (50 ops)\ngraph edges_to hub                0.447 ms    2235.0 ns/op  (200 ops)\ngraph BFS trace in                1.150 ms   11500.0 ns/op  (100 ops)\ngraph hubs top32                  2.762 ms   55240.0 ns/op  (50 ops)\ngraph save                        1.093 ms     321.4 ns/op  (3401 ops)\ngraph load                        1.130 ms     332.3 ns/op  (3401 ops)\n"
+  },
+  {
+    "trial": 3,
+    "output": "graph cold apply                 48.807 ms  244035.0 ns/op  (200 ops)\ngraph apply/remove churn          5.576 ms  111520.0 ns/op  (50 ops)\ngraph edges_to hub                0.429 ms    2145.0 ns/op  (200 ops)\ngraph BFS trace in                1.117 ms   11170.0 ns/op  (100 ops)\ngraph hubs top32                  2.744 ms   54880.0 ns/op  (50 ops)\ngraph save                        1.312 ms     385.8 ns/op  (3401 ops)\ngraph load                        1.484 ms     436.3 ns/op  (3401 ops)\n"
+  },
+  {
+    "trial": 4,
+    "output": "graph cold apply                 48.960 ms  244800.0 ns/op  (200 ops)\ngraph apply/remove churn          5.469 ms  109380.0 ns/op  (50 ops)\ngraph edges_to hub                0.457 ms    2285.0 ns/op  (200 ops)\ngraph BFS trace in                1.130 ms   11300.0 ns/op  (100 ops)\ngraph hubs top32                  2.924 ms   58480.0 ns/op  (50 ops)\ngraph save                        1.270 ms     373.4 ns/op  (3401 ops)\ngraph load                        1.075 ms     316.1 ns/op  (3401 ops)\n"
+  },
+  {
+    "trial": 5,
+    "output": "graph cold apply                 49.716 ms  248580.0 ns/op  (200 ops)\ngraph apply/remove churn          5.463 ms  109260.0 ns/op  (50 ops)\ngraph edges_to hub                0.447 ms    2235.0 ns/op  (200 ops)\ngraph BFS trace in                1.150 ms   11500.0 ns/op  (100 ops)\ngraph hubs top32                  2.824 ms   56480.0 ns/op  (50 ops)\ngraph save                        1.241 ms     364.9 ns/op  (3401 ops)\ngraph load                        1.142 ms     335.8 ns/op  (3401 ops)\n"
+  }
+]

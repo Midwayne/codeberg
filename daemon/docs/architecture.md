@@ -111,7 +111,10 @@ When `CODEBERG_ROOTS` lists several repos (or a single root without a default ke
 
 - Resolves `repo` on every tool and search request via `workspace.resolveKey`.
 - Merges vector search hits across repos by score when `repo` is omitted.
-- Sandboxes each tool call to **one** repo root — never crosses repo boundaries.
+- Sandboxes file reads to configured roots. Structural tools can join import-backed
+  relationships across roots configured together; references also fan out lexical
+  lookup when `repo` is omitted. Results retain repository identity. Separately
+  selected browser projects remain isolated.
 
 See [multi-repo.md](../../docs/multi-repo.md).
 

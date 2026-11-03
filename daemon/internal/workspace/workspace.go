@@ -66,6 +66,11 @@ func (w *Workspace) Repos() []RepoInfo {
 	return out
 }
 
+// ResolveRepo canonicalizes an explicitly selected repository key.
+func (w *Workspace) ResolveRepo(repo string) (string, error) {
+	return w.resolveKey(repo)
+}
+
 // resolveKey canonicalizes a tool's `repo` argument. "" (and the legacy alias
 // "root") means the default repo; in --all mode there is no default, so the
 // error lists what is available. The returned key is what results should carry.

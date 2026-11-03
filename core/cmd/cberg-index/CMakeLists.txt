@@ -39,6 +39,16 @@ target_link_libraries(test_cberg_engine PRIVATE codeberg::codeberg)
 add_test(NAME test_cberg_engine COMMAND test_cberg_engine)
 set_tests_properties(test_cberg_engine PROPERTIES TIMEOUT 60)
 
+add_executable(test_workspace_graph test_workspace_graph.c indexer.c embedding.c ipc.c)
+target_include_directories(test_workspace_graph PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../src/common
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../src/chunk
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../src/embed)
+target_link_libraries(test_workspace_graph PRIVATE codeberg::codeberg)
+add_test(NAME test_workspace_graph COMMAND test_workspace_graph)
+set_tests_properties(test_workspace_graph PROPERTIES TIMEOUT 60)
+
 add_executable(test_cberg_hits test_hits.c indexer.c embedding.c ipc.c)
 target_include_directories(test_cberg_hits PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}
@@ -69,4 +79,8 @@ add_test(NAME test_cberg_wipe COMMAND test_cberg_wipe)
 
 foreach(target cberg-index test_cberg_engine test_cberg_hits test_cberg_vectors)
   target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../src/embed)
+endforeach()
+
+foreach(target cberg-index test_cberg_engine test_cberg_hits test_cberg_vectors test_workspace_graph)
+  target_sources(${target} PRIVATE workspace_graph.c workspace_resolve.c)
 endforeach()

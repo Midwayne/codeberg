@@ -1,4 +1,5 @@
 #include "json_mini.h"
+#include "json_fields.h"
 
 #include <ctype.h>
 #include <stdlib.h>
@@ -78,6 +79,8 @@ static const char *json_skip_container(const char *p, char open, char close) {
         if (in_string) {
             if (*p == '\\') {
                 p++;
+                if (*p == '\0')
+                    return NULL;
                 continue;
             }
             if (*p == '"') {
@@ -118,15 +121,15 @@ static const char *json_skip_value(const char *p) {
     if (*p == '-' || isdigit((unsigned char)*p)) {
         return json_skip_number(p);
     }
-    if ((p = json_skip_literal(p, "true")) != NULL) {
-        return p;
-    }
-    if ((p = json_skip_literal(p, "false")) != NULL) {
-        return p;
-    }
-    if ((p = json_skip_literal(p, "null")) != NULL) {
-        return p;
-    }
+    const char *literal = json_skip_literal(p, "true");
+    if (literal != NULL)
+        return literal;
+    literal = json_skip_literal(p, "false");
+    if (literal != NULL)
+        return literal;
+    literal = json_skip_literal(p, "null");
+    if (literal != NULL)
+        return literal;
     return NULL;
 }
 
@@ -347,4 +350,22 @@ int cberg_json_qdrant_collection_dim(const char *body, int *out_dim) {
         return -1;
     }
     return cberg_json_read_int(size, out_dim);
+}
+
+const char *cberg_json_object_field(const char *object, const char *key) {
+    return key != NULL ? json_object_find(object, key) : NULL;
+}
+
+int cberg_json_string_copy(const char *value, char *out, size_t capacity) {
+    value = json_skip_ws(value);
+    const char *end = json_skip_string(value);
+    if (end == NULL || out == NULL || capacity == 0)
+        return -1;
+
+    size_t length = (size_t)(end - value - 2);
+    if (length >= capacity || memchr(value + 1, '\\', length) != NULL)
+        return -1;
+    memcpy(out, value + 1, length);
+    out[length] = '\0';
+    return 0;
 }

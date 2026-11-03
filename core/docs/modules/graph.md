@@ -11,6 +11,9 @@ fragments incrementally and persists a `.graph` sidecar.
 |------|------|
 | `graph_store.c` | In-memory store, query, trace, hubs, save/load, import rewrite helper |
 | `graph_extract.c` | Per-language tree-sitter reference queries → fragment |
+| `scope_*.c`, `scope_internal.h` | Go/TS/JS bindings, C/Python lexical scope, receiver types, import aliases |
+| `resolve_relative.c` | Importer-relative paths, entrypoints, JS-to-TS source specifiers |
+| `workspace_graph.h` | Private query-view cloning, original repo/ID/path provenance, revision counters |
 | `resolve_pkg.c` | Phase 2: manifest + path heuristics → rewrite IMPORTS to FILE |
 | `graph_internal.h` | Fragment / extractor / rewrite internals |
 
@@ -71,7 +74,7 @@ so graph, chunk table, and vectors stay aligned across edits.
 | `IMPORTS` | File → Module (or File → File after resolve) | yes |
 | `CALLS` | caller → callee (name-resolved at query time) | yes (name refs) |
 | `INHERITS` | subtype → supertype | yes (name refs) |
-| `REFERENCES` | reserved (not extracted yet; omitted from `graph_refs` mask) | no |
+| `REFERENCES` | Non-call symbol uses, including callbacks and type names (Go/TS/JS) | yes |
 
 Every resolved edge carries:
 
@@ -81,9 +84,29 @@ Every resolved edge carries:
 
 ### Query-time name resolution
 
-Call/inherit references store a **name**, not a hard id. `edges_from` /
-`edges_to` / `trace` resolve names against the live definition index, so
-deleting a file can never leave a dangling edge.
+Cross-file call/reference/inherit records retain names. `edges_from` /
+`edges_to` / `trace` resolve them against the live definition index. Local lexical
+bindings can store a direct chunk id; queries still require a live target.
+
+Go/TS/JS calls and non-call references carry private binding constraints:
+local declaration, package directory, named/namespace import, known receiver
+type, or unresolved. An unknown receiver does not fan out to all same-name
+methods. Nearest lexical bindings take precedence: parameters and local values shadow outer imports/functions, while inner functions and classes hide outer values/imports. Local class types and static receivers resolve before imports; ordinary nested
+JS functions do not inherit `this`, while arrows do. Simple same-file class
+inheritance follows at most eight levels and stops at the nearest override.
+Other languages retain legacy name matching. These constraints do not constitute
+compiler or LSP type analysis.
+
+C and Python additionally resolve local function definitions and parameter
+shadowing; Java/Kotlin/Rust/Ruby receiver matching remains name-based. The
+[all-language evaluation](../../../docs/benchmarks/graph-quality/all-languages.md)
+counts incorrect receiver edges rather than treating their presence as success.
+
+Relative imports normalize from the source file's directory, reject repository
+escapes, and accept unique file/entrypoint matches. Explicit `.js`/`.jsx` imports
+can map to `.ts`/`.tsx` sources. Ambiguity stays unresolved. Cache invalidation
+restores original import spellings before resolution, allowing unchanged
+importers to follow a target moved from `util.ts` to `util/index.ts`.
 
 ## Confidence ladder (textual)
 
@@ -96,7 +119,10 @@ deleting a file can never leave a dangling edge.
 | Import-resolved FILE target | `0.95` |
 | Fan-out cap | at most **8** candidates per reference |
 
-Agents must treat `resolution=textual` as a hint, not go-to-definition.
+These confidence values are heuristics, not calibrated probabilities. Imported
+symbol calls retain the candidate confidence ladder; `0.95` applies to the
+resolved FILE import edge. Agents must treat syntactic edges as evidence to
+verify, rather than a complete compiler-derived call graph.
 
 ---
 
@@ -117,6 +143,7 @@ Capture vocabulary:
 | Capture | Meaning |
 |---------|---------|
 | `@call` | Callee identifier at a call site |
+| `@reference` | Non-call identifier/type/member use, filtered to exclude declarations and import bindings |
 | `@import` | Import path / module string (quotes stripped) |
 | `@inherit` | Supertype / implemented interface name |
 | `@member.container` + `@member.name` | Out-of-body membership → reversed CONTAINS |
@@ -136,6 +163,10 @@ Same layout as `.chunks` / `.manifest` under `CBERG_INDEX_PATH.<roothash>`.
 When `CBERG_INDEX_PATH` is set **without** `CBERG_MODEL`, sidecars (including
 `.graph`) are still written so chunk-only warm restart can reload the graph.
 
+Graph format **v4** retains binding mode, import spelling, and receiver context
+and invalidates older extraction semantics. Version-1/2/3 snapshots request a cold rebuild. Public C ABI and chunk/vector
+formats are unchanged. Save/load and compaction preserve the new context.
+
 On compaction, MODULE nodes with no live IMPORTS importers are dropped
 (orphan GC). Tombstoned refs from import rewrites are compacted when dead
 entries dominate.
@@ -151,6 +182,35 @@ entries dominate.
 | `CBERG_INDEX_PATH` | — | Base path for `.chunks` / `.manifest` / `.graph` (and vectors when model set) |
 
 Graph failures log a warning and never block the chunk/vector pipeline.
+
+## Multi-repository query view
+
+The indexer keeps each repository's graph and sidecars independent. With several
+configured roots, structural search, references, traces, and hubs use a cached
+combined view (`cmd/cberg-index/workspace_graph.c`, `workspace_resolve.c`).
+Internal IDs and paths are namespaced; responses restore native IDs/relative
+paths and carry repository keys. Edges include `src_repo` and `dst_repo`.
+An ID or relative path alone is not a workspace-wide identity.
+
+`repo` restricts starting nodes; traversal and incoming references can cross
+import-backed links. Omitted repo searches all roots. A trace whose matching
+start nodes span multiple roots requires an explicit repo. Architecture counts
+sum all roots when repo is omitted. Hubs and blast-radius results retain repo
+identity during ranking and deduplication.
+
+Workspace linking uses configured roots only: Go module manifests; JS package
+names and source entrypoints (available implementations before declarations, skipping unavailable entries and respecting blocked exports); explicit relative includes/requires; Python module
+paths; Java/Kotlin declared packages and symbols; simple Cargo package/use paths
+with default library/module layouts. Ambiguous cross-root providers remain
+unresolved. Legacy languages can follow name matches within an imported target
+file; this still permits method ambiguity and is not type checking. No LSP,
+build-system linker, RPC, or external package registry is consulted.
+
+The view costs extra RAM and first-query construction. It is reused while
+source graph pointers/revisions and `go.mod`, `package.json`, and `Cargo.toml`
+metadata stay unchanged. Refreshes lock source repositories in configuration
+order; queries serialize under a separate workspace mutex. The view is not
+persisted and does not alter the public C ABI or per-repo snapshot format.
 
 ---
 
@@ -216,10 +276,10 @@ Daemon tools ([daemon/docs/http.md](../../../daemon/docs/http.md)):
 
 | Tool | Behavior |
 |------|----------|
-| `search_graph` / `trace_path` | Thin wrappers over IPC |
+| `search_graph` / `trace_path` | Locate definitions and follow source relationships; trace forwards starting `repo`/`path_prefix`; agent-facing descriptions explain direction, scope, and partial coverage |
 | `detect_changes` | Git diff → hunk-overlapping symbols → 1–2 hop blast radius; sets `fallback` / `diff_spec` when the requested range fails |
 | `get_architecture` | Stats + language mix + real hubs + entrypoint heuristics; surfaces hub errors |
-| `find_references` | Graph-first; returns `{source, graph\|matches}` (not a bare array); grep fallback |
+| `find_references` | Combines graph edges and additional lexical matches; returns partial/limit/source-error coverage metadata |
 
 Agent policy: **meaning → search; structure → graph; exact string → grep**.
 
@@ -253,14 +313,25 @@ Microbenchmarks: [bench_graph](../../bench/bench_graph.c) (apply/remove churn,
 | `test_graph` | Apply / query / trace / confidence / persistence |
 | `test_graph_extract` | Per-language captures (incl. Ruby require) |
 | `test_graph_resolve` | Stdlib non-rewrite, slash-stdlib decoy, Go module path, TS relative, Rust `crate::` |
+| `test_graph_quality` | Hand-labelled sites in all nine source languages, wrong/missed edges, negatives, known error budgets, snapshot round-trips |
+| `test_graph_scope_lifecycle` | Moved target followed by unchanged importer; alias reindex with cached resolution |
+| `test_workspace_graph` | All nine source languages across three roots; unrelated providers, native identities, two-hop traces, ambiguity, manifest invalidation, deletion, cached-view timing |
 | `test_cberg_engine` | IPC round-trips for graph commands |
 
-Daemon: `graphtools_test.go`, `indextools_test.go` (find_references shape).
+Daemon: `graphtools_test.go`, `indextools_test.go`, `reference_coverage_test.go`.
+Measured baseline, current quality, and five-trial overhead:
+[graph quality report](../../../docs/benchmarks/graph-quality/README.md).
 
 ---
 
 ## Known limitations
 
+- Go/TS/JS function-value aliases, default exports/imports, and re-export chains
+  are not followed. Unknown and dynamically computed receivers remain unresolved.
+- Go package identity uses directory membership; external test packages in the
+  same directory are not distinguished. Implicit imported package names assume
+  the final module path segment. Interfaces, generics, flow-sensitive assignments,
+  destructured bindings, and cross-file inheritance need deeper type analysis.
 - Kotlin extension/infix call shapes are incomplete in `fast` mode.
 - Rust: trait-impl `INHERITS` (`impl Trait for Type`) deferred to typed mode.
 - Symbol `qname` is the chunk key, not a package-qualified name (improves as

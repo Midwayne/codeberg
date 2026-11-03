@@ -214,6 +214,41 @@ static void test_persistence(graph_corpus *c) {
         cberg_graph_free(loaded);
     }
 
+    /* Older graph snapshots require a cold rebuild after binding metadata changed. */
+    FILE *legacy = fopen(path, "r+b");
+    CHECK(legacy != NULL, "open legacy snapshot");
+    if (legacy != NULL) {
+        const unsigned char version[] = {1, 0, 0, 0};
+        CHECK(fseek(legacy, 4, SEEK_SET) == 0, "seek version");
+        CHECK(fwrite(version, 1, sizeof version, legacy) == sizeof version, "write old version");
+        fclose(legacy);
+    }
+    loaded = NULL;
+    CHECK(cberg_graph_load(path, &loaded) == CBERG_ERR_NOT_FOUND, "old snapshot requests cold rebuild");
+    legacy = fopen(path, "r+b");
+    CHECK(legacy != NULL, "open previous binding snapshot");
+    if (legacy != NULL) {
+        const unsigned char version[] = {2, 0, 0, 0};
+        CHECK(fseek(legacy, 4, SEEK_SET) == 0, "seek previous binding version");
+        CHECK(fwrite(version, 1, sizeof version, legacy) == sizeof version, "write previous binding version");
+        fclose(legacy);
+    }
+    loaded = NULL;
+    CHECK(cberg_graph_load(path, &loaded) == CBERG_ERR_NOT_FOUND, "previous binding semantics request cold rebuild");
+    cberg_graph_free(loaded);
+
+    legacy = fopen(path, "r+b");
+    CHECK(legacy != NULL, "open pre-shadowing-fix snapshot");
+    if (legacy != NULL) {
+        const unsigned char version[] = {3, 0, 0, 0};
+        CHECK(fseek(legacy, 4, SEEK_SET) == 0, "seek pre-shadowing-fix version");
+        CHECK(fwrite(version, 1, sizeof version, legacy) == sizeof version, "write pre-shadowing-fix version");
+        fclose(legacy);
+    }
+    CHECK(cberg_graph_load(path, &loaded) == CBERG_ERR_NOT_FOUND, "old scope semantics request cold rebuild");
+    cberg_graph_free(loaded);
+    loaded = NULL;
+
     /* Corrupt snapshots read back as NOT_FOUND (cold rebuild), never garbage. */
     FILE *f = fopen(path, "wb");
     CHECK(f != NULL, "rewrite snapshot");

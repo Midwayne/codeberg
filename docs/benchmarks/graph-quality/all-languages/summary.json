@@ -1,0 +1,431 @@
+{
+  "baseline_commit": "ae22a78940c9983bd50be7c0c953ecf5042c39ca",
+  "platform": "macOS arm64, Apple M4",
+  "date": "2026-11-03",
+  "source_languages": 9,
+  "document_formats_verified": [
+    "Markdown",
+    "YAML",
+    "TOML",
+    "JSON"
+  ],
+  "scenarios": 33,
+  "quality": {
+    "parent": {
+      "case": "total",
+      "tp": 41,
+      "fp": 38,
+      "fn": 23,
+      "sites": 73,
+      "negative_sites": 9,
+      "precision": 0.518987,
+      "recall": 0.640625,
+      "f1": 0.573427
+    },
+    "first-pass": {
+      "case": "total",
+      "tp": 61,
+      "fp": 12,
+      "fn": 3,
+      "sites": 73,
+      "negative_sites": 9,
+      "precision": 0.835616,
+      "recall": 0.953125,
+      "f1": 0.890511
+    },
+    "current": {
+      "case": "total",
+      "tp": 61,
+      "fp": 8,
+      "fn": 3,
+      "sites": 73,
+      "negative_sites": 9,
+      "precision": 0.884058,
+      "recall": 0.953125,
+      "f1": 0.917293
+    }
+  },
+  "per_language": {
+    "parent": {
+      "TypeScript": {
+        "tp": 22,
+        "fp": 24,
+        "fn": 13,
+        "sites": 40,
+        "negative_sites": 5,
+        "precision": 0.4782608695652174,
+        "recall": 0.6285714285714286
+      },
+      "Go": {
+        "tp": 6,
+        "fp": 4,
+        "fn": 6,
+        "sites": 12,
+        "negative_sites": 0,
+        "precision": 0.6,
+        "recall": 0.5
+      },
+      "JavaScript": {
+        "tp": 1,
+        "fp": 2,
+        "fn": 0,
+        "sites": 3,
+        "negative_sites": 2,
+        "precision": 0.3333333333333333,
+        "recall": 1.0
+      },
+      "C": {
+        "tp": 2,
+        "fp": 1,
+        "fn": 0,
+        "sites": 3,
+        "negative_sites": 1,
+        "precision": 0.6666666666666666,
+        "recall": 1.0
+      },
+      "Python": {
+        "tp": 2,
+        "fp": 3,
+        "fn": 0,
+        "sites": 3,
+        "negative_sites": 1,
+        "precision": 0.4,
+        "recall": 1.0
+      },
+      "Java": {
+        "tp": 2,
+        "fp": 1,
+        "fn": 1,
+        "sites": 3,
+        "negative_sites": 0,
+        "precision": 0.6666666666666666,
+        "recall": 0.6666666666666666
+      },
+      "Kotlin": {
+        "tp": 2,
+        "fp": 1,
+        "fn": 1,
+        "sites": 3,
+        "negative_sites": 0,
+        "precision": 0.6666666666666666,
+        "recall": 0.6666666666666666
+      },
+      "Rust": {
+        "tp": 2,
+        "fp": 1,
+        "fn": 1,
+        "sites": 3,
+        "negative_sites": 0,
+        "precision": 0.6666666666666666,
+        "recall": 0.6666666666666666
+      },
+      "Ruby": {
+        "tp": 2,
+        "fp": 1,
+        "fn": 1,
+        "sites": 3,
+        "negative_sites": 0,
+        "precision": 0.6666666666666666,
+        "recall": 0.6666666666666666
+      }
+    },
+    "first-pass": {
+      "TypeScript": {
+        "tp": 32,
+        "fp": 0,
+        "fn": 3,
+        "sites": 40,
+        "negative_sites": 5,
+        "precision": 1.0,
+        "recall": 0.9142857142857143
+      },
+      "Go": {
+        "tp": 12,
+        "fp": 0,
+        "fn": 0,
+        "sites": 12,
+        "negative_sites": 0,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "JavaScript": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "sites": 3,
+        "negative_sites": 2,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "C": {
+        "tp": 2,
+        "fp": 1,
+        "fn": 0,
+        "sites": 3,
+        "negative_sites": 1,
+        "precision": 0.6666666666666666,
+        "recall": 1.0
+      },
+      "Python": {
+        "tp": 2,
+        "fp": 3,
+        "fn": 0,
+        "sites": 3,
+        "negative_sites": 1,
+        "precision": 0.4,
+        "recall": 1.0
+      },
+      "Java": {
+        "tp": 3,
+        "fp": 2,
+        "fn": 0,
+        "sites": 3,
+        "negative_sites": 0,
+        "precision": 0.6,
+        "recall": 1.0
+      },
+      "Kotlin": {
+        "tp": 3,
+        "fp": 2,
+        "fn": 0,
+        "sites": 3,
+        "negative_sites": 0,
+        "precision": 0.6,
+        "recall": 1.0
+      },
+      "Rust": {
+        "tp": 3,
+        "fp": 2,
+        "fn": 0,
+        "sites": 3,
+        "negative_sites": 0,
+        "precision": 0.6,
+        "recall": 1.0
+      },
+      "Ruby": {
+        "tp": 3,
+        "fp": 2,
+        "fn": 0,
+        "sites": 3,
+        "negative_sites": 0,
+        "precision": 0.6,
+        "recall": 1.0
+      }
+    },
+    "current": {
+      "TypeScript": {
+        "tp": 32,
+        "fp": 0,
+        "fn": 3,
+        "sites": 40,
+        "negative_sites": 5,
+        "precision": 1.0,
+        "recall": 0.9142857142857143
+      },
+      "Go": {
+        "tp": 12,
+        "fp": 0,
+        "fn": 0,
+        "sites": 12,
+        "negative_sites": 0,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "JavaScript": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "sites": 3,
+        "negative_sites": 2,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "C": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "sites": 3,
+        "negative_sites": 1,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "Python": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "sites": 3,
+        "negative_sites": 1,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "Java": {
+        "tp": 3,
+        "fp": 2,
+        "fn": 0,
+        "sites": 3,
+        "negative_sites": 0,
+        "precision": 0.6,
+        "recall": 1.0
+      },
+      "Kotlin": {
+        "tp": 3,
+        "fp": 2,
+        "fn": 0,
+        "sites": 3,
+        "negative_sites": 0,
+        "precision": 0.6,
+        "recall": 1.0
+      },
+      "Rust": {
+        "tp": 3,
+        "fp": 2,
+        "fn": 0,
+        "sites": 3,
+        "negative_sites": 0,
+        "precision": 0.6,
+        "recall": 1.0
+      },
+      "Ruby": {
+        "tp": 3,
+        "fp": 2,
+        "fn": 0,
+        "sites": 3,
+        "negative_sites": 0,
+        "precision": 0.6,
+        "recall": 1.0
+      }
+    }
+  },
+  "cross_repo": {
+    "roots": 3,
+    "positive_sites": 9,
+    "negative_sites": 9,
+    "tp": 9,
+    "fp": 0,
+    "fn": 0,
+    "trials": 5,
+    "cold_view_ms_median": 0.34,
+    "warm_200_queries_ms_median": 1.012
+  },
+  "core_bench_median_ms": {
+    "graph cold apply": 48.96,
+    "graph apply/remove churn": 5.572,
+    "graph edges_to hub": 0.447,
+    "graph BFS trace in": 1.15,
+    "graph hubs top32": 2.824,
+    "graph save": 1.27,
+    "graph load": 1.142
+  },
+  "known_wrong_budgets": {
+    "java-receivers": 2,
+    "kotlin-receivers": 2,
+    "rust-receivers": 2,
+    "ruby-receivers": 2
+  },
+  "input_sha256": {
+    "core/test/fixtures/graph_quality/README.md": "1e0459518bf488f32ee9036cfb7dbbed7050dd29b10771fd0e139c03c6251838",
+    "core/test/fixtures/graph_quality/c-basic/expected.tsv": "5974add317bd782ebc162cdef572c17f7c37f28c7c48879f9c370082a4b59833",
+    "core/test/fixtures/graph_quality/c-basic/main.c": "ea587b5f54bdb79f25e996f5fc843f50d7befdc80608b320f212954b305f7912",
+    "core/test/fixtures/graph_quality/c-shadow/expected.tsv": "6ad7d09d8a9e0a4638e7605fb5c8c375b36402a611a5a5bfa23001178d18f346",
+    "core/test/fixtures/graph_quality/c-shadow/main.c": "67f5222f1cf750c4ed27dccef13c65e51a58036417a38ffcd6945c9ab1a12cab",
+    "core/test/fixtures/graph_quality/cases.txt": "28fab1814c474a3bc962bdc4e23b2388c914fa876d088ea4f463069be36ed543",
+    "core/test/fixtures/graph_quality/go-alias/expected.tsv": "a2d42ecf594b71a988f7e37cc604f686c10fdfb3505de7b395f1930afaa0f273",
+    "core/test/fixtures/graph_quality/go-alias/go.mod": "660fc9ca5e595a0d1cf4a6d66a8b419590f0413ddf86bbf0d9b49ebe8c427d27",
+    "core/test/fixtures/graph_quality/go-alias/main.go": "a9fd0110bd69fa1ba39a4cf93afd802afb9b870a619e1e545fa846cfe0ef5672",
+    "core/test/fixtures/graph_quality/go-alias/other/save.go": "b7a4ae6917d9f921fc1e88bc465d0464a59ac22ab73d70e85c528a9d929c611e",
+    "core/test/fixtures/graph_quality/go-alias/storage/load.go": "24ac7bfc3adaca8a50fe8ef59664b33750f796ebeeea07e03aecc4360ba9d01d",
+    "core/test/fixtures/graph_quality/go-alias/storage/save.go": "1e4cd075767cddc30fe03c3cb8e539076745dcbe03c144f4272c9a5fedb63211",
+    "core/test/fixtures/graph_quality/go-methods/expected.tsv": "0717a0312831239697f0e3fc465e31db77614b7ec72589f11a9c0001e59b15fb",
+    "core/test/fixtures/graph_quality/go-methods/go.mod": "660fc9ca5e595a0d1cf4a6d66a8b419590f0413ddf86bbf0d9b49ebe8c427d27",
+    "core/test/fixtures/graph_quality/go-methods/main.go": "aa5919c40ed193744098081248c661d17bfdf35124924520b88f30cd27f9a465",
+    "core/test/fixtures/graph_quality/go-multi-param/expected.tsv": "8f86d13c8dbcbff416978f92e63d6b5c3295b45716b7d67bf66b1c75fa3add28",
+    "core/test/fixtures/graph_quality/go-multi-param/go.mod": "660fc9ca5e595a0d1cf4a6d66a8b419590f0413ddf86bbf0d9b49ebe8c427d27",
+    "core/test/fixtures/graph_quality/go-multi-param/main.go": "d0cea3753f403fb6debd1ec8c234917eaf21a9b7d53f651d5c29fb6afa936519",
+    "core/test/fixtures/graph_quality/go-package/app/main.go": "4ab391569ecc312dd5756a065eda98c3e909f5c2f18e7de7ce54440a9a3ddd8e",
+    "core/test/fixtures/graph_quality/go-package/app/util.go": "5e97fd790da01b33bad7ca34a06319730f18f40e6576a6a0c8c47c6022bcc639",
+    "core/test/fixtures/graph_quality/go-package/expected.tsv": "688e237b8317f2530de961ea91d015f196cd29be1363ddbb28d47943bd048a02",
+    "core/test/fixtures/graph_quality/go-package/go.mod": "660fc9ca5e595a0d1cf4a6d66a8b419590f0413ddf86bbf0d9b49ebe8c427d27",
+    "core/test/fixtures/graph_quality/go-package/other/util.go": "31ccf9af014048c9c60b8f9c30f74f023e3b86470384618a04a3a8e7ab64041e",
+    "core/test/fixtures/graph_quality/go-references/expected.tsv": "3af7c6ca3fb6296dae197543b4d2a379c0ab1c5db3d33cafc6123d85993dc4cd",
+    "core/test/fixtures/graph_quality/go-references/go.mod": "660fc9ca5e595a0d1cf4a6d66a8b419590f0413ddf86bbf0d9b49ebe8c427d27",
+    "core/test/fixtures/graph_quality/go-references/main.go": "420eefb02ac8939c52f6d1f7cc96124761c028dcaa82045d8b9f6d03a172a790",
+    "core/test/fixtures/graph_quality/java-basic/Main.java": "5151deac2f33bb5e1c0cbb9fe41f82f7916e28a5e9616d409b4ae20292a61c7f",
+    "core/test/fixtures/graph_quality/java-basic/expected.tsv": "1eed97af924ebb69ff7b8b371af0f40053966d9e04840d5defe8c79076be4a5e",
+    "core/test/fixtures/graph_quality/java-receivers/Main.java": "c146f6de29d48303a2cb5814cfdcc1b80f00459cc1bd07dfa2b7a98cca91a04a",
+    "core/test/fixtures/graph_quality/java-receivers/expected.tsv": "80f71d86ba482e61568bf226d289a698e6a0ae4e975a0a024603b17a30fc0c75",
+    "core/test/fixtures/graph_quality/js-shadow/expected.tsv": "de8ada2162a496404d00a48208f97249e2c654de01b4e68b79c8fa562ac3a8e1",
+    "core/test/fixtures/graph_quality/js-shadow/main.js": "34e3f81cf85cc590d3464feb757862cbadbab54fe3a3312cfa32f97512d25085",
+    "core/test/fixtures/graph_quality/kotlin-basic/expected.tsv": "bb07cc2c89d7d2d6134ab0b3fb6bf4c0653f0ca4d38e79cb40ea6dc634e7a1ad",
+    "core/test/fixtures/graph_quality/kotlin-basic/main.kt": "6d78ed47e2980716db85d62c764e636712dfa254f71b8a2aa5cf2bb170b1fcd0",
+    "core/test/fixtures/graph_quality/kotlin-receivers/expected.tsv": "6aa225d3272a2ca93650ad5670614c172a190ad6d85d2354f5e4b4634717c37b",
+    "core/test/fixtures/graph_quality/kotlin-receivers/main.kt": "715ea6091961639fdda1bbb64dfd6a937301c2d3f74289e88ecbc7e6b14a6ebe",
+    "core/test/fixtures/graph_quality/limits-default-import/dep.ts": "33f5c31b20914c50237a43d46997278b0be6b783b2cb4219e0adba31bf46d56a",
+    "core/test/fixtures/graph_quality/limits-default-import/expected.tsv": "1bdd56c41bebae9029a63abedbe1465036ad3e619c3d7d61c786a8fab5a4d2ab",
+    "core/test/fixtures/graph_quality/limits-default-import/main.ts": "13b658b487d0491e101741cd26fe97e4280aacdfb3b70bfd39a74b4df0c36290",
+    "core/test/fixtures/graph_quality/limits-function-values/expected.tsv": "2c7bd58d4186ef0cee4e5f26793ea60eaa969c760cfcf5886ab4bc5e7cee2cac",
+    "core/test/fixtures/graph_quality/limits-function-values/main.ts": "ddb07b920593455102167dd2f59a278cb627ebbb100f325389d832857e85bfa6",
+    "core/test/fixtures/graph_quality/limits-reexport/barrel.ts": "e4188b08bd04e8c91b52db81b987edde2addbf5ce8ee19e33ad41f3556874df3",
+    "core/test/fixtures/graph_quality/limits-reexport/dep.ts": "a8b7b6a3811b8a892edfcee223398fc70f370240f597b4e1d0391d8d3bbb8197",
+    "core/test/fixtures/graph_quality/limits-reexport/expected.tsv": "1bdd56c41bebae9029a63abedbe1465036ad3e619c3d7d61c786a8fab5a4d2ab",
+    "core/test/fixtures/graph_quality/limits-reexport/main.ts": "e8f3865e4f5761162f8dc18e357d33096499945bf304d29809256b463088b9f7",
+    "core/test/fixtures/graph_quality/python-basic/expected.tsv": "14dd3de8650ba2f72cac8ebf8f3ed01abe07b1d4cb788708e9d38710a21cbad1",
+    "core/test/fixtures/graph_quality/python-basic/main.py": "aa9ebd55b462a6d874205041a33b54c635770171c2b3186775ff694894c351c2",
+    "core/test/fixtures/graph_quality/python-shadow/expected.tsv": "bfcfa0db66eb76b8ac95eeea62924cded3e27af07b71315c3255301a8b668e66",
+    "core/test/fixtures/graph_quality/python-shadow/main.py": "e4abfcb03f0ae9e008bdfef05cc92c6bb38b7ac1a40262266af7a359dcb9bcf6",
+    "core/test/fixtures/graph_quality/ruby-basic/expected.tsv": "a7c24ed4d60ea4a301de26d7c066ac796006bb2d0136663456d4bdf271e44d13",
+    "core/test/fixtures/graph_quality/ruby-basic/main.rb": "d67cb00702280d1616dcb773ec8a23fcaad3c06de367e5dfc00012bd4e4a723d",
+    "core/test/fixtures/graph_quality/ruby-receivers/expected.tsv": "a5349d73cff6bbfb39b660b76fc96f82cc96873f0fc367e722efc03d0f04c388",
+    "core/test/fixtures/graph_quality/ruby-receivers/main.rb": "e8e95035145eacd0afc06255019911f9eeafe70bd2f682dc8a51dc3a4f6064c6",
+    "core/test/fixtures/graph_quality/rust-basic/expected.tsv": "974dfab4323767c9e847f118aade0e8b9664b06bbf2f6a1cfb1bd4535e4a2837",
+    "core/test/fixtures/graph_quality/rust-basic/main.rs": "fa74e2fcb4146ccfd6b62944b13b39a6aaf4bd386e3f56a29f082654ca5d312d",
+    "core/test/fixtures/graph_quality/rust-receivers/expected.tsv": "d97e5517a5356ce7f2ed7d8c0b2ae81033d0a61df351e0ba2f19a6b01b04fdde",
+    "core/test/fixtures/graph_quality/rust-receivers/main.rs": "1d9aa0bc89fd585e69f107c6dc0b30421321b508eadbd9a5cdc00cbc0bc7102a",
+    "core/test/fixtures/graph_quality/ts-alias/dep.ts": "f3e18bec9fce23af0d7cbf5fc87b45f82d2eae8150091064d538766ffa6e9230",
+    "core/test/fixtures/graph_quality/ts-alias/expected.tsv": "67eddd5713d3c62d47457c0de6d687f07f2b299554f373241e7eae48636907ed",
+    "core/test/fixtures/graph_quality/ts-alias/main.ts": "5b062b4c04fd407e57f932542a3bef33a3b830497e7f1a37b5fcec4e17ff6ff3",
+    "core/test/fixtures/graph_quality/ts-alias/other.ts": "888d519be7bf2e07180ce8a2b3c3529b15fc8dc08cbd0cfcdb6a2be5596f5187",
+    "core/test/fixtures/graph_quality/ts-inheritance/expected.tsv": "8fc9965318cf4fb53a060ba9402fa108b15dd8ad9662571d14d1def3f79d0c3b",
+    "core/test/fixtures/graph_quality/ts-inheritance/main.ts": "8e60f5b8b3a99bf153a485079067e2b1b2f75d92c8bb5db6f9b351341cc4a7ec",
+    "core/test/fixtures/graph_quality/ts-methods/expected.tsv": "08f97f75913e9884a3f572ef3c21a239b7f68f5b1132f7da3fcc188f9e412401",
+    "core/test/fixtures/graph_quality/ts-methods/main.ts": "f2d40b311dc7618c31c66d3134751bda4dfdfbd00708b311a03a36f6369f0471",
+    "core/test/fixtures/graph_quality/ts-namespace/dep.ts": "22e05276a13a74e867ab4b0d34d525d07a6950e1bf4a5a31deb9075de87bae28",
+    "core/test/fixtures/graph_quality/ts-namespace/expected.tsv": "c2f0e64db26302e4182ccf6c74e82616acbbcb04fa5fdde53d99577f47358b4e",
+    "core/test/fixtures/graph_quality/ts-namespace/main.ts": "47d4ac0fc81673523a88bfb8cd1a5c1b49d5152baa152b71904fbfc5b9d24a63",
+    "core/test/fixtures/graph_quality/ts-override/expected.tsv": "4af283c370b5af031f9a5e8d1de6659a6a24dbffe3f886db535c0a7c5c55c349",
+    "core/test/fixtures/graph_quality/ts-override/main.ts": "66311f0cbd96f637e9235db1bbf4dab689daaeaec18df59e59b0f6e10eb0cff6",
+    "core/test/fixtures/graph_quality/ts-parent/expected.tsv": "951c279ba2e98024bd29a8b82bd4392d4617a21b557986cd100fa612766e556b",
+    "core/test/fixtures/graph_quality/ts-parent/shared/index.ts": "b67b3be22582d221b627cd63bfa8617d6d582b3e3674d9ac92d89855d26e123b",
+    "core/test/fixtures/graph_quality/ts-parent/shared.ts": "42f2101a9f0592bc413b7828c90bb891d7f31fb1200cafd7486cc84d1de86c46",
+    "core/test/fixtures/graph_quality/ts-parent/sub/main.ts": "301b41d3a694b8cd6f90cedc7b889c6899eb4094ede271f4cb4747646c72870d",
+    "core/test/fixtures/graph_quality/ts-references/dep.ts": "a8a31c71cd2e5a2352aa7f249b527ddd6d4c1b69962518654d43e6b7891f0015",
+    "core/test/fixtures/graph_quality/ts-references/expected.tsv": "e9c68720f8c2ec682a0c494c088414dd7df95736e54991365545b68eeb2889f9",
+    "core/test/fixtures/graph_quality/ts-references/main.ts": "bc8cb0bcbfa0c49f3ca2d92c6332acc75fe76aeb10a59cec79792dc758c54a83",
+    "core/test/fixtures/graph_quality/ts-relative/a/main.ts": "bec0de570de068f2e302d8e3ce15a79d6ac60d58ceb99386d94a613def5723b3",
+    "core/test/fixtures/graph_quality/ts-relative/a/util.ts": "b10c871160b5c124e42472f08bdf5c27b5dab844b2078938b198a2f63735845a",
+    "core/test/fixtures/graph_quality/ts-relative/b/main.ts": "562633770b629e7b120dc5caa2d816e82adf419cac32abe2539a3a90e32c890f",
+    "core/test/fixtures/graph_quality/ts-relative/b/util.ts": "b2fb59c454457d3c8d9d5dd4f0bb426612061e188d64c1c4d6dcf093eaa57605",
+    "core/test/fixtures/graph_quality/ts-relative/expected.tsv": "ade8ac2f33d5ca2354638df672ec4df36057a7e848c1e10e6d29ca6b1b23858a",
+    "core/test/fixtures/graph_quality/ts-relative/util.ts": "59a0aef1107b6fe57fea49e04928e938bac20a5bee8ef19c9f1fbd1123123e96",
+    "core/test/fixtures/graph_quality/ts-scope/expected.tsv": "d0035b9254a68d41430b253ed0c3b5605c814ff24362129eb4aad9fa21c57ecd",
+    "core/test/fixtures/graph_quality/ts-scope/main.ts": "24d96af036b274f834f3c2f52dd041e6e68b4f534e9a7fbe3107a4418bacfcc5",
+    "core/test/fixtures/graph_quality/ts-shadow-import/dep.ts": "d7544eab5f2bafe783ec589c3484a44466b333094db20cd7328aa78aa585f9ac",
+    "core/test/fixtures/graph_quality/ts-shadow-import/expected.tsv": "79b2fe9f7d8f9bec3023a4173a28e78efc1df6995ccfae4019e3b28265f84334",
+    "core/test/fixtures/graph_quality/ts-shadow-import/main.ts": "56bf9ba66823729214b77001de34d335c6c0426d99031ea261cad7cdd5f41ae0",
+    "core/test/fixtures/graph_quality/ts-this/expected.tsv": "b2d5e07647a2558531f477f13ae00ff2a59f65b3cad0bad98b7b3a11ebfcd64d",
+    "core/test/fixtures/graph_quality/ts-this/main.ts": "f2c90b090b8623f38be19fdd59a69644c55e40f8fc9d42e3cac341e11571cec1",
+    "core/test/fixtures/graph_quality/ts-unresolved/dep.ts": "033074da6c49b52c562e23e2328ece65f13311c62ff1d68c6125b23a2a5e9a72",
+    "core/test/fixtures/graph_quality/ts-unresolved/expected.tsv": "c9bfc4f4546371ab28c45db0a10687a9db252d7e15218fcd1ddd271a79a687ac",
+    "core/test/fixtures/graph_quality/ts-unresolved/main.ts": "e2a87b960ec3ac829a2676cbbe14caa6c360411ff37024938aa29d70943248b3"
+  },
+  "first_pass_archive_sha256": "e69b94f8791676e4702a900458df0714decbe0c547d57e6478e006f49503fba6",
+  "cross_repo_fixture_sha256": "160587903c88294ccee54e34e0a2c99340be14b3659ae894daafae60f69697e3",
+  "evaluator_sha256": "0b8602f5d0119e5d77cf1e528ba967efb4615387fb4a26b06c98c08767916dda",
+  "graph_format": 3,
+  "verification": {
+    "core": "make check: passed, 35 tests, 2 model-dependent tests skipped",
+    "daemon": "make daemon-check: passed",
+    "agent_ui": "make agent-check: passed, 1291 tests passed, 3 skipped",
+    "binaries": "make build-daemon and agent/UI builds completed"
+  },
+  "current_library_sha256": "14eab337a6e169854562c0fa49b714ed7305a6c5a7e194a21d9bdb01a478ec40"
+}

@@ -12,13 +12,15 @@ func getArchitectureTool(idx indexctl.Indexer) Tool {
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "repo": {"type": "string", "description": "repo key"},
+    "repo": {"type": "string", "description": "repository key from repos; omitted summarizes all roots configured together"},
     "hub_limit": {"type": "integer", "description": "max degree hubs (default 10)"}
   }
 }`
 
 	return New("get_architecture",
-		"Repo structural overview from the knowledge graph: size, language mix (FILE nodes), CALLS degree hubs (graph_hubs), and entrypoint heuristics (main/ServeHTTP).",
+		"Get an initial map of an unfamiliar codebase: indexed graph size, language mix, call hubs (symbols with many incoming/outgoing calls), and candidate entrypoints. "+
+			"Omit repo to summarize all configured roots, or select one repo. Results retain repo keys. "+
+			"Entrypoints are name-based guesses, not verified application boundaries. Follow up with search_graph, trace_path, and source reads. Works without embeddings after parsing.",
 		schema,
 		func(ctx context.Context, a getArchitectureArgs) (any, error) {
 			return getArchitecture(ctx, idx, a)
@@ -51,7 +53,7 @@ func getArchitecture(ctx context.Context, idx indexctl.Indexer, a getArchitectur
 	}
 
 	for _, h := range hubs {
-		res.Hubs = append(res.Hubs, archHub{Name: h.Name, Path: h.Path, Kind: h.Kind, Degree: h.Degree})
+		res.Hubs = append(res.Hubs, archHub{Repo: h.Repo, Name: h.Name, Path: h.Path, Kind: h.Kind, Degree: h.Degree})
 	}
 
 	return res, nil
@@ -68,13 +70,13 @@ func architectureEntrypoints(ctx context.Context, idx indexctl.Indexer, repo str
 		}
 
 		for _, n := range nodes {
-			key := n.Path + "\x00" + n.Name + "\x00" + n.Kind
+			key := n.Repo + "\x00" + n.Path + "\x00" + n.Name + "\x00" + n.Kind
 			if _, ok := seenEP[key]; ok {
 				continue
 			}
 
 			seenEP[key] = struct{}{}
-			entrypoints = append(entrypoints, archHub{Name: n.Name, Path: n.Path, Kind: n.Kind})
+			entrypoints = append(entrypoints, archHub{Repo: n.Repo, Name: n.Name, Path: n.Path, Kind: n.Kind})
 		}
 	}
 

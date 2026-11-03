@@ -37,7 +37,8 @@ static void write_file(const char *root, const char *rel, const char *body) {
     fclose(f);
 }
 
-static const char *go_src = "package main\n\nfunc Add(a, b int) int {\n\treturn a + b\n}\n";
+static const char *go_src = "package main\n\nfunc Add(a, b int) int {\n\treturn a + b\n}\n"
+                            "func Callback() {\n\t_ = Add\n}\n";
 static const char *go_src2 = "package main\n\nfunc Mul(a, b int) int {\n\treturn a * b\n}\n";
 
 static cberg_repo *repo_by_key(cberg_engine *eng, const char *key) {
@@ -136,10 +137,15 @@ static void check_busy_health(cberg_engine *eng, const char *socket_path) {
 
 static void check_cold_queries(cberg_engine *eng, const char *socket_path) {
     const char *requests[] = {
-        "search\tAdd\t5\n", "symbol\tAdd\talpha\n",
-        "outline\talpha\ta.go\n", "chunk\talpha\t1\n",
-        "search_graph\tAdd\talpha\n", "graph_stats\n",
-        "trace_path\tAdd\talpha\n", "graph_refs\tAdd\talpha\n", "graph_hubs\n",
+        "search\tAdd\t5\n",
+        "symbol\tAdd\talpha\n",
+        "outline\talpha\ta.go\n",
+        "chunk\talpha\t1\n",
+        "search_graph\tAdd\talpha\n",
+        "graph_stats\n",
+        "trace_path\tAdd\talpha\n",
+        "graph_refs\tAdd\talpha\n",
+        "graph_hubs\n",
     };
     char resp[8192];
 
@@ -261,6 +267,11 @@ int main(void) {
             CHECK(strstr(resp, "\"ok\":true") != NULL, "graph_stats ok");
             CHECK(strstr(resp, "\"enabled\":true") != NULL, "graph enabled");
 
+            CHECK(ipc_roundtrip(socket_path, "graph_refs\tAdd\talpha\n", resp, sizeof(resp)) == 0,
+                  "non-call references roundtrip without vectors");
+            CHECK(strstr(resp, "\"kind\":\"references\"") != NULL, "graph_refs includes non-call uses");
+            CHECK(strstr(resp, "\"src_name\":\"Callback\"") != NULL, "reference retains its caller");
+
             CHECK(ipc_roundtrip(socket_path, "trace_path\tAdd\talpha\tin\tcalls\t2\t16\n", resp, sizeof(resp)) == 0,
                   "trace_path roundtrip");
             CHECK(strstr(resp, "\"ok\":true") != NULL, "trace_path ok");
@@ -285,7 +296,8 @@ int main(void) {
             strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path) - 1);
             CHECK(stale >= 0 && bind(stale, (struct sockaddr *)&addr, sizeof(addr)) == 0,
                   "create stale socket");
-            if (stale >= 0) close(stale);
+            if (stale >= 0)
+                close(stale);
             cberg_ipc_server *recovered = NULL;
             CHECK(cberg_ipc_start(&eng, &recovered) == 0, "reclaim stale socket");
             if (recovered != NULL) {

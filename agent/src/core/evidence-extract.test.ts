@@ -87,6 +87,31 @@ describe('extractEvidence', () => {
     expect(hits[0]?.start_line).toBe(12);
   });
 
+  it('keeps lexical evidence alongside graph references', () => {
+    const hits = extractEvidence('find_references', {
+      source: 'graph+grep',
+      graph: [{ src_path: 'a.go', src_name: 'caller', line: 12 }],
+      matches: [{ path: 'b.go', line: 7, text: 'var callback = Save' }],
+    });
+
+    expect(hits.map((hit) => [hit.path, hit.start_line])).toEqual([
+      ['a.go', 12],
+      ['b.go', 7],
+    ]);
+  });
+
+  it('preserves source repositories when graph IDs and paths overlap', () => {
+    const hits = extractEvidence('find_references', {
+      source: 'graph',
+      graph: [
+        { src: 1, src_repo: 'api', dst_repo: 'storage', src_path: 'main.go', line: 3 },
+        { src: 1, src_repo: 'worker', dst_repo: 'storage', src_path: 'main.go', line: 3 },
+      ],
+    });
+
+    expect(hits.map((hit) => hit.repo)).toEqual(['api', 'worker']);
+  });
+
   it('extracts trace_path hops', () => {
     const hits = extractEvidence('trace_path', [
       {

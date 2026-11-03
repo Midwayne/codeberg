@@ -11,6 +11,23 @@
  * extraction (long rust use-trees, generated import paths). */
 #define CBERG_GRAPH_NAME_MAX 256
 
+typedef enum cberg_graph_binding_kind {
+    CBERG_BIND_LEGACY = 0,
+    CBERG_BIND_PACKAGE,
+    CBERG_BIND_LOCAL,
+    CBERG_BIND_IMPORT,
+    CBERG_BIND_MEMBER,
+    CBERG_BIND_UNKNOWN,
+} cberg_graph_binding_kind;
+
+typedef struct cberg_graph_binding {
+    char name[CBERG_GRAPH_NAME_MAX];
+    char module[CBERG_GRAPH_NAME_MAX];
+    char owner[CBERG_GRAPH_NAME_MAX];
+    int32_t local_def;
+    cberg_graph_binding_kind kind;
+} cberg_graph_binding;
+
 /*
  * Per-file extraction result. Definitions mirror the file's symbol chunks
  * (identified by chunk key so cberg_graph_apply can map them onto stable chunk
@@ -25,12 +42,15 @@ typedef struct cberg_graph_fdef {
 } cberg_graph_fdef;
 
 typedef struct cberg_graph_fref {
-    int32_t src_def;  /* index into defs, or -1 for the file node */
-    int32_t dst_def;  /* pre-resolved target def (span nesting), or -1 */
-    const char *name; /* target name / module string; NULL when dst_def >= 0 */
-    uint32_t line;    /* 1-based reference site line */
-    uint8_t kind;     /* one cberg_graph_edge_kind bit */
-    uint8_t rev;      /* reversed: the edge runs (named candidate) -> src_def */
+    int32_t src_def;    /* index into defs, or -1 for the file node */
+    int32_t dst_def;    /* pre-resolved target def (span nesting), or -1 */
+    const char *name;   /* target name / module string; NULL when dst_def >= 0 */
+    uint32_t line;      /* 1-based reference site line */
+    uint8_t kind;       /* one cberg_graph_edge_kind bit */
+    uint8_t rev;        /* reversed: the edge runs (named candidate) -> src_def */
+    uint8_t binding;    /* cberg_graph_binding_kind; private resolution constraint */
+    const char *module; /* import spelling, owned by the fragment arena */
+    const char *owner;  /* receiver type name, owned by the fragment arena */
 } cberg_graph_fref;
 
 struct cberg_graph_fragment {
@@ -62,7 +82,13 @@ void cberg_graph_extractor_free(cberg_graph_extractor *extractor);
  */
 cberg_status cberg_graph_extract(cberg_graph_extractor *extractor, const TSLanguage *ts_lang, cberg_language lang, TSNode root, const char *path, const char *src, size_t src_len, const cberg_chunk_list *chunks, cberg_graph_fragment **out_fragment);
 
+void cberg_graph_bind_call(const cberg_graph_fragment *fragment, TSNode root, TSNode reference, const char *source, size_t length, cberg_graph_binding *out);
+int cberg_graph_reference_use(TSNode reference);
+
 /* Internal: rewrite one IMPORTS edge onto a resolved FILE (resolve_pkg.c). */
 cberg_status cberg_graph_rewrite_import(cberg_graph *graph, uint64_t src_file_id, uint64_t old_dst, uint64_t new_dst, const char *new_name);
+/* Borrows strings from files; returns NULL when resolution is absent/ambiguous. */
+const char *cberg_graph_relative_file(const char *source, const char *import, char *const *files, size_t count);
+cberg_status cberg_graph_reset_imports(cberg_graph *graph);
 
 #endif /* CBERG_GRAPH_INTERNAL_H */

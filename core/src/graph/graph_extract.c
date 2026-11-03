@@ -34,6 +34,7 @@
 #define GRAPH_LANG_SLOTS ((int)CBERG_LANG_RUBY + 1)
 
 static const char *const GO_REF_QUERY =
+    "(identifier) @reference\n(type_identifier) @reference\n(field_identifier) @reference\n"
     "(call_expression function: (identifier) @call)\n"
     "(call_expression function: (selector_expression field: (field_identifier) @call))\n"
     "(import_spec path: (interpreted_string_literal) @import)\n"
@@ -56,6 +57,7 @@ static const char *const PYTHON_REF_QUERY =
     "(class_definition superclasses: (argument_list (attribute attribute: (identifier) @inherit)))\n";
 
 static const char *const JAVASCRIPT_REF_QUERY =
+    "(identifier) @reference\n(property_identifier) @reference\n"
     "(call_expression function: (identifier) @call)\n"
     "(call_expression function: (member_expression property: (property_identifier) @call))\n"
     "(new_expression constructor: (identifier) @call)\n"
@@ -63,6 +65,7 @@ static const char *const JAVASCRIPT_REF_QUERY =
     "(class_heritage (identifier) @inherit)\n";
 
 static const char *const TYPESCRIPT_REF_QUERY =
+    "(identifier) @reference\n(type_identifier) @reference\n(property_identifier) @reference\n"
     "(call_expression function: (identifier) @call)\n"
     "(call_expression function: (member_expression property: (property_identifier) @call))\n"
     "(new_expression constructor: (identifier) @call)\n"
@@ -352,6 +355,7 @@ static void capture_text(const char *src, size_t src_len, TSNode node, int is_im
 typedef enum ref_capture {
     CAP_NONE = 0,
     CAP_CALL,
+    CAP_REFERENCE,
     CAP_IMPORT,
     CAP_INHERIT,
     CAP_MEMBER_CONTAINER,
@@ -366,6 +370,7 @@ static ref_capture capture_kind(const char *name, uint32_t len) {
         ref_capture kind;
     } kinds[] = {
         {"call", CAP_CALL},
+        {"reference", CAP_REFERENCE},
         {"import", CAP_IMPORT},
         {"inherit", CAP_INHERIT},
         {"member.container", CAP_MEMBER_CONTAINER},
@@ -381,12 +386,11 @@ static ref_capture capture_kind(const char *name, uint32_t len) {
     return CAP_NONE;
 }
 
-/* Skip byte-identical repeats of one reference: same site kind, source
- * definition, and target name (a hub called many times in one function
- * becomes a single record; the first line wins). */
-static cberg_status ref_seen(cberg_strmap *dedupe, uint8_t kind, uint8_t rev, int32_t src_def, const char *name, int *out_seen) {
-    char key[CBERG_GRAPH_NAME_MAX + 32];
-    snprintf(key, sizeof key, "%u:%u:%d:%s", kind, rev, src_def, name);
+/* Deduplicate captures at the same line with the same source and binding.
+ * Calls on separate lines and through different receivers remain distinct. */
+static cberg_status ref_seen(cberg_strmap *dedupe, uint8_t kind, uint8_t rev, int32_t src_def, const char *name, uint32_t line, const cberg_graph_binding *binding, int *out_seen) {
+    char key[CBERG_GRAPH_NAME_MAX * 3 + 64];
+    snprintf(key, sizeof key, "%u:%u:%d:%u:%s:%s:%s", kind, rev, src_def, line, name, binding != NULL ? binding->module : "", binding != NULL ? binding->owner : "");
     uint64_t hit = 0;
     if (cberg_strmap_get(dedupe, key, &hit)) {
         *out_seen = 1;
@@ -396,16 +400,32 @@ static cberg_status ref_seen(cberg_strmap *dedupe, uint8_t kind, uint8_t rev, in
     return cberg_strmap_set(dedupe, key, 1);
 }
 
-static cberg_status add_named_ref(cberg_graph_fragment *frag, cberg_strmap *dedupe, uint8_t kind, uint8_t rev, int32_t src_def, const char *name, uint32_t line) {
+static cberg_status add_bound_ref(cberg_graph_fragment *frag, cberg_strmap *dedupe, uint8_t kind, uint8_t rev, int32_t src_def, const char *name, uint32_t line, const cberg_graph_binding *binding) {
     if (name == NULL || name[0] == '\0') {
         return CBERG_OK;
     }
     int seen = 0;
-    cberg_status st = ref_seen(dedupe, kind, rev, src_def, name, &seen);
+    cberg_status st = ref_seen(dedupe, kind, rev, src_def, name, line, binding, &seen);
     if (st != CBERG_OK || seen) {
         return st;
     }
-    return fragment_push_ref(frag, src_def, -1, name, line, kind, rev);
+    st = fragment_push_ref(frag, src_def, binding != NULL ? binding->local_def : -1, name, line, kind, rev);
+    if (st != CBERG_OK || binding == NULL)
+        return st;
+
+    cberg_graph_fref *reference = &frag->refs[frag->refs_len - 1];
+    reference->binding = (uint8_t)binding->kind;
+    reference->module = binding->module[0] ? cberg_arena_strdup(frag->arena, binding->module) : NULL;
+    reference->owner = binding->owner[0] ? cberg_arena_strdup(frag->arena, binding->owner) : NULL;
+    if ((binding->module[0] && reference->module == NULL) || (binding->owner[0] && reference->owner == NULL)) {
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+
+    return CBERG_OK;
+}
+
+static cberg_status add_named_ref(cberg_graph_fragment *frag, cberg_strmap *dedupe, uint8_t kind, uint8_t rev, int32_t src_def, const char *name, uint32_t line) {
+    return add_bound_ref(frag, dedupe, kind, rev, src_def, name, line, NULL);
 }
 
 static cberg_status walk_matches(cberg_graph_fragment *frag, TSQuery *query, TSNode root, const char *src, size_t src_len) {
@@ -442,14 +462,26 @@ static cberg_status walk_matches(cberg_graph_fragment *frag, TSQuery *query, TSN
             uint32_t line = ts_node_start_point(cap.node).row + 1;
 
             switch (capture_kind(cap_name, name_len)) {
-            case CAP_CALL:
+            case CAP_REFERENCE: {
+                if (!cberg_graph_reference_use(cap.node))
+                    break;
+
+                cberg_graph_binding binding;
+                cberg_graph_bind_call(frag, root, cap.node, src, src_len, &binding);
+                st = add_bound_ref(frag, dedupe, CBERG_GEDGE_REFERENCES, 0, enclosing_def(frag, ts_node_start_byte(cap.node)), binding.name, line, &binding);
+                break;
+            }
+            case CAP_CALL: {
                 capture_text(src, src_len, cap.node, 0, text, sizeof text);
                 /* Skip require/require_relative — handled as IMPORTS below. */
                 if (strcmp(text, "require") == 0 || strcmp(text, "require_relative") == 0) {
                     break;
                 }
-                st = add_named_ref(frag, dedupe, CBERG_GEDGE_CALLS, 0, enclosing_def(frag, ts_node_start_byte(cap.node)), text, line);
+                cberg_graph_binding binding;
+                cberg_graph_bind_call(frag, root, cap.node, src, src_len, &binding);
+                st = add_bound_ref(frag, dedupe, CBERG_GEDGE_CALLS, 0, enclosing_def(frag, ts_node_start_byte(cap.node)), binding.name, line, &binding);
                 break;
+            }
             case CAP_IMPORT:
                 capture_text(src, src_len, cap.node, 1, text, sizeof text);
                 st = add_named_ref(frag, dedupe, CBERG_GEDGE_IMPORTS, 0, -1, text, line);
@@ -492,8 +524,7 @@ static cberg_status walk_matches(cberg_graph_fragment *frag, TSQuery *query, TSN
         /* Ruby require / require_relative "path" → IMPORTS (argument-aware). */
         if (st == CBERG_OK && require_path[0] != '\0' &&
             (strcmp(require_method, "require") == 0 || strcmp(require_method, "require_relative") == 0)) {
-            st = add_named_ref(frag, dedupe, CBERG_GEDGE_IMPORTS, 0, -1, require_path,
-                               require_line != 0 ? require_line : 1);
+            st = add_named_ref(frag, dedupe, CBERG_GEDGE_IMPORTS, 0, -1, require_path, require_line != 0 ? require_line : 1);
         }
     }
 

@@ -34,6 +34,44 @@ For Jina ONNX in a source installation, the launcher checks whether the existing
 
 Embedding prerequisites are skipped, including Python model setup and the source launcher's ONNX dependency check. Optional web search and MCP servers keep their own runtime requirements. Chat provider usage and enabled external tools can still incur costs.
 
+## Follow callers and references
+
+The graph tracks calls, imports, inheritance, and type membership without an embedding model. Its source languages are Go, TypeScript, JavaScript, C, Python, Java, Kotlin, Rust, and Ruby. Markdown, YAML, TOML, and JSON have searchable chunks but no code graph.
+
+Go, TypeScript, and JavaScript calls use local scope and known receiver types; named import aliases and namespace imports constrain targets to the imported file or package. C and Python also check local function scopes and plain parameters. A nearer local function hides an outer parameter, and a local class takes precedence over a same-name import for instance and static calls. Java, Kotlin, Rust, and Ruby retain name-based receiver matching, which can return several same-name methods. Relative imports resolve from the importing file, including directory entrypoints and `.js` specifiers that refer to TypeScript source.
+
+Ask “Who calls this function?” or “Where is this symbol used?” The agent can use `trace_path` for caller/callee traversal and `find_references` for graph edges plus additional exact-name text matches. Callbacks and type-name uses can contribute graph references in Go, TypeScript, and JavaScript. Lexical reference search works across all indexed source languages.
+
+Results are partial. Unknown receivers, function-value aliases, default imports, re-exports, dynamic dispatch, and complex type relationships may remain unresolved. Go package matching uses directories, and implicit import names assume the final path segment. Inheritance lookup for method calls handles same-file class chains up to eight levels. This is syntactic analysis; graph confidence is a heuristic, not a measured probability. Text matches can include declarations and comments. See [Reference tools](/docs/tools#inspect-symbol-usage) for limits and filters.
+
+After upgrading the graph format, the first launch rebuilds the graph from source. Later launches reuse the new cache. Embedding setup is not required for this rebuild.
+
+## Follow dependencies across repositories
+
+Select the repositories together in one workspace:
+
+```sh
+codeberg --root "$HOME/projects/api,$HOME/projects/storage" --no-vector
+```
+
+Registered selections also work with `--repos api,storage` or `--all`. Separately selected browser projects keep separate indexers; opening two projects does not automatically join their graphs. See [Projects](/docs/projects).
+
+Unscoped graph search, references, hubs, and architecture inspect all configured roots. Set `repo` to choose a starting symbol's repository. Incoming callers and outgoing traces can then cross an import into another configured root. Ambiguous trace names spanning several repos require `repo`; the tool does not choose an arbitrary repository.
+
+| Language | Cross-root import evidence |
+| --- | --- |
+| Go | Root `go.mod` module path and package directory. |
+| TypeScript / JavaScript | Relative source paths, or root `package.json` name and a resolvable `exports`, `module`, `main`, or `types` entry. Available implementation entries take precedence over declaration files; missing entries are skipped. Exact subpath exports are supported; blocked exports, export patterns, and complex conditions can remain unresolved. |
+| C | Explicit include path to indexed source/header definitions. This does not replace compiler/linker analysis of declarations and implementations. |
+| Python | Dotted module matching a `.py` or `__init__.py` under a configured root or its `src` directory. Runtime `sys.path` changes and import aliases are not inferred across roots. |
+| Java / Kotlin | Declared package plus a uniquely indexed named type/function. |
+| Rust | Root `Cargo.toml` package name, default `src/lib.rs` or conventional module files, and a simple `use` path. Renamed dependencies, grouped uses, re-exports, and explicit `[lib]` configurations can remain unresolved. |
+| Ruby | Explicit relative `require` path to an indexed file. Dynamic load paths remain unresolved. |
+
+Same-name symbols alone do not link unrelated roots. Ambiguous cross-root providers stay unresolved. Results carry source and destination repository keys; IDs and relative paths must be interpreted with their repo. Cross-root method resolution still has the language limits above and is not a compiler-derived dependency graph.
+
+The combined graph is a cached query view over the per-repo indexes. It uses extra memory, builds on the first structural query, and refreshes after graph updates or supported manifest changes. Per-repo sidecars remain reusable. Only configured roots participate; external packages and service/RPC relationships are not inferred.
+
 ## Choose an embedding model
 
 New installs default to **EmbeddingGemma 2**, text encoder only, in FP32. Existing choices and Jina installations are retained.

@@ -62,9 +62,10 @@ type graphStatsResponse struct {
 }
 
 type graphEdgesResponse struct {
-	OK      bool        `json:"ok"`
-	Results []GraphEdge `json:"results"`
-	Error   string      `json:"error"`
+	Truncated bool        `json:"truncated"`
+	OK        bool        `json:"ok"`
+	Results   []GraphEdge `json:"results"`
+	Error     string      `json:"error"`
 }
 
 type graphHubsResponse struct {

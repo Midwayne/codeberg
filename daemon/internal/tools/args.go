@@ -115,10 +115,11 @@ type searchGraphArgs struct {
 }
 
 type tracePathArgs struct {
-	Name      string `json:"name"`
-	Repo      string `json:"repo"`
-	Direction string `json:"direction"`
-	EdgeKind  string `json:"edge_kind"`
-	MaxDepth  int    `json:"max_depth"`
-	Limit     int    `json:"limit"`
+	PathPrefix string `json:"path_prefix"`
+	Name       string `json:"name"`
+	Repo       string `json:"repo"`
+	Direction  string `json:"direction"`
+	EdgeKind   string `json:"edge_kind"`
+	MaxDepth   int    `json:"max_depth"`
+	Limit      int    `json:"limit"`
 }

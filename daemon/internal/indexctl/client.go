@@ -102,6 +102,9 @@ func (c *Client) GraphRefs(ctx context.Context, opts GraphRefsOptions) ([]GraphE
 	if !out.OK {
 		return nil, mapIndexerError(out.Error)
 	}
+	if out.Truncated {
+		return out.Results, ErrTruncated
+	}
 	return out.Results, nil
 }
 

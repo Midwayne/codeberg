@@ -27,6 +27,23 @@ func TestSymbolTouchesHunk(t *testing.T) {
 	}
 }
 
+func TestTracePathForwardsDefinitionScope(t *testing.T) {
+	idx := &mockIndexer{}
+	registry := Default(workspace.New([]workspace.RepoInfo{{Key: "api", Root: t.TempDir()}}, "api"), idx)
+	_, err := registry.Call(context.Background(), "trace_path", json.RawMessage(
+		`{"name":"Save","repo":"api","path_prefix":"src/store.ts","direction":"in","edge_kind":"calls","max_depth":1}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := indexctl.TracePathOptions{
+		Name: "Save", Repo: "api", PathPrefix: "src/store.ts", Direction: "in", EdgeKind: "calls", MaxDepth: 1,
+	}
+	if idx.lastTrace != want {
+		t.Fatalf("trace must retain the chosen definition's repo/path and traversal: got %+v, want %+v", idx.lastTrace, want)
+	}
+}
+
 func TestGetArchitectureUsesHubsAndLanguages(t *testing.T) {
 	idx := &mockIndexer{
 		graphStats: indexctl.GraphStats{

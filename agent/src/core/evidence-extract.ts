@@ -122,7 +122,7 @@ export function extractGrepMatches(output: unknown): SearchResult[] {
   return out;
 }
 
-/** find_references may return {source, graph} or {source, matches} (or legacy grep array). */
+/** find_references can combine graph and lexical evidence (or a legacy grep array). */
 export function extractFindReferences(output: unknown): SearchResult[] {
   if (Array.isArray(output)) {
     return extractGrepMatches(output);
@@ -133,15 +133,10 @@ export function extractFindReferences(output: unknown): SearchResult[] {
   }
 
   const row = output as Record<string, unknown>;
-  if (Array.isArray(row.graph)) {
-    return extractGraphEdges(row.graph);
-  }
-
-  if (Array.isArray(row.matches)) {
-    return extractGrepMatches(row.matches);
-  }
-
-  return [];
+  return [
+    ...extractGraphEdges(Array.isArray(row.graph) ? row.graph : []),
+    ...extractGrepMatches(row.matches),
+  ];
 }
 
 export function extractGraphHops(output: unknown): SearchResult[] {
@@ -178,6 +173,8 @@ function extractGraphEdges(rows: unknown[]): SearchResult[] {
     const start = line > 0 ? line : 1;
     out.push({
       id: typeof e.src === 'number' ? e.src : 0,
+      ...(typeof e.src_repo === 'string' && e.src_repo ? { repo: e.src_repo } :
+        typeof e.repo === 'string' && e.repo ? { repo: e.repo } : {}),
       path,
       symbol,
       start_line: start,

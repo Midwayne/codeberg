@@ -1,5 +1,6 @@
 #include "codeberg/codeberg.h"
 
+#include "../src/common/json_fields.h"
 #include "json_mini.h"
 
 #include <stdio.h>
@@ -35,6 +36,12 @@ static void test_search_hits(void) {
 }
 
 int main(void) {
+    const char *manifest = "{\"private\":false,\"nested\":{\"name\":\"decoy\"},\"optional\":null,\"name\":\"@quality/storage\"}";
+    char name[64];
+    CHECK(cberg_json_string_copy(cberg_json_object_field(manifest, "name"), name, sizeof name) == 0, "read manifest name after literals and nested objects");
+    CHECK(strcmp(name, "@quality/storage") == 0, "nested names cannot identify a provider");
+    CHECK(cberg_json_string_copy("\"escaped\\nname\"", name, sizeof name) != 0, "unsupported escaped paths remain unresolved");
+    CHECK(cberg_json_object_field("{\"nested\":{\"x\":\"\\", "name") == NULL, "truncated escape is rejected safely");
     test_collection_dim();
     test_search_hits();
     if (failures == 0) {

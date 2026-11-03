@@ -1,0 +1,3 @@
+calls	main.go	5	storage/save.go	2
+calls	main.go	6	storage/load.go	2
+calls	main.go	7	main.go	3

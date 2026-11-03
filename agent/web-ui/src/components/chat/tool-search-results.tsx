@@ -89,7 +89,7 @@ export function FindReferencesResults({ part }: FindReferencesResultsProps) {
       ? String((part.output as { source?: string }).source ?? '')
       : '';
   const symbol = part.input && typeof part.input === 'object' ? (part.input as { symbol?: string }).symbol : undefined;
-  const label = source === 'graph' ? 'graph refs' : 'grep refs';
+  const label = source === 'graph+grep' ? 'graph + grep refs' : source === 'graph' ? 'graph refs' : 'grep refs';
 
   return (
     <HitList

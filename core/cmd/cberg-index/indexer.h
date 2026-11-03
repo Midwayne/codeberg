@@ -41,7 +41,7 @@ typedef struct cberg_repo {
     cberg_watcher *watcher;
     cberg_index *index;
     struct cberg_import_cache *import_cache; /* owns package paths; guarded by mu */
-    cberg_graph *graph; /* structural sidecar (ADR 0005); NULL when disabled */
+    cberg_graph *graph;                      /* structural sidecar (ADR 0005); NULL when disabled */
 
     pthread_mutex_t mu;
     int ready;
@@ -65,14 +65,16 @@ struct cberg_engine {
     char *vectordb_api_key;
     char *postgres_url;
 
-    cberg_chunker *chunker;   /* main (bootstrap/watch) thread only */
-    cberg_embedder *embedder; /* ONE per process; call only via cberg_engine_embed */
+    cberg_chunker *chunker;          /* main (bootstrap/watch) thread only */
+    cberg_embedder *embedder;        /* ONE per process; call only via cberg_engine_embed */
     cberg_embed_config embed_config; /* model_path borrows engine-owned storage */
-    size_t embed_dim; /* stable even while the model is unloaded */
+    size_t embed_dim;                /* stable even while the model is unloaded */
     unsigned embed_idle_seconds;
-    double embed_last_used; /* monotonic seconds; guarded by embed_mu */
+    double embed_last_used;   /* monotonic seconds; guarded by embed_mu */
     pthread_mutex_t embed_mu; /* serializes every cberg_embedder_embed call */
-    pthread_mutex_t work_mu; /* IPC tries this lock; watched updates hold it */
+    pthread_mutex_t work_mu;  /* IPC tries this lock; watched updates hold it */
+    pthread_mutex_t graph_mu; /* serializes workspace graph snapshots and queries */
+    struct cberg_workspace_cache *workspace_graph;
     atomic_int updating;
 
     cberg_repo **repos;
@@ -91,8 +93,7 @@ void cberg_engine_close(cberg_engine *eng);
 /* Internal embedding lifecycle. Lazy reload and eviction serialize with inference. */
 cberg_status cberg_engine_open_embedder(cberg_engine *eng);
 void cberg_engine_trim_embedder(cberg_engine *eng);
-cberg_status cberg_engine_embed(cberg_engine *eng, const char *const *texts, const size_t *lens,
-                               size_t count, int query, float **out_vectors);
+cberg_status cberg_engine_embed(cberg_engine *eng, const char *const *texts, const size_t *lens, size_t count, int query, float **out_vectors);
 
 cberg_status cberg_repo_bootstrap(cberg_repo *r);
 
@@ -193,6 +194,8 @@ typedef struct cberg_engine_graph_edge {
     char dst_name[256];
     char src_path[512];
     char dst_path[512];
+    char src_repo[256];
+    char dst_repo[256];
 } cberg_engine_graph_edge;
 
 typedef struct cberg_engine_graph_hop {

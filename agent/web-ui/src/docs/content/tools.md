@@ -7,12 +7,56 @@ Describe the outcome you want. The agent chooses tools to search your selected p
 | `search_code`, `hybrid_search` | Find relevant source; these tools are registered when embeddings are enabled. |
 | `grep`, `glob` | Match exact text or paths. |
 | `find_symbol`, chunk tools | Locate declarations and indexed source pieces. |
+| `search_graph`, `trace_path`, `find_references` | Inspect structural relationships and symbol usage; available without embeddings after parsing. |
 | `read_file`, `head`, `tail`, `sed` | Read current files or focused ranges. |
 | `list_dir`, `tree` | Browse the source tree. |
 | `git_log`, `git_blame` | Inspect Git history; requires Git. |
 | Context and knowledge tools | Reuse evidence and [saved findings](/docs/knowledge). |
 
 Built-in daemon source tools are read-only and scoped to configured roots. [MCP servers](/docs/mcps) can add operations, including writes to external services. [Skills](/docs/skills) add instructions rather than callable tools.
+
+## Choose a graph tool
+
+The source-code graph describes parsed relationships between files and symbols. It works without embeddings after parsing. Start with the question you want to answer:
+
+| Question | Tool | What to expect |
+| --- | --- | --- |
+| Where should I start in this codebase? | `get_architecture` | Indexed size, language mix, highly connected call symbols, and candidate entrypoints. |
+| Which definition of `Save` is this? | `search_graph` | Exact, case-sensitive name lookup with repo, kind, path, and line range. Use `grep` to discover unknown names. |
+| Who calls it, or what does it call? | `trace_path` | Follow calls with `direction: "in"` for callers or `"out"` for callees. Set `max_depth: 1` for direct relationships. Defaults follow both directions for two steps. |
+| Where else is this symbol used? | `find_references` | Graph relationships plus additional text matches, including possible unresolved uses. |
+| What might a change affect? | `detect_changes` | Changed symbols in the selected/default Git repository and nearby callers/callees across configured roots. Direct/transitive labels indicate graph proximity, rather than confirmed breakage. |
+
+For example, ask:
+
+```text
+Find Save in storage/src/store.ts and show its direct callers.
+Check the source lines before explaining what each caller does.
+```
+
+The agent can locate the definition with `search_graph`, then pass its `repo` and relative file path as `trace_path`'s `path_prefix`. These filters select the starting definition; they do not restrict later hops. Import-backed relationships can cross into other roots configured in the same workspace. Keep the repo key with each returned ID and path. Use a file node with `edge_kind: "imports"` for file dependencies, or a type with `"contains"` for its members.
+
+Graph confidence is a heuristic, not a measured probability. Same-name methods may remain ambiguous, and aliases or dynamic relationships may be missing. Verify the returned source and continue with text/file tools when needed; an empty graph result does not prove absence. HTTP/RPC relationships need source tracing through clients, routes, and configuration. See [Language and cross-repo limits](/docs/indexing#follow-dependencies-across-repositories).
+
+## Inspect symbol usage
+
+Use `find_references` to combine graph usages with word-boundary text matches. The response keeps graph edges in `graph` and additional lexical evidence in `matches`; the UI displays both. A graph hit no longer prevents the tool from checking file contents. Lexical matches at a graph hit's file and line are deduplicated.
+
+| Option or result | Meaning |
+| --- | --- |
+| `symbol` | Exact symbol spelling; lexical search uses word boundaries. |
+| `repo` | Select the graph target's repository; incoming graph callers may belong to other configured roots. Lexical matches use this repo when supplied, or all configured roots when omitted. |
+| `path_prefix` | Restrict graph target lookup by path prefix. |
+| `path_glob` | Restrict lexical matches to matching files. |
+| `limit` | Shared budget for graph edges and additional lexical matches: default 50, maximum 200. Graph edges have priority. |
+| `source` | `graph`, `grep`, or `graph+grep`, according to returned evidence. |
+| `partial` | Always true: the result does not prove that every usage has been found. |
+| `limit_reached` | A source reached its retrieval limit or the combined budget excluded evidence. Narrow the scope and repeat. |
+| `graph_error`, `lexical_error` | An unavailable source; usable evidence from the other source is retained. |
+
+Graph edges carry `src_repo` and `dst_repo`; lexical matches carry `repo`. Deduplication uses the source repo, path, and line, so identical paths in different roots remain distinct. IPC clipping also sets `limit_reached` and reports a graph coverage error while preserving usable edges, including when lexical search also fails.
+
+Text matches may include declarations and comments, and graph confidence is heuristic. An empty result does not prove that a symbol is unused. Callers and non-call references have different edge kinds; inspect the evidence before changing a public interface. See [Graph coverage and limits](/docs/indexing#follow-callers-and-references) and [Cross-repo dependencies](/docs/indexing#follow-dependencies-across-repositories).
 
 ## Schedule a follow-up
 

@@ -133,7 +133,7 @@ search_graph\t<name>[\t<repo>[\t<kind>[\t<path_prefix>[\t<limit>]]]]
 | Field | Required | Description |
 |-------|----------|-------------|
 | name | yes | Exact node name |
-| repo | no | Restrict to one repo key (default: first ready repo with a graph) |
+| repo | no | Restrict starting definitions to one repo key (default: all configured roots) |
 | kind | no | `file`, `function`, `method`, `class`, `struct`, `interface`, `module`, or `symbol` |
 | path_prefix | no | Component-aware path prefix (`foo` matches `foo` / `foo/bar`, not `foobar`) |
 | limit | no | Max results (default 20; IPC stack cap 64) |
@@ -210,8 +210,23 @@ Response:
 
 ### `graph_refs`
 
-Incoming CALLS/INHERITS/IMPORTS edges for a symbol (used by daemon `find_references`).
-`REFERENCES` is reserved and not extracted yet.
+Incoming CALLS/INHERITS/IMPORTS/REFERENCES edges for a symbol (used by daemon `find_references`).
+`REFERENCES` contains non-call symbol uses in Go, TypeScript, and JavaScript,
+including callback and type-name references. `graph_refs` includes these edges
+alongside calls, imports, and inheritance. Resolution remains syntactic and
+partial; lexical scope, import aliases, and known receivers constrain candidates.
+
+In a multi-root engine, graph search and references without `repo` inspect all
+configured roots. `repo` scopes starting definitions; imports can carry a trace
+or incoming caller across roots. Edges/hops include `src_repo` and `dst_repo`;
+numeric IDs and relative paths remain native to those repositories. An unscoped
+trace whose name matches definitions in multiple roots returns `invalid argument`;
+provide `repo` to select its starting definition. `graph_stats` aggregates all
+roots when repo is omitted (empty response `repo` denotes that aggregate).
+
+`graph_refs` accepts up to 256 edges on the wire; the daemon tool uses at most
+200. The JSON byte budget may clip fewer edges, setting `truncated: true`.
+The daemon preserves usable edges and reports this coverage limit to the agent.
 
 Request:
 

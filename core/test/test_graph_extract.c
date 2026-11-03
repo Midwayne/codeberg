@@ -218,13 +218,23 @@ static void test_ruby_require(void) {
 static void test_non_code(void) {
     cberg_chunker *ch = NULL;
     CHECK(cberg_chunker_open(&ch) == CBERG_OK, "chunker open");
-    const char *md = "# Title\n\nBody text.\n";
+    const struct {
+        cberg_language language;
+        const char *path, *body;
+    } formats[] = {
+        {CBERG_LANG_MARKDOWN, "README.md", "# Title\n\nBody text.\n"},
+        {CBERG_LANG_YAML, "config.yaml", "name: example\nport: 8080\n"},
+        {CBERG_LANG_TOML, "config.toml", "[project]\nname = 'example'\n"},
+        {CBERG_LANG_JSON, "config.json", "{\"name\":\"example\"}\n"},
+    };
     cberg_chunk_list *list = NULL;
     cberg_graph_fragment *frag = NULL;
-    CHECK(cberg_chunker_analyze(ch, CBERG_LANG_MARKDOWN, "README.md", md, strlen(md), &list, &frag) == CBERG_OK, "analyze markdown");
-    CHECK(list != NULL && cberg_chunk_list_len(list) > 0, "markdown still chunks");
-    CHECK(frag == NULL, "markdown yields no fragment");
-    cberg_chunk_list_free(list);
+    for (size_t i = 0; i < sizeof formats / sizeof formats[0]; i++) {
+        CHECK(cberg_chunker_analyze(ch, formats[i].language, formats[i].path, formats[i].body, strlen(formats[i].body), &list, &frag) == CBERG_OK, "analyze document/config");
+        CHECK(list != NULL && cberg_chunk_list_len(list) > 0, "document/config still chunks");
+        CHECK(frag == NULL, "document/config yields no code graph fragment");
+        cberg_chunk_list_free(list);
+    }
 
     const char *go = "package p\nfunc f() {}\n";
     CHECK(cberg_chunker_analyze(ch, CBERG_LANG_GO, "f.go", go, strlen(go), &list, &frag) == CBERG_OK, "analyze go");

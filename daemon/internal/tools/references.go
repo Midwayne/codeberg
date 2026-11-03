@@ -2,18 +2,20 @@ package tools
 
 import (
 	"context"
-	"fmt"
-	"regexp"
 
 	"codeberg.org/codeberg/daemon/internal/indexctl"
 	"codeberg.org/codeberg/daemon/internal/workspace"
 )
 
-// findReferencesResult is graph-first when possible, with grep fallback.
+// Graph and lexical evidence are both bounded and may be incomplete.
 type findReferencesResult struct {
-	Source  string                `json:"source"` // "graph" or "grep"
-	Graph   []indexctl.GraphEdge  `json:"graph,omitempty"`
-	Matches []workspace.GrepMatch `json:"matches,omitempty"`
+	Source       string                `json:"source"` // "graph", "grep", or "graph+grep"
+	Graph        []indexctl.GraphEdge  `json:"graph,omitempty"`
+	Matches      []workspace.GrepMatch `json:"matches,omitempty"`
+	Partial      bool                  `json:"partial"`
+	LimitReached bool                  `json:"limit_reached"`
+	GraphError   string                `json:"graph_error,omitempty"`
+	LexicalError string                `json:"lexical_error,omitempty"`
 }
 
 func findReferencesTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
@@ -21,42 +23,22 @@ func findReferencesTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "symbol": {"type": "string", "description": "symbol name to find references for"},
-    "repo": {"type": "string", "description": "repo key"},
-    "path_prefix": {"type": "string", "description": "restrict graph lookup to nodes under this path prefix"},
-    "path_glob": {"type": "string", "description": "restrict grep fallback to files matching glob"},
-    "limit": {"type": "integer", "description": "max matches (default 50)"}
+    "symbol": {"type": "string", "description": "exact symbol spelling; graph lookup and case-sensitive word-boundary text search use this name"},
+    "repo": {"type": "string", "description": "target repo key; omitted searches all configured roots. Incoming graph callers may be in another repo; lexical lookup uses this repo when supplied"},
+    "path_prefix": {"type": "string", "description": "target definition's relative file path or directory prefix; affects graph lookup, not lexical matches"},
+    "path_glob": {"type": "string", "description": "restrict lexical evidence to files matching glob"},
+    "limit": {"type": "integer", "description": "combined result limit (default 50, maximum 200)"}
   },
   "required": ["symbol"]
 }`
 
 	return New("find_references",
-		"Find usages of a symbol: prefers knowledge-graph edges (with resolution/confidence), falls back to word-boundary grep.",
+		"Find possible usages of a known symbol when you need broader coverage than a call trace. "+
+			"Combines graph relationships with additional word-boundary text matches, including unresolved uses; text may also contain declarations or comments. "+
+			"Use repo/path_prefix to narrow the graph target; omit repo to search all configured roots. Incoming graph callers may be in another repo. "+
+			"Returns graph, matches, partial, limit_reached, and per-source errors. Results are always partial; empty results do not establish that a symbol is unused. Works without embeddings.",
 		schema,
 		func(ctx context.Context, a findReferencesArgs) (any, error) {
-			limit := a.Limit
-			if limit <= 0 {
-				limit = 50
-			}
-
-			edges, err := idx.GraphRefs(ctx, indexctl.GraphRefsOptions{
-				Name:       a.Symbol,
-				Repo:       a.Repo,
-				PathPrefix: a.PathPrefix,
-				Limit:      limit,
-			})
-			if err == nil && len(edges) > 0 {
-				return findReferencesResult{Source: "graph", Graph: edges}, nil
-			}
-
-			pattern := fmt.Sprintf(`\b%s\b`, regexp.QuoteMeta(a.Symbol))
-			matches, gerr := ws.Grep(ctx, pattern, false, a.Repo, a.PathGlob, limit)
-			if gerr != nil {
-				if err != nil {
-					return nil, err
-				}
-				return nil, gerr
-			}
-			return findReferencesResult{Source: "grep", Matches: matches}, nil
+			return collectReferences(ctx, idx, ws, a)
 		})
 }

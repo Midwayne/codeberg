@@ -6,6 +6,9 @@ import (
 	"strings"
 )
 
+// ErrTruncated accompanies usable graph references when IPC clipped the response.
+var ErrTruncated = errors.New("indexer: graph references truncated")
+
 // IndexerError is a structured error from the C indexer IPC layer.
 type IndexerError struct {
 	Code    string

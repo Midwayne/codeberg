@@ -25,7 +25,7 @@
 #include "walk_policy.h"
 
 typedef struct cberg_import_cache {
-    cberg_strmap *file_set; /* source membership detects create+modify event coalescing */
+    cberg_strmap *file_set;       /* source membership detects create+modify event coalescing */
     cberg_strmap *import_to_file; /* import string -> arena path */
     cberg_arena *arena;
     char **file_paths; /* all indexed-looking source paths (rel) */
@@ -462,7 +462,10 @@ static cberg_status resolve_with_cache(cberg_graph *graph, pkg_index *idx) {
             }
             const char *file = NULL;
             uint64_t mapped = 0;
-            if (cberg_strmap_get(idx->import_to_file, mod->name, &mapped)) {
+            if (import_is_relative(mod->name)) {
+                const cberg_graph_node *source = cberg_graph_node_by_id(graph, file_id);
+                file = source != NULL ? cberg_graph_relative_file(source->path, mod->name, idx->file_paths, idx->file_len) : NULL;
+            } else if (cberg_strmap_get(idx->import_to_file, mod->name, &mapped)) {
                 file = (const char *)(uintptr_t)mapped;
             } else {
                 file = find_file_for_import(idx, mod->name);
@@ -503,6 +506,10 @@ cberg_status cberg_graph_resolve_cached(cberg_graph *graph, const char *root, cb
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     if (*cache == NULL) {
+        cberg_status reset = cberg_graph_reset_imports(graph);
+        if (reset != CBERG_OK)
+            return reset;
+
         cberg_status st = import_cache_build(root, cache);
         if (st != CBERG_OK) {
             return st;

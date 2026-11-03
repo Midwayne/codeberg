@@ -1,0 +1,2 @@
+imports	sub/main.ts	1	shared/index.ts	0
+calls	sub/main.ts	3	shared/index.ts	1

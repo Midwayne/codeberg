@@ -27,6 +27,13 @@ work directly in the browser UI (`codeberg --all`).
 
 ## Project selection and the registry
 
+Structural search, references, hubs, and architecture also inspect all roots
+selected together. Import-backed graph edges can cross those roots; returned
+IDs and relative paths are qualified by repository keys. Select a `repo` for an
+ambiguous trace start. Separately selected browser projects remain isolated.
+See the [setup and language limits](../agent/web-ui/src/docs/content/indexing.md#follow-dependencies-across-repositories)
+and the [all-language quality report](benchmarks/graph-quality/all-languages.md).
+
 Normal startup restores the browser project catalog. With no saved projects,
 Codeberg shows **Add a project to get started** and stays idle. Use **Add
 project** to choose directories; deleting the last project returns to this state.

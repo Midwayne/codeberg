@@ -164,8 +164,7 @@ static void append_progress(cberg_engine *eng, char *resp, size_t cap, size_t *o
     }
     char key[256];
     json_escape(active->key, key, sizeof(key));
-    json_appendf(resp, cap, off, ",\"progress\":{\"repo\":\"%s\",\"phase\":\"%s\",\"completed\":%zu,\"total\":%zu}",
-                 key, atomic_load(&active->progress_phase), completed, total);
+    json_appendf(resp, cap, off, ",\"progress\":{\"repo\":\"%s\",\"phase\":\"%s\",\"completed\":%zu,\"total\":%zu}", key, atomic_load(&active->progress_phase), completed, total);
 }
 
 static void handle_status(cberg_engine *eng, int fd) {
@@ -459,10 +458,16 @@ static int write_gnode_json(char *resp, size_t cap, size_t *off, const cberg_eng
     json_escape(n->name, esc_name, sizeof(esc_name));
     json_escape(n->qname, esc_qname, sizeof(esc_qname));
     json_escape(n->path, esc_path, sizeof(esc_path));
-    return json_appendf(resp, cap, off,
-                        "{\"id\":%llu,\"repo\":\"%s\",\"kind\":\"%s\",\"name\":\"%s\",\"qname\":\"%s\","
-                        "\"path\":\"%s\",\"start_line\":%u,\"end_line\":%u}",
-                        (unsigned long long)n->id, esc_repo, esc_kind, esc_name, esc_qname, esc_path, n->start_line, n->end_line);
+    return json_appendf(resp, cap, off, "{\"id\":%llu,\"repo\":\"%s\",\"kind\":\"%s\",\"name\":\"%s\",\"qname\":\"%s\","
+                                        "\"path\":\"%s\",\"start_line\":%u,\"end_line\":%u}",
+                        (unsigned long long)n->id,
+                        esc_repo,
+                        esc_kind,
+                        esc_name,
+                        esc_qname,
+                        esc_path,
+                        n->start_line,
+                        n->end_line);
 }
 
 static int write_gedge_json(char *resp, size_t cap, size_t *off, const cberg_engine_graph_edge *e) {
@@ -472,17 +477,29 @@ static int write_gedge_json(char *resp, size_t cap, size_t *off, const cberg_eng
     char esc_dst_name[512];
     char esc_src_path[1024];
     char esc_dst_path[1024];
+    char esc_src_repo[512], esc_dst_repo[512];
     json_escape(e->kind, esc_kind, sizeof(esc_kind));
     json_escape(e->resolution, esc_res, sizeof(esc_res));
     json_escape(e->src_name, esc_src_name, sizeof(esc_src_name));
     json_escape(e->dst_name, esc_dst_name, sizeof(esc_dst_name));
     json_escape(e->src_path, esc_src_path, sizeof(esc_src_path));
     json_escape(e->dst_path, esc_dst_path, sizeof(esc_dst_path));
-    return json_appendf(resp, cap, off,
-                        "{\"src\":%llu,\"dst\":%llu,\"kind\":\"%s\",\"resolution\":\"%s\",\"confidence\":%.4f,"
-                        "\"line\":%u,\"src_name\":\"%s\",\"dst_name\":\"%s\",\"src_path\":\"%s\",\"dst_path\":\"%s\"}",
-                        (unsigned long long)e->src, (unsigned long long)e->dst, esc_kind, esc_res, (double)e->confidence, e->line,
-                        esc_src_name, esc_dst_name, esc_src_path, esc_dst_path);
+    json_escape(e->src_repo, esc_src_repo, sizeof(esc_src_repo));
+    json_escape(e->dst_repo, esc_dst_repo, sizeof(esc_dst_repo));
+    return json_appendf(resp, cap, off, "{\"src\":%llu,\"dst\":%llu,\"kind\":\"%s\",\"resolution\":\"%s\",\"confidence\":%.4f,"
+                                        "\"line\":%u,\"src_name\":\"%s\",\"dst_name\":\"%s\",\"src_path\":\"%s\",\"dst_path\":\"%s\",\"src_repo\":\"%s\",\"dst_repo\":\"%s\"}",
+                        (unsigned long long)e->src,
+                        (unsigned long long)e->dst,
+                        esc_kind,
+                        esc_res,
+                        (double)e->confidence,
+                        e->line,
+                        esc_src_name,
+                        esc_dst_name,
+                        esc_src_path,
+                        esc_dst_path,
+                        esc_src_repo,
+                        esc_dst_repo);
 }
 
 static size_t ipc_clamp_want(size_t limit, size_t cap) {
@@ -629,9 +646,7 @@ static void handle_graph_stats(cberg_engine *eng, int fd, char *args) {
     char esc_repo[256];
     json_escape(stats.repo != NULL ? stats.repo : "", esc_repo, sizeof(esc_repo));
     char resp[4096];
-    size_t off = (size_t)snprintf(resp, sizeof(resp),
-                                  "{\"ok\":true,\"repo\":\"%s\",\"nodes\":%zu,\"refs\":%zu,\"enabled\":%s,\"languages\":[", esc_repo,
-                                  stats.nodes, stats.refs, stats.enabled ? "true" : "false");
+    size_t off = (size_t)snprintf(resp, sizeof(resp), "{\"ok\":true,\"repo\":\"%s\",\"nodes\":%zu,\"refs\":%zu,\"enabled\":%s,\"languages\":[", esc_repo, stats.nodes, stats.refs, stats.enabled ? "true" : "false");
     for (size_t i = 0; i < stats.languages_len && off + 96 < sizeof(resp); i++) {
         if (i > 0) {
             resp[off++] = ',';
@@ -716,7 +731,7 @@ static void handle_graph_refs(cberg_engine *eng, int fd, char *args) {
         }
     }
     char *path_prefix = null_if_empty(next_field(&cursor));
-    enum { IPC_GRAPH_REFS_CAP = 64 };
+    enum { IPC_GRAPH_REFS_CAP = 256 };
     size_t want = ipc_clamp_want(limit, IPC_GRAPH_REFS_CAP);
     cberg_engine_graph_edge edges[IPC_GRAPH_REFS_CAP];
     size_t found = 0;
@@ -943,7 +958,8 @@ static int ipc_start_at(cberg_engine *eng, const char *socket_path, int status_o
         strncpy(existing.sun_path, socket_path, sizeof(existing.sun_path) - 1);
         int connected = probe >= 0 && connect(probe, (struct sockaddr *)&existing, sizeof(existing)) == 0;
         int probe_errno = errno;
-        if (probe >= 0) close(probe);
+        if (probe >= 0)
+            close(probe);
         if (connected || probe < 0 || probe_errno != ECONNREFUSED || unlink(socket_path) != 0) {
             close(srv->lock_fd);
             free(srv);
@@ -956,7 +972,8 @@ static int ipc_start_at(cberg_engine *eng, const char *socket_path, int status_o
     }
     srv->listen_fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (srv->listen_fd < 0 || fcntl(srv->listen_fd, F_SETFD, FD_CLOEXEC) != 0) {
-        if (srv->listen_fd >= 0) close(srv->listen_fd);
+        if (srv->listen_fd >= 0)
+            close(srv->listen_fd);
         close(srv->lock_fd);
         free(srv);
         return -1;

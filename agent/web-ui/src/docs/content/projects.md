@@ -30,6 +30,8 @@ IDs follow the canonical source path. Symlinks to the same directory share a pro
 
 Older multi-repository startup configurations remain one **Existing workspace**, preserving their repository keys and combined search.
 
+To trace dependencies between repositories, select their roots together in one workspace. Structural search and references can inspect all those roots, and import-backed edges can cross between them. Repository keys distinguish identical file paths and symbol IDs. Independently selected projects remain isolated. See [Cross-repo graph setup and limits](/docs/indexing#follow-dependencies-across-repositories).
+
 ## Inspect or rename
 
 Open **Settings → Projects** to see source paths, IDs, config directories, and current selection. Use the copy controls to locate files.

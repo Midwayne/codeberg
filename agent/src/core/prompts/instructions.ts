@@ -12,11 +12,12 @@ ${history ? '- search_learning: search raw graded interaction history when corre
 - find_symbol: exact symbol lookup in the chunk index (case-insensitive). Use for known function/class/type names; works without vector search.
 - file_outline: list indexed chunks in a file (functions, classes, methods) with line ranges.
 ${vectors ? '- hybrid_search: fuse independent semantic and exact-text results. Top results include bounded context. Lexical-only hits have id=0; use read_file for more context instead of get_chunk.' : ''}
-- search_graph: structural symbol search over the knowledge graph (exact name → node ids/kinds/paths).
-- trace_path: BFS over call/import/inherit edges from a symbol. Prefer for callers/callees and blast-radius questions. Edges carry resolution and confidence — treat textual links as hints.
-- detect_changes: git diff → symbols in changed files → 1–2 hop neighbors (direct vs transitive risk).
-- get_architecture: repo overview — graph size, language mix, call hubs, entrypoints (main/handlers).
-- find_references: graph-first usages of a symbol (falls back to word-boundary grep).
+- search_graph: locate a known, exact, case-sensitive symbol in the source-code graph. Use returned repo/kind/path/lines to choose a definition before tracing; use find_symbol/get_chunk for source bodies.
+- trace_path: follow source-code relationships. For calls, direction=in finds callers and out finds callees; max_depth=1 gives direct relationships (defaults: both directions, depth 2). repo and path_prefix scope the starting definition; later hops can cross imports into other configured roots.
+- detect_changes: review a Git diff's changed symbols and nearby callers/callees. Direct/transitive labels describe graph proximity, not confirmed breakage.
+- get_architecture: initial overview of indexed size, language mix, call hubs (highly connected symbols), and candidate entrypoints; omit repo to inspect all configured roots.
+- find_references: partial graph usages plus word-boundary grep evidence. Omit repo to inspect all configured roots; repo selects a graph target and scopes lexical lookup. Preserve src_repo/dst_repo on cross-repo edges. Inspect limit_reached and source errors; text matches can include declarations/comments.
+Graph confidence is heuristic, not a probability. Verify source and keep repo with IDs/paths. Java/Kotlin/Rust/Ruby same-name methods can yield several candidates; aliases and dynamic calls may be missing. Empty graph results do not prove absence. Trace HTTP/RPC relationships through clients, routes, and configuration.
 - grep: case-sensitive exact text or regex search over files. Use for symbols, routes, table names, config keys, queue names, event names, endpoint names, imports, and function names. Set \`literal: true\` for plain text; otherwise the pattern is a regex. In multi-repo mode pass the exact \`repo\` key. A \`path_glob\` matches paths inside that repo, so use \`**/name/**\` for a directory rather than the repo key itself. If a plausible search returns zero, retry once with fewer constraints or a case-insensitive regex such as \`(?i)rollups\`.
 - glob: find files by pattern.
 - read_file: read file content or a specific line range — use when you need lines outside indexed chunk boundaries or get_chunk's span is insufficient for the question.
@@ -33,7 +34,7 @@ General strategy:
 ${knowledge || history ? `0. For complex codebase questions, ${knowledge ? 'search_knowledge first' : ''}${knowledge && history ? ' and ' : ''}${history ? 'search_learning when prior attempts may help' : ''}; current source remains authoritative.` : ''}
 1. Call repos first in multi-repo mode if repo keys are unknown.
 2. Meaning / conceptual discovery → ${vectors ? 'search_code or hybrid_search.' : 'grep for related terms, glob for likely paths, then find_symbol and file_outline to navigate source.'}
-3. Structure (callers, callees, imports, inheritance) → trace_path or search_graph; use find_references for usages; detect_changes for PR blast radius; get_architecture for repo overview.
+3. Structure → search_graph to select the definition, then trace_path with explicit direction and depth; use find_references for broader usages, detect_changes for diff impact, and get_architecture for an initial overview.
 4. Exact string / route / config key → grep (or pipe).
 5. Use find_symbol for known symbol names in the chunk table; search_graph when you need graph node metadata.
 6. Inspect the body/context included with search hits before calling another tool. ${vectors ? 'After search_code, use get_chunk(repo, id) only when the body is absent or truncated; after lexical-only hybrid hits (id=0), use read_file for additional lines.' : 'Use get_chunk for indexed symbol bodies and read_file for additional lines.'}

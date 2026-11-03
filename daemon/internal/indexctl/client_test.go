@@ -82,6 +82,17 @@ func TestClientStatusAndSearch(t *testing.T) {
 	}
 }
 
+func TestGraphRefsCoverage(t *testing.T) {
+	socket := startMockIndexer(t, func(string) []byte {
+		return []byte(`{"ok":true,"results":[{"src":1,"dst":1,"src_repo":"api","dst_repo":"storage","src_path":"main.go","dst_path":"main.go"}],"truncated":true}` + "\n")
+	})
+
+	edges, err := indexctl.NewClient(socket).GraphRefs(context.Background(), indexctl.GraphRefsOptions{Name: "Save"})
+	if len(edges) != 1 || edges[0].SrcRepo != "api" || edges[0].DstRepo != "storage" || err == nil {
+		t.Fatalf("truncation must preserve usable repository-qualified edges and report missing coverage: %+v, %v", edges, err)
+	}
+}
+
 func TestClientSearchLargeResponse(t *testing.T) {
 	// A batch of snippets can exceed bufio.Scanner's default 64 KiB token limit.
 	snippet := strings.Repeat("x", 80*1024)

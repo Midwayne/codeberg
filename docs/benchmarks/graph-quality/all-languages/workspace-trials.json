@@ -1,0 +1,642 @@
+[
+  {
+    "trial": 1,
+    "records": [
+      {
+        "benchmark": "workspace_view",
+        "cold_ms": 0.34,
+        "warm_queries": 200,
+        "warm_total_ms": 0.946
+      },
+      {
+        "case": "cross-go",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-go-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-typescript",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-typescript-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-javascript",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-javascript-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-c",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-c-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-python",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-python-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-java",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-java-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-kotlin",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-kotlin-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-rust",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-rust-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-ruby",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-ruby-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      }
+    ]
+  },
+  {
+    "trial": 2,
+    "records": [
+      {
+        "benchmark": "workspace_view",
+        "cold_ms": 0.245,
+        "warm_queries": 200,
+        "warm_total_ms": 1.051
+      },
+      {
+        "case": "cross-go",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-go-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-typescript",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-typescript-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-javascript",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-javascript-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-c",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-c-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-python",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-python-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-java",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-java-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-kotlin",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-kotlin-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-rust",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-rust-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-ruby",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-ruby-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      }
+    ]
+  },
+  {
+    "trial": 3,
+    "records": [
+      {
+        "benchmark": "workspace_view",
+        "cold_ms": 0.37,
+        "warm_queries": 200,
+        "warm_total_ms": 1.042
+      },
+      {
+        "case": "cross-go",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-go-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-typescript",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-typescript-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-javascript",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-javascript-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-c",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-c-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-python",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-python-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-java",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-java-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-kotlin",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-kotlin-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-rust",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-rust-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-ruby",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-ruby-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      }
+    ]
+  },
+  {
+    "trial": 4,
+    "records": [
+      {
+        "benchmark": "workspace_view",
+        "cold_ms": 0.421,
+        "warm_queries": 200,
+        "warm_total_ms": 1.012
+      },
+      {
+        "case": "cross-go",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-go-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-typescript",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-typescript-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-javascript",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-javascript-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-c",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-c-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-python",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-python-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-java",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-java-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-kotlin",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-kotlin-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-rust",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-rust-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-ruby",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-ruby-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      }
+    ]
+  },
+  {
+    "trial": 5,
+    "records": [
+      {
+        "benchmark": "workspace_view",
+        "cold_ms": 0.241,
+        "warm_queries": 200,
+        "warm_total_ms": 0.998
+      },
+      {
+        "case": "cross-go",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-go-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-typescript",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-typescript-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-javascript",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-javascript-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-c",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-c-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-python",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-python-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-java",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-java-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-kotlin",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-kotlin-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-rust",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-rust-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      },
+      {
+        "case": "cross-ruby",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      {
+        "case": "cross-ruby-decoy",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "negative_sites": 1
+      }
+    ]
+  }
+]

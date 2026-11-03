@@ -1,0 +1,4 @@
+imports	a/main.ts	1	a/util.ts	0
+calls	a/main.ts	3	a/util.ts	1
+imports	b/main.ts	1	b/util.ts	0
+calls	b/main.ts	3	b/util.ts	1

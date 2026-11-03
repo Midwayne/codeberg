@@ -23,6 +23,7 @@
 #include "grow.h"
 #include "strmap.h"
 #include "u64map.h"
+#include "workspace_graph.h"
 
 #define GRAPH_CONF_EXACT 1.0f
 #define GRAPH_CONF_SAME_FILE 0.90f
@@ -41,7 +42,9 @@
 
 typedef struct graph_node_rec {
     cberg_graph_node pub; /* strings owned by the graph arena */
-    uint32_t name_next;   /* +1 encoded chain over same-name nodes; 0 = end */
+    const char *repo;     /* workspace view only, graph arena */
+    uint64_t native_id;
+    uint32_t name_next; /* +1 encoded chain over same-name nodes; 0 = end */
     uint32_t path_next;
     uint8_t dead;
 } graph_node_rec;
@@ -52,9 +55,12 @@ typedef struct graph_ref_rec {
     const char *name; /* arena; NULL when dst != 0 */
     const char *path; /* arena; owning file (removal unit) */
     uint32_t line;
-    uint8_t kind; /* one cberg_graph_edge_kind bit */
-    uint8_t rev;  /* reversed: resolved edge is (candidate -> src) */
+    uint8_t kind;       /* one cberg_graph_edge_kind bit */
+    uint8_t rev;        /* reversed: resolved edge is (candidate -> src) */
     uint8_t resolution; /* cberg_graph_resolution; persisted since CBERG_GRAPH_VERSION 1 */
+    uint8_t binding;
+    const char *module;
+    const char *owner;
     uint8_t dead;
     uint32_t name_next;
     uint32_t src_next;
@@ -63,12 +69,15 @@ typedef struct graph_ref_rec {
 } graph_ref_rec;
 
 struct cberg_graph {
+    uint64_t revision;
+    int workspace;
+    const char *scope; /* borrowed for the duration of a serialized query */
     cberg_arena *arena;
     graph_node_rec *nodes;
     size_t nodes_len, nodes_cap, nodes_dead;
     graph_ref_rec *refs;
     size_t refs_len, refs_cap, refs_dead;
-    cberg_u64map *node_by_id;  /* id -> node index+1 */
+    cberg_u64map *node_by_id; /* id -> node index+1 */
     cberg_strmap *node_by_name;
     cberg_strmap *node_by_path;
     cberg_u64map *ref_by_src; /* src id -> head ref index+1 */
@@ -215,6 +224,7 @@ static cberg_status graph_add_node(cberg_graph *g, const cberg_graph_node *pub) 
     /* Always consume the slot: maps may already point at `index`, so leaving
      * nodes_len unchanged would let the next insert reuse a live chain head. */
     g->nodes_len++;
+    g->revision++;
     if (st != CBERG_OK) {
         rec->dead = 1;
         g->nodes_dead++;
@@ -247,9 +257,13 @@ static cberg_status graph_add_ref(cberg_graph *g, const graph_ref_rec *tpl) {
     rec->kind = tpl->kind;
     rec->rev = tpl->rev;
     rec->resolution = tpl->resolution;
+    rec->binding = tpl->binding;
+    rec->module = tpl->module != NULL ? cberg_arena_strdup(g->arena, tpl->module) : NULL;
+    rec->owner = tpl->owner != NULL ? cberg_arena_strdup(g->arena, tpl->owner) : NULL;
     rec->name = tpl->name != NULL ? cberg_arena_strdup(g->arena, tpl->name) : NULL;
     rec->path = cberg_arena_strdup(g->arena, tpl->path);
-    if (rec->path == NULL || (tpl->name != NULL && rec->name == NULL)) {
+    if (rec->path == NULL || (tpl->name != NULL && rec->name == NULL) ||
+        (tpl->module != NULL && rec->module == NULL) || (tpl->owner != NULL && rec->owner == NULL)) {
         memset(rec, 0, sizeof(*rec));
         return CBERG_ERR_OUT_OF_MEMORY;
     }
@@ -266,6 +280,7 @@ static cberg_status graph_add_ref(cberg_graph *g, const graph_ref_rec *tpl) {
         st = chain_push_str(g->ref_by_path, rec->path, index, &rec->path_next);
     }
     g->refs_len++;
+    g->revision++;
     if (st != CBERG_OK) {
         rec->dead = 1;
         g->refs_dead++;
@@ -335,6 +350,13 @@ static cberg_status graph_compact(cberg_graph *g) {
             continue;
         }
         st = graph_add_node(fresh, &g->nodes[i].pub);
+        if (st == CBERG_OK && g->nodes[i].repo != NULL) {
+            graph_node_rec *copy = &fresh->nodes[fresh->nodes_len - 1];
+            copy->repo = cberg_arena_strdup(fresh->arena, g->nodes[i].repo);
+            copy->native_id = g->nodes[i].native_id;
+            if (copy->repo == NULL)
+                st = CBERG_ERR_OUT_OF_MEMORY;
+        }
     }
     for (size_t i = 0; i < g->refs_len && st == CBERG_OK; i++) {
         if (g->refs[i].dead) {
@@ -353,6 +375,9 @@ static cberg_status graph_compact(cberg_graph *g) {
         cberg_graph_free(fresh);
         return st;
     }
+    fresh->workspace = g->workspace;
+    fresh->scope = g->scope;
+    fresh->revision = g->revision + 1;
     cberg_graph old = *g;
     *g = *fresh;
     free(fresh);
@@ -442,6 +467,7 @@ const cberg_graph_node *cberg_graph_node_by_id(const cberg_graph *graph, uint64_
 
 /* Tombstone a file's nodes/refs without compacting (used by transactional apply). */
 static void graph_tombstone_file(cberg_graph *graph, const char *path) {
+    graph->revision++;
     uint64_t head = 0;
     if (cberg_strmap_get(graph->node_by_path, path, &head)) {
         for (uint32_t i = (uint32_t)head; i != 0; i = graph->nodes[i - 1].path_next) {
@@ -692,6 +718,10 @@ cberg_status cberg_graph_apply(cberg_graph *graph, const cberg_graph_fragment *f
             .line = fref->line,
             .kind = fref->kind,
             .rev = fref->rev,
+            .binding = fref->binding,
+            .module = fref->module,
+            .owner = fref->owner,
+            .resolution = fref->module != NULL ? CBERG_GRES_IMPORT : CBERG_GRES_TEXTUAL,
         };
         if (fref->dst_def >= 0) {
             rec.dst = def_ids[fref->dst_def];
@@ -699,6 +729,7 @@ cberg_status cberg_graph_apply(cberg_graph *graph, const cberg_graph_fragment *f
                 continue;
             }
         } else if (fref->kind == CBERG_GEDGE_IMPORTS) {
+            rec.name = fref->name;
             st = ensure_module_node(graph, fref->name, fragment->lang, &rec.dst);
             if (st != CBERG_OK) {
                 goto fail_restore;
@@ -733,6 +764,175 @@ typedef struct graph_candidates {
     float confidence;
 } graph_candidates;
 
+static int same_directory(const char *a, const char *b) {
+    if (a == NULL || b == NULL)
+        return 0;
+
+    const char *slash_a = strrchr(a, '/'), *slash_b = strrchr(b, '/');
+    size_t length_a = slash_a != NULL ? (size_t)(slash_a - a) : 0;
+    size_t length_b = slash_b != NULL ? (size_t)(slash_b - b) : 0;
+    return length_a == length_b && strncmp(a, b, length_a) == 0;
+}
+
+static int declares_member(const cberg_graph *g, const graph_node_rec *type, const char *name) {
+    uint64_t head = 0;
+    if (!cberg_u64map_get(g->ref_by_src, type->pub.id, &head))
+        return 0;
+
+    for (uint32_t i = (uint32_t)head; i != 0; i = g->refs[i - 1].src_next) {
+        const graph_ref_rec *reference = &g->refs[i - 1];
+        if (reference->dead || reference->rev || reference->kind != CBERG_GEDGE_CONTAINS)
+            continue;
+
+        const graph_node_rec *member = node_rec_by_id(g, reference->dst);
+        if (member != NULL && strcmp(member->pub.name, name) == 0)
+            return 1;
+    }
+
+    return 0;
+}
+
+static int same_file_base(const cberg_graph *g, const char *owner, const graph_node_rec *base, const char *member, unsigned depth) {
+    if (depth == 0)
+        return 0;
+
+    uint64_t named = 0;
+    if (!cberg_strmap_get(g->node_by_name, owner, &named))
+        return 0;
+    for (uint32_t i = (uint32_t)named; i != 0; i = g->nodes[i - 1].name_next) {
+        const graph_node_rec *type = &g->nodes[i - 1];
+        if (type->dead || type->pub.path == NULL || strcmp(type->pub.path, base->pub.path) != 0)
+            continue;
+        if (declares_member(g, type, member))
+            continue;
+
+        uint64_t head = 0;
+        if (!cberg_u64map_get(g->ref_by_src, type->pub.id, &head))
+            continue;
+        for (uint32_t j = (uint32_t)head; j != 0; j = g->refs[j - 1].src_next) {
+            const graph_ref_rec *reference = &g->refs[j - 1];
+            if (reference->dead || reference->kind != CBERG_GEDGE_INHERITS || reference->name == NULL)
+                continue;
+            if (strcmp(reference->name, base->pub.name) == 0 ||
+                same_file_base(g, reference->name, base, member, depth - 1))
+                return 1;
+        }
+    }
+
+    return 0;
+}
+
+static int candidate_owner_matches(const cberg_graph *g, const graph_node_rec *candidate, const char *owner) {
+    uint64_t head = 0;
+    int contained = 0, matches = 0;
+    if (cberg_u64map_get(g->ref_by_dst, candidate->pub.id, &head)) {
+        for (uint32_t i = (uint32_t)head; i != 0; i = g->refs[i - 1].dst_next) {
+            const graph_ref_rec *reference = &g->refs[i - 1];
+            if (reference->dead || reference->rev || reference->kind != CBERG_GEDGE_CONTAINS)
+                continue;
+
+            const graph_node_rec *parent = node_rec_by_id(g, reference->src);
+            if (parent == NULL)
+                continue;
+
+            contained = 1;
+            matches |= owner != NULL && (strcmp(parent->pub.name, owner) == 0 ||
+                                         same_file_base(g, owner, parent, candidate->pub.name, 8));
+        }
+    }
+
+    if (cberg_u64map_get(g->ref_by_src, candidate->pub.id, &head)) {
+        for (uint32_t i = (uint32_t)head; i != 0; i = g->refs[i - 1].src_next) {
+            const graph_ref_rec *reference = &g->refs[i - 1];
+            if (reference->dead || !reference->rev || reference->kind != CBERG_GEDGE_CONTAINS)
+                continue;
+
+            contained = 1;
+            matches |= owner != NULL && strcmp(reference->name, owner) == 0;
+        }
+    }
+
+    return owner != NULL ? matches : !contained;
+}
+
+static const char *bound_import_path(const cberg_graph *g, const graph_ref_rec *reference) {
+    if (reference->module == NULL)
+        return NULL;
+
+    uint64_t head = 0;
+    if (!cberg_u64map_get(g->ref_by_src, graph_file_id(reference->path), &head))
+        return NULL;
+
+    for (uint32_t i = (uint32_t)head; i != 0; i = g->refs[i - 1].src_next) {
+        const graph_ref_rec *import = &g->refs[i - 1];
+        if (import->dead || import->kind != CBERG_GEDGE_IMPORTS || import->name == NULL ||
+            strcmp(import->name, reference->module) != 0)
+            continue;
+
+        const graph_node_rec *target = node_rec_by_id(g, import->dst);
+        if (target != NULL && target->pub.kind == CBERG_GNODE_FILE)
+            return target->pub.path;
+    }
+
+    return NULL;
+}
+
+static int workspace_legacy_match(const cberg_graph *g, const graph_ref_rec *reference, const graph_node_rec *candidate) {
+    const graph_node_rec *source = node_rec_by_id(g, graph_file_id(reference->path));
+    if (source == NULL || source->repo == NULL || candidate->repo == NULL)
+        return 0;
+    if (strcmp(source->repo, candidate->repo) == 0)
+        return 1;
+    if (source->pub.lang != candidate->pub.lang)
+        return 0;
+
+    uint64_t head = 0;
+    if (!cberg_u64map_get(g->ref_by_src, source->pub.id, &head))
+        return 0;
+    for (uint32_t i = (uint32_t)head; i != 0; i = g->refs[i - 1].src_next) {
+        const graph_ref_rec *import = &g->refs[i - 1];
+        if (import->dead || import->kind != CBERG_GEDGE_IMPORTS)
+            continue;
+
+        const graph_node_rec *file = node_rec_by_id(g, import->dst);
+        if (file != NULL && file->pub.kind == CBERG_GNODE_FILE && file->pub.path != NULL &&
+            candidate->pub.path != NULL && strcmp(file->pub.path, candidate->pub.path) == 0)
+            return 1;
+    }
+
+    return 0;
+}
+
+static int binding_matches(const cberg_graph *g, const graph_ref_rec *reference, const graph_node_rec *candidate, const char *target_path) {
+    const graph_node_rec *file = node_rec_by_id(g, graph_file_id(reference->path));
+    if (file == NULL || file->pub.lang != candidate->pub.lang)
+        return 0;
+
+    switch ((cberg_graph_binding_kind)reference->binding) {
+    case CBERG_BIND_LEGACY:
+        return 1;
+    case CBERG_BIND_UNKNOWN:
+    case CBERG_BIND_LOCAL:
+        return 0;
+    case CBERG_BIND_PACKAGE:
+        return same_directory(reference->path, candidate->pub.path) && candidate_owner_matches(g, candidate, NULL);
+    case CBERG_BIND_IMPORT:
+    case CBERG_BIND_MEMBER:
+        if (target_path == NULL || candidate->pub.path == NULL)
+            return 0;
+        if (file->pub.lang == CBERG_LANG_GO) {
+            if (!same_directory(target_path, candidate->pub.path))
+                return 0;
+        } else if (strcmp(target_path, candidate->pub.path) != 0) {
+            return 0;
+        }
+        return candidate_owner_matches(g, candidate, reference->owner);
+    default:
+        /* never: serialized bindings are validated by the loader. */
+        abort();
+    }
+}
+
 /*
  * Textual name resolution: collect live definitions named `name` whose kind a
  * `ref_kind` reference may target. Same-file definitions shadow every other
@@ -740,10 +940,12 @@ typedef struct graph_candidates {
  * scaled down by ambiguity (0.75 * min(1, 3/count)). At most
  * GRAPH_MAX_CANDIDATES are returned.
  */
-static void resolve_name(const cberg_graph *g, const char *name, const char *ref_path, uint8_t ref_kind, graph_candidates *out) {
+static void resolve_name(const cberg_graph *g, const graph_ref_rec *reference, graph_candidates *out) {
     out->count = 0;
     out->confidence = 0.0f;
-    uint32_t kinds = candidate_kind_mask(ref_kind);
+    const char *name = reference->name, *ref_path = reference->path;
+    const char *target_path = reference->binding == CBERG_BIND_IMPORT ? bound_import_path(g, reference) : ref_path;
+    uint32_t kinds = candidate_kind_mask(reference->kind);
     uint64_t head = 0;
     if (!cberg_strmap_get(g->node_by_name, name, &head)) {
         return;
@@ -755,6 +957,10 @@ static void resolve_name(const cberg_graph *g, const char *name, const char *ref
         if (rec->dead || (kinds & CBERG_GNODE_MASK(rec->pub.kind)) == 0) {
             continue;
         }
+        if (g->workspace && reference->binding == CBERG_BIND_LEGACY && !workspace_legacy_match(g, reference, rec))
+            continue;
+        if (reference->binding != CBERG_BIND_LEGACY && !binding_matches(g, reference, rec, target_path))
+            continue;
         int local = rec->pub.path != NULL && ref_path != NULL && strcmp(rec->pub.path, ref_path) == 0;
         if (local && !same_file) {
             /* First same-file hit: discard global candidates collected so far. */
@@ -796,12 +1002,22 @@ typedef struct {
     const char *path;
     uint8_t kind;
     uint8_t valid;
+    uint8_t binding;
+    const char *module;
+    const char *owner;
     graph_candidates cands;
 } resolve_memo;
 
-static void resolve_name_cached(const cberg_graph *g, const char *name, const char *ref_path, uint8_t ref_kind, resolve_memo *memo,
-                                graph_candidates *out) {
-    if (memo->valid && memo->kind == ref_kind && memo->name != NULL && name != NULL && strcmp(memo->name, name) == 0) {
+static int same_optional_string(const char *a, const char *b) {
+    return a == b || (a != NULL && b != NULL && strcmp(a, b) == 0);
+}
+
+static void resolve_name_cached(const cberg_graph *g, const graph_ref_rec *reference, resolve_memo *memo, graph_candidates *out) {
+    const char *name = reference->name, *ref_path = reference->path;
+    uint8_t ref_kind = reference->kind;
+    if (memo->valid && memo->kind == ref_kind && memo->binding == reference->binding &&
+        same_optional_string(memo->module, reference->module) && same_optional_string(memo->owner, reference->owner) &&
+        memo->name != NULL && name != NULL && strcmp(memo->name, name) == 0) {
         int same_path = (memo->path == ref_path) ||
                         (memo->path != NULL && ref_path != NULL && strcmp(memo->path, ref_path) == 0) ||
                         (memo->path == NULL && ref_path == NULL);
@@ -810,10 +1026,13 @@ static void resolve_name_cached(const cberg_graph *g, const char *name, const ch
             return;
         }
     }
-    resolve_name(g, name, ref_path, ref_kind, out);
+    resolve_name(g, reference, out);
     memo->name = name;
     memo->path = ref_path;
     memo->kind = ref_kind;
+    memo->binding = reference->binding;
+    memo->module = reference->module;
+    memo->owner = reference->owner;
     memo->cands = *out;
     memo->valid = 1;
 }
@@ -836,10 +1055,9 @@ static cberg_graph_edge make_edge(uint64_t src, uint64_t dst, uint8_t kind, cber
 
 #define GRAPH_CONF_IMPORT 0.95f
 
-static int emit_ref_candidates(const cberg_graph *g, const graph_ref_rec *ref, int as_source, graph_edge_sink sink, void *ctx,
-                               resolve_memo *memo) {
+static int emit_ref_candidates(const cberg_graph *g, const graph_ref_rec *ref, int as_source, graph_edge_sink sink, void *ctx, resolve_memo *memo) {
     graph_candidates cands;
-    resolve_name_cached(g, ref->name, ref->path, ref->kind, memo, &cands);
+    resolve_name_cached(g, ref, memo, &cands);
     for (size_t c = 0; c < cands.count; c++) {
         uint64_t cand_id = g->nodes[cands.idx[c]].pub.id;
         cberg_graph_resolution res = ref->resolution != 0 ? (cberg_graph_resolution)ref->resolution : CBERG_GRES_TEXTUAL;
@@ -888,7 +1106,8 @@ static int emit_edges_from(const cberg_graph *g, const graph_node_rec *rec, uint
                 }
                 cberg_graph_resolution res =
                     ref->resolution != 0 ? (cberg_graph_resolution)ref->resolution : CBERG_GRES_TEXTUAL;
-                float conf = res == CBERG_GRES_IMPORT ? GRAPH_CONF_IMPORT : GRAPH_CONF_EXACT;
+                float conf = ref->binding == CBERG_BIND_LOCAL ? GRAPH_CONF_SAME_FILE : res == CBERG_GRES_IMPORT ? GRAPH_CONF_IMPORT
+                                                                                                                : GRAPH_CONF_EXACT;
                 cberg_graph_edge edge = make_edge(id, ref->dst, ref->kind, res, conf, ref->line);
                 if (sink(ctx, &edge)) {
                     return 1;
@@ -910,7 +1129,7 @@ static int emit_edges_from(const cberg_graph *g, const graph_node_rec *rec, uint
                 continue;
             }
             graph_candidates cands;
-            resolve_name_cached(g, ref->name, ref->path, ref->kind, &memo, &cands);
+            resolve_name_cached(g, ref, &memo, &cands);
             if (!candidates_contain(&cands, self_index)) {
                 continue;
             }
@@ -948,7 +1167,8 @@ static int emit_edges_to(const cberg_graph *g, const graph_node_rec *rec, uint32
             }
             cberg_graph_resolution res =
                 ref->resolution != 0 ? (cberg_graph_resolution)ref->resolution : CBERG_GRES_TEXTUAL;
-            float conf = res == CBERG_GRES_IMPORT ? GRAPH_CONF_IMPORT : GRAPH_CONF_EXACT;
+            float conf = ref->binding == CBERG_BIND_LOCAL ? GRAPH_CONF_SAME_FILE : res == CBERG_GRES_IMPORT ? GRAPH_CONF_IMPORT
+                                                                                                            : GRAPH_CONF_EXACT;
             cberg_graph_edge edge = make_edge(ref->src, id, ref->kind, res, conf, ref->line);
             if (sink(ctx, &edge)) {
                 return 1;
@@ -966,7 +1186,7 @@ static int emit_edges_to(const cberg_graph *g, const graph_node_rec *rec, uint32
                 continue;
             }
             graph_candidates cands;
-            resolve_name_cached(g, ref->name, ref->path, ref->kind, &memo, &cands);
+            resolve_name_cached(g, ref, &memo, &cands);
             if (!candidates_contain(&cands, self_index)) {
                 continue;
             }
@@ -1068,7 +1288,9 @@ cberg_status cberg_graph_find_nodes(const cberg_graph *graph, const char *name, 
             if (rec->dead || (kind_mask != 0 && (kind_mask & CBERG_GNODE_MASK(rec->pub.kind)) == 0)) {
                 continue;
             }
-            if (prefix_len > 0 && !path_matches_prefix(rec->pub.path, path_prefix, prefix_len)) {
+            if (graph->scope != NULL && (rec->repo == NULL || strcmp(rec->repo, graph->scope) != 0))
+                continue;
+            if (prefix_len > 0 && !path_matches_prefix(cberg_graph_source_path(graph, &rec->pub), path_prefix, prefix_len)) {
                 continue;
             }
             out_nodes[(*out_count)++] = &rec->pub;
@@ -1081,7 +1303,9 @@ cberg_status cberg_graph_find_nodes(const cberg_graph *graph, const char *name, 
         if (rec->dead || (kind_mask != 0 && (kind_mask & CBERG_GNODE_MASK(rec->pub.kind)) == 0)) {
             continue;
         }
-        if (prefix_len > 0 && !path_matches_prefix(rec->pub.path, path_prefix, prefix_len)) {
+        if (graph->scope != NULL && (rec->repo == NULL || strcmp(rec->repo, graph->scope) != 0))
+            continue;
+        if (prefix_len > 0 && !path_matches_prefix(cberg_graph_source_path(graph, &rec->pub), path_prefix, prefix_len)) {
             continue;
         }
         out_nodes[(*out_count)++] = &rec->pub;
@@ -1211,7 +1435,8 @@ cberg_status cberg_graph_trace(const cberg_graph *graph, uint64_t start_id, uint
  * records. Incompatible or truncated files load as NOT_FOUND (cold rebuild),
  * matching the chunk-table contract. */
 #define CBERG_GRAPH_MAGIC "CBG1"
-#define CBERG_GRAPH_VERSION 1u
+/* v4 invalidates bindings extracted before lexical shadowing fixes. */
+#define CBERG_GRAPH_VERSION 4u
 
 cberg_status cberg_graph_save(const cberg_graph *graph, const char *path) {
     if (graph == NULL || path == NULL) {
@@ -1257,8 +1482,9 @@ cberg_status cberg_graph_save(const cberg_graph *graph, const char *path) {
         }
         if (cberg_bin_w_u64(f, rec->src) != CBERG_OK || cberg_bin_w_u64(f, rec->dst) != CBERG_OK ||
             cberg_bin_w_u32(f, rec->line) != CBERG_OK ||
-            cberg_bin_w_u32(f, ((uint32_t)rec->resolution << 16) | ((uint32_t)rec->rev << 8) | rec->kind) != CBERG_OK ||
-            cberg_bin_w_str(f, rec->name) != CBERG_OK || cberg_bin_w_str(f, rec->path) != CBERG_OK) {
+            cberg_bin_w_u32(f, ((uint32_t)rec->binding << 24) | ((uint32_t)rec->resolution << 16) | ((uint32_t)rec->rev << 8) | rec->kind) != CBERG_OK ||
+            cberg_bin_w_str(f, rec->name) != CBERG_OK || cberg_bin_w_str(f, rec->path) != CBERG_OK ||
+            cberg_bin_w_str(f, rec->module) != CBERG_OK || cberg_bin_w_str(f, rec->owner) != CBERG_OK) {
             st = CBERG_ERR_IO;
             goto fail;
         }
@@ -1350,22 +1576,33 @@ cberg_status cberg_graph_load(const char *path, cberg_graph **out_graph) {
         uint32_t kind_rev = 0;
         char *name = NULL;
         char *rpath = NULL;
+        char *module = NULL;
+        char *owner = NULL;
         if (cberg_bin_r_u64(f, &rec.src) != CBERG_OK || cberg_bin_r_u64(f, &rec.dst) != CBERG_OK ||
             cberg_bin_r_u32(f, &rec.line) != CBERG_OK || cberg_bin_r_u32(f, &kind_rev) != CBERG_OK ||
-            cberg_bin_r_str(f, &name) != CBERG_OK || cberg_bin_r_str(f, &rpath) != CBERG_OK || rpath == NULL) {
+            cberg_bin_r_str(f, &name) != CBERG_OK || cberg_bin_r_str(f, &rpath) != CBERG_OK || rpath == NULL ||
+            cberg_bin_r_str(f, &module) != CBERG_OK || cberg_bin_r_str(f, &owner) != CBERG_OK ||
+            (kind_rev >> 24) > CBERG_BIND_UNKNOWN) {
             free(name);
             free(rpath);
+            free(module);
+            free(owner);
             st = CBERG_ERR_NOT_FOUND;
             break;
         }
         rec.kind = (uint8_t)(kind_rev & 0xFFu);
         rec.rev = (uint8_t)((kind_rev >> 8) & 0x1u);
         rec.resolution = (uint8_t)((kind_rev >> 16) & 0xFFu);
+        rec.binding = (uint8_t)(kind_rev >> 24);
         rec.name = name;
         rec.path = rpath;
+        rec.module = module;
+        rec.owner = owner;
         st = graph_add_ref(g, &rec);
         free(name);
         free(rpath);
+        free(module);
+        free(owner);
     }
     fclose(f);
     if (st != CBERG_OK) {
@@ -1376,9 +1613,38 @@ cberg_status cberg_graph_load(const char *path, cberg_graph **out_graph) {
     return CBERG_OK;
 }
 
-/* Rewrite one IMPORTS edge from a file onto a resolved FILE node. Used by
- * cberg_graph_resolve_imports (resolve_pkg.c). Marks the old MODULE-targeting
- * ref dead and inserts a new import-resolved ref. */
+/* Restore original module spellings before rebuilding the import cache, so
+ * unchanged importers can follow moved or deleted target files. */
+cberg_status cberg_graph_reset_imports(cberg_graph *graph) {
+    size_t count = graph->refs_len;
+    cberg_status status = CBERG_OK;
+    for (size_t i = 0; i < count && status == CBERG_OK; i++) {
+        graph_ref_rec original = graph->refs[i];
+        if (original.dead || original.kind != CBERG_GEDGE_IMPORTS ||
+            original.resolution != CBERG_GRES_IMPORT || original.name == NULL)
+            continue;
+
+        const graph_node_rec *source = node_rec_by_id(graph, original.src);
+        if (source == NULL)
+            continue;
+
+        status = ensure_module_node(graph, original.name, source->pub.lang, &original.dst);
+        if (status != CBERG_OK)
+            break;
+
+        original.resolution = CBERG_GRES_TEXTUAL;
+        status = graph_add_ref(graph, &original);
+        if (status == CBERG_OK) {
+            graph->refs[i].dead = 1;
+            graph->refs_dead++;
+        }
+    }
+
+    graph_maybe_compact(graph);
+    return status;
+}
+
+/* Replace an import only after its new reference has been stored successfully. */
 cberg_status cberg_graph_rewrite_import(cberg_graph *graph, uint64_t src_file_id, uint64_t old_dst, uint64_t new_dst, const char *new_name) {
     if (graph == NULL || src_file_id == 0 || new_dst == 0) {
         return CBERG_ERR_INVALID_ARGUMENT;
@@ -1387,9 +1653,10 @@ cberg_status cberg_graph_rewrite_import(cberg_graph *graph, uint64_t src_file_id
     if (!cberg_u64map_get(graph->ref_by_src, src_file_id, &head)) {
         return CBERG_ERR_NOT_FOUND;
     }
-    int found = 0;
+    uint32_t replaced = 0;
     const char *path = NULL;
     uint32_t line = 0;
+    const char *spelling = new_name;
     for (uint32_t i = (uint32_t)head; i != 0; i = graph->refs[i - 1].src_next) {
         graph_ref_rec *ref = &graph->refs[i - 1];
         if (ref->dead || ref->kind != CBERG_GEDGE_IMPORTS || ref->dst != old_dst) {
@@ -1397,12 +1664,12 @@ cberg_status cberg_graph_rewrite_import(cberg_graph *graph, uint64_t src_file_id
         }
         path = ref->path;
         line = ref->line;
-        ref->dead = 1;
-        graph->refs_dead++;
-        found = 1;
+        if (ref->name != NULL)
+            spelling = ref->name;
+        replaced = i;
         break;
     }
-    if (!found || path == NULL) {
+    if (replaced == 0 || path == NULL) {
         return CBERG_ERR_NOT_FOUND;
     }
     graph_ref_rec rec = {
@@ -1412,9 +1679,14 @@ cberg_status cberg_graph_rewrite_import(cberg_graph *graph, uint64_t src_file_id
         .line = line,
         .kind = CBERG_GEDGE_IMPORTS,
         .resolution = (uint8_t)CBERG_GRES_IMPORT,
-        .name = new_name,
+        .name = spelling,
     };
     cberg_status st = graph_add_ref(graph, &rec);
+    if (st == CBERG_OK) {
+        graph->refs[replaced - 1].dead = 1;
+        graph->refs_dead++;
+    }
+
     graph_maybe_compact(graph);
     return st;
 }
@@ -1475,7 +1747,7 @@ cberg_status cberg_graph_hubs(const cberg_graph *graph, cberg_graph_hub *out, si
             continue;
         }
         graph_candidates cands;
-        resolve_name_cached(graph, ref->name, ref->path, ref->kind, &memo, &cands);
+        resolve_name_cached(graph, ref, &memo, &cands);
         if (cands.count == 0) {
             continue;
         }
@@ -1497,6 +1769,8 @@ cberg_status cberg_graph_hubs(const cberg_graph *graph, cberg_graph_hub *out, si
         if (rec->dead || rec->pub.kind == CBERG_GNODE_FILE || rec->pub.kind == CBERG_GNODE_MODULE) {
             continue;
         }
+        if (graph->scope != NULL && (rec->repo == NULL || strcmp(rec->repo, graph->scope) != 0))
+            continue;
         if (deg[i] == 0) {
             continue;
         }
@@ -1511,4 +1785,137 @@ cberg_status cberg_graph_hubs(const cberg_graph *graph, cberg_graph_hub *out, si
     *out_count = write;
     free(tmp);
     return CBERG_OK;
+}
+
+/* ---------------------------------------------- private workspace queries */
+
+uint64_t cberg_graph_revision(const cberg_graph *graph) {
+    return graph != NULL ? graph->revision : 0;
+}
+
+const char *cberg_graph_source_repo(const cberg_graph *graph, uint64_t id) {
+    const graph_node_rec *node = node_rec_by_id(graph, id);
+    return node != NULL ? node->repo : NULL;
+}
+
+const char *cberg_graph_source_path(const cberg_graph *graph, const cberg_graph_node *node) {
+    if (node == NULL || node->path == NULL)
+        return NULL;
+    if (cberg_graph_source_repo(graph, node->id) == NULL)
+        return node->path;
+
+    const char *slash = strchr(node->path, '/');
+    return slash != NULL ? slash + 1 : node->path;
+}
+
+uint64_t cberg_graph_source_id(const cberg_graph *graph, uint64_t id) {
+    const graph_node_rec *node = node_rec_by_id(graph, id);
+    return node != NULL && node->repo != NULL ? node->native_id : id;
+}
+
+uint64_t cberg_graph_workspace_id(const cberg_graph *graph, const char *repo, uint64_t native_id) {
+    for (size_t i = 0; i < graph->nodes_len; i++) {
+        const graph_node_rec *node = &graph->nodes[i];
+        if (!node->dead && node->repo != NULL && node->native_id == native_id &&
+            repo != NULL && strcmp(node->repo, repo) == 0)
+            return node->pub.id;
+    }
+
+    return 0;
+}
+
+void cberg_graph_workspace_scope(cberg_graph *graph, const char *repo) {
+    graph->scope = repo != NULL && repo[0] != '\0' ? repo : NULL;
+}
+
+const char *cberg_graph_workspace_file(const cberg_graph *graph, const char *repo, const char *path) {
+    for (size_t i = 0; i < graph->nodes_len; i++) {
+        const graph_node_rec *node = &graph->nodes[i];
+        if (node->dead || node->pub.kind != CBERG_GNODE_FILE || node->repo == NULL ||
+            strcmp(node->repo, repo) != 0)
+            continue;
+        if (strcmp(cberg_graph_source_path(graph, &node->pub), path) == 0)
+            return node->pub.path;
+    }
+
+    return NULL;
+}
+
+cberg_status cberg_graph_link_import(cberg_graph *graph, uint64_t source_file, uint64_t module, const char *target_file) {
+    const graph_node_rec *target = node_rec_by_id(graph, graph_file_id(target_file));
+    if (target == NULL || target->pub.kind != CBERG_GNODE_FILE)
+        return CBERG_ERR_NOT_FOUND;
+    return cberg_graph_rewrite_import(graph, source_file, module, target->pub.id, NULL);
+}
+
+static cberg_status workspace_copy_nodes(cberg_graph *out, const cberg_graph *source, const char *repo, size_t ordinal, cberg_u64map *ids) {
+    for (size_t i = 0; i < source->nodes_len; i++) {
+        const graph_node_rec *original = &source->nodes[i];
+        if (original->dead)
+            continue;
+
+        cberg_graph_node node = original->pub;
+        {
+            char path[4096], symbol[128];
+            if (node.kind == CBERG_GNODE_MODULE) {
+                path[0] = '\0';
+            } else {
+                int length = snprintf(path, sizeof path, "%zu/%s", ordinal, node.path);
+                if (length < 0 || (size_t)length >= sizeof path)
+                    return CBERG_ERR_INVALID_ARGUMENT;
+            }
+            snprintf(symbol, sizeof symbol, "%zu:%llu", ordinal, (unsigned long long)node.id);
+            node.id = node.kind == CBERG_GNODE_FILE ? graph_file_id(path) : graph_tagged_id('S', symbol);
+            if (node_rec_by_id(out, node.id) != NULL)
+                return CBERG_ERR_INVALID_ARGUMENT;
+            node.path = node.kind == CBERG_GNODE_MODULE ? NULL : path;
+            cberg_status status = graph_add_node(out, &node);
+            if (status != CBERG_OK)
+                return status;
+
+            graph_node_rec *copy = &out->nodes[out->nodes_len - 1];
+            copy->repo = cberg_arena_strdup(out->arena, repo);
+            copy->native_id = original->pub.id;
+            if (copy->repo == NULL)
+                return CBERG_ERR_OUT_OF_MEMORY;
+        }
+
+        cberg_status status = cberg_u64map_set(ids, original->pub.id, node.id);
+        if (status != CBERG_OK)
+            return status;
+    }
+
+    return CBERG_OK;
+}
+
+cberg_status cberg_graph_copy_repository(cberg_graph *out, const cberg_graph *source, const char *repo, size_t ordinal) {
+    if (out == NULL || source == NULL || repo == NULL)
+        return CBERG_ERR_INVALID_ARGUMENT;
+    cberg_u64map *ids = cberg_u64map_new(source->nodes_len + 1);
+    if (ids == NULL)
+        return CBERG_ERR_OUT_OF_MEMORY;
+
+    out->workspace = 1;
+    cberg_status status = workspace_copy_nodes(out, source, repo, ordinal, ids);
+    for (size_t i = 0; i < source->refs_len && status == CBERG_OK; i++) {
+        graph_ref_rec reference = source->refs[i];
+        if (reference.dead || !cberg_u64map_get(ids, reference.src, &reference.src))
+            continue;
+
+        char path[4096];
+        int length = snprintf(path, sizeof path, "%zu/%s", ordinal, reference.path);
+        if (length < 0 || (size_t)length >= sizeof path) {
+            status = CBERG_ERR_INVALID_ARGUMENT;
+            break;
+        }
+        reference.path = path;
+        if (reference.dst != 0 && !cberg_u64map_get(ids, reference.dst, &reference.dst)) {
+            continue;
+        }
+        if (status == CBERG_OK)
+            status = graph_add_ref(out, &reference);
+    }
+
+    cberg_u64map_free(ids);
+    return status;
 }

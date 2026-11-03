@@ -159,11 +159,11 @@ All tools are read-only and sandboxed to their repo's root.
 | `find_symbol` | Case-insensitive symbol lookup in the chunk table |
 | `file_outline` | Indexed chunks in a file with line ranges |
 | `hybrid_search` | Fused vector and independent lexical candidates with bounded top-hit context |
-| `search_graph` | Exact-name structural search over the knowledge graph |
-| `trace_path` | BFS over call/import/inherit edges (returns resolution + confidence) |
+| `search_graph` | Locate a known exact, case-sensitive code symbol and choose its repo/path before tracing |
+| `trace_path` | Follow source relationships; calls `in` = callers, `out` = callees; depth 1 = direct relationships |
 | `detect_changes` | Git diff → hunk-overlapping symbols → 1–2 hop blast radius (direct / transitive); sets `fallback` when the requested range fails |
 | `get_architecture` | Repo overview: size, FILE-node language mix, CALLS degree hubs, entrypoints |
-| `find_references` | Graph-first symbol usages; word-boundary grep fallback |
+| `find_references` | Graph usages plus additional word-boundary grep evidence; bounded and partial |
 
 `hybrid_search` fetches up to `2×k` vector chunks and searches file contents
 independently with bounded per-file matches. It fuses reciprocal ranks, merges
@@ -177,10 +177,36 @@ it. The vector and lexical halves run concurrently. Lexical-only hits use
 `min_score` filters the vector branch only. When vectors are unavailable,
 lexical results can still be returned.
 
-`find_references` returns `{source, graph|matches}` (not a bare match array). It
-prefers knowledge-graph edges (`source: "graph"`) and falls back to a word-boundary
-`rg` (`source: "grep"`). Graph edges include `resolution` and `confidence` so agents
-can distrust textual links.
+`find_references` returns `{source, graph?, matches?, partial, limit_reached,
+graph_error?, lexical_error?}`. It queries graph and word-boundary `rg` evidence
+even when the graph has hits. `source` is `graph`, `grep`, or `graph+grep`.
+Lexical hits sharing a graph edge's source path and line are removed; graph
+edges have priority within one combined `limit` (default 50, maximum 200).
+`path_prefix` restricts graph target lookup; `path_glob` restricts lexical lookup.
+`partial` is always true. `limit_reached` reports source saturation or dropped
+combined evidence, not an exact count of omitted usages. A source failure is
+reported alongside usable evidence; if neither source is usable, the tool fails.
+Lexical matches may include declarations/comments. Graph edges include
+`resolution` and heuristic `confidence`; neither source proves complete coverage.
+
+For a caller question, locate the definition with `search_graph`, then call
+`trace_path` with its exact `name`, `repo`, and relative file `path_prefix`,
+`direction: "in"`, `edge_kind: "calls"`, and `max_depth: 1`. `repo`/`path_prefix`
+filter the starting definition, not later hops. Defaults are both directions and
+depth 2. Use a file node and `edge_kind: "imports"` for file dependencies; a
+type and `"contains"` for members. Same-name methods can remain ambiguous even
+within a file, so inspect source instead of treating confidence as a probability.
+Use `find_references` for broader symbol usage and `find_symbol`/`get_chunk` for
+indexed bodies. The graph describes parsed source, not verified runtime or
+HTTP/RPC relationships. `detect_changes` labels graph proximity, while
+`get_architecture` entrypoints are name-based candidates.
+
+With several configured roots, omitted `repo` searches all of them. A supplied
+`repo` scopes graph target lookup and lexical search; incoming graph callers may
+still come from another root. Graph edges/hops include `src_repo`/`dst_repo` and
+native per-repo IDs. Lexical deduplication uses `(repo,path,line)`. IPC truncation
+is retained as a graph coverage error and sets `limit_reached`, even when fewer
+than the requested number of edges fit in the wire response.
 
 `find_symbol`, `file_outline`, `get_chunk`, `search_graph`, and `trace_path` work in
 **chunk-only mode** (without ONNX / vector indexing). Without an embedding model,
@@ -206,6 +232,12 @@ during indexing. Graph tools return `501` / `graph disabled` when `CBERG_GRAPH=0
 `repos` lists the served repositories. Other tools take an optional `repo` key:
 with a single served repo it defaults to that repo; in multi-repo (`--all`) mode
 the key is required and an invalid value returns the available keys in the error.
+
+Structural tools are an exception: `search_graph`, `find_references`, hubs, and
+architecture inspect all configured roots when `repo` is omitted. `trace_path`
+can follow import-backed links across roots, but an ambiguous starting name
+spanning several repos requires `repo`. Separately selected browser projects
+remain isolated; only roots configured together share this query view.
 
 ### `pipe` — read-only pipelines
 

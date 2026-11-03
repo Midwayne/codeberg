@@ -72,6 +72,7 @@ func changesDiff(ctx context.Context, ws *workspace.Workspace, a detectChangesAr
 }
 
 type pendingTrace struct {
+	repo       string
 	name, path string
 }
 
@@ -99,7 +100,7 @@ func detectChanges(ctx context.Context, idx indexctl.Indexer, ws *workspace.Work
 
 	scan := changeScan{res: res, directBudget: directBudget, seenDirect: map[string]struct{}{}, seenIndirect: map[string]struct{}{}}
 	scan.collectDirect(ctx, idx, a, hunks)
-	scan.collectIndirect(ctx, idx, a, diff.depth, limit)
+	scan.collectIndirect(ctx, idx, diff.depth, limit)
 	return scan.res, nil
 }
 

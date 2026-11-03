@@ -1,0 +1,81 @@
+{
+  "baseline_commit": "ae22a78940c9983bd50be7c0c953ecf5042c39ca",
+  "date": "2026-11-03",
+  "platform": "macOS arm64, Apple M4",
+  "build": "Release, Apple Clang, same CMake build and link dependencies",
+  "cases": 21,
+  "baseline": {
+    "case": "total",
+    "tp": 29,
+    "fp": 30,
+    "fn": 19,
+    "sites": 55,
+    "negative_sites": 7,
+    "precision": 0.491525,
+    "recall": 0.604167,
+    "f1": 0.542056
+  },
+  "current": {
+    "case": "total",
+    "tp": 45,
+    "fp": 0,
+    "fn": 3,
+    "sites": 55,
+    "negative_sites": 7,
+    "precision": 1.0,
+    "recall": 0.9375,
+    "f1": 0.967742
+  },
+  "bench_trials": 5,
+  "bench_medians": [
+    {
+      "name": "graph cold apply",
+      "baseline_ms": 36.458,
+      "current_ms": 45.999,
+      "change_percent": 26.17
+    },
+    {
+      "name": "graph apply/remove churn",
+      "baseline_ms": 2.793,
+      "current_ms": 5.03,
+      "change_percent": 80.09
+    },
+    {
+      "name": "graph edges_to hub",
+      "baseline_ms": 0.245,
+      "current_ms": 0.431,
+      "change_percent": 75.92
+    },
+    {
+      "name": "graph BFS trace in",
+      "baseline_ms": 0.61,
+      "current_ms": 1.094,
+      "change_percent": 79.34
+    },
+    {
+      "name": "graph hubs top32",
+      "baseline_ms": 2.799,
+      "current_ms": 2.714,
+      "change_percent": -3.04
+    },
+    {
+      "name": "graph save",
+      "baseline_ms": 0.933,
+      "current_ms": 1.121,
+      "change_percent": 20.15
+    },
+    {
+      "name": "graph load",
+      "baseline_ms": 1.053,
+      "current_ms": 1.335,
+      "change_percent": 26.78
+    }
+  ],
+  "corpus_sha256": "986a8196c9127b2abadc72495053e6aa388302bf0185599addba68572863344e",
+  "verification": {
+    "core": "make check: passed; 2 model-dependent tests skipped",
+    "daemon": "make daemon-check: passed",
+    "agent_ui": "make agent-check: passed; 1290 tests passed, 3 skipped",
+    "go_fixtures": "all 5 modules compile with go test ./..."
+  }
+}

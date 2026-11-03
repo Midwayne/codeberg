@@ -1,0 +1,3 @@
+imports	main.ts	1	dep.ts	0
+calls	main.ts	4	dep.ts	1
+calls	main.ts	5	main.ts	2

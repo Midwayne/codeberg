@@ -86,6 +86,8 @@ type GraphNode struct {
 
 // GraphEdge is a resolved graph edge with confidence/resolution metadata.
 type GraphEdge struct {
+	SrcRepo    string  `json:"src_repo"`
+	DstRepo    string  `json:"dst_repo"`
 	Src        uint64  `json:"src"`
 	Dst        uint64  `json:"dst"`
 	Kind       string  `json:"kind"`
@@ -100,6 +102,8 @@ type GraphEdge struct {
 
 // GraphHop is one BFS hop from trace_path.
 type GraphHop struct {
+	SrcRepo    string  `json:"src_repo"`
+	DstRepo    string  `json:"dst_repo"`
 	Depth      uint32  `json:"depth"`
 	Src        uint64  `json:"src"`
 	Dst        uint64  `json:"dst"`

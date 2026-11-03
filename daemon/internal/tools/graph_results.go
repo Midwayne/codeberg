@@ -18,6 +18,7 @@ type getArchitectureArgs struct {
 }
 
 type changeSymbol struct {
+	Repo      string `json:"repo,omitempty"`
 	Name      string `json:"name"`
 	Path      string `json:"path"`
 	StartLine uint32 `json:"start_line,omitempty"`
@@ -36,6 +37,7 @@ type detectChangesResult struct {
 }
 
 type archHub struct {
+	Repo   string `json:"repo,omitempty"`
 	Name   string `json:"name"`
 	Path   string `json:"path"`
 	Kind   string `json:"kind"`
