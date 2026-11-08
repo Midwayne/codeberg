@@ -2,6 +2,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { sessionJobsDir } from '../sessions/layout.js';
 import { writeJsonAtomic } from '../../core/learning/fs.js';
+import { WriteLock } from '../../core/write-lock.js';
 import type { BackgroundJob } from '../../core/background/types.js';
 import { isValidSessionId } from '../../core/api/sessions.js';
 import { HttpError } from '../../core/api/errors.js';
@@ -9,7 +10,7 @@ import { HttpError } from '../../core/api/errors.js';
 export class BackgroundError extends HttpError {}
 
 export class BackgroundStore {
-  private pending = Promise.resolve();
+  private readonly lock = new WriteLock();
   private writes = 0;
 
   constructor(readonly directory: string) {}
@@ -20,10 +21,8 @@ export class BackgroundStore {
 
   async serial<T>(action: () => Promise<T>): Promise<T> {
     this.writes++;
-    const pending = this.pending.then(action);
-    this.pending = pending.then(() => undefined, () => undefined);
     try {
-      return await pending;
+      return await this.lock.run(action);
     } finally {
       this.writes--;
     }

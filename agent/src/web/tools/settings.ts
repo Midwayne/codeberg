@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { HttpError } from '../../core/api/errors.js';
 import { writeJsonAtomic } from '../../core/learning/fs.js';
+import { WriteLock } from '../../core/write-lock.js';
 import { codebergHome } from '../../core/paths.js';
 import { webConfigFromEnv } from '../../core/web/config.js';
 import type { ToolSettings } from '../../core/web/types.js';
@@ -21,7 +22,7 @@ export class ToolSettingsStore {
   private readonly env: NodeJS.ProcessEnv;
   private readonly path: string;
   private readonly fetch: typeof fetch;
-  private writing: Promise<unknown> = Promise.resolve();
+  private readonly lock = new WriteLock();
 
   constructor(options: { home?: string; env?: NodeJS.ProcessEnv; fetch?: typeof fetch } = {}) {
     this.env = options.env ?? process.env;
@@ -73,10 +74,7 @@ export class ToolSettingsStore {
   }
 
   private serialize<T>(action: () => Promise<T>): Promise<T> {
-    const pending = this.writing.then(action);
-    this.writing = pending.catch(() => undefined);
-
-    return pending;
+    return this.lock.run(action);
   }
 
   private async preference(): Promise<{ webSearch: boolean; browserUse: boolean; browserVision: boolean }> {

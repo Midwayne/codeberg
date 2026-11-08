@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeJsonAtomic } from './fs.js';
+import { WriteLock } from '../write-lock.js';
 import {
   DEFAULT_LEARNING_SETTINGS,
   mergeLearningSettings,
@@ -9,7 +10,7 @@ import {
 
 export class LearningSettingsStore {
   private loaded?: Promise<LearningSettings>;
-  private writing: Promise<void> = Promise.resolve();
+  private readonly lock = new WriteLock();
 
   constructor(private readonly root: string) {}
 
@@ -27,19 +28,12 @@ export class LearningSettingsStore {
   }
 
   update(patch: unknown): Promise<LearningSettings> {
-    const update = this.writing.then(async () => {
+    return this.lock.run(async () => {
       const next = mergeLearningSettings(await this.current(), patch);
       await writeJsonAtomic(join(this.root, 'settings.json'), next);
       this.loaded = Promise.resolve(next);
 
       return structuredClone(next);
     });
-
-    this.writing = update.then(
-      () => undefined,
-      () => undefined,
-    );
-
-    return update;
   }
 }

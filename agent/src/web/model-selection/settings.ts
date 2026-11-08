@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import { loadDecisionCatalog, resolveDecision } from '../../core/decisions/catalog.js';
 import { writeJsonAtomic } from '../../core/learning/fs.js';
+import { WriteLock } from '../../core/write-lock.js';
 import type { CatalogModel, ModelSelection, ModelSettings } from '../../core/model-types.js';
 import { codebergHome } from '../../core/paths.js';
 import { record } from '../../core/record.js';
@@ -13,7 +14,7 @@ export class ModelSelectionError extends Error {}
 export class ModelSettingsStore {
   private readonly catalog: ModelCatalogOptions;
   private readonly settingsPath: string;
-  private writing: Promise<void> = Promise.resolve();
+  private readonly lock = new WriteLock();
   private readonly env: NodeJS.ProcessEnv;
 
   constructor(options: {
@@ -68,7 +69,7 @@ export class ModelSettingsStore {
     if (!values) throw new ModelSelectionError('settings must have chat and learning selections');
 
     // Serialize validation and writes so two browser tabs cannot overwrite each other.
-    const update = this.writing.then(async () => {
+    await this.lock.run(async () => {
       const models = await loadModelCatalog(this.catalog);
       const chat = this.validate(values.chat, models);
       const learning = this.validate(values.learning, models);
@@ -80,9 +81,6 @@ export class ModelSettingsStore {
 
       await writeJsonAtomic(this.settingsPath, { chat, learning, decisions });
     });
-
-    this.writing = update.catch(() => undefined);
-    await update;
 
     return this.current();
   }
