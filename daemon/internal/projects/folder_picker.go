@@ -53,8 +53,7 @@ func (p *folderPicker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func pickerInitialPath(w http.ResponseWriter, r *http.Request) (string, bool) {
-	if r.Method != "POST" {
-		httpserver.WriteError(w, 405, "method not allowed")
+	if !httpserver.AllowMethod(w, r, "POST") {
 		return "", false
 	}
 

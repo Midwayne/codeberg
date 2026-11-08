@@ -24,11 +24,7 @@ func (m *Manager) serveDelete(w http.ResponseWriter, r *http.Request, id string)
 
 	catalog, err := m.Delete(id, body.Mode)
 	if err != nil {
-		status := 500
-		if errors.Is(err, errProjectNotFound) {
-			status = 404
-		}
-		httpserver.WriteError(w, status, err.Error())
+		writeProjectError(w, err)
 		return
 	}
 

@@ -1,7 +1,6 @@
 package projects
 
 import (
-	"errors"
 	"net/http"
 
 	"codeberg.org/codeberg/daemon/internal/httpserver"
@@ -16,7 +15,7 @@ func (m *Manager) serveCatalog(w http.ResponseWriter, r *http.Request) {
 	case "POST":
 		m.serveAdd(w, r)
 	default:
-		httpserver.WriteError(w, 405, "method not allowed")
+		httpserver.RejectMethod(w)
 	}
 }
 
@@ -44,8 +43,7 @@ func (m *Manager) serveAdd(w http.ResponseWriter, r *http.Request) {
 }
 
 func (m *Manager) serveRename(w http.ResponseWriter, r *http.Request, id string) {
-	if r.Method != "PATCH" {
-		httpserver.WriteError(w, 405, "method not allowed")
+	if !httpserver.AllowMethod(w, r, "PATCH") {
 		return
 	}
 
@@ -63,16 +61,7 @@ func (m *Manager) serveRename(w http.ResponseWriter, r *http.Request, id string)
 
 	p, err := m.Rename(id, body.Name)
 	if err != nil {
-		status := 500
-		if errors.Is(err, errProjectName) {
-			status = 400
-		}
-
-		if errors.Is(err, errProjectNotFound) {
-			status = 404
-		}
-
-		httpserver.WriteError(w, status, err.Error())
+		writeProjectError(w, err)
 		return
 	}
 
@@ -80,8 +69,7 @@ func (m *Manager) serveRename(w http.ResponseWriter, r *http.Request, id string)
 }
 
 func (m *Manager) serveRetry(w http.ResponseWriter, r *http.Request, id string) {
-	if r.Method != "POST" {
-		httpserver.WriteError(w, 405, "method not allowed")
+	if !httpserver.AllowMethod(w, r, "POST") {
 		return
 	}
 

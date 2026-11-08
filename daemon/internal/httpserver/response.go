@@ -18,6 +18,22 @@ func WriteError(w http.ResponseWriter, status int, message string) {
 	writeCodedError(w, status, statusCode(status), message)
 }
 
+// AllowMethod rejects every other method with 405.
+func AllowMethod(w http.ResponseWriter, r *http.Request, method string) bool {
+	if r.Method == method {
+		return true
+	}
+
+	RejectMethod(w)
+
+	return false
+}
+
+// RejectMethod is the 405 used when a route accepts more than one method.
+func RejectMethod(w http.ResponseWriter) {
+	WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
+}
+
 func writeCodedError(w http.ResponseWriter, status int, code, message string) {
 	WriteJSON(w, status, map[string]any{"ok": false, "code": code, "message": message})
 }

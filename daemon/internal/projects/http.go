@@ -2,6 +2,7 @@ package projects
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -39,6 +40,19 @@ func allowProjectChange(w http.ResponseWriter, r *http.Request) bool {
 	httpserver.WriteError(w, 403, "cross-origin project changes are not allowed")
 
 	return false
+}
+
+func writeProjectError(w http.ResponseWriter, err error) {
+	status := http.StatusInternalServerError
+	if errors.Is(err, errProjectName) {
+		status = http.StatusBadRequest
+	}
+
+	if errors.Is(err, errProjectNotFound) {
+		status = http.StatusNotFound
+	}
+
+	httpserver.WriteError(w, status, err.Error())
 }
 
 func readProjectJSON(w http.ResponseWriter, r *http.Request, dest any) error {
