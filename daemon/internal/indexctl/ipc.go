@@ -1,75 +1,52 @@
 package indexctl
 
 // IPC wire response envelopes decoded from cberg-index JSON lines.
+// ok, code, and error are the shared failure prefix. Success bodies embed the
+// types the rest of the daemon already uses, so a new field is added once.
+
+type ipcFailure struct {
+	OK    bool   `json:"ok"`
+	Code  string `json:"code"`
+	Error string `json:"error"`
+}
 
 type statusResponse struct {
-	OK             bool         `json:"ok"`
-	Ready          bool         `json:"ready"`
-	Indexing       bool         `json:"indexing"`
-	Progress       *Progress    `json:"progress,omitempty"`
-	Chunks         int          `json:"chunks"`
-	Version        string       `json:"version"`
-	VectorsEnabled bool         `json:"vectors_enabled"`
-	Repos          []RepoStatus `json:"repos"`
-	Error          string       `json:"error"`
+	ipcFailure
+	Status
 }
 
 type hitsResponse struct {
-	OK      bool           `json:"ok"`
+	ipcFailure
 	Results []SearchResult `json:"results"`
-	Error   string         `json:"error"`
-}
-
-type chunkPayload struct {
-	ID        uint64 `json:"id"`
-	Repo      string `json:"repo"`
-	Path      string `json:"path"`
-	Symbol    string `json:"symbol"`
-	Kind      string `json:"kind"`
-	StartLine uint32 `json:"start_line"`
-	EndLine   uint32 `json:"end_line"`
-	Snippet   string `json:"snippet"`
-	Body      string `json:"body"`
-	Truncated bool   `json:"truncated"`
 }
 
 type chunkResponse struct {
-	OK    bool         `json:"ok"`
-	Chunk chunkPayload `json:"chunk"`
-	Error string       `json:"error"`
+	ipcFailure
+	Chunk ChunkDetail `json:"chunk"`
 }
 
 type graphNodesResponse struct {
-	OK      bool        `json:"ok"`
+	ipcFailure
 	Results []GraphNode `json:"results"`
-	Error   string      `json:"error"`
 }
 
 type graphHopsResponse struct {
-	OK    bool       `json:"ok"`
-	Hops  []GraphHop `json:"hops"`
-	Error string     `json:"error"`
+	ipcFailure
+	Hops []GraphHop `json:"hops"`
 }
 
 type graphStatsResponse struct {
-	OK        bool            `json:"ok"`
-	Repo      string          `json:"repo"`
-	Nodes     int             `json:"nodes"`
-	Refs      int             `json:"refs"`
-	Enabled   bool            `json:"enabled"`
-	Languages []GraphLangStat `json:"languages"`
-	Error     string          `json:"error"`
+	ipcFailure
+	GraphStats
 }
 
 type graphEdgesResponse struct {
+	ipcFailure
 	Truncated bool        `json:"truncated"`
-	OK        bool        `json:"ok"`
 	Results   []GraphEdge `json:"results"`
-	Error     string      `json:"error"`
 }
 
 type graphHubsResponse struct {
-	OK      bool       `json:"ok"`
+	ipcFailure
 	Results []GraphHub `json:"results"`
-	Error   string     `json:"error"`
 }

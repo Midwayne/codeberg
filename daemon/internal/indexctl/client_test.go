@@ -140,6 +140,29 @@ func TestClientSearchRepoScoped(t *testing.T) {
 	}
 }
 
+func TestClientMapsWireCode(t *testing.T) {
+	sock := startMockIndexer(t, func(string) []byte {
+		return []byte(`{"ok":false,"code":"not_found","error":"custom wording"}` + "\n")
+	})
+
+	_, err := indexctl.NewClient(sock).GetChunk(context.Background(), "alpha", 1)
+	ie, ok := indexctl.AsIndexerError(err)
+	if !ok || ie.Code != "NOT_FOUND" || ie.Message != "custom wording" {
+		t.Fatalf("wire code: %v", err)
+	}
+}
+
+func TestClientRejectsOversizedRequest(t *testing.T) {
+	_, err := indexctl.NewClient(filepath.Join(t.TempDir(), "missing.sock")).Search(
+		context.Background(),
+		indexctl.SearchOptions{Query: strings.Repeat("q", 9000), K: 1},
+	)
+	ie, ok := indexctl.AsIndexerError(err)
+	if !ok || ie.Code != "INVALID_ARGUMENT" || ie.Message != "request too long" {
+		t.Fatalf("oversized request: %v", err)
+	}
+}
+
 func TestClientGetChunk(t *testing.T) {
 	sock := startMockIndexer(t, func(line string) []byte {
 		if strings.HasPrefix(line, "chunk\t") {

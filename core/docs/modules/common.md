@@ -4,7 +4,7 @@ Shared utilities used by chunking, watching, and hashing. None of these symbols 
 exported in `codeberg.h` except where noted (status, version, hash, language).
 
 **Files:** `arena.c`, `config.c`, `fileio.c`, `hash.c`, `lang.c`, `pathutil.c`, `status.c`, `strutil.c`, `strmap.c`, `u64map.c`, `version.c`, `walk_policy.c`  
-**Headers:** `arena.h`, `cacheline.h`, `fileio.h`, `pathutil.h`, `statutil.h`, `strutil.h`, `strmap.h`, `u64map.h`, `fnv.h`, `grow.h`, `walk_policy.h`  
+**Headers:** `arena.h`, `cacheline.h`, `fileio.h`, `pathutil.h`, `root_records.h`, `statutil.h`, `strutil.h`, `strmap.h`, `u64map.h`, `fnv.h`, `grow.h`, `walk_policy.h`  
 **Third-party:** `third_party/xxhash.c` (linked from CMake, not under `src/common/`)
 
 ---
@@ -13,8 +13,9 @@ exported in `codeberg.h` except where noted (status, version, hash, language).
 
 ### `cberg_status_str(cberg_status status)` — public
 
-Maps each `cberg_status` enum to a static English string. Out-of-range values return
-`"unknown error"`.
+Maps each `cberg_status` enum to a static English string (`cberg_status_str`) and a
+stable machine code (`cberg_status_code`). Out-of-range values return `"unknown error"`
+and `"internal_error"`.
 
 ---
 

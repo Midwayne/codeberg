@@ -29,6 +29,9 @@
  */
 #define IPC_THREAD_STACK_SIZE (8u * 1024u * 1024u)
 
+/* One request line, including its newline, must fit in this many bytes. */
+#define IPC_REQUEST_MAX 8191
+
 typedef struct cberg_ipc_server {
     cberg_engine *eng;
     atomic_int listen_fd;
@@ -48,6 +51,51 @@ typedef struct cberg_ipc_server {
 #else
 #define IPC_SEND_FLAGS 0
 #endif
+
+/* Reads one request. Returns 0 with the newline stripped, -1 when the peer
+ * sent nothing, or -2 when the line does not fit in cap-1 bytes. Further
+ * bytes already queued are assembled; a peer that stops without a newline is
+ * accepted, so a short command is never blocked on a second read. */
+static int read_request(int fd, char *buf, size_t cap) {
+    size_t off = 0;
+
+    for (;;) {
+        if (off + 1 >= cap) {
+            return -2;
+        }
+        if (off > 0) {
+            struct pollfd waiting = {.fd = fd, .events = POLLIN};
+            int ready = poll(&waiting, 1, 0);
+            if (ready <= 0) {
+                break;
+            }
+        }
+
+        ssize_t n = read(fd, buf + off, cap - 1 - off);
+        if (n < 0 && errno == EINTR) {
+            continue;
+        }
+        if (n <= 0) {
+            break;
+        }
+
+        off += (size_t)n;
+        buf[off] = '\0';
+        if (strchr(buf, '\n') != NULL) {
+            break;
+        }
+    }
+
+    if (off == 0) {
+        return -1;
+    }
+
+    char *nl = strchr(buf, '\n');
+    if (nl != NULL) {
+        *nl = '\0';
+    }
+    return 0;
+}
 
 int cberg_ipc_write_all(int fd, const char *buf, size_t len) {
     size_t off = 0;
@@ -70,15 +118,14 @@ static void handle_client(cberg_engine *eng, int fd, int status_only) {
     if (pr <= 0) {
         return;
     }
-    char line[8192];
-    ssize_t n = read(fd, line, sizeof(line) - 1);
-    if (n <= 0) {
+    char line[IPC_REQUEST_MAX + 1];
+    int rr = read_request(fd, line, sizeof(line));
+    if (rr == -1) {
         return;
     }
-    line[n] = '\0';
-    char *nl = strchr(line, '\n');
-    if (nl != NULL) {
-        *nl = '\0';
+    if (rr == -2) {
+        cberg_ipc_send_error(fd, cberg_status_code(CBERG_ERR_INVALID_ARGUMENT), "request too long");
+        return;
     }
 
     if (strcmp(line, "status") == 0) {
@@ -87,15 +134,14 @@ static void handle_client(cberg_engine *eng, int fd, int status_only) {
     }
 
     if (status_only) {
-        const char *error = "{\"ok\":false,\"error\":\"health socket accepts status only\"}\n";
-        cberg_ipc_write_all(fd, error, strlen(error));
+        cberg_ipc_send_error(fd, cberg_status_code(CBERG_ERR_INVALID_ARGUMENT), "health socket accepts status only");
         return;
     }
 
     /* No tool queues behind a build: a busy engine answers with a fallback hint. */
     if (!cberg_engine_begin_query(eng)) {
-        const char *error = "{\"ok\":false,\"error\":\"index building; use grep, glob or read_file while indexing and graph creation finish\"}\n";
-        cberg_ipc_write_all(fd, error, strlen(error));
+        cberg_ipc_send_error(fd, "not_ready",
+                             "index building; use grep, glob or read_file while indexing and graph creation finish");
         return;
     }
 

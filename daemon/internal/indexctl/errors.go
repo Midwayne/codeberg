@@ -3,7 +3,6 @@ package indexctl
 import (
 	"errors"
 	"fmt"
-	"strings"
 )
 
 // ErrTruncated accompanies usable graph references when IPC clipped the response.
@@ -22,29 +21,38 @@ func (e *IndexerError) Error() string {
 	return fmt.Sprintf("indexer: %s", e.Message)
 }
 
-func mapIndexerError(msg string) error {
-	code := "INDEXER_ERROR"
-
-	switch strings.ToLower(msg) {
-	case "index building; use grep, glob or read_file while indexing and graph creation finish":
-		code = "NOT_READY"
-	case "not implemented", "graph disabled":
-		code = "NOT_IMPLEMENTED"
-	case "not found":
-		code = "NOT_FOUND"
-	case "invalid argument":
-		code = "INVALID_ARGUMENT"
-	case "internal error":
-		code = "INTERNAL_ERROR"
-	case "i/o error":
-		code = "IO_ERROR"
-	case "out of memory":
-		code = "OUT_OF_MEMORY"
+// daemonCode maps a cberg-index wire code onto the daemon's error code.
+// Unrecognized codes, including a missing code, stay INDEXER_ERROR. The
+// English error text is not consulted.
+func daemonCode(wire string) string {
+	switch wire {
+	case "not_ready":
+		return "NOT_READY"
+	case "not_implemented":
+		return "NOT_IMPLEMENTED"
+	case "not_found":
+		return "NOT_FOUND"
+	case "invalid_argument":
+		return "INVALID_ARGUMENT"
+	case "internal_error":
+		return "INTERNAL_ERROR"
+	case "io_error":
+		return "IO_ERROR"
+	case "out_of_memory":
+		return "OUT_OF_MEMORY"
 	case "timeout":
-		code = "TIMEOUT"
+		return "TIMEOUT"
+	case "unsupported_language":
+		return "UNSUPPORTED_LANGUAGE"
+	case "corrupt":
+		return "CORRUPT"
+	default:
+		return "INDEXER_ERROR"
 	}
+}
 
-	return &IndexerError{Code: code, Message: msg}
+func mapIndexerError(wire, message string) error {
+	return &IndexerError{Code: daemonCode(wire), Message: message}
 }
 
 // AsIndexerError returns the IndexerError if err wraps one.

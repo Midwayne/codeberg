@@ -44,6 +44,12 @@ typedef enum cberg_status {
 } cberg_status;
 
 CBERG_API const char *cberg_status_str(cberg_status status);
+
+/* Stable machine code for status ("not_found", "invalid_argument", ...).
+ * Unknown values return "internal_error". Static storage; do not free.
+ * IPC replies send this next to the English cberg_status_str text. */
+CBERG_API const char *cberg_status_code(cberg_status status);
+
 CBERG_API const char *cberg_version(void);
 
 /* --- Configuration ------------------------------------------------------ */

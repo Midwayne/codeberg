@@ -282,6 +282,22 @@ int main(void) {
             CHECK(ipc_roundtrip(socket_path, "symbol\tAdd\talpha\n", resp, sizeof(resp)) == 0, "symbol roundtrip");
             CHECK(strstr(resp, "\"kind\":\"function\"") != NULL, "symbol results carry kind");
 
+            CHECK(ipc_roundtrip(socket_path, "symbol\tAdd\talpha\tnope\n", resp, sizeof(resp)) == 0, "unknown kind roundtrip");
+            CHECK(strstr(resp, "\"code\":\"invalid_argument\"") != NULL, "unknown kind is invalid_argument");
+            CHECK(strstr(resp, "unknown kind") != NULL, "unknown kind names the field");
+
+            CHECK(ipc_roundtrip(socket_path, "search\tfoo\t5\n", resp, sizeof(resp)) == 0, "chunk-only search code");
+            CHECK(strstr(resp, "\"code\":\"not_implemented\"") != NULL, "chunk-only search code is not_implemented");
+
+            char big[9000];
+            memset(big, 'q', sizeof(big) - 1);
+            memcpy(big, "search\t", 7);
+            big[sizeof(big) - 2] = '\n';
+            big[sizeof(big) - 1] = '\0';
+            CHECK(ipc_roundtrip(socket_path, big, resp, sizeof(resp)) == 0, "oversized request roundtrip");
+            CHECK(strstr(resp, "\"code\":\"invalid_argument\"") != NULL, "oversized request is invalid_argument");
+            CHECK(strstr(resp, "request too long") != NULL, "oversized request names the limit");
+
             cberg_ipc_stop(ipc);
 
             char health_path[256];
