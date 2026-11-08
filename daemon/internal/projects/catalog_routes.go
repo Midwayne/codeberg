@@ -16,7 +16,7 @@ func (m *Manager) serveCatalog(w http.ResponseWriter, r *http.Request) {
 	case "POST":
 		m.serveAdd(w, r)
 	default:
-		respondError(w, 405, "method not allowed")
+		httpserver.WriteError(w, 405, "method not allowed")
 	}
 }
 
@@ -30,13 +30,13 @@ func (m *Manager) serveAdd(w http.ResponseWriter, r *http.Request) {
 		Root string `json:"root"`
 	}
 	if err := readProjectJSON(w, r, &body); err != nil {
-		respondError(w, 400, "invalid project")
+		httpserver.WriteError(w, 400, "invalid project")
 		return
 	}
 
 	p, err := m.Add(body.Name, body.Root)
 	if err != nil {
-		respondError(w, 400, err.Error())
+		httpserver.WriteError(w, 400, err.Error())
 		return
 	}
 
@@ -45,7 +45,7 @@ func (m *Manager) serveAdd(w http.ResponseWriter, r *http.Request) {
 
 func (m *Manager) serveRename(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method != "PATCH" {
-		respondError(w, 405, "method not allowed")
+		httpserver.WriteError(w, 405, "method not allowed")
 		return
 	}
 
@@ -57,7 +57,7 @@ func (m *Manager) serveRename(w http.ResponseWriter, r *http.Request, id string)
 		Name string `json:"name"`
 	}
 	if err := readProjectJSON(w, r, &body); err != nil {
-		respondError(w, 400, "invalid project name")
+		httpserver.WriteError(w, 400, "invalid project name")
 		return
 	}
 
@@ -72,7 +72,7 @@ func (m *Manager) serveRename(w http.ResponseWriter, r *http.Request, id string)
 			status = 404
 		}
 
-		respondError(w, status, err.Error())
+		httpserver.WriteError(w, status, err.Error())
 		return
 	}
 
@@ -81,7 +81,7 @@ func (m *Manager) serveRename(w http.ResponseWriter, r *http.Request, id string)
 
 func (m *Manager) serveRetry(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method != "POST" {
-		respondError(w, 405, "method not allowed")
+		httpserver.WriteError(w, 405, "method not allowed")
 		return
 	}
 

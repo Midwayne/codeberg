@@ -10,10 +10,6 @@ import (
 
 const projectJSONLimit = 8192
 
-func respondError(w http.ResponseWriter, status int, message string) {
-	httpserver.WriteError(w, status, message)
-}
-
 func (m *Manager) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
@@ -40,7 +36,7 @@ func allowProjectChange(w http.ResponseWriter, r *http.Request) bool {
 		return true
 	}
 
-	respondError(w, 403, "cross-origin project changes are not allowed")
+	httpserver.WriteError(w, 403, "cross-origin project changes are not allowed")
 
 	return false
 }
@@ -55,7 +51,7 @@ func (m *Manager) serveProject(w http.ResponseWriter, r *http.Request) {
 	_, ok := m.project(parts[0])
 	m.mu.Unlock()
 	if !ok {
-		respondError(w, 404, "project not found")
+		httpserver.WriteError(w, 404, "project not found")
 		return
 	}
 
@@ -75,7 +71,7 @@ func (m *Manager) serveProject(w http.ResponseWriter, r *http.Request) {
 
 	handler, err := m.activate(parts[0])
 	if err != nil {
-		respondError(w, 503, err.Error())
+		httpserver.WriteError(w, 503, err.Error())
 		return
 	}
 
@@ -101,7 +97,7 @@ func (m *Manager) serveDefault(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		respondError(w, 404, "add a project first")
+		httpserver.WriteError(w, 404, "add a project first")
 		return
 	}
 

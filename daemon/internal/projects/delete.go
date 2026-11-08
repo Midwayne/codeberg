@@ -18,7 +18,7 @@ func (m *Manager) serveDelete(w http.ResponseWriter, r *http.Request, id string)
 		Mode string `json:"mode"`
 	}
 	if err := readProjectJSON(w, r, &body); err != nil || (body.Mode != "index" && body.Mode != "all") {
-		respondError(w, 400, "choose deletion mode: index or all")
+		httpserver.WriteError(w, 400, "choose deletion mode: index or all")
 		return
 	}
 
@@ -28,7 +28,7 @@ func (m *Manager) serveDelete(w http.ResponseWriter, r *http.Request, id string)
 		if errors.Is(err, errProjectNotFound) {
 			status = 404
 		}
-		respondError(w, status, err.Error())
+		httpserver.WriteError(w, status, err.Error())
 		return
 	}
 

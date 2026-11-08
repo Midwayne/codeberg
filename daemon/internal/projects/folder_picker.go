@@ -35,7 +35,7 @@ func (p *folderPicker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if p.active {
 		p.mu.Unlock()
-		respondError(w, 409, "A folder picker is already open. Finish or cancel it, then try again")
+		httpserver.WriteError(w, 409, "A folder picker is already open. Finish or cancel it, then try again")
 		return
 	}
 
@@ -54,17 +54,17 @@ func (p *folderPicker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func pickerInitialPath(w http.ResponseWriter, r *http.Request) (string, bool) {
 	if r.Method != "POST" {
-		respondError(w, 405, "method not allowed")
+		httpserver.WriteError(w, 405, "method not allowed")
 		return "", false
 	}
 
 	if !sameOrigin(r) {
-		respondError(w, 403, "cross-origin folder selection is not allowed")
+		httpserver.WriteError(w, 403, "cross-origin folder selection is not allowed")
 		return "", false
 	}
 
 	if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
-		respondError(w, 415, "application/json required")
+		httpserver.WriteError(w, 415, "application/json required")
 		return "", false
 	}
 
@@ -72,14 +72,14 @@ func pickerInitialPath(w http.ResponseWriter, r *http.Request) (string, bool) {
 		InitialPath string `json:"initialPath"`
 	}
 	if err := readProjectJSON(w, r, &body); err != nil {
-		respondError(w, 400, "invalid folder selection request")
+		httpserver.WriteError(w, 400, "invalid folder selection request")
 		return "", false
 	}
 
 	initial := body.InitialPath
 	if initial != "" {
 		if !filepath.IsAbs(initial) || strings.ContainsAny(initial, "\x00\n\r\t") {
-			respondError(w, 400, "Choose an absolute directory path")
+			httpserver.WriteError(w, 400, "Choose an absolute directory path")
 			return "", false
 		}
 
@@ -109,7 +109,7 @@ func respondPickerChoice(ctx context.Context, w http.ResponseWriter, path string
 			status, message = 408, "Folder selection timed out. Choose a folder again or enter the path manually"
 		}
 
-		respondError(w, status, message)
+		httpserver.WriteError(w, status, message)
 		return
 	}
 
@@ -120,7 +120,7 @@ func respondPickerChoice(ctx context.Context, w http.ResponseWriter, path string
 
 	canonical, err := existingDirectory(path)
 	if err != nil {
-		respondError(w, 502, "The selected folder is unavailable. Choose another folder or enter its path manually")
+		httpserver.WriteError(w, 502, "The selected folder is unavailable. Choose another folder or enter its path manually")
 		return
 	}
 
