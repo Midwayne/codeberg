@@ -72,7 +72,7 @@ Paths below are relative to Codeberg home. **Settings → Projects** shows the e
 | `config` | Startup settings and supported provider credentials. | After restart. |
 | `models.yml` | [Models](/docs/models), context windows, capabilities, efforts, optional prices. | When settings refresh. |
 | `mcp.json` | Shared servers inside `mcpServers`. | Next chat turn. |
-| `skills/<name>/SKILL.md` | Shared instructions; flat Markdown files also work. | Next chat turn. |
+| `skills/<name>/SKILL.md` | Shared instructions. Only a file named `SKILL.md` is loaded. | Next chat turn. |
 | `projects/<id>/mcp.json` | Project servers; override matching earlier definitions. | Next chat turn. |
 | `projects/<id>/skills/` | Project skills; override matching earlier skills. | Next chat turn. |
 | `projects/<id>/spec.yml` or `spec.yaml` | Database connections and access levels. | After restart; database MCP must be enabled. |

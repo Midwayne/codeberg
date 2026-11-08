@@ -1,6 +1,7 @@
 import { unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { DatasetStore } from '../../core/learning/datasets.js';
+import { LearningError } from '../../core/learning/errors.js';
 import { LearningStore } from '../../core/learning/store.js';
 import { writeModuleLog } from '../../core/module-log.js';
 import { listFiles } from './catalog.js';
@@ -64,7 +65,7 @@ export async function cleanup(state: ResourceSettingsState, input: unknown): Pro
       ? await state.options.learning.withMaintenance(action)
       : await action();
   } catch (error) {
-    if (/learning is busy|promotion in progress/.test(String(error)))
+    if (error instanceof LearningError && error.kind === 'conflict')
       throw new ResourceSettingsError(
         'Learning is busy. Try cleanup again after background jobs finish.',
         409,

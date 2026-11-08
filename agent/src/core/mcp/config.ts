@@ -5,7 +5,7 @@ import { parseMcpJson } from './config/parse.js';
 import { splitList } from './config/values.js';
 import { envFlag, expandHome } from '../env.js';
 
-import { findGitRoot, indexedRootsFromEnv } from '../paths.js';
+import { codebergHome, findGitRoot, indexedRootsFromEnv } from '../paths.js';
 import { builtinDatabaseServer } from './builtin.js';
 import type { McpConfig, McpConfigIo, McpInterpolateContext, McpServer } from './types.js';
 
@@ -68,10 +68,7 @@ export function mcpConfigFromEnv(
     return { enabled: false, servers: [], files: [], warnings: [] };
   }
 
-  const home =
-    env.CODEBERG_HOME && env.CODEBERG_HOME.trim() !== ''
-      ? env.CODEBERG_HOME
-      : join((io.homedir ?? homedir)(), '.codeberg');
+  const home = codebergHome(env, io.homedir ?? homedir);
 
   const cwd = io.cwd ?? process.cwd();
   const userHome = (io.homedir ?? homedir)();
