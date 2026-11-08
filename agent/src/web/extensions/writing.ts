@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { parseSkillDocument, SKILL_FILE } from '../../core/context/skill-document.js';
+import { SKILL_SIZE_LABEL, validExtensionName, withinSkillLimit } from './limits.js';
 import { readOptionalText, writeJsonAtomic } from '../../core/learning/fs.js';
 import { MCP_FILE } from '../../core/mcp/config.js';
 import { parseMcpJson } from '../../core/mcp/config/parse.js';
@@ -41,7 +42,7 @@ export async function write(
     !['global', 'project'].includes(String(body.scope)) ||
     !['mcp', 'skill'].includes(String(body.kind)) ||
     typeof body.name !== 'string' ||
-    !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(body.name)
+    !validExtensionName(body.name)
   )
     throw new Error(
       'Choose a scope, kind and a name containing letters, numbers, dashes or underscores.',
@@ -92,8 +93,8 @@ async function writeMcp(root: string, body: ExtensionInput, env: NodeJS.ProcessE
 }
 
 async function writeSkill(root: string, body: ExtensionInput): Promise<void> {
-  if (typeof body.content !== 'string' || Buffer.byteLength(body.content, 'utf8') > 256 * 1024)
-    throw new Error(`Provide a ${SKILL_FILE} document up to 256 KB.`);
+  if (typeof body.content !== 'string' || !withinSkillLimit(body.content))
+    throw new Error(`Provide a ${SKILL_FILE} document up to ${SKILL_SIZE_LABEL}.`);
 
   const parsed = parseSkillDocument(body.content, body.name);
   if (!parsed || parsed.name !== body.name)

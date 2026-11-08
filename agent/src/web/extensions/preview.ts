@@ -1,5 +1,6 @@
 import { basename } from 'node:path';
-import { parseSkillDocument } from '../../core/context/skill-document.js';
+import { SKILL_FILE, parseSkillDocument } from '../../core/context/skill-document.js';
+import { SKILL_SIZE_LABEL, validExtensionName, withinSkillLimit } from './limits.js';
 
 export interface SkillFilePreview {
   filename: string;
@@ -21,16 +22,16 @@ export function previewSkillFiles(input: unknown): SkillFilePreview[] {
       typeof value?.filename === 'string' ? basename(value.filename) : 'Unknown file';
     if (!/\.md$/i.test(filename)) return { filename, error: 'Choose Markdown (.md) skill files.' };
 
-    if (typeof value?.content !== 'string' || Buffer.byteLength(value.content, 'utf8') > 256 * 1024)
-      return { filename, error: 'Each skill file must be at most 256 KB.' };
+    if (typeof value?.content !== 'string' || !withinSkillLimit(value.content))
+      return { filename, error: `Each skill file must be at most ${SKILL_SIZE_LABEL}.` };
 
-    const fallback = filename.toLowerCase() === 'skill.md' ? '' : filename.replace(/\.md$/i, '');
+    const fallback = filename.toLowerCase() === SKILL_FILE.toLowerCase() ? '' : filename.replace(/\.md$/i, '');
     const parsed = parseSkillDocument(value.content, fallback);
-    if (!parsed || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(parsed.name))
+    if (!parsed || !validExtensionName(parsed.name))
       return {
         filename,
         error:
-          'Provide a skill name containing letters, numbers, dashes or underscores, and a description. SKILL.md needs a name in its frontmatter.',
+          `Provide a skill name containing letters, numbers, dashes or underscores, and a description. ${SKILL_FILE} needs a name in its frontmatter.`,
       };
 
     if (names.has(parsed.name))
