@@ -17,8 +17,6 @@ var stopWords = map[string]bool{
 	"or": true, "with": true, "from": true, "by": true, "on": true, "at": true,
 }
 
-var testQuery = regexp.MustCompile(`(?i)\b(tests?|specs?|generated|build)\b`)
-
 // PrioritizeLexical sorts grep results deterministically (rg can emit files in
 // parallel), and prevents generated artifacts and test fixtures from crowding
 // out production code unless the query explicitly asks for them.
@@ -27,11 +25,11 @@ func PrioritizeLexical(matches []workspace.GrepMatch, query string) []workspace.
 		return matches
 	}
 
-	request := strings.ToLower(testQuery.FindString(query))
+	requested, asked := requestedClass(query)
 
 	ordered := append([]workspace.GrepMatch(nil), matches...)
 	slices.SortStableFunc(ordered, func(a, b workspace.GrepMatch) int {
-		if pa, pb := lexicalPriority(a.Path, request), lexicalPriority(b.Path, request); pa != pb {
+		if pa, pb := lexicalPriority(a.Path, requested, asked), lexicalPriority(b.Path, requested, asked); pa != pb {
 			return pa - pb
 		}
 
@@ -55,8 +53,8 @@ func PrioritizeLexical(matches []workspace.GrepMatch, query string) []workspace.
 	return ordered
 }
 
-// SignificantTerms extracts searchable tokens from a natural-language query.
-func SignificantTerms(query string) []string {
+// significantTerms extracts searchable tokens from a natural-language query.
+func significantTerms(query string) []string {
 	var terms []string
 
 	for _, w := range strings.Fields(strings.ToLower(query)) {
@@ -75,7 +73,7 @@ func SignificantTerms(query string) []string {
 // file search. Quote it before sending it to rg: identifiers and config keys
 // can include regex metacharacters.
 func LexicalPattern(query string) string {
-	terms := SignificantTerms(query)
+	terms := significantTerms(query)
 	if len(terms) == 0 {
 		return ""
 	}
@@ -130,29 +128,22 @@ func isWordRune(r rune) bool {
 	return r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r)
 }
 
-func lexicalPriority(path, request string) int {
-	p := "/" + strings.ToLower(path)
-	generated := strings.Contains(p, "/build/") || strings.Contains(p, "/generated/") ||
-		strings.Contains(p, "/target/") || strings.Contains(p, "/node_modules/")
-	test := strings.Contains(p, "/src/test/") || strings.Contains(p, "/tests/") ||
-		strings.Contains(p, "/test/") || strings.HasSuffix(p, "_test.go") ||
-		strings.HasSuffix(p, ".spec.ts")
-	main := strings.Contains(p, "/src/main/")
+// lexicalPriority orders matches: requested classes first, then source, then
+// tests, then generated files.
+func lexicalPriority(path string, requested pathClass, asked bool) int {
+	class := classifyPath(path)
+	if asked && class == requested {
+		return 0
+	}
 
-	switch {
-	case generated:
-		if request == "generated" || request == "build" {
-			return 0
-		}
-		return 3
-	case test:
-		if request == "test" || request == "tests" || request == "spec" || request == "specs" {
-			return 0
-		}
+	switch class {
+	case sourcePath:
+		return 1
+	case testPath:
 		return 2
-	case main:
-		return 1
+	case generatedPath:
+		return 3
 	default:
-		return 1
+		panic("search: unknown path class")
 	}
 }

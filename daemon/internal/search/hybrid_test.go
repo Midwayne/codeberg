@@ -10,17 +10,17 @@ import (
 )
 
 func TestSignificantTerms(t *testing.T) {
-	terms := SignificantTerms("How does the authentication handler work?")
+	terms := significantTerms("How does the authentication handler work?")
 	if len(terms) != 3 || terms[0] != "authentication" || terms[1] != "handler" || terms[2] != "work" {
 		t.Fatalf("terms: %v", terms)
 	}
 
-	short := SignificantTerms("go io")
+	short := significantTerms("go io")
 	if len(short) != 0 {
 		t.Fatalf("short/stop words filtered: %v", short)
 	}
 
-	trimmed := SignificantTerms(`tokenize, "punctuation"!`)
+	trimmed := significantTerms(`tokenize, "punctuation"!`)
 	if len(trimmed) != 2 || trimmed[0] != "tokenize" || trimmed[1] != "punctuation" {
 		t.Fatalf("trimmed: %v", trimmed)
 	}
