@@ -229,7 +229,7 @@ func TestInheritedRootsCannotLeakIntoProjectIndexer(t *testing.T) {
 	p, _ := m.Add("Child", root)
 	bin := filepath.Join(home, "fake-indexer")
 	output := filepath.Join(home, "seen-root")
-	script := "#!/bin/sh\nprintf '%s' \"${CODEBERG_ROOTS-unset}\" > '" + output + "'\nsleep 30\n"
+	script := "#!/bin/sh\nprintf '%s' \"${CODEBERG_ROOTS-unset}\" > '" + output + "'\nexec sleep 30\n"
 	if err := os.WriteFile(bin, []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
