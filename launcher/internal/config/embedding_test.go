@@ -21,7 +21,8 @@ func TestEmbeddingGemmaWorkerEnvironmentAndIndex(t *testing.T) {
 	for key, want := range map[string]string{
 		KeyEmbedBackend:      "sentence-transformers",
 		KeyEmbedModel:        filepath.Join(home, "models", "embeddinggemma-2"),
-		KeyIndexPath:         filepath.Join(home, "custom.usearch.embeddinggemma-2"),
+		KeyIndexPath:         filepath.Join(home, "custom.usearch"),
+		KeyIndexNamespace:    "embeddinggemma-2",
 		"CBERG_EMBED_WORKER": filepath.Join(dist, "scripts", "embedding_worker.py"),
 		"CBERG_EMBED_PYTHON": filepath.Join(home, "embeddinggemma-venv", "bin", "python"),
 	} {

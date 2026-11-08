@@ -28,6 +28,7 @@ import (
 	"codeberg.org/codeberg/launcher/internal/config"
 	"codeberg.org/codeberg/launcher/internal/console"
 	"codeberg.org/codeberg/launcher/internal/embedding"
+	"codeberg.org/codeberg/launcher/internal/paths"
 	"codeberg.org/codeberg/launcher/internal/registry"
 	"codeberg.org/codeberg/launcher/internal/run"
 	"codeberg.org/codeberg/launcher/internal/searxng"
@@ -119,8 +120,7 @@ func parseShared(name string, args []string) (*config.Overrides, error) {
 	fs.StringVar(&o.HTTPPort, "port", "", "daemon HTTP port (default 48080)")
 	fs.StringVar(&o.EmbedModel, "embed-model", "", "embedding model .onnx path")
 	fs.StringVar(&o.Embedding, "embedding", "", "embedding model ID (choose interactively on first run)")
-	fs.StringVar(&o.IndexPath, "index-path", "", "vector index base path")
-	fs.StringVar(&o.Socket, "socket", "", "cberg-index IPC socket path")
+	fs.StringVar(&o.IndexPath, "index-path", "", "optional vector index base path (the daemon chooses one when empty)")
 	fs.StringVar(&o.Reasoning, "reasoning", "", "reasoning effort (low|medium|high|…)")
 	fs.StringVar(&o.Repo, "repo", "", "source checkout to build/run")
 	fs.StringVar(&o.Dist, "dist", "", "prebuilt artifact dir to run (CODEBERG_DIST)")
@@ -178,8 +178,8 @@ func cmdRun(args []string) error {
 	if created, _ := config.InitFile(c.ConfigPath); created {
 		fmt.Fprintf(os.Stderr, "› wrote a starter config at %s\n", c.ConfigPath)
 	}
-	if created, _ := config.InitMcpFile(filepath.Join(c.Home, "mcp.json")); created {
-		fmt.Fprintf(os.Stderr, "› wrote a starter MCP config at %s\n", filepath.Join(c.Home, "mcp.json"))
+	if created, _ := config.InitMcpFile(paths.McpFile(c.Home)); created {
+		fmt.Fprintf(os.Stderr, "› wrote a starter MCP config at %s\n", paths.McpFile(c.Home))
 	}
 	if err := selectEmbedding(c, o); err != nil {
 		return err
@@ -278,7 +278,7 @@ func selectEmbedding(c *config.Config, o *config.Overrides) error {
 	if _, err := os.Stat(c.EmbedModel); err == nil {
 		return nil
 	}
-	if matches, _ := filepath.Glob(c.IndexPath + ".*"); len(matches) > 0 {
+	if existingInstall(c) {
 		return nil
 	}
 	if value, ok := c.Get(config.KeyEmbedding); ok && value != "" {
@@ -346,7 +346,7 @@ func cmdConfig(args []string) error {
 		} else {
 			fmt.Printf("%s already exists (not overwritten)\n", c.ConfigPath)
 		}
-		mcpPath := filepath.Join(c.Home, "mcp.json")
+		mcpPath := paths.McpFile(c.Home)
 		mcpCreated, err := config.InitMcpFile(mcpPath)
 		if err != nil {
 			return err
@@ -381,7 +381,7 @@ func cmdConfig(args []string) error {
 		}
 		kv := map[string]string{}
 		for _, pair := range rest {
-			eq := indexOf(pair, '=')
+			eq := strings.IndexByte(pair, '=')
 			if eq <= 0 {
 				return fmt.Errorf("expected KEY=VALUE, got %q", pair)
 			}
@@ -449,13 +449,22 @@ func firstNonEmpty(vals ...string) string {
 	return ""
 }
 
-func indexOf(s string, b byte) int {
-	for i := 0; i < len(s); i++ {
-		if s[i] == b {
-			return i
+// existingInstall is true when this home already has daemon data, so a later
+// run does not ask the user to pick a model again. codeberg-d may not be
+// built yet, so this checks the two home entries the daemon publishes.
+func existingInstall(c *config.Config) bool {
+	if c.IndexPath != "" {
+		if matches, _ := filepath.Glob(c.IndexPath + ".*"); len(matches) > 0 {
+			return true
 		}
 	}
-	return -1
+
+	if matches, _ := filepath.Glob(filepath.Join(c.Home, "index", "codeberg.usearch*")); len(matches) > 0 {
+		return true
+	}
+
+	_, err := os.Stat(filepath.Join(c.Home, "projects.json"))
+	return err == nil
 }
 
 func cmdCleanIndex(args []string) error {
@@ -589,7 +598,7 @@ func cmdDoctor(args []string) error {
 		fmt.Printf("  ✓ external SearXNG: %s\n", c.SearxngURL)
 	case searxng.Installed(c.Home):
 		fmt.Printf("  ✓ managed SearXNG installed (%s) — runs on :%s with codeberg\n",
-			filepath.Join(c.Home, "searxng"), c.SearxngPort)
+			searxng.Dir(c.Home), c.SearxngPort)
 	case searxng.Available():
 		fmt.Println("  ✘ not installed yet — `codeberg build` (or the next run) installs it")
 	default:

@@ -16,7 +16,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
-	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -26,32 +26,10 @@ import (
 	"codeberg.org/codeberg/launcher/internal/deps"
 )
 
-// defaultHealthDeadline bounds how long we wait for the daemon to serve
-// /health. The daemon only starts its HTTP server after the indexer reports
-// ready, and a *first* index of a large tree — parse every file, embed every
-// chunk through ONNX — routinely runs past six minutes, which used to trip the
-// old deadline and force a second `codeberg` run (the rebuilt index then warm-
-// starts). Fifteen minutes covers a cold index of a large repo; override with
-// CODEBERG_HEALTH_TIMEOUT (any Go duration, e.g. "30m") for the truly huge.
-const defaultHealthDeadline = 15 * time.Minute
-
-// healthDeadline returns the configured wait, honoring CODEBERG_HEALTH_TIMEOUT
-// when it parses as a Go duration, otherwise the default scaled by how many
-// repos this run indexes — a first `--all` may cold-index several trees back
-// to back through one embedder.
-func healthDeadline(repos int) time.Duration {
-	if v := os.Getenv("CODEBERG_HEALTH_TIMEOUT"); v != "" {
-		if d, err := time.ParseDuration(v); err == nil && d > 0 {
-			return d
-		}
-		fmt.Fprintf(os.Stderr, "› ignoring invalid CODEBERG_HEALTH_TIMEOUT=%q (want a duration like 30m)\n", v)
-	}
-	d := defaultHealthDeadline
-	if scaled := time.Duration(repos) * 5 * time.Minute; scaled > d {
-		d = scaled
-	}
-	return d
-}
+// httpReadyTimeout bounds the wait until codeberg-d accepts HTTP. The server
+// listens before indexing finishes; CODEBERG_HEALTH_TIMEOUT belongs to the
+// daemon's indexer deadline, not this check.
+const httpReadyTimeout = 30 * time.Second
 
 // Run boots the daemon, waits for health, runs the browser UI, and cleans up.
 // Launcher status goes to term; the browser UI keeps writing to the terminal.
@@ -74,9 +52,6 @@ func Run(c *config.Config, term *console.Terminal) error {
 		return err
 	}
 
-	if err := os.MkdirAll(filepath.Dir(c.IndexPath), 0o755); err != nil {
-		return err
-	}
 	logPath := filepath.Join(c.Home, "logs", "daemon.log")
 	logFile, err := openLog(c.Home, "daemon.log")
 	if err != nil {
@@ -133,9 +108,8 @@ func Run(c *config.Config, term *console.Terminal) error {
 	defer stop()
 
 	// --- wait for /health (indexing + embedding happen here) ------------------
-	deadline := healthDeadline(len(c.Roots))
 	stopStatus := announceStartup(term, c, logPath)
-	if err := waitHealthy(c.DaemonURL, stopped, deadline); err != nil {
+	if err := waitHealthy(c.DaemonURL, stopped, httpReadyTimeout); err != nil {
 		stopStatus()
 		progress.stopLive()
 		fmt.Fprint(term, tailFile(logPath, 20))
@@ -144,11 +118,9 @@ func Run(c *config.Config, term *console.Terminal) error {
 	stopStatus()
 	progress.stopLive()
 
+	c.SearchURL = search.URL
+	c.SearchToken = search.Token
 	agentEnv := c.AgentEnv()
-	// Resource monitoring attributes this launcher's managed process tree only.
-	agentEnv["CODEBERG_RESOURCE_ROOT_PID"] = strconv.Itoa(os.Getpid())
-	agentEnv["CODEBERG_SEARCH_CONTROL_URL"] = search.URL
-	agentEnv["CODEBERG_SEARCH_CONTROL_TOKEN"] = search.Token
 
 	// --- run the front end in the foreground ---------------------------------
 	// The browser UI shares this terminal's process group: SIGINT (Ctrl-C)
@@ -244,9 +216,8 @@ func openBrowser(url string) {
 func startDaemon(bin, root string, c *config.Config, out io.Writer) (*exec.Cmd, error) {
 	cmd := exec.Command(bin)
 	cmd.Dir = root
-	env := c.DaemonEnv()
-	env["CODEBERG_RESOURCE_ROOT_PID"] = strconv.Itoa(os.Getpid())
-	cmd.Env = mergeEnv(os.Environ(), env)
+	c.RootPID = os.Getpid()
+	cmd.Env = mergeEnv(os.Environ(), c.DaemonEnv())
 	// Same writer for both streams: os/exec then serializes Write calls for us.
 	cmd.Stdout = out
 	cmd.Stderr = out
@@ -311,8 +282,7 @@ func waitHealthy(daemonURL string, daemonStopped <-chan struct{}, deadline time.
 		case <-daemonStopped:
 			return fmt.Errorf("daemon exited before becoming healthy")
 		case <-ctx.Done():
-			return fmt.Errorf("daemon did not become healthy within %s "+
-				"(raise it with CODEBERG_HEALTH_TIMEOUT, e.g. 30m, for a very large first index)", deadline)
+			return fmt.Errorf("daemon did not accept HTTP within %s", deadline)
 		case <-ticker.C:
 		}
 	}
@@ -323,7 +293,7 @@ func mergeEnv(base []string, overrides map[string]string) []string {
 	out := make([]string, 0, len(base)+len(overrides))
 	for _, kv := range base {
 		key := kv
-		if i := indexByte(kv, '='); i >= 0 {
+		if i := strings.IndexByte(kv, '='); i >= 0 {
 			key = kv[:i]
 		}
 		if _, ok := overrides[key]; ok {
@@ -337,44 +307,18 @@ func mergeEnv(base []string, overrides map[string]string) []string {
 	return out
 }
 
-func indexByte(s string, b byte) int {
-	for i := 0; i < len(s); i++ {
-		if s[i] == b {
-			return i
-		}
-	}
-	return -1
-}
-
 func tailFile(path string, lines int) string {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return ""
 	}
-	all := splitLines(string(data))
+	all := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
 	if len(all) > lines {
 		all = all[len(all)-lines:]
 	}
 	out := "--- daemon.log (tail) ---\n"
 	for _, l := range all {
 		out += l + "\n"
-	}
-	return out
-}
-
-func splitLines(s string) []string {
-	var out []string
-	cur := ""
-	for _, r := range s {
-		if r == '\n' {
-			out = append(out, cur)
-			cur = ""
-			continue
-		}
-		cur += string(r)
-	}
-	if cur != "" {
-		out = append(out, cur)
 	}
 	return out
 }

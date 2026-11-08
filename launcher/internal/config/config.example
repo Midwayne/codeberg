@@ -90,11 +90,12 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # Daemon / HTTP (daemon scope)
 # =============================================================================
 
-# Daemon HTTP listen port (default 48080 via launcher; 8080 when running codeberg-d alone).
+# Daemon HTTP listen port (default 48080 for the launcher and for codeberg-d).
 # CODEBERG_HTTP_PORT=48080
 
-# Unix socket for cberg-index IPC (default /tmp/codeberg-index.sock).
-# CBERG_SOCKET=/tmp/codeberg-index.sock
+# How long one project may take to become ready, as a Go duration.
+# Invalid values fail startup. The default scales with the number of repos.
+# CODEBERG_HEALTH_TIMEOUT=30m
 
 # Path to cberg-index binary (default: beside codeberg-d or on PATH).
 # CBERG_INDEX_BIN=/path/to/cberg-index
@@ -102,11 +103,9 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # Filesystem watcher poll interval in milliseconds (default 1000).
 # CBERG_POLL_MS=1000
 
-# Periodic git pull for mirror refresh; 0 or unset = disabled.
+# Periodic git pull for every served root that contains a .git directory.
+# 0 or unset = disabled.
 # CODEBERG_GIT_PULL_INTERVAL_SEC=300
-
-# Git repo for pull (default: every served root that contains a .git directory).
-# CODEBERG_GIT_DIR=/path/to/repo
 
 # =============================================================================
 # Vector search / embeddings (daemon scope — omit for chunk-only mode)
@@ -124,18 +123,19 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # Custom ONNX path when no registry selection is configured.
 # CBERG_MODEL=/abs/path/to/jina-embeddings-v2-base-code/model.onnx
 
-# Vector index base path; per-repo sidecars at <base>.<roothash>[.chunks|.manifest].
-# Selected models use CODEBERG_HOME/index/<model-id>/codeberg.usearch.
-# Existing Jina installations keep CODEBERG_HOME/index/codeberg.usearch.
+# Optional index base path. Leave unset and the daemon stores each project at
+# CODEBERG_HOME/projects/<id>/index/<namespace>/codeberg.usearch.
+# Jina keeps the un-namespaced project index. CODEBERG_INDEX_NAMESPACE is set
+# from the selected model; set it here only to override that choice.
 # CBERG_INDEX_PATH=/abs/path/to/codeberg.usearch
+# CODEBERG_INDEX_NAMESPACE=qwen3-mlx
 
 # usearch stored scalar kind for new index files: i8 (default) or f32.
-# env only (export when using codeberg, or set in daemon/.env):
 # CBERG_INDEX_QUANT=i8
 # CBERG_INDEX_QUANT=f32
 
 # Remote vector storage (default: local usearch files above).
-# env only:
+# A remote backend keeps CBERG_INDEX_PATH as the collection name.
 # CBERG_INDEX_BACKEND=usearch
 # CBERG_INDEX_BACKEND=qdrant
 # CBERG_VECTORDB_URL=https://your-cluster.qdrant.io
@@ -144,8 +144,7 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # CBERG_INDEX_BACKEND=pgvector
 # CBERG_POSTGRES_URL=postgresql://user:pass@host:5432/dbname
 
-# Embedding performance (forwarded to cberg-index via inherited environment).
-# env only:
+# Embedding performance (forwarded to cberg-index).
 # CBERG_EMBED_THREADS=8
 # CBERG_EMBED_COREML=1
 # CBERG_EMBED_BATCH=16

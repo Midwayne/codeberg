@@ -47,6 +47,11 @@ type layout struct {
 	ready    string // marker written once deps are installed
 }
 
+// Dir is the managed SearXNG directory under home.
+func Dir(home string) string {
+	return layoutFor(home).base
+}
+
 func layoutFor(home string) layout {
 	base := filepath.Join(home, "searxng")
 	return layout{

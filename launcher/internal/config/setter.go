@@ -13,7 +13,8 @@ import (
 func KnownKeys() []string {
 	keys := []string{
 		KeyModel, KeySubagentModel, KeyDaemonURL, KeyHTTPPort, KeyEmbedModel, KeyEmbedding, KeyIndexPath,
-		KeySocket, KeyPollMS, KeyIndexBin, KeyGitPullSec, KeyGitDir, KeyReasoning,
+		KeyIndexNamespace, KeyPollMS, KeyIndexBin, KeyGitPullSec, KeyHealthTimeout, KeyEmbedBackend,
+		KeyLogDir, KeyReasoning,
 		KeyVector, KeyWebPort, KeyWebUse, KeyWebSearchUse, KeyLearningUse, KeySearxngURL, KeySearxngPort,
 		KeyAll, KeyReposSel, KeyNoIndex, KeyVerbose, KeyHome, KeyRepo, KeyDist,
 		KeyMcpUse, KeyMcpConfig, KeyDbmcpUse, KeyDbmcpSpec, KeyDbmcpBin,
@@ -51,16 +52,20 @@ func (c *Config) Get(key string) (string, bool) {
 		return c.Embedding, true
 	case KeyIndexPath:
 		return c.IndexPath, true
-	case KeySocket:
-		return c.Socket, true
+	case KeyIndexNamespace:
+		return c.IndexNamespace, true
 	case KeyPollMS:
 		return c.PollMS, true
 	case KeyIndexBin:
 		return c.IndexBin, true
 	case KeyGitPullSec:
 		return c.GitPullSec, true
-	case KeyGitDir:
-		return c.GitDir, true
+	case KeyHealthTimeout:
+		return c.HealthTimeout, true
+	case KeyEmbedBackend:
+		return c.EmbedBackend, true
+	case KeyLogDir:
+		return filepath.Join(c.Home, "logs"), true
 	case KeyReasoning:
 		return c.Reasoning, true
 	case KeyVector:

@@ -89,13 +89,51 @@ func (m Model) Path(home string) string {
 	return filepath.Join(home, "models", m.ID, m.Filename)
 }
 
-// IndexPath retains the existing Jina path for backward compatibility. Other
-// models have separate paths (and therefore separate chunk/graph sidecars).
-func (m Model) IndexPath(home string) string {
-	if m.ID == Jina {
-		return filepath.Join(home, "index", "codeberg.usearch")
+// UsesVenv reports whether this backend's runtime is a managed Python virtualenv.
+func (m Model) UsesVenv() bool {
+	switch m.Backend {
+	case "mlx", "gemma-mlx", "sentence-transformers":
+		return true
+	default:
+		return false
 	}
-	return filepath.Join(home, "index", m.ID, "codeberg.usearch")
+}
+
+// Namespace is the directory the daemon uses under a project's index.
+// Jina keeps the historical un-namespaced index so existing vectors stay put.
+func (m Model) Namespace() string {
+	if m.ID == Jina {
+		return ""
+	}
+
+	return m.ID
+}
+
+// ReadyMark is the file that shows a model download is complete.
+func (m Model) ReadyMark() string {
+	if m.UsesVenv() {
+		return "tokenizer.json"
+	}
+
+	return m.Filename
+}
+
+// VenvDirs lists the managed interpreter directories, without duplicates.
+func VenvDirs(home string) []string {
+	seen := map[string]bool{}
+	dirs := make([]string, 0, 3)
+
+	for _, model := range models {
+		dir := model.VenvPath(home)
+		if seen[dir] {
+			continue
+		}
+
+		seen[dir] = true
+		dirs = append(dirs, dir)
+	}
+
+	return dirs
 }
 
 func (m Model) ValidatePlatform() error {
