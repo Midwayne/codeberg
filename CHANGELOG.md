@@ -7,6 +7,14 @@ changes may occur in minor releases and are called out explicitly.
 
 ## [Unreleased]
 
+### Changed
+
+- `codeberg-d` listens on port 48080 by default, the same port the launcher and
+  the agent already use. Set `CODEBERG_HTTP_PORT` to keep the old 8080.
+- A project's local vector index lives under
+  `projects/<id>/index/<embedding-namespace>/`. An older index at the previous
+  path is moved on startup when the new path is empty.
+
 ## [0.1.14] - 2026-11-08
 
 ### Added
