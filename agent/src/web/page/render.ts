@@ -1,4 +1,4 @@
-import { SPILL_PREFIX, SPILL_RESULT_COUNT_SOURCE } from '../core/context/spill-preview.js';
+import { SPILL_PREFIX, SPILL_RESULT_COUNT_SOURCE } from '../../core/context/spill-preview.js';
 
 export const PAGE_RENDER = `function addMessage(role) {
   var w = document.createElement("div");

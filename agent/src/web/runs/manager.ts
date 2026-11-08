@@ -1,5 +1,5 @@
 import { closeBrowserSessions } from '../../core/browser/sessions.js';
-import { join } from 'node:path';
+import { sessionRunsDir } from '../sessions/layout.js';
 import type { LearningService } from '../../core/learning/service.js';
 import type { WebSessionStore } from '../sessions/store.js';
 import { isValidSessionId } from '../../core/api/sessions.js';
@@ -64,7 +64,7 @@ export class SearchRuns {
     const live = this.active.get(chatId);
     if (live?.record.id === id) return live;
 
-    return this.load(join(this.sessions.dir, '.runs', chatId, id));
+    return this.load(sessionRunsDir(this.sessions.dir, chatId, id));
   }
 
   findRequest(chatId: string, requestId: string): Promise<SearchRun | undefined> {
@@ -113,7 +113,7 @@ export class SearchRuns {
 
     await validateHistory(this.sessions, input);
     this.stops.check(id);
-    const journal = new RunJournal(join(this.sessions.dir, '.runs', input.chatId, id));
+    const journal = new RunJournal(sessionRunsDir(this.sessions.dir, input.chatId, id));
     const run: SearchRun = { record: { ...input, id, fingerprint, status: 'running', createdAt: Date.now() },
       journal, events: [], tools: [], controller: new AbortController(), listeners: new Set(), done: Promise.resolve() };
     this.active.set(input.chatId, run);
@@ -175,7 +175,7 @@ export class SearchRuns {
       const session = await this.sessions.load(summary.id);
       if (!session?.serverRunId) continue;
 
-      const run = await this.load(join(this.sessions.dir, '.runs', session.id, session.serverRunId));
+      const run = await this.load(sessionRunsDir(this.sessions.dir, session.id, session.serverRunId));
       if (!run) continue;
 
       await saveRunSession(this.sessions, run);

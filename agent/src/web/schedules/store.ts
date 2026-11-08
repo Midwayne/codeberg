@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { sessionSchedulesFile } from '../sessions/layout.js';
 import { writeJsonAtomic } from '../../core/learning/fs.js';
 import type { ScheduledRun } from './types.js';
 
@@ -26,7 +26,7 @@ export class ScheduleStore {
   }
 
   async read(): Promise<ScheduledRun[]> {
-    const json = await readFile(join(this.directory, '.schedules', 'queue.json'), 'utf8').catch((error: NodeJS.ErrnoException) => {
+    const json = await readFile(sessionSchedulesFile(this.directory), 'utf8').catch((error: NodeJS.ErrnoException) => {
       if (error.code !== 'ENOENT') throw error;
 
       return '[]';
@@ -38,6 +38,6 @@ export class ScheduleStore {
   }
 
   write(jobs: ScheduledRun[]): Promise<void> {
-    return writeJsonAtomic(join(this.directory, '.schedules', 'queue.json'), jobs);
+    return writeJsonAtomic(sessionSchedulesFile(this.directory), jobs);
   }
 }
