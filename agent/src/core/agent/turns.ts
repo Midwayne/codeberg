@@ -8,6 +8,7 @@ import type { AskOptions, AskResult } from '../types.js';
 import { compactHistory } from './history.js';
 import { ensureLoop } from './loop.js';
 import { dedupe, toPerformance } from './results.js';
+import { withSearchHits } from './turn-sources.js';
 import type { AgentState } from './state.js';
 import { withDecisionScope } from '../decisions/cache.js';
 
@@ -55,7 +56,6 @@ export async function askTurn(
   question: string,
   opts: AskOptions,
 ): Promise<AskResult> {
-  state.sources = [];
   const loop = await ensureLoop(state);
   // Keep the transcript under the model's memory limit: summarize older turns
   // once they exceed the history budget, leaving the recent turns verbatim.
@@ -73,8 +73,9 @@ export async function askTurn(
   // Non-streaming `generate`: some OpenAI-compatible gateways stall mid-stream
   // when a response carries tool calls; `generate` returns the whole step at
   // once, and the timeout config bounds any stall.
-  const result = await withCanvasRecovery(() => loop.generate({ messages }));
-  const sources = dedupe(state.sources);
+  const collected = await withSearchHits(() => withCanvasRecovery(() => loop.generate({ messages })));
+  const result = collected.value;
+  const sources = dedupe(collected.sources);
   // Carry this turn's findings into the next turn's ledger.
   state.ledger.add(sources);
 

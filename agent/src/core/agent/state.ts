@@ -2,7 +2,6 @@ import type { ToolLoopAgent } from 'ai';
 import { EvidenceLedger } from '../evidence.js';
 import { HistoryCheckpoints } from '../history-checkpoints.js';
 import type { McpToolSource } from '../mcp/tools/state.js';
-import type { SearchResult } from '../types.js';
 import type { AgentOptions } from './options.js';
 import { resolveAgentSettings, type AgentSettings } from './settings.js';
 
@@ -23,13 +22,12 @@ export interface AgentRuntime {
   // reused across every ask instead of reconstructing the loop each call.
   loop?: ToolLoopAgent;
 
-  // Per-ask buffer of the full search hits behind the compact chunks shown to
-  // the model. Reset at the top of each `ask`; safe because asks are awaited
-  // sequentially (no concurrent runs share this Agent instance).
-  sources: SearchResult[];
+  /** Server-only tools (schedules, background) belong on this loop. */
+  serverTools?: boolean;
 
   // Conversation-lifetime index of everything retrieved, injected each turn so
-  // the model needn't re-search. Persists across asks (unlike `sources`).
+  // the model needn't re-search. The CLI ask path fills it; a pooled web loop
+  // does not, because hits are collected per turn rather than on this object.
   readonly ledger: EvidenceLedger;
 }
 
@@ -42,7 +40,6 @@ export function createAgentState(opts: AgentOptions): AgentState {
     ...settings,
     checkpoints: new HistoryCheckpoints(settings.context),
     system: '',
-    sources: [],
     ledger: new EvidenceLedger(),
   };
 }

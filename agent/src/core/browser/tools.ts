@@ -12,6 +12,8 @@ export function browserToolSource(env: NodeJS.ProcessEnv, fallback = '', run = r
 
   return {
     name: 'browser-use',
+    batchable: false,
+    untimed: true,
     tools: (): ToolSet => {
       if (!browserEnabled(env)) return {};
 

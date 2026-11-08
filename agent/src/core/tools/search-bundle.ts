@@ -5,9 +5,12 @@ import type { ToolSource } from './source.js';
 import { collectBundle } from './search-bundle/collect.js';
 import type { BundleInput } from './search-bundle/types.js';
 
+const SEARCH_BUNDLE_INSTRUCTIONS =
+  '\n\nsearch_bundle is an experimental read-only pipeline for up to four explicit repository/query pairs. Use repos to discover keys, then use it for cross-repository evidence. Inspect partial failures and omitted results before concluding absence.';
+
 /** Experimental declarative search composition; no scripts, writes, MCPs, or arbitrary tools. */
 export function searchBundleSource(options: { daemon: DaemonClient; onResults: (hits: SearchResult[]) => void }): ToolSource {
-  return { name: 'search_bundle', tools: () => ({ search_bundle: tool({
+  return { name: 'search_bundle', instructions: SEARCH_BUNDLE_INSTRUCTIONS, tools: () => ({ search_bundle: tool({
     description: 'Experimental read-only evidence bundle. Search up to four explicit repository/query pairs, '
       + 'collect matching symbols, and fetch selected indexed chunks in one call. Results and failures share a bounded output. '
       + 'Use for cross-repository investigations. It cannot execute code or change source files.',

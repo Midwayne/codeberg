@@ -321,8 +321,8 @@ apply surface-specific wrappers:
 
 | Surface | Wrapper | Notable behavior |
 |---------|---------|------------------|
-| CLI (`codeberg-ask`) | `ChatSession.ask` | Non-streaming `generate`; cross-turn evidence ledger |
-| Web (`codeberg-web`) | `wrapToolLoopAgentWithCompaction` | SSE `/api/chat`; `~/.codeberg/web-sessions/`; no evidence ledger |
+| CLI (`codeberg-ask`) | `ChatSession.ask` | Non-streaming `generate`; cross-turn evidence ledger; no schedule or background tools |
+| Web (`codeberg-web`) | `wrapToolLoopAgentWithCompaction` | SSE `/api/chat`; `~/.codeberg/web-sessions/`; schedule and background tools; no evidence ledger |
 
 **Tool sources** merge in order (`collectTools`) — first wins. The agent reads the
 daemon's advertised catalogue once. When it includes `search`, built-in
