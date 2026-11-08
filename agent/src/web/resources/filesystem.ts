@@ -42,15 +42,17 @@ export async function readStoredFile(
       mtimeMs: info.mtimeMs,
     };
   } catch (error) {
-    if (
-      (error as NodeJS.ErrnoException).code &&
-      !['ENOENT', 'ELOOP'].includes((error as NodeJS.ErrnoException).code!)
-    )
-      throw error;
-    // Malformed records cannot establish an age and are not cleanup targets.
+    if (!skipCleanupRecord(error)) throw error;
   }
 
   return undefined;
+}
+
+/** A missing file, a symlink loop, or a non-IO failure is not a cleanup target. */
+export function skipCleanupRecord(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException).code;
+
+  return !code || code === 'ENOENT' || code === 'ELOOP';
 }
 
 export function ageCutoff(days: unknown): number {

@@ -4,7 +4,7 @@ import { KNOWLEDGE_CATEGORIES } from '../../core/learning/preferences.js';
 import { sessionRunBytes } from '../sessions/run-storage.js';
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { fileInfo, readRegularFile, readStoredFile, realDirectory } from './filesystem.js';
+import { fileInfo, readRegularFile, readStoredFile, realDirectory, skipCleanupRecord } from './filesystem.js';
 import type { ResourceSettingsState } from './state.js';
 import type { CleanupCategory } from '../../core/api/resources.js';
 import type { StoredFile } from './types.js';
@@ -70,11 +70,7 @@ export async function dreamingFiles(state: ResourceSettingsState): Promise<Store
 
       files.push({ path, id, age, size: info.size, ino: info.ino, mtimeMs: info.mtimeMs });
     } catch (error) {
-      if (
-        (error as NodeJS.ErrnoException).code &&
-        !['ENOENT', 'ELOOP'].includes((error as NodeJS.ErrnoException).code!)
-      )
-        throw error;
+      if (!skipCleanupRecord(error)) throw error;
     }
   };
 
