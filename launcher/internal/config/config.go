@@ -473,12 +473,8 @@ func (c *Config) DaemonEnv() map[string]string {
 		e[KeyRootPID] = strconv.Itoa(c.RootPID)
 	}
 
-	if len(c.Roots) > 0 {
-		records := make([]string, 0, len(c.Roots))
-		for _, r := range c.Roots {
-			records = append(records, r.Key+"\t"+r.Root)
-		}
-		e[KeyRoots] = strings.Join(records, "\n")
+	if records := formatRootRecords(c.Roots); records != "" {
+		e[KeyRoots] = records
 	}
 
 	if c.Vector {
@@ -537,12 +533,8 @@ func (c *Config) AgentEnv() map[string]string {
 	if c.DbmcpUse {
 		putIf(e, KeyDbmcpBin, c.DbmcpBinary())
 	}
-	if len(c.Roots) > 0 {
-		records := make([]string, 0, len(c.Roots))
-		for _, r := range c.Roots {
-			records = append(records, r.Key+"\t"+r.Root)
-		}
-		e[KeyRoots] = strings.Join(records, "\n")
+	if records := formatRootRecords(c.Roots); records != "" {
+		e[KeyRoots] = records
 	}
 	for k, v := range c.Passthrough {
 		e[k] = v
@@ -577,6 +569,19 @@ func (c *Config) DbmcpSpecFile() (path string, found bool) {
 		}
 	}
 	return filepath.Join(c.Home, "spec.yml"), false
+}
+
+// formatRootRecords is the CODEBERG_ROOTS wire format: key, tab, path,
+// records separated by newlines. The daemon encodes the same bytes in
+// config.FormatRoots and parses them when it loads.
+func formatRootRecords(roots []registry.Entry) string {
+	records := make([]string, 0, len(roots))
+
+	for _, r := range roots {
+		records = append(records, r.Key+"\t"+r.Root)
+	}
+
+	return strings.Join(records, "\n")
 }
 
 func putIf(m map[string]string, k, v string) {
