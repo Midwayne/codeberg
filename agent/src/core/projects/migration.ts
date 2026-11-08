@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { lstat, mkdir, readFile, readlink, rename, symlink, unlink } from 'node:fs/promises';
+import { lstat, mkdir, readlink, rename, symlink, unlink } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import { writeJsonAtomic } from '../learning/fs.js';
+import { readOptionalText, writeJsonAtomic } from '../learning/fs.js';
 import { codebergHome } from '../paths.js';
 import { lockMigration } from './lock.js';
 import { type ProjectCatalog, projectDataHome } from './types.js';
@@ -79,13 +79,7 @@ export async function isContextAlias(home: string, target: string, name: string,
  * their existing stores until the daemon itself has been upgraded. */
 export async function prepareProjectStorage(env: NodeJS.ProcessEnv = process.env): Promise<void> {
   const home = codebergHome(env);
-  const raw = await readFile(join(home, 'projects.json'), 'utf8').catch(
-    (error: NodeJS.ErrnoException) => {
-      if (error.code !== 'ENOENT') throw error;
-
-      return undefined;
-    },
-  );
+  const raw = await readOptionalText(join(home, 'projects.json'));
 
   if (raw) await migrateProjectData(home, JSON.parse(raw) as ProjectCatalog);
 }
@@ -114,11 +108,7 @@ async function makeLinkAbsolute(home: string, name: string): Promise<void> {
 }
 
 async function migrationComplete(marker: string, legacyId: string): Promise<boolean> {
-  const migrated = await readFile(marker, 'utf8').catch((error: NodeJS.ErrnoException) => {
-    if (error.code !== 'ENOENT') throw error;
-
-    return undefined;
-  });
+  const migrated = await readOptionalText(marker);
 
   if (migrated) {
     if (JSON.parse(migrated).projectId !== legacyId)

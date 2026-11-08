@@ -1,15 +1,19 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, open, readFile, rename, rm } from 'node:fs/promises';
+import { mkdir, open, rename, rm } from 'node:fs/promises';
 import { join } from 'node:path';
+import { readOptionalText } from '../learning/fs.js';
 import { CanvasError } from './types.js';
 
 export async function readData(path: string): Promise<unknown> {
   try {
-    return JSON.parse(await readFile(path, 'utf8'));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    const raw = await readOptionalText(path);
+    if (raw === undefined) return undefined;
 
-    const reason = error instanceof SyntaxError ? 'invalid JSON' : (error as NodeJS.ErrnoException).code ?? 'unreadable file';
+    return JSON.parse(raw);
+  } catch (error) {
+    const reason =
+      error instanceof SyntaxError ? 'invalid JSON' : ((error as NodeJS.ErrnoException).code ?? 'unreadable file');
+
     throw new CanvasError(`Cannot read canvas data: ${reason}`, 503);
   }
 }

@@ -1,6 +1,5 @@
-import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { writeJsonAtomic } from './fs.js';
+import { readOptionalText, writeJsonAtomic } from './fs.js';
 import { WriteLock } from '../write-lock.js';
 import {
   DEFAULT_LEARNING_SETTINGS,
@@ -15,11 +14,11 @@ export class LearningSettingsStore {
   constructor(private readonly root: string) {}
 
   current(): Promise<LearningSettings> {
-    this.loaded ??= readFile(join(this.root, 'settings.json'), 'utf8')
-      .then((raw) => mergeLearningSettings(DEFAULT_LEARNING_SETTINGS, JSON.parse(raw)))
-      .catch((error: NodeJS.ErrnoException) => {
-        if (error.code === 'ENOENT') return mergeLearningSettings(DEFAULT_LEARNING_SETTINGS, {});
-
+    this.loaded ??= readOptionalText(join(this.root, 'settings.json'))
+      .then((raw) =>
+        mergeLearningSettings(DEFAULT_LEARNING_SETTINGS, raw === undefined ? {} : JSON.parse(raw)),
+      )
+      .catch((error: unknown) => {
         this.loaded = undefined;
         throw error;
       });

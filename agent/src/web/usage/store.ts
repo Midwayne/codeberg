@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { appendFile, mkdir, readFile } from 'node:fs/promises';
+import { appendFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { readOptionalText } from '../../core/learning/fs.js';
+import { codebergHome } from '../../core/paths.js';
 import type { UsageRecord } from '../../core/usage.js';
 import { WriteLock } from '../../core/write-lock.js';
-import { codebergHome } from '../../core/paths.js';
 
 /** Separate from saved chats: cleanup and branching cannot erase or duplicate spend. */
 export class UsageStore {
@@ -47,13 +48,8 @@ export class UsageStore {
 }
 
 async function readMonth(path: string): Promise<UsageRecord[]> {
-  try {
-    const content = await readFile(path, 'utf8');
+  const content = await readOptionalText(path);
+  if (content === undefined) return [];
 
-    return content.split('\n').filter(Boolean).map((line) => JSON.parse(line) as UsageRecord);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
-
-    throw error;
-  }
+  return content.split('\n').filter(Boolean).map((line) => JSON.parse(line) as UsageRecord);
 }

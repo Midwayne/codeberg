@@ -2,7 +2,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { changesApplicable } from './revision.js';
 
-import { writeJsonImmutable } from '../fs.js';
+import { readOptionalText, writeJsonImmutable } from '../fs.js';
 import type { LearningStore } from '../store.js';
 import type { DreamingDecision, DreamingReport } from './types.js';
 import { LearningError } from '../errors.js';
@@ -32,14 +32,10 @@ export class DreamingReports {
 
   async get(id: string): Promise<DreamingReport | undefined> {
     this.checkId(id);
-    let report: DreamingReport;
-    try {
-      report = JSON.parse(await readFile(join(this.dir, `${id}.json`), 'utf8')) as DreamingReport;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    const raw = await readOptionalText(join(this.dir, `${id}.json`));
+    if (raw === undefined) return undefined;
 
-      throw error;
-    }
+    let report = JSON.parse(raw) as DreamingReport;
 
     const revisions = await readdir(join(this.dir, id)).catch((error: NodeJS.ErrnoException) => {
       if (error.code === 'ENOENT') return [];
