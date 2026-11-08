@@ -27,12 +27,14 @@ type chunkResponse struct {
 
 type graphNodesResponse struct {
 	ipcFailure
-	Results []GraphNode `json:"results"`
+	Truncated bool        `json:"truncated"`
+	Results   []GraphNode `json:"results"`
 }
 
 type graphHopsResponse struct {
 	ipcFailure
-	Hops []GraphHop `json:"hops"`
+	Truncated bool       `json:"truncated"`
+	Hops      []GraphHop `json:"hops"`
 }
 
 type graphStatsResponse struct {
@@ -48,5 +50,6 @@ type graphEdgesResponse struct {
 
 type graphHubsResponse struct {
 	ipcFailure
-	Results []GraphHub `json:"results"`
+	Truncated bool       `json:"truncated"`
+	Results   []GraphHub `json:"results"`
 }

@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"errors"
 
 	"codeberg.org/codeberg/daemon/internal/indexctl"
 )
@@ -59,7 +60,7 @@ func (c *changeScan) collectIndirect(ctx context.Context, idx indexctl.Indexer, 
 		hops, terr := idx.TracePath(ctx, indexctl.TracePathOptions{
 			Name: t.name, Repo: t.repo, PathPrefix: t.path, Direction: "both", EdgeKind: "calls", MaxDepth: depth, Limit: 32,
 		})
-		if terr != nil {
+		if terr != nil && !errors.Is(terr, indexctl.ErrTruncated) {
 			continue
 		}
 

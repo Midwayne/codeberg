@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"sort"
 
 	"codeberg.org/codeberg/daemon/internal/indexctl"
@@ -48,7 +49,7 @@ func getArchitecture(ctx context.Context, idx indexctl.Indexer, a getArchitectur
 
 	res.Entrypoints = architectureEntrypoints(ctx, idx, a.Repo)
 	hubs, herr := idx.GraphHubs(ctx, indexctl.GraphHubsOptions{Repo: a.Repo, Limit: hubLimit})
-	if herr != nil {
+	if herr != nil && !errors.Is(herr, indexctl.ErrTruncated) {
 		return nil, herr
 	}
 
@@ -65,7 +66,7 @@ func architectureEntrypoints(ctx context.Context, idx indexctl.Indexer, repo str
 
 	for _, name := range []string{"main", "Main", "ServeHTTP", "Handler"} {
 		nodes, nerr := idx.SearchGraph(ctx, indexctl.GraphSearchOptions{Name: name, Repo: repo, Kind: "symbol", Limit: 8})
-		if nerr != nil {
+		if nerr != nil && !errors.Is(nerr, indexctl.ErrTruncated) {
 			continue
 		}
 

@@ -58,7 +58,7 @@ func (c *Client) SearchGraph(ctx context.Context, opts GraphSearchOptions) ([]Gr
 	if !out.OK {
 		return nil, mapIndexerError(out.Code, out.Error)
 	}
-	return out.Results, nil
+	return clipped(out.Results, out.Truncated)
 }
 
 func (c *Client) TracePath(ctx context.Context, opts TracePathOptions) ([]GraphHop, error) {
@@ -70,7 +70,7 @@ func (c *Client) TracePath(ctx context.Context, opts TracePathOptions) ([]GraphH
 	if !out.OK {
 		return nil, mapIndexerError(out.Code, out.Error)
 	}
-	return out.Hops, nil
+	return clipped(out.Hops, out.Truncated)
 }
 
 func (c *Client) GraphStats(ctx context.Context, repo string) (GraphStats, error) {
@@ -94,10 +94,7 @@ func (c *Client) GraphRefs(ctx context.Context, opts GraphRefsOptions) ([]GraphE
 	if !out.OK {
 		return nil, mapIndexerError(out.Code, out.Error)
 	}
-	if out.Truncated {
-		return out.Results, ErrTruncated
-	}
-	return out.Results, nil
+	return clipped(out.Results, out.Truncated)
 }
 
 func (c *Client) GraphHubs(ctx context.Context, opts GraphHubsOptions) ([]GraphHub, error) {
@@ -109,7 +106,15 @@ func (c *Client) GraphHubs(ctx context.Context, opts GraphHubsOptions) ([]GraphH
 	if !out.OK {
 		return nil, mapIndexerError(out.Code, out.Error)
 	}
-	return out.Results, nil
+	return clipped(out.Results, out.Truncated)
+}
+
+func clipped[T any](rows []T, truncated bool) ([]T, error) {
+	if truncated {
+		return rows, ErrTruncated
+	}
+
+	return rows, nil
 }
 
 func roundHits(ctx context.Context, socket, req string) ([]SearchResult, error) {

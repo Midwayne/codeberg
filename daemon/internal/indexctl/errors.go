@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-// ErrTruncated accompanies usable graph references when IPC clipped the response.
+// ErrTruncated accompanies usable rows when the indexer clipped the page.
 var ErrTruncated = errors.New("indexer: graph references truncated")
 
 // IndexerError is a structured error from the C indexer IPC layer.
