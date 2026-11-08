@@ -90,15 +90,13 @@ export class EvaluationProcessor {
       eval_id: example.id,
       model: task.configuration.candidate.model,
     };
-    const failures: unknown[] = [];
     const cached = cachedScorers(scorers, checkpoint, {
       invalid: async () => this.check.invalid(task, await this.example(task)),
       save: () => this.reports.checkpoint(task.id, checkpoint),
-      failures,
     });
     const report = await evaluateOutputs([example], [run], cached);
 
-    await this.publish(task, example, run, report, { attempt, failures });
+    await this.publish(task, example, run, report, attempt);
   }
 
   private async publish(
@@ -106,20 +104,20 @@ export class EvaluationProcessor {
     example: DatasetExample,
     run: OutputRun & RetrievalRun,
     report: OutputReport,
-    outcome: { attempt: number; failures: unknown[] },
+    attempt: number,
   ): Promise<void> {
     const errors = report.results.flatMap((row) =>
       row.scores.flatMap((score) => (score.error === undefined ? [] : [score.error])),
     );
     const invalid = await this.check.invalid(task, await this.example(task));
     const failure = errors.length
-      ? new JobFailure(scoringCategory(outcome.failures), errors.join('; '))
+      ? new JobFailure(scoringCategory(report), errors.join('; '))
       : undefined;
 
     await this.reports.save({
       ...task,
       updated_at: new Date().toISOString(),
-      status: invalid?.status ?? (failure ? failureStatus(failure, outcome.attempt) : 'completed'),
+      status: invalid?.status ?? (failure ? failureStatus(failure, attempt) : 'completed'),
       reason: invalid?.reason ?? errors.join('; '),
       report,
       retrieval: scoreRetrievalRuns([example], [run]),
@@ -133,8 +131,12 @@ function failureStatus(error: unknown, attempt: number): 'retrying' | 'failed' {
 }
 
 /** Any permanent scorer failure makes the whole grading attempt permanent. */
-function scoringCategory(failures: unknown[]): FailureCategory {
-  const categories = failures.map(classifyFailure);
+function scoringCategory(report: OutputReport): FailureCategory {
+  const categories = report.results.flatMap((row) =>
+    row.scores.flatMap((score) =>
+      score.error === undefined || !score.category ? [] : [score.category],
+    ),
+  );
 
   return (
     categories.find((category) => category === 'PERMANENT_ERROR') ?? categories[0] ?? 'MODEL_ERROR'

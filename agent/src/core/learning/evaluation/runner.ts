@@ -1,4 +1,6 @@
 import type { DatasetExample } from '../datasets/records.js';
+import { JobFailure } from '../errors.js';
+import { classifyFailure } from '../queue/policy.js';
 import { redactSecrets } from '../redact.js';
 import type {
   OutputReport,
@@ -58,11 +60,7 @@ async function evaluateExample(
     try {
       scores.push(validateScore(await scorer.score(structuredClone(input)), scorer.name));
     } catch (error) {
-      scores.push({
-        name: scorer.name,
-        score: null,
-        error: redactSecrets(String(error instanceof Error ? error.message : error)),
-      });
+      scores.push(failedScore(scorer.name, error));
     }
   }
 
@@ -74,6 +72,22 @@ async function evaluateExample(
     ...(run.model !== undefined ? { model: run.model } : {}),
     scores,
   };
+}
+
+function failedScore(name: string, error: unknown): OutputResult['scores'][number] {
+  const failure =
+    error instanceof JobFailure ? error : new JobFailure(classifyFailure(error), text(error));
+
+  return {
+    name,
+    score: null,
+    error: redactSecrets(failure.message),
+    category: failure.category,
+  };
+}
+
+function text(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function summarize(results: OutputResult[], scorers: OutputScorer[]): Record<string, ScoreSummary> {

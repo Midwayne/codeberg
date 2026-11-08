@@ -7,8 +7,6 @@ export interface ScoringHooks {
   /** Rechecked before each score, so a superseded task stops spending judge calls. */
   invalid(): Promise<InvalidTask | undefined>;
   save(): Promise<void>;
-  /** The runner keeps only error text; the originals keep their failure category. */
-  failures: unknown[];
 }
 
 /** Reuse checkpointed scores after a retry and checkpoint each new one. */
@@ -19,14 +17,7 @@ export function cachedScorers(
 ): OutputScorer[] {
   return scorers.map((scorer) => ({
     name: scorer.name,
-    score: async (input) => {
-      try {
-        return await cachedScore(scorer, input, checkpoint, hooks);
-      } catch (error) {
-        hooks.failures.push(error);
-        throw error;
-      }
-    },
+    score: (input) => cachedScore(scorer, input, checkpoint, hooks),
   }));
 }
 
