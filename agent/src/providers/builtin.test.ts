@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { builtinProvider, ProviderConfigError, registerBuiltinProviders } from './builtin.js';
-import { providerDescriptor } from './catalog.js';
+import { providerDescriptor, supportsMaxEffort } from './catalog.js';
 import { defaultProviders } from './index.js';
 import type { ModelProvider } from './registry.js';
 
@@ -51,7 +51,13 @@ describe('registerBuiltinProviders', () => {
       expect(registered).not.toContain('openai');
       expect(registered).not.toContain('anthropic');
       expect(registered).not.toContain('google');
+      expect(registered).not.toContain('thinktank');
     });
+  });
+
+  it('treats thinktank as a responses provider without registering a client', () => {
+    expect(supportsMaxEffort('thinktank')).toBe(true);
+    expect(supportsMaxEffort('ollama')).toBe(false);
   });
 
   it('rethrows unexpected registration errors', () => {

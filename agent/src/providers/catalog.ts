@@ -27,6 +27,8 @@ export interface ProviderDescriptor {
   openaiWire: boolean;
   /** Responses API that accepts `reasoningEffort: 'max'`. */
   responses: boolean;
+  /** Capability row only. This package does not construct the client. */
+  external?: boolean;
   client: ProviderClient;
   /** Conservative default context window for a model id. */
   window(modelId: string): number;
@@ -77,21 +79,24 @@ export const BUILTIN_PROVIDERS: readonly ProviderDescriptor[] = [
   localProvider('llamacpp', 'llama.cpp', {
     baseUrlEnv: 'LLAMACPP_BASE_URL', baseUrl: 'http://localhost:8080/v1', apiKeyEnv: 'LLAMACPP_API_KEY', apiKey: 'llama.cpp',
   }),
+  {
+    name: 'thinktank', label: 'Thinktank',
+    cache: 'none', nativeParallelTools: false, openaiWire: false, responses: true, external: true,
+    client: 'openai',
+    window: () => UNKNOWN_PROVIDER_WINDOW,
+  },
 ];
-
-/** Responses gateways registered outside this package that also accept `max`. */
-const EXTERNAL_RESPONSES_PROVIDERS = new Set(['thinktank']);
 
 export function providerDescriptor(name: string): ProviderDescriptor | undefined {
   return BUILTIN_PROVIDERS.find((provider) => provider.name === name);
 }
 
 export function builtinProviderNames(): string[] {
-  return BUILTIN_PROVIDERS.map((provider) => provider.name);
+  return BUILTIN_PROVIDERS.filter((provider) => !provider.external).map((provider) => provider.name);
 }
 
 export function supportsMaxEffort(provider: string): boolean {
-  return providerDescriptor(provider)?.responses === true || EXTERNAL_RESPONSES_PROVIDERS.has(provider);
+  return providerDescriptor(provider)?.responses === true;
 }
 
 /** Env names a provider reads: its credential and any local endpoint overrides. */

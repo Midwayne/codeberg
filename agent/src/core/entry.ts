@@ -44,7 +44,7 @@ export function entryUsage(program: string): string {
 }
 
 function providersLine(): string {
-  const hosted = BUILTIN_PROVIDERS.filter((provider) => !provider.local).map((provider) => provider.name);
+  const hosted = BUILTIN_PROVIDERS.filter((provider) => !provider.local && !provider.external).map((provider) => provider.name);
   const local = BUILTIN_PROVIDERS.filter((provider) => provider.local).map((provider) => provider.name);
 
   return `Providers: ${hosted.join(', ')} (when API keys set); ${local.join(', ')} (local servers)`;

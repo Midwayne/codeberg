@@ -77,6 +77,8 @@ export function builtinProvider(descriptor: ProviderDescriptor): ModelProvider {
 /** Register every provider in the catalog whose credentials are present. */
 export function registerBuiltinProviders(registry: { register(p: ModelProvider): unknown }): void {
   for (const descriptor of BUILTIN_PROVIDERS) {
+    if (descriptor.external) continue;
+
     try {
       registry.register(builtinProvider(descriptor));
     } catch (err) {
