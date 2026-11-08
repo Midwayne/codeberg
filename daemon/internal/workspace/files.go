@@ -56,10 +56,7 @@ func (w *Workspace) ReadFile(repo, path string, startLine, endLine uint32) (File
 
 	f, err := os.Open(full)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return FileContent{}, fmt.Errorf("%w: %s", ErrNotFound, path)
-		}
-		return FileContent{}, fmt.Errorf("codeberg: read file: %w", err)
+		return FileContent{}, pathError(err, "read file", path)
 	}
 	defer f.Close()
 
@@ -84,10 +81,7 @@ func (w *Workspace) ListDir(repo, path string) ([]DirEntry, error) {
 
 	infos, err := os.ReadDir(full)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("%w: %s", ErrNotFound, path)
-		}
-		return nil, fmt.Errorf("codeberg: list dir: %w", err)
+		return nil, pathError(err, "list dir", path)
 	}
 
 	entries := make([]DirEntry, 0, len(infos))
