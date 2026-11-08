@@ -1,7 +1,7 @@
 import type { UIMessage } from 'ai';
 import { describe, expect, it } from 'vitest';
 
-import { createChatBranch, messageIndexById } from './branch';
+import { createChatBranch } from './branch';
 
 function user(id: string, text: string): UIMessage {
   return { id, role: 'user', parts: [{ type: 'text', text }] };
@@ -16,14 +16,6 @@ const messages: UIMessage[] = [
   user('u2', 'and refresh?'),
   assistant('a2', 'rotate them'),
 ];
-
-describe('messageIndexById', () => {
-  it('resolves a stored id and a role-index fallback', () => {
-    expect(messageIndexById(messages, 'u2')).toBe(2);
-    expect(messageIndexById([{ role: 'user' }, { role: 'assistant' }], 'user-0')).toBe(0);
-    expect(messageIndexById(messages, 'nope')).toBe(-1);
-  });
-});
 
 describe('createChatBranch', () => {
   it('copies a prefix, remaps ids, and titles the branch', () => {

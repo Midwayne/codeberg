@@ -2,7 +2,6 @@ import type { UIMessage } from 'ai';
 
 import { branchTitle, branchTranscript } from '@agent/core/branch.js';
 
-import { markerId } from './message-rail';
 import { deriveTitle, newSessionId } from './sessions';
 
 /** Payload the workspace persists and then adopts as the live chat. */
@@ -11,10 +10,6 @@ export interface ChatBranch {
   title: string;
   messages: UIMessage[];
   parentId: string;
-}
-
-export function messageIndexById(messages: readonly { id?: string; role: string }[], id: string): number {
-  return messages.findIndex((m, i) => markerId(m, i) === id);
 }
 
 /**

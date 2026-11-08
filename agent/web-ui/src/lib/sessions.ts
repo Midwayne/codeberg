@@ -34,14 +34,6 @@ export async function updateSessionFlags(
   if (!response.ok) throw new Error(`Could not update chat (${response.status})`);
 }
 
-export async function loadSession(id: string, fetcher: typeof fetch = fetch): Promise<SessionRecord | null> {
-  try {
-    return await readSession(id, fetcher);
-  } catch {
-    return null;
-  }
-}
-
 /** Interactive opens must distinguish a missing chat from a failed request. */
 export async function readSession(id: string, fetcher: typeof fetch = fetch): Promise<SessionRecord | null> {
   const response = await fetcher(`${BASE}/${encodeURIComponent(id)}`);

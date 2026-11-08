@@ -1,4 +1,3 @@
-import type { CleanupPanelView } from './cleanup';
 import { OpenConfigDirectory } from './config-directory';
 import { SettingsNavigation, SettingsPanels } from './settings-navigation';
 import { type sections } from './settings-styles';
@@ -43,9 +42,3 @@ export function Settings({ onClose, onLearningSaved, backLabel = 'Back to chats'
     </main>
   );
 }
-
-export type CleanupPreviewErrorProps = { state: Parameters<typeof CleanupPanelView>[0] };
-
-export { ResourceUsageView } from './resource-usage';
-
-export { CleanupOptions } from './cleanup-options';
