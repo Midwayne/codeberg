@@ -2,14 +2,16 @@ package projects
 
 import (
 	"os"
-	"path/filepath"
 
 	"codeberg.org/codeberg/daemon/internal/config"
+	"codeberg.org/codeberg/daemon/internal/storage"
 	"codeberg.org/codeberg/daemon/internal/supervisor"
 )
 
+// wipeIndex removes a project's vectors wherever they live, including a legacy
+// index outside project storage, but never files that merely sit beside it.
 func (m *Manager) wipeIndex(cfg config.Indexer) error {
-	if cfg.IndexBackend != "" && cfg.IndexBackend != "usearch" {
+	if cfg.RemoteIndex() {
 		for _, root := range cfg.Roots {
 			if err := supervisor.WipeIndex(m.ctx, cfg, root.Root); err != nil {
 				return err
@@ -17,28 +19,16 @@ func (m *Manager) wipeIndex(cfg config.Indexer) error {
 		}
 	}
 
-	// Include explicitly configured legacy caches, but never neighboring files.
-	entries, err := os.ReadDir(filepath.Dir(cfg.Index))
-	if os.IsNotExist(err) {
-		return nil
-	}
+	family, err := storage.IndexFamily(cfg.Index)
 	if err != nil {
 		return err
 	}
 
-	base := filepath.Base(cfg.Index)
-	for _, entry := range entries {
-		name := entry.Name()
-		if name == base || indexFamily(name, base) {
-			if err := os.RemoveAll(filepath.Join(filepath.Dir(cfg.Index), name)); err != nil {
-				return err
-			}
+	for _, path := range family {
+		if err := os.RemoveAll(path); err != nil {
+			return err
 		}
 	}
 
 	return nil
-}
-
-func indexFamily(name, base string) bool {
-	return len(name) > len(base) && name[:len(base)] == base && name[len(base)] == '.'
 }

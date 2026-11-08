@@ -6,10 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"strings"
 	"time"
+
+	"codeberg.org/codeberg/daemon/internal/procenv"
 )
 
 const (
@@ -38,24 +39,32 @@ func RunPipeline(ctx context.Context, dir, command string) (Result, error) {
 		}
 	}
 
-	return executePipeline(ctx, dir, command, stages)
+	return executePipeline(ctx, dir, command, stages, nil)
 }
 
-func executePipeline(ctx context.Context, root, command string, stages [][]string) (Result, error) {
+// RunInput runs one command over input with the same environment, timeout and
+// output cap as a pipeline. The caller has already validated argv; pipeline
+// path checks would reject ordinary sed addresses such as /re/p.
+func RunInput(ctx context.Context, argv []string, input []byte) (Result, error) {
+	return executePipeline(ctx, "", strings.Join(argv, " "), [][]string{argv}, input)
+}
+
+func executePipeline(ctx context.Context, root, command string, stages [][]string, input []byte) (Result, error) {
 	ctx, cancel := context.WithTimeout(ctx, runTimeout)
 	defer cancel()
 
-	env := scrubbedEnv()
+	env := procenv.Tools()
 	exitCodes := make([]int, len(stages))
 	truncated := false
-	var stream []byte
+	stream := input
 
 	for i, st := range stages {
 		c := exec.CommandContext(ctx, st[0], st[1:]...)
 		c.Dir = root
 		c.Env = env
 
-		if i > 0 {
+		// rg searches stdin instead of the directory whenever stdin is a pipe.
+		if i > 0 || input != nil {
 			c.Stdin = bytes.NewReader(stream)
 		}
 
@@ -99,24 +108,6 @@ func exitCodeOf(err error) int {
 	}
 
 	return -1
-}
-
-func scrubbedEnv() []string {
-	base := os.Environ()
-	out := make([]string, 0, len(base)+2)
-
-	for _, kv := range base {
-		key, _, _ := strings.Cut(kv, "=")
-
-		switch key {
-		case "RIPGREP_CONFIG_PATH", "GIT_TERMINAL_PROMPT":
-			continue
-		}
-
-		out = append(out, kv)
-	}
-
-	return append(out, "RIPGREP_CONFIG_PATH=", "GIT_TERMINAL_PROMPT=0")
 }
 
 type limitedWriter struct {

@@ -42,3 +42,11 @@ func findReferencesTool(idx indexctl.Indexer, ws *workspace.Workspace) Tool {
 			return collectReferences(ctx, idx, ws, a)
 		})
 }
+
+type findReferencesArgs struct {
+	Symbol     string `json:"symbol"`
+	Repo       string `json:"repo"`
+	PathPrefix string `json:"path_prefix"`
+	PathGlob   string `json:"path_glob"`
+	Limit      int    `json:"limit"`
+}

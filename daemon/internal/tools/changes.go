@@ -57,12 +57,12 @@ func changesDiff(ctx context.Context, ws *workspace.Workspace, a detectChangesAr
 
 	diffSpec := base + "..." + head
 	fallback := ""
-	hunkOut, err := git.Run(ctx, root, "diff", "-U0", diffSpec)
+	hunkOut, err := git.Run(ctx, root, git.ToolTimeout, "diff", "-U0", diffSpec)
 	if err != nil {
 		// Honest fallback: working tree (staged+unstaged) vs HEAD.
 		fallback = "working-tree-vs-HEAD"
 		diffSpec = "HEAD"
-		hunkOut, err = git.Run(ctx, root, "diff", "-U0", "HEAD")
+		hunkOut, err = git.Run(ctx, root, git.ToolTimeout, "diff", "-U0", "HEAD")
 		if err != nil {
 			return changeDiff{}, err
 		}
@@ -107,4 +107,22 @@ func detectChanges(ctx context.Context, idx indexctl.Indexer, ws *workspace.Work
 type changeDiff struct {
 	base, head, spec, fallback, output string
 	depth, limit                       int
+}
+
+type detectChangesArgs struct {
+	Repo  string `json:"repo"`
+	Base  string `json:"base"`
+	Head  string `json:"head"`
+	Depth int    `json:"depth"`
+	Limit int    `json:"limit"`
+}
+
+type detectChangesResult struct {
+	Base     string         `json:"base"`
+	Head     string         `json:"head"`
+	DiffSpec string         `json:"diff_spec"`          // actual git range used
+	Fallback string         `json:"fallback,omitempty"` // set when base...head failed
+	Paths    []string       `json:"paths"`
+	Direct   []changeSymbol `json:"direct"`
+	Indirect []changeSymbol `json:"indirect"`
 }

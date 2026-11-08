@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
+
+	"codeberg.org/codeberg/daemon/internal/httpserver"
 )
 
 func (m *Manager) serveDelete(w http.ResponseWriter, r *http.Request, id string) {
 	if !sameOrigin(r) {
-		respond(w, 403, map[string]string{"message": "cross-origin project changes are not allowed"})
+		respondError(w, 403, "cross-origin project changes are not allowed")
 		return
 	}
 
@@ -19,7 +20,7 @@ func (m *Manager) serveDelete(w http.ResponseWriter, r *http.Request, id string)
 		Mode string `json:"mode"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&body); err != nil || (body.Mode != "index" && body.Mode != "all") {
-		respond(w, 400, map[string]string{"message": "choose deletion mode: index or all"})
+		respondError(w, 400, "choose deletion mode: index or all")
 		return
 	}
 
@@ -29,11 +30,11 @@ func (m *Manager) serveDelete(w http.ResponseWriter, r *http.Request, id string)
 		if errors.Is(err, errProjectNotFound) {
 			status = 404
 		}
-		respond(w, status, map[string]string{"message": err.Error()})
+		respondError(w, status, err.Error())
 		return
 	}
 
-	respond(w, 200, m.catalogView(catalog))
+	httpserver.WriteJSON(w, 200, m.catalogView(catalog))
 }
 
 // Delete stops the writer before removing caches. Retained data uses the same
@@ -58,10 +59,7 @@ func (m *Manager) Delete(id, mode string) (Catalog, error) {
 		return Catalog{}, err
 	}
 
-	if rt, ok := m.runtimes[id]; ok {
-		rt.stop()
-		delete(m.runtimes, id)
-	}
+	m.stopRuntime(id)
 
 	if err := m.deleteData(p, mode); err != nil {
 		m.catalog = previous
@@ -93,17 +91,15 @@ func withoutProject(c Catalog, p Project) Catalog {
 }
 
 func (m *Manager) deleteData(p Project, mode string) error {
-	dir := filepath.Join(m.home, "projects", p.ID)
-	cfg := m.projectConfig(p)
-	if err := m.wipeIndex(cfg); err != nil {
+	if err := m.wipeIndex(m.projectConfig(p)); err != nil {
 		return err
 	}
 
-	if err := os.RemoveAll(filepath.Join(dir, "index")); err != nil {
+	if err := os.RemoveAll(m.layout.ProjectIndexDir(p.ID)); err != nil {
 		return err
 	}
 	if mode == "all" {
-		return os.RemoveAll(dir)
+		return os.RemoveAll(m.layout.ProjectDir(p.ID))
 	}
 
 	return nil

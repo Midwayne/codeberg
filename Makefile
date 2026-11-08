@@ -220,13 +220,13 @@ run-core: build-core
 
 run-daemon: build-daemon
 	@$(call load_env,$(DAEMON_ENV)); \
-	echo "› codeberg-d  http=:$${CODEBERG_HTTP_PORT:-8080}"; \
+	echo "› codeberg-d  http=:$${CODEBERG_HTTP_PORT:-48080}"; \
 	exec "$(BIN)/codeberg-d"
 
 # Usage: make run-agent q="<question>"
 #   Model/provider come from CODEBERG_MODEL in agent/.env (e.g. anthropic:claude-haiku-4-5),
 #   with the matching API key (ANTHROPIC_API_KEY / OPENAI_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY).
-#   Talks to a running daemon at CODEBERG_DAEMON_URL (default http://127.0.0.1:8080).
+#   Talks to a running daemon at CODEBERG_DAEMON_URL (default http://127.0.0.1:48080).
 run-agent:
 	@test -f $(AGENT)/dist/cli.js || $(MAKE) build-agent
 	@$(call load_env,$(AGENT_ENV)); \

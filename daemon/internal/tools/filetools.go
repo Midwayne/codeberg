@@ -49,7 +49,7 @@ func globTool(ws *workspace.Workspace) Tool {
   "additionalProperties": false,
   "properties": {
     "pattern": {"type": "string", "description": "glob, supports **"},
-    "repo": {"type": "string", "description": "repo key (default root)"},
+    "repo": {"type": "string", "description": "repo key (see the repos tool; default = the single indexed repo)"},
     "limit": {"type": "integer", "description": "max files"}
   },
   "required": ["pattern"]
@@ -119,4 +119,38 @@ func treeTool(ws *workspace.Workspace) Tool {
 		func(_ context.Context, a treeArgs) (any, error) {
 			return ws.Tree(a.Repo, a.Path, a.MaxDepth)
 		})
+}
+
+type reposArgs struct{}
+
+type grepArgs struct {
+	Pattern  string `json:"pattern"`
+	Literal  bool   `json:"literal"`
+	Repo     string `json:"repo"`
+	PathGlob string `json:"path_glob"`
+	Limit    int    `json:"limit"`
+}
+
+type globArgs struct {
+	Pattern string `json:"pattern"`
+	Repo    string `json:"repo"`
+	Limit   int    `json:"limit"`
+}
+
+type readFileArgs struct {
+	Repo      string `json:"repo"`
+	Path      string `json:"path"`
+	StartLine uint32 `json:"start_line"`
+	EndLine   uint32 `json:"end_line"`
+}
+
+type listDirArgs struct {
+	Repo string `json:"repo"`
+	Path string `json:"path"`
+}
+
+type treeArgs struct {
+	Repo     string `json:"repo"`
+	Path     string `json:"path"`
+	MaxDepth int    `json:"max_depth"`
 }

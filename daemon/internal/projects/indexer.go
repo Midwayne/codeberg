@@ -2,14 +2,12 @@ package projects
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
+	"codeberg.org/codeberg/daemon/internal/bootstrap"
 	"codeberg.org/codeberg/daemon/internal/config"
 	"codeberg.org/codeberg/daemon/internal/gitpull"
 	"codeberg.org/codeberg/daemon/internal/httpserver"
@@ -22,76 +20,30 @@ import (
 func (m *Manager) projectConfig(p Project) config.Indexer {
 	cfg := m.base
 	cfg.Roots = p.Roots
-	cfg.Root = p.Roots[0].Root
 	cfg.DefaultKey = ""
 	if len(p.Roots) == 1 {
 		cfg.DefaultKey = p.Roots[0].Key
 	}
 
-	dir := filepath.Join(m.home, "projects", p.ID)
-	cfg.Index = filepath.Join(dir, "index", "codeberg.usearch")
-	cfg.LogDir = filepath.Join(dir, "logs")
-	// Unix socket paths have a small OS limit; names still include home identity.
-	sum := sha256.Sum256([]byte(dir))
-	cfg.Socket = filepath.Join(os.TempDir(), "cberg-"+hex.EncodeToString(sum[:12])+".sock")
-	if p.LegacyIndex != "" && ((cfg.IndexBackend != "" && cfg.IndexBackend != "usearch") || !strings.HasPrefix(p.LegacyIndex, filepath.Join(m.home, "index")+string(filepath.Separator))) {
-		cfg.Index = p.LegacyIndex
-	}
+	cfg.Index = m.indexPath(p, cfg)
+	cfg.LogDir = m.layout.ProjectLogs(p.ID)
+	cfg.Socket = m.layout.ProjectSocket(p.ID)
 	return cfg
 }
 
-// InitialConfig migrates local caches before the initial indexer starts. A remote
-// store retains its namespace to avoid silently rebuilding into another table.
-func (m *Manager) InitialConfig() (config.Indexer, error) {
-	p, ok := m.project(m.catalog.DefaultID)
-	if !ok {
-		// Deleted startup projects must not launch an unregistered indexer.
-		cfg := m.base
-		cfg.Root = ""
-		cfg.Roots = nil
-		cfg.DefaultKey = ""
-
-		return cfg, nil
+// indexPath keeps a pre-project index where moving it would lose data: a
+// remote store names its collections after the path, and a custom location
+// outside the managed index directory belongs to the user.
+func (m *Manager) indexPath(p Project, cfg config.Indexer) string {
+	if p.LegacyIndex != "" && (cfg.RemoteIndex() || !m.layout.InLegacyIndexDir(p.LegacyIndex)) {
+		return p.LegacyIndex
 	}
 
-	cfg := m.projectConfig(p)
-	// Preserve the configured initial IPC endpoint for existing local clients.
-	if m.base.Socket != "" {
-		cfg.Socket = m.base.Socket
-	}
-
-	if err := os.MkdirAll(filepath.Dir(cfg.Index), 0700); err != nil {
-		return cfg, err
-	}
-
-	if p.LegacyIndex != "" && p.LegacyIndex != cfg.Index {
-		files, err := filepath.Glob(p.LegacyIndex + ".*")
-		if err != nil {
-			return cfg, err
-		}
-
-		if _, err := os.Stat(p.LegacyIndex); err == nil {
-			files = append(files, p.LegacyIndex)
-		}
-
-		for _, source := range files {
-			target := cfg.Index + strings.TrimPrefix(source, p.LegacyIndex)
-			if _, err := os.Stat(target); err == nil {
-				return cfg, fmt.Errorf("index migration conflict: %s", target)
-			} else if !os.IsNotExist(err) {
-				return cfg, err
-			}
-
-			if err := os.Rename(source, target); err != nil {
-				return cfg, fmt.Errorf("migrating index %s: %w", source, err)
-			}
-		}
-	}
-	return cfg, nil
+	return m.layout.ProjectIndex(p.ID, cfg.IndexNamespace)
 }
 
 func (m *Manager) startIndexer(p Project, cfg config.Indexer) (http.Handler, func(), error) {
-	if err := os.MkdirAll(filepath.Dir(cfg.Index), 0700); err != nil {
+	if err := m.prepareIndex(p, cfg); err != nil {
 		return nil, nil, err
 	}
 
@@ -102,26 +54,53 @@ func (m *Manager) startIndexer(p Project, cfg config.Indexer) (http.Handler, fun
 		return nil, nil, err
 	}
 
-	repos := make([]workspace.RepoInfo, 0, len(p.Roots))
-
-	for _, r := range p.Roots {
-		repos = append(repos, workspace.RepoInfo{Key: r.Key, Root: r.Root})
-	}
-
-	if m.gitPull > 0 {
-		dirs := make([]string, 0, len(p.Roots))
-
-		for _, r := range p.Roots {
-			dirs = append(dirs, r.Root)
-		}
-
-		go gitpull.Run(ctx, dirs, m.gitPull)
-	}
+	go gitpull.Run(ctx, rootDirs(p), m.settings.GitPull)
 
 	idx := indexctl.NewClient(cfg.Socket)
-	ws := workspace.New(repos, cfg.DefaultKey)
-	return httpserver.New(idx, tools.WithVectorSearch(ws, idx, cfg.Model != "")).Handler(), func() {
+	go m.awaitReady(ctx, p, idx)
+
+	ws := workspace.New(p.Roots, cfg.DefaultKey)
+	handler := httpserver.New(idx, tools.WithVectorSearch(ws, idx, cfg.VectorsEnabled())).Handler()
+
+	return handler, func() {
 		sup.Stop()
 		cancel()
 	}, nil
+}
+
+// awaitReady reports the first ready status so disk usage covers the new index.
+func (m *Manager) awaitReady(ctx context.Context, p Project, idx *indexctl.Client) {
+	ctx, cancel := context.WithTimeout(ctx, bootstrap.StartupTimeout(m.settings.HealthTimeout, len(p.Roots)))
+	defer cancel()
+
+	st, err := bootstrap.WaitIndexer(ctx, idx)
+	if err != nil {
+		log.Printf("project %s indexing: %v", p.ID, err)
+		return
+	}
+
+	log.Printf("project %s indexer ready: %d chunks, version %s", p.ID, st.Chunks, st.Version)
+	m.settings.OnIndexReady()
+}
+
+func rootDirs(p Project) []string {
+	dirs := make([]string, 0, len(p.Roots))
+
+	for _, r := range p.Roots {
+		dirs = append(dirs, r.Root)
+	}
+
+	return dirs
+}
+
+func (m *Manager) prepareIndex(p Project, cfg config.Indexer) error {
+	if err := os.MkdirAll(filepath.Dir(cfg.Index), 0700); err != nil {
+		return err
+	}
+
+	if p.LegacyIndex == "" || p.LegacyIndex == cfg.Index {
+		return nil
+	}
+
+	return migrateIndex(p.LegacyIndex, cfg.Index)
 }

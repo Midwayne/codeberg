@@ -13,7 +13,7 @@ func pipeTool(ws *workspace.Workspace) Tool {
   "additionalProperties": false,
   "properties": {
     "command": {"type": "string", "description": "read-only pipeline, e.g. \"rg -l TODO --glob '*.go' | head -20\". Stages joined by | ; no shell is run, so > < ; & $() and backticks are rejected."},
-    "repo": {"type": "string", "description": "repo key (default root)"}
+    "repo": {"type": "string", "description": "repo key (see the repos tool; default = the single indexed repo)"}
   },
   "required": ["command"]
 }`
@@ -35,5 +35,7 @@ func pipeTool(ws *workspace.Workspace) Tool {
 		})
 }
 
-// ErrUnsafePipe is returned when a pipeline uses a disallowed command or operator.
-var ErrUnsafePipe = subprocess.ErrUnsafe
+type pipeArgs struct {
+	Command string `json:"command"`
+	Repo    string `json:"repo"`
+}

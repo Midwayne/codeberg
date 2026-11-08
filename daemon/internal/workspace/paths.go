@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"codeberg.org/codeberg/daemon/internal/domain"
 )
 
 func SafeRel(path string) (string, error) {
@@ -14,7 +16,7 @@ func SafeRel(path string) (string, error) {
 
 	clean := filepath.Clean(path)
 	if filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("%w: %s", ErrEscape, path)
+		return "", fmt.Errorf("%w: %s", domain.ErrEscape, path)
 	}
 	return clean, nil
 }
@@ -26,12 +28,12 @@ func resolve(root, rel string) (string, error) {
 
 	clean := filepath.Clean(rel)
 	if filepath.IsAbs(clean) {
-		return "", fmt.Errorf("%w: %s", ErrEscape, rel)
+		return "", fmt.Errorf("%w: %s", domain.ErrEscape, rel)
 	}
 
 	full := filepath.Join(root, clean)
 	if !within(root, full) {
-		return "", fmt.Errorf("%w: %s", ErrEscape, rel)
+		return "", fmt.Errorf("%w: %s", domain.ErrEscape, rel)
 	}
 
 	realRoot, err := filepath.EvalSymlinks(root)
@@ -48,7 +50,7 @@ func resolve(root, rel string) (string, error) {
 	}
 
 	if !within(realRoot, realFull) {
-		return "", fmt.Errorf("%w: %s", ErrEscape, rel)
+		return "", fmt.Errorf("%w: %s", domain.ErrEscape, rel)
 	}
 	return realFull, nil
 }

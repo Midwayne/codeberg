@@ -6,18 +6,32 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+
+	"codeberg.org/codeberg/daemon/internal/resources"
 )
 
-func (s *Server) localResources(w http.ResponseWriter, r *http.Request) bool {
+// resourceServer reports the whole daemon's footprint, independent of which
+// projects are running.
+type resourceServer struct {
+	resources *resources.Collector
+}
+
+// Resources serves /resources and its control routes for the whole daemon.
+func Resources(collector *resources.Collector) http.Handler {
+	s := &resourceServer{resources: collector}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /resources", s.resourceUsage)
+	mux.HandleFunc("POST /resources/clients", s.registerResourceClient)
+	mux.HandleFunc("POST /resources/refresh", s.refreshResourceDisk)
+
+	return mux
+}
+
+func (s *resourceServer) localResources(w http.ResponseWriter, r *http.Request) bool {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	ip := net.ParseIP(host)
 	if err != nil || ip == nil || !ip.IsLoopback() {
 		http.Error(w, "resource monitoring is local only", http.StatusForbidden)
-		return false
-	}
-
-	if s.resources == nil {
-		http.Error(w, "resource monitoring unavailable", http.StatusServiceUnavailable)
 		return false
 	}
 
@@ -26,7 +40,7 @@ func (s *Server) localResources(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
-func (s *Server) resourceUsage(w http.ResponseWriter, r *http.Request) {
+func (s *resourceServer) resourceUsage(w http.ResponseWriter, r *http.Request) {
 	if !s.localResources(w, r) {
 		return
 	}
@@ -41,10 +55,10 @@ func (s *Server) resourceUsage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	writeJSON(w, http.StatusOK, s.resources.Usage(after))
+	WriteJSON(w, http.StatusOK, s.resources.Usage(after))
 }
 
-func (s *Server) registerResourceClient(w http.ResponseWriter, r *http.Request) {
+func (s *resourceServer) registerResourceClient(w http.ResponseWriter, r *http.Request) {
 	if !s.localResources(w, r) {
 		return
 	}
@@ -67,7 +81,7 @@ func (s *Server) registerResourceClient(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusAccepted)
 }
 
-func (s *Server) refreshResourceDisk(w http.ResponseWriter, r *http.Request) {
+func (s *resourceServer) refreshResourceDisk(w http.ResponseWriter, r *http.Request) {
 	if !s.localResources(w, r) {
 		return
 	}

@@ -32,7 +32,7 @@ func Run(ctx context.Context, dirs []string, interval time.Duration) {
 					continue
 				}
 
-				if _, err := git.RunWithTimeout(ctx, dir, 0, "pull", "--ff-only"); err != nil {
+				if _, err := git.Run(ctx, dir, 0, "pull", "--ff-only"); err != nil {
 					log.Printf("git pull %s: %v", dir, err)
 				}
 			}

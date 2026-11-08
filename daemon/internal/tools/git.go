@@ -87,7 +87,7 @@ func runGitLog(ctx context.Context, ws *workspace.Workspace, a gitLogArgs) (any,
 		gitArgs = append(gitArgs, "--", rel)
 	}
 
-	out, err := git.Run(ctx, root, gitArgs...)
+	out, err := git.Run(ctx, root, git.ToolTimeout, gitArgs...)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +130,7 @@ func runGitBlame(ctx context.Context, ws *workspace.Workspace, a gitBlameArgs) (
 
 	gitArgs = append(gitArgs, "--", rel)
 
-	out, err := git.Run(ctx, root, gitArgs...)
+	out, err := git.Run(ctx, root, git.ToolTimeout, gitArgs...)
 	if err != nil {
 		return nil, err
 	}
@@ -141,4 +141,22 @@ func runGitBlame(ctx context.Context, ws *workspace.Workspace, a gitBlameArgs) (
 	}
 
 	return gitBlameResult{Blame: out, Truncated: truncated}, nil
+}
+
+type gitLogArgs struct {
+	Repo  string `json:"repo"`
+	Path  string `json:"path"`
+	Limit int    `json:"limit"`
+}
+
+type gitBlameArgs struct {
+	Repo      string `json:"repo"`
+	Path      string `json:"path"`
+	StartLine int    `json:"start_line"`
+	EndLine   int    `json:"end_line"`
+}
+
+type gitBlameResult struct {
+	Blame     string `json:"blame"`
+	Truncated bool   `json:"truncated"`
 }

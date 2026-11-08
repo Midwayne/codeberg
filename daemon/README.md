@@ -58,11 +58,21 @@ needed. CI runs `make daemon-check`.
 | `CBERG_VECTORDB_API_KEY` | no | Qdrant API key (cloud) |
 | `CBERG_POSTGRES_URL` | for `pgvector` | PostgreSQL connection string (pgvector extension) |
 | `CBERG_POLL_MS` | no | Watcher poll timeout (default 1000) |
-| `CBERG_SOCKET` | no | Unix socket for indexer IPC (default `/tmp/codeberg-index.sock`) |
 | `CBERG_INDEX_BIN` | no | Path to `cberg-index` binary |
-| `CODEBERG_HTTP_PORT` | no | HTTP listen port (default 8080) |
-| `CODEBERG_GIT_PULL_INTERVAL_SEC` | no | `git pull --ff-only` interval; 0 = disabled |
-| `CODEBERG_GIT_DIR` | no | Git repo(s) for pull (default: every served root with a `.git`) |
+| `CODEBERG_HOME` | no | Data home (default `~/.codeberg`); holds `projects.json`, `projects/<id>/` |
+| `CODEBERG_INDEX_NAMESPACE` | no | Embedding-model directory under each project's `index/`; a single path segment |
+| `CODEBERG_VECTOR` | no | `false` disables embeddings even if `CBERG_MODEL` is set |
+| `CODEBERG_NO_INDEX` | no | `true` keeps the catalog and indexes in a temporary directory removed at exit |
+| `CODEBERG_HEALTH_TIMEOUT` | no | How long a project may take to become ready, as a Go duration such as `30m` (default 5 min per repo, 15–60 min) |
+| `CODEBERG_HTTP_PORT` | no | HTTP listen port (default 48080) |
+| `CODEBERG_GIT_PULL_INTERVAL_SEC` | no | `git pull --ff-only` interval for every served root with a `.git`; 0 = disabled |
+
+Each project's indexer listens on its own Unix socket, derived from the
+project's data directory under the system temp directory.
+
+`codeberg-d storage` prints the paths the daemon owns under `CODEBERG_HOME` and
+every index file set as JSON, without starting a server. Cleanup tools use it
+instead of copying the layout.
 
 With neither root variable set, the daemon restores the saved project catalog.
 A fresh catalog is empty; `/health` reports `status: "idle"` without starting an
@@ -110,7 +120,7 @@ export CODEBERG_ROOTS=$'repo\t/path/to/repo'
 export CBERG_MODEL=models/jina-embeddings-v2-base-code/model.onnx
 export CBERG_INDEX_PATH=/tmp/codeberg.usearch
 ./core/build/bin/codeberg-d
-curl 'http://localhost:8080/search?q=add+function&k=5'
+curl 'http://localhost:48080/search?q=add+function&k=5'
 ```
 
 For normal use, run `codeberg` and choose projects in the browser. The daemon
@@ -125,8 +135,8 @@ export CODEBERG_ROOTS=$'api\t/path/to/api\nfrontend\t/path/to/frontend'
 export CBERG_MODEL=models/jina-embeddings-v2-base-code/model.onnx
 export CBERG_INDEX_PATH=/tmp/codeberg.usearch
 ./core/build/bin/codeberg-d
-curl 'http://localhost:8080/search?q=add+function&k=5'            # both repos
-curl 'http://localhost:8080/search?q=add+function&k=5&repo=api'   # just api
+curl 'http://localhost:48080/search?q=add+function&k=5'            # both repos
+curl 'http://localhost:48080/search?q=add+function&k=5&repo=api'   # just api
 ```
 
 ## Layout

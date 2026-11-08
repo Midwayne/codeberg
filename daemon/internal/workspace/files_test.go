@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"codeberg.org/codeberg/daemon/internal/domain"
 )
 
 // readFileReference is the original whole-file ReadFile algorithm; the
@@ -61,7 +63,7 @@ func TestReadFileMatchesWholeFileSemantics(t *testing.T) {
 		}
 
 		for _, maxBytes := range []int{64 * 1024, 37, 1} {
-			w := New([]RepoInfo{{Key: "main", Root: root}}, "main")
+			w := New([]domain.Repo{{Key: "main", Root: root}}, "main")
 			w.maxBytes = maxBytes
 
 			for _, start := range bounds {
@@ -94,7 +96,7 @@ func TestReadFileLargeFileSpansReadBuffers(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	w := New([]RepoInfo{{Key: "main", Root: root}}, "main")
+	w := New([]domain.Repo{{Key: "main", Root: root}}, "main")
 
 	for _, r := range [][2]uint32{{0, 0}, {1, 10}, {9990, 10010}, {19999, 0}, {25000, 0}} {
 		got, err := w.ReadFile("main", "big.txt", r[0], r[1])
@@ -116,7 +118,7 @@ func TestReadFileErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	w := New([]RepoInfo{{Key: "main", Root: root}}, "main")
+	w := New([]domain.Repo{{Key: "main", Root: root}}, "main")
 
 	if _, err := w.ReadFile("main", "missing.txt", 0, 0); err == nil || !strings.Contains(err.Error(), "not found") {
 		t.Fatalf("missing file: %v", err)
@@ -137,7 +139,7 @@ func BenchmarkReadFileWindow(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	w := New([]RepoInfo{{Key: "main", Root: root}}, "main")
+	w := New([]domain.Repo{{Key: "main", Root: root}}, "main")
 
 	b.ReportAllocs()
 	b.ResetTimer()

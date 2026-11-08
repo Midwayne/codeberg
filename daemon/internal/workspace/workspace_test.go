@@ -7,19 +7,21 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"codeberg.org/codeberg/daemon/internal/domain"
 )
 
 func TestResolveRejectsEscape(t *testing.T) {
 	root := t.TempDir()
 	_, err := resolve(root, "../etc/passwd")
-	if !errors.Is(err, ErrEscape) {
+	if !errors.Is(err, domain.ErrEscape) {
 		t.Fatalf("expected ErrEscape, got %v", err)
 	}
 }
 
 func TestRootForSingleRepoDefault(t *testing.T) {
 	root := t.TempDir()
-	w := New([]RepoInfo{{Key: "main", Root: root}}, "main")
+	w := New([]domain.Repo{{Key: "main", Root: root}}, "main")
 
 	for _, repo := range []string{"", "main", "root"} {
 		dir, err := w.rootFor(repo)
@@ -35,7 +37,7 @@ func TestRootForSingleRepoDefault(t *testing.T) {
 
 func TestRootForMultiRepoRequiresKey(t *testing.T) {
 	rootA, rootB := t.TempDir(), t.TempDir()
-	w := New([]RepoInfo{{Key: "alpha", Root: rootA}, {Key: "beta", Root: rootB}}, "")
+	w := New([]domain.Repo{{Key: "alpha", Root: rootA}, {Key: "beta", Root: rootB}}, "")
 
 	if dir, err := w.rootFor("beta"); err != nil || dir != rootB {
 		t.Fatalf("rootFor(beta) = %q, %v", dir, err)
@@ -57,7 +59,7 @@ func TestMultiRepoIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	w := New([]RepoInfo{{Key: "alpha", Root: rootA}, {Key: "beta", Root: rootB}}, "")
+	w := New([]domain.Repo{{Key: "alpha", Root: rootA}, {Key: "beta", Root: rootB}}, "")
 
 	if _, err := w.ReadFile("alpha", "only-a.txt", 0, 0); err != nil {
 		t.Fatalf("alpha read: %v", err)
@@ -78,7 +80,7 @@ func TestMultiRepoIsolation(t *testing.T) {
 }
 
 func TestReposListsConfigOrder(t *testing.T) {
-	w := New([]RepoInfo{{Key: "b", Root: "/x"}, {Key: "a", Root: "/y"}}, "")
+	w := New([]domain.Repo{{Key: "b", Root: "/x"}, {Key: "a", Root: "/y"}}, "")
 	repos := w.Repos()
 	if len(repos) != 2 || repos[0].Key != "b" || repos[1].Key != "a" {
 		t.Fatalf("repos: %+v", repos)
@@ -98,7 +100,7 @@ func TestReadFileTruncatesAtMaxBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	w := New([]RepoInfo{{Key: "main", Root: root}}, "main")
+	w := New([]domain.Repo{{Key: "main", Root: root}}, "main")
 
 	out, err := w.ReadFile("main", "big.txt", 0, 0)
 	if err != nil {
@@ -124,7 +126,7 @@ func TestGrepForRetrievalPreservesOtherFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	w := New([]RepoInfo{{Key: "main", Root: root}}, "main")
+	w := New([]domain.Repo{{Key: "main", Root: root}}, "main")
 	hits, err := w.GrepForRetrieval(context.Background(), "exactIdentifier", "main", "*.go", 8)
 	if err != nil {
 		t.Fatal(err)
@@ -148,7 +150,7 @@ func TestReadRawRejectsOversize(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	w := New([]RepoInfo{{Key: "main", Root: root}}, "main")
+	w := New([]domain.Repo{{Key: "main", Root: root}}, "main")
 
 	if _, err := w.ReadRaw("main", "huge.bin"); err == nil {
 		t.Fatal("expected error for oversized file")
@@ -165,7 +167,7 @@ func TestGlobRespectsLimit(t *testing.T) {
 		}
 	}
 
-	w := New([]RepoInfo{{Key: "main", Root: root}}, "main")
+	w := New([]domain.Repo{{Key: "main", Root: root}}, "main")
 
 	files, err := w.Glob(context.Background(), "file*.txt", "main", 0)
 	if err != nil {
@@ -194,7 +196,7 @@ func TestTreeSkipsVendorDirs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	w := New([]RepoInfo{{Key: "main", Root: root}}, "main")
+	w := New([]domain.Repo{{Key: "main", Root: root}}, "main")
 	nodes, err := w.Tree("main", ".", 3)
 	if err != nil {
 		t.Fatal(err)

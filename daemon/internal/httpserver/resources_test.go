@@ -9,8 +9,6 @@ import (
 	"testing"
 
 	"codeberg.org/codeberg/daemon/internal/resources"
-	"codeberg.org/codeberg/daemon/internal/testutil"
-	"codeberg.org/codeberg/daemon/internal/tools"
 )
 
 func TestResourcesServeCacheAndRegisterWithoutSampling(t *testing.T) {
@@ -20,9 +18,7 @@ func TestResourcesServeCacheAndRegisterWithoutSampling(t *testing.T) {
 			reads++
 			return nil, nil
 		}})
-	idx := &testutil.FakeIndexer{}
-	srv := New(idx, tools.Default(testutil.WsSingle(t.TempDir()), idx)).WithResources(collector)
-	ts := httptest.NewServer(srv.Handler())
+	ts := httptest.NewServer(Resources(collector))
 	defer ts.Close()
 	res, err := http.Get(ts.URL + "/resources")
 	if err != nil {
@@ -64,12 +60,11 @@ func TestResourcesServeCacheAndRegisterWithoutSampling(t *testing.T) {
 }
 
 func TestResourceControlIsLocalOnly(t *testing.T) {
-	idx := &testutil.FakeIndexer{}
-	srv := New(idx, tools.Default(testutil.WsSingle(t.TempDir()), idx)).WithResources(resources.New(resources.Options{}))
+	handler := Resources(resources.New(resources.Options{}))
 	req := httptest.NewRequest("POST", "/resources/clients", strings.NewReader(`{"pid":20}`))
 	req.RemoteAddr = "203.0.113.1:1234"
 	rec := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(rec, req)
+	handler.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("remote registration: %d", rec.Code)

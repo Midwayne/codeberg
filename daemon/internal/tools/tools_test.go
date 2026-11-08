@@ -6,12 +6,13 @@ import (
 	"slices"
 	"testing"
 
+	"codeberg.org/codeberg/daemon/internal/domain"
 	"codeberg.org/codeberg/daemon/internal/testutil"
 	"codeberg.org/codeberg/daemon/internal/workspace"
 )
 
 func TestDefaultRegistry(t *testing.T) {
-	reg := Default(testutil.WsSingle(t.TempDir()), testutil.StubIndexer())
+	reg := WithVectorSearch(testutil.WsSingle(t.TempDir()), testutil.StubIndexer(), true)
 	names := make([]string, len(reg.List()))
 
 	for i, sp := range reg.List() {
@@ -33,18 +34,18 @@ func TestDefaultRegistry(t *testing.T) {
 
 func TestReposTool(t *testing.T) {
 	rootA, rootB := t.TempDir(), t.TempDir()
-	ws := workspace.New([]workspace.RepoInfo{
+	ws := workspace.New([]domain.Repo{
 		{Key: "alpha", Root: rootA},
 		{Key: "beta", Root: rootB},
 	}, "")
-	reg := Default(ws, testutil.StubIndexer())
+	reg := WithVectorSearch(ws, testutil.StubIndexer(), true)
 
 	out, err := reg.Call(context.Background(), "repos", json.RawMessage(`{}`))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	repos, ok := out.([]workspace.RepoInfo)
+	repos, ok := out.([]domain.Repo)
 	if !ok || len(repos) != 2 || repos[0].Key != "alpha" || repos[1].Key != "beta" {
 		t.Fatalf("repos: %+v", out)
 	}

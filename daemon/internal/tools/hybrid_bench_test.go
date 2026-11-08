@@ -42,7 +42,7 @@ func BenchmarkHybridSearchSlowVectors(b *testing.B) {
 
 	idx := &slowVectorIndexer{delay: 20 * time.Millisecond}
 	idx.SearchHits = []indexctl.SearchResult{{ID: 1, Repo: "main", Path: "f0001.go", StartLine: 3, EndLine: 5}}
-	reg := Default(testutil.WsSingle(root), idx)
+	reg := WithVectorSearch(testutil.WsSingle(root), idx, true)
 	args := json.RawMessage(`{"query":"checkoutSessionToken","k":8}`)
 
 	b.ResetTimer()

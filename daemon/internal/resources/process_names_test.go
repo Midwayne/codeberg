@@ -4,24 +4,24 @@ import "testing"
 
 func TestWorkerNames(t *testing.T) {
 	tests := []struct {
-		command, arguments, model, backend, expected string
+		command, arguments, model, backend, python, expected string
 	}{
-		{"/home/user/.codeberg/embeddinggemma-mlx-venv/bin/python", "", "/models/embeddinggemma-2-fp32-mlx", "gemma-mlx", "Embedding worker — EmbeddingGemma 2/MLX"},
-		{"python3", "python3 /app/embedding_worker.py gemma-mlx /models/embeddinggemma-2-fp32-mlx", "", "", "Embedding worker — EmbeddingGemma 2/MLX"},
-		{"/home/user/.codeberg/embeddinggemma-venv/bin/python", "", "/models/embeddinggemma-2", "sentence-transformers", "Embedding worker — EmbeddingGemma 2/Sentence Transformers"},
-		{"python3", "python3 /app/embedding_worker.py sentence-transformers /models/embeddinggemma-2", "", "", "Embedding worker — EmbeddingGemma 2/Sentence Transformers"},
-		{"/home/user/.codeberg/embedding-venv/bin/python", "", "/models/qwen3-fp16-mlx", "mlx", "Embedding worker — Qwen3/MLX"},
-		{"/home/user/.codeberg/searxng/venv/bin/python", "", "", "", "Web search — SearXNG"},
-		{"python3", "python3 /app/scripts/embedding_worker.py mlx /models/qwen3-fp16-mlx", "", "", "Embedding worker — Qwen3/MLX"},
-		{"python3", "python3 /app with spaces/embedding_worker.py mlx /models with spaces/qwen3-fp16-mlx", "", "", "Embedding worker — Qwen3/MLX"},
-		{"python", "python -m searx.webapp", "", "", "Web search — SearXNG"},
-		{"python", "python /app/embedding_worker.py llama /models/qwen3-llama/model.gguf", "", "", "Embedding worker — Qwen3/llama.cpp"},
-		{"python", "python /app/custom.py", "", "", "python"},
-		{"python3", "python3 /app/my_embedding_worker.py", "", "", "python3"},
+		{"/home/user/.codeberg/embeddinggemma-mlx-venv/bin/python", "", "/models/embeddinggemma-2-fp32-mlx", "gemma-mlx", "/home/user/.codeberg/embeddinggemma-mlx-venv/bin/python", "Embedding worker — EmbeddingGemma 2/MLX"},
+		{"python3", "python3 /app/embedding_worker.py gemma-mlx /models/embeddinggemma-2-fp32-mlx", "", "", "", "Embedding worker — EmbeddingGemma 2/MLX"},
+		{"/home/user/.codeberg/embeddinggemma-venv/bin/python3.12", "", "/models/embeddinggemma-2", "sentence-transformers", "/home/user/.codeberg/embeddinggemma-venv/bin/python", "Embedding worker — EmbeddingGemma 2/Sentence Transformers"},
+		{"python3", "python3 /app/embedding_worker.py sentence-transformers /models/embeddinggemma-2", "", "", "", "Embedding worker — EmbeddingGemma 2/Sentence Transformers"},
+		{"/home/user/.codeberg/embedding-venv/bin/python", "", "/models/qwen3-fp16-mlx", "mlx", "/home/user/.codeberg/embedding-venv/bin/python", "Embedding worker — Qwen3/MLX"},
+		{"/home/user/.codeberg/searxng/venv/bin/python", "", "/models/qwen3-fp16-mlx", "mlx", "/home/user/.codeberg/embedding-venv/bin/python", "python"},
+		{"python3", "python3 /app/scripts/embedding_worker.py mlx /models/qwen3-fp16-mlx", "", "", "", "Embedding worker — Qwen3/MLX"},
+		{"python3", "python3 /app with spaces/embedding_worker.py mlx /models with spaces/qwen3-fp16-mlx", "", "", "", "Embedding worker — Qwen3/MLX"},
+		{"python", "python -m searx.webapp", "", "", "", "Web search — SearXNG"},
+		{"python", "python /app/embedding_worker.py llama /models/qwen3-llama/model.gguf", "", "", "", "Embedding worker — Qwen3/llama.cpp"},
+		{"python", "python /app/custom.py", "", "", "", "python"},
+		{"python3", "python3 /app/my_embedding_worker.py", "", "", "", "python3"},
 	}
 
 	for _, test := range tests {
-		if got := workerName(test.command, test.arguments, test.model, test.backend); got != test.expected {
+		if got := workerName(test.command, test.arguments, embedder{test.model, test.backend, test.python}); got != test.expected {
 			t.Errorf("%s %s: got %q want %q", test.command, test.arguments, got, test.expected)
 		}
 	}

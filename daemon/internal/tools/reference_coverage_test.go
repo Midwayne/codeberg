@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"codeberg.org/codeberg/daemon/internal/domain"
 	"codeberg.org/codeberg/daemon/internal/indexctl"
 	"codeberg.org/codeberg/daemon/internal/testutil"
 	"codeberg.org/codeberg/daemon/internal/workspace"
@@ -23,7 +24,7 @@ func TestReferencesKeepLexicalEvidenceAlongsidePartialGraph(t *testing.T) {
 	idx := &mockIndexer{graphRefs: []indexctl.GraphEdge{{
 		Src: 1, Dst: 2, Kind: "calls", SrcName: "caller", DstName: "Save", SrcPath: "a.go", Line: 2,
 	}}}
-	registry := Default(testutil.WsSingle(root), idx)
+	registry := WithVectorSearch(testutil.WsSingle(root), idx, true)
 	output, err := registry.Call(context.Background(), "find_references", json.RawMessage(`{"symbol":"Save"}`))
 	if err != nil {
 		t.Fatal(err)
@@ -53,7 +54,7 @@ func TestReferencesShareOneLimit(t *testing.T) {
 }
 
 func TestReferencesSearchAllConfiguredRoots(t *testing.T) {
-	repos := []workspace.RepoInfo{{Key: "api", Root: t.TempDir()}, {Key: "storage", Root: t.TempDir()}}
+	repos := []domain.Repo{{Key: "api", Root: t.TempDir()}, {Key: "storage", Root: t.TempDir()}}
 	for _, repo := range repos {
 		if err := os.WriteFile(filepath.Join(repo.Root, "main.go"), []byte("var callback = Save\n"), 0600); err != nil {
 			t.Fatal(err)

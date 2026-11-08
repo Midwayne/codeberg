@@ -2,27 +2,21 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
-	"codeberg.org/codeberg/daemon/internal/bootstrap"
 	"codeberg.org/codeberg/daemon/internal/config"
-	"codeberg.org/codeberg/daemon/internal/gitpull"
 	"codeberg.org/codeberg/daemon/internal/httpserver"
-	"codeberg.org/codeberg/daemon/internal/indexctl"
 	"codeberg.org/codeberg/daemon/internal/projects"
 	"codeberg.org/codeberg/daemon/internal/resources"
-	"codeberg.org/codeberg/daemon/internal/supervisor"
-	"codeberg.org/codeberg/daemon/internal/tools"
-	"codeberg.org/codeberg/daemon/internal/workspace"
 )
 
 func main() {
@@ -31,114 +25,118 @@ func main() {
 		log.Fatal(err)
 	}
 
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
-	home := codebergHome()
-
-	projectManager, err := projects.New(ctx, home, cfg.Indexer)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	defer projectManager.Close()
-	cfg.Indexer, err = projectManager.InitialConfig()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	rootPID, _ := strconv.Atoi(os.Getenv("CODEBERG_RESOURCE_ROOT_PID"))
-	metrics := resources.New(resources.Options{Home: home, ModelPath: cfg.Model, IndexPath: cfg.Index,
-		LogDir: os.Getenv("CODEBERG_LOG_DIR"), RootPID: rootPID, EmbeddingBackend: cfg.EmbedBackend})
-	// Include indexing/bootstrap in history rather than starting only once ready.
-	metrics.Start(ctx)
-
-	stop := startInitialProject(ctx, cfg, metrics)
-	defer stop()
-	idx := indexctl.NewClient(cfg.Socket)
-	httpSrv := serveProjects(cfg, idx, metrics, projectManager, stop)
-
-	<-ctx.Done()
-
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer shutdownCancel()
-	_ = httpSrv.Shutdown(shutdownCtx)
-}
-
-func codebergHome() string {
-	home := os.Getenv("CODEBERG_HOME")
-	if home == "" {
-		userHome, _ := os.UserHomeDir()
-		home = filepath.Join(userHome, ".codeberg")
-	}
-
-	return home
-}
-
-func waitForInitialIndex(ctx context.Context, cfg config.Daemon, idx *indexctl.Client, metrics *resources.Collector) {
-	readyCtx, readyCancel := context.WithTimeout(ctx, bootstrap.StartupTimeout(len(cfg.Roots)))
-	defer readyCancel()
-	st, err := bootstrap.WaitIndexer(readyCtx, idx)
-	if err != nil {
-		log.Printf("initial project indexing: %v", err)
+	if len(os.Args) > 1 {
+		runCommand(cfg, os.Args[1:])
 		return
 	}
 
-	log.Printf("indexer ready: %d chunks, version %s", st.Chunks, st.Version)
-	metrics.InvalidateDisk()
+	if err := run(cfg); err != nil {
+		log.Fatal(err)
+	}
 }
 
-func serveProjects(cfg config.Daemon, idx *indexctl.Client, metrics *resources.Collector, projectManager *projects.Manager, stop func()) *http.Server {
-	repos := make([]workspace.RepoInfo, 0, len(cfg.Roots))
-	roots := make([]string, 0, len(cfg.Roots))
+// run returns instead of exiting so deferred cleanup (stopping indexers,
+// removing a --no-index session) always happens.
+func run(cfg config.Daemon) error {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
 
-	for _, r := range cfg.Roots {
-		repos = append(repos, workspace.RepoInfo{Key: r.Key, Root: r.Root})
-		roots = append(roots, r.Key+"="+r.Root)
+	dataHome, cleanup, err := projectHome(cfg)
+	if err != nil {
+		return err
 	}
 
-	ws := workspace.New(repos, cfg.DefaultKey)
-	srv := httpserver.New(idx, tools.WithVectorSearch(ws, idx, cfg.Model != "")).WithResources(metrics)
+	defer cleanup()
+
+	// Include indexing/bootstrap in history rather than starting only once ready.
+	metrics := resources.New(resources.Options{Home: cfg.Home, ModelPath: cfg.Model, IndexPath: cfg.Index,
+		LogDir: cfg.LogDir, RootPID: cfg.RootPID, EmbeddingBackend: cfg.EmbedBackend, EmbedPython: cfg.EmbedPython})
+	metrics.Start(ctx)
+
+	manager, err := projects.New(ctx, dataHome, cfg.Indexer)
+	if err != nil {
+		return err
+	}
+
+	defer manager.Close()
+	manager.WithRuntime(projects.Runtime{GitPull: cfg.GitPull, HealthTimeout: cfg.HealthTimeout, OnIndexReady: metrics.InvalidateDisk})
+	if err := manager.StartDefault(); err != nil {
+		return err
+	}
+
+	return serve(ctx, cfg, manager, metrics)
+}
+
+// projectHome keeps a --no-index session's catalog and indexes in a temporary
+// directory removed at exit, so nothing is registered or written under Home.
+func projectHome(cfg config.Daemon) (string, func(), error) {
+	if !cfg.NoIndex {
+		return cfg.Home, func() {}, nil
+	}
+
+	dir, err := os.MkdirTemp("", "codeberg-session-")
+	if err != nil {
+		return "", nil, err
+	}
+
+	return dir, func() { _ = os.RemoveAll(dir) }, nil
+}
+
+// serve answers until ctx ends or the listener fails.
+func serve(ctx context.Context, cfg config.Daemon, manager *projects.Manager, metrics *resources.Collector) error {
+	mux := http.NewServeMux()
+	resourceRoutes := httpserver.Resources(metrics)
+	mux.Handle("/resources", resourceRoutes)
+	mux.Handle("/resources/", resourceRoutes)
+	mux.Handle("/", manager.Handler())
 
 	// Repository APIs are local-only. Never expose unauthenticated tools on a
 	// wildcard interface; remote access must go through an authenticated proxy.
 	address := net.JoinHostPort("127.0.0.1", cfg.HTTPPort)
-	log.Printf("codeberg-d: roots=[%s] http=%s socket=%s", strings.Join(roots, " "), address, cfg.Socket)
+	log.Printf("codeberg-d: roots=[%s] http=%s home=%s", formatRoots(cfg), address, cfg.Home)
 
-	projectManager.WithGitPull(cfg.GitPull)
-	if len(cfg.Roots) > 0 {
-		projectManager.BindDefault(srv.Handler(), stop)
+	httpSrv := &http.Server{Addr: address, Handler: mux}
+	failed := make(chan error, 1)
+	go func() { failed <- httpSrv.ListenAndServe() }()
+
+	select {
+	case err := <-failed:
+		return fmt.Errorf("http: %w", err)
+	case <-ctx.Done():
 	}
-	httpSrv := &http.Server{Addr: address, Handler: projectManager.Handler(srv.Handler())}
-	go func() {
-		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("http: %v", err)
-			os.Exit(1)
-		}
-	}()
 
-	return httpSrv
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+
+	return httpSrv.Shutdown(shutdownCtx)
 }
 
-func startInitialProject(ctx context.Context, cfg config.Daemon, metrics *resources.Collector) func() {
-	if len(cfg.Roots) == 0 {
-		return func() {}
+func formatRoots(cfg config.Daemon) string {
+	roots := make([]string, 0, len(cfg.Roots))
+
+	for _, r := range cfg.Roots {
+		roots = append(roots, r.Key+"="+r.Root)
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	sup, err := supervisor.Start(ctx, cfg.Indexer)
-	if err != nil {
-		log.Fatal(err)
-	}
+	return strings.Join(roots, " ")
+}
 
-	go waitForInitialIndex(ctx, cfg, indexctl.NewClient(cfg.Socket), metrics)
-	dirs := make([]string, 0, len(cfg.Roots))
-	for _, root := range cfg.Roots {
-		dirs = append(dirs, root.Root)
-	}
+// runCommand handles the one-shot subcommands other components use to read
+// daemon-owned state without starting a server.
+func runCommand(cfg config.Daemon, args []string) {
+	switch args[0] {
+	case "storage":
+		report, err := projects.StorageReport(cfg.Home)
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	go gitpull.Run(ctx, dirs, cfg.GitPull)
-	return func() {
-		sup.Stop()
-		cancel()
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(report); err != nil {
+			log.Fatal(err)
+		}
+	default:
+		log.Fatalf("unknown command %q (available: storage)", args[0])
 	}
 }

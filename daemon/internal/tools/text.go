@@ -108,3 +108,25 @@ func readLines(ws *workspace.Workspace, repo, path string) ([]string, error) {
 
 	return strings.Split(text, "\n"), nil
 }
+
+type pathLinesArgs struct {
+	Repo  string `json:"repo"`
+	Path  string `json:"path"`
+	Lines int    `json:"lines"`
+}
+
+type wcArgs struct {
+	Repo string `json:"repo"`
+	Path string `json:"path"`
+}
+
+type headTailResult struct {
+	Content string `json:"content"`
+	Lines   int    `json:"lines"`
+}
+
+type wcResult struct {
+	Lines int `json:"lines"`
+	Words int `json:"words"`
+	Bytes int `json:"bytes"`
+}

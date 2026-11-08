@@ -9,8 +9,6 @@ import (
 )
 
 func TestHealthAllowsResponsiveColdIndexPastStartupTimeout(t *testing.T) {
-	t.Setenv("CODEBERG_HEALTH_TIMEOUT", "1ms")
-
 	for _, tc := range []struct {
 		name string
 		code int
@@ -23,17 +21,22 @@ func TestHealthAllowsResponsiveColdIndexPastStartupTimeout(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m, _ := setup(t)
+			m.WithRuntime(Runtime{HealthTimeout: time.Millisecond})
 			p := m.catalog.Projects[0]
-			m.BindDefault(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fakeStart(m, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(tc.code)
 				_, _ = w.Write([]byte(tc.body))
-			}))
+			}), func() {})
+			if err := m.StartDefault(); err != nil {
+				t.Fatal(err)
+			}
+
 			rt := m.runtimes[p.ID]
 			rt.started = time.Now().Add(-time.Hour)
 			m.runtimes[p.ID] = rt
 
 			w := httptest.NewRecorder()
-			m.Handler(http.NotFoundHandler()).ServeHTTP(w, httptest.NewRequest("GET", "/projects/"+p.ID+"/health", nil))
+			m.Handler().ServeHTTP(w, httptest.NewRequest("GET", "/projects/"+p.ID+"/health", nil))
 
 			if w.Code != tc.want {
 				t.Fatalf("health = %d %s, want %d", w.Code, w.Body, tc.want)

@@ -23,9 +23,10 @@ func (c *Collector) captureName(ctx context.Context, row ProcessCounter) (string
 	nameKey := key + ":" + row.Command
 	name, cached := c.names[nameKey]
 	if !cached {
-		name = workerName(row.Command, "", c.opts.ModelPath, c.opts.EmbeddingBackend)
+		e := embedder{model: c.opts.ModelPath, backend: c.opts.EmbeddingBackend, python: c.opts.EmbedPython}
+		name = workerName(row.Command, "", e)
 		if pythonProcess.MatchString(filepath.Base(row.Command)) && name == filepath.Base(row.Command) {
-			name = workerName(row.Command, nativeArguments(ctx, row.PID), c.opts.ModelPath, c.opts.EmbeddingBackend)
+			name = workerName(row.Command, nativeArguments(ctx, row.PID), e)
 		}
 	}
 
