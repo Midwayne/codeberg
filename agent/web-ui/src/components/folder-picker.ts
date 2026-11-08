@@ -1,5 +1,6 @@
 import type { useAddProject } from './project-add';
 import { readJsonBody } from '../lib/read-json';
+import { jsonRequest } from '../lib/response.js';
 
 export type FolderPickerOptions = Pick<Parameters<typeof useAddProject>[0], 'initialPath'> & {
   busy: boolean;
@@ -28,12 +29,10 @@ export function createFolderPicker({
     setChoosing(true);
     setError('');
     try {
-      const response = await fetch('/api/projects/pick-directory', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initialPath: root || initialPath }),
-        signal: controller.signal,
-      });
+      const response = await fetch(
+        '/api/projects/pick-directory',
+        jsonRequest('POST', { initialPath: root || initialPath }, controller.signal),
+      );
       const fallback = 'Could not open the folder picker. Enter the directory path manually.';
       const result = await readJsonBody<{ path?: string; cancelled?: boolean; message?: string }>(response, fallback);
 

@@ -1,5 +1,5 @@
 import type { ProjectInfo } from '@agent/core/api/projects.js';
-import { responseJson } from '../lib/response.js';
+import { jsonRequest, responseJson } from '../lib/response.js';
 import { createFolderPicker } from './folder-picker';
 
 import { control, button } from './project-styles';
@@ -150,11 +150,7 @@ export function createProjectAddSubmit({
     if (choosing || busy || !root.trim()) return;
     setBusy(true);
     setError('');
-    void fetch('/api/projects', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, root }),
-    })
+    void fetch('/api/projects', jsonRequest('POST', { name, root }))
       .then(async (response) => {
         await onAdded(await responseJson<ProjectInfo>(response));
       })

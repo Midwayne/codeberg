@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { responseJson } from './response.js';
+import { jsonRequest, responseJson } from './response.js';
 import { prepareSkillFiles, type SkillFile } from './skill-files';
 import { createSkillImportAction } from './skill-import-action';
 
@@ -91,12 +91,10 @@ export function createSkillPreview({
       const readable = prepared.filter((file) => !file.error);
       let results: SkillFile[] = [];
       if (readable.length) {
-        const response = await api('/api/extensions/skills/preview', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ files: readable }),
-          signal: controller.signal,
-        });
+        const response = await api(
+          '/api/extensions/skills/preview',
+          jsonRequest('POST', { files: readable }, controller.signal),
+        );
         results = (await responseJson<{ files: SkillFile[] }>(response)).files;
       }
       let index = 0;

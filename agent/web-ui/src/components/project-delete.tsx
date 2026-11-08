@@ -1,4 +1,5 @@
 import type { ProjectCatalogInfo, ProjectInfo } from '@agent/core/api/projects.js';
+import { jsonRequest } from '../lib/response.js';
 import { Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { button } from './project-styles';
@@ -72,11 +73,7 @@ function useProjectDeletion(project: ProjectInfo, onDeleted: ProjectDeleteProps[
     setBusy(true);
     setError('');
     try {
-      const response = await fetch(`/api/projects/${project.id}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode }),
-      });
+      const response = await fetch(`/api/projects/${project.id}`, jsonRequest('DELETE', { mode }));
       const result = await response.json();
       if (!response.ok) throw new Error(result.message ?? 'Could not delete project. Try again.');
 

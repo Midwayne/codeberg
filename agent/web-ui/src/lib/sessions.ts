@@ -6,6 +6,7 @@ import type {
   SessionSummary,
 } from '@agent/core/api/sessions.js';
 import { titleFromText } from '@agent/core/title.js';
+import { jsonRequest } from './response.js';
 
 export type SessionRecord = StoredSession<UIMessage>;
 
@@ -26,11 +27,7 @@ export async function updateSessionFlags(
   flags: SessionFlags,
   fetcher: typeof fetch = fetch,
 ): Promise<void> {
-  const response = await fetcher(`${BASE}/${encodeURIComponent(id)}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(flags),
-  });
+  const response = await fetcher(`${BASE}/${encodeURIComponent(id)}`, jsonRequest('PATCH', flags));
   if (!response.ok) throw new Error(`Could not update chat (${response.status})`);
 }
 
@@ -51,15 +48,14 @@ export type SaveSessionInput = {
 };
 
 export async function saveSession(input: SaveSessionInput, fetcher: typeof fetch = fetch): Promise<void> {
-  const response = await fetcher(`${BASE}/${encodeURIComponent(input.id)}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  const response = await fetcher(
+    `${BASE}/${encodeURIComponent(input.id)}`,
+    jsonRequest('PUT', {
       title: input.title,
       messages: input.messages,
       ...(input.parentId ? { parentId: input.parentId } : {}),
     }),
-  });
+  );
   if (!response.ok) throw new Error(`Could not save chat (${response.status})`);
 }
 

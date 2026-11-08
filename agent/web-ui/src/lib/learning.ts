@@ -1,5 +1,5 @@
 import { FEEDBACK_LABELS, type FeedbackLabel, type FeedbackRating } from '@agent/core/learning/types.js';
-import { responseJson } from './response.js';
+import { jsonRequest, responseJson } from './response.js';
 
 const FEEDBACK_TITLES: Record<FeedbackLabel, string> = {
   not_useful: 'Not useful',
@@ -44,17 +44,16 @@ export async function rateAttempt(
   reason?: string,
   fetcher: typeof fetch = fetch,
 ): Promise<FeedbackRecord> {
-  const response = await fetcher('/api/learning/feedback', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  const response = await fetcher(
+    '/api/learning/feedback',
+    jsonRequest('POST', {
       conversation_id: conversationId,
       message_id: messageId,
       rating: option.rating,
       label: option.label,
       ...(reason ? { reason } : {}),
     }),
-  });
+  );
   const result = await responseJson<{ feedback: FeedbackRecord }>(response);
 
   return result.feedback;

@@ -1,6 +1,7 @@
 import type { ProjectInfo } from '@agent/core/api/projects.js';
 import { control, button } from './project-styles';
 import { readJsonBody } from '../lib/read-json';
+import { jsonRequest } from '../lib/response.js';
 
 import { useEffect, useRef, useState } from 'react';
 
@@ -150,11 +151,7 @@ function createProjectRenameSubmit({ busy, name, project, setBusy, setError, onR
     if (busy || !name.trim() || name.trim() === project.name) return;
     setBusy(true);
     setError('');
-    void fetch(`/api/projects/${project.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim() }),
-    })
+    void fetch(`/api/projects/${project.id}`, jsonRequest('PATCH', { name: name.trim() }))
       .then(async (response) => {
         const fallback = 'Could not save the project name. Try again.';
         const result = await readJsonBody<ProjectInfo & { message?: string }>(response, fallback);

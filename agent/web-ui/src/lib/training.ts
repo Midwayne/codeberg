@@ -1,5 +1,5 @@
 import type { DatasetKind } from '@agent/core/learning/datasets/records.js';
-import { responseJson } from './response.js';
+import { jsonRequest, responseJson } from './response.js';
 import type { ReviewCandidate, ReviewDashboard, ReviewState } from '@agent/core/learning/review-types.js';
 
 export type ExampleKind = DatasetKind;
@@ -48,11 +48,10 @@ export async function submitReview(
   fetcher: typeof fetch = fetch,
 ): Promise<void> {
   await responseJson(
-    await fetcher(`/api/learning/review/${encodeURIComponent(id)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ decision, ...(oracle ? { oracle } : {}) }),
-    }),
+    await fetcher(
+      `/api/learning/review/${encodeURIComponent(id)}`,
+      jsonRequest('POST', { decision, ...(oracle ? { oracle } : {}) }),
+    ),
   );
 }
 

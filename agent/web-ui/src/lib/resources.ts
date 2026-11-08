@@ -7,7 +7,7 @@ import {
   type ResourceSample,
   type ResourceUsage,
 } from '@agent/core/api/resources.js';
-import { responseJson } from './response.js';
+import { jsonRequest, responseJson } from './response.js';
 
 async function request<T>(path: string, options?: RequestInit, fetcher: typeof fetch = fetch): Promise<T> {
   return responseJson<T>(await fetcher(`/api/settings/${path}`, { cache: 'no-store', ...options }));
@@ -46,11 +46,7 @@ export const previewCleanup = (days: number, fetcher: typeof fetch = fetch) =>
 export const cleanupResources = (categories: CleanupCategory[], olderThanDays: number, fetcher: typeof fetch = fetch) =>
   request<CleanupResult>(
     'cleanup',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ categories, olderThanDays }),
-    },
+    jsonRequest('POST', { categories, olderThanDays }),
     fetcher,
   );
 

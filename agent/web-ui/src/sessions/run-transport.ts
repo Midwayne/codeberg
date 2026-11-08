@@ -1,6 +1,7 @@
 import { DefaultChatTransport, type ChatTransport, type UIMessage, type UIMessageChunk } from 'ai';
 import type { Chat } from '@ai-sdk/react';
 import { RUN_ID_HEADER, type RunSummary } from '@agent/core/api/runs.js';
+import { jsonRequest } from '../lib/response.js';
 import type { SessionRecord } from '../lib/sessions';
 import { reconnectingStream, resumeWithoutAbortError, retryAdmission } from './run-reconnect';
 
@@ -101,10 +102,10 @@ export class RunTransport implements ChatTransport<UIMessage> {
   async stop(chatId: string): Promise<void> {
     this.resumed?.abort();
     await this.opening?.catch(() => undefined);
-    const response = await this.api(`/api/chat/${encodeURIComponent(chatId)}/stop`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(this.runId ? { runId: this.runId } : { requestId: this.requestId }),
-    });
+    const response = await this.api(
+      `/api/chat/${encodeURIComponent(chatId)}/stop`,
+      jsonRequest('POST', this.runId ? { runId: this.runId } : { requestId: this.requestId }),
+    );
     if (!response.ok) throw new Error('Could not stop the server search. Reconnect and try Stop again.');
   }
 

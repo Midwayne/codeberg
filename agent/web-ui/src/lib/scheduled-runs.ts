@@ -4,6 +4,7 @@ import {
   type ScheduleCancelResult,
   type ScheduleSummary,
 } from '@agent/core/schedules/summary';
+import { jsonRequest } from './response.js';
 
 export async function loadSchedules(api: typeof fetch, signal?: AbortSignal): Promise<ScheduleSummary[]> {
   const response = await api('/api/schedules', { signal, cache: 'no-store' });
@@ -16,9 +17,7 @@ export async function loadSchedules(api: typeof fetch, signal?: AbortSignal): Pr
 }
 
 export async function cancelSchedule(api: typeof fetch, id: string, signal?: AbortSignal): Promise<ScheduleCancelResult> {
-  const response = await api(`/api/schedules/${encodeURIComponent(id)}/cancel`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', signal,
-  });
+  const response = await api(`/api/schedules/${encodeURIComponent(id)}/cancel`, jsonRequest('POST', {}, signal));
   if (!response.ok) throw new Error(await response.text() || 'Could not cancel the schedule. Try again.');
 
   const result = await response.json();

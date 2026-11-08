@@ -1,4 +1,5 @@
 import type { Scene } from '@agent/core/canvas/types';
+import { jsonRequest } from '../lib/response.js';
 import { mergeScenes, sceneFingerprint } from './merge';
 
 export class CanvasSync {
@@ -67,9 +68,7 @@ export class CanvasSync {
     const sent = { ...this.local, revision: this.base.revision };
     this.sending = true;
     try {
-      const response = await this.options.fetch('/api/canvas/scene', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sent),
-      });
+      const response = await this.options.fetch('/api/canvas/scene', jsonRequest('POST', sent));
       if (response.status === 409) throw new Error('The canvas changed while you were editing. Your unsaved edits are kept here.');
 
       if (!response.ok) throw new Error((await response.json()).error ?? 'Canvas save failed. Retry.');

@@ -1,7 +1,7 @@
 import { Plus } from 'lucide-react';
 
 import { EXTENSION_NAME_PATTERN } from '@agent/core/context/skill-limits.js';
-import { ensureOk } from '../lib/response.js';
+import { ensureOk, jsonRequest } from '../lib/response.js';
 
 import type { ExtensionsView } from './extensions';
 import { SuccessNotice } from './success-notice';
@@ -129,11 +129,7 @@ function createExtensionSubmit({ state }: ExtensionSubmitOptions) {
                 name: state.name,
                 content: `---\nname: ${JSON.stringify(state.name)}\ndescription: ${JSON.stringify(state.description)}\n---\n\n${state.instructions}\n`,
               };
-        const response = await state.api('/api/extensions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
+        const response = await state.api('/api/extensions', jsonRequest('POST', body));
         await ensureOk(response);
         state.setSaved(`${state.name} added. Available on the next chat turn.`);
         state.setName('');
