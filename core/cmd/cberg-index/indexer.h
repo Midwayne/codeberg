@@ -170,9 +170,6 @@ cberg_status cberg_engine_find_symbol(cberg_engine *eng, const char *name, const
 /* Return every indexed chunk in a file, sorted by start_line. */
 cberg_status cberg_engine_file_outline(cberg_engine *eng, const char *repo_key, const char *path, cberg_engine_hit *hits, size_t cap, size_t *found);
 
-/* Map kind filter string to cberg_chunk_kind, or -1 when unset/unknown. */
-int cberg_index_parse_kind(const char *s);
-
 /* --- Knowledge graph IPC surface (ADR 0005) --- */
 
 typedef struct cberg_engine_graph_node {
@@ -238,16 +235,12 @@ cberg_status cberg_engine_trace_path(cberg_engine *eng, const char *name, uint64
 /* Per-repo graph counts. repo_key NULL/empty → first ready repo with a graph. */
 cberg_status cberg_engine_get_graph_stats(cberg_engine *eng, const char *repo_key, cberg_engine_graph_stats *out);
 
-/* Incoming CALLS/INHERITS/IMPORTS edges for a symbol (graph-first find_references).
- * path_prefix disambiguates same-named symbols (NULL = any; component-aware).
- * REFERENCES is reserved and not extracted yet, so it is omitted from the mask. */
+/* Incoming CALLS/INHERITS/IMPORTS/REFERENCES edges for a symbol (graph-first
+ * find_references). path_prefix disambiguates same-named symbols (NULL = any;
+ * component-aware). */
 cberg_status cberg_engine_graph_references(cberg_engine *eng, const char *name, const char *repo_key, const char *path_prefix, size_t limit, cberg_engine_graph_edge *out, size_t cap, size_t *found);
 
 /* Degree hubs: symbols ranked by incident CALLS (in+out). */
 cberg_status cberg_engine_graph_hubs(cberg_engine *eng, const char *repo_key, size_t limit, cberg_engine_graph_hub *out, size_t cap, size_t *found);
-
-/* Parse graph node/edge kind strings used on the IPC wire. */
-uint32_t cberg_index_parse_gnode_mask(const char *s);
-uint32_t cberg_index_parse_gedge_mask(const char *s);
 
 #endif

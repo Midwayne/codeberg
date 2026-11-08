@@ -29,9 +29,8 @@
 #include "arena.h"
 #include "graph_internal.h"
 #include "grow.h"
+#include "lang.h"
 #include "strmap.h"
-
-#define GRAPH_LANG_SLOTS ((int)CBERG_LANG_RUBY + 1)
 
 static const char *const GO_REF_QUERY =
     "(identifier) @reference\n(type_identifier) @reference\n(field_identifier) @reference\n"
@@ -126,8 +125,8 @@ static const char *ref_query_for(cberg_language lang) {
 }
 
 struct cberg_graph_extractor {
-    TSQuery *queries[GRAPH_LANG_SLOTS];
-    uint8_t ready[GRAPH_LANG_SLOTS];
+    TSQuery *queries[CBERG_LANG_PARSED_SLOTS];
+    uint8_t ready[CBERG_LANG_PARSED_SLOTS];
 };
 
 cberg_graph_extractor *cberg_graph_extractor_new(void) {
@@ -138,7 +137,7 @@ void cberg_graph_extractor_free(cberg_graph_extractor *extractor) {
     if (extractor == NULL) {
         return;
     }
-    for (int i = 0; i < GRAPH_LANG_SLOTS; i++) {
+    for (int i = 0; i < CBERG_LANG_PARSED_SLOTS; i++) {
         if (extractor->queries[i] != NULL) {
             ts_query_delete(extractor->queries[i]);
         }
@@ -148,7 +147,7 @@ void cberg_graph_extractor_free(cberg_graph_extractor *extractor) {
 
 static cberg_status ensure_ref_query(cberg_graph_extractor *x, const TSLanguage *ts_lang, cberg_language lang, TSQuery **out_query) {
     int slot = (int)lang;
-    if (slot <= CBERG_LANG_UNKNOWN || slot >= GRAPH_LANG_SLOTS) {
+    if (slot <= CBERG_LANG_UNKNOWN || slot >= CBERG_LANG_PARSED_SLOTS) {
         *out_query = NULL;
         return CBERG_OK;
     }

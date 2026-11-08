@@ -15,10 +15,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-int cberg_index_parse_kind(const char *s) {
-    return cberg_chunk_kind_parse(s);
-}
-
 static int chunk_passes_filters(const cberg_stored_chunk *sc, float score, const cberg_search_filters *f) {
     if (f == NULL) {
         return 1;

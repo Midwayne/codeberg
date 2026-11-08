@@ -6,6 +6,8 @@
 #include "ipc.h"
 #include "indexer.h"
 
+#include "chunk_kind.h"
+
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
@@ -308,7 +310,7 @@ static void handle_search(cberg_engine *eng, int fd, char *args) {
 
     cberg_search_filters filters = {0};
     filters.path_glob = path_glob;
-    filters.kind = cberg_index_parse_kind(kind_str);
+    filters.kind = cberg_chunk_kind_parse(kind_str);
     if (min_score_str != NULL && min_score_str[0] != '\0') {
         filters.min_score = (float)atof(min_score_str);
     }
@@ -408,7 +410,7 @@ static void handle_symbol(cberg_engine *eng, int fd, char *args) {
     cberg_engine_hit hits[64];
     size_t found = 0;
     cberg_status st =
-        cberg_engine_find_symbol(eng, name, repo, cberg_index_parse_kind(kind_str), limit, hits, 64, &found);
+        cberg_engine_find_symbol(eng, name, repo, cberg_chunk_kind_parse(kind_str), limit, hits, 64, &found);
     if (st != CBERG_OK) {
         char resp[256];
         snprintf(resp, sizeof(resp), "{\"ok\":false,\"error\":\"%s\"}\n", cberg_status_str(st));

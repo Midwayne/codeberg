@@ -1,6 +1,8 @@
 #include "codeberg/codeberg.h"
+#include "lang.h"
 
 #include <stdio.h>
+#include <string.h>
 
 static int failures;
 
@@ -33,5 +35,17 @@ int main(void) {
     CHECK(cberg_language_from_path("Cargo.toml") == CBERG_LANG_TOML, "toml");
     CHECK(cberg_language_from_path("package.json") == CBERG_LANG_JSON, "json");
     CHECK(cberg_language_from_path("photo.png") == CBERG_LANG_UNKNOWN, "unknown");
+
+    CHECK(strcmp(cberg_language_name(CBERG_LANG_GO), "go") == 0, "go name");
+    CHECK(strcmp(cberg_language_name(CBERG_LANG_RUBY), "ruby") == 0, "ruby name");
+    CHECK(strcmp(cberg_language_name(CBERG_LANG_JSON), "json") == 0, "json name");
+    CHECK(strcmp(cberg_language_name(CBERG_LANG_UNKNOWN), "unknown") == 0, "unknown name");
+    CHECK(strcmp(cberg_language_name((cberg_language)999), "unknown") == 0, "out-of-range name");
+
+    CHECK(cberg_language_is_code(CBERG_LANG_GO), "go is code");
+    CHECK(cberg_language_is_code(CBERG_LANG_RUBY), "ruby is code");
+    CHECK(!cberg_language_is_code(CBERG_LANG_MARKDOWN), "markdown is not code");
+    CHECK(!cberg_language_is_code(CBERG_LANG_JSON), "json is not code");
+    CHECK(!cberg_language_is_code(CBERG_LANG_UNKNOWN), "unknown is not code");
     return failures == 0 ? 0 : 1;
 }

@@ -2,125 +2,14 @@
 
 #include "indexer.h"
 
+#include "graph_names.h"
+#include "lang.h"
 #include "workspace_graph.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
-
-static const char *gnode_kind_str(cberg_graph_node_kind k) {
-    switch (k) {
-    case CBERG_GNODE_FILE:
-        return "file";
-    case CBERG_GNODE_FUNCTION:
-        return "function";
-    case CBERG_GNODE_METHOD:
-        return "method";
-    case CBERG_GNODE_CLASS:
-        return "class";
-    case CBERG_GNODE_STRUCT:
-        return "struct";
-    case CBERG_GNODE_INTERFACE:
-        return "interface";
-    case CBERG_GNODE_MODULE:
-        return "module";
-    default:
-        return "unknown";
-    }
-}
-
-static const char *gedge_kind_str(cberg_graph_edge_kind k) {
-    switch (k) {
-    case CBERG_GEDGE_DEFINES:
-        return "defines";
-    case CBERG_GEDGE_CONTAINS:
-        return "contains";
-    case CBERG_GEDGE_IMPORTS:
-        return "imports";
-    case CBERG_GEDGE_CALLS:
-        return "calls";
-    case CBERG_GEDGE_INHERITS:
-        return "inherits";
-    case CBERG_GEDGE_REFERENCES:
-        return "references";
-    default:
-        return "unknown";
-    }
-}
-
-static const char *gres_str(cberg_graph_resolution r) {
-    switch (r) {
-    case CBERG_GRES_TEXTUAL:
-        return "textual";
-    case CBERG_GRES_IMPORT:
-        return "import";
-    case CBERG_GRES_TYPED:
-        return "typed";
-    default:
-        return "unknown";
-    }
-}
-
-uint32_t cberg_index_parse_gnode_mask(const char *s) {
-    if (s == NULL || s[0] == '\0') {
-        return 0;
-    }
-    if (strcasecmp(s, "file") == 0) {
-        return CBERG_GNODE_MASK(CBERG_GNODE_FILE);
-    }
-    if (strcasecmp(s, "function") == 0) {
-        return CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION);
-    }
-    if (strcasecmp(s, "method") == 0) {
-        return CBERG_GNODE_MASK(CBERG_GNODE_METHOD);
-    }
-    if (strcasecmp(s, "class") == 0) {
-        return CBERG_GNODE_MASK(CBERG_GNODE_CLASS);
-    }
-    if (strcasecmp(s, "struct") == 0) {
-        return CBERG_GNODE_MASK(CBERG_GNODE_STRUCT);
-    }
-    if (strcasecmp(s, "interface") == 0) {
-        return CBERG_GNODE_MASK(CBERG_GNODE_INTERFACE);
-    }
-    if (strcasecmp(s, "module") == 0) {
-        return CBERG_GNODE_MASK(CBERG_GNODE_MODULE);
-    }
-    if (strcasecmp(s, "symbol") == 0) {
-        return CBERG_GNODE_MASK(CBERG_GNODE_FUNCTION) | CBERG_GNODE_MASK(CBERG_GNODE_METHOD) | CBERG_GNODE_MASK(CBERG_GNODE_CLASS) |
-               CBERG_GNODE_MASK(CBERG_GNODE_STRUCT) | CBERG_GNODE_MASK(CBERG_GNODE_INTERFACE);
-    }
-    return 0;
-}
-
-uint32_t cberg_index_parse_gedge_mask(const char *s) {
-    if (s == NULL || s[0] == '\0') {
-        return 0;
-    }
-    if (strcasecmp(s, "defines") == 0) {
-        return CBERG_GEDGE_DEFINES;
-    }
-    if (strcasecmp(s, "contains") == 0) {
-        return CBERG_GEDGE_CONTAINS;
-    }
-    if (strcasecmp(s, "imports") == 0) {
-        return CBERG_GEDGE_IMPORTS;
-    }
-    if (strcasecmp(s, "calls") == 0) {
-        return CBERG_GEDGE_CALLS;
-    }
-    if (strcasecmp(s, "inherits") == 0) {
-        return CBERG_GEDGE_INHERITS;
-    }
-    if (strcasecmp(s, "references") == 0) {
-        return CBERG_GEDGE_REFERENCES;
-    }
-    if (strcasecmp(s, "all") == 0) {
-        return CBERG_GEDGE_ALL;
-    }
-    return 0;
-}
 
 static void copy_cstr(char *dst, size_t cap, const char *src) {
     if (cap == 0) {
@@ -137,7 +26,7 @@ static void fill_engine_gnode(cberg_engine_graph_node *out, const char *repo, co
     out->id = cberg_graph_source_id(g, n->id);
     const char *origin = cberg_graph_source_repo(g, n->id);
     out->repo = origin != NULL ? origin : repo;
-    copy_cstr(out->kind, sizeof(out->kind), gnode_kind_str(n->kind));
+    copy_cstr(out->kind, sizeof(out->kind), cberg_graph_node_kind_name(n->kind));
     copy_cstr(out->name, sizeof(out->name), n->name);
     copy_cstr(out->qname, sizeof(out->qname), n->qname);
     copy_cstr(out->path, sizeof(out->path), cberg_graph_source_path(g, n));
@@ -148,8 +37,8 @@ static void fill_engine_gnode(cberg_engine_graph_node *out, const char *repo, co
 static void fill_engine_gedge(cberg_engine_graph_edge *out, const char *repo, const cberg_graph *g, const cberg_graph_edge *e) {
     out->src = cberg_graph_source_id(g, e->src);
     out->dst = cberg_graph_source_id(g, e->dst);
-    copy_cstr(out->kind, sizeof(out->kind), gedge_kind_str(e->kind));
-    copy_cstr(out->resolution, sizeof(out->resolution), gres_str(e->resolution));
+    copy_cstr(out->kind, sizeof(out->kind), cberg_graph_edge_kind_name(e->kind));
+    copy_cstr(out->resolution, sizeof(out->resolution), cberg_graph_resolution_name(e->resolution));
     out->confidence = e->confidence;
     out->line = e->line;
     const cberg_graph_node *src = cberg_graph_node_by_id(g, e->src);
@@ -210,7 +99,7 @@ cberg_status cberg_engine_search_graph(cberg_engine *eng, const char *name, cons
     if (limit > cap) {
         limit = cap;
     }
-    uint32_t kind_mask = cberg_index_parse_gnode_mask(kind);
+    uint32_t kind_mask = cberg_graph_node_mask_parse(kind);
     const char *name_filter = (name != NULL && name[0] != '\0') ? name : NULL;
     const char *path_filter = (path_prefix != NULL && path_prefix[0] != '\0') ? path_prefix : NULL;
 
@@ -266,7 +155,7 @@ cberg_status cberg_engine_trace_path(cberg_engine *eng, const char *name, uint64
         }
     }
 
-    uint32_t kind_mask = cberg_index_parse_gedge_mask(edge_kind);
+    uint32_t kind_mask = cberg_graph_edge_mask_parse(edge_kind);
     if (kind_mask == 0) {
         kind_mask = CBERG_GEDGE_CALLS;
     }
@@ -319,35 +208,9 @@ cberg_status cberg_engine_trace_path(cberg_engine *eng, const char *name, uint64
     return st;
 }
 
-static const char *lang_name(cberg_language lang) {
-    switch (lang) {
-    case CBERG_LANG_GO:
-        return "go";
-    case CBERG_LANG_TYPESCRIPT:
-        return "typescript";
-    case CBERG_LANG_JAVASCRIPT:
-        return "javascript";
-    case CBERG_LANG_C:
-        return "c";
-    case CBERG_LANG_KOTLIN:
-        return "kotlin";
-    case CBERG_LANG_PYTHON:
-        return "python";
-    case CBERG_LANG_JAVA:
-        return "java";
-    case CBERG_LANG_RUST:
-        return "rust";
-    case CBERG_LANG_RUBY:
-        return "ruby";
-    case CBERG_LANG_MARKDOWN:
-    case CBERG_LANG_YAML:
-    case CBERG_LANG_TOML:
-    case CBERG_LANG_JSON:
-    case CBERG_LANG_UNKNOWN:
-        return NULL;
-    default:
-        return NULL;
-    }
+/* Graph stats count code files only. */
+static const char *code_lang_name(cberg_language lang) {
+    return cberg_language_is_code(lang) ? cberg_language_name(lang) : NULL;
 }
 
 static void bump_lang(cberg_engine_graph_stats *out, const char *lang) {
@@ -398,7 +261,7 @@ cberg_status cberg_engine_get_graph_stats(cberg_engine *eng, const char *repo_ke
                     CBERG_OK) {
                     for (size_t i = 0; i < nfiles; i++) {
                         const char *path = files[i]->qname != NULL ? files[i]->qname : files[i]->path;
-                        bump_lang(out, lang_name(cberg_language_from_path(path)));
+                        bump_lang(out, code_lang_name(cberg_language_from_path(path)));
                     }
                 }
                 free(files);
