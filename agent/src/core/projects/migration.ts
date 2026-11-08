@@ -4,7 +4,12 @@ import { dirname, join, resolve } from 'node:path';
 import { optionalLstat, readOptionalText, writeJsonAtomic } from '../learning/fs.js';
 import { codebergHome } from '../paths.js';
 import { lockMigration } from './lock.js';
-import { type ProjectCatalog, projectDataHome } from './types.js';
+import {
+  type ProjectCatalog,
+  projectCatalogPath,
+  projectDataHome,
+  projectMigrationPath,
+} from './types.js';
 
 /** Rename rather than copy durable queues and datasets. Interrupted upgrades
  * resume each missing source independently. Never overwrite a destination. */
@@ -22,7 +27,7 @@ export async function migrateProjectData(home: string, catalog: ProjectCatalog):
 }
 
 export async function migrateLocked(home: string, catalog: ProjectCatalog): Promise<void> {
-  const marker = join(home, 'projects-migrated.json');
+  const marker = projectMigrationPath(home);
   if (await migrationComplete(marker, catalog.legacyId)) return;
 
   const target = projectDataHome(home, catalog.legacyId);
@@ -79,7 +84,7 @@ export async function isContextAlias(home: string, target: string, name: string,
  * their existing stores until the daemon itself has been upgraded. */
 export async function prepareProjectStorage(env: NodeJS.ProcessEnv = process.env): Promise<void> {
   const home = codebergHome(env);
-  const raw = await readOptionalText(join(home, 'projects.json'));
+  const raw = await readOptionalText(projectCatalogPath(home));
 
   if (raw) await migrateProjectData(home, JSON.parse(raw) as ProjectCatalog);
 }

@@ -6,18 +6,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	"codeberg.org/codeberg/daemon/internal/domain"
 )
 
-func validID(id string) bool {
-	if len(id) != 18 || !strings.HasPrefix(id, "p-") {
-		return false
-	}
+// Project ids are p- plus 16 lowercase hex digits, the same check as the agent.
+var projectIDPattern = regexp.MustCompile(`^p-[a-f0-9]{16}$`)
 
-	_, err := hex.DecodeString(id[2:])
-	return err == nil
+func validID(id string) bool {
+	return projectIDPattern.MatchString(id)
 }
 
 func projectID(roots []domain.Repo) string {

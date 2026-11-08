@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { join, resolve } from 'node:path';
 import { codebergHome } from '../../core/paths.js';
-import type { Project } from '../../core/projects/types.js';
+import { projectCatalogPath, type Project } from '../../core/projects/types.js';
 import { openConfigDirectory } from '../config-directory.js';
 import { readJson, requireJsonMethod, sendJson, sendText } from '../http.js';
 import type { ProjectRequestRouterState } from './state.js';
@@ -64,7 +64,7 @@ export async function projects(
 
     return sendJson(res, 200, {
       ...state.catalog,
-      catalogPath: join(state.home, 'projects.json'),
+      catalogPath: projectCatalogPath(state.home),
       projects: state.catalog.projects.map(state.projectInfo),
     });
   }

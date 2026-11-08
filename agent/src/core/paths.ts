@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { isProjectId, projectDataHome } from './projects/types.js';
+import { isProjectId, projectCatalogPath, projectDataHome, projectMigrationPath } from './projects/types.js';
 
 /** Mirrors the launcher's Go `paths.Home`: a non-blank CODEBERG_HOME, else ~/.codeberg. */
 export function codebergHome(env: NodeJS.ProcessEnv = process.env, userHome = homedir()): string {
@@ -69,15 +69,15 @@ export function codebergDataHome(env: NodeJS.ProcessEnv = process.env): string {
 
   const home = codebergHome(env);
   try {
-    if (!existsSync(join(home, 'projects.json'))) return home;
+    if (!existsSync(projectCatalogPath(home))) return home;
 
-    const catalog = JSON.parse(readFileSync(join(home, 'projects.json'), 'utf8')) as {
+    const catalog = JSON.parse(readFileSync(projectCatalogPath(home), 'utf8')) as {
       defaultId: string;
       legacyId: string;
       projects: { id: string; roots: { root: string }[] }[];
     };
 
-    if (catalog.legacyId && !existsSync(join(home, 'projects-migrated.json'))) return home;
+    if (catalog.legacyId && !existsSync(projectMigrationPath(home))) return home;
 
     const configuredRoots = indexedRootsFromEnv(env);
     // The daemon skips missing keyed roots before registering its workspace.

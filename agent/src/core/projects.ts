@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
-import { type Project, type ProjectCatalog, projectDataHome } from './projects/types.js';
+import { type Project, type ProjectCatalog, projectCatalogPath, projectDataHome } from './projects/types.js';
 
 import { expandHome } from './env.js';
 import { codebergDataHome, codebergHome, formatIndexedRoots } from './paths.js';
@@ -40,9 +40,9 @@ export function currentProjectEnvironment(env: NodeJS.ProcessEnv = process.env):
   if (env.CODEBERG_PROJECT_HOME) return env;
 
   const home = codebergHome(env);
-  if (!existsSync(join(home, 'projects.json'))) return env;
+  if (!existsSync(projectCatalogPath(home))) return env;
 
-  const catalog = JSON.parse(readFileSync(join(home, 'projects.json'), 'utf8')) as ProjectCatalog;
+  const catalog = JSON.parse(readFileSync(projectCatalogPath(home), 'utf8')) as ProjectCatalog;
   const data = codebergDataHome(env);
   if (data === home) return env;
 

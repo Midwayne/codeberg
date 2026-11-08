@@ -1,6 +1,5 @@
-import { join } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { ProjectCatalog } from '../../core/projects/types.js';
+import { projectCatalogPath, type ProjectCatalog } from '../../core/projects/types.js';
 import { trackWrite } from '../server/write-gate.js';
 import { HttpError } from '../../core/api/errors.js';
 import { readJson, requireJsonMethod, sendJson } from '../http.js';
@@ -59,7 +58,7 @@ async function removeProject(
 
   return sendJson(res, 200, {
     ...state.catalog,
-    catalogPath: join(state.home, 'projects.json'),
+    catalogPath: projectCatalogPath(state.home),
     projects: state.catalog.projects.map(state.projectInfo),
   });
 }
