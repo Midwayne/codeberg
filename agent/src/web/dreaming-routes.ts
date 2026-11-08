@@ -4,6 +4,7 @@ import type { DreamingDecision } from '../core/learning/dreaming/types.js';
 import { redactSecrets } from '../core/learning/redact.js';
 import type { LearningService } from '../core/learning/service.js';
 import { readJson, sendJson, sendText } from './http.js';
+import { sendLearningError } from './learning/errors.js';
 
 const PATH = '/api/learning/dreaming';
 
@@ -44,13 +45,7 @@ export async function routeDreaming(
 
     return sendJson(res, 200, await learning.decideDreaming(id, body.action as DreamingDecision));
   } catch (error) {
-    const message = String(error);
-    if (message.includes('not found')) return sendText(res, 404, message);
-
-    if (/paused|no learning model|stale|already|no changes/.test(message))
-      return sendText(res, 409, message);
-
-    throw error;
+    return sendLearningError(res, error);
   }
 }
 

@@ -3,11 +3,15 @@ import type { DreamingDecision } from '../dreaming/types.js';
 import { wakeWorker } from './background.js';
 import { initialize } from './lifecycle.js';
 import type { LearningServiceState } from './state.js';
+import { LearningError } from '../errors.js';
 
 export async function requestDreaming(state: LearningServiceState) {
   await initialize(state);
   if (!state.knowledgeEnabled || state.stopping || state.maintenance)
-    throw new Error('Knowledge consolidation is paused or has no learning model.');
+    throw new LearningError(
+      'conflict',
+      'Knowledge consolidation is paused or has no learning model.',
+    );
 
   const job = await state.queue.enqueueDreaming(`dream-${randomUUID()}`);
   wakeWorker(state);
@@ -21,12 +25,12 @@ export async function decideDreaming(
   action: DreamingDecision,
 ) {
   if (!state.preferences.enabled || !state.preferences.knowledge || state.maintenance)
-    throw new Error('Knowledge consolidation is paused.');
+    throw new LearningError('conflict', 'Knowledge consolidation is paused.');
 
   if (action === 'apply') {
     const report = await state.dreamingReports.get(id);
     if (report?.changes.some((change) => !state.preferences.categories[change.before.category]))
-      throw new Error('A report category is paused.');
+      throw new LearningError('conflict', 'A report category is paused.');
   }
 
   const report = await state.dreamingReports.decide(id, action, state.store);

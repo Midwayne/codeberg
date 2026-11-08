@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { LearningService } from '../../core/learning/service.js';
 import { readJson, sendJson, sendText } from '../http.js';
+import { sendLearningError } from './errors.js';
 import { LEARNING_PATH } from './paths.js';
 
 export async function reviewExample(
@@ -58,15 +59,9 @@ export async function applyReview(
 
     return sendJson(res, 201, result);
   } catch (error) {
-    const message = String(error);
-    if (message.includes('candidate not found')) return sendText(res, 404, 'candidate not found');
-
-    if (/stale|obsolete|already|duplicate|in progress/.test(message))
-      return sendText(res, 409, message);
-
-    if (/requires|unknown review/.test(message)) return sendText(res, 400, message);
-
-    throw error;
+    return sendLearningError(res, error, (refusal) =>
+      refusal.kind === 'not_found' ? refusal.message : String(refusal),
+    );
   }
 }
 

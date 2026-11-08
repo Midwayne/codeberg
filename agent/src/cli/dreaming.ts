@@ -4,6 +4,7 @@ import { fromAiSdk } from '../core/generator.js';
 import { DreamingConsolidator } from '../core/learning/dreaming/consolidator.js';
 import { DreamingReports } from '../core/learning/dreaming/reports.js';
 import type { DreamingDecision } from '../core/learning/dreaming/types.js';
+import { LearningError } from '../core/learning/errors.js';
 import { DurableJobQueue } from '../core/learning/queue.js';
 import { classifyFailure } from '../core/learning/queue/policy.js';
 import { LearningSettingsStore } from '../core/learning/settings.js';
@@ -23,7 +24,7 @@ export async function dreamingCommand(
 
   const settings = await new LearningSettingsStore(store.root).current();
   if (!settings.enabled || !settings.knowledge)
-    throw new Error('Knowledge consolidation is paused.');
+    throw new LearningError('conflict', 'Knowledge consolidation is paused.');
 
   if (command === 'dream') {
     return generateReport(store, reports, settings);
@@ -36,7 +37,7 @@ export async function dreamingCommand(
     command === 'dream-apply' &&
     report?.changes.some((change) => !settings.categories[change.before.category])
   )
-    throw new Error('A report category is paused.');
+    throw new LearningError('conflict', 'A report category is paused.');
 
   return reports.decide(args[0], command.slice('dream-'.length) as DreamingDecision, store);
 }

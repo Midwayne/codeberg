@@ -1,7 +1,7 @@
 import { readdir, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { KnowledgeJob } from '../types.js';
-import { isProcessAlive, isTransientFailure, MAX_ATTEMPTS } from './policy.js';
+import { isProcessAlive, willRetry } from './policy.js';
 import type { DurableJobQueueState } from './state.js';
 import { list, path, transition } from './storage.js';
 
@@ -63,13 +63,8 @@ export async function reconcileStates(state: DurableJobQueueState): Promise<void
 export async function recoverRetryableFailures(state: DurableJobQueueState): Promise<number> {
   let recovered = 0;
   for (const job of await list(state, 'failed')) {
-    if (
-      !job.last_error_category ||
-      !isTransientFailure(job.last_error_category) ||
-      job.attempt_count >= MAX_ATTEMPTS
-    ) {
+    if (!job.last_error_category || !willRetry(job.last_error_category, job.attempt_count))
       continue;
-    }
 
     const timestamp = state.now().toISOString();
     const next: KnowledgeJob = {

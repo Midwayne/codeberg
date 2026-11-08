@@ -6,6 +6,7 @@ import {
   type FeedbackRating,
 } from '../../core/learning/types.js';
 import { readJson, sendJson, sendText } from '../http.js';
+import { sendLearningError } from './errors.js';
 import { isValidSessionId } from '../sessions/records.js';
 import { type WebSessionStore } from '../sessions/store.js';
 
@@ -40,9 +41,7 @@ export async function postFeedback(
 
     return sendJson(res, 201, result);
   } catch (error) {
-    if (String(error).includes('attempt not found')) return sendText(res, 404, String(error));
-
-    throw error;
+    return sendLearningError(res, error);
   }
 }
 

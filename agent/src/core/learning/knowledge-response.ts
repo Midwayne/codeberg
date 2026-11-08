@@ -1,4 +1,5 @@
 import type { KnowledgeCategory, KnowledgeConfidence, KnowledgeStatus } from './types.js';
+import { JobFailure } from './errors.js';
 
 export interface ExtractionResponse {
   action: 'none' | 'upsert';
@@ -25,7 +26,7 @@ export function parseExtractionResponse(raw: string): ExtractionResponse {
   }
 
   const detail = raw.trim() ? `malformed JSON (${raw.length} chars)` : 'an empty response';
-  throw new Error(`INVALID_RESPONSE: knowledge extractor returned ${detail}`);
+  throw new JobFailure('INVALID_RESPONSE', `knowledge extractor returned ${detail}`);
 }
 
 export function validateResponse(response: ExtractionResponse): void {
@@ -39,7 +40,10 @@ export function validateResponse(response: ExtractionResponse): void {
     !['low', 'medium', 'high'].includes(response.confidence ?? '') ||
     !['active', 'needs_verification'].includes(response.status ?? '')
   ) {
-    throw new Error('INVALID_RESPONSE: knowledge extractor response failed schema validation');
+    throw new JobFailure(
+      'INVALID_RESPONSE',
+      'knowledge extractor response failed schema validation',
+    );
   }
 }
 

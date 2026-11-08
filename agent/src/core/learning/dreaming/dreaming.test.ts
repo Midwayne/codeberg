@@ -157,7 +157,9 @@ it('rejects invented IDs, overlapping merges, and malformed plans', async () => 
       links: [],
     }),
   );
-  await expect(consolidator.plan('dream-test')).rejects.toThrow(/INVALID_RESPONSE/);
+  await expect(consolidator.plan('dream-test')).rejects.toMatchObject({
+    category: 'INVALID_RESPONSE',
+  });
   generate.mockResolvedValueOnce(
     JSON.stringify({
       merges: [
@@ -167,7 +169,9 @@ it('rejects invented IDs, overlapping merges, and malformed plans', async () => 
       links: [],
     }),
   );
-  await expect(consolidator.plan('dream-overlap')).rejects.toThrow(/INVALID_RESPONSE/);
+  await expect(consolidator.plan('dream-overlap')).rejects.toMatchObject({
+    category: 'INVALID_RESPONSE',
+  });
 });
 it('reuses a durable report on job retry without another model call', async () => {
   const { consolidator, generate } = await fixture();

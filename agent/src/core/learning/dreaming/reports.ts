@@ -5,6 +5,7 @@ import { artifactFingerprint } from './revision.js';
 import { writeJsonImmutable } from '../fs.js';
 import type { LearningStore } from '../store.js';
 import type { DreamingDecision, DreamingReport } from './types.js';
+import { LearningError } from '../errors.js';
 
 /** Immutable proposals and decision revisions; publication uses an atomic create, not a lock lease. */
 export class DreamingReports {
@@ -15,7 +16,8 @@ export class DreamingReports {
   }
 
   private checkId(id: string): void {
-    if (!/^dream-[a-z0-9-]{1,70}$/.test(id)) throw new Error('invalid dreaming report id');
+    if (!/^dream-[a-z0-9-]{1,70}$/.test(id))
+      throw new LearningError('invalid', 'invalid dreaming report id');
   }
 
   async save(report: DreamingReport): Promise<DreamingReport> {
@@ -83,34 +85,13 @@ export class DreamingReports {
     store: LearningStore,
   ): Promise<DreamingReport> {
     const report = await this.get(id);
-    if (!report) throw new Error('dreaming report not found');
+    if (!report) throw new LearningError('not_found', 'dreaming report not found');
 
     if (action === 'undo' ? report.status !== 'applied' : report.status !== 'proposed') {
-      throw new Error('dreaming report already decided');
+      throw new LearningError('conflict', 'dreaming report already decided');
     }
 
-    if (action === 'apply') {
-      if (!report.changes.length) throw new Error('dreaming report has no changes');
-
-      const freshIds = new Set(
-        (await store.currentKnowledgeArtifacts()).map((artifact) => artifact.id),
-      );
-      const current = new Map(
-        (await store.projectedKnowledgeArtifacts())
-          .filter((artifact) => freshIds.has(artifact.id))
-          .map((artifact) => [artifact.id, artifact]),
-      );
-
-      if (
-        !report.changes.every(
-          ({ before }) =>
-            current.has(before.id) &&
-            artifactFingerprint(current.get(before.id)!) === artifactFingerprint(before),
-        )
-      ) {
-        throw new Error('stale dreaming report; generate a new report against current knowledge');
-      }
-    }
+    if (action === 'apply') await this.assertApplicable(report, store);
 
     const decisions = [...report.decisions, { action, timestamp: new Date().toISOString() }];
     const status = action === 'apply' ? 'applied' : action === 'undo' ? 'undone' : 'dismissed';
@@ -119,8 +100,36 @@ export class DreamingReports {
       { status, decisions },
     );
 
-    if (!published) throw new Error('dreaming decision already changed; refresh the report');
+    if (!published)
+      throw new LearningError('conflict', 'dreaming decision already changed; refresh the report');
 
     return { ...report, status, decisions };
+  }
+
+  private async assertApplicable(report: DreamingReport, store: LearningStore): Promise<void> {
+    if (!report.changes.length)
+      throw new LearningError('conflict', 'dreaming report has no changes');
+
+    const freshIds = new Set(
+      (await store.currentKnowledgeArtifacts()).map((artifact) => artifact.id),
+    );
+    const current = new Map(
+      (await store.projectedKnowledgeArtifacts())
+        .filter((artifact) => freshIds.has(artifact.id))
+        .map((artifact) => [artifact.id, artifact]),
+    );
+
+    if (
+      !report.changes.every(
+        ({ before }) =>
+          current.has(before.id) &&
+          artifactFingerprint(current.get(before.id)!) === artifactFingerprint(before),
+      )
+    ) {
+      throw new LearningError(
+        'conflict',
+        'stale dreaming report; generate a new report against current knowledge',
+      );
+    }
   }
 }

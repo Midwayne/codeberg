@@ -4,6 +4,7 @@ import { knowledgeBody, validatedClaims } from '../claims.js';
 import { observeSources, sourceCommits, sourceHashes } from '../memory-source.js';
 import type { LearningStore } from '../store.js';
 import type { KnowledgeArtifact } from '../types.js';
+import { JobFailure } from '../errors.js';
 
 export async function mergeArtifacts(
   group: KnowledgeArtifact[],
@@ -18,14 +19,14 @@ export async function mergeArtifacts(
     rawClaims.length > 12 ||
     group.some((artifact) => !artifact.claims?.length)
   ) {
-    throw new Error('INVALID_RESPONSE: merge would omit claims; use links instead');
+    throw new JobFailure('INVALID_RESPONSE', 'merge would omit claims; use links instead');
   }
 
   const refs = unique(group.flatMap((artifact) => artifact.source_refs ?? []));
   const observations = await observeSources(refs, repositories);
   const claims = validatedClaims(rawClaims, observations);
   if (claims?.length !== rawClaims.length)
-    throw new Error('INVALID_RESPONSE: merge evidence changed or cannot be verified');
+    throw new JobFailure('INVALID_RESPONSE', 'merge evidence changed or cannot be verified');
 
   const notes = unique(group.flatMap((artifact) => artifact.user_confirmed_notes ?? []));
   const revisions = mergedRevisions(group);

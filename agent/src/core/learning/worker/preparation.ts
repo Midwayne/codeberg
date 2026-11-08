@@ -13,13 +13,14 @@ import {
 import { recordCorrectionNote } from './correction.js';
 import { invalidateKnowledge } from './persistence.js';
 import type { KnowledgeWorkerState } from './state.js';
+import { JobFailure } from '../errors.js';
 
 export async function prepareExtraction(
   state: KnowledgeWorkerState,
   job: KnowledgeJob,
 ): Promise<ExtractionContext | undefined> {
   const interaction = await state.store.interaction(job.interaction_id);
-  if (interaction.attempts.length === 0) throw new Error('PERMANENT_ERROR: interaction not found');
+  if (interaction.attempts.length === 0) throw new JobFailure('PERMANENT_ERROR', 'interaction not found');
 
   const effective = effectiveFeedback(await state.store.events());
   const revision = sourceRevision(interaction.attempts, interaction.feedback);
