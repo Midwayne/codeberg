@@ -1,14 +1,21 @@
 import { expect, it } from 'vitest';
 import type { ScheduleSummary } from '@agent/core/schedules/summary';
-import { chatHasActiveSchedule } from './schedule-summary';
 
-const job: ScheduleSummary = { id: 'job', chatId: 'chat', chatTitle: 'Review', chatDeleted: false,
-  prompt: 'Review changes', status: 'scheduled', createdAt: 1 };
+import { isActiveSchedule } from './schedule-summary';
 
-it('marks only the owning chat while a schedule or its occurrence is active', () => {
-  expect(chatHasActiveSchedule([job], 'chat')).toBe(true);
-  expect(chatHasActiveSchedule([job], 'other')).toBe(false);
-  expect(chatHasActiveSchedule([{ ...job, status: 'completed' }], 'chat')).toBe(false);
-  expect(chatHasActiveSchedule([{ ...job, status: 'cancelled', activeRun: { id: 'run', stopping: true } }], 'chat')).toBe(true);
-  expect(chatHasActiveSchedule(undefined, 'chat')).toBe(false);
+const job: ScheduleSummary = {
+  id: 'job',
+  chatId: 'chat',
+  chatTitle: 'Review',
+  chatDeleted: false,
+  prompt: 'Review changes',
+  status: 'scheduled',
+  createdAt: 1,
+};
+
+it('treats a scheduled job or a still-active occurrence as active', () => {
+  expect(isActiveSchedule(job)).toBe(true);
+  expect(isActiveSchedule({ ...job, status: 'running' })).toBe(true);
+  expect(isActiveSchedule({ ...job, status: 'completed' })).toBe(false);
+  expect(isActiveSchedule({ ...job, status: 'cancelled', activeRun: { id: 'run', stopping: true } })).toBe(true);
 });

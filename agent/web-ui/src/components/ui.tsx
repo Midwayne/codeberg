@@ -1,6 +1,5 @@
 import { AlertTriangle, Check, ChevronDown, ChevronRight, Copy } from 'lucide-react';
 import {
-  useState,
   type ButtonHTMLAttributes,
   type ReactNode,
   type Ref,
@@ -8,6 +7,7 @@ import {
 } from 'react';
 
 import { cn } from '../lib/utils';
+import { useClipboard } from '../lib/use-clipboard';
 
 /** Quiet trigger, with native selection, labels, and keyboard behavior intact. */
 export type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & {
@@ -76,22 +76,10 @@ export function ErrorNotice({ title, detail, onRetry }: ErrorNoticeProps) {
 export type CopyButtonProps = { text: string; className?: string; label?: string };
 
 export function CopyButton({ text, className, label = 'Copy' }: CopyButtonProps) {
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useClipboard(text);
+
   return (
-    <IconButton
-      className={className}
-      aria-label={label}
-      title={label}
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(text);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1200);
-        } catch {
-          /* clipboard unavailable */
-        }
-      }}
-    >
+    <IconButton className={className} aria-label={label} title={label} onClick={() => void copy()}>
       {copied ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
     </IconButton>
   );

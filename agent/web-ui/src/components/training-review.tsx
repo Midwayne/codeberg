@@ -96,7 +96,3 @@ function ReviewHeader({ state }: ReviewHeaderProps) {
     </div>
   );
 }
-
-export { TrainingSummary } from './training-summary';
-
-export { ReviewDetail } from './review-detail';
