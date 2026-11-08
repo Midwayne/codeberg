@@ -1,5 +1,7 @@
 import { Plus } from 'lucide-react';
 
+import { EXTENSION_NAME_PATTERN } from '@agent/core/context/skill-limits.js';
+
 import type { ExtensionsView } from './extensions';
 import { SuccessNotice } from './success-notice';
 
@@ -45,7 +47,7 @@ export function ExtensionFields({ state }: ExtensionFieldsProps) {
         <span>Name</span>
         <input
           required
-          pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,63}"
+          pattern={EXTENSION_NAME_PATTERN}
           value={state.name}
           onChange={(event) => state.setName(event.target.value)}
           className={control}

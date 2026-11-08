@@ -1,7 +1,10 @@
 import { Upload } from 'lucide-react';
 
-import type { SkillImportView } from './skill-import';
+import { SKILL_FILE } from '@agent/core/context/skill-document.js';
+import { MAX_SKILL_FILES, SKILL_SIZE_LABEL } from '@agent/core/context/skill-limits.js';
+
 import { buttonClass as button } from './button-styles';
+import type { SkillImportView } from './skill-import';
 
 export type SkillDropZoneProps = Pick<
   Parameters<typeof SkillImportView>[0],
@@ -69,7 +72,7 @@ function SkillDropPrompt({ busy, dragging, input }: SkillDropPromptProps) {
                 : 'Drop skill files here'}
           </p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            SKILL.md or other .md files · up to 20 files, 256 KB each
+            {SKILL_FILE} or other .md files · up to {MAX_SKILL_FILES} files, {SKILL_SIZE_LABEL} each
           </p>
         </div>
       </div>

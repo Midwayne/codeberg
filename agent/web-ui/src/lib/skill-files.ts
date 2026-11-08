@@ -1,3 +1,5 @@
+import { MAX_SKILL_FILES, SKILL_MAX_BYTES, SKILL_SIZE_LABEL, skillFileCountError } from '@agent/core/context/skill-limits.js';
+
 export interface SkillFile {
   filename: string;
   content?: string;
@@ -10,12 +12,12 @@ export interface SkillFile {
 export async function prepareSkillFiles(
   files: readonly Pick<File, 'name' | 'size' | 'arrayBuffer'>[],
 ): Promise<SkillFile[]> {
-  if (files.length === 0 || files.length > 20) throw new Error('Choose between 1 and 20 skill files.');
+  if (files.length === 0 || files.length > MAX_SKILL_FILES) throw new Error(skillFileCountError());
   return Promise.all(
     files.map(async (file) => {
       const filename = file.name;
       if (!/\.md$/i.test(filename)) return { filename, error: 'Choose Markdown (.md) skill files.' };
-      if (file.size > 256 * 1024) return { filename, error: 'Each skill file must be at most 256 KB.' };
+      if (file.size > SKILL_MAX_BYTES) return { filename, error: `Each skill file must be at most ${SKILL_SIZE_LABEL}.` };
       try {
         return {
           filename,

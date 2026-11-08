@@ -1,6 +1,7 @@
 import { basename } from 'node:path';
 import { SKILL_FILE, parseSkillDocument } from '../../core/context/skill-document.js';
-import { SKILL_SIZE_LABEL, validExtensionName, withinSkillLimit } from './limits.js';
+import { MAX_SKILL_FILES, SKILL_SIZE_LABEL, skillFileCountError, validExtensionName } from '../../core/context/skill-limits.js';
+import { withinSkillLimit } from './limits.js';
 
 export interface SkillFilePreview {
   filename: string;
@@ -11,8 +12,8 @@ export interface SkillFilePreview {
 
 export function previewSkillFiles(input: unknown): SkillFilePreview[] {
   const files = (input as { files?: unknown } | null)?.files;
-  if (!Array.isArray(files) || files.length === 0 || files.length > 20)
-    throw new Error('Choose between 1 and 20 skill files.');
+  if (!Array.isArray(files) || files.length === 0 || files.length > MAX_SKILL_FILES)
+    throw new Error(skillFileCountError());
 
   const names = new Set<string>();
 
