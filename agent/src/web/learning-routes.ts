@@ -8,7 +8,7 @@ import { routeEvaluations } from './learning/evaluation-routes.js';
 import { LearningSettingsError } from '../core/learning/preferences.js';
 import { reviewDashboard } from '../core/learning/review.js';
 import type { LearningService } from '../core/learning/service.js';
-import { readJson, sameOrigin, sendJson, sendText } from './http.js';
+import { readJson, requireJsonMethod, sendJson, sendText } from './http.js';
 import { type WebSessionStore } from './sessions/store.js';
 
 export async function routeLearning(
@@ -60,12 +60,7 @@ async function routeLearningSettings(
   res.setHeader('Cache-Control', 'no-store');
   if (req.method === 'GET') return sendJson(res, 200, await learning.getSettings());
 
-  if (req.method !== 'PUT') return sendText(res, 405, 'method not allowed');
-
-  if (!sameOrigin(req)) return sendText(res, 403, 'cross-origin settings changes are not allowed');
-
-  if (!req.headers['content-type']?.startsWith('application/json'))
-    return sendText(res, 415, 'application/json required');
+  if (!requireJsonMethod(req, res, 'PUT')) return;
 
   try {
     return sendJson(res, 200, await learning.updateSettings(await readJson(req)));

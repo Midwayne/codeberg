@@ -4,7 +4,7 @@ import { dreamingSummary } from '../core/learning/dreaming/review.js';
 import type { DreamingDecision } from '../core/learning/dreaming/types.js';
 import { redactSecrets } from '../core/learning/redact.js';
 import type { LearningService } from '../core/learning/service.js';
-import { readJson, sameOrigin, sendJson, sendText } from './http.js';
+import { readJson, sendJson, sendText } from './http.js';
 import { LEARNING_PATH } from './learning/paths.js';
 import { sendLearningError } from './learning/errors.js';
 
@@ -86,12 +86,8 @@ async function routeDreamingRoot(
 function validateDreamingWrite(
   req: IncomingMessage,
 ): { status: number; message: string } | undefined {
-  if (req.method === 'POST') {
-    if (!sameOrigin(req))
-      return { status: 403, message: 'cross-origin knowledge changes are not allowed' };
-
-    if (!req.headers['content-type']?.startsWith('application/json'))
-      return { status: 415, message: 'application/json required' };
+  if (req.method === 'POST' && !req.headers['content-type']?.startsWith('application/json')) {
+    return { status: 415, message: 'application/json required' };
   }
 
   return undefined;
