@@ -24,6 +24,7 @@ import (
 	"codeberg.org/codeberg/launcher/internal/config"
 	"codeberg.org/codeberg/launcher/internal/console"
 	"codeberg.org/codeberg/launcher/internal/deps"
+	"codeberg.org/codeberg/launcher/internal/paths"
 )
 
 // httpReadyTimeout bounds the wait until codeberg-d accepts HTTP. The server
@@ -38,10 +39,10 @@ func Run(c *config.Config, term *console.Terminal) error {
 	// checkout's build tree); it is also the working directory for both children.
 	root, _ := c.ResolveRoot()
 	a := config.LocateArtifacts(root)
-	if _, err := os.Stat(a.DaemonBin); err != nil {
+	if !paths.Exists(a.DaemonBin) {
 		return fmt.Errorf("daemon binary missing (%s); run `codeberg build`", a.DaemonBin)
 	}
-	if _, err := os.Stat(a.WebScript); err != nil {
+	if !paths.Exists(a.WebScript) {
 		return fmt.Errorf("web UI server missing (%s); run `codeberg build`", a.WebScript)
 	}
 	node, err := c.NodeBinary()

@@ -91,11 +91,31 @@ func Home(override string) string {
 	return ".codeberg"
 }
 
+func info(path string) (os.FileInfo, bool) {
+	stat, err := os.Stat(path)
+
+	return stat, err == nil
+}
+
 // Exists reports whether path is present. A directory counts.
 func Exists(path string) bool {
-	_, err := os.Stat(path)
+	_, ok := info(path)
 
-	return err == nil
+	return ok
+}
+
+// IsDir reports whether path is an existing directory.
+func IsDir(path string) bool {
+	stat, ok := info(path)
+
+	return ok && stat.IsDir()
+}
+
+// IsFile reports whether path exists and is not a directory.
+func IsFile(path string) bool {
+	stat, ok := info(path)
+
+	return ok && !stat.IsDir()
 }
 
 // Absolute returns a cleaned absolute path. An empty path stays empty, and a

@@ -29,7 +29,7 @@ func InitMcpFile(path string) (bool, error) {
 }
 
 func writeIfAbsent(path, body string) (bool, error) {
-	if _, err := os.Stat(path); err == nil {
+	if paths.Exists(path) {
 		return false, nil
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

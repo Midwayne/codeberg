@@ -75,7 +75,7 @@ func dispatch(args []string) error {
 		return nil
 	default:
 		// `codeberg <dir>` runs against that directory, like `--root <dir>`.
-		if fi, err := os.Stat(cmd); err == nil && fi.IsDir() {
+		if paths.IsDir(cmd) {
 			return cmdRun(append([]string{"--root", cmd}, args...))
 		}
 		usage(os.Stderr)
@@ -93,7 +93,7 @@ func cmdLearning(args []string) error {
 		return fmt.Errorf("could not locate codeberg installation")
 	}
 	script := config.LocateArtifacts(root).LearningScript
-	if _, err := os.Stat(script); err != nil {
+	if !paths.Exists(script) {
 		return fmt.Errorf("learning CLI is not built at %s; run codeberg build", script)
 	}
 	node, err := c.NodeBinary()
@@ -202,7 +202,7 @@ func cmdRun(args []string) error {
 			return err
 		}
 		for _, e := range entries {
-			if fi, statErr := os.Stat(e.Root); statErr != nil || !fi.IsDir() {
+			if !paths.IsDir(e.Root) {
 				fmt.Fprintf(os.Stderr, "warning: skipping %s — %s no longer exists\n", e.Key, e.Root)
 				continue
 			}
@@ -275,7 +275,7 @@ func selectEmbedding(c *config.Config, o *config.Overrides) error {
 	if !c.Vector || c.Embedding != "" || o.EmbedModel != "" || os.Getenv(config.KeyEmbedModel) != "" {
 		return nil
 	}
-	if _, err := os.Stat(c.EmbedModel); err == nil {
+	if paths.Exists(c.EmbedModel) {
 		return nil
 	}
 	if existingInstall(c) {
@@ -454,8 +454,7 @@ func existingInstall(c *config.Config) bool {
 		return true
 	}
 
-	_, err := os.Stat(filepath.Join(c.Home, "projects.json"))
-	return err == nil
+	return paths.Exists(filepath.Join(c.Home, "projects.json"))
 }
 
 func cmdCleanIndex(args []string) error {
@@ -509,7 +508,7 @@ func cmdRepos(args []string) error {
 	}
 	for _, e := range entries {
 		mark := "✓"
-		if fi, err := os.Stat(e.Root); err != nil || !fi.IsDir() {
+		if !paths.IsDir(e.Root) {
 			mark = "✘"
 		}
 		fmt.Printf("  %s %-24s %s\n", mark, e.Key, e.Root)
@@ -620,7 +619,7 @@ func cmdDoctor(args []string) error {
 }
 
 func reportFile(label, path string) {
-	if _, err := os.Stat(path); err == nil {
+	if paths.Exists(path) {
 		fmt.Printf("  ✓ %-22s %s\n", label, path)
 	} else {
 		fmt.Printf("  ✘ %-22s missing (%s) — run `codeberg build`\n", label, path)

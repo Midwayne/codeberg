@@ -13,6 +13,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"codeberg.org/codeberg/launcher/internal/paths"
 )
 
 // Entry is one registered repository: a stable human-facing key and the
@@ -100,7 +102,7 @@ func Select(home string, items []string, register bool) ([]Entry, error) {
 		if item == "" {
 			continue
 		}
-		if fi, statErr := os.Stat(item); statErr == nil && fi.IsDir() {
+		if paths.IsDir(item) {
 			if register {
 				e, err := Upsert(home, item)
 				if err != nil {
@@ -121,7 +123,7 @@ func Select(home string, items []string, register bool) ([]Entry, error) {
 			continue
 		}
 		if e, ok := byKey[item]; ok {
-			if fi, statErr := os.Stat(e.Root); statErr != nil || !fi.IsDir() {
+			if !paths.IsDir(e.Root) {
 				return nil, fmt.Errorf("registry: repo %q: root no longer exists: %s", item, e.Root)
 			}
 			add(e)

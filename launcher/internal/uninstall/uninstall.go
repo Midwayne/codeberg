@@ -39,14 +39,14 @@ func Run(c *config.Config, o Options) error {
 
 	// 2. The embedding model + ONNX weights the launcher downloaded.
 	modelDir := filepath.Dir(c.EmbedModel)
-	if under(modelDir, c.Home) && dirExists(modelDir) {
+	if under(modelDir, c.Home) && paths.IsDir(modelDir) {
 		if p.confirm(fmt.Sprintf("Remove the embedding model and ONNX weights at %s (~160MB)?", modelDir)) {
 			removePath(modelDir, "embedding model")
 			_ = os.Remove(filepath.Dir(modelDir)) // drop now-empty models/ parent
 		} else {
 			fmt.Printf("  kept %s\n", modelDir)
 		}
-	} else if dirExists(modelDir) {
+	} else if paths.IsDir(modelDir) {
 		// A user-pointed model outside the managed home — don't touch it.
 		fmt.Printf("  note: embedding model is outside %s (%s); left untouched\n", c.Home, modelDir)
 	}
@@ -289,19 +289,15 @@ func removePath(path, label string) {
 	fmt.Printf("✓ removed %s (%s)\n", label, path)
 }
 
-func existing(paths ...string) []string {
+func existing(candidates ...string) []string {
 	var out []string
-	for _, p := range paths {
-		if _, err := os.Stat(p); err == nil {
-			out = append(out, p)
+	for _, path := range candidates {
+		if paths.Exists(path) {
+			out = append(out, path)
 		}
 	}
-	return out
-}
 
-func dirExists(p string) bool {
-	fi, err := os.Stat(p)
-	return err == nil && fi.IsDir()
+	return out
 }
 
 func isEmptyDir(p string) bool {

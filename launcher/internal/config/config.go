@@ -439,13 +439,14 @@ func (c *Config) ValidateForRun() error {
 		return fmt.Errorf("--root cannot be combined with --all or --repos")
 	}
 	if c.Root != "" {
-		if paths := RootPaths(c.Root); len(paths) == 0 {
+		roots := RootPaths(c.Root)
+		if len(roots) == 0 {
 			return fmt.Errorf("--root is empty or invalid")
-		} else {
-			for _, path := range paths {
-				if fi, err := os.Stat(path); err != nil || !fi.IsDir() {
-					return fmt.Errorf("--root is not a directory: %s", path)
-				}
+		}
+
+		for _, path := range roots {
+			if !paths.IsDir(path) {
+				return fmt.Errorf("--root is not a directory: %s", path)
 			}
 		}
 	}
