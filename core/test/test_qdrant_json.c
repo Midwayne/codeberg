@@ -1,6 +1,6 @@
 #include "codeberg/codeberg.h"
 
-#include "../src/common/json_fields.h"
+#include "json_read.h"
 #include "json_mini.h"
 
 #include <stdio.h>

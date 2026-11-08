@@ -9,7 +9,11 @@
  */
 int cberg_walk_skip_dir(const char *name);
 
-/* cberg_fs_walk skip callback wrapping cberg_walk_skip_dir. */
-bool cberg_walk_skip_dir_cb(const char *name, void *ctx);
+/*
+ * Returns true when a root-relative path lies under a skipped directory, so
+ * watch events match what a tree walk would see. The last component counts
+ * only when `is_dir` says it names a directory.
+ */
+bool cberg_walk_skip_rel(const char *rel, bool is_dir);
 
 #endif /* CBERG_WALK_POLICY_H */

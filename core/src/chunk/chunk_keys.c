@@ -5,6 +5,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/* Keys embed the kind's numeric value, and keys are persisted in the chunk
+ * table and every vector index: renumbering a kind silently re-ids every chunk. */
+_Static_assert(CBERG_CHUNK_UNKNOWN == 0, "chunk kind values are persisted in chunk keys");
+_Static_assert(CBERG_CHUNK_FUNCTION == 1, "chunk kind values are persisted in chunk keys");
+_Static_assert(CBERG_CHUNK_METHOD == 2, "chunk kind values are persisted in chunk keys");
+_Static_assert(CBERG_CHUNK_CLASS == 3, "chunk kind values are persisted in chunk keys");
+_Static_assert(CBERG_CHUNK_STRUCT == 4, "chunk kind values are persisted in chunk keys");
+_Static_assert(CBERG_CHUNK_INTERFACE == 5, "chunk kind values are persisted in chunk keys");
+_Static_assert(CBERG_CHUNK_WINDOW == 6, "chunk kind values are persisted in chunk keys");
+_Static_assert(CBERG_CHUNK_SECTION == 7, "chunk kind values are persisted in chunk keys");
+_Static_assert(CBERG_CHUNK_KEY == 8, "chunk kind values are persisted in chunk keys");
+
 struct chunk_occ_tracker {
     cberg_strmap *map;
 };

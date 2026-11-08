@@ -51,135 +51,81 @@ static bool dirent_dot(const char *name) {
     return name[0] == '.' && (name[1] == '\0' || (name[1] == '.' && name[2] == '\0'));
 }
 
-cberg_status cberg_fs_walk(const char *abs, const char *rel, cberg_fs_walk_fn fn, void *ctx, cberg_fs_skip_dir_fn skip_dir, void *skip_ctx) {
+static cberg_status walk_dir(DIR *dir, const char *abs, const char *rel, cberg_fs_walk_fn fn, void *ctx);
+
+/* Visits one directory entry; entries that vanish, are not regular files or
+ * directories (symlinks included), or are policy-skipped directories are
+ * passed over. */
+static cberg_status walk_entry(const char *abs, const char *rel, const char *name, cberg_fs_walk_fn fn, void *ctx) {
+    char child_abs[PATH_MAX];
+    char child_rel[PATH_MAX];
+    if (!cberg_path_join(abs, name, child_abs, sizeof(child_abs))) {
+        return CBERG_OK;
+    }
+    if (!cberg_path_join(rel, name, child_rel, sizeof(child_rel))) {
+        return CBERG_OK;
+    }
+
+    struct stat stbuf;
+    if (lstat(child_abs, &stbuf) != 0) {
+        return CBERG_OK;
+    }
+
+    if (S_ISDIR(stbuf.st_mode)) {
+        DIR *dir = cberg_walk_skip_dir(name) ? NULL : opendir(child_abs);
+        return dir != NULL ? walk_dir(dir, child_abs, child_rel, fn, ctx) : CBERG_OK;
+    }
+    if (S_ISREG(stbuf.st_mode)) {
+        return fn(ctx, child_abs, child_rel, CBERG_FS_FILE);
+    }
+    return CBERG_OK;
+}
+
+/* Reports `dir`, then its entries; always closes `dir`. */
+static cberg_status walk_dir(DIR *dir, const char *abs, const char *rel, cberg_fs_walk_fn fn, void *ctx) {
+    cberg_status st = fn(ctx, abs, rel, CBERG_FS_DIR);
+
+    struct dirent *ent;
+    while (st == CBERG_OK && (ent = readdir(dir)) != NULL) {
+        if (!dirent_dot(ent->d_name)) {
+            st = walk_entry(abs, rel, ent->d_name, fn, ctx);
+        }
+    }
+
+    closedir(dir);
+    return st;
+}
+
+cberg_status cberg_fs_walk(const char *abs, const char *rel, cberg_fs_walk_fn fn, void *ctx) {
     if (abs == NULL || rel == NULL || fn == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
 
-    cberg_status st = fn(ctx, abs, rel, CBERG_FS_DIR);
-    if (st != CBERG_OK) {
-        return st;
-    }
-
     DIR *dir = opendir(abs);
     if (dir == NULL) {
-        return rel[0] == '\0' ? CBERG_ERR_IO : CBERG_OK;
+        return CBERG_ERR_IO;
     }
-
-    struct dirent *ent;
-    while ((ent = readdir(dir)) != NULL) {
-        if (dirent_dot(ent->d_name)) {
-            continue;
-        }
-        if (skip_dir != NULL && skip_dir(ent->d_name, skip_ctx)) {
-            continue;
-        }
-        char child_abs[PATH_MAX];
-        char child_rel[PATH_MAX];
-        if (!cberg_path_join(abs, ent->d_name, child_abs, sizeof(child_abs))) {
-            continue;
-        }
-        if (!cberg_path_join(rel, ent->d_name, child_rel, sizeof(child_rel))) {
-            continue;
-        }
-        struct stat stbuf;
-        if (stat(child_abs, &stbuf) != 0) {
-            continue;
-        }
-        if (S_ISDIR(stbuf.st_mode)) {
-            st = cberg_fs_walk(child_abs, child_rel, fn, ctx, skip_dir, skip_ctx);
-            if (st != CBERG_OK) {
-                closedir(dir);
-                return st;
-            }
-        } else if (S_ISREG(stbuf.st_mode)) {
-            st = fn(ctx, child_abs, child_rel, CBERG_FS_FILE);
-            if (st != CBERG_OK) {
-                closedir(dir);
-                return st;
-            }
-        }
-    }
-    closedir(dir);
-    return CBERG_OK;
+    return walk_dir(dir, abs, rel, fn, ctx);
 }
 
-static bool dirent_is_dot(const char *name) {
-    return name[0] == '.' && (name[1] == '\0' || (name[1] == '.' && name[2] == '\0'));
-}
+typedef struct {
+    cberg_walk_files_fn fn;
+    void *ctx;
+} walk_files_ctx;
 
-static int walk_files_dir(const char *root, const char *rel, cberg_walk_files_fn fn, void *ctx) {
-    char dirpath[PATH_MAX];
-    if (rel[0] == '\0') {
-        snprintf(dirpath, sizeof(dirpath), "%s", root);
-    } else {
-        snprintf(dirpath, sizeof(dirpath), "%s/%s", root, rel);
+static cberg_status walk_files_visit(void *ctx, const char *abs, const char *rel, cberg_fs_entry_kind kind) {
+    walk_files_ctx *wf = ctx;
+    if (kind != CBERG_FS_FILE) {
+        return CBERG_OK;
     }
-
-    DIR *d = opendir(dirpath);
-    if (d == NULL) {
-        if (errno == ENOENT) {
-            return 0;
-        }
-        return -1;
-    }
-
-    struct dirent *ent;
-    while ((ent = readdir(d)) != NULL) {
-        if (dirent_is_dot(ent->d_name)) {
-            continue;
-        }
-
-        char child_rel[PATH_MAX];
-        if (rel[0] == '\0') {
-            snprintf(child_rel, sizeof(child_rel), "%s", ent->d_name);
-        } else {
-            snprintf(child_rel, sizeof(child_rel), "%s/%s", rel, ent->d_name);
-        }
-
-        char abspath[PATH_MAX];
-        if (!cberg_path_join(root, child_rel, abspath, sizeof(abspath))) {
-            closedir(d);
-            return -1;
-        }
-
-        struct stat st;
-        if (lstat(abspath, &st) != 0) {
-            if (errno == ENOENT) {
-                continue;
-            }
-            closedir(d);
-            return -1;
-        }
-
-        if (S_ISDIR(st.st_mode)) {
-            if (cberg_walk_skip_dir(ent->d_name)) {
-                continue;
-            }
-            if (walk_files_dir(root, child_rel, fn, ctx) != 0) {
-                closedir(d);
-                return -1;
-            }
-            continue;
-        }
-
-        if (!S_ISREG(st.st_mode)) {
-            continue;
-        }
-
-        if (fn(abspath, child_rel, ctx) != 0) {
-            closedir(d);
-            return -1;
-        }
-    }
-
-    closedir(d);
-    return 0;
+    return wf->fn(abs, rel, wf->ctx) == 0 ? CBERG_OK : CBERG_ERR_INTERNAL;
 }
 
 int cberg_fs_walk_files(const char *root, cberg_walk_files_fn fn, void *ctx) {
     if (root == NULL || fn == NULL) {
         return -1;
     }
-    return walk_files_dir(root, "", fn, ctx);
+
+    walk_files_ctx wf = {.fn = fn, .ctx = ctx};
+    return cberg_fs_walk(root, "", walk_files_visit, &wf) == CBERG_OK ? 0 : -1;
 }

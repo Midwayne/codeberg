@@ -6,11 +6,12 @@ import (
 	"strings"
 )
 
-func encodeSearch(opts SearchOptions) string {
-	opts = normalizeSearchOptions(opts)
+// Counts left at zero are sent as empty fields; cberg-index owns every
+// default and maximum (see daemon/docs/ipc.md).
 
+func encodeSearch(opts SearchOptions) string {
 	hasFilters := opts.PathGlob != "" || opts.Kind != "" || opts.MinScore > 0
-	fields := []string{sanitizeTab(opts.Query), strconv.Itoa(opts.K)}
+	fields := []string{sanitizeTab(opts.Query), count(opts.K)}
 
 	if opts.Repo != "" || hasFilters {
 		fields = append(fields, sanitizeTab(opts.Repo))
@@ -31,13 +32,8 @@ func encodeChunk(repo string, id uint64) string {
 }
 
 func encodeSymbol(opts SymbolOptions) string {
-	limit := opts.Limit
-	if limit <= 0 {
-		limit = 20
-	}
-
-	return fmt.Sprintf("symbol\t%s\t%s\t%s\t%d",
-		sanitizeTab(opts.Name), sanitizeTab(opts.Repo), sanitizeTab(opts.Kind), limit)
+	return fmt.Sprintf("symbol\t%s\t%s\t%s\t%s",
+		sanitizeTab(opts.Name), sanitizeTab(opts.Repo), sanitizeTab(opts.Kind), count(opts.Limit))
 }
 
 func encodeOutline(repo, path string) string {
@@ -45,26 +41,14 @@ func encodeOutline(repo, path string) string {
 }
 
 func encodeSearchGraph(opts GraphSearchOptions) string {
-	limit := opts.Limit
-	if limit <= 0 {
-		limit = 20
-	}
-	return fmt.Sprintf("search_graph\t%s\t%s\t%s\t%s\t%d",
-		sanitizeTab(opts.Name), sanitizeTab(opts.Repo), sanitizeTab(opts.Kind), sanitizeTab(opts.PathPrefix), limit)
+	return fmt.Sprintf("search_graph\t%s\t%s\t%s\t%s\t%s",
+		sanitizeTab(opts.Name), sanitizeTab(opts.Repo), sanitizeTab(opts.Kind), sanitizeTab(opts.PathPrefix), count(opts.Limit))
 }
 
 func encodeTracePath(opts TracePathOptions) string {
-	depth := opts.MaxDepth
-	if depth <= 0 {
-		depth = 2
-	}
-
-	limit := opts.Limit
-	if limit <= 0 {
-		limit = 64
-	}
-	return fmt.Sprintf("trace_path\t%s\t%s\t%s\t%s\t%d\t%d\t%s",
-		sanitizeTab(opts.Name), sanitizeTab(opts.Repo), sanitizeTab(opts.Direction), sanitizeTab(opts.EdgeKind), depth, limit, sanitizeTab(opts.PathPrefix))
+	return fmt.Sprintf("trace_path\t%s\t%s\t%s\t%s\t%s\t%s\t%s",
+		sanitizeTab(opts.Name), sanitizeTab(opts.Repo), sanitizeTab(opts.Direction), sanitizeTab(opts.EdgeKind),
+		count(opts.MaxDepth), count(opts.Limit), sanitizeTab(opts.PathPrefix))
 }
 
 func encodeGraphStats(repo string) string {
@@ -75,26 +59,20 @@ func encodeGraphStats(repo string) string {
 }
 
 func encodeGraphRefs(opts GraphRefsOptions) string {
-	limit := opts.Limit
-	if limit <= 0 {
-		limit = 50
-	}
-	return fmt.Sprintf("graph_refs\t%s\t%s\t%d\t%s", sanitizeTab(opts.Name), sanitizeTab(opts.Repo), limit, sanitizeTab(opts.PathPrefix))
+	return fmt.Sprintf("graph_refs\t%s\t%s\t%s\t%s",
+		sanitizeTab(opts.Name), sanitizeTab(opts.Repo), count(opts.Limit), sanitizeTab(opts.PathPrefix))
 }
 
 func encodeGraphHubs(opts GraphHubsOptions) string {
-	limit := opts.Limit
-	if limit <= 0 {
-		limit = 10
-	}
-	return fmt.Sprintf("graph_hubs\t%s\t%d", sanitizeTab(opts.Repo), limit)
+	return fmt.Sprintf("graph_hubs\t%s\t%s", sanitizeTab(opts.Repo), count(opts.Limit))
 }
 
-func normalizeSearchOptions(opts SearchOptions) SearchOptions {
-	if opts.K <= 0 {
-		opts.K = 10
+// count encodes a result count; zero or negative means "indexer default".
+func count(n int) string {
+	if n <= 0 {
+		return ""
 	}
-	return opts
+	return strconv.Itoa(n)
 }
 
 func sanitizeTab(s string) string {

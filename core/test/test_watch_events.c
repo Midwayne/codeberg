@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 static int failures;
@@ -309,6 +310,26 @@ int main(void) {
     n = collect(w, got, 700, &err);
     CHECK(err == CBERG_OK, "racing delete: no poll error under concurrent deletes");
     CHECK(race_seen(got, n, "race", 1) == NRACE, "racing delete: all concurrent deletions captured as DELETE");
+    free_events(got, n);
+
+    /* --- SKIP POLICY: directories created after open follow the walk policy --- */
+    drain(w);
+    char sub[1024];
+    snprintf(sub, sizeof(sub), "%s/node_modules", dir);
+    CHECK(mkdir(sub, 0755) == 0, "skip: mkdir node_modules");
+    snprintf(sub, sizeof(sub), "%s/fresh_src", dir);
+    CHECK(mkdir(sub, 0755) == 0, "skip: mkdir fresh_src");
+    n = collect(w, got, 700, &err); /* registers the new directories before files land in them */
+    CHECK(err == CBERG_OK, "skip: no poll error on mkdir");
+    CHECK(!find_kind(got, n, "node_modules", NULL), "skip: the skipped directory itself is not reported");
+    free_events(got, n);
+
+    write_file(dir, "node_modules/dep.js", "module.exports = 1\n");
+    write_file(dir, "fresh_src/app.go", "package main\n");
+    n = collect(w, got, 700, &err);
+    CHECK(err == CBERG_OK, "skip: no poll error");
+    CHECK(!find_kind(got, n, "node_modules/dep.js", NULL), "skip: no events under a new skipped directory");
+    CHECK(find_kind(got, n, "fresh_src/app.go", NULL), "skip: a new ordinary directory is watched");
     free_events(got, n);
 
     cberg_watcher_close(w);

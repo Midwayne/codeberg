@@ -20,6 +20,29 @@ a result's identity.
 ## Framing
 
 One request per connection, newline-terminated line in, one JSON line out.
+Replies are never clipped by a buffer size: every string is JSON-escaped in
+full (control characters as `\u00XX`), and a reply that cannot be built
+becomes `{"ok":false,"error":"out of memory"}`.
+
+## Result limits
+
+`cberg-index` owns every count default and maximum. A count field that is
+missing, empty, zero, or negative selects the default; larger values are
+clamped to the maximum. The Go client sends unset counts as empty fields.
+
+| Command | Field | Default | Maximum |
+|---------|-------|---------|---------|
+| `search` | `k` | 10 | 64 |
+| `symbol` | `limit` | 20 | 64 |
+| `outline` | — | all chunks | 256 |
+| `search_graph` | `limit` | 20 | 64 |
+| `trace_path` | `limit` | 64 | 256 |
+| `trace_path` | `max_depth` | 2 | — |
+| `graph_hubs` | `limit` | 10 | 64 |
+| `graph_refs` | `limit` | 50 | 256 |
+
+List replies that carry `truncated` set it to `true` when the result count
+reached the command's maximum, so more results may exist.
 
 The Go client (`internal/indexctl`) opens a **new Unix socket connection per request**
 (5 s dial timeout). There is no connection pooling.
@@ -58,13 +81,13 @@ Response:
 Request (tab-separated fields):
 
 ```
-search\t<query>\t<k>[\t<repo>[\t<path_glob>[\t<kind>[\t<min_score>]]]]
+search\t<query>[\t<k>[\t<repo>[\t<path_glob>[\t<kind>[\t<min_score>]]]]]
 ```
 
 | Field | Required | Description |
 |-------|----------|-------------|
 | query | yes | Natural-language query (tabs replaced with spaces) |
-| k | no | Max results (default 10) |
+| k | no | Max results |
 | repo | no | Restrict to one repo key |
 | path_glob | no | rg-style glob on chunk paths (`*.go` matches at any depth, `**` spans directories, `{a,b}`, `!` negation) |
 | kind | no | Chunk kind filter (`function`, `method`, `class`, `struct`, `interface`, `window`, `section`, `key`) |
@@ -136,7 +159,7 @@ search_graph\t<name>[\t<repo>[\t<kind>[\t<path_prefix>[\t<limit>]]]]
 | repo | no | Restrict starting definitions to one repo key (default: all configured roots) |
 | kind | no | `file`, `function`, `method`, `class`, `struct`, `interface`, `module`, or `symbol` |
 | path_prefix | no | Component-aware path prefix (`foo` matches `foo` / `foo/bar`, not `foobar`) |
-| limit | no | Max results (default 20; IPC stack cap 64) |
+| limit | no | Max results |
 
 Response:
 
@@ -166,8 +189,8 @@ trace_path\t<name>[\t<repo>[\t<direction>[\t<edge_kind>[\t<max_depth>[\t<limit>[
 | repo | no | Repo key |
 | direction | no | `in` (callers), `out` (callees), `both` (default) |
 | edge_kind | no | `calls` (default), `imports`, `inherits`, `contains`, `defines`, `references`, `all` |
-| max_depth | no | BFS depth (default 2) |
-| limit | no | Max hops (default 64; IPC stack cap 256) |
+| max_depth | no | BFS depth |
+| limit | no | Max hops |
 | path_prefix | no | Component-aware prefix for start-symbol lookup |
 
 Response:
@@ -224,9 +247,8 @@ trace whose name matches definitions in multiple roots returns `invalid argument
 provide `repo` to select its starting definition. `graph_stats` aggregates all
 roots when repo is omitted (empty response `repo` denotes that aggregate).
 
-`graph_refs` accepts up to 256 edges on the wire; the daemon tool uses at most
-200. The JSON byte budget may clip fewer edges, setting `truncated: true`.
-The daemon preserves usable edges and reports this coverage limit to the agent.
+The daemon's `find_references` tool asks for at most 200 edges; `truncated`
+reports when the indexer's maximum was reached.
 
 Request:
 
@@ -238,7 +260,7 @@ graph_refs\t<name>[\t<repo>[\t<limit>[\t<path_prefix>]]]
 |-------|----------|-------------|
 | name | yes | Symbol name |
 | repo | no | Repo key |
-| limit | no | Max edges (default 50; IPC stack cap 64) |
+| limit | no | Max edges |
 | path_prefix | no | Component-aware prefix to disambiguate same-named symbols |
 
 Response: `{"ok":true,"results":[...edges...],"truncated":false}` with `resolution` and `confidence` on each edge.
@@ -258,8 +280,7 @@ Common error strings map to daemon HTTP codes: `not implemented`, `graph disable
 - Vector search (`search`) requires `CBERG_MODEL` + `CBERG_INDEX_PATH`.
 - `chunk`, `symbol`, `outline`, and graph commands work in chunk-only mode
   (graph needs `CBERG_GRAPH` enabled, default on).
-- Results are capped at 64 per request in the C indexer (trace hops up to 256);
-  responses include `"truncated":true` when the stack/response cap clipped results.
+- Result counts follow [Result limits](#result-limits).
 - Repos still bootstrapping are skipped in all-repo searches (partial results).
 
 Go client: `daemon/internal/indexctl/` (`Client` implements the `Indexer` interface).

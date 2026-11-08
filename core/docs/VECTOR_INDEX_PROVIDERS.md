@@ -327,7 +327,8 @@ then restores the index default — remote backends ignore per-query expansion.
 
 ### Qdrant response parsing
 
-The Qdrant backend uses a small JSON helper (`providers/qdrant/json_mini.c`) to
+The Qdrant backend uses the shared read-only JSON helper (`src/common/json_read.c`,
+with the Qdrant shapes in `providers/qdrant/json_mini.c`) to
 parse collection metadata and search hits by path (e.g.
 `result.config.params.vectors.size`) instead of ad-hoc string scans. Unit tests:
 `test_qdrant_json`.

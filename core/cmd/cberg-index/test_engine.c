@@ -213,9 +213,9 @@ int main(void) {
     CHECK(!eng.vectors, "chunk-only mode");
 
     if (ra != NULL && rb != NULL) {
-        CHECK(cberg_repo_bootstrap(ra) == CBERG_OK, "alpha bootstraps");
-        CHECK(cberg_repo_bootstrap(rb) == CBERG_OK, "beta bootstraps");
-        eng.bootstrapped = 1;
+        size_t bootstrapped = 0;
+        CHECK(cberg_engine_bootstrap(&eng, &bootstrapped) == CBERG_OK, "engine bootstraps");
+        CHECK(bootstrapped == 2, "alpha and beta bootstrap");
         CHECK(cberg_repo_ready(ra) && cberg_repo_ready(rb), "both ready");
 
         size_t count_a = cberg_repo_chunk_count(ra);
@@ -289,7 +289,6 @@ int main(void) {
             CHECK(access(health_path, F_OK) != 0, "shutdown removes the health socket");
 
             /* An unowned socket left by a crashed process can still be reclaimed. */
-            eng.stop = 0;
             int stale = socket(AF_UNIX, SOCK_STREAM, 0);
             struct sockaddr_un addr = {0};
             addr.sun_family = AF_UNIX;

@@ -1,5 +1,5 @@
-#ifndef CBERG_WORKSPACE_GRAPH_H
-#define CBERG_WORKSPACE_GRAPH_H
+#ifndef CBERG_GRAPH_WORKSPACE_H
+#define CBERG_GRAPH_WORKSPACE_H
 
 #include "codeberg/codeberg.h"
 
@@ -12,8 +12,6 @@ const char *cberg_graph_source_path(const cberg_graph *graph, const cberg_graph_
 uint64_t cberg_graph_source_id(const cberg_graph *graph, uint64_t id);
 uint64_t cberg_graph_workspace_id(const cberg_graph *graph, const char *repo, uint64_t native_id);
 void cberg_graph_workspace_scope(cberg_graph *graph, const char *repo);
-/* Borrowed from the graph's arena; NULL if the file does not exist. */
-const char *cberg_graph_workspace_file(const cberg_graph *graph, const char *repo, const char *path);
 cberg_status cberg_graph_link_import(cberg_graph *graph, uint64_t source_file, uint64_t module, const char *target_file);
 const char *cberg_graph_relative_file(const char *source, const char *import, char *const *files, size_t count);
 

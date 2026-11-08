@@ -123,7 +123,7 @@ cberg_status watch_platform_wait(cberg_watcher *w, int timeout_ms) {
                         watch_note_created_subdir(w, abs, rel);
                     }
                 }
-                watch_note_error(w, watch_dirty_add(w, rel, watch_kind_from_inotify(ev->mask)));
+                watch_note_error(w, watch_dirty_add(w, rel, watch_kind_from_inotify(ev->mask), (ev->mask & IN_ISDIR) != 0));
             }
             p += sizeof(struct inotify_event) + ev->len;
         }

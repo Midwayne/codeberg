@@ -273,19 +273,6 @@ void cberg_chunk_table_release_changes(cberg_chunk_table *table) {
     table_free_change_lists(table);
 }
 
-static void table_discard(cberg_chunk_table *table) {
-    if (table == NULL) {
-        return;
-    }
-    table_free_change_lists(table);
-    free(table->entries);
-    cberg_strmap_free(table->key_index);
-    cberg_u64map_free(table->id_index);
-    table_free_scratch(table);
-    cberg_arena_free(table->arena);
-    free(table);
-}
-
 cberg_chunk_table *cberg_chunk_table_new(void) {
     cberg_chunk_table *table = calloc(1, sizeof(cberg_chunk_table));
     if (table == NULL) {
@@ -495,13 +482,13 @@ cberg_status cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk 
     size_t est_len = count;
     status = table_init_for_sync(next, est_len);
     if (status != CBERG_OK) {
-        table_discard(next);
+        cberg_chunk_table_free(next);
         return status;
     }
 
     status = table_ensure_seen(table, table->len);
     if (status != CBERG_OK) {
-        table_discard(next);
+        cberg_chunk_table_free(next);
         return status;
     }
     if (table->len > 0) {
@@ -562,7 +549,7 @@ cberg_status cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk 
     return CBERG_OK;
 
 fail:
-    table_discard(next);
+    cberg_chunk_table_free(next);
     return status;
 }
 

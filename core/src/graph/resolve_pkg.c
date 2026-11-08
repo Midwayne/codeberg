@@ -6,7 +6,7 @@
  * Safety: bare identifiers (fmt, json, os) and slash-form stdlib/npm packages
  * (encoding/json) are never rewritten — only relative imports (./, ../), Rust
  * `::` paths, Go module-prefixed paths, multi-segment dotted names, or
- * source-file paths (…/*.h) are candidates. Package names from manifests are
+ * source-file paths (…/x.h) are candidates. Package names from manifests are
  * never mapped onto arbitrary first files.
  */
 #include "codeberg/codeberg.h"
@@ -20,9 +20,9 @@
 #include "fileio.h"
 #include "graph_internal.h"
 #include "import_cache.h"
+#include "lang.h"
 #include "pathutil.h"
 #include "strmap.h"
-#include "walk_policy.h"
 
 typedef struct cberg_import_cache {
     cberg_strmap *file_set;       /* source membership detects create+modify event coalescing */
@@ -56,11 +56,8 @@ static cberg_status pkg_add_file(pkg_index *idx, const char *rel) {
     return cberg_strmap_set(idx->file_set, copy, 1);
 }
 
-/* Code languages only — not markdown/yaml/toml/json (those are UNKNOWN for imports). */
 static int is_code_source(const char *rel) {
-    cberg_language lang = cberg_language_from_path(rel);
-    return lang != CBERG_LANG_UNKNOWN && lang != CBERG_LANG_MARKDOWN && lang != CBERG_LANG_YAML &&
-           lang != CBERG_LANG_TOML && lang != CBERG_LANG_JSON;
+    return cberg_language_is_code(cberg_language_from_path(rel));
 }
 
 static int walk_cb(const char *abs, const char *rel, void *v) {

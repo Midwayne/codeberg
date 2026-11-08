@@ -23,7 +23,7 @@
 #include "grow.h"
 #include "strmap.h"
 #include "u64map.h"
-#include "workspace_graph.h"
+#include "graph_workspace.h"
 
 #define GRAPH_CONF_EXACT 1.0f
 #define GRAPH_CONF_SAME_FILE 0.90f
@@ -1826,19 +1826,6 @@ uint64_t cberg_graph_workspace_id(const cberg_graph *graph, const char *repo, ui
 
 void cberg_graph_workspace_scope(cberg_graph *graph, const char *repo) {
     graph->scope = repo != NULL && repo[0] != '\0' ? repo : NULL;
-}
-
-const char *cberg_graph_workspace_file(const cberg_graph *graph, const char *repo, const char *path) {
-    for (size_t i = 0; i < graph->nodes_len; i++) {
-        const graph_node_rec *node = &graph->nodes[i];
-        if (node->dead || node->pub.kind != CBERG_GNODE_FILE || node->repo == NULL ||
-            strcmp(node->repo, repo) != 0)
-            continue;
-        if (strcmp(cberg_graph_source_path(graph, &node->pub), path) == 0)
-            return node->pub.path;
-    }
-
-    return NULL;
 }
 
 cberg_status cberg_graph_link_import(cberg_graph *graph, uint64_t source_file, uint64_t module, const char *target_file) {

@@ -186,6 +186,15 @@ Returns NULL on failure; caller frees. Used by chunker callers and tests.
 
 ---
 
+## `json_read.c` / `json_read.h`
+
+Minimal read-only JSON views (`cberg_json_object_field`, `cberg_json_get_path`,
+`cberg_json_read_*`, `cberg_json_string_copy`) over a NUL-terminated buffer. Used by
+the Qdrant provider's response parsing and by `cberg-index` for `package.json`.
+Returned pointers borrow the input.
+
+---
+
 ## `walk_policy.c` / `walk_policy.h`
 
 ### `cberg_walk_skip_dir(const char *name)` — public (via `codeberg.h`)
@@ -193,9 +202,10 @@ Returns NULL on failure; caller frees. Used by chunker callers and tests.
 Returns non-zero for dependency/build directory basenames listed in
 `configs/walk_skip_dirs.txt`. Shared by manifest, watcher, and indexer walks.
 
-### `cberg_walk_skip_dir_cb(name, ctx)`
+### `cberg_walk_skip_rel(rel, is_dir)`
 
-`cberg_fs_walk` skip callback wrapping `cberg_walk_skip_dir`.
+True when a root-relative path lies under a skipped directory (the last component
+counts only when `is_dir`). Watchers use it so events match what a walk would see.
 
 ---
 
@@ -205,8 +215,8 @@ Path helpers shared by the watcher (and any future directory walks).
 
 ### `cberg_fs_walk_files(root, fn, ctx)`
 
-File-only tree walk using `lstat` (no symlink follow) and `cberg_walk_skip_dir` on
-directories. Used by the indexer bootstrap scan.
+`cberg_fs_walk` over regular files only. Used by the indexer bootstrap scan and the
+import resolver. Returns 0 on a complete walk, -1 otherwise.
 
 ### `cberg_path_join(const char *root, const char *rel, char *out, size_t out_cap)`
 
@@ -217,11 +227,17 @@ Returns `false` on NULL inputs, zero `out_cap`, or buffer overflow.
 
 `realpath` into `out`. **Returns:** `CBERG_OK`, `CBERG_ERR_IO`, `CBERG_ERR_INVALID_ARGUMENT`.
 
-### `cberg_fs_walk(abs, rel, fn, ctx, skip_dir, skip_ctx)`
+### `cberg_fs_walk(abs, rel, fn, ctx)`
 
-Depth-first directory walk; always skips dot dirs. When `skip_dir` is non-NULL, also
-skips directory names for which `skip_dir(name, skip_ctx)` returns true. Invokes `fn`
-for each directory (pre-children) and regular file.
+The one repository tree walk (manifest, watchers, indexer, import resolver):
+
+- symlinks are not followed (`lstat`), so a walk cannot cycle or leave the root;
+- directories matching `cberg_walk_skip_dir` are pruned; files are never skipped by name;
+- entries that vanish mid-walk and unreadable subdirectories are skipped;
+- only an unreadable start directory fails (`CBERG_ERR_IO`).
+
+Invokes `fn` for each directory (before its children) and each regular file; a
+non-OK status from `fn` stops the walk and is returned.
 
 ---
 

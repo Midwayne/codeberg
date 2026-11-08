@@ -5,23 +5,17 @@
 #include <string.h>
 
 #include "codeberg/codeberg.h"
+#include "hash_tag.h"
 
 char *cberg_provider_name_from_path(const char *path) {
-    static const char hex[] = "0123456789abcdef";
-    uint8_t h[CBERG_HASH_LEN];
-    if (cberg_hash(path, strlen(path), h) != CBERG_OK) {
-        memset(h, 0, sizeof(h));
-    }
-    char *name = malloc(26);
+    char tag[CBERG_HASH_TAG_LEN + 1];
+    cberg_hash_tag(path, tag);
+
+    char *name = malloc(sizeof("codeberg_") + CBERG_HASH_TAG_LEN);
     if (name == NULL) {
         return NULL;
     }
-    memcpy(name, "codeberg_", 9);
-    for (size_t i = 0; i < 8; i++) {
-        name[9 + 2 * i] = hex[h[i] >> 4];
-        name[9 + 2 * i + 1] = hex[h[i] & 0x0F];
-    }
-    name[25] = '\0';
+    snprintf(name, sizeof("codeberg_") + CBERG_HASH_TAG_LEN, "codeberg_%s", tag);
     return name;
 }
 
