@@ -3,7 +3,7 @@ import { GraduationCap, PanelLeft, Search, Settings2, SlidersHorizontal } from '
 import { IconButton } from '../ui';
 import { DocsLink } from '../docs-link';
 
-import { type ProjectWorkspaceView, type useProjectWorkspace } from '../../App';
+import type { ProjectWorkspaceView, useProjectWorkspace } from '../../App';
 
 export type WorkspaceHeaderProps = { state: Parameters<typeof ProjectWorkspaceView>[0] };
 

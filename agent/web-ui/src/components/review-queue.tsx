@@ -1,6 +1,6 @@
 import { KIND_LABELS, type ReviewDashboard, type ReviewSummary } from '../lib/training';
 
-import { type TrainingReviewView } from './training-review';
+import type { TrainingReviewView } from './training-review';
 
 export type ReviewQueueProps = { state: Parameters<typeof TrainingReviewView>[0] & { dashboard: ReviewDashboard } };
 

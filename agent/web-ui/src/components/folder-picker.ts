@@ -1,4 +1,4 @@
-import { type useAddProject } from './project-add';
+import type { useAddProject } from './project-add';
 
 export type FolderPickerOptions = Pick<Parameters<typeof useAddProject>[0], 'initialPath'> & {
   busy: boolean;

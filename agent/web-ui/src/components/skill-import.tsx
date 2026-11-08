@@ -3,7 +3,7 @@ import { SkillPreviewList } from './skill-preview';
 import { useSkillImport } from '../lib/use-skill-import';
 import { SuccessNotice } from './success-notice';
 
-import { type SkillFile } from '../lib/skill-files';
+import type { SkillFile } from '../lib/skill-files';
 
 export { buttonClass as button } from './button-styles';
 

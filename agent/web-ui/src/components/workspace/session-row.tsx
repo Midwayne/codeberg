@@ -2,7 +2,7 @@ import { Clock, GitBranch, MoreHorizontal } from 'lucide-react';
 
 import { cn, timeAgo } from '../../lib/utils';
 import { IconButton } from '../ui';
-import { type SessionRowProps } from './session-sidebar';
+import type { SessionRowProps } from './session-sidebar';
 
 export function SessionRow({ s, state }: SessionRowProps) {
   return (

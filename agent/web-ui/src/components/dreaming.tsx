@@ -3,7 +3,7 @@ import { actionClass } from './button-styles';
 import { DreamingReportView } from './dreaming-report';
 import { useDreamingPanel } from '../lib/use-dreaming-panel';
 
-import { type DreamingDashboard } from '../lib/dreaming';
+import type { DreamingDashboard } from '../lib/dreaming';
 
 import { ErrorNotice } from './ui';
 

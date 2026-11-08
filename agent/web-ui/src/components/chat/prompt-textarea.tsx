@@ -1,4 +1,4 @@
-import { type PromptInputView } from './prompt-input';
+import type { PromptInputView } from './prompt-input';
 import { clipboardImages, MAX_FILE_SIZE } from '../../lib/prompt-files';
 
 export type PromptTextareaProps = { state: Parameters<typeof PromptInputView>[0] };

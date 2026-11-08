@@ -1,4 +1,4 @@
-import { type CleanupPanelView } from './cleanup';
+import type { CleanupPanelView } from './cleanup';
 import { OpenConfigDirectory } from './config-directory';
 import { SettingsNavigation, SettingsPanels } from './settings-navigation';
 import { type sections, buttonClass } from './settings-styles';

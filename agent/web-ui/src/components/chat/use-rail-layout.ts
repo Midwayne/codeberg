@@ -1,4 +1,4 @@
-import { type useMessageRail } from './use-message-rail';
+import type { useMessageRail } from './use-message-rail';
 import { useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
 
 import {

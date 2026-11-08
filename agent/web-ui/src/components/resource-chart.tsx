@@ -1,7 +1,7 @@
 import { ResourcePlot, ResourceTooltip } from './resource-plot';
 import { useId, useMemo, useState, type KeyboardEvent, type PointerEvent } from 'react';
 
-import { type ResourceSample } from '../lib/resources';
+import type { ResourceSample } from '../lib/resources';
 
 export function sampleAtPosition(
   rows: ResourceSample[],

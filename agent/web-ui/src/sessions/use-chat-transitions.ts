@@ -1,10 +1,10 @@
-import { type UseChatHelpers } from '@ai-sdk/react';
+import type { UseChatHelpers } from '@ai-sdk/react';
 import type { UIMessage } from 'ai';
 import { useCallback, useEffect } from 'react';
 import { createChatBranch } from '../lib/branch';
 
 import { deriveTitle, newSessionId, saveSession } from '../lib/sessions';
-import { type WorkspaceChat } from './workspace-chat';
+import type { WorkspaceChat } from './workspace-chat';
 import { createChatResume, type ChatLoad } from './chat-resume';
 import { restoreChatSelection } from './chat-activation';
 

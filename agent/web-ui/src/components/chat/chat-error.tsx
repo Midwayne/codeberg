@@ -1,6 +1,6 @@
 import { AlertTriangle } from 'lucide-react';
 
-import { type ChatView } from './chat';
+import type { ChatView } from './chat';
 
 export type ChatErrorProps = { state: Parameters<typeof ChatView>[0] };
 

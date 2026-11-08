@@ -1,6 +1,6 @@
 import { FileCode, FileSearch, GitBranch, Search } from 'lucide-react';
 
-import { type ToolView } from './message';
+import type { ToolView } from './message';
 
 import {
   extractFindReferences,
@@ -11,14 +11,14 @@ import {
 } from '@agent/core/evidence-extract.js';
 import { normalizeSearchHit } from '@agent/core/search-hit.js';
 
-import {
-  type SearchResultsProps,
-  type HybridSearchResultsProps,
-  type ChunkHitsProps,
-  type ChunkDetailProps,
-  type GrepResultsProps,
-  type FindReferencesResultsProps,
-  type TracePathResultsProps,
+import type {
+  SearchResultsProps,
+  HybridSearchResultsProps,
+  ChunkHitsProps,
+  ChunkDetailProps,
+  GrepResultsProps,
+  FindReferencesResultsProps,
+  TracePathResultsProps,
 } from './tool-views';
 import { HitList } from './tool-source-cards';
 import { GenericTool } from './tool-status';

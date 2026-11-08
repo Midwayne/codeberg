@@ -6,7 +6,7 @@ import { loadModelSettings, type CatalogModel } from './models';
 import { loadLearningSettings } from './learning-settings';
 import { startLearningStatusPolling } from './learning-status';
 
-import { type useProjectWorkspace } from '../App';
+import type { useProjectWorkspace } from '../App';
 
 export type WorkspaceMetaOptions = Pick<Parameters<typeof useProjectWorkspace>[0], 'loading'>;
 

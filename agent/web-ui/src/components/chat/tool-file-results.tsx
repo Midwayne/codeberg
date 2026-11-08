@@ -4,7 +4,7 @@ import { Response } from './response';
 import { Collapsible } from '../ui';
 import { langFromPath } from '../../lib/utils';
 
-import { type FileContentProps, type FileListProps, type ReposListProps, type TextOutputProps } from './tool-views';
+import type { FileContentProps, FileListProps, ReposListProps, TextOutputProps } from './tool-views';
 
 export function FileContent({ part }: FileContentProps) {
   const out = part.output as { content?: string; start_line?: number; end_line?: number } | string;

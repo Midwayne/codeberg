@@ -1,4 +1,4 @@
-import { type useReviewDetail } from '../components/review-detail';
+import type { useReviewDetail } from '../components/review-detail';
 
 import { proposedEvidence, type EvidencePreview } from './training';
 

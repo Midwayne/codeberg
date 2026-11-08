@@ -1,6 +1,6 @@
 import { promptPreview } from '../../lib/message-rail';
 import { cn } from '../../lib/utils';
-import { type MessageRailView } from './message-rail';
+import type { MessageRailView } from './message-rail';
 
 export type RailMarkersProps = { state: Parameters<typeof MessageRailView>[0] };
 

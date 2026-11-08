@@ -2,11 +2,11 @@ import { FileCode } from 'lucide-react';
 import { Response } from './response';
 
 import { Collapsible, CopyButton } from '../ui';
-import { type HybridHit } from '@agent/core/evidence-extract.js';
+import type { HybridHit } from '@agent/core/evidence-extract.js';
 import { formatLineRange } from '@agent/core/search-hit.js';
 import { langFromPath } from '../../lib/utils';
 
-import { type HitListProps, type SourceCardProps } from './tool-views';
+import type { HitListProps, SourceCardProps } from './tool-views';
 
 export type DisplayHit = HybridHit;
 

@@ -1,4 +1,4 @@
-import { type DreamingDecision, type DreamingReport } from '../lib/dreaming';
+import type { DreamingDecision, DreamingReport } from '../lib/dreaming';
 
 import { actionClass } from './button-styles';
 

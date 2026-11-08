@@ -1,6 +1,6 @@
 import { FileText, X } from 'lucide-react';
 
-import { type SkillImportView, type SkillPreviewRowProps } from './skill-import';
+import type { SkillImportView, SkillPreviewRowProps } from './skill-import';
 import { buttonClass as button } from './button-styles';
 
 export type SkillPreviewListProps = Pick<

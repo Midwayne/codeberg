@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { type SessionSummary } from '../../lib/sessions';
+import type { SessionSummary } from '../../lib/sessions';
 
 export type SessionSidebarOptions = {
   projectControls?: ReactNode;

@@ -1,6 +1,6 @@
 import { Activity, BarChart3, BookOpen, Brain, Clock, FolderOpen, Palette, PencilRuler, Puzzle, Trash2, Wrench } from 'lucide-react';
 
-import { type CleanupCategory } from '../lib/resources';
+import type { CleanupCategory } from '../lib/resources';
 
 export const sections = [
   { id: 'appearance', label: 'Appearance', shortLabel: 'Appearance', icon: Palette },

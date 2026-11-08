@@ -1,6 +1,6 @@
 import { BookOpen, CornerDownLeft } from 'lucide-react';
 import { useLayoutEffect, useRef } from 'react';
-import { type DocSearchHit } from './search';
+import type { DocSearchHit } from './search';
 
 export type DocsSearchResultsProps = {
   hits: DocSearchHit[];

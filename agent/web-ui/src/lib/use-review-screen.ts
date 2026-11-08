@@ -6,7 +6,7 @@ import { loadLearningSettings, type LearningSettings } from './learning-settings
 import { useTrainingReview } from './use-training-review';
 import { useMediaQuery } from './use-media-query';
 
-import { type Decision } from '../components/training-review';
+import type { Decision } from '../components/training-review';
 
 export function useReviewScreen() {
   const review = useTrainingReview();

@@ -1,4 +1,4 @@
-import { type AddProjectView } from './project-add';
+import type { AddProjectView } from './project-add';
 
 import { Folder } from 'lucide-react';
 

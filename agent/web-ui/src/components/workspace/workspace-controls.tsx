@@ -1,6 +1,6 @@
 import type { UseChatHelpers } from '@ai-sdk/react';
 import type { UIMessage } from 'ai';
-import { type SessionSummary } from '../../lib/sessions';
+import type { SessionSummary } from '../../lib/sessions';
 import type { ChatLoad } from '../../sessions/chat-resume';
 
 import { ChatSearch } from './chat-search';
@@ -11,7 +11,7 @@ import { deriveTitle } from '../../lib/sessions';
 import { IconButton } from '../ui';
 import { X } from 'lucide-react';
 
-import { type useWorkspaceView, type WorkspaceView } from './workspace';
+import type { useWorkspaceView, WorkspaceView } from './workspace';
 import { useScheduleWorkspace } from '../../lib/schedule-workspace';
 import { isActiveSchedule } from '../../lib/schedule-summary';
 

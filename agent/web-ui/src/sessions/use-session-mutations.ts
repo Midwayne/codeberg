@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 
 import { deleteSession, updateSessionFlags } from '../lib/sessions';
-import { type WorkspaceChat } from './workspace-chat';
+import type { WorkspaceChat } from './workspace-chat';
 
 export type SessionMutationsOptions = {
   cancelResume: () => void;

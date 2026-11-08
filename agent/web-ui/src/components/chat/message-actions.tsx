@@ -4,7 +4,7 @@ import { GitBranch, RefreshCw } from 'lucide-react';
 import { CopyButton, IconButton } from '../ui';
 
 import { cn } from '../../lib/utils';
-import { type MessageActionsProps, type AnyPart } from './message';
+import type { MessageActionsProps, AnyPart } from './message';
 
 export function MessageActions({
   message,

@@ -2,7 +2,7 @@ import { CanvasArtifact } from '../../canvas/artifact';
 import { isCanvasDrawing } from '../../canvas/conversation';
 import { SpilledOutput, ToolPending, ToolError, GenericTool } from './tool-status';
 import { FileContent, FileList, ReposList, TextOutput } from './tool-file-results';
-import { type DisplayHit } from './tool-source-cards';
+import type { DisplayHit } from './tool-source-cards';
 import {
   SearchResults,
   HybridSearchResults,
@@ -14,7 +14,7 @@ import {
 } from './tool-search-results';
 import type { ReactNode } from 'react';
 
-import { type ToolView } from './message';
+import type { ToolView } from './message';
 
 import { isSpillPreview } from '../../lib/tool-output';
 

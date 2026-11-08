@@ -1,10 +1,10 @@
 import { Components, Toggle } from './learning-controls';
 
 import { DATASET_KINDS } from '@agent/core/learning/preferences';
-import { type LearningSettings } from '../lib/learning-settings';
+import type { LearningSettings } from '../lib/learning-settings';
 import { KIND_LABELS } from '../lib/training';
 
-import { type LearningSettingsView } from './learning-settings';
+import type { LearningSettingsView } from './learning-settings';
 
 export type HistorySettingsProps = Pick<Parameters<typeof LearningSettingsView>[0], 'settings'> & {
   locked: boolean;

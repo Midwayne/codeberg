@@ -1,6 +1,6 @@
 import { NoProjects } from './no-projects';
 import { useProjectDeletionFocus } from '../lib/use-project-deletion-focus';
-import { type useAddProject } from './project-add';
+import type { useAddProject } from './project-add';
 import { AddProjectDialog } from './project-add-dialog';
 
 import { ProjectDetails } from './project-details';

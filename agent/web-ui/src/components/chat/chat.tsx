@@ -16,7 +16,7 @@ import { MessageRail } from './message-rail';
 import { PromptInput } from './prompt-input';
 import { ChatEmptyState } from './chat-empty';
 
-import { type CatalogModel } from '../../lib/models';
+import type { CatalogModel } from '../../lib/models';
 
 // Each retained workspace view subscribes to its own session with `useChat`.
 // `Chat` presents those helpers. Branching is a session

@@ -5,8 +5,8 @@ import { TrainingSummary } from './training-summary';
 import { useReviewScreen } from '../lib/use-review-screen';
 import { RefreshCw } from 'lucide-react';
 
-import { type ReviewExample, type ReviewSummary } from '../lib/training';
-import { type ReviewDecision } from '../lib/training-review';
+import type { ReviewExample, ReviewSummary } from '../lib/training';
+import type { ReviewDecision } from '../lib/training-review';
 
 import { ErrorNotice, IconButton } from './ui';
 
