@@ -1502,17 +1502,14 @@ cberg_status cberg_graph_load(const char *path, cberg_graph **out_graph) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     *out_graph = NULL;
-    FILE *f = fopen(path, "rb");
-    if (f == NULL) {
+    FILE *f = NULL;
+    if (cberg_snapshot_open(path, &f) != CBERG_OK) {
         return CBERG_ERR_NOT_FOUND;
     }
 
-    char magic[4];
-    uint32_t version = 0;
     uint64_t node_count = 0;
     uint64_t ref_count = 0;
-    if (cberg_bin_r_exact(f, magic, 4) != CBERG_OK || memcmp(magic, CBERG_GRAPH_MAGIC, 4) != 0 ||
-        cberg_bin_r_u32(f, &version) != CBERG_OK || version != CBERG_GRAPH_VERSION ||
+    if (cberg_snapshot_header(f, CBERG_GRAPH_MAGIC, CBERG_GRAPH_VERSION) != CBERG_OK ||
         cberg_bin_r_u64(f, &node_count) != CBERG_OK || cberg_bin_r_u64(f, &ref_count) != CBERG_OK) {
         fclose(f);
         return CBERG_ERR_NOT_FOUND;

@@ -618,17 +618,14 @@ cberg_status cberg_chunk_table_load(const char *path, cberg_chunk_table **out_ta
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     *out_table = NULL;
-    FILE *f = fopen(path, "rb");
-    if (f == NULL) {
+    FILE *f = NULL;
+    if (cberg_snapshot_open(path, &f) != CBERG_OK) {
         return CBERG_ERR_NOT_FOUND;
     }
 
-    char magic[4];
-    uint32_t version = 0;
     uint64_t next_id = 0, count = 0;
-    if (r_exact(f, magic, 4) != CBERG_OK || memcmp(magic, CBERG_CHUNK_TABLE_MAGIC, 4) != 0 ||
-        r_u32(f, &version) != CBERG_OK || version != CBERG_CHUNK_TABLE_VERSION || r_u64(f, &next_id) != CBERG_OK ||
-        r_u64(f, &count) != CBERG_OK) {
+    if (cberg_snapshot_header(f, CBERG_CHUNK_TABLE_MAGIC, CBERG_CHUNK_TABLE_VERSION) != CBERG_OK ||
+        r_u64(f, &next_id) != CBERG_OK || r_u64(f, &count) != CBERG_OK) {
         fclose(f);
         return CBERG_ERR_NOT_FOUND;
     }

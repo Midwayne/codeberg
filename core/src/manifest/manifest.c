@@ -630,16 +630,13 @@ cberg_status cberg_manifest_load(const char *path, cberg_manifest **out_manifest
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     *out_manifest = NULL;
-    FILE *f = fopen(path, "rb");
-    if (f == NULL) {
+    FILE *f = NULL;
+    if (cberg_snapshot_open(path, &f) != CBERG_OK) {
         return CBERG_ERR_NOT_FOUND;
     }
 
-    char magic[4];
-    uint32_t version = 0;
     uint64_t count = 0;
-    if (fread(magic, 1, 4, f) != 4 || memcmp(magic, CBERG_MANIFEST_MAGIC, 4) != 0 ||
-        fread(&version, sizeof version, 1, f) != 1 || version != CBERG_MANIFEST_VERSION ||
+    if (cberg_snapshot_header(f, CBERG_MANIFEST_MAGIC, CBERG_MANIFEST_VERSION) != CBERG_OK ||
         fread(&count, sizeof count, 1, f) != 1) {
         fclose(f);
         return CBERG_ERR_NOT_FOUND;

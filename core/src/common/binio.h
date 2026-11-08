@@ -71,6 +71,13 @@ static inline cberg_status cberg_atomic_commit(FILE **fp, const char *tmp, const
     return cberg_atomic_rename(tmp, path);
 }
 
+/* A missing snapshot is a cold rebuild, not an I/O failure. */
+static inline cberg_status cberg_snapshot_open(const char *path, FILE **out) {
+    *out = fopen(path, "rb");
+
+    return *out == NULL ? CBERG_ERR_NOT_FOUND : CBERG_OK;
+}
+
 static inline void cberg_atomic_abort(FILE *f, const char *tmp) {
     if (f != NULL) {
         fclose(f);
@@ -113,6 +120,18 @@ static inline cberg_status cberg_bin_r_u32(FILE *f, uint32_t *v) {
 
 static inline cberg_status cberg_bin_r_u64(FILE *f, uint64_t *v) {
     return cberg_bin_r_exact(f, v, sizeof *v);
+}
+
+/* A short read, a foreign magic, or a different version is a cold rebuild. */
+static inline cberg_status cberg_snapshot_header(FILE *f, const char *magic, uint32_t expect) {
+    char got[4];
+    uint32_t version = 0;
+    if (cberg_bin_r_exact(f, got, 4) != CBERG_OK || memcmp(got, magic, 4) != 0 ||
+        cberg_bin_r_u32(f, &version) != CBERG_OK || version != expect) {
+        return CBERG_ERR_NOT_FOUND;
+    }
+
+    return CBERG_OK;
 }
 
 /* Reads a length-prefixed string into a malloc'd buffer (*out = NULL for the
