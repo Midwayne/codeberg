@@ -1,4 +1,5 @@
 import { DatasetStore } from './datasets.js';
+import { isSearchTool } from './tool-class.js';
 import { type DatasetExample } from './datasets/records.js';
 import { average, complexityBucket, strings } from './metrics/summary.js';
 import type { RetrievalReport, RetrievalRun, RetrievalScore } from './metrics/types.js';
@@ -80,7 +81,7 @@ export async function historicalEvalMetrics(store: LearningStore) {
     runs.push({
       eval_id: example.id,
       hits: attempts.flatMap((attempt) =>
-        attempt.retrieved_results.filter((hit) => /search|grep|symbol|reference/i.test(hit.tool)),
+        attempt.retrieved_results.filter((hit) => isSearchTool(hit.tool)),
       ),
       tool_calls: attempts.reduce((total, attempt) => total + attempt.tools_invoked.length, 0),
       retrieved_tokens:

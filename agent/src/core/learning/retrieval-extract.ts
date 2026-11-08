@@ -2,6 +2,7 @@ import { estimateTokens } from '../history-tokens.js';
 import type { ExtractionContext } from './dataset-extract.js';
 import type { DatasetExample } from './datasets/records.js';
 import { emitNegativeExamples, hitKey, unique, uniqueHits } from './retrieval/negatives.js';
+import { isReadTool, isSearchTool } from './tool-class.js';
 import type { AttemptRecord, RetrievedResult, ToolInvocation } from './types.js';
 
 /** Retrieval labels retain ranked results. Uncited results stay unjudged. */
@@ -16,7 +17,7 @@ export function extractRetrieval(
   const opened = unique(
     attempts.flatMap((attempt) =>
       attempt.tools_invoked
-        .filter((tool) => /open|read_file/i.test(tool.name))
+        .filter((tool) => isReadTool(tool.name))
         .map(toolFile)
         .filter((path): path is string => typeof path === 'string'),
     ),
@@ -127,9 +128,7 @@ export function isRetrievalTask(attempt: AttemptRecord): boolean {
     /\b(where|which|who|trace|find|locate|originat|implement|produce|consume|depend|call|defined|architecture|service|repository|repo|field|topic|flow)\b/i.test(
       query,
     ) ||
-    attempt.tools_invoked.some((tool) =>
-      /search|grep|symbol|reference|open_file|read_file/i.test(tool.name),
-    )
+    attempt.tools_invoked.some((tool) => isSearchTool(tool.name) || isReadTool(tool.name))
   );
 }
 
@@ -140,7 +139,7 @@ function searchResults(
 ): unknown[] {
   return attempts.flatMap((attempt) =>
     attempt.tools_invoked
-      .filter((tool) => /search|grep|symbol|reference/i.test(tool.name))
+      .filter((tool) => isSearchTool(tool.name))
       .map((tool) => {
         const input = tool.input as { query?: string; pattern?: string } | undefined;
         const results = attempt.retrieved_results.filter(
