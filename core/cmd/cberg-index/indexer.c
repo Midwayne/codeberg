@@ -6,6 +6,7 @@
 #include "chunk_table_internal.h"
 #include "embed_internal.h"
 #include "fileio.h"
+#include "index_env.h"
 #include "pathutil.h"
 #include "u64map.h"
 #include "workspace_graph.h"
@@ -924,23 +925,6 @@ static void refresh_manifest(cberg_repo *r) {
     r->manifest = next;
 }
 
-/* 16-hex-char digest of the resolved root path: a stable per-directory tag, so
- * each indexed tree keeps its own index + sidecars. The realpath is the
- * directory's identity — a reverted directory hashes back to the same tag (its
- * cached state is reused), and a different tree gets a disjoint set of files. */
-static void root_suffix(const char *root, char out[17]) {
-    static const char hex[] = "0123456789abcdef";
-    uint8_t h[CBERG_HASH_LEN];
-    if (cberg_hash(root, strlen(root), h) != CBERG_OK) {
-        memset(h, 0, sizeof(h));
-    }
-    for (size_t i = 0; i < 8; i++) {
-        out[2 * i] = hex[h[i] >> 4];
-        out[2 * i + 1] = hex[h[i] & 0x0F];
-    }
-    out[16] = '\0';
-}
-
 static char *join_str(const char *a, const char *b) {
     size_t la = strlen(a), lb = strlen(b);
     char *s = malloc(la + lb + 1);
@@ -1075,10 +1059,7 @@ static cberg_status engine_add_repo(cberg_engine *eng, const char *key, const ch
      * in chunk-only mode when the base path is set, so warm restart can reload
      * the graph without ONNX. */
     if (eng->index_base != NULL) {
-        char tag[18]; /* ".<16 hex>" */
-        tag[0] = '.';
-        root_suffix(r->root, tag + 1);
-        r->index_path = join_str(eng->index_base, tag);
+        r->index_path = cberg_index_path_for_root(eng->index_base, r->root);
         if (r->index_path == NULL) {
             repo_close(r);
             return CBERG_ERR_OUT_OF_MEMORY;
@@ -1210,72 +1191,10 @@ cberg_status cberg_engine_open(cberg_engine *eng) {
             cberg_engine_close(eng);
             return CBERG_ERR_OUT_OF_MEMORY;
         }
-        cberg_index_config_default(&eng->index_cfg);
-        const char *backend = getenv("CBERG_INDEX_BACKEND");
-        if (backend != NULL && backend[0] != '\0') {
-            cberg_index_provider provider;
-            if (cberg_index_provider_from_name(backend, &provider) != CBERG_OK) {
-                fprintf(stderr,
-                        "cberg-index: unknown CBERG_INDEX_BACKEND '%s' "
-                        "(use: usearch, qdrant, pgvector, postgres)\n",
-                        backend);
-                cberg_engine_close(eng);
-                return CBERG_ERR_INVALID_ARGUMENT;
-            }
-            eng->index_cfg.provider = provider;
-        }
-        const char *quant = getenv("CBERG_INDEX_QUANT");
-        if (quant != NULL && quant[0] != '\0') {
-            cberg_index_quant quantization;
-            if (cberg_index_quant_from_name(quant, &quantization) != CBERG_OK) {
-                fprintf(stderr,
-                        "cberg-index: unknown CBERG_INDEX_QUANT '%s' "
-                        "(use: f32, i8)\n",
-                        quant);
-                cberg_engine_close(eng);
-                return CBERG_ERR_INVALID_ARGUMENT;
-            }
-            eng->index_cfg.quantization = quantization;
-        }
-        if (eng->index_cfg.provider == CBERG_INDEX_QDRANT) {
-            const char *url = getenv("CBERG_VECTORDB_URL");
-            if (url == NULL || url[0] == '\0') {
-                fprintf(stderr,
-                        "cberg-index: CBERG_VECTORDB_URL is required when CBERG_INDEX_BACKEND=qdrant\n"
-                        "  e.g. CBERG_VECTORDB_URL=https://your-cluster.qdrant.io\n");
-                cberg_engine_close(eng);
-                return CBERG_ERR_INVALID_ARGUMENT;
-            }
-            eng->vectordb_url = strdup(url);
-            if (eng->vectordb_url == NULL) {
-                cberg_engine_close(eng);
-                return CBERG_ERR_OUT_OF_MEMORY;
-            }
-            const char *api_key = getenv("CBERG_VECTORDB_API_KEY");
-            if (api_key != NULL && api_key[0] != '\0') {
-                eng->vectordb_api_key = strdup(api_key);
-                if (eng->vectordb_api_key == NULL) {
-                    cberg_engine_close(eng);
-                    return CBERG_ERR_OUT_OF_MEMORY;
-                }
-            }
-            eng->index_cfg.vectordb_url = eng->vectordb_url;
-            eng->index_cfg.vectordb_api_key = eng->vectordb_api_key;
-        } else if (eng->index_cfg.provider == CBERG_INDEX_PGVECTOR) {
-            const char *url = getenv("CBERG_POSTGRES_URL");
-            if (url == NULL || url[0] == '\0') {
-                fprintf(stderr,
-                        "cberg-index: CBERG_POSTGRES_URL is required when CBERG_INDEX_BACKEND=pgvector\n"
-                        "  e.g. CBERG_POSTGRES_URL=postgresql://user:pass@host:5432/dbname\n");
-                cberg_engine_close(eng);
-                return CBERG_ERR_INVALID_ARGUMENT;
-            }
-            eng->postgres_url = strdup(url);
-            if (eng->postgres_url == NULL) {
-                cberg_engine_close(eng);
-                return CBERG_ERR_OUT_OF_MEMORY;
-            }
-            eng->index_cfg.postgres_url = eng->postgres_url;
+        cberg_status st = cberg_index_env_load(&eng->index_cfg, &eng->index_env);
+        if (st != CBERG_OK) {
+            cberg_engine_close(eng);
+            return st;
         }
     }
 
@@ -1368,9 +1287,7 @@ void cberg_engine_close(cberg_engine *eng) {
     }
     free(eng->model_path);
     free(eng->index_base);
-    free(eng->vectordb_url);
-    free(eng->vectordb_api_key);
-    free(eng->postgres_url);
+    cberg_index_env_free(&eng->index_env);
     free(eng->socket_path);
     pthread_mutex_destroy(&eng->embed_mu);
     pthread_mutex_destroy(&eng->work_mu);

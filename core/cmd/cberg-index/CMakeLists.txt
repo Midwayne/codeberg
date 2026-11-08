@@ -10,6 +10,7 @@ add_library(cberg_index_engine STATIC
   ipc_commands.c
   ipc_json.c
   wipe.c
+  index_env.c
   workspace_graph.c
   workspace_resolve.c
 )

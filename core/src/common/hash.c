@@ -1,4 +1,5 @@
 #include "codeberg/codeberg.h"
+#include "hash_tag.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -18,6 +19,20 @@ cberg_status cberg_hash(const void *data, size_t len, uint8_t out[CBERG_HASH_LEN
     XXH128_hash_t digest = XXH3_128bits(data, len);
     digest128_to_out(digest, out);
     return CBERG_OK;
+}
+
+void cberg_hash_tag(const char *s, char out[CBERG_HASH_TAG_LEN + 1]) {
+    static const char hex[] = "0123456789abcdef";
+
+    XXH128_hash_t digest = XXH3_128bits(s, strlen(s));
+    uint8_t h[CBERG_HASH_LEN];
+    digest128_to_out(digest, h);
+
+    for (size_t i = 0; i < CBERG_HASH_TAG_LEN / 2; i++) {
+        out[2 * i] = hex[h[i] >> 4];
+        out[2 * i + 1] = hex[h[i] & 0x0F];
+    }
+    out[CBERG_HASH_TAG_LEN] = '\0';
 }
 
 typedef struct {

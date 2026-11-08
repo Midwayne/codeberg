@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 #include "codeberg/codeberg.h"
+#include "index_env.h"
 
 /*
  * One cberg-index process serves N repository roots. The engine owns the
@@ -60,10 +61,8 @@ struct cberg_engine {
     int poll_ms;
     int vectors;
     int graph_enabled; /* CBERG_GRAPH != 0 (default on); CBERG_GRAPH_MODE is fast-only for now */
-    cberg_index_config index_cfg;
-    char *vectordb_url;
-    char *vectordb_api_key;
-    char *postgres_url;
+    cberg_index_config index_cfg; /* connection strings point into index_env */
+    cberg_index_env index_env;
 
     cberg_chunker *chunker;          /* main (bootstrap/watch) thread only */
     cberg_embedder *embedder;        /* ONE per process; call only via cberg_engine_embed */
