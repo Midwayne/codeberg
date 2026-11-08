@@ -1,10 +1,8 @@
 import type { LanguageModelV4CallOptions, LanguageModelV4Message } from '@ai-sdk/provider';
-import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { checkpointNames, newestCheckpoint, referencedArchivesExist, rememberCheckpoint } from '../checkpoint-scan.js';
 import type { ContextStore } from '../context/store.js';
-import { historyFilePattern } from '../history-tags.js';
-import { writeJsonAtomic } from '../learning/fs.js';
 import { hash, prefixHashes } from '../message-fingerprint.js';
 
 export interface RequestCheckpoint {
@@ -29,7 +27,7 @@ export class RequestCheckpoints {
   }
 
   async restore(input: LanguageModelV4CallOptions): Promise<LanguageModelV4CallOptions> {
-    const files = new Set(await readdir(this.directory).catch(() => [] as string[]));
+    const files = await checkpointNames(this.directory);
     let request = input;
     const visited = new Set<string>();
 
@@ -54,33 +52,17 @@ export class RequestCheckpoints {
     const key = prefixHashes(request.prompt)[checkpoint.count - 1];
     if (!key) return;
 
-    try {
-      await writeJsonAtomic(join(this.directory, `${key}.json`), { ...checkpoint, hash: key, version: 1 });
-    } catch {
-      // Checkpoints are reusable derived data; persistence failure keeps the run usable.
-    }
+    await rememberCheckpoint(join(this.directory, `${key}.json`), { ...checkpoint, hash: key, version: 1 });
   }
 
-  private async load(keys: string[], files: Set<string>): Promise<SavedCheckpoint | undefined> {
-    for (let index = keys.length - 1; index >= 0; index--) {
-      const key = keys[index]!;
-      if (!files.has(`${key}.json`)) continue;
+  private load(keys: string[], files: Set<string>): Promise<SavedCheckpoint | undefined> {
+    return newestCheckpoint(this.directory, files, keys, (saved, key, count) => {
+      if (!valid(saved, key, count)) return false;
 
-      try {
-        const saved = JSON.parse(await readFile(join(this.directory, `${key}.json`), 'utf8')) as SavedCheckpoint;
-        if (!valid(saved, key, index + 1)) continue;
+      const text = saved.marker.content.map((part) => (part.type === 'text' ? part.text : '')).join('\n');
 
-        const text = saved.marker.content.map((part) => part.type === 'text' ? part.text : '').join('\n');
-        const archives = [...text.matchAll(historyFilePattern())];
-        if (archives.length === 0 || archives.some((match) => !this.store.resolve(match[1]!))) continue;
-
-        return saved;
-      } catch {
-        // Invalid records are cache misses; original messages are still available.
-      }
-    }
-
-    return undefined;
+      return referencedArchivesExist((path) => this.store.resolve(path), text);
+    });
   }
 }
 

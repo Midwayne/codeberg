@@ -1,11 +1,10 @@
 import type { ModelMessage } from 'ai';
-import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { checkpointNames, newestCheckpoint, referencedArchivesExist, rememberCheckpoint } from './checkpoint-scan.js';
 import type { ContextStore } from './context/store.js';
 import { type FitOptions, fitHistory } from './history.js';
-import { CONVERSATION_SUMMARY_OPEN, HISTORY_FILE_OPEN, historyFilePattern } from './history-tags.js';
-import { writeJsonAtomic } from './learning/fs.js';
+import { CONVERSATION_SUMMARY_OPEN, HISTORY_FILE_OPEN } from './history-tags.js';
 import { hash, prefixHashes } from './message-fingerprint.js';
 
 interface Checkpoint {
@@ -55,35 +54,17 @@ export class HistoryCheckpoints {
     if (!prefix || count <= 0 || !fitted[0].content.includes(HISTORY_FILE_OPEN)) return fitted;
 
     const record: Checkpoint = { version: 1, count, hash: prefix, marker: fitted[0] as Checkpoint['marker'] };
-    try {
-      await writeJsonAtomic(join(directory, `${prefix}.json`), record);
-    } catch {
-      // A full/read-only disk must not prevent a successfully compacted chat.
-    }
+    await rememberCheckpoint(join(directory, `${prefix}.json`), record);
 
     return fitted;
   }
 
   private async load(directory: string, hashes: string[]): Promise<Checkpoint | undefined> {
-    const files = new Set(await readdir(directory).catch(() => [] as string[]));
-    for (let index = hashes.length - 1; index >= 0; index--) {
-      const hash = hashes[index]!;
-      if (!files.has(`${hash}.json`)) continue;
+    return newestCheckpoint(directory, await checkpointNames(directory), hashes, (saved, prefix, count) => {
+      if (!validCheckpoint(saved, prefix, count)) return false;
 
-      try {
-        const saved = JSON.parse(await readFile(join(directory, `${hash}.json`), 'utf8')) as Checkpoint;
-        if (!validCheckpoint(saved, hash, index + 1)) continue;
-
-        const archives = [...saved.marker.content.matchAll(historyFilePattern())];
-        if (archives.length === 0 || archives.some((match) => !this.store.resolve(match[1]!))) continue;
-
-        return saved;
-      } catch {
-        // Corrupt/incomplete records are cache misses; the original chat survives.
-      }
-    }
-
-    return undefined;
+      return referencedArchivesExist((path) => this.store.resolve(path), saved.marker.content);
+    });
   }
 }
 
