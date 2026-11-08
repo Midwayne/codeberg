@@ -1,4 +1,5 @@
-import { link, mkdir, open, readFile, rename, unlink } from 'node:fs/promises';
+import type { Dirent } from 'node:fs';
+import { link, mkdir, open, readFile, readdir, rename, unlink } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 /** File text, or `undefined` when the path is missing. Every other error is thrown. */
@@ -7,6 +8,24 @@ export async function readOptionalText(path: string): Promise<string | undefined
     return await readFile(path, 'utf8');
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+
+    throw error;
+  }
+}
+
+/** Directory names, or an empty list when the directory is missing. */
+export async function readOptionalDirectory(path: string): Promise<string[]>;
+export async function readOptionalDirectory(path: string, withFileTypes: true): Promise<Dirent[]>;
+export async function readOptionalDirectory(
+  path: string,
+  withFileTypes = false,
+): Promise<string[] | Dirent[]> {
+  try {
+    if (withFileTypes) return await readdir(path, { withFileTypes: true });
+
+    return await readdir(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
 
     throw error;
   }

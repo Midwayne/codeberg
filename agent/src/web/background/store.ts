@@ -1,6 +1,6 @@
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { readOptionalText, writeJsonAtomic } from '../../core/learning/fs.js';
+import { readOptionalDirectory, readOptionalText, writeJsonAtomic } from '../../core/learning/fs.js';
 import { sessionJobsDir } from '../sessions/layout.js';
 import { WriteLock } from '../../core/write-lock.js';
 import type { BackgroundJob } from '../../core/background/types.js';
@@ -41,11 +41,7 @@ export class BackgroundStore {
 
   async all(): Promise<BackgroundJob[]> {
     const root = sessionJobsDir(this.directory);
-    const chats = await readdir(root, { withFileTypes: true }).catch((error: NodeJS.ErrnoException) => {
-      if (error.code !== 'ENOENT') throw error;
-
-      return [];
-    });
+    const chats = await readOptionalDirectory(root, true);
     const records: BackgroundJob[] = [];
     for (const chat of chats) {
       if (!chat.isDirectory() || !isValidSessionId(chat.name)) continue;

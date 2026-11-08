@@ -1,6 +1,5 @@
-import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { readOptionalText, writeJsonAtomic, writeJsonImmutable } from '../fs.js';
+import { readOptionalDirectory, readOptionalText, writeJsonAtomic, writeJsonImmutable } from '../fs.js';
 import { redactSecrets } from '../redact.js';
 import { isStableId } from '../store/identity.js';
 import type {
@@ -43,13 +42,7 @@ export class EvaluationReports {
   }
 
   async list(): Promise<AutomaticEvalReport[]> {
-    const files = await readdir(join(this.root, 'evaluations', 'reports')).catch(
-      (error: NodeJS.ErrnoException) => {
-        if (error.code === 'ENOENT') return [];
-
-        throw error;
-      },
-    );
+    const files = await readOptionalDirectory(join(this.root, 'evaluations', 'reports'));
     const reports = await Promise.all(
       files
         .filter((file) => file.endsWith('.json') && isEvaluationId(file.slice(0, -5)))

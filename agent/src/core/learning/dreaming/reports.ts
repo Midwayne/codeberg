@@ -1,8 +1,8 @@
-import { readdir, readFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { changesApplicable } from './revision.js';
 
-import { readOptionalText, writeJsonImmutable } from '../fs.js';
+import { readOptionalDirectory, readOptionalText, writeJsonImmutable } from '../fs.js';
 import type { LearningStore } from '../store.js';
 import type { DreamingDecision, DreamingReport } from './types.js';
 import { LearningError } from '../errors.js';
@@ -37,11 +37,7 @@ export class DreamingReports {
 
     let report = JSON.parse(raw) as DreamingReport;
 
-    const revisions = await readdir(join(this.dir, id)).catch((error: NodeJS.ErrnoException) => {
-      if (error.code === 'ENOENT') return [];
-
-      throw error;
-    });
+    const revisions = await readOptionalDirectory(join(this.dir, id));
 
     const latest = revisions
       .filter((file) => /^\d{8}\.json$/.test(file))
@@ -61,11 +57,7 @@ export class DreamingReports {
   }
 
   async list(): Promise<DreamingReport[]> {
-    const files = await readdir(this.dir).catch((error: NodeJS.ErrnoException) => {
-      if (error.code === 'ENOENT') return [];
-
-      throw error;
-    });
+    const files = await readOptionalDirectory(this.dir);
 
     const reports = await Promise.all(
       files

@@ -1,8 +1,8 @@
 import { CANVAS_SETTINGS_FILE, canvasChatName } from './files.js';
 import { validChatId } from './context.js';
 import { writeModuleLog } from '../module-log.js';
-import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { readOptionalDirectory } from '../learning/fs.js';
 import { atomicWrite, readData, withCanvasLock } from './storage.js';
 import { mutate } from './mutations.js';
 import { CanvasError, CanvasRevisionConflict, validName, type Mutation, type Scene } from './types.js';
@@ -103,11 +103,7 @@ export class CanvasStore {
 
   async list() {
     await this.requireEnabled();
-    const names = await readdir(this.root).catch((error: NodeJS.ErrnoException) => {
-      if (error.code === 'ENOENT') return [];
-
-      throw error;
-    });
+    const names = await readOptionalDirectory(this.root);
     return Promise.all(names.filter((name) => name.endsWith('.excalidraw')).sort().map(async (file) => {
       const scene = await this.current(file.slice(0, -11));
       return { name: scene.name, updatedAt: scene.updatedAt,

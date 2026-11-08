@@ -1,5 +1,6 @@
-import { readdir, unlink } from 'node:fs/promises';
+import { unlink } from 'node:fs/promises';
 import { join } from 'node:path';
+import { readOptionalDirectory } from '../fs.js';
 import type { JobStatus, KnowledgeJob } from '../types.js';
 import { isProcessAlive, willRetry } from './policy.js';
 import type { DurableJobQueueState } from './state.js';
@@ -89,14 +90,7 @@ async function removeAbandonedWrites(
 ): Promise<void> {
   for (const status of statuses) {
     const dir = join(state.root, 'jobs', status);
-    let files: string[];
-    try {
-      files = await readdir(dir);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
-
-      throw error;
-    }
+    const files = await readOptionalDirectory(dir);
 
     for (const file of files) {
       const match = /^job-[a-f\d]+\.json\.(\d+)\.[a-f\d-]+\.tmp$/.exec(file);
