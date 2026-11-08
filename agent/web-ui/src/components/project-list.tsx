@@ -5,6 +5,7 @@ import { ProjectDetails } from './project-details';
 import { useEffect, useState } from 'react';
 import { CopyButton, ErrorNotice } from './ui';
 import { useProjectApi } from '../lib/project-api';
+import { useFocusSlot } from '../lib/focus-registry';
 import type { ProjectListProps } from './projects';
 
 export function ProjectsPanel() {
@@ -103,9 +104,11 @@ export function ProjectList({ catalog, selectedProject, setCatalog, onProjectRen
 }
 
 function ProjectsHeading() {
+  const heading = useFocusSlot<HTMLHeadingElement>('projectsHeading');
+
   return (
     <div className="space-y-2">
-      <h2 id="projects-heading" data-projects-heading tabIndex={-1} className="text-lg font-semibold focus-visible:outline-2 focus-visible:outline-ring">
+      <h2 ref={heading} id="projects-heading" tabIndex={-1} className="text-lg font-semibold focus-visible:outline-2 focus-visible:outline-ring">
         Projects
       </h2>
       <p className="max-w-prose text-sm leading-6 text-muted-foreground">

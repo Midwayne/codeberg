@@ -12,6 +12,7 @@ import { ProjectChatsContext } from '../sessions/project-chats';
 
 import { ErrorNotice } from './ui';
 import { ProjectApiContext } from '../lib/project-api';
+import { FocusRegistry } from '../lib/focus-registry';
 
 export type ProjectShellProps = {
   children: (toolbar: ReactNode, loading: boolean, notice: ReactNode) => ReactNode;
@@ -20,7 +21,11 @@ export type ProjectShellProps = {
 export function ProjectShell(props: ProjectShellProps) {
   const state = useProjectShell(props);
 
-  return <ProjectShellView {...state} />;
+  return (
+    <FocusRegistry>
+      <ProjectShellView {...state} />
+    </FocusRegistry>
+  );
 }
 
 export type ProjectShellViewProps = ReturnType<typeof useProjectShell>;

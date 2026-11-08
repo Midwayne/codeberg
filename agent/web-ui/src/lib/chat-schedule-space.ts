@@ -5,9 +5,11 @@ interface ChatScheduleSpace {
   viewport: number;
 }
 
-/** Leave the canvas action's 12px inset, 44px control and 8px bottom clearance. */
+/** Space kept for the canvas control in chat-actions.tsx: 12px inset, 44px button, 8px clearance. */
+export const CANVAS_ACTION_CLEARANCE_PX = 12 + 44 + 8;
+
 export function chatSchedulePanelHeight(space: ChatScheduleSpace): number {
-  const remaining = space.available - space.summary - space.composer - 64;
+  const remaining = space.available - space.summary - space.composer - CANVAS_ACTION_CLEARANCE_PX;
 
   return Math.max(0, Math.min(space.viewport * 0.6, remaining));
 }

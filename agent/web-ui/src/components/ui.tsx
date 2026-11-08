@@ -10,7 +10,10 @@ import {
 import { cn } from '../lib/utils';
 
 /** Quiet trigger, with native selection, labels, and keyboard behavior intact. */
-export type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & { wrapperClassName?: string };
+export type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & {
+  wrapperClassName?: string;
+  ref?: Ref<HTMLSelectElement>;
+};
 
 export function Select({ className, wrapperClassName, ...props }: SelectProps) {
   return (

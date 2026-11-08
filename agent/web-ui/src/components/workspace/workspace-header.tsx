@@ -5,6 +5,8 @@ import type { RefObject } from 'react';
 import { IconButton } from '../ui';
 import { DocsLink } from '../docs-link';
 import type { AppSurface, SurfaceTarget } from '../../lib/app-surface';
+import { useFocusSlot } from '../../lib/focus-registry';
+import { mergeRefs } from '../../lib/merge-refs';
 
 export type WorkspaceHeaderProps = {
   title: string;
@@ -144,9 +146,11 @@ type SettingsButtonProps = {
 };
 
 export function SettingsButton({ open, buttonRef, onActivate }: SettingsButtonProps) {
+  const settingsSlot = useFocusSlot<HTMLButtonElement>('settings');
+
   return (
     <IconButton
-      ref={buttonRef}
+      ref={mergeRefs(buttonRef, settingsSlot)}
       onClick={onActivate}
       aria-label="Settings"
       aria-expanded={open}

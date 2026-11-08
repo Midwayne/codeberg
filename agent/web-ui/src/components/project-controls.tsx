@@ -2,6 +2,7 @@ import type { ProjectCatalogInfo, ProjectInfo } from '@agent/core/api/projects.j
 import { FolderPlus } from 'lucide-react';
 
 import { IconButton, Select } from './ui';
+import { useFocusSlot } from '../lib/focus-registry';
 
 export type ProjectToolbarProps = {
   project: ProjectInfo | undefined;
@@ -12,9 +13,12 @@ export type ProjectToolbarProps = {
 };
 
 export function ProjectToolbar({ project, selected, catalog, select, setAdding }: ProjectToolbarProps) {
+  const projectSelect = useFocusSlot<HTMLSelectElement>('projectSelect');
+
   return (
     <div className="flex min-w-0 flex-1 items-center gap-1">
       <Select
+        ref={projectSelect}
         aria-label="Project"
         title={project?.roots.map((root) => root.root).join('\n')}
         value={selected}
