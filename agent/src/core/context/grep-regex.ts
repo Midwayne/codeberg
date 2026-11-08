@@ -7,6 +7,7 @@ import { isContextReadError, textSegments } from './text-stream.js';
 const BATCH_CHARS = 32 * 1024;
 const BATCH_LINES = 4_096;
 const REGEX_BATCH_TIMEOUT_MS = 250;
+const REGEX_SEARCH_BUDGET_MS = 2_000;
 export const MAX_REGEX_GROUP_DEPTH = 32;
 
 // V8 can abort the process when it compiles deeply nested groups.
@@ -49,7 +50,7 @@ const matchBatch = new Script(`
 `);
 
 export class RegexMatchError extends Error {
-  constructor(readonly reason: 'timeout' | 'compile') {
+  constructor(readonly reason: 'timeout' | 'compile' | 'budget') {
     super(reason);
   }
 }
@@ -61,10 +62,11 @@ interface BatchState {
   hits: Match[];
   next: number;
   end: number;
+  remainingMs: number;
 }
 
 export function createRegexMatcher(regex: RegExp): FileMatcher {
-  const state: BatchState = { regex, limit: 0, lines: [], hits: [], next: 0, end: 0 };
+  const state: BatchState = { regex, limit: 0, lines: [], hits: [], next: 0, end: 0, remainingMs: REGEX_SEARCH_BUDGET_MS };
   const context = createContext({ state });
 
   return async function* matchFile(file, limit, signal) {
@@ -94,7 +96,7 @@ async function* matchLines(context: Context, state: BatchState, signal?: AbortSi
     state.end = retrySingleLine ? start + 1 : state.lines.length;
     state.hits = [];
 
-    const failure = runBatch(context);
+    const failure = runBatch(context, state);
     const lastHit = state.hits.at(-1);
     // A timeout can interrupt between recording a hit and advancing the cursor.
     if (lastHit && lastHit.line === state.lines[state.next]?.line) state.hits.pop();
@@ -102,7 +104,7 @@ async function* matchLines(context: Context, state: BatchState, signal?: AbortSi
     state.limit -= state.hits.length;
     yield* state.hits;
 
-    if (failure?.reason === 'compile') throw failure;
+    if (failure && failure.reason !== 'timeout') throw failure;
     if (failure && state.end === start + 1 && state.next === start) throw failure;
 
     retrySingleLine = failure?.reason === 'timeout' && state.next < state.end;
@@ -110,18 +112,28 @@ async function* matchLines(context: Context, state: BatchState, signal?: AbortSi
   }
 }
 
-function runBatch(context: Context): RegexMatchError | undefined {
+function runBatch(context: Context, state: BatchState): RegexMatchError | undefined {
+  const available = Math.ceil(state.remainingMs);
+  if (available <= 0) return new RegexMatchError('budget');
+
+  const timeout = Math.min(REGEX_BATCH_TIMEOUT_MS, available);
+  const started = performance.now();
+  let failure: RegexMatchError | undefined;
   try {
-    matchBatch.runInContext(context, { timeout: REGEX_BATCH_TIMEOUT_MS });
+    matchBatch.runInContext(context, { timeout });
   } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code === 'ERR_SCRIPT_EXECUTION_TIMEOUT') return new RegexMatchError('timeout');
-
-    if (error instanceof SyntaxError) return new RegexMatchError('compile');
-
-    throw error;
+    if ((error as NodeJS.ErrnoException)?.code === 'ERR_SCRIPT_EXECUTION_TIMEOUT') {
+      failure = new RegexMatchError(timeout === available ? 'budget' : 'timeout');
+    } else if (error instanceof SyntaxError) {
+      failure = new RegexMatchError('compile');
+    } else {
+      throw error;
+    }
+  } finally {
+    state.remainingMs -= performance.now() - started;
   }
 
-  return undefined;
+  return state.remainingMs <= 0 ? new RegexMatchError('budget') : failure;
 }
 
 interface Line {

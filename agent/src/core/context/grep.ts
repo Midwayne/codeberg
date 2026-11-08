@@ -12,9 +12,10 @@ const MATCH_LIMIT = '[Match limit reached; narrow the path or pattern.]';
 const REGEX_FAILURE = {
   timeout: '[Regular expression timed out; simplify the pattern or use literal search.]',
   compile: '[Regular expression could not be compiled; simplify the pattern or use literal search.]',
+  budget: '[Regex search time limit reached; narrow the path, simplify the pattern, or use literal search.]',
 };
 const OUTPUT_ROOM = MAX_CONTEXT_CHARS - Math.max(
-  OUTPUT_LIMIT.length, MATCH_LIMIT.length, REGEX_FAILURE.timeout.length, REGEX_FAILURE.compile.length,
+  OUTPUT_LIMIT.length, MATCH_LIMIT.length, ...Object.values(REGEX_FAILURE).map((notice) => notice.length),
 ) - 1;
 
 interface GrepInput {

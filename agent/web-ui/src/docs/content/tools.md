@@ -159,6 +159,8 @@ Pages target 8,000 characters. Long lines use fragments up to 2,000 characters. 
 
 `context_grep` searches one line at a time and treats the pattern as plain text by default. Use `literal: false` for a JavaScript regular expression. Regex searches buffer complete lines and retry an unfinished line on its own after a batch timeout. If that line still times out or the pattern cannot be compiled, simplify the regex or search for a distinctive literal fragment. For text spanning multiple lines, find a distinctive line and open the surrounding text with `context_read`.
 
+Regex evaluation has a shared two-second budget across files and retries. When it runs out, `context_grep` returns completed matches and a time-limit notice. Narrow the path or simplify the pattern to search again.
+
 Grep excerpts include the match's start column and length in UTF-16 code units. Use the supplied `context_read` position to recover a match that extends past the excerpt. This position starts at the beginning of the character if the match begins partway through a UTF-16 surrogate pair.
 
 ## Optional decisions tool

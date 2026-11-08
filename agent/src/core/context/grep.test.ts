@@ -135,6 +135,36 @@ it.each([false, true])('resumes a timed-out batch with partial progress set to %
   ]);
 });
 
+it('shares the regex execution budget across retries and files and returns completed hits', async () => {
+  const first = await store.writeRel('00-first.txt', 'needle\nother');
+  for (let i = 0; i < 9; i++) {
+    await store.writeRel(`01-other-${i}.txt`, 'other');
+  }
+
+  let elapsed = 0;
+  vi.spyOn(performance, 'now').mockImplementation(() => elapsed);
+  const runInContext = Script.prototype.runInContext;
+  const executeRegex = vi.spyOn(Script.prototype, 'runInContext').mockImplementation(function (this: Script, context, options) {
+    const timeout = options!.timeout!;
+    if (elapsed === 0 || timeout < 240) {
+      elapsed += timeout;
+      throw Object.assign(new Error('Script execution timed out'), { code: 'ERR_SCRIPT_EXECUTION_TIMEOUT' });
+    }
+
+    elapsed += 240;
+
+    return runInContext.call(this, context, options);
+  });
+
+  const result = await grep({ pattern: '^needle$', literal: false }, {});
+
+  expect(result).toContain(`${first}:1:needle`);
+  expect(result).toContain('Regex search time limit reached');
+  expect(executeRegex).toHaveBeenCalledTimes(9);
+  expect(executeRegex.mock.lastCall?.[1]?.timeout).toBe(70);
+  expect(elapsed).toBe(2_000);
+});
+
 it('returns completed regex hits before a later unreadable chunk', async () => {
   const text = `needle\n${'x'.repeat(32_768 - 'needle\n'.length)}\0`;
   const path = await store.writeRel('interrupted.txt', text);
