@@ -198,7 +198,7 @@ func Load(o Overrides) (*Config, error) {
 	// then CODEBERG_REPO in the environment, then in the config file; otherwise
 	// it is discovered by walking up from the cwd or the (symlink-resolved)
 	// binary location.
-	repo := paths.FindRepo(firstNonEmpty(o.Repo, os.Getenv(KeyRepo), fileVals[KeyRepo]))
+	repo := paths.FindRepo(FirstNonEmpty(o.Repo, os.Getenv(KeyRepo), fileVals[KeyRepo]))
 
 	// Dist (a prebuilt artifact dir, as installed by Homebrew/a release tarball)
 	// follows the same CLI > env > file precedence, then a compile-time BuildDist
@@ -206,7 +206,7 @@ func Load(o Overrides) (*Config, error) {
 	// (the `<bin>/codeberg` + `<bin>/../libexec` install layout). When it resolves
 	// to a populated dir the launcher runs from it and skips building; otherwise
 	// it's "" and we build from the source checkout above.
-	dist := firstNonEmpty(o.Dist, os.Getenv(KeyDist), fileVals[KeyDist], BuildDist, autodetectDist())
+	dist := FirstNonEmpty(o.Dist, os.Getenv(KeyDist), fileVals[KeyDist], BuildDist, autodetectDist())
 
 	// resolve(key, cliValue) applies precedence: CLI > env > file.
 	// (Defaults are applied per-field below, after this.)
@@ -223,7 +223,7 @@ func Load(o Overrides) (*Config, error) {
 	c := &Config{
 		Home:        home,
 		Repo:        repo,
-		Dist:        abs(dist),
+		Dist:        paths.Absolute(dist),
 		ConfigPath:  configPath,
 		Passthrough: map[string]string{},
 	}
@@ -234,7 +234,7 @@ func Load(o Overrides) (*Config, error) {
 	// Default off the crowded 8080 (used by countless dev servers) to an
 	// uncommon high port, kept below the 49152+ ephemeral range so the OS does
 	// not hand it out to transient clients.
-	c.HTTPPort = firstNonEmpty(resolve(KeyHTTPPort, o.HTTPPort), "48080")
+	c.HTTPPort = FirstNonEmpty(resolve(KeyHTTPPort, o.HTTPPort), "48080")
 	c.PollMS = resolve(KeyPollMS, "")
 	c.IndexBin = resolve(KeyIndexBin, "")
 	c.GitPullSec = resolve(KeyGitPullSec, "")
@@ -249,7 +249,7 @@ func Load(o Overrides) (*Config, error) {
 		c.Vector = !isFalsey(v)
 	}
 
-	c.WebPort = firstNonEmpty(resolve(KeyWebPort, o.WebPort), DefaultWebPort)
+	c.WebPort = FirstNonEmpty(resolve(KeyWebPort, o.WebPort), DefaultWebPort)
 
 	// All: serve every registered repo combined instead of a single root.
 	// Default off; --all (or CODEBERG_ALL=true) turns it on. An explicit
@@ -303,7 +303,7 @@ func Load(o Overrides) (*Config, error) {
 		c.LearningUse = !isFalsey(v)
 	}
 	c.SearxngURL = resolve(KeySearxngURL, "")
-	c.SearxngPort = firstNonEmpty(resolve(KeySearxngPort, ""), DefaultSearxngPort)
+	c.SearxngPort = FirstNonEmpty(resolve(KeySearxngPort, ""), DefaultSearxngPort)
 
 	// MCP tools from Cursor-compatible mcp.json files. On by default; disable
 	// with CODEBERG_MCP_USE=false. Extra config paths (beyond ~/.codeberg/mcp.json
@@ -324,7 +324,7 @@ func Load(o Overrides) (*Config, error) {
 	c.DbmcpBin = resolve(KeyDbmcpBin, "")
 
 	// Daemon URL defaults to the local daemon on the resolved port.
-	c.DaemonURL = firstNonEmpty(resolve(KeyDaemonURL, o.DaemonURL), "http://127.0.0.1:"+c.HTTPPort)
+	c.DaemonURL = FirstNonEmpty(resolve(KeyDaemonURL, o.DaemonURL), "http://127.0.0.1:"+c.HTTPPort)
 
 	// Embedding model: default under the managed home (not the repo) so it is
 	// downloaded once and reused across repo moves/re-clones and checkouts.
@@ -352,7 +352,7 @@ func Load(o Overrides) (*Config, error) {
 			embed = filepath.Join(home, "models", "jina-embeddings-v2-base-code", "model.onnx")
 		}
 	}
-	c.EmbedModel = abs(embed)
+	c.EmbedModel = paths.Absolute(embed)
 	c.applyIndex(resolve(KeyIndexPath, o.IndexPath), resolve(KeyIndexNamespace, ""))
 	c.daemonFile = forwardFileKeys(fileVals)
 
@@ -392,7 +392,7 @@ func LocateArtifacts(root string) Artifacts {
 }
 
 func (a Artifacts) complete() bool {
-	return fileExists(a.DaemonBin) && fileExists(a.IndexBin) && fileExists(a.WebScript)
+	return paths.Exists(a.DaemonBin) && paths.Exists(a.IndexBin) && paths.Exists(a.WebScript)
 }
 
 // autodetectDist finds a prebuilt payload installed alongside the launcher
@@ -560,11 +560,11 @@ func (c *Config) DbmcpBinary() string {
 // found is false when the preferred path is not on disk yet.
 func (c *Config) DbmcpSpecFile() (path string, found bool) {
 	if c.DbmcpSpec != "" {
-		return c.DbmcpSpec, fileExists(c.DbmcpSpec)
+		return c.DbmcpSpec, paths.Exists(c.DbmcpSpec)
 	}
 	for _, name := range []string{"spec.yml", "spec.yaml"} {
 		p := filepath.Join(c.Home, name)
-		if fileExists(p) {
+		if paths.Exists(p) {
 			return p, true
 		}
 	}
@@ -590,7 +590,7 @@ func putIf(m map[string]string, k, v string) {
 	}
 }
 
-func firstNonEmpty(vals ...string) string {
+func FirstNonEmpty(vals ...string) string {
 	for _, v := range vals {
 		if v != "" {
 			return v
@@ -623,18 +623,6 @@ func isFalsey(v string) bool {
 		return true
 	}
 	return false
-}
-
-func fileExists(p string) bool { _, err := os.Stat(p); return err == nil }
-
-func abs(p string) string {
-	if p == "" {
-		return ""
-	}
-	if a, err := filepath.Abs(p); err == nil {
-		return a
-	}
-	return p
 }
 
 // parseFile reads a KEY=VALUE file (shell-style; `#` comments, optional quotes,

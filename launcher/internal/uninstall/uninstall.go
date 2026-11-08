@@ -120,7 +120,7 @@ func removeCommand(p *prompter) {
 		mine := false
 		if fi.Mode()&os.ModeSymlink != 0 {
 			mine = resolve(link) == self
-		} else if abs(link) == self {
+		} else if paths.Absolute(link) == self {
 			mine = true
 		}
 		// A codeberg that isn't the one we're running from is likely a second or
@@ -272,19 +272,12 @@ func resolve(p string) string {
 	if r, err := filepath.EvalSymlinks(p); err == nil {
 		return r
 	}
-	return abs(p)
-}
-
-func abs(p string) string {
-	if a, err := filepath.Abs(p); err == nil {
-		return a
-	}
-	return p
+	return paths.Absolute(p)
 }
 
 // under reports whether path is inside dir.
 func under(path, dir string) bool {
-	rel, err := filepath.Rel(abs(dir), abs(path))
+	rel, err := filepath.Rel(paths.Absolute(dir), paths.Absolute(path))
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 

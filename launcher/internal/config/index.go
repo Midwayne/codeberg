@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"codeberg.org/codeberg/launcher/internal/embedding"
+	"codeberg.org/codeberg/launcher/internal/paths"
 )
 
 // applyIndex records an explicit index path and the namespace that keeps
@@ -13,7 +14,7 @@ import (
 // projects/<id>/index/<namespace>/.
 func (c *Config) applyIndex(path, namespace string) {
 	c.IndexExplicit = path != ""
-	c.IndexPath = abs(path)
+	c.IndexPath = paths.Absolute(path)
 
 	if namespace != "" {
 		c.IndexNamespace = namespace

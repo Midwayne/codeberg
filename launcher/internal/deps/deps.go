@@ -24,6 +24,8 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+
+	"codeberg.org/codeberg/launcher/internal/paths"
 )
 
 // requirement is one external dependency plus where to obtain it per platform.
@@ -198,7 +200,7 @@ func OnnxPresent() bool {
 			continue
 		}
 		for _, suffix := range []string{"include/onnxruntime", "include"} {
-			if fileExists(filepath.Join(h, suffix, "onnxruntime_c_api.h")) {
+			if paths.Exists(filepath.Join(h, suffix, "onnxruntime_c_api.h")) {
 				return true
 			}
 		}
@@ -344,8 +346,6 @@ func CheckNode(node string) error {
 	}
 	return nil
 }
-
-func fileExists(p string) bool { _, err := os.Stat(p); return err == nil }
 
 func truthy(s string) bool {
 	switch strings.ToLower(strings.TrimSpace(s)) {

@@ -432,21 +432,12 @@ func loadConfigSub(args []string) ([]string, *config.Config, error) {
 // openEditor opens path in $VISUAL/$EDITOR (falling back to vi), inheriting the
 // terminal so the user can edit interactively.
 func openEditor(path string) error {
-	ed := firstNonEmpty(os.Getenv("VISUAL"), os.Getenv("EDITOR"), "vi")
+	ed := config.FirstNonEmpty(os.Getenv("VISUAL"), os.Getenv("EDITOR"), "vi")
 	parts := strings.Fields(ed) // allow e.g. EDITOR="code -w"
 	parts = append(parts, path)
 	cmd := exec.Command(parts[0], parts[1:]...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return cmd.Run()
-}
-
-func firstNonEmpty(vals ...string) string {
-	for _, v := range vals {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
 }
 
 // existingInstall is true when this home already has daemon data, so a later

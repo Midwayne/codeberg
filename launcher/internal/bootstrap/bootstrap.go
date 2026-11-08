@@ -15,10 +15,9 @@ import (
 	"codeberg.org/codeberg/launcher/internal/config"
 	"codeberg.org/codeberg/launcher/internal/deps"
 	"codeberg.org/codeberg/launcher/internal/embedding"
+	"codeberg.org/codeberg/launcher/internal/paths"
 	"codeberg.org/codeberg/launcher/internal/searxng"
 )
-
-func exists(p string) bool { _, err := os.Stat(p); return err == nil }
 
 // Replace build operations in tests without installing host dependencies.
 var ensureBuildDeps = deps.Ensure
@@ -37,7 +36,7 @@ func Ensure(c *config.Config, force bool) error {
 		}
 		if c.DbmcpUse {
 			bin := c.DbmcpBinary()
-			if bin == "" || !exists(bin) {
+			if bin == "" || !paths.Exists(bin) {
 				fmt.Fprintf(os.Stderr, "⚠ dbmcp binary missing (%s); database MCP tools will be skipped\n", bin)
 			}
 		}
@@ -58,12 +57,12 @@ func Ensure(c *config.Config, force bool) error {
 	// The React SPA served by codeberg-web.
 	webUIIndex := filepath.Join(c.Repo, "agent", "web-ui", "dist", "index.html")
 
-	needDaemon := force || !exists(a.DaemonBin) || !exists(a.IndexBin) || needsONNXBuild(c, a.IndexBin)
-	needAgent := force || !exists(a.WebScript)
-	needWebUI := force || !exists(webUIIndex)
+	needDaemon := force || !paths.Exists(a.DaemonBin) || !paths.Exists(a.IndexBin) || needsONNXBuild(c, a.IndexBin)
+	needAgent := force || !paths.Exists(a.WebScript)
+	needWebUI := force || !paths.Exists(webUIIndex)
 	// The built-in database MCP binary is only built when the user turned it on
 	// and did not point CODEBERG_DBMCP_BIN at their own executable.
-	needDbmcp := c.DbmcpUse && c.DbmcpBin == "" && (force || !exists(a.DbmcpBin))
+	needDbmcp := c.DbmcpUse && c.DbmcpBin == "" && (force || !paths.Exists(a.DbmcpBin))
 
 	if needDaemon || needAgent || needWebUI || needDbmcp {
 		if err := ensureBuildDeps(os.Stderr, c.Vector && c.EmbedBackend == "onnx"); err != nil {
@@ -110,7 +109,7 @@ func Ensure(c *config.Config, force bool) error {
 	} else if c.DbmcpUse && c.DbmcpBin == "" {
 		skip(c, "database MCP (dbmcp)")
 	}
-	if c.DbmcpUse && c.DbmcpBin != "" && !exists(c.DbmcpBin) {
+	if c.DbmcpUse && c.DbmcpBin != "" && !paths.Exists(c.DbmcpBin) {
 		fmt.Fprintf(os.Stderr, "⚠ CODEBERG_DBMCP_BIN not found (%s); database MCP tools will be skipped\n", c.DbmcpBin)
 	}
 
@@ -188,10 +187,10 @@ func embeddingSetupResult(c *config.Config, force bool, err error) error {
 // ensureModel downloads the embedding model if absent, using the fetch-model.sh
 // that ships under root (the source checkout or the dist dir).
 func ensureModel(c *config.Config, root string) error {
-	ready := exists(c.EmbedModel)
+	ready := paths.Exists(c.EmbedModel)
 	if model, err := embedding.Lookup(c.Embedding); err == nil && model.UsesVenv() {
-		ready = ready && exists(filepath.Join(filepath.Dir(c.EmbedModel), model.ReadyMark())) &&
-			exists(filepath.Join(model.VenvPath(c.Home), "bin", "python"))
+		ready = ready && paths.Exists(filepath.Join(filepath.Dir(c.EmbedModel), model.ReadyMark())) &&
+			paths.Exists(filepath.Join(model.VenvPath(c.Home), "bin", "python"))
 	}
 	if ready {
 		label := c.Embedding
@@ -213,7 +212,7 @@ func ensureModel(c *config.Config, root string) error {
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("embedding setup: %w", err)
 		}
-		if !exists(c.EmbedModel) {
+		if !paths.Exists(c.EmbedModel) {
 			return fmt.Errorf("embedding setup finished but %s is missing", c.EmbedModel)
 		}
 		return nil
@@ -230,7 +229,7 @@ func ensureModel(c *config.Config, root string) error {
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("fetch-model.sh failed: %w", err)
 	}
-	if !exists(c.EmbedModel) {
+	if !paths.Exists(c.EmbedModel) {
 		return fmt.Errorf("model download finished but %s is missing", c.EmbedModel)
 	}
 	return nil

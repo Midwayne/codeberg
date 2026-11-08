@@ -91,6 +91,27 @@ func Home(override string) string {
 	return ".codeberg"
 }
 
+// Exists reports whether path is present. A directory counts.
+func Exists(path string) bool {
+	_, err := os.Stat(path)
+
+	return err == nil
+}
+
+// Absolute returns a cleaned absolute path. An empty path stays empty, and a
+// path that cannot be made absolute is returned unchanged.
+func Absolute(path string) string {
+	if path == "" {
+		return ""
+	}
+
+	if abs, err := filepath.Abs(path); err == nil {
+		return abs
+	}
+
+	return path
+}
+
 // ConfigFile is the KEY=VALUE config file inside Home.
 func ConfigFile(home string) string {
 	return filepath.Join(home, "config")
