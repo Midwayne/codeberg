@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { hash } from '../../message-fingerprint.js';
 import type { KnowledgeArtifact } from '../types.js';
 import type { DreamingReport } from './types.js';
 
@@ -35,7 +35,5 @@ export function artifactFingerprint(artifact: KnowledgeArtifact): string {
     return value;
   }
 
-  return createHash('sha256')
-    .update(JSON.stringify(normalized({ ...artifact, body: artifact.body.trim() })))
-    .digest('hex');
+  return hash(JSON.stringify(normalized({ ...artifact, body: artifact.body.trim() })));
 }

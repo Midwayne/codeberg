@@ -1,7 +1,7 @@
-import { createHash } from 'node:crypto';
 import { mkdirSync, realpathSync } from 'node:fs';
 import { appendFile, mkdir, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { hash } from '../message-fingerprint.js';
 
 import { toolOutputText } from '../message.js';
 import { codebergDataHome } from '../paths.js';
@@ -146,7 +146,7 @@ function safeRel(rel: string): string {
 }
 
 export function contentHash(body: string): string {
-  return createHash('sha256').update(body).digest('hex').slice(0, 16);
+  return hash(body).slice(0, 16);
 }
 
 function isAlreadyExists(err: unknown): boolean {

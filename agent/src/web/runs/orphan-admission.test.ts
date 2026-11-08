@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { WebSessionStore } from '../sessions/store.js';
 import { RunJournal } from './journal.js';
-import { searchRunId, sha256 } from './identity.js';
+import { hash } from '../../core/message-fingerprint.js';
+import { searchRunId } from './identity.js';
 import { SearchRuns } from './manager.js';
 import type { ChatGenerator, RunInput, RunRecord } from './types.js';
 
@@ -15,7 +16,7 @@ it.each(['missing chat', 'browser snapshot', 'previous run'])('interrupts an unr
     messages: [{ id: 'question', role: 'user', parts: [{ type: 'text', text: 'Find auth' }] }] };
   const record: RunRecord = { ...input,
     id: searchRunId('chat', 'orphan'),
-    fingerprint: sha256(JSON.stringify([input.messages, input.trigger])),
+    fingerprint: hash(JSON.stringify([input.messages, input.trigger])),
     status: 'running', createdAt: 1 };
   const journal = new RunJournal(join(directory, '.runs', 'chat', record.id));
   const generate = vi.fn<ChatGenerator>();

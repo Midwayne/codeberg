@@ -1,5 +1,5 @@
-import { createHash } from 'node:crypto';
 import { join } from 'node:path';
+import { hash } from '../../message-fingerprint.js';
 import { codebergDataHome } from '../../paths.js';
 
 export function defaultLearningRoot(env: NodeJS.ProcessEnv = process.env): string {
@@ -7,7 +7,7 @@ export function defaultLearningRoot(env: NodeJS.ProcessEnv = process.env): strin
 }
 
 export function stableId(prefix: string, ...parts: string[]): string {
-  return `${prefix}-${createHash('sha256').update(parts.join('\0')).digest('hex').slice(0, 24)}`;
+  return `${prefix}-${hash(parts.join('\0')).slice(0, 24)}`;
 }
 
 export function isStableId(prefix: string, value: string): boolean {

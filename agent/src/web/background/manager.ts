@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { hash } from '../../core/message-fingerprint.js';
 import { abortControlled, SHUTDOWN_REQUEST, STOP_REQUEST } from '../runs/identity.js';
 import { backgroundSummary, type BackgroundJob, type BackgroundOwner, type BackgroundStart,
   type BackgroundExecute, type RetainBackground, type ReleaseBackground } from '../../core/background/types.js';
@@ -38,7 +38,7 @@ export class BackgroundJobs {
     return this.store.serial(async () => {
       if (this.closed) throw new BackgroundError(503, 'Background tools are stopping.');
 
-      const id = createHash('sha256').update(`${owner.chatId}:${owner.sourceRunId}:${input.callId}`).digest('hex').slice(0, 32);
+      const id = hash(`${owner.chatId}:${owner.sourceRunId}:${input.callId}`).slice(0, 32);
       const fingerprint = JSON.stringify([input.tool, input.args]);
       const existing = await this.store.read(owner.chatId, id);
       if (existing) {

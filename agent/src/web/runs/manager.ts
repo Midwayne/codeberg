@@ -14,7 +14,8 @@ import { RunScheduler } from '../schedules/scheduler.js';
 import { BackgroundJobs } from '../background/manager.js';
 import { withRunScope } from './scope.js';
 import { RunStops } from './stopping.js';
-import { abortControlled, searchRunId, sha256, SHUTDOWN_REQUEST } from './identity.js';
+import { hash } from '../../core/message-fingerprint.js';
+import { abortControlled, searchRunId, SHUTDOWN_REQUEST } from './identity.js';
 
 /** One owner per project/chat. Completed calls are replayed as observations, never executed. */
 export class SearchRuns {
@@ -102,7 +103,7 @@ export class SearchRuns {
     }
 
     const id = searchRunId(input.chatId, input.requestId);
-    const fingerprint = sha256(JSON.stringify([input.messages, input.trigger]));
+    const fingerprint = hash(JSON.stringify([input.messages, input.trigger]));
     const existing = await this.find(input.chatId, id);
     if (existing) {
       if (existing.record.fingerprint !== fingerprint) throw new RunError(409, 'request id reused with different messages');

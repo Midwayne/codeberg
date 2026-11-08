@@ -1,16 +1,13 @@
-import { createHash } from 'node:crypto';
-
+import { hash } from '../message-fingerprint.js';
 import type { AttemptRecord, FeedbackRecord, LearningEvent } from './types.js';
 
 export function sourceRevision(attempts: AttemptRecord[], feedback: FeedbackRecord[]): string {
-  return createHash('sha256')
-    .update(
-      JSON.stringify({
-        attempts: attempts.map((attempt) => attempt.attempt_id),
-        feedback: feedback.map((entry) => entry.feedback_id),
-      }),
-    )
-    .digest('hex');
+  return hash(
+    JSON.stringify({
+      attempts: attempts.map((attempt) => attempt.attempt_id),
+      feedback: feedback.map((entry) => entry.feedback_id),
+    }),
+  );
 }
 
 export function attemptInteractions(events: LearningEvent[]): Map<string, string> {

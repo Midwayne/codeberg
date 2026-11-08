@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { createHash } from 'node:crypto';
+import { hash } from '../message-fingerprint.js';
 import { toolJournal } from '../runs/tools.js';
 import type { DecisionResult } from './types.js';
 
@@ -53,7 +53,7 @@ export async function reuseDecision(
 }
 
 export function decisionFingerprint(value: unknown): string {
-  return createHash('sha256').update(JSON.stringify(value)).digest('hex');
+  return hash(JSON.stringify(value));
 }
 
 async function waitForDecision<T>(pending: Promise<T>, signal?: AbortSignal): Promise<T> {

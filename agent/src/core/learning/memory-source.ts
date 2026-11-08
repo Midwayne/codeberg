@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { hash } from '../message-fingerprint.js';
 import { basename } from 'node:path';
 import {
   readSource,
@@ -85,15 +85,12 @@ export async function memorySourceState(
     return [name, repo?.path, repo?.commit ?? null];
   });
 
-  const revision = `code-${createHash('sha256')
-    .update(
-      JSON.stringify([
-        version,
-        observations.map((item) => [item.repo, item.path, item.hash ?? item.unavailable]),
-      ]),
-    )
-    .digest('hex')
-    .slice(0, 24)}`;
+  const revision = `code-${hash(
+    JSON.stringify([
+      version,
+      observations.map((item) => [item.repo, item.path, item.hash ?? item.unavailable]),
+    ]),
+  ).slice(0, 24)}`;
 
   const commitsCurrent =
     artifact.repositories.length > 0 &&

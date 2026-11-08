@@ -1,13 +1,9 @@
-import { createHash } from 'node:crypto';
 import type { RunStatus } from '../../core/api/runs.js';
-
-export function sha256(value: string): string {
-  return createHash('sha256').update(value).digest('hex');
-}
+import { hash } from '../../core/message-fingerprint.js';
 
 /** The id admission, lookup, and stop-by-request all derive from one chat submission. */
 export function searchRunId(chatId: string, requestId: string): string {
-  return sha256(`${chatId}:${requestId}`).slice(0, 32);
+  return hash(`${chatId}:${requestId}`).slice(0, 32);
 }
 
 /** A person stopped the run. Anything else that aborts it is a failure. */
