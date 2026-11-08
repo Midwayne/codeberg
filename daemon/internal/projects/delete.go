@@ -1,7 +1,6 @@
 package projects
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -11,15 +10,14 @@ import (
 )
 
 func (m *Manager) serveDelete(w http.ResponseWriter, r *http.Request, id string) {
-	if !sameOrigin(r) {
-		respondError(w, 403, "cross-origin project changes are not allowed")
+	if !allowProjectChange(w, r) {
 		return
 	}
 
 	var body struct {
 		Mode string `json:"mode"`
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&body); err != nil || (body.Mode != "index" && body.Mode != "all") {
+	if err := readProjectJSON(w, r, &body); err != nil || (body.Mode != "index" && body.Mode != "all") {
 		respondError(w, 400, "choose deletion mode: index or all")
 		return
 	}

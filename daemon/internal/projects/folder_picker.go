@@ -2,7 +2,6 @@ package projects
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"os"
@@ -72,7 +71,7 @@ func pickerInitialPath(w http.ResponseWriter, r *http.Request) (string, bool) {
 	var body struct {
 		InitialPath string `json:"initialPath"`
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&body); err != nil {
+	if err := readProjectJSON(w, r, &body); err != nil {
 		respondError(w, 400, "invalid folder selection request")
 		return "", false
 	}

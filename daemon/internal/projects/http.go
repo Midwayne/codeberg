@@ -1,11 +1,14 @@
 package projects
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 
 	"codeberg.org/codeberg/daemon/internal/httpserver"
 )
+
+const projectJSONLimit = 8192
 
 func respondError(w http.ResponseWriter, status int, message string) {
 	httpserver.WriteError(w, status, message)
@@ -28,7 +31,22 @@ func (m *Manager) Handler() http.Handler {
 
 func sameOrigin(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
+
 	return origin == "" || origin == "http://"+r.Host || origin == "https://"+r.Host
+}
+
+func allowProjectChange(w http.ResponseWriter, r *http.Request) bool {
+	if sameOrigin(r) {
+		return true
+	}
+
+	respondError(w, 403, "cross-origin project changes are not allowed")
+
+	return false
+}
+
+func readProjectJSON(w http.ResponseWriter, r *http.Request, dest any) error {
+	return json.NewDecoder(http.MaxBytesReader(w, r.Body, projectJSONLimit)).Decode(dest)
 }
 
 func (m *Manager) serveProject(w http.ResponseWriter, r *http.Request) {

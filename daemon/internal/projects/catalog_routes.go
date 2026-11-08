@@ -1,7 +1,6 @@
 package projects
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -22,8 +21,7 @@ func (m *Manager) serveCatalog(w http.ResponseWriter, r *http.Request) {
 }
 
 func (m *Manager) serveAdd(w http.ResponseWriter, r *http.Request) {
-	if !sameOrigin(r) {
-		respondError(w, 403, "cross-origin project changes are not allowed")
+	if !allowProjectChange(w, r) {
 		return
 	}
 
@@ -31,7 +29,7 @@ func (m *Manager) serveAdd(w http.ResponseWriter, r *http.Request) {
 		Name string `json:"name"`
 		Root string `json:"root"`
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&body); err != nil {
+	if err := readProjectJSON(w, r, &body); err != nil {
 		respondError(w, 400, "invalid project")
 		return
 	}
@@ -51,15 +49,14 @@ func (m *Manager) serveRename(w http.ResponseWriter, r *http.Request, id string)
 		return
 	}
 
-	if !sameOrigin(r) {
-		respondError(w, 403, "cross-origin project changes are not allowed")
+	if !allowProjectChange(w, r) {
 		return
 	}
 
 	var body struct {
 		Name string `json:"name"`
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&body); err != nil {
+	if err := readProjectJSON(w, r, &body); err != nil {
 		respondError(w, 400, "invalid project name")
 		return
 	}
@@ -88,8 +85,7 @@ func (m *Manager) serveRetry(w http.ResponseWriter, r *http.Request, id string) 
 		return
 	}
 
-	if !sameOrigin(r) {
-		respondError(w, 403, "cross-origin project changes are not allowed")
+	if !allowProjectChange(w, r) {
 		return
 	}
 
