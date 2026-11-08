@@ -57,12 +57,12 @@ func changesDiff(ctx context.Context, ws *workspace.Workspace, a detectChangesAr
 
 	diffSpec := base + "..." + head
 	fallback := ""
-	hunkOut, err := git.Run(ctx, root, "diff", "-U0", diffSpec)
+	hunkOut, err := git.Run(ctx, root, git.ToolTimeout, "diff", "-U0", diffSpec)
 	if err != nil {
 		// Honest fallback: working tree (staged+unstaged) vs HEAD.
 		fallback = "working-tree-vs-HEAD"
 		diffSpec = "HEAD"
-		hunkOut, err = git.Run(ctx, root, "diff", "-U0", "HEAD")
+		hunkOut, err = git.Run(ctx, root, git.ToolTimeout, "diff", "-U0", "HEAD")
 		if err != nil {
 			return changeDiff{}, err
 		}

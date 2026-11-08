@@ -87,7 +87,7 @@ func runGitLog(ctx context.Context, ws *workspace.Workspace, a gitLogArgs) (any,
 		gitArgs = append(gitArgs, "--", rel)
 	}
 
-	out, err := git.Run(ctx, root, gitArgs...)
+	out, err := git.Run(ctx, root, git.ToolTimeout, gitArgs...)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +130,7 @@ func runGitBlame(ctx context.Context, ws *workspace.Workspace, a gitBlameArgs) (
 
 	gitArgs = append(gitArgs, "--", rel)
 
-	out, err := git.Run(ctx, root, gitArgs...)
+	out, err := git.Run(ctx, root, git.ToolTimeout, gitArgs...)
 	if err != nil {
 		return nil, err
 	}

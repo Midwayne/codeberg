@@ -37,3 +37,10 @@ func Overlay(overrides map[string]string) []string {
 
 	return env
 }
+
+// Tools is the environment for repository subprocesses (rg, sed, git): user
+// ripgrep config must not change tool output, and nothing may block on a
+// credential prompt.
+func Tools() []string {
+	return Overlay(map[string]string{"RIPGREP_CONFIG_PATH": "", "GIT_TERMINAL_PROMPT": "0"})
+}

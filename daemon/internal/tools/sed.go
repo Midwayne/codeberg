@@ -1,10 +1,8 @@
 package tools
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"os/exec"
 
 	"codeberg.org/codeberg/daemon/internal/subprocess"
 	"codeberg.org/codeberg/daemon/internal/workspace"
@@ -38,27 +36,32 @@ func sedTool(ws *workspace.Workspace) Tool {
 				return nil, err
 			}
 
-			argv := []string{}
-			if a.Quiet {
-				argv = append(argv, "-n")
-			}
-
-			argv = append(argv, "-e", a.Script)
-
-			cmd := exec.CommandContext(ctx, "sed", argv...)
-			cmd.Stdin = bytes.NewReader(data)
-
-			out, err := cmd.Output()
-			if err != nil {
-				return nil, fmt.Errorf("codeberg: sed: %w", err)
-			}
-
-			content := string(out)
-			truncated := false
-			if len(content) > maxSedOutput {
-				content, truncated = content[:maxSedOutput], true
-			}
-
-			return sedResult{Content: content, Truncated: truncated}, nil
+			return runSed(ctx, a, data)
 		})
+}
+
+func runSed(ctx context.Context, a sedArgs, data []byte) (sedResult, error) {
+	argv := []string{"sed"}
+	if a.Quiet {
+		argv = append(argv, "-n")
+	}
+
+	argv = append(argv, "-e", a.Script)
+
+	res, err := subprocess.RunInput(ctx, argv, data)
+	if err != nil {
+		return sedResult{}, err
+	}
+
+	if code := res.ExitCodes[0]; code != 0 {
+		return sedResult{}, fmt.Errorf("codeberg: sed: exit status %d", code)
+	}
+
+	content := res.Stdout
+	truncated := res.Truncated
+	if len(content) > maxSedOutput {
+		content, truncated = content[:maxSedOutput], true
+	}
+
+	return sedResult{Content: content, Truncated: truncated}, nil
 }
