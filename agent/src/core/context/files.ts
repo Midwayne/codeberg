@@ -10,31 +10,37 @@ export const MAX_GREP_FILES = 2_000;
 export const MAX_WALK_DEPTH = 8;
 export const SKIP_DIRS = new Set(['node_modules', '.git']);
 
-export async function collectFiles(store: ContextStore, requested: string): Promise<string[]> {
+export async function collectFiles(store: ContextStore, requested: string, signal?: AbortSignal): Promise<string[]> {
+  signal?.throwIfAborted();
   const real = store.resolve(requested);
   if (!real) return [];
 
   const info = await stat(real);
+  signal?.throwIfAborted();
   if (info.isFile()) return [real];
 
   if (!info.isDirectory()) return [];
 
   const out: string[] = [];
-  await walkFiles(store, real, 0, out);
+  await walkFiles(store, real, 0, out, signal);
 
   return out;
 }
 
-export async function walkFiles(
+async function walkFiles(
   store: ContextStore,
   dir: string,
   depth: number,
   out: string[],
+  signal?: AbortSignal,
 ): Promise<void> {
+  signal?.throwIfAborted();
   if (depth > MAX_WALK_DEPTH || out.length >= MAX_GREP_FILES) return;
 
   const entries = await readdir(dir, { withFileTypes: true });
+  entries.sort((a, b) => a.name.localeCompare(b.name));
   for (const entry of entries) {
+    signal?.throwIfAborted();
     if (out.length >= MAX_GREP_FILES) return;
 
     if (SKIP_DIRS.has(entry.name)) continue;
@@ -43,7 +49,7 @@ export async function walkFiles(
     if (!child) continue;
 
     if (entry.isDirectory()) {
-      await walkFiles(store, child, depth + 1, out);
+      await walkFiles(store, child, depth + 1, out, signal);
     } else if (entry.isFile()) {
       out.push(child);
     }

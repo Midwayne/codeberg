@@ -1,7 +1,8 @@
 import { jsonSchema, tool, type ToolSet } from 'ai';
 import { readContext, tailContext } from './files.js';
 
-import { grepContext } from './grep.js';
+import { MAX_REGEX_GROUP_DEPTH } from './grep-regex.js';
+import { grepContext, MAX_GREP_PATTERN } from './grep.js';
 
 import type { ToolSource } from '../tools/source.js';
 import type { ContextStore } from './store.js';
@@ -30,7 +31,7 @@ function grepTool(store: ContextStore) {
   return tool({
     description:
       'Search dynamic-context files (spilled tool output, history transcripts, ' +
-      'MCP catalogs, terminal logs, skill files). Returns path:line:text. ' +
+      'MCP catalogs, terminal logs, skill files). Searches one line at a time and returns path:line:text. ' +
       'Use this to recover detail that was summarized or spilled out of the prompt.',
     inputSchema: jsonSchema<{
       pattern: string;
@@ -40,7 +41,12 @@ function grepTool(store: ContextStore) {
     }>({
       type: 'object',
       properties: {
-        pattern: { type: 'string', description: 'Text or regular expression to find.' },
+        pattern: {
+          type: 'string',
+          minLength: 1,
+          maxLength: MAX_GREP_PATTERN,
+          description: `Text or JavaScript regular expression to find within one line (up to ${MAX_GREP_PATTERN} UTF-16 code units). Regexes support up to ${MAX_REGEX_GROUP_DEPTH} nested groups.`,
+        },
         path: {
           type: 'string',
           description:
@@ -54,8 +60,7 @@ function grepTool(store: ContextStore) {
       },
       required: ['pattern'],
     }),
-    execute: async ({ pattern, path, literal, limit }) =>
-      grepContext(store, { pattern, path, literal, limit }),
+    execute: async (input, { abortSignal }) => grepContext(store, input, abortSignal),
   });
 }
 

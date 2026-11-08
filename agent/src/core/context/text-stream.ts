@@ -19,17 +19,26 @@ interface ScanState {
 
 export class ContextReadError extends Error {}
 
+const FILE_READ_ERRORS = new Set(['EACCES', 'EPERM', 'ENOENT', 'ENOTDIR', 'EISDIR', 'ELOOP', 'EIO', 'ESTALE']);
+
+export function isContextReadError(error: unknown): boolean {
+  return error instanceof ContextReadError ||
+    (error instanceof Error && FILE_READ_ERRORS.has((error as NodeJS.ErrnoException).code ?? ''));
+}
+
 /** Stream text in bounded segments, including a final empty line after '\n'. */
-export async function* textSegments(file: string): AsyncGenerator<TextSegment> {
+export async function* textSegments(file: string, signal?: AbortSignal): AsyncGenerator<TextSegment> {
+  signal?.throwIfAborted();
   const info = await stat(file);
   if (!info.isFile() || info.size > MAX_FILE_BYTES) throw new ContextReadError();
 
   const state: ScanState = { pending: '', line: 1, column: 1 };
   const decoder = new StringDecoder('utf8');
-  const stream = createReadStream(file, { highWaterMark: 32 * 1024, end: MAX_FILE_BYTES });
+  const stream = createReadStream(file, { highWaterMark: 32 * 1024, end: MAX_FILE_BYTES, signal });
   let bytes = 0;
 
   for await (const chunk of stream) {
+    signal?.throwIfAborted();
     bytes += (chunk as Buffer).length;
     if (bytes > MAX_FILE_BYTES || (chunk as Buffer).includes(0)) throw new ContextReadError();
 

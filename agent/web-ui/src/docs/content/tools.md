@@ -152,10 +152,14 @@ Codeberg saves large results locally and gives the agent a preview and path.
 | Tool | Limit per call |
 | --- | --- |
 | `context_read`, `context_tail` | 400 lines. |
-| `context_grep` | 100 matches. |
+| `context_grep` | 40 matches by default, up to 100. Patterns can contain up to 16,384 UTF-16 code units. Regexes can nest up to 32 groups. |
 | Any context file | 50 MiB; narrow the original request for larger output. |
 
-Pages target 8,000 characters. Long lines use fragments up to 2,000 characters; `context_read` returns continuation positions for `start_line` and `start_column` (1-based UTF-16). Grep returns excerpts and positions. Regex searches and tails may still scan or buffer large lines.
+Pages target 8,000 characters. Long lines use fragments up to 2,000 characters. `context_read` returns continuation positions for `start_line` and `start_column` (1-based UTF-16).
+
+`context_grep` searches one line at a time and treats the pattern as plain text by default. Use `literal: false` for a JavaScript regular expression. Regex searches buffer complete lines and retry an unfinished line on its own after a batch timeout. If that line still times out or the pattern cannot be compiled, simplify the regex or search for a distinctive literal fragment. For text spanning multiple lines, find a distinctive line and open the surrounding text with `context_read`.
+
+Grep excerpts include the match's start column and length in UTF-16 code units. Use the supplied `context_read` position to recover a match that extends past the excerpt. This position starts at the beginning of the character if the match begins partway through a UTF-16 surrogate pair.
 
 ## Optional decisions tool
 
