@@ -35,6 +35,31 @@ is available before any indexer starts and is not stored in `projects.json`.
 The web proxy preserves it so the UI can hide routine indexing notices when
 embeddings are disabled; actionable project errors remain visible.
 
+The same responses include a `storage` map from project ID to the paths the
+daemon uses for that project. Clients read these instead of re-deriving the
+layout; like `vectorsEnabled`, it is never stored in `projects.json`:
+
+```json
+{"storage": {"p-5233d6ce7ea13fff": {
+  "dir": "/home/me/.codeberg/projects/p-5233d6ce7ea13fff",
+  "index": "/home/me/.codeberg/projects/p-5233d6ce7ea13fff/index/codeberg.usearch",
+  "logs": "/home/me/.codeberg/projects/p-5233d6ce7ea13fff/logs"}}}
+```
+
+`index` is the base path passed to the indexer; sidecars are
+`<index>.<suffix>`. With `CODEBERG_INDEX_NAMESPACE` set, managed indexes live in
+`index/<namespace>/` so vectors from different embedding models never mix.
+
+`POST /projects/<id>/retry` stops the project's indexer; the next request
+starts it again with a fresh readiness window.
+
+Project, catalog and folder-picker errors use the same envelope as the
+repository endpoints (see [Errors](#errors)), for example
+`{"ok": false, "code": "NOT_FOUND", "message": "project not found"}`.
+
+`/resources` is daemon-wide and served only at the top level;
+`/projects/<id>/resources` returns 404.
+
 ### `GET /health`
 
 ```json
