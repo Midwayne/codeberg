@@ -39,10 +39,18 @@ wait_http() {
   return 1
 }
 
+pg_ready() {
+  if [[ "$STARTED_PG" == 1 ]]; then
+    docker exec "$PG_NAME" pg_isready -U postgres -d codeberg >/dev/null 2>&1
+  else
+    pg_isready -d "$CBERG_TEST_POSTGRES_URL" >/dev/null 2>&1
+  fi
+}
+
 wait_pg() {
   local i
   for i in $(seq 1 60); do
-    if docker exec "$PG_NAME" pg_isready -U postgres -d codeberg >/dev/null 2>&1; then
+    if pg_ready; then
       return 0
     fi
     sleep 1
@@ -57,12 +65,10 @@ if [[ -z "${CBERG_TEST_QDRANT_URL:-}" ]]; then
     docker run -d --name "$QDRANT_NAME" -p 6333:6333 qdrant/qdrant:latest >/dev/null
     STARTED_QDRANT=1
     export CBERG_TEST_QDRANT_URL=http://127.0.0.1:6333
-    wait_http "$CBERG_TEST_QDRANT_URL/readyz"
   elif [[ -n "$QDRANT_BIN" && -x "$QDRANT_BIN" ]]; then
     "$QDRANT_BIN" --uri http://127.0.0.1:6333 >/tmp/cberg-qdrant.log 2>&1 &
     QDRANT_PID=$!
     export CBERG_TEST_QDRANT_URL=http://127.0.0.1:6333
-    wait_http "$CBERG_TEST_QDRANT_URL/readyz"
   else
     echo "docker not available; set CBERG_TEST_QDRANT_URL or CBERG_TEST_QDRANT_BIN" >&2
   fi
@@ -77,11 +83,18 @@ if [[ -z "${CBERG_TEST_POSTGRES_URL:-}" ]]; then
       -p 5432:5432 \
       pgvector/pgvector:pg16 >/dev/null
     STARTED_PG=1
-    wait_pg
     export CBERG_TEST_POSTGRES_URL=postgresql://postgres:test@127.0.0.1:5432/codeberg
   else
     echo "docker not available; set CBERG_TEST_POSTGRES_URL to test pgvector" >&2
   fi
+fi
+
+if [[ -n "${CBERG_TEST_QDRANT_URL:-}" ]]; then
+  wait_http "$CBERG_TEST_QDRANT_URL/readyz"
+fi
+
+if [[ -n "${CBERG_TEST_POSTGRES_URL:-}" ]] && { [[ "$STARTED_PG" == 1 ]] || command -v pg_isready >/dev/null 2>&1; }; then
+  wait_pg
 fi
 
 CC=gcc CXX=g++ make -C "$ROOT" build-core

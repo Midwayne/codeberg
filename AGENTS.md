@@ -23,6 +23,7 @@ paths — use project catalog roots, explicit path arguments, or `cberg_config_*
 | `make test` | Run all core tests (`ctest`) |
 | `make test TEST=<name>` | Run one test binary (e.g. `test_chunker`) |
 | `make check` | `build` + `test` for the C core |
+| `make python-test` | Python unit tests under `scripts/` and `core/bench/` |
 | `make build-daemon` | Build Go `codeberg-d` (requires `cberg-index`) |
 | `make daemon-test` | `go test ./...` in `daemon/` |
 | `make daemon-lint` | Daemon file/function size limits and Go formatting |
