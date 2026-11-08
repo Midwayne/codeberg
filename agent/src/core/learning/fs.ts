@@ -1,6 +1,6 @@
 import type { Dirent } from 'node:fs';
 import { link, lstat, mkdir, open, readFile, readdir, rename, unlink } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 
 function missing(error: unknown): boolean {
   return (error as NodeJS.ErrnoException).code === 'ENOENT';
@@ -44,6 +44,38 @@ export async function optionalLstat(path: string) {
 
     throw error;
   }
+}
+
+/**
+ * Records in one directory. A missing or unreadable directory is empty.
+ * One bad file is skipped, and `sort` orders the selected names before reading.
+ */
+export async function readRecordFiles<T>(
+  dir: string,
+  include: (name: string) => boolean,
+  parse: (raw: string) => T,
+  sort = false,
+): Promise<T[]> {
+  let names: string[];
+  try {
+    names = await readdir(dir);
+  } catch {
+    return [];
+  }
+
+  const selected = names.filter(include);
+  if (sort) selected.sort();
+
+  const records: T[] = [];
+  for (const name of selected) {
+    try {
+      records.push(parse(await readFile(join(dir, name), 'utf8')));
+    } catch {
+      // One unreadable record must not hide the rest of the directory.
+    }
+  }
+
+  return records;
 }
 
 /** Removes a path. A path that is already gone is success. */

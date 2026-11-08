@@ -1,6 +1,6 @@
-import { readdir, readFile, unlink } from 'node:fs/promises';
+import { readFile, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
-import { writeJsonAtomic } from '../fs.js';
+import { readRecordFiles, writeJsonAtomic } from '../fs.js';
 import { JOB_STATUSES, type JobStatus, type KnowledgeJob } from '../types.js';
 import type { DurableJobQueueState } from './state.js';
 
@@ -15,27 +15,12 @@ export async function list(
   state: DurableJobQueueState,
   status: JobStatus,
 ): Promise<KnowledgeJob[]> {
-  let files: string[];
-  try {
-    files = (await readdir(join(state.root, 'jobs', status)))
-      .filter((file) => file.endsWith('.json'))
-      .sort();
-  } catch {
-    return [];
-  }
-
-  const jobs: KnowledgeJob[] = [];
-  for (const file of files) {
-    try {
-      jobs.push(
-        JSON.parse(await readFile(join(state.root, 'jobs', status, file), 'utf8')) as KnowledgeJob,
-      );
-    } catch {
-      // A malformed job stays visible on disk for manual inspection.
-    }
-  }
-
-  return jobs;
+  return readRecordFiles(
+    join(state.root, 'jobs', status),
+    (file) => file.endsWith('.json'),
+    (raw) => JSON.parse(raw) as KnowledgeJob,
+    true,
+  );
 }
 
 export async function find(

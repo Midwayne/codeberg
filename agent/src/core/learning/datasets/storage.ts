@@ -1,5 +1,5 @@
-import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { readRecordFiles } from '../fs.js';
 import { isCurrentExample } from '../dataset-extract.js';
 import { interactionRevisions } from '../revision.js';
 import type { DatasetExample } from './records.js';
@@ -17,24 +17,11 @@ export async function list(
   state: DatasetStoreState,
   bucket: DatasetBucket,
 ): Promise<DatasetExample[]> {
-  const dir = join(state.store.root, 'datasets', bucket);
-  let files: string[];
-  try {
-    files = (await readdir(dir)).filter((file) => file.endsWith('.json'));
-  } catch {
-    return [];
-  }
-
-  const examples: DatasetExample[] = [];
-  for (const file of files) {
-    try {
-      examples.push(JSON.parse(await readFile(join(dir, file), 'utf8')) as DatasetExample);
-    } catch {
-      /* ignore incomplete legacy files */
-    }
-  }
-
-  return examples;
+  return readRecordFiles(
+    join(state.store.root, 'datasets', bucket),
+    (file) => file.endsWith('.json'),
+    (raw) => JSON.parse(raw) as DatasetExample,
+  );
 }
 
 export async function active(

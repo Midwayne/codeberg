@@ -1,5 +1,5 @@
-import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { readRecordFiles } from '../fs.js';
 import { projectDreamingKnowledge } from '../dreaming/projection.js';
 import { DreamingReports } from '../dreaming/reports.js';
 import { memorySourceState } from '../memory-source.js';
@@ -75,24 +75,13 @@ export async function projectedKnowledgeArtifacts(
 export async function knowledgeArtifacts(state: LearningStoreState): Promise<KnowledgeArtifact[]> {
   const artifacts: KnowledgeArtifact[] = [];
   for (const category of KNOWLEDGE_CATEGORIES) {
-    let files: string[];
-    try {
-      files = (await readdir(join(state.root, 'knowledge', category))).filter((file) =>
-        file.endsWith('.md'),
-      );
-    } catch {
-      continue;
-    }
-
-    for (const file of files) {
-      try {
-        artifacts.push(
-          parseArtifact(await readFile(join(state.root, 'knowledge', category, file), 'utf8')),
-        );
-      } catch {
-        // One malformed artifact must not hide the rest of the knowledge base.
-      }
-    }
+    artifacts.push(
+      ...(await readRecordFiles(
+        join(state.root, 'knowledge', category),
+        (file) => file.endsWith('.md'),
+        parseArtifact,
+      )),
+    );
   }
 
   return artifacts;
