@@ -1,5 +1,5 @@
-import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { readOptionalRecord, readRecordFiles } from '../../core/learning/fs.js';
 import { messageSearchHits } from '../../core/session-search.js';
 import type {
   SessionRecord,
@@ -10,31 +10,23 @@ import { countTurns } from './records.js';
 import type { WebSessionStoreState } from './state.js';
 
 export async function load(state: WebSessionStoreState, id: string): Promise<SessionRecord | null> {
-  try {
-    const raw = await readFile(join(state.dir, `${id}.json`), 'utf8');
+  const record = await readOptionalRecord(
+    join(state.dir, `${id}.json`),
+    (raw) => JSON.parse(raw) as SessionRecord,
+  );
 
-    return JSON.parse(raw) as SessionRecord;
-  } catch {
-    return null;
-  }
+  return record ?? null;
 }
 
 export async function list(state: WebSessionStoreState, query = ''): Promise<SessionSummary[]> {
-  let files: string[];
-  try {
-    files = await readdir(state.dir);
-  } catch {
-    return [];
-  }
-
+  const records = await readRecordFiles(
+    state.dir,
+    (file) => file.endsWith('.json'),
+    (raw) => JSON.parse(raw) as SessionRecord,
+  );
   const summaries: SessionSummary[] = [];
   const needle = query.trim().toLocaleLowerCase();
-  for (const file of files) {
-    if (!file.endsWith('.json')) {
-      continue;
-    }
-
-    const record = await load(state, file.slice(0, -'.json'.length));
+  for (const record of records) {
     if (
       record &&
       (!needle ||

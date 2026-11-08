@@ -46,6 +46,18 @@ export async function optionalLstat(path: string) {
   }
 }
 
+/** A parsed record, or `undefined` when the file is missing or unreadable. */
+export async function readOptionalRecord<T>(
+  path: string,
+  parse: (raw: string) => T,
+): Promise<T | undefined> {
+  try {
+    return parse(await readFile(path, 'utf8'));
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Records in one directory. A missing or unreadable directory is empty.
  * One bad file is skipped, and `sort` orders the selected names before reading.
@@ -68,11 +80,8 @@ export async function readRecordFiles<T>(
 
   const records: T[] = [];
   for (const name of selected) {
-    try {
-      records.push(parse(await readFile(join(dir, name), 'utf8')));
-    } catch {
-      // One unreadable record must not hide the rest of the directory.
-    }
+    const record = await readOptionalRecord(join(dir, name), parse);
+    if (record !== undefined) records.push(record);
   }
 
   return records;

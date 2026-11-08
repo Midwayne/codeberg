@@ -1,5 +1,5 @@
-import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
+import { readOptionalRecord } from '../fs.js';
 import { withUserNotes } from '../artifact-body.js';
 import { knowledgeBody, validatedClaims } from '../claims.js';
 import { parseExtractionResponse } from '../knowledge-response.js';
@@ -82,10 +82,6 @@ export function buildKnowledgeArtifact(
   };
 }
 
-export async function readArtifact(path: string): Promise<KnowledgeArtifact | undefined> {
-  try {
-    return parseArtifact(await readFile(path, 'utf8'));
-  } catch {
-    return undefined;
-  }
+export function readArtifact(path: string): Promise<KnowledgeArtifact | undefined> {
+  return readOptionalRecord(path, parseArtifact);
 }
