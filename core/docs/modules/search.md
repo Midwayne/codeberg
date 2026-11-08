@@ -104,7 +104,7 @@ existing file keeps its saved scalar kind until a full rebuild.
 REST API to Qdrant. Collection per repo: `codeberg_<16hex>` from hash of
 `path`. Creates collection on first open (cosine, model dimension).
 
-Response bodies are parsed with `json_mini.c` (path-based JSON navigation for
+Response bodies are parsed with `json_mini.c` over `src/common/json_read.c` (path-based JSON navigation for
 collection metadata and `result[]` search hits).
 
 - **save:** no-op (vectors persisted on upsert)

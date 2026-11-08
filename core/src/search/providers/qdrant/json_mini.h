@@ -4,17 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/*
- * Minimal JSON helpers for Qdrant REST responses. Not a general parser —
- * handles the object/array shapes Codeberg issues and consumes.
- */
-
-/* Navigates dotted paths (e.g. "result.config.params.vectors") to a value start. */
-
-/* Reads a JSON number at `p` (after optional whitespace). */
-int cberg_json_read_int(const char *p, int *out);
-int cberg_json_read_uint64(const char *p, uint64_t *out);
-int cberg_json_read_double(const char *p, double *out);
+/* Qdrant REST response shapes, read with json_read.h. */
 
 /*
  * Parses Qdrant search / point-list payloads:

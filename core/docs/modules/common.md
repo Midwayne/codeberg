@@ -186,6 +186,15 @@ Returns NULL on failure; caller frees. Used by chunker callers and tests.
 
 ---
 
+## `json_read.c` / `json_read.h`
+
+Minimal read-only JSON views (`cberg_json_object_field`, `cberg_json_get_path`,
+`cberg_json_read_*`, `cberg_json_string_copy`) over a NUL-terminated buffer. Used by
+the Qdrant provider's response parsing and by `cberg-index` for `package.json`.
+Returned pointers borrow the input.
+
+---
+
 ## `walk_policy.c` / `walk_policy.h`
 
 ### `cberg_walk_skip_dir(const char *name)` — public (via `codeberg.h`)
