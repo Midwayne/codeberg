@@ -95,6 +95,7 @@ For catalog syntax, local server setup, and saved model choices, see [Models and
 | `CODEBERG_EMBEDDING_MODEL` | Registry ID; `embeddinggemma-2-fp32-mlx` on Apple Silicon, `embeddinggemma-2` elsewhere | Select an embedding model and backend. Existing selections and Jina installations are retained. The first-run prompt also offers Qwen variants and `jina-onnx`. |
 | `CBERG_MODEL` | Optional model path | Custom ONNX model path when no registry selection is set. Otherwise the launcher resolves the selected model. |
 | `CBERG_INDEX_PATH` | Index base path; managed under Codeberg home | Base for vector files and sidecars. Registry selections can use their own model-specific paths; project indexes are isolated. |
+| `CODEBERG_INDEX_NAMESPACE` | Derived from the embedding model; empty for Jina | Directory under each project's `index/` so two embedding models do not share sidecars. Leave unset unless you need to pin a namespace. An explicit `CBERG_INDEX_PATH` stays where it is, and a namespace moves that file into a sibling directory. |
 
 **Environment only** for storage and performance controls:
 
