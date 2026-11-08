@@ -1,28 +1,25 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { messageSearchHits } from '../../core/session-search.js';
-import {
-  type WebSessionRecord,
-  type WebSessionSearchResult,
-  type WebSessionSummary,
-  countTurns,
-} from './records.js';
+import type {
+  SessionRecord,
+  SessionSearchResult,
+  SessionSummary,
+} from '../../core/api/sessions.js';
+import { countTurns } from './records.js';
 import type { WebSessionStoreState } from './state.js';
 
-export async function load(
-  state: WebSessionStoreState,
-  id: string,
-): Promise<WebSessionRecord | null> {
+export async function load(state: WebSessionStoreState, id: string): Promise<SessionRecord | null> {
   try {
     const raw = await readFile(join(state.dir, `${id}.json`), 'utf8');
 
-    return JSON.parse(raw) as WebSessionRecord;
+    return JSON.parse(raw) as SessionRecord;
   } catch {
     return null;
   }
 }
 
-export async function list(state: WebSessionStoreState, query = ''): Promise<WebSessionSummary[]> {
+export async function list(state: WebSessionStoreState, query = ''): Promise<SessionSummary[]> {
   let files: string[];
   try {
     files = await readdir(state.dir);
@@ -30,7 +27,7 @@ export async function list(state: WebSessionStoreState, query = ''): Promise<Web
     return [];
   }
 
-  const summaries: WebSessionSummary[] = [];
+  const summaries: SessionSummary[] = [];
   const needle = query.trim().toLocaleLowerCase();
   for (const file of files) {
     if (!file.endsWith('.json')) {
@@ -62,11 +59,11 @@ export async function list(state: WebSessionStoreState, query = ''): Promise<Web
 export async function search(
   state: WebSessionStoreState,
   query: string,
-): Promise<WebSessionSearchResult[]> {
+): Promise<SessionSearchResult[]> {
   if (!query.trim()) return [];
 
   const summaries = await list(state, query);
-  const results: WebSessionSearchResult[] = [];
+  const results: SessionSearchResult[] = [];
   for (const summary of summaries) {
     const record = await load(state, summary.id);
     if (!record) continue;

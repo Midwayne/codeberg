@@ -5,8 +5,8 @@ import { parentPort, workerData } from 'node:worker_threads';
 
 import { ProcessMonitor } from './process-resources.js';
 import { parseProcessSnapshot } from './process/snapshot.js';
-import { DISK_MS, SAMPLE_MS, type ResourceWorkerData } from './resource-monitor/types.js';
-import type { ResourceSample } from './resources/types.js';
+import { RESOURCE_DISK_MS, RESOURCE_SAMPLE_MS, type ResourceSample } from '../core/api/resources.js';
+import type { ResourceWorkerData } from './resource-monitor/types.js';
 
 // Standalone/older-daemon fallback. Synchronous filesystem work happens only on
 // this dedicated thread, avoiding the chat event loop AND its shared libuv pool.
@@ -124,9 +124,9 @@ function directoryBytes(path: string, visited: Set<string>, deadline: number): n
 }
 
 void sample().catch(() => undefined);
-setInterval(() => void sample().catch(() => undefined), SAMPLE_MS);
+setInterval(() => void sample().catch(() => undefined), RESOURCE_SAMPLE_MS);
 setTimeout(scanDisk, 0);
-setInterval(scanDisk, DISK_MS);
+setInterval(scanDisk, RESOURCE_DISK_MS);
 parentPort?.on('message', (message: { kind: string }) => {
   if (message.kind === 'refreshDisk' && !refresh)
     refresh = setTimeout(() => {

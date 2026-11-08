@@ -1,9 +1,10 @@
+import type { CleanupCategory, CleanupPreview } from '@agent/core/api/resources.js';
 import { CleanupConfirmation, CleanupSelection } from './cleanup-confirmation';
 
 import { useProjectApi } from '../lib/project-api';
 
 import { useEffect, useState } from 'react';
-import { previewCleanup, type CleanupCategory, type CleanupPreview } from '../lib/resources';
+import { previewCleanup } from '../lib/resources';
 import { ErrorNotice } from './ui';
 import type { CleanupPreviewErrorProps } from './settings';
 import { createCleanupAction } from './cleanup-action';

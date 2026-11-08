@@ -1,7 +1,6 @@
+import type { ResourceSample } from '@agent/core/api/resources.js';
 import { ResourcePlot, ResourceTooltip } from './resource-plot';
 import { useId, useMemo, useState, type KeyboardEvent, type PointerEvent } from 'react';
-
-import type { ResourceSample } from '../lib/resources';
 
 export function sampleAtPosition(
   rows: ResourceSample[],

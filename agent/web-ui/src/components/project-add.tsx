@@ -1,3 +1,4 @@
+import type { ProjectInfo } from '@agent/core/api/projects.js';
 import { createFolderPicker } from './folder-picker';
 
 import { control, button } from './project-styles';
@@ -5,14 +6,13 @@ import { X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Dialog } from './dialog';
 import { IconButton } from './ui';
-import type { Project } from '../lib/project-api';
 import type { AddProjectViewProps } from './projects';
 import { ProjectDirectoryField } from './project-directory';
 
 export type AddProjectProps = {
   initialPath?: string;
   onClose: () => void;
-  onAdded: (project: Project) => Promise<void>;
+  onAdded: (project: ProjectInfo) => Promise<void>;
 };
 
 export function AddProject(props: AddProjectProps) {
@@ -24,7 +24,7 @@ export function AddProject(props: AddProjectProps) {
 export type AddProjectOptions = {
   initialPath?: string;
   onClose: () => void;
-  onAdded: (project: Project) => Promise<void>;
+  onAdded: (project: ProjectInfo) => Promise<void>;
 };
 
 export function useAddProject({ initialPath, onClose, onAdded }: AddProjectOptions) {
@@ -156,7 +156,7 @@ export function createProjectAddSubmit({
     })
       .then(async (response) => {
         if (!response.ok) throw new Error(await response.text());
-        await onAdded((await response.json()) as Project);
+        await onAdded((await response.json()) as ProjectInfo);
       })
       .catch((reason: unknown) => setError(String(reason)))
       .finally(() => setBusy(false));

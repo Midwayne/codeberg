@@ -1,23 +1,23 @@
 import { join } from 'node:path';
 import { writeJsonAtomic } from '../../core/learning/fs.js';
 import { load } from './reading.js';
-import type { WebSessionRecord } from './records.js';
+import type { SessionRecord } from '../../core/api/sessions.js';
 import type { WebSessionStoreState } from './state.js';
 
-export async function save(state: WebSessionStoreState, record: WebSessionRecord): Promise<void> {
+export async function save(state: WebSessionStoreState, record: SessionRecord): Promise<void> {
   await serial(state, record.id, () => write(state, record));
 }
 
 export async function upsert(
   state: WebSessionStoreState,
-  input: Pick<WebSessionRecord, 'id' | 'title' | 'messages'> & { parentId?: string; serverRunId?: string },
-): Promise<WebSessionRecord> {
+  input: Pick<SessionRecord, 'id' | 'title' | 'messages'> & { parentId?: string; serverRunId?: string },
+): Promise<SessionRecord> {
   return serial(state, input.id, async () => {
     const existing = await load(state, input.id);
     if (existing?.serverRunId && !input.serverRunId) return existing;
 
     const now = Date.now();
-    const record: WebSessionRecord = {
+    const record: SessionRecord = {
       ...input,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
@@ -38,7 +38,7 @@ export async function setFlags(
   state: WebSessionStoreState,
   id: string,
   flags: { pinned?: boolean; archived?: boolean },
-): Promise<WebSessionRecord | null> {
+): Promise<SessionRecord | null> {
   return serial(state, id, async () => {
     const record = await load(state, id);
     if (!record) return null;
@@ -50,7 +50,7 @@ export async function setFlags(
   });
 }
 
-export function write(state: WebSessionStoreState, record: WebSessionRecord): Promise<void> {
+export function write(state: WebSessionStoreState, record: SessionRecord): Promise<void> {
   return writeJsonAtomic(join(state.dir, `${record.id}.json`), record);
 }
 

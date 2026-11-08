@@ -1,12 +1,12 @@
+import type { ProjectCatalogInfo, ProjectInfo } from '@agent/core/api/projects.js';
 import { FolderPlus } from 'lucide-react';
 
 import { IconButton, Select } from './ui';
-import type { Project, ProjectCatalog } from '../lib/project-api';
 
 export type ProjectToolbarProps = {
-  project: Project | undefined;
+  project: ProjectInfo | undefined;
   selected: string;
-  catalog: ProjectCatalog | undefined;
+  catalog: ProjectCatalogInfo | undefined;
   select: (id: string) => void;
   setAdding: React.Dispatch<React.SetStateAction<boolean>>;
 };

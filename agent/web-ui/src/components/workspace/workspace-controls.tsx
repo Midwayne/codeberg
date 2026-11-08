@@ -1,6 +1,6 @@
+import type { SessionSummary } from '@agent/core/api/sessions.js';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import type { UIMessage } from 'ai';
-import type { SessionSummary } from '../../lib/sessions';
 import type { ChatLoad } from '../../sessions/chat-resume';
 
 import { ChatSearch } from './chat-search';

@@ -3,15 +3,13 @@ import { routeSchedules } from '../schedules/routes.js';
 import { routeCanvas } from '../canvas/routes.js';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { promptCommandCatalog } from '../../core/hooks/catalog.js';
-import { routeChat, routeMeta, type ChatResponder } from '../chat-routes.js';
+import { routeChat, routeMeta } from '../chat-routes.js';
 import { readJson, sendJson, sendText } from '../http.js';
 import { routeLearning } from '../learning-routes.js';
 import { LEARNING_PATH } from '../learning/paths.js';
 import { ModelSelectionError, type ModelSettingsStore } from '../model-selection/settings.js';
 import { CHAT_PAGE_HTML } from '../page.js';
-import { ResourceSettings } from '../resources.js';
 import { routeSessions } from '../sessions/routes.js';
-import { WebSessionStore } from '../sessions/store.js';
 import { serveStatic } from '../static.js';
 import { routeResources } from './resources.js';
 import { routeUsage } from '../usage/routes.js';
@@ -23,30 +21,27 @@ import {
   META_PATH,
   MODELS_PATH,
   SESSIONS_PATH,
-  type WebServerOptions,
+  type ProjectServices,
 } from './types.js';
 
 export async function route(
   req: IncomingMessage,
   res: ServerResponse,
-  opts: WebServerOptions,
-  respond: ChatResponder,
-  sessions: WebSessionStore,
-  resources: ResourceSettings,
+  opts: ProjectServices,
 ): Promise<void> {
   const url = new URL(req.url ?? '/', 'http://localhost');
   const path = url.pathname;
 
-  if ((path === '/api/schedules' || path.startsWith('/api/schedules/')) && opts.runs) {
+  if (path === '/api/schedules' || path.startsWith('/api/schedules/')) {
     return routeSchedules(req, res, url, opts.runs);
   }
 
-  if (path === '/api/settings/usage' && opts.usage) {
+  if (path === '/api/settings/usage') {
     return routeUsage(req, res, opts.usage, url);
   }
 
   if (path === '/api/settings/resources' || path === '/api/settings/cleanup') {
-    return routeResources(req, res, resources, url);
+    return routeResources(req, res, opts.resources, url);
   }
 
   if ((path.startsWith('/api/canvas/') || path === '/api/settings/canvas') && opts.canvas) {
@@ -56,7 +51,7 @@ export async function route(
   if (path === MODELS_PATH && opts.modelSettings) return routeModels(req, res, opts.modelSettings, opts.learning);
 
   if (path.startsWith('/api/')) {
-    return routeApi(req, res, opts, respond, sessions, url);
+    return routeApi(req, res, opts, url);
   }
 
   return servePage(req, res, opts, path);
@@ -65,18 +60,17 @@ export async function route(
 export async function routeApi(
   req: IncomingMessage,
   res: ServerResponse,
-  opts: WebServerOptions,
-  respond: ChatResponder,
-  sessions: WebSessionStore,
+  opts: ProjectServices,
   url: URL,
 ): Promise<void> {
   const path = url.pathname;
+  const sessions = opts.runs.sessions;
 
   if (req.method === 'POST' && path === CHAT_PATH) {
-    return routeChat(req, res, opts.modelSettings, respond, opts.runs);
+    return routeChat(req, res, opts.modelSettings, opts.runs);
   }
 
-  if (path.startsWith('/api/chat/') && opts.runs) return routeSearchRun(req, res, url, opts.runs);
+  if (path.startsWith('/api/chat/')) return routeSearchRun(req, res, url, opts.runs);
 
   if (req.method === 'GET' && path === META_PATH) {
     return routeMeta(res, {
@@ -95,7 +89,7 @@ export async function routeApi(
   }
 
   if (path === SESSIONS_PATH || path.startsWith(SESSIONS_PATH + '/')) {
-    await protectedSessionRoute(req, res, opts, sessions, path);
+    await protectedSessionRoute(req, res, opts, path);
     return;
   }
 
@@ -140,7 +134,7 @@ export async function routeModels(
 export async function servePage(
   req: IncomingMessage,
   res: ServerResponse,
-  opts: WebServerOptions,
+  opts: Pick<ProjectServices, 'title' | 'staticRoot'>,
   path: string,
 ): Promise<void> {
   if (req.method === 'GET') {
@@ -170,17 +164,18 @@ export function escapeHtml(s: string): string {
     .replaceAll('"', '&quot;');
 }
 
-async function protectedSessionRoute(req: IncomingMessage, res: ServerResponse, opts: WebServerOptions,
-  sessions: WebSessionStore, path: string): Promise<void> {
-  if (req.method === 'DELETE' && opts.runs) {
-    if (opts.runs.schedules.busy) return sendText(res, 409, 'Scheduled work is being admitted. Retry deleting this chat shortly.');
+async function protectedSessionRoute(req: IncomingMessage, res: ServerResponse, opts: ProjectServices,
+  path: string): Promise<void> {
+  const { runs } = opts;
+  if (req.method === 'DELETE') {
+    if (runs.schedules.busy) return sendText(res, 409, 'Scheduled work is being admitted. Retry deleting this chat shortly.');
 
     const chatId = path.slice(SESSIONS_PATH.length + 1);
-    if (opts.runs.background.hasActive(chatId)) return sendText(res, 409, 'Cancel background tools before deleting their chat.');
+    if (runs.background.hasActive(chatId)) return sendText(res, 409, 'Cancel background tools before deleting their chat.');
 
-    const run = await opts.runs.find(chatId);
+    const run = await runs.find(chatId);
     if (run && !run.settled) return sendText(res, 409, 'Stop this search before deleting its chat.');
   }
 
-  await routeSessions(req, res, sessions, path, opts.learning, opts.canvas);
+  await routeSessions(req, res, runs.sessions, path, opts.learning, opts.canvas);
 }

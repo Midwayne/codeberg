@@ -2,8 +2,9 @@ import { constants } from 'node:fs';
 import { lstat, open } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { parseArtifact } from '../../core/learning/store/artifact.js';
-import { isValidSessionId } from '../sessions/records.js';
-import { type CleanupCategory, ResourceSettingsError, type StoredFile } from './types.js';
+import { isValidSessionId } from '../../core/api/sessions.js';
+import type { CleanupCategory } from '../../core/api/resources.js';
+import { ResourceSettingsError, type StoredFile } from './types.js';
 
 export async function readStoredFile(
   path: string,

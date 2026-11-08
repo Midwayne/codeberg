@@ -69,9 +69,7 @@ export async function buildProjectHandler(project: Project, options: ProjectRunt
   await initializeRuntime(runtime, owned);
 
   return createRequestHandler({
-    daemonUrl,
     canvas,
-    sessionStore: sessions,
     resources,
     learning,
     modelSettings,

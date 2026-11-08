@@ -34,7 +34,7 @@ describe('settings', () => {
   it('offers independent categories, age filtering, and a disabled delete action until selection', () => {
     const html = renderToStaticMarkup(<CleanupOptions preview={{ categories: [
       { category: 'chats', count: 3, bytes: 1024 }, { category: 'training', count: 2, bytes: 2048 }, { category: 'knowledge', count: 1, bytes: 4096 },
-    ] }} selected={[]} onSelect={() => undefined} days={30} onDays={() => undefined} busy={false} onDelete={() => undefined} />);
+    ], cutoff: 0, olderThanDays: 30 }} selected={[]} onSelect={() => undefined} days={30} onDays={() => undefined} busy={false} onDelete={() => undefined} />);
     expect(html).toContain('Saved chats');
     expect(html).toContain('Training data');
     expect(html).toContain('Knowledge documents');

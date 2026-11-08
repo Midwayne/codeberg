@@ -1,11 +1,10 @@
+import type { SessionSummary } from '@agent/core/api/sessions.js';
 import { useSessionSidebar } from './use-session-sidebar';
 import { SidebarHeader } from './sidebar-header';
 import { SidebarMenu, SidebarDelete } from './sidebar-actions';
 import { SessionRow } from './session-row';
 
 import type { ReactNode } from 'react';
-
-import type { SessionSummary } from '../../lib/sessions';
 
 /** Chat organization is only a view over the same resumable conversations. */
 export type SessionSidebarProps = {

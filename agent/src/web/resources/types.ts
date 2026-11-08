@@ -1,19 +1,3 @@
-import type { ProcessUsage } from '../process/types.js';
-
-export const CLEANUP_CATEGORIES = ['chats', 'training', 'knowledge'] as const;
-
-export type CleanupCategory = (typeof CLEANUP_CATEGORIES)[number];
-
-export interface ResourceSample extends ProcessUsage {
-  timestamp: number;
-  disk: {
-    totalBytes: number;
-    availableBytes: number;
-    codebergBytes: number;
-    sampledAt?: number;
-  } | null;
-}
-
 export interface StoredFile {
   path: string;
   id: string;

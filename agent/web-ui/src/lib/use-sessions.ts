@@ -1,7 +1,8 @@
+import type { SessionSummary } from '@agent/core/api/sessions.js';
 import { useProjectApi } from './project-api';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { listSessions, type SessionSummary } from './sessions';
+import { listSessions } from './sessions';
 
 /** Loads the saved-chat list and exposes a `refresh` to re-pull it (after a
  *  save or delete). Errors are swallowed in `listSessions`, so this never throws. */

@@ -1,8 +1,9 @@
+import type { ResourceSample, ResourceUsage } from '@agent/core/api/resources.js';
 import { LoadingBoundary } from './loading';
 import { useProjectApi } from '../lib/project-api';
 
 import { useEffect, useRef, useState } from 'react';
-import { loadResourceUsage, mergeResourceUsage, type ResourceSample, type ResourceUsage } from '../lib/resources';
+import { loadResourceUsage, mergeResourceUsage } from '../lib/resources';
 
 import { ErrorNotice, Select } from './ui';
 import { ResourceMetrics, MeasuredProcesses, ResourceHistory } from './resource-metrics';

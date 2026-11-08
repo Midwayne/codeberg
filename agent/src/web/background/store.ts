@@ -2,7 +2,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeJsonAtomic } from '../../core/learning/fs.js';
 import type { BackgroundJob } from '../../core/background/types.js';
-import { isValidSessionId } from '../sessions/records.js';
+import { isValidSessionId } from '../../core/api/sessions.js';
 
 export class BackgroundError extends Error {
   constructor(readonly status: number, message: string) {

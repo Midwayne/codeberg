@@ -6,8 +6,7 @@ import { ToolLoopAgent } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
 import { SearchRuns } from './manager.js';
 import { WebSessionStore } from '../sessions/store.js';
-import { defaultChatGenerator } from '../usage/generate.js';
-import { UsageStore } from '../usage/store.js';
+import { agentGenerator } from './test-fixtures.js';
 
 it('stops a live SDK text stream and saves partial output', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'codeberg-stream-stop-'));
@@ -21,8 +20,7 @@ it('stops a live SDK text stream and saves partial output', async () => {
     } }) };
   } });
   const sessions = new WebSessionStore(directory);
-  const generate = defaultChatGenerator({ title: 'test', agent: new ToolLoopAgent({ model }) },
-    new UsageStore(join(directory, 'usage')));
+  const generate = agentGenerator(new ToolLoopAgent({ model }));
   const runs = new SearchRuns(sessions, generate);
   const run = await runs.admit({ chatId: 'chat', requestId: 'request',
     messages: [{ id: 'user', role: 'user', parts: [{ type: 'text', text: 'Explain auth' }] }] });

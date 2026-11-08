@@ -1,17 +1,15 @@
 import { SearchRuns } from './runs/manager.js';
-import { defaultChatGenerator } from './usage/generate.js';
+import type { ChatGenerator } from './runs/types.js';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { logRequest } from './server/logging.js';
 import { route } from './server/routes.js';
-import type { WebServerOptions } from './server/types.js';
+import type { ProjectServices, WebServerOptions } from './server/types.js';
 import { RequestWriteGate } from './server/write-gate.js';
 
-import type { ChatResponder } from './chat-routes.js';
 import { sendText } from './http.js';
 import { ResourceSettings } from './resources.js';
 import { WebSessionStore } from './sessions/store.js';
 import { sharedUsageStore } from './usage/shared.js';
-import { defaultChatResponder } from './usage/respond.js';
 
 /**
  * The request handler bridging a browser chat client to the code-search agent.
@@ -22,24 +20,12 @@ import { defaultChatResponder } from './usage/respond.js';
 export function createRequestHandler(
   opts: WebServerOptions,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
-  const usage = opts.usage ?? sharedUsageStore();
-  opts = { ...opts, usage };
+  const services = projectServices(opts);
+  const { runs } = services;
 
-  const respond: ChatResponder =
-    opts.respond ?? defaultChatResponder(opts, usage);
-
-  const sessions = opts.sessionStore ?? new WebSessionStore();
-  const resources =
-    opts.resources ??
-    new ResourceSettings({ sessions, learning: opts.learning, daemonUrl: opts.daemonUrl });
-  const runs = opts.runs ?? (opts.respond ? undefined
-    : new SearchRuns(sessions, opts.generate ?? defaultChatGenerator(opts, usage), { learning: opts.learning }));
-  opts = { ...opts, runs };
-  const writes = new RequestWriteGate(resources, () => Boolean(runs?.busy));
-  if (runs) {
-    runs.schedules.canDispatch = () => !writes.busy;
-    runs.schedules.start();
-  }
+  const writes = new RequestWriteGate(services.resources, () => runs.busy);
+  runs.schedules.canDispatch = () => !writes.busy;
+  runs.schedules.start();
 
   return async (req, res) => {
     let path: string;
@@ -54,23 +40,32 @@ export function createRequestHandler(
     if (!release) return;
 
     const fail = logRequest(req, res, path);
-    await (runs?.initialize() ?? Promise.resolve())
-      .then(() => route(req, res, opts, respond, sessions, resources)).catch(fail).finally(release);
+    await runs.initialize()
+      .then(() => route(req, res, services)).catch(fail).finally(release);
   };
 }
 
 /** Builds (but does not start) the HTTP server. Call `.listen()` to run it. */
 export function createWebServer(opts: WebServerOptions): Server {
-  const sessions = opts.sessionStore ?? new WebSessionStore();
-  const resources =
-    opts.resources ??
-    new ResourceSettings({ sessions, learning: opts.learning, daemonUrl: opts.daemonUrl });
-  const runs = opts.runs ?? (opts.respond ? undefined : new SearchRuns(sessions,
-    opts.generate ?? defaultChatGenerator(opts, opts.usage ?? sharedUsageStore()), { learning: opts.learning }));
-  const server = createServer(createRequestHandler({ ...opts, runs, sessionStore: sessions, resources }));
-  server.on('close', () => void runs?.close());
-  server.on('listening', () => resources.start());
-  server.on('close', () => resources.stop());
+  const services = projectServices(opts);
+  const server = createServer(createRequestHandler(services));
+
+  server.on('close', () => void services.runs.close());
+  server.on('listening', () => services.resources.start());
+  server.on('close', () => services.resources.stop());
 
   return server;
 }
+
+/** Fill in the services a caller did not inject; injected ones are kept as-is. */
+function projectServices(opts: WebServerOptions): ProjectServices {
+  const runs = opts.runs ?? new SearchRuns(opts.sessionStore ?? new WebSessionStore(),
+    opts.generate ?? unavailableGenerator, { learning: opts.learning });
+  const resources = opts.resources ?? new ResourceSettings({ sessions: runs.sessions, learning: opts.learning });
+
+  return { ...opts, runs, resources, usage: opts.usage ?? sharedUsageStore() };
+}
+
+const unavailableGenerator: ChatGenerator = async () => {
+  throw new Error('Select an available chat model.');
+};

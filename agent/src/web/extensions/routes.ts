@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { discoverSkills } from '../../core/context/skills.js';
+import type { ExtensionCatalog, ExtensionScope } from '../../core/api/extensions.js';
 import { mcpConfigFromEnv } from '../../core/mcp/config.js';
 import { readJson, sendJson, sendText } from '../http.js';
 import { previewSkillFiles } from './preview.js';
@@ -48,7 +49,10 @@ export async function route(
   }
 }
 
-async function listExtensions(state: ExtensionStoreState, env: NodeJS.ProcessEnv) {
+async function listExtensions(
+  state: ExtensionStoreState,
+  env: NodeJS.ProcessEnv,
+): Promise<ExtensionCatalog> {
   const mcp = mcpConfigFromEnv(env);
   const skills = await discoverSkills({ env });
 
@@ -78,8 +82,8 @@ async function mcpScope(
   files: string[],
   home: string,
   env: NodeJS.ProcessEnv,
-): Promise<string> {
-  let scope = name === 'databases' ? 'project' : 'global';
+): Promise<ExtensionScope> {
+  let scope: ExtensionScope = name === 'databases' ? 'project' : 'global';
   for (const file of files) {
     let parsed: Record<string, unknown>;
     try {

@@ -1,5 +1,5 @@
 import { Worker } from 'node:worker_threads';
-import type { ResourceSample } from '../resources/types.js';
+import type { ResourceSample } from '../../core/api/resources.js';
 import type { ResourceWorkerData } from './types.js';
 
 export class ResourceMonitorClientState {

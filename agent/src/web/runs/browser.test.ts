@@ -6,6 +6,7 @@ import { expect, it, vi } from 'vitest';
 import { ToolLoopAgent, jsonSchema, tool } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
 import { createWebServer } from '../server.js';
+import { agentGenerator } from './test-fixtures.js';
 import { WebSessionStore } from '../sessions/store.js';
 import { recordToolExecutions } from '../../core/runs/tools.js';
 import { webTools } from '../../core/web/tools.js';
@@ -37,7 +38,7 @@ it('keeps browser/server transcripts consistent through real SDK tool streams an
     } }) };
   } });
   const tools = recordToolExecutions({ get_chunk: tool({ inputSchema: jsonSchema({ type: 'object', properties: {} }), execute }) });
-  const server = createWebServer({ title: 'test', sessionStore: sessions, agent: new ToolLoopAgent({ model, tools }) });
+  const server = createWebServer({ title: 'test', sessionStore: sessions, generate: agentGenerator(new ToolLoopAgent({ model, tools })) });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const api: typeof fetch = (url, options) => fetch(new URL(String(url), base), options);
@@ -105,7 +106,7 @@ it.each(['get_chunk', 'fetch_url', 'web_search'])('can ask a follow-up after sto
       return pending(options.abortSignal);
     },
   }) });
-  const server = createWebServer({ title: 'test', sessionStore: sessions, agent: new ToolLoopAgent({ model, tools }) });
+  const server = createWebServer({ title: 'test', sessionStore: sessions, generate: agentGenerator(new ToolLoopAgent({ model, tools })) });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const api: typeof fetch = (url, options) => fetch(new URL(String(url), base), options);

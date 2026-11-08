@@ -1,14 +1,15 @@
+import type { ProjectCatalogInfo } from '@agent/core/api/projects.js';
 import { LoadingBoundary } from './loading';
 import { ProjectDetails } from './project-details';
 
 import { useEffect, useState } from 'react';
 import { CopyButton, ErrorNotice } from './ui';
-import { useProjectApi, type ProjectCatalog } from '../lib/project-api';
+import { useProjectApi } from '../lib/project-api';
 import type { ProjectListProps } from './projects';
 
 export function ProjectsPanel() {
   const { project: selectedProject, onProjectRenamed, onProjectDeleted } = useProjectApi();
-  const [catalog, setCatalog] = useState<ProjectCatalog>();
+  const [catalog, setCatalog] = useState<ProjectCatalogInfo>();
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
   useEffect(() => {
@@ -17,7 +18,7 @@ export function ProjectsPanel() {
     void fetch('/api/projects', { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error(await response.text());
-        const value = (await response.json()) as ProjectCatalog;
+        const value = (await response.json()) as ProjectCatalogInfo;
         if (!controller.signal.aborted) setCatalog(value);
       })
       .catch((reason: unknown) => {
@@ -52,7 +53,7 @@ export function ProjectsPanel() {
   );
 }
 
-export type ProjectCatalogLocationProps = { catalog: ProjectCatalog | undefined };
+export type ProjectCatalogLocationProps = { catalog: ProjectCatalogInfo | undefined };
 
 export function ProjectCatalogLocation({ catalog }: ProjectCatalogLocationProps) {
   return (

@@ -1,40 +1,14 @@
 import { createContext, useContext } from 'react';
 
-export interface Project {
-  id: string;
-  name: string;
-  roots: { key: string; root: string }[];
-  configDirectory?: string;
-}
-export interface ProjectCatalog {
-  defaultId: string;
-  projects: Project[];
-  catalogPath?: string;
-  vectorsEnabled?: boolean;
-}
-export interface ProjectStatus {
-  ready: boolean;
-  vectors_enabled?: boolean;
-  indexing?: boolean;
-  progress?: IndexProgress;
-  chunks: number;
-  status?: string;
-  message?: string;
-}
+import { PROJECT_HEADER, type ProjectCatalogInfo, type ProjectInfo } from '@agent/core/api/projects.js';
 
-export interface IndexProgress {
-  repo: string;
-  phase: string;
-  completed: number;
-  total: number;
-}
 const unscopedFetch: typeof fetch = (...args) => globalThis.fetch(...args);
 export const ProjectApiContext = createContext<{
-  project?: Project;
+  project?: ProjectInfo;
   fetch: typeof fetch;
   ready: boolean;
-  onProjectDeleted?: (catalog: ProjectCatalog) => void;
-  onProjectRenamed?: (project: Project) => void;
+  onProjectDeleted?: (catalog: ProjectCatalogInfo) => void;
+  onProjectRenamed?: (project: ProjectInfo) => void;
 }>({ fetch: unscopedFetch, ready: true });
 export function useProjectApi() {
   return useContext(ProjectApiContext);
@@ -44,7 +18,7 @@ export function projectFetch(id: string): typeof fetch {
   return (input, init) => {
     const headers = new Headers(input instanceof Request ? input.headers : undefined);
     new Headers(init?.headers).forEach((value, key) => headers.set(key, value));
-    headers.set('X-Codeberg-Project', id);
+    headers.set(PROJECT_HEADER, id);
     return globalThis.fetch(input, { ...init, headers });
   };
 }

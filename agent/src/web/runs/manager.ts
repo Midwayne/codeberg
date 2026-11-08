@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import type { LearningService } from '../../core/learning/service.js';
 import type { WebSessionStore } from '../sessions/store.js';
-import { isValidSessionId } from '../sessions/records.js';
+import { isValidSessionId } from '../../core/api/sessions.js';
 import { executeRun } from './execution.js';
 import { RunJournal } from './journal.js';
 import { recoverInterruptedRun } from './recovery.js';

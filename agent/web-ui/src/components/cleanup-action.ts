@@ -1,4 +1,5 @@
-import { cleanupResources, formatBytes, type CleanupCategory } from '../lib/resources';
+import type { CleanupCategory } from '@agent/core/api/resources.js';
+import { cleanupResources, formatBytes } from '../lib/resources';
 
 export type CleanupActionOptions = {
   setBusy: React.Dispatch<React.SetStateAction<boolean>>;

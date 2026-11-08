@@ -8,6 +8,8 @@ import { MockLanguageModelV4 } from 'ai/test';
 import { createWebServer } from '../server.js';
 import { type WebServerOptions } from '../server/types.js';
 import { UsageStore } from './store.js';
+import { trackModelUsage } from './model.js';
+import { agentGenerator } from '../runs/test-fixtures.js';
 import { ResourceSettings } from '../resources.js';
 import { WebSessionStore } from '../sessions/store.js';
 
@@ -46,7 +48,7 @@ describe('usage API', () => {
         signal?.addEventListener('abort', () => next.error(new DOMException('Stopped', 'AbortError')));
       } }) };
     } });
-    const { url } = await fixture({ agent: new ToolLoopAgent({ model }) });
+    const { url } = await fixture({ generate: agentGenerator(new ToolLoopAgent({ model })) });
     const stop = new AbortController();
     const response = await fetch(url.replace('/settings/usage', '/chat'), {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: stop.signal,
@@ -65,7 +67,7 @@ describe('usage API', () => {
     expect(signal?.aborted).toBe(true);
   });
 
-  it('captures real streamed agent steps through the default web responder', async () => {
+  it('captures real streamed agent steps through the tracked chat model', async () => {
     const model = new MockLanguageModelV4({ doStream: async () => ({
       stream: new ReadableStream({ start(controller) {
         controller.enqueue({ type: 'text-start', id: 'text-1' });
@@ -78,7 +80,9 @@ describe('usage API', () => {
         controller.close();
       } }),
     }) });
-    const { usage, url } = await fixture({ agent: new ToolLoopAgent({ model }) });
+    const usage = new UsageStore(await mkdtemp(join(tmpdir(), 'codeberg-usage-store-')));
+    const tracked = trackModelUsage(model, usage, { model: 'mock:model', key: 'mock:model', kind: 'chat' });
+    const { url } = await fixture({ generate: agentGenerator(new ToolLoopAgent({ model: tracked })) });
     const response = await fetch(url.replace('/settings/usage', '/chat'), { method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages: [{ id: 'u1', role: 'user', parts: [{ type: 'text', text: 'hello' }] }] }),
