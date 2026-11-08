@@ -37,6 +37,7 @@ export function mcpToolSource(opts: McpToolSourceOptions): McpToolSource {
 
   const source: McpToolSource = {
     name: 'mcp',
+    batchable: false,
     connectedServers: () =>
       state.opened
         .filter((opened) => opened.catalog.state === 'connected')

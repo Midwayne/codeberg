@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   isDeferredMcpTool,
+  McpToolActivation,
+  mcpToolsLoaded,
   mcpToolsReferenced,
   prepareStepPatch,
   selectActiveTools,
@@ -76,5 +78,34 @@ describe('mcpToolsReferenced', () => {
     ];
 
     expect(mcpToolsReferenced(messages)).toEqual(['mcp_github_list_issues']);
+  });
+});
+
+describe('mcp activation across chats', () => {
+  const all = ['grep', 'load_mcp_tools', 'mcp_github_list_issues'];
+
+  function loadedMessage(loaded: string[]): ModelMessage {
+    return {
+      role: 'tool',
+      content: [{
+        type: 'tool-result',
+        toolCallId: 'load',
+        toolName: 'load_mcp_tools',
+        output: { type: 'json', value: { loaded } },
+      }],
+    };
+  }
+
+  it('follows this transcript and ignores activations recorded for another chat', () => {
+    const activation = new McpToolActivation();
+    activation.setCallable(['mcp_github_list_issues']);
+    activation.activate(['mcp_github_list_issues']);
+
+    expect(activation.activeNames()).toEqual(['mcp_github_list_issues']);
+    expect(activation.select(all, [])).toEqual(['grep', 'load_mcp_tools']);
+    expect(activation.select(all, [loadedMessage(['mcp_github_list_issues'])])).toEqual(all);
+    expect(mcpToolsLoaded([loadedMessage(['mcp_github_list_issues', 'grep'])])).toEqual([
+      'mcp_github_list_issues',
+    ]);
   });
 });

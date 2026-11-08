@@ -1,7 +1,7 @@
 import type { ToolSet } from 'ai';
 import { describe, expect, it } from 'vitest';
 
-import { collectTools, type ToolSource } from './source.js';
+import { collectTools, composeTools, type ToolSource } from './source.js';
 
 function src(name: string, set: ToolSet): ToolSource {
   return { name, tools: () => set };
@@ -29,5 +29,42 @@ describe('collectTools', () => {
     };
 
     expect(Object.keys(await collectTools([asyncSource]))).toEqual(['z']);
+  });
+});
+
+describe('composeTools', () => {
+  it('keeps instructions, batch names, and untimed from sources that registered tools', async () => {
+    const composed = await composeTools([
+      src('reads', { grep: {} as never }),
+      { name: 'empty', instructions: 'skip', batchable: false, untimed: true, tools: () => ({}) },
+      { name: 'browser', instructions: '\nbrowser', batchable: false, untimed: true, tools: () => ({ browser_task: {} as never }) },
+    ]);
+
+    expect(composed.instructions).toEqual(['\nbrowser']);
+    expect(composed.batchable).toEqual(['grep']);
+    expect(composed.untimed).toBe(true);
+    expect(Object.keys(composed.tools)).toEqual(['grep', 'browser_task']);
+  });
+
+  it('omits server-only sources unless this loop serves a server chat', async () => {
+    const server = { name: 'schedules', serverOnly: true, tools: () => ({ schedule_run: {} as never }) };
+
+    expect(Object.keys((await composeTools([server])).tools)).toEqual([]);
+    expect(Object.keys((await composeTools([server], { server: true })).tools)).toEqual(['schedule_run']);
+  });
+
+  it('passes tools registered so far to the next source', async () => {
+    let seen: string[] = [];
+    const composed = await composeTools([
+      src('first', { grep: {} as never }),
+      { name: 'later', tools: (earlier) => {
+        seen = Object.keys(earlier ?? {});
+
+        return { extra: {} as never };
+      } },
+    ]);
+
+    expect(seen).toEqual(['grep']);
+    expect(Object.keys(composed.tools)).toEqual(['grep', 'extra']);
   });
 });

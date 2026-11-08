@@ -25,12 +25,12 @@ it.each([false, true])('matches semantic tool registration to daemon capabilitie
     name, description: name, schema: { type: 'object' },
   })));
 
-  const tools = await createAgentTools({
+  const tools = (await createAgentTools({
     env: { CODEBERG_HOME: home }, daemon, context: ContextStore.open(join(home, 'context')),
     web: webConfigFromEnv({ CODEBERG_WEB_USE: 'false' }),
     mcp: () => mcpToolSource({ config: { enabled: false, servers: [], files: [], warnings: [] } }),
     defaultSearchK: 8, searchBundle: true, onResults: vi.fn(),
-  });
+  })).tools;
 
   for (const name of ['search_code', 'hybrid_search', 'search_bundle']) {
     expect(name in tools, name).toBe(vectors);

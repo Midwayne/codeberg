@@ -1,5 +1,6 @@
+import type { ToolSet } from 'ai';
+
 import { canvasFromEnv } from '../canvas/config.js';
-import { CANVAS_INSTRUCTIONS } from '../canvas/tools.js';
 import { requestProviderOptions } from '../cache.js';
 import { publishSkills } from '../context/skills.js';
 import { envFlag } from '../env.js';
@@ -11,18 +12,16 @@ import { reasoningCallSettings } from '../reasoning.js';
 import { mergeProviderOptions, parallelToolProviderOptions } from '../tool-calls.js';
 import { createAgentTools } from '../tools/agent-tools.js';
 import { BATCH_TOOL, MAX_BATCH_CALLS } from '../tools/batch.js';
+import type { ComposedTools } from '../tools/source.js';
 import { DEFAULT_SEARCH_K } from './options.js';
+import { recordSearchHits } from './turn-sources.js';
 import type { AgentState } from './state.js';
 import { budgetWindow } from '../../providers/profiles.js';
 import { configuredDecision } from '../decisions/catalog.js';
 import { decisionTools } from '../decisions/tool.js';
-import { BACKGROUND_INSTRUCTIONS } from '../background/tools.js';
 
-export async function prepareSystem(
-  state: AgentState,
-  tools: Awaited<ReturnType<typeof buildTools>>,
-) {
-  const toolNames = Object.keys(tools);
+export async function prepareSystem(state: AgentState, composed: ComposedTools) {
+  const toolNames = Object.keys(composed.tools);
   const skills = await publishSkills(state.context, { env: state.env });
   state.system = agentSystemPrompt({
     learning: state.learning ? learningRecall(state.learning.settings) : false,
@@ -36,10 +35,7 @@ export async function prepareSystem(
     decisions: toolNames.includes('decide'),
     vectors: toolNames.includes('search_code'),
   });
-  if (toolNames.includes('search_bundle')) state.system += '\n\nsearch_bundle is an experimental read-only pipeline for up to four explicit repository/query pairs. Use repos to discover keys, then use it for cross-repository evidence. Inspect partial failures and omitted results before concluding absence.';
-
-  if (toolNames.some((name) => name.startsWith('canvas_'))) state.system += CANVAS_INSTRUCTIONS;
-  if (toolNames.includes('sleep_agent')) state.system += BACKGROUND_INSTRUCTIONS;
+  state.system += composed.instructions.join('');
 
   const knowledgeIndex = await state.learning?.knowledgeIndex();
   if (knowledgeIndex) state.system += `\n\n${knowledgeIndex}`;
@@ -75,8 +71,24 @@ export async function buildTools(state: AgentState) {
     },
     defaultSearchK: DEFAULT_SEARCH_K,
     searchBundle: envFlag(state.env, 'CODEBERG_SEARCH_BUNDLE_USE', false),
-    onResults: (hits) => state.sources.push(...hits),
+    onResults: recordSearchHits,
+    server: state.serverTools === true,
   });
 
-  return { ...tools, ...decisionTools(decisions, { env: state.env, daemon: state.daemon, onUsage: state.onDecisionUsage }) };
+  return withDecisions(tools, decisionTools(decisions, {
+    env: state.env,
+    daemon: state.daemon,
+    onUsage: state.onDecisionUsage,
+  }));
+}
+
+function withDecisions(composed: ComposedTools, extra: ToolSet): ComposedTools {
+  const names = Object.keys(extra).filter((name) => !(name in composed.tools));
+  if (names.length === 0) return composed;
+
+  return {
+    ...composed,
+    tools: { ...composed.tools, ...Object.fromEntries(names.map((name) => [name, extra[name]!])) },
+    batchable: [...composed.batchable, ...names],
+  };
 }
