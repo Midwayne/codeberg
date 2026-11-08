@@ -9,4 +9,12 @@
  */
 char *cberg_read_file(const char *path, size_t *out_len);
 
+/*
+ * Copy the module path from a go.mod body. The module clause must be the first
+ * statement. Leading // and block comments are skipped. A surrounding quote and
+ * a trailing comment are not part of the path. Returns 1 and writes a non-empty
+ * path, or 0 and an empty string.
+ */
+int cberg_go_module_path(const char *body, char *out, size_t out_cap);
+
 #endif /* CBERG_FILEIO_H */

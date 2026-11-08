@@ -217,38 +217,7 @@ static void scan_go_mod(pkg_index *idx, const char *root) {
     if (body == NULL) {
         return;
     }
-    /* Skip leading blank lines and // comments before `module`. */
-    const char *p = body;
-    while (*p) {
-        while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') {
-            p++;
-        }
-        if (p[0] == '/' && p[1] == '/') {
-            while (*p && *p != '\n') {
-                p++;
-            }
-            continue;
-        }
-        if (p[0] == '/' && p[1] == '*') {
-            p += 2;
-            while (p[0] && !(p[0] == '*' && p[1] == '/')) {
-                p++;
-            }
-            if (p[0]) {
-                p += 2;
-            }
-            continue;
-        }
-        break;
-    }
-    if (strncmp(p, "module ", 7) == 0) {
-        p += 7;
-        size_t i = 0;
-        while (*p && *p != '\n' && *p != '\r' && i + 1 < sizeof idx->go_module) {
-            idx->go_module[i++] = *p++;
-        }
-        idx->go_module[i] = '\0';
-    }
+    cberg_go_module_path(body, idx->go_module, sizeof idx->go_module);
     free(body);
     if (idx->go_module[0] == '\0') {
         return;

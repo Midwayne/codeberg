@@ -119,24 +119,7 @@ static void read_package(cberg_repo *repo, workspace_package *package) {
     size_t length = 0;
     char *body = cberg_read_file(path, &length);
     if (body != NULL) {
-        char *state = NULL;
-        for (char *line = strtok_r(body, "\n", &state); line != NULL; line = strtok_r(NULL, "\n", &state)) {
-            while (isspace((unsigned char)*line))
-                line++;
-            if (strncmp(line, "module", 6) != 0 || !isspace((unsigned char)line[6]))
-                continue;
-            line += 6;
-            while (isspace((unsigned char)*line))
-                line++;
-            if (*line == '"')
-                line++;
-            size_t count = strcspn(line, "\" \t\r\n");
-            if (count != 0 && count < sizeof package->go_module) {
-                memcpy(package->go_module, line, count);
-                package->go_module[count] = '\0';
-            }
-            break;
-        }
+        cberg_go_module_path(body, package->go_module, sizeof package->go_module);
         free(body);
     }
 

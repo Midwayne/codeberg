@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 char *cberg_read_file(const char *path, size_t *out_len) {
     if (path == NULL || out_len == NULL) {
@@ -30,4 +31,65 @@ char *cberg_read_file(const char *path, size_t *out_len) {
     buf[got] = '\0';
     *out_len = got;
     return buf;
+}
+
+static const char *skip_go_preamble(const char *p) {
+    while (*p) {
+        while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') {
+            p++;
+        }
+        if (p[0] == '/' && p[1] == '/') {
+            while (*p && *p != '\n') {
+                p++;
+            }
+            continue;
+        }
+        if (p[0] == '/' && p[1] == '*') {
+            p += 2;
+            while (*p && !(p[0] == '*' && p[1] == '/')) {
+                p++;
+            }
+            if (*p) {
+                p += 2;
+            }
+            continue;
+        }
+        break;
+    }
+
+    return p;
+}
+
+int cberg_go_module_path(const char *body, char *out, size_t out_cap) {
+    if (out != NULL && out_cap > 0) {
+        out[0] = '\0';
+    }
+    if (body == NULL || out == NULL || out_cap == 0) {
+        return 0;
+    }
+
+    const char *p = skip_go_preamble(body);
+    if (strncmp(p, "module", 6) != 0 || (p[6] != ' ' && p[6] != '\t')) {
+        return 0;
+    }
+
+    p += 6;
+    while (*p == ' ' || *p == '\t') {
+        p++;
+    }
+    if (*p == '"') {
+        p++;
+    }
+
+    size_t i = 0;
+    while (*p && *p != '"' && *p != ' ' && *p != '\t' && *p != '\r' && *p != '\n') {
+        if (i + 1 >= out_cap) {
+            out[0] = '\0';
+            return 0;
+        }
+        out[i++] = *p++;
+    }
+    out[i] = '\0';
+
+    return i > 0;
 }
