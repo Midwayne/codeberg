@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -77,7 +76,7 @@ func pickerInitialPath(w http.ResponseWriter, r *http.Request) (string, bool) {
 
 	initial := body.InitialPath
 	if initial != "" {
-		if !filepath.IsAbs(initial) || strings.ContainsAny(initial, "\x00\n\r\t") {
+		if !usableDirectoryPath(initial) {
 			httpserver.WriteError(w, 400, "Choose an absolute directory path")
 			return "", false
 		}

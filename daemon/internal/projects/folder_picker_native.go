@@ -11,8 +11,12 @@ import (
 	"strings"
 )
 
+func usableDirectoryPath(path string) bool {
+	return filepath.IsAbs(path) && !strings.ContainsAny(path, "\x00\n\r\t")
+}
+
 func existingDirectory(path string) (string, error) {
-	if !filepath.IsAbs(path) || strings.ContainsAny(path, "\x00\n\r\t") {
+	if !usableDirectoryPath(path) {
 		return "", fmt.Errorf("invalid directory path")
 	}
 

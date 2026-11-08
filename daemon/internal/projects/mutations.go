@@ -12,7 +12,7 @@ import (
 )
 
 func (m *Manager) Add(name, root string) (Project, error) {
-	if !filepath.IsAbs(root) || strings.ContainsAny(root, "\x00\n\r\t") {
+	if !usableDirectoryPath(root) {
 		return Project{}, fmt.Errorf("choose an absolute directory path")
 	}
 
