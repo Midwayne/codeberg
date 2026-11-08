@@ -96,6 +96,26 @@ cberg_status cberg_engine_embed(cberg_engine *eng, const char *const *texts, con
 
 cberg_status cberg_repo_bootstrap(cberg_repo *r);
 
+/* Bootstraps every repo in order, then marks the engine bootstrapped. A repo
+ * that fails stays not-ready instead of taking down its siblings. Returns the
+ * first failure only when no repo bootstrapped and no stop was requested.
+ * *out_ok (nullable) receives the number of repos that bootstrapped. */
+cberg_status cberg_engine_bootstrap(cberg_engine *eng, size_t *out_ok);
+
+/* Async-signal-safe: bootstrap and the watch loop return at the next check. */
+void cberg_engine_request_stop(cberg_engine *eng);
+int cberg_engine_stop_requested(const cberg_engine *eng);
+
+/* Admits one IPC query without waiting: false until bootstrap finishes and
+ * while a watched update runs. A true result holds the work lock, so no update
+ * starts mid-query, until cberg_engine_end_query. */
+int cberg_engine_begin_query(cberg_engine *eng);
+void cberg_engine_end_query(cberg_engine *eng);
+
+/* Readiness for health: bootstrap finished and at least one repo is ready. */
+int cberg_engine_ready(cberg_engine *eng);
+int cberg_engine_indexing(cberg_engine *eng);
+
 /* One non-blocking pass over every repo's watcher, applying any pending
  * changes. *out_events (nullable) receives the number of events handled. */
 cberg_status cberg_engine_step(cberg_engine *eng, size_t *out_events);
@@ -110,7 +130,6 @@ cberg_repo *cberg_engine_find_repo(cberg_engine *eng, const char *repo_key);
 size_t cberg_repo_chunk_count(cberg_repo *r);
 int cberg_repo_ready(cberg_repo *r);
 size_t cberg_engine_chunk_count(cberg_engine *eng);
-const char *cberg_indexer_version(void);
 
 #define CBERG_SNIPPET_MAX 400
 #define CBERG_CHUNK_BODY_MAX 65536

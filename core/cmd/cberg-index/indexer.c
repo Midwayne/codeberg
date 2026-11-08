@@ -935,10 +935,6 @@ static char *join_str(const char *a, const char *b) {
     return s;
 }
 
-const char *cberg_indexer_version(void) {
-    return cberg_version();
-}
-
 size_t cberg_repo_chunk_count(cberg_repo *r) {
     return atomic_load(&r->published_chunks);
 }
@@ -963,6 +959,42 @@ size_t cberg_engine_chunk_count(cberg_engine *eng) {
         total += cberg_repo_chunk_count(eng->repos[i]);
     }
     return total;
+}
+
+int cberg_engine_ready(cberg_engine *eng) {
+    if (!atomic_load(&eng->bootstrapped)) {
+        return 0;
+    }
+
+    for (size_t i = 0; i < eng->repos_len; i++) {
+        if (cberg_repo_ready(eng->repos[i])) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int cberg_engine_indexing(cberg_engine *eng) {
+    return !atomic_load(&eng->bootstrapped) || atomic_load(&eng->updating);
+}
+
+void cberg_engine_request_stop(cberg_engine *eng) {
+    eng->stop = 1;
+}
+
+int cberg_engine_stop_requested(const cberg_engine *eng) {
+    return eng->stop != 0;
+}
+
+int cberg_engine_begin_query(cberg_engine *eng) {
+    if (!atomic_load(&eng->bootstrapped)) {
+        return 0;
+    }
+    return pthread_mutex_trylock(&eng->work_mu) == 0;
+}
+
+void cberg_engine_end_query(cberg_engine *eng) {
+    pthread_mutex_unlock(&eng->work_mu);
 }
 
 /* -------------------------------------------------------- engine lifecycle */
@@ -1735,6 +1767,32 @@ cberg_status cberg_engine_step(cberg_engine *eng, size_t *out_events) {
         *out_events = total;
     }
     return CBERG_OK;
+}
+
+/* Sequential because the shared embedder is the throughput bottleneck:
+ * parallel bootstraps would only contend on embed_mu. */
+cberg_status cberg_engine_bootstrap(cberg_engine *eng, size_t *out_ok) {
+    cberg_status first_error = CBERG_OK;
+    size_t ok = 0;
+
+    for (size_t i = 0; i < eng->repos_len && !eng->stop; i++) {
+        cberg_repo *r = eng->repos[i];
+        cberg_status st = cberg_repo_bootstrap(r);
+        if (st != CBERG_OK) {
+            fprintf(stderr, "cberg-index[%s]: bootstrap: %s\n", r->key, cberg_status_str(st));
+            first_error = first_error == CBERG_OK ? st : first_error;
+            continue;
+        }
+
+        ok++;
+        fprintf(stderr, "cberg-index[%s]: bootstrap complete: %zu chunks indexed\n", r->key, cberg_repo_chunk_count(r));
+    }
+
+    atomic_store(&eng->bootstrapped, 1);
+    if (out_ok != NULL) {
+        *out_ok = ok;
+    }
+    return ok == 0 && !eng->stop ? first_error : CBERG_OK;
 }
 
 /* Runs only when the watch loop goes idle, so none of it lands on bootstrap or

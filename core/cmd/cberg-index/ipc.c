@@ -36,6 +36,7 @@ typedef struct cberg_ipc_server {
     int status_only;
     struct cberg_ipc_server *health;
     int lock_fd;
+    atomic_int stopping;
     pthread_t thread;
 } cberg_ipc_server;
 
@@ -91,23 +92,21 @@ static void handle_client(cberg_engine *eng, int fd, int status_only) {
         return;
     }
 
-    /* Bootstrap owns the repo locks; watched updates also own work_mu.
-     * Acquire work_mu without waiting so no tool queues behind a build.
-     * Keep it through dispatch to prevent a build starting mid-query. */
-    if (!eng->bootstrapped || pthread_mutex_trylock(&eng->work_mu) != 0) {
+    /* No tool queues behind a build: a busy engine answers with a fallback hint. */
+    if (!cberg_engine_begin_query(eng)) {
         const char *error = "{\"ok\":false,\"error\":\"index building; use grep, glob or read_file while indexing and graph creation finish\"}\n";
         cberg_ipc_write_all(fd, error, strlen(error));
         return;
     }
 
     cberg_ipc_dispatch(eng, fd, line);
-    pthread_mutex_unlock(&eng->work_mu);
+    cberg_engine_end_query(eng);
 }
 
 static void *ipc_thread(void *arg) {
     cberg_ipc_server *srv = arg;
     for (;;) {
-        if (srv->eng->stop) {
+        if (atomic_load(&srv->stopping)) {
             break;
         }
         int listen_fd = srv->listen_fd;
@@ -130,7 +129,7 @@ static void *ipc_thread(void *arg) {
             if (errno == EINTR) {
                 continue;
             }
-            if (srv->eng->stop || srv->listen_fd < 0) {
+            if (atomic_load(&srv->stopping) || srv->listen_fd < 0) {
                 break;
             }
             continue;
@@ -162,6 +161,7 @@ static int ipc_start_at(cberg_engine *eng, const char *socket_path, int status_o
     strcpy(srv->socket_path, socket_path);
     srv->status_only = status_only;
     atomic_init(&srv->listen_fd, -1);
+    atomic_init(&srv->stopping, 0);
     srv->eng = eng;
 
     /* Serialize owners even during startup. Leave the lock file in place so a
@@ -288,7 +288,7 @@ void cberg_ipc_stop(cberg_ipc_server *srv) {
         return;
     }
     cberg_ipc_stop(srv->health);
-    srv->eng->stop = 1;
+    atomic_store(&srv->stopping, 1);
     int fd = srv->listen_fd;
     srv->listen_fd = -1;
     if (fd >= 0) {

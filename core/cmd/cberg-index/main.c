@@ -9,14 +9,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-static volatile sig_atomic_t g_stop;
 static cberg_engine *g_eng;
 
 static void on_signal(int sig) {
     (void)sig;
-    g_stop = 1;
     if (g_eng != NULL) {
-        g_eng->stop = 1;
+        cberg_engine_request_stop(g_eng);
     }
 }
 
@@ -68,34 +66,20 @@ int main(int argc, char **argv) {
         fprintf(stderr, "cberg-index[%s]: root=%s index=%s\n", r->key, r->root, r->index_path != NULL ? r->index_path : "(none)");
     }
 
-    /* Bootstrap repos sequentially — the shared embedder is the throughput
-     * bottleneck, so parallel bootstraps would just contend on embed_mu. A repo
-     * that fails stays not-ready (searches skip it, status reports it) rather
-     * than taking down its siblings; only losing every repo is fatal. */
     size_t ok = 0;
-    for (size_t i = 0; i < eng.repos_len && !eng.stop; i++) {
-        cberg_repo *r = eng.repos[i];
-        st = cberg_repo_bootstrap(r);
-        if (st != CBERG_OK) {
-            fprintf(stderr, "cberg-index[%s]: bootstrap: %s\n", r->key, cberg_status_str(st));
-            continue;
-        }
-        ok++;
-        fprintf(stderr, "cberg-index[%s]: bootstrap complete: %zu chunks indexed\n", r->key, cberg_repo_chunk_count(r));
-    }
-    if (ok == 0 && !eng.stop) {
+    st = cberg_engine_bootstrap(&eng, &ok);
+    if (st != CBERG_OK) {
         fprintf(stderr, "cberg-index: bootstrap: no repo could be indexed\n");
         cberg_ipc_stop(ipc);
         cberg_engine_close(&eng);
         return 1;
     }
-    eng.bootstrapped = 1;
     if (eng.repos_len > 1) {
         fprintf(stderr, "cberg-index: bootstrap complete: %zu chunks across %zu/%zu repos\n", cberg_engine_chunk_count(&eng), ok, eng.repos_len);
     }
 
     st = cberg_engine_run(&eng);
-    if (st != CBERG_OK && !eng.stop) {
+    if (st != CBERG_OK && !cberg_engine_stop_requested(&eng)) {
         fprintf(stderr, "cberg-index: %s\n", cberg_status_str(st));
     }
 

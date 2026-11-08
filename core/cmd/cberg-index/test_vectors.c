@@ -342,7 +342,7 @@ typedef struct {
 
 static void *run_bootstrap(void *ctx) {
     bootstrap_task *task = ctx;
-    task->status = cberg_repo_bootstrap(task->repo);
+    task->status = cberg_engine_bootstrap(task->repo->eng, NULL);
     return NULL;
 }
 
@@ -451,7 +451,6 @@ int main(int argc, char **argv) {
 
     /* Cold bootstrap. */
     bootstrap_with_progress(r);
-    eng.bootstrapped = 1;
 
     size_t chunks = cberg_repo_chunk_count(r);
     CHECK(chunks >= (size_t)(N_FILES * FUNCS_PER_FILE), "every function chunked");

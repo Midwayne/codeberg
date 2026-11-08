@@ -299,8 +299,7 @@ int main(void) {
     cberg_status st = cberg_engine_open(&eng);
     CHECK(st == CBERG_OK, "engine opens");
     if (st == CBERG_OK) {
-        CHECK(cberg_repo_bootstrap(eng.repos[0]) == CBERG_OK, "bootstrap");
-        eng.bootstrapped = 1;
+        CHECK(cberg_engine_bootstrap(&eng, NULL) == CBERG_OK, "bootstrap");
 
         check_outline(&eng, long_src);
         check_find_symbol(&eng);

@@ -183,26 +183,19 @@ static void write_repos(ipc_json *j, cberg_engine *eng) {
     ipc_json_raw(j, "]");
 }
 
+/* ready: bootstrap finished and at least one repo is searchable; the repo
+ * list tells consumers which (a failed repo stays ready:false without holding
+ * the whole daemon unhealthy). */
 void cberg_ipc_status(cberg_engine *eng, int fd) {
-    /* ready = the bootstrap pass finished and at least one repo is searchable;
-     * the per-repo list tells consumers exactly which (a failed repo stays
-     * ready:false without holding the whole daemon unhealthy). */
-    size_t ready_repos = 0;
-    for (size_t i = 0; i < eng->repos_len; i++) {
-        if (cberg_repo_ready(eng->repos[i])) {
-            ready_repos++;
-        }
-    }
-
     ipc_json j;
     ipc_json_init(&j);
 
     ipc_json_raw(&j, "{\"ok\":true");
-    ipc_json_field_bool(&j, ',', "ready", eng->bootstrapped && ready_repos > 0);
+    ipc_json_field_bool(&j, ',', "ready", cberg_engine_ready(eng));
     ipc_json_field_u64(&j, ',', "chunks", cberg_engine_chunk_count(eng));
     ipc_json_field_str(&j, ',', "version", cberg_version());
     ipc_json_field_bool(&j, ',', "vectors_enabled", eng->vectors);
-    ipc_json_field_bool(&j, ',', "indexing", !eng->bootstrapped || eng->updating);
+    ipc_json_field_bool(&j, ',', "indexing", cberg_engine_indexing(eng));
     write_repos(&j, eng);
     write_progress(&j, eng);
     ipc_json_raw(&j, "}\n");
