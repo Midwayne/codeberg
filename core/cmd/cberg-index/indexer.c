@@ -2,7 +2,7 @@
 
 #include "indexer.h"
 
-#include "../../src/graph/import_cache.h"
+#include "import_cache.h"
 #include "chunk_kind.h"
 #include "chunk_table_internal.h"
 #include "embed_internal.h"

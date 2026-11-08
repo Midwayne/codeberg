@@ -1,7 +1,7 @@
 #ifndef CBERG_INDEX_WORKSPACE_GRAPH_H
 #define CBERG_INDEX_WORKSPACE_GRAPH_H
 
-#include "../../src/graph/workspace_graph.h"
+#include "graph_workspace.h"
 #include "indexer.h"
 
 typedef struct cberg_workspace_cache cberg_workspace_cache;

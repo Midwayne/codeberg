@@ -1,5 +1,5 @@
-#ifndef CBERG_WORKSPACE_GRAPH_H
-#define CBERG_WORKSPACE_GRAPH_H
+#ifndef CBERG_GRAPH_WORKSPACE_H
+#define CBERG_GRAPH_WORKSPACE_H
 
 #include "codeberg/codeberg.h"
 

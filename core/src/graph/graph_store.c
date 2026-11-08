@@ -23,7 +23,7 @@
 #include "grow.h"
 #include "strmap.h"
 #include "u64map.h"
-#include "workspace_graph.h"
+#include "graph_workspace.h"
 
 #define GRAPH_CONF_EXACT 1.0f
 #define GRAPH_CONF_SAME_FILE 0.90f
