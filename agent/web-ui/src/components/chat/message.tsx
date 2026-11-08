@@ -6,6 +6,7 @@ import { isScheduledFollowUp } from '@agent/core/schedules/messages';
 import type { UIMessage } from 'ai';
 
 import { cn } from '../../lib/utils';
+import { MESSAGE_ID_ATTR } from '../../lib/message-rail';
 
 export type AnyPart = UIMessage['parts'][number];
 
@@ -47,7 +48,7 @@ export function Message({
   // Preserve reply DOM while skipping off-screen code/table layout on activation.
   return (
     <div
-      data-message-id={domId ?? message.id}
+      {...{ [MESSAGE_ID_ATTR]: domId ?? message.id }}
       style={isUser ? undefined : { contentVisibility: 'auto', containIntrinsicSize: 'auto 400px' }}
       className={cn('group/message flex scroll-mt-3 flex-col gap-1', isUser && !scheduled ? 'items-end' : 'items-start')}
     >

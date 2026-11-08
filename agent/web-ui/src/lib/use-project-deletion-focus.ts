@@ -1,18 +1,18 @@
 import { useEffect, useState } from 'react';
 
+import { useFocusFirst } from './focus-registry';
+
 /** The deleted dialog and trigger disappear; move focus to a surviving control. */
 export function useProjectDeletionFocus() {
+  const focusFirst = useFocusFirst();
   const [pending, setPending] = useState(false);
 
   useEffect(() => {
     if (!pending) return;
 
-    const targets = ['[data-projects-heading]', 'select[aria-label="Project"]', '[data-add-project]', 'button[aria-label="Settings"]'];
-    const target = targets.map((selector) => document.querySelector<HTMLElement>(selector))
-      .find((element) => element && element.getClientRects().length > 0 && !element.closest('[inert]'));
-    target?.focus();
+    focusFirst();
     setPending(false);
-  }, [pending]);
+  }, [pending, focusFirst]);
 
   return () => setPending(true);
 }

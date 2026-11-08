@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { chatSchedulePanelHeight } from './chat-schedule-space';
+import { CANVAS_ACTION_CLEARANCE_PX, chatSchedulePanelHeight } from './chat-schedule-space';
 
 it.each([
   { available: 792, summary: 45, composer: 134, viewport: 900 },
@@ -10,7 +10,7 @@ it.each([
   const panel = chatSchedulePanelHeight(space);
   const remaining = space.available - space.summary - space.composer - panel;
 
-  expect(remaining).toBeGreaterThanOrEqual(64);
+  expect(remaining).toBeGreaterThanOrEqual(CANVAS_ACTION_CLEARANCE_PX);
   expect(panel).toBeGreaterThanOrEqual(0);
   expect(panel).toBeLessThanOrEqual(space.viewport * 0.6);
 });
@@ -21,7 +21,7 @@ it('gives space back when a growing draft increases the composer height', () => 
   const withDraft = chatSchedulePanelHeight({ ...space, composer: 250 });
 
   expect(withDraft).toBeLessThan(initial);
-  expect(space.available - space.summary - 250 - withDraft).toBeGreaterThanOrEqual(64);
+  expect(space.available - space.summary - 250 - withDraft).toBeGreaterThanOrEqual(CANVAS_ACTION_CLEARANCE_PX);
 });
 
 it('never produces a negative CSS height when almost no space remains', () => {
