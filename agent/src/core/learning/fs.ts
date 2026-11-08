@@ -1,13 +1,17 @@
 import type { Dirent } from 'node:fs';
-import { link, mkdir, open, readFile, readdir, rename, unlink } from 'node:fs/promises';
+import { link, lstat, mkdir, open, readFile, readdir, rename, unlink } from 'node:fs/promises';
 import { dirname } from 'node:path';
+
+function missing(error: unknown): boolean {
+  return (error as NodeJS.ErrnoException).code === 'ENOENT';
+}
 
 /** File text, or `undefined` when the path is missing. Every other error is thrown. */
 export async function readOptionalText(path: string): Promise<string | undefined> {
   try {
     return await readFile(path, 'utf8');
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    if (missing(error)) return undefined;
 
     throw error;
   }
@@ -25,9 +29,29 @@ export async function readOptionalDirectory(
 
     return await readdir(path);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    if (missing(error)) return [];
 
     throw error;
+  }
+}
+
+/** `lstat` result, or `undefined` when the path is missing. Symlinks are not followed. */
+export async function optionalLstat(path: string) {
+  try {
+    return await lstat(path);
+  } catch (error) {
+    if (missing(error)) return undefined;
+
+    throw error;
+  }
+}
+
+/** Removes a path. A path that is already gone is success. */
+export async function removeIfPresent(path: string): Promise<void> {
+  try {
+    await unlink(path);
+  } catch (error) {
+    if (!missing(error)) throw error;
   }
 }
 

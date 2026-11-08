@@ -1,6 +1,7 @@
 import { closeBrowserSessions } from '../../core/browser/sessions.js';
 import { sessionRunBytes } from './run-storage.js';
-import { lstat, rm, unlink } from 'node:fs/promises';
+import { rm, unlink } from 'node:fs/promises';
+import { optionalLstat } from '../../core/learning/fs.js';
 import { join } from 'node:path';
 import { sessionJobsDir, sessionRunsDir } from './layout.js';
 import { load } from './reading.js';
@@ -27,11 +28,7 @@ export async function removeOlder(
 ): Promise<number | undefined> {
   return serial(state, id, async () => {
     const path = join(state.dir, `${id}.json`);
-    const info = await lstat(path).catch((error: NodeJS.ErrnoException) => {
-      if (error.code === 'ENOENT') return undefined;
-
-      throw error;
-    });
+    const info = await optionalLstat(path);
 
     if (!info?.isFile()) return undefined;
 

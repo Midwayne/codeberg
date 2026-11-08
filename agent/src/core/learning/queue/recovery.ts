@@ -1,6 +1,5 @@
-import { unlink } from 'node:fs/promises';
 import { join } from 'node:path';
-import { readOptionalDirectory } from '../fs.js';
+import { readOptionalDirectory, removeIfPresent } from '../fs.js';
 import type { JobStatus, KnowledgeJob } from '../types.js';
 import { isProcessAlive, willRetry } from './policy.js';
 import type { DurableJobQueueState } from './state.js';
@@ -52,12 +51,8 @@ export async function reconcileStates(state: DurableJobQueueState): Promise<void
     for (const job of jobs) {
       if (job === winner) continue;
 
-      try {
-        await unlink(path(state, job.status, id));
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-        // Another worker may already have removed the duplicate state.
-      }
+      // Another worker may already have removed the duplicate state.
+      await removeIfPresent(path(state, job.status, id));
     }
   }
 }
@@ -96,11 +91,7 @@ async function removeAbandonedWrites(
       const match = /^job-[a-f\d]+\.json\.(\d+)\.[a-f\d-]+\.tmp$/.exec(file);
       if (!match || isProcessAlive(Number(match[1]))) continue;
 
-      try {
-        await unlink(join(dir, file));
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-      }
+      await removeIfPresent(join(dir, file));
     }
   }
 }

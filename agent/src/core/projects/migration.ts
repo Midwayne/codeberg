@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { lstat, mkdir, readlink, rename, symlink, unlink } from 'node:fs/promises';
+import { mkdir, readlink, rename, symlink, unlink } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import { readOptionalText, writeJsonAtomic } from '../learning/fs.js';
+import { optionalLstat, readOptionalText, writeJsonAtomic } from '../learning/fs.js';
 import { codebergHome } from '../paths.js';
 import { lockMigration } from './lock.js';
 import { type ProjectCatalog, projectDataHome } from './types.js';
@@ -40,14 +40,14 @@ export async function migrateLocked(home: string, catalog: ProjectCatalog): Prom
 
   // Validate all conflicts before moving the first file.
   for (const name of names) {
-    const source = await info(join(home, name));
+    const source = await optionalLstat(join(home, name));
     if (!source || (await isContextAlias(home, target, name, source.isSymbolicLink()))) continue;
 
-    if (await info(join(target, name))) throw new Error(`project migration conflict: ${name}`);
+    if (await optionalLstat(join(target, name))) throw new Error(`project migration conflict: ${name}`);
   }
 
   for (const name of names) {
-    const source = await info(join(home, name));
+    const source = await optionalLstat(join(home, name));
     if (!source || (await isContextAlias(home, target, name, source.isSymbolicLink()))) continue;
 
     if (source.isSymbolicLink()) await makeLinkAbsolute(home, name);
@@ -60,7 +60,7 @@ export async function migrateLocked(home: string, catalog: ProjectCatalog): Prom
 
   // Old model transcripts contain absolute context paths. Preserve those reads
   // without keeping a second shared store or exposing it to other projects.
-  if ((await info(join(target, 'context'))) && !(await info(join(home, 'context')))) {
+  if ((await optionalLstat(join(target, 'context'))) && !(await optionalLstat(join(home, 'context')))) {
     await symlink(join(target, 'context'), join(home, 'context'), 'dir');
   }
 
@@ -82,14 +82,6 @@ export async function prepareProjectStorage(env: NodeJS.ProcessEnv = process.env
   const raw = await readOptionalText(join(home, 'projects.json'));
 
   if (raw) await migrateProjectData(home, JSON.parse(raw) as ProjectCatalog);
-}
-
-export async function info(path: string) {
-  return lstat(path).catch((error: NodeJS.ErrnoException) => {
-    if (error.code !== 'ENOENT') throw error;
-
-    return undefined;
-  });
 }
 
 async function makeLinkAbsolute(home: string, name: string): Promise<void> {

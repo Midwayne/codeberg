@@ -1,5 +1,6 @@
-import { lstat, readdir } from 'node:fs/promises';
+import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { optionalLstat } from '../../core/learning/fs.js';
 import { sessionJobsDir, sessionRunsDir } from './layout.js';
 import { isValidSessionId } from '../../core/api/sessions.js';
 
@@ -13,11 +14,7 @@ export async function sessionRunBytes(directory: string, id: string): Promise<nu
 }
 
 async function directoryBytes(path: string): Promise<number> {
-  const info = await lstat(path).catch((error: NodeJS.ErrnoException) => {
-    if (error.code !== 'ENOENT') throw error;
-
-    return undefined;
-  });
+  const info = await optionalLstat(path);
   if (!info) return 0;
   if (info.isFile()) return info.size;
   if (!info.isDirectory()) return 0;
