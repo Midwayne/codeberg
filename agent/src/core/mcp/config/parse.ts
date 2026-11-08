@@ -1,7 +1,7 @@
+import { isRecord } from '../../record.js';
 import type { McpInterpolateContext, McpServer } from '../types.js';
 import { parseServer } from './servers.js';
 import type { ParseMcpJsonOptions } from './types.js';
-import { isRecord } from './values.js';
 
 /**
  * Parse a Cursor-compatible MCP JSON document (`mcpServers`, or VS Code `servers`).

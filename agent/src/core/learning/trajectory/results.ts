@@ -1,3 +1,4 @@
+import { isRecord } from '../../record.js';
 import type { RetrievedResult } from '../types.js';
 
 export function collectResults(
@@ -52,10 +53,6 @@ export function resultCandidates(value: unknown): Record<string, unknown>[] {
   }
 
   return [value];
-}
-
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
 }
 
 export function string(value: unknown): string | undefined {

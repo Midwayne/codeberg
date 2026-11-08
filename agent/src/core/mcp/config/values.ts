@@ -1,3 +1,4 @@
+import { isRecord } from '../../record.js';
 import type { McpInterpolateContext, McpTransportKind } from '../types.js';
 
 export function splitList(v: string): string[] {
@@ -8,10 +9,6 @@ export function splitList(v: string): string[] {
   }
 
   return out;
-}
-
-export function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
 export function asString(v: unknown): string {

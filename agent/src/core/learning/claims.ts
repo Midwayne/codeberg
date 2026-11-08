@@ -1,5 +1,6 @@
 import { basename } from 'node:path';
 
+import { isRecord } from '../record.js';
 import { sourceTextFor, type SourceObservation } from './memory-source/reading.js';
 import { redactSecrets } from './redact.js';
 import type { KnowledgeClaim } from './types.js';
@@ -141,10 +142,6 @@ function citation(item: KnowledgeClaim['evidence'][number]): string {
 
 function countNewlines(value: string): number {
   return value.match(/\n/g)?.length ?? 0;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
 }
 
 function evidenceLines(source: SourceObservation, quote: string) {
