@@ -7,6 +7,23 @@ changes may occur in minor releases and are called out explicitly.
 
 ## [Unreleased]
 
+## [0.1.14] - 2026-11-08
+
+### Added
+
+- Run Codeberg without vector embeddings with `codeberg --no-vector`. File,
+  text, symbol, and graph tools remain available.
+- Resolve scoped code references more accurately and follow supported imports
+  across indexed repositories.
+
+### Fixed
+
+- Improve chat cancellation and project switching, including stale project
+  status updates.
+- Search saved context with patterns up to 16,384 UTF-16 code units. Regex
+  searches preserve completed matches when they reach their execution budget,
+  and excerpts include exact match locations for reading the surrounding text.
+
 ## [0.1.13] - 2026-11-01
 
 ### Fixed
