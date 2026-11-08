@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { parseSkillDocument } from '../../core/context/skill-document.js';
+import { parseSkillDocument, SKILL_FILE } from '../../core/context/skill-document.js';
 import { readOptionalText, writeJsonAtomic } from '../../core/learning/fs.js';
 import { MCP_FILE } from '../../core/mcp/config.js';
 import { parseMcpJson } from '../../core/mcp/config/parse.js';
@@ -93,7 +93,7 @@ async function writeMcp(root: string, body: ExtensionInput, env: NodeJS.ProcessE
 
 async function writeSkill(root: string, body: ExtensionInput): Promise<void> {
   if (typeof body.content !== 'string' || Buffer.byteLength(body.content, 'utf8') > 256 * 1024)
-    throw new Error('Provide a SKILL.md document up to 256 KB.');
+    throw new Error(`Provide a ${SKILL_FILE} document up to 256 KB.`);
 
   const parsed = parseSkillDocument(body.content, body.name);
   if (!parsed || parsed.name !== body.name)
@@ -102,7 +102,7 @@ async function writeSkill(root: string, body: ExtensionInput): Promise<void> {
   const dir = join(root, 'skills', body.name);
   await mkdir(dir, { recursive: true, mode: 0o700 });
   try {
-    await writeFile(join(dir, 'SKILL.md'), body.content, {
+    await writeFile(join(dir, SKILL_FILE), body.content, {
       encoding: 'utf8',
       flag: 'wx',
       mode: 0o600,

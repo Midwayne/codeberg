@@ -1,5 +1,7 @@
 import { parse } from 'yaml';
 
+export const SKILL_FILE = 'SKILL.md';
+
 /** Parse a SKILL.md. Returns null when it has no usable name and description. */
 export function parseSkillDocument(
   text: string,
