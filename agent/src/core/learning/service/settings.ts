@@ -1,5 +1,5 @@
 import { writeModuleLog } from '../../module-log.js';
-import { isDailyDreaming } from '../dreaming/scheduler.js';
+import { jobTypeEnabled } from '../job-enabled.js';
 import type { LearningSettings } from '../preferences.js';
 import { syncWatcher, wakeWorker } from './background.js';
 import { scheduleDreaming } from './dreaming-schedule.js';
@@ -50,18 +50,12 @@ export function jobEnabled(
     interaction_id?: string;
   },
 ): boolean {
-  if (job.type === 'evaluate_output') return Boolean(state.evaluations?.enabled());
-
-  if (job.type === 'consolidate_knowledge')
-    return (
-      state.knowledgeEnabled &&
-      (!isDailyDreaming(job.interaction_id ?? '') || state.preferences.dreaming)
-    );
-
-  return job.type === 'extract_knowledge'
-    ? state.knowledgeEnabled &&
-        (job.source_refresh
-          ? state.preferences.knowledgeRefresh
-          : state.preferences.knowledgeCapture)
-    : state.datasetEnabled;
+  return jobTypeEnabled({
+    type: job.type,
+    sourceRefresh: job.source_refresh,
+    interactionId: job.interaction_id,
+    settings: state.preferences,
+    hasGenerator: state.hasGenerator,
+    evaluationsEnabled: Boolean(state.evaluations?.enabled()),
+  });
 }
