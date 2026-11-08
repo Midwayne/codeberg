@@ -7,6 +7,10 @@ import { serializeArtifact } from '../store/artifact.js';
 import type { AttemptRecord, KnowledgeArtifact, KnowledgeJob } from '../types.js';
 import type { KnowledgeWorkerState } from './state.js';
 
+/** Broader than a session correction: the user asks for something to be remembered. */
+const EXPLICIT_NOTE =
+  /^(?:i meant\b|actually\b|no\b|to clarify\b|please (?:add|remember|note|update)\b|(?:add|remember|note|update)\b|remember that\b)/i;
+
 export async function recordCorrectionNote(
   state: KnowledgeWorkerState,
   job: KnowledgeJob,
@@ -15,11 +19,7 @@ export async function recordCorrectionNote(
   existing: KnowledgeArtifact[],
 ): Promise<void> {
   const text = final.user_query.trim().replace(/\s+/g, ' ').slice(0, 1_000);
-  if (
-    !/^(?:i meant\b|actually\b|no\b|to clarify\b|please (?:add|remember|note|update)\b|(?:add|remember|note|update)\b|remember that\b)/i.test(
-      text,
-    )
-  ) {
+  if (!EXPLICIT_NOTE.test(text)) {
     writeLearningTrace('extraction_skipped', {
       job_id: job.job_id,
       reason: 'no_explicit_user_correction',

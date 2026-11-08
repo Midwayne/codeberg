@@ -1,3 +1,5 @@
+import type { KNOWLEDGE_CATEGORIES } from './preferences.js';
+
 export const FEEDBACK_LABELS = [
   'not_useful',
   'partially_useful',
@@ -132,7 +134,7 @@ export interface KnowledgeJob {
   rerun_requested?: boolean;
 }
 
-export type KnowledgeCategory = 'services' | 'flows' | 'concepts' | 'debugging';
+export type KnowledgeCategory = (typeof KNOWLEDGE_CATEGORIES)[number];
 
 export type KnowledgeConfidence = 'low' | 'medium' | 'high';
 

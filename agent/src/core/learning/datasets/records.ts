@@ -1,8 +1,8 @@
 import type { FeedbackRecord } from '../types.js';
 import { LearningError } from '../errors.js';
+import type { DATASET_KINDS } from '../preferences.js';
 
-export type DatasetKind =
-  'retrieval' | 'sft' | 'preferences' | 'rlvr' | 'hard_negatives' | 'hard_negative_candidates';
+export type DatasetKind = (typeof DATASET_KINDS)[number];
 
 export type Provenance =
   | 'user_confirmed'

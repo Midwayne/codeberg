@@ -1,6 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { EXTRACTION_VERSION } from '../dataset-extract.js';
+import { isCurrentExample } from '../dataset-extract.js';
 import { interactionRevisions } from '../revision.js';
 import type { DatasetExample } from './records.js';
 import type { DatasetStoreState } from './state.js';
@@ -39,9 +39,7 @@ export async function active(
 ): Promise<DatasetExample[]> {
   const revisions = interactionRevisions(await state.store.events());
 
-  return (await list(state, split)).filter(
-    (row) =>
-      row.extraction_version === EXTRACTION_VERSION &&
-      row.source_revision === revisions.get(row.source_interaction_id),
+  return (await list(state, split)).filter((row) =>
+    isCurrentExample(row, revisions.get(row.source_interaction_id)),
   );
 }

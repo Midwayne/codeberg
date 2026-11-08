@@ -6,7 +6,12 @@ import { scoreOutputsFile } from './output-evals.js';
 
 import { DatasetStore } from '../core/learning/datasets.js';
 import { type Provenance } from '../core/learning/datasets/records.js';
-import { exportDataset, type ExportType } from '../core/learning/export.js';
+import {
+  EXPORT_TYPES,
+  exportDataset,
+  isExportType,
+  type ExportType,
+} from '../core/learning/export.js';
 import { EvaluationReports } from '../core/learning/evaluation/reports.js';
 import { writeAtomic } from '../core/learning/fs.js';
 import { historicalEvalMetrics, scoreRetrievalRuns } from '../core/learning/metrics.js';
@@ -118,7 +123,8 @@ async function datasetCommand(
     }
     default:
       console.error(
-        'Usage: codeberg-learning dream | dream-reports | dream-report <id> | dream-apply <id> | dream-undo <id> | dream-dismiss <id> | search-learning <query> | search-knowledge [--all] <query> | list-knowledge | list | show <interaction-id> | stats | metrics | eval-reports | score <runs.jsonl> | score-outputs <runs.jsonl> [--judge provider:model] | candidates | extract <interaction-id> | promote <example-id> <eval|training> <provenance> [oracle.json] | export --type eval|embedding|openai-chat|query-positive-negative|preference|knowledge',
+        'Usage: codeberg-learning dream | dream-reports | dream-report <id> | dream-apply <id> | dream-undo <id> | dream-dismiss <id> | search-learning <query> | search-knowledge [--all] <query> | list-knowledge | list | show <interaction-id> | stats | metrics | eval-reports | score <runs.jsonl> | score-outputs <runs.jsonl> [--judge provider:model] | candidates | extract <interaction-id> | promote <example-id> <eval|training> <provenance> [oracle.json] | export --type ' +
+          EXPORT_TYPES.join('|'),
       );
       process.exitCode = 1;
   }
@@ -145,22 +151,12 @@ async function promoteExample(datasets: DatasetStore, args: string[]): Promise<v
 function readExportType(args: string[]): ExportType {
   const index = args.indexOf('--type');
   const type = index >= 0 ? args[index + 1] : undefined;
-  if (
-    ![
-      'eval',
-      'embedding',
-      'openai-chat',
-      'query-positive-negative',
-      'preference',
-      'knowledge',
-    ].includes(type ?? '')
-  ) {
-    throw new Error(
-      '--type must be eval, embedding, openai-chat, query-positive-negative, preference, or knowledge',
-    );
+  if (!isExportType(type)) {
+    const choices = `${EXPORT_TYPES.slice(0, -1).join(', ')}, or ${EXPORT_TYPES.at(-1)}`;
+    throw new Error(`--type must be ${choices}`);
   }
 
-  return type as ExportType;
+  return type;
 }
 
 main().catch((error: unknown) => {

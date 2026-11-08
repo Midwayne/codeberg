@@ -1,4 +1,4 @@
-import { EXTRACTION_VERSION } from '../dataset-extract.js';
+import { EXTRACTION_VERSION, isCurrentExample } from '../dataset-extract.js';
 import { sameTaskFamily } from '../dedup.js';
 import { writeJsonImmutable } from '../fs.js';
 import { redactSecrets } from '../redact.js';
@@ -58,12 +58,8 @@ export async function dismiss(state: DatasetStoreState, id: string): Promise<Dat
   if (!example) throw new LearningError('not_found', 'candidate not found');
 
   const current = await state.store.interaction(example.source_interaction_id);
-  if (
-    example.extraction_version !== EXTRACTION_VERSION ||
-    example.source_revision !== sourceRevision(current.attempts, current.feedback)
-  ) {
+  if (!isCurrentExample(example, sourceRevision(current.attempts, current.feedback)))
     throw new LearningError('conflict', 'candidate is stale');
-  }
 
   return withPromotionLock(state, async () => {
     const reviewed = await Promise.all(

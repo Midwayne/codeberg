@@ -1,5 +1,6 @@
 import type { UIMessage } from 'ai';
 import { writeModuleLog } from '../../module-log.js';
+import { yieldsDatasetExamples } from '../dataset-extract.js';
 import type { FeedbackLabel, FeedbackRating, FeedbackRecord } from '../types.js';
 import { wakeWorker } from './background.js';
 import type { LearningServiceState } from './state.js';
@@ -23,12 +24,8 @@ export async function recordSession(
     );
     if (!newAnswers.length) continue;
 
-    if (
-      state.datasetEnabled &&
-      (interaction.feedback.length || newAnswers.some((attempt) => attempt.tools_invoked.length))
-    ) {
+    if (state.datasetEnabled && yieldsDatasetExamples(interaction.attempts, interaction.feedback))
       await state.queue.enqueueDataset(id, { requeueCompleted: true });
-    }
 
     if (
       state.knowledgeCaptureEnabled &&

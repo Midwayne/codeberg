@@ -10,6 +10,26 @@ import type { AttemptRecord, FeedbackRecord, ToolInvocation } from './types.js';
 
 export const EXTRACTION_VERSION = 2;
 
+/** Examples from an older schema or an older interaction revision are never reviewed or used. */
+export function isCurrentExample(
+  example: Pick<DatasetExample, 'extraction_version' | 'source_revision'>,
+  revision: string | undefined,
+): boolean {
+  return example.extraction_version === EXTRACTION_VERSION && example.source_revision === revision;
+}
+
+export function isDatasetSignal(attempt: AttemptRecord): boolean {
+  return attempt.tools_invoked.length > 0 && attempt.answer.trim().length > 0;
+}
+
+/** Whether an interaction can yield any candidate; capture and reconciliation enqueue on the same rule. */
+export function yieldsDatasetExamples(
+  attempts: AttemptRecord[],
+  feedback: FeedbackRecord[],
+): boolean {
+  return feedback.length > 0 || attempts.some(isDatasetSignal);
+}
+
 export type RecordedAttempt = {
   attempt_id: string;
   user_query: string;
@@ -41,13 +61,7 @@ export function extractExamples(
   feedback: FeedbackRecord[],
   grades: Map<string, FeedbackRecord>,
 ): DatasetExample[] {
-  if (!attempts.length) return [];
-
-  if (
-    !feedback.length &&
-    !attempts.some((attempt) => attempt.tools_invoked.length && attempt.answer.trim())
-  )
-    return [];
+  if (!attempts.length || !yieldsDatasetExamples(attempts, feedback)) return [];
 
   const final =
     grades.get(attempts.at(-1)!.attempt_id)?.label === 'solved' ? attempts.at(-1) : undefined;

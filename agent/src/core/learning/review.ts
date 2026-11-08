@@ -1,4 +1,4 @@
-import { EXTRACTION_VERSION } from './dataset-extract.js';
+import { isCurrentExample } from './dataset-extract.js';
 import { type DatasetExample, type DatasetKind } from './datasets/records.js';
 import { type DatasetStore } from './datasets.js';
 import { interactionRevisions } from './revision.js';
@@ -113,9 +113,7 @@ function summarizeCandidate(
   evalIds: Set<string>,
   dismissedIds: Set<string>,
 ): ReviewCandidate {
-  const eligible =
-    row.extraction_version === EXTRACTION_VERSION &&
-    row.source_revision === revisions.get(row.source_interaction_id);
+  const eligible = isCurrentExample(row, revisions.get(row.source_interaction_id));
   const state: ReviewState = !eligible
     ? 'stale'
     : trainingIds.has(row.id)
