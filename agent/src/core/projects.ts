@@ -3,7 +3,8 @@ import { homedir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { type Project, type ProjectCatalog, projectDataHome } from './projects/types.js';
 
-import { codebergDataHome, codebergHome } from './paths.js';
+import { expandHome } from './env.js';
+import { codebergDataHome, codebergHome, formatIndexedRoots } from './paths.js';
 
 /** A private environment snapshot; selecting a project never edits process.env. */
 export function projectEnvironment(
@@ -17,7 +18,7 @@ export function projectEnvironment(
     CODEBERG_PROJECT_HOME: data,
     CODEBERG_PROJECT_ID: project.id,
     CODEBERG_LOG_DIR: join(data, 'logs'),
-    CODEBERG_ROOTS: project.roots.map((root) => `${root.key}\t${root.root}`).join('\n'),
+    CODEBERG_ROOTS: formatIndexedRoots(project.roots),
   };
 
   // Match daemon namespaces, including upgrade compatibility exceptions.
@@ -58,12 +59,7 @@ function databaseSpec(
   data: string,
 ): string {
   const legacySpec = project.id === catalog.legacyId ? env.CODEBERG_DBMCP_SPEC?.trim() : undefined;
-  const expandedSpec =
-    legacySpec === '~'
-      ? homedir()
-      : legacySpec?.startsWith('~/')
-        ? join(homedir(), legacySpec.slice(2))
-        : legacySpec;
+  const expandedSpec = legacySpec === undefined ? undefined : expandHome(legacySpec, homedir());
 
   const managedSpec =
     expandedSpec &&

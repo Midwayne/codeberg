@@ -9,6 +9,11 @@ export function codebergHome(env: NodeJS.ProcessEnv = process.env, userHome = ho
   return home ? home : join(userHome, '.codeberg');
 }
 
+/** The CODEBERG_ROOTS wire format: key, tab, path, one record per line. */
+export function formatIndexedRoots(roots: readonly { key: string; root: string }[]): string {
+  return roots.map((root) => `${root.key}\t${root.root}`).join('\n');
+}
+
 /** Indexed repositories passed internally by the launcher or project catalog. */
 export function indexedRootsFromEnv(env: NodeJS.ProcessEnv): string[] {
   const roots = env.CODEBERG_ROOTS;
