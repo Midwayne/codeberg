@@ -167,7 +167,7 @@ Browser sessions require a model declared with `inputs: [text, vision]` in `mode
 
 > **Extension credentials come from the process environment.** For `${env:MCP_TOKEN}` in `mcp.json`, or `${POSTGRES_URI}` in a database spec, export that variable before starting Codeberg. Arbitrary secret names in the saved launcher config are not forwarded automatically.
 
-**Environment only:** `CODEBERG_CANVAS_USE=true` enables the initial canvas capability. This switch accepts only `true`, `1`, or `on`, in lowercase. The project's canvas setting in the app can subsequently change it.
+**Environment only:** `CODEBERG_CANVAS_USE=true` enables the initial canvas capability. It uses the same boolean vocabulary as the other `CODEBERG_*` switches. The project's canvas setting in the app can subsequently change it.
 
 ## Advanced component and developer settings
 
