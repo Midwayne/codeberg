@@ -103,6 +103,7 @@
   to { transform: rotate(360deg); }
 }
 
+/* Matches DESKTOP_LAYOUT_QUERY in lib/use-media-query.ts. */
 @media (min-width: 768px) {
   .ui-loading-sidebar { display: grid; }
   .ui-loading-surface { padding: 1.5rem; }

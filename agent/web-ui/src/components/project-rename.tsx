@@ -1,5 +1,6 @@
 import type { ProjectInfo } from '@agent/core/api/projects.js';
 import { control, button } from './project-styles';
+import { readJsonBody } from '../lib/read-json';
 
 import { useEffect, useRef, useState } from 'react';
 
@@ -155,14 +156,11 @@ function createProjectRenameSubmit({ busy, name, project, setBusy, setError, onR
       body: JSON.stringify({ name: name.trim() }),
     })
       .then(async (response) => {
-        const text = await response.text();
-        let result: ProjectInfo & { message?: string };
-        try {
-          result = JSON.parse(text) as typeof result;
-        } catch {
-          throw new Error(text || 'Could not save the project name. Try again.');
-        }
-        if (!response.ok) throw new Error(result.message || 'Could not save the project name. Try again.');
+        const fallback = 'Could not save the project name. Try again.';
+        const result = await readJsonBody<ProjectInfo & { message?: string }>(response, fallback);
+
+        if (!response.ok) throw new Error(result.message || fallback);
+
         onRenamed(result);
       })
       .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason)))

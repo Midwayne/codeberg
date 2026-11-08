@@ -13,7 +13,7 @@ import { LoadingBoundary } from './components/loading';
 import { LoadingSuspense } from './components/loading-suspense';
 import { MotionPresence } from './components/motion-presence';
 
-import { useMediaQuery } from './lib/use-media-query';
+import { useDesktopLayout } from './lib/use-media-query';
 import { ScheduleWorkspaceProvider } from './lib/schedule-workspace';
 import { useAppSurface } from './lib/use-app-surface';
 import type { AppSurface, SurfaceTarget } from './lib/app-surface';
@@ -55,7 +55,7 @@ export type ProjectWorkspaceOptions = {
 
 export function useProjectWorkspace({ toolbar, loading, notice }: ProjectWorkspaceOptions): ProjectWorkspaceViewProps {
   const meta = useWorkspaceMeta({ loading });
-  const surface = useAppSurface(useMediaQuery('(min-width: 768px)'));
+  const surface = useAppSurface(useDesktopLayout());
 
   return {
     toolbar,

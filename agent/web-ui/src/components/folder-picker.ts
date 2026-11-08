@@ -1,4 +1,5 @@
 import type { useAddProject } from './project-add';
+import { readJsonBody } from '../lib/read-json';
 
 export type FolderPickerOptions = Pick<Parameters<typeof useAddProject>[0], 'initialPath'> & {
   busy: boolean;
@@ -33,15 +34,10 @@ export function createFolderPicker({
         body: JSON.stringify({ initialPath: root || initialPath }),
         signal: controller.signal,
       });
-      const text = await response.text();
-      let result: { path?: string; cancelled?: boolean; message?: string };
-      try {
-        result = JSON.parse(text) as typeof result;
-      } catch {
-        throw new Error(text || 'Could not open the folder picker. Enter the directory path manually.');
-      }
-      if (!response.ok)
-        throw new Error(result.message || 'Could not open the folder picker. Enter the directory path manually.');
+      const fallback = 'Could not open the folder picker. Enter the directory path manually.';
+      const result = await readJsonBody<{ path?: string; cancelled?: boolean; message?: string }>(response, fallback);
+
+      if (!response.ok) throw new Error(result.message || fallback);
       if (!controller.signal.aborted && !result.cancelled) {
         if (!result.path)
           throw new Error('No directory was selected. Choose a folder again or enter the path manually.');
