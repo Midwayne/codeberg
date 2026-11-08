@@ -4,7 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import type { LearningService } from '../../core/learning/service.js';
 import { writeModuleLog } from '../../core/module-log.js';
-import { readJson, rejectMethod, requireMethod, sendJson, sendText } from '../http.js';
+import { notFound, readJson, rejectMethod, requireMethod, sendJson, sendText } from '../http.js';
 import { WebSessionStore } from './store.js';
 import { isValidSessionId } from '../../core/api/sessions.js';
 
@@ -40,7 +40,7 @@ export async function routeSessions(
     case 'GET': {
       const record = await store.load(id);
 
-      return record ? sendJson(res, 200, record) : sendText(res, 404, 'not found');
+      return record ? sendJson(res, 200, record) : notFound(res);
     }
     case 'PUT':
       return saveSession(req, res, store, id, learning, canvas);
@@ -119,7 +119,7 @@ async function updateSessionFlags(
 
   const record = await store.setFlags(id, body as { pinned?: boolean; archived?: boolean });
 
-  return record ? sendJson(res, 200, { ok: true }) : sendText(res, 404, 'not found');
+  return record ? sendJson(res, 200, { ok: true }) : notFound(res);
 }
 
 /** A valid session id that isn't the record itself — ignored otherwise. */

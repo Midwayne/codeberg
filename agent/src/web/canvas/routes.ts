@@ -3,7 +3,7 @@ import { CanvasStore } from '../../core/canvas/store.js';
 import { HttpError } from '../../core/api/errors.js';
 import { CanvasError } from '../../core/canvas/types.js';
 import { writeModuleLog } from '../../core/module-log.js';
-import { readLimitedJson, requireJsonMethod, sameOrigin, sendJson, sendText } from '../http.js';
+import { notFound, readLimitedJson, requireJsonMethod, sameOrigin, sendJson, sendText } from '../http.js';
 import { streamCanvas } from './stream.js';
 
 export async function routeCanvas(req: IncomingMessage, res: ServerResponse, store: CanvasStore, url: URL): Promise<void> {
@@ -35,7 +35,7 @@ async function canvasRequest(req: IncomingMessage, res: ServerResponse, store: C
     return sendJson(res, 200, await store.configure(input.enabled));
   }
   await store.requireEnabled();
-  if (!['/api/canvas/events', '/api/canvas/scene'].includes(path)) return sendText(res, 404, 'not found');
+  if (!['/api/canvas/events', '/api/canvas/scene'].includes(path)) return notFound(res);
 
   store = store.forChat(url.searchParams.get('chat') ?? '');
   if (req.method === 'GET') {
@@ -43,14 +43,14 @@ async function canvasRequest(req: IncomingMessage, res: ServerResponse, store: C
 
     if (path === '/api/canvas/scene') return sendJson(res, 200, await store.current());
 
-    return sendText(res, 404, 'not found');
+    return notFound(res);
   }
   if (!requireJsonMethod(req, res, 'POST')) return;
 
   const input = await readCanvasJson(req);
   if (path === '/api/canvas/scene') return sendJson(res, 200, await store.saveBrowser(input));
 
-  return sendText(res, 404, 'not found');
+  return notFound(res);
 }
 
 async function readCanvasJson(req: IncomingMessage): Promise<Record<string, unknown>> {

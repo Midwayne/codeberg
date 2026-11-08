@@ -4,7 +4,7 @@ import { routeCanvas } from '../canvas/routes.js';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { promptCommandCatalog } from '../../core/hooks/catalog.js';
 import { routeChat, routeMeta } from '../chat-routes.js';
-import { readJson, rejectMethod, requireMethod, sendJson, sendText } from '../http.js';
+import { notFound, readJson, rejectMethod, requireMethod, sendJson, sendText } from '../http.js';
 import { routeLearning } from '../learning-routes.js';
 import { LEARNING_PATH } from '../learning/paths.js';
 import { ModelSelectionError, type ModelSettingsStore } from '../model-selection/settings.js';
@@ -104,7 +104,7 @@ export async function routeApi(
     return;
   }
 
-  return sendText(res, 404, 'not found');
+  return notFound(res);
 }
 
 export async function routeModels(

@@ -41,6 +41,10 @@ export function rejectMethod(res: ServerResponse): void {
   sendText(res, 405, 'method not allowed');
 }
 
+export function notFound(res: ServerResponse): void {
+  sendText(res, 404, 'not found');
+}
+
 export function requireMethod(req: IncomingMessage, res: ServerResponse, method: string): boolean {
   if (req.method === method) return true;
 

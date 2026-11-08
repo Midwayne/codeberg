@@ -8,7 +8,7 @@ import { reviewExample } from './learning/review-routes.js';
 
 import { reviewDashboard } from '../core/learning/review.js';
 import type { LearningService } from '../core/learning/service.js';
-import { readJson, requireJsonMethod, sendJson, sendText } from './http.js';
+import { notFound, readJson, requireJsonMethod, sendJson, sendText } from './http.js';
 import { type WebSessionStore } from './sessions/store.js';
 
 export async function routeLearning(
@@ -49,7 +49,7 @@ export async function routeLearning(
   if (url.pathname.startsWith(`${LEARNING_PATH}/review/`))
     return reviewExample(req, res, learning, url);
 
-  return sendText(res, 404, 'not found');
+  return notFound(res);
 }
 
 async function routeLearningSettings(
