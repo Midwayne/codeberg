@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { codebergHome } from '../../core/paths.js';
 import { projectCatalogPath, type Project } from '../../core/projects/types.js';
 import { openConfigDirectory } from '../config-directory.js';

@@ -68,7 +68,7 @@ export function mcpConfigFromEnv(
     return { enabled: false, servers: [], files: [], warnings: [] };
   }
 
-  const home = codebergHome(env, io.homedir ?? homedir);
+  const home = codebergHome(env, (io.homedir ?? homedir)());
 
   const cwd = io.cwd ?? process.cwd();
   const userHome = (io.homedir ?? homedir)();

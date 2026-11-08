@@ -34,7 +34,7 @@ export function reasoningFromEnv(
 ): ReasoningEffort | undefined {
   const value = env.CODEBERG_REASONING;
 
-  return value && (REASONING_EFFORTS as string[]).includes(value)
+  return value && (REASONING_EFFORTS as readonly string[]).includes(value)
     ? (value as ReasoningEffort)
     : undefined;
 }

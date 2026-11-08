@@ -1,4 +1,5 @@
 import type { KNOWLEDGE_CATEGORIES } from './preferences.js';
+import { JOB_STATUSES, type JobStatus } from './queue/statuses.js';
 
 export const FEEDBACK_LABELS = [
   'not_useful',
@@ -102,7 +103,7 @@ export interface FeedbackEvent extends LearningEventBase {
 
 export type LearningEvent = AttemptEvent | FeedbackEvent;
 
-export { JOB_STATUSES, type JobStatus } from './queue/statuses.js';
+export { JOB_STATUSES, type JobStatus };
 
 export type FailureCategory =
   | 'NETWORK_ERROR'
