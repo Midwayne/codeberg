@@ -1,10 +1,11 @@
 #!/usr/bin/env node
+import { cliProjectEnvironment } from './bootstrap.js';
 import { parseSearchArgs, SearchCliError } from './search/args.js';
 import { runSearch, searchUsage } from './search.js';
 
 async function main(): Promise<void> {
   try {
-    const parsed = parseSearchArgs(process.argv);
+    const parsed = parseSearchArgs(process.argv, await cliProjectEnvironment());
     if (parsed === 'help') {
       console.log(searchUsage('codeberg-search'));
       return;
