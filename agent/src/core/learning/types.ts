@@ -102,7 +102,7 @@ export interface FeedbackEvent extends LearningEventBase {
 
 export type LearningEvent = AttemptEvent | FeedbackEvent;
 
-export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed';
+export { JOB_STATUSES, type JobStatus } from './queue/statuses.js';
 
 export type FailureCategory =
   | 'NETWORK_ERROR'

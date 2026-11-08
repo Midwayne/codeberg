@@ -1,6 +1,6 @@
 import { readdir, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { KnowledgeJob } from '../types.js';
+import type { JobStatus, KnowledgeJob } from '../types.js';
 import { isProcessAlive, willRetry } from './policy.js';
 import type { DurableJobQueueState } from './state.js';
 import { list, path, transition } from './storage.js';
@@ -28,7 +28,8 @@ export async function recoverExpired(state: DurableJobQueueState): Promise<numbe
 }
 
 export async function reconcileStates(state: DurableJobQueueState): Promise<void> {
-  const statuses = ['processing', 'pending', 'failed', 'completed'] as const;
+  // Scan order picks the surviving copy. It is not the directory-creation order.
+  const statuses = ['processing', 'pending', 'failed', 'completed'] as const satisfies readonly JobStatus[];
   await removeAbandonedWrites(state, statuses);
 
   const byId = new Map<string, KnowledgeJob[]>();

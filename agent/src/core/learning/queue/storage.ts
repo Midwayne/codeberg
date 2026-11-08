@@ -1,7 +1,7 @@
 import { readdir, readFile, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeJsonAtomic } from '../fs.js';
-import type { JobStatus, KnowledgeJob } from '../types.js';
+import { JOB_STATUSES, type JobStatus, type KnowledgeJob } from '../types.js';
 import type { DurableJobQueueState } from './state.js';
 
 export async function get(
@@ -42,7 +42,7 @@ export async function find(
   state: DurableJobQueueState,
   jobId: string,
 ): Promise<KnowledgeJob | undefined> {
-  for (const status of ['pending', 'processing', 'completed', 'failed'] as const) {
+  for (const status of JOB_STATUSES) {
     try {
       return JSON.parse(await readFile(path(state, status, jobId), 'utf8')) as KnowledgeJob;
     } catch {
