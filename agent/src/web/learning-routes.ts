@@ -1,11 +1,11 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { routeDreaming } from './dreaming-routes.js';
+import { sendLearningError } from './learning/errors.js';
+import { routeEvaluations } from './learning/evaluation-routes.js';
 import { getFeedback, postFeedback } from './learning/feedback-routes.js';
 import { LEARNING_PATH } from './learning/paths.js';
 import { reviewExample } from './learning/review-routes.js';
-import { routeEvaluations } from './learning/evaluation-routes.js';
 
-import { LearningSettingsError } from '../core/learning/preferences.js';
 import { reviewDashboard } from '../core/learning/review.js';
 import type { LearningService } from '../core/learning/service.js';
 import { readJson, requireJsonMethod, sendJson, sendText } from './http.js';
@@ -65,9 +65,7 @@ async function routeLearningSettings(
   try {
     return sendJson(res, 200, await learning.updateSettings(await readJson(req)));
   } catch (error) {
-    if (error instanceof LearningSettingsError) return sendText(res, 400, error.message);
-
-    throw error;
+    sendLearningError(res, error, (failure) => failure.message);
   }
 }
 
