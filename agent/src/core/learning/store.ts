@@ -44,12 +44,8 @@ export class LearningStore {
     return readRepositories(this.state);
   }
 
-  recordSession(
-    conversationId: string,
-    messages: UIMessage[],
-    parentConversationId?: string,
-  ): Promise<AttemptRecord[]> {
-    return recordSession(this.state, conversationId, messages, parentConversationId);
+  recordSession(conversationId: string, messages: UIMessage[]): Promise<AttemptRecord[]> {
+    return recordSession(this.state, conversationId, messages);
   }
 
   recordFeedback(input: {

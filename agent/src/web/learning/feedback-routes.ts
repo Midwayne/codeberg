@@ -30,7 +30,7 @@ export async function postFeedback(
 
   // Handles the small race where feedback arrives while the just-completed
   // session save is still recording its attempt.
-  await learning.recordSession(session.id, session.messages, session.parentId);
+  await learning.recordSession(session.id, session.messages);
   try {
     const result = await learning.feedback({
       conversationId,

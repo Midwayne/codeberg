@@ -11,11 +11,10 @@ export async function recordSession(
   state: LearningServiceState,
   conversationId: string,
   messages: UIMessage[],
-  parentConversationId?: string,
 ): Promise<void> {
   if (!historyCaptureEnabled(state.preferences)) return;
 
-  const attempts = await state.store.recordSession(conversationId, messages, parentConversationId);
+  const attempts = await state.store.recordSession(conversationId, messages);
   const newIds = new Set(attempts.map((attempt) => attempt.attempt_id));
   for (const id of new Set(attempts.map((attempt) => attempt.interaction_id))) {
     const interaction = await state.store.interaction(id);

@@ -1,9 +1,18 @@
-export const FEEDBACK_OPTIONS = [
-  { rating: 0, label: 'not_useful', title: 'Not useful' },
-  { rating: 1, label: 'partially_useful', title: 'Partially useful' },
-  { rating: 2, label: 'mostly_correct', title: 'Mostly correct' },
-  { rating: 3, label: 'solved', title: 'Solved' },
-] as const;
+import { FEEDBACK_LABELS, type FeedbackLabel, type FeedbackRating } from '@agent/core/learning/types.js';
+
+const FEEDBACK_TITLES: Record<FeedbackLabel, string> = {
+  not_useful: 'Not useful',
+  partially_useful: 'Partially useful',
+  mostly_correct: 'Mostly correct',
+  solved: 'Solved',
+};
+
+export const FEEDBACK_OPTIONS: { rating: FeedbackRating; label: FeedbackLabel; title: string }[] =
+  FEEDBACK_LABELS.map((label, index) => ({
+    rating: index as FeedbackRating,
+    label,
+    title: FEEDBACK_TITLES[label],
+  }));
 
 export type FeedbackOption = (typeof FEEDBACK_OPTIONS)[number];
 
