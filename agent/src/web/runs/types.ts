@@ -1,8 +1,7 @@
 import type { UIMessage, UIMessageChunk } from 'ai';
+import type { RunStatus, ToolObservation } from '../../core/api/runs.js';
 import type { ResolvedModelSelection } from '../chat-routes.js';
 import type { RunJournal } from './journal.js';
-
-export type RunStatus = 'running' | 'completed' | 'stopped' | 'failed' | 'interrupted';
 
 export interface RunInput {
   chatId: string;
@@ -21,23 +20,13 @@ export interface RunRecord extends RunInput {
   error?: string;
 }
 
-export interface ToolEntry {
-  kind: 'tool';
-  id: string;
-  name: string;
-  state: 'started' | 'completed' | 'failed';
-  input?: unknown;
-  output?: unknown;
-  error?: string;
-}
-
-export type JournalEntry = ToolEntry | { kind: 'chunk'; chunk: UIMessageChunk };
+export type JournalEntry = ToolObservation | { kind: 'chunk'; chunk: UIMessageChunk };
 
 export interface SearchRun {
   record: RunRecord;
   journal: RunJournal;
   events: UIMessageChunk[];
-  tools: ToolEntry[];
+  tools: ToolObservation[];
   controller: AbortController;
   listeners: Set<() => void>;
   done: Promise<void>;

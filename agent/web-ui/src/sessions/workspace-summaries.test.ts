@@ -1,4 +1,4 @@
-import type { SessionSummary } from '../lib/sessions';
+import type { SessionSummary } from '@agent/core/api/sessions.js';
 import { expect, it } from 'vitest';
 
 import { createWorkspaceChat } from './workspace-chat';

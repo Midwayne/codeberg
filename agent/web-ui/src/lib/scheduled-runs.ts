@@ -1,4 +1,9 @@
-import type { ScheduleSummary } from '@agent/core/schedules/summary';
+import { BACKGROUND_STATUSES } from '@agent/core/background/types';
+import {
+  SCHEDULE_STATUSES,
+  type ScheduleCancelResult,
+  type ScheduleSummary,
+} from '@agent/core/schedules/summary';
 
 export async function loadSchedules(api: typeof fetch, signal?: AbortSignal): Promise<ScheduleSummary[]> {
   const response = await api('/api/schedules', { signal, cache: 'no-store' });
@@ -10,7 +15,7 @@ export async function loadSchedules(api: typeof fetch, signal?: AbortSignal): Pr
   return jobs;
 }
 
-export async function cancelSchedule(api: typeof fetch, id: string, signal?: AbortSignal): Promise<{ id: string; stopping: boolean; kind?: 'background' }> {
+export async function cancelSchedule(api: typeof fetch, id: string, signal?: AbortSignal): Promise<ScheduleCancelResult> {
   const response = await api(`/api/schedules/${encodeURIComponent(id)}/cancel`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', signal,
   });
@@ -29,10 +34,10 @@ function validSummary(value: unknown): value is ScheduleSummary {
 
   return ['id', 'chatId', 'chatTitle', 'prompt'].every((key) => typeof row[key as keyof ScheduleSummary] === 'string')
     && (row.kind === undefined || row.kind === 'background')
-    && (row.backgroundStatus === undefined || ['running', 'cancelling', 'completed', 'failed', 'cancelled', 'interrupted'].includes(row.backgroundStatus))
+    && (row.backgroundStatus === undefined || BACKGROUND_STATUSES.includes(row.backgroundStatus))
     && (row.backgroundJobIds === undefined || Array.isArray(row.backgroundJobIds) && row.backgroundJobIds.every((id) => typeof id === 'string'))
     && typeof row.chatDeleted === 'boolean' && Number.isFinite(row.createdAt)
-    && ['scheduled', 'running', 'completed', 'cancelled', 'failed'].includes(row.status)
+    && SCHEDULE_STATUSES.includes(row.status)
     && [row.dueAt, row.everySeconds].every((number) => number === undefined || typeof number === 'number' && Number.isFinite(number))
     && [row.afterToolCallId, row.model, row.error, row.lastRunId].every((text) => text === undefined || typeof text === 'string')
     && (row.activeRun === undefined || Boolean(row.activeRun && typeof row.activeRun.id === 'string' && typeof row.activeRun.stopping === 'boolean'));

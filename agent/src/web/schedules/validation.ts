@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { ScheduleInput } from '../../core/schedules/context.js';
-import { isValidSessionId } from '../sessions/records.js';
+import { isValidSessionId } from '../../core/api/sessions.js';
 import type { ScheduledRun, ScheduleOwner } from './types.js';
 
 export function newSchedule(owner: ScheduleOwner, input: ScheduleInput, now = Date.now()): ScheduledRun {

@@ -3,7 +3,8 @@ import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileInfo, readRegularFile, readStoredFile, realDirectory } from './filesystem.js';
 import type { ResourceSettingsState } from './state.js';
-import type { CleanupCategory, StoredFile } from './types.js';
+import type { CleanupCategory } from '../../core/api/resources.js';
+import type { StoredFile } from './types.js';
 
 export async function listFiles(
   state: ResourceSettingsState,

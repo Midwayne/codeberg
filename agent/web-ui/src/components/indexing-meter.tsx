@@ -1,4 +1,4 @@
-import type { IndexProgress } from '../lib/project-api';
+import type { IndexProgress } from '@agent/core/api/daemon.js';
 
 export function indexingPhase(progress?: IndexProgress): string {
   const labels: Record<string, string> = {

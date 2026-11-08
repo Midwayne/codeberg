@@ -1,9 +1,9 @@
+import type { ProjectHealth } from '@agent/core/api/daemon.js';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { useState } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 
 import { useProjectShell } from './use-project-shell';
-import type { ProjectStatus } from './project-api';
 
 vi.mock('react', async (original) => ({
   ...await original<typeof import('react')>(),
@@ -36,7 +36,7 @@ it('keeps actionable project failures visible without embeddings', () => {
   expect(html).not.toContain('progressbar');
 });
 
-function renderNoVectorNotice(value?: ProjectStatus, error?: string) {
+function renderNoVectorNotice(value?: ProjectHealth, error?: string) {
   const project = { id: 'example', name: 'Example', roots: [] };
   const values = [{ defaultId: project.id, projects: [project], vectorsEnabled: false },
     project.id, '', 0, false, value || error ? { id: project.id, value, error } : undefined];

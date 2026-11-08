@@ -1,6 +1,7 @@
 import { processLabel } from './labels.js';
 import type { ProcessMonitorState } from './state.js';
-import type { ProcessSnapshot, ProcessUsage } from './types.js';
+import type { ProcessUsage } from '../../core/api/resources.js';
+import type { ProcessSnapshot } from './types.js';
 
 export function processUsage(
   state: ProcessMonitorState,

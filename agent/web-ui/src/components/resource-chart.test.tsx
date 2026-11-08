@@ -1,7 +1,7 @@
+import type { ResourceSample } from '@agent/core/api/resources.js';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { ResourceChart, sampleAtPosition } from './resource-chart';
-import type { ResourceSample } from '@/lib/resources';
 
 const rows = [0, 15_000, 60_000].map((timestamp) => ({ timestamp, memory: { usedBytes: 100 + timestamp } }) as ResourceSample);
 

@@ -1,12 +1,11 @@
+import type { ProjectInfo } from '@agent/core/api/projects.js';
 import { control, button } from './project-styles';
 
 import { useEffect, useRef, useState } from 'react';
 
-import type { Project } from '../lib/project-api';
-
 export type RenameProjectFormProps = {
-  project: Project;
-  onRenamed: (project: Project) => void;
+  project: ProjectInfo;
+  onRenamed: (project: ProjectInfo) => void;
   onCancel: () => void;
 };
 
@@ -17,8 +16,8 @@ export function RenameProjectForm(props: RenameProjectFormProps) {
 }
 
 export type RenameProjectOptions = {
-  project: Project;
-  onRenamed: (project: Project) => void;
+  project: ProjectInfo;
+  onRenamed: (project: ProjectInfo) => void;
   onCancel: () => void;
 };
 
@@ -157,7 +156,7 @@ function createProjectRenameSubmit({ busy, name, project, setBusy, setError, onR
     })
       .then(async (response) => {
         const text = await response.text();
-        let result: Project & { message?: string };
+        let result: ProjectInfo & { message?: string };
         try {
           result = JSON.parse(text) as typeof result;
         } catch {

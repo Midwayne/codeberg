@@ -1,14 +1,8 @@
+import type { ExtensionCatalog } from '@agent/core/api/extensions.js';
+import type { ProjectInfo } from '@agent/core/api/projects.js';
 import { useEffect, useState } from 'react';
 
-import type { Project } from './project-api';
-
-export interface ExtensionCatalog {
-  mcps: { name: string; kind: string; scope?: string }[];
-  skills: { name: string; description: string; scope: string }[];
-  warnings: string[];
-}
-
-export type ExtensionsOptions = { project: Project; api: typeof fetch; kind: 'mcp' | 'skill' };
+export type ExtensionsOptions = { project: ProjectInfo; api: typeof fetch; kind: 'mcp' | 'skill' };
 
 export function useExtensions({ project, api, kind }: ExtensionsOptions) {
   const [catalog, setCatalog] = useState<ExtensionCatalog>();

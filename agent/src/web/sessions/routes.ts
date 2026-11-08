@@ -6,7 +6,7 @@ import type { LearningService } from '../../core/learning/service.js';
 import { writeModuleLog } from '../../core/module-log.js';
 import { readJson, sendJson, sendText } from '../http.js';
 import { WebSessionStore } from './store.js';
-import { isValidSessionId } from './records.js';
+import { isValidSessionId } from '../../core/api/sessions.js';
 
 const SESSIONS_PATH = '/api/sessions';
 

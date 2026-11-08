@@ -1,7 +1,8 @@
 import { ChevronDown, Paperclip, X } from 'lucide-react';
 
 import type { PromptInputView } from './prompt-input';
-import { inputFor, MAX_FILE_SIZE } from '../../lib/prompt-files';
+import { MAX_PROMPT_FILE_BYTES } from '@agent/core/api/files.js';
+import { inputFor } from '../../lib/prompt-files';
 
 export type PromptAttachmentsProps = { state: Parameters<typeof PromptInputView>[0] };
 
@@ -20,7 +21,7 @@ export function PromptAttachments({ state }: PromptAttachmentsProps) {
             const chosen = Array.from(event.target.files ?? []);
             const rejected = chosen.find((file) => {
               const input = inputFor(file);
-              return !input || !state.inputs.includes(input) || file.size > MAX_FILE_SIZE;
+              return !input || !state.inputs.includes(input) || file.size > MAX_PROMPT_FILE_BYTES;
             });
             if (rejected) {
               state.setFileError(`Unsupported file or over 20 MB: ${rejected.name}`);

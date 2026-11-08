@@ -1,24 +1,25 @@
+import type { ProjectHealth } from '@agent/core/api/daemon.js';
+import type { ProjectInfo } from '@agent/core/api/projects.js';
 import { useEffect, useState } from 'react';
 
-import type { Project, ProjectStatus } from './project-api';
 import { missingProject, requestProjectStatus, transientStatusError } from './project-status-request';
 
 export type ProjectStatusOptions = {
-  project: Project | undefined;
+  project: ProjectInfo | undefined;
   api: typeof fetch;
   retry: number;
   refreshCatalog?: React.Dispatch<React.SetStateAction<number>>;
 };
 
 export function useProjectStatus({ project, api, retry, refreshCatalog }: ProjectStatusOptions) {
-  const [status, setStatus] = useState<{ id: string; value?: ProjectStatus; error?: string }>();
+  const [status, setStatus] = useState<{ id: string; value?: ProjectHealth; error?: string }>();
 
   useEffect(() => {
     if (!project) return;
 
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
-    let last: ProjectStatus | undefined;
+    let last: ProjectHealth | undefined;
     let failures = 0;
     const poll = async () => {
       let ready = false;

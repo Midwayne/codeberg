@@ -9,12 +9,23 @@ export interface BackgroundStart {
   args: Record<string, unknown>;
 }
 
+export const BACKGROUND_STATUSES = [
+  'running',
+  'cancelling',
+  'completed',
+  'failed',
+  'cancelled',
+  'interrupted',
+] as const;
+
+export type BackgroundStatus = (typeof BACKGROUND_STATUSES)[number];
+
 export interface BackgroundJob extends BackgroundOwner {
   id: string;
   fingerprint: string;
   tool: string;
   args: Record<string, unknown>;
-  status: 'running' | 'cancelling' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
+  status: BackgroundStatus;
   createdAt: number;
   finishedAt?: number;
   output?: unknown;

@@ -1,3 +1,4 @@
+import type { ScheduleStatus } from '../../core/schedules/summary.js';
 import type { ResolvedModelSelection } from '../chat-routes.js';
 
 export interface ScheduleOwner {
@@ -13,7 +14,7 @@ export interface ScheduledRun extends ScheduleOwner {
   everySeconds?: number;
   afterToolCallId?: string;
   backgroundJobIds?: string[];
-  status: 'scheduled' | 'running' | 'completed' | 'cancelled' | 'failed';
+  status: ScheduleStatus;
   occurrence: number;
   createdAt: number;
   lastRunId?: string;

@@ -1,18 +1,19 @@
+import type { ProjectHealth } from '@agent/core/api/daemon.js';
+import type { ProjectInfo } from '@agent/core/api/projects.js';
 import { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
 import { IconButton } from './ui';
 import { button } from './project-styles';
 import { IndexingMeter, indexingPhase } from './indexing-meter';
-import type { Project, ProjectStatus } from '../lib/project-api';
 import './indexing-progress.css';
 
-type Status = { id: string; value?: ProjectStatus; error?: string };
+type Status = { id: string; value?: ProjectHealth; error?: string };
 
 export type ProjectNoticeProps = {
   vectorsEnabled?: boolean;
   currentStatus: Status | undefined;
-  project: Project;
+  project: ProjectInfo;
   api: typeof fetch;
   setRetry: React.Dispatch<React.SetStateAction<number>>;
   setStatus: React.Dispatch<React.SetStateAction<Status | undefined>>;

@@ -1,9 +1,12 @@
 import { backgroundSchedules, cancelBackground } from '../background/visibility.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { ScheduleSummary } from '../../core/schedules/summary.js';
+import type { ScheduleCancelResult, ScheduleSummary } from '../../core/schedules/summary.js';
 import { requireJsonMutation, sendJson, sendText } from '../http.js';
 import type { SearchRuns } from '../runs/manager.js';
+import { SESSION_ID_SOURCE } from '../../core/api/sessions.js';
 import { requestId, type ScheduledRun } from './types.js';
+
+const CANCEL_ROUTE = new RegExp(`^/api/schedules/(${SESSION_ID_SOURCE})/cancel$`);
 
 /** Human controls span all chats of the selected project; agent tools stay chat-scoped. */
 export async function routeSchedules(req: IncomingMessage, res: ServerResponse, url: URL, runs: SearchRuns) {
@@ -16,7 +19,7 @@ export async function routeSchedules(req: IncomingMessage, res: ServerResponse, 
     return sendJson(res, 200, [...await Promise.all(jobs.map((job) => summarize(runs, job))), ...await backgroundSchedules(runs)]);
   }
 
-  const match = /^\/api\/schedules\/([A-Za-z0-9_-]{1,64})\/cancel$/.exec(url.pathname);
+  const match = CANCEL_ROUTE.exec(url.pathname);
   if (!match) return sendText(res, 404, 'not found');
   if (!requireJsonMutation(req, res, 'POST', 'schedule cancellations')) return;
 
@@ -33,7 +36,7 @@ export async function routeSchedules(req: IncomingMessage, res: ServerResponse, 
   // Acknowledge cancellation promptly even when a tool is still cleaning up.
   if (run && !run.settled) run.controller.abort('stop');
 
-  return sendJson(res, 200, { id: job.id, stopping });
+  return sendJson(res, 200, { id: job.id, stopping } satisfies ScheduleCancelResult);
 }
 
 async function summarize(runs: SearchRuns, job: ScheduledRun): Promise<ScheduleSummary> {

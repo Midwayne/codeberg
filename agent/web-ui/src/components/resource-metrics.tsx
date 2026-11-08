@@ -1,6 +1,7 @@
+import type { ResourceSample } from '@agent/core/api/resources.js';
 import type { ResourceUsageView } from './resource-usage';
 
-import { formatBytes, type ResourceSample } from '../lib/resources';
+import { formatBytes } from '../lib/resources';
 import { ResourceChart } from './resource-chart';
 
 export type MetricProps = { label: string; value: string; detail: string };

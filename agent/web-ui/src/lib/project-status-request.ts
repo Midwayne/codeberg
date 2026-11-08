@@ -1,4 +1,4 @@
-import type { ProjectStatus } from './project-api';
+import type { ProjectHealth } from '@agent/core/api/daemon.js';
 
 class ProjectStatusError extends Error {
   constructor(message: string, readonly status: number) {
@@ -6,7 +6,7 @@ class ProjectStatusError extends Error {
   }
 }
 
-export async function requestProjectStatus(api: typeof fetch, parent: AbortSignal): Promise<ProjectStatus> {
+export async function requestProjectStatus(api: typeof fetch, parent: AbortSignal): Promise<ProjectHealth> {
   const controller = new AbortController();
   // The proxy has a 15-second deadline; leave time to receive its response.
   const timer = setTimeout(() => controller.abort(new DOMException('Project status request timed out', 'TimeoutError')), 20_000);
@@ -17,7 +17,7 @@ export async function requestProjectStatus(api: typeof fetch, parent: AbortSigna
     });
     if (!response.ok) throw new ProjectStatusError(await response.text(), response.status);
 
-    return await response.json() as ProjectStatus;
+    return await response.json() as ProjectHealth;
   } finally {
     clearTimeout(timer);
   }

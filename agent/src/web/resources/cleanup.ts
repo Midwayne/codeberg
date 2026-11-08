@@ -7,9 +7,15 @@ import { listFiles } from './catalog.js';
 import { ageCutoff, fileInfo, realDirectory } from './filesystem.js';
 import type { ResourceSettingsState } from './state.js';
 import type { StoredFile } from './types.js';
-import { CLEANUP_CATEGORIES, type CleanupCategory, ResourceSettingsError } from './types.js';
+import { ResourceSettingsError } from './types.js';
+import {
+  CLEANUP_CATEGORIES,
+  type CleanupCategory,
+  type CleanupPreview,
+  type CleanupResult,
+} from '../../core/api/resources.js';
 
-export async function preview(state: ResourceSettingsState, olderThanDays: unknown) {
+export async function preview(state: ResourceSettingsState, olderThanDays: unknown): Promise<CleanupPreview> {
   const cutoff = ageCutoff(olderThanDays);
   const categories = await Promise.all(
     CLEANUP_CATEGORIES.map(async (category) => {
@@ -26,7 +32,7 @@ export async function preview(state: ResourceSettingsState, olderThanDays: unkno
   return { categories, cutoff, olderThanDays };
 }
 
-export async function cleanup(state: ResourceSettingsState, input: unknown) {
+export async function cleanup(state: ResourceSettingsState, input: unknown): Promise<CleanupResult> {
   const body = input as { categories?: unknown; olderThanDays?: unknown } | null;
   const cutoff = ageCutoff(body?.olderThanDays);
   if (
@@ -74,7 +80,7 @@ export async function removeFiles(
   state: ResourceSettingsState,
   categories: CleanupCategory[],
   cutoff: number,
-) {
+): Promise<CleanupResult> {
   let deleted = 0;
   let bytesFreed = 0;
   let failed = 0;

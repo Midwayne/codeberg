@@ -1,30 +1,12 @@
-export type CleanupCategory = 'chats' | 'training' | 'knowledge';
-export interface ResourceSample {
-  timestamp: number;
-  cpu: { usedPercent: number | null; corePercent: number | null; cores: number };
-  memory: { usedBytes: number; totalBytes: number };
-  disk: { totalBytes: number; availableBytes: number; codebergBytes: number; sampledAt?: number } | null;
-  processes: { pid: number; name: string; cpuPercent: number | null; memoryBytes: number }[];
-  scope: 'managed-stack' | 'web-and-daemon' | 'daemon-process-tree' | 'web-process-tree' | 'web-process';
-}
-export interface ResourceUsage {
-  current: ResourceSample | null;
-  history: ResourceSample[];
-  retentionMs: number;
-  sampleIntervalMs: number;
-  diskIntervalMs?: number;
-  collector?: 'daemon' | 'worker';
-  collectorId?: string;
-}
-export interface CleanupPreview {
-  categories: { category: CleanupCategory; count: number; bytes: number }[];
-}
-export interface CleanupResult {
-  deleted: number;
-  failed: number;
-  bytesFreed: number;
-  deletedChatIds: string[];
-}
+import {
+  RESOURCE_HISTORY_LIMIT,
+  withoutProcesses,
+  type CleanupCategory,
+  type CleanupPreview,
+  type CleanupResult,
+  type ResourceSample,
+  type ResourceUsage,
+} from '@agent/core/api/resources.js';
 
 async function request<T>(path: string, options?: RequestInit, fetcher: typeof fetch = fetch): Promise<T> {
   const response = await fetcher(`/api/settings/${path}`, { cache: 'no-store', ...options });
@@ -46,7 +28,7 @@ export function mergeResourceUsage(previous: ResourceUsage | undefined, incoming
       points.set(
         row.timestamp,
         row.timestamp === previous?.current?.timestamp && row.timestamp !== incoming.current?.timestamp
-          ? { ...row, processes: [] }
+          ? withoutProcesses(row)
           : row,
       );
   for (const row of incoming.history) points.set(row.timestamp, row);
@@ -57,7 +39,7 @@ export function mergeResourceUsage(previous: ResourceUsage | undefined, incoming
     history: [...points.values()]
       .filter((row) => row.timestamp > cutoff)
       .sort((a, b) => a.timestamp - b.timestamp)
-      .slice(-360),
+      .slice(-RESOURCE_HISTORY_LIMIT),
   };
 }
 export const previewCleanup = (days: number, fetcher: typeof fetch = fetch) =>

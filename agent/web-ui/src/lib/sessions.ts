@@ -1,30 +1,13 @@
 import type { UIMessage } from 'ai';
 
+import type {
+  SessionFlags,
+  SessionRecord as StoredSession,
+  SessionSummary,
+} from '@agent/core/api/sessions.js';
 import { titleFromText } from '@agent/core/title.js';
 
-/** Sidebar row — mirrors the server's WebSessionSummary. */
-export interface SessionSummary {
-  id: string;
-  title: string;
-  updatedAt: number;
-  turns: number;
-  parentId?: string;
-  pinned: boolean;
-  archived: boolean;
-}
-
-/** Full saved chat — UI messages verbatim, so a resume re-renders faithfully. */
-export interface SessionRecord {
-  serverRunId?: string;
-  id: string;
-  title: string;
-  createdAt: number;
-  updatedAt: number;
-  messages: UIMessage[];
-  parentId?: string;
-  pinned?: boolean;
-  archived?: boolean;
-}
+export type SessionRecord = StoredSession<UIMessage>;
 
 const BASE = '/api/sessions';
 
@@ -40,7 +23,7 @@ export async function listSessions(query = '', fetcher: typeof fetch = fetch): P
 
 export async function updateSessionFlags(
   id: string,
-  flags: { pinned?: boolean; archived?: boolean },
+  flags: SessionFlags,
   fetcher: typeof fetch = fetch,
 ): Promise<void> {
   const response = await fetcher(`${BASE}/${encodeURIComponent(id)}`, {

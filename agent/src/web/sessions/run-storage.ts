@@ -1,6 +1,6 @@
 import { lstat, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { isValidSessionId } from './records.js';
+import { isValidSessionId } from '../../core/api/sessions.js';
 
 /** Count regular run files without following symlinks outside the chat's storage. */
 export async function sessionRunBytes(directory: string, id: string): Promise<number> {

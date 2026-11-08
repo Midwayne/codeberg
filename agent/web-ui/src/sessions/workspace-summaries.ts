@@ -1,4 +1,5 @@
-import { deriveTitle, type SessionSummary } from '../lib/sessions';
+import type { SessionSummary } from '@agent/core/api/sessions.js';
+import { deriveTitle } from '../lib/sessions';
 import type { WorkspaceChat } from './workspace-chat';
 
 /** Local submitted chats remain reachable even when their first save fails. */

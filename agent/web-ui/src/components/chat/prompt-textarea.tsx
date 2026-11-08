@@ -1,5 +1,6 @@
 import type { PromptInputView } from './prompt-input';
-import { clipboardImages, MAX_FILE_SIZE } from '../../lib/prompt-files';
+import { MAX_PROMPT_FILE_BYTES } from '@agent/core/api/files.js';
+import { clipboardImages } from '../../lib/prompt-files';
 
 export type PromptTextareaProps = { state: Parameters<typeof PromptInputView>[0] };
 
@@ -24,7 +25,7 @@ export function PromptTextarea({ state }: PromptTextareaProps) {
         const images = clipboardImages(event.clipboardData.files, state.inputs);
         if (!images.length || state.disabled) return;
         event.preventDefault();
-        const oversized = images.find((file) => file.size > MAX_FILE_SIZE);
+        const oversized = images.find((file) => file.size > MAX_PROMPT_FILE_BYTES);
         if (oversized) {
           state.setFileError(`Unsupported file or over 20 MB: ${oversized.name}`);
           return;
