@@ -3,9 +3,9 @@ import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { ContextStore } from '../context/store.js';
+import { historyFilePattern } from '../history-tags.js';
 import { writeJsonAtomic } from '../learning/fs.js';
-import { hash } from '../message-fingerprint.js';
-import { fingerprintMessage } from '../message-fingerprint.js';
+import { hash, prefixHashes } from '../message-fingerprint.js';
 
 export interface RequestCheckpoint {
   count: number;
@@ -34,7 +34,7 @@ export class RequestCheckpoints {
     const visited = new Set<string>();
 
     for (let pass = 0; pass < 32; pass++) {
-      const keys = prefixKeys(request.prompt);
+      const keys = prefixHashes(request.prompt);
       const saved = await this.load(keys, files);
       if (!saved || visited.has(saved.hash)) break;
 
@@ -51,7 +51,7 @@ export class RequestCheckpoints {
   }
 
   async save(request: LanguageModelV4CallOptions, checkpoint: RequestCheckpoint): Promise<void> {
-    const key = prefixKeys(request.prompt)[checkpoint.count - 1];
+    const key = prefixHashes(request.prompt)[checkpoint.count - 1];
     if (!key) return;
 
     try {
@@ -71,7 +71,7 @@ export class RequestCheckpoints {
         if (!valid(saved, key, index + 1)) continue;
 
         const text = saved.marker.content.map((part) => part.type === 'text' ? part.text : '').join('\n');
-        const archives = [...text.matchAll(/<history_file>([^<]+)<\/history_file>/g)];
+        const archives = [...text.matchAll(historyFilePattern())];
         if (archives.length === 0 || archives.some((match) => !this.store.resolve(match[1]!))) continue;
 
         return saved;
@@ -91,14 +91,4 @@ function valid(saved: SavedCheckpoint, key: string, count: number): boolean {
     saved.marker?.role === 'user' && Array.isArray(saved.marker.content) &&
     saved.marker.content.every((part) => part.type === 'text') &&
     (keep === undefined || (Number.isSafeInteger(keep) && keep >= 0 && keep < count));
-}
-
-function prefixKeys(messages: LanguageModelV4Message[]): string[] {
-  let previous = '';
-
-  return messages.map((message) => {
-    previous = hash(previous + fingerprintMessage(message));
-
-    return previous;
-  });
 }

@@ -1,5 +1,10 @@
 import type { ModelMessage } from 'ai';
 
+import {
+  conversationSummaryTag,
+  historyFilePattern,
+  historyFileTag,
+} from './history-tags.js';
 import { messageText, messageTranscript } from './message.js';
 import { recentHistoryStart } from './history-recent.js';
 import { totalTokens } from './history-tokens.js';
@@ -26,8 +31,6 @@ export interface FitOptions {
 /** Summarizer input cap. The history file keeps the full text; the model that
  *  writes the summary only needs the ends of a very long transcript. */
 export const SUMMARY_INPUT_CHARS = 80_000;
-
-const HISTORY_FILE_RE = /<history_file>([^<]+)<\/history_file>/g;
 
 export function boundTranscript(full: string, maxChars = SUMMARY_INPUT_CHARS): string {
   if (full.length <= maxChars) return full;
@@ -127,7 +130,7 @@ async function archiveTranscript(
 function historyFilesIn(messages: readonly ModelMessage[]): string[] {
   const out: string[] = [];
   for (const message of messages) {
-    for (const match of messageText(message).matchAll(HISTORY_FILE_RE)) {
+    for (const match of messageText(message).matchAll(historyFilePattern())) {
       const file = match[1]?.trim();
       if (file) out.push(file);
     }
@@ -157,12 +160,12 @@ function historyMarker(
   const fileBlock =
     files.length === 0
       ? ''
-      : `\n${files.map((file) => `<history_file>${file}</history_file>`).join('\n')}\nThe summary omits detail. Search each history file with context_grep before treating a missing path, symbol, line range, command, or decision as unknown.`;
+      : `\n${files.map((file) => historyFileTag(file)).join('\n')}\nThe summary omits detail. Search each history file with context_grep before treating a missing path, symbol, line range, command, or decision as unknown.`;
 
   if (summary != null) {
     return {
       role: 'user',
-      content: `<conversation_summary>\n${summary}\n</conversation_summary>${fileBlock}`,
+      content: `${conversationSummaryTag(summary)}${fileBlock}`,
     };
   }
 
