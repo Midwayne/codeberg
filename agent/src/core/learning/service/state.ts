@@ -13,7 +13,7 @@ import type { RepositoryVersion } from '../types.js';
 import { KnowledgeWorker } from '../worker.js';
 import { refreshKnowledge } from './refresh.js';
 import { refreshEvaluations } from './evaluations.js';
-import { syncWatcher } from './settings.js';
+import { syncWatcher } from './background.js';
 
 export class LearningServiceState {
   readonly store: LearningStore;

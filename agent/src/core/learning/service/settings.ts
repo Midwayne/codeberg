@@ -1,7 +1,8 @@
 import { writeModuleLog } from '../../module-log.js';
 import { isDailyDreaming } from '../dreaming/scheduler.js';
 import type { LearningSettings } from '../preferences.js';
-import { scheduleDreaming } from './dreaming.js';
+import { syncWatcher, wakeWorker } from './background.js';
+import { scheduleDreaming } from './dreaming-schedule.js';
 import { refreshEvaluations } from './evaluations.js';
 import type { KnowledgeJob } from '../types.js';
 import { reconcileJobs } from './reconciliation.js';
@@ -63,15 +64,4 @@ export function jobEnabled(
           ? state.preferences.knowledgeRefresh
           : state.preferences.knowledgeCapture)
     : state.datasetEnabled;
-}
-
-export async function syncWatcher(state: LearningServiceState): Promise<void> {
-  if (state.knowledgeEnabled && state.preferences.knowledgeRefresh && !state.stopping)
-    await state.sourceWatcher.sync();
-}
-
-// Durable writes can precede initialize. Starting a worker during replay can
-// complete a job before reconciliation sees it and enqueue the same job twice.
-export function wakeWorker(state: LearningServiceState): void {
-  if (state.initialized) state.worker?.wake();
 }

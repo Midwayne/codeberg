@@ -10,7 +10,7 @@ import {
 } from '../types.js';
 import { append, readEvents } from './events.js';
 import { effectiveFeedback } from './feedback.js';
-import { readRepositories } from './interactions.js';
+import { readRepositories } from './repositories.js';
 import { SessionCapture } from './session.js';
 import type { LearningStoreState } from './state.js';
 

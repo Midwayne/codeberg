@@ -1,8 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { scheduleDailyDreaming } from '../dreaming/scheduler.js';
 import type { DreamingDecision } from '../dreaming/types.js';
+import { wakeWorker } from './background.js';
 import { initialize } from './lifecycle.js';
-import { wakeWorker } from './settings.js';
 import type { LearningServiceState } from './state.js';
 
 export async function requestDreaming(state: LearningServiceState) {
@@ -34,15 +33,6 @@ export async function decideDreaming(
   if (action !== 'dismiss') state.settingsRevision++;
 
   return report;
-}
-
-/** Stable UTC date keys make daily requests durable and idempotent after restart. */
-export async function scheduleDreaming(state: LearningServiceState): Promise<void> {
-  if (!state.preferences.dreaming || !state.knowledgeEnabled || state.stopping || state.maintenance)
-    return;
-
-  await scheduleDailyDreaming(state.queue);
-  wakeWorker(state);
 }
 
 export async function knowledgeIndex(state: LearningServiceState): Promise<string> {

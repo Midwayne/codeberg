@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { LearningService } from './service.js';
-import * as dreaming from './service/dreaming.js';
+import * as dreaming from './service/dreaming-schedule.js';
 
 it('remains busy while a periodic scan schedules durable work, so project deletion cannot race it', async () => {
   const root = await mkdtemp(join(tmpdir(), 'learning-delete-'));

@@ -1,12 +1,8 @@
-import type { AttemptRecord, FeedbackRecord, RepositoryVersion } from '../types.js';
+import type { AttemptRecord, FeedbackRecord } from '../types.js';
 import { readEvents } from './events.js';
 import { effectiveFeedback } from './feedback.js';
 import { knowledgeArtifacts } from './knowledge.js';
 import type { LearningStoreState } from './state.js';
-
-export function readRepositories(state: LearningStoreState): Promise<RepositoryVersion[]> {
-  return state.repositoryProvider();
-}
 
 export async function attemptForMessage(
   state: LearningStoreState,

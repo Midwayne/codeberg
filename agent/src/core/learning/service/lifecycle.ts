@@ -1,11 +1,12 @@
 import { mkdir, open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeModuleLog } from '../../module-log.js';
-import { scheduleDreaming } from './dreaming.js';
+import { syncWatcher, wakeWorker } from './background.js';
+import { scheduleDreaming } from './dreaming-schedule.js';
 import { refreshEvaluations } from './evaluations.js';
 import { reconcileJobs } from './reconciliation.js';
 import { refreshKnowledge } from './refresh.js';
-import { getSettings, syncWatcher, wakeWorker } from './settings.js';
+import { getSettings } from './settings.js';
 import type { LearningServiceState } from './state.js';
 
 export function initialize(state: LearningServiceState): Promise<void> {
