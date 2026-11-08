@@ -33,6 +33,15 @@ export interface DatasetExample {
   review?: { provenance: Provenance; timestamp: string; oracle?: Record<string, unknown> };
 }
 
+const RETRIEVAL_ORACLE_FIELDS = ['files', 'symbols', 'repositories', 'dependency_path'] as const;
+
+/** Reviewer-supplied evidence: `notes` is free text; every other field is a list of strings. */
+export const REVIEW_ORACLE_FIELDS = [
+  ...RETRIEVAL_ORACLE_FIELDS,
+  'verified_negatives',
+  'notes',
+] as const;
+
 export function validateReview(
   example: DatasetExample,
   split: 'eval' | 'training',
@@ -79,10 +88,9 @@ function validateEvalReview(
     throw new LearningError('invalid', 'eval requires reviewed oracle and independent provenance');
   }
 
-  const retrievalOracle = ['files', 'symbols', 'repositories', 'dependency_path'];
   if (
     example.kind === 'retrieval' &&
-    !retrievalOracle.some(
+    !RETRIEVAL_ORACLE_FIELDS.some(
       (field) =>
         Array.isArray(review.oracle?.[field]) && (review.oracle[field] as unknown[]).length > 0,
     )

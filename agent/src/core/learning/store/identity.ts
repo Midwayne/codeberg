@@ -9,3 +9,7 @@ export function defaultLearningRoot(env: NodeJS.ProcessEnv = process.env): strin
 export function stableId(prefix: string, ...parts: string[]): string {
   return `${prefix}-${createHash('sha256').update(parts.join('\0')).digest('hex').slice(0, 24)}`;
 }
+
+export function isStableId(prefix: string, value: string): boolean {
+  return value.startsWith(`${prefix}-`) && /^[a-f0-9]{24}$/.test(value.slice(prefix.length + 1));
+}

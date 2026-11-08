@@ -1,5 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { REVIEW_ORACLE_FIELDS } from '../../core/learning/datasets/records.js';
 import type { LearningService } from '../../core/learning/service.js';
+import { isStableId } from '../../core/learning/store/identity.js';
 import { readJson, sendJson, sendText } from '../http.js';
 import { sendLearningError } from './errors.js';
 import { LEARNING_PATH } from './paths.js';
@@ -11,7 +13,7 @@ export async function reviewExample(
   url: URL,
 ): Promise<void> {
   const id = url.pathname.slice(`${LEARNING_PATH}/review/`.length);
-  if (!/^example-[a-f0-9]{24}$/.test(id)) return sendText(res, 400, 'invalid example id');
+  if (!isStableId('example', id)) return sendText(res, 400, 'invalid example id');
 
   if (req.method === 'GET') {
     const example = (await learning.datasets.list('candidates')).find((row) => row.id === id);
@@ -71,16 +73,9 @@ export function reviewOracle(input: unknown): Record<string, unknown> | undefine
   if (!input || typeof input !== 'object' || Array.isArray(input)) return undefined;
 
   const fields = input as Record<string, unknown>;
-  const allowed = [
-    'files',
-    'symbols',
-    'repositories',
-    'dependency_path',
-    'verified_negatives',
-    'notes',
-  ];
+  const allowed = new Set<string>(REVIEW_ORACLE_FIELDS);
 
-  if (!Object.keys(fields).length || Object.keys(fields).some((key) => !allowed.includes(key)))
+  if (!Object.keys(fields).length || Object.keys(fields).some((key) => !allowed.has(key)))
     return undefined;
 
   for (const [key, value] of Object.entries(fields)) {

@@ -7,6 +7,10 @@ import type { LearningStore } from '../store.js';
 import type { DreamingDecision, DreamingReport } from './types.js';
 import { LearningError } from '../errors.js';
 
+export function isDreamingReportId(id: string): boolean {
+  return /^dream-[a-z0-9-]{1,70}$/.test(id);
+}
+
 /** Immutable proposals and decision revisions; publication uses an atomic create, not a lock lease. */
 export class DreamingReports {
   private readonly dir: string;
@@ -16,8 +20,7 @@ export class DreamingReports {
   }
 
   private checkId(id: string): void {
-    if (!/^dream-[a-z0-9-]{1,70}$/.test(id))
-      throw new LearningError('invalid', 'invalid dreaming report id');
+    if (!isDreamingReportId(id)) throw new LearningError('invalid', 'invalid dreaming report id');
   }
 
   async save(report: DreamingReport): Promise<DreamingReport> {
