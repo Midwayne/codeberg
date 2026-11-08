@@ -90,7 +90,7 @@ export async function dispatchProject(
   }
 
   if (url.pathname === '/api/project/status') {
-    if (req.method !== 'GET') return sendText(res, 405, 'method not allowed');
+    if (!requireMethod(req, res, 'GET')) return;
 
     return sendJson(res, 200, await daemon(state, `/projects/${project.id}/health`));
   }

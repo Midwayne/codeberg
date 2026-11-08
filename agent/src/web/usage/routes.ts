@@ -1,12 +1,12 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { sendJson, sendText } from '../http.js';
+import { requireMethod, sendJson, sendText } from '../http.js';
 import { USAGE_KINDS, type UsageRecord } from '../../core/usage.js';
 import type { UsageStore } from './store.js';
 import { summarizeUsage } from './summary.js';
 
 export async function routeUsage(req: IncomingMessage, res: ServerResponse, store: UsageStore, url: URL) {
   res.setHeader('Cache-Control', 'no-store');
-  if (req.method !== 'GET') return sendText(res, 405, 'method not allowed');
+  if (!requireMethod(req, res, 'GET')) return;
 
   const range = parseRange(url.searchParams);
   if (!range) return sendText(res, 400, 'Choose valid UTC dates within one year and a positive page number.');

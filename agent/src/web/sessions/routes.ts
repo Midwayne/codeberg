@@ -4,7 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import type { LearningService } from '../../core/learning/service.js';
 import { writeModuleLog } from '../../core/module-log.js';
-import { readJson, sendJson, sendText } from '../http.js';
+import { readJson, rejectMethod, requireMethod, sendJson, sendText } from '../http.js';
 import { WebSessionStore } from './store.js';
 import { isValidSessionId } from '../../core/api/sessions.js';
 
@@ -23,9 +23,7 @@ export async function routeSessions(
 
   // Collection: list saved chats.
   if (rest === '') {
-    if (req.method !== 'GET') {
-      return sendText(res, 405, 'method not allowed');
-    }
+    if (!requireMethod(req, res, 'GET')) return;
 
     const query = new URL(req.url ?? '/', 'http://localhost').searchParams.get('q') ?? '';
 
@@ -54,7 +52,7 @@ export async function routeSessions(
       return;
     }
     default:
-      return sendText(res, 405, 'method not allowed');
+      return rejectMethod(res);
   }
 }
 

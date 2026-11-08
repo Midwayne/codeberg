@@ -1,5 +1,5 @@
 import { type IncomingMessage, type ServerResponse } from 'node:http';
-import { readJson, requireJsonMethod, sendJson, sendText } from '../http.js';
+import { readJson, requireJsonMethod, requireMethod, sendJson, sendText } from '../http.js';
 import { ResourceSettings } from '../resources.js';
 import { ResourceSettingsError } from '../resources/types.js';
 
@@ -14,7 +14,7 @@ export async function routeResources(
   try {
     res.setHeader('Cache-Control', 'no-store');
     if (path === '/api/settings/resources') {
-      if (req.method !== 'GET') return sendText(res, 405, 'method not allowed');
+      if (!requireMethod(req, res, 'GET')) return;
 
       const after = url.searchParams.get('after') ?? '0';
       if (!/^\d+$/.test(after) || !Number.isSafeInteger(Number(after)))

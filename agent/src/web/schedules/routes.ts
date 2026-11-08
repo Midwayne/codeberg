@@ -1,7 +1,7 @@
 import { backgroundSchedules, cancelBackground } from '../background/visibility.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { ScheduleCancelResult, ScheduleSummary } from '../../core/schedules/summary.js';
-import { requireJsonMethod, sendJson, sendText } from '../http.js';
+import { requireJsonMethod, requireMethod, sendJson, sendText } from '../http.js';
 import type { SearchRuns } from '../runs/manager.js';
 import { SESSION_ID_SOURCE } from '../../core/api/sessions.js';
 import { abortControlled, STOP_REQUEST } from '../runs/identity.js';
@@ -13,7 +13,7 @@ const CANCEL_ROUTE = new RegExp(`^/api/schedules/(${SESSION_ID_SOURCE})/cancel$`
 export async function routeSchedules(req: IncomingMessage, res: ServerResponse, url: URL, runs: SearchRuns) {
   res.setHeader('Cache-Control', 'no-store');
   if (url.pathname === '/api/schedules') {
-    if (req.method !== 'GET') return sendText(res, 405, 'method not allowed');
+    if (!requireMethod(req, res, 'GET')) return;
 
     const jobs = await runs.schedules.listAll();
 

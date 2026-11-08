@@ -4,7 +4,7 @@ import { routeCanvas } from '../canvas/routes.js';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { promptCommandCatalog } from '../../core/hooks/catalog.js';
 import { routeChat, routeMeta } from '../chat-routes.js';
-import { readJson, sendJson, sendText } from '../http.js';
+import { readJson, rejectMethod, requireMethod, sendJson, sendText } from '../http.js';
 import { routeLearning } from '../learning-routes.js';
 import { LEARNING_PATH } from '../learning/paths.js';
 import { ModelSelectionError, type ModelSettingsStore } from '../model-selection/settings.js';
@@ -94,7 +94,7 @@ export async function routeApi(
   }
 
   if (path === CHAT_SEARCH_PATH) {
-    if (req.method !== 'GET') return sendText(res, 405, 'method not allowed');
+    if (!requireMethod(req, res, 'GET')) return;
 
     return sendJson(res, 200, await sessions.search(url.searchParams.get('q') ?? ''));
   }
@@ -128,7 +128,7 @@ export async function routeModels(
     }
   }
 
-  return sendText(res, 405, 'method not allowed');
+  return rejectMethod(res);
 }
 
 export async function servePage(

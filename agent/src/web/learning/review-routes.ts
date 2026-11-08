@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { REVIEW_ORACLE_FIELDS } from '../../core/learning/datasets/records.js';
 import type { LearningService } from '../../core/learning/service.js';
 import { isStableId } from '../../core/learning/store/identity.js';
-import { readJson, sendJson, sendText } from '../http.js';
+import { readJson, requireMethod, sendJson, sendText } from '../http.js';
 import { sendLearningError } from './errors.js';
 import { LEARNING_PATH } from './paths.js';
 
@@ -21,7 +21,7 @@ export async function reviewExample(
     return example ? sendJson(res, 200, example) : sendText(res, 404, 'candidate not found');
   }
 
-  if (req.method !== 'POST') return sendText(res, 405, 'method not allowed');
+  if (!requireMethod(req, res, 'POST')) return;
 
   const body = await readJson(req);
   if (!body || !['training', 'eval', 'dismiss'].includes(String(body.decision))) {

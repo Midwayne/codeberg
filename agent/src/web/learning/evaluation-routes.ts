@@ -3,7 +3,7 @@ import type { AutomaticEvalReport } from '../../core/learning/evaluation/automat
 import { isEvaluationId } from '../../core/learning/evaluation/reports.js';
 import type { LearningService } from '../../core/learning/service.js';
 import { redactSecrets } from '../../core/learning/redact.js';
-import { sendJson, sendText } from '../http.js';
+import { requireMethod, sendJson, sendText } from '../http.js';
 import { LEARNING_PATH } from './paths.js';
 
 const PATH = `${LEARNING_PATH}/evaluations`;
@@ -16,7 +16,7 @@ export async function routeEvaluations(
   url: URL,
 ): Promise<void> {
   res.setHeader('Cache-Control', 'no-store');
-  if (req.method !== 'GET') return sendText(res, 405, 'method not allowed');
+  if (!requireMethod(req, res, 'GET')) return;
 
   if (url.pathname === PATH) {
     const [reports, pending, processing, failed] = await Promise.all([

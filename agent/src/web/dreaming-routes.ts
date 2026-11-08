@@ -4,7 +4,7 @@ import { dreamingSummary } from '../core/learning/dreaming/review.js';
 import type { DreamingDecision } from '../core/learning/dreaming/types.js';
 import { redactSecrets } from '../core/learning/redact.js';
 import type { LearningService } from '../core/learning/service.js';
-import { readJson, sendJson, sendText } from './http.js';
+import { readJson, requireMethod, sendJson, sendText } from './http.js';
 import { LEARNING_PATH } from './learning/paths.js';
 import { sendLearningError } from './learning/errors.js';
 
@@ -34,7 +34,7 @@ export async function routeDreaming(
       return report ? sendJson(res, 200, report) : sendText(res, 404, 'dreaming report not found');
     }
 
-    if (req.method !== 'POST') return sendText(res, 405, 'method not allowed');
+    if (!requireMethod(req, res, 'POST')) return;
 
     const body = await readJson(req);
     if (
@@ -57,7 +57,7 @@ async function routeDreamingRoot(
 ): Promise<void> {
   if (req.method === 'POST') return sendJson(res, 202, await learning.requestDreaming());
 
-  if (req.method !== 'GET') return sendText(res, 405, 'method not allowed');
+  if (!requireMethod(req, res, 'GET')) return;
 
   const [reports, pending, processing, failed] = await Promise.all([
     learning.dreamingReports.list(),
