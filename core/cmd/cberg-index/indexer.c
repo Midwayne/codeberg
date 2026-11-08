@@ -8,6 +8,7 @@
 #include "fileio.h"
 #include "index_env.h"
 #include "pathutil.h"
+#include "root_records.h"
 #include "u64map.h"
 #include "workspace_graph.h"
 
@@ -1156,45 +1157,51 @@ static cberg_status engine_add_repo(cberg_engine *eng, const char *key, const ch
     return CBERG_OK;
 }
 
-/* Resolve the roots to serve from CODEBERG_ROOTS ("<key>\t<path>" per line). A root
- * that fails to resolve is skipped with a warning — a registry entry whose tree
- * was deleted must not keep every other repo from indexing. */
-static cberg_status open_repos_from_env(cberg_engine *eng) {
-    const char *roots = getenv("CODEBERG_ROOTS");
-    if (roots != NULL && roots[0] != '\0') {
-        char *dup = strdup(roots);
-        if (dup == NULL) {
-            return CBERG_ERR_OUT_OF_MEMORY;
-        }
-        char *save = NULL;
-        for (char *line = strtok_r(dup, "\n", &save); line != NULL; line = strtok_r(NULL, "\n", &save)) {
-            char *tab = strchr(line, '\t');
-            if (tab == NULL || tab == line || tab[1] == '\0') {
-                continue; /* malformed record */
-            }
-            *tab = '\0';
-            const char *key = line;
-            const char *path = tab + 1;
-            char resolved[4096];
-            if (cberg_path_resolve(path, resolved, sizeof(resolved)) != CBERG_OK) {
-                fprintf(stderr, "cberg-index: warning: skipping repo '%s': unresolvable root '%s'\n", key, path);
-                continue;
-            }
-            cberg_status st = engine_add_repo(eng, key, resolved);
-            if (st != CBERG_OK) {
-                free(dup);
-                return st;
-            }
-        }
-        free(dup);
-        if (eng->repos_len == 0) {
-            fprintf(stderr, "cberg-index: no usable roots in CODEBERG_ROOTS\n");
-            return CBERG_ERR_NOT_FOUND;
-        }
+/* Adds one record's repo. A root that fails to resolve is skipped with a
+ * warning: a registry entry whose tree was deleted must not keep every other
+ * repo from indexing. */
+static cberg_status add_repo_record(cberg_engine *eng, const cberg_root_record *record) {
+    char key[1024];
+    char path[4096];
+    if (record->key_len >= sizeof(key) || record->path_len >= sizeof(path)) {
+        fprintf(stderr, "cberg-index: warning: skipping repo record: key or root too long\n");
         return CBERG_OK;
     }
+    snprintf(key, sizeof(key), "%.*s", (int)record->key_len, record->key);
+    snprintf(path, sizeof(path), "%.*s", (int)record->path_len, record->path);
 
-    return CBERG_ERR_NOT_FOUND;
+    char resolved[4096];
+    if (cberg_path_resolve(path, resolved, sizeof(resolved)) != CBERG_OK) {
+        fprintf(stderr, "cberg-index: warning: skipping repo '%s': unresolvable root '%s'\n", key, path);
+        return CBERG_OK;
+    }
+    return engine_add_repo(eng, key, resolved);
+}
+
+static cberg_status open_repos_from_env(cberg_engine *eng) {
+    const char *roots = getenv(CBERG_INDEX_ROOT_ENV);
+    if (roots == NULL || roots[0] == '\0') {
+        return CBERG_ERR_NOT_FOUND;
+    }
+
+    const char *cursor = roots;
+    cberg_root_record record;
+    while (cberg_root_record_next(&cursor, &record)) {
+        if (record.key == NULL) {
+            continue;
+        }
+
+        cberg_status st = add_repo_record(eng, &record);
+        if (st != CBERG_OK) {
+            return st;
+        }
+    }
+
+    if (eng->repos_len == 0) {
+        fprintf(stderr, "cberg-index: no usable roots in " CBERG_INDEX_ROOT_ENV "\n");
+        return CBERG_ERR_NOT_FOUND;
+    }
+    return CBERG_OK;
 }
 
 cberg_status cberg_engine_open(cberg_engine *eng) {

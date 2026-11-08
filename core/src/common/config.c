@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "pathutil.h"
+#include "root_records.h"
 
 const char *cberg_config_index_root_env_name(void) {
     return CBERG_INDEX_ROOT_ENV;
@@ -16,12 +17,17 @@ const char *cberg_config_index_root(void) {
     }
 
     /* A single-root helper cannot choose a repository from a multi-root list. */
-    const char *tab = strchr(value, '\t');
-    if (tab == NULL || tab == value || tab[1] == '\0' || strchr(value, '\n') != NULL) {
+    if (strchr(value, '\n') != NULL) {
         return NULL;
     }
 
-    return tab + 1;
+    cberg_root_record record;
+    if (!cberg_root_record_next(&value, &record) || record.key == NULL) {
+        return NULL;
+    }
+
+    /* No newline remains, so the path span is a C string inside the env value. */
+    return record.path;
 }
 
 cberg_status cberg_config_resolve_index_root(char *out, size_t out_cap) {
