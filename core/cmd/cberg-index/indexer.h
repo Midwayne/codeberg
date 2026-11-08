@@ -105,6 +105,9 @@ cberg_status cberg_engine_step(cberg_engine *eng, size_t *out_events);
  * returns freed heap to the OS whenever it goes idle after doing work. */
 cberg_status cberg_engine_run(cberg_engine *eng);
 
+/* The repo with this key, or NULL for NULL/""/unknown keys. */
+cberg_repo *cberg_engine_find_repo(cberg_engine *eng, const char *repo_key);
+
 size_t cberg_repo_chunk_count(cberg_repo *r);
 int cberg_repo_ready(cberg_repo *r);
 size_t cberg_engine_chunk_count(cberg_engine *eng);

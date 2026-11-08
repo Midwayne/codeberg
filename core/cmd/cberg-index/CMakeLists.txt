@@ -3,6 +3,8 @@
 # engine is allowed to use; keep them in this one place.
 add_library(cberg_index_engine STATIC
   indexer.c
+  query.c
+  graph_query.c
   embedding.c
   ipc.c
   wipe.c
