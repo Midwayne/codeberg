@@ -557,19 +557,22 @@ func (c *Config) DbmcpBinary() string {
 	return ""
 }
 
+// spec.yml wins over spec.yaml, matching the agent's DBMCP_SPEC_NAMES.
+var dbmcpSpecNames = []string{"spec.yml", "spec.yaml"}
+
 // DbmcpSpecFile is the spec the built-in database server should load.
 // found is false when the preferred path is not on disk yet.
 func (c *Config) DbmcpSpecFile() (path string, found bool) {
 	if c.DbmcpSpec != "" {
 		return c.DbmcpSpec, paths.Exists(c.DbmcpSpec)
 	}
-	for _, name := range []string{"spec.yml", "spec.yaml"} {
+	for _, name := range dbmcpSpecNames {
 		p := filepath.Join(c.Home, name)
 		if paths.Exists(p) {
 			return p, true
 		}
 	}
-	return filepath.Join(c.Home, "spec.yml"), false
+	return filepath.Join(c.Home, dbmcpSpecNames[0]), false
 }
 
 // formatRootRecords is the CODEBERG_ROOTS wire format: key, tab, path,

@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { modelsCatalogPath, modelSettingsPath } from '../model-types.js';
 import { readOptionalText } from '../learning/fs.js';
 import { readModelsDocument } from '../models-document.js';
 import { codebergHome } from '../paths.js';
@@ -96,8 +96,8 @@ export function resolveDecision(catalog: DecisionCatalog, stored: unknown): stri
 /** CLI and embedded agents use the same saved choice as the browser. */
 export async function configuredDecision(env: NodeJS.ProcessEnv): Promise<DecisionModel | null> {
   const home = codebergHome(env);
-  const catalog = await loadDecisionCatalog(join(home, 'models.yml'), env);
-  const raw = await readOptionalText(join(home, 'model-settings.json'));
+  const catalog = await loadDecisionCatalog(modelsCatalogPath(home), env);
+  const raw = await readOptionalText(modelSettingsPath(home));
   const stored = raw === undefined ? undefined : record(JSON.parse(raw))?.decisions;
 
   return catalog.decisionModels.find((item) => item.key === resolveDecision(catalog, stored)) ?? null;

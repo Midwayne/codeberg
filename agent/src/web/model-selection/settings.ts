@@ -1,9 +1,13 @@
-import { join } from 'node:path';
-
 import { loadDecisionCatalog, resolveDecision } from '../../core/decisions/catalog.js';
 import { readOptionalText, writeJsonAtomic } from '../../core/learning/fs.js';
 import { WriteLock } from '../../core/write-lock.js';
-import type { CatalogModel, ModelSelection, ModelSettings } from '../../core/model-types.js';
+import {
+  modelsCatalogPath,
+  modelSettingsPath,
+  type CatalogModel,
+  type ModelSelection,
+  type ModelSettings,
+} from '../../core/model-types.js';
 import { codebergHome } from '../../core/paths.js';
 import { record } from '../../core/record.js';
 import { loadModelCatalog, validEffort, type ModelCatalogOptions } from './catalog.js';
@@ -27,12 +31,12 @@ export class ModelSettingsStore {
     const home = options.home ?? codebergHome(options.env);
     this.env = options.env ?? process.env;
     this.catalog = {
-      catalogPath: options.catalogPath ?? join(home, 'models.yml'),
+      catalogPath: options.catalogPath ?? modelsCatalogPath(home),
       defaultChat: options.defaultChat,
       defaultLearning: options.defaultLearning,
       availableProvider: options.availableProvider,
     };
-    this.settingsPath = join(home, 'model-settings.json');
+    this.settingsPath = modelSettingsPath(home);
   }
 
   async current(): Promise<ModelSettings> {
