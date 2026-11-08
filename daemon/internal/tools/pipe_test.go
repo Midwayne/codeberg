@@ -124,7 +124,7 @@ func TestPipeToolRejectsUnsafe(t *testing.T) {
 	}
 
 	_, err = tool.Call(context.Background(), mustArgs(t, `rg TODO > out`))
-	if !errors.Is(err, ErrUnsafePipe) {
+	if !errors.Is(err, subprocess.ErrUnsafe) {
 		t.Fatalf("redirection: got %v", err)
 	}
 }

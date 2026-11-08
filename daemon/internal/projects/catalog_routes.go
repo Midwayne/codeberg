@@ -4,7 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"time"
+
+	"codeberg.org/codeberg/daemon/internal/httpserver"
 )
 
 func (m *Manager) serveCatalog(w http.ResponseWriter, r *http.Request) {
@@ -12,17 +13,17 @@ func (m *Manager) serveCatalog(w http.ResponseWriter, r *http.Request) {
 	case "GET":
 		m.mu.Lock()
 		defer m.mu.Unlock()
-		respond(w, 200, m.catalogView(m.catalog))
+		httpserver.WriteJSON(w, 200, m.catalogView(m.catalog))
 	case "POST":
 		m.serveAdd(w, r)
 	default:
-		respond(w, 405, map[string]string{"message": "method not allowed"})
+		respondError(w, 405, "method not allowed")
 	}
 }
 
 func (m *Manager) serveAdd(w http.ResponseWriter, r *http.Request) {
 	if !sameOrigin(r) {
-		respond(w, 403, map[string]string{"message": "cross-origin project changes are not allowed"})
+		respondError(w, 403, "cross-origin project changes are not allowed")
 		return
 	}
 
@@ -31,27 +32,27 @@ func (m *Manager) serveAdd(w http.ResponseWriter, r *http.Request) {
 		Root string `json:"root"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&body); err != nil {
-		respond(w, 400, map[string]string{"message": "invalid project"})
+		respondError(w, 400, "invalid project")
 		return
 	}
 
 	p, err := m.Add(body.Name, body.Root)
 	if err != nil {
-		respond(w, 400, map[string]string{"message": err.Error()})
+		respondError(w, 400, err.Error())
 		return
 	}
 
-	respond(w, 201, p)
+	httpserver.WriteJSON(w, 201, p)
 }
 
 func (m *Manager) serveRename(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method != "PATCH" {
-		respond(w, 405, map[string]string{"message": "method not allowed"})
+		respondError(w, 405, "method not allowed")
 		return
 	}
 
 	if !sameOrigin(r) {
-		respond(w, 403, map[string]string{"message": "cross-origin project changes are not allowed"})
+		respondError(w, 403, "cross-origin project changes are not allowed")
 		return
 	}
 
@@ -59,7 +60,7 @@ func (m *Manager) serveRename(w http.ResponseWriter, r *http.Request, id string)
 		Name string `json:"name"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&body); err != nil {
-		respond(w, 400, map[string]string{"message": "invalid project name"})
+		respondError(w, 400, "invalid project name")
 		return
 	}
 
@@ -74,31 +75,28 @@ func (m *Manager) serveRename(w http.ResponseWriter, r *http.Request, id string)
 			status = 404
 		}
 
-		respond(w, status, map[string]string{"message": err.Error()})
+		respondError(w, status, err.Error())
 		return
 	}
 
-	respond(w, 200, p)
+	httpserver.WriteJSON(w, 200, p)
 }
 
 func (m *Manager) serveRetry(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method != "POST" {
-		respond(w, 405, map[string]string{"message": "method not allowed"})
+		respondError(w, 405, "method not allowed")
 		return
 	}
 
 	if !sameOrigin(r) {
-		respond(w, 403, map[string]string{"message": "cross-origin project changes are not allowed"})
+		respondError(w, 403, "cross-origin project changes are not allowed")
 		return
 	}
 
+	// Retry restarts the indexer, which also restarts its startup deadline.
 	m.mu.Lock()
-	rt, active := m.runtimes[id]
-	if active {
-		rt.started = time.Now()
-		m.runtimes[id] = rt
-	}
-
+	m.stopRuntime(id)
 	m.mu.Unlock()
-	respond(w, 200, map[string]bool{"ok": true})
+
+	httpserver.WriteJSON(w, 200, map[string]bool{"ok": true})
 }

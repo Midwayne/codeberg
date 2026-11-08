@@ -16,7 +16,7 @@ func TestLoadDaemonWithoutRoots(t *testing.T) {
 		t.Fatalf("empty startup must be allowed: %v", err)
 	}
 
-	if cfg.Root != "" || cfg.DefaultKey != "" || len(cfg.Roots) != 0 {
+	if cfg.DefaultKey != "" || len(cfg.Roots) != 0 {
 		t.Fatalf("unexpected startup repository: %#v", cfg.Indexer)
 	}
 }
@@ -25,10 +25,8 @@ func TestLoadDaemonDefaults(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv(EnvRoots, filepath.Base(root)+"\t"+root)
 	t.Setenv(EnvHTTPPort, "")
-	t.Setenv(EnvSocket, "")
 	t.Setenv(EnvPollMS, "")
 	t.Setenv(EnvGitPullSec, "")
-	t.Setenv(EnvGitDir, "")
 
 	cfg, err := LoadDaemon()
 	if err != nil {
@@ -40,10 +38,6 @@ func TestLoadDaemonDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if cfg.Root != wantRoot {
-		t.Fatalf("root: got %q want %q", cfg.Root, wantRoot)
-	}
-
 	if len(cfg.Roots) != 1 || cfg.Roots[0].Root != wantRoot {
 		t.Fatalf("roots: got %+v", cfg.Roots)
 	}
@@ -52,20 +46,12 @@ func TestLoadDaemonDefaults(t *testing.T) {
 		t.Fatalf("default key: got %q / %q want %q", cfg.DefaultKey, cfg.Roots[0].Key, want)
 	}
 
-	if cfg.HTTPPort != "8080" {
+	if cfg.HTTPPort != "48080" {
 		t.Fatalf("port: got %q", cfg.HTTPPort)
-	}
-
-	if cfg.Socket != "/tmp/codeberg-index.sock" {
-		t.Fatalf("socket: got %q", cfg.Socket)
 	}
 
 	if cfg.PollMS != 1000 {
 		t.Fatalf("poll: got %d", cfg.PollMS)
-	}
-
-	if len(cfg.GitDirs) != 1 || cfg.GitDirs[0] != cfg.Root {
-		t.Fatalf("git dirs should default to the roots, got %v", cfg.GitDirs)
 	}
 }
 
@@ -73,7 +59,6 @@ func TestLoadDaemonMultiRoots(t *testing.T) {
 	rootA := t.TempDir()
 	rootB := t.TempDir()
 	t.Setenv(EnvRoots, "alpha\t"+rootA+"\nbeta\t"+rootB+"\ndead\t/cberg/definitely/missing\nmalformed-no-tab")
-	t.Setenv(EnvGitDir, "")
 
 	cfg, err := LoadDaemon()
 	if err != nil {
@@ -90,14 +75,6 @@ func TestLoadDaemonMultiRoots(t *testing.T) {
 
 	if cfg.DefaultKey != "" {
 		t.Fatalf("multi-root mode must have no default repo, got %q", cfg.DefaultKey)
-	}
-
-	if cfg.Root != cfg.Roots[0].Root {
-		t.Fatalf("Root should be the first root, got %q", cfg.Root)
-	}
-
-	if len(cfg.GitDirs) != 2 {
-		t.Fatalf("git dirs should cover all roots, got %v", cfg.GitDirs)
 	}
 }
 
@@ -145,10 +122,8 @@ func TestLoadDaemonIndexQuant(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv(EnvRoots, filepath.Base(root)+"\t"+root)
 	t.Setenv(EnvHTTPPort, "")
-	t.Setenv(EnvSocket, "")
 	t.Setenv(EnvPollMS, "")
 	t.Setenv(EnvGitPullSec, "")
-	t.Setenv(EnvGitDir, "")
 	t.Setenv(EnvIndexQuant, "F32")
 
 	cfg, err := LoadDaemon()

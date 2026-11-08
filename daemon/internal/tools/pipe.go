@@ -34,6 +34,3 @@ func pipeTool(ws *workspace.Workspace) Tool {
 			return subprocess.RunPipeline(ctx, root, a.Command)
 		})
 }
-
-// ErrUnsafePipe is returned when a pipeline uses a disallowed command or operator.
-var ErrUnsafePipe = subprocess.ErrUnsafe

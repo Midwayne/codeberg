@@ -16,11 +16,11 @@ func TestValidateSedScript(t *testing.T) {
 		t.Fatal("empty script should fail")
 	}
 
-	if err := subprocess.ValidateSedScript("w /tmp/out"); !errors.Is(err, ErrUnsafeSed) {
+	if err := subprocess.ValidateSedScript("w /tmp/out"); !errors.Is(err, subprocess.ErrUnsafeSed) {
 		t.Fatalf("write command: %v", err)
 	}
 
-	if err := subprocess.ValidateSedScript("s/a/b/w"); !errors.Is(err, ErrUnsafeSed) {
+	if err := subprocess.ValidateSedScript("s/a/b/w"); !errors.Is(err, subprocess.ErrUnsafeSed) {
 		t.Fatalf("s write flag: %v", err)
 	}
 }

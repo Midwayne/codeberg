@@ -12,9 +12,6 @@ import (
 
 const maxSedOutput = 64 * 1024
 
-// ErrUnsafeSed is returned when a sed script uses a disallowed command.
-var ErrUnsafeSed = subprocess.ErrUnsafeSed
-
 func sedTool(ws *workspace.Workspace) Tool {
 	const schema = `{
   "type": "object",

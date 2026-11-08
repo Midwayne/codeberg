@@ -42,9 +42,6 @@ func (s *Supervisor) spawn(ctx context.Context, bin string) error {
 	cmd := exec.CommandContext(ctx, bin)
 	out := io.Writer(os.Stderr)
 	dir := s.cfg.LogDir
-	if dir == "" {
-		dir = os.Getenv("CODEBERG_LOG_DIR")
-	}
 
 	if dir != "" {
 		if err := os.MkdirAll(dir, 0o700); err != nil {

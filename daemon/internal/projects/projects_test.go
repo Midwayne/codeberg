@@ -25,7 +25,7 @@ func setup(t *testing.T) (*Manager, string) {
 		t.Fatal(err)
 	}
 
-	m, err := New(context.Background(), home, config.Indexer{Root: root, Roots: []domain.Repo{{Key: "original", Root: root}}, DefaultKey: "original"})
+	m, err := New(context.Background(), home, config.Indexer{Roots: []domain.Repo{{Key: "original", Root: root}}, DefaultKey: "original"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestRenamePersistsWithoutChangingProjectIdentity(t *testing.T) {
 	m, home := setup(t)
 	p := m.catalog.Projects[0]
 	w := httptest.NewRecorder()
-	m.Handler(http.NotFoundHandler()).ServeHTTP(w, httptest.NewRequest("PATCH", "/projects/"+p.ID, strings.NewReader(`{"name":"  New workspace  "}`)))
+	m.Handler().ServeHTTP(w, httptest.NewRequest("PATCH", "/projects/"+p.ID, strings.NewReader(`{"name":"  New workspace  "}`)))
 
 	if w.Code != 200 {
 		t.Fatalf("rename: %d %s", w.Code, w.Body)
@@ -99,7 +99,7 @@ func TestRenamePersistsWithoutChangingProjectIdentity(t *testing.T) {
 func TestRenameValidationAndSaveFailure(t *testing.T) {
 	m, home := setup(t)
 	p := m.catalog.Projects[0]
-	handler := m.Handler(http.NotFoundHandler())
+	handler := m.Handler()
 
 	for _, tc := range []struct {
 		method, id, body, origin string
@@ -155,12 +155,12 @@ func TestRoutesIsolateProjectsAndStartOnce(t *testing.T) {
 	m.start = func(p Project, cfg config.Indexer) (http.Handler, func(), error) {
 		starts.Add(1)
 
-		if cfg.Root != p.Roots[0].Root || !strings.Contains(cfg.Index, p.ID) || cfg.DefaultKey != p.Roots[0].Key {
+		if cfg.Roots[0].Root != p.Roots[0].Root || !strings.Contains(cfg.Index, p.ID) || cfg.DefaultKey != p.Roots[0].Key {
 			t.Error("unscoped runtime")
 		}
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(p.ID + ":" + r.URL.Path)) }), func() {}, nil
 	}
-	handler := m.Handler(http.NotFoundHandler())
+	handler := m.Handler()
 
 	for _, p := range []Project{a, b, a} {
 		w := httptest.NewRecorder()
@@ -194,14 +194,15 @@ func TestMigrationMovesOnlyIndexFamily(t *testing.T) {
 	}
 
 	_ = os.WriteFile(old+"-unrelated", []byte("keep"), 0600)
-	m, err := New(context.Background(), home, config.Indexer{Root: root, Roots: []domain.Repo{{Key: "root", Root: root}}, Index: old})
+	m, err := New(context.Background(), home, config.Indexer{Roots: []domain.Repo{{Key: "root", Root: root}}, Index: old})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	defer m.Close()
-	cfg, err := m.InitialConfig()
-	if err != nil {
+	p := m.catalog.Projects[0]
+	cfg := m.projectConfig(p)
+	if err := m.prepareIndex(p, cfg); err != nil {
 		t.Fatal(err)
 	}
 
@@ -254,18 +255,8 @@ func TestInheritedRootsCannotLeakIntoProjectIndexer(t *testing.T) {
 	t.Fatal("indexer did not start")
 }
 
-func TestInitialSocketCompatibilityAndMissingDirectory(t *testing.T) {
+func TestMissingDirectoryReportsUnavailable(t *testing.T) {
 	m, _ := setup(t)
-	m.base.Socket = filepath.Join(t.TempDir(), "legacy.sock")
-	cfg, err := m.InitialConfig()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if cfg.Socket != m.base.Socket {
-		t.Fatal("legacy IPC socket changed")
-	}
-
 	p, _ := m.Add("Removed", t.TempDir())
 	m.start = func(Project, config.Indexer) (http.Handler, func(), error) {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(`{"ready":true}`)) }), func() {}, nil
@@ -275,7 +266,7 @@ func TestInitialSocketCompatibilityAndMissingDirectory(t *testing.T) {
 	}
 
 	w := httptest.NewRecorder()
-	m.Handler(http.NotFoundHandler()).ServeHTTP(w, httptest.NewRequest("GET", "/projects/"+p.ID+"/health", nil))
+	m.Handler().ServeHTTP(w, httptest.NewRequest("GET", "/projects/"+p.ID+"/health", nil))
 
 	if w.Code != 503 || !strings.Contains(w.Body.String(), "unavailable") {
 		t.Fatalf("%d %s", w.Code, w.Body)

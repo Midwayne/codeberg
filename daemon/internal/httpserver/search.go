@@ -10,7 +10,7 @@ import (
 func (s *Server) search(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	if q == "" {
-		writeJSON(w, http.StatusBadRequest, errorBody("MISSING_QUERY", "missing q"))
+		writeCodedError(w, http.StatusBadRequest, "MISSING_QUERY", "missing q")
 		return
 	}
 
@@ -18,7 +18,7 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request) {
 	if v := r.URL.Query().Get("k"); v != "" {
 		n, err := strconv.Atoi(v)
 		if err != nil || n <= 0 {
-			writeJSON(w, http.StatusBadRequest, errorBody("INVALID_K", "invalid k"))
+			writeCodedError(w, http.StatusBadRequest, "INVALID_K", "invalid k")
 			return
 		}
 
@@ -29,7 +29,7 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request) {
 	if v := r.URL.Query().Get("min_score"); v != "" {
 		f, err := strconv.ParseFloat(v, 32)
 		if err != nil {
-			writeJSON(w, http.StatusBadRequest, errorBody("INVALID_MIN_SCORE", "invalid min_score"))
+			writeCodedError(w, http.StatusBadRequest, "INVALID_MIN_SCORE", "invalid min_score")
 			return
 		}
 
@@ -49,5 +49,5 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"results": results})
+	WriteJSON(w, http.StatusOK, map[string]any{"results": results})
 }

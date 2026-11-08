@@ -12,24 +12,22 @@ import (
 )
 
 func TestStartupTimeoutScalesWithRepos(t *testing.T) {
-	if StartupTimeout(1) != 15*time.Minute || StartupTimeout(2) != 15*time.Minute {
+	if StartupTimeout(0, 1) != 15*time.Minute || StartupTimeout(0, 2) != 15*time.Minute {
 		t.Fatalf("small repo sets need the 15m cold-index minimum")
 	}
 
-	if StartupTimeout(4) != 20*time.Minute {
+	if StartupTimeout(0, 4) != 20*time.Minute {
 		t.Fatalf("larger repo sets should scale by 5m per repo")
 	}
 
-	if StartupTimeout(20) != 60*time.Minute {
+	if StartupTimeout(0, 20) != 60*time.Minute {
 		t.Fatalf("timeout capped at 60m")
 	}
 }
 
 func TestStartupTimeoutHonorsHealthOverride(t *testing.T) {
-	t.Setenv("CODEBERG_HEALTH_TIMEOUT", "30m")
-
-	if StartupTimeout(1) != 30*time.Minute {
-		t.Fatalf("daemon timeout must match the launcher's explicit health timeout")
+	if StartupTimeout(30*time.Minute, 1) != 30*time.Minute {
+		t.Fatalf("an explicit health timeout replaces the scaled deadline")
 	}
 }
 

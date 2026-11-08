@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"codeberg.org/codeberg/daemon/internal/domain"
@@ -33,7 +32,7 @@ func projectID(roots []domain.Repo) string {
 }
 
 func (m *Manager) save() error {
-	if err := os.MkdirAll(m.home, 0700); err != nil {
+	if err := os.MkdirAll(m.layout.Home, 0700); err != nil {
 		return err
 	}
 
@@ -42,7 +41,7 @@ func (m *Manager) save() error {
 		return err
 	}
 
-	f, err := os.CreateTemp(m.home, ".projects-*.json")
+	f, err := os.CreateTemp(m.layout.Home, ".projects-*.json")
 	if err != nil {
 		return err
 	}
@@ -64,41 +63,60 @@ func (m *Manager) save() error {
 	if closeErr != nil {
 		return closeErr
 	}
-	return os.Rename(f.Name(), filepath.Join(m.home, "projects.json"))
+	return os.Rename(f.Name(), m.layout.Catalog())
 }
 
 func (m *Manager) loadCatalog() error {
-	raw, err := os.ReadFile(filepath.Join(m.home, "projects.json"))
-	if err == nil {
-		if err := json.Unmarshal(raw, &m.catalog); err != nil {
-			return fmt.Errorf("reading project catalog: %w", err)
-		}
-
-		if m.catalog.Version != 1 {
-			return fmt.Errorf("unsupported project catalog version %d", m.catalog.Version)
-		}
-
-		seen := map[string]bool{}
-
-		for _, p := range m.catalog.Projects {
-			if !validID(p.ID) || seen[p.ID] || len(p.Roots) == 0 {
-				return fmt.Errorf("invalid project catalog")
-			}
-
-			seen[p.ID] = true
-		}
-
-		if (m.catalog.LegacyID != "" && !validID(m.catalog.LegacyID)) || (len(m.catalog.Projects) > 0 && !seen[m.catalog.DefaultID]) || (len(m.catalog.Projects) == 0 && m.catalog.DefaultID != "") {
-			return fmt.Errorf("project catalog has no valid default or migration owner")
-		}
-	} else if !os.IsNotExist(err) {
+	catalog, err := readCatalog(m.layout.Catalog())
+	if err != nil {
 		return err
-	} else {
-		m.catalog.Version = 1
 	}
 
-	if m.catalog.Projects == nil {
-		m.catalog.Projects = []Project{}
+	m.catalog = catalog
+	return nil
+}
+
+// readCatalog returns an empty catalog when the file does not exist yet.
+func readCatalog(path string) (Catalog, error) {
+	catalog := Catalog{Version: 1}
+
+	raw, err := os.ReadFile(path)
+	if err == nil {
+		if err := json.Unmarshal(raw, &catalog); err != nil {
+			return Catalog{}, fmt.Errorf("reading project catalog: %w", err)
+		}
+
+		if err := validateCatalog(catalog); err != nil {
+			return Catalog{}, err
+		}
+	} else if !os.IsNotExist(err) {
+		return Catalog{}, err
+	}
+
+	if catalog.Projects == nil {
+		catalog.Projects = []Project{}
+	}
+
+	return catalog, nil
+}
+
+func validateCatalog(c Catalog) error {
+	if c.Version != 1 {
+		return fmt.Errorf("unsupported project catalog version %d", c.Version)
+	}
+
+	seen := map[string]bool{}
+
+	for _, p := range c.Projects {
+		if !validID(p.ID) || seen[p.ID] || len(p.Roots) == 0 {
+			return fmt.Errorf("invalid project catalog")
+		}
+
+		seen[p.ID] = true
+	}
+
+	if (c.LegacyID != "" && !validID(c.LegacyID)) || (len(c.Projects) > 0 && !seen[c.DefaultID]) || (len(c.Projects) == 0 && c.DefaultID != "") {
+		return fmt.Errorf("project catalog has no valid default or migration owner")
 	}
 
 	return nil

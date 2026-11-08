@@ -3,7 +3,6 @@ package projects
 import (
 	"context"
 	"encoding/json"
-	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -24,7 +23,7 @@ func TestCatalogReportsEmbeddingModeBeforeIndexing(t *testing.T) {
 
 			defer m.Close()
 			w := httptest.NewRecorder()
-			m.Handler(http.NotFoundHandler()).ServeHTTP(w, httptest.NewRequest("GET", "/projects", nil))
+			m.Handler().ServeHTTP(w, httptest.NewRequest("GET", "/projects", nil))
 
 			var body struct {
 				VectorsEnabled *bool `json:"vectorsEnabled"`

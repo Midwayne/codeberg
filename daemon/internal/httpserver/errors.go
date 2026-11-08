@@ -32,8 +32,8 @@ func statusFor(err error) int {
 	case errors.Is(err, workspace.ErrEscape):
 		return http.StatusForbidden
 	case errors.Is(err, tools.ErrInvalidArgs),
-		errors.Is(err, tools.ErrUnsafeSed),
-		errors.Is(err, tools.ErrUnsafePipe),
+		errors.Is(err, subprocess.ErrUnsafeSed),
+		errors.Is(err, subprocess.ErrUnsafe),
 		errors.Is(err, subprocess.ErrInvalid):
 		return http.StatusBadRequest
 	default:
@@ -47,12 +47,16 @@ func codeFor(err error, status int) string {
 	}
 
 	switch {
-	case errors.Is(err, tools.ErrUnsafePipe):
+	case errors.Is(err, subprocess.ErrUnsafe):
 		return "UNSAFE_PIPE"
-	case errors.Is(err, tools.ErrUnsafeSed):
+	case errors.Is(err, subprocess.ErrUnsafeSed):
 		return "UNSAFE_SED"
 	}
 
+	return statusCode(status)
+}
+
+func statusCode(status int) string {
 	switch status {
 	case http.StatusNotFound:
 		return "NOT_FOUND"
@@ -62,6 +66,12 @@ func codeFor(err error, status int) string {
 		return "INVALID_ARGS"
 	case http.StatusNotImplemented:
 		return "NOT_IMPLEMENTED"
+	case http.StatusMethodNotAllowed:
+		return "METHOD_NOT_ALLOWED"
+	case http.StatusConflict:
+		return "CONFLICT"
+	case http.StatusServiceUnavailable:
+		return "UNAVAILABLE"
 	default:
 		return "INTERNAL"
 	}

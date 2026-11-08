@@ -11,9 +11,37 @@ import (
 	"codeberg.org/codeberg/daemon/internal/config"
 )
 
+// fakeStart replaces the indexer with handler and records each started config.
+func fakeStart(m *Manager, handler http.Handler, stop func()) *[]config.Indexer {
+	var started []config.Indexer
+
+	m.start = func(_ Project, cfg config.Indexer) (http.Handler, func(), error) {
+		started = append(started, cfg)
+		return handler, stop, nil
+	}
+
+	return &started
+}
+
+// startedDefault reports the config StartDefault launched, if any.
+func startedDefault(t *testing.T, m *Manager) (config.Indexer, bool) {
+	t.Helper()
+	started := fakeStart(m, http.NotFoundHandler(), func() {})
+
+	if err := m.StartDefault(); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(*started) == 0 {
+		return config.Indexer{}, false
+	}
+
+	return (*started)[0], true
+}
+
 func TestStartupWithoutProjectAndRestart(t *testing.T) {
 	home := t.TempDir()
-	base := config.Indexer{Socket: filepath.Join(home, "index.sock"), Model: "embedding.onnx", PollMS: 1000}
+	base := config.Indexer{Model: "embedding.onnx", PollMS: 1000}
 
 	for attempt := 0; attempt < 2; attempt++ {
 		m, err := New(context.Background(), home, base)
@@ -21,12 +49,11 @@ func TestStartupWithoutProjectAndRestart(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		cfg, err := m.InitialConfig()
-		if err != nil || len(cfg.Roots) != 0 || cfg.Model != base.Model || cfg.Socket != base.Socket {
-			t.Fatalf("initial config: %#v, %v", cfg, err)
+		if _, started := startedDefault(t, m); started {
+			t.Fatal("an empty catalog must not start an indexer")
 		}
 
-		handler := m.Handler(http.NotFoundHandler())
+		handler := m.Handler()
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, httptest.NewRequest("GET", "/projects", nil))
 
@@ -75,9 +102,9 @@ func TestFirstAddedProjectRestoresWithoutStartupRoots(t *testing.T) {
 	}
 
 	defer restored.Close()
-	cfg, err := restored.InitialConfig()
-	if err != nil || cfg.Root != p.Roots[0].Root || cfg.Model != base.Model {
-		t.Fatalf("restored config: %#v, %v", cfg, err)
+	cfg, started := startedDefault(t, restored)
+	if !started || cfg.Roots[0].Root != p.Roots[0].Root || cfg.Model != base.Model {
+		t.Fatalf("restored config: %#v", cfg)
 	}
 
 	if len(restored.catalog.Projects) != 1 || restored.catalog.DefaultID != p.ID || restored.catalog.LegacyID != "" {
@@ -99,9 +126,9 @@ func TestSavedLegacyProjectRestoresWithoutStartupRoots(t *testing.T) {
 		t.Fatalf("rootless restart changed the existing workspace: %#v", restored.catalog)
 	}
 
-	cfg, err := restored.InitialConfig()
-	if err != nil || cfg.Root != want.Projects[0].Roots[0].Root {
-		t.Fatalf("existing project was not restored: %#v, %v", cfg, err)
+	cfg, started := startedDefault(t, restored)
+	if !started || cfg.Roots[0].Root != want.Projects[0].Roots[0].Root {
+		t.Fatalf("existing project was not restored: %#v", cfg)
 	}
 }
 
@@ -113,7 +140,6 @@ func TestDeletedStartupProjectRestartsIdle(t *testing.T) {
 			base := original.base
 			base.Model = "embedding.onnx"
 			base.Index = filepath.Join(home, "index", "codeberg.usearch")
-			base.Socket = filepath.Join(home, "index.sock")
 
 			if _, err := original.Delete(project.ID, mode); err != nil {
 				t.Fatal(err)
@@ -126,17 +152,8 @@ func TestDeletedStartupProjectRestartsIdle(t *testing.T) {
 			}
 
 			defer restored.Close()
-			cfg, err := restored.InitialConfig()
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			if cfg.Root != "" || len(cfg.Roots) != 0 || cfg.DefaultKey != "" {
-				t.Fatalf("deleted startup roots must not start an indexer: %#v", cfg)
-			}
-
-			if cfg.Model != base.Model || cfg.Index != base.Index || cfg.Socket != base.Socket {
-				t.Fatalf("idle config must preserve settings for future projects: %#v", cfg)
+			if _, started := startedDefault(t, restored); started {
+				t.Fatal("deleted startup roots must not start an indexer")
 			}
 
 			added, err := restored.Add("New project", t.TempDir())
@@ -144,9 +161,9 @@ func TestDeletedStartupProjectRestartsIdle(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			cfg, err = restored.InitialConfig()
-			if err != nil || cfg.Root != added.Roots[0].Root {
-				t.Fatalf("new UI project must replace deleted startup roots: %#v, %v", cfg, err)
+			cfg, started := startedDefault(t, restored)
+			if !started || cfg.Roots[0].Root != added.Roots[0].Root || cfg.Model != base.Model {
+				t.Fatalf("new UI project must replace deleted startup roots: %#v", cfg)
 			}
 		})
 	}
