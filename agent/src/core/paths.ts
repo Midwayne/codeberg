@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import { isProjectId, projectDataHome } from './projects/types.js';
 
 /** Mirrors the launcher's Go `paths.Home`: a non-blank CODEBERG_HOME, else ~/.codeberg. */
 export function codebergHome(env: NodeJS.ProcessEnv = process.env, userHome = homedir()): string {
@@ -93,7 +94,7 @@ export function codebergDataHome(env: NodeJS.ProcessEnv = process.env): string {
         )
       : catalog.projects.find((candidate) => candidate.id === catalog.defaultId);
 
-    if (project && /^p-[a-f0-9]{16}$/.test(project.id)) return join(home, 'projects', project.id);
+    if (project && isProjectId(project.id)) return projectDataHome(home, project.id);
 
     // Once upgraded, an unmatched root cannot write to the old shared store.
     throw new Error('Repository is not registered as a Codeberg project. Add it in the UI first.');

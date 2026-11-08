@@ -15,8 +15,14 @@ export interface ProjectCatalog {
   projects: Project[];
 }
 
+const PROJECT_ID = /^p-[a-f0-9]{16}$/;
+
+export function isProjectId(id: string): boolean {
+  return PROJECT_ID.test(id);
+}
+
 export function projectDataHome(home: string, id: string): string {
-  if (!/^p-[a-f0-9]{16}$/.test(id)) throw new Error('invalid project ID');
+  if (!isProjectId(id)) throw new Error('invalid project ID');
 
   return join(home, 'projects', id);
 }
