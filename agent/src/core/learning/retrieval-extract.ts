@@ -1,7 +1,8 @@
 import { estimateTokens } from '../history-tokens.js';
 import type { ExtractionContext } from './dataset-extract.js';
 import type { DatasetExample } from './datasets/records.js';
-import { emitNegativeExamples, hitKey, unique, uniqueHits } from './retrieval/negatives.js';
+import { rlvrPayload, unique } from './extraction/trajectories.js';
+import { emitNegativeExamples, hitKey, uniqueHits } from './retrieval/negatives.js';
 import { isReadTool, isSearchTool } from './tool-class.js';
 import type { AttemptRecord, RetrievedResult, ToolInvocation } from './types.js';
 
@@ -92,24 +93,21 @@ function emitVerificationCandidate(
   repositories: DatasetExample['repositories'],
   positives: RetrievedResult[],
 ): void {
-  const { attempts, final, verifier, trajectory, emit } = context;
+  const { final, verifier, emit } = context;
+  if (!final || !positives.length || verifier) return;
 
-  if (final && positives.length && !verifier) {
-    emit('rlvr', {
-      task: attempts[0].user_query,
-      environment: repositories,
-      available_tools: unique(attempts.flatMap((attempt) => attempt.available_tools ?? [])),
-      observed_tools: unique(
-        attempts.flatMap((attempt) => attempt.tools_invoked.map((tool) => tool.name)),
-      ),
-      verifier: {
+  emit(
+    'rlvr',
+    rlvrPayload(
+      context,
+      repositories,
+      {
         kind: 'repository_evidence',
         proposed_files: unique(positives.map((hit) => hit.path).filter(Boolean)),
         proposed_symbols: unique(positives.map((hit) => hit.symbol).filter(Boolean)),
         status: 'requires_review',
       },
-      successful_trajectory: trajectory,
-      reward_components: [
+      [
         'oracle_file_hit',
         'oracle_symbol_hit',
         'dependency_path_correct',
@@ -117,8 +115,8 @@ function emitVerificationCandidate(
         'retrieved_tokens',
         'latency_ms',
       ],
-    });
-  }
+    ),
+  );
 }
 
 export function isRetrievalTask(attempt: AttemptRecord): boolean {

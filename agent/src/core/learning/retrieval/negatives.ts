@@ -107,7 +107,3 @@ export function uniqueHits(hits: RetrievedResult[]): RetrievedResult[] {
 
   return [...byFile.values()];
 }
-
-export function unique<T>(values: T[]): T[] {
-  return [...new Set(values)];
-}
