@@ -7,7 +7,7 @@ import { learningRecall } from '../learning/preferences.js';
 import { mcpConfigFromEnv } from '../mcp/config.js';
 import { mcpToolSource } from '../mcp/tools.js';
 import { agentSystemPrompt } from '../prompt.js';
-import { maxReasoningProviderOptions } from '../reasoning.js';
+import { reasoningCallSettings } from '../reasoning.js';
 import { mergeProviderOptions, parallelToolProviderOptions } from '../tool-calls.js';
 import { createAgentTools } from '../tools/agent-tools.js';
 import { BATCH_TOOL, MAX_BATCH_CALLS } from '../tools/batch.js';
@@ -47,7 +47,7 @@ export async function prepareSystem(
   return mergeProviderOptions(
     requestProviderOptions(state.system, toolNames, state.profile),
     parallelToolProviderOptions(state.profile),
-    state.reasoning === 'max' ? maxReasoningProviderOptions(state.profile.provider) : undefined,
+    reasoningCallSettings(state.reasoning, state.profile.provider).providerOptions,
   );
 }
 

@@ -47,4 +47,10 @@ describe('parseEntryArgs', () => {
   it('includes program name in usage', () => {
     expect(entryUsage('codeberg-web')).toContain('codeberg-web');
   });
+
+  it('lists every built-in provider in usage', () => {
+    expect(entryUsage('codeberg-ask')).toContain(
+      'Providers: openai, anthropic, google (when API keys set); ollama, llamacpp (local servers)',
+    );
+  });
 });

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseDocument } from 'yaml';
+import { parseModelSpec } from '../../providers/catalog.js';
 import { MODEL_INPUTS } from '../model-types.js';
 import { codebergHome } from '../paths.js';
 
@@ -10,8 +11,7 @@ export function browserModelSupportsVision(env: NodeJS.ProcessEnv, spec: string)
     const document = parseDocument(readFileSync(join(codebergHome(env), 'models.yml'), 'utf8'), { uniqueKeys: true });
     if (document.errors.length) return false;
 
-    const separator = spec.indexOf(':');
-    const provider = spec.slice(0, separator);
+    const { provider } = parseModelSpec(spec);
     const models = object(object(object(document.toJS())?.providers)?.[provider])?.models;
 
     return Object.entries(object(models) ?? {}).some(([key, raw]) => {

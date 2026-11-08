@@ -1,4 +1,7 @@
 import { envFlag } from '../core/env.js';
+import { parseModelSpec, providerDescriptor, UNKNOWN_PROVIDER_WINDOW, type CacheStrategy } from './catalog.js';
+
+export type { CacheStrategy } from './catalog.js';
 
 /** Per-model "memory limits" plus the prompt-caching strategy the context
  *  manager keys off. Resolved from the "provider:model" spec so every layer
@@ -8,8 +11,6 @@ import { envFlag } from '../core/env.js';
  *  model whose window we can't infer — most importantly the local ollama /
  *  llamacpp servers, where the window is whatever was loaded (`-c`, modelfile)
  *  and a wrong guess means silent truncation. */
-
-export type CacheStrategy = 'anthropic' | 'openai' | 'none';
 
 export interface ModelProfile {
   provider: string;
@@ -24,45 +25,6 @@ export interface ModelProfile {
   /** Register the `batch` tool, for models that may return only one tool
    *  call per response. Unset means off. */
   toolBatch?: boolean;
-}
-
-const ONE_MILLION = 1_000_000;
-
-function windowFor(provider: string, modelId: string): number {
-  const id = modelId.toLowerCase();
-  switch (provider) {
-    case 'anthropic':
-      // Current Claude models are 1M except Haiku (200K).
-      return id.includes('haiku') ? 200_000 : ONE_MILLION;
-    case 'google':
-      // Gemini 1.5 / 2.x are 1M+.
-      return ONE_MILLION;
-    case 'openai':
-      // gpt-4.1 / gpt-5 / o-series are 1M; the 4o family sits at ~128K.
-      return /gpt-4\.1|gpt-5|(^|[^a-z])o\d/.test(id) ? ONE_MILLION : 128_000;
-    case 'ollama':
-    case 'llamacpp':
-      // Local servers: the window is whatever was loaded. Assume a small
-      // default and rely on CODEBERG_CONTEXT_WINDOW to widen it.
-      return 8_192;
-    default:
-      return 32_000;
-  }
-}
-
-function cacheFor(provider: string): CacheStrategy {
-  switch (provider) {
-    case 'anthropic':
-      return 'anthropic';
-    // ollama / llamacpp speak the OpenAI wire format; the cache key is harmless
-    // to them and they reuse a matching prompt prefix on their own.
-    case 'openai':
-    case 'ollama':
-    case 'llamacpp':
-      return 'openai';
-    default:
-      return 'none';
-  }
 }
 
 /**
@@ -80,37 +42,24 @@ function positiveTokens(value: string | undefined): number | undefined {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : undefined;
 }
 
+/** Local and unknown OpenAI-compatible servers depend on the loaded model's
+ *  chat template, and many emit one tool call at most, so they get `batch`. */
 export function profileFor(spec: string, env: NodeJS.ProcessEnv = process.env): ModelProfile {
-  const sep = spec.indexOf(':');
-  const provider = sep > 0 ? spec.slice(0, sep) : '';
-  const modelId = sep > 0 ? spec.slice(sep + 1) : spec;
+  const { provider, modelId } = parseModelSpec(spec);
+  const descriptor = providerDescriptor(provider);
 
-  const contextWindow = positiveTokens(env.CODEBERG_CONTEXT_WINDOW) ?? windowFor(provider, modelId);
+  const contextWindow = positiveTokens(env.CODEBERG_CONTEXT_WINDOW) ?? descriptor?.window(modelId) ?? UNKNOWN_PROVIDER_WINDOW;
   const workingWindow = positiveTokens(env.CODEBERG_CONTEXT_BUDGET) ?? DEFAULT_WORKING_WINDOW;
-  const toolBatch = envFlag(env, 'CODEBERG_TOOL_BATCH', undefined) ?? !nativeParallelTools(provider);
+  const toolBatch = envFlag(env, 'CODEBERG_TOOL_BATCH', undefined) ?? !descriptor?.nativeParallelTools;
 
   return {
     provider,
     modelId,
     contextWindow,
     workingWindow,
-    cache: cacheFor(provider),
+    cache: descriptor?.cache ?? 'none',
     toolBatch,
   };
-}
-
-/** Hosted frontier APIs return several tool calls per response reliably.
- *  Local and unknown OpenAI-compatible servers depend on the loaded model's
- *  chat template, and many emit one call at most, so they get `batch`. */
-function nativeParallelTools(provider: string): boolean {
-  switch (provider) {
-    case 'anthropic':
-    case 'openai':
-    case 'google':
-      return true;
-    default:
-      return false;
-  }
 }
 
 /** Tokens the budgets below are fractions of: the window, capped by `workingWindow`. */
@@ -123,7 +72,7 @@ export function budgetWindow(profile: ModelProfile): number {
 export const DEFAULT_PROFILE: ModelProfile = {
   provider: '',
   modelId: '',
-  contextWindow: ONE_MILLION,
+  contextWindow: 1_000_000,
   cache: 'none',
 };
 

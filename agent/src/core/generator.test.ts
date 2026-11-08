@@ -45,3 +45,23 @@ it('rejects a truncated checkpoint instead of accepting an incomplete summary', 
     requireComplete: true,
   })).rejects.toThrow('incomplete');
 });
+
+it('sends max effort for an OpenAI model without an explicit spec', async () => {
+  const model = new MockLanguageModelV4({
+    provider: 'openai.responses',
+    modelId: 'gpt-5',
+    doGenerate: async () => ({
+      content: [{ type: 'text', text: 'Answer' }],
+      finishReason: { unified: 'stop', raw: undefined },
+      usage: {
+        inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+        outputTokens: { total: 1, text: 1, reasoning: 0 },
+      },
+      warnings: [],
+    }),
+  });
+
+  await fromAiSdk(model, 'max').generate({ system: 'Summarize', prompt: 'History' });
+
+  expect(model.doGenerateCalls[0]?.providerOptions).toEqual({ openai: { reasoningEffort: 'max' } });
+});

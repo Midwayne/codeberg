@@ -15,6 +15,7 @@ import { modelTimeout } from './model-timeout.js';
 import { backgroundTools } from '../background/tools.js';
 import { agentIsSleeping } from '../background/context.js';
 import { presentToolOutput } from '../context/spill.js';
+import { reasoningCallSettings } from '../reasoning.js';
 
 export async function toolLoopAgent(state: AgentState): Promise<ToolLoopAgent> {
   return ensureLoop(state);
@@ -52,6 +53,7 @@ export async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
     checkpointPolicy: JSON.stringify([state.summaryProfile, HISTORY_SUMMARY_SYSTEM]),
   });
   const browser = toolNames.includes('browser_task');
+  const effort = reasoningCallSettings(state.reasoning, state.profile.provider).reasoning;
 
   const loop = new ToolLoopAgent({
     model: browser ? modelTimeout(model) : model,
@@ -65,7 +67,7 @@ export async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
     stopWhen: [isLoopFinished(), agentIsSleeping],
     ...(browser ? {} : { timeout: DEFAULT_TIMEOUT }),
     ...(providerOptions ? { providerOptions } : {}),
-    ...(state.reasoning && state.reasoning !== 'max' ? { reasoning: state.reasoning } : {}),
+    ...(effort ? { reasoning: effort } : {}),
     // The model boundary archives/compacts complete tool exchanges as needed.
     // Keep the transcript cacheable and activate only requested MCP schemas.
     prepareStep: async ({ messages }) => {

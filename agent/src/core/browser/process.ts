@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { envFlag } from '../env.js';
-import { BROWSER_USE_VERSION, workerEnvironment, type BrowserConfig } from './config.js';
+import { BROWSER_USE_VERSION, workerEnvironment, workerModel, type BrowserConfig } from './config.js';
 import { parseWorkerResult, type WorkerResult } from './protocol.js';
 import { BROWSER_WORKER } from './worker.js';
 
@@ -56,7 +56,7 @@ export class BrowserWorker {
     const abort = () => void this.close(new Error('Browser task cancelled. Actions already performed may have taken effect.'));
     signal.addEventListener('abort', abort, { once: true });
     if (signal.aborted) abort();
-    else this.child.stdin!.write(JSON.stringify({ task, keepOpen, vision, provider: this.config.provider, model: this.config.model,
+    else this.child.stdin!.write(JSON.stringify({ task, keepOpen, vision, ...workerModel(this.config),
       headless: envFlag(this.config.env, 'CODEBERG_BROWSER_HEADLESS', false) }) + '\n');
 
     try {
