@@ -4,6 +4,12 @@
 #include "graph_workspace.h"
 #include "indexer.h"
 
+/* Root package manifests the workspace resolver reads. The workspace cache
+ * stamps exactly these, so a manifest edit re-resolves cross-repo imports. */
+#define CBERG_WORKSPACE_GO_MOD "go.mod"
+#define CBERG_WORKSPACE_PACKAGE_JSON "package.json"
+#define CBERG_WORKSPACE_CARGO_TOML "Cargo.toml"
+
 typedef struct cberg_workspace_cache cberg_workspace_cache;
 void cberg_workspace_free(cberg_workspace_cache *cache);
 cberg_status cberg_workspace_resolve(cberg_graph *graph, cberg_engine *engine);

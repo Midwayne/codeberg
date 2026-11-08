@@ -4,7 +4,7 @@
 #include <string.h>
 
 #include "fileio.h"
-#include "json_fields.h"
+#include "json_read.h"
 #include "workspace_graph.h"
 
 typedef struct workspace_file {
@@ -35,7 +35,7 @@ typedef struct workspace_files {
 
 static void read_rust_package(const char *root, char *name, size_t capacity) {
     char path[4096];
-    snprintf(path, sizeof path, "%s/Cargo.toml", root);
+    snprintf(path, sizeof path, "%s/" CBERG_WORKSPACE_CARGO_TOML, root);
     size_t length = 0;
     char *body = cberg_read_file(path, &length);
     if (body == NULL)
@@ -115,7 +115,7 @@ static void read_source_package(workspace_file *file) {
 
 static void read_package(cberg_repo *repo, workspace_package *package) {
     char path[4096];
-    snprintf(path, sizeof path, "%s/go.mod", repo->root);
+    snprintf(path, sizeof path, "%s/" CBERG_WORKSPACE_GO_MOD, repo->root);
     size_t length = 0;
     char *body = cberg_read_file(path, &length);
     if (body != NULL) {
@@ -140,7 +140,7 @@ static void read_package(cberg_repo *repo, workspace_package *package) {
         free(body);
     }
 
-    snprintf(path, sizeof path, "%s/package.json", repo->root);
+    snprintf(path, sizeof path, "%s/" CBERG_WORKSPACE_PACKAGE_JSON, repo->root);
     package->json = cberg_read_file(path, &length);
     cberg_json_string_copy(cberg_json_object_field(package->json, "name"), package->js_name, sizeof package->js_name);
     read_rust_package(repo->root, package->rust_name, sizeof package->rust_name);

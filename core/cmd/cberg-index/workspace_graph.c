@@ -3,6 +3,7 @@
 #include <string.h>
 #include <sys/stat.h>
 
+#include "statutil.h"
 #include "workspace_graph.h"
 
 struct cberg_workspace_cache {
@@ -31,7 +32,7 @@ void cberg_workspace_free(cberg_workspace_cache *cache) {
 }
 
 static uint64_t manifest_stamp(const cberg_repo *repo) {
-    const char *names[] = {"go.mod", "package.json", "Cargo.toml"};
+    const char *names[] = {CBERG_WORKSPACE_GO_MOD, CBERG_WORKSPACE_PACKAGE_JSON, CBERG_WORKSPACE_CARGO_TOML};
     uint64_t stamp = 0;
     for (size_t i = 0; i < sizeof names / sizeof names[0]; i++) {
         char path[4096];
@@ -39,12 +40,7 @@ static uint64_t manifest_stamp(const cberg_repo *repo) {
         struct stat info;
         if (stat(path, &info) != 0)
             continue;
-#ifdef __APPLE__
-        uint64_t nanos = (uint64_t)info.st_mtimespec.tv_nsec;
-#else
-        uint64_t nanos = (uint64_t)info.st_mtim.tv_nsec;
-#endif
-        stamp = stamp * 1099511628211ULL ^ (uint64_t)info.st_mtime ^ (nanos << 32) ^ (uint64_t)info.st_size;
+        stamp = stamp * 1099511628211ULL ^ (uint64_t)CBERG_STAT_MTIME_NS(info) ^ (uint64_t)info.st_size;
     }
     return stamp;
 }
