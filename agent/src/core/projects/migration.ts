@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readlink, rename, symlink, unlink } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { optionalLstat, readOptionalText, writeJsonAtomic } from '../learning/fs.js';
+import { DBMCP_SPEC_NAMES } from '../mcp/builtin.js';
 import { codebergHome } from '../paths.js';
 import { lockMigration } from './lock.js';
 import {
@@ -36,8 +37,7 @@ export async function migrateLocked(home: string, catalog: ProjectCatalog): Prom
     'web-sessions',
     'learning',
     'context',
-    'spec.yml',
-    'spec.yaml',
+    ...DBMCP_SPEC_NAMES,
     'logs/agent.log',
     'logs/learning-agent.log',
     'logs/learning-agent-trace.log',

@@ -4,6 +4,7 @@ import { join, resolve, sep } from 'node:path';
 import { type Project, type ProjectCatalog, projectCatalogPath, projectDataHome } from './projects/types.js';
 
 import { expandHome } from './env.js';
+import { DBMCP_SPEC_NAMES, dbmcpSpecName } from './mcp/builtin.js';
 import { codebergDataHome, codebergHome, formatIndexedRoots } from './paths.js';
 
 /** A private environment snapshot; selecting a project never edits process.env. */
@@ -63,17 +64,7 @@ function databaseSpec(
 
   const managedSpec =
     expandedSpec &&
-    ['spec.yml', 'spec.yaml'].find(
-      (name) => resolve(expandedSpec) === resolve(codebergHome(env), name),
-    );
+    DBMCP_SPEC_NAMES.find((name) => resolve(expandedSpec) === resolve(codebergHome(env), name));
 
-  return legacySpec && !managedSpec
-    ? legacySpec
-    : join(
-        data,
-        managedSpec ||
-          (existsSync(join(data, 'spec.yml')) || !existsSync(join(data, 'spec.yaml'))
-            ? 'spec.yml'
-            : 'spec.yaml'),
-      );
+  return legacySpec && !managedSpec ? legacySpec : join(data, managedSpec || dbmcpSpecName(data, existsSync));
 }
