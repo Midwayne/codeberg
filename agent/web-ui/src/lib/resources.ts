@@ -7,11 +7,10 @@ import {
   type ResourceSample,
   type ResourceUsage,
 } from '@agent/core/api/resources.js';
+import { responseJson } from './response.js';
 
 async function request<T>(path: string, options?: RequestInit, fetcher: typeof fetch = fetch): Promise<T> {
-  const response = await fetcher(`/api/settings/${path}`, { cache: 'no-store', ...options });
-  if (!response.ok) throw new Error(await response.text());
-  return response.json() as Promise<T>;
+  return responseJson<T>(await fetcher(`/api/settings/${path}`, { cache: 'no-store', ...options }));
 }
 
 export const loadResourceUsage = (after?: number, fetcher: typeof fetch = fetch) =>

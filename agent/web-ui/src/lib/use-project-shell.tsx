@@ -1,4 +1,5 @@
 import type { ProjectCatalogInfo } from '@agent/core/api/projects.js';
+import { responseJson } from './response.js';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { projectFetch } from './project-api';
@@ -65,8 +66,7 @@ export function useProjectCatalog({ setCatalog, setSelected, setError, retry }: 
     const controller = new AbortController();
     void fetch('/api/projects', { signal: controller.signal })
       .then(async (response) => {
-        if (!response.ok) throw new Error(await response.text());
-        const next = (await response.json()) as ProjectCatalogInfo;
+        const next = await responseJson<ProjectCatalogInfo>(response);
         if (controller.signal.aborted) return;
         const requested = new URLSearchParams(window.location.search).get('project');
         let remembered: string | null = null;

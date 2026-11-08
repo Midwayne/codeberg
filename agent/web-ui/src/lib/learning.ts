@@ -1,4 +1,5 @@
 import { FEEDBACK_LABELS, type FeedbackLabel, type FeedbackRating } from '@agent/core/learning/types.js';
+import { responseJson } from './response.js';
 
 const FEEDBACK_TITLES: Record<FeedbackLabel, string> = {
   not_useful: 'Not useful',
@@ -54,7 +55,7 @@ export async function rateAttempt(
       ...(reason ? { reason } : {}),
     }),
   });
-  if (!response.ok) throw new Error(await response.text());
-  const result = (await response.json()) as { feedback: FeedbackRecord };
+  const result = await responseJson<{ feedback: FeedbackRecord }>(response);
+
   return result.feedback;
 }

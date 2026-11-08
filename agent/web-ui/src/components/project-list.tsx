@@ -1,4 +1,5 @@
 import type { ProjectCatalogInfo } from '@agent/core/api/projects.js';
+import { responseJson } from '../lib/response.js';
 import { LoadingBoundary } from './loading';
 import { ProjectDetails } from './project-details';
 
@@ -18,8 +19,7 @@ export function ProjectsPanel() {
     setError('');
     void fetch('/api/projects', { signal: controller.signal })
       .then(async (response) => {
-        if (!response.ok) throw new Error(await response.text());
-        const value = (await response.json()) as ProjectCatalogInfo;
+        const value = await responseJson<ProjectCatalogInfo>(response);
         if (!controller.signal.aborted) setCatalog(value);
       })
       .catch((reason: unknown) => {

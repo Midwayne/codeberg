@@ -1,4 +1,5 @@
 import type { useSkillImport } from './use-skill-import';
+import { ensureOk } from './response.js';
 
 import type { SkillFile } from './skill-files';
 
@@ -69,5 +70,5 @@ async function importSkillFile(api: typeof fetch, scope: string, file: SkillFile
     signal,
   });
 
-  if (!response.ok) throw new Error(await response.text());
+  await ensureOk(response);
 }

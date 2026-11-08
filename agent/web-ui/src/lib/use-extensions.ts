@@ -1,4 +1,5 @@
 import type { ExtensionCatalog } from '@agent/core/api/extensions.js';
+import { responseJson } from './response.js';
 import type { ProjectInfo } from '@agent/core/api/projects.js';
 import { useEffect, useState } from 'react';
 
@@ -63,8 +64,7 @@ export function useExtensionCatalog({ setCatalogError, api, setCatalog, revision
     setCatalogError('');
     void api('/api/extensions', { signal: controller.signal })
       .then(async (response) => {
-        if (!response.ok) throw new Error(await response.text());
-        const next = (await response.json()) as ExtensionCatalog;
+        const next = await responseJson<ExtensionCatalog>(response);
         if (!controller.signal.aborted) setCatalog(next);
       })
       .catch((reason: unknown) => {

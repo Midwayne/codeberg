@@ -1,4 +1,5 @@
 import type { ProjectInfo } from '@agent/core/api/projects.js';
+import { responseJson } from '../lib/response.js';
 import { createFolderPicker } from './folder-picker';
 
 import { control, button } from './project-styles';
@@ -155,8 +156,7 @@ export function createProjectAddSubmit({
       body: JSON.stringify({ name, root }),
     })
       .then(async (response) => {
-        if (!response.ok) throw new Error(await response.text());
-        await onAdded((await response.json()) as ProjectInfo);
+        await onAdded(await responseJson<ProjectInfo>(response));
       })
       .catch((reason: unknown) => setError(String(reason)))
       .finally(() => setBusy(false));

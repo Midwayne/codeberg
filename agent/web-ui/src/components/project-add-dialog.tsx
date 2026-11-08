@@ -1,4 +1,5 @@
 import type { ProjectCatalogInfo } from '@agent/core/api/projects.js';
+import { responseJson } from '../lib/response.js';
 import type { ProjectShellView } from './projects';
 import { AddProject } from './project-add';
 import { MotionPresence } from './motion-presence';
@@ -16,9 +17,7 @@ export function AddProjectDialog({ adding, project, setAdding, setCatalog, selec
         onClose={() => setAdding(false)}
         onAdded={async (project) => {
           const response = await fetch('/api/projects');
-          if (!response.ok) throw new Error(await response.text());
-
-          setCatalog((await response.json()) as ProjectCatalogInfo);
+          setCatalog(await responseJson<ProjectCatalogInfo>(response));
           select(project.id);
           setAdding(false);
         }}

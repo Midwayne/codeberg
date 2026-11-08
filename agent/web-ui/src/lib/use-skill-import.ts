@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { responseJson } from './response.js';
 import { prepareSkillFiles, type SkillFile } from './skill-files';
 import { createSkillImportAction } from './skill-import-action';
 
@@ -96,8 +97,7 @@ export function createSkillPreview({
           body: JSON.stringify({ files: readable }),
           signal: controller.signal,
         });
-        if (!response.ok) throw new Error(await response.text());
-        results = ((await response.json()) as { files: SkillFile[] }).files;
+        results = (await responseJson<{ files: SkillFile[] }>(response)).files;
       }
       let index = 0;
       if (!controller.signal.aborted)

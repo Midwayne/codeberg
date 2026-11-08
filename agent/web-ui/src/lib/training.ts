@@ -1,4 +1,5 @@
 import type { DatasetKind } from '@agent/core/learning/datasets/records.js';
+import { responseJson } from './response.js';
 import type { ReviewCandidate, ReviewDashboard, ReviewState } from '@agent/core/learning/review-types.js';
 
 export type ExampleKind = DatasetKind;
@@ -25,16 +26,11 @@ export interface ReviewExample {
   confidence: string;
 }
 
-async function readResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) throw new Error(await response.text());
-  return response.json() as Promise<T>;
-}
-
 export async function loadTrainingReview(
   signal?: AbortSignal,
   fetcher: typeof fetch = fetch,
 ): Promise<ReviewDashboard> {
-  return readResponse(await fetcher('/api/learning/review', { signal }));
+  return responseJson(await fetcher('/api/learning/review', { signal }));
 }
 
 export async function loadReviewExample(
@@ -42,7 +38,7 @@ export async function loadReviewExample(
   signal?: AbortSignal,
   fetcher: typeof fetch = fetch,
 ): Promise<ReviewExample> {
-  return readResponse(await fetcher(`/api/learning/review/${encodeURIComponent(id)}`, { signal }));
+  return responseJson(await fetcher(`/api/learning/review/${encodeURIComponent(id)}`, { signal }));
 }
 
 export async function submitReview(
@@ -51,7 +47,7 @@ export async function submitReview(
   oracle?: Record<string, unknown>,
   fetcher: typeof fetch = fetch,
 ): Promise<void> {
-  await readResponse(
+  await responseJson(
     await fetcher(`/api/learning/review/${encodeURIComponent(id)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

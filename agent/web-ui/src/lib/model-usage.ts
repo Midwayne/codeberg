@@ -1,4 +1,5 @@
 import type { UsageFilter, UsageReport } from '@agent/core/usage';
+import { ensureOk, responseJson } from './response.js';
 
 export type UsageRange = { start: string; end: string };
 export const usagePresets = [['1d', '1d'], ['7d', '7d'], ['30d', '30d'], ['mtd', 'MTD'], ['last-month', 'Last month']] as const;
@@ -19,15 +20,14 @@ export const exclusiveEnd = (end: string) => end ? date(Date.parse(end) + 86_400
 export const usageQuery = (range: UsageRange, page = 1, kind: UsageFilter = 'all') => new URLSearchParams({ ...range, page: String(page), kind }).toString();
 
 export async function loadUsage(range: UsageRange, page: number, api: typeof fetch, signal: AbortSignal, kind: UsageFilter = 'all'): Promise<UsageReport> {
-  const response = await api(`/api/settings/usage?${usageQuery(range, page, kind)}`, { cache: 'no-store', signal });
-  if (!response.ok) throw new Error(await response.text());
-
-  return response.json() as Promise<UsageReport>;
+  return responseJson<UsageReport>(
+    await api(`/api/settings/usage?${usageQuery(range, page, kind)}`, { cache: 'no-store', signal }),
+  );
 }
 
 export async function exportUsage(range: UsageRange, api: typeof fetch, kind: UsageFilter = 'all') {
   const response = await api(`/api/settings/usage?${usageQuery(range, 1, kind)}&format=csv`, { cache: 'no-store' });
-  if (!response.ok) throw new Error(await response.text());
+  await ensureOk(response);
 
   const url = URL.createObjectURL(await response.blob());
   const link = document.createElement('a');

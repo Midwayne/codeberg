@@ -1,4 +1,5 @@
 import type { CatalogModel, ModelSelection, ModelSettings } from '@agent/core/model-types.js';
+import { responseJson } from './response.js';
 
 export function selectModel(current: ModelSelection, key: string, models: readonly CatalogModel[]): ModelSelection {
   const option = models.find((entry) => entry.key === key);
@@ -8,9 +9,7 @@ export function selectModel(current: ModelSelection, key: string, models: readon
 }
 
 export async function loadModelSettings(): Promise<ModelSettings> {
-  const response = await fetch('/api/models');
-  if (!response.ok) throw new Error(await response.text());
-  return response.json() as Promise<ModelSettings>;
+  return responseJson<ModelSettings>(await fetch('/api/models'));
 }
 
 export async function saveModelSettings(input: Pick<ModelSettings, 'chat' | 'learning' | 'decisions'>): Promise<ModelSettings> {
@@ -19,6 +18,6 @@ export async function saveModelSettings(input: Pick<ModelSettings, 'chat' | 'lea
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!response.ok) throw new Error(await response.text());
-  return response.json() as Promise<ModelSettings>;
+
+  return responseJson<ModelSettings>(response);
 }
