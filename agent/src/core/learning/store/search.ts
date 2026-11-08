@@ -1,4 +1,5 @@
-import type { KnowledgeArtifact, KnowledgeSearchHit, LearningSearchHit } from '../types.js';
+import type { KnowledgeSearchHit, LearningSearchHit } from '../search-hits.js';
+import type { KnowledgeArtifact } from '../types.js';
 import { readEvents } from './events.js';
 import { effectiveFeedback } from './feedback.js';
 import { currentKnowledgeArtifacts, projectedKnowledgeArtifacts } from './knowledge.js';

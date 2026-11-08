@@ -1,4 +1,5 @@
-import type { AttemptRecord, KnowledgeArtifact, KnowledgeSearchHit } from '../types.js';
+import type { KnowledgeSearchHit } from '../search-hits.js';
+import type { AttemptRecord, KnowledgeArtifact } from '../types.js';
 
 export function attemptText(attempt: AttemptRecord): string {
   return [

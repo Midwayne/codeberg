@@ -17,15 +17,14 @@ import {
 import { readRepositories, repositoryVersions } from './store/repositories.js';
 import { searchKnowledge, searchLearning } from './store/search.js';
 import { LearningStoreState } from './store/state.js';
+import type { KnowledgeSearchHit, LearningSearchHit } from './search-hits.js';
 import type {
   AttemptRecord,
   FeedbackLabel,
   FeedbackRating,
   FeedbackRecord,
   KnowledgeArtifact,
-  KnowledgeSearchHit,
   LearningEvent,
-  LearningSearchHit,
   RepositoryVersion,
 } from './types.js';
 
