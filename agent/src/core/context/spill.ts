@@ -1,5 +1,5 @@
 import { toolOutputText } from '../message.js';
-import { isSpillPreview } from './spill-preview.js';
+import { isSpillPreview, spillHeader } from './spill-preview.js';
 import type { ContextStore } from './store.js';
 
 /** Tool results longer than this are written to a file. The model sees a
@@ -19,10 +19,8 @@ export function spillPreview(
   tailChars = SPILL_TAIL_CHARS,
   resultCount?: number,
 ): string {
-  const count = resultCount == null ? '' : `; result_count=${resultCount}`;
-
   return [
-    `[spilled to ${file} — ${text.length} chars${count}; the middle is only in that file]`,
+    spillHeader(file, text.length, resultCount),
     '<head>',
     text.slice(0, headChars),
     '</head>',

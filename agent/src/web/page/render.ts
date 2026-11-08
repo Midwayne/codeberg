@@ -1,3 +1,5 @@
+import { SPILL_PREFIX, SPILL_RESULT_COUNT_SOURCE } from '../core/context/spill-preview.js';
+
 export const PAGE_RENDER = `function addMessage(role) {
   var w = document.createElement("div");
   w.className = "msg msg-" + role;
@@ -52,8 +54,8 @@ function tool(wrap) {
 function renderToolOutput(tc, output) {
   tc.output.textContent = "";
   var name = tc.name || "tool";
-  if (typeof output === "string" && output.indexOf("[spilled to ") === 0) {
-    var count = output.match(/; result_count=(\d+);/);
+  if (typeof output === "string" && output.indexOf(${JSON.stringify(SPILL_PREFIX)}) === 0) {
+    var count = output.match(new RegExp(${JSON.stringify(SPILL_RESULT_COUNT_SOURCE)}));
     tc.summary.textContent = "\uD83D\uDD27 " + (count ? count[1] + " " : "large ") + name + " output (spilled)";
     var spilled = document.createElement("pre");
     spilled.className = "hit-snippet";
