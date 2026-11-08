@@ -32,6 +32,10 @@ Every symbol exported from `include/codeberg/codeberg.h`. Internal helpers live 
 
 Returns a short English phrase for `status`. Unknown codes return `"unknown error"`. The pointer is static/read-only; do not free.
 
+### `cberg_status_code(cberg_status status)`
+
+Returns the stable machine code for `status` (`not_found`, `invalid_argument`, `io_error`, `out_of_memory`, `timeout`, `not_implemented`, `internal_error`, `unsupported_language`, `corrupt`, `ok`). Unknown values return `"internal_error"`. IPC replies send this as `code` beside the English `error` text. The pointer is static/read-only; do not free.
+
 ### `cberg_version(void)`
 
 Returns the library version string (from repo `VERSION`, e.g. `"v0.0.1"`). Static storage.

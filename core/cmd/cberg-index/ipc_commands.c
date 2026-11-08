@@ -8,16 +8,17 @@
 
 /* ------------------------------------------------------------ replies */
 
-static void send_error(int fd, const char *message) {
+void cberg_ipc_send_error(int fd, const char *code, const char *message) {
     ipc_json j;
     ipc_json_init(&j);
 
     ipc_json_raw(&j, "{\"ok\":false");
+    ipc_json_field_str(&j, ',', "code", code);
     ipc_json_field_str(&j, ',', "error", message);
     ipc_json_raw(&j, "}\n");
 
     if (j.failed) {
-        const char *oom = "{\"ok\":false,\"error\":\"out of memory\"}\n";
+        const char *oom = "{\"ok\":false,\"code\":\"out_of_memory\",\"error\":\"out of memory\"}\n";
         cberg_ipc_write_all(fd, oom, strlen(oom));
     } else {
         cberg_ipc_write_all(fd, j.data, j.len);
@@ -25,20 +26,30 @@ static void send_error(int fd, const char *message) {
     ipc_json_free(&j);
 }
 
+static void send_status(int fd, cberg_status st) {
+    cberg_ipc_send_error(fd, cberg_status_code(st), cberg_status_str(st));
+}
+
+static void send_invalid(int fd, const char *message) {
+    cberg_ipc_send_error(fd, cberg_status_code(CBERG_ERR_INVALID_ARGUMENT), message);
+}
+
+/* Graph-disabled stays the historical message; the code is not_implemented. */
+static void send_graph_status(int fd, cberg_status st) {
+    const char *message = cberg_status_str(st);
+    if (st == CBERG_ERR_NOT_IMPLEMENTED) {
+        message = "graph disabled";
+    }
+    cberg_ipc_send_error(fd, cberg_status_code(st), message);
+}
+
 static void send_json(int fd, ipc_json *j) {
     if (j->failed) {
-        send_error(fd, "out of memory");
+        send_status(fd, CBERG_ERR_OUT_OF_MEMORY);
     } else {
         cberg_ipc_write_all(fd, j->data, j->len);
     }
     ipc_json_free(j);
-}
-
-static const char *graph_err(cberg_status st) {
-    if (st == CBERG_ERR_NOT_IMPLEMENTED) {
-        return "graph disabled";
-    }
-    return cberg_status_str(st);
 }
 
 /* A full page may mean the engine's max clipped the results. */
@@ -69,6 +80,22 @@ static char *next_field(char **cursor) {
 /* Empty IPC fields become NULL so callers can pass them through unchanged. */
 static char *null_if_empty(char *s) {
     return (s != NULL && s[0] == '\0') ? NULL : s;
+}
+
+/* Empty or absent kind is no filter. A present name that is not a chunk kind
+ * is an error: it must not silently return every chunk. */
+static int take_chunk_kind(char **cursor, int *kind) {
+    char *field = next_field(cursor);
+    if (field == NULL || field[0] == '\0') {
+        *kind = -1;
+        return 0;
+    }
+
+    *kind = cberg_chunk_kind_parse(field);
+    if (*kind < 0) {
+        return -1;
+    }
+    return 0;
 }
 
 /* Missing, empty, zero, or negative counts are 0: the engine's default. */
@@ -210,7 +237,7 @@ static void handle_search(cberg_engine *eng, int fd, char *args) {
     char *cursor = args;
     char *query = next_field(&cursor);
     if (query == NULL || query[0] == '\0') {
-        send_error(fd, "missing query");
+        send_invalid(fd, "missing query");
         return;
     }
 
@@ -219,7 +246,10 @@ static void handle_search(cberg_engine *eng, int fd, char *args) {
 
     cberg_search_filters filters = {0};
     filters.path_glob = null_if_empty(next_field(&cursor));
-    filters.kind = cberg_chunk_kind_parse(next_field(&cursor));
+    if (take_chunk_kind(&cursor, &filters.kind) != 0) {
+        send_invalid(fd, "unknown kind");
+        return;
+    }
     char *min_score = next_field(&cursor);
     if (min_score != NULL && min_score[0] != '\0') {
         filters.min_score = (float)atof(min_score);
@@ -229,7 +259,7 @@ static void handle_search(cberg_engine *eng, int fd, char *args) {
     size_t found = 0;
     cberg_status st = cberg_engine_search_hits(eng, query, repo, k, &filters, hits, CBERG_SEARCH_MAX, &found);
     if (st != CBERG_OK) {
-        send_error(fd, cberg_status_str(st));
+        send_status(fd, st);
         return;
     }
     send_hits(fd, hits, found);
@@ -241,14 +271,14 @@ static void handle_chunk(cberg_engine *eng, int fd, char *args) {
     char *repo = next_field(&cursor);
     char *id = next_field(&cursor);
     if (repo == NULL || repo[0] == '\0' || id == NULL || id[0] == '\0') {
-        send_error(fd, "missing repo or id");
+        send_invalid(fd, "missing repo or id");
         return;
     }
 
     cberg_engine_chunk_detail d;
     cberg_status st = cberg_engine_get_chunk(eng, repo, (uint64_t)strtoull(id, NULL, 10), &d);
     if (st != CBERG_OK) {
-        send_error(fd, cberg_status_str(st));
+        send_status(fd, st);
         return;
     }
 
@@ -278,19 +308,23 @@ static void handle_symbol(cberg_engine *eng, int fd, char *args) {
     char *cursor = args;
     char *name = next_field(&cursor);
     if (name == NULL || name[0] == '\0') {
-        send_error(fd, "missing name");
+        send_invalid(fd, "missing name");
         return;
     }
 
     char *repo = null_if_empty(next_field(&cursor));
-    int kind = cberg_chunk_kind_parse(next_field(&cursor));
+    int kind = -1;
+    if (take_chunk_kind(&cursor, &kind) != 0) {
+        send_invalid(fd, "unknown kind");
+        return;
+    }
     size_t limit = next_count(&cursor);
 
     cberg_engine_hit hits[CBERG_SYMBOL_MAX];
     size_t found = 0;
     cberg_status st = cberg_engine_find_symbol(eng, name, repo, kind, limit, hits, CBERG_SYMBOL_MAX, &found);
     if (st != CBERG_OK) {
-        send_error(fd, cberg_status_str(st));
+        send_status(fd, st);
         return;
     }
     send_hits(fd, hits, found);
@@ -302,7 +336,7 @@ static void handle_outline(cberg_engine *eng, int fd, char *args) {
     char *repo = next_field(&cursor);
     char *path = next_field(&cursor);
     if (repo == NULL || repo[0] == '\0' || path == NULL || path[0] == '\0') {
-        send_error(fd, "missing repo or path");
+        send_invalid(fd, "missing repo or path");
         return;
     }
 
@@ -310,7 +344,7 @@ static void handle_outline(cberg_engine *eng, int fd, char *args) {
     size_t found = 0;
     cberg_status st = cberg_engine_file_outline(eng, repo, path, hits, CBERG_OUTLINE_MAX, &found);
     if (st != CBERG_OK) {
-        send_error(fd, cberg_status_str(st));
+        send_status(fd, st);
         return;
     }
     send_hits(fd, hits, found);
@@ -323,7 +357,7 @@ static void handle_search_graph(cberg_engine *eng, int fd, char *args) {
     char *cursor = args;
     char *name = next_field(&cursor);
     if (name == NULL || name[0] == '\0') {
-        send_error(fd, "missing name");
+        send_invalid(fd, "missing name");
         return;
     }
 
@@ -336,7 +370,7 @@ static void handle_search_graph(cberg_engine *eng, int fd, char *args) {
     size_t found = 0;
     cberg_status st = cberg_engine_search_graph(eng, name, repo, kind, path_prefix, limit, nodes, CBERG_GRAPH_SEARCH_MAX, &found);
     if (st != CBERG_OK) {
-        send_error(fd, graph_err(st));
+        send_graph_status(fd, st);
         return;
     }
 
@@ -357,7 +391,7 @@ static void handle_trace_path(cberg_engine *eng, int fd, char *args) {
     char *cursor = args;
     char *name = next_field(&cursor);
     if (name == NULL || name[0] == '\0') {
-        send_error(fd, "missing name");
+        send_invalid(fd, "missing name");
         return;
     }
 
@@ -372,7 +406,7 @@ static void handle_trace_path(cberg_engine *eng, int fd, char *args) {
     size_t found = 0;
     cberg_status st = cberg_engine_trace_path(eng, name, 0, repo, path_prefix, direction, edge_kind, max_depth, limit, hops, CBERG_TRACE_MAX, &found);
     if (st != CBERG_OK) {
-        send_error(fd, graph_err(st));
+        send_graph_status(fd, st);
         return;
     }
 
@@ -398,7 +432,7 @@ static void handle_graph_stats(cberg_engine *eng, int fd, char *args) {
     cberg_engine_graph_stats stats;
     cberg_status st = cberg_engine_get_graph_stats(eng, repo, &stats);
     if (st != CBERG_OK) {
-        send_error(fd, graph_err(st));
+        send_graph_status(fd, st);
         return;
     }
 
@@ -430,7 +464,7 @@ static void handle_graph_hubs(cberg_engine *eng, int fd, char *args) {
     size_t found = 0;
     cberg_status st = cberg_engine_graph_hubs(eng, repo, limit, hubs, CBERG_HUBS_MAX, &found);
     if (st != CBERG_OK) {
-        send_error(fd, graph_err(st));
+        send_graph_status(fd, st);
         return;
     }
 
@@ -452,7 +486,7 @@ static void handle_graph_refs(cberg_engine *eng, int fd, char *args) {
     char *cursor = args;
     char *name = next_field(&cursor);
     if (name == NULL || name[0] == '\0') {
-        send_error(fd, "missing name");
+        send_invalid(fd, "missing name");
         return;
     }
 
@@ -464,7 +498,7 @@ static void handle_graph_refs(cberg_engine *eng, int fd, char *args) {
     size_t found = 0;
     cberg_status st = cberg_engine_graph_references(eng, name, repo, path_prefix, limit, edges, CBERG_REFS_MAX, &found);
     if (st != CBERG_OK) {
-        send_error(fd, graph_err(st));
+        send_graph_status(fd, st);
         return;
     }
 
@@ -513,5 +547,5 @@ void cberg_ipc_dispatch(cberg_engine *eng, int fd, char *line) {
             return;
         }
     }
-    send_error(fd, "unknown command");
+    send_invalid(fd, "unknown command");
 }

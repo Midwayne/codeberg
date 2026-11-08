@@ -7,10 +7,11 @@ Socket path: `CBERG_SOCKET` env (default `/tmp/codeberg-index.sock`).
 Status probes use a separate `<CBERG_SOCKET>.health` listener and connection
 queue, so embedding or a slow command cannot block health checks. This listener
 accepts only `status`; the main socket continues accepting every command,
-including `status`. The daemon falls back to the main socket for older indexers
-without a health listener. Keep the configured socket path short enough for the
-`.health` suffix to fit the OS Unix socket path limit; otherwise the indexer
-logs a warning and serves status on the main socket only.
+including `status`. The daemon falls back to the main socket when the health
+socket is absent. That happens when `CBERG_SOCKET` is too long for the
+`.health` suffix: the indexer logs a warning and serves status on the main
+socket only. Keep the configured socket path short enough for the suffix to
+fit the OS Unix socket path limit.
 
 One `cberg-index` process serves one or more repository roots: `CODEBERG_ROOTS`
 (`<key>\t<path>` records, newline-separated), supplied internally from a project.
@@ -20,9 +21,18 @@ a result's identity.
 ## Framing
 
 One request per connection, newline-terminated line in, one JSON line out.
+A request line, including its newline, must fit in 8191 bytes. A longer line
+is rejected with `code` `invalid_argument` and `error` `request too long`;
+the indexer does not run a truncated command. The Go client applies the same
+limit before it dials.
+
 Replies are never clipped by a buffer size: every string is JSON-escaped in
 full (control characters as `\u00XX`), and a reply that cannot be built
-becomes `{"ok":false,"error":"out of memory"}`.
+becomes `{"ok":false,"code":"out_of_memory","error":"out of memory"}`.
+
+The indexer accepts one connection at a time. Each listener's backlog is 8.
+The Go client queues at most 4 in-flight connections per socket so a full
+backlog does not fail the dial. There is no connection pooling.
 
 ## Result limits
 
@@ -45,7 +55,7 @@ List replies that carry `truncated` set it to `true` when the result count
 reached the command's maximum, so more results may exist.
 
 The Go client (`internal/indexctl`) opens a **new Unix socket connection per request**
-(5 s dial timeout). There is no connection pooling.
+(5 s dial timeout).
 
 ## Commands
 
@@ -70,7 +80,7 @@ Response:
 - `vectors_enabled` — `CBERG_MODEL` and `CBERG_INDEX_PATH` are set.
 - `progress` — optional `{repo, phase, completed, total}` snapshot. `phase` is `counting`, `graph`, `embedding`, or `finalizing`. Graph work counts files; embedding/finalizing counts chunks, including reused cached/duplicate chunks. `total:0` means the total is not known yet. Counts describe the active repository and stage.
 - `indexing` — bootstrap or a watched update is building search and graph data.
-  Commands return `ok:false` with an `index building; use grep, glob or read_file while indexing and graph creation finish` error instead of waiting for build locks.
+  Commands return `ok:false` with `code` `not_ready` and `error` `index building; use grep, glob or read_file while indexing and graph creation finish` instead of waiting for build locks.
 - Status reads published snapshots without taking the repo or embedder lock.
   Chunk counts update after chunk synchronization; readiness updates when a
   bootstrap or watched update completes. An in-flight update retains the last
@@ -90,7 +100,7 @@ search\t<query>[\t<k>[\t<repo>[\t<path_glob>[\t<kind>[\t<min_score>]]]]]
 | k | no | Max results |
 | repo | no | Restrict to one repo key |
 | path_glob | no | rg-style glob on chunk paths (`*.go` matches at any depth, `**` spans directories, `{a,b}`, `!` negation) |
-| kind | no | Chunk kind filter (`function`, `method`, `class`, `struct`, `interface`, `window`, `section`, `key`) |
+| kind | no | Chunk kind filter (`function`, `method`, `class`, `struct`, `interface`, `window`, `section`, `key`). An unknown name is `invalid_argument`, not an unfiltered search. |
 | min_score | no | Minimum similarity score (float) |
 
 Without `repo`, search fans out across every ready repo — the query is embedded
@@ -267,13 +277,32 @@ Response: `{"ok":true,"results":[...edges...],"truncated":false}` with `resoluti
 
 ## Errors
 
+Every failure carries a machine `code` beside the English `error` text. The
+daemon switches on `code`. Rewording `error` does not change the HTTP status.
+
 ```json
-{"ok":false,"error":"not found"}
+{"ok":false,"code":"not_found","error":"not found"}
 ```
 
-Common error strings map to daemon HTTP codes: `not implemented`, `graph disabled`,
-`not found`, `invalid argument`, `internal error`, `i/o error`, `out of memory`,
-`timeout`.
+| `code` | When | Daemon code |
+|--------|------|-------------|
+| `not_ready` | Index is building | `NOT_READY` |
+| `not_implemented` | Feature unavailable, including `error` `graph disabled` | `NOT_IMPLEMENTED` |
+| `not_found` | Missing repo, chunk, or symbol target | `NOT_FOUND` |
+| `invalid_argument` | Missing field, unknown command, unknown chunk kind, health socket used for anything but `status`, request too long | `INVALID_ARGUMENT` |
+| `internal_error` | Unexpected indexer failure | `INTERNAL_ERROR` |
+| `io_error` | Filesystem failure | `IO_ERROR` |
+| `out_of_memory` | Allocation failure | `OUT_OF_MEMORY` |
+| `timeout` | Watcher poll timed out | `TIMEOUT` |
+| `unsupported_language` | Language the library refuses | `UNSUPPORTED_LANGUAGE` |
+| `corrupt` | Index snapshot unreadable or the wrong dimension | `CORRUPT` |
+
+A reply with no `code`, or a `code` not in this table, is `INDEXER_ERROR`.
+`UNSUPPORTED_LANGUAGE` and `CORRUPT` are specific daemon codes; HTTP still
+responds 500 until the HTTP error table learns a dedicated status.
+
+Socket names: the health listener is `<CBERG_SOCKET>.health` and the owner
+lock is `<CBERG_SOCKET>.lock`. Both suffixes are part of this protocol.
 
 ## Notes
 

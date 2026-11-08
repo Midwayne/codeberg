@@ -18,18 +18,10 @@ func (c *Client) Status(ctx context.Context) (Status, error) {
 	}
 
 	if !out.OK {
-		return Status{}, mapIndexerError(out.Error)
+		return Status{}, mapIndexerError(out.Code, out.Error)
 	}
 
-	return Status{
-		Ready:          out.Ready,
-		Indexing:       out.Indexing,
-		Progress:       out.Progress,
-		Chunks:         out.Chunks,
-		Version:        out.Version,
-		VectorsEnabled: out.VectorsEnabled,
-		Repos:          out.Repos,
-	}, nil
+	return out.Status, nil
 }
 
 func (c *Client) Search(ctx context.Context, opts SearchOptions) ([]SearchResult, error) {
@@ -43,10 +35,10 @@ func (c *Client) GetChunk(ctx context.Context, repo string, id uint64) (ChunkDet
 	}
 
 	if !out.OK {
-		return ChunkDetail{}, mapIndexerError(out.Error)
+		return ChunkDetail{}, mapIndexerError(out.Code, out.Error)
 	}
 
-	return chunkDetailFromPayload(out.Chunk), nil
+	return out.Chunk, nil
 }
 
 func (c *Client) FindSymbol(ctx context.Context, opts SymbolOptions) ([]SearchResult, error) {
@@ -64,7 +56,7 @@ func (c *Client) SearchGraph(ctx context.Context, opts GraphSearchOptions) ([]Gr
 	}
 
 	if !out.OK {
-		return nil, mapIndexerError(out.Error)
+		return nil, mapIndexerError(out.Code, out.Error)
 	}
 	return out.Results, nil
 }
@@ -76,7 +68,7 @@ func (c *Client) TracePath(ctx context.Context, opts TracePathOptions) ([]GraphH
 	}
 
 	if !out.OK {
-		return nil, mapIndexerError(out.Error)
+		return nil, mapIndexerError(out.Code, out.Error)
 	}
 	return out.Hops, nil
 }
@@ -88,9 +80,9 @@ func (c *Client) GraphStats(ctx context.Context, repo string) (GraphStats, error
 	}
 
 	if !out.OK {
-		return GraphStats{}, mapIndexerError(out.Error)
+		return GraphStats{}, mapIndexerError(out.Code, out.Error)
 	}
-	return GraphStats{Repo: out.Repo, Nodes: out.Nodes, Refs: out.Refs, Enabled: out.Enabled, Languages: out.Languages}, nil
+	return out.GraphStats, nil
 }
 
 func (c *Client) GraphRefs(ctx context.Context, opts GraphRefsOptions) ([]GraphEdge, error) {
@@ -100,7 +92,7 @@ func (c *Client) GraphRefs(ctx context.Context, opts GraphRefsOptions) ([]GraphE
 	}
 
 	if !out.OK {
-		return nil, mapIndexerError(out.Error)
+		return nil, mapIndexerError(out.Code, out.Error)
 	}
 	if out.Truncated {
 		return out.Results, ErrTruncated
@@ -115,7 +107,7 @@ func (c *Client) GraphHubs(ctx context.Context, opts GraphHubsOptions) ([]GraphH
 	}
 
 	if !out.OK {
-		return nil, mapIndexerError(out.Error)
+		return nil, mapIndexerError(out.Code, out.Error)
 	}
 	return out.Results, nil
 }
@@ -127,23 +119,8 @@ func roundHits(ctx context.Context, socket, req string) ([]SearchResult, error) 
 	}
 
 	if !out.OK {
-		return nil, mapIndexerError(out.Error)
+		return nil, mapIndexerError(out.Code, out.Error)
 	}
 
 	return out.Results, nil
-}
-
-func chunkDetailFromPayload(p chunkPayload) ChunkDetail {
-	return ChunkDetail{
-		ID:        p.ID,
-		Repo:      p.Repo,
-		Path:      p.Path,
-		Symbol:    p.Symbol,
-		Kind:      p.Kind,
-		StartLine: p.StartLine,
-		EndLine:   p.EndLine,
-		Snippet:   p.Snippet,
-		Body:      p.Body,
-		Truncated: p.Truncated,
-	}
 }

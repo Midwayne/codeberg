@@ -13,4 +13,8 @@ int cberg_ipc_write_all(int fd, const char *buf, size_t len);
 void cberg_ipc_status(cberg_engine *eng, int fd);
 void cberg_ipc_dispatch(cberg_engine *eng, int fd, char *line);
 
+/* One failure line: {"ok":false,"code":"...","error":"..."}. `code` is a
+ * cberg_status_code value or the IPC-only code "not_ready". */
+void cberg_ipc_send_error(int fd, const char *code, const char *message);
+
 #endif
