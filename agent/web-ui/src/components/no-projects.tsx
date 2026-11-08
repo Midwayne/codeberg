@@ -2,14 +2,16 @@ import { lazy, useRef, useState } from 'react';
 import { Settings2 } from 'lucide-react';
 import { DocsLink } from './docs-link';
 import { LoadingSuspense } from './loading-suspense';
+import { CHAT_SURFACE, dismissScreen, openSurface, type AppSurface } from '../lib/app-surface';
 
 const Settings = lazy(() => import('./settings').then((module) => ({ default: module.Settings })));
 
 export function NoProjects({ onAdd }: { onAdd: () => void }) {
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [surface, setSurface] = useState<AppSurface>(CHAT_SURFACE);
   const settingsButton = useRef<HTMLButtonElement>(null);
+  const settingsOpen = surface.screen === 'settings';
   const close = () => {
-    setSettingsOpen(false);
+    setSurface((current) => dismissScreen(current));
     settingsButton.current?.focus();
   };
 
@@ -19,7 +21,7 @@ export function NoProjects({ onAdd }: { onAdd: () => void }) {
         <span className="text-sm font-semibold">Codeberg</span>
         <div className="flex items-center gap-1">
           <button type="button" ref={settingsButton} aria-label="Settings" aria-expanded={settingsOpen}
-            onClick={() => settingsOpen ? close() : setSettingsOpen(true)}
+            onClick={() => setSurface((current) => openSurface(current, 'settings'))}
             className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-xs text-muted-foreground hover:bg-accent hover:text-foreground">
             <Settings2 className="size-4" aria-hidden="true" />Settings
           </button>

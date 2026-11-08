@@ -1,21 +1,44 @@
 import { GraduationCap, PanelLeft, Search, Settings2, SlidersHorizontal } from 'lucide-react';
 
+import type { RefObject } from 'react';
+
 import { IconButton } from '../ui';
 import { DocsLink } from '../docs-link';
+import type { AppSurface, SurfaceTarget } from '../../lib/app-surface';
 
-import type { ProjectWorkspaceView, useProjectWorkspace } from '../../App';
+export type WorkspaceHeaderProps = {
+  title: string;
+  learningBusy: boolean;
+  sidebarOpen: boolean;
+  surface: AppSurface;
+  trainingEnabled: boolean;
+  onToggleSidebar: () => void;
+  onActivate: (target: SurfaceTarget) => void;
+  searchButton: RefObject<HTMLButtonElement | null>;
+  settingsButton: RefObject<HTMLButtonElement | null>;
+  modelsButton: RefObject<HTMLButtonElement | null>;
+};
 
-export type WorkspaceHeaderProps = { state: Parameters<typeof ProjectWorkspaceView>[0] };
-
-export function WorkspaceHeader({ state }: WorkspaceHeaderProps) {
+export function WorkspaceHeader({
+  title,
+  learningBusy,
+  sidebarOpen,
+  surface,
+  trainingEnabled,
+  onToggleSidebar,
+  onActivate,
+  searchButton,
+  settingsButton,
+  modelsButton,
+}: WorkspaceHeaderProps) {
   return (
     <header className="shrink-0 border-b border-border">
       <div className="flex min-h-16 flex-wrap items-center gap-1 px-2 text-sm sm:gap-2 sm:px-4">
-        {!state.trainingOpen && !state.settingsOpen && (
+        {surface.screen === 'chat' && (
           <IconButton
-            onClick={() => state.setSidebarOpen(!state.sidebarOpen)}
-            aria-label={state.sidebarOpen ? 'Hide chats' : 'Show chats'}
-            aria-expanded={state.sidebarOpen}
+            onClick={onToggleSidebar}
+            aria-label={sidebarOpen ? 'Hide chats' : 'Show chats'}
+            aria-expanded={sidebarOpen}
             aria-controls="chat-sidebar"
             title="Toggle chats"
           >
@@ -23,13 +46,8 @@ export function WorkspaceHeader({ state }: WorkspaceHeaderProps) {
           </IconButton>
         )}
         <span className="shrink-0 px-1 font-semibold max-[359px]:text-xs">Codeberg</span>
-        <span
-          className="ml-2 hidden min-w-0 flex-1 truncate border-l border-border pl-4 text-xs text-muted-foreground md:block"
-          title={state.title}
-        >
-          {state.settingsOpen ? 'Settings' : state.trainingOpen ? 'Training review' : state.title}
-        </span>
-        {state.learningBusy && (
+        <HeaderTitle title={title} surface={surface} />
+        {learningBusy && (
           <span
             role="status"
             title="Updating knowledge and learning data"
@@ -38,52 +56,78 @@ export function WorkspaceHeader({ state }: WorkspaceHeaderProps) {
             Updating knowledge &amp; learning data…
           </span>
         )}
-        <SearchButton state={state} />
-        <TrainingButton state={state} />
-        <ModelsButton state={state} />
-        <SettingsButton state={state} />
+        <SearchButton buttonRef={searchButton} onActivate={() => onActivate('search')} />
+        <TrainingButton enabled={trainingEnabled} open={surface.screen === 'training'} onActivate={() => onActivate('training')} />
+        <ModelsButton open={surface.overlay === 'models'} buttonRef={modelsButton} onActivate={() => onActivate('models')} />
+        <SettingsButton open={surface.screen === 'settings'} buttonRef={settingsButton} onActivate={() => onActivate('settings')} />
         <DocsLink />
       </div>
     </header>
   );
 }
 
-export type TrainingButtonProps = { state: ReturnType<typeof useProjectWorkspace> };
-
-export function TrainingButton({ state }: TrainingButtonProps) {
+function HeaderTitle({ title, surface }: { title: string; surface: AppSurface }) {
   return (
-    state.trainingEnabled && (
-      <IconButton
-        onClick={() => {
-          state.setTrainingOpen((open) => !open);
-          state.setSettingsOpen(false);
-          state.setModelsOpen(false);
-          if (!state.desktop) state.setSidebarOpen(false);
-        }}
-        aria-label={state.trainingOpen ? 'Back to chats' : 'Training review'}
-        aria-pressed={state.trainingOpen}
-        title={state.trainingOpen ? 'Back to chats' : 'Review training data'}
-        className={`gap-2 md:w-auto md:px-3 ${state.trainingOpen ? 'bg-accent text-foreground' : ''}`}
-      >
-        <GraduationCap className="size-4" />
-        <span className="hidden text-xs md:inline">Training</span>
-      </IconButton>
-    )
+    <span
+      className="ml-2 hidden min-w-0 flex-1 truncate border-l border-border pl-4 text-xs text-muted-foreground md:block"
+      title={title}
+    >
+      {screenTitle(surface, title)}
+    </span>
   );
 }
 
-export type ModelsButtonProps = { state: ReturnType<typeof useProjectWorkspace> };
+function screenTitle(surface: AppSurface, title: string): string {
+  switch (surface.screen) {
+    case 'settings':
+      return 'Settings';
+    case 'training':
+      return 'Training review';
+    case 'chat':
+      return title;
+    default: {
+      const exhaustive: never = surface.screen;
+      return exhaustive;
+    }
+  }
+}
 
-export function ModelsButton({ state }: ModelsButtonProps) {
+type TrainingButtonProps = {
+  enabled: boolean;
+  open: boolean;
+  onActivate: () => void;
+};
+
+export function TrainingButton({ enabled, open, onActivate }: TrainingButtonProps) {
+  if (!enabled) return null;
+
   return (
     <IconButton
-      ref={state.modelsButton}
-      onClick={() => {
-        state.setModelsOpen((open) => !open);
-        if (!state.desktop) state.setSidebarOpen(false);
-      }}
+      onClick={onActivate}
+      aria-label={open ? 'Back to chats' : 'Training review'}
+      aria-pressed={open}
+      title={open ? 'Back to chats' : 'Review training data'}
+      className={`gap-2 md:w-auto md:px-3 ${open ? 'bg-accent text-foreground' : ''}`}
+    >
+      <GraduationCap className="size-4" />
+      <span className="hidden text-xs md:inline">Training</span>
+    </IconButton>
+  );
+}
+
+type ModelsButtonProps = {
+  open: boolean;
+  buttonRef: RefObject<HTMLButtonElement | null>;
+  onActivate: () => void;
+};
+
+export function ModelsButton({ open, buttonRef, onActivate }: ModelsButtonProps) {
+  return (
+    <IconButton
+      ref={buttonRef}
+      onClick={onActivate}
       aria-label="Model settings"
-      aria-expanded={state.modelsOpen}
+      aria-expanded={open}
       title="Model settings"
       className="gap-2 md:w-auto md:px-3"
     >
@@ -93,23 +137,21 @@ export function ModelsButton({ state }: ModelsButtonProps) {
   );
 }
 
-export type SettingsButtonProps = { state: ReturnType<typeof useProjectWorkspace> };
+type SettingsButtonProps = {
+  open: boolean;
+  buttonRef: RefObject<HTMLButtonElement | null>;
+  onActivate: () => void;
+};
 
-export function SettingsButton({ state }: SettingsButtonProps) {
+export function SettingsButton({ open, buttonRef, onActivate }: SettingsButtonProps) {
   return (
     <IconButton
-      ref={state.settingsButton}
-      onClick={() => {
-        state.setSettingsOpen((open) => !open);
-        state.setTrainingOpen(false);
-        state.setSearchOpen(false);
-        state.setModelsOpen(false);
-        if (!state.desktop) state.setSidebarOpen(false);
-      }}
+      ref={buttonRef}
+      onClick={onActivate}
       aria-label="Settings"
-      aria-expanded={state.settingsOpen}
+      aria-expanded={open}
       title="Settings"
-      className={`gap-2 md:w-auto md:px-3 ${state.settingsOpen ? 'bg-accent text-foreground' : ''}`}
+      className={`gap-2 md:w-auto md:px-3 ${open ? 'bg-accent text-foreground' : ''}`}
     >
       <Settings2 className="size-4" />
       <span className="hidden text-xs md:inline">Settings</span>
@@ -117,18 +159,16 @@ export function SettingsButton({ state }: SettingsButtonProps) {
   );
 }
 
-export type SearchButtonProps = { state: ReturnType<typeof useProjectWorkspace> };
+type SearchButtonProps = {
+  buttonRef: RefObject<HTMLButtonElement | null>;
+  onActivate: () => void;
+};
 
-export function SearchButton({ state }: SearchButtonProps) {
+export function SearchButton({ buttonRef, onActivate }: SearchButtonProps) {
   return (
     <IconButton
-      ref={state.searchButton}
-      onClick={() => {
-        state.setTrainingOpen(false);
-        state.setSettingsOpen(false);
-        if (!state.desktop) state.setSidebarOpen(false);
-        state.setSearchOpen(true);
-      }}
+      ref={buttonRef}
+      onClick={onActivate}
       aria-label="Search chats"
       title="Search chats (⌘K / Ctrl+K)"
       className="ml-auto gap-2 md:w-auto md:px-3"
