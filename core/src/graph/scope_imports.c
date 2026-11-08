@@ -3,6 +3,33 @@
 
 #include "scope_internal.h"
 
+/* Tree-sitter string literals keep their quotes. Drop the outer pair. */
+static const char *unquote(char *text) {
+    size_t length = strlen(text);
+    if (length < 2) {
+        return NULL;
+    }
+
+    text[length - 1] = '\0';
+
+    return text + 1;
+}
+
+static int each_named(
+    const graph_syntax *syntax,
+    TSNode node,
+    const char *name,
+    graph_import *out,
+    int (*match)(const graph_syntax *, TSNode, const char *, graph_import *)) {
+    for (uint32_t i = 0; i < ts_node_named_child_count(node); i++) {
+        if (match(syntax, ts_node_named_child(node, i), name, out)) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 static int import_name(const graph_syntax *syntax, TSNode node, const char *name, graph_import *out) {
     if (graph_is(node, "import_specifier")) {
         TSNode original = graph_field(node, "name");
@@ -33,12 +60,7 @@ static int import_name(const graph_syntax *syntax, TSNode node, const char *name
         }
     }
 
-    for (uint32_t i = 0; i < ts_node_named_child_count(node); i++) {
-        if (import_name(syntax, ts_node_named_child(node, i), name, out))
-            return 1;
-    }
-
-    return 0;
+    return each_named(syntax, node, name, out, import_name);
 }
 
 static int go_import(const graph_syntax *syntax, TSNode node, const char *name, graph_import *out) {
@@ -47,11 +69,10 @@ static int go_import(const graph_syntax *syntax, TSNode node, const char *name, 
         if (!graph_text(syntax, graph_field(node, "path"), path, sizeof path))
             return 0;
 
-        size_t length = strlen(path);
-        if (length < 2)
+        const char *module = unquote(path);
+        if (module == NULL) {
             return 0;
-        path[length - 1] = '\0';
-        const char *module = path + 1;
+        }
         const char *base = strrchr(module, '/');
         TSNode alias = graph_field(node, "name");
         int matches = ts_node_is_null(alias) ? strcmp(base != NULL ? base + 1 : module, name) == 0
@@ -64,12 +85,7 @@ static int go_import(const graph_syntax *syntax, TSNode node, const char *name, 
         return 1;
     }
 
-    for (uint32_t i = 0; i < ts_node_named_child_count(node); i++) {
-        if (go_import(syntax, ts_node_named_child(node, i), name, out))
-            return 1;
-    }
-
-    return 0;
+    return each_named(syntax, node, name, out, go_import);
 }
 
 int graph_find_import(const graph_syntax *syntax, const char *name, graph_import *out) {
@@ -84,11 +100,11 @@ int graph_find_import(const graph_syntax *syntax, const char *name, graph_import
             if (!graph_text(syntax, graph_field(node, "source"), path, sizeof path))
                 return 0;
 
-            size_t length = strlen(path);
-            if (length < 2)
+            const char *module = unquote(path);
+            if (module == NULL) {
                 return 0;
-            path[length - 1] = '\0';
-            snprintf(out->module, sizeof out->module, "%s", path + 1);
+            }
+            snprintf(out->module, sizeof out->module, "%s", module);
             return 1;
         }
     }
