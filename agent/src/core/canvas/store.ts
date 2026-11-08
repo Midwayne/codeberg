@@ -1,3 +1,4 @@
+import { CANVAS_SETTINGS_FILE, canvasChatName } from './files.js';
 import { validChatId } from './context.js';
 import { writeModuleLog } from '../module-log.js';
 import { readdir } from 'node:fs/promises';
@@ -22,11 +23,11 @@ export class CanvasStore {
   async ensure(): Promise<Scene> {
     if (!this.chatId) throw new CanvasError('A chat is required.');
 
-    return this.create(`chat-${this.chatId}`);
+    return this.create(this.chatSceneName());
   }
 
   async settings(): Promise<{ enabled: boolean }> {
-    const value = await readData(join(this.root, 'settings.json')) as { enabled?: unknown } | undefined;
+    const value = await readData(join(this.root, this.settingsFile())) as { enabled?: unknown } | undefined;
     if (value && typeof value.enabled !== 'boolean') throw new CanvasError('Invalid canvas settings.', 503);
 
     return { enabled: value?.enabled as boolean ?? this.defaultEnabled };
@@ -36,7 +37,7 @@ export class CanvasStore {
     if (typeof enabled !== 'boolean') throw new CanvasError('enabled must be a boolean.');
 
     return withCanvasLock(this.root, async () => {
-      await atomicWrite(join(this.root, 'settings.json'), { enabled });
+      await atomicWrite(join(this.root, this.settingsFile()), { enabled });
       return { enabled };
     });
   }
@@ -165,11 +166,15 @@ export class CanvasStore {
   private scopeName(name?: string): string | undefined {
     if (!this.chatId) return name;
 
-    const scoped = `chat-${this.chatId}`;
+    const scoped = this.chatSceneName();
     if (name && name !== scoped) throw new CanvasError('Canvas belongs to a different chat.', 409);
 
     return scoped;
   }
+
+  settingsFile(): string { return CANVAS_SETTINGS_FILE; }
+
+  chatSceneName(chatId = this.chatId): string { return canvasChatName(chatId); }
 
   private path(name: string): string {
     validName(name);

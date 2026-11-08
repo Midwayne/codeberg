@@ -12,10 +12,10 @@ export async function forkChatCanvas(store: CanvasStore | undefined, id: string,
     store.forChat(id);
     store.forChat(parentId);
     await withCanvasLock(store.root, async () => {
-      const target = join(store.root, `chat-${id}.excalidraw`);
+      const target = join(store.root, `${store.chatSceneName(id)}.excalidraw`);
       if (await readData(target)) return;
 
-      const parent = await readData(join(store.root, `chat-${parentId}.excalidraw`));
+      const parent = await readData(join(store.root, `${store.chatSceneName(parentId)}.excalidraw`));
       if (!parent) return;
 
       validateScene(parent);
