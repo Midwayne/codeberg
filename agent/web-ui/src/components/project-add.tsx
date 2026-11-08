@@ -1,4 +1,5 @@
 import type { ProjectInfo } from '@agent/core/api/projects.js';
+import { PROJECT_NAME_MAX } from '../lib/project-name.js';
 import { jsonRequest, responseJson } from '../lib/response.js';
 import { createFolderPicker } from './folder-picker';
 
@@ -169,7 +170,7 @@ function OptionalProjectName({ state }: OptionalProjectNameProps) {
       </span>
       <input
         value={state.name}
-        maxLength={120}
+        maxLength={PROJECT_NAME_MAX}
         onChange={(event) => state.setName(event.target.value)}
         className={control}
       />

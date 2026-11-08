@@ -1,4 +1,5 @@
 import type { ProjectInfo } from '@agent/core/api/projects.js';
+import { PROJECT_NAME_MAX } from '../lib/project-name.js';
 import { control, button } from './project-styles';
 import { readJsonBody } from '../lib/read-json';
 import { jsonRequest } from '../lib/response.js';
@@ -128,7 +129,7 @@ export function RenameProjectInput({ input, project, name, busy, setName, setErr
       ref={input}
       id={`project-name-${project.id}`}
       required
-      maxLength={120}
+      maxLength={PROJECT_NAME_MAX}
       value={name}
       disabled={busy}
       onChange={(event) => {
