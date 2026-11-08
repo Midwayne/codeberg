@@ -3,9 +3,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { ProjectCatalog } from '../../core/projects.js';
 import { trackWrite } from '../server/write-gate.js';
 import { readJson, requireJsonMutation, sendJson } from '../http.js';
-import { daemon } from './routing.js';
 import type { ProjectRequestRouterState } from './state.js';
-import { ProjectServiceTimeout, requestProjectService } from './request.js';
+import { daemon, ProjectServiceTimeout, requestProjectService } from './request.js';
 
 export async function deleteProject(
   state: ProjectRequestRouterState,

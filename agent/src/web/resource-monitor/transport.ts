@@ -1,4 +1,5 @@
-import { start, startWorker } from './lifecycle.js';
+import { probe, request, scheduleProbe, startWorker } from './collector.js';
+import { start } from './lifecycle.js';
 import type { ResourceMonitorClientState } from './state.js';
 import { DISK_MS, RETENTION_MS, SAMPLE_MS } from './types.js';
 
@@ -47,62 +48,4 @@ export function invalidateDisk(state: ResourceMonitorClientState): void {
       () => undefined,
     );
   } else state.worker?.postMessage({ kind: 'refreshDisk' });
-}
-
-export function request(
-  state: ResourceMonitorClientState,
-  url: URL,
-  init: RequestInit = {},
-): Promise<Response> {
-  return (state.options.fetch ?? globalThis.fetch)(url, {
-    ...init,
-    signal: AbortSignal.any([state.controller.signal, AbortSignal.timeout(1000)]),
-  });
-}
-
-export function probe(state: ResourceMonitorClientState): Promise<void> {
-  if (!state.endpoint || !state.started) return Promise.resolve();
-
-  state.probing ??= (async () => {
-    try {
-      const response = await request(state, new URL('/resources/clients', state.endpoint), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pid: process.pid }),
-      });
-
-      if (!response.ok) throw new Error('daemon collector unavailable');
-
-      await response.arrayBuffer();
-      if (!state.started) return;
-
-      state.peerPid = response.headers.get('X-Codeberg-Pid') ?? undefined;
-      state.daemonReady = true;
-      if (state.retry) clearTimeout(state.retry);
-
-      state.retry = undefined;
-      void state.worker?.terminate();
-      state.worker = undefined;
-      state.history = [];
-    } catch {
-      if (state.started) {
-        startWorker(state);
-        scheduleProbe(state);
-      }
-    }
-  })().finally(() => {
-    state.probing = undefined;
-  });
-
-  return state.probing;
-}
-
-export function scheduleProbe(state: ResourceMonitorClientState): void {
-  if (state.retry || !state.endpoint || !state.started) return;
-
-  state.retry = setTimeout(() => {
-    state.retry = undefined;
-    void probe(state);
-  }, 30_000);
-  state.retry.unref();
 }

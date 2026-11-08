@@ -4,9 +4,8 @@ import { codebergHome } from '../../core/paths.js';
 import type { Project } from '../../core/projects.js';
 import { openConfigDirectory } from '../config-directory.js';
 import { readJson, requireJsonMutation, sameOrigin, sendJson, sendText } from '../http.js';
-import { daemon } from './routing.js';
 import type { ProjectRequestRouterState } from './state.js';
-import { requestProjectService } from './request.js';
+import { daemon, requestProjectService } from './request.js';
 
 export async function openConfig(
   state: ProjectRequestRouterState,

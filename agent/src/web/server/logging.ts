@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { writeModuleLog } from '../../core/module-log.js';
-import { LEARNING_PATH } from '../learning-routes.js';
+import { LEARNING_PATH } from '../learning/paths.js';
 import { CHAT_PATH } from './types.js';
 
 export function logRequest(
