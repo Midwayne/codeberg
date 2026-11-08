@@ -63,7 +63,7 @@ needed. CI runs `make daemon-check`.
 | `CODEBERG_INDEX_NAMESPACE` | no | Embedding-model directory under each project's `index/`; a single path segment |
 | `CODEBERG_VECTOR` | no | `false` disables embeddings even if `CBERG_MODEL` is set |
 | `CODEBERG_NO_INDEX` | no | `true` keeps the catalog and indexes in a temporary directory removed at exit |
-| `CODEBERG_HEALTH_TIMEOUT` | no | Seconds a project may take to become ready (default scales with repo count) |
+| `CODEBERG_HEALTH_TIMEOUT` | no | How long a project may take to become ready, as a Go duration such as `30m` (default 5 min per repo, 15–60 min) |
 | `CODEBERG_HTTP_PORT` | no | HTTP listen port (default 48080) |
 | `CODEBERG_GIT_PULL_INTERVAL_SEC` | no | `git pull --ff-only` interval for every served root with a `.git`; 0 = disabled |
 
