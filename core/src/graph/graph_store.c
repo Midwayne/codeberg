@@ -1828,19 +1828,6 @@ void cberg_graph_workspace_scope(cberg_graph *graph, const char *repo) {
     graph->scope = repo != NULL && repo[0] != '\0' ? repo : NULL;
 }
 
-const char *cberg_graph_workspace_file(const cberg_graph *graph, const char *repo, const char *path) {
-    for (size_t i = 0; i < graph->nodes_len; i++) {
-        const graph_node_rec *node = &graph->nodes[i];
-        if (node->dead || node->pub.kind != CBERG_GNODE_FILE || node->repo == NULL ||
-            strcmp(node->repo, repo) != 0)
-            continue;
-        if (strcmp(cberg_graph_source_path(graph, &node->pub), path) == 0)
-            return node->pub.path;
-    }
-
-    return NULL;
-}
-
 cberg_status cberg_graph_link_import(cberg_graph *graph, uint64_t source_file, uint64_t module, const char *target_file) {
     const graph_node_rec *target = node_rec_by_id(graph, graph_file_id(target_file));
     if (target == NULL || target->pub.kind != CBERG_GNODE_FILE)
