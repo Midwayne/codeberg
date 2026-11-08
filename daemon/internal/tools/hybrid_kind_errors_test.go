@@ -32,7 +32,7 @@ func TestHybridSearchKindPreservesIndexErrors(t *testing.T) {
 				idx.ChunkErr = unavailable
 			}
 
-			reg := Default(testutil.WsSingle(root), idx)
+			reg := WithVectorSearch(testutil.WsSingle(root), idx, true)
 			_, err := reg.Call(context.Background(), "hybrid_search", json.RawMessage(`{"query":"checkoutSessionToken","kind":"function"}`))
 			if !errors.Is(err, unavailable) {
 				t.Fatalf("kind lookup should preserve readiness error, got %v", err)

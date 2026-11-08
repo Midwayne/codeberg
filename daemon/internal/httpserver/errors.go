@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"codeberg.org/codeberg/daemon/internal/domain"
 	"codeberg.org/codeberg/daemon/internal/indexctl"
 	"codeberg.org/codeberg/daemon/internal/subprocess"
 	"codeberg.org/codeberg/daemon/internal/tools"
@@ -29,7 +30,7 @@ func statusFor(err error) int {
 	switch {
 	case errors.Is(err, tools.ErrUnknownTool), errors.Is(err, workspace.ErrNotFound):
 		return http.StatusNotFound
-	case errors.Is(err, workspace.ErrEscape):
+	case errors.Is(err, domain.ErrEscape):
 		return http.StatusForbidden
 	case errors.Is(err, tools.ErrInvalidArgs),
 		errors.Is(err, subprocess.ErrUnsafeSed),

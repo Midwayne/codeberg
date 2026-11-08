@@ -26,7 +26,7 @@ func TestHybridSearchWhileIndexStarts(t *testing.T) {
 			}
 
 			idx := &testutil.FakeIndexer{SearchErr: unavailable}
-			reg := Default(testutil.WsSingle(root), idx)
+			reg := WithVectorSearch(testutil.WsSingle(root), idx, true)
 			out, err := reg.Call(context.Background(), "hybrid_search", json.RawMessage(`{"query":"checkoutSessionToken"}`))
 			if err != nil {
 				t.Fatal(err)
@@ -58,7 +58,7 @@ func TestFileToolsBeforeIndexerSocketExists(t *testing.T) {
 	}
 
 	idx := indexctl.NewClient(socketDir + "/not-started.sock")
-	reg := Default(testutil.WsSingle(root), idx)
+	reg := WithVectorSearch(testutil.WsSingle(root), idx, true)
 	for name, args := range map[string]string{
 		"grep":            `{"pattern":"checkoutSessionToken","literal":true}`,
 		"read_file":       `{"repo":"main","path":"exact.go"}`,

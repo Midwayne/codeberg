@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"codeberg.org/codeberg/daemon/internal/domain"
 	"codeberg.org/codeberg/daemon/internal/indexctl"
 	"codeberg.org/codeberg/daemon/internal/search"
 	"codeberg.org/codeberg/daemon/internal/testutil"
@@ -91,7 +92,7 @@ func TestGetChunkTool(t *testing.T) {
 		Chunk: indexctl.ChunkDetail{ID: 7, Repo: "main", Path: "a.go", Body: "func main(){}"},
 	}
 	root := t.TempDir()
-	reg := Default(testutil.WsSingle(root), idx)
+	reg := WithVectorSearch(testutil.WsSingle(root), idx, true)
 
 	out, err := reg.Call(context.Background(), "get_chunk", json.RawMessage(`{"repo":"main","id":7}`))
 	if err != nil {
@@ -120,7 +121,7 @@ func TestHybridSearchTool(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reg := Default(testutil.WsSingle(root), idx)
+	reg := WithVectorSearch(testutil.WsSingle(root), idx, true)
 	out, err := reg.Call(context.Background(), "hybrid_search", json.RawMessage(`{"query":"authentication handler","k":1}`))
 	if err != nil {
 		t.Fatal(err)
@@ -154,7 +155,7 @@ func TestHybridSearchFindsLexicalOnlyFile(t *testing.T) {
 	}
 
 	idx := &testutil.FakeIndexer{SearchHits: []indexctl.SearchResult{{ID: 1, Repo: "main", Path: "unrelated.go", Score: .9}}}
-	reg := Default(testutil.WsSingle(root), idx)
+	reg := WithVectorSearch(testutil.WsSingle(root), idx, true)
 	out, err := reg.Call(context.Background(), "hybrid_search", json.RawMessage(`{"query":"where is checkoutSessionToken used?","k":2}`))
 	if err != nil {
 		t.Fatal(err)
@@ -177,7 +178,7 @@ func TestHybridSearchWorksWithoutVectors(t *testing.T) {
 	}
 
 	idx := &testutil.FakeIndexer{SearchErr: &indexctl.IndexerError{Code: "NOT_IMPLEMENTED", Message: "not implemented"}}
-	reg := Default(testutil.WsSingle(root), idx)
+	reg := WithVectorSearch(testutil.WsSingle(root), idx, true)
 	out, err := reg.Call(context.Background(), "hybrid_search", json.RawMessage(`{"query":"checkoutSessionToken"}`))
 	if err != nil {
 		t.Fatal(err)
@@ -204,8 +205,8 @@ func TestHybridSearchScopesLexicalCandidates(t *testing.T) {
 		}
 	}
 
-	ws := workspace.New([]workspace.RepoInfo{{Key: "alpha", Root: alpha}, {Key: "beta", Root: beta}}, "")
-	reg := Default(ws, &testutil.FakeIndexer{})
+	ws := workspace.New([]domain.Repo{{Key: "alpha", Root: alpha}, {Key: "beta", Root: beta}}, "")
+	reg := WithVectorSearch(ws, &testutil.FakeIndexer{}, true)
 	out, err := reg.Call(context.Background(), "hybrid_search", json.RawMessage(`{"query":"checkoutSessionToken","repo":"beta","path_glob":"api/*.go"}`))
 	if err != nil {
 		t.Fatal(err)
@@ -231,8 +232,8 @@ func TestHybridSearchDoesNotStarveLaterRepos(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ws := workspace.New([]workspace.RepoInfo{{Key: "alpha", Root: alpha}, {Key: "beta", Root: beta}}, "")
-	reg := Default(ws, &testutil.FakeIndexer{})
+	ws := workspace.New([]domain.Repo{{Key: "alpha", Root: alpha}, {Key: "beta", Root: beta}}, "")
+	reg := WithVectorSearch(ws, &testutil.FakeIndexer{}, true)
 	out, err := reg.Call(context.Background(), "hybrid_search", json.RawMessage(`{"query":"checkoutSessionToken","k":64}`))
 	if err != nil {
 		t.Fatal(err)
@@ -257,7 +258,7 @@ func TestHybridSearchKindFiltersLexicalCandidates(t *testing.T) {
 		OutlineHits: []indexctl.SearchResult{{ID: 9, Repo: "main", Path: "exact.go", StartLine: 1, EndLine: 1}},
 		Chunk:       indexctl.ChunkDetail{Kind: "function"},
 	}
-	reg := Default(testutil.WsSingle(root), idx)
+	reg := WithVectorSearch(testutil.WsSingle(root), idx, true)
 
 	for _, tc := range []struct {
 		kind string
@@ -287,7 +288,7 @@ func TestHybridSearchKindUsesOutlineKind(t *testing.T) {
 			return indexctl.ChunkDetail{}, nil
 		},
 	}
-	reg := Default(testutil.WsSingle(root), idx)
+	reg := WithVectorSearch(testutil.WsSingle(root), idx, true)
 
 	for _, tc := range []struct {
 		kind string
@@ -324,7 +325,7 @@ func TestHybridSearchContextKeepsLexicalMatchInsideLongChunk(t *testing.T) {
 		SearchHits: []indexctl.SearchResult{{ID: 3, Repo: "main", Path: "long.go", StartLine: 1, EndLine: 200}},
 		Chunk:      indexctl.ChunkDetail{ID: 3, Repo: "main", Path: "long.go", StartLine: 1, EndLine: 200, Body: body.String()},
 	}
-	reg := Default(testutil.WsSingle(root), idx)
+	reg := WithVectorSearch(testutil.WsSingle(root), idx, true)
 
 	out, err := reg.Call(context.Background(), "hybrid_search", json.RawMessage(`{"query":"checkoutSessionToken","k":1}`))
 	if err != nil {
@@ -376,7 +377,7 @@ func TestHybridSearchOverlapsVectorAndLexicalRetrieval(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	reg := Default(testutil.WsSingle(root), idx)
+	reg := WithVectorSearch(testutil.WsSingle(root), idx, true)
 	out, err := reg.Call(ctx, "hybrid_search", json.RawMessage(`{"query":"checkoutSessionToken","kind":"function"}`))
 	if err != nil {
 		t.Fatalf("vector search should not wait for lexical retrieval to finish: %v", err)
@@ -398,7 +399,7 @@ func TestFindReferencesTool(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reg := Default(testutil.WsSingle(root), &testutil.FakeIndexer{})
+	reg := WithVectorSearch(testutil.WsSingle(root), &testutil.FakeIndexer{}, true)
 	out, err := reg.Call(context.Background(), "find_references", json.RawMessage(`{"symbol":"Foo","repo":"main"}`))
 	if err != nil {
 		t.Fatal(err)
@@ -421,7 +422,7 @@ func TestFindReferencesGraphFirst(t *testing.T) {
 		SrcName: "caller", DstName: "Foo", SrcPath: "a.go", Line: 10,
 	}}
 	root := t.TempDir()
-	reg := Default(workspace.New([]workspace.RepoInfo{{Key: "main", Root: root}}, "main"), idx)
+	reg := WithVectorSearch(workspace.New([]domain.Repo{{Key: "main", Root: root}}, "main"), idx, true)
 	out, err := reg.Call(context.Background(), "find_references", json.RawMessage(`{"symbol":"Foo","repo":"main"}`))
 	if err != nil {
 		t.Fatal(err)

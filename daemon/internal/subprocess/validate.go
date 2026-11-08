@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"codeberg.org/codeberg/daemon/internal/workspace"
+	"codeberg.org/codeberg/daemon/internal/domain"
 )
 
 var allowedCommands = map[string]bool{
@@ -26,11 +26,6 @@ var deniedFlags = map[string]map[string]bool{
 	"sed": {
 		"-i": true, "--in-place": true, "-f": true, "--file": true,
 	},
-}
-
-// ValidateStage checks one pipeline stage against the read-only allowlist.
-func ValidateStage(argv []string) error {
-	return validateStage(argv)
 }
 
 func validateStage(argv []string) error {
@@ -85,11 +80,11 @@ func checkPathToken(arg string) error {
 		}
 
 		if filepath.IsAbs(c) {
-			return fmt.Errorf("%w: absolute path %q", workspace.ErrEscape, c)
+			return fmt.Errorf("%w: absolute path %q", domain.ErrEscape, c)
 		}
 
 		if hasDotDot(c) {
-			return fmt.Errorf("%w: %q", workspace.ErrEscape, c)
+			return fmt.Errorf("%w: %q", domain.ErrEscape, c)
 		}
 	}
 

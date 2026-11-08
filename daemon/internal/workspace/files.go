@@ -19,7 +19,7 @@ func (w *Workspace) Glob(_ context.Context, pattern, repo string, limit int) ([]
 		limit = w.maxFiles
 	}
 
-	repoKey, err := w.resolveKey(repo)
+	repoKey, err := w.ResolveRepo(repo)
 	if err != nil {
 		return nil, err
 	}
