@@ -1,13 +1,14 @@
-import { mkdir, open, readFile, rm } from 'node:fs/promises';
+import { mkdir, open, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { writeJsonAtomic } from '../../core/learning/fs.js';
+import { readOptionalText, writeJsonAtomic } from '../../core/learning/fs.js';
+import { WriteLock } from '../../core/write-lock.js';
 import type { JournalEntry, RunRecord } from './types.js';
 
 const MAX_JOURNAL_BYTES = 32 * 1024 * 1024;
 
 /** Each tool start/result and stream event is flushed before being acknowledged. */
 export class RunJournal {
-  private pending = Promise.resolve();
+  private readonly lock = new WriteLock();
   private bytes = 0;
 
   constructor(readonly directory: string) {}
@@ -28,7 +29,7 @@ export class RunJournal {
 
   append(entry: JournalEntry): Promise<void> {
     const line = JSON.stringify(entry) + '\n';
-    const operation = this.pending.then(async () => {
+    return this.lock.run(async () => {
       if (this.bytes + Buffer.byteLength(line) > MAX_JOURNAL_BYTES) {
         throw new Error('Search run reached its 32 MiB journal limit. Narrow the investigation.');
       }
@@ -42,16 +43,13 @@ export class RunJournal {
         await file.close();
       }
     });
-    this.pending = operation.catch(() => undefined);
-
-    return operation;
   }
 
   async read(): Promise<{ record: RunRecord; entries: JournalEntry[] } | undefined> {
-    const json = await readFile(join(this.directory, 'run.json'), 'utf8').catch(missing);
+    const json = await readOptionalText(join(this.directory, 'run.json'));
     if (json === undefined) return undefined;
 
-    const text = await readFile(join(this.directory, 'events.jsonl'), 'utf8').catch(missing) ?? '';
+    const text = (await readOptionalText(join(this.directory, 'events.jsonl'))) ?? '';
     this.bytes = Buffer.byteLength(text);
     const lines = text.split('\n');
     // Quarantine an incomplete final write before appending recovery observations.
@@ -69,10 +67,4 @@ export class RunJournal {
 
     return { record: JSON.parse(json), entries: lines.filter(Boolean).map((line) => JSON.parse(line)) };
   }
-}
-
-function missing(error: NodeJS.ErrnoException): undefined {
-  if (error.code !== 'ENOENT') throw error;
-
-  return undefined;
 }
