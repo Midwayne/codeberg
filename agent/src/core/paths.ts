@@ -3,6 +3,13 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { isProjectId, projectCatalogPath, projectDataHome, projectMigrationPath } from './projects/types.js';
 
+export const CURSOR_CONFIG_DIR = '.cursor';
+
+export const CODEBERG_CONFIG_DIR = '.codeberg';
+
+/** Project-local config directories, Cursor first and then Codeberg. */
+export const LOCAL_CONFIG_DIRS = [CURSOR_CONFIG_DIR, CODEBERG_CONFIG_DIR] as const;
+
 /** Mirrors the launcher's Go `paths.Home`: a non-blank CODEBERG_HOME, else ~/.codeberg. */
 export function codebergHome(env: NodeJS.ProcessEnv = process.env, userHome = homedir()): string {
   const home = env.CODEBERG_HOME?.trim();

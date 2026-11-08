@@ -5,14 +5,14 @@ import { parseMcpJson } from './config/parse.js';
 import { splitList } from './config/values.js';
 import { envFlag, expandHome } from '../env.js';
 
-import { codebergHome, findGitRoot, indexedRootsFromEnv } from '../paths.js';
+import { codebergHome, findGitRoot, indexedRootsFromEnv, LOCAL_CONFIG_DIRS } from '../paths.js';
 import { builtinDatabaseServer } from './builtin.js';
 import type { McpConfig, McpConfigIo, McpInterpolateContext, McpServer } from './types.js';
 
 export const MCP_FILE = 'mcp.json';
 
 function projectMcpFiles(root: string): string[] {
-  return [join(root, '.cursor', MCP_FILE), join(root, '.codeberg', MCP_FILE)];
+  return LOCAL_CONFIG_DIRS.map((dir) => join(root, dir, MCP_FILE));
 }
 
 /**
@@ -45,7 +45,7 @@ function workspaceForConfig(configPath: string, fallback: string): string {
   const dir = dirname(configPath);
   const parent = dirname(dir);
   const base = dir.split(/[/\\]/).pop();
-  if (base === '.cursor' || base === '.codeberg') return parent;
+  if (base && (LOCAL_CONFIG_DIRS as readonly string[]).includes(base)) return parent;
 
   return fallback;
 }

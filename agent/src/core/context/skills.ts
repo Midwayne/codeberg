@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { parseSkillDocument } from './skill-document.js';
 
-import { codebergHome, projectRoots } from '../paths.js';
+import { codebergHome, CURSOR_CONFIG_DIR, LOCAL_CONFIG_DIRS, projectRoots } from '../paths.js';
 import type { ContextStore } from './store.js';
 
 /** A discovered Agent Skill (SKILL.md). The prompt receives name and
@@ -39,8 +39,7 @@ export async function discoverSkills(opts: DiscoverSkillsOptions = {}): Promise<
   const projects = projectRoots(env, cwd);
   const projectDirs = projects.flatMap((root) => [
     join(root, '.agents', 'skills'),
-    join(root, '.cursor', 'skills'),
-    join(root, '.codeberg', 'skills'),
+    ...LOCAL_CONFIG_DIRS.map((dir) => join(root, dir, 'skills')),
   ]);
 
   const byName = new Map<string, SkillSummary>();
@@ -96,7 +95,7 @@ export async function publishSkills(
 export function defaultUserSkillRoots(env: NodeJS.ProcessEnv): string[] {
   return [
     join(homedir(), '.agents', 'skills'),
-    join(homedir(), '.cursor', 'skills'),
+    join(homedir(), CURSOR_CONFIG_DIR, 'skills'),
     join(codebergHome(env), 'skills'),
   ];
 }
