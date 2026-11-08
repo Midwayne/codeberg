@@ -51,7 +51,7 @@ needed. CI runs `make daemon-check`.
 |----------|----------|---------|
 | `CODEBERG_ROOTS` | no | Internal `key\tpath` records, newline-separated; normally supplied from the project catalog |
 | `CBERG_MODEL` | for vectors | Path to ONNX model |
-| `CBERG_INDEX_PATH` | for vectors | Index **base path**; per-repo sidecars at `<base>.<roothash>[.chunks\|.manifest]` |
+| `CBERG_INDEX_PATH` | no | Optional index **base path**. Empty uses `projects/<id>/index/<namespace>/codeberg.usearch`. A path outside `CODEBERG_HOME/index` stays with that project; a namespace then places it in a sibling directory. Remote backends keep the path unchanged |
 | `CBERG_INDEX_BACKEND` | no | `usearch` (default), `qdrant`, or `pgvector` (`postgres` alias) |
 | `CBERG_INDEX_QUANT` | no | usearch stored scalar kind: `i8` (default) or `f32` (forwarded to `cberg-index`) |
 | `CBERG_VECTORDB_URL` | for `qdrant` | Qdrant REST base URL |
