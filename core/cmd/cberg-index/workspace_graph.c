@@ -15,9 +15,7 @@ struct cberg_workspace_cache {
 };
 
 typedef struct workspace_view {
-    cberg_engine engine;
     cberg_repo repo;
-    cberg_repo *pointer;
     cberg_engine *owner;
 } workspace_view;
 
@@ -119,10 +117,6 @@ static cberg_status view_begin(cberg_engine *engine, const char *scope, workspac
     view->repo.ready = 1;
     atomic_init(&view->repo.published_ready, 1);
     pthread_mutex_init(&view->repo.mu, NULL);
-    view->pointer = &view->repo;
-    view->engine.repos = &view->pointer;
-    view->engine.repos_len = 1;
-    view->engine.graph_enabled = 1;
     cberg_graph_workspace_scope(view->repo.graph, scope);
     return CBERG_OK;
 }
@@ -147,7 +141,7 @@ cberg_status cberg_workspace_search(cberg_engine *engine, const char *name, cons
     cberg_status status = view_begin(engine, repo, &view);
     if (status != CBERG_OK)
         return status;
-    status = cberg_engine_search_graph(&view.engine, name, NULL, kind, path, limit, out, cap, found);
+    status = cberg_repo_graph_search(&view.repo, name, kind, path, limit, out, cap, found);
     for (size_t i = 0; i < *found; i++)
         out[i].repo = engine_repo_key(engine, out[i].repo);
     view_end(&view);
@@ -159,7 +153,7 @@ cberg_status cberg_workspace_refs(cberg_engine *engine, const char *name, const 
     cberg_status status = view_begin(engine, repo, &view);
     if (status != CBERG_OK)
         return status;
-    status = cberg_engine_graph_references(&view.engine, name, NULL, path, limit, out, cap, found);
+    status = cberg_repo_graph_references(&view.repo, name, path, limit, out, cap, found);
     view_end(&view);
     return status;
 }
@@ -196,7 +190,7 @@ cberg_status cberg_workspace_trace(cberg_engine *engine, const char *name, uint6
             status = CBERG_ERR_NOT_FOUND;
     }
     if (status == CBERG_OK) {
-        status = cberg_engine_trace_path(&view.engine, name, start, NULL, path, direction, kind, depth, limit, out, cap, found);
+        status = cberg_repo_graph_trace(&view.repo, name, start, path, direction, kind, depth, limit, out, cap, found);
     }
     view_end(&view);
     return status;
@@ -207,7 +201,7 @@ cberg_status cberg_workspace_hubs(cberg_engine *engine, const char *repo, size_t
     cberg_status status = view_begin(engine, repo, &view);
     if (status != CBERG_OK)
         return status;
-    status = cberg_engine_graph_hubs(&view.engine, NULL, limit, out, cap, found);
+    status = cberg_repo_graph_hubs(&view.repo, limit, out, cap, found);
     for (size_t i = 0; i < *found; i++)
         out[i].node.repo = engine_repo_key(engine, out[i].node.repo);
     view_end(&view);

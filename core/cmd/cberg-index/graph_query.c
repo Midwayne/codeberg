@@ -86,13 +86,22 @@ cberg_status cberg_engine_search_graph(cberg_engine *eng, const char *name, cons
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     *found = 0;
-    if (eng->repos_len > 1)
+    if (eng->repos_len > 1) {
         return cberg_workspace_search(eng, name, repo_key, kind, path_prefix, limit, out, cap, found);
-    cberg_repo *r = NULL;
-    cberg_status st = graph_repo(eng, repo_key, &r);
+    }
+
+    cberg_repo *repo = NULL;
+    cberg_status st = graph_repo(eng, repo_key, &repo);
     if (st != CBERG_OK) {
         return st;
     }
+
+    return cberg_repo_graph_search(repo, name, kind, path_prefix, limit, out, cap, found);
+}
+
+cberg_status cberg_repo_graph_search(cberg_repo *r, const char *name, const char *kind, const char *path_prefix, size_t limit, cberg_engine_graph_node *out, size_t cap, size_t *found) {
+    cberg_status st = CBERG_OK;
+    *found = 0;
     limit = cberg_query_limit(limit, CBERG_GRAPH_SEARCH_DEFAULT, CBERG_GRAPH_SEARCH_MAX, cap);
     uint32_t kind_mask = cberg_graph_node_mask_parse(kind);
     const char *name_filter = (name != NULL && name[0] != '\0') ? name : NULL;
@@ -121,13 +130,22 @@ cberg_status cberg_engine_trace_path(cberg_engine *eng, const char *name, uint64
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     *found = 0;
-    if (eng->repos_len > 1)
+    if (eng->repos_len > 1) {
         return cberg_workspace_trace(eng, name, start_id, repo_key, path_prefix, direction, edge_kind, max_depth, limit, out, cap, found);
-    cberg_repo *r = NULL;
-    cberg_status st = graph_repo(eng, repo_key, &r);
+    }
+
+    cberg_repo *repo = NULL;
+    cberg_status st = graph_repo(eng, repo_key, &repo);
     if (st != CBERG_OK) {
         return st;
     }
+
+    return cberg_repo_graph_trace(repo, name, start_id, path_prefix, direction, edge_kind, max_depth, limit, out, cap, found);
+}
+
+cberg_status cberg_repo_graph_trace(cberg_repo *r, const char *name, uint64_t start_id, const char *path_prefix, const char *direction, const char *edge_kind, uint32_t max_depth, size_t limit, cberg_engine_graph_hop *out, size_t cap, size_t *found) {
+    cberg_status st = CBERG_OK;
+    *found = 0;
     limit = cberg_query_limit(limit, CBERG_TRACE_DEFAULT, CBERG_TRACE_MAX, cap);
     if (max_depth == 0) {
         max_depth = CBERG_TRACE_DEPTH_DEFAULT;
@@ -265,13 +283,22 @@ cberg_status cberg_engine_graph_hubs(cberg_engine *eng, const char *repo_key, si
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     *found = 0;
-    if (eng->repos_len > 1)
+    if (eng->repos_len > 1) {
         return cberg_workspace_hubs(eng, repo_key, limit, out, cap, found);
-    cberg_repo *r = NULL;
-    cberg_status st = graph_repo(eng, repo_key, &r);
+    }
+
+    cberg_repo *repo = NULL;
+    cberg_status st = graph_repo(eng, repo_key, &repo);
     if (st != CBERG_OK) {
         return st;
     }
+
+    return cberg_repo_graph_hubs(repo, limit, out, cap, found);
+}
+
+cberg_status cberg_repo_graph_hubs(cberg_repo *r, size_t limit, cberg_engine_graph_hub *out, size_t cap, size_t *found) {
+    cberg_status st = CBERG_OK;
+    *found = 0;
     limit = cberg_query_limit(limit, CBERG_HUBS_DEFAULT, CBERG_HUBS_MAX, cap);
 
     pthread_mutex_lock(&r->mu);
@@ -303,13 +330,22 @@ cberg_status cberg_engine_graph_references(cberg_engine *eng, const char *name, 
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     *found = 0;
-    if (eng->repos_len > 1)
+    if (eng->repos_len > 1) {
         return cberg_workspace_refs(eng, name, repo_key, path_prefix, limit, out, cap, found);
-    cberg_repo *r = NULL;
-    cberg_status st = graph_repo(eng, repo_key, &r);
+    }
+
+    cberg_repo *repo = NULL;
+    cberg_status st = graph_repo(eng, repo_key, &repo);
     if (st != CBERG_OK) {
         return st;
     }
+
+    return cberg_repo_graph_references(repo, name, path_prefix, limit, out, cap, found);
+}
+
+cberg_status cberg_repo_graph_references(cberg_repo *r, const char *name, const char *path_prefix, size_t limit, cberg_engine_graph_edge *out, size_t cap, size_t *found) {
+    cberg_status st = CBERG_OK;
+    *found = 0;
     limit = cberg_query_limit(limit, CBERG_REFS_DEFAULT, CBERG_REFS_MAX, cap);
 
     pthread_mutex_lock(&r->mu);
