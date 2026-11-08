@@ -1,7 +1,7 @@
 import type { SearchRuns } from './runs/manager.js';
 import { submitSearch } from './runs/routes.js';
 import { sameOrigin } from './http.js';
-import { validChatId, withCanvasChat } from '../core/canvas/context.js';
+import { validChatId } from '../core/canvas/context.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import type { ModelInput, ModelSelection } from '../core/model-types.js';
@@ -15,18 +15,11 @@ export type ResolvedModelSelection = ModelSelection & {
   model: string; contextWindow: number; inputs?: ModelInput[]; decisionModel?: DecisionModel | null;
 };
 
-export type ChatResponder = (
-  res: ServerResponse,
-  messages: unknown[],
-  selected?: ResolvedModelSelection,
-) => Promise<void>;
-
 export async function routeChat(
   req: IncomingMessage,
   res: ServerResponse,
   modelSettings: ModelSettingsStore | undefined,
-  respond: ChatResponder,
-  runs?: SearchRuns,
+  runs: SearchRuns,
 ): Promise<void> {
   if (!sameOrigin(req)) return sendText(res, 403, 'cross-origin chats are not allowed');
 
@@ -50,9 +43,7 @@ export async function routeChat(
       decisionModel: settings.decisionModels?.find((item) => item.key === settings.decisions) ?? null }
     : undefined;
 
-  await withCanvasChat(body?.id, () => runs
-    ? submitSearch(res, body, selection, runs)
-    : respond(res, messages, selection));
+  await submitSearch(res, body, selection, runs);
 }
 
 export async function routeMeta(

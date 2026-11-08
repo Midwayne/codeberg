@@ -1,10 +1,8 @@
 import type { ChatGenerator } from '../runs/types.js';
 import type { SearchRuns } from '../runs/manager.js';
 import type { CanvasStore } from '../../core/canvas/store.js';
-import { type ToolLoopAgent } from 'ai';
 import type { PromptCommand } from '../../core/hooks/types.js';
 import type { LearningService } from '../../core/learning/service.js';
-import type { ChatResponder, ResolvedModelSelection } from '../chat-routes.js';
 import { type ModelSettingsStore } from '../model-selection/settings.js';
 import { ResourceSettings } from '../resources.js';
 import { WebSessionStore } from '../sessions/store.js';
@@ -28,12 +26,11 @@ export const MODELS_PATH = '/api/models';
 
 export interface WebServerOptions {
   /** Server-owned search execution; disconnected subscribers do not cancel it. */
-  generate?: ChatGenerator;
   runs?: SearchRuns;
+  /** Builds the default `runs` when none is supplied. */
+  generate?: ChatGenerator;
   /** Shared durable model accounting across every project. */
   usage?: UsageStore;
-  /** The ai-sdk agent driving each turn. */
-  agent?: ToolLoopAgent;
   /** Shown in the page title bar; also returned from `/api/meta`. */
   title: string;
   canvas?: CanvasStore;
@@ -44,23 +41,15 @@ export interface WebServerOptions {
    */
   staticRoot?: string;
   /**
-   * Legacy direct-response override, mainly for routing tests. Supplying this
-   * bypasses server-owned runs unless `runs` is also supplied. Use `generate`
-   * to customize generation while preserving durability and reconnect support.
-   */
-  respond?: ChatResponder;
-  /**
-   * Backs the `/api/sessions` routes that persist browser chats so they can be
-   * listed and resumed. Defaults to a `WebSessionStore` under `<CODEBERG_HOME>/
-   * web-sessions`; inject one (e.g. a temp dir) in tests.
+   * Backs the default `runs` and the `/api/sessions` routes. Defaults to a
+   * `WebSessionStore` under `<CODEBERG_HOME>/web-sessions`; inject one (e.g. a
+   * temp dir) in tests. Ignored when `runs` is supplied.
    */
   sessionStore?: WebSessionStore;
   /** Durable interaction/feedback/knowledge subsystem. */
   learning?: LearningService;
   /** Persistent catalog and UI choices. Omitted for servers without model selection. */
   modelSettings?: ModelSettingsStore;
-  /** Resolve and cache a model-bound agent for this request's selection. */
-  selectAgent?: (selection: ResolvedModelSelection) => Promise<ToolLoopAgent>;
   /**
    * Slash commands served at `/api/commands` for the composer autocomplete.
    * Defaults to the built-in hook catalog, so a newly registered prompt hook
@@ -69,6 +58,11 @@ export interface WebServerOptions {
   commands?: PromptCommand[];
   /** Local monitoring/cleanup service. The server owns its sampling lifecycle. */
   resources?: ResourceSettings;
-  /** Resolve a separately launched local daemon for process resource accounting. */
-  daemonUrl?: string;
 }
+
+/** The services every project request handler routes to. */
+export type ProjectServices = WebServerOptions & {
+  runs: SearchRuns;
+  resources: ResourceSettings;
+  usage: UsageStore;
+};

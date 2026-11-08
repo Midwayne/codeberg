@@ -1,6 +1,5 @@
 import type { UIMessage } from 'ai';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import type { ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -20,13 +19,9 @@ import {
   type WebServerOptions,
 } from './server/types.js';
 import { createWebServer } from './server.js';
-import { type ChatResponder } from './chat-routes.js';
+import { replyGenerator, userMessage } from './runs/test-fixtures.js';
 import { WebSessionStore } from './sessions/store.js';
 import { formatWebTitle } from './title.js';
-
-// `agent` is unused when `respond` is injected; cast a stub so the tests can
-// drive routing without a live model.
-const stubAgent = {} as WebServerOptions['agent'];
 
 let baseUrl = '';
 let close: (() => Promise<void>) | undefined;
@@ -36,7 +31,6 @@ const learningServices: LearningService[] = [];
 async function start(opts: Partial<WebServerOptions> = {}): Promise<string> {
   const sessionStore = opts.sessionStore ?? tempSessionStore();
   const server = createWebServer({
-    agent: stubAgent,
     title: 'test-title',
     sessionStore,
     resources: new ResourceSettings({
@@ -174,17 +168,19 @@ describe('web server', () => {
       started = resolve;
     });
     await start({
-      respond: async (res) => {
+      generate: replyGenerator(async () => {
         started?.();
         await new Promise<void>((resolve) => {
           finish = resolve;
         });
-        res.end('ok');
-      },
+
+        return 'ok';
+      }),
     });
     const chat = fetch(baseUrl + CHAT_PATH, {
       method: 'POST',
-      body: JSON.stringify({ messages: [] }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: [userMessage('hi')] }),
     });
 
     await inFlight;
@@ -198,22 +194,24 @@ describe('web server', () => {
       expect(res.status).toBe(409);
     } finally {
       finish?.();
-      await chat;
+      await (await chat).text();
     }
   });
 
-  it('keeps cleanup blocked until a streaming response finishes even if its responder returns early', async () => {
+  it('keeps cleanup blocked until a streaming response finishes even though its route returned', async () => {
     let finish: (() => void) | undefined;
     await start({
-      respond: async (res) => {
-        res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.write('streaming');
-        finish = () => res.end('done');
-      },
+      generate: replyGenerator(
+        () =>
+          new Promise<string>((resolve) => {
+            finish = () => resolve('done');
+          }),
+      ),
     });
     const response = await fetch(baseUrl + CHAT_PATH, {
       method: 'POST',
-      body: JSON.stringify({ messages: [] }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: [userMessage('hi')] }),
     });
 
     try {
@@ -234,22 +232,27 @@ describe('web server', () => {
     const dir = mkdtempSync(join(tmpdir(), 'codeberg-agent-log-'));
     tempDirs.push(dir);
     vi.stubEnv('CODEBERG_LOG_DIR', dir);
-    await start({
-      respond: async (res, messages) => {
-        if (messages.includes('fail')) throw new Error('model unavailable');
+    let failing = false;
+    const modelSettings = {
+      current: async () => {
+        if (failing) throw new Error('model unavailable');
 
-        res.end('ok');
+        return { models: [], chat: { key: 'none', effort: 'low' } };
       },
-    });
-    const send = (messages: string[]) =>
+    } as unknown as ModelSettingsStore;
+    await start({ modelSettings, generate: replyGenerator() });
+    const send = (text: string) =>
       fetch(baseUrl + CHAT_PATH, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages }),
+        body: JSON.stringify({ messages: [userMessage(text)] }),
       });
 
-    expect((await send(['private prompt'])).status).toBe(200);
-    expect((await send(['fail'])).status).toBe(500);
+    const sent = await send('private prompt');
+    expect(sent.status).toBe(200);
+    await sent.text();
+    failing = true;
+    expect((await send('fail')).status).toBe(500);
     const log = readFileSync(join(dir, 'agent.log'), 'utf8');
     expect(
       log
@@ -312,23 +315,28 @@ describe('web server', () => {
     const received: string[] = [];
     await start({
       modelSettings: models,
-      respond: async (res, _messages, selected) => {
+      generate: replyGenerator(({ selection: selected }) => {
         received.push(
           `${selected?.key}:${selected?.model}:${selected?.effort}:${selected?.contextWindow}:${selected?.inputs?.join(',')}`,
         );
-        res.end('ok');
-      },
+
+        return 'ok';
+      }),
     });
 
     const initial = await (await fetch(`${baseUrl}/api/models`)).json();
     expect(initial.chat).toEqual({ key: 'openai:small', effort: 'low' });
     expect(initial.learning).toEqual({ key: 'openai:large', effort: 'none' });
-    const send = () =>
-      fetch(baseUrl + CHAT_PATH, {
+    const send = async () => {
+      const response = await fetch(baseUrl + CHAT_PATH, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: '{"messages":[]}',
+        body: JSON.stringify({ messages: [userMessage('hi')] }),
       });
+      await response.text();
+
+      return response;
+    };
 
     expect((await send()).status).toBe(200);
     const saved = await fetch(`${baseUrl}/api/models`, {
@@ -384,12 +392,10 @@ describe('web server', () => {
       defaultLearning: { key: 'google:plain', effort: 'none' },
     });
 
-    const respond = vi.fn(async (res: ServerResponse, _messages: unknown[]) => {
-      res.end('ok');
-    });
-    await start({ modelSettings: store, respond });
-    const send = (mediaType: string, url = `data:${mediaType};base64,AQID`) =>
-      fetch(baseUrl + CHAT_PATH, {
+    const generate = vi.fn(replyGenerator());
+    await start({ modelSettings: store, generate });
+    const send = async (mediaType: string, url = `data:${mediaType};base64,AQID`) => {
+      const response = await fetch(baseUrl + CHAT_PATH, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -405,13 +411,17 @@ describe('web server', () => {
           ],
         }),
       });
+      await response.text();
+
+      return response;
+    };
 
     for (const mediaType of ['image/png', 'audio/mpeg', 'video/mp4', 'application/pdf']) {
       expect((await send(mediaType)).status).toBe(200);
     }
 
-    expect(respond).toHaveBeenCalledTimes(4);
-    expect(respond.mock.calls[0][1]).toMatchObject([
+    expect(generate).toHaveBeenCalledTimes(4);
+    expect(generate.mock.calls[0]![0].messages).toMatchObject([
       { parts: [{ type: 'text' }, { type: 'file', mediaType: 'image/png' }] },
     ]);
     expect((await send('application/zip')).status).toBe(400);
@@ -421,7 +431,7 @@ describe('web server', () => {
       learning: { key: 'google:plain', effort: 'none' },
     });
     expect((await send('image/png')).status).toBe(400);
-    expect(respond).toHaveBeenCalledTimes(4);
+    expect(generate).toHaveBeenCalledTimes(4);
   });
 
   it('omits learning routes and collection when the learning service is absent', async () => {
@@ -514,15 +524,15 @@ describe('web server', () => {
     expect(body).toContain('<title>spa</title>');
   });
 
-  it('routes posted messages to the responder and streams its output', async () => {
+  it('routes posted messages to a server run and streams its output', async () => {
     let received: unknown[] | undefined;
-    const respond: ChatResponder = async (res: ServerResponse, messages) => {
-      received = messages;
-      res.writeHead(200, { 'Content-Type': 'text/plain' });
-      res.end('streamed');
-    };
+    await start({
+      generate: replyGenerator(({ messages }) => {
+        received = messages;
 
-    await start({ respond });
+        return 'streamed';
+      }),
+    });
 
     const messages = [{ id: '1', role: 'user', parts: [{ type: 'text', text: 'hi' }] }];
     const res = await fetch(baseUrl + CHAT_PATH, {
@@ -531,27 +541,29 @@ describe('web server', () => {
       body: JSON.stringify({ messages }),
     });
 
-    expect(await res.text()).toBe('streamed');
+    expect(await res.text()).toContain('"delta":"streamed"');
     expect(received).toEqual(messages);
   });
 
   it('runs separate chat requests concurrently and keeps their responses isolated', async () => {
     const entered: string[] = [];
     const release = new Map<string, () => void>();
-    const respond: ChatResponder = async (res, messages) => {
-      const marker = String((messages[0] as { marker?: unknown } | undefined)?.marker);
-      entered.push(marker);
-      await new Promise<void>((resolve) => release.set(marker, resolve));
-      res.end(`response-${marker}`);
-    };
+    await start({
+      generate: replyGenerator(async ({ messages }) => {
+        const part = messages[0]?.parts[0];
+        const marker = part?.type === 'text' ? part.text : '';
+        entered.push(marker);
+        await new Promise<void>((resolve) => release.set(marker, resolve));
 
-    await start({ respond });
+        return `response-${marker}`;
+      }),
+    });
 
     const post = (marker: string) =>
       fetch(baseUrl + CHAT_PATH, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ marker }] }),
+        body: JSON.stringify({ id: `chat-${marker}`, messages: [userMessage(marker)] }),
       }).then((response) => response.text());
 
     const responseA = post('a');
@@ -561,28 +573,24 @@ describe('web server', () => {
     release.get('b')?.();
     release.get('a')?.();
 
-    await expect(Promise.all([responseA, responseB])).resolves.toEqual([
-      'response-a',
-      'response-b',
-    ]);
+    const [textA, textB] = await Promise.all([responseA, responseB]);
+    expect(textA).toContain('response-a');
+    expect(textA).not.toContain('response-b');
+    expect(textB).toContain('response-b');
   });
 
-  it('defaults to an empty message list on a malformed body', async () => {
-    let received: unknown[] | undefined;
-    const respond: ChatResponder = async (res, messages) => {
-      received = messages;
-      res.end('ok');
-    };
+  it('rejects a malformed chat body before starting a run', async () => {
+    const generate = vi.fn(replyGenerator());
+    await start({ generate });
 
-    await start({ respond });
-
-    await fetch(baseUrl + CHAT_PATH, {
+    const response = await fetch(baseUrl + CHAT_PATH, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: 'not json',
     });
 
-    expect(received).toEqual([]);
+    expect(response.status).toBe(400);
+    expect(generate).not.toHaveBeenCalled();
   });
 
   it('persists, lists, resumes, and deletes chat sessions', async () => {
@@ -749,10 +757,11 @@ describe('web server', () => {
     let prompted: unknown[] | undefined;
     await start({
       sessionStore: tempSessionStore(),
-      respond: async (res, messages) => {
+      generate: replyGenerator(({ messages }) => {
         prompted = messages;
-        res.end('ok');
-      },
+
+        return 'ok';
+      }),
     });
     const url = `${baseUrl}${SESSIONS_PATH}`;
     const put = (id: string, title: string, text: string, answer?: string) =>
@@ -814,15 +823,13 @@ describe('web server', () => {
     );
 
     const archived = await (await fetch(`${url}/first`)).json();
-    expect(
-      (
-        await fetch(baseUrl + CHAT_PATH, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: archived.messages }),
-        })
-      ).status,
-    ).toBe(200);
+    const prompt = await fetch(baseUrl + CHAT_PATH, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: archived.messages }),
+    });
+    expect(prompt.status).toBe(200);
+    await prompt.text();
     expect(prompted).toEqual(archived.messages);
     await put('first', 'First chat', 'Searchable secret phrase and a new prompt');
     expect(await (await fetch(`${url}/first`)).json()).toMatchObject({
