@@ -1443,15 +1443,11 @@ cberg_status cberg_graph_save(const cberg_graph *graph, const char *path) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     char tmp[4096];
-    int n = snprintf(tmp, sizeof tmp, "%s.tmp", path);
-    if (n < 0 || (size_t)n >= sizeof tmp) {
-        return CBERG_ERR_INVALID_ARGUMENT;
+    FILE *f = NULL;
+    cberg_status st = cberg_atomic_begin(path, tmp, sizeof tmp, &f);
+    if (st != CBERG_OK) {
+        return st;
     }
-    FILE *f = fopen(tmp, "wb");
-    if (f == NULL) {
-        return CBERG_ERR_IO;
-    }
-    cberg_status st = CBERG_OK;
     size_t live_nodes = 0;
     size_t live_refs = 0;
     cberg_graph_counts(graph, &live_nodes, &live_refs);
@@ -1489,27 +1485,15 @@ cberg_status cberg_graph_save(const cberg_graph *graph, const char *path) {
             goto fail;
         }
     }
-    if (fflush(f) != 0) {
-        st = CBERG_ERR_IO;
-        goto fail;
-    }
-    if (fclose(f) != 0) {
-        f = NULL;
-        st = CBERG_ERR_IO;
-        goto fail;
-    }
-    if (rename(tmp, path) != 0) {
-        st = CBERG_ERR_IO;
-        remove(tmp);
+    st = cberg_atomic_commit(&f, tmp, path);
+    if (st != CBERG_OK) {
         return st;
     }
+
     return CBERG_OK;
 
 fail:
-    if (f != NULL) {
-        fclose(f);
-    }
-    remove(tmp);
+    cberg_atomic_abort(f, tmp);
     return st;
 }
 

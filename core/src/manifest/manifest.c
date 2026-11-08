@@ -30,6 +30,7 @@
 
 #include "arena.h"
 #include "cacheline.h"
+#include "binio.h"
 #include "fileio.h"
 #include "grow.h"
 #include "pathutil.h"
@@ -583,15 +584,11 @@ cberg_status cberg_manifest_save(const cberg_manifest *manifest, const char *pat
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     char tmp[4096];
-    int n = snprintf(tmp, sizeof tmp, "%s.tmp", path);
-    if (n < 0 || (size_t)n >= sizeof tmp) {
-        return CBERG_ERR_INVALID_ARGUMENT;
+    FILE *f = NULL;
+    cberg_status st = cberg_atomic_begin(path, tmp, sizeof tmp, &f);
+    if (st != CBERG_OK) {
+        return st;
     }
-    FILE *f = fopen(tmp, "wb");
-    if (f == NULL) {
-        return CBERG_ERR_IO;
-    }
-    cberg_status st = CBERG_OK;
     uint32_t version = CBERG_MANIFEST_VERSION;
     uint64_t count = manifest->len;
     if (fwrite(CBERG_MANIFEST_MAGIC, 1, 4, f) != 4 || fwrite(&version, sizeof version, 1, f) != 1 ||
@@ -616,27 +613,15 @@ cberg_status cberg_manifest_save(const cberg_manifest *manifest, const char *pat
             goto fail;
         }
     }
-    if (fflush(f) != 0) {
-        st = CBERG_ERR_IO;
-        goto fail;
-    }
-    if (fclose(f) != 0) {
-        f = NULL;
-        st = CBERG_ERR_IO;
-        goto fail;
-    }
-    if (rename(tmp, path) != 0) {
-        st = CBERG_ERR_IO;
-        remove(tmp);
+    st = cberg_atomic_commit(&f, tmp, path);
+    if (st != CBERG_OK) {
         return st;
     }
+
     return CBERG_OK;
 
 fail:
-    if (f != NULL) {
-        fclose(f);
-    }
-    remove(tmp);
+    cberg_atomic_abort(f, tmp);
     return st;
 }
 

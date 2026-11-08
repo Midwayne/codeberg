@@ -16,6 +16,53 @@
  */
 #define CBERG_BIN_STR_NULL 0xFFFFFFFFu
 
+/* Publish path.tmp, then rename it over path. A failed publish removes the temp. */
+static inline cberg_status cberg_atomic_begin(const char *path, char *tmp, size_t tmp_cap, FILE **out) {
+    int n = snprintf(tmp, tmp_cap, "%s.tmp", path);
+    if (n < 0 || (size_t)n >= tmp_cap) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+
+    *out = fopen(tmp, "wb");
+
+    return *out == NULL ? CBERG_ERR_IO : CBERG_OK;
+}
+
+static inline cberg_status cberg_atomic_commit(FILE **fp, const char *tmp, const char *path) {
+    FILE *f = *fp;
+    if (fflush(f) != 0) {
+        fclose(f);
+        *fp = NULL;
+        remove(tmp);
+
+        return CBERG_ERR_IO;
+    }
+
+    if (fclose(f) != 0) {
+        *fp = NULL;
+        remove(tmp);
+
+        return CBERG_ERR_IO;
+    }
+
+    *fp = NULL;
+    if (rename(tmp, path) != 0) {
+        remove(tmp);
+
+        return CBERG_ERR_IO;
+    }
+
+    return CBERG_OK;
+}
+
+static inline void cberg_atomic_abort(FILE *f, const char *tmp) {
+    if (f != NULL) {
+        fclose(f);
+    }
+
+    remove(tmp);
+}
+
 static inline cberg_status cberg_bin_w_u32(FILE *f, uint32_t v) {
     return fwrite(&v, sizeof v, 1, f) == 1 ? CBERG_OK : CBERG_ERR_IO;
 }
