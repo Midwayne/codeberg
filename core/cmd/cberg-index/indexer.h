@@ -22,7 +22,9 @@
  * embed_mu; per-repo state is guarded by that repo's mu. Lock order is
  * strictly repo->mu -> embed_mu (indexing) or each alone (search embeds the
  * query under embed_mu only, then takes one repo->mu at a time) — never
- * embed_mu -> repo->mu.
+ * embed_mu -> repo->mu. workspace_graph.c takes graph_mu, then every repo->mu
+ * in repos order, drops the repo locks after the snapshot, and holds graph_mu
+ * for the view. Do not take graph_mu while holding repo->mu or embed_mu.
  */
 
 typedef struct cberg_engine cberg_engine;
