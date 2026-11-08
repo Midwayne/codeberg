@@ -1,6 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { artifactFingerprint } from './revision.js';
+import { changesApplicable } from './revision.js';
 
 import { writeJsonImmutable } from '../fs.js';
 import type { LearningStore } from '../store.js';
@@ -114,18 +114,10 @@ export class DreamingReports {
       (await store.currentKnowledgeArtifacts()).map((artifact) => artifact.id),
     );
     const current = new Map(
-      (await store.projectedKnowledgeArtifacts())
-        .filter((artifact) => freshIds.has(artifact.id))
-        .map((artifact) => [artifact.id, artifact]),
+      (await store.projectedKnowledgeArtifacts()).map((artifact) => [artifact.id, artifact]),
     );
 
-    if (
-      !report.changes.every(
-        ({ before }) =>
-          current.has(before.id) &&
-          artifactFingerprint(current.get(before.id)!) === artifactFingerprint(before),
-      )
-    ) {
+    if (!changesApplicable(report.changes, current, freshIds)) {
       throw new LearningError(
         'conflict',
         'stale dreaming report; generate a new report against current knowledge',

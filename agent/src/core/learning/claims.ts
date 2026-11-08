@@ -4,6 +4,8 @@ import { sourceTextFor, type SourceObservation } from './memory-source/reading.j
 import { redactSecrets } from './redact.js';
 import type { KnowledgeClaim } from './types.js';
 
+export const MAX_CLAIMS = 12;
+
 /** Enforce provenance for *each* claim; exact quotations are evidence, not semantic proof. */
 export function validatedClaims(
   raw: unknown,
@@ -14,7 +16,7 @@ export function validatedClaims(
 
   const claims: KnowledgeClaim[] = [];
   for (const [index, value] of raw.entries()) {
-    if (claims.length >= 12) {
+    if (claims.length >= MAX_CLAIMS) {
       onRejected?.(index);
       continue;
     }

@@ -1,4 +1,5 @@
 import { generateText, type LanguageModel } from 'ai';
+import { estimateTokens } from '../../history-tokens.js';
 import { maxReasoningProviderOptions } from '../../reasoning.js';
 import type { Generator, Prompt, SearchOptions, SearchResult } from '../../types.js';
 import { redactSecrets } from '../redact.js';
@@ -45,7 +46,7 @@ export function createAutomaticEvaluationRuntime(
         model: configuration.candidate.model,
         tool_calls: 1,
         latency_ms: Date.now() - started,
-        retrieved_tokens: Math.ceil(context.join('').length / 4),
+        retrieved_tokens: estimateTokens(context.join('')),
       };
     },
     judge: (configuration) => evaluationGenerator(options, configuration.judge),

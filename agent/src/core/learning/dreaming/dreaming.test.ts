@@ -303,6 +303,14 @@ it('rotates bounded passes so old knowledge is eventually considered', async () 
   expect(first.omitted).toBe(8);
   expect(new Set([...first.inputs!, ...second.inputs!].map((input) => input.id)).size).toBe(40);
 });
+it('accepts a plan wrapped in prose like the knowledge extractor does', async () => {
+  const { consolidator, generate } = await fixture();
+  generate.mockResolvedValueOnce(
+    `Here is the plan: ${JSON.stringify({ summary: 'No merge required.', merges: [], links: [] })}`,
+  );
+
+  expect((await consolidator.plan('dream-prose')).summary).toBe('No merge required.');
+});
 it('lets the agent follow related IDs and startup index paths through knowledge search', async () => {
   const { store } = await fixture();
   expect((await store.searchKnowledge('knowledge-1'))[0]?.artifact.id).toBe('knowledge-1');

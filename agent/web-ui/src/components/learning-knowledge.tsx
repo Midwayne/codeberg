@@ -2,10 +2,16 @@ import { Components, Toggle } from './learning-controls';
 
 import { KNOWLEDGE_CATEGORIES } from '@agent/core/learning/preferences';
 import type { LearningSettings } from '@agent/core/learning/preferences.js';
+import type { KnowledgeCategory } from '@agent/core/learning/types.js';
 
 import type { LearningSettingsView } from './learning-settings';
 
-export const categoryLabels = { services: 'Services', flows: 'Flows', concepts: 'Concepts', debugging: 'Debugging' };
+export const categoryLabels: Record<KnowledgeCategory, string> = {
+  services: 'Services',
+  flows: 'Flows',
+  concepts: 'Concepts',
+  debugging: 'Debugging',
+};
 
 export type KnowledgeSettingsProps = Pick<Parameters<typeof LearningSettingsView>[0], 'settings' | 'onChange'> & {
   locked: boolean;
