@@ -85,15 +85,18 @@ export interface Asker {
 
 /** ai-sdk v7 standardized efforts plus `max`, which OpenAI Responses gateways
  *  accept via providerOptions.openai.reasoningEffort. */
-export type ReasoningEffort =
-  | 'provider-default'
-  | 'none'
-  | 'minimal'
-  | 'low'
-  | 'medium'
-  | 'high'
-  | 'xhigh'
-  | 'max';
+export const REASONING_EFFORTS = [
+  'provider-default',
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+] as const;
+
+export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
 
 export interface Turn {
   role: 'user' | 'assistant';

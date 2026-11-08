@@ -9,7 +9,7 @@ import { currentProjectEnvironment } from './projects.js';
 import { projectDaemonUrl } from './daemon-url.js';
 import { envFlag } from './env.js';
 import { assertAgentRuntime } from './runtime.js';
-import type { ReasoningEffort } from './types.js';
+import { REASONING_EFFORTS, type ReasoningEffort } from './types.js';
 import { agentProfiles } from './model-profiles.js';
 import type { ModelInput } from './model-types.js';
 import type { DecisionModel, DecisionUsageSink } from './decisions/types.js';
@@ -27,17 +27,6 @@ export interface AgentConfig {
   contextWindow?: number;
   learning?: LearningService | false;
 }
-
-const REASONING_EFFORTS: readonly ReasoningEffort[] = [
-  'provider-default',
-  'none',
-  'minimal',
-  'low',
-  'medium',
-  'high',
-  'xhigh',
-  'max',
-];
 
 /** Read CODEBERG_REASONING, including Responses-compatible max. */
 export function reasoningFromEnv(

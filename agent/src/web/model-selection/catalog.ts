@@ -9,7 +9,7 @@ import {
   type ModelSelection,
 } from '../../core/model-types.js';
 import { maxReasoningProviderOptions } from '../../core/reasoning.js';
-import type { ReasoningEffort } from '../../core/types.js';
+import { REASONING_EFFORTS, type ReasoningEffort } from '../../core/types.js';
 import { profileFor } from '../../providers/profiles.js';
 import { parsePricing } from '../usage/pricing.js';
 
@@ -26,19 +26,8 @@ function object(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
-const EFFORTS: readonly ReasoningEffort[] = [
-  'provider-default',
-  'none',
-  'minimal',
-  'low',
-  'medium',
-  'high',
-  'xhigh',
-  'max',
-];
-
 function validEffort(value: unknown): value is ReasoningEffort {
-  return typeof value === 'string' && EFFORTS.includes(value as ReasoningEffort);
+  return typeof value === 'string' && (REASONING_EFFORTS as readonly string[]).includes(value);
 }
 
 function fallbackCatalog(options: ModelCatalogOptions): CatalogModel[] {
