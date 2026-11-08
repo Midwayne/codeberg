@@ -116,6 +116,35 @@ const char *cberg_indexer_version(void);
 #define CBERG_SNIPPET_MAX 400
 #define CBERG_CHUNK_BODY_MAX 65536
 
+/* Result limits for every engine query. A limit of 0 selects the default and
+ * larger limits are clamped to the max; IPC and the daemon pass limits through
+ * unchanged, so this is the only copy of the policy. */
+#define CBERG_SEARCH_DEFAULT 10
+#define CBERG_SEARCH_MAX 64
+#define CBERG_SYMBOL_DEFAULT 20
+#define CBERG_SYMBOL_MAX 64
+#define CBERG_OUTLINE_MAX 256
+#define CBERG_GRAPH_SEARCH_DEFAULT 20
+#define CBERG_GRAPH_SEARCH_MAX 64
+#define CBERG_TRACE_DEFAULT 64
+#define CBERG_TRACE_MAX 256
+#define CBERG_TRACE_DEPTH_DEFAULT 2
+#define CBERG_HUBS_DEFAULT 10
+#define CBERG_HUBS_MAX 64
+#define CBERG_REFS_DEFAULT 50
+#define CBERG_REFS_MAX 256
+
+/* The number of results to produce for `limit`, never more than `cap` slots. */
+static inline size_t cberg_query_limit(size_t limit, size_t dflt, size_t max, size_t cap) {
+    if (limit == 0) {
+        limit = dflt;
+    }
+    if (limit > max) {
+        limit = max;
+    }
+    return limit < cap ? limit : cap;
+}
+
 typedef struct cberg_search_filters {
     const char *path_glob; /* rg-style glob on chunk.path (see pathglob.h); NULL/empty = any */
     int kind;              /* cberg_chunk_kind, or -1 for any */

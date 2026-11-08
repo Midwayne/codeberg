@@ -10,7 +10,7 @@
  * buffer is marked failed and later appends are ignored, and the caller sends
  * an "out of memory" error instead of a partial document.
  *
- * Field writers take `sep` (',' or 0) so callers compose objects without
+ * Field writers take `sep` (',', '{', or 0) so callers compose objects without
  * splicing already-encoded text.
  */
 typedef struct ipc_json {

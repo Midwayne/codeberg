@@ -7,6 +7,8 @@ add_library(cberg_index_engine STATIC
   graph_query.c
   embedding.c
   ipc.c
+  ipc_commands.c
+  ipc_json.c
   wipe.c
   workspace_graph.c
   workspace_resolve.c

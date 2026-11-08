@@ -245,14 +245,9 @@ cberg_status cberg_engine_search_hits(cberg_engine *eng, const char *query, cons
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     *found = 0;
-    if (cap == 0 || k == 0) {
+    k = cberg_query_limit(k, CBERG_SEARCH_DEFAULT, CBERG_SEARCH_MAX, cap);
+    if (k == 0) {
         return CBERG_OK;
-    }
-    if (k > cap) {
-        k = cap;
-    }
-    if (k > 64) {
-        k = 64;
     }
     if (!eng->vectors) {
         return CBERG_ERR_NOT_IMPLEMENTED;
@@ -440,14 +435,9 @@ cberg_status cberg_engine_find_symbol(cberg_engine *eng, const char *name, const
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     *found = 0;
-    if (cap == 0 || limit == 0) {
+    limit = cberg_query_limit(limit, CBERG_SYMBOL_DEFAULT, CBERG_SYMBOL_MAX, cap);
+    if (limit == 0) {
         return CBERG_OK;
-    }
-    if (limit > cap) {
-        limit = cap;
-    }
-    if (limit > 64) {
-        limit = 64;
     }
     if (repo_key != NULL && repo_key[0] == '\0') {
         repo_key = NULL;

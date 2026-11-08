@@ -93,25 +93,19 @@ cberg_status cberg_engine_search_graph(cberg_engine *eng, const char *name, cons
     if (st != CBERG_OK) {
         return st;
     }
-    if (limit == 0) {
-        limit = 20;
-    }
-    if (limit > cap) {
-        limit = cap;
-    }
+    limit = cberg_query_limit(limit, CBERG_GRAPH_SEARCH_DEFAULT, CBERG_GRAPH_SEARCH_MAX, cap);
     uint32_t kind_mask = cberg_graph_node_mask_parse(kind);
     const char *name_filter = (name != NULL && name[0] != '\0') ? name : NULL;
     const char *path_filter = (path_prefix != NULL && path_prefix[0] != '\0') ? path_prefix : NULL;
 
-    const cberg_graph_node *nodes[64];
+    const cberg_graph_node *nodes[CBERG_GRAPH_SEARCH_MAX];
     size_t n = 0;
-    size_t want = limit > 64 ? 64 : limit;
     pthread_mutex_lock(&r->mu);
     if (!r->ready || r->graph == NULL) {
         pthread_mutex_unlock(&r->mu);
         return CBERG_ERR_NOT_FOUND;
     }
-    st = cberg_graph_find_nodes(r->graph, name_filter, kind_mask, path_filter, nodes, want, &n);
+    st = cberg_graph_find_nodes(r->graph, name_filter, kind_mask, path_filter, nodes, limit, &n);
     if (st == CBERG_OK) {
         for (size_t i = 0; i < n; i++) {
             fill_engine_gnode(&out[i], r->key, r->graph, nodes[i]);
@@ -134,14 +128,9 @@ cberg_status cberg_engine_trace_path(cberg_engine *eng, const char *name, uint64
     if (st != CBERG_OK) {
         return st;
     }
-    if (limit == 0) {
-        limit = 64;
-    }
-    if (limit > cap) {
-        limit = cap;
-    }
+    limit = cberg_query_limit(limit, CBERG_TRACE_DEFAULT, CBERG_TRACE_MAX, cap);
     if (max_depth == 0) {
-        max_depth = 2;
+        max_depth = CBERG_TRACE_DEPTH_DEFAULT;
     }
 
     uint32_t dirs = CBERG_GRAPH_IN | CBERG_GRAPH_OUT;
@@ -193,10 +182,9 @@ cberg_status cberg_engine_trace_path(cberg_engine *eng, const char *name, uint64
         }
     }
 
-    cberg_graph_hop hops[256];
+    cberg_graph_hop hops[CBERG_TRACE_MAX];
     size_t hop_n = 0;
-    size_t want = limit > 256 ? 256 : limit;
-    st = cberg_graph_trace(r->graph, id, dirs, kind_mask, max_depth, hops, want, &hop_n);
+    st = cberg_graph_trace(r->graph, id, dirs, kind_mask, max_depth, hops, limit, &hop_n);
     if (st == CBERG_OK) {
         for (size_t i = 0; i < hop_n; i++) {
             fill_engine_gedge(&out[i].edge, r->key, r->graph, &hops[i].edge);
@@ -284,12 +272,7 @@ cberg_status cberg_engine_graph_hubs(cberg_engine *eng, const char *repo_key, si
     if (st != CBERG_OK) {
         return st;
     }
-    if (limit == 0) {
-        limit = 10;
-    }
-    if (limit > cap) {
-        limit = cap;
-    }
+    limit = cberg_query_limit(limit, CBERG_HUBS_DEFAULT, CBERG_HUBS_MAX, cap);
 
     pthread_mutex_lock(&r->mu);
     if (!r->ready || r->graph == NULL) {
@@ -297,10 +280,9 @@ cberg_status cberg_engine_graph_hubs(cberg_engine *eng, const char *repo_key, si
         return CBERG_ERR_NOT_FOUND;
     }
 
-    cberg_graph_hub hubs[64];
+    cberg_graph_hub hubs[CBERG_HUBS_MAX];
     size_t n = 0;
-    size_t want = limit > 64 ? 64 : limit;
-    st = cberg_graph_hubs(r->graph, hubs, want, &n);
+    st = cberg_graph_hubs(r->graph, hubs, limit, &n);
     if (st == CBERG_OK) {
         for (size_t i = 0; i < n; i++) {
             const cberg_graph_node *node = cberg_graph_node_by_id(r->graph, hubs[i].id);
@@ -328,12 +310,7 @@ cberg_status cberg_engine_graph_references(cberg_engine *eng, const char *name, 
     if (st != CBERG_OK) {
         return st;
     }
-    if (limit == 0) {
-        limit = 50;
-    }
-    if (limit > cap) {
-        limit = cap;
-    }
+    limit = cberg_query_limit(limit, CBERG_REFS_DEFAULT, CBERG_REFS_MAX, cap);
 
     pthread_mutex_lock(&r->mu);
     if (!r->ready || r->graph == NULL) {
@@ -374,9 +351,9 @@ cberg_status cberg_engine_graph_references(cberg_engine *eng, const char *name, 
     uint32_t kind_mask = CBERG_GEDGE_CALLS | CBERG_GEDGE_INHERITS | CBERG_GEDGE_IMPORTS | CBERG_GEDGE_REFERENCES;
     size_t written = 0;
     for (size_t i = 0; i < n_nodes && written < limit; i++) {
-        cberg_graph_edge edges[256];
+        cberg_graph_edge edges[CBERG_REFS_MAX];
         size_t n_edges = 0;
-        st = cberg_graph_edges_to(r->graph, nodes[i]->id, kind_mask, edges, 256, &n_edges);
+        st = cberg_graph_edges_to(r->graph, nodes[i]->id, kind_mask, edges, CBERG_REFS_MAX, &n_edges);
         if (st != CBERG_OK) {
             continue;
         }

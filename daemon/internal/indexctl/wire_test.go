@@ -17,6 +17,19 @@ func TestEncodeSearchWithFilters(t *testing.T) {
 	}
 }
 
+func TestEncodeSearchDefaultK(t *testing.T) {
+	if line := encodeSearch(SearchOptions{Query: "q"}); line != "search\tq\t" {
+		t.Fatalf("default k wire: %q", line)
+	}
+}
+
+func TestEncodeTracePathDefaults(t *testing.T) {
+	line := encodeTracePath(TracePathOptions{Name: "helper"})
+	if line != "trace_path\thelper\t\t\t\t\t\t" {
+		t.Fatalf("encodeTracePath defaults: %q", line)
+	}
+}
+
 func TestEncodeSearchRepoOnly(t *testing.T) {
 	line := encodeSearch(SearchOptions{Query: "q", K: 3, Repo: "beta"})
 	if line != "search\tq\t3\tbeta" {
@@ -32,7 +45,7 @@ func TestEncodeChunk(t *testing.T) {
 
 func TestEncodeSymbol(t *testing.T) {
 	line := encodeSymbol(SymbolOptions{Name: "Add", Repo: "alpha", Kind: "function", Limit: 0})
-	if line != "symbol\tAdd\talpha\tfunction\t20" {
+	if line != "symbol\tAdd\talpha\tfunction\t" {
 		t.Fatalf("encodeSymbol: %q", line)
 	}
 }
@@ -77,7 +90,7 @@ func TestEncodeGraphHubs(t *testing.T) {
 		t.Fatalf("encodeGraphHubs empty repo: %q", got)
 	}
 
-	if got := encodeGraphHubs(GraphHubsOptions{Repo: "main", Limit: 0}); got != "graph_hubs\tmain\t10" {
+	if got := encodeGraphHubs(GraphHubsOptions{Repo: "main", Limit: 0}); got != "graph_hubs\tmain\t" {
 		t.Fatalf("encodeGraphHubs default limit: %q", got)
 	}
 }
@@ -89,7 +102,7 @@ func TestEncodeGraphRefs(t *testing.T) {
 	}
 
 	line = encodeGraphRefs(GraphRefsOptions{Name: "helper", PathPrefix: "a.go", Limit: 0})
-	if line != "graph_refs\thelper\t\t50\ta.go" {
+	if line != "graph_refs\thelper\t\t\ta.go" {
 		t.Fatalf("encodeGraphRefs path: %q", line)
 	}
 }

@@ -25,6 +25,7 @@ static int failures;
     } while (0)
 
 #define LONG_BODY_BYTES 600
+#define FEED_BODY_BYTES 65000 /* just under CBERG_CHUNK_BODY_MAX; escapes to 6x */
 
 static const char *add_src = "func Add(a, b int) int {\n\treturn a + b\n}";
 
@@ -182,6 +183,43 @@ static void write_dense_file(const char *root) {
     free(src);
 }
 
+static void write_feed_file(const char *root) {
+    size_t cap = FEED_BODY_BYTES + 64;
+    char *src = malloc(cap);
+    int n = snprintf(src, cap, "package main\n\nfunc Feed() {\n");
+
+    memset(src + n, '\f', FEED_BODY_BYTES);
+    snprintf(src + n + FEED_BODY_BYTES, cap - (size_t)n - FEED_BODY_BYTES, "\n}\n");
+
+    write_file(root, "feed.go", src);
+    free(src);
+}
+
+/* The whole body comes back escaped, inside a complete JSON document. */
+static void check_escaped_chunk(const char *sock, const char *repo) {
+    size_t len = 0;
+    char *resp = ipc_request(sock, "symbol\tFeed\n", &len);
+    const char *id_at = resp != NULL ? strstr(resp, "\"id\":") : NULL;
+    CHECK(id_at != NULL, "feed symbol found");
+    if (id_at == NULL) {
+        free(resp);
+        return;
+    }
+
+    char req[512];
+    snprintf(req, sizeof(req), "chunk\t%s\t%llu\n", repo, strtoull(id_at + 5, NULL, 10));
+    free(resp);
+
+    resp = ipc_request(sock, req, &len);
+    const char *head = "{\"ok\":true,\"chunk\":{";
+    const char *tail = "\"truncated\":false}}\n";
+    CHECK(resp != NULL && strncmp(resp, head, strlen(head)) == 0, "feed chunk ok");
+    CHECK(resp != NULL && len > strlen(tail) && strcmp(resp + len - strlen(tail), tail) == 0, "feed chunk is a complete document");
+    CHECK(resp != NULL && !has_raw_control(resp, len), "feed body escaped");
+    CHECK(resp != NULL && count_substr(resp, "\\u000c") >= FEED_BODY_BYTES, "feed body is not clipped");
+    free(resp);
+}
+
 static void check_ipc(cberg_engine *eng, const char *sock) {
     cberg_ipc_server *ipc = NULL;
     CHECK(cberg_ipc_start(eng, &ipc) == 0, "ipc starts");
@@ -211,6 +249,8 @@ static void check_ipc(cberg_engine *eng, const char *sock) {
     CHECK(resp != NULL && !has_raw_control(resp, len), "control chars escaped");
     CHECK(resp != NULL && strstr(resp, "\\u000c") != NULL && strstr(resp, "\\u001b") != NULL, "control chars as \\u escapes");
     free(resp);
+
+    check_escaped_chunk(sock, eng->repos[0]->key);
 
     /* A client that hangs up before reading must not take the indexer down
      * with SIGPIPE (this test process is the indexer). */
@@ -242,6 +282,7 @@ int main(void) {
     write_file(root, "a.go", src);
     write_file(root, "ctl.go", "package main\n\nfunc Ctl() {\n\t// page\f break \x1b[0m\n}\n");
     write_dense_file(root);
+    write_feed_file(root);
 
     char sock[512];
     snprintf(sock, sizeof(sock), "%s/sock", root);
