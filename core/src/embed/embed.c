@@ -25,6 +25,23 @@ void cberg_l2_normalize(float *vec, size_t dim) {
     }
 }
 
+/* `impl` must come from the open function of the same `provider`. */
+static void impl_close(cberg_embed_provider provider, void *impl) {
+    switch (provider) {
+    case CBERG_EMBED_WORKER:
+        cberg_worker_close(impl);
+        return;
+    case CBERG_EMBED_ONNX:
+#ifdef CBERG_WITH_ONNX
+        cberg_onnx_close(impl);
+#endif
+        return;
+    default:
+        /* never: cberg_embedder_open rejects unknown providers. */
+        abort();
+    }
+}
+
 cberg_status cberg_embedder_open(const cberg_embed_config *config, cberg_embedder **out_embedder) {
     if (config == NULL || out_embedder == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
@@ -54,12 +71,7 @@ cberg_status cberg_embedder_open(const cberg_embed_config *config, cberg_embedde
 
     cberg_embedder *e = calloc(1, sizeof(*e));
     if (e == NULL) {
-        if (config->provider == CBERG_EMBED_WORKER) {
-            cberg_worker_close(impl);
-        }
-#ifdef CBERG_WITH_ONNX
-        cberg_onnx_close(impl);
-#endif
+        impl_close(config->provider, impl);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
     e->provider = config->provider;
@@ -129,15 +141,6 @@ void cberg_embedder_close(cberg_embedder *embedder) {
     if (embedder == NULL) {
         return;
     }
-    switch (embedder->provider) {
-    case CBERG_EMBED_WORKER:
-        cberg_worker_close(embedder->impl);
-        break;
-    case CBERG_EMBED_ONNX:
-#ifdef CBERG_WITH_ONNX
-        cberg_onnx_close(embedder->impl);
-#endif
-        break;
-    }
+    impl_close(embedder->provider, embedder->impl);
     free(embedder);
 }
