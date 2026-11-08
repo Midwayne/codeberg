@@ -82,3 +82,25 @@ func architectureEntrypoints(ctx context.Context, idx indexctl.Indexer, repo str
 
 	return entrypoints
 }
+
+type getArchitectureArgs struct {
+	Repo     string `json:"repo"`
+	HubLimit int    `json:"hub_limit"`
+}
+
+type archHub struct {
+	Repo   string `json:"repo,omitempty"`
+	Name   string `json:"name"`
+	Path   string `json:"path"`
+	Kind   string `json:"kind"`
+	Degree int    `json:"degree"`
+}
+
+type getArchitectureResult struct {
+	Repo        string                   `json:"repo"`
+	Nodes       int                      `json:"nodes"`
+	Refs        int                      `json:"refs"`
+	Languages   []indexctl.GraphLangStat `json:"languages"`
+	Hubs        []archHub                `json:"hubs"`
+	Entrypoints []archHub                `json:"entrypoints"`
+}

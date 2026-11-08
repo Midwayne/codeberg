@@ -65,3 +65,15 @@ func runSed(ctx context.Context, a sedArgs, data []byte) (sedResult, error) {
 
 	return sedResult{Content: content, Truncated: truncated}, nil
 }
+
+type sedArgs struct {
+	Repo   string `json:"repo"`
+	Path   string `json:"path"`
+	Script string `json:"script"`
+	Quiet  bool   `json:"quiet"`
+}
+
+type sedResult struct {
+	Content   string `json:"content"`
+	Truncated bool   `json:"truncated"`
+}

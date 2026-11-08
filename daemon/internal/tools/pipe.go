@@ -34,3 +34,8 @@ func pipeTool(ws *workspace.Workspace) Tool {
 			return subprocess.RunPipeline(ctx, root, a.Command)
 		})
 }
+
+type pipeArgs struct {
+	Command string `json:"command"`
+	Repo    string `json:"repo"`
+}

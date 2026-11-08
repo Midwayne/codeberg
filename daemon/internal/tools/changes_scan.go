@@ -101,3 +101,12 @@ func (c *changeScan) addHops(hops []indexctl.GraphHop, t pendingTrace, limit int
 	}
 	return false
 }
+
+type changeSymbol struct {
+	Repo      string `json:"repo,omitempty"`
+	Name      string `json:"name"`
+	Path      string `json:"path"`
+	StartLine uint32 `json:"start_line,omitempty"`
+	EndLine   uint32 `json:"end_line,omitempty"`
+	Risk      string `json:"risk"` // direct | transitive
+}

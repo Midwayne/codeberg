@@ -108,3 +108,21 @@ type changeDiff struct {
 	base, head, spec, fallback, output string
 	depth, limit                       int
 }
+
+type detectChangesArgs struct {
+	Repo  string `json:"repo"`
+	Base  string `json:"base"`
+	Head  string `json:"head"`
+	Depth int    `json:"depth"`
+	Limit int    `json:"limit"`
+}
+
+type detectChangesResult struct {
+	Base     string         `json:"base"`
+	Head     string         `json:"head"`
+	DiffSpec string         `json:"diff_spec"`          // actual git range used
+	Fallback string         `json:"fallback,omitempty"` // set when base...head failed
+	Paths    []string       `json:"paths"`
+	Direct   []changeSymbol `json:"direct"`
+	Indirect []changeSymbol `json:"indirect"`
+}
