@@ -178,12 +178,30 @@ func lineKey(line string) string {
 	s := strings.TrimSpace(line)
 	s = strings.TrimPrefix(s, "#")
 	s = strings.TrimSpace(s)
-	s = strings.TrimPrefix(s, "export ")
-	eq := strings.IndexByte(s, '=')
-	if eq <= 0 {
+	key, _, ok := envAssignment(s)
+	if !ok {
 		return ""
 	}
-	return strings.TrimSpace(s[:eq])
+
+	return key
+}
+
+// envAssignment splits one KEY=VALUE line. A leading "export " is ignored.
+// Quotes stay on the value so each caller can strip the kind it accepts.
+func envAssignment(line string) (key, value string, ok bool) {
+	line = strings.TrimSpace(line)
+	line = strings.TrimPrefix(line, "export ")
+	eq := strings.IndexByte(line, '=')
+	if eq <= 0 {
+		return "", "", false
+	}
+
+	key = strings.TrimSpace(line[:eq])
+	if key == "" {
+		return "", "", false
+	}
+
+	return key, strings.TrimSpace(line[eq+1:]), true
 }
 
 func isActiveAssignment(line string) bool {

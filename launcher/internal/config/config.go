@@ -648,17 +648,12 @@ func parseFile(path string) (map[string]string, error) {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		line = strings.TrimPrefix(line, "export ")
-		eq := strings.IndexByte(line, '=')
-		if eq < 0 {
+		key, val, ok := envAssignment(line)
+		if !ok {
 			continue
 		}
-		key := strings.TrimSpace(line[:eq])
-		val := strings.TrimSpace(line[eq+1:])
-		val = strings.Trim(val, `"'`)
-		if key != "" {
-			vals[key] = val
-		}
+
+		vals[key] = strings.Trim(val, `"'`)
 	}
 	return vals, sc.Err()
 }

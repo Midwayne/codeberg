@@ -476,6 +476,40 @@ func TestConfigFileForwardsDaemonSettingsAndDropsDeadKeys(t *testing.T) {
 	}
 }
 
+func TestEnvAssignmentKeepsQuotedValuesAndCommentedKeys(t *testing.T) {
+	home := t.TempDir()
+	path := filepath.Join(home, "config")
+	body := "# comment\nexport CODEBERG_WEB_PORT=\"48088\"\nCODEBERG_HTTP_PORT='48080'\n\nnot an assignment\n=missing\n"
+	if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := parseFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got["CODEBERG_WEB_PORT"] != "48088" || got["CODEBERG_HTTP_PORT"] != "48080" {
+		t.Fatalf("parsed config = %#v", got)
+	}
+
+	if len(got) != 2 {
+		t.Fatalf("parsed config = %#v", got)
+	}
+
+	if lineKey("# CODEBERG_MODEL=anthropic:claude") != "CODEBERG_MODEL" {
+		t.Fatal("a commented template line still names its key")
+	}
+
+	if lineKey("export CODEBERG_HTTP_PORT=48080") != "CODEBERG_HTTP_PORT" {
+		t.Fatal("an active export line still names its key")
+	}
+
+	if lineKey("# just a comment") != "" || lineKey("=missing") != "" {
+		t.Fatal("a line without a key is not an assignment")
+	}
+}
+
 func TestLaunchBeforeModelSetup(t *testing.T) {
 	dist := t.TempDir()
 	writeArtifacts(t, dist)
