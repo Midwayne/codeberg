@@ -7,13 +7,27 @@ import (
 )
 
 var pythonProcess = regexp.MustCompile(`^python(\d+(\.\d+)*)?$`)
-var embeddingVenv = regexp.MustCompile(`/(?:embedding-venv|embeddinggemma-(?:mlx-)?venv)/`)
+
+// embedder identifies the configured embedding worker without reading its
+// arguments: its interpreter lives in the venv that holds EmbedPython.
+type embedder struct {
+	model, backend, python string
+}
+
+func (e embedder) runs(command string) bool {
+	if e.python == "" {
+		return false
+	}
+
+	venv := filepath.Dir(filepath.Dir(e.python))
+	return strings.HasPrefix(command, venv+string(filepath.Separator))
+}
 
 // Only fixed component labels leave the collector; command arguments stay local.
-func workerName(command, arguments, model, backend string) string {
-	path := filepath.ToSlash(command)
-	embedding := embeddingVenv.MatchString(path)
-	search := strings.Contains(path, "/searxng/venv/")
+func workerName(command, arguments string, e embedder) string {
+	model, backend := e.model, e.backend
+	embedding := e.runs(command)
+	search := false
 	fields := strings.Fields(arguments)
 
 	for i, field := range fields {

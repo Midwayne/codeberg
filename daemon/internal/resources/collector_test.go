@@ -95,7 +95,7 @@ func TestCompleteProcessCoverageAndDeltaHistory(t *testing.T) {
 		{PID: 80, PPID: 70, Command: "firefox", MemoryBytes: 40000},
 		{PID: 90, PPID: 1, Command: "codeberg-d", MemoryBytes: 40000},
 	}
-	c := New(Options{PID: 30, RootPID: 10, Cores: 4, TotalMemory: 48000, ModelPath: "/models/qwen3-fp16-mlx", EmbeddingBackend: "mlx", Now: func() time.Time { return now },
+	c := New(Options{PID: 30, RootPID: 10, Cores: 4, TotalMemory: 48000, ModelPath: "/models/qwen3-fp16-mlx", EmbeddingBackend: "mlx", EmbedPython: "/home/.codeberg/embedding-venv/bin/python", Now: func() time.Time { return now },
 		ReadProcesses: func(context.Context) ([]ProcessCounter, error) { return rows, nil }})
 	if err := c.Register(20); err != nil {
 		t.Fatal(err)
