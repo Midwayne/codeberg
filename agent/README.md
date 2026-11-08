@@ -109,6 +109,8 @@ codeberg-search "error handling" --hybrid --json
 
 Options: `--repo`, `--path-glob`, `--kind`, `--min-score`, `--hybrid`,
 `--json`, `--daemon`. Requires a running `codeberg-d` with vector search enabled.
+Like `codeberg-ask`, it searches the active project's index when run inside a
+project's storage, and the global index otherwise.
 
 ### Learning history
 

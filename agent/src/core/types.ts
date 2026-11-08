@@ -70,7 +70,8 @@ export interface AskResult {
   performance?: RunPerformance;
 }
 
-export interface AskOptions extends SearchOptions {
+export interface AskOptions {
+  /** Prior turns of the conversation, oldest first. */
   messages?: ModelMessage[];
 }
 

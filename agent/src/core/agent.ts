@@ -2,7 +2,7 @@ import { ToolLoopAgent, type ModelMessage } from 'ai';
 import { compactHistory, historyCompactor } from './agent/history.js';
 import { toolLoopAgent } from './agent/loop.js';
 import type { AgentOptions } from './agent/options.js';
-import { AgentState } from './agent/state.js';
+import { createAgentState, type AgentState } from './agent/state.js';
 import { ask, close, learningService } from './agent/turns.js';
 import { LearningService } from './learning/service.js';
 import type { Asker, AskOptions, AskResult } from './types.js';
@@ -11,7 +11,7 @@ export class Agent implements Asker {
   private readonly state: AgentState;
 
   constructor(opts: AgentOptions) {
-    this.state = new AgentState(opts);
+    this.state = createAgentState(opts);
   }
 
   /** Drop MCP server connections (stdio child processes, HTTP sessions). */
