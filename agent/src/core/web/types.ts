@@ -43,6 +43,8 @@ export interface WebDeps {
   fetchImpl: typeof fetch;
 }
 
+export const TOOL_SETTINGS_FILE = 'tool-settings.json';
+
 /** Fields stored in tool-settings.json. Browser flags are optional for older files. */
 export interface SavedToolPreferences {
   webSearch: boolean;

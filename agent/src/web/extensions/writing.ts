@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { parseSkillDocument } from '../../core/context/skill-document.js';
 import { readOptionalText, writeJsonAtomic } from '../../core/learning/fs.js';
+import { MCP_FILE } from '../../core/mcp/config.js';
 import { parseMcpJson } from '../../core/mcp/config/parse.js';
 import { indexedRootsFromEnv } from '../../core/paths.js';
 import type { ExtensionStoreState } from './state.js';
@@ -73,7 +74,7 @@ async function writeMcp(root: string, body: ExtensionInput, env: NodeJS.ProcessE
       parsed.warnings.join('; ') || 'Provide an enabled MCP server with a command or URL.',
     );
 
-  const file = join(root, 'mcp.json');
+  const file = join(root, MCP_FILE);
   const text = (await readOptionalText(file)) ?? '{}';
 
   const config = JSON.parse(text);

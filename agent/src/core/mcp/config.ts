@@ -9,7 +9,7 @@ import { codebergHome, findGitRoot, indexedRootsFromEnv } from '../paths.js';
 import { builtinDatabaseServer } from './builtin.js';
 import type { McpConfig, McpConfigIo, McpInterpolateContext, McpServer } from './types.js';
 
-const MCP_FILE = 'mcp.json';
+export const MCP_FILE = 'mcp.json';
 
 function projectMcpFiles(root: string): string[] {
   return [join(root, '.cursor', MCP_FILE), join(root, '.codeberg', MCP_FILE)];

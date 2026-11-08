@@ -1,6 +1,5 @@
-import { join } from 'node:path';
 import { parseModelSpec } from '../../providers/catalog.js';
-import { MODEL_INPUTS } from '../model-types.js';
+import { MODEL_INPUTS, modelsCatalogPath } from '../model-types.js';
 import { readModelsDocumentSync } from '../models-document.js';
 import { codebergHome } from '../paths.js';
 import { record } from '../record.js';
@@ -8,7 +7,7 @@ import { record } from '../record.js';
 /** CLI and explicit browser overrides use declared capabilities, never model-name guesses. */
 export function browserModelSupportsVision(env: NodeJS.ProcessEnv, spec: string): boolean {
   try {
-    const root = readModelsDocumentSync(join(codebergHome(env), 'models.yml'));
+    const root = readModelsDocumentSync(modelsCatalogPath(codebergHome(env)));
     const { provider } = parseModelSpec(spec);
     const models = record(record(record(root)?.providers)?.[provider])?.models;
 

@@ -6,7 +6,7 @@ import { readOptionalText, writeJsonAtomic } from '../../core/learning/fs.js';
 import { WriteLock } from '../../core/write-lock.js';
 import { codebergHome } from '../../core/paths.js';
 import { webConfigFromEnv } from '../../core/web/config.js';
-import { savedToolPreferences, type ToolSettings } from '../../core/web/types.js';
+import { savedToolPreferences, TOOL_SETTINGS_FILE, type ToolSettings } from '../../core/web/types.js';
 
 type SearchStatus = { status: 'disabled' | 'starting' | 'ready' | 'error'; url?: string; message?: string };
 
@@ -25,7 +25,7 @@ export class ToolSettingsStore {
 
   constructor(options: { home?: string; env?: NodeJS.ProcessEnv; fetch?: typeof fetch } = {}) {
     this.env = options.env ?? process.env;
-    this.path = join(options.home ?? codebergHome(this.env), 'tool-settings.json');
+    this.path = join(options.home ?? codebergHome(this.env), TOOL_SETTINGS_FILE);
     this.fetch = options.fetch ?? globalThis.fetch;
   }
 
@@ -98,7 +98,7 @@ export class ToolSettingsStore {
     } catch (error) {
       if (error instanceof SyntaxError) {
         throw new Error(
-          'Saved tool settings are invalid. Open the config directory, repair or remove tool-settings.json, and retry.',
+          `Saved tool settings are invalid. Open the config directory, repair or remove ${TOOL_SETTINGS_FILE}, and retry.`,
         );
       }
 
