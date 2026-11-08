@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"codeberg.org/codeberg/launcher/internal/paths"
 )
 
 //go:embed config.init.example
@@ -58,14 +60,14 @@ func (c *Config) Summary() string {
 		{KeyLearningUse, fmt.Sprintf("%t", c.LearningUse)},
 		{KeySearxngURL, orUnset(c.SearxngURL) + searxngManagedNote(c)},
 		{KeyMcpUse, fmt.Sprintf("%t", c.McpUse)},
-		{"mcp.json", filepath.Join(c.Home, "mcp.json")},
+		{"mcp.json", paths.McpFile(c.Home)},
 		{KeyDbmcpUse, fmt.Sprintf("%t", c.DbmcpUse)},
 		{"dbmcp spec", dbmcpSpecSummary(c)},
 		{KeyVector, fmt.Sprintf("%t", c.Vector)},
 		{KeyEmbedding, orUnset(c.Embedding)},
 		{KeyEmbedModel, c.EmbedModel},
-		{KeyIndexPath, c.IndexPath},
-		{KeySocket, c.Socket},
+		{KeyIndexNamespace, orUnset(c.IndexNamespace)},
+		{KeyIndexPath, indexPathSummary(c)},
 	}
 	if len(c.Repos) > 0 {
 		rows = append(rows, [2]string{KeyReposSel, strings.Join(c.Repos, ",")})
@@ -116,6 +118,14 @@ func dbmcpSpecSummary(c *Config) string {
 		return path
 	}
 	return path + " (not found)"
+}
+
+func indexPathSummary(c *Config) string {
+	if c.IndexPath == "" {
+		return "daemon-managed"
+	}
+
+	return c.IndexPath
 }
 
 func orUnset(v string) string {

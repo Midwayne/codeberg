@@ -164,7 +164,6 @@ func TestDaemonEnvRoots(t *testing.T) {
 	c := &Config{
 		Root:     "/one",
 		HTTPPort: "48080",
-		Socket:   "/tmp/s.sock",
 		Roots:    []registry.Entry{{Key: "alpha", Root: "/one"}, {Key: "beta", Root: "/two"}},
 		All:      true,
 	}
@@ -190,7 +189,9 @@ func TestDaemonEnvRoots(t *testing.T) {
 func TestDaemonEnvUsesMLXModelDirectory(t *testing.T) {
 	modelDir := filepath.Join(t.TempDir(), "qwen3-fp16-mlx")
 	c := &Config{
+		Home:         t.TempDir(),
 		Vector:       true,
+		Embedding:    embedding.MLXFP16,
 		EmbedBackend: "mlx",
 		EmbedModel:   filepath.Join(modelDir, "model.safetensors"),
 	}
@@ -211,6 +212,9 @@ func TestNoIndexForcesVectorOff(t *testing.T) {
 	}
 	if c.Vector {
 		t.Fatal("--no-index must disable vector indexing for the run")
+	}
+	if c.DaemonEnv()[KeyNoIndex] != "true" {
+		t.Fatal("--no-index must reach the daemon")
 	}
 }
 
@@ -263,7 +267,7 @@ func TestReposSelectionParsing(t *testing.T) {
 	// --repos mode must not pin a single CODEBERG_ROOT in the daemon env.
 	c.Roots = []registry.Entry{{Key: "a", Root: "/a"}, {Key: "c", Root: "/c"}}
 	c.Root = "/from-config-file"
-	c.HTTPPort, c.Socket = "48080", "/tmp/s.sock"
+	c.HTTPPort = "48080"
 	e := c.DaemonEnv()
 	if _, ok := e["CODEBERG_ROOT"]; ok {
 		t.Fatal("--repos must not send CODEBERG_ROOT")
@@ -325,7 +329,6 @@ func TestDaemonEnvMultiRootOmitsSingleRootEnv(t *testing.T) {
 	c := &Config{
 		Root:     "/one,/two",
 		HTTPPort: "48080",
-		Socket:   "/tmp/s.sock",
 		Roots: []registry.Entry{
 			{Key: "one", Root: "/one"},
 			{Key: "two", Root: "/two"},
@@ -385,8 +388,11 @@ func TestEmbeddingSelectionIsolatesExistingIndex(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if legacy.IndexPath == chosen.IndexPath || legacy.EmbedModel == chosen.EmbedModel {
-		t.Fatal("selecting Qwen must preserve the existing Jina index and model")
+	if legacy.IndexNamespace == chosen.IndexNamespace || legacy.EmbedModel == chosen.EmbedModel {
+		t.Fatal("selecting Qwen must use a different index namespace and model")
+	}
+	if legacy.IndexPath != "" || chosen.IndexPath != "" {
+		t.Fatal("the daemon chooses the index path unless one is configured")
 	}
 	if chosen.EmbedBackend != "llama" || chosen.DaemonEnv()[KeyEmbedBackend] != "llama" {
 		t.Fatalf("backend not forwarded: %+v", chosen)
@@ -396,8 +402,8 @@ func TestEmbeddingSelectionIsolatesExistingIndex(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if chosen.IndexPath == custom {
-		t.Fatal("explicit index base must be namespaced too")
+	if chosen.IndexPath != custom || chosen.DaemonEnv()[KeyIndexNamespace] != embedding.Llama {
+		t.Fatalf("explicit path must stay put and carry the namespace: path %q namespace %q", chosen.IndexPath, chosen.DaemonEnv()[KeyIndexNamespace])
 	}
 }
 
@@ -432,6 +438,41 @@ func TestPrebuiltLaunchWithoutRootOrSourceCheckout(t *testing.T) {
 	c := &Config{Dist: dist, Model: "anthropic:claude"}
 	if err := c.ValidateForRun(); err != nil {
 		t.Fatalf("installed app must not require a source checkout or project: %v", err)
+	}
+}
+
+func TestConfigFileForwardsDaemonSettingsAndDropsDeadKeys(t *testing.T) {
+	home := t.TempDir()
+	path := filepath.Join(home, "config")
+	body := strings.Join([]string{
+		"CBERG_INDEX_BACKEND=qdrant",
+		"CBERG_VECTORDB_URL=https://q.example",
+		"CODEBERG_HEALTH_TIMEOUT=30m",
+		"CODEBERG_GIT_DIR=/unused",
+		"CBERG_SOCKET=/tmp/old.sock",
+		"",
+	}, "\n")
+	if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	c, err := Load(Overrides{Home: home, ConfigFile: path})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	env := c.DaemonEnv()
+	if env["CBERG_INDEX_BACKEND"] != "qdrant" || env["CBERG_VECTORDB_URL"] != "https://q.example" {
+		t.Fatalf("daemon-only file keys were dropped: %#v", env)
+	}
+	if env[KeyHealthTimeout] != "30m" {
+		t.Fatalf("health timeout = %q", env[KeyHealthTimeout])
+	}
+	if _, ok := env[KeyGitDir]; ok {
+		t.Fatal("CODEBERG_GIT_DIR must not be forwarded")
+	}
+	if _, ok := env[KeySocket]; ok {
+		t.Fatal("CBERG_SOCKET must not be forwarded")
 	}
 }
 

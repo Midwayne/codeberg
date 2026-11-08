@@ -31,15 +31,29 @@ func (m *Manager) projectConfig(p Project) config.Indexer {
 	return cfg
 }
 
-// indexPath keeps a pre-project index where moving it would lose data: a
-// remote store names its collections after the path, and a custom location
-// outside the managed index directory belongs to the user.
+// indexPath keeps a pre-project index where moving it would lose data.
+// A remote store names its collections after the path, so that path stays
+// exactly as stored. A custom local file stays with the user and, when an
+// embedding namespace is set, moves into a sibling directory so models cannot
+// share sidecars.
 func (m *Manager) indexPath(p Project, cfg config.Indexer) string {
-	if p.LegacyIndex != "" && (cfg.RemoteIndex() || !m.layout.InLegacyIndexDir(p.LegacyIndex)) {
+	if p.LegacyIndex != "" && cfg.RemoteIndex() {
 		return p.LegacyIndex
 	}
 
+	if p.LegacyIndex != "" && !m.layout.InLegacyIndexDir(p.LegacyIndex) {
+		return customIndex(p.LegacyIndex, cfg.IndexNamespace)
+	}
+
 	return m.layout.ProjectIndex(p.ID, cfg.IndexNamespace)
+}
+
+func customIndex(path, namespace string) string {
+	if namespace == "" {
+		return path
+	}
+
+	return filepath.Join(filepath.Dir(path), namespace, filepath.Base(path))
 }
 
 func (m *Manager) startIndexer(p Project, cfg config.Indexer) (http.Handler, func(), error) {

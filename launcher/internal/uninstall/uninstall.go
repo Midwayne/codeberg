@@ -14,6 +14,11 @@ import (
 	"strings"
 
 	"codeberg.org/codeberg/launcher/internal/config"
+	"codeberg.org/codeberg/launcher/internal/daemonapi"
+	"codeberg.org/codeberg/launcher/internal/embedding"
+	"codeberg.org/codeberg/launcher/internal/paths"
+	"codeberg.org/codeberg/launcher/internal/registry"
+	"codeberg.org/codeberg/launcher/internal/searxng"
 )
 
 // Options controls prompting.
@@ -46,15 +51,13 @@ func Run(c *config.Config, o Options) error {
 		fmt.Printf("  note: embedding model is outside %s (%s); left untouched\n", c.Home, modelDir)
 	}
 
-	// 3. The rest of the launcher's managed data.
-	leftovers := existing(
-		c.ConfigPath,
-		filepath.Join(c.Home, "index"),
-		filepath.Join(c.Home, "logs"),
-		filepath.Join(c.Home, "searxng"),
-	)
+	// 3. Launcher files plus the directories codeberg-d says it owns.
+	leftovers, storageNote := managedData(c)
+	if storageNote != "" {
+		fmt.Printf("  note: %s\n", storageNote)
+	}
 	if len(leftovers) > 0 {
-		if p.confirm(fmt.Sprintf("Remove launcher data (config, index, logs, web search) under %s?", c.Home)) {
+		if p.confirm(fmt.Sprintf("Remove launcher and project data under %s?", c.Home)) {
 			for _, path := range leftovers {
 				removePath(path, filepath.Base(path))
 			}
@@ -77,6 +80,31 @@ func Run(c *config.Config, o Options) error {
 
 // removeCommand deletes the `codeberg` symlink/binary we installed onto PATH,
 // only when it actually points at (or is) this executable.
+// managedData lists launcher files and, when codeberg-d can answer, the
+// directories the daemon owns. storageNote explains a missing report.
+func managedData(c *config.Config) ([]string, string) {
+	candidates := []string{
+		c.ConfigPath,
+		filepath.Join(c.Home, "logs"),
+		filepath.Join(c.Home, "models"),
+		searxng.Dir(c.Home),
+		paths.McpFile(c.Home),
+		registry.Path(c.Home),
+	}
+	candidates = append(candidates, embedding.VenvDirs(c.Home)...)
+
+	root, _ := c.ResolveRoot()
+	report, err := daemonapi.Storage(daemonapi.Binary(root), c.Home)
+	note := ""
+	if err != nil {
+		note = "project storage was left in place because codeberg-d could not report it"
+	} else {
+		candidates = append(candidates, report.Owned...)
+	}
+
+	return existing(candidates...), note
+}
+
 func removeCommand(p *prompter) {
 	self := resolve(selfPath())
 	removedAny, foundAny := false, false

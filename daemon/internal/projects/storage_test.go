@@ -46,6 +46,18 @@ func TestLegacyIndexStaysWhereMovingItLosesData(t *testing.T) {
 	if m.projectConfig(p).Index != p.LegacyIndex {
 		t.Fatal("a custom index location must stay with the user")
 	}
+
+	m.base.IndexNamespace = "qwen3-mlx"
+	m.base.IndexBackend = "qdrant"
+	if m.projectConfig(p).Index != p.LegacyIndex {
+		t.Fatal("a remote namespace must keep the original collection path")
+	}
+
+	m.base.IndexBackend = ""
+	want := filepath.Join(filepath.Dir(p.LegacyIndex), "qwen3-mlx", "custom.usearch")
+	if m.projectConfig(p).Index != want {
+		t.Fatalf("custom namespace = %s, want %s", m.projectConfig(p).Index, want)
+	}
 }
 
 func TestRetryRestartsTheProjectIndexer(t *testing.T) {

@@ -65,11 +65,6 @@ func Ensure(c *config.Config, force bool) error {
 	// and did not point CODEBERG_DBMCP_BIN at their own executable.
 	needDbmcp := c.DbmcpUse && c.DbmcpBin == "" && (force || !exists(a.DbmcpBin))
 
-	// Make sure the toolchains/libraries the Makefile shells out to exist (and
-	// auto-install the missing ones) before we invoke it — a missing cmake, Go,
-	// Node, or ONNX runtime otherwise surfaces as an opaque mid-build failure.
-	// Skip the check when nothing needs (re)building: an up-to-date tree already
-	// proved the toolchain works, so don't gate a plain run on it.
 	if needDaemon || needAgent || needWebUI || needDbmcp {
 		if err := ensureBuildDeps(os.Stderr, c.Vector && c.EmbedBackend == "onnx"); err != nil {
 			return err
@@ -194,9 +189,8 @@ func embeddingSetupResult(c *config.Config, force bool, err error) error {
 // that ships under root (the source checkout or the dist dir).
 func ensureModel(c *config.Config, root string) error {
 	ready := exists(c.EmbedModel)
-	if c.EmbedBackend == "mlx" || c.EmbedBackend == "gemma-mlx" || c.EmbedBackend == "sentence-transformers" {
-		model, _ := embedding.Lookup(c.Embedding)
-		ready = ready && exists(filepath.Join(filepath.Dir(c.EmbedModel), "tokenizer.json")) &&
+	if model, err := embedding.Lookup(c.Embedding); err == nil && model.UsesVenv() {
+		ready = ready && exists(filepath.Join(filepath.Dir(c.EmbedModel), model.ReadyMark())) &&
 			exists(filepath.Join(model.VenvPath(c.Home), "bin", "python"))
 	}
 	if ready {
