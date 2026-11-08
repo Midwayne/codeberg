@@ -578,7 +578,7 @@ func formatRootRecords(roots []registry.Entry) string {
 	records := make([]string, 0, len(roots))
 
 	for _, r := range roots {
-		records = append(records, r.Key+"\t"+r.Root)
+		records = append(records, registry.RootRecord(r))
 	}
 
 	return strings.Join(records, "\n")

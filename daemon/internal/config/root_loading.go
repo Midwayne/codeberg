@@ -32,9 +32,9 @@ func resolveRoot(root string) (string, error) {
 func loadRootRecords(raw string) ([]domain.Repo, string, error) {
 	var roots []domain.Repo
 
-	for _, line := range strings.Split(raw, "\n") {
-		key, path, ok := strings.Cut(line, "\t")
-		if !ok || key == "" || path == "" {
+	for _, line := range strings.Split(raw, rootNewline) {
+		key, path, ok := splitRootRecord(line)
+		if !ok {
 			continue
 		}
 
