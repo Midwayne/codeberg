@@ -44,6 +44,12 @@ Both agent binaries (`codeberg-ask`, `codeberg-web`) read the same core set;
 launcher sets these for you — this table is for running the agent standalone
 or from a checkout.
 
+Boolean switches accept `1`/`true`/`on`/`yes` and `0`/`false`/`off`/`no`,
+in any letter case; an unrecognized value keeps the switch's default.
+`CODEBERG_CANVAS_USE` still accepts only lowercase `true`/`1`/`on`, and
+`CODEBERG_WEB_SEARCH_USE`/`CODEBERG_WEB_ALLOW_PRIVATE` treat any other
+non-off value as on.
+
 | Variable | Binaries | Purpose |
 |---|---|---|
 | `CODEBERG_MODEL` | all | `provider:model`, overrides the positional argument |
@@ -54,7 +60,7 @@ or from a checkout.
 | `CODEBERG_CONTEXT_WINDOW` | all | override the model's inferred context window (tokens) — mainly for local `ollama`/`llamacpp` servers, whose real window depends on how they were started |
 | `CODEBERG_CONTEXT_BUDGET` | all | tokens the history (50%) and in-loop pruning (60%) budgets are computed from, capped by the window (default 200,000 — keeps requests under the long-context price tier of 1M-window models) |
 | `CODEBERG_TOOL_BATCH` | all | register the `batch` tool (up to 8 independent calls in one tool call). Default on for `ollama`, `llamacpp`, and unknown providers, which may return one tool call per response; off for `anthropic`, `openai`, `google`, which call tools in parallel natively |
-| `CODEBERG_SUBAGENT_MODEL` | CLI | `provider:model` for background work: learning extraction and history-compaction summaries (default: `CODEBERG_MODEL`). A cheaper model here cuts compaction cost |
+| `CODEBERG_SUBAGENT_MODEL` | CLI | `provider:model` for background work: learning extraction and history-compaction summaries (default: `CODEBERG_MODEL`). A cheaper model here cuts compaction cost. `CODEBERG_REASONING` applies to background work only when it runs on the chat model; a different model uses its provider default |
 | `CODEBERG_WEB_USE` | all | master switch for `fetch_url`/`web_search` (default on; `0`/`false`/`off`/`no` disables) |
 | `CODEBERG_WEB_SEARCH_USE` | all | search opt-in (default off); browser Settings → Tools saves its own global preference |
 | `CODEBERG_SEARXNG_URL` | all | SearXNG endpoint backing `web_search` |
@@ -103,6 +109,8 @@ codeberg-search "error handling" --hybrid --json
 
 Options: `--repo`, `--path-glob`, `--kind`, `--min-score`, `--hybrid`,
 `--json`, `--daemon`. Requires a running `codeberg-d` with vector search enabled.
+Like `codeberg-ask`, it searches the active project's index when run inside a
+project's storage, and the global index otherwise.
 
 ### Learning history
 

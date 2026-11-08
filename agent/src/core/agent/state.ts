@@ -1,61 +1,14 @@
-import { randomUUID } from 'node:crypto';
-import { ToolLoopAgent, type LanguageModel } from 'ai';
-import { DEFAULT_PROFILE, profileFor, type ModelProfile } from '../../providers/profiles.js';
-import { DaemonClient } from '../client.js';
-import { ContextStore, defaultContextRoot } from '../context/store.js';
+import type { ToolLoopAgent } from 'ai';
 import { EvidenceLedger } from '../evidence.js';
-import { fromAiSdk } from '../generator.js';
 import { HistoryCheckpoints } from '../history-checkpoints.js';
-import { DEFAULT_PROMPT_HOOKS } from '../hooks/defaults.js';
-import { type PromptHook } from '../hooks/types.js';
-import { LearningService } from '../learning/service.js';
-import { defaultLearningRoot } from '../learning/store/identity.js';
-import { repositoryVersions } from '../learning/store/repositories.js';
 import type { McpToolSource } from '../mcp/tools/state.js';
-import type { McpConfig } from '../mcp/types.js';
-import { projectRoots } from '../paths.js';
-import type { Generator, ReasoningEffort, SearchResult } from '../types.js';
-import { webConfigFromEnv } from '../web/config.js';
-import type { WebConfig } from '../web/types.js';
+import type { SearchResult } from '../types.js';
 import type { AgentOptions } from './options.js';
-import { agentEvaluationRuntime } from './evaluations.js';
-import type { ModelInput } from '../model-types.js';
-import type { DecisionModel, DecisionUsageSink } from '../decisions/types.js';
+import { resolveAgentSettings, type AgentSettings } from './settings.js';
 
-export class AgentState {
-  readonly decisionModel?: DecisionModel | null;
-  readonly onDecisionUsage?: DecisionUsageSink;
-  readonly browserOwner = randomUUID();
-
-  readonly env: NodeJS.ProcessEnv;
-
-  readonly model: LanguageModel;
-
-  readonly modelInputs?: readonly ModelInput[];
-
-  readonly daemon: DaemonClient;
-
-  readonly generator: Generator;
-
-  readonly reasoning?: ReasoningEffort;
-
-  readonly profile: ModelProfile;
-
-  readonly summaryProfile: ModelProfile;
-
-  readonly promptHooks: readonly PromptHook[];
-
-  readonly web: WebConfig;
-
-  readonly mcp: McpConfig | undefined;
-
-  readonly context: ContextStore;
-
+/** What an agent builds and accumulates while it runs. */
+export interface AgentRuntime {
   readonly checkpoints: HistoryCheckpoints;
-
-  readonly learning?: LearningService;
-
-  readonly ownsLearning: boolean;
 
   learningStarted?: Promise<void>;
 
@@ -64,7 +17,7 @@ export class AgentState {
   /** System prompt for this agent — `AGENT_SYSTEM` plus web/MCP sections matching
    *  the tools that actually registered. Built in `ensureLoop` so it stays
    *  byte-stable for the process, including connected MCP server names. */
-  system = '';
+  system: string;
 
   // Built once on first use (tools require an async daemon round-trip), then
   // reused across every ask instead of reconstructing the loop each call.
@@ -73,42 +26,23 @@ export class AgentState {
   // Per-ask buffer of the full search hits behind the compact chunks shown to
   // the model. Reset at the top of each `ask`; safe because asks are awaited
   // sequentially (no concurrent runs share this Agent instance).
-  sources: SearchResult[] = [];
+  sources: SearchResult[];
 
   // Conversation-lifetime index of everything retrieved, injected each turn so
   // the model needn't re-search. Persists across asks (unlike `sources`).
-  readonly ledger = new EvidenceLedger();
+  readonly ledger: EvidenceLedger;
+}
 
-  constructor(opts: AgentOptions) {
-    this.decisionModel = opts.decisionModel;
-    this.onDecisionUsage = opts.onDecisionUsage;
-    this.env = opts.env ?? process.env;
-    this.model = opts.model;
-    this.modelInputs = opts.modelInputs;
-    this.daemon = opts.daemon;
-    // History summaries are background work: run them on the subagent model
-    // when one is configured, not the (usually pricier) chat model.
-    this.generator = opts.generator ?? fromAiSdk(opts.subagentModel ?? opts.model);
-    this.reasoning = opts.reasoning;
-    this.profile = opts.profile ?? DEFAULT_PROFILE;
-    this.summaryProfile = opts.summaryProfile ?? (opts.subagentModel && typeof opts.subagentModel === 'object'
-      ? profileFor(`${opts.subagentModel.provider.split('.')[0]}:${opts.subagentModel.modelId}`, {})
-      : this.profile);
-    this.promptHooks = opts.promptHooks ?? DEFAULT_PROMPT_HOOKS;
-    this.web = opts.web ?? webConfigFromEnv(this.env);
-    this.mcp = opts.mcp;
-    this.context = opts.context ?? ContextStore.open(defaultContextRoot(this.env));
-    this.checkpoints = new HistoryCheckpoints(this.context);
-    this.learning =
-      opts.learning === false
-        ? undefined
-        : (opts.learning ??
-          new LearningService({
-            root: defaultLearningRoot(this.env),
-            repositories: () => repositoryVersions(projectRoots(this.env, process.cwd())),
-            generator: fromAiSdk(opts.subagentModel ?? opts.model),
-            evaluation: agentEvaluationRuntime(opts),
-          }));
-    this.ownsLearning = opts.learning === undefined;
-  }
+export type AgentState = AgentSettings & AgentRuntime;
+
+export function createAgentState(opts: AgentOptions): AgentState {
+  const settings = resolveAgentSettings(opts);
+
+  return {
+    ...settings,
+    checkpoints: new HistoryCheckpoints(settings.context),
+    system: '',
+    sources: [],
+    ledger: new EvidenceLedger(),
+  };
 }

@@ -35,6 +35,16 @@ describe('builtin database MCP', () => {
     expect(cfg.servers).toEqual([]);
   });
 
+  it('treats an unrecognized CODEBERG_DBMCP_USE value as its default (off)', () => {
+    const home = tmpTree();
+    const cfg = mcpConfigFromEnv(
+      { CODEBERG_HOME: home, CODEBERG_MCP_USE: 'false', CODEBERG_DBMCP_USE: 'enabled' },
+      { cwd: home, exists: present([]), readFile: () => null },
+    );
+
+    expect(cfg.enabled).toBe(false);
+  });
+
   it('registers databases from spec.yml and the built binary', () => {
     const home = tmpTree();
     const root = tmpTree();

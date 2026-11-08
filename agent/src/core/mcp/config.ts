@@ -2,7 +2,8 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { defaultExists, defaultReadFile } from './config/io.js';
 import { parseMcpJson } from './config/parse.js';
-import { expandHome, flag, splitList } from './config/values.js';
+import { splitList } from './config/values.js';
+import { envFlag, expandHome } from '../env.js';
 
 import { findGitRoot, indexedRootsFromEnv } from '../paths.js';
 import { builtinDatabaseServer } from './builtin.js';
@@ -61,8 +62,8 @@ export function mcpConfigFromEnv(
   env: NodeJS.ProcessEnv = process.env,
   io: McpConfigIo = {},
 ): McpConfig {
-  const userEnabled = flag(env.CODEBERG_MCP_USE, true);
-  const dbEnabled = flag(env.CODEBERG_DBMCP_USE, false);
+  const userEnabled = envFlag(env, 'CODEBERG_MCP_USE', true);
+  const dbEnabled = envFlag(env, 'CODEBERG_DBMCP_USE', false);
   if (!userEnabled && !dbEnabled) {
     return { enabled: false, servers: [], files: [], warnings: [] };
   }

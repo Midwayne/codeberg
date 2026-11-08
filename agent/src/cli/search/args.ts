@@ -1,4 +1,5 @@
 import { DEFAULT_DAEMON_URL } from '../../core/client.js';
+import { projectDaemonUrl } from '../../core/daemon-url.js';
 import type { SearchOptions } from '../../core/types.js';
 
 export const VALUE_FLAGS = [
@@ -93,6 +94,8 @@ export function parseSearchArgs(
   if (!options.query) throw new SearchCliError('query is required');
 
   if (!options.daemonUrl.trim()) throw new SearchCliError('--daemon requires a non-empty URL');
+
+  options.daemonUrl = projectDaemonUrl(options.daemonUrl, env.CODEBERG_PROJECT_ID);
 
   return options;
 }

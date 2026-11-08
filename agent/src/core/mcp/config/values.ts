@@ -1,12 +1,4 @@
-import { join } from 'node:path';
 import type { McpInterpolateContext, McpTransportKind } from '../types.js';
-
-/** A flag env var: anything but 0/false/off/no (case-insensitive) is "on". */
-export function flag(value: string | undefined, fallback: boolean): boolean {
-  if (value == null || value.trim() === '') return fallback;
-
-  return !/^(0|false|off|no)$/i.test(value.trim());
-}
 
 export function splitList(v: string): string[] {
   const out: string[] = [];
@@ -16,14 +8,6 @@ export function splitList(v: string): string[] {
   }
 
   return out;
-}
-
-export function expandHome(p: string, home: string): string {
-  if (p === '~') return home;
-
-  if (p.startsWith('~/')) return join(home, p.slice(2));
-
-  return p;
 }
 
 export function isRecord(v: unknown): v is Record<string, unknown> {

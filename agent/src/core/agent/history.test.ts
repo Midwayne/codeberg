@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DaemonClient, DEFAULT_DAEMON_URL } from '../client.js';
 import { ContextStore } from '../context/store.js';
 import type { Prompt } from '../types.js';
-import { AgentState } from './state.js';
+import { createAgentState } from './state.js';
 import { compactHistory, summarize } from './history.js';
 
 const roots: string[] = [];
@@ -22,7 +22,7 @@ function stateWith(contextWindow = 12000) {
   roots.push(root);
 
   const generate = vi.fn(async (_prompt: Prompt) => 'SUMMARY');
-  const state = new AgentState({
+  const state = createAgentState({
     model: {} as never,
     daemon: new DaemonClient(DEFAULT_DAEMON_URL),
     learning: false,

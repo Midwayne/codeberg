@@ -1,23 +1,42 @@
 import type { LanguageModel } from 'ai';
-import { DEFAULT_PROFILE } from '../../providers/profiles.js';
+import { modelSpecOf } from '../../providers/catalog.js';
+import type { ModelProfile } from '../../providers/profiles.js';
+import type { DaemonClient } from '../client.js';
+import type { EvaluationConfiguration } from '../learning/evaluation/automatic-types.js';
 import { createAutomaticEvaluationRuntime } from '../learning/evaluation/runtime.js';
-import type { AgentOptions } from './options.js';
+import type { ReasoningEffort } from '../types.js';
 
-export function agentEvaluationRuntime(options: AgentOptions) {
-  const contextWindow = options.profile?.contextWindow ?? DEFAULT_PROFILE.contextWindow;
-  const effort = options.reasoning ?? 'provider-default';
-  const judge = options.subagentModel ?? options.model;
-
-  return createAutomaticEvaluationRuntime({
-    configuration: async () => ({
-      candidate: { key: 'chat', model: modelId(options.model), effort, contextWindow },
-      judge: { key: 'learning', model: modelId(judge), effort, contextWindow },
-    }),
-    resolveModel: (selection) => (selection.key === 'chat' ? options.model : judge),
-    search: (query, search, signal) => options.daemon.search(query, search, signal),
-  });
+export interface EvaluationModels {
+  model: LanguageModel;
+  /** Background model that judges answers; defaults to the chat model. */
+  judge: LanguageModel;
+  reasoning?: ReasoningEffort;
+  profile: ModelProfile;
+  judgeProfile: ModelProfile;
+  daemon: DaemonClient;
 }
 
-function modelId(model: LanguageModel): string {
-  return typeof model === 'string' ? model : `${model.provider}:${model.modelId}`;
+/** The chat effort belongs to the chat model; a different judge runs at its provider default. */
+export function evaluationConfiguration(models: EvaluationModels): EvaluationConfiguration {
+  const chat = modelSpecOf(models.model);
+  const judge = modelSpecOf(models.judge);
+  const effort = models.reasoning ?? 'provider-default';
+
+  return {
+    candidate: { key: 'chat', model: chat, effort, contextWindow: models.profile.contextWindow },
+    judge: {
+      key: 'learning',
+      model: judge,
+      effort: judge === chat ? effort : 'provider-default',
+      contextWindow: models.judgeProfile.contextWindow,
+    },
+  };
+}
+
+export function agentEvaluationRuntime(models: EvaluationModels) {
+  return createAutomaticEvaluationRuntime({
+    configuration: async () => evaluationConfiguration(models),
+    resolveModel: (selection) => (selection.key === 'chat' ? models.model : models.judge),
+    search: (query, search, signal) => models.daemon.search(query, search, signal),
+  });
 }

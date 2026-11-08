@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  llamacppProvider,
-  openaiProvider,
-  ProviderConfigError,
-  registerBuiltinProviders,
-} from './builtin.js';
+import { builtinProvider, ProviderConfigError, registerBuiltinProviders } from './builtin.js';
+import { providerDescriptor } from './catalog.js';
 import { defaultProviders } from './index.js';
 import type { ModelProvider } from './registry.js';
 
@@ -16,7 +12,7 @@ describe('llamacppProvider', () => {
   });
 
   it('resolves a free-form model id', () => {
-    const m = llamacppProvider().model('ornith-1.0-35b');
+    const m = builtinProvider(providerDescriptor('llamacpp')!).model('ornith-1.0-35b');
     expect((m as { modelId: string }).modelId).toBe('ornith-1.0-35b');
   });
 });
@@ -72,7 +68,7 @@ describe('registerBuiltinProviders', () => {
 
   it('openaiProvider throws ProviderConfigError without a key', () => {
     withClearedProviderKeys(() => {
-      expect(() => openaiProvider()).toThrow(ProviderConfigError);
+      expect(() => builtinProvider(providerDescriptor('openai')!)).toThrow(ProviderConfigError);
     });
   });
 

@@ -7,6 +7,15 @@ describe('parseSearchArgs', () => {
     expect(parseSearchArgs(['node', 'search', '--help'])).toBe('help');
   });
 
+  it('searches the active project like codeberg-ask', () => {
+    const opts = parseSearchArgs(['node', 'search', 'chunking'], {
+      CODEBERG_DAEMON_URL: 'http://127.0.0.1:9000',
+      CODEBERG_PROJECT_ID: 'p1',
+    });
+
+    expect(opts).toMatchObject({ daemonUrl: 'http://127.0.0.1:9000/projects/p1' });
+  });
+
   it('parses query and flags', () => {
     const opts = parseSearchArgs([
       'node',
