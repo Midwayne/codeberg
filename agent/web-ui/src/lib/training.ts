@@ -1,5 +1,9 @@
-export type ExampleKind = 'retrieval' | 'sft' | 'preferences' | 'rlvr' | 'hard_negatives' | 'hard_negative_candidates';
-export type ReviewState = 'ready' | 'training' | 'eval' | 'dismissed' | 'stale';
+import type { DatasetKind } from '@agent/core/learning/datasets/records.js';
+import type { ReviewCandidate, ReviewDashboard, ReviewState } from '@agent/core/learning/review-types.js';
+
+export type ExampleKind = DatasetKind;
+export type { ReviewDashboard, ReviewState };
+export type ReviewSummary = ReviewCandidate;
 
 export const KIND_LABELS: Record<ExampleKind, string> = {
   retrieval: 'Search evidence',
@@ -9,32 +13,6 @@ export const KIND_LABELS: Record<ExampleKind, string> = {
   hard_negatives: 'Incorrect result',
   hard_negative_candidates: 'Possible incorrect result',
 };
-
-export interface ReviewSummary {
-  id: string;
-  kind: ExampleKind;
-  query: string;
-  extracted_at: string;
-  state: ReviewState;
-  eligible: boolean;
-  feedback?: { label: string; reason?: string };
-  repositories: string[];
-  answer_preview: string;
-  proposed_files: string[];
-}
-
-export interface ReviewDashboard {
-  stats: {
-    total: number;
-    ready: number;
-    training: number;
-    eval: number;
-    dismissed: number;
-    stale: number;
-    by_kind: Partial<Record<ExampleKind, number>>;
-  };
-  candidates: ReviewSummary[];
-}
 
 export interface ReviewExample {
   id: string;
