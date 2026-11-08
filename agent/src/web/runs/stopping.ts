@@ -1,5 +1,5 @@
-import { createHash } from 'node:crypto';
 import type { SearchRuns } from './manager.js';
+import { abortControlled, searchRunId, STOP_REQUEST } from './identity.js';
 import { RunError } from './types.js';
 
 /** Remember early Stops so a request still being read cannot start afterward. */
@@ -13,7 +13,7 @@ export class RunStops {
   async stop(runs: Pick<SearchRuns, 'find'>, admission: Promise<unknown> | undefined,
     chatId: string, id: string, byRequest: boolean): Promise<void> {
     if (byRequest) {
-      id = createHash('sha256').update(`${chatId}:${id}`).digest('hex').slice(0, 32);
+      id = searchRunId(chatId, id);
       this.requested.add(id);
     }
 
@@ -25,7 +25,7 @@ export class RunStops {
       throw new RunError(404, 'search run not found');
     }
 
-    if (!run.settled) run.controller.abort('stop');
+    if (!run.settled) abortControlled(run.controller, STOP_REQUEST);
     await run.done;
   }
 }

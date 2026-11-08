@@ -1,6 +1,5 @@
 import type { SearchRuns } from './runs/manager.js';
 import { submitSearch } from './runs/routes.js';
-import { sameOrigin } from './http.js';
 import { validChatId } from '../core/canvas/context.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
@@ -22,8 +21,6 @@ export async function routeChat(
   modelSettings: ModelSettingsStore | undefined,
   runs: SearchRuns,
 ): Promise<void> {
-  if (!sameOrigin(req)) return sendText(res, 403, 'cross-origin chats are not allowed');
-
   const body = await readJson(req);
   if (body?.id !== undefined) {
     try {

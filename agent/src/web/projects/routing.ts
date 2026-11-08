@@ -4,22 +4,25 @@ import { withProjectLog } from '../../core/module-log.js';
 import { codebergHome } from '../../core/paths.js';
 import type { Project } from '../../core/projects/types.js';
 import { projectDataHome } from '../../core/projects/types.js';
-import { sameOrigin, sendJson, sendText } from '../http.js';
+import { HttpError } from '../../core/api/errors.js';
+import { admitRequest, requireMethod, sendJson, sendText } from '../http.js';
 import { routeToolSettings } from '../tools/routes.js';
 import { servePage } from '../server/routes.js';
 import { deleteProject, trackRequest } from './delete.js';
 import { openConfig, pickDirectory, projects, renameProject } from './catalog.js';
 import type { ProjectRequestRouterState } from './state.js';
-import { daemon, ProjectServiceTimeout } from './request.js';
+import { daemon } from './request.js';
 
 export function handle(
   state: ProjectRequestRouterState,
   req: IncomingMessage,
   res: ServerResponse,
 ): void {
+  if (!admitRequest(req, res)) return;
+
   void route(state, req, res).catch((error: unknown) => {
     if (!res.headersSent)
-      sendText(res, error instanceof ProjectServiceTimeout ? 504 : 503,
+      sendText(res, error instanceof HttpError ? error.status : 503,
         error instanceof Error ? error.message : 'Project service unavailable');
     else res.end();
   });
@@ -77,9 +80,7 @@ export async function dispatchProject(
   if (state.deleting.has(project.id)) return sendText(res, 409, 'project deletion in progress');
 
   if (url.pathname === '/api/project/retry') {
-    if (req.method !== 'POST') return sendText(res, 405, 'method not allowed');
-
-    if (!sameOrigin(req)) return sendText(res, 403, 'cross-origin project changes are not allowed');
+    if (!requireMethod(req, res, 'POST')) return;
 
     return sendJson(
       res,
@@ -126,9 +127,6 @@ async function callHandler(
     (url.pathname === '/api/extensions' || url.pathname === '/api/extensions/skills/preview') &&
     state.options.extensions
   ) {
-    if (req.method !== 'GET' && !sameOrigin(req))
-      return sendText(res, 403, 'cross-origin extension changes are not allowed');
-
     return state.options.extensions(req, res, project);
   }
 

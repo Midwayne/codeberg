@@ -6,7 +6,7 @@ import { route } from './server/routes.js';
 import type { ProjectServices, WebServerOptions } from './server/types.js';
 import { RequestWriteGate } from './server/write-gate.js';
 
-import { sendText } from './http.js';
+import { admitRequest, sendText } from './http.js';
 import { ResourceSettings } from './resources.js';
 import { WebSessionStore } from './sessions/store.js';
 import { sharedUsageStore } from './usage/shared.js';
@@ -35,6 +35,8 @@ export function createRequestHandler(
       sendText(res, 400, 'invalid request URL');
       return;
     }
+
+    if (!admitRequest(req, res)) return;
 
     const release = writes.acquire(req, res, path);
     if (!release) return;

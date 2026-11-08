@@ -1,9 +1,10 @@
 import { backgroundSchedules, cancelBackground } from '../background/visibility.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { ScheduleCancelResult, ScheduleSummary } from '../../core/schedules/summary.js';
-import { requireJsonMutation, sendJson, sendText } from '../http.js';
+import { requireJsonMethod, sendJson, sendText } from '../http.js';
 import type { SearchRuns } from '../runs/manager.js';
 import { SESSION_ID_SOURCE } from '../../core/api/sessions.js';
+import { abortControlled, STOP_REQUEST } from '../runs/identity.js';
 import { requestId, type ScheduledRun } from './types.js';
 
 const CANCEL_ROUTE = new RegExp(`^/api/schedules/(${SESSION_ID_SOURCE})/cancel$`);
@@ -21,7 +22,7 @@ export async function routeSchedules(req: IncomingMessage, res: ServerResponse, 
 
   const match = CANCEL_ROUTE.exec(url.pathname);
   if (!match) return sendText(res, 404, 'not found');
-  if (!requireJsonMutation(req, res, 'POST', 'schedule cancellations')) return;
+  if (!requireJsonMethod(req, res, 'POST')) return;
 
   const job = (await runs.schedules.listAll()).find((item) => item.id === match[1]);
   if (!job) {
@@ -34,7 +35,7 @@ export async function routeSchedules(req: IncomingMessage, res: ServerResponse, 
   const run = await runs.findRequest(job.chatId, requestId(job));
   const stopping = Boolean(run && !run.settled);
   // Acknowledge cancellation promptly even when a tool is still cleaning up.
-  if (run && !run.settled) run.controller.abort('stop');
+  if (run && !run.settled) abortControlled(run.controller, STOP_REQUEST);
 
   return sendJson(res, 200, { id: job.id, stopping } satisfies ScheduleCancelResult);
 }

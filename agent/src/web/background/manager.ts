@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { abortControlled, SHUTDOWN_REQUEST, STOP_REQUEST } from '../runs/identity.js';
 import { backgroundSummary, type BackgroundJob, type BackgroundOwner, type BackgroundStart,
   type BackgroundExecute, type RetainBackground, type ReleaseBackground } from '../../core/background/types.js';
 import { executeBackground, onceRelease } from './execution.js';
@@ -94,7 +95,7 @@ export class BackgroundJobs {
       const entry = this.active.get(id);
       if (!entry || !['running', 'cancelling'].includes(job.status)) return job;
 
-      entry.controller.abort('stop');
+      abortControlled(entry.controller, STOP_REQUEST);
       job.status = 'cancelling';
       entry.job.status = 'cancelling';
       await this.store.write(job);
@@ -107,7 +108,7 @@ export class BackgroundJobs {
     this.closed = true;
     await this.initializing;
     const active = [...this.active.values()];
-    for (const entry of active) entry.controller.abort('shutdown');
+    for (const entry of active) abortControlled(entry.controller, SHUTDOWN_REQUEST);
 
     await this.store.serial(async () => {
       for (const entry of active) {

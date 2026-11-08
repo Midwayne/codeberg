@@ -6,6 +6,7 @@ import type { WebSessionStore } from '../sessions/store.js';
 import { settleInterruptedEvents } from './terminal.js';
 import { saveRunSession } from './persistence.js';
 import { notify, publish } from './stream.js';
+import { statusAfterAbort } from './identity.js';
 import type { ChatGenerator, SearchRun } from './types.js';
 
 export async function executeRun(run: SearchRun, generate: ChatGenerator, sessions: WebSessionStore, learning?: LearningService) {
@@ -28,9 +29,7 @@ export async function executeRun(run: SearchRun, generate: ChatGenerator, sessio
     } catch (error) {
       if (!run.controller.signal.aborted) run.controller.abort(error);
 
-      run.record.status = run.controller.signal.aborted
-        ? run.controller.signal.reason === 'shutdown' ? 'interrupted' : run.controller.signal.reason === 'stop' ? 'stopped' : 'failed'
-        : 'failed';
+      run.record.status = statusAfterAbort(run.controller.signal.aborted, run.controller.signal.reason);
       run.record.error = String(error);
     } finally {
       try {

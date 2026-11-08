@@ -1,5 +1,6 @@
 import type { UIMessage, UIMessageChunk } from 'ai';
 import type { RunStatus, ToolObservation } from '../../core/api/runs.js';
+import { HttpError } from '../../core/api/errors.js';
 import type { ResolvedModelSelection } from '../chat-routes.js';
 import type { RunJournal } from './journal.js';
 
@@ -40,8 +41,4 @@ export type ChatGenerator = (options: {
   runId: string;
 }) => Promise<{ stream: ReadableStream<UIMessageChunk>; close?: () => Promise<void> }>;
 
-export class RunError extends Error {
-  constructor(readonly status: number, message: string) {
-    super(message);
-  }
-}
+export class RunError extends HttpError {}
