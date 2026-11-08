@@ -6,7 +6,7 @@ import { readOptionalText, writeJsonAtomic } from '../../core/learning/fs.js';
 import { WriteLock } from '../../core/write-lock.js';
 import { codebergHome } from '../../core/paths.js';
 import { webConfigFromEnv } from '../../core/web/config.js';
-import type { ToolSettings } from '../../core/web/types.js';
+import { savedToolPreferences, type ToolSettings } from '../../core/web/types.js';
 
 type SearchStatus = { status: 'disabled' | 'starting' | 'ready' | 'error'; url?: string; message?: string };
 
@@ -87,14 +87,8 @@ export class ToolSettingsStore {
     }
 
     try {
-      const stored = JSON.parse(raw);
-      if (
-        typeof stored?.webSearch !== 'boolean' ||
-        (stored.browserUse !== undefined && typeof stored.browserUse !== 'boolean') ||
-        (stored.browserVision !== undefined && typeof stored.browserVision !== 'boolean')
-      ) {
-        throw new SyntaxError('Invalid tool settings.');
-      }
+      const stored = savedToolPreferences(JSON.parse(raw));
+      if (!stored) throw new SyntaxError('Invalid tool settings.');
 
       return {
         webSearch: stored.webSearch,
