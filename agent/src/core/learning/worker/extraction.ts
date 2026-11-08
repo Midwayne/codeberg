@@ -3,7 +3,7 @@ import { validatedClaims } from '../claims.js';
 import { EXTRACTION_SYSTEM, knowledgePrompt } from '../knowledge-prompt.js';
 import { parseExtractionResponse, validateResponse } from '../knowledge-response.js';
 import type { KnowledgeJob } from '../types.js';
-import { LearningPaused } from './constants.js';
+import { LearningPaused } from '../errors.js';
 import type { ExtractionContext } from './context.js';
 import { recordCorrectionNote } from './correction.js';
 import { persistExtraction } from './persistence.js';

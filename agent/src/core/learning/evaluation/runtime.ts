@@ -1,4 +1,5 @@
 import { generateText, type LanguageModel } from 'ai';
+import { estimateTokens } from '../../history-tokens.js';
 import { maxReasoningProviderOptions } from '../../reasoning.js';
 import type { Generator, Prompt, SearchOptions, SearchResult } from '../../types.js';
 import { redactSecrets } from '../redact.js';
@@ -7,6 +8,7 @@ import type {
   EvaluationModel,
   EvaluationRuntime,
 } from './automatic-types.js';
+import { JobFailure } from '../errors.js';
 
 export interface EvaluationRuntimeOptions {
   configuration(): Promise<EvaluationConfiguration | undefined>;
@@ -44,7 +46,7 @@ export function createAutomaticEvaluationRuntime(
         model: configuration.candidate.model,
         tool_calls: 1,
         latency_ms: Date.now() - started,
-        retrieved_tokens: Math.ceil(context.join('').length / 4),
+        retrieved_tokens: estimateTokens(context.join('')),
       };
     },
     judge: (configuration) => evaluationGenerator(options, configuration.judge),
@@ -76,7 +78,10 @@ function evaluationGenerator(
   return {
     generate: async (prompt: Prompt) => {
       if (prompt.system.length + prompt.prompt.length > promptBudget(selection))
-        throw new Error('PERMANENT_ERROR: evaluation prompt exceeds the configured context budget');
+        throw new JobFailure(
+          'PERMANENT_ERROR',
+          'evaluation prompt exceeds the configured context budget',
+        );
 
       const { text } = await generateText({
         model: options.resolveModel(selection),
@@ -92,7 +97,7 @@ function evaluationGenerator(
             : {}),
       });
       if (!text.trim())
-        throw new Error('INVALID_RESPONSE: evaluation model returned an empty response');
+        throw new JobFailure('INVALID_RESPONSE', 'evaluation model returned an empty response');
 
       return text;
     },

@@ -1,10 +1,12 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AutomaticEvalReport } from '../../core/learning/evaluation/automatic-types.js';
+import { isEvaluationId } from '../../core/learning/evaluation/reports.js';
 import type { LearningService } from '../../core/learning/service.js';
 import { redactSecrets } from '../../core/learning/redact.js';
 import { sendJson, sendText } from '../http.js';
+import { LEARNING_PATH } from './paths.js';
 
-const PATH = '/api/learning/evaluations';
+const PATH = `${LEARNING_PATH}/evaluations`;
 
 /** Inspect background results; execution is driven by review and runtime reconciliation. */
 export async function routeEvaluations(
@@ -33,7 +35,7 @@ export async function routeEvaluations(
   }
 
   const id = url.pathname.slice(PATH.length + 1);
-  if (!/^evaluation-[a-f0-9]{24}$/.test(id)) return sendText(res, 400, 'invalid evaluation id');
+  if (!isEvaluationId(id)) return sendText(res, 400, 'invalid evaluation id');
 
   const report = await learning.evaluationReports.read<AutomaticEvalReport>('reports', id);
 

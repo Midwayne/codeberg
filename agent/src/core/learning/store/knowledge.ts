@@ -4,9 +4,11 @@ import { projectDreamingKnowledge } from '../dreaming/projection.js';
 import { DreamingReports } from '../dreaming/reports.js';
 import { memorySourceState } from '../memory-source.js';
 import { type SourceObservation } from '../memory-source/reading.js';
+import { KNOWLEDGE_CATEGORIES } from '../preferences.js';
 import { interactionRevisions } from '../revision.js';
 import type { KnowledgeArtifact } from '../types.js';
-import { parseArtifact } from './artifact.js';
+import { stripUserNotes } from '../artifact-body.js';
+import { artifactRevision, parseArtifact } from './artifact.js';
 import { readEvents } from './events.js';
 import { readRepositories } from './repositories.js';
 import type { LearningStoreState } from './state.js';
@@ -22,7 +24,7 @@ export async function currentKnowledgeArtifacts(
 
       return {
         ...verified,
-        body: artifact.body.split('\n## User-confirmed notes (not source-verified)\n')[0].trim(),
+        body: stripUserNotes(artifact.body),
       };
     },
   );
@@ -39,10 +41,7 @@ export async function freshKnowledgeArtifacts(
       artifact.status === 'active' &&
       artifact.source_interactions.length > 0 &&
       artifact.source_interactions.every(
-        (id) =>
-          (artifact.source_revisions?.[id] ??
-            (artifact.source_interactions.length === 1 ? artifact.source_revision : undefined)) ===
-            revisions.get(id) && revisions.has(id),
+        (id) => revisions.has(id) && artifactRevision(artifact, id) === revisions.get(id),
       ),
   );
 
@@ -75,7 +74,7 @@ export async function projectedKnowledgeArtifacts(
 
 export async function knowledgeArtifacts(state: LearningStoreState): Promise<KnowledgeArtifact[]> {
   const artifacts: KnowledgeArtifact[] = [];
-  for (const category of ['services', 'flows', 'concepts', 'debugging'] as const) {
+  for (const category of KNOWLEDGE_CATEGORIES) {
     let files: string[];
     try {
       files = (await readdir(join(state.root, 'knowledge', category))).filter((file) =>

@@ -1,3 +1,4 @@
+import { estimateTokens } from '../history-tokens.js';
 import type { ExtractionContext } from './dataset-extract.js';
 import type { DatasetExample } from './datasets/records.js';
 import { emitNegativeExamples, hitKey, unique, uniqueHits } from './retrieval/negatives.js';
@@ -70,7 +71,7 @@ function retrievalSignals(
   return {
     tool_calls: attempts.reduce((count, attempt) => count + attempt.tools_invoked.length, 0),
     files_opened: opened.length,
-    retrieved_tokens: Math.ceil(JSON.stringify(retrieved).length / 4),
+    retrieved_tokens: estimateTokens(JSON.stringify(retrieved)),
     latency_ms:
       attempts.reduce((total, attempt) => total + (attempt.latency_ms ?? 0), 0) || undefined,
     oracle_file_hit: undefined,

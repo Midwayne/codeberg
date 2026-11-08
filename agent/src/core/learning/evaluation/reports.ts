@@ -2,18 +2,23 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeJsonAtomic, writeJsonImmutable } from '../fs.js';
 import { redactSecrets } from '../redact.js';
+import { isStableId } from '../store/identity.js';
 import type {
   AutomaticEvalReport,
   EvaluationCheckpoint,
   EvaluationTask,
 } from './automatic-types.js';
 
+export function isEvaluationId(id: string): boolean {
+  return isStableId('evaluation', id);
+}
+
 /** Tasks are immutable; checkpoints and the latest report survive interrupted jobs. */
 export class EvaluationReports {
   constructor(private readonly root: string) {}
 
   private path(bucket: string, id: string): string {
-    if (!/^evaluation-[a-f0-9]{24}$/.test(id)) throw new Error('invalid evaluation id');
+    if (!isEvaluationId(id)) throw new Error('invalid evaluation id');
 
     return join(this.root, 'evaluations', bucket, `${id}.json`);
   }
@@ -50,7 +55,7 @@ export class EvaluationReports {
     );
     const reports = await Promise.all(
       files
-        .filter((file) => /^evaluation-[a-f0-9]{24}\.json$/.test(file))
+        .filter((file) => file.endsWith('.json') && isEvaluationId(file.slice(0, -5)))
         .map((file) => this.read<AutomaticEvalReport>('reports', file.slice(0, -5))),
     );
 

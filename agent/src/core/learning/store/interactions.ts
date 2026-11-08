@@ -1,4 +1,4 @@
-import type { AttemptRecord, FeedbackRecord } from '../types.js';
+import type { AttemptRecord, FeedbackRecord, LearningEvent } from '../types.js';
 import { readEvents } from './events.js';
 import { effectiveFeedback } from './feedback.js';
 import { knowledgeArtifacts } from './knowledge.js';
@@ -49,8 +49,13 @@ export async function interaction(
 }
 
 export async function attempts(state: LearningStoreState): Promise<AttemptRecord[]> {
+  return recordedAttempts(await readEvents(state));
+}
+
+/** One record per attempt id; a re-recorded attempt keeps its latest version. */
+export function recordedAttempts(events: LearningEvent[]): AttemptRecord[] {
   const byId = new Map<string, AttemptRecord>();
-  for (const event of await readEvents(state)) {
+  for (const event of events) {
     if (event.type === 'attempt_recorded') byId.set(event.attempt.attempt_id, event.attempt);
   }
 

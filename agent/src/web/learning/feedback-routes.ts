@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { historyCaptureEnabled } from '../../core/learning/preferences.js';
 import type { LearningService } from '../../core/learning/service.js';
 import {
   FEEDBACK_LABELS,
@@ -6,6 +7,7 @@ import {
   type FeedbackRating,
 } from '../../core/learning/types.js';
 import { readJson, sendJson, sendText } from '../http.js';
+import { sendLearningError } from './errors.js';
 import { isValidSessionId } from '../sessions/records.js';
 import { type WebSessionStore } from '../sessions/store.js';
 
@@ -15,7 +17,7 @@ export async function postFeedback(
   learning: LearningService,
   sessions: WebSessionStore,
 ): Promise<void> {
-  if (!learning.settings.enabled || !learning.settings.history || !learning.settings.historyCapture)
+  if (!historyCaptureEnabled(learning.settings))
     return sendText(res, 409, 'Learning history is paused. Enable it in Settings.');
 
   const body = await readJson(req);
@@ -40,9 +42,7 @@ export async function postFeedback(
 
     return sendJson(res, 201, result);
   } catch (error) {
-    if (String(error).includes('attempt not found')) return sendText(res, 404, String(error));
-
-    throw error;
+    return sendLearningError(res, error);
   }
 }
 

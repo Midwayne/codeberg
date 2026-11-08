@@ -2,6 +2,7 @@ import { writeModuleLog } from '../../module-log.js';
 import { syncWatcher } from './background.js';
 import { jobEnabled } from './settings.js';
 import type { LearningServiceState } from './state.js';
+import { LearningError } from '../errors.js';
 
 export function isWorking(state: LearningServiceState): boolean {
   return state.worker?.isRunning() ?? false;
@@ -33,14 +34,15 @@ export async function withMaintenance<T>(
   state: LearningServiceState,
   action: () => Promise<T>,
 ): Promise<T> {
-  if (state.maintenance || isWorking(state) || state.checking) throw new Error('learning is busy');
+  if (state.maintenance || isWorking(state) || state.checking)
+    throw new LearningError('conflict', 'learning is busy');
 
   state.maintenance = true;
   state.worker?.pause();
   try {
     const pending = await state.queue.list('pending');
     if ((await activeJobs(state)) || pending.some((job) => jobEnabled(state, job)))
-      throw new Error('learning is busy');
+      throw new LearningError('conflict', 'learning is busy');
 
     return await action();
   } finally {

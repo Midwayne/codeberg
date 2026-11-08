@@ -8,6 +8,7 @@ import { DatasetStore } from '../datasets.js';
 import type { EvaluationConfiguration, EvaluationRuntime } from './automatic-types.js';
 import type { RepositoryVersion } from '../types.js';
 import { writeJsonAtomic } from '../fs.js';
+import { JobFailure } from '../errors.js';
 
 const roots: string[] = [];
 const services: LearningService[] = [];
@@ -190,7 +191,7 @@ it('recovers an approved but unprocessed task on startup without another approva
 
 it('keeps terminal provider failures terminal across later scans', async () => {
   const { service, example, candidate } = await fixture();
-  candidate.mockRejectedValue(new Error('PERMANENT_ERROR: prompt exceeds context budget'));
+  candidate.mockRejectedValue(new JobFailure('PERMANENT_ERROR', 'prompt exceeds context budget'));
   await approve(service, example.id);
   await service.refreshEvaluations();
   await service.waitForCurrent();

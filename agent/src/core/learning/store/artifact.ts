@@ -14,3 +14,14 @@ export function serializeArtifact(artifact: KnowledgeArtifact): string {
 
   return `---\n${JSON.stringify(metadata, null, 2)}\n---\n\n${body.trim()}\n`;
 }
+
+/** Single-interaction artifacts predate per-interaction revisions. */
+export function artifactRevision(
+  artifact: KnowledgeArtifact,
+  interactionId: string,
+): string | undefined {
+  return (
+    artifact.source_revisions?.[interactionId] ??
+    (artifact.source_interactions.length === 1 ? artifact.source_revision : undefined)
+  );
+}

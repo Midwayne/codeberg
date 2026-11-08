@@ -1,11 +1,14 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { isDreamingReportId } from '../core/learning/dreaming/reports.js';
 import { dreamingSummary } from '../core/learning/dreaming/review.js';
 import type { DreamingDecision } from '../core/learning/dreaming/types.js';
 import { redactSecrets } from '../core/learning/redact.js';
 import type { LearningService } from '../core/learning/service.js';
-import { readJson, sendJson, sendText } from './http.js';
+import { readJson, sameOrigin, sendJson, sendText } from './http.js';
+import { LEARNING_PATH } from './learning/paths.js';
+import { sendLearningError } from './learning/errors.js';
 
-const PATH = '/api/learning/dreaming';
+const PATH = `${LEARNING_PATH}/dreaming`;
 
 export async function routeDreaming(
   req: IncomingMessage,
@@ -23,8 +26,7 @@ export async function routeDreaming(
     }
 
     const id = url.pathname.slice(PATH.length + 1);
-    if (!/^dream-[a-z0-9-]{1,70}$/.test(id))
-      return sendText(res, 400, 'invalid dreaming report id');
+    if (!isDreamingReportId(id)) return sendText(res, 400, 'invalid dreaming report id');
 
     if (req.method === 'GET') {
       const report = await learning.dreamingReports.get(id);
@@ -44,13 +46,7 @@ export async function routeDreaming(
 
     return sendJson(res, 200, await learning.decideDreaming(id, body.action as DreamingDecision));
   } catch (error) {
-    const message = String(error);
-    if (message.includes('not found')) return sendText(res, 404, message);
-
-    if (/paused|no learning model|stale|already|no changes/.test(message))
-      return sendText(res, 409, message);
-
-    throw error;
+    return sendLearningError(res, error);
   }
 }
 
@@ -91,11 +87,7 @@ function validateDreamingWrite(
   req: IncomingMessage,
 ): { status: number; message: string } | undefined {
   if (req.method === 'POST') {
-    if (
-      req.headers.origin &&
-      req.headers.origin !== `http://${req.headers.host}` &&
-      req.headers.origin !== `https://${req.headers.host}`
-    )
+    if (!sameOrigin(req))
       return { status: 403, message: 'cross-origin knowledge changes are not allowed' };
 
     if (!req.headers['content-type']?.startsWith('application/json'))

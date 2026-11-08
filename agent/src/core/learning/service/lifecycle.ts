@@ -1,6 +1,7 @@
 import { mkdir, open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeModuleLog } from '../../module-log.js';
+import { KNOWLEDGE_CATEGORIES } from '../preferences.js';
 import { syncWatcher, wakeWorker } from './background.js';
 import { scheduleDreaming } from './dreaming-schedule.js';
 import { refreshEvaluations } from './evaluations.js';
@@ -60,7 +61,7 @@ export function stop(state: LearningServiceState): void {
 export async function ensureLayout(state: LearningServiceState): Promise<void> {
   await Promise.all([
     mkdir(join(state.store.root, 'events'), { recursive: true }),
-    ...['services', 'flows', 'concepts', 'debugging'].map((name) =>
+    ...KNOWLEDGE_CATEGORIES.map((name) =>
       mkdir(join(state.store.root, 'knowledge', name), { recursive: true }),
     ),
     ...['pending', 'processing', 'completed', 'failed'].map((name) =>

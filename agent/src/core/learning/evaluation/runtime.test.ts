@@ -73,6 +73,6 @@ it('fails oversized judge inputs explicitly without truncating evidence or calli
 
   await expect(
     runtime.judge(configuration).generate({ system: 'grade', prompt: 'x'.repeat(40_001) }),
-  ).rejects.toThrow('PERMANENT_ERROR');
+  ).rejects.toMatchObject({ category: 'PERMANENT_ERROR' });
   expect(resolveModel).not.toHaveBeenCalled();
 });

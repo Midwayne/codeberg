@@ -1,16 +1,11 @@
 import { DatasetStore } from '../datasets.js';
 import { redactSecrets } from '../redact.js';
+import { CORRECTION } from '../store/session.js';
 import type { AttemptRecord, FeedbackRecord } from '../types.js';
 
 export function chatRecords(solved: AttemptRecord[]): unknown[] {
   return solved
-    .filter(
-      (attempt) =>
-        !attempt.parent_interaction_id &&
-        !/^(?:no\b|actually\b|i meant\b|that's not\b|that is not\b|but\b)/i.test(
-          attempt.user_query,
-        ),
-    )
+    .filter((attempt) => !attempt.parent_interaction_id && !CORRECTION.test(attempt.user_query))
     .map((attempt) => ({
       messages: [
         { role: 'user', content: redactSecrets(attempt.user_query) },
