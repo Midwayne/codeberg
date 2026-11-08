@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { historyCaptureEnabled } from '../../core/learning/preferences.js';
 import type { LearningService } from '../../core/learning/service.js';
 import {
   FEEDBACK_LABELS,
@@ -16,7 +17,7 @@ export async function postFeedback(
   learning: LearningService,
   sessions: WebSessionStore,
 ): Promise<void> {
-  if (!learning.settings.enabled || !learning.settings.history || !learning.settings.historyCapture)
+  if (!historyCaptureEnabled(learning.settings))
     return sendText(res, 409, 'Learning history is paused. Enable it in Settings.');
 
   const body = await readJson(req);

@@ -1,6 +1,7 @@
 import type { UIMessage } from 'ai';
 import { writeModuleLog } from '../../module-log.js';
 import { yieldsDatasetExamples } from '../dataset-extract.js';
+import { historyCaptureEnabled } from '../preferences.js';
 import type { FeedbackLabel, FeedbackRating, FeedbackRecord } from '../types.js';
 import { wakeWorker } from './background.js';
 import type { LearningServiceState } from './state.js';
@@ -12,8 +13,7 @@ export async function recordSession(
   messages: UIMessage[],
   parentConversationId?: string,
 ): Promise<void> {
-  if (!state.preferences.enabled || !state.preferences.history || !state.preferences.historyCapture)
-    return;
+  if (!historyCaptureEnabled(state.preferences)) return;
 
   const attempts = await state.store.recordSession(conversationId, messages, parentConversationId);
   const newIds = new Set(attempts.map((attempt) => attempt.attempt_id));
@@ -53,7 +53,7 @@ export async function feedback(
     reason?: string;
   },
 ): Promise<{ feedback: FeedbackRecord; jobId?: string; jobStatus?: string }> {
-  if (!state.preferences.enabled || !state.preferences.history || !state.preferences.historyCapture)
+  if (!historyCaptureEnabled(state.preferences))
     throw new LearningError('conflict', 'Learning history is paused. Enable it in Settings.');
 
   const attempt = await state.store.attemptForMessage(input.conversationId, input.messageId);

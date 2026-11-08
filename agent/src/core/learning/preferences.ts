@@ -78,6 +78,10 @@ export function mergeLearningSettings(current: LearningSettings, patch: unknown)
   return merge(current as unknown as Record<string, unknown>, patch) as unknown as LearningSettings;
 }
 
+export function historyCaptureEnabled(settings: LearningSettings): boolean {
+  return settings.enabled && settings.history && settings.historyCapture;
+}
+
 export function learningRecall(settings: LearningSettings) {
   return {
     history: settings.enabled && settings.history && settings.historyRecall,
