@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { pipeUIMessageStreamToResponse, type UIMessage } from 'ai';
 import type { ResolvedModelSelection } from '../chat-routes.js';
-import { readJson, requireJsonMutation, sendJson, sendText } from '../http.js';
+import { readJson, requireJsonMethod, sendJson, sendText } from '../http.js';
 import type { SearchRuns } from './manager.js';
 import { RUN_ID_HEADER, RUN_STATUS_HEADER, type RunSummary } from '../../core/api/runs.js';
 import { SESSION_ID_SOURCE } from '../../core/api/sessions.js';
@@ -37,7 +37,7 @@ export async function routeSearchRun(req: IncomingMessage, res: ServerResponse, 
   const [, chatId, action] = match;
   try {
     if (action === 'stop') {
-      if (!requireJsonMutation(req, res, 'POST', 'search stops')) return;
+      if (!requireJsonMethod(req, res, 'POST')) return;
 
       const body = await readJson(req);
       const id = body?.runId ?? body?.requestId;

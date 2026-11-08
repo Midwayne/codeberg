@@ -1,3 +1,5 @@
+import { HttpError } from '../../core/api/errors.js';
+
 export interface StoredFile {
   path: string;
   id: string;
@@ -7,11 +9,8 @@ export interface StoredFile {
   mtimeMs: number;
 }
 
-export class ResourceSettingsError extends Error {
-  constructor(
-    message: string,
-    readonly status = 400,
-  ) {
-    super(message);
+export class ResourceSettingsError extends HttpError {
+  constructor(message: string, status = 400) {
+    super(status, message);
   }
 }

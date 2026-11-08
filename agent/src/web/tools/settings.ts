@@ -2,6 +2,7 @@ import { browserEnabled, browserVisionEnabled } from '../../core/browser/config.
 import { cancelBrowserTasks } from '../../core/browser/runner.js';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { HttpError } from '../../core/api/errors.js';
 import { writeJsonAtomic } from '../../core/learning/fs.js';
 import { codebergHome } from '../../core/paths.js';
 import { webConfigFromEnv } from '../../core/web/config.js';
@@ -9,9 +10,9 @@ import type { ToolSettings } from '../../core/web/types.js';
 
 type SearchStatus = { status: 'disabled' | 'starting' | 'ready' | 'error'; url?: string; message?: string };
 
-export class ToolSettingsError extends Error {
-  constructor(message: string, readonly status = 400) {
-    super(message);
+export class ToolSettingsError extends HttpError {
+  constructor(message: string, status = 400) {
+    super(status, message);
   }
 }
 

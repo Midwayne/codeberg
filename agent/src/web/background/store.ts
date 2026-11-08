@@ -3,12 +3,9 @@ import { join } from 'node:path';
 import { writeJsonAtomic } from '../../core/learning/fs.js';
 import type { BackgroundJob } from '../../core/background/types.js';
 import { isValidSessionId } from '../../core/api/sessions.js';
+import { HttpError } from '../../core/api/errors.js';
 
-export class BackgroundError extends Error {
-  constructor(readonly status: number, message: string) {
-    super(message);
-  }
-}
+export class BackgroundError extends HttpError {}
 
 export class BackgroundStore {
   private pending = Promise.resolve();

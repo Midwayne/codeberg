@@ -1,5 +1,5 @@
 import { type IncomingMessage, type ServerResponse } from 'node:http';
-import { readJson, sameOrigin, sendJson, sendText } from '../http.js';
+import { readJson, requireJsonMethod, sendJson, sendText } from '../http.js';
 import { ResourceSettings } from '../resources.js';
 import { ResourceSettingsError } from '../resources/types.js';
 
@@ -33,12 +33,7 @@ export async function routeResources(
       return sendJson(res, 200, await resources.preview(Number(days)));
     }
 
-    if (req.method !== 'POST') return sendText(res, 405, 'method not allowed');
-
-    if (!sameOrigin(req)) return sendText(res, 403, 'cross-origin cleanup is not allowed');
-
-    if (!req.headers['content-type']?.startsWith('application/json'))
-      return sendText(res, 415, 'application/json required');
+    if (!requireJsonMethod(req, res, 'POST')) return;
 
     const body = await readJson(req);
 
