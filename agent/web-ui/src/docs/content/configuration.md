@@ -42,7 +42,7 @@ You can also export `CODEBERG_HOME`. Putting it inside an already-opened config 
 | `CODEBERG_SUBAGENT_MODEL` | Learning model; defaults to chat. |
 | `CODEBERG_REASONING` | Initial chat effort. |
 | `CODEBERG_WEB_PORT` | UI port; default `48088`. |
-| `CODEBERG_HTTP_PORT` | Launcher daemon port; default `48080`. Direct `codeberg-d` uses `8080`. |
+| `CODEBERG_HTTP_PORT` | Daemon HTTP port for the launcher and for `codeberg-d`; default `48080`. |
 | `CODEBERG_VECTOR=false` | Start [without embeddings](/docs/indexing#start-without-an-embedding-model); omit semantic search tools. One-launch flag: `--no-vector`. |
 | `CODEBERG_EMBEDDING_MODEL` | [Embedding selection](/docs/indexing). |
 | `CODEBERG_WEB_USE=false` | Disable web search, URL fetching, and Browser Use. |

@@ -127,7 +127,7 @@ export CODEBERG_ROOTS="$(printf 'repo\t%s' "$(git rev-parse --show-toplevel)")"
 | `CBERG_VECTORDB_URL` | For `qdrant` backend | Qdrant base URL, e.g. `https://cluster.qdrant.io` |
 | `CBERG_VECTORDB_API_KEY` | No | Qdrant API key (cloud) |
 | `CBERG_POSTGRES_URL` | For `pgvector` backend | PostgreSQL connection string (requires pgvector extension) |
-| `CODEBERG_HTTP_PORT` | No | Daemon HTTP port (default `8080`) |
+| `CODEBERG_HTTP_PORT` | No | Daemon HTTP port (default `48080`) |
 | `CODEBERG_WEB_PORT` | No | Browser UI port for `make run-agent-web` (default `48088`) |
 | `CODEBERG_DBMCP_USE` | No | `true` enables the built-in multi-db MCP server (default off). Needs `~/.codeberg/spec.yml` and `make build-dbmcp` |
 | `CODEBERG_DBMCP_SPEC` | No | Override path to the database spec (default `$CODEBERG_HOME/spec.yml`) |
@@ -233,7 +233,7 @@ First cold index with embeddings is slow (this repo ~12k chunks can take several
 minutes on CPU). Poll `GET /health` until `"ready": true`, then:
 
 ```bash
-curl -s "http://127.0.0.1:8080/search?q=chunking&k=3"
+curl -s "http://127.0.0.1:48080/search?q=chunking&k=3"
 ```
 
 ONNX is optional in cloud: skip steps 1–5 unless the task touches
@@ -275,11 +275,11 @@ cd agent && npm ci && npm install @rollup/rollup-linux-x64-gnu --no-save && npm 
 ```bash
 export CODEBERG_ROOTS="$(printf 'repo\t%s' "$(git rev-parse --show-toplevel)")"
 make run-daemon   # background in tmux; indexes the supplied keyed roots
-curl -s http://127.0.0.1:8080/health
-curl -s -X POST http://127.0.0.1:8080/tools/call \
+curl -s http://127.0.0.1:48080/health
+curl -s -X POST http://127.0.0.1:48080/tools/call \
   -H 'Content-Type: application/json' \
   -d '{"name":"grep","args":{"pattern":"chunking","literal":true,"limit":3}}'
-curl -s -X POST http://127.0.0.1:8080/tools/call \
+curl -s -X POST http://127.0.0.1:48080/tools/call \
   -H 'Content-Type: application/json' \
   -d '{"name":"find_symbol","args":{"name":"cberg_chunker_open"}}'
 ```

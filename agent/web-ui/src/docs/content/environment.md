@@ -77,7 +77,7 @@ For catalog syntax, local server setup, and saved model choices, see [Models and
 | Variable | Value or default | What it changes |
 | --- | --- | --- |
 | `CODEBERG_WEB_PORT` | Port; `48088` | Browser UI server. |
-| `CODEBERG_HTTP_PORT` | Port; `48080` through the launcher | Daemon HTTP API. Running `codeberg-d` directly defaults to `8080`. |
+| `CODEBERG_HTTP_PORT` | `48080` | Daemon HTTP API, for the launcher and for `codeberg-d` started directly. |
 | `CODEBERG_DAEMON_URL` | `http://127.0.0.1:<daemon port>` | Daemon endpoint used by the agent. Useful when running components separately. |
 | `CBERG_SOCKET` | Path; `/tmp/codeberg-index.sock` | Indexer IPC socket. Separate daemon instances need separate socket paths. |
 | `CBERG_INDEX_BIN` | Optional executable path | Override the `cberg-index` binary. Normally found beside the daemon or on `PATH`. |

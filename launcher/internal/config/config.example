@@ -90,7 +90,7 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # Daemon / HTTP (daemon scope)
 # =============================================================================
 
-# Daemon HTTP listen port (default 48080 via launcher; 8080 when running codeberg-d alone).
+# Daemon HTTP listen port (default 48080 for the launcher and for codeberg-d).
 # CODEBERG_HTTP_PORT=48080
 
 # Unix socket for cberg-index IPC (default /tmp/codeberg-index.sock).
