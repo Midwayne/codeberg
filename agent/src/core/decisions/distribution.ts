@@ -1,5 +1,5 @@
 import type { DecisionAnswer, DecisionQuestion } from './types.js';
-import { record } from './record.js';
+import { record } from '../record.js';
 
 /** Normalize OpenAI arrays and System One maps without inventing missing probabilities. */
 export function decisionDistribution(question: DecisionQuestion, raw: unknown): DecisionAnswer['probabilities'] {

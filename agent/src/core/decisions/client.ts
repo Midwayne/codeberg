@@ -1,6 +1,6 @@
 import type { DecisionModel, DecisionRequest, DecisionResult, DecisionUsageSink } from './types.js';
 import { writeModuleLog } from '../module-log.js';
-import { record } from './record.js';
+import { record } from '../record.js';
 import { validateAnswer, validateRequest } from './validation.js';
 import { decisionFingerprint } from './cache.js';
 

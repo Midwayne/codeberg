@@ -1,11 +1,12 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { loadDecisionCatalog, resolveDecision } from '../../core/decisions/catalog.js';
 import { writeJsonAtomic } from '../../core/learning/fs.js';
 import type { CatalogModel, ModelSelection, ModelSettings } from '../../core/model-types.js';
 import { codebergHome } from '../../core/paths.js';
-import { loadModelCatalog, object, validEffort, type ModelCatalogOptions } from './catalog.js';
-import { loadDecisionCatalog, resolveDecision } from '../../core/decisions/catalog.js';
+import { record } from '../../core/record.js';
+import { loadModelCatalog, validEffort, type ModelCatalogOptions } from './catalog.js';
 
 export class ModelSelectionError extends Error {}
 
@@ -44,7 +45,7 @@ export class ModelSettingsStore {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     }
 
-    const values = object(stored);
+    const values = record(stored);
 
     return {
       models,
@@ -63,7 +64,7 @@ export class ModelSettingsStore {
   }
 
   async update(input: unknown): Promise<ModelSettings> {
-    const values = object(input);
+    const values = record(input);
     if (!values) throw new ModelSelectionError('settings must have chat and learning selections');
 
     // Serialize validation and writes so two browser tabs cannot overwrite each other.
@@ -88,7 +89,7 @@ export class ModelSettingsStore {
 
   private resolve(raw: unknown, fallback: ModelSelection, models: CatalogModel[]): ModelSelection {
     for (const candidate of [raw, fallback]) {
-      const input = object(candidate);
+      const input = record(candidate);
       const effort = input?.effort;
       if (!validEffort(effort)) continue;
 
@@ -114,7 +115,7 @@ export class ModelSettingsStore {
   }
 
   private validate(raw: unknown, models: CatalogModel[]): ModelSelection {
-    const input = object(raw);
+    const input = record(raw);
     const item = models.find((entry) => entry.key === input?.key);
     if (
       !item ||
