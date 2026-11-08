@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
 import { parseDocument } from 'yaml';
+import { readOptionalText } from './learning/fs.js';
 
 export interface ModelsFile {
   found: boolean;
@@ -16,13 +16,10 @@ export function modelsDocument(raw: string): unknown {
 }
 
 export async function readModelsDocument(path: string): Promise<ModelsFile> {
-  try {
-    return { found: true, value: modelsDocument(await readFile(path, 'utf8')) };
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { found: false };
+  const raw = await readOptionalText(path);
+  if (raw === undefined) return { found: false };
 
-    throw error;
-  }
+  return { found: true, value: modelsDocument(raw) };
 }
 
 export function readModelsDocumentSync(path: string): unknown {
