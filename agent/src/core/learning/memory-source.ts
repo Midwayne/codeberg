@@ -125,9 +125,3 @@ function repositoryCurrent(
     observations.some((item) => item.repo === repo.path && item.hash)
   );
 }
-
-export type { SourceObservation, SourceRef } from './memory-source/reading.js';
-
-export { sourceKey, sourceTextFor } from './memory-source/reading.js';
-
-export { relocatedSources } from './memory-source/relocation.js';

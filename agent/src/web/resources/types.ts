@@ -1,4 +1,4 @@
-import type { ProcessUsage } from '../process-resources.js';
+import type { ProcessUsage } from '../process/types.js';
 
 export const CLEANUP_CATEGORIES = ['chats', 'training', 'knowledge'] as const;
 

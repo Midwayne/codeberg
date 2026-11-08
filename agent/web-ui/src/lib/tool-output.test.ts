@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { isSpillPreview, spilledToolTitle } from './tool-output';
+import { isSpillPreview } from '@agent/core/context/spill-preview.js';
+import { spilledToolTitle } from './tool-output';
 
 describe('spilledToolTitle', () => {
   it('does not report a spilled result as zero', () => {

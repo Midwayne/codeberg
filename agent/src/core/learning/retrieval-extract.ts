@@ -1,5 +1,5 @@
 import type { ExtractionContext } from './dataset-extract.js';
-import type { DatasetExample } from './datasets.js';
+import type { DatasetExample } from './datasets/records.js';
 import { emitNegativeExamples, hitKey, unique, uniqueHits } from './retrieval/negatives.js';
 import type { AttemptRecord, RetrievedResult, ToolInvocation } from './types.js';
 

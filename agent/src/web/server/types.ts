@@ -2,7 +2,7 @@ import type { ChatGenerator } from '../runs/types.js';
 import type { SearchRuns } from '../runs/manager.js';
 import type { CanvasStore } from '../../core/canvas/store.js';
 import { type ToolLoopAgent } from 'ai';
-import type { PromptCommand } from '../../core/hooks/index.js';
+import type { PromptCommand } from '../../core/hooks/types.js';
 import type { LearningService } from '../../core/learning/service.js';
 import type { ChatResponder, ResolvedModelSelection } from '../chat-routes.js';
 import { type ModelSettingsStore } from '../model-selection/settings.js';

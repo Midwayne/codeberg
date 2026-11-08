@@ -1,6 +1,6 @@
 import type { DaemonClient } from '../client.js';
 import type { DecisionFile, DecisionFileSummary, DecisionRequest } from './types.js';
-import { record } from './validation.js';
+import { record } from './record.js';
 
 const MAX_FILES = 8;
 const MAX_LINES = 200;

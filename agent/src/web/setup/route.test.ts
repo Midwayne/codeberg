@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { expect, it } from 'vitest';
 
 import { createProjectRequestHandler, type ProjectRouterOptions } from '../projects.js';
-import type { SetupStatus } from './status.js';
+import type { SetupStatus } from '../../core/setup-types.js';
 
 async function getSetup(setup?: ProjectRouterOptions['setup']): Promise<{ status: number; body: unknown }> {
   const home = await mkdtemp(join(tmpdir(), 'codeberg-setup-route-'));

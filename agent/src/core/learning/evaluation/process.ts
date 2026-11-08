@@ -1,5 +1,5 @@
 import { basename } from 'node:path';
-import type { DatasetExample } from '../datasets.js';
+import type { DatasetExample } from '../datasets/records.js';
 import { scoreRetrievalRuns } from '../metrics.js';
 import type { RetrievalRun } from '../metrics/types.js';
 import { classifyFailure, isTransientFailure, MAX_ATTEMPTS } from '../queue/policy.js';

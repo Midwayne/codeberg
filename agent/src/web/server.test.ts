@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { reasoningFromEnv } from '../core/config.js';
-import type { DatasetExample } from '../core/learning/datasets.js';
+import type { DatasetExample } from '../core/learning/datasets/records.js';
 import { LearningService } from '../core/learning/service.js';
 import { ModelSettingsStore } from './model-selection/settings.js';
 import { ResourceSettings } from './resources.js';
@@ -17,10 +17,10 @@ import {
   COMMANDS_PATH,
   META_PATH,
   SESSIONS_PATH,
-  createWebServer,
-  type ChatResponder,
   type WebServerOptions,
-} from './server.js';
+} from './server/types.js';
+import { createWebServer } from './server.js';
+import { type ChatResponder } from './chat-routes.js';
 import { WebSessionStore } from './sessions/store.js';
 import { formatWebTitle } from './title.js';
 

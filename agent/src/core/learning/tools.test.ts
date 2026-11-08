@@ -4,11 +4,12 @@ import { basename, join } from 'node:path';
 
 import { afterEach, expect, it } from 'vitest';
 
-import { sourceRevision } from './datasets.js';
+import { sourceRevision } from './revision.js';
 import { writeAtomic } from './fs.js';
 import { observeSources, sourceHashes } from './memory-source.js';
 import { DEFAULT_LEARNING_SETTINGS } from './preferences.js';
-import { LearningStore, serializeArtifact } from './store.js';
+import { LearningStore } from './store.js';
+import { serializeArtifact } from './store/artifact.js';
 import { learningToolSource } from './tools.js';
 
 const roots: string[] = [];

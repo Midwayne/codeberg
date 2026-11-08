@@ -1,7 +1,5 @@
 import type { CatalogModel, ModelSelection, ModelSettings } from '@agent/core/model-types.js';
 
-export type { CatalogModel, ModelSelection, ModelSettings } from '@agent/core/model-types.js';
-
 export function selectModel(current: ModelSelection, key: string, models: readonly CatalogModel[]): ModelSelection {
   const option = models.find((entry) => entry.key === key);
   if (!option) return current;

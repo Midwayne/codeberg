@@ -1,5 +1,5 @@
 import { basename } from 'node:path';
-import { parseSkillDocument } from '../../core/context/skills.js';
+import { parseSkillDocument } from '../../core/context/skill-document.js';
 
 export interface SkillFilePreview {
   filename: string;

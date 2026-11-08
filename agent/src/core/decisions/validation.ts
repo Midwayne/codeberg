@@ -2,8 +2,6 @@ import type { DecisionAnswer, DecisionQuestion, DecisionRequest } from './types.
 import { decisionDistribution } from './distribution.js';
 import { record } from './record.js';
 
-export { record } from './record.js';
-
 function text(value: unknown, max = 4000): value is string {
   return typeof value === 'string' && value.trim().length > 0 && value.length <= max;
 }

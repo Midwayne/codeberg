@@ -1,7 +1,7 @@
 import { Components, Toggle } from './learning-controls';
 
 import { DATASET_KINDS } from '@agent/core/learning/preferences';
-import type { LearningSettings } from '../lib/learning-settings';
+import type { LearningSettings } from '@agent/core/learning/preferences.js';
 import { KIND_LABELS } from '../lib/training';
 
 import type { LearningSettingsView } from './learning-settings';

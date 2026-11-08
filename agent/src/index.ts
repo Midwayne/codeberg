@@ -1,4 +1,5 @@
-export { Agent, type AgentOptions } from './core/agent.js';
+export { Agent } from './core/agent.js';
+export { type AgentOptions } from './core/agent/options.js';
 export {
   branchEndIndex,
   branchTitle,
@@ -18,16 +19,14 @@ export { createAgentFromEntry } from './core/config.js';
 export { entryUsage, parseEntryArgs, type EntryConfig } from './core/entry.js';
 export { EvidenceLedger } from './core/evidence.js';
 export { formatSource } from './core/format.js';
-export { fitHistory, totalTokens, type FitOptions, type Summarize } from './core/history.js';
-export {
-  DEFAULT_PROMPT_HOOKS,
-  promptCommandCatalog,
-  wrapToolLoopAgentWithPromptHooks,
-  type PromptCommand,
-  type PromptHook,
-  type PromptHookInput,
-} from './core/hooks/index.js';
-export { DatasetStore, EXTRACTION_VERSION } from './core/learning/datasets.js';
+export { fitHistory, type FitOptions, type Summarize } from './core/history.js';
+export { totalTokens } from './core/history-tokens.js';
+export { DEFAULT_PROMPT_HOOKS } from './core/hooks/defaults.js';
+export { promptCommandCatalog } from './core/hooks/catalog.js';
+export { wrapToolLoopAgentWithPromptHooks } from './core/hooks/runtime.js';
+export { type PromptCommand, type PromptHook, type PromptHookInput } from './core/hooks/types.js';
+export { DatasetStore } from './core/learning/datasets.js';
+export { EXTRACTION_VERSION } from './core/learning/dataset-extract.js';
 export { exportDataset, type ExportType } from './core/learning/export.js';
 export { judgeScorers } from './core/learning/evaluation/judge.js';
 export { evaluateOutputs } from './core/learning/evaluation/runner.js';
@@ -42,7 +41,8 @@ export type {
 export { historicalEvalMetrics, scoreRetrievalRuns } from './core/learning/metrics.js';
 export { DurableJobQueue } from './core/learning/queue.js';
 export { LearningService } from './core/learning/service.js';
-export { LearningStore, defaultLearningRoot } from './core/learning/store.js';
+export { LearningStore } from './core/learning/store.js';
+export { defaultLearningRoot } from './core/learning/store/identity.js';
 export type {
   AttemptRecord,
   FeedbackLabel,
@@ -58,25 +58,17 @@ export {
   type LoopOverrides,
   type MessageTransform,
 } from './core/loop.js';
-export {
-  mcpConfigFromEnv,
-  parseMcpJson,
-  type McpConfig,
-  type McpServer,
-} from './core/mcp/index.js';
+export { mcpConfigFromEnv } from './core/mcp/config.js';
+export { parseMcpJson } from './core/mcp/config/parse.js';
+export { type McpConfig, type McpServer } from './core/mcp/types.js';
 export { agentSystemPrompt, type AgentSystemPromptOptions } from './core/prompt.js';
 export { ChatSession, type ChatSessionOptions } from './core/session.js';
-export {
-  collectTools,
-  daemonToolSource,
-  mcpToolSource,
-  searchCodeSource,
-  webToolSource,
-  type McpToolSource,
-  type McpToolSourceOptions,
-  type SearchCodeOptions,
-  type ToolSource,
-} from './core/tools/index.js';
+export { collectTools, type ToolSource } from './core/tools/source.js';
+export { daemonToolSource } from './core/tools/daemon.js';
+export { mcpToolSource } from './core/mcp/tools.js';
+export { searchCodeSource, type SearchCodeOptions } from './core/tools/search-code.js';
+export { webToolSource } from './core/tools/web.js';
+export { type McpToolSource, type McpToolSourceOptions } from './core/mcp/tools/state.js';
 export type {
   AskOptions,
   AskResult,
@@ -90,21 +82,15 @@ export type {
   ToolSpec,
   Turn,
 } from './core/types.js';
-export {
-  assertFetchableUrl,
-  fetchUrl,
-  htmlToText,
-  searxngProvider,
-  webConfigFromEnv,
-  webSearchProviderFromConfig,
-  webTools,
-  type WebConfig,
-  type WebDeps,
-  type WebPage,
-  type WebSearchProvider,
-  type WebSearchResult,
-} from './core/web/index.js';
-export { ProviderRegistry, type ModelProvider } from './providers/index.js';
+export { assertFetchableUrl } from './core/web/ssrf.js';
+export { fetchUrl } from './core/web/client.js';
+export { htmlToText } from './core/web/html.js';
+export { searxngProvider } from './core/web/search/searxng.js';
+export { webConfigFromEnv } from './core/web/config.js';
+export { webSearchProviderFromConfig, type WebSearchProvider } from './core/web/search/provider.js';
+export { webTools } from './core/web/tools.js';
+export { type WebConfig, type WebDeps, type WebPage, type WebSearchResult } from './core/web/types.js';
+export { ProviderRegistry, type ModelProvider } from './providers/registry.js';
 export {
   budgetWindow,
   DEFAULT_PROFILE,

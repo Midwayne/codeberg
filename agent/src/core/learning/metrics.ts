@@ -1,7 +1,9 @@
-import { DatasetStore, type DatasetExample } from './datasets.js';
+import { DatasetStore } from './datasets.js';
+import { type DatasetExample } from './datasets/records.js';
 import { average, complexityBucket, strings } from './metrics/summary.js';
 import type { RetrievalReport, RetrievalRun, RetrievalScore } from './metrics/types.js';
-import { effectiveFeedback, type LearningStore } from './store.js';
+import { effectiveFeedback } from './store/feedback.js';
+import { type LearningStore } from './store.js';
 import type { AttemptRecord } from './types.js';
 
 /** Accept runs from any retriever or retrieval agent against the same held-out IDs. */
@@ -92,8 +94,6 @@ export async function historicalEvalMetrics(store: LearningStore) {
 
   return scoreRetrievalRuns(evals, runs);
 }
-
-export type { RetrievalRun, RetrievalScore } from './metrics/types.js';
 
 function scoreRun(example: DatasetExample, run: RetrievalRun): RetrievalScore {
   const oracle = example.review?.oracle ?? {};

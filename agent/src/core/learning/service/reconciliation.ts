@@ -1,5 +1,5 @@
 import { interactionRevisions } from '../revision.js';
-import { KNOWLEDGE_EXTRACTION_VERSION } from '../worker.js';
+import { KNOWLEDGE_EXTRACTION_VERSION } from '../worker/constants.js';
 import type { LearningServiceState } from './state.js';
 
 /** Replay the feedback-to-job handoff if the process stopped between the two durable writes. */

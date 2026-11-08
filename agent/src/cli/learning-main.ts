@@ -4,18 +4,17 @@ import { join } from 'node:path';
 import { dreamingCommand } from './dreaming.js';
 import { scoreOutputsFile } from './output-evals.js';
 
-import { DatasetStore, type Provenance } from '../core/learning/datasets.js';
+import { DatasetStore } from '../core/learning/datasets.js';
+import { type Provenance } from '../core/learning/datasets/records.js';
 import { exportDataset, type ExportType } from '../core/learning/export.js';
 import { EvaluationReports } from '../core/learning/evaluation/reports.js';
 import { writeAtomic } from '../core/learning/fs.js';
-import {
-  historicalEvalMetrics,
-  scoreRetrievalRuns,
-  type RetrievalRun,
-} from '../core/learning/metrics.js';
-import { LearningStore, defaultLearningRoot } from '../core/learning/store.js';
+import { historicalEvalMetrics, scoreRetrievalRuns } from '../core/learning/metrics.js';
+import { type RetrievalRun } from '../core/learning/metrics/types.js';
+import { LearningStore } from '../core/learning/store.js';
+import { defaultLearningRoot } from '../core/learning/store/identity.js';
 
-import { prepareProjectStorage } from '../core/projects.js';
+import { prepareProjectStorage } from '../core/projects/migration.js';
 
 async function main(): Promise<void> {
   await prepareProjectStorage();

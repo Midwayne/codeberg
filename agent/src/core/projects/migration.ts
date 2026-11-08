@@ -98,8 +98,6 @@ export async function info(path: string) {
   });
 }
 
-export { lockMigration } from './lock.js';
-
 async function makeLinkAbsolute(home: string, name: string): Promise<void> {
   // A relative symlink would change meaning after moving deeper in the tree.
   const temporary = join(home, `.project-link-${randomUUID()}`);

@@ -1,11 +1,11 @@
 import { basename } from 'node:path';
 import { extractSuccessfulTrajectory, extractVerifiedTask } from './extraction/trajectories.js';
 
-import type { DatasetExample, DatasetKind, Provenance } from './datasets.js';
+import type { DatasetExample, DatasetKind, Provenance } from './datasets/records.js';
 import { redactSecrets } from './redact.js';
 import { extractRetrieval, isRetrievalTask } from './retrieval-extract.js';
 import { sourceRevision } from './revision.js';
-import { stableId } from './store.js';
+import { stableId } from './store/identity.js';
 import type { AttemptRecord, FeedbackRecord, ToolInvocation } from './types.js';
 
 export const EXTRACTION_VERSION = 2;

@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { projectFetch, type ProjectCatalog } from './project-api';
-import { ProjectToolbar, ProjectNotice } from '../components/project-controls';
+import { ProjectToolbar } from '../components/project-controls';
+import { ProjectNotice } from '../components/indexing-progress';
 import { useProjectStatus } from './use-project-status';
-
-export { useProjectStatus, type ProjectStatusOptions } from './use-project-status';
 
 export type ProjectShellOptions = {
   children: (toolbar: ReactNode, loading: boolean, notice: ReactNode) => ReactNode;

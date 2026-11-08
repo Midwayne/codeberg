@@ -3,7 +3,7 @@ import { realpath } from 'node:fs/promises';
 import { basename, dirname, resolve, sep } from 'node:path';
 
 import { writeModuleLog } from '../module-log.js';
-import { sourceKey } from './memory-source.js';
+import { sourceKey } from './memory-source/reading.js';
 import type { LearningStore } from './store.js';
 import type { RepositoryVersion } from './types.js';
 

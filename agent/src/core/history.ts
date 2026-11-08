@@ -5,8 +5,6 @@ import { recentHistoryStart } from './history-recent.js';
 import { totalTokens } from './history-tokens.js';
 import { IncompleteSummaryError, isContextOverflow } from './context-errors.js';
 
-export { estimateTokens, messageTokens, totalTokens } from './history-tokens.js';
-
 export type Summarize = (transcript: string) => Promise<string>;
 
 export interface FitOptions {

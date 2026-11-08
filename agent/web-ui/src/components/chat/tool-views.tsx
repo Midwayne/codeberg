@@ -16,7 +16,7 @@ import type { ReactNode } from 'react';
 
 import type { ToolView } from './message';
 
-import { isSpillPreview } from '../../lib/tool-output';
+import { isSpillPreview } from '@agent/core/context/spill-preview.js';
 
 /** Dispatch to a rich renderer when we know the tool shape; otherwise JSON. */
 export type ToolViewRouterProps = { part: ToolView };

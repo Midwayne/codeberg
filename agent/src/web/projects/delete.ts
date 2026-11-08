@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { ProjectCatalog } from '../../core/projects.js';
+import type { ProjectCatalog } from '../../core/projects/types.js';
 import { trackWrite } from '../server/write-gate.js';
 import { readJson, requireJsonMutation, sendJson } from '../http.js';
 import type { ProjectRequestRouterState } from './state.js';

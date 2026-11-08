@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { loadLearningSettings, saveLearningSettings, type LearningSettings } from './learning-settings';
+import { loadLearningSettings, saveLearningSettings } from './learning-settings';
+import { type LearningSettings } from '@agent/core/learning/preferences.js';
 import { useProjectApi } from './project-api';
 
 export type LearningSettingsPanelOptions = { onSaved?: () => void };

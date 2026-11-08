@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { parseDocument } from 'yaml';
 import { codebergHome } from '../paths.js';
 import type { DecisionApi, DecisionModel } from './types.js';
-import { record } from './validation.js';
+import { record } from './record.js';
 
 const DEFAULTS: Record<string, { api: DecisionApi; endpoint: string; key: string }> = {
   openai: { api: 'openai', endpoint: 'https://api.openai.com/v1/decisions', key: 'OPENAI_API_KEY' },

@@ -8,15 +8,13 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { learningEnabledFromEnv } from '../../core/config.js';
 import { LearningService } from '../../core/learning/service.js';
-import { repositoryVersions } from '../../core/learning/store.js';
+import { repositoryVersions } from '../../core/learning/store/repositories.js';
 import { codebergHome } from '../../core/paths.js';
-import { projectDataHome, projectEnvironment, type Project } from '../../core/projects.js';
+import { projectDataHome, type Project } from '../../core/projects/types.js';
+import { projectEnvironment } from '../../core/projects.js';
 import { ExtensionStore } from '../extensions.js';
-import {
-  createLearningGenerator,
-  createWebModelPool,
-  ReloadableAgentPool,
-} from '../model-selection/runtime.js';
+import { createLearningGenerator, createWebModelPool } from '../model-selection/runtime.js';
+import { ReloadableAgentPool } from '../model-selection/reloadable.js';
 import { ResourceSettings } from '../resources.js';
 import { createRequestHandler } from '../server.js';
 import { WebSessionStore } from '../sessions/store.js';

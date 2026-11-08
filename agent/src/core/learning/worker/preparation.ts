@@ -1,7 +1,7 @@
 import { writeLearningTrace } from '../../module-log.js';
-import { sourceRevision } from '../datasets.js';
+import { sourceRevision } from '../revision.js';
 import { memorySourceState, observeSources } from '../memory-source.js';
-import { effectiveFeedback } from '../store.js';
+import { effectiveFeedback } from '../store/feedback.js';
 import type { AttemptRecord, KnowledgeArtifact, KnowledgeJob } from '../types.js';
 import { artifactRevision } from './artifact.js';
 import {

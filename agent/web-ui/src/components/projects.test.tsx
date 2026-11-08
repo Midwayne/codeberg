@@ -1,6 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it } from 'vitest';
-import { AddProject, ProjectDetails, RenameProjectForm } from './projects';
+import { AddProject } from './project-add';
+import { ProjectDetails } from './project-details';
+import { RenameProjectForm } from './project-rename';
 
 it('offers the native folder picker alongside manual directory entry', () => {
   const html = renderToStaticMarkup(<AddProject onClose={() => undefined} onAdded={async () => undefined} />);

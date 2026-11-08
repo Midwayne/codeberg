@@ -51,12 +51,6 @@ export function currentProjectEnvironment(env: NodeJS.ProcessEnv = process.env):
   return projectEnvironment(env, project, catalog);
 }
 
-export type { Project, ProjectCatalog } from './projects/types.js';
-
-export { projectDataHome } from './projects/types.js';
-
-export { migrateProjectData, prepareProjectStorage } from './projects/migration.js';
-
 function databaseSpec(
   env: NodeJS.ProcessEnv,
   project: Project,

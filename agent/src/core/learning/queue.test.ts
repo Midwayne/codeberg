@@ -5,7 +5,8 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { writeJsonAtomic } from './fs.js';
-import { classifyFailure, DurableJobQueue } from './queue.js';
+import { classifyFailure } from './queue/policy.js';
+import { DurableJobQueue } from './queue.js';
 
 const roots: string[] = [];
 

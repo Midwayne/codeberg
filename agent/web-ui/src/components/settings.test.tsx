@@ -1,6 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { CleanupOptions, ResourceUsageView, Settings } from './settings';
+import { CleanupOptions } from './cleanup-options';
+import { ResourceUsageView } from './resource-usage';
+import { Settings } from './settings';
 
 describe('settings', () => {
   it('provides an Appearance section alongside the existing resource sections', () => {

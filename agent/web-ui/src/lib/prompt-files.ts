@@ -1,4 +1,4 @@
-import type { CatalogModel } from './models';
+import type { CatalogModel } from '@agent/core/model-types.js';
 
 export const MAX_HEIGHT = 200;
 export const MAX_FILE_SIZE = 20 * 1024 * 1024;

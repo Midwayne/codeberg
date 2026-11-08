@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { proposedEvidence, type ReviewExample, type ReviewSummary } from './training';
 import { prepareReviewDecision } from './training-review';
 import { useProjectApi } from './project-api';
-import { loadLearningSettings, type LearningSettings } from './learning-settings';
+import { loadLearningSettings } from './learning-settings';
+import { type LearningSettings } from '@agent/core/learning/preferences.js';
 import { useTrainingReview } from './use-training-review';
 import { useMediaQuery } from './use-media-query';
 

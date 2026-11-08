@@ -1,5 +1,5 @@
 import type { ExtractionContext } from '../dataset-extract.js';
-import type { DatasetExample } from '../datasets.js';
+import type { DatasetExample } from '../datasets/records.js';
 
 export function extractSuccessfulTrajectory(context: ExtractionContext): void {
   const { attempts, final, grades, trajectory, emit } = context;

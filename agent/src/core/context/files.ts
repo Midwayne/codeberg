@@ -2,10 +2,6 @@ import { readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ContextStore } from './store.js';
 
-export { clampInt, MAX_FILE_BYTES, MAX_READ_LINES, MAX_TAIL_LINES } from './limits.js';
-export { readContext } from './read.js';
-export { tailContext } from './tail.js';
-
 export const MAX_GREP_FILES = 2_000;
 export const MAX_WALK_DEPTH = 8;
 export const SKIP_DIRS = new Set(['node_modules', '.git']);

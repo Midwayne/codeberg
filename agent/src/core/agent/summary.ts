@@ -1,6 +1,7 @@
 import { budgetWindow, historyBudget } from '../../providers/profiles.js';
 import { IncompleteSummaryError, isContextOverflow } from '../context-errors.js';
-import { boundTranscript, estimateTokens, SUMMARY_INPUT_CHARS } from '../history.js';
+import { boundTranscript, SUMMARY_INPUT_CHARS } from '../history.js';
+import { estimateTokens } from '../history-tokens.js';
 import { HISTORY_SUMMARY_SYSTEM } from '../prompts/history-summary.js';
 import type { AgentState } from './state.js';
 

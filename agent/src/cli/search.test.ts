@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseSearchArgs, SearchCliError } from './search.js';
+import { parseSearchArgs, SearchCliError } from './search/args.js';
 
 describe('parseSearchArgs', () => {
   it('returns help for --help', () => {

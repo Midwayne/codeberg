@@ -9,16 +9,9 @@ import {
   resetState,
 } from './tools/state.js';
 
-import {
-  publishMcpCatalog,
-  serverReport,
-  type McpServerReport,
-  type McpToolListing,
-} from './catalog.js';
+import { publishMcpCatalog, serverReport, type McpServerReport } from './catalog.js';
 import { connectMcpServer } from './client.js';
 import type { McpServer } from './types.js';
-
-export type { McpServerReport, McpToolListing };
 
 /**
  * MCP servers from `mcp.json`, as a tool source. Connection failures are
@@ -137,5 +130,3 @@ async function loadServers(
 
   return out;
 }
-
-export type { McpToolSource, McpToolSourceOptions } from './tools/state.js';

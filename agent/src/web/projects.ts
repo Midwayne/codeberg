@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { Project, ProjectCatalog } from '../core/projects.js';
+import type { Project, ProjectCatalog } from '../core/projects/types.js';
 import { handle } from './projects/routing.js';
 import { ProjectRequestRouterState } from './projects/state.js';
-import type { SetupStatus } from './setup/status.js';
+import type { SetupStatus } from '../core/setup-types.js';
 import type { ToolSettingsStore } from './tools/settings.js';
 import { restoreScheduledProjects } from './projects/scheduled.js';
 

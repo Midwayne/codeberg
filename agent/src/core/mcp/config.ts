@@ -8,8 +8,6 @@ import { findGitRoot, indexedRootsFromEnv } from '../paths.js';
 import { builtinDatabaseServer } from './builtin.js';
 import type { McpConfig, McpConfigIo, McpInterpolateContext, McpServer } from './types.js';
 
-export { indexedRootsFromEnv };
-
 const MCP_FILE = 'mcp.json';
 
 function projectMcpFiles(root: string): string[] {
@@ -158,11 +156,3 @@ function loadMcpFile(
         : server;
   }
 }
-
-export { interpolateMcpString } from './config/values.js';
-
-export type { ParseMcpJsonOptions } from './config/types.js';
-
-export { parseMcpJson } from './config/parse.js';
-
-export { defaultReadFile } from './config/io.js';

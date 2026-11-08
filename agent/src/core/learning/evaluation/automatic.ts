@@ -1,6 +1,7 @@
 import type { DatasetStore } from '../datasets.js';
 import type { DurableJobQueue } from '../queue.js';
-import { stableId, type LearningStore } from '../store.js';
+import { stableId } from '../store/identity.js';
+import { type LearningStore } from '../store.js';
 import type {
   AutomaticEvalReport,
   EvaluationRuntime,

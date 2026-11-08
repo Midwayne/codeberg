@@ -5,8 +5,8 @@ import { WorkspaceConversation } from './workspace-conversation';
 import { useWorkspaceSession } from '../../sessions/use-workspace-session';
 import { useState, type ReactNode } from 'react';
 
-import type { CatalogModel } from '../../lib/models';
-import { Dialog } from '../ui';
+import type { CatalogModel } from '@agent/core/model-types.js';
+import { Dialog } from '../dialog';
 
 import { useMediaQuery } from '../../lib/use-media-query';
 import { useScheduledChatNavigation } from '../../sessions/use-scheduled-chat-navigation';

@@ -27,9 +27,3 @@ export class ProcessMonitor {
     return sample(this.state);
   }
 }
-
-export type { ProcessSnapshot, ProcessUsage } from './process/types.js';
-
-export { workerName } from './process/labels.js';
-
-export { parseProcessSnapshot, selectProcessTree } from './process/snapshot.js';

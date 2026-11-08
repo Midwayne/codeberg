@@ -4,9 +4,11 @@ import { DecisionSettings } from './decision-settings';
 import type { DecisionModel } from '@agent/core/decisions/types.js';
 import { X } from 'lucide-react';
 
-import { Dialog, ErrorNotice, IconButton, Select } from './ui';
+import { Dialog } from './dialog';
+import { ErrorNotice, IconButton, Select } from './ui';
 
-import { selectModel, type CatalogModel, type ModelSelection } from '../lib/models';
+import { selectModel } from '../lib/models';
+import { type CatalogModel, type ModelSelection } from '@agent/core/model-types.js';
 
 export type ModelSettingsPanelProps = { onClose: () => void; onSaved: () => void };
 

@@ -78,7 +78,3 @@ export type SidebarDeleteProps = { state: Parameters<typeof SessionSidebarView>[
 export type SessionRowProps = Pick<Parameters<typeof SessionGroups>[0], 'state'> & { s: SessionSummary };
 
 export type SidebarHeaderProps = { state: Parameters<typeof SessionSidebarView>[0] };
-
-export { DeleteChatDialog } from './sidebar-actions';
-
-export { SessionActionsMenu } from './sidebar-actions';

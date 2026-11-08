@@ -129,5 +129,3 @@ async function walk(dir: string, depth: number, out: string[]): Promise<void> {
     }
   }
 }
-
-export { parseSkillDocument } from './skill-document.js';

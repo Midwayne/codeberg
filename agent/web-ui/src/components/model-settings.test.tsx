@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { ModelSettingsForm } from './model-settings';
-import type { CatalogModel } from '../lib/models';
+import type { CatalogModel } from '@agent/core/model-types.js';
 
 describe('ModelSettingsForm', () => {
   it('shows independent model/effort controls and both context windows', () => {

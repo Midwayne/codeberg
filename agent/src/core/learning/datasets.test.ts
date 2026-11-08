@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { DatasetStore, EXTRACTION_VERSION } from './datasets.js';
+import { DatasetStore } from './datasets.js';
+import { EXTRACTION_VERSION } from './dataset-extract.js';
 import { exportDataset } from './export.js';
 import { writeJsonImmutable } from './fs.js';
 import { DurableJobQueue } from './queue.js';

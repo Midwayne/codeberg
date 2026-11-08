@@ -44,5 +44,3 @@ export class Agent implements Asker {
     return toolLoopAgent(this.state);
   }
 }
-
-export type { AgentOptions } from './agent/options.js';

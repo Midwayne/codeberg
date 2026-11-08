@@ -64,7 +64,3 @@ export class WebSessionStore {
     return removeOlder(this.state, id, cutoff);
   }
 }
-
-export type { WebSessionRecord, WebSessionSearchResult, WebSessionSummary } from './records.js';
-
-export { isValidSessionId } from './records.js';

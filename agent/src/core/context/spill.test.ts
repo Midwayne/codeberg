@@ -5,13 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import {
-  isSpillPreview,
-  presentToolOutput,
-  SPILL_CHARS,
-  spillPreview,
-  spillResultCount,
-} from './spill.js';
+import { isSpillPreview, spillResultCount } from './spill-preview.js';
+import { presentToolOutput, SPILL_CHARS, spillPreview } from './spill.js';
 import { ContextStore } from './store.js';
 import { wrapToolOutputs } from './wrap.js';
 

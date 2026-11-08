@@ -5,13 +5,16 @@ import { basename, dirname, join } from 'node:path';
 import type { UIMessage } from 'ai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { sourceRevision } from './datasets.js';
+import { sourceRevision } from './revision.js';
 import { exportDataset } from './export.js';
 import { writeAtomic } from './fs.js';
 import { DurableJobQueue } from './queue.js';
 import { LearningService } from './service.js';
-import { LearningStore, serializeArtifact, stableId } from './store.js';
-import { KnowledgeWorker, parseExtractionResponse } from './worker.js';
+import { LearningStore } from './store.js';
+import { serializeArtifact } from './store/artifact.js';
+import { stableId } from './store/identity.js';
+import { KnowledgeWorker } from './worker.js';
+import { parseExtractionResponse } from './knowledge-response.js';
 
 const roots: string[] = [];
 

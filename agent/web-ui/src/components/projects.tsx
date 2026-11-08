@@ -86,14 +86,6 @@ export type ProjectRenameProps = Pick<Parameters<typeof ProjectDetails>[0], 'pro
   setSaved: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
-export { ProjectsPanel } from './project-list';
-
-export { ProjectDetails } from './project-details';
-
-export { RenameProjectForm } from './project-rename';
-
-export { AddProject } from './project-add';
-
 function useProjectDeletion(state: ProjectShellViewProps) {
   const focusAfterDeletion = useProjectDeletionFocus();
   const chats = useContext(ProjectChatsContext);

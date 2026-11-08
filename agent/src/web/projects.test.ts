@@ -4,7 +4,7 @@ import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
-import type { ProjectCatalog } from '../core/projects.js';
+import type { ProjectCatalog } from '../core/projects/types.js';
 import { createProjectRequestHandler } from './projects.js';
 import { createRequestHandler } from './server.js';
 import { WebSessionStore } from './sessions/store.js';

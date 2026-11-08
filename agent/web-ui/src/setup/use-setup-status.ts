@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import { loadSetupStatus, type SetupStatus } from './status';
+import { loadSetupStatus } from './status';
+import { type SetupStatus } from '@agent/core/setup-types.js';
 
 export type SetupState = {
   status: SetupStatus | undefined;

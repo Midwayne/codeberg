@@ -3,17 +3,12 @@ import { homedir, tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ContextStore, defaultContextRoot } from './context/store.js';
-import { defaultLearningRoot } from './learning/store.js';
+import { defaultLearningRoot } from './learning/store/identity.js';
 import { mcpConfigFromEnv } from './mcp/config.js';
 import { codebergDataHome, indexedRootsFromEnv } from './paths.js';
-import {
-  currentProjectEnvironment,
-  migrateProjectData,
-  prepareProjectStorage,
-  projectDataHome,
-  projectEnvironment,
-  type ProjectCatalog,
-} from './projects.js';
+import { currentProjectEnvironment, projectEnvironment } from './projects.js';
+import { migrateProjectData, prepareProjectStorage } from './projects/migration.js';
+import { projectDataHome, type ProjectCatalog } from './projects/types.js';
 
 const homes: string[] = [];
 

@@ -2,8 +2,6 @@ import { missingProviderEnv, providerLabel } from '../../providers/requirements.
 import type { SetupStatus } from '../../core/setup-types.js';
 import type { ModelSettingsStore } from '../model-selection/settings.js';
 
-export type { SetupProvider, SetupReason, SetupRequired, SetupStatus } from '../../core/setup-types.js';
-
 type SetupSettings = Pick<ModelSettingsStore, 'current' | 'catalogProviders'>;
 
 export async function setupStatus(

@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it } from 'vitest';
 
-import { ProjectNotice } from './project-controls';
+import { ProjectNotice } from './indexing-progress';
 
 it('shows counting until a real total is available, without a loader or invented percentage', () => {
   const html = renderToStaticMarkup(<ProjectNotice

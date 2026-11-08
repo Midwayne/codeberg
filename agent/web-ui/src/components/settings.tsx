@@ -1,7 +1,8 @@
 import type { CleanupPanelView } from './cleanup';
 import { OpenConfigDirectory } from './config-directory';
 import { SettingsNavigation, SettingsPanels } from './settings-navigation';
-import { type sections, buttonClass } from './settings-styles';
+import { type sections } from './settings-styles';
+import { buttonClass } from './button-styles';
 
 import { ArrowLeft } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';

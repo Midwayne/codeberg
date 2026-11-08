@@ -5,7 +5,7 @@ import { knowledgeBody, validatedClaims } from '../claims.js';
 import { parseExtractionResponse } from '../knowledge-response.js';
 import { sourceCommits, sourceHashes } from '../memory-source.js';
 import { redactSecrets } from '../redact.js';
-import { stableId } from '../store.js';
+import { stableId } from '../store/identity.js';
 import type { KnowledgeArtifact } from '../types.js';
 import type { ExtractionContext } from './context.js';
 

@@ -1,5 +1,5 @@
 import type { LanguageModel } from 'ai';
-import type { Project } from '../../core/projects.js';
+import type { Project } from '../../core/projects/types.js';
 import type { ModelSettingsStore } from '../model-selection/settings.js';
 import { trackModelUsage } from './model.js';
 import type { UsageStore } from './store.js';

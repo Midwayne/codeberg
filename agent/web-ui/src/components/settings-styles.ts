@@ -29,5 +29,3 @@ export const descriptions: Record<CleanupCategory, string> = {
   knowledge:
     'Generated service, flow, concept, and debugging documents, plus consolidation reports and revisions. Original repository files are kept.',
 };
-
-export { buttonClass } from './button-styles';

@@ -78,7 +78,3 @@ export class KnowledgeWorker {
     return runUntilIdle(this.state);
   }
 }
-
-export { parseExtractionResponse } from './knowledge-response.js';
-
-export { KNOWLEDGE_EXTRACTION_VERSION } from './worker/constants.js';

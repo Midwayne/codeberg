@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { join, resolve } from 'node:path';
 import { codebergHome } from '../../core/paths.js';
-import type { Project } from '../../core/projects.js';
+import type { Project } from '../../core/projects/types.js';
 import { openConfigDirectory } from '../config-directory.js';
 import { readJson, requireJsonMutation, sameOrigin, sendJson, sendText } from '../http.js';
 import type { ProjectRequestRouterState } from './state.js';

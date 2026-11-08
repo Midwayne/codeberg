@@ -1,6 +1,6 @@
 import { createServer, type Server } from 'node:http';
 import { afterEach, expect, it, vi } from 'vitest';
-import type { ProjectCatalog } from '../core/projects.js';
+import type { ProjectCatalog } from '../core/projects/types.js';
 import { createProjectRequestHandler } from './projects.js';
 
 const initial: ProjectCatalog = {

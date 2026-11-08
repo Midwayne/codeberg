@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import type { ContextStore } from '../context/store.js';
 import { writeJsonAtomic } from '../learning/fs.js';
-import { hash } from './estimate.js';
+import { hash } from '../message-fingerprint.js';
 import { fingerprintMessage } from '../message-fingerprint.js';
 
 export interface RequestCheckpoint {

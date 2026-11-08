@@ -3,8 +3,6 @@ import type { LanguageModelV4CallOptions, LanguageModelV4FilePart, LanguageModel
 import { estimateTokens } from '../history-tokens.js';
 import { canonical, hash } from '../message-fingerprint.js';
 
-export { canonical, hash } from '../message-fingerprint.js';
-
 /** Estimate the provider-facing request, including schemas and message framing. */
 export function estimateRequest(request: LanguageModelV4CallOptions): number {
   return estimateTokens(requestSchemas(request)) +

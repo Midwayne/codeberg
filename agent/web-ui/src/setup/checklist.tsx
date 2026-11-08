@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 
 import { buttonClass } from '../components/button-styles';
-import { configLines, type SetupRequired } from './status';
+import { configLines } from './status';
+import { type SetupRequired } from '@agent/core/setup-types.js';
 
 export type SetupChecklistProps = {
   status: SetupRequired;

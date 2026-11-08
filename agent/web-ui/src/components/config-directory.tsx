@@ -1,4 +1,4 @@
-import { buttonClass } from './settings-styles';
+import { buttonClass } from './button-styles';
 
 import { FolderOpen } from 'lucide-react';
 import { useState } from 'react';

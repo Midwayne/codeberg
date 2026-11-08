@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { isSpillPreview } from '../context/spill.js';
+import { isSpillPreview } from '../context/spill-preview.js';
 import { ContextStore } from '../context/store.js';
 import { BATCH_TOOL, batchTool, isBatchable, MAX_BATCH_CALLS } from './batch.js';
 

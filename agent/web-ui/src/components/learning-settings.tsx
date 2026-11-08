@@ -5,7 +5,7 @@ import { Toggle } from './learning-controls';
 import { useLearningSettingsPanel } from '../lib/use-learning-settings';
 import { DreamingPanel } from './dreaming';
 
-import type { LearningSettings } from '../lib/learning-settings';
+import type { LearningSettings } from '@agent/core/learning/preferences.js';
 
 import { ErrorNotice } from './ui';
 

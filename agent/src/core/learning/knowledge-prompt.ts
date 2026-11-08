@@ -1,4 +1,4 @@
-import type { SourceObservation } from './memory-source.js';
+import type { SourceObservation } from './memory-source/reading.js';
 import { redactSecrets } from './redact.js';
 import type { AttemptRecord, FeedbackRecord, KnowledgeArtifact } from './types.js';
 

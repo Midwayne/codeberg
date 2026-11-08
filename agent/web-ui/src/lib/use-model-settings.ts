@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { loadModelSettings, saveModelSettings, type ModelSettings } from './models';
+import { loadModelSettings, saveModelSettings } from './models';
+import { type ModelSettings } from '@agent/core/model-types.js';
 
 export type Choices = Pick<ModelSettings, 'chat' | 'learning' | 'decisions'>;
 

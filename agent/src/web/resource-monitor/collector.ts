@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Worker } from 'node:worker_threads';
 import { writeModuleLog } from '../../core/module-log.js';
-import type { ResourceSample } from '../resources.js';
+import type { ResourceSample } from '../resources/types.js';
 import { RESOURCE_WORKER_URL } from '../resource-worker-url.js';
 import type { ResourceMonitorClientState } from './state.js';
 import { RETENTION_MS, type ResourceWorkerData } from './types.js';

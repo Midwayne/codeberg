@@ -1,6 +1,6 @@
 import { basename } from 'node:path';
 
-import { sourceTextFor, type SourceObservation } from './memory-source.js';
+import { sourceTextFor, type SourceObservation } from './memory-source/reading.js';
 import { redactSecrets } from './redact.js';
 import type { KnowledgeClaim } from './types.js';
 

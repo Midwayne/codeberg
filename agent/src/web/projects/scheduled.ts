@@ -1,6 +1,6 @@
 import { access } from 'node:fs/promises';
 import { join } from 'node:path';
-import { projectDataHome } from '../../core/projects.js';
+import { projectDataHome } from '../../core/projects/types.js';
 import { projectHandler } from './routing.js';
 import type { ProjectRequestRouterState } from './state.js';
 

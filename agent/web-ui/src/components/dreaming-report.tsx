@@ -1,4 +1,4 @@
-import type { DreamingDecision, DreamingReport } from '../lib/dreaming';
+import type { DreamingDecision, DreamingReport } from '@agent/core/learning/dreaming/types.js';
 
 import { actionClass } from './button-styles';
 

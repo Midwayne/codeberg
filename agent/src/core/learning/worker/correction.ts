@@ -3,7 +3,7 @@ import { writeLearningTrace } from '../../module-log.js';
 import { withUserNotes } from '../artifact-body.js';
 import { writeAtomic } from '../fs.js';
 import { redactSecrets } from '../redact.js';
-import { serializeArtifact } from '../store.js';
+import { serializeArtifact } from '../store/artifact.js';
 import type { AttemptRecord, KnowledgeArtifact, KnowledgeJob } from '../types.js';
 import type { KnowledgeWorkerState } from './state.js';
 

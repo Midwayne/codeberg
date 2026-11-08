@@ -1,11 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  ProcessMonitor,
-  parseProcessSnapshot,
-  selectProcessTree,
-  workerName,
-  type ProcessSnapshot,
-} from './process-resources.js';
+import { ProcessMonitor } from './process-resources.js';
+import { parseProcessSnapshot, selectProcessTree } from './process/snapshot.js';
+import { workerName } from './process/labels.js';
+import { type ProcessSnapshot } from './process/types.js';
 
 const MB = 1024 * 1024;
 afterEach(() => {

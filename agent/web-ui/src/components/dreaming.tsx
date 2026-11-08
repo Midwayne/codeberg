@@ -3,11 +3,9 @@ import { actionClass } from './button-styles';
 import { DreamingReportView } from './dreaming-report';
 import { useDreamingPanel } from '../lib/use-dreaming-panel';
 
-import type { DreamingDashboard } from '../lib/dreaming';
+import type { DreamingDashboard } from '@agent/core/learning/dreaming/review.js';
 
 import { ErrorNotice } from './ui';
-
-export { actionClass } from './button-styles';
 
 export type DreamingPanelProps = { enabled: boolean };
 
@@ -154,8 +152,6 @@ function DreamingJobErrors({ state }: DreamingJobErrorsProps) {
       </p>
     ));
 }
-
-export { DreamingReportView } from './dreaming-report';
 
 export type DreamingModelNoticeProps = { state: Parameters<typeof DreamingPanelView>[0] };
 

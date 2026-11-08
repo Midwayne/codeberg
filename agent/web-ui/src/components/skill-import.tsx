@@ -5,8 +5,6 @@ import { SuccessNotice } from './success-notice';
 
 import type { SkillFile } from '../lib/skill-files';
 
-export { buttonClass as button } from './button-styles';
-
 export type SkillImportProps = {
   api: typeof fetch;
   scope: string;

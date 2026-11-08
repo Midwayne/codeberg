@@ -5,13 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  ModelAgentPool,
-  ReloadableAgentPool,
-  boundLearningContext,
-  createLearningGenerator,
-} from './runtime.js';
-import type { ModelSelection, ModelSettingsStore } from './settings.js';
+import { ModelAgentPool, createLearningGenerator } from './runtime.js';
+import { ReloadableAgentPool } from './reloadable.js';
+import { boundLearningContext } from './learning-input.js';
+import type { ModelSelection } from '../../core/model-types.js';
+import type { ModelSettingsStore } from './settings.js';
 
 describe('model runtime', () => {
   it('applies max effort to the selected background learning model', async () => {

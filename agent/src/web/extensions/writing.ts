@@ -1,9 +1,9 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { parseSkillDocument } from '../../core/context/skills.js';
+import { parseSkillDocument } from '../../core/context/skill-document.js';
 import { writeJsonAtomic } from '../../core/learning/fs.js';
-import { parseMcpJson } from '../../core/mcp/config.js';
+import { parseMcpJson } from '../../core/mcp/config/parse.js';
 import { indexedRootsFromEnv } from '../../core/paths.js';
 import type { ExtensionStoreState } from './state.js';
 

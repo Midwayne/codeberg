@@ -1,4 +1,5 @@
-import { labels, descriptions, buttonClass } from './settings-styles';
+import { labels, descriptions } from './settings-styles';
+import { buttonClass } from './button-styles';
 
 import { formatBytes, type CleanupCategory, type CleanupPreview } from '../lib/resources';
 import { Select } from './ui';

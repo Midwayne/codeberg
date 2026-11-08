@@ -7,7 +7,8 @@ import { codebergHome } from '../core/paths.js';
 import { ChatSession } from '../core/session.js';
 import { printResult } from './format.js';
 
-import { currentProjectEnvironment, prepareProjectStorage } from '../core/projects.js';
+import { currentProjectEnvironment } from '../core/projects.js';
+import { prepareProjectStorage } from '../core/projects/migration.js';
 
 async function main(): Promise<void> {
   await prepareProjectStorage();

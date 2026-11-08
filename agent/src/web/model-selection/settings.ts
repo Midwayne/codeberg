@@ -7,15 +7,6 @@ import { codebergHome } from '../../core/paths.js';
 import { loadModelCatalog, object, validEffort, type ModelCatalogOptions } from './catalog.js';
 import { loadDecisionCatalog, resolveDecision } from '../../core/decisions/catalog.js';
 
-export { MODEL_INPUTS } from '../../core/model-types.js';
-export type {
-  CatalogModel,
-  ModelInput,
-  ModelSelection,
-  ModelSelections,
-  ModelSettings,
-} from '../../core/model-types.js';
-
 export class ModelSelectionError extends Error {}
 
 export class ModelSettingsStore {

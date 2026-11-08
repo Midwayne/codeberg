@@ -3,7 +3,8 @@ import type { LanguageModelV4CallOptions, LanguageModelV4Message } from '@ai-sdk
 import type { ContextStore } from '../context/store.js';
 import { IncompleteSummaryError, isContextOverflow } from '../context-errors.js';
 import { estimateTokens } from '../history-tokens.js';
-import { canonical, estimateMessage, estimateRequest } from './estimate.js';
+import { canonical } from '../message-fingerprint.js';
+import { estimateMessage, estimateRequest } from './estimate.js';
 import type { RequestCheckpoint } from './checkpoints.js';
 
 export interface RequestContext {

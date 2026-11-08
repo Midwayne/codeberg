@@ -6,7 +6,8 @@ import {
   type FeedbackRating,
 } from '../../core/learning/types.js';
 import { readJson, sendJson, sendText } from '../http.js';
-import { isValidSessionId, type WebSessionStore } from '../sessions/store.js';
+import { isValidSessionId } from '../sessions/records.js';
+import { type WebSessionStore } from '../sessions/store.js';
 
 export async function postFeedback(
   req: IncomingMessage,

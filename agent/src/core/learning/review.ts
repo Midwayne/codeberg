@@ -1,9 +1,6 @@
-import {
-  EXTRACTION_VERSION,
-  type DatasetExample,
-  type DatasetKind,
-  type DatasetStore,
-} from './datasets.js';
+import { EXTRACTION_VERSION } from './dataset-extract.js';
+import { type DatasetExample, type DatasetKind } from './datasets/records.js';
+import { type DatasetStore } from './datasets.js';
 import { interactionRevisions } from './revision.js';
 
 export type ReviewState = 'ready' | 'training' | 'eval' | 'dismissed' | 'stale';

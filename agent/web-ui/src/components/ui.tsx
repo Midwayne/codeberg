@@ -9,8 +9,6 @@ import {
 
 import { cn } from '../lib/utils';
 
-export { Dialog, type DialogProps } from './dialog';
-
 /** Quiet trigger, with native selection, labels, and keyboard behavior intact. */
 export type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & { wrapperClassName?: string };
 

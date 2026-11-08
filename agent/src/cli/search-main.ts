@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { parseSearchArgs, runSearch, SearchCliError, searchUsage } from './search.js';
+import { parseSearchArgs, SearchCliError } from './search/args.js';
+import { runSearch, searchUsage } from './search.js';
 
 async function main(): Promise<void> {
   try {

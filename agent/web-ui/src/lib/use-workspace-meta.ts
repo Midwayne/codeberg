@@ -2,7 +2,8 @@ import { useProjectApi } from './project-api';
 
 import { useEffect, useState } from 'react';
 
-import { loadModelSettings, type CatalogModel } from './models';
+import { loadModelSettings } from './models';
+import { type CatalogModel } from '@agent/core/model-types.js';
 import { loadLearningSettings } from './learning-settings';
 import { startLearningStatusPolling } from './learning-status';
 

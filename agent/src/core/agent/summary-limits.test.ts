@@ -5,7 +5,7 @@ import { expect, it, vi } from 'vitest';
 
 import { DaemonClient, DEFAULT_DAEMON_URL } from '../client.js';
 import { ContextStore } from '../context/store.js';
-import { estimateTokens } from '../history.js';
+import { estimateTokens } from '../history-tokens.js';
 import type { Prompt } from '../types.js';
 import { summarize } from './history.js';
 import { AgentState } from './state.js';

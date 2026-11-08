@@ -58,13 +58,3 @@ export class DatasetStore {
     return withPromotionLock(this.state, action);
   }
 }
-
-export { EXTRACTION_VERSION } from './dataset-extract.js';
-
-export { similar } from './dedup.js';
-
-export { sourceRevision } from './revision.js';
-
-export type { DatasetExample, DatasetKind, Provenance } from './datasets/records.js';
-
-export { exampleFiles } from './datasets/records.js';

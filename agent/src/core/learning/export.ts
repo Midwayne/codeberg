@@ -1,4 +1,5 @@
-import { DatasetStore, exampleFiles } from './datasets.js';
+import { DatasetStore } from './datasets.js';
+import { exampleFiles } from './datasets/records.js';
 import { sameTaskFamily } from './dedup.js';
 import {
   approvedNegatives,
@@ -9,7 +10,8 @@ import {
 } from './export/records.js';
 import { redactSecrets } from './redact.js';
 import { interactionRevisions } from './revision.js';
-import { effectiveFeedback, type LearningStore } from './store.js';
+import { effectiveFeedback } from './store/feedback.js';
+import { type LearningStore } from './store.js';
 import type { AttemptRecord, LearningEvent } from './types.js';
 
 export type ExportType =

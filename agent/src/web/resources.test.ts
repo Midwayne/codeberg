@@ -4,9 +4,10 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { LearningService } from '../core/learning/service.js';
-import { serializeArtifact } from '../core/learning/store.js';
+import { serializeArtifact } from '../core/learning/store/artifact.js';
 import type { KnowledgeArtifact } from '../core/learning/types.js';
-import { ResourceSettings, ResourceSettingsError } from './resources.js';
+import { ResourceSettings } from './resources.js';
+import { ResourceSettingsError } from './resources/types.js';
 import { WebSessionStore } from './sessions/store.js';
 
 const dirs: string[] = [];

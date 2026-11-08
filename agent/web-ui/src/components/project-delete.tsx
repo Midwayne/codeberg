@@ -2,7 +2,7 @@ import { Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { Project, ProjectCatalog } from '../lib/project-api';
 import { button } from './project-styles';
-import { Dialog } from './ui';
+import { Dialog } from './dialog';
 import { ProjectDeleteOptions, type ProjectDeletionMode } from './project-delete-options';
 
 export type ProjectDeleteProps = {

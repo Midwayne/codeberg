@@ -41,5 +41,3 @@ export function ProjectToolbar({ project, selected, catalog, select, setAdding }
     </div>
   );
 }
-
-export { ProjectNotice } from './indexing-progress';

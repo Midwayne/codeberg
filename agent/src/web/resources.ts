@@ -1,5 +1,5 @@
 import type { LearningService } from '../core/learning/service.js';
-import type { ResourceReader } from './resource-monitor.js';
+import type { ResourceReader } from './resource-monitor/types.js';
 import { cleanup, preview } from './resources/cleanup.js';
 import { start, stop, usage } from './resources/monitor.js';
 import { ResourceSettingsState } from './resources/state.js';
@@ -48,7 +48,3 @@ export class ResourceSettings {
     return cleanup(this.state, input);
   }
 }
-
-export type { CleanupCategory, ResourceSample } from './resources/types.js';
-
-export { CLEANUP_CATEGORIES, ResourceSettingsError } from './resources/types.js';

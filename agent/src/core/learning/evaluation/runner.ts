@@ -1,4 +1,4 @@
-import type { DatasetExample } from '../datasets.js';
+import type { DatasetExample } from '../datasets/records.js';
 import { redactSecrets } from '../redact.js';
 import type {
   OutputReport,

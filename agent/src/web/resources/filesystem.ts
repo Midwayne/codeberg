@@ -1,8 +1,8 @@
 import { constants } from 'node:fs';
 import { lstat, open } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { parseArtifact } from '../../core/learning/store.js';
-import { isValidSessionId } from '../sessions/store.js';
+import { parseArtifact } from '../../core/learning/store/artifact.js';
+import { isValidSessionId } from '../sessions/records.js';
 import { type CleanupCategory, ResourceSettingsError, type StoredFile } from './types.js';
 
 export async function readStoredFile(

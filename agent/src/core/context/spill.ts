@@ -2,8 +2,6 @@ import { toolOutputText } from '../message.js';
 import { isSpillPreview } from './spill-preview.js';
 import type { ContextStore } from './store.js';
 
-export { isSpillPreview, spillResultCount } from './spill-preview.js';
-
 /** Tool results longer than this are written to a file. The model sees a
  *  head/tail preview and the path, so the middle is recoverable without
  *  occupying the context window. */

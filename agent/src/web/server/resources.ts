@@ -1,6 +1,7 @@
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { readJson, sameOrigin, sendJson, sendText } from '../http.js';
-import { ResourceSettings, ResourceSettingsError } from '../resources.js';
+import { ResourceSettings } from '../resources.js';
+import { ResourceSettingsError } from '../resources/types.js';
 
 export async function routeResources(
   req: IncomingMessage,

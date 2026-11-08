@@ -102,5 +102,3 @@ export class DurableJobQueue {
     return list(this.state, status);
   }
 }
-
-export { classifyFailure, isTransientFailure } from './queue/policy.js';

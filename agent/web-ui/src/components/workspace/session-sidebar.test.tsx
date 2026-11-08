@@ -1,7 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { DeleteChatDialog, SessionActionsMenu, SessionSidebar } from './session-sidebar';
+import { DeleteChatDialog, SessionActionsMenu } from './sidebar-actions';
+import { SessionSidebar } from './session-sidebar';
 import type { SessionSummary } from '@/lib/sessions';
 
 const sessions: SessionSummary[] = [

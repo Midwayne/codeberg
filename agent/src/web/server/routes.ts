@@ -2,7 +2,7 @@ import { routeSearchRun } from '../runs/routes.js';
 import { routeSchedules } from '../schedules/routes.js';
 import { routeCanvas } from '../canvas/routes.js';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
-import { promptCommandCatalog } from '../../core/hooks/index.js';
+import { promptCommandCatalog } from '../../core/hooks/catalog.js';
 import { routeChat, routeMeta, type ChatResponder } from '../chat-routes.js';
 import { readJson, sendJson, sendText } from '../http.js';
 import { routeLearning } from '../learning-routes.js';

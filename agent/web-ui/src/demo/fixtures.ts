@@ -1,5 +1,5 @@
 import { DEFAULT_LEARNING_SETTINGS } from '@agent/core/learning/preferences';
-import type { ModelSettings } from '../lib/models';
+import type { ModelSettings } from '@agent/core/model-types.js';
 import type { ProjectCatalog } from '../lib/project-api';
 import type { ReviewDashboard, ReviewExample } from '../lib/training';
 

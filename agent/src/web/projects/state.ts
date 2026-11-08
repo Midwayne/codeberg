@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { codebergHome } from '../../core/paths.js';
-import type { Project, ProjectCatalog } from '../../core/projects.js';
-import { projectDataHome } from '../../core/projects.js';
+import type { Project, ProjectCatalog } from '../../core/projects/types.js';
+import { projectDataHome } from '../../core/projects/types.js';
 import type { ProjectRouterOptions } from '../projects.js';
 import { ToolSettingsStore } from '../tools/settings.js';
 

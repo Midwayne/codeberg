@@ -8,15 +8,10 @@ import { RequestWriteGate } from './server/write-gate.js';
 
 import type { ChatResponder } from './chat-routes.js';
 import { sendText } from './http.js';
-import { LEARNING_PATH } from './learning/paths.js';
 import { ResourceSettings } from './resources.js';
 import { WebSessionStore } from './sessions/store.js';
 import { sharedUsageStore } from './usage/shared.js';
 import { defaultChatResponder } from './usage/respond.js';
-export { LEARNING_PATH };
-
-/** Streams an agent turn to a Node response, given the client's UI messages. */
-export type { ChatResponder, ResolvedModelSelection } from './chat-routes.js';
 
 /**
  * The request handler bridging a browser chat client to the code-search agent.
@@ -79,14 +74,3 @@ export function createWebServer(opts: WebServerOptions): Server {
 
   return server;
 }
-
-export type { WebServerOptions } from './server/types.js';
-
-export {
-  CHAT_PATH,
-  CHAT_SEARCH_PATH,
-  COMMANDS_PATH,
-  META_PATH,
-  MODELS_PATH,
-  SESSIONS_PATH,
-} from './server/types.js';

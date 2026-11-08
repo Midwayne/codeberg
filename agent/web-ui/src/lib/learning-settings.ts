@@ -1,5 +1,4 @@
 import type { LearningSettings } from '@agent/core/learning/preferences';
-export type { LearningSettings } from '@agent/core/learning/preferences';
 
 export async function loadLearningSettings(fetcher: typeof fetch = fetch): Promise<LearningSettings | null> {
   const response = await fetcher('/api/learning/settings');

@@ -4,7 +4,7 @@ import { validatedClaims } from '../claims.js';
 import { writeAtomic } from '../fs.js';
 import { parseExtractionResponse } from '../knowledge-response.js';
 import { interactionRevisions } from '../revision.js';
-import { serializeArtifact } from '../store.js';
+import { serializeArtifact } from '../store/artifact.js';
 import { artifactRevision, buildKnowledgeArtifact, readArtifact } from './artifact.js';
 import type { ExtractionContext } from './context.js';
 import { recordCorrectionNote } from './correction.js';

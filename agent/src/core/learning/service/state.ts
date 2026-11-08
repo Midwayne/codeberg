@@ -8,7 +8,8 @@ import { DEFAULT_LEARNING_SETTINGS, type LearningSettings } from '../preferences
 import { DurableJobQueue } from '../queue.js';
 import { LearningSettingsStore } from '../settings.js';
 import { KnowledgeSourceWatcher } from '../source-watcher.js';
-import { LearningStore, defaultLearningRoot } from '../store.js';
+import { LearningStore } from '../store.js';
+import { defaultLearningRoot } from '../store/identity.js';
 import type { RepositoryVersion } from '../types.js';
 import { KnowledgeWorker } from '../worker.js';
 import { refreshKnowledge } from './refresh.js';

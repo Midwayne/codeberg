@@ -2,7 +2,7 @@ import { recordToolExecutions } from '../runs/tools.js';
 import { isLoopFinished, ToolLoopAgent } from 'ai';
 import { cachedInstructions, deterministicTools, withConversationCache } from '../cache.js';
 import { wrapToolOutputs } from '../context/wrap.js';
-import { wrapToolLoopAgentWithPromptHooks } from '../hooks/index.js';
+import { wrapToolLoopAgentWithPromptHooks } from '../hooks/runtime.js';
 import { prepareStepPatch } from '../mcp/active.js';
 import { batchTool } from '../tools/batch.js';
 import { manageContextModel } from '../request-budget/model.js';

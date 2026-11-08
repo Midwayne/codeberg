@@ -3,8 +3,6 @@ import { ChevronDown, Paperclip, X } from 'lucide-react';
 import type { PromptInputView } from './prompt-input';
 import { inputFor, MAX_FILE_SIZE } from '../../lib/prompt-files';
 
-export { PromptAction } from './prompt-actions';
-
 export type PromptAttachmentsProps = { state: Parameters<typeof PromptInputView>[0] };
 
 export function PromptAttachments({ state }: PromptAttachmentsProps) {
