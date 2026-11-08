@@ -2,6 +2,7 @@ import { canvasFromEnv } from '../canvas/config.js';
 import { CANVAS_INSTRUCTIONS } from '../canvas/tools.js';
 import { requestProviderOptions } from '../cache.js';
 import { publishSkills } from '../context/skills.js';
+import { envFlag } from '../env.js';
 import { learningRecall } from '../learning/preferences.js';
 import { mcpConfigFromEnv } from '../mcp/config.js';
 import { mcpToolSource } from '../mcp/tools.js';
@@ -73,7 +74,7 @@ export async function buildTools(state: AgentState) {
       return state.mcpSource;
     },
     defaultSearchK: DEFAULT_SEARCH_K,
-    searchBundle: ['true', '1', 'on', 'yes'].includes((state.env.CODEBERG_SEARCH_BUNDLE_USE ?? '').toLowerCase()),
+    searchBundle: envFlag(state.env, 'CODEBERG_SEARCH_BUNDLE_USE', false),
     onResults: (hits) => state.sources.push(...hits),
   });
 

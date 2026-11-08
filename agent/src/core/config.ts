@@ -6,6 +6,7 @@ import { ContextStore, defaultContextRoot } from './context/store.js';
 import type { EntryConfig } from './entry.js';
 import type { LearningService } from './learning/service.js';
 import { currentProjectEnvironment } from './projects.js';
+import { envFlag } from './env.js';
 import { assertAgentRuntime } from './runtime.js';
 import type { ReasoningEffort } from './types.js';
 import { agentProfiles } from './model-profiles.js';
@@ -82,9 +83,7 @@ export function createAgent(config: AgentConfig): Agent {
 }
 
 export function learningEnabledFromEnv(env: NodeJS.ProcessEnv = process.env): boolean {
-  return !['false', '0', 'off', 'no'].includes(
-    (env.CODEBERG_LEARNING_USE ?? '').trim().toLowerCase(),
-  );
+  return envFlag(env, 'CODEBERG_LEARNING_USE', true);
 }
 
 export function createAgentFromEntry(entry: EntryConfig): Agent {

@@ -6,6 +6,13 @@ it('keeps browser use off by default and respects the web master switch', () => 
   expect(browserConfig({ CODEBERG_BROWSER_USE: 'true', CODEBERG_WEB_USE: 'false' }).enabled).toBe(false);
 });
 
+it('reads browser switches with the shared flag vocabulary', () => {
+  const env = { CODEBERG_BROWSER_USE: ' YES ', CODEBERG_WEB_USE: 'On', CODEBERG_BROWSER_VISION: 'TRUE' };
+
+  expect(browserConfig(env, 'openai:chat', false)).toMatchObject({ enabled: true, vision: true });
+  expect(browserConfig({ CODEBERG_BROWSER_USE: 'enabled' }).enabled).toBe(false);
+});
+
 it('supports separate browser model configuration without changing the chat model', () => {
   expect(browserConfig({ CODEBERG_BROWSER_USE: 'true', CODEBERG_BROWSER_MODEL: 'ollama:test' }, 'openai:chat'))
     .toMatchObject({ enabled: true, model: 'test', provider: 'ollama' });

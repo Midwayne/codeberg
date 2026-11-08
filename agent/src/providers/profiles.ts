@@ -1,3 +1,5 @@
+import { envFlag } from '../core/env.js';
+
 /** Per-model "memory limits" plus the prompt-caching strategy the context
  *  manager keys off. Resolved from the "provider:model" spec so every layer
  *  (history budgeting, in-loop pruning, cache hints) reasons in one model's
@@ -85,7 +87,7 @@ export function profileFor(spec: string, env: NodeJS.ProcessEnv = process.env): 
 
   const contextWindow = positiveTokens(env.CODEBERG_CONTEXT_WINDOW) ?? windowFor(provider, modelId);
   const workingWindow = positiveTokens(env.CODEBERG_CONTEXT_BUDGET) ?? DEFAULT_WORKING_WINDOW;
-  const toolBatch = toggle(env.CODEBERG_TOOL_BATCH) ?? !nativeParallelTools(provider);
+  const toolBatch = envFlag(env, 'CODEBERG_TOOL_BATCH', undefined) ?? !nativeParallelTools(provider);
 
   return {
     provider,
@@ -109,15 +111,6 @@ function nativeParallelTools(provider: string): boolean {
     default:
       return false;
   }
-}
-
-function toggle(value: string | undefined): boolean | undefined {
-  const v = (value ?? '').trim().toLowerCase();
-  if (['1', 'true', 'on', 'yes'].includes(v)) return true;
-
-  if (['0', 'false', 'off', 'no'].includes(v)) return false;
-
-  return undefined;
 }
 
 /** Tokens the budgets below are fractions of: the window, capped by `workingWindow`. */

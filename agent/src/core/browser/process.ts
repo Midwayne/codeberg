@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { envFlag } from '../env.js';
 import { BROWSER_USE_VERSION, workerEnvironment, type BrowserConfig } from './config.js';
 import { parseWorkerResult, type WorkerResult } from './protocol.js';
 import { BROWSER_WORKER } from './worker.js';
@@ -56,7 +57,7 @@ export class BrowserWorker {
     signal.addEventListener('abort', abort, { once: true });
     if (signal.aborted) abort();
     else this.child.stdin!.write(JSON.stringify({ task, keepOpen, vision, provider: this.config.provider, model: this.config.model,
-      headless: ['true', '1'].includes(this.config.env.CODEBERG_BROWSER_HEADLESS ?? '') }) + '\n');
+      headless: envFlag(this.config.env, 'CODEBERG_BROWSER_HEADLESS', false) }) + '\n');
 
     try {
       return await result;

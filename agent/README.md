@@ -44,6 +44,12 @@ Both agent binaries (`codeberg-ask`, `codeberg-web`) read the same core set;
 launcher sets these for you — this table is for running the agent standalone
 or from a checkout.
 
+Boolean switches accept `1`/`true`/`on`/`yes` and `0`/`false`/`off`/`no`,
+in any letter case; an unrecognized value keeps the switch's default.
+`CODEBERG_CANVAS_USE` still accepts only lowercase `true`/`1`/`on`, and
+`CODEBERG_WEB_SEARCH_USE`/`CODEBERG_WEB_ALLOW_PRIVATE` treat any other
+non-off value as on.
+
 | Variable | Binaries | Purpose |
 |---|---|---|
 | `CODEBERG_MODEL` | all | `provider:model`, overrides the positional argument |

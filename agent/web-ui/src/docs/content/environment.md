@@ -18,7 +18,7 @@ CODEBERG_CONTEXT_WINDOW=32768 codeberg
 
 > **Restart after changing startup values.** Saving an unknown key in the launcher config does not make it available to a child process. For environment-only settings, export the value before launch. See [Configuration](/docs/configuration) for precedence and editable files.
 
-Use `true` or `false` for switches, plain integers for ports and token counts, and absolute paths for files and directories. Values inside the saved config are literal text; it is not a shell script and does not expand `$VARIABLE` expressions. API keys and connection strings are secrets.
+Use `true` or `false` for switches (agent switches also accept `1`/`on`/`yes` and `0`/`off`/`no` in any letter case; an unrecognized value keeps the switch's default), plain integers for ports and token counts, and absolute paths for files and directories. Values inside the saved config are literal text; it is not a shell script and does not expand `$VARIABLE` expressions. API keys and connection strings are secrets.
 
 ## Home, projects, and startup
 
@@ -121,7 +121,7 @@ Remote vector storage still needs the local sidecars and an embedding model. Cha
 | Variable | Value or default | What it changes |
 | --- | --- | --- |
 | `CODEBERG_WEB_USE` | Boolean; `true` | Master switch for web tools. Search also requires its separate opt-in. |
-| `CODEBERG_WEB_SEARCH_USE` | Boolean; `false` | Opt into web search. Sets the initial browser preference; a saved Settings → Tools switch takes precedence. Direct URL fetching is independent. |
+| `CODEBERG_WEB_SEARCH_USE` | Boolean; `false` | Opt into web search; any value other than `0`, `false`, `off`, or `no` enables it. Sets the initial browser preference; a saved Settings → Tools switch takes precedence. Direct URL fetching is independent. |
 | `CODEBERG_SEARXNG_URL` | Optional URL | Use an existing SearXNG service when search is enabled. Otherwise the launcher installs and manages a local instance on demand. |
 | `CODEBERG_SEARXNG_PORT` | Port; `48089` | Preferred managed SearXNG port; the launcher can choose a free port if occupied. |
 
@@ -129,7 +129,7 @@ Remote vector storage still needs the local sidecars and an embedding model. Cha
 
 | Variable | Value or default | What it changes |
 | --- | --- | --- |
-| `CODEBERG_WEB_ALLOW_PRIVATE` | Boolean; `false` | Allow `fetch_url` to reach localhost and private network hosts. |
+| `CODEBERG_WEB_ALLOW_PRIVATE` | Boolean; `false` | Allow `fetch_url` to reach localhost and private network hosts. Any value other than `0`, `false`, `off`, or `no` enables it. |
 | `CODEBERG_WEB_MAX_BYTES` | Positive integer; `1500000` | Maximum raw response body size. |
 | `CODEBERG_WEB_MAX_CHARS` | Positive integer; `20000` | Maximum extracted text length. |
 | `CODEBERG_WEB_TIMEOUT_MS` | Milliseconds; `15000` | Web request timeout. |
@@ -145,7 +145,7 @@ Remote vector storage still needs the local sidecars and an embedding model. Cha
 | `CODEBERG_BROWSER_VISION` | Boolean; `false` | Initial screenshot-access preference and terminal opt-in. Settings → Tools → Browser vision takes precedence in the web app. |
 | `CODEBERG_BROWSER_MODEL` | `provider:model`; current chat model | Separate Browser Use model. Supports openai, anthropic, google, ollama, and llamacpp with their existing provider credentials/endpoints. |
 | `CODEBERG_BROWSER_UV` | Executable path; `uv` on PATH | uv used to run the pinned Browser Use package with Python >=3.11 and <4.0; downloads Python only if no compatible interpreter is available. |
-| `CODEBERG_BROWSER_HEADLESS` | `true` or `1`; `false` | Run the task browser without a visible window. Useful on Linux without a desktop. |
+| `CODEBERG_BROWSER_HEADLESS` | Boolean; `false` | Run the task browser without a visible window. Useful on Linux without a desktop. |
 
 `CODEBERG_WEB_USE=false` also disables browser delegation. Browser Use does not use the managed SearXNG service or Browser Use Cloud. Its model calls are currently outside Codeberg's Model usage totals. Explicitly retained browser sessions reuse their original model/provider settings until closed. Codeberg waits for delegated tasks without a wall-clock deadline or fixed task step limit; **Stop**, disabling Browser Use, and shutdown still cancel active work.
 
@@ -166,7 +166,7 @@ Browser sessions require a model declared with `inputs: [text, vision]` in `mode
 
 > **Extension credentials come from the process environment.** For `${env:MCP_TOKEN}` in `mcp.json`, or `${POSTGRES_URI}` in a database spec, export that variable before starting Codeberg. Arbitrary secret names in the saved launcher config are not forwarded automatically.
 
-**Environment only:** `CODEBERG_CANVAS_USE=true` enables the initial canvas capability. The project's canvas setting in the app can subsequently change it.
+**Environment only:** `CODEBERG_CANVAS_USE=true` enables the initial canvas capability. This switch accepts only `true`, `1`, or `on`, in lowercase. The project's canvas setting in the app can subsequently change it.
 
 ## Advanced component and developer settings
 

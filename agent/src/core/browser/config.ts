@@ -1,3 +1,4 @@
+import { envFlag } from '../env.js';
 import type { ModelInput } from '../model-types.js';
 import { browserModelSupportsVision } from './model-capabilities.js';
 
@@ -15,12 +16,11 @@ export interface BrowserConfig {
 }
 
 export function browserEnabled(env: NodeJS.ProcessEnv): boolean {
-  return ['true', '1', 'on', 'yes'].includes((env.CODEBERG_BROWSER_USE ?? '').trim().toLowerCase()) &&
-    !['false', '0', 'off', 'no'].includes((env.CODEBERG_WEB_USE ?? '').trim().toLowerCase());
+  return envFlag(env, 'CODEBERG_BROWSER_USE', false) && envFlag(env, 'CODEBERG_WEB_USE', true);
 }
 
 export function browserVisionEnabled(env: NodeJS.ProcessEnv): boolean {
-  return ['true', '1', 'on', 'yes'].includes((env.CODEBERG_BROWSER_VISION ?? '').trim().toLowerCase());
+  return envFlag(env, 'CODEBERG_BROWSER_VISION', false);
 }
 
 export function browserConfig(env: NodeJS.ProcessEnv, fallback = '', validateModel = true, inputs?: readonly ModelInput[]): BrowserConfig {
