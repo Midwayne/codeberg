@@ -1,6 +1,7 @@
 import { mkdir, open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeModuleLog } from '../../module-log.js';
+import { DATASET_BUCKETS } from '../datasets/storage.js';
 import { KNOWLEDGE_CATEGORIES } from '../preferences.js';
 import { JOB_STATUSES } from '../types.js';
 import { syncWatcher, wakeWorker } from './background.js';
@@ -69,7 +70,7 @@ export async function ensureLayout(state: LearningServiceState): Promise<void> {
       mkdir(join(state.store.root, 'jobs', name), { recursive: true }),
     ),
     mkdir(join(state.store.root, 'datasets', 'embedding'), { recursive: true }),
-    ...['candidates', 'eval', 'training', 'dismissed'].map((name) =>
+    ...DATASET_BUCKETS.map((name) =>
       mkdir(join(state.store.root, 'datasets', name), { recursive: true }),
     ),
   ]);

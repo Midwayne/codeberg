@@ -3,7 +3,7 @@ import { withPromotionLock } from './datasets/lock.js';
 import { dismiss, promote } from './datasets/promotion.js';
 import type { DatasetExample, DatasetKind, Provenance } from './datasets/records.js';
 import { DatasetStoreState } from './datasets/state.js';
-import { active, list } from './datasets/storage.js';
+import { active, list, type DatasetBucket } from './datasets/storage.js';
 import { LearningStore } from './store.js';
 
 /** Append-only, sanitized candidates. Only explicitly reviewed examples enter held-out eval or training. */
@@ -21,7 +21,7 @@ export class DatasetStore {
     return this.state.store;
   }
 
-  list(bucket: 'candidates' | 'eval' | 'training' | 'dismissed'): Promise<DatasetExample[]> {
+  list(bucket: DatasetBucket): Promise<DatasetExample[]> {
     return list(this.state, bucket);
   }
 

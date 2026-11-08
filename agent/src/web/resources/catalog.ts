@@ -1,3 +1,6 @@
+import { isDreamingReportId } from '../../core/learning/dreaming/reports.js';
+import { DATASET_BUCKETS } from '../../core/learning/datasets/storage.js';
+import { KNOWLEDGE_CATEGORIES } from '../../core/learning/preferences.js';
 import { sessionRunBytes } from '../sessions/run-storage.js';
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -16,12 +19,8 @@ export async function listFiles(
     category === 'chats'
       ? [state.options.sessions.dir]
       : category === 'training'
-        ? ['candidates', 'training', 'eval', 'dismissed'].map((bucket) =>
-            join(state.learningRoot, 'datasets', bucket),
-          )
-        : ['services', 'flows', 'concepts', 'debugging'].map((bucket) =>
-            join(state.learningRoot, 'knowledge', bucket),
-          );
+        ? DATASET_BUCKETS.map((bucket) => join(state.learningRoot, 'datasets', bucket))
+        : KNOWLEDGE_CATEGORIES.map((bucket) => join(state.learningRoot, 'knowledge', bucket));
 
   for (const dir of dirs) {
     if (
@@ -80,13 +79,10 @@ export async function dreamingFiles(state: ResourceSettingsState): Promise<Store
   };
 
   for (const name of await readdir(dir)) {
-    if (/^dream-[a-z0-9-]{1,70}\.json$/.test(name))
-      await add(join(dir, name), name.slice(0, -5), false);
+    if (name.endsWith('.json') && isDreamingReportId(name.slice(0, -'.json'.length)))
+      await add(join(dir, name), name.slice(0, -'.json'.length), false);
 
-    if (
-      !/^dream-[a-z0-9-]{1,70}$/.test(name) ||
-      !(await realDirectory(join(dir, name), state.learningRoot))
-    )
+    if (!isDreamingReportId(name) || !(await realDirectory(join(dir, name), state.learningRoot)))
       continue;
 
     for (const revision of await readdir(join(dir, name))) {

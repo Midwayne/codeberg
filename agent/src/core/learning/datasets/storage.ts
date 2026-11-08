@@ -5,13 +5,17 @@ import { interactionRevisions } from '../revision.js';
 import type { DatasetExample } from './records.js';
 import type { DatasetStoreState } from './state.js';
 
+export const DATASET_BUCKETS = ['candidates', 'eval', 'training', 'dismissed'] as const;
+
+export type DatasetBucket = (typeof DATASET_BUCKETS)[number];
+
 export function path(state: DatasetStoreState, bucket: string, id: string): string {
   return join(state.store.root, 'datasets', bucket, `${id}.json`);
 }
 
 export async function list(
   state: DatasetStoreState,
-  bucket: 'candidates' | 'eval' | 'training' | 'dismissed',
+  bucket: DatasetBucket,
 ): Promise<DatasetExample[]> {
   const dir = join(state.store.root, 'datasets', bucket);
   let files: string[];
