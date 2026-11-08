@@ -34,7 +34,6 @@
 #include "grow.h"
 #include "pathutil.h"
 #include "statutil.h"
-#include "walk_policy.h"
 
 _Static_assert(offsetof(cberg_manifest_entry, hash) == 0, "manifest leaf hash leads the entry");
 _Static_assert(offsetof(cberg_manifest_entry, hash) + CBERG_HASH_LEN <= CBERG_CACHE_LINE,
@@ -349,7 +348,7 @@ cberg_status cberg_manifest_rebuild(const cberg_manifest *prev, const char *root
     }
 
     build_ctx ctx = {.arena = m->arena, .prev = prev};
-    cberg_status st = cberg_fs_walk(root, "", build_visit, &ctx, cberg_walk_skip_dir_cb, NULL);
+    cberg_status st = cberg_fs_walk(root, "", build_visit, &ctx);
     if (st != CBERG_OK) {
         free(ctx.leaves);
         free(ctx.fp_names);

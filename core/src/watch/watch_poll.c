@@ -3,7 +3,6 @@
 #include "grow.h"
 #include "pathutil.h"
 #include "strutil.h"
-#include "walk_policy.h"
 
 #include <dirent.h>
 #include <stdlib.h>
@@ -18,7 +17,7 @@ static cberg_status poll_scan_file(cberg_watcher *w, const char *abs, const char
             continue;
         }
         if (stat(abs, &st) != 0) {
-            watch_note_error(w, watch_dirty_add(w, rel, CBERG_WATCH_DELETE));
+            watch_note_error(w, watch_dirty_add(w, rel, CBERG_WATCH_DELETE, false));
             free(w->files[i].rel);
             w->files[i] = w->files[w->file_len - 1];
             w->file_len--;
@@ -29,7 +28,7 @@ static cberg_status poll_scan_file(cberg_watcher *w, const char *abs, const char
         }
         if (w->files[i].mtime != st.st_mtime) {
             w->files[i].mtime = st.st_mtime;
-            watch_note_error(w, watch_dirty_add(w, rel, CBERG_WATCH_MODIFY));
+            watch_note_error(w, watch_dirty_add(w, rel, CBERG_WATCH_MODIFY, false));
         }
         return watcher_check_error(w);
     }
@@ -53,7 +52,7 @@ static cberg_status poll_scan_file(cberg_watcher *w, const char *abs, const char
         return CBERG_ERR_OUT_OF_MEMORY;
     }
     w->file_len++;
-    watch_note_error(w, watch_dirty_add(w, rel, CBERG_WATCH_CREATE));
+    watch_note_error(w, watch_dirty_add(w, rel, CBERG_WATCH_CREATE, false));
     return watcher_check_error(w);
 }
 
@@ -77,7 +76,7 @@ cberg_status watch_platform_begin(cberg_watcher *w) {
 }
 
 cberg_status watch_platform_finish(cberg_watcher *w) {
-    return cberg_fs_walk(w->root, "", poll_walk_entry, w, cberg_walk_skip_dir_cb, NULL);
+    return cberg_fs_walk(w->root, "", poll_walk_entry, w);
 }
 
 void watch_platform_stop(cberg_watcher *w) {
@@ -99,5 +98,5 @@ cberg_status watch_platform_wait(cberg_watcher *w, int timeout_ms) {
         struct timespec ts = {.tv_sec = timeout_ms / 1000, .tv_nsec = (long)(timeout_ms % 1000) * 1000000L};
         nanosleep(&ts, NULL);
     }
-    return cberg_fs_walk(w->root, "", poll_walk_entry, w, cberg_walk_skip_dir_cb, NULL);
+    return cberg_fs_walk(w->root, "", poll_walk_entry, w);
 }

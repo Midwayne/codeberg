@@ -42,7 +42,7 @@ static void fsevents_callback(ConstFSEventStreamRef stream_ref, void *client_inf
         if (!watch_rel_from_abs(w, paths[i], rel, sizeof(rel))) {
             continue;
         }
-        watch_note_error(w, watch_dirty_add(w, rel, watch_kind_from_fsevents(flags)));
+        watch_note_error(w, watch_dirty_add(w, rel, watch_kind_from_fsevents(flags), (flags & kFSEventStreamEventFlagItemIsDir) != 0));
     }
 }
 

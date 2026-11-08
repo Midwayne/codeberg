@@ -366,8 +366,9 @@ empty → `0`.
 ### `cberg_watcher_open(const char *root, cberg_watcher **out_watcher)`
 
 Opens recursive watch on `root`. `root` must exist (`realpath` at open; `CBERG_ERR_IO`
-if missing). **Symlink roots** are supported. **Symlinks inside** the tree are followed
-when walking and registering watches. See also the single keyed-root `cberg_config_*` helpers.
+if missing). **Symlink roots** are supported. **Symlinks inside** the tree are not
+followed, so watches never cycle or leave the root. Directories matching
+`cberg_walk_skip_dir` are never watched or reported, including ones created after open. See also the single keyed-root `cberg_config_*` helpers.
 
 **Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_OUT_OF_MEMORY`, `CBERG_ERR_IO`.
 

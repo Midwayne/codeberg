@@ -23,7 +23,6 @@
 #include "lang.h"
 #include "pathutil.h"
 #include "strmap.h"
-#include "walk_policy.h"
 
 typedef struct cberg_import_cache {
     cberg_strmap *file_set;       /* source membership detects create+modify event coalescing */
