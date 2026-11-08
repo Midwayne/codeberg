@@ -1,9 +1,8 @@
-import { browserEnabled, browserVisionEnabled } from '../../core/browser/config.js';
-import { cancelBrowserTasks } from '../../core/browser/runner.js';
-import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { HttpError } from '../../core/api/errors.js';
-import { writeJsonAtomic } from '../../core/learning/fs.js';
+import { browserEnabled, browserVisionEnabled } from '../../core/browser/config.js';
+import { cancelBrowserTasks } from '../../core/browser/runner.js';
+import { readOptionalText, writeJsonAtomic } from '../../core/learning/fs.js';
 import { WriteLock } from '../../core/write-lock.js';
 import { codebergHome } from '../../core/paths.js';
 import { webConfigFromEnv } from '../../core/web/config.js';
@@ -78,21 +77,38 @@ export class ToolSettingsStore {
   }
 
   private async preference(): Promise<{ webSearch: boolean; browserUse: boolean; browserVision: boolean }> {
+    const raw = await readOptionalText(this.path);
+    if (raw === undefined) {
+      return {
+        webSearch: webConfigFromEnv(this.env).searchEnabled,
+        browserUse: browserEnabled(this.env),
+        browserVision: browserVisionEnabled(this.env),
+      };
+    }
+
     try {
-      const stored = JSON.parse(await readFile(this.path, 'utf8'));
-      if (typeof stored?.webSearch !== 'boolean' ||
+      const stored = JSON.parse(raw);
+      if (
+        typeof stored?.webSearch !== 'boolean' ||
         (stored.browserUse !== undefined && typeof stored.browserUse !== 'boolean') ||
-        (stored.browserVision !== undefined && typeof stored.browserVision !== 'boolean')) throw new SyntaxError('Invalid tool settings.');
+        (stored.browserVision !== undefined && typeof stored.browserVision !== 'boolean')
+      ) {
+        throw new SyntaxError('Invalid tool settings.');
+      }
 
-      return { webSearch: stored.webSearch, browserUse: stored.browserUse ?? browserEnabled(this.env),
-        browserVision: stored.browserVision ?? browserVisionEnabled(this.env) };
+      return {
+        webSearch: stored.webSearch,
+        browserUse: stored.browserUse ?? browserEnabled(this.env),
+        browserVision: stored.browserVision ?? browserVisionEnabled(this.env),
+      };
     } catch (error) {
-      if (error instanceof SyntaxError)
-        throw new Error('Saved tool settings are invalid. Open the config directory, repair or remove tool-settings.json, and retry.');
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      if (error instanceof SyntaxError) {
+        throw new Error(
+          'Saved tool settings are invalid. Open the config directory, repair or remove tool-settings.json, and retry.',
+        );
+      }
 
-      return { webSearch: webConfigFromEnv(this.env).searchEnabled, browserUse: browserEnabled(this.env),
-        browserVision: browserVisionEnabled(this.env) };
+      throw error;
     }
   }
 

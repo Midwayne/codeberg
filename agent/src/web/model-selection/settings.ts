@@ -1,8 +1,7 @@
-import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { loadDecisionCatalog, resolveDecision } from '../../core/decisions/catalog.js';
-import { writeJsonAtomic } from '../../core/learning/fs.js';
+import { readOptionalText, writeJsonAtomic } from '../../core/learning/fs.js';
 import { WriteLock } from '../../core/write-lock.js';
 import type { CatalogModel, ModelSelection, ModelSettings } from '../../core/model-types.js';
 import { codebergHome } from '../../core/paths.js';
@@ -39,12 +38,8 @@ export class ModelSettingsStore {
   async current(): Promise<ModelSettings> {
     const models = await loadModelCatalog(this.catalog);
     const catalog = await loadDecisionCatalog(this.catalog.catalogPath, this.env);
-    let stored: unknown;
-    try {
-      stored = JSON.parse(await readFile(this.settingsPath, 'utf8'));
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    }
+    const raw = await readOptionalText(this.settingsPath);
+    const stored = raw === undefined ? undefined : JSON.parse(raw);
 
     const values = record(stored);
 

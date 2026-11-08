@@ -1,7 +1,7 @@
-import { readFile, readdir } from 'node:fs/promises';
+import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { readOptionalText, writeJsonAtomic } from '../../core/learning/fs.js';
 import { sessionJobsDir } from '../sessions/layout.js';
-import { writeJsonAtomic } from '../../core/learning/fs.js';
 import { WriteLock } from '../../core/write-lock.js';
 import type { BackgroundJob } from '../../core/background/types.js';
 import { isValidSessionId } from '../../core/api/sessions.js';
@@ -30,11 +30,7 @@ export class BackgroundStore {
 
   async read(chatId: string, id: string): Promise<BackgroundJob | undefined> {
     const path = this.path(chatId, id);
-    const json = await readFile(path, 'utf8').catch((error: NodeJS.ErrnoException) => {
-      if (error.code !== 'ENOENT') throw error;
-
-      return undefined;
-    });
+    const json = await readOptionalText(path);
     if (json === undefined) return;
 
     const job = JSON.parse(json) as BackgroundJob;

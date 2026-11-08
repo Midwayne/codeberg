@@ -1,5 +1,16 @@
-import { link, mkdir, open, rename, unlink } from 'node:fs/promises';
+import { link, mkdir, open, readFile, rename, unlink } from 'node:fs/promises';
 import { dirname } from 'node:path';
+
+/** File text, or `undefined` when the path is missing. Every other error is thrown. */
+export async function readOptionalText(path: string): Promise<string | undefined> {
+  try {
+    return await readFile(path, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+
+    throw error;
+  }
+}
 
 export async function appendDurable(path: string, value: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true });

@@ -1,6 +1,6 @@
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { writeJsonAtomic, writeJsonImmutable } from '../fs.js';
+import { readOptionalText, writeJsonAtomic, writeJsonImmutable } from '../fs.js';
 import { redactSecrets } from '../redact.js';
 import { isStableId } from '../store/identity.js';
 import type {
@@ -24,13 +24,10 @@ export class EvaluationReports {
   }
 
   async read<T>(bucket: string, id: string): Promise<T | undefined> {
-    try {
-      return JSON.parse(await readFile(this.path(bucket, id), 'utf8')) as T;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    const raw = await readOptionalText(this.path(bucket, id));
+    if (raw === undefined) return undefined;
 
-      throw error;
-    }
+    return JSON.parse(raw) as T;
   }
 
   async task(task: EvaluationTask): Promise<void> {

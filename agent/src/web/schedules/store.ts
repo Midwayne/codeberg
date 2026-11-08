@@ -1,5 +1,4 @@
-import { readFile } from 'node:fs/promises';
-import { writeJsonAtomic } from '../../core/learning/fs.js';
+import { readOptionalText, writeJsonAtomic } from '../../core/learning/fs.js';
 import { WriteLock } from '../../core/write-lock.js';
 import { sessionSchedulesFile } from '../sessions/layout.js';
 import type { ScheduledRun } from './types.js';
@@ -25,11 +24,7 @@ export class ScheduleStore {
   }
 
   async read(): Promise<ScheduledRun[]> {
-    const json = await readFile(sessionSchedulesFile(this.directory), 'utf8').catch((error: NodeJS.ErrnoException) => {
-      if (error.code !== 'ENOENT') throw error;
-
-      return '[]';
-    });
+    const json = (await readOptionalText(sessionSchedulesFile(this.directory))) ?? '[]';
     const jobs = JSON.parse(json) as ScheduledRun[];
     if (!Array.isArray(jobs)) throw new Error('Invalid scheduled run storage.');
 

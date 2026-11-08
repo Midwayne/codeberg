@@ -1,5 +1,5 @@
-import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { readOptionalText } from '../learning/fs.js';
 import { readModelsDocument } from '../models-document.js';
 import { codebergHome } from '../paths.js';
 import { record } from '../record.js';
@@ -97,12 +97,8 @@ export function resolveDecision(catalog: DecisionCatalog, stored: unknown): stri
 export async function configuredDecision(env: NodeJS.ProcessEnv): Promise<DecisionModel | null> {
   const home = codebergHome(env);
   const catalog = await loadDecisionCatalog(join(home, 'models.yml'), env);
-  let stored: unknown;
-  try {
-    stored = record(JSON.parse(await readFile(join(home, 'model-settings.json'), 'utf8')))?.decisions;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-  }
+  const raw = await readOptionalText(join(home, 'model-settings.json'));
+  const stored = raw === undefined ? undefined : record(JSON.parse(raw))?.decisions;
 
   return catalog.decisionModels.find((item) => item.key === resolveDecision(catalog, stored)) ?? null;
 }
