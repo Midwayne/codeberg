@@ -49,7 +49,7 @@ func globTool(ws *workspace.Workspace) Tool {
   "additionalProperties": false,
   "properties": {
     "pattern": {"type": "string", "description": "glob, supports **"},
-    "repo": {"type": "string", "description": "repo key (default root)"},
+    "repo": {"type": "string", "description": "repo key (see the repos tool; default = the single indexed repo)"},
     "limit": {"type": "integer", "description": "max files"}
   },
   "required": ["pattern"]

@@ -255,8 +255,7 @@ func TestHybridSearchKindFiltersLexicalCandidates(t *testing.T) {
 	}
 
 	idx := &testutil.FakeIndexer{
-		OutlineHits: []indexctl.SearchResult{{ID: 9, Repo: "main", Path: "exact.go", StartLine: 1, EndLine: 1}},
-		Chunk:       indexctl.ChunkDetail{Kind: "function"},
+		OutlineHits: []indexctl.SearchResult{{ID: 9, Repo: "main", Path: "exact.go", Kind: "function", StartLine: 1, EndLine: 1}},
 	}
 	reg := WithVectorSearch(testutil.WsSingle(root), idx, true)
 
