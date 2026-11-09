@@ -1,7 +1,6 @@
 package projects
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -56,7 +55,7 @@ func writeProjectError(w http.ResponseWriter, err error) {
 }
 
 func readProjectJSON(w http.ResponseWriter, r *http.Request, dest any) error {
-	return json.NewDecoder(http.MaxBytesReader(w, r.Body, projectJSONLimit)).Decode(dest)
+	return httpserver.DecodeJSON(w, r, projectJSONLimit, dest, false)
 }
 
 func (m *Manager) serveProject(w http.ResponseWriter, r *http.Request) {

@@ -1,7 +1,6 @@
 package httpserver
 
 import (
-	"encoding/json"
 	"net"
 	"net/http"
 	"os"
@@ -65,9 +64,7 @@ func (s *resourceServer) registerResourceClient(w http.ResponseWriter, r *http.R
 	var body struct {
 		PID int `json:"pid"`
 	}
-	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&body); err != nil {
+	if err := DecodeJSON(w, r, 1024, &body, true); err != nil {
 		WriteError(w, http.StatusBadRequest, "invalid web process")
 		return
 	}

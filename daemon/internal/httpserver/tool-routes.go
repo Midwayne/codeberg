@@ -1,7 +1,6 @@
 package httpserver
 
 import (
-	"encoding/json"
 	"net/http"
 )
 
@@ -11,7 +10,7 @@ func (s *Server) listTools(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) callTool(w http.ResponseWriter, r *http.Request) {
 	var req toolCallRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := DecodeJSON(w, r, 0, &req, false); err != nil {
 		writeCodedError(w, http.StatusBadRequest, "INVALID_JSON", "invalid json")
 		return
 	}

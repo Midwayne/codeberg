@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 )
 
@@ -38,6 +39,21 @@ func RejectMethod(w http.ResponseWriter) {
 func WriteAccepted(w http.ResponseWriter) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusAccepted)
+}
+
+// DecodeJSON bounds and decodes a JSON body. limit <= 0 means unbounded.
+func DecodeJSON(w http.ResponseWriter, r *http.Request, limit int64, dest any, disallowUnknown bool) error {
+	var body io.Reader = r.Body
+	if limit > 0 {
+		body = http.MaxBytesReader(w, r.Body, limit)
+	}
+
+	decoder := json.NewDecoder(body)
+	if disallowUnknown {
+		decoder.DisallowUnknownFields()
+	}
+
+	return decoder.Decode(dest)
 }
 
 func writeCodedError(w http.ResponseWriter, status int, code, message string) {
