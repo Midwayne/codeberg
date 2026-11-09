@@ -97,6 +97,14 @@ static inline cberg_status cberg_bin_w_u64(FILE *f, uint64_t v) {
     return fwrite(&v, sizeof v, 1, f) == 1 ? CBERG_OK : CBERG_ERR_IO;
 }
 
+static inline cberg_status cberg_bin_w_i64(FILE *f, int64_t v) {
+    uint64_t bits = 0;
+
+    memcpy(&bits, &v, sizeof bits);
+
+    return cberg_bin_w_u64(f, bits);
+}
+
 static inline cberg_status cberg_bin_w_bytes(FILE *f, const void *p, size_t n) {
     return n == 0 || fwrite(p, 1, n, f) == n ? CBERG_OK : CBERG_ERR_IO;
 }
@@ -123,6 +131,18 @@ static inline cberg_status cberg_bin_r_u32(FILE *f, uint32_t *v) {
 
 static inline cberg_status cberg_bin_r_u64(FILE *f, uint64_t *v) {
     return cberg_bin_r_exact(f, v, sizeof *v);
+}
+
+static inline cberg_status cberg_bin_r_i64(FILE *f, int64_t *v) {
+    uint64_t bits = 0;
+    cberg_status st = cberg_bin_r_u64(f, &bits);
+    if (st != CBERG_OK) {
+        return st;
+    }
+
+    memcpy(v, &bits, sizeof *v);
+
+    return CBERG_OK;
 }
 
 /* A short read, a foreign magic, or a different version is a cold rebuild. */
