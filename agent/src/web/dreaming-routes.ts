@@ -2,11 +2,11 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isDreamingReportId } from '../core/learning/dreaming/reports.js';
 import { dreamingSummary } from '../core/learning/dreaming/review.js';
 import type { DreamingDecision } from '../core/learning/dreaming/types.js';
-import { redactSecrets } from '../core/learning/redact.js';
 import type { LearningService } from '../core/learning/service.js';
 import { readJson, requireApplicationJson, requireMethod, sendJson, sendText, uncached } from './http.js';
-import { LEARNING_PATH } from './learning/paths.js';
 import { sendLearningError } from './learning/errors.js';
+import { LEARNING_PATH } from './learning/paths.js';
+import { queueJobsByType } from './learning/queue-jobs.js';
 
 const PATH = `${LEARNING_PATH}/dreaming`;
 
@@ -58,24 +58,21 @@ async function routeDreamingRoot(
 
   if (!requireMethod(req, res, 'GET')) return;
 
-  const [reports, pending, processing, failed] = await Promise.all([
+  const [reports, jobs] = await Promise.all([
     learning.dreamingReports.list(),
-    learning.queue.list('pending'),
-    learning.queue.list('processing'),
-    learning.queue.list('failed'),
+    queueJobsByType(learning, 'consolidate_knowledge'),
   ]);
 
   return sendJson(res, 200, {
     reports: reports.slice(0, 20).map(dreamingSummary),
-    jobs: [...pending, ...processing, ...failed]
-      .filter((job) => job.type === 'consolidate_knowledge')
+    jobs: jobs
       .sort((a, b) => b.created_at.localeCompare(a.created_at))
       .slice(0, 5)
       .map(({ job_id, interaction_id, status, last_error, next_attempt_at }) => ({
         job_id,
         interaction_id,
         status,
-        last_error: redactSecrets(last_error),
+        last_error,
         next_attempt_at,
       })),
     canGenerate: learning.knowledgeEnabled,

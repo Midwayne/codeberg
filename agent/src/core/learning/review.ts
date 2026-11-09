@@ -2,9 +2,11 @@ import { isCurrentExample } from './dataset-extract.js';
 import { type DatasetExample, type DatasetKind } from './datasets/records.js';
 import { type DatasetStore } from './datasets.js';
 import { interactionRevisions } from './revision.js';
+import { answerFromPayload, verifierProposedFiles } from './review-payload.js';
 import type { ReviewCandidate, ReviewDashboard, ReviewState } from './review-types.js';
 
 export type { ReviewCandidate, ReviewDashboard, ReviewState };
+export { answerFromPayload, verifierProposedFiles } from './review-payload.js';
 
 export async function reviewDashboard(datasets: DatasetStore): Promise<ReviewDashboard> {
   const [candidates, training, evalRows, dismissed, events] = await Promise.all([
@@ -45,14 +47,7 @@ export async function reviewDashboard(datasets: DatasetStore): Promise<ReviewDas
 }
 
 export function answerFor(row: DatasetExample): string {
-  const payload = row.payload;
-  if (typeof payload.answer === 'string') return payload.answer;
-
-  if (typeof payload.chosen === 'string') return payload.chosen;
-
-  const trajectory = payload.successful_trajectory ?? payload.trajectory;
-
-  return Array.isArray(trajectory) ? String(trajectory.at(-1)?.answer ?? '') : '';
+  return answerFromPayload(row.payload);
 }
 
 export function proposedFiles(row: DatasetExample): string[] {
@@ -69,16 +64,7 @@ export function proposedFiles(row: DatasetExample): string[] {
       hit && typeof hit === 'object' && typeof hit.path === 'string' ? [hit.path] : [],
     );
 
-  const verifier = row.payload.verifier;
-  const proposed =
-    verifier &&
-    typeof verifier === 'object' &&
-    'proposed_files' in verifier &&
-    Array.isArray(verifier.proposed_files)
-      ? verifier.proposed_files.filter((path): path is string => typeof path === 'string')
-      : [];
-
-  return [...new Set([...paths, ...proposed])];
+  return [...new Set([...paths, ...verifierProposedFiles(row.payload.verifier)])];
 }
 
 function summarizeCandidate(

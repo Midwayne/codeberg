@@ -1,6 +1,7 @@
 import type { DatasetKind } from '@agent/core/learning/datasets/records.js';
-import { jsonRequest, responseJson } from './response.js';
+import { answerFromPayload } from '@agent/core/learning/review-payload.js';
 import type { ReviewCandidate, ReviewDashboard, ReviewState } from '@agent/core/learning/review-types.js';
+import { jsonRequest, responseJson } from './response.js';
 
 export type ExampleKind = DatasetKind;
 export type { ReviewDashboard, ReviewState };
@@ -56,10 +57,7 @@ export async function submitReview(
 }
 
 export function exampleAnswer(example: ReviewExample): string {
-  if (typeof example.payload.answer === 'string') return example.payload.answer;
-  if (typeof example.payload.chosen === 'string') return example.payload.chosen;
-  const trajectory = example.payload.successful_trajectory ?? example.payload.trajectory;
-  return Array.isArray(trajectory) ? String(trajectory.at(-1)?.answer ?? '') : '';
+  return answerFromPayload(example.payload);
 }
 
 export interface EvidencePreview {

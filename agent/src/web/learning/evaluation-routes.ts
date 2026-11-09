@@ -2,9 +2,9 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AutomaticEvalReport } from '../../core/learning/evaluation/automatic-types.js';
 import { isEvaluationId } from '../../core/learning/evaluation/reports.js';
 import type { LearningService } from '../../core/learning/service.js';
-import { redactSecrets } from '../../core/learning/redact.js';
 import { requireMethod, sendJson, sendText, uncached } from '../http.js';
 import { LEARNING_PATH } from './paths.js';
+import { queueJobsByType } from './queue-jobs.js';
 
 const PATH = `${LEARNING_PATH}/evaluations`;
 
@@ -19,18 +19,14 @@ export async function routeEvaluations(
   if (!requireMethod(req, res, 'GET')) return;
 
   if (url.pathname === PATH) {
-    const [reports, pending, processing, failed] = await Promise.all([
+    const [reports, jobs] = await Promise.all([
       learning.evaluationReports.list(),
-      learning.queue.list('pending'),
-      learning.queue.list('processing'),
-      learning.queue.list('failed'),
+      queueJobsByType(learning, 'evaluate_output'),
     ]);
 
     return sendJson(res, 200, {
       reports: reports.slice(0, 50),
-      jobs: [...pending, ...processing, ...failed]
-        .filter((job) => job.type === 'evaluate_output')
-        .map((job) => ({ ...job, last_error: redactSecrets(job.last_error) })),
+      jobs,
     });
   }
 
