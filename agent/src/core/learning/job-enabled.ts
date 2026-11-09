@@ -32,14 +32,18 @@ export function jobTypeEnabled(gate: JobGate): boolean {
   }
 }
 
-function datasetsReady(settings: LearningSettings): boolean {
+/** Datasets on and at least one kind selected. */
+export function datasetsReady(settings: LearningSettings): boolean {
   return settings.datasets && Object.values(settings.kinds).some(Boolean);
 }
 
-function knowledgeBase(settings: LearningSettings, hasGenerator: boolean): boolean {
-  return (
-    hasGenerator && settings.knowledge && Object.values(settings.categories).some(Boolean)
-  );
+/** Knowledge on and at least one category selected. */
+export function knowledgeCategoriesReady(settings: LearningSettings): boolean {
+  return settings.knowledge && Object.values(settings.categories).some(Boolean);
+}
+
+export function knowledgeBase(settings: LearningSettings, hasGenerator: boolean): boolean {
+  return hasGenerator && knowledgeCategoriesReady(settings);
 }
 
 function consolidateReady(gate: JobGate): boolean {

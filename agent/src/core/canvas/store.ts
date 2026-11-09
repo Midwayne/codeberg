@@ -1,4 +1,4 @@
-import { CANVAS_SETTINGS_FILE, canvasChatName } from './files.js';
+import { CANVAS_SETTINGS_FILE, canvasChatName, canvasSceneFile } from './files.js';
 import { validChatId } from './context.js';
 import { writeModuleLog } from '../module-log.js';
 import { join } from 'node:path';
@@ -172,9 +172,11 @@ export class CanvasStore {
 
   chatSceneName(chatId = this.chatId): string { return canvasChatName(chatId); }
 
-  private path(name: string): string {
+  /** Absolute path for a scene name under this store root. */
+  path(name: string): string {
     validName(name);
-    return join(this.root, `${name}.excalidraw`);
+
+    return join(this.root, canvasSceneFile(name));
   }
 
   private checkRevision(scene: Scene, revision?: number): void {

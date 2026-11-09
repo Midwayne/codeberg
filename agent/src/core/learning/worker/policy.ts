@@ -1,4 +1,8 @@
-import { jobTypeEnabled } from '../job-enabled.js';
+import {
+  datasetsReady,
+  jobTypeEnabled,
+  knowledgeBase,
+} from '../job-enabled.js';
 import type { KnowledgeJob } from '../types.js';
 import type { KnowledgeWorkerState } from './state.js';
 
@@ -19,12 +23,8 @@ export function enabledType(
   const settings = state.settings();
   if (!settings.enabled) return false;
 
-  const knowledge =
-    Boolean(state.generator) &&
-    settings.knowledge &&
-    Object.values(settings.categories).some(Boolean);
-
-  const datasets = settings.datasets && Object.values(settings.kinds).some(Boolean);
+  const knowledge = knowledgeBase(settings, Boolean(state.generator));
+  const datasets = datasetsReady(settings);
 
   return knowledge || state.evaluations?.enabled()
     ? undefined

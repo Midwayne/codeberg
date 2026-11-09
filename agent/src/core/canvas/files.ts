@@ -8,3 +8,8 @@ export function canvasChatName(chatId: string | undefined): string {
 
   return `chat-${chatId}`;
 }
+
+/** On-disk scene basename for a store scene name. */
+export function canvasSceneFile(name: string): string {
+  return `${name}.excalidraw`;
+}
