@@ -85,15 +85,15 @@ func TestPythonBinFindsOnPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", dir)
-	got, ok := pythonBin()
+	got, ok := PythonBin()
 	if !ok || got != path {
-		t.Fatalf("pythonBin() = %q, %v; want %q, true", got, ok, path)
+		t.Fatalf("PythonBin() = %q, %v; want %q, true", got, ok, path)
 	}
 }
 
 func TestPythonBinMissing(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
-	if _, ok := pythonBin(); ok {
+	if _, ok := PythonBin(); ok {
 		t.Fatal("expected no python found on an empty PATH")
 	}
 }

@@ -1,7 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { projectCatalogPath, type ProjectCatalog } from '../../core/projects/types.js';
+import type { ProjectCatalog } from '../../core/projects/types.js';
 import { trackWrite } from '../server/write-gate.js';
 import { readJson, requireJsonMethod, sendCaughtError, sendJson } from '../http.js';
+import { catalogPayload } from './catalog.js';
 import type { ProjectRequestRouterState } from './state.js';
 import { daemon, requestProjectService } from './request.js';
 
@@ -53,11 +54,7 @@ async function removeProject(
 
   state.catalog = result as ProjectCatalog;
 
-  return sendJson(res, 200, {
-    ...state.catalog,
-    catalogPath: projectCatalogPath(state.home),
-    projects: state.catalog.projects.map(state.projectInfo),
-  });
+  return sendJson(res, 200, catalogPayload(state, state.catalog));
 }
 
 /** Count storage requests through response completion, including streams. */

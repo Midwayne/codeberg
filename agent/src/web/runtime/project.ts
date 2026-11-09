@@ -11,6 +11,7 @@ import { LearningService } from '../../core/learning/service.js';
 import { repositoryVersions } from '../../core/learning/store/repositories.js';
 import { codebergHome } from '../../core/paths.js';
 import { projectDataHome, type Project } from '../../core/projects/types.js';
+import { projectDaemonUrl } from '../../core/daemon-url.js';
 import { projectEnvironment } from '../../core/projects.js';
 import { ExtensionStore } from '../extensions.js';
 import { createLearningGenerator, createWebModelPool } from '../model-selection/runtime.js';
@@ -40,7 +41,7 @@ export async function buildProjectHandler(project: Project, options: ProjectRunt
   const home = projectDataHome(codebergHome(), project.id);
   const usage = sharedUsageStore();
   const track = projectUsageTracker(usage, modelSettings, project);
-  const daemonUrl = `${entry.daemonUrl.replace(/\/$/, '')}/projects/${project.id}`;
+  const daemonUrl = projectDaemonUrl(entry.daemonUrl, project.id);
   const learning = learningEnabledFromEnv()
     ? new LearningService({
         root: join(home, 'learning'),

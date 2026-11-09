@@ -30,6 +30,7 @@ import (
 	"syscall"
 	"time"
 
+	"codeberg.org/codeberg/launcher/internal/deps"
 	"codeberg.org/codeberg/launcher/internal/paths"
 )
 
@@ -68,18 +69,8 @@ func layoutFor(home string) layout {
 
 func (l layout) python() string { return filepath.Join(l.venv, "bin", "python") }
 
-// hostPython finds a system python to build the venv from.
-func hostPython() (string, bool) {
-	for _, name := range []string{"python3", "python"} {
-		if p, err := exec.LookPath(name); err == nil {
-			return p, true
-		}
-	}
-	return "", false
-}
-
 // Available reports whether SearXNG could be installed here (a host python exists).
-func Available() bool { _, ok := hostPython(); return ok }
+func Available() bool { _, ok := deps.PythonBin(); return ok }
 
 // Installed reports whether the managed install is complete: the venv and source
 // checkout exist AND the dependencies finished installing (the `.ready` marker).
@@ -101,7 +92,7 @@ func EnsureInstalled(ctx context.Context, home string, upgrade bool, w io.Writer
 	if Installed(home) && !upgrade {
 		return nil
 	}
-	py, ok := hostPython()
+	py, ok := deps.PythonBin()
 	if !ok {
 		return fmt.Errorf("python3 not found (needed to install SearXNG for web_search)")
 	}

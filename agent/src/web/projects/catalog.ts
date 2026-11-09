@@ -1,11 +1,20 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { resolve } from 'node:path';
 import { codebergHome } from '../../core/paths.js';
-import { projectCatalogPath, type Project } from '../../core/projects/types.js';
+import { projectCatalogPath, type Project, type ProjectCatalog } from '../../core/projects/types.js';
 import { openConfigDirectory } from '../config-directory.js';
 import { readJson, requireJsonMethod, sendJson, sendText } from '../http.js';
 import type { ProjectRequestRouterState } from './state.js';
 import { daemon, requestProjectService } from './request.js';
+
+/** Catalog JSON with UI fields the browser always expects. */
+export function catalogPayload(state: ProjectRequestRouterState, catalog: ProjectCatalog) {
+  return {
+    ...catalog,
+    catalogPath: projectCatalogPath(state.home),
+    projects: catalog.projects.map(state.projectInfo),
+  };
+}
 
 export async function openConfig(
   state: ProjectRequestRouterState,
@@ -62,11 +71,7 @@ export async function projects(
   if (req.method === 'GET') {
     state.catalog = await daemon(state, '/projects');
 
-    return sendJson(res, 200, {
-      ...state.catalog,
-      catalogPath: projectCatalogPath(state.home),
-      projects: state.catalog.projects.map(state.projectInfo),
-    });
+    return sendJson(res, 200, catalogPayload(state, state.catalog));
   }
 
   if (!requireJsonMethod(req, res, 'POST')) return;
