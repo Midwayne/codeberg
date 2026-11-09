@@ -148,6 +148,13 @@ it('preserves external and remote legacy index namespaces while scoping new inde
     '/data/projects/p-0123456789abcdef/index/codeberg.usearch',
   );
   expect(
+    projectEnvironment(
+      { CODEBERG_HOME: '/data', CODEBERG_INDEX_NAMESPACE: 'qwen3-mlx' },
+      legacy,
+      catalog,
+    ).CBERG_INDEX_PATH,
+  ).toBe('/data/projects/p-0123456789abcdef/index/qwen3-mlx/codeberg.usearch');
+  expect(
     projectEnvironment({ CODEBERG_HOME: '/data', CBERG_INDEX_BACKEND: 'qdrant' }, legacy, catalog)
       .CBERG_INDEX_PATH,
   ).toBe('/data/index/codeberg.usearch');
@@ -158,6 +165,13 @@ it('preserves external and remote legacy index namespaces while scoping new inde
       catalog,
     ).CBERG_INDEX_PATH,
   ).toBe('/external/cache');
+  expect(
+    projectEnvironment(
+      { CODEBERG_HOME: '/data', CODEBERG_INDEX_NAMESPACE: 'qwen3-mlx' },
+      { ...legacy, legacyIndex: '/external/cache/codeberg.usearch' },
+      catalog,
+    ).CBERG_INDEX_PATH,
+  ).toBe('/external/cache/qwen3-mlx/codeberg.usearch');
 });
 
 it('resolves upgraded CLI storage when the daemon skipped a deleted root', async () => {

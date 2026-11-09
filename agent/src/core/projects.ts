@@ -1,11 +1,12 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, resolve, sep } from 'node:path';
+import { join, resolve } from 'node:path';
 import { type Project, type ProjectCatalog, projectCatalogPath, projectDataHome } from './projects/types.js';
 
 import { expandHome } from './env.js';
 import { DBMCP_SPEC_NAMES, dbmcpSpecName } from './mcp/builtin.js';
 import { codebergDataHome, codebergHome, formatIndexedRoots } from './paths.js';
+import { projectIndexPath } from './projects/index-path.js';
 
 /** A private environment snapshot; selecting a project never edits process.env. */
 export function projectEnvironment(
@@ -22,14 +23,8 @@ export function projectEnvironment(
     CODEBERG_ROOTS: formatIndexedRoots(project.roots),
   };
 
-  // Match daemon namespaces, including upgrade compatibility exceptions.
-  const legacyIndex = project.legacyIndex;
-  out.CBERG_INDEX_PATH =
-    legacyIndex &&
-    ((env.CBERG_INDEX_BACKEND && env.CBERG_INDEX_BACKEND !== 'usearch') ||
-      !legacyIndex.startsWith(join(codebergHome(env), 'index') + sep))
-      ? legacyIndex
-      : join(data, 'index', 'codeberg.usearch');
+  // Match daemon indexPath, including upgrade compatibility exceptions.
+  out.CBERG_INDEX_PATH = projectIndexPath(env, data, project.legacyIndex);
   out.CODEBERG_DBMCP_SPEC = databaseSpec(env, project, catalog, data);
 
   // Discovery reads project storage in addition to the selected repository.
