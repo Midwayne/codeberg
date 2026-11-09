@@ -89,6 +89,16 @@ export function historyCaptureEnabled(settings: LearningSettings): boolean {
   return settings.enabled && settings.history && settings.historyCapture;
 }
 
+/** Knowledge on and at least one category selected. */
+export function knowledgeCategoriesReady(settings: LearningSettings): boolean {
+  return settings.knowledge && Object.values(settings.categories).some(Boolean);
+}
+
+/** Datasets on and at least one kind selected. */
+export function datasetsReady(settings: LearningSettings): boolean {
+  return settings.datasets && Object.values(settings.kinds).some(Boolean);
+}
+
 /** User-facing text when history capture is off (HTTP 409 / LearningError conflict). */
 export const HISTORY_CAPTURE_PAUSED = 'Learning history is paused. Enable it in Settings.';
 
@@ -113,10 +123,6 @@ export function reviewWritesEnabled(
 export function learningRecall(settings: LearningSettings) {
   return {
     history: settings.enabled && settings.history && settings.historyRecall,
-    knowledge:
-      settings.enabled &&
-      settings.knowledge &&
-      settings.knowledgeRecall &&
-      Object.values(settings.categories).some(Boolean),
+    knowledge: settings.enabled && settings.knowledgeRecall && knowledgeCategoriesReady(settings),
   };
 }

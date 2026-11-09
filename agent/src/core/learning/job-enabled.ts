@@ -1,6 +1,12 @@
 import { isDailyDreaming } from './dreaming/scheduler.js';
-import type { LearningSettings } from './preferences.js';
+import {
+  datasetsReady,
+  knowledgeCategoriesReady,
+  type LearningSettings,
+} from './preferences.js';
 import type { KnowledgeJob } from './types.js';
+
+export { datasetsReady, knowledgeCategoriesReady };
 
 /** The inputs both the service and the worker already have. */
 export type JobGate = {
@@ -30,16 +36,6 @@ export function jobTypeEnabled(gate: JobGate): boolean {
       return never;
     }
   }
-}
-
-/** Datasets on and at least one kind selected. */
-export function datasetsReady(settings: LearningSettings): boolean {
-  return settings.datasets && Object.values(settings.kinds).some(Boolean);
-}
-
-/** Knowledge on and at least one category selected. */
-export function knowledgeCategoriesReady(settings: LearningSettings): boolean {
-  return settings.knowledge && Object.values(settings.categories).some(Boolean);
 }
 
 export function knowledgeBase(settings: LearningSettings, hasGenerator: boolean): boolean {
