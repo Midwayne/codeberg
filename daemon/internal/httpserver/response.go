@@ -34,6 +34,12 @@ func RejectMethod(w http.ResponseWriter) {
 	WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 }
 
+// WriteAccepted is an empty 202 that still carries the shared no-store header.
+func WriteAccepted(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusAccepted)
+}
+
 func writeCodedError(w http.ResponseWriter, status int, code, message string) {
 	WriteJSON(w, status, map[string]any{"ok": false, "code": code, "message": message})
 }
