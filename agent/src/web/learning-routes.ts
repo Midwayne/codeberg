@@ -8,7 +8,7 @@ import { reviewExample } from './learning/review-routes.js';
 
 import { reviewDashboard } from '../core/learning/review.js';
 import type { LearningService } from '../core/learning/service.js';
-import { notFound, readJson, requireJsonMethod, sendJson, sendText, uncached } from './http.js';
+import { notFound, readJson, requireJsonMethod, sendJson, uncached } from './http.js';
 import { type WebSessionStore } from './sessions/store.js';
 
 export async function routeLearning(
