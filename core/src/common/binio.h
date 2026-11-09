@@ -16,6 +16,9 @@
  */
 #define CBERG_BIN_STR_NULL 0xFFFFFFFFu
 
+/* Atomic replace temps are path + ".tmp"; keep one capacity everywhere. */
+#define CBERG_ATOMIC_TMP_CAP 4096
+
 /* Name the sibling temp used by an atomic replace. */
 static inline cberg_status cberg_atomic_temp(const char *path, char *tmp, size_t tmp_cap) {
     int n = snprintf(tmp, tmp_cap, "%s.tmp", path);
@@ -132,6 +135,13 @@ static inline cberg_status cberg_snapshot_header(FILE *f, const char *magic, uin
     }
 
     return CBERG_OK;
+}
+
+/* Every snapshot starts with 4-byte magic + u32 version. */
+static inline cberg_status cberg_snapshot_write_header(FILE *f, const char *magic, uint32_t version) {
+    cberg_status st = cberg_bin_w_bytes(f, magic, 4);
+
+    return st != CBERG_OK ? st : cberg_bin_w_u32(f, version);
 }
 
 /* Reads a length-prefixed string into a malloc'd buffer (*out = NULL for the

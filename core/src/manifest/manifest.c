@@ -583,16 +583,15 @@ cberg_status cberg_manifest_save(const cberg_manifest *manifest, const char *pat
     if (manifest == NULL || path == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
-    char tmp[4096];
+    char tmp[CBERG_ATOMIC_TMP_CAP];
     FILE *f = NULL;
     cberg_status st = cberg_atomic_begin(path, tmp, sizeof tmp, &f);
     if (st != CBERG_OK) {
         return st;
     }
-    uint32_t version = CBERG_MANIFEST_VERSION;
     uint64_t count = manifest->len;
-    if (fwrite(CBERG_MANIFEST_MAGIC, 1, 4, f) != 4 || fwrite(&version, sizeof version, 1, f) != 1 ||
-        fwrite(&count, sizeof count, 1, f) != 1) {
+    if (cberg_snapshot_write_header(f, CBERG_MANIFEST_MAGIC, CBERG_MANIFEST_VERSION) != CBERG_OK ||
+        cberg_bin_w_u64(f, count) != CBERG_OK) {
         st = CBERG_ERR_IO;
         goto fail;
     }

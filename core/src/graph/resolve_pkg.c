@@ -19,6 +19,7 @@
 #include "arena.h"
 #include "fileio.h"
 #include "graph_internal.h"
+#include "grow.h"
 #include "import_cache.h"
 #include "lang.h"
 #include "pathutil.h"
@@ -36,10 +37,7 @@ typedef struct cberg_import_cache {
 } pkg_index;
 
 static cberg_status pkg_add_file(pkg_index *idx, const char *rel) {
-    size_t cap = idx->file_cap == 0 ? 64 : idx->file_cap;
-    while (cap < idx->file_len + 1) {
-        cap *= 2;
-    }
+    size_t cap = cberg_grow_cap(idx->file_cap, idx->file_len + 1, 64);
     if (cap != idx->file_cap) {
         char **grown = realloc(idx->file_paths, cap * sizeof(*grown));
         if (grown == NULL) {

@@ -177,7 +177,7 @@ static cberg_status usearch_backend_save(void *impl) {
         return CBERG_OK;
     }
 
-    char tmp[4096];
+    char tmp[CBERG_ATOMIC_TMP_CAP];
     cberg_status st = cberg_atomic_temp(b->path, tmp, sizeof tmp);
     if (st != CBERG_OK) {
         return st;

@@ -579,13 +579,13 @@ cberg_status cberg_chunk_table_save(const cberg_chunk_table *table, const char *
     if (table == NULL || path == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
-    char tmp[4096];
+    char tmp[CBERG_ATOMIC_TMP_CAP];
     FILE *f = NULL;
     cberg_status st = cberg_atomic_begin(path, tmp, sizeof tmp, &f);
     if (st != CBERG_OK) {
         return st;
     }
-    if (w_bytes(f, CBERG_CHUNK_TABLE_MAGIC, 4) != CBERG_OK || w_u32(f, CBERG_CHUNK_TABLE_VERSION) != CBERG_OK ||
+    if (cberg_snapshot_write_header(f, CBERG_CHUNK_TABLE_MAGIC, CBERG_CHUNK_TABLE_VERSION) != CBERG_OK ||
         w_u64(f, table->next_id) != CBERG_OK || w_u64(f, table->len) != CBERG_OK) {
         st = CBERG_ERR_IO;
         goto fail;

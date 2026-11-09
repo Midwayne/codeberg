@@ -1442,7 +1442,7 @@ cberg_status cberg_graph_save(const cberg_graph *graph, const char *path) {
     if (graph == NULL || path == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
-    char tmp[4096];
+    char tmp[CBERG_ATOMIC_TMP_CAP];
     FILE *f = NULL;
     cberg_status st = cberg_atomic_begin(path, tmp, sizeof tmp, &f);
     if (st != CBERG_OK) {
@@ -1451,7 +1451,7 @@ cberg_status cberg_graph_save(const cberg_graph *graph, const char *path) {
     size_t live_nodes = 0;
     size_t live_refs = 0;
     cberg_graph_counts(graph, &live_nodes, &live_refs);
-    if (cberg_bin_w_bytes(f, CBERG_GRAPH_MAGIC, 4) != CBERG_OK || cberg_bin_w_u32(f, CBERG_GRAPH_VERSION) != CBERG_OK ||
+    if (cberg_snapshot_write_header(f, CBERG_GRAPH_MAGIC, CBERG_GRAPH_VERSION) != CBERG_OK ||
         cberg_bin_w_u64(f, live_nodes) != CBERG_OK || cberg_bin_w_u64(f, live_refs) != CBERG_OK) {
         st = CBERG_ERR_IO;
         goto fail;
