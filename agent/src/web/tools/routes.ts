@@ -1,6 +1,13 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { HttpError } from '../../core/api/errors.js';
-import { readLimitedJson, requireJsonMethod, sameOrigin, sendJson, sendText, uncached } from '../http.js';
+import {
+  readLimitedJson,
+  requireJsonMethod,
+  sameOrigin,
+  sendCaughtError,
+  sendJson,
+  sendText,
+  uncached,
+} from '../http.js';
 import type { ToolSettingsStore } from './settings.js';
 
 export async function routeToolSettings(req: IncomingMessage, res: ServerResponse, store: ToolSettingsStore): Promise<void> {
@@ -15,8 +22,7 @@ export async function routeToolSettings(req: IncomingMessage, res: ServerRespons
 
     return sendJson(res, 200, await store.update(await readToolSettingsJson(req)));
   } catch (error) {
-    return sendJson(res, error instanceof HttpError ? error.status : 503,
-      { error: error instanceof Error ? error.message : 'Tool settings unavailable. Retry.' });
+    return sendCaughtError(res, error, 'Tool settings unavailable. Retry.', 'error');
   }
 }
 

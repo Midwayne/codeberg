@@ -4,8 +4,7 @@ import { withProjectLog } from '../../core/module-log.js';
 import { codebergHome } from '../../core/paths.js';
 import type { Project } from '../../core/projects/types.js';
 import { projectDataHome } from '../../core/projects/types.js';
-import { HttpError } from '../../core/api/errors.js';
-import { admitRequest, requireMethod, sendJson, sendText, uncached } from '../http.js';
+import { admitRequest, requireMethod, sendCaughtError, sendJson, sendText, uncached } from '../http.js';
 import { routeToolSettings } from '../tools/routes.js';
 import { servePage } from '../server/routes.js';
 import { deleteProject, trackRequest } from './delete.js';
@@ -21,9 +20,7 @@ export function handle(
   if (!admitRequest(req, res)) return;
 
   void route(state, req, res).catch((error: unknown) => {
-    if (!res.headersSent)
-      sendText(res, error instanceof HttpError ? error.status : 503,
-        error instanceof Error ? error.message : 'Project service unavailable');
+    if (!res.headersSent) sendCaughtError(res, error, 'Project service unavailable');
     else res.end();
   });
 }

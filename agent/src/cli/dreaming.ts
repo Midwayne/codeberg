@@ -2,9 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { reasoningFromEnv } from '../core/config.js';
 import { fromAiSdk } from '../core/generator.js';
 import { DreamingConsolidator } from '../core/learning/dreaming/consolidator.js';
+import {
+  assertKnowledgeActive,
+  assertReportCategoriesActive,
+} from '../core/learning/dreaming/guards.js';
 import { DreamingReports } from '../core/learning/dreaming/reports.js';
 import type { DreamingDecision } from '../core/learning/dreaming/types.js';
-import { LearningError } from '../core/learning/errors.js';
 import { DurableJobQueue } from '../core/learning/queue.js';
 import { classifyFailure } from '../core/learning/queue/policy.js';
 import { LearningSettingsStore } from '../core/learning/settings.js';
@@ -23,8 +26,7 @@ export async function dreamingCommand(
   if (command === 'dream-report') return (await reports.get(args[0] ?? '')) ?? null;
 
   const settings = await new LearningSettingsStore(store.root).current();
-  if (!settings.enabled || !settings.knowledge)
-    throw new LearningError('conflict', 'Knowledge consolidation is paused.');
+  assertKnowledgeActive(settings);
 
   if (command === 'dream') {
     return generateReport(store, reports, settings);
@@ -33,11 +35,7 @@ export async function dreamingCommand(
   if (!args[0]) throw new Error(`${command} requires a report ID`);
 
   const report = await reports.get(args[0]);
-  if (
-    command === 'dream-apply' &&
-    report?.changes.some((change) => !settings.categories[change.before.category])
-  )
-    throw new LearningError('conflict', 'A report category is paused.');
+  if (command === 'dream-apply') assertReportCategoriesActive(report, settings.categories);
 
   return reports.decide(args[0], command.slice('dream-'.length) as DreamingDecision, store);
 }

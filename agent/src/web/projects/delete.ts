@@ -1,8 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { projectCatalogPath, type ProjectCatalog } from '../../core/projects/types.js';
 import { trackWrite } from '../server/write-gate.js';
-import { HttpError } from '../../core/api/errors.js';
-import { readJson, requireJsonMethod, sendJson } from '../http.js';
+import { readJson, requireJsonMethod, sendCaughtError, sendJson } from '../http.js';
 import type { ProjectRequestRouterState } from './state.js';
 import { daemon, requestProjectService } from './request.js';
 
@@ -33,9 +32,7 @@ export async function deleteProject(
 
     return await removeProject(state, res, id, body.mode);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-
-    return sendJson(res, error instanceof HttpError ? error.status : 503, { message });
+    return sendCaughtError(res, error, String(error), 'message');
   } finally {
     state.deleting.delete(id);
   }

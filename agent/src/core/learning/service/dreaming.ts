@@ -1,9 +1,14 @@
 import { randomUUID } from 'node:crypto';
+import {
+  assertKnowledgeActive,
+  assertReportCategoriesActive,
+  KNOWLEDGE_CONSOLIDATION_PAUSED,
+} from '../dreaming/guards.js';
 import type { DreamingDecision } from '../dreaming/types.js';
+import { LearningError } from '../errors.js';
 import { wakeWorker } from './background.js';
 import { initialize } from './lifecycle.js';
 import type { LearningServiceState } from './state.js';
-import { LearningError } from '../errors.js';
 
 export async function requestDreaming(state: LearningServiceState) {
   await initialize(state);
@@ -24,13 +29,14 @@ export async function decideDreaming(
   id: string,
   action: DreamingDecision,
 ) {
-  if (!state.preferences.enabled || !state.preferences.knowledge || state.maintenance)
-    throw new LearningError('conflict', 'Knowledge consolidation is paused.');
+  assertKnowledgeActive(state.preferences);
+  if (state.maintenance) throw new LearningError('conflict', KNOWLEDGE_CONSOLIDATION_PAUSED);
 
   if (action === 'apply') {
-    const report = await state.dreamingReports.get(id);
-    if (report?.changes.some((change) => !state.preferences.categories[change.before.category]))
-      throw new LearningError('conflict', 'A report category is paused.');
+    assertReportCategoriesActive(
+      await state.dreamingReports.get(id),
+      state.preferences.categories,
+    );
   }
 
   const report = await state.dreamingReports.decide(id, action, state.store);

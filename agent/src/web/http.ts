@@ -34,6 +34,23 @@ export function sendText(res: ServerResponse, status: number, body: string): voi
   res.end(body);
 }
 
+/** Typed `HttpError` keeps its status; anything else is 503 with `fallback`. */
+export function sendCaughtError(
+  res: ServerResponse,
+  error: unknown,
+  fallback: string,
+  body: 'text' | 'error' | 'message' = 'text',
+): void {
+  const status = error instanceof HttpError ? error.status : 503;
+  const message = error instanceof Error ? error.message : fallback;
+
+  if (body === 'text') return sendText(res, status, message);
+
+  if (body === 'message') return sendJson(res, status, { message });
+
+  sendJson(res, status, { error: message });
+}
+
 export function sameOrigin(req: IncomingMessage): boolean {
   return (
     !req.headers.origin ||

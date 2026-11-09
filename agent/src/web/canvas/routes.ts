@@ -1,6 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { CanvasStore } from '../../core/canvas/store.js';
-import { HttpError } from '../../core/api/errors.js';
 import { CanvasError } from '../../core/canvas/types.js';
 import { writeModuleLog } from '../../core/module-log.js';
 import {
@@ -9,6 +8,7 @@ import {
   readLimitedJson,
   requireJsonMethod,
   sameOrigin,
+  sendCaughtError,
   sendJson,
   sendText,
   uncached,
@@ -26,8 +26,7 @@ export async function routeCanvas(req: IncomingMessage, res: ServerResponse, sto
     await canvasRequest(req, res, store, url);
   } catch (error) {
     writeModuleLog('agent', 'canvas_request_failed', { error: String(error) });
-    sendJson(res, error instanceof HttpError ? error.status : 503,
-      { error: error instanceof Error ? error.message : 'Canvas unavailable. Retry.' });
+    sendCaughtError(res, error, 'Canvas unavailable. Retry.', 'error');
   }
 }
 
