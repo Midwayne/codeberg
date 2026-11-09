@@ -4,11 +4,12 @@ import {
   type ScheduleCancelResult,
   type ScheduleSummary,
 } from '@agent/core/schedules/summary';
-import { jsonRequest } from './response.js';
+import { isRecord } from '@agent/core/record.js';
+import { ensureOk, jsonRequest } from './response.js';
 
 export async function loadSchedules(api: typeof fetch, signal?: AbortSignal): Promise<ScheduleSummary[]> {
   const response = await api('/api/schedules', { signal, cache: 'no-store' });
-  if (!response.ok) throw new Error(await response.text() || 'Could not load scheduled runs. Refresh to retry.');
+  await ensureOk(response, 'Could not load scheduled runs. Refresh to retry.');
 
   const jobs: unknown = await response.json();
   if (!Array.isArray(jobs) || !jobs.every(validSummary)) throw new Error('Invalid scheduled runs response. Refresh to retry.');
@@ -18,7 +19,7 @@ export async function loadSchedules(api: typeof fetch, signal?: AbortSignal): Pr
 
 export async function cancelSchedule(api: typeof fetch, id: string, signal?: AbortSignal): Promise<ScheduleCancelResult> {
   const response = await api(`/api/schedules/${encodeURIComponent(id)}/cancel`, jsonRequest('POST', {}, signal));
-  if (!response.ok) throw new Error(await response.text() || 'Could not cancel the schedule. Try again.');
+  await ensureOk(response, 'Could not cancel the schedule. Try again.');
 
   const result = await response.json();
   if (!result || result.id !== id || typeof result.stopping !== 'boolean') throw new Error('Invalid cancellation response. Refresh to check the schedule.');
@@ -27,9 +28,9 @@ export async function cancelSchedule(api: typeof fetch, id: string, signal?: Abo
 }
 
 function validSummary(value: unknown): value is ScheduleSummary {
-  if (!value || typeof value !== 'object') return false;
+  if (!isRecord(value)) return false;
 
-  const row = value as ScheduleSummary;
+  const row = value as unknown as ScheduleSummary;
 
   return ['id', 'chatId', 'chatTitle', 'prompt'].every((key) => typeof row[key as keyof ScheduleSummary] === 'string')
     && (row.kind === undefined || row.kind === 'background')

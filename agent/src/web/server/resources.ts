@@ -1,5 +1,5 @@
 import { type IncomingMessage, type ServerResponse } from 'node:http';
-import { readJson, requireJsonMethod, requireMethod, sendJson, sendText, uncached } from '../http.js';
+import { readJson, requireJsonMethod, requireMethod, sendJson, sendJsonText, sendText, uncached } from '../http.js';
 import { ResourceSettings } from '../resources.js';
 import { ResourceSettingsError } from '../resources/types.js';
 
@@ -20,10 +20,7 @@ export async function routeResources(
       if (!/^\d+$/.test(after) || !Number.isSafeInteger(Number(after)))
         throw new ResourceSettingsError('invalid history cursor');
 
-      const body = await resources.usage(Number(after));
-      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(body);
-      return;
+      return sendJsonText(res, 200, await resources.usage(Number(after)));
     }
 
     if (req.method === 'GET') {

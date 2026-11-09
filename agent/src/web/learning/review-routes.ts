@@ -1,7 +1,12 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { REVIEW_ORACLE_FIELDS } from '../../core/learning/datasets/records.js';
+import {
+  REVIEW_COMPONENT_PAUSED,
+  reviewWritesEnabled,
+} from '../../core/learning/preferences.js';
 import type { LearningService } from '../../core/learning/service.js';
 import { isStableId } from '../../core/learning/store/identity.js';
+import { isRecord } from '../../core/record.js';
 import { readJson, requireMethod, sendJson, sendText } from '../http.js';
 import { sendLearningError } from './errors.js';
 import { LEARNING_PATH } from './paths.js';
@@ -28,14 +33,9 @@ export async function reviewExample(
     return sendText(res, 400, 'invalid review decision');
   }
 
-  const settings = learning.settings;
-  if (
-    !settings.enabled ||
-    !settings.datasets ||
-    (body.decision === 'training' && !settings.training) ||
-    (body.decision === 'eval' && !settings.evals)
-  )
-    return sendText(res, 409, 'This review component is paused. Enable it in Settings → Learning.');
+  const decision = body.decision as 'training' | 'eval' | 'dismiss';
+  if (!reviewWritesEnabled(learning.settings, decision))
+    return sendText(res, 409, REVIEW_COMPONENT_PAUSED);
 
   const oracle = reviewOracle(body.oracle);
   if (body.oracle !== undefined && !oracle) return sendText(res, 400, 'invalid reviewed evidence');
@@ -70,9 +70,9 @@ export async function applyReview(
 export function reviewOracle(input: unknown): Record<string, unknown> | undefined {
   if (input === undefined) return undefined;
 
-  if (!input || typeof input !== 'object' || Array.isArray(input)) return undefined;
+  if (!isRecord(input)) return undefined;
 
-  const fields = input as Record<string, unknown>;
+  const fields = input;
   const allowed = new Set<string>(REVIEW_ORACLE_FIELDS);
 
   if (!Object.keys(fields).length || Object.keys(fields).some((key) => !allowed.has(key)))

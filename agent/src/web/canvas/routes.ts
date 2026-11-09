@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { CanvasStore } from '../../core/canvas/store.js';
 import { CanvasError } from '../../core/canvas/types.js';
 import { writeModuleLog } from '../../core/module-log.js';
+import { isRecord } from '../../core/record.js';
 import {
   isLoopbackHost,
   notFound,
@@ -67,9 +68,7 @@ async function readCanvasJson(req: IncomingMessage): Promise<Record<string, unkn
     tooLarge: 'Canvas request exceeds 20 MB.',
     malformed: 'Malformed canvas JSON.',
   });
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new CanvasError('Malformed canvas JSON.');
-  }
+  if (!isRecord(value)) throw new CanvasError('Malformed canvas JSON.');
 
-  return value as Record<string, unknown>;
+  return value;
 }

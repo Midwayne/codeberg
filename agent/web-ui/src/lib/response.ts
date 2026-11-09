@@ -8,13 +8,15 @@ export function jsonRequest(method: string, body: unknown, signal?: AbortSignal)
   };
 }
 
-/** A failed response uses its body as the error message. */
-export async function ensureOk(response: Response): Promise<void> {
-  if (!response.ok) throw new Error(await response.text());
+/** A failed response uses its body as the error message, else `fallback`. */
+export async function ensureOk(response: Response, fallback?: string): Promise<void> {
+  if (response.ok) return;
+
+  throw new Error((await response.text()) || fallback || `Request failed (${response.status})`);
 }
 
-export async function responseJson<T>(response: Response): Promise<T> {
-  await ensureOk(response);
+export async function responseJson<T>(response: Response, fallback?: string): Promise<T> {
+  await ensureOk(response, fallback);
 
   return response.json() as Promise<T>;
 }

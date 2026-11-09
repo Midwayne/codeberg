@@ -25,8 +25,13 @@ export function requireApplicationJson(req: IncomingMessage, res: ServerResponse
 }
 
 export function sendJson(res: ServerResponse, status: number, value: unknown): void {
+  sendJsonText(res, status, JSON.stringify(value));
+}
+
+/** Same Content-Type as `sendJson` when the body is already a JSON string. */
+export function sendJsonText(res: ServerResponse, status: number, body: string): void {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
-  res.end(JSON.stringify(value));
+  res.end(body);
 }
 
 export function sendText(res: ServerResponse, status: number, body: string): void {

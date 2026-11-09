@@ -1,15 +1,20 @@
 import type { ContextStore } from './store.js';
 import { clampInt, MAX_CONTEXT_CHARS, MAX_SEGMENT_CHARS, MAX_TAIL_LINES, safeStart } from './limits.js';
-import { ContextReadError, textSegments } from './text-stream.js';
+import {
+  CONTEXT_FILE_UNREADABLE,
+  CONTEXT_PATH_DENIED,
+  isContextReadError,
+  textSegments,
+} from './text-stream.js';
 
 export async function tailContext(store: ContextStore, path: string, lines?: number): Promise<string> {
   const real = store.resolve(path);
-  if (!real) return 'error: path not found or not allowed';
+  if (!real) return CONTEXT_PATH_DENIED;
 
   try {
     return await tailPage(real, clampInt(lines, 80, MAX_TAIL_LINES));
   } catch (error) {
-    if (error instanceof ContextReadError) return 'error: file is unreadable or too large';
+    if (isContextReadError(error)) return CONTEXT_FILE_UNREADABLE;
 
     throw error;
   }

@@ -1,7 +1,6 @@
-import { randomUUID } from 'node:crypto';
-import { mkdir, open, rename, rm } from 'node:fs/promises';
+import { mkdir, open, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { readOptionalText } from '../learning/fs.js';
+import { readOptionalText, writeAtomic } from '../learning/fs.js';
 import { CanvasError } from './types.js';
 
 export async function readData(path: string): Promise<unknown> {
@@ -18,20 +17,9 @@ export async function readData(path: string): Promise<unknown> {
   }
 }
 
+/** Compact JSON through the shared exclusive-temp publish. */
 export async function atomicWrite(path: string, value: unknown): Promise<void> {
-  const temporary = `${path}.${randomUUID()}.tmp`;
-  try {
-    const file = await open(temporary, 'wx', 0o600);
-    try {
-      await file.writeFile(JSON.stringify(value));
-      await file.sync();
-    } finally {
-      await file.close();
-    }
-    await rename(temporary, path);
-  } finally {
-    await rm(temporary, { force: true });
-  }
+  await writeAtomic(path, JSON.stringify(value));
 }
 
 /** Cross-process lock. A crashed owner's lock fails safely and is never stolen. */

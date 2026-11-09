@@ -92,6 +92,24 @@ export function historyCaptureEnabled(settings: LearningSettings): boolean {
 /** User-facing text when history capture is off (HTTP 409 / LearningError conflict). */
 export const HISTORY_CAPTURE_PAUSED = 'Learning history is paused. Enable it in Settings.';
 
+/** User-facing text when training/eval/dismiss review writes are paused. */
+export const REVIEW_COMPONENT_PAUSED =
+  'This review component is paused. Enable it in Settings → Learning.';
+
+/** True when a review decision may write to datasets. */
+export function reviewWritesEnabled(
+  settings: LearningSettings,
+  decision: 'training' | 'eval' | 'dismiss',
+): boolean {
+  if (!settings.enabled || !settings.datasets) return false;
+
+  if (decision === 'training') return settings.training;
+
+  if (decision === 'eval') return settings.evals;
+
+  return true;
+}
+
 export function learningRecall(settings: LearningSettings) {
   return {
     history: settings.enabled && settings.history && settings.historyRecall,
