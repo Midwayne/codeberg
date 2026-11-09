@@ -1,7 +1,7 @@
 import { backgroundSchedules, cancelBackground } from '../background/visibility.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { ScheduleCancelResult, ScheduleSummary } from '../../core/schedules/summary.js';
-import { notFound, requireJsonMethod, requireMethod, sendJson, sendText } from '../http.js';
+import { notFound, requireJsonMethod, requireMethod, sendJson, sendText, uncached } from '../http.js';
 import type { SearchRuns } from '../runs/manager.js';
 import { SESSION_ID_SOURCE } from '../../core/api/sessions.js';
 import { abortControlled, STOP_REQUEST } from '../runs/identity.js';
@@ -11,7 +11,7 @@ const CANCEL_ROUTE = new RegExp(`^/api/schedules/(${SESSION_ID_SOURCE})/cancel$`
 
 /** Human controls span all chats of the selected project; agent tools stay chat-scoped. */
 export async function routeSchedules(req: IncomingMessage, res: ServerResponse, url: URL, runs: SearchRuns) {
-  res.setHeader('Cache-Control', 'no-store');
+  uncached(res);
   if (url.pathname === '/api/schedules') {
     if (!requireMethod(req, res, 'GET')) return;
 

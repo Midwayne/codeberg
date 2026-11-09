@@ -1,13 +1,13 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { HttpError } from '../../core/api/errors.js';
-import { readLimitedJson, requireJsonMethod, sameOrigin, sendJson, sendText } from '../http.js';
+import { readLimitedJson, requireJsonMethod, sameOrigin, sendJson, sendText, uncached } from '../http.js';
 import type { ToolSettingsStore } from './settings.js';
 
 export async function routeToolSettings(req: IncomingMessage, res: ServerResponse, store: ToolSettingsStore): Promise<void> {
   // Reading tool settings can start the local search service, so reads are guarded too.
   if (!sameOrigin(req)) return sendText(res, 403, 'Cross-origin tool settings are not allowed.');
 
-  res.setHeader('Cache-Control', 'no-store');
+  uncached(res);
   try {
     if (req.method === 'GET') return sendJson(res, 200, await store.current());
 

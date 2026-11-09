@@ -1,5 +1,5 @@
 import { type IncomingMessage, type ServerResponse } from 'node:http';
-import { readJson, requireJsonMethod, requireMethod, sendJson, sendText } from '../http.js';
+import { readJson, requireJsonMethod, requireMethod, sendJson, sendText, uncached } from '../http.js';
 import { ResourceSettings } from '../resources.js';
 import { ResourceSettingsError } from '../resources/types.js';
 
@@ -12,7 +12,7 @@ export async function routeResources(
   const path = url.pathname;
 
   try {
-    res.setHeader('Cache-Control', 'no-store');
+    uncached(res);
     if (path === '/api/settings/resources') {
       if (!requireMethod(req, res, 'GET')) return;
 

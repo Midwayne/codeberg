@@ -8,7 +8,7 @@ import { reviewExample } from './learning/review-routes.js';
 
 import { reviewDashboard } from '../core/learning/review.js';
 import type { LearningService } from '../core/learning/service.js';
-import { notFound, readJson, requireJsonMethod, sendJson, sendText } from './http.js';
+import { notFound, readJson, requireJsonMethod, sendJson, sendText, uncached } from './http.js';
 import { type WebSessionStore } from './sessions/store.js';
 
 export async function routeLearning(
@@ -57,7 +57,7 @@ async function routeLearningSettings(
   res: ServerResponse,
   learning: LearningService,
 ): Promise<void> {
-  res.setHeader('Cache-Control', 'no-store');
+  uncached(res);
   if (req.method === 'GET') return sendJson(res, 200, await learning.getSettings());
 
   if (!requireJsonMethod(req, res, 'PUT')) return;
@@ -74,7 +74,7 @@ async function getLearningStatus(
   learning: LearningService,
   url: URL,
 ): Promise<void> {
-  res.setHeader('Cache-Control', 'no-store');
+  uncached(res);
   if (url.searchParams.get('view') === 'activity')
     return sendJson(res, 200, { working: learning.isUpdating() });
 

@@ -3,7 +3,7 @@ import { CanvasStore } from '../../core/canvas/store.js';
 import { HttpError } from '../../core/api/errors.js';
 import { CanvasError } from '../../core/canvas/types.js';
 import { writeModuleLog } from '../../core/module-log.js';
-import { notFound, readLimitedJson, requireJsonMethod, sameOrigin, sendJson, sendText } from '../http.js';
+import { notFound, readLimitedJson, requireJsonMethod, sameOrigin, sendJson, sendText, uncached } from '../http.js';
 import { streamCanvas } from './stream.js';
 
 export async function routeCanvas(req: IncomingMessage, res: ServerResponse, store: CanvasStore, url: URL): Promise<void> {
@@ -12,7 +12,7 @@ export async function routeCanvas(req: IncomingMessage, res: ServerResponse, sto
   if (!['127.0.0.1', 'localhost', '[::1]'].includes(host) || !sameOrigin(req)) {
     return sendText(res, 403, 'Canvas requires a same-origin localhost connection.');
   }
-  res.setHeader('Cache-Control', 'no-store');
+  uncached(res);
   try {
     await canvasRequest(req, res, store, url);
   } catch (error) {

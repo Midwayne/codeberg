@@ -3,6 +3,11 @@ import { HttpError } from '../core/api/errors.js';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
+/** This response must not be stored by the browser. */
+export function uncached(res: ServerResponse): void {
+  res.setHeader('Cache-Control', 'no-store');
+}
+
 export function sendJson(res: ServerResponse, status: number, value: unknown): void {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(value));

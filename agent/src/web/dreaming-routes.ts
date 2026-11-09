@@ -4,7 +4,7 @@ import { dreamingSummary } from '../core/learning/dreaming/review.js';
 import type { DreamingDecision } from '../core/learning/dreaming/types.js';
 import { redactSecrets } from '../core/learning/redact.js';
 import type { LearningService } from '../core/learning/service.js';
-import { readJson, requireMethod, sendJson, sendText } from './http.js';
+import { readJson, requireMethod, sendJson, sendText, uncached } from './http.js';
 import { LEARNING_PATH } from './learning/paths.js';
 import { sendLearningError } from './learning/errors.js';
 
@@ -16,7 +16,7 @@ export async function routeDreaming(
   learning: LearningService,
   url: URL,
 ): Promise<void> {
-  res.setHeader('Cache-Control', 'no-store');
+  uncached(res);
   const invalidWrite = validateDreamingWrite(req);
   if (invalidWrite) return sendText(res, invalidWrite.status, invalidWrite.message);
 

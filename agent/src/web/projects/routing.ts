@@ -5,7 +5,7 @@ import { codebergHome } from '../../core/paths.js';
 import type { Project } from '../../core/projects/types.js';
 import { projectDataHome } from '../../core/projects/types.js';
 import { HttpError } from '../../core/api/errors.js';
-import { admitRequest, requireMethod, sendJson, sendText } from '../http.js';
+import { admitRequest, requireMethod, sendJson, sendText, uncached } from '../http.js';
 import { routeToolSettings } from '../tools/routes.js';
 import { servePage } from '../server/routes.js';
 import { deleteProject, trackRequest } from './delete.js';
@@ -34,7 +34,7 @@ export async function route(
   res: ServerResponse,
 ): Promise<void> {
   const url = new URL(req.url ?? '/', 'http://localhost');
-  res.setHeader('Cache-Control', 'no-store');
+  uncached(res);
   if (!url.pathname.startsWith('/api/'))
     return servePage(req, res, { title: state.options.title ?? 'Codeberg', staticRoot: state.options.staticRoot }, url.pathname);
 
