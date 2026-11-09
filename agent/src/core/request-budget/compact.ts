@@ -2,8 +2,10 @@ import type { LanguageModelV4CallOptions, LanguageModelV4Message } from '@ai-sdk
 
 import type { ContextStore } from '../context/store.js';
 import { IncompleteSummaryError, isContextOverflow } from '../context-errors.js';
+import { conversationSummaryTag, historyFileTag } from '../history-tags.js';
 import { estimateTokens } from '../history-tokens.js';
-import { canonical, estimateMessage, estimateRequest } from './estimate.js';
+import { canonical } from '../message-fingerprint.js';
+import { estimateMessage, estimateRequest } from './estimate.js';
 import type { RequestCheckpoint } from './checkpoints.js';
 
 export interface RequestContext {
@@ -32,13 +34,13 @@ export async function compactRequest(
 
   const transcript = split.older.map((message) => `## ${message.role}\n${canonical(message.content)}`).join('\n\n');
   const file = await context.context.writeHistory(transcript);
-  const archive = `<history_file>${file}</history_file>`;
+  const archive = historyFileTag(file);
   const room = budget - fixed - split.recent.reduce((sum, message) => sum + estimateMessage(message), 0);
   if (room <= estimateTokens(archive) + 32) throw new ContextBudgetError();
 
   const summary = await checkpointText(context, transcript, Math.max(1, Math.min(2000, Math.floor(room / 2))), request.abortSignal);
   const marker = (text: string): LanguageModelV4Message => ({ role: 'user', content: [{ type: 'text', text }] });
-  let checkpoint = marker(`<conversation_summary>\n${summary}\n</conversation_summary>\n${archive}`);
+  let checkpoint = marker(`${conversationSummaryTag(summary)}\n${archive}`);
   let prompt = [...system, checkpoint, ...split.recent];
 
   if (estimateRequest({ ...request, prompt }) > budget) {

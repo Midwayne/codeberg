@@ -17,15 +17,14 @@ import {
 import { readRepositories, repositoryVersions } from './store/repositories.js';
 import { searchKnowledge, searchLearning } from './store/search.js';
 import { LearningStoreState } from './store/state.js';
+import type { KnowledgeSearchHit, LearningSearchHit } from './search-hits.js';
 import type {
   AttemptRecord,
   FeedbackLabel,
   FeedbackRating,
   FeedbackRecord,
   KnowledgeArtifact,
-  KnowledgeSearchHit,
   LearningEvent,
-  LearningSearchHit,
   RepositoryVersion,
 } from './types.js';
 
@@ -44,12 +43,8 @@ export class LearningStore {
     return readRepositories(this.state);
   }
 
-  recordSession(
-    conversationId: string,
-    messages: UIMessage[],
-    parentConversationId?: string,
-  ): Promise<AttemptRecord[]> {
-    return recordSession(this.state, conversationId, messages, parentConversationId);
+  recordSession(conversationId: string, messages: UIMessage[]): Promise<AttemptRecord[]> {
+    return recordSession(this.state, conversationId, messages);
   }
 
   recordFeedback(input: {

@@ -1,7 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
-import { clipboardImages, PromptInput } from './prompt-input';
+import { clipboardImages } from '../../lib/prompt-files';
+import { PromptInput } from './prompt-input';
 import { createPromptSubmit } from './use-prompt-input';
 import { PromptFiles } from './prompt-files';
 import type { PromptInputViewProps } from './prompt-input';

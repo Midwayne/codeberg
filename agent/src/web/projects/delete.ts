@@ -1,10 +1,10 @@
-import { join } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { ProjectCatalog } from '../../core/projects.js';
+import type { ProjectCatalog } from '../../core/projects/types.js';
 import { trackWrite } from '../server/write-gate.js';
-import { readJson, requireJsonMutation, sendJson } from '../http.js';
+import { readJson, requireJsonMethod, sendCaughtError, sendJson } from '../http.js';
+import { catalogPayload } from './catalog.js';
 import type { ProjectRequestRouterState } from './state.js';
-import { daemon, ProjectServiceTimeout, requestProjectService } from './request.js';
+import { daemon, requestProjectService } from './request.js';
 
 export async function deleteProject(
   state: ProjectRequestRouterState,
@@ -12,7 +12,7 @@ export async function deleteProject(
   res: ServerResponse,
   id: string,
 ): Promise<void> {
-  if (!requireJsonMutation(req, res, 'DELETE', 'project changes')) return;
+  if (!requireJsonMethod(req, res, 'DELETE')) return;
 
   const body = await readJson(req);
   if (body?.mode !== 'index' && body?.mode !== 'all')
@@ -33,8 +33,7 @@ export async function deleteProject(
 
     return await removeProject(state, res, id, body.mode);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return sendJson(res, error instanceof ProjectServiceTimeout ? 504 : message.startsWith('Project is busy.') ? 409 : 503, { message });
+    return sendCaughtError(res, error, String(error), 'message');
   } finally {
     state.deleting.delete(id);
   }
@@ -55,11 +54,7 @@ async function removeProject(
 
   state.catalog = result as ProjectCatalog;
 
-  return sendJson(res, 200, {
-    ...state.catalog,
-    catalogPath: join(state.home, 'projects.json'),
-    projects: state.catalog.projects.map(state.projectInfo),
-  });
+  return sendJson(res, 200, catalogPayload(state, state.catalog));
 }
 
 /** Count storage requests through response completion, including streams. */

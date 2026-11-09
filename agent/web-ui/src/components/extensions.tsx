@@ -1,10 +1,11 @@
+import type { ProjectInfo } from '@agent/core/api/projects.js';
 import { LoadingBoundary } from './loading';
 import { ExtensionForm } from './extension-form';
 import { useExtensions } from '../lib/use-extensions';
 
 import { ErrorNotice, Select } from './ui';
 import { SkillImport } from './skill-import';
-import { useProjectApi, type Project } from '../lib/project-api';
+import { useProjectApi } from '../lib/project-api';
 
 export type ProjectExtensionsProps = { kind: 'mcp' | 'skill' };
 
@@ -18,7 +19,7 @@ export function ProjectExtensions({ kind }: ProjectExtensionsProps) {
     </p>
   );
 }
-export type ExtensionsProps = { project: Project; api: typeof fetch; kind: 'mcp' | 'skill' };
+export type ExtensionsProps = { project: ProjectInfo; api: typeof fetch; kind: 'mcp' | 'skill' };
 
 export function Extensions(props: ExtensionsProps) {
   const state = useExtensions(props);

@@ -154,8 +154,9 @@ make run-daemon
 ```
 
 Set `CODEBERG_MODEL=provider:model` and the matching credentials in `agent/.env`.
-The standalone daemon defaults to port 8080, so set
-`CODEBERG_DAEMON_URL=http://127.0.0.1:8080` in `agent/.env`, then run:
+The standalone daemon defaults to port 48080, the same port the launcher and
+agent use, so set `CODEBERG_DAEMON_URL=http://127.0.0.1:48080` in `agent/.env`,
+then run:
 
 ```sh
 # Terminal 2, from the repository root

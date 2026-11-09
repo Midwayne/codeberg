@@ -1,4 +1,4 @@
-import type { DatasetExample } from '../datasets.js';
+import type { DatasetExample } from '../datasets/records.js';
 import { validateReview } from '../datasets/records.js';
 import type { EvalScore, OutputRun, OutputScorer } from './types.js';
 

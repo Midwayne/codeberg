@@ -1,14 +1,17 @@
+import type { ProjectCatalogInfo } from '@agent/core/api/projects.js';
+import { responseJson } from '../lib/response.js';
 import { LoadingBoundary } from './loading';
 import { ProjectDetails } from './project-details';
 
 import { useEffect, useState } from 'react';
 import { CopyButton, ErrorNotice } from './ui';
-import { useProjectApi, type ProjectCatalog } from '../lib/project-api';
+import { useProjectApi } from '../lib/project-api';
+import { useFocusSlot } from '../lib/focus-registry';
 import type { ProjectListProps } from './projects';
 
 export function ProjectsPanel() {
   const { project: selectedProject, onProjectRenamed, onProjectDeleted } = useProjectApi();
-  const [catalog, setCatalog] = useState<ProjectCatalog>();
+  const [catalog, setCatalog] = useState<ProjectCatalogInfo>();
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
   useEffect(() => {
@@ -16,8 +19,7 @@ export function ProjectsPanel() {
     setError('');
     void fetch('/api/projects', { signal: controller.signal })
       .then(async (response) => {
-        if (!response.ok) throw new Error(await response.text());
-        const value = (await response.json()) as ProjectCatalog;
+        const value = await responseJson<ProjectCatalogInfo>(response);
         if (!controller.signal.aborted) setCatalog(value);
       })
       .catch((reason: unknown) => {
@@ -52,7 +54,7 @@ export function ProjectsPanel() {
   );
 }
 
-export type ProjectCatalogLocationProps = { catalog: ProjectCatalog | undefined };
+export type ProjectCatalogLocationProps = { catalog: ProjectCatalogInfo | undefined };
 
 export function ProjectCatalogLocation({ catalog }: ProjectCatalogLocationProps) {
   return (
@@ -102,9 +104,11 @@ export function ProjectList({ catalog, selectedProject, setCatalog, onProjectRen
 }
 
 function ProjectsHeading() {
+  const heading = useFocusSlot<HTMLHeadingElement>('projectsHeading');
+
   return (
     <div className="space-y-2">
-      <h2 id="projects-heading" data-projects-heading tabIndex={-1} className="text-lg font-semibold focus-visible:outline-2 focus-visible:outline-ring">
+      <h2 ref={heading} id="projects-heading" tabIndex={-1} className="text-lg font-semibold focus-visible:outline-2 focus-visible:outline-ring">
         Projects
       </h2>
       <p className="max-w-prose text-sm leading-6 text-muted-foreground">

@@ -1,43 +1,32 @@
-import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { readOptionalRecord, readRecordFiles } from '../../core/learning/fs.js';
 import { messageSearchHits } from '../../core/session-search.js';
-import {
-  type WebSessionRecord,
-  type WebSessionSearchResult,
-  type WebSessionSummary,
-  countTurns,
-} from './records.js';
+import type {
+  SessionRecord,
+  SessionSearchResult,
+  SessionSummary,
+} from '../../core/api/sessions.js';
+import { countTurns } from './records.js';
 import type { WebSessionStoreState } from './state.js';
 
-export async function load(
-  state: WebSessionStoreState,
-  id: string,
-): Promise<WebSessionRecord | null> {
-  try {
-    const raw = await readFile(join(state.dir, `${id}.json`), 'utf8');
+export async function load(state: WebSessionStoreState, id: string): Promise<SessionRecord | null> {
+  const record = await readOptionalRecord(
+    join(state.dir, `${id}.json`),
+    (raw) => JSON.parse(raw) as SessionRecord,
+  );
 
-    return JSON.parse(raw) as WebSessionRecord;
-  } catch {
-    return null;
-  }
+  return record ?? null;
 }
 
-export async function list(state: WebSessionStoreState, query = ''): Promise<WebSessionSummary[]> {
-  let files: string[];
-  try {
-    files = await readdir(state.dir);
-  } catch {
-    return [];
-  }
-
-  const summaries: WebSessionSummary[] = [];
+export async function list(state: WebSessionStoreState, query = ''): Promise<SessionSummary[]> {
+  const records = await readRecordFiles(
+    state.dir,
+    (file) => file.endsWith('.json'),
+    (raw) => JSON.parse(raw) as SessionRecord,
+  );
+  const summaries: SessionSummary[] = [];
   const needle = query.trim().toLocaleLowerCase();
-  for (const file of files) {
-    if (!file.endsWith('.json')) {
-      continue;
-    }
-
-    const record = await load(state, file.slice(0, -'.json'.length));
+  for (const record of records) {
     if (
       record &&
       (!needle ||
@@ -62,11 +51,11 @@ export async function list(state: WebSessionStoreState, query = ''): Promise<Web
 export async function search(
   state: WebSessionStoreState,
   query: string,
-): Promise<WebSessionSearchResult[]> {
+): Promise<SessionSearchResult[]> {
   if (!query.trim()) return [];
 
   const summaries = await list(state, query);
-  const results: WebSessionSearchResult[] = [];
+  const results: SessionSearchResult[] = [];
   for (const summary of summaries) {
     const record = await load(state, summary.id);
     if (!record) continue;

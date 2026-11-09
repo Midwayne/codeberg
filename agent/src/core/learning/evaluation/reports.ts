@@ -1,31 +1,32 @@
-import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { writeJsonAtomic, writeJsonImmutable } from '../fs.js';
+import { readOptionalDirectory, readOptionalText, writeJsonAtomic, writeJsonImmutable } from '../fs.js';
 import { redactSecrets } from '../redact.js';
+import { isStableId } from '../store/identity.js';
 import type {
   AutomaticEvalReport,
   EvaluationCheckpoint,
   EvaluationTask,
 } from './automatic-types.js';
 
+export function isEvaluationId(id: string): boolean {
+  return isStableId('evaluation', id);
+}
+
 /** Tasks are immutable; checkpoints and the latest report survive interrupted jobs. */
 export class EvaluationReports {
   constructor(private readonly root: string) {}
 
   private path(bucket: string, id: string): string {
-    if (!/^evaluation-[a-f0-9]{24}$/.test(id)) throw new Error('invalid evaluation id');
+    if (!isEvaluationId(id)) throw new Error('invalid evaluation id');
 
     return join(this.root, 'evaluations', bucket, `${id}.json`);
   }
 
   async read<T>(bucket: string, id: string): Promise<T | undefined> {
-    try {
-      return JSON.parse(await readFile(this.path(bucket, id), 'utf8')) as T;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    const raw = await readOptionalText(this.path(bucket, id));
+    if (raw === undefined) return undefined;
 
-      throw error;
-    }
+    return JSON.parse(raw) as T;
   }
 
   async task(task: EvaluationTask): Promise<void> {
@@ -41,16 +42,10 @@ export class EvaluationReports {
   }
 
   async list(): Promise<AutomaticEvalReport[]> {
-    const files = await readdir(join(this.root, 'evaluations', 'reports')).catch(
-      (error: NodeJS.ErrnoException) => {
-        if (error.code === 'ENOENT') return [];
-
-        throw error;
-      },
-    );
+    const files = await readOptionalDirectory(join(this.root, 'evaluations', 'reports'));
     const reports = await Promise.all(
       files
-        .filter((file) => /^evaluation-[a-f0-9]{24}\.json$/.test(file))
+        .filter((file) => file.endsWith('.json') && isEvaluationId(file.slice(0, -5)))
         .map((file) => this.read<AutomaticEvalReport>('reports', file.slice(0, -5))),
     );
 

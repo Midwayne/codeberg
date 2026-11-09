@@ -1,4 +1,5 @@
-import { readFile } from 'node:fs/promises';
+import { readOptionalText } from '../learning/fs.js';
+import { savedToolPreferences } from '../web/types.js';
 import type { BrowserConfig } from './config.js';
 import type { BrowserTaskOptions } from './protocol.js';
 import { closeBrowserSessions, createBrowserSession, disposeBrowserSession, findBrowserSession } from './sessions.js';
@@ -57,17 +58,11 @@ async function execute(config: BrowserConfig, task: string, signal: AbortSignal,
 async function requireBrowserPermission(config: BrowserConfig) {
   if (!config.enabled) throw new Error('Browser Use is disabled.');
   if (config.settingsPath) {
-    const saved = await readFile(config.settingsPath, 'utf8').catch((error: NodeJS.ErrnoException) => {
-      if (error.code !== 'ENOENT') throw error;
-
-      return undefined;
-    });
+    const saved = await readOptionalText(config.settingsPath);
     if (saved === undefined) return config.vision;
 
-    const value = JSON.parse(saved);
-    if (typeof value?.webSearch !== 'boolean' ||
-      (value.browserUse !== undefined && typeof value.browserUse !== 'boolean') ||
-      (value.browserVision !== undefined && typeof value.browserVision !== 'boolean')) throw new Error('Invalid saved tool settings.');
+    const value = savedToolPreferences(JSON.parse(saved));
+    if (!value) throw new Error('Invalid saved tool settings.');
     if (!(value.browserUse ?? config.enabled)) throw new Error('Browser Use is disabled in Settings → Tools.');
 
     return value.browserVision ?? config.vision;

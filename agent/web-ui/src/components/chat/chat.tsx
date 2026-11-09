@@ -5,7 +5,7 @@ import { useChatScroll } from './use-chat-scroll';
 import { useProjectApi } from '../../lib/project-api';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import type { UIMessage } from 'ai';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState, type RefObject } from 'react';
 import type { TurnQueue } from '../../sessions/turn-queue';
 import { useTurnQueue } from './use-turn-queue';
 import { WorkingStatus } from './working-status';
@@ -16,7 +16,9 @@ import { MessageRail } from './message-rail';
 import { PromptInput } from './prompt-input';
 import { ChatEmptyState } from './chat-empty';
 
-import type { CatalogModel } from '../../lib/models';
+import type { CatalogModel } from '@agent/core/model-types.js';
+import { useComposerSlot } from '../../lib/composer-registry';
+import { pauseAutoScroll } from './auto-scroll';
 
 // Each retained workspace view subscribes to its own session with `useChat`.
 // `Chat` presents those helpers. Branching is a session
@@ -54,7 +56,7 @@ export function useChatView({ chat, turns, onBranch, sessionId, learningEnabled,
   };
 
   const promptRef = useRef<HTMLTextAreaElement>(null);
-  const { scrollRef, holdAutoScroll, holdTimer } = useChatScroll({ jump, messages, status });
+  const { scrollRef, holdAutoScroll, holdTimer } = useChatScroll({ jump, messages });
   const hasCanvas = useMemo(() => Boolean(canvasAnchor(messages)), [messages]);
 
   return {
@@ -116,7 +118,11 @@ export function ChatView(state: ChatViewProps) {
             <ChatError state={state} />
           </div>
         </div>
-        <ChatNavigation state={state} />
+        <ChatNavigation state={{
+          scrollRef: state.scrollRef,
+          messages: state.messages,
+          onNavigate: () => pauseAutoScroll(state.holdAutoScroll, state.holdTimer),
+        }} />
       </div>
 
       <ChatComposer state={state} />
@@ -124,11 +130,23 @@ export function ChatView(state: ChatViewProps) {
   );
 }
 
-export type ChatComposerProps = { state: Parameters<typeof ChatView>[0] };
+export type ChatComposerState = {
+  sessionId: string;
+  draft: string;
+  setDraft: (text: string) => void;
+  promptRef: RefObject<HTMLTextAreaElement | null>;
+  busy: boolean;
+  ready: boolean;
+  status: UseChatHelpers<UIMessage>['status'];
+  chatInputs: CatalogModel['inputs'];
+  queue: ReturnType<typeof useTurnQueue>;
+};
 
-function ChatComposer({ state }: ChatComposerProps) {
+function ChatComposer({ state }: { state: ChatComposerState }) {
+  const composer = useComposerSlot();
+
   return (
-    <section aria-label="Message composer" className="shrink-0 bg-background">
+    <section ref={composer} aria-label="Message composer" className="shrink-0 bg-background">
       <div className="mx-auto max-w-3xl px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-8">
         <QueuedFollowUps queue={state.queue} busy={state.busy} failed={state.status === 'error'} />
         <PromptInput
@@ -148,20 +166,12 @@ function ChatComposer({ state }: ChatComposerProps) {
   );
 }
 
-export type ChatNavigationProps = { state: Parameters<typeof ChatView>[0] };
+type ChatNavigationState = {
+  scrollRef: RefObject<HTMLDivElement | null>;
+  messages: UIMessage[];
+  onNavigate: () => void;
+};
 
-function ChatNavigation({ state }: ChatNavigationProps) {
-  return (
-    <MessageRail
-      scrollRef={state.scrollRef}
-      messages={state.messages}
-      onNavigate={() => {
-        state.holdAutoScroll.current = true;
-        window.clearTimeout(state.holdTimer.current);
-        state.holdTimer.current = window.setTimeout(() => {
-          state.holdAutoScroll.current = false;
-        }, 700);
-      }}
-    />
-  );
+function ChatNavigation({ state }: { state: ChatNavigationState }) {
+  return <MessageRail scrollRef={state.scrollRef} messages={state.messages} onNavigate={state.onNavigate} />;
 }

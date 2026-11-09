@@ -3,6 +3,7 @@
 #include <string.h>
 #include <sys/stat.h>
 
+#include "statutil.h"
 #include "workspace_graph.h"
 
 struct cberg_workspace_cache {
@@ -14,9 +15,7 @@ struct cberg_workspace_cache {
 };
 
 typedef struct workspace_view {
-    cberg_engine engine;
     cberg_repo repo;
-    cberg_repo *pointer;
     cberg_engine *owner;
 } workspace_view;
 
@@ -31,7 +30,7 @@ void cberg_workspace_free(cberg_workspace_cache *cache) {
 }
 
 static uint64_t manifest_stamp(const cberg_repo *repo) {
-    const char *names[] = {"go.mod", "package.json", "Cargo.toml"};
+    const char *names[] = {CBERG_WORKSPACE_GO_MOD, CBERG_WORKSPACE_PACKAGE_JSON, CBERG_WORKSPACE_CARGO_TOML};
     uint64_t stamp = 0;
     for (size_t i = 0; i < sizeof names / sizeof names[0]; i++) {
         char path[4096];
@@ -39,12 +38,7 @@ static uint64_t manifest_stamp(const cberg_repo *repo) {
         struct stat info;
         if (stat(path, &info) != 0)
             continue;
-#ifdef __APPLE__
-        uint64_t nanos = (uint64_t)info.st_mtimespec.tv_nsec;
-#else
-        uint64_t nanos = (uint64_t)info.st_mtim.tv_nsec;
-#endif
-        stamp = stamp * 1099511628211ULL ^ (uint64_t)info.st_mtime ^ (nanos << 32) ^ (uint64_t)info.st_size;
+        stamp = stamp * 1099511628211ULL ^ (uint64_t)CBERG_STAT_MTIME_NS(info) ^ (uint64_t)info.st_size;
     }
     return stamp;
 }
@@ -123,10 +117,6 @@ static cberg_status view_begin(cberg_engine *engine, const char *scope, workspac
     view->repo.ready = 1;
     atomic_init(&view->repo.published_ready, 1);
     pthread_mutex_init(&view->repo.mu, NULL);
-    view->pointer = &view->repo;
-    view->engine.repos = &view->pointer;
-    view->engine.repos_len = 1;
-    view->engine.graph_enabled = 1;
     cberg_graph_workspace_scope(view->repo.graph, scope);
     return CBERG_OK;
 }
@@ -151,7 +141,7 @@ cberg_status cberg_workspace_search(cberg_engine *engine, const char *name, cons
     cberg_status status = view_begin(engine, repo, &view);
     if (status != CBERG_OK)
         return status;
-    status = cberg_engine_search_graph(&view.engine, name, NULL, kind, path, limit, out, cap, found);
+    status = cberg_repo_graph_search(&view.repo, name, kind, path, limit, out, cap, found);
     for (size_t i = 0; i < *found; i++)
         out[i].repo = engine_repo_key(engine, out[i].repo);
     view_end(&view);
@@ -163,7 +153,7 @@ cberg_status cberg_workspace_refs(cberg_engine *engine, const char *name, const 
     cberg_status status = view_begin(engine, repo, &view);
     if (status != CBERG_OK)
         return status;
-    status = cberg_engine_graph_references(&view.engine, name, NULL, path, limit, out, cap, found);
+    status = cberg_repo_graph_references(&view.repo, name, path, limit, out, cap, found);
     view_end(&view);
     return status;
 }
@@ -200,7 +190,7 @@ cberg_status cberg_workspace_trace(cberg_engine *engine, const char *name, uint6
             status = CBERG_ERR_NOT_FOUND;
     }
     if (status == CBERG_OK) {
-        status = cberg_engine_trace_path(&view.engine, name, start, NULL, path, direction, kind, depth, limit, out, cap, found);
+        status = cberg_repo_graph_trace(&view.repo, name, start, path, direction, kind, depth, limit, out, cap, found);
     }
     view_end(&view);
     return status;
@@ -211,7 +201,7 @@ cberg_status cberg_workspace_hubs(cberg_engine *engine, const char *repo, size_t
     cberg_status status = view_begin(engine, repo, &view);
     if (status != CBERG_OK)
         return status;
-    status = cberg_engine_graph_hubs(&view.engine, NULL, limit, out, cap, found);
+    status = cberg_repo_graph_hubs(&view.repo, limit, out, cap, found);
     for (size_t i = 0; i < *found; i++)
         out[i].node.repo = engine_repo_key(engine, out[i].node.repo);
     view_end(&view);

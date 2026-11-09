@@ -3,12 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import {
-  discoverMcpConfigPaths,
-  interpolateMcpString,
-  mcpConfigFromEnv,
-  parseMcpJson,
-} from './config.js';
+import { discoverMcpConfigPaths, mcpConfigFromEnv } from './config.js';
+import { interpolateMcpString } from './config/values.js';
+import { parseMcpJson } from './config/parse.js';
 import type { McpInterpolateContext, McpStdioServer, McpUrlServer } from './types.js';
 
 const ctx: McpInterpolateContext = {

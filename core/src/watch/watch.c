@@ -3,6 +3,7 @@
 #include "grow.h"
 #include "pathutil.h"
 #include "strutil.h"
+#include "walk_policy.h"
 
 #include <limits.h>
 #include <pthread.h>
@@ -48,6 +49,9 @@ bool watch_rel_join(const char *parent_rel, const char *name, char *rel_out, siz
 }
 
 void watch_note_created_subdir(cberg_watcher *w, const char *abs, const char *rel) {
+    if (cberg_walk_skip_rel(rel, true)) {
+        return;
+    }
     watch_note_error(w, watch_walk_register(w, abs, rel));
 }
 
@@ -70,8 +74,8 @@ static cberg_watch_kind kind_merge(cberg_watch_kind existing, cberg_watch_kind i
     return incoming;
 }
 
-cberg_status watch_dirty_add(cberg_watcher *w, const char *rel, cberg_watch_kind kind) {
-    if (w == NULL || rel == NULL || rel[0] == '\0') {
+cberg_status watch_dirty_add(cberg_watcher *w, const char *rel, cberg_watch_kind kind, bool is_dir) {
+    if (w == NULL || rel == NULL || rel[0] == '\0' || cberg_walk_skip_rel(rel, is_dir)) {
         return CBERG_OK;
     }
     watch_lock(w);
@@ -272,14 +276,11 @@ cberg_status cberg_watcher_open(const char *root, cberg_watcher **out_watcher) {
         return st;
     }
 
-#if defined(__linux__)
-    w->inotify_fd = -1;
     st = watch_platform_begin(w);
     if (st != CBERG_OK) {
         cberg_watcher_close(w);
         return st;
     }
-#endif
 
     st = watch_walk_register(w, w->root, "");
     if (st != CBERG_OK) {

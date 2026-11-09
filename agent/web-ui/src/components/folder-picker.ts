@@ -1,4 +1,6 @@
 import type { useAddProject } from './project-add';
+import { readJsonBody } from '../lib/read-json';
+import { jsonRequest } from '../lib/response.js';
 
 export type FolderPickerOptions = Pick<Parameters<typeof useAddProject>[0], 'initialPath'> & {
   busy: boolean;
@@ -27,21 +29,14 @@ export function createFolderPicker({
     setChoosing(true);
     setError('');
     try {
-      const response = await fetch('/api/projects/pick-directory', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initialPath: root || initialPath }),
-        signal: controller.signal,
-      });
-      const text = await response.text();
-      let result: { path?: string; cancelled?: boolean; message?: string };
-      try {
-        result = JSON.parse(text) as typeof result;
-      } catch {
-        throw new Error(text || 'Could not open the folder picker. Enter the directory path manually.');
-      }
-      if (!response.ok)
-        throw new Error(result.message || 'Could not open the folder picker. Enter the directory path manually.');
+      const response = await fetch(
+        '/api/projects/pick-directory',
+        jsonRequest('POST', { initialPath: root || initialPath }, controller.signal),
+      );
+      const fallback = 'Could not open the folder picker. Enter the directory path manually.';
+      const result = await readJsonBody<{ path?: string; cancelled?: boolean; message?: string }>(response, fallback);
+
+      if (!response.ok) throw new Error(result.message || fallback);
       if (!controller.signal.aborted && !result.cancelled) {
         if (!result.path)
           throw new Error('No directory was selected. Choose a folder again or enter the path manually.');

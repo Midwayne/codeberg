@@ -7,7 +7,8 @@ import { expect, it } from 'vitest';
 import { Agent } from './agent.js';
 import { DaemonClient, DEFAULT_DAEMON_URL } from './client.js';
 import { ContextStore } from './context/store.js';
-import { fitHistory, totalTokens } from './history.js';
+import { fitHistory } from './history.js';
+import { totalTokens } from './history-tokens.js';
 
 function outputFixture(): ModelMessage[] {
   return [

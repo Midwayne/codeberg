@@ -16,12 +16,93 @@
  */
 #define CBERG_BIN_STR_NULL 0xFFFFFFFFu
 
+/* Atomic replace temps are path + ".tmp"; keep one capacity everywhere. */
+#define CBERG_ATOMIC_TMP_CAP 4096
+
+/* Name the sibling temp used by an atomic replace. */
+static inline cberg_status cberg_atomic_temp(const char *path, char *tmp, size_t tmp_cap) {
+    int n = snprintf(tmp, tmp_cap, "%s.tmp", path);
+    if (n < 0 || (size_t)n >= tmp_cap) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+
+    return CBERG_OK;
+}
+
+/* Replace path with tmp. A failed rename removes tmp. */
+static inline cberg_status cberg_atomic_rename(const char *tmp, const char *path) {
+    if (rename(tmp, path) != 0) {
+        remove(tmp);
+
+        return CBERG_ERR_IO;
+    }
+
+    return CBERG_OK;
+}
+
+/* Publish path.tmp, then rename it over path. A failed publish removes the temp. */
+static inline cberg_status cberg_atomic_begin(const char *path, char *tmp, size_t tmp_cap, FILE **out) {
+    cberg_status st = cberg_atomic_temp(path, tmp, tmp_cap);
+    if (st != CBERG_OK) {
+        return st;
+    }
+
+    *out = fopen(tmp, "wb");
+
+    return *out == NULL ? CBERG_ERR_IO : CBERG_OK;
+}
+
+static inline cberg_status cberg_atomic_commit(FILE **fp, const char *tmp, const char *path) {
+    FILE *f = *fp;
+    if (fflush(f) != 0) {
+        fclose(f);
+        *fp = NULL;
+        remove(tmp);
+
+        return CBERG_ERR_IO;
+    }
+
+    if (fclose(f) != 0) {
+        *fp = NULL;
+        remove(tmp);
+
+        return CBERG_ERR_IO;
+    }
+
+    *fp = NULL;
+
+    return cberg_atomic_rename(tmp, path);
+}
+
+/* A missing snapshot is a cold rebuild, not an I/O failure. */
+static inline cberg_status cberg_snapshot_open(const char *path, FILE **out) {
+    *out = fopen(path, "rb");
+
+    return *out == NULL ? CBERG_ERR_NOT_FOUND : CBERG_OK;
+}
+
+static inline void cberg_atomic_abort(FILE *f, const char *tmp) {
+    if (f != NULL) {
+        fclose(f);
+    }
+
+    remove(tmp);
+}
+
 static inline cberg_status cberg_bin_w_u32(FILE *f, uint32_t v) {
     return fwrite(&v, sizeof v, 1, f) == 1 ? CBERG_OK : CBERG_ERR_IO;
 }
 
 static inline cberg_status cberg_bin_w_u64(FILE *f, uint64_t v) {
     return fwrite(&v, sizeof v, 1, f) == 1 ? CBERG_OK : CBERG_ERR_IO;
+}
+
+static inline cberg_status cberg_bin_w_i64(FILE *f, int64_t v) {
+    uint64_t bits = 0;
+
+    memcpy(&bits, &v, sizeof bits);
+
+    return cberg_bin_w_u64(f, bits);
 }
 
 static inline cberg_status cberg_bin_w_bytes(FILE *f, const void *p, size_t n) {
@@ -50,6 +131,37 @@ static inline cberg_status cberg_bin_r_u32(FILE *f, uint32_t *v) {
 
 static inline cberg_status cberg_bin_r_u64(FILE *f, uint64_t *v) {
     return cberg_bin_r_exact(f, v, sizeof *v);
+}
+
+static inline cberg_status cberg_bin_r_i64(FILE *f, int64_t *v) {
+    uint64_t bits = 0;
+    cberg_status st = cberg_bin_r_u64(f, &bits);
+    if (st != CBERG_OK) {
+        return st;
+    }
+
+    memcpy(v, &bits, sizeof *v);
+
+    return CBERG_OK;
+}
+
+/* A short read, a foreign magic, or a different version is a cold rebuild. */
+static inline cberg_status cberg_snapshot_header(FILE *f, const char *magic, uint32_t expect) {
+    char got[4];
+    uint32_t version = 0;
+    if (cberg_bin_r_exact(f, got, 4) != CBERG_OK || memcmp(got, magic, 4) != 0 ||
+        cberg_bin_r_u32(f, &version) != CBERG_OK || version != expect) {
+        return CBERG_ERR_NOT_FOUND;
+    }
+
+    return CBERG_OK;
+}
+
+/* Every snapshot starts with 4-byte magic + u32 version. */
+static inline cberg_status cberg_snapshot_write_header(FILE *f, const char *magic, uint32_t version) {
+    cberg_status st = cberg_bin_w_bytes(f, magic, 4);
+
+    return st != CBERG_OK ? st : cberg_bin_w_u32(f, version);
 }
 
 /* Reads a length-prefixed string into a malloc'd buffer (*out = NULL for the

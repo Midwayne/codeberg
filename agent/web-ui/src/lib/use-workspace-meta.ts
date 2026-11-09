@@ -2,13 +2,12 @@ import { useProjectApi } from './project-api';
 
 import { useEffect, useState } from 'react';
 
-import { loadModelSettings, type CatalogModel } from './models';
+import { loadModelSettings } from './models';
+import { type CatalogModel } from '@agent/core/model-types.js';
 import { loadLearningSettings } from './learning-settings';
 import { startLearningStatusPolling } from './learning-status';
 
-import type { useProjectWorkspace } from '../App';
-
-export type WorkspaceMetaOptions = Pick<Parameters<typeof useProjectWorkspace>[0], 'loading'>;
+export type WorkspaceMetaOptions = { loading: boolean };
 
 export function useWorkspaceMeta({ loading }: WorkspaceMetaOptions) {
   const { fetch: api } = useProjectApi();

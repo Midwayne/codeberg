@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
-import { useProjectStatus } from './use-project-shell';
+import { useProjectStatus } from './use-project-status';
 
 vi.mock('react', async (original) => ({
   ...await original<typeof import('react')>(),

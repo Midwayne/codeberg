@@ -33,16 +33,19 @@ function CanvasCard({ chatId }: { chatId: string }) {
         <span role="status" className="canvas-editing ml-auto text-xs text-muted-foreground" data-active={Boolean(editing && enabled !== false)}>
           <span className="canvas-editing-dot" aria-hidden="true" />{editing && enabled !== false ? 'Agent is editing…' : ''}
         </span>
-        {enabled !== false && <a href={canvasUrl(chatId, project?.id)} target="_blank" rel="noreferrer"
+        {enabled !== false && <a href={canvasUrl(chatId, { project: project?.id })} target="_blank" rel="noreferrer"
           onClick={(event) => {
-            event.currentTarget.href = canvasUrl(chatId, project?.id) + (event.detail === 0 ? '&motion=none' : '');
+            event.currentTarget.href = canvasUrl(chatId, {
+              project: project?.id,
+              motion: event.detail === 0 ? 'none' : undefined,
+            });
           }}
           aria-label="Expand canvas" className="flex min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring">
           <Expand className="size-4" />
         </a>}
       </div>
       {enabled === false ? <p className="p-6 text-sm text-muted-foreground">Canvas is disabled. Enable it in Settings to view this drawing.</p> :
-        <iframe title="Chat canvas" src={canvasUrl(chatId, project?.id, true)} className="h-[min(40dvh,24rem)] min-h-64 w-full border-0" />}
+        <iframe title="Chat canvas" src={canvasUrl(chatId, { project: project?.id, embedded: true })} className="h-[min(40dvh,24rem)] min-h-64 w-full border-0" />}
     </section>
   );
 }

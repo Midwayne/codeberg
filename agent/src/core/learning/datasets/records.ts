@@ -1,12 +1,9 @@
 import type { FeedbackRecord } from '../types.js';
+import { LearningError } from '../errors.js';
+import type { DATASET_KINDS } from '../preferences.js';
+import { pathFromHit } from '../review-payload.js';
 
-export type DatasetKind =
-  | 'retrieval'
-  | 'sft'
-  | 'preferences'
-  | 'rlvr'
-  | 'hard_negatives'
-  | 'hard_negative_candidates';
+export type DatasetKind = (typeof DATASET_KINDS)[number];
 
 export type Provenance =
   | 'user_confirmed'
@@ -37,46 +34,24 @@ export interface DatasetExample {
   review?: { provenance: Provenance; timestamp: string; oracle?: Record<string, unknown> };
 }
 
+const RETRIEVAL_ORACLE_FIELDS = ['files', 'symbols', 'repositories', 'dependency_path'] as const;
+
+/** Reviewer-supplied evidence: `notes` is free text; every other field is a list of strings. */
+export const REVIEW_ORACLE_FIELDS = [
+  ...RETRIEVAL_ORACLE_FIELDS,
+  'verified_negatives',
+  'notes',
+] as const;
+
 export function validateReview(
   example: DatasetExample,
   split: 'eval' | 'training',
   review: { provenance: Provenance; oracle?: Record<string, unknown> },
 ): void {
-  if (!ALLOWED_PROVENANCE.includes(review.provenance)) throw new Error('unknown review provenance');
+  if (!ALLOWED_PROVENANCE.includes(review.provenance))
+    throw new LearningError('invalid', 'unknown review provenance');
 
-  if (split === 'eval') {
-    const verified: Provenance[] = [
-      'user_confirmed',
-      'tests',
-      'compiler',
-      'static_analysis',
-      'dependency_graph',
-      'repository_structure',
-    ];
-
-    if (
-      !review.oracle ||
-      typeof review.oracle !== 'object' ||
-      Array.isArray(review.oracle) ||
-      Object.keys(review.oracle).length === 0 ||
-      !verified.includes(review.provenance)
-    ) {
-      throw new Error('eval requires reviewed oracle and independent provenance');
-    }
-
-    const retrievalOracle = ['files', 'symbols', 'repositories', 'dependency_path'];
-    if (
-      example.kind === 'retrieval' &&
-      !retrievalOracle.some(
-        (field) =>
-          Array.isArray(review.oracle?.[field]) && (review.oracle[field] as unknown[]).length > 0,
-      )
-    ) {
-      throw new Error(
-        'retrieval eval requires at least one reviewed repository, file, symbol or dependency path',
-      );
-    }
-  }
+  if (split === 'eval') validateEvalReview(example, review);
 
   if (
     split === 'training' &&
@@ -84,7 +59,47 @@ export function validateReview(
     (!Array.isArray(review.oracle?.verified_negatives) ||
       review.oracle.verified_negatives.length === 0)
   ) {
-    throw new Error('ambiguous negatives require reviewed negative paths before training');
+    throw new LearningError(
+      'invalid',
+      'ambiguous negatives require reviewed negative paths before training',
+    );
+  }
+}
+
+function validateEvalReview(
+  example: DatasetExample,
+  review: { provenance: Provenance; oracle?: Record<string, unknown> },
+): void {
+  const verified: Provenance[] = [
+    'user_confirmed',
+    'tests',
+    'compiler',
+    'static_analysis',
+    'dependency_graph',
+    'repository_structure',
+  ];
+
+  if (
+    !review.oracle ||
+    typeof review.oracle !== 'object' ||
+    Array.isArray(review.oracle) ||
+    Object.keys(review.oracle).length === 0 ||
+    !verified.includes(review.provenance)
+  ) {
+    throw new LearningError('invalid', 'eval requires reviewed oracle and independent provenance');
+  }
+
+  if (
+    example.kind === 'retrieval' &&
+    !RETRIEVAL_ORACLE_FIELDS.some(
+      (field) =>
+        Array.isArray(review.oracle?.[field]) && (review.oracle[field] as unknown[]).length > 0,
+    )
+  ) {
+    throw new LearningError(
+      'invalid',
+      'retrieval eval requires at least one reviewed repository, file, symbol or dependency path',
+    );
   }
 }
 
@@ -98,9 +113,11 @@ export function exampleFiles(example: DatasetExample): string[] {
         ? reviewed.filter((file): file is string => typeof file === 'string')
         : []),
       ...(Array.isArray(proposed)
-        ? proposed.flatMap((hit) =>
-            typeof hit === 'object' && hit && typeof hit.path === 'string' ? [hit.path] : [],
-          )
+        ? proposed.flatMap((hit) => {
+            const path = pathFromHit(hit);
+
+            return path ? [path] : [];
+          })
         : []),
     ]),
   ];

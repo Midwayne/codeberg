@@ -3,7 +3,6 @@ package projects
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"unicode/utf8"
@@ -12,18 +11,9 @@ import (
 )
 
 func (m *Manager) Add(name, root string) (Project, error) {
-	if !filepath.IsAbs(root) || strings.ContainsAny(root, "\x00\n\r\t") {
-		return Project{}, fmt.Errorf("choose an absolute directory path")
-	}
-
-	root, err := filepath.EvalSymlinks(root)
+	root, err := openExistingDirectory(root)
 	if err != nil {
-		return Project{}, fmt.Errorf("directory is unavailable: %w", err)
-	}
-
-	info, err := os.Stat(root)
-	if err != nil || !info.IsDir() {
-		return Project{}, fmt.Errorf("choose an existing directory")
+		return Project{}, err
 	}
 
 	name = strings.TrimSpace(name)
@@ -31,8 +21,8 @@ func (m *Manager) Add(name, root string) (Project, error) {
 		name = filepath.Base(root)
 	}
 
-	if utf8.RuneCountInString(name) > 120 {
-		return Project{}, fmt.Errorf("project name must be 120 characters or shorter")
+	if projectNameTooLong(name) {
+		return Project{}, fmt.Errorf("project name must be %d characters or shorter", maxProjectNameRunes)
 	}
 
 	roots := []domain.Repo{{Key: filepath.Base(root), Root: root}}
@@ -71,14 +61,20 @@ func (m *Manager) addProject(p Project) (Project, error) {
 	return p, nil
 }
 
+const maxProjectNameRunes = 120
+
 var errProjectNotFound = errors.New("project not found")
 
-var errProjectName = errors.New("project name must contain 1 to 120 characters")
+var errProjectName = fmt.Errorf("project name must contain 1 to %d characters", maxProjectNameRunes)
+
+func projectNameTooLong(name string) bool {
+	return utf8.RuneCountInString(name) > maxProjectNameRunes
+}
 
 // Rename changes only the display label; roots, IDs and running indexers stay stable.
 func (m *Manager) Rename(id, name string) (Project, error) {
 	name = strings.TrimSpace(name)
-	if name == "" || utf8.RuneCountInString(name) > 120 {
+	if name == "" || projectNameTooLong(name) {
 		return Project{}, errProjectName
 	}
 

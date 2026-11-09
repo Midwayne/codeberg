@@ -1,5 +1,11 @@
-export type ExampleKind = 'retrieval' | 'sft' | 'preferences' | 'rlvr' | 'hard_negatives' | 'hard_negative_candidates';
-export type ReviewState = 'ready' | 'training' | 'eval' | 'dismissed' | 'stale';
+import type { DatasetKind } from '@agent/core/learning/datasets/records.js';
+import { answerFromPayload } from '@agent/core/learning/review-payload.js';
+import type { ReviewCandidate, ReviewDashboard, ReviewState } from '@agent/core/learning/review-types.js';
+import { jsonRequest, responseJson } from './response.js';
+
+export type ExampleKind = DatasetKind;
+export type { ReviewDashboard, ReviewState };
+export type ReviewSummary = ReviewCandidate;
 
 export const KIND_LABELS: Record<ExampleKind, string> = {
   retrieval: 'Search evidence',
@@ -9,32 +15,6 @@ export const KIND_LABELS: Record<ExampleKind, string> = {
   hard_negatives: 'Incorrect result',
   hard_negative_candidates: 'Possible incorrect result',
 };
-
-export interface ReviewSummary {
-  id: string;
-  kind: ExampleKind;
-  query: string;
-  extracted_at: string;
-  state: ReviewState;
-  eligible: boolean;
-  feedback?: { label: string; reason?: string };
-  repositories: string[];
-  answer_preview: string;
-  proposed_files: string[];
-}
-
-export interface ReviewDashboard {
-  stats: {
-    total: number;
-    ready: number;
-    training: number;
-    eval: number;
-    dismissed: number;
-    stale: number;
-    by_kind: Partial<Record<ExampleKind, number>>;
-  };
-  candidates: ReviewSummary[];
-}
 
 export interface ReviewExample {
   id: string;
@@ -47,16 +27,11 @@ export interface ReviewExample {
   confidence: string;
 }
 
-async function readResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) throw new Error(await response.text());
-  return response.json() as Promise<T>;
-}
-
 export async function loadTrainingReview(
   signal?: AbortSignal,
   fetcher: typeof fetch = fetch,
 ): Promise<ReviewDashboard> {
-  return readResponse(await fetcher('/api/learning/review', { signal }));
+  return responseJson(await fetcher('/api/learning/review', { signal }));
 }
 
 export async function loadReviewExample(
@@ -64,7 +39,7 @@ export async function loadReviewExample(
   signal?: AbortSignal,
   fetcher: typeof fetch = fetch,
 ): Promise<ReviewExample> {
-  return readResponse(await fetcher(`/api/learning/review/${encodeURIComponent(id)}`, { signal }));
+  return responseJson(await fetcher(`/api/learning/review/${encodeURIComponent(id)}`, { signal }));
 }
 
 export async function submitReview(
@@ -73,20 +48,16 @@ export async function submitReview(
   oracle?: Record<string, unknown>,
   fetcher: typeof fetch = fetch,
 ): Promise<void> {
-  await readResponse(
-    await fetcher(`/api/learning/review/${encodeURIComponent(id)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ decision, ...(oracle ? { oracle } : {}) }),
-    }),
+  await responseJson(
+    await fetcher(
+      `/api/learning/review/${encodeURIComponent(id)}`,
+      jsonRequest('POST', { decision, ...(oracle ? { oracle } : {}) }),
+    ),
   );
 }
 
 export function exampleAnswer(example: ReviewExample): string {
-  if (typeof example.payload.answer === 'string') return example.payload.answer;
-  if (typeof example.payload.chosen === 'string') return example.payload.chosen;
-  const trajectory = example.payload.successful_trajectory ?? example.payload.trajectory;
-  return Array.isArray(trajectory) ? String(trajectory.at(-1)?.answer ?? '') : '';
+  return answerFromPayload(example.payload);
 }
 
 export interface EvidencePreview {

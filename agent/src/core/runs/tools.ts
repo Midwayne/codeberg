@@ -1,15 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { ToolSet } from 'ai';
-
-export interface ToolObservation {
-  kind: 'tool';
-  id: string;
-  name: string;
-  state: 'started' | 'completed' | 'failed';
-  input?: unknown;
-  output?: unknown;
-  error?: string;
-}
+import type { ToolObservation } from '../api/runs.js';
 
 export interface ToolJournalContext {
   append: (entry: ToolObservation) => Promise<void>;

@@ -64,12 +64,49 @@ func TestReadOnlySedPrograms(t *testing.T) {
 
 func TestSortCannotLaunchHelpersOrWriteFiles(t *testing.T) {
 	for _, arg := range []string{"--compress-program=id", "--compress=id", "--output=out", "-roout", "--files0-from=input", "--random-source=input"} {
-		if err := ValidateStage([]string{"sort", arg}); err == nil {
+		if err := validateStage([]string{"sort", arg}); err == nil {
 			t.Errorf("accepted unsafe sort option %q", arg)
 		}
 	}
 
-	if err := ValidateStage([]string{"sort", "-nr", "-k", "2,2", "input.txt"}); err != nil {
+	if err := validateStage([]string{"sort", "-nr", "-k", "2,2", "input.txt"}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestValidateStage(t *testing.T) {
+	tests := []struct {
+		name string
+		argv []string
+		ok   bool
+	}{
+		{"allowed rg", []string{"rg", "-l", "TODO"}, true},
+		{"allowed head", []string{"head", "-5"}, true},
+		{"allowed sed read-only", []string{"sed", "-n", "1,5p"}, true},
+		{"allowed relative path", []string{"rg", "TODO", "src/"}, true},
+		{"unknown command", []string{"python", "-c", "x"}, false},
+		{"awk excluded", []string{"awk", "{print}"}, false},
+		{"xargs excluded", []string{"xargs", "rm"}, false},
+		{"rg pre flag", []string{"rg", "--pre", "sh", "x"}, false},
+		{"rg pre eq flag", []string{"rg", "--pre=sh", "x"}, false},
+		{"sort output flag", []string{"sort", "-o", "out"}, false},
+		{"sed in-place", []string{"sed", "-i", "s/a/b/"}, false},
+		{"sed write script", []string{"sed", "s/a/b/w file"}, false},
+		{"absolute path", []string{"cat", "/etc/passwd"}, false},
+		{"dotdot traversal", []string{"rg", "TODO", "../other"}, false},
+		{"absolute via flag value", []string{"rg", "--glob=/etc/*", "x"}, false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateStage(tc.argv)
+			if tc.ok && err != nil {
+				t.Fatalf("want ok, got %v", err)
+			}
+
+			if !tc.ok && err == nil {
+				t.Fatal("want rejection, got nil")
+			}
+		})
 	}
 }

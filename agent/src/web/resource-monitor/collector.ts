@@ -1,10 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { Worker } from 'node:worker_threads';
 import { writeModuleLog } from '../../core/module-log.js';
-import type { ResourceSample } from '../resources.js';
 import { RESOURCE_WORKER_URL } from '../resource-worker-url.js';
 import type { ResourceMonitorClientState } from './state.js';
-import { RETENTION_MS, type ResourceWorkerData } from './types.js';
+import type { ResourceWorkerData } from './types.js';
+import {
+  RESOURCE_HISTORY_LIMIT,
+  RESOURCE_RETENTION_MS,
+  type ResourceSample,
+  withoutProcesses,
+} from '../../core/api/resources.js';
 
 // The daemon collector and the local worker fall back to each other, so both live here.
 
@@ -30,15 +35,15 @@ export function startWorker(state: ResourceMonitorClientState): void {
     const sample = message.sample;
     const previous = state.history.at(-1);
     if (previous && previous.timestamp !== sample.timestamp)
-      state.history[state.history.length - 1] = { ...previous, processes: [] };
+      state.history[state.history.length - 1] = withoutProcesses(previous);
 
     state.history = [
       ...state.history.filter(
         (row) =>
-          row.timestamp > sample.timestamp - RETENTION_MS && row.timestamp !== sample.timestamp,
+          row.timestamp > sample.timestamp - RESOURCE_RETENTION_MS && row.timestamp !== sample.timestamp,
       ),
       sample,
-    ].slice(-360);
+    ].slice(-RESOURCE_HISTORY_LIMIT);
   });
   state.worker.on('error', (error) => {
     writeModuleLog('agent', 'resource_monitor_failed', { error: String(error) });

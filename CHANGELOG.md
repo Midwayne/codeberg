@@ -7,6 +7,17 @@ changes may occur in minor releases and are called out explicitly.
 
 ## [Unreleased]
 
+### Changed
+
+- `codeberg-d` listens on port 48080 by default, the same port the launcher and
+  the agent already use. Set `CODEBERG_HTTP_PORT` to keep the old 8080.
+- A project's local vector index lives under
+  `projects/<id>/index/<embedding-namespace>/` when a model namespace is set.
+  Jina keeps the historical un-namespaced path. An older index at the previous
+  project path is moved on startup when the new path is empty. A custom index
+  file stays where it is, and a namespace moves it into a sibling directory so
+  two embedding models do not share sidecars.
+
 ## [0.1.14] - 2026-11-08
 
 ### Added

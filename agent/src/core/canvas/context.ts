@@ -1,11 +1,12 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { isValidSessionId } from '../api/sessions.js';
 import { CanvasError } from './types.js';
 import { withCanvasRecovery } from './recovery.js';
 
 const context = new AsyncLocalStorage<{ chatId?: string }>();
 
 export function validChatId(value: unknown): asserts value is string {
-  if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(value)) {
+  if (typeof value !== 'string' || !isValidSessionId(value)) {
     throw new CanvasError('A valid chat ID is required for this canvas.');
   }
 }

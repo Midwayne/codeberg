@@ -23,7 +23,7 @@
 #include "grow.h"
 #include "strmap.h"
 #include "u64map.h"
-#include "workspace_graph.h"
+#include "graph_workspace.h"
 
 #define GRAPH_CONF_EXACT 1.0f
 #define GRAPH_CONF_SAME_FILE 0.90f
@@ -1442,20 +1442,16 @@ cberg_status cberg_graph_save(const cberg_graph *graph, const char *path) {
     if (graph == NULL || path == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
-    char tmp[4096];
-    int n = snprintf(tmp, sizeof tmp, "%s.tmp", path);
-    if (n < 0 || (size_t)n >= sizeof tmp) {
-        return CBERG_ERR_INVALID_ARGUMENT;
+    char tmp[CBERG_ATOMIC_TMP_CAP];
+    FILE *f = NULL;
+    cberg_status st = cberg_atomic_begin(path, tmp, sizeof tmp, &f);
+    if (st != CBERG_OK) {
+        return st;
     }
-    FILE *f = fopen(tmp, "wb");
-    if (f == NULL) {
-        return CBERG_ERR_IO;
-    }
-    cberg_status st = CBERG_OK;
     size_t live_nodes = 0;
     size_t live_refs = 0;
     cberg_graph_counts(graph, &live_nodes, &live_refs);
-    if (cberg_bin_w_bytes(f, CBERG_GRAPH_MAGIC, 4) != CBERG_OK || cberg_bin_w_u32(f, CBERG_GRAPH_VERSION) != CBERG_OK ||
+    if (cberg_snapshot_write_header(f, CBERG_GRAPH_MAGIC, CBERG_GRAPH_VERSION) != CBERG_OK ||
         cberg_bin_w_u64(f, live_nodes) != CBERG_OK || cberg_bin_w_u64(f, live_refs) != CBERG_OK) {
         st = CBERG_ERR_IO;
         goto fail;
@@ -1489,27 +1485,15 @@ cberg_status cberg_graph_save(const cberg_graph *graph, const char *path) {
             goto fail;
         }
     }
-    if (fflush(f) != 0) {
-        st = CBERG_ERR_IO;
-        goto fail;
-    }
-    if (fclose(f) != 0) {
-        f = NULL;
-        st = CBERG_ERR_IO;
-        goto fail;
-    }
-    if (rename(tmp, path) != 0) {
-        st = CBERG_ERR_IO;
-        remove(tmp);
+    st = cberg_atomic_commit(&f, tmp, path);
+    if (st != CBERG_OK) {
         return st;
     }
+
     return CBERG_OK;
 
 fail:
-    if (f != NULL) {
-        fclose(f);
-    }
-    remove(tmp);
+    cberg_atomic_abort(f, tmp);
     return st;
 }
 
@@ -1518,17 +1502,14 @@ cberg_status cberg_graph_load(const char *path, cberg_graph **out_graph) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     *out_graph = NULL;
-    FILE *f = fopen(path, "rb");
-    if (f == NULL) {
+    FILE *f = NULL;
+    if (cberg_snapshot_open(path, &f) != CBERG_OK) {
         return CBERG_ERR_NOT_FOUND;
     }
 
-    char magic[4];
-    uint32_t version = 0;
     uint64_t node_count = 0;
     uint64_t ref_count = 0;
-    if (cberg_bin_r_exact(f, magic, 4) != CBERG_OK || memcmp(magic, CBERG_GRAPH_MAGIC, 4) != 0 ||
-        cberg_bin_r_u32(f, &version) != CBERG_OK || version != CBERG_GRAPH_VERSION ||
+    if (cberg_snapshot_header(f, CBERG_GRAPH_MAGIC, CBERG_GRAPH_VERSION) != CBERG_OK ||
         cberg_bin_r_u64(f, &node_count) != CBERG_OK || cberg_bin_r_u64(f, &ref_count) != CBERG_OK) {
         fclose(f);
         return CBERG_ERR_NOT_FOUND;
@@ -1826,19 +1807,6 @@ uint64_t cberg_graph_workspace_id(const cberg_graph *graph, const char *repo, ui
 
 void cberg_graph_workspace_scope(cberg_graph *graph, const char *repo) {
     graph->scope = repo != NULL && repo[0] != '\0' ? repo : NULL;
-}
-
-const char *cberg_graph_workspace_file(const cberg_graph *graph, const char *repo, const char *path) {
-    for (size_t i = 0; i < graph->nodes_len; i++) {
-        const graph_node_rec *node = &graph->nodes[i];
-        if (node->dead || node->pub.kind != CBERG_GNODE_FILE || node->repo == NULL ||
-            strcmp(node->repo, repo) != 0)
-            continue;
-        if (strcmp(cberg_graph_source_path(graph, &node->pub), path) == 0)
-            return node->pub.path;
-    }
-
-    return NULL;
 }
 
 cberg_status cberg_graph_link_import(cberg_graph *graph, uint64_t source_file, uint64_t module, const char *target_file) {

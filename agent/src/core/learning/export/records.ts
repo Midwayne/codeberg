@@ -1,16 +1,12 @@
 import { DatasetStore } from '../datasets.js';
 import { redactSecrets } from '../redact.js';
+import { pathFromHit } from '../review-payload.js';
+import { CORRECTION } from '../store/session.js';
 import type { AttemptRecord, FeedbackRecord } from '../types.js';
 
 export function chatRecords(solved: AttemptRecord[]): unknown[] {
   return solved
-    .filter(
-      (attempt) =>
-        !attempt.parent_interaction_id &&
-        !/^(?:no\b|actually\b|i meant\b|that's not\b|that is not\b|but\b)/i.test(
-          attempt.user_query,
-        ),
-    )
+    .filter((attempt) => !attempt.parent_interaction_id && !CORRECTION.test(attempt.user_query))
     .map((attempt) => ({
       messages: [
         { role: 'user', content: redactSecrets(attempt.user_query) },
@@ -67,9 +63,11 @@ export function approvedNegatives(
 
     if (row.kind !== 'hard_negatives' || !Array.isArray(row.payload.hard_negatives)) return [];
 
-    return row.payload.hard_negatives.flatMap((hit) =>
-      hit && typeof hit === 'object' && typeof hit.path === 'string' ? [hit.path] : [],
-    );
+    return row.payload.hard_negatives.flatMap((hit) => {
+      const path = pathFromHit(hit);
+
+      return path ? [path] : [];
+    });
   });
 
   return new Set(paths);

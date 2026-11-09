@@ -95,7 +95,3 @@ function printResults<T extends { snippet?: string }>(
     console.log('');
   }
 }
-
-export type { SearchCliOptions } from './search/args.js';
-
-export { parseSearchArgs, SearchCliError } from './search/args.js';

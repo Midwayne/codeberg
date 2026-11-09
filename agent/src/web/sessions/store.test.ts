@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { WebSessionStore, isValidSessionId } from './store.js';
+import { WebSessionStore } from './store.js';
+import { isValidSessionId } from './records.js';
 
 const dirs: string[] = [];
 

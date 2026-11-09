@@ -1,7 +1,6 @@
 package embedding
 
 import (
-	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -28,12 +27,11 @@ func TestEmbeddingGemmaIsDefaultAndIsolated(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	home := t.TempDir()
 	for _, other := range List() {
 		if other.ID == id {
 			continue
 		}
-		if (strings.Contains(other.Label, "[default]") && other.ID != wantDefault) || other.IndexPath(home) == model.IndexPath(home) {
+		if (strings.Contains(other.Label, "[default]") && other.ID != wantDefault) || other.Namespace() == model.Namespace() {
 			t.Fatalf("conflicting choice: %+v", other)
 		}
 	}
@@ -51,7 +49,7 @@ func TestGemmaMLXHasSeparateModelRuntimeAndIndex(t *testing.T) {
 	home := t.TempDir()
 	other, _ := Lookup(Gemma)
 	qwen, _ := Lookup(MLXFP16)
-	if model.Path(home) == other.Path(home) || model.IndexPath(home) == other.IndexPath(home) {
+	if model.Path(home) == other.Path(home) || model.Namespace() == other.Namespace() {
 		t.Fatal("MLX must not reuse Sentence Transformers artifacts")
 	}
 	if model.VenvPath(home) == other.VenvPath(home) || model.VenvPath(home) == qwen.VenvPath(home) {
@@ -63,8 +61,7 @@ func TestGemmaMLXHasSeparateModelRuntimeAndIndex(t *testing.T) {
 	}
 }
 
-func TestIndexPathsPreserveLegacyAndSeparateModels(t *testing.T) {
-	home := t.TempDir()
+func TestNamespacesPreserveLegacyJinaAndSeparateModels(t *testing.T) {
 	jina, _ := Lookup(Jina)
 	mlx, _ := Lookup(MLX)
 	llama, _ := Lookup(Llama)
@@ -73,15 +70,18 @@ func TestIndexPathsPreserveLegacyAndSeparateModels(t *testing.T) {
 	fp16, _ := Lookup(MLXFP16)
 	bf16, _ := Lookup(MLXBF16)
 	largeFP16, _ := Lookup(MLX4BFP16)
-	if got, want := jina.IndexPath(home), filepath.Join(home, "index", "codeberg.usearch"); got != want {
-		t.Fatalf("legacy path = %q, want %q", got, want)
+	if jina.Namespace() != "" {
+		t.Fatalf("jina namespace = %q, want empty so existing indexes stay put", jina.Namespace())
 	}
-	if jina.IndexPath(home) == mlx.IndexPath(home) || mlx.IndexPath(home) == llama.IndexPath(home) ||
-		mlx.IndexPath(home) == mlx4.IndexPath(home) || llama.IndexPath(home) == llama4.IndexPath(home) {
-		t.Fatal("model choices must never share an index base")
+	if jina.Namespace() == mlx.Namespace() || mlx.Namespace() == llama.Namespace() ||
+		mlx.Namespace() == mlx4.Namespace() || llama.Namespace() == llama4.Namespace() {
+		t.Fatal("model choices must never share an index namespace")
 	}
-	if fp16.IndexPath(home) == bf16.IndexPath(home) || fp16.IndexPath(home) == largeFP16.IndexPath(home) ||
-		fp16.IndexPath(home) == mlx.IndexPath(home) {
+	if fp16.Namespace() == bf16.Namespace() || fp16.Namespace() == largeFP16.Namespace() ||
+		fp16.Namespace() == mlx.Namespace() {
 		t.Fatal("precision and model size must be part of the index identity")
+	}
+	if !mlx.UsesVenv() || mlx.ReadyMark() != "tokenizer.json" || jina.ReadyMark() != jina.Filename {
+		t.Fatal("venv models are identified by the model, not a copied backend list")
 	}
 }

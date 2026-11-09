@@ -1,7 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { ReviewDetail, TrainingSummary } from './training-review';
+import { ReviewDetail } from './review-detail';
+import { TrainingSummary } from './training-summary';
 import type { ReviewExample, ReviewSummary } from '@/lib/training';
 
 describe('training review', () => {

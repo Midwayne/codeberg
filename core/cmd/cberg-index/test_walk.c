@@ -22,10 +22,26 @@ static int file_count;
 static int on_file(const char *abs, const char *rel, void *ctx) {
     (void)abs;
     (void)ctx;
-    if (strcmp(rel, "src/keep.go") == 0 || strcmp(rel, "keep.txt") == 0) {
+    if (strcmp(rel, "src/keep.go") == 0 || strcmp(rel, "keep.txt") == 0 || strcmp(rel, "build") == 0) {
         file_count++;
+    } else {
+        fprintf(stderr, "FAIL: unexpected walk entry %s\n", rel);
+        failures++;
     }
     return 0;
+}
+
+static int manifest_count;
+
+static cberg_status on_entry(void *ctx, const char *abs, const char *rel, cberg_fs_entry_kind kind) {
+    (void)ctx;
+    (void)abs;
+    if (kind == CBERG_FS_FILE) {
+        manifest_count++;
+        CHECK(strcmp(rel, "src/keep.go") == 0 || strcmp(rel, "keep.txt") == 0 || strcmp(rel, "build") == 0,
+              "entry walk visits the same files");
+    }
+    return CBERG_OK;
 }
 
 int main(void) {
@@ -66,8 +82,35 @@ int main(void) {
     fputs("module.exports = {}\n", f);
     fclose(f);
 
+    /* A file named like a skipped directory is still a file. */
+    snprintf(path, sizeof(path), "%s/build", root);
+    f = fopen(path, "w");
+    CHECK(f != NULL, "build script");
+    fputs("#!/bin/sh\n", f);
+    fclose(f);
+
+    /* Symlinks are not followed: no cycles, nothing outside the root. */
+    char link[512];
+    snprintf(link, sizeof(link), "%s/loop", root);
+    CHECK(symlink(".", link) == 0, "symlink loop");
+    snprintf(link, sizeof(link), "%s/alias.txt", root);
+    CHECK(symlink("keep.txt", link) == 0, "symlink file");
+
     CHECK(cberg_fs_walk_files(root, on_file, NULL) == 0, "walk ok");
-    CHECK(file_count == 2, "only non-skipped files");
+    CHECK(file_count == 3, "only non-skipped regular files");
+
+    CHECK(cberg_fs_walk(root, "", on_entry, NULL) == CBERG_OK, "entry walk ok");
+    CHECK(manifest_count == 3, "entry walk sees the same files");
+
+    snprintf(path, sizeof(path), "%s/missing", root);
+    CHECK(cberg_fs_walk_files(path, on_file, NULL) != 0, "a missing root is an error");
+
+    snprintf(link, sizeof(link), "%s/loop", root);
+    unlink(link);
+    snprintf(link, sizeof(link), "%s/alias.txt", root);
+    unlink(link);
+    snprintf(path, sizeof(path), "%s/build", root);
+    remove(path);
 
     snprintf(path, sizeof(path), "%s/src/keep.go", root);
     remove(path);

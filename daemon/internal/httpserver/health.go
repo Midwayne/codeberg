@@ -28,5 +28,5 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 		body["progress"] = st.Progress
 	}
 
-	writeJSON(w, http.StatusOK, body)
+	WriteJSON(w, http.StatusOK, body)
 }

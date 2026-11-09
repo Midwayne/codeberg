@@ -6,7 +6,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
+
+	"codeberg.org/codeberg/daemon/internal/storage"
 )
 
 // ScanDisk is called only by the dedicated, bounded disk loop, never HTTP handlers.
@@ -51,17 +52,12 @@ func diskPaths(opts Options) ([]string, error) {
 	}
 
 	if opts.IndexPath != "" {
-		dir, stem := filepath.Dir(opts.IndexPath), filepath.Base(opts.IndexPath)
-		entries, err := os.ReadDir(dir)
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
+		family, err := storage.IndexFamily(opts.IndexPath)
+		if err != nil {
 			return nil, err
 		}
 
-		for _, entry := range entries {
-			if entry.Name() == stem || strings.HasPrefix(entry.Name(), stem+".") {
-				paths = append(paths, filepath.Join(dir, entry.Name()))
-			}
-		}
+		paths = append(paths, family...)
 	}
 
 	return paths, nil

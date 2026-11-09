@@ -1,5 +1,5 @@
 import type { KnowledgeArtifact } from '../types.js';
-import { artifactFingerprint } from './revision.js';
+import { changesApplicable } from './revision.js';
 import type { DreamingReport } from './types.js';
 
 /** Resolve dependent views without writing canonical knowledge; every input must remain fresh. */
@@ -22,18 +22,7 @@ export function projectDreamingKnowledge(
   for (;;) {
     let progressed = false;
     for (const report of remaining) {
-      if (
-        !report.changes.every(({ before }) => {
-          const artifact = current.get(before.id);
-
-          return (
-            artifact &&
-            available.has(before.id) &&
-            artifactFingerprint(artifact) === artifactFingerprint(before)
-          );
-        })
-      )
-        continue;
+      if (!changesApplicable(report.changes, current, available)) continue;
 
       for (const { after } of report.changes) {
         current.set(after.id, after);

@@ -3,7 +3,6 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"codeberg.org/codeberg/daemon/internal/indexctl"
@@ -15,12 +14,11 @@ const (
 )
 
 // StartupTimeout scales indexer wait with repo count, with enough time for a
-// cold single-repo embedding pass and a 60-minute upper bound.
-func StartupTimeout(repos int) time.Duration {
-	if v := os.Getenv("CODEBERG_HEALTH_TIMEOUT"); v != "" {
-		if d, err := time.ParseDuration(v); err == nil && d > 0 {
-			return d
-		}
+// cold single-repo embedding pass and a 60-minute upper bound. A positive
+// override (CODEBERG_HEALTH_TIMEOUT) replaces the scaled value.
+func StartupTimeout(override time.Duration, repos int) time.Duration {
+	if override > 0 {
+		return override
 	}
 
 	if repos < 1 {

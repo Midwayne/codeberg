@@ -1,6 +1,6 @@
 import { useEffect, useState, type RefObject } from 'react';
 
-import type { CatalogModel } from '../../lib/models';
+import type { CatalogModel } from '@agent/core/model-types.js';
 
 import { usePromptCommands, usePromptKeyboard } from './use-prompt-commands';
 import { inputFor } from '../../lib/prompt-files';

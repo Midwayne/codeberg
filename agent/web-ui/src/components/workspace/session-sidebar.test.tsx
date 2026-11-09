@@ -1,8 +1,9 @@
+import type { SessionSummary } from '@agent/core/api/sessions.js';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { DeleteChatDialog, SessionActionsMenu, SessionSidebar } from './session-sidebar';
-import type { SessionSummary } from '@/lib/sessions';
+import { DeleteChatDialog, SessionActionsMenu } from './sidebar-actions';
+import { SessionSidebar } from './session-sidebar';
 
 const sessions: SessionSummary[] = [
   { id: 'old', title: 'Archived conversation', updatedAt: 1, turns: 1, pinned: false, archived: true },

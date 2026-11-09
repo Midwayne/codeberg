@@ -1,4 +1,5 @@
 import type { useSkillImport } from './use-skill-import';
+import { ensureOk, jsonRequest } from './response.js';
 
 import type { SkillFile } from './skill-files';
 
@@ -62,12 +63,10 @@ export function createSkillImportAction(state: SkillImportActionOptions) {
 }
 
 async function importSkillFile(api: typeof fetch, scope: string, file: SkillFile, signal: AbortSignal): Promise<void> {
-  const response = await api('/api/extensions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ kind: 'skill', scope, name: file.name, content: file.content }),
-    signal,
-  });
+  const response = await api(
+    '/api/extensions',
+    jsonRequest('POST', { kind: 'skill', scope, name: file.name, content: file.content }, signal),
+  );
 
-  if (!response.ok) throw new Error(await response.text());
+  await ensureOk(response);
 }

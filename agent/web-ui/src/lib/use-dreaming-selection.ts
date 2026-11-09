@@ -1,6 +1,8 @@
 import type { useDreamingActions } from './use-dreaming-panel';
 import { useEffect, useRef } from 'react';
-import { dreamingRequest, type DreamingDashboard, type DreamingReport } from './dreaming';
+import { dreamingRequest } from './dreaming';
+import { type DreamingDashboard } from '@agent/core/learning/dreaming/review.js';
+import { type DreamingReport } from '@agent/core/learning/dreaming/types.js';
 
 export type DreamingSelectionOptions = Pick<
   Parameters<typeof useDreamingActions>[0],

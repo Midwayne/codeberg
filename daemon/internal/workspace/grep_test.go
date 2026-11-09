@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"codeberg.org/codeberg/daemon/internal/domain"
 )
 
 func grepFixture(t testing.TB, lines int) *Workspace {
@@ -19,7 +21,7 @@ func grepFixture(t testing.TB, lines int) *Workspace {
 		t.Fatal(err)
 	}
 
-	return New([]RepoInfo{{Key: "main", Root: root}}, "main")
+	return New([]domain.Repo{{Key: "main", Root: root}}, "main")
 }
 
 func TestGrepStopsAtLimit(t *testing.T) {
@@ -99,7 +101,7 @@ func TestGrepBoundsMinifiedLines(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	w := New([]RepoInfo{{Key: "main", Root: root}}, "main")
+	w := New([]domain.Repo{{Key: "main", Root: root}}, "main")
 
 	hits, err := w.Grep(context.Background(), "needle", true, "main", "", 10)
 	if err != nil {
@@ -125,7 +127,7 @@ func TestGrepBoundsMinifiedLines(t *testing.T) {
 // tree: far more matching lines exist than the result limit returns.
 func BenchmarkGrepBroadPattern(b *testing.B) {
 	root := writeMatchingTree(b, 400, 2000)
-	w := New([]RepoInfo{{Key: "main", Root: root}}, "main")
+	w := New([]domain.Repo{{Key: "main", Root: root}}, "main")
 
 	b.ReportAllocs()
 	b.ResetTimer()

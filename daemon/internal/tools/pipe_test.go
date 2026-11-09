@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"codeberg.org/codeberg/daemon/internal/domain"
 	"codeberg.org/codeberg/daemon/internal/subprocess"
-	"codeberg.org/codeberg/daemon/internal/workspace"
 )
 
 func TestTokenizePipeline(t *testing.T) {
@@ -51,43 +51,6 @@ func TestTokenizeRejectsShellOperators(t *testing.T) {
 	}
 }
 
-func TestValidateStage(t *testing.T) {
-	tests := []struct {
-		name string
-		argv []string
-		ok   bool
-	}{
-		{"allowed rg", []string{"rg", "-l", "TODO"}, true},
-		{"allowed head", []string{"head", "-5"}, true},
-		{"allowed sed read-only", []string{"sed", "-n", "1,5p"}, true},
-		{"allowed relative path", []string{"rg", "TODO", "src/"}, true},
-		{"unknown command", []string{"python", "-c", "x"}, false},
-		{"awk excluded", []string{"awk", "{print}"}, false},
-		{"xargs excluded", []string{"xargs", "rm"}, false},
-		{"rg pre flag", []string{"rg", "--pre", "sh", "x"}, false},
-		{"rg pre eq flag", []string{"rg", "--pre=sh", "x"}, false},
-		{"sort output flag", []string{"sort", "-o", "out"}, false},
-		{"sed in-place", []string{"sed", "-i", "s/a/b/"}, false},
-		{"sed write script", []string{"sed", "s/a/b/w file"}, false},
-		{"absolute path", []string{"cat", "/etc/passwd"}, false},
-		{"dotdot traversal", []string{"rg", "TODO", "../other"}, false},
-		{"absolute via flag value", []string{"rg", "--glob=/etc/*", "x"}, false},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			err := subprocess.ValidateStage(tc.argv)
-			if tc.ok && err != nil {
-				t.Fatalf("want ok, got %v", err)
-			}
-
-			if !tc.ok && err == nil {
-				t.Fatal("want rejection, got nil")
-			}
-		})
-	}
-}
-
 func TestPipeToolEndToEnd(t *testing.T) {
 	dir := t.TempDir()
 	mustWrite(t, dir, "a.go", "package main\nfunc main() {}\n// TODO: a\n")
@@ -119,12 +82,12 @@ func TestPipeToolEndToEnd(t *testing.T) {
 func TestPipeToolRejectsUnsafe(t *testing.T) {
 	tool := pipeTool(wsSingle(t.TempDir()))
 	_, err := tool.Call(context.Background(), mustArgs(t, `cat /etc/passwd`))
-	if !errors.Is(err, workspace.ErrEscape) {
+	if !errors.Is(err, domain.ErrEscape) {
 		t.Fatalf("absolute path: got %v", err)
 	}
 
 	_, err = tool.Call(context.Background(), mustArgs(t, `rg TODO > out`))
-	if !errors.Is(err, ErrUnsafePipe) {
+	if !errors.Is(err, subprocess.ErrUnsafe) {
 		t.Fatalf("redirection: got %v", err)
 	}
 }

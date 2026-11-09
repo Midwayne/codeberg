@@ -4,6 +4,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"codeberg.org/codeberg/launcher/internal/paths"
 )
 
 // NodeBinary prefers the shipped runtime, including when an older system Node
@@ -26,7 +28,7 @@ func (c *Config) runtimeBin() string {
 	}
 
 	bin := filepath.Join(root, "runtime", "bin")
-	if info, err := os.Stat(bin); err == nil && info.IsDir() {
+	if paths.IsDir(bin) {
 		return bin
 	}
 

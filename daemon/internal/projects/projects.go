@@ -11,6 +11,7 @@ import (
 
 	"codeberg.org/codeberg/daemon/internal/config"
 	"codeberg.org/codeberg/daemon/internal/domain"
+	"codeberg.org/codeberg/daemon/internal/storage"
 )
 
 type Project struct {
@@ -40,20 +41,30 @@ type runtime struct {
 	started time.Time
 }
 
+// Runtime holds the settings shared by every started project.
+type Runtime struct {
+	GitPull       time.Duration
+	HealthTimeout time.Duration
+	// OnIndexReady runs whenever a project's indexer first reports ready.
+	OnIndexReady func()
+}
+
 type Manager struct {
 	ctx      context.Context
-	home     string
+	layout   storage.Layout
 	base     config.Indexer
+	settings Runtime
 	catalog  Catalog
 	mu       sync.Mutex
 	runtimes map[string]runtime
 	closed   bool
-	gitPull  time.Duration
 	start    func(Project, config.Indexer) (http.Handler, func(), error)
 }
 
+// New restores the catalog under home. cfg.Roots, when set, registers the
+// startup workspace; every project indexer inherits the rest of cfg.
 func New(ctx context.Context, home string, cfg config.Indexer) (*Manager, error) {
-	m := &Manager{ctx: ctx, home: home, base: cfg, runtimes: make(map[string]runtime)}
+	m := &Manager{ctx: ctx, layout: storage.Layout{Home: home}, base: cfg, runtimes: make(map[string]runtime)}
 	if err := m.loadCatalog(); err != nil {
 		return nil, err
 	}
@@ -66,13 +77,23 @@ func New(ctx context.Context, home string, cfg config.Indexer) (*Manager, error)
 		return nil, err
 	}
 
+	m.settings.OnIndexReady = func() {}
 	m.start = m.startIndexer
 	return m, nil
 }
 
+func (m *Manager) WithRuntime(settings Runtime) *Manager {
+	if settings.OnIndexReady == nil {
+		settings.OnIndexReady = func() {}
+	}
+
+	m.settings = settings
+	return m
+}
+
 // Only explicitly configured roots create a startup workspace or migration owner.
 func (m *Manager) registerStartup(cfg config.Indexer) {
-	p := Project{ID: projectID(cfg.Roots), Name: filepath.Base(cfg.Root), Roots: cfg.Roots}
+	p := Project{ID: projectID(cfg.Roots), Name: filepath.Base(cfg.Roots[0].Root), Roots: cfg.Roots}
 	if len(cfg.Roots) > 1 {
 		p.Name = "Existing workspace"
 	}

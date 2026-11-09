@@ -1,14 +1,14 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { routeDreaming } from './dreaming-routes.js';
+import { sendLearningError } from './learning/errors.js';
+import { routeEvaluations } from './learning/evaluation-routes.js';
 import { getFeedback, postFeedback } from './learning/feedback-routes.js';
 import { LEARNING_PATH } from './learning/paths.js';
 import { reviewExample } from './learning/review-routes.js';
-import { routeEvaluations } from './learning/evaluation-routes.js';
 
-import { LearningSettingsError } from '../core/learning/preferences.js';
 import { reviewDashboard } from '../core/learning/review.js';
 import type { LearningService } from '../core/learning/service.js';
-import { readJson, sameOrigin, sendJson, sendText } from './http.js';
+import { notFound, readJson, requireJsonMethod, sendJson, uncached } from './http.js';
 import { type WebSessionStore } from './sessions/store.js';
 
 export async function routeLearning(
@@ -49,7 +49,7 @@ export async function routeLearning(
   if (url.pathname.startsWith(`${LEARNING_PATH}/review/`))
     return reviewExample(req, res, learning, url);
 
-  return sendText(res, 404, 'not found');
+  return notFound(res);
 }
 
 async function routeLearningSettings(
@@ -57,22 +57,15 @@ async function routeLearningSettings(
   res: ServerResponse,
   learning: LearningService,
 ): Promise<void> {
-  res.setHeader('Cache-Control', 'no-store');
+  uncached(res);
   if (req.method === 'GET') return sendJson(res, 200, await learning.getSettings());
 
-  if (req.method !== 'PUT') return sendText(res, 405, 'method not allowed');
-
-  if (!sameOrigin(req)) return sendText(res, 403, 'cross-origin settings changes are not allowed');
-
-  if (!req.headers['content-type']?.startsWith('application/json'))
-    return sendText(res, 415, 'application/json required');
+  if (!requireJsonMethod(req, res, 'PUT')) return;
 
   try {
     return sendJson(res, 200, await learning.updateSettings(await readJson(req)));
   } catch (error) {
-    if (error instanceof LearningSettingsError) return sendText(res, 400, error.message);
-
-    throw error;
+    sendLearningError(res, error, (failure) => failure.message);
   }
 }
 
@@ -81,7 +74,7 @@ async function getLearningStatus(
   learning: LearningService,
   url: URL,
 ): Promise<void> {
-  res.setHeader('Cache-Control', 'no-store');
+  uncached(res);
   if (url.searchParams.get('view') === 'activity')
     return sendJson(res, 200, { working: learning.isUpdating() });
 

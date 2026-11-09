@@ -5,7 +5,9 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { writeJsonAtomic } from './fs.js';
-import { classifyFailure, DurableJobQueue } from './queue.js';
+import { JobFailure } from './errors.js';
+import { classifyFailure, willRetry } from './queue/policy.js';
+import { DurableJobQueue } from './queue.js';
 
 const roots: string[] = [];
 
@@ -21,10 +23,20 @@ async function root(): Promise<string> {
 }
 
 describe('DurableJobQueue', () => {
-  it('classifies extractor sentinel errors consistently', () => {
-    expect(classifyFailure(new Error('INVALID_RESPONSE: knowledge extractor returned empty'))).toBe(
-      'INVALID_RESPONSE',
+  it('classifies typed job failures by their category, not their text', () => {
+    expect(
+      classifyFailure(new JobFailure('INVALID_RESPONSE', 'knowledge extractor returned empty')),
+    ).toBe('INVALID_RESPONSE');
+    expect(classifyFailure(new JobFailure('PERMANENT_ERROR', 'network timeout'))).toBe(
+      'PERMANENT_ERROR',
     );
+    expect(String(new JobFailure('PERMANENT_ERROR', 'budget'))).toBe('PERMANENT_ERROR: budget');
+  });
+
+  it('retries every category except permanent failures until the attempt cap', () => {
+    expect(willRetry('INVALID_RESPONSE', 4)).toBe(true);
+    expect(willRetry('INVALID_RESPONSE', 5)).toBe(false);
+    expect(willRetry('PERMANENT_ERROR', 1)).toBe(false);
   });
 
   it('deduplicates jobs and moves them atomically through states', async () => {
@@ -136,7 +148,13 @@ describe('DurableJobQueue', () => {
     const queue = new DurableJobQueue(dir, () => now);
     await queue.enqueueKnowledge('interaction-1');
     const first = (await queue.claim())!;
-    await queue.fail(first, 'INVALID_RESPONSE', 'bad json', false);
+    await rm(join(queue.root, 'jobs', 'processing', `${first.job_id}.json`));
+    await writeJsonAtomic(join(queue.root, 'jobs', 'failed', `${first.job_id}.json`), {
+      ...first,
+      status: 'failed',
+      last_error: 'bad json',
+      last_error_category: 'INVALID_RESPONSE',
+    });
 
     expect((await queue.counts()).failed).toBe(1);
     expect(await queue.recoverRetryableFailures()).toBe(1);

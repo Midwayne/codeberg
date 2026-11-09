@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useChatScroll, type ChatScrollOptions } from './use-chat-scroll';
+import { useChatScroll } from './use-chat-scroll';
 import { createBottomFollower } from './chat-bottom';
 
 vi.mock('./use-retained-scroll', () => ({ useRetainedScroll: vi.fn() }));
@@ -55,18 +55,18 @@ beforeEach(() => {
   });
 });
 
-function update(status: ChatScrollOptions['status'], hold = false) {
+function update(hold = false) {
   effects = [];
 
-  const state = useChatScroll({ messages: [], status });
+  const state = useChatScroll({ messages: [] });
   state.holdAutoScroll.current = hold;
 
   for (const effect of effects) effect();
 }
 
 describe('chat scroll boundary', () => {
-  it.each(['submitted', 'streaming', 'ready'] as const)('pins %s content to the true bottom, including padding', (status) => {
-    update(status);
+  it('pins content to the true bottom, including padding', () => {
+    update();
 
     expect(viewport.scrollTop).toBe(viewport.scrollHeight - viewport.clientHeight);
     expect(viewport.scrollIntoView).not.toHaveBeenCalled();
@@ -76,7 +76,7 @@ describe('chat scroll boundary', () => {
     viewport.scrollTop = viewport.scrollHeight;
 
     for (let tick = 0; tick < 5; tick++) {
-      update('streaming');
+      update();
 
       expect(viewport.scrollTop).toBe(800);
     }
@@ -85,13 +85,13 @@ describe('chat scroll boundary', () => {
   it('preserves the position when the user scrolls up to read history', () => {
     viewport.scrollTop = 200;
 
-    update('streaming');
+    update();
 
     expect(viewport.scrollTop).toBe(200);
   });
 
   it('does not override navigation while auto-scroll is held', () => {
-    update('streaming', true);
+    update(true);
 
     expect(viewport.scrollTop).toBe(760);
   });
@@ -99,7 +99,7 @@ describe('chat scroll boundary', () => {
   it('does not create scroll space for a short conversation', () => {
     viewport = createViewport(200, 0);
 
-    update('submitted');
+    update();
 
     expect(viewport.scrollTop).toBe(0);
   });

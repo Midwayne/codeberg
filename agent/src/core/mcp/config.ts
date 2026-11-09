@@ -2,18 +2,17 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { defaultExists, defaultReadFile } from './config/io.js';
 import { parseMcpJson } from './config/parse.js';
-import { expandHome, flag, splitList } from './config/values.js';
+import { splitList } from './config/values.js';
+import { envFlag, expandHome } from '../env.js';
 
-import { findGitRoot, indexedRootsFromEnv } from '../paths.js';
+import { codebergHome, findGitRoot, indexedRootsFromEnv, LOCAL_CONFIG_DIRS } from '../paths.js';
 import { builtinDatabaseServer } from './builtin.js';
 import type { McpConfig, McpConfigIo, McpInterpolateContext, McpServer } from './types.js';
 
-export { indexedRootsFromEnv };
-
-const MCP_FILE = 'mcp.json';
+export const MCP_FILE = 'mcp.json';
 
 function projectMcpFiles(root: string): string[] {
-  return [join(root, '.cursor', MCP_FILE), join(root, '.codeberg', MCP_FILE)];
+  return LOCAL_CONFIG_DIRS.map((dir) => join(root, dir, MCP_FILE));
 }
 
 /**
@@ -46,7 +45,7 @@ function workspaceForConfig(configPath: string, fallback: string): string {
   const dir = dirname(configPath);
   const parent = dirname(dir);
   const base = dir.split(/[/\\]/).pop();
-  if (base === '.cursor' || base === '.codeberg') return parent;
+  if (base && (LOCAL_CONFIG_DIRS as readonly string[]).includes(base)) return parent;
 
   return fallback;
 }
@@ -63,16 +62,13 @@ export function mcpConfigFromEnv(
   env: NodeJS.ProcessEnv = process.env,
   io: McpConfigIo = {},
 ): McpConfig {
-  const userEnabled = flag(env.CODEBERG_MCP_USE, true);
-  const dbEnabled = flag(env.CODEBERG_DBMCP_USE, false);
+  const userEnabled = envFlag(env, 'CODEBERG_MCP_USE', true);
+  const dbEnabled = envFlag(env, 'CODEBERG_DBMCP_USE', false);
   if (!userEnabled && !dbEnabled) {
     return { enabled: false, servers: [], files: [], warnings: [] };
   }
 
-  const home =
-    env.CODEBERG_HOME && env.CODEBERG_HOME.trim() !== ''
-      ? env.CODEBERG_HOME
-      : join((io.homedir ?? homedir)(), '.codeberg');
+  const home = codebergHome(env, (io.homedir ?? homedir)());
 
   const cwd = io.cwd ?? process.cwd();
   const userHome = (io.homedir ?? homedir)();
@@ -158,11 +154,3 @@ function loadMcpFile(
         : server;
   }
 }
-
-export { interpolateMcpString } from './config/values.js';
-
-export type { ParseMcpJsonOptions } from './config/types.js';
-
-export { parseMcpJson } from './config/parse.js';
-
-export { defaultReadFile } from './config/io.js';

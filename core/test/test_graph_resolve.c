@@ -11,6 +11,7 @@
 #include "codeberg/codeberg.h"
 #include "test_common.h"
 #include "test_graph_common.h"
+#include "../src/common/fileio.h"
 #include "../src/graph/import_cache.h"
 
 static const cberg_graph_node *file_by_path(graph_corpus *c, const char *path) {
@@ -96,6 +97,18 @@ static void rm_tree(const char *root) {
     char cmd[4200];
     snprintf(cmd, sizeof cmd, "rm -rf '%s'", root);
     (void)system(cmd);
+}
+
+static void test_go_module_path(void) {
+    char module[64];
+
+    CHECK(cberg_go_module_path("/* lead */\n// note\nmodule \"example.com/app\" // trail\n", module, sizeof module) == 1,
+          "quoted module");
+    CHECK(strcmp(module, "example.com/app") == 0, "quotes and comments are not the path");
+    CHECK(cberg_go_module_path("go 1.22\nmodule example.com/later\n", module, sizeof module) == 0,
+          "module must be the first statement");
+    CHECK(module[0] == '\0', "a rejected body leaves the path empty");
+    CHECK(cberg_go_module_path(NULL, module, sizeof module) == 0, "missing body");
 }
 
 static void test_stdlib_not_rewritten(void) {
@@ -480,6 +493,7 @@ static void test_cached_resolution(void) {
 
 int main(void) {
     test_cached_resolution();
+    test_go_module_path();
     test_stdlib_not_rewritten();
     test_slash_stdlib_not_rewritten();
     test_relative_and_module_path();

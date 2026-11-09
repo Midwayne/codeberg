@@ -2,6 +2,7 @@ import { closeBrowserSessions } from '../../core/browser/sessions.js';
 import { closeCanvasStreams } from '../canvas/stream.js';
 import { type Server } from 'node:http';
 import { writeModuleLog } from '../../core/module-log.js';
+import { ProjectBusyError } from '../projects/request.js';
 import type { OwnedRuntime } from './types.js';
 
 export function stopRuntimes(owned: OwnedRuntime[]): void {
@@ -46,7 +47,7 @@ export function installShutdown(server: Server, owned: OwnedRuntime[]): void {
 export async function disposeProjectRuntime(owned: OwnedRuntime[], id: string): Promise<void> {
   const runtimes = owned.filter((runtime) => runtime.projectId === id);
   if (runtimes.some((runtime) => runtime.learning?.busy || runtime.resources.busy || runtime.runs?.busy))
-    throw new Error('Project is busy. Try again after background jobs finish.');
+    throw new ProjectBusyError();
 
   stopRuntimes(runtimes);
   await Promise.all(runtimes.map(async (runtime) => {

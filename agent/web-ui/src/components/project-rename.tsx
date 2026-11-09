@@ -1,12 +1,14 @@
+import type { ProjectInfo } from '@agent/core/api/projects.js';
+import { PROJECT_NAME_MAX } from '../lib/project-name.js';
 import { control, button } from './project-styles';
+import { readJsonBody } from '../lib/read-json';
+import { jsonRequest } from '../lib/response.js';
 
 import { useEffect, useRef, useState } from 'react';
 
-import type { Project } from '../lib/project-api';
-
 export type RenameProjectFormProps = {
-  project: Project;
-  onRenamed: (project: Project) => void;
+  project: ProjectInfo;
+  onRenamed: (project: ProjectInfo) => void;
   onCancel: () => void;
 };
 
@@ -17,8 +19,8 @@ export function RenameProjectForm(props: RenameProjectFormProps) {
 }
 
 export type RenameProjectOptions = {
-  project: Project;
-  onRenamed: (project: Project) => void;
+  project: ProjectInfo;
+  onRenamed: (project: ProjectInfo) => void;
   onCancel: () => void;
 };
 
@@ -127,7 +129,7 @@ export function RenameProjectInput({ input, project, name, busy, setName, setErr
       ref={input}
       id={`project-name-${project.id}`}
       required
-      maxLength={120}
+      maxLength={PROJECT_NAME_MAX}
       value={name}
       disabled={busy}
       onChange={(event) => {
@@ -150,20 +152,13 @@ function createProjectRenameSubmit({ busy, name, project, setBusy, setError, onR
     if (busy || !name.trim() || name.trim() === project.name) return;
     setBusy(true);
     setError('');
-    void fetch(`/api/projects/${project.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim() }),
-    })
+    void fetch(`/api/projects/${project.id}`, jsonRequest('PATCH', { name: name.trim() }))
       .then(async (response) => {
-        const text = await response.text();
-        let result: Project & { message?: string };
-        try {
-          result = JSON.parse(text) as typeof result;
-        } catch {
-          throw new Error(text || 'Could not save the project name. Try again.');
-        }
-        if (!response.ok) throw new Error(result.message || 'Could not save the project name. Try again.');
+        const fallback = 'Could not save the project name. Try again.';
+        const result = await readJsonBody<ProjectInfo & { message?: string }>(response, fallback);
+
+        if (!response.ok) throw new Error(result.message || fallback);
+
         onRenamed(result);
       })
       .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason)))

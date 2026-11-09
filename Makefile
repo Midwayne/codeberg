@@ -40,10 +40,10 @@ load_env = if [ -f "$(1)" ]; then set -a; . "$(1)"; set +a; echo "› loaded $(1
 DBMCP      := $(ROOT)/third_party/multi-db-mcp-server
 DBMCP_BIN  := $(ROOT)/build/dbmcp
 
-.PHONY: build-core build test bench clean rebuild submodules help check set-version \
+.PHONY: build-core build test bench python-test test-index-providers clean rebuild submodules help check set-version \
         build-daemon daemon-test daemon-lint daemon-check build-agent build-web-ui build-dbmcp update-dbmcp \
         agent-test agent-check dist format \
-        run-core run-index run-daemon run-agent run-agent-web gen-walk-skip
+        run-core run-daemon run-agent run-agent-web gen-walk-skip
 
 help:
 	@echo "Codeberg targets:"
@@ -62,9 +62,11 @@ help:
 	@echo "    make run-agent q=\"…\"      Ask the agent, e.g. q=\"how does chunking work\"  [agent/.env]"
 	@echo "    make run-agent-web          Serve the browser chat UI (codeberg-web)  [agent/.env]"
 	@echo "  Test"
-	@echo "    make bench                Run core micro-benchmarks (strmap, u64map, chunk_table, fingerprint)"
+	@echo "    make bench                Run every core micro-benchmark (core/bench)"
 	@echo "    make test                 Run all core tests (ctest)"
-	@echo "    make test TEST=<name>     Run one test (test_smoke test_chunker …)"
+	@echo "    make test TEST=<name>     Run one ctest test (test_smoke test_chunker …)"
+	@echo "    make python-test          Run Python unit tests (scripts/, core/bench/)"
+	@echo "    make test-index-providers Run usearch/Qdrant/pgvector integration tests"
 	@echo "    make daemon-test          Run Go tests in daemon/"
 	@echo "    make daemon-lint          Check daemon size limits and gofmt"
 	@echo "    make daemon-check         Lint, vet, test, and build the Go daemon"
@@ -95,22 +97,24 @@ build-core:
 build: build-core
 
 bench: build-core
-	@for b in bench_strmap bench_u64map bench_chunk_table bench_fingerprint; do \
-	  echo "=== $$b ==="; \
-	  $(BUILD)/bench/$$b || exit 1; \
+	@for b in $(BUILD)/bench/bench_*; do \
+	  [ -x "$$b" ] || continue; \
+	  echo "=== $$(basename $$b) ==="; \
+	  "$$b"; rc=$$?; [ $$rc -eq 0 ] || [ $$rc -eq 77 ] || exit $$rc; \
 	done
 
 test: build-core
 ifdef TEST
-	@test -x $(BUILD)/$(TEST) || (echo "unknown test: $(TEST)" && exit 1)
-	$(BUILD)/$(TEST)
+	cd $(BUILD) && ctest --output-on-failure --no-tests=error -R '^$(TEST)$$'
 else
 	cd $(BUILD) && ctest --output-on-failure
 endif
 
-.PHONY: test-index-providers
-test-index-providers: build-core
-	chmod +x scripts/test-index-providers.sh
+python-test:
+	python3 -m unittest discover -s scripts -p 'test_*.py'
+	python3 -m unittest discover -s core/bench -p 'test_*.py'
+
+test-index-providers:
 	./scripts/test-index-providers.sh
 
 clean:
@@ -121,7 +125,6 @@ rebuild: clean build-core
 check: build-core test
 
 format:
-	chmod +x scripts/format.sh
 	./scripts/format.sh
 
 build-daemon: build-core
@@ -210,20 +213,20 @@ dist: build-core build-daemon build-agent build-web-ui build-dbmcp
 
 # --- Run ---------------------------------------------------------------------
 
-run-core run-index: build-core
+run-core: build-core
 	@$(call load_env,$(DAEMON_ENV)); \
 	echo "› cberg-index  socket=$${CBERG_SOCKET:-/tmp/codeberg-index.sock}"; \
 	exec "$(BIN)/cberg-index"
 
 run-daemon: build-daemon
 	@$(call load_env,$(DAEMON_ENV)); \
-	echo "› codeberg-d  http=:$${CODEBERG_HTTP_PORT:-8080}"; \
+	echo "› codeberg-d  http=:$${CODEBERG_HTTP_PORT:-48080}"; \
 	exec "$(BIN)/codeberg-d"
 
 # Usage: make run-agent q="<question>"
 #   Model/provider come from CODEBERG_MODEL in agent/.env (e.g. anthropic:claude-haiku-4-5),
 #   with the matching API key (ANTHROPIC_API_KEY / OPENAI_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY).
-#   Talks to a running daemon at CODEBERG_DAEMON_URL (default http://127.0.0.1:8080).
+#   Talks to a running daemon at CODEBERG_DAEMON_URL (default http://127.0.0.1:48080).
 run-agent:
 	@test -f $(AGENT)/dist/cli.js || $(MAKE) build-agent
 	@$(call load_env,$(AGENT_ENV)); \

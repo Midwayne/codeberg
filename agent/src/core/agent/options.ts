@@ -2,7 +2,7 @@ import type { LanguageModel } from 'ai';
 import type { ModelProfile } from '../../providers/profiles.js';
 import { DaemonClient } from '../client.js';
 import { ContextStore } from '../context/store.js';
-import type { PromptHook } from '../hooks/index.js';
+import type { PromptHook } from '../hooks/types.js';
 import { LearningService } from '../learning/service.js';
 import type { McpConfig } from '../mcp/types.js';
 import type { Generator, ReasoningEffort } from '../types.js';

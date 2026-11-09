@@ -1,7 +1,7 @@
 import { jsonSchema, tool, type ToolSet } from 'ai';
 
 import { fetchUrl } from './client.js';
-import { webSearchProviderFromConfig } from './search/index.js';
+import { webSearchProviderFromConfig } from './search/provider.js';
 import type { WebConfig, WebDeps } from './types.js';
 
 /** Hard ceiling on requested search results, independent of the configured default. */

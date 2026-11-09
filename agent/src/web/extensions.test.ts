@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 import { discoverSkills } from '../core/context/skills.js';
 import { mcpConfigFromEnv } from '../core/mcp/config.js';
-import { ExtensionStore, previewSkillFiles } from './extensions.js';
+import { ExtensionStore } from './extensions.js';
+import { previewSkillFiles } from './extensions/preview.js';
 
 const dirs: string[] = [];
 afterEach(async () => {

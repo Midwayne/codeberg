@@ -1,3 +1,4 @@
+import { isRecord } from '../record.js';
 import { CanvasError, validName, type Element, type Scene } from './types.js';
 
 const TYPES = new Set(['rectangle', 'ellipse', 'diamond', 'text', 'arrow', 'line', 'freedraw', 'image', 'frame', 'magicframe']);
@@ -60,10 +61,6 @@ function validateFiles(files: Record<string, unknown>): void {
       throw new CanvasError('Canvas files must be embedded image data.');
     }
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
 }
 
 /** Persist portable scene preferences, never selections, collaborators or viewport state. */

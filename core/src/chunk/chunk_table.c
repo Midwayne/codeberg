@@ -273,19 +273,6 @@ void cberg_chunk_table_release_changes(cberg_chunk_table *table) {
     table_free_change_lists(table);
 }
 
-static void table_discard(cberg_chunk_table *table) {
-    if (table == NULL) {
-        return;
-    }
-    table_free_change_lists(table);
-    free(table->entries);
-    cberg_strmap_free(table->key_index);
-    cberg_u64map_free(table->id_index);
-    table_free_scratch(table);
-    cberg_arena_free(table->arena);
-    free(table);
-}
-
 cberg_chunk_table *cberg_chunk_table_new(void) {
     cberg_chunk_table *table = calloc(1, sizeof(cberg_chunk_table));
     if (table == NULL) {
@@ -495,13 +482,13 @@ cberg_status cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk 
     size_t est_len = count;
     status = table_init_for_sync(next, est_len);
     if (status != CBERG_OK) {
-        table_discard(next);
+        cberg_chunk_table_free(next);
         return status;
     }
 
     status = table_ensure_seen(table, table->len);
     if (status != CBERG_OK) {
-        table_discard(next);
+        cberg_chunk_table_free(next);
         return status;
     }
     if (table->len > 0) {
@@ -562,7 +549,7 @@ cberg_status cberg_chunk_table_sync(cberg_chunk_table *table, const cberg_chunk 
     return CBERG_OK;
 
 fail:
-    table_discard(next);
+    cberg_chunk_table_free(next);
     return status;
 }
 
@@ -592,17 +579,13 @@ cberg_status cberg_chunk_table_save(const cberg_chunk_table *table, const char *
     if (table == NULL || path == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
-    char tmp[4096];
-    int n = snprintf(tmp, sizeof tmp, "%s.tmp", path);
-    if (n < 0 || (size_t)n >= sizeof tmp) {
-        return CBERG_ERR_INVALID_ARGUMENT;
+    char tmp[CBERG_ATOMIC_TMP_CAP];
+    FILE *f = NULL;
+    cberg_status st = cberg_atomic_begin(path, tmp, sizeof tmp, &f);
+    if (st != CBERG_OK) {
+        return st;
     }
-    FILE *f = fopen(tmp, "wb");
-    if (f == NULL) {
-        return CBERG_ERR_IO;
-    }
-    cberg_status st = CBERG_OK;
-    if (w_bytes(f, CBERG_CHUNK_TABLE_MAGIC, 4) != CBERG_OK || w_u32(f, CBERG_CHUNK_TABLE_VERSION) != CBERG_OK ||
+    if (cberg_snapshot_write_header(f, CBERG_CHUNK_TABLE_MAGIC, CBERG_CHUNK_TABLE_VERSION) != CBERG_OK ||
         w_u64(f, table->next_id) != CBERG_OK || w_u64(f, table->len) != CBERG_OK) {
         st = CBERG_ERR_IO;
         goto fail;
@@ -618,27 +601,15 @@ cberg_status cberg_chunk_table_save(const cberg_chunk_table *table, const char *
             goto fail;
         }
     }
-    if (fflush(f) != 0) {
-        st = CBERG_ERR_IO;
-        goto fail;
-    }
-    if (fclose(f) != 0) {
-        f = NULL;
-        st = CBERG_ERR_IO;
-        goto fail;
-    }
-    if (rename(tmp, path) != 0) {
-        st = CBERG_ERR_IO;
-        remove(tmp);
+    st = cberg_atomic_commit(&f, tmp, path);
+    if (st != CBERG_OK) {
         return st;
     }
+
     return CBERG_OK;
 
 fail:
-    if (f != NULL) {
-        fclose(f);
-    }
-    remove(tmp);
+    cberg_atomic_abort(f, tmp);
     return st;
 }
 
@@ -647,17 +618,14 @@ cberg_status cberg_chunk_table_load(const char *path, cberg_chunk_table **out_ta
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     *out_table = NULL;
-    FILE *f = fopen(path, "rb");
-    if (f == NULL) {
+    FILE *f = NULL;
+    if (cberg_snapshot_open(path, &f) != CBERG_OK) {
         return CBERG_ERR_NOT_FOUND;
     }
 
-    char magic[4];
-    uint32_t version = 0;
     uint64_t next_id = 0, count = 0;
-    if (r_exact(f, magic, 4) != CBERG_OK || memcmp(magic, CBERG_CHUNK_TABLE_MAGIC, 4) != 0 ||
-        r_u32(f, &version) != CBERG_OK || version != CBERG_CHUNK_TABLE_VERSION || r_u64(f, &next_id) != CBERG_OK ||
-        r_u64(f, &count) != CBERG_OK) {
+    if (cberg_snapshot_header(f, CBERG_CHUNK_TABLE_MAGIC, CBERG_CHUNK_TABLE_VERSION) != CBERG_OK ||
+        r_u64(f, &next_id) != CBERG_OK || r_u64(f, &count) != CBERG_OK) {
         fclose(f);
         return CBERG_ERR_NOT_FOUND;
     }

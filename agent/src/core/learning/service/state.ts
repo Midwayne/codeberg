@@ -4,11 +4,17 @@ import { DatasetStore } from '../datasets.js';
 import { DreamingReports } from '../dreaming/reports.js';
 import { AutomaticEvaluations } from '../evaluation/automatic.js';
 import type { EvaluationRuntime } from '../evaluation/automatic-types.js';
+import {
+  datasetsReady,
+  knowledgeBase,
+  knowledgeCategoriesReady,
+} from '../job-enabled.js';
 import { DEFAULT_LEARNING_SETTINGS, type LearningSettings } from '../preferences.js';
 import { DurableJobQueue } from '../queue.js';
 import { LearningSettingsStore } from '../settings.js';
 import { KnowledgeSourceWatcher } from '../source-watcher.js';
-import { LearningStore, defaultLearningRoot } from '../store.js';
+import { LearningStore } from '../store.js';
+import { defaultLearningRoot } from '../store/identity.js';
 import type { RepositoryVersion } from '../types.js';
 import { KnowledgeWorker } from '../worker.js';
 import { refreshKnowledge } from './refresh.js';
@@ -43,27 +49,17 @@ export class LearningServiceState {
   get knowledgeCaptureEnabled(): boolean {
     return (
       this.preferences.enabled &&
-      this.preferences.knowledge &&
       this.preferences.knowledgeCapture &&
-      Object.values(this.preferences.categories).some(Boolean)
+      knowledgeCategoriesReady(this.preferences)
     );
   }
 
   get knowledgeEnabled(): boolean {
-    return (
-      this.preferences.enabled &&
-      this.preferences.knowledge &&
-      this.hasGenerator &&
-      Object.values(this.preferences.categories).some(Boolean)
-    );
+    return this.preferences.enabled && knowledgeBase(this.preferences, this.hasGenerator);
   }
 
   get datasetEnabled(): boolean {
-    return (
-      this.preferences.enabled &&
-      this.preferences.datasets &&
-      Object.values(this.preferences.kinds).some(Boolean)
-    );
+    return this.preferences.enabled && datasetsReady(this.preferences);
   }
 
   starting?: Promise<void>;

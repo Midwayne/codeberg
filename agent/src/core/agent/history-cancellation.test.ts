@@ -7,7 +7,7 @@ import { DaemonClient, DEFAULT_DAEMON_URL } from '../client.js';
 import { ContextStore } from '../context/store.js';
 import type { Prompt } from '../types.js';
 import { historyCompactor } from './history.js';
-import { AgentState } from './state.js';
+import { createAgentState } from './state.js';
 
 it('cancels history summarization and allows a fresh attempt with the same history', async () => {
   const root = await mkdtemp(join(tmpdir(), 'cberg-history-stop-'));
@@ -17,7 +17,7 @@ it('cancels history summarization and allows a fresh attempt with the same histo
     rejectSummary = reject;
     prompt.abortSignal?.addEventListener('abort', () => reject(prompt.abortSignal?.reason), { once: true });
   }));
-  const state = new AgentState({ model: {} as never, daemon: new DaemonClient(DEFAULT_DAEMON_URL), learning: false,
+  const state = createAgentState({ model: {} as never, daemon: new DaemonClient(DEFAULT_DAEMON_URL), learning: false,
     profile: { provider: 'test', modelId: 'chat', contextWindow: 4096, cache: 'none' },
     generator: { generate }, context: ContextStore.open(root) });
   const messages: ModelMessage[] = [

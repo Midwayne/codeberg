@@ -24,15 +24,11 @@ const (
 
 var (
 	ErrNotFound = errors.New("codeberg: not found")
-	ErrEscape   = errors.New("codeberg: path escapes repo root")
 	errStopWalk = errors.New("stop walk")
 )
 
-// RepoInfo is one repository the workspace serves.
-type RepoInfo = domain.Repo
-
 type Workspace struct {
-	repos      []RepoInfo
+	repos      []domain.Repo
 	byKey      map[string]string
 	defaultKey string
 	maxMatches int
@@ -43,7 +39,7 @@ type Workspace struct {
 // New builds a workspace over one or more repos. defaultKey names the repo
 // used when a tool omits `repo` — the single root's key in single-repo mode,
 // or "" in --all mode, where every call must name its repo.
-func New(repos []RepoInfo, defaultKey string) *Workspace {
+func New(repos []domain.Repo, defaultKey string) *Workspace {
 	byKey := make(map[string]string, len(repos))
 
 	for _, r := range repos {
@@ -60,21 +56,16 @@ func New(repos []RepoInfo, defaultKey string) *Workspace {
 }
 
 // Repos lists the served repositories in configuration order.
-func (w *Workspace) Repos() []RepoInfo {
-	out := make([]RepoInfo, len(w.repos))
+func (w *Workspace) Repos() []domain.Repo {
+	out := make([]domain.Repo, len(w.repos))
 	copy(out, w.repos)
 	return out
 }
 
-// ResolveRepo canonicalizes an explicitly selected repository key.
-func (w *Workspace) ResolveRepo(repo string) (string, error) {
-	return w.resolveKey(repo)
-}
-
-// resolveKey canonicalizes a tool's `repo` argument. "" (and the legacy alias
+// ResolveRepo canonicalizes a tool's `repo` argument. "" (and the legacy alias
 // "root") means the default repo; in --all mode there is no default, so the
 // error lists what is available. The returned key is what results should carry.
-func (w *Workspace) resolveKey(repo string) (string, error) {
+func (w *Workspace) ResolveRepo(repo string) (string, error) {
 	if repo == "" || repo == "root" {
 		if w.defaultKey == "" {
 			return "", fmt.Errorf("%w: repo required (available: %s)", ErrNotFound, strings.Join(w.keys(), ", "))
@@ -98,7 +89,7 @@ func (w *Workspace) keys() []string {
 }
 
 func (w *Workspace) rootFor(repo string) (string, error) {
-	key, err := w.resolveKey(repo)
+	key, err := w.ResolveRepo(repo)
 	if err != nil {
 		return "", err
 	}

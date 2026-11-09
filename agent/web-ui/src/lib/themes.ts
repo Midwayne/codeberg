@@ -57,7 +57,3 @@ export function setTheme(id: ThemeId): void {
     /* Keep the active theme usable when browser storage is unavailable. */
   }
 }
-
-export { THEMES } from './theme-palettes';
-
-export type { ThemeId } from './theme-palettes';

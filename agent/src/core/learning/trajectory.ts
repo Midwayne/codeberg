@@ -2,6 +2,7 @@ import type { UIMessage } from 'ai';
 import { collectResults } from './trajectory/results.js';
 
 import { redactSecrets } from './redact.js';
+import { isReadTool, isSearchTool } from './tool-class.js';
 import type { RetrievedResult, ToolInvocation, TrajectoryStep } from './types.js';
 
 interface Trajectory {
@@ -76,12 +77,12 @@ function recordInvocation(state: TrajectoryState, invocation: ToolInvocation): v
     });
 
   collectInput(name, input, state.searchQueries, state.files, state.symbols);
-  if (/open|read_file|read_source/i.test(name) && input && typeof input === 'object') {
+  if (isReadTool(name) && input && typeof input === 'object') {
     const file = (input as Record<string, unknown>).path ?? (input as Record<string, unknown>).file;
     if (typeof file === 'string') state.openedFiles.add(file);
   }
 
-  if (/search|grep|references|symbol/i.test(name) && input && typeof input === 'object') {
+  if (isSearchTool(name) && input && typeof input === 'object') {
     const record = input as Record<string, unknown>;
     const query = record.query ?? record.pattern ?? record.name;
     if (typeof query === 'string') state.lastQuery = query;
@@ -93,7 +94,7 @@ function recordInvocation(state: TrajectoryState, invocation: ToolInvocation): v
     state.retrievedResults,
     state.files,
     state.symbols,
-    /search|grep|references|symbol/i.test(name) ? state.lastQuery : undefined,
+    isSearchTool(name) ? state.lastQuery : undefined,
     toolCallId,
   );
 }
@@ -156,7 +157,7 @@ function collectInput(
   if (!input || typeof input !== 'object') return;
 
   const record = input as Record<string, unknown>;
-  if (/search|grep|references|symbol/i.test(name)) {
+  if (isSearchTool(name)) {
     const query = record.query ?? record.pattern ?? record.name;
     if (typeof query === 'string' && query.trim()) searches.add(query.trim());
   }

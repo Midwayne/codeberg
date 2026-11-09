@@ -2,21 +2,32 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { CanvasStore } from '../../core/canvas/store.js';
 import { CanvasError } from '../../core/canvas/types.js';
 import { writeModuleLog } from '../../core/module-log.js';
-import { requireJsonMutation, sameOrigin, sendJson, sendText } from '../http.js';
+import { isRecord } from '../../core/record.js';
+import {
+  isLoopbackHost,
+  notFound,
+  readLimitedJson,
+  requireJsonMethod,
+  sameOrigin,
+  sendCaughtError,
+  sendJson,
+  sendText,
+  uncached,
+} from '../http.js';
 import { streamCanvas } from './stream.js';
 
 export async function routeCanvas(req: IncomingMessage, res: ServerResponse, store: CanvasStore, url: URL): Promise<void> {
   const host = new URL(`http://${req.headers.host ?? 'invalid'}`).hostname;
-  if (!['127.0.0.1', 'localhost', '[::1]'].includes(host) || !sameOrigin(req)) {
+  // Canvas scenes are only exposed to a local browser, even for reads.
+  if (!isLoopbackHost(host) || !sameOrigin(req)) {
     return sendText(res, 403, 'Canvas requires a same-origin localhost connection.');
   }
-  res.setHeader('Cache-Control', 'no-store');
+  uncached(res);
   try {
     await canvasRequest(req, res, store, url);
   } catch (error) {
     writeModuleLog('agent', 'canvas_request_failed', { error: String(error) });
-    sendJson(res, error instanceof CanvasError ? error.status : 503,
-      { error: error instanceof Error ? error.message : 'Canvas unavailable. Retry.' });
+    sendCaughtError(res, error, 'Canvas unavailable. Retry.', 'error');
   }
 }
 
@@ -25,7 +36,7 @@ async function canvasRequest(req: IncomingMessage, res: ServerResponse, store: C
   if (path === '/api/settings/canvas') {
     if (req.method === 'GET') return sendJson(res, 200, await store.settings());
 
-    if (!requireJsonMutation(req, res, 'PUT', 'canvas changes')) return;
+    if (!requireJsonMethod(req, res, 'PUT')) return;
 
     const input = await readCanvasJson(req);
     if (typeof input.enabled !== 'boolean') throw new CanvasError('enabled must be a boolean.');
@@ -33,7 +44,7 @@ async function canvasRequest(req: IncomingMessage, res: ServerResponse, store: C
     return sendJson(res, 200, await store.configure(input.enabled));
   }
   await store.requireEnabled();
-  if (!['/api/canvas/events', '/api/canvas/scene'].includes(path)) return sendText(res, 404, 'not found');
+  if (!['/api/canvas/events', '/api/canvas/scene'].includes(path)) return notFound(res);
 
   store = store.forChat(url.searchParams.get('chat') ?? '');
   if (req.method === 'GET') {
@@ -41,31 +52,23 @@ async function canvasRequest(req: IncomingMessage, res: ServerResponse, store: C
 
     if (path === '/api/canvas/scene') return sendJson(res, 200, await store.current());
 
-    return sendText(res, 404, 'not found');
+    return notFound(res);
   }
-  if (!requireJsonMutation(req, res, 'POST', 'canvas changes')) return;
+  if (!requireJsonMethod(req, res, 'POST')) return;
 
   const input = await readCanvasJson(req);
   if (path === '/api/canvas/scene') return sendJson(res, 200, await store.saveBrowser(input));
 
-  return sendText(res, 404, 'not found');
+  return notFound(res);
 }
 
 async function readCanvasJson(req: IncomingMessage): Promise<Record<string, unknown>> {
-  const chunks: Buffer[] = [];
-  let size = 0;
-  for await (const chunk of req) {
-    size += chunk.length;
-    if (size > 20_000_000) throw new CanvasError('Canvas request exceeds 20 MB.', 413);
+  const value = await readLimitedJson(req, {
+    bytes: 20_000_000,
+    tooLarge: 'Canvas request exceeds 20 MB.',
+    malformed: 'Malformed canvas JSON.',
+  });
+  if (!isRecord(value)) throw new CanvasError('Malformed canvas JSON.');
 
-    chunks.push(Buffer.from(chunk));
-  }
-  try {
-    const value = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error();
-
-    return value;
-  } catch {
-    throw new CanvasError('Malformed canvas JSON.');
-  }
+  return value;
 }

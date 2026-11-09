@@ -44,7 +44,7 @@ Later locations override the same skill name:
 | Repository | `.agents/skills`, `.cursor/skills`, `.codeberg/skills`. |
 | Stored project | `projects/<id>/skills/` in Codeberg home. |
 
-Each location accepts Markdown files or directories containing `SKILL.md`. Inspect effective skills and scopes in Settings. Changes apply to the next chat turn; active streams retain their current context.
+Each location is loaded only when it is a file named `SKILL.md` or a directory that contains one. Other Markdown files are not skills. Inspect effective skills and scopes in Settings. Changes apply to the next chat turn; active streams retain their current context.
 
 ## Use a skill
 

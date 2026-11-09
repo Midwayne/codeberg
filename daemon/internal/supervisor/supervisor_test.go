@@ -11,7 +11,6 @@ import (
 
 func TestIndexerEnvForwardsIndexQuant(t *testing.T) {
 	cfg := config.Indexer{
-		Root:         "/tmp/repo",
 		Roots:        []domain.Repo{{Key: "repo", Root: "/tmp/repo"}},
 		DefaultKey:   "repo",
 		Model:        "models/model.onnx",
@@ -22,7 +21,7 @@ func TestIndexerEnvForwardsIndexQuant(t *testing.T) {
 		Socket:       "/tmp/codeberg-index.sock",
 	}
 
-	env := indexerEnv(cfg)
+	env := processEnv(cfg)
 	if !slices.Contains(env, config.EnvIndexQuant+"=f32") {
 		t.Fatalf("expected %s forwarded, got %v", config.EnvIndexQuant, env)
 	}
@@ -30,14 +29,13 @@ func TestIndexerEnvForwardsIndexQuant(t *testing.T) {
 
 func TestIndexerEnvOmitsEmptyIndexQuant(t *testing.T) {
 	cfg := config.Indexer{
-		Root:       "/tmp/repo",
 		Roots:      []domain.Repo{{Key: "repo", Root: "/tmp/repo"}},
 		DefaultKey: "repo",
 		PollMS:     1000,
 		Socket:     "/tmp/codeberg-index.sock",
 	}
 
-	env := indexerEnv(cfg)
+	env := processEnv(cfg)
 
 	for _, e := range env {
 		if strings.HasPrefix(e, config.EnvIndexQuant+"=") {
@@ -48,11 +46,10 @@ func TestIndexerEnvOmitsEmptyIndexQuant(t *testing.T) {
 
 func TestIndexerEnvPreservesSingleRepositoryKey(t *testing.T) {
 	cfg := config.Indexer{
-		Root:       "/tmp/repo",
 		Roots:      []domain.Repo{{Key: "repo-custom", Root: "/tmp/repo"}},
 		DefaultKey: "repo-custom",
 	}
-	if env := indexerEnv(cfg); !slices.Contains(env, config.EnvRoots+"=repo-custom\t/tmp/repo") {
+	if env := processEnv(cfg); !slices.Contains(env, config.EnvRoots+"=repo-custom\t/tmp/repo") {
 		t.Fatalf("single repository lost its configured key: %v", env)
 	}
 }

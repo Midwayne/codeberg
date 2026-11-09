@@ -10,6 +10,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "binio.h"
 #include "strutil.h"
 #include "usearch.h"
 
@@ -176,10 +177,10 @@ static cberg_status usearch_backend_save(void *impl) {
         return CBERG_OK;
     }
 
-    char tmp[4096];
-    int n = snprintf(tmp, sizeof tmp, "%s.tmp", b->path);
-    if (n < 0 || (size_t)n >= sizeof tmp) {
-        return CBERG_ERR_INVALID_ARGUMENT;
+    char tmp[CBERG_ATOMIC_TMP_CAP];
+    cberg_status st = cberg_atomic_temp(b->path, tmp, sizeof tmp);
+    if (st != CBERG_OK) {
+        return st;
     }
     usearch_error_t err = NULL;
     usearch_save(b->idx, tmp, &err);
@@ -187,9 +188,9 @@ static cberg_status usearch_backend_save(void *impl) {
         remove(tmp);
         return CBERG_ERR_IO;
     }
-    if (rename(tmp, b->path) != 0) {
-        remove(tmp);
-        return CBERG_ERR_IO;
+    st = cberg_atomic_rename(tmp, b->path);
+    if (st != CBERG_OK) {
+        return st;
     }
     b->dirty = 0;
     return CBERG_OK;

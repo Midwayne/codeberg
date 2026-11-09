@@ -1,6 +1,7 @@
 import { type IncomingMessage, type ServerResponse } from 'node:http';
-import { readJson, sameOrigin, sendJson, sendText } from '../http.js';
-import { ResourceSettings, ResourceSettingsError } from '../resources.js';
+import { readJson, requireJsonMethod, requireMethod, sendJson, sendJsonText, sendText, uncached } from '../http.js';
+import { ResourceSettings } from '../resources.js';
+import { ResourceSettingsError } from '../resources/types.js';
 
 export async function routeResources(
   req: IncomingMessage,
@@ -11,18 +12,15 @@ export async function routeResources(
   const path = url.pathname;
 
   try {
-    res.setHeader('Cache-Control', 'no-store');
+    uncached(res);
     if (path === '/api/settings/resources') {
-      if (req.method !== 'GET') return sendText(res, 405, 'method not allowed');
+      if (!requireMethod(req, res, 'GET')) return;
 
       const after = url.searchParams.get('after') ?? '0';
       if (!/^\d+$/.test(after) || !Number.isSafeInteger(Number(after)))
         throw new ResourceSettingsError('invalid history cursor');
 
-      const body = await resources.usage(Number(after));
-      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(body);
-      return;
+      return sendJsonText(res, 200, await resources.usage(Number(after)));
     }
 
     if (req.method === 'GET') {
@@ -32,12 +30,7 @@ export async function routeResources(
       return sendJson(res, 200, await resources.preview(Number(days)));
     }
 
-    if (req.method !== 'POST') return sendText(res, 405, 'method not allowed');
-
-    if (!sameOrigin(req)) return sendText(res, 403, 'cross-origin cleanup is not allowed');
-
-    if (!req.headers['content-type']?.startsWith('application/json'))
-      return sendText(res, 415, 'application/json required');
+    if (!requireJsonMethod(req, res, 'POST')) return;
 
     const body = await readJson(req);
 

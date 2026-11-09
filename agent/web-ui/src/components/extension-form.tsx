@@ -1,5 +1,8 @@
 import { Plus } from 'lucide-react';
 
+import { EXTENSION_NAME_PATTERN } from '@agent/core/context/skill-limits.js';
+import { ensureOk, jsonRequest } from '../lib/response.js';
+
 import type { ExtensionsView } from './extensions';
 import { SuccessNotice } from './success-notice';
 
@@ -45,7 +48,7 @@ export function ExtensionFields({ state }: ExtensionFieldsProps) {
         <span>Name</span>
         <input
           required
-          pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,63}"
+          pattern={EXTENSION_NAME_PATTERN}
           value={state.name}
           onChange={(event) => state.setName(event.target.value)}
           className={control}
@@ -126,12 +129,8 @@ function createExtensionSubmit({ state }: ExtensionSubmitOptions) {
                 name: state.name,
                 content: `---\nname: ${JSON.stringify(state.name)}\ndescription: ${JSON.stringify(state.description)}\n---\n\n${state.instructions}\n`,
               };
-        const response = await state.api('/api/extensions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        if (!response.ok) throw new Error(await response.text());
+        const response = await state.api('/api/extensions', jsonRequest('POST', body));
+        await ensureOk(response);
         state.setSaved(`${state.name} added. Available on the next chat turn.`);
         state.setName('');
         state.setConfig('');

@@ -6,15 +6,19 @@ import (
 	"time"
 )
 
-func (m *Manager) BindDefault(handler http.Handler, stops ...func()) {
+// StartDefault starts the default project's indexer before the first request,
+// so the workspace the user last opened is indexing by the time they look.
+func (m *Manager) StartDefault() error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	stop := func() {}
-	if len(stops) > 0 {
-		stop = stops[0]
+	id := m.catalog.DefaultID
+	m.mu.Unlock()
+
+	if id == "" {
+		return nil
 	}
 
-	m.runtimes[m.catalog.DefaultID] = runtime{handler: handler, stop: stop, started: time.Now()}
+	_, err := m.activate(id)
+	return err
 }
 
 func (m *Manager) activate(id string) (http.Handler, error) {
@@ -31,7 +35,7 @@ func (m *Manager) activate(id string) (http.Handler, error) {
 
 	p, ok := m.project(id)
 	if !ok {
-		return nil, fmt.Errorf("unknown project")
+		return nil, errProjectNotFound
 	}
 
 	handler, stop, err := m.start(p, m.projectConfig(p))
@@ -43,17 +47,21 @@ func (m *Manager) activate(id string) (http.Handler, error) {
 	return handler, nil
 }
 
+// stopRuntime stops a project's indexer; the next request starts a fresh one.
+// Callers hold m.mu.
+func (m *Manager) stopRuntime(id string) {
+	if rt, ok := m.runtimes[id]; ok {
+		rt.stop()
+		delete(m.runtimes, id)
+	}
+}
+
 func (m *Manager) Close() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.closed = true
 
-	for _, rt := range m.runtimes {
-		rt.stop()
+	for id := range m.runtimes {
+		m.stopRuntime(id)
 	}
-}
-
-func (m *Manager) WithGitPull(interval time.Duration) *Manager {
-	m.gitPull = interval
-	return m
 }

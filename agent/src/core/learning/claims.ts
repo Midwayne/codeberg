@@ -1,8 +1,11 @@
 import { basename } from 'node:path';
 
-import { sourceTextFor, type SourceObservation } from './memory-source.js';
+import { isRecord } from '../record.js';
+import { sourceTextFor, type SourceObservation } from './memory-source/reading.js';
 import { redactSecrets } from './redact.js';
 import type { KnowledgeClaim } from './types.js';
+
+export const MAX_CLAIMS = 12;
 
 /** Enforce provenance for *each* claim; exact quotations are evidence, not semantic proof. */
 export function validatedClaims(
@@ -14,7 +17,7 @@ export function validatedClaims(
 
   const claims: KnowledgeClaim[] = [];
   for (const [index, value] of raw.entries()) {
-    if (claims.length >= 12) {
+    if (claims.length >= MAX_CLAIMS) {
       onRejected?.(index);
       continue;
     }
@@ -139,10 +142,6 @@ function citation(item: KnowledgeClaim['evidence'][number]): string {
 
 function countNewlines(value: string): number {
   return value.match(/\n/g)?.length ?? 0;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
 }
 
 function evidenceLines(source: SourceObservation, quote: string) {

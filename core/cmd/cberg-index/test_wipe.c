@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "codeberg/codeberg.h"
+#include "index_env.h"
 #include "wipe.h"
 
 #include <stdio.h>
@@ -29,6 +30,13 @@ int main(void) {
         snprintf(path + len + 2 * i, sizeof(path) - len - 2 * i, "%02x", hash[i]);
     }
 
+    char *derived = cberg_index_path_for_root(temp, root);
+    if (derived == NULL || strcmp(derived, path) != 0) {
+        fprintf(stderr, "index path tag is not the first 8 hash bytes\n");
+        return 1;
+    }
+    free(derived);
+
     FILE *file = fopen(path, "w");
     if (file == NULL) {
         return 1;
@@ -46,6 +54,19 @@ int main(void) {
 
     if (cberg_wipe_index(temp, root) != 0) {
         fprintf(stderr, "wipe must be idempotent\n");
+        return 1;
+    }
+
+    setenv("CBERG_INDEX_BACKEND", "", 1);
+    if (cberg_wipe_index(temp, root) != 0) {
+        fprintf(stderr, "an empty backend selects the default\n");
+        return 1;
+    }
+
+    setenv("CBERG_INDEX_BACKEND", "qdrant", 1);
+    unsetenv("CBERG_VECTORDB_URL");
+    if (cberg_wipe_index(temp, root) == 0) {
+        fprintf(stderr, "qdrant wipe needs CBERG_VECTORDB_URL like the engine\n");
         return 1;
     }
 

@@ -1,5 +1,6 @@
+import type { ResourceSample, ResourceUsage } from '@agent/core/api/resources.js';
 import { describe, expect, it } from 'vitest';
-import { mergeResourceUsage, type ResourceSample, type ResourceUsage } from './resources';
+import { mergeResourceUsage } from './resources';
 
 function usage(timestamp: number, history: number[], collectorId = 'one'): ResourceUsage {
   return { current: { timestamp } as ResourceSample, history: history.map((timestamp) => ({ timestamp }) as ResourceSample),

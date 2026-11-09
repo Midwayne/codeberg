@@ -1,4 +1,5 @@
-import { buttonClass } from './settings-styles';
+import { jsonRequest } from '../lib/response.js';
+import { buttonClass } from './button-styles';
 
 import { FolderOpen } from 'lucide-react';
 import { useState } from 'react';
@@ -39,11 +40,7 @@ export function OpenDirectoryButton({ busy, setBusy, setResult }: OpenDirectoryB
         if (busy) return;
         setBusy(true);
         setResult(undefined);
-        void fetch('/api/config/open-directory', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: '{}',
-        })
+        void fetch('/api/config/open-directory', jsonRequest('POST', {}))
           .then(async (response) => {
             const text = await response.text();
             let value: { path?: string; message?: string };

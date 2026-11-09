@@ -61,7 +61,9 @@ export class McpToolActivation {
   select(allNames: readonly string[], messages: readonly ModelMessage[]): string[] | undefined {
     if (!allNames.some((name) => isDeferredMcpTool(name))) return undefined;
 
-    return selectActiveTools(allNames, [...this.order, ...mcpToolsReferenced(messages)]);
+    // `order` is this process's activation log. Selection follows the transcript
+    // so a pooled agent cannot keep another chat's MCP tools active.
+    return selectActiveTools(allNames, [...mcpToolsReferenced(messages), ...mcpToolsLoaded(messages)]);
   }
 }
 
@@ -78,6 +80,61 @@ export function prepareStepPatch(
     ...(messagesChanged ? { messages: next } : {}),
     ...(activeTools ? { activeTools } : {}),
   };
+}
+
+/** MCP tools a `load_mcp_tools` result in this transcript successfully loaded. */
+export function mcpToolsLoaded(messages: readonly ModelMessage[]): string[] {
+  const found: string[] = [];
+  const seen = new Set<string>();
+
+  for (const message of messages) {
+    if (typeof message.content === 'string') continue;
+
+    for (const part of message.content) {
+      if (part.type !== 'tool-result' || part.toolName !== 'load_mcp_tools') continue;
+
+      for (const name of namesLoaded(part.output)) addLoaded(found, seen, name);
+    }
+  }
+
+  return found;
+}
+
+function addLoaded(found: string[], seen: Set<string>, name: string): void {
+  if (!isDeferredMcpTool(name) || seen.has(name)) return;
+
+  seen.add(name);
+  found.push(name);
+}
+
+function namesLoaded(output: unknown): readonly string[] {
+  const value = loadedValue(output);
+  if (!value || typeof value !== 'object') return [];
+
+  const loaded = (value as { loaded?: unknown }).loaded;
+
+  return Array.isArray(loaded) ? loaded.filter((name): name is string => typeof name === 'string') : [];
+}
+
+function loadedValue(output: unknown): unknown {
+  if (!output || typeof output !== 'object') return undefined;
+
+  const record = output as { type?: unknown; value?: unknown; loaded?: unknown };
+  if (record.type === 'json' || record.type === 'error-json') return record.value;
+
+  if ((record.type === 'text' || record.type === 'error-text') && typeof record.value === 'string') {
+    return parseJson(record.value);
+  }
+
+  return Array.isArray(record.loaded) ? record : undefined;
+}
+
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
 }
 
 /** Prefixed MCP tool names already present as calls or results. */

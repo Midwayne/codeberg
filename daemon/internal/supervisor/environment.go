@@ -1,88 +1,35 @@
 package supervisor
 
 import (
-	"fmt"
-	"os"
-	"strings"
+	"strconv"
 
 	"codeberg.org/codeberg/daemon/internal/config"
+	"codeberg.org/codeberg/daemon/internal/procenv"
 )
 
-func indexerEnv(cfg config.Indexer) []string {
-	env := []string{
-		config.EnvSocket + "=" + cfg.Socket,
-		fmt.Sprintf("%s=%d", config.EnvPollMS, cfg.PollMS),
-	}
-
-	// Preserve the project's repository keys, including for single-root projects.
-	if len(cfg.Roots) > 0 {
-		env = append(env, config.EnvRoots+"="+config.FormatRoots(cfg.Roots))
-	}
-
-	env = embeddingEnv(env, cfg)
-
-	if cfg.Index != "" {
-		env = append(env, config.EnvIndexPath+"="+cfg.Index)
-	}
-
-	if cfg.IndexBackend != "" {
-		env = append(env, config.EnvIndexBackend+"="+cfg.IndexBackend)
-	}
-
-	if cfg.IndexQuant != "" {
-		env = append(env, config.EnvIndexQuant+"="+cfg.IndexQuant)
-	}
-
-	if cfg.VectorDBURL != "" {
-		env = append(env, config.EnvVectorDBURL+"="+cfg.VectorDBURL)
-	}
-
-	if cfg.VectorDBKey != "" {
-		env = append(env, config.EnvVectorDBKey+"="+cfg.VectorDBKey)
-	}
-
-	if cfg.PostgresURL != "" {
-		env = append(env, config.EnvPostgresURL+"="+cfg.PostgresURL)
-	}
-
-	return env
-}
-
-func embeddingEnv(env []string, cfg config.Indexer) []string {
-	env = append(env, config.EnvModel+"="+cfg.Model)
-
-	for key, value := range map[string]string{
+// indexerEnv lists every setting the indexer reads. Empty values are removed
+// from the inherited environment, so a project indexer never picks up another
+// project's roots or an embedding setting the config turned off.
+func indexerEnv(cfg config.Indexer) map[string]string {
+	return map[string]string{
+		config.EnvSocket:       cfg.Socket,
+		config.EnvPollMS:       strconv.Itoa(cfg.PollMS),
+		config.EnvRoots:        config.FormatRoots(cfg.Roots),
+		config.EnvModel:        cfg.Model,
 		config.EnvEmbedBackend: cfg.EmbedBackend,
 		config.EnvEmbedWorker:  cfg.EmbedWorker,
 		config.EnvEmbedPython:  cfg.EmbedPython,
 		config.EnvLlamaServer:  cfg.LlamaServer,
-	} {
-		if cfg.Model == "" {
-			value = ""
-		}
-
-		env = append(env, key+"="+value)
+		config.EnvIndexPath:    cfg.Index,
+		config.EnvIndexBackend: cfg.IndexBackend,
+		config.EnvIndexQuant:   cfg.IndexQuant,
+		config.EnvVectorDBURL:  cfg.VectorDBURL,
+		config.EnvVectorDBKey:  cfg.VectorDBKey,
+		config.EnvPostgresURL:  cfg.PostgresURL,
 	}
-
-	return env
 }
 
-// Preserve loader/certificate settings while overriding inherited project roots.
+// Preserve loader/certificate settings while replacing every indexer setting.
 func processEnv(cfg config.Indexer) []string {
-	overrides := indexerEnv(cfg)
-	keys := map[string]bool{config.EnvRoots: true, config.EnvIndexPath: true, config.EnvSocket: true}
-	for _, entry := range overrides {
-		key, _, _ := strings.Cut(entry, "=")
-		keys[key] = true
-	}
-
-	var env []string
-	for _, entry := range os.Environ() {
-		key, _, _ := strings.Cut(entry, "=")
-		if !keys[key] {
-			env = append(env, entry)
-		}
-	}
-
-	return append(env, overrides...)
+	return procenv.Overlay(indexerEnv(cfg))
 }

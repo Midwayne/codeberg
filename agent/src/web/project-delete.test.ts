@@ -1,7 +1,8 @@
 import { createServer, type Server } from 'node:http';
 import { afterEach, expect, it, vi } from 'vitest';
-import type { ProjectCatalog } from '../core/projects.js';
+import type { ProjectCatalog } from '../core/projects/types.js';
 import { createProjectRequestHandler } from './projects.js';
+import { ProjectBusyError } from './projects/request.js';
 
 const initial: ProjectCatalog = {
   vectorsEnabled: false,
@@ -71,7 +72,7 @@ it('rejects invalid, cross-origin and busy deletions without calling the daemon 
     catalog: initial,
     daemonUrl,
     build: async () => (_req, res) => res.end(),
-    dispose: async () => { throw new Error('Project is busy. Try again after background jobs finish.'); },
+    dispose: async () => { throw new ProjectBusyError(); },
   })));
   const url = `${base}/api/projects/${initial.defaultId}`;
   const headers = { 'Content-Type': 'application/json' };

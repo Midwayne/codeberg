@@ -1,38 +1,12 @@
-import {
-  EXTRACTION_VERSION,
-  type DatasetExample,
-  type DatasetKind,
-  type DatasetStore,
-} from './datasets.js';
+import { isCurrentExample } from './dataset-extract.js';
+import { type DatasetExample, type DatasetKind } from './datasets/records.js';
+import { type DatasetStore } from './datasets.js';
 import { interactionRevisions } from './revision.js';
+import { answerFromPayload, pathFromHit, verifierProposedFiles } from './review-payload.js';
+import type { ReviewCandidate, ReviewDashboard, ReviewState } from './review-types.js';
 
-export type ReviewState = 'ready' | 'training' | 'eval' | 'dismissed' | 'stale';
-
-export interface ReviewCandidate {
-  id: string;
-  kind: DatasetKind;
-  query: string;
-  extracted_at: string;
-  state: ReviewState;
-  eligible: boolean;
-  feedback?: { label: string; reason?: string };
-  repositories: string[];
-  answer_preview: string;
-  proposed_files: string[];
-}
-
-export interface ReviewDashboard {
-  stats: {
-    total: number;
-    ready: number;
-    training: number;
-    eval: number;
-    dismissed: number;
-    stale: number;
-    by_kind: Partial<Record<DatasetKind, number>>;
-  };
-  candidates: ReviewCandidate[];
-}
+export type { ReviewCandidate, ReviewDashboard, ReviewState };
+export { answerFromPayload, pathFromHit, verifierProposedFiles } from './review-payload.js';
 
 export async function reviewDashboard(datasets: DatasetStore): Promise<ReviewDashboard> {
   const [candidates, training, evalRows, dismissed, events] = await Promise.all([
@@ -73,14 +47,7 @@ export async function reviewDashboard(datasets: DatasetStore): Promise<ReviewDas
 }
 
 export function answerFor(row: DatasetExample): string {
-  const payload = row.payload;
-  if (typeof payload.answer === 'string') return payload.answer;
-
-  if (typeof payload.chosen === 'string') return payload.chosen;
-
-  const trajectory = payload.successful_trajectory ?? payload.trajectory;
-
-  return Array.isArray(trajectory) ? String(trajectory.at(-1)?.answer ?? '') : '';
+  return answerFromPayload(row.payload);
 }
 
 export function proposedFiles(row: DatasetExample): string[] {
@@ -93,20 +60,13 @@ export function proposedFiles(row: DatasetExample): string[] {
 
   const paths = values
     .flatMap((value) => (Array.isArray(value) ? value : []))
-    .flatMap((hit) =>
-      hit && typeof hit === 'object' && typeof hit.path === 'string' ? [hit.path] : [],
-    );
+    .flatMap((hit) => {
+      const path = pathFromHit(hit);
 
-  const verifier = row.payload.verifier;
-  const proposed =
-    verifier &&
-    typeof verifier === 'object' &&
-    'proposed_files' in verifier &&
-    Array.isArray(verifier.proposed_files)
-      ? verifier.proposed_files.filter((path): path is string => typeof path === 'string')
-      : [];
+      return path ? [path] : [];
+    });
 
-  return [...new Set([...paths, ...proposed])];
+  return [...new Set([...paths, ...verifierProposedFiles(row.payload.verifier)])];
 }
 
 function summarizeCandidate(
@@ -116,9 +76,7 @@ function summarizeCandidate(
   evalIds: Set<string>,
   dismissedIds: Set<string>,
 ): ReviewCandidate {
-  const eligible =
-    row.extraction_version === EXTRACTION_VERSION &&
-    row.source_revision === revisions.get(row.source_interaction_id);
+  const eligible = isCurrentExample(row, revisions.get(row.source_interaction_id));
   const state: ReviewState = !eligible
     ? 'stale'
     : trainingIds.has(row.id)

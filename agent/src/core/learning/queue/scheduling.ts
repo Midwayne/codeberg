@@ -1,4 +1,4 @@
-import type { JobStatus, KnowledgeJob } from '../types.js';
+import { JOB_STATUSES, type JobStatus, type KnowledgeJob } from '../types.js';
 import type { DurableJobQueueState } from './state.js';
 import { list } from './storage.js';
 
@@ -30,7 +30,7 @@ export async function nextDueAt(
 
 export async function counts(state: DurableJobQueueState): Promise<Record<JobStatus, number>> {
   const rows = await Promise.all(
-    (['pending', 'processing', 'completed', 'failed'] as const).map(
+    JOB_STATUSES.map(
       async (status) => [status, (await list(state, status)).length] as const,
     ),
   );

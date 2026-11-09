@@ -4,8 +4,9 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import type { LearningService } from '../../core/learning/service.js';
 import { writeModuleLog } from '../../core/module-log.js';
-import { readJson, sendJson, sendText } from '../http.js';
-import { WebSessionStore, isValidSessionId } from './store.js';
+import { notFound, readJson, rejectMethod, requireMethod, sendJson, sendText } from '../http.js';
+import { WebSessionStore } from './store.js';
+import { isValidSessionId } from '../../core/api/sessions.js';
 
 const SESSIONS_PATH = '/api/sessions';
 
@@ -22,9 +23,7 @@ export async function routeSessions(
 
   // Collection: list saved chats.
   if (rest === '') {
-    if (req.method !== 'GET') {
-      return sendText(res, 405, 'method not allowed');
-    }
+    if (!requireMethod(req, res, 'GET')) return;
 
     const query = new URL(req.url ?? '/', 'http://localhost').searchParams.get('q') ?? '';
 
@@ -41,7 +40,7 @@ export async function routeSessions(
     case 'GET': {
       const record = await store.load(id);
 
-      return record ? sendJson(res, 200, record) : sendText(res, 404, 'not found');
+      return record ? sendJson(res, 200, record) : notFound(res);
     }
     case 'PUT':
       return saveSession(req, res, store, id, learning, canvas);
@@ -53,7 +52,7 @@ export async function routeSessions(
       return;
     }
     default:
-      return sendText(res, 405, 'method not allowed');
+      return rejectMethod(res);
   }
 }
 
@@ -88,7 +87,7 @@ async function saveSession(
 
   if (learning) {
     try {
-      await learning.recordSession(id, record.messages, record.parentId);
+      await learning.recordSession(id, record.messages);
     } catch (error) {
       // Chat persistence succeeded. A learning disk failure must not break it.
       console.error('learning session recording failed:', error);
@@ -120,7 +119,7 @@ async function updateSessionFlags(
 
   const record = await store.setFlags(id, body as { pinned?: boolean; archived?: boolean });
 
-  return record ? sendJson(res, 200, { ok: true }) : sendText(res, 404, 'not found');
+  return record ? sendJson(res, 200, { ok: true }) : notFound(res);
 }
 
 /** A valid session id that isn't the record itself — ignored otherwise. */

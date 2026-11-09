@@ -1,8 +1,9 @@
 import { resolve } from 'node:path';
 import type { LearningService } from '../../core/learning/service.js';
-import { defaultLearningRoot } from '../../core/learning/store.js';
+import { defaultLearningRoot } from '../../core/learning/store/identity.js';
 import { codebergHome } from '../../core/paths.js';
-import { ResourceMonitorClient, type ResourceReader } from '../resource-monitor.js';
+import { ResourceMonitorClient } from '../resource-monitor.js';
+import { type ResourceReader } from '../resource-monitor/types.js';
 import { type WebSessionStore } from '../sessions/store.js';
 
 export class ResourceSettingsState {

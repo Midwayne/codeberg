@@ -1,3 +1,4 @@
+import { verifierProposedFiles } from '@agent/core/learning/review-payload.js';
 import type { useReviewDetail } from '../components/review-detail';
 
 import { proposedEvidence, type EvidencePreview } from './training';
@@ -13,12 +14,9 @@ export function collectReviewEvidence({ example, destination, row }: ReviewEvide
 
   const hardNegatives = proposedEvidence(example, 'hard_negatives');
 
-  const verifier = example.payload.verifier;
-
-  const verifierFiles: EvidencePreview[] =
-    verifier && typeof verifier === 'object' && 'proposed_files' in verifier && Array.isArray(verifier.proposed_files)
-      ? verifier.proposed_files.filter((path): path is string => typeof path === 'string').map((path) => ({ path }))
-      : [];
+  const verifierFiles: EvidencePreview[] = verifierProposedFiles(example.payload.verifier).map(
+    (path) => ({ path }),
+  );
 
   const choices =
     destination === 'training' && row.kind === 'hard_negative_candidates'

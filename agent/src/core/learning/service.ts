@@ -112,12 +112,8 @@ export class LearningService {
     return knowledgeIndex(this.state);
   }
 
-  recordSession(
-    conversationId: string,
-    messages: UIMessage[],
-    parentConversationId?: string,
-  ): Promise<void> {
-    return recordSession(this.state, conversationId, messages, parentConversationId);
+  recordSession(conversationId: string, messages: UIMessage[]): Promise<void> {
+    return recordSession(this.state, conversationId, messages);
   }
 
   feedback(input: {

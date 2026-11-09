@@ -1,9 +1,6 @@
-import { execFile } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { promisify } from 'node:util';
-
-const run = promisify(execFile);
+import { execFileAsync } from '../core/exec.js';
 
 export function configDirectoryCommand(
   path: string,
@@ -30,5 +27,5 @@ export async function openConfigDirectory(home: string): Promise<void> {
   const path = resolve(home);
   await mkdir(path, { recursive: true, mode: 0o700 });
   const { command, args, env } = configDirectoryCommand(path);
-  await run(command, args, { env, timeout: 10000, maxBuffer: 8192 });
+  await execFileAsync(command, args, { env, timeout: 10000, maxBuffer: 8192 });
 }

@@ -16,6 +16,7 @@
 #include "chunk_kind.h"
 #include "graph_internal.h"
 #include "grow.h"
+#include "lang.h"
 
 extern const TSLanguage *tree_sitter_go(void);
 extern const TSLanguage *tree_sitter_c(void);
@@ -28,10 +29,6 @@ extern const TSLanguage *tree_sitter_rust(void);
 extern const TSLanguage *tree_sitter_ruby(void);
 
 #define CBERG_WINDOW_LINES 50
-#define CBERG_LANG_SLOTS 10
-
-_Static_assert((int)CBERG_LANG_RUBY + 1 == CBERG_LANG_SLOTS, "update CBERG_LANG_SLOTS when adding tree-sitter languages");
-_Static_assert((int)CBERG_LANG_MARKDOWN == CBERG_LANG_SLOTS, "CBERG_LANG_MARKDOWN must stay outside parser slots");
 
 typedef const TSLanguage *(*ts_language_fn)(void);
 
@@ -133,14 +130,13 @@ struct cberg_chunk_list {
 };
 
 struct cberg_chunker {
-    TSParser *parsers[CBERG_LANG_SLOTS];
-    TSQuery *queries[CBERG_LANG_SLOTS];
-    cberg_language query_lang[CBERG_LANG_SLOTS];
+    TSParser *parsers[CBERG_LANG_PARSED_SLOTS];
+    TSQuery *queries[CBERG_LANG_PARSED_SLOTS];
     cberg_graph_extractor *extractor; /* lazy; graph ref queries share the parse */
 };
 
 static int lang_slot(cberg_language lang) {
-    if (lang <= CBERG_LANG_UNKNOWN || lang >= CBERG_LANG_SLOTS) {
+    if (lang <= CBERG_LANG_UNKNOWN || lang >= CBERG_LANG_PARSED_SLOTS) {
         return -1;
     }
     return (int)lang;
@@ -209,9 +205,6 @@ cberg_status cberg_chunker_open(cberg_chunker **out_chunker) {
     if (ch == NULL) {
         return CBERG_ERR_OUT_OF_MEMORY;
     }
-    for (int i = 0; i < CBERG_LANG_SLOTS; i++) {
-        ch->query_lang[i] = CBERG_LANG_UNKNOWN;
-    }
     *out_chunker = ch;
     return CBERG_OK;
 }
@@ -225,21 +218,20 @@ static void free_lang_slot(cberg_chunker *ch, int slot) {
         ts_parser_delete(ch->parsers[slot]);
         ch->parsers[slot] = NULL;
     }
-    ch->query_lang[slot] = CBERG_LANG_UNKNOWN;
 }
 
 void cberg_chunker_close(cberg_chunker *chunker) {
     if (chunker == NULL) {
         return;
     }
-    for (int i = 0; i < CBERG_LANG_SLOTS; i++) {
+    for (int i = 0; i < CBERG_LANG_PARSED_SLOTS; i++) {
         free_lang_slot(chunker, i);
     }
     cberg_graph_extractor_free(chunker->extractor);
     free(chunker);
 }
 
-static cberg_status ensure_lang(cberg_chunker *ch, cberg_language lang, lang_desc desc, int slot, TSParser **out_parser, TSQuery **out_query) {
+static cberg_status ensure_lang(cberg_chunker *ch, lang_desc desc, int slot, TSParser **out_parser, TSQuery **out_query) {
     if (ch->parsers[slot] == NULL) {
         ch->parsers[slot] = ts_parser_new();
         if (ch->parsers[slot] == NULL) {
@@ -251,18 +243,13 @@ static cberg_status ensure_lang(cberg_chunker *ch, cberg_language lang, lang_des
             return CBERG_ERR_INTERNAL;
         }
     }
-    if (ch->queries[slot] == NULL || ch->query_lang[slot] != lang) {
-        if (ch->queries[slot] != NULL) {
-            ts_query_delete(ch->queries[slot]);
-            ch->queries[slot] = NULL;
-        }
+    if (ch->queries[slot] == NULL) {
         uint32_t err_offset = 0;
         TSQueryError err_type = TSQueryErrorNone;
         ch->queries[slot] = ts_query_new(desc.language(), desc.query, (uint32_t)strlen(desc.query), &err_offset, &err_type);
         if (ch->queries[slot] == NULL) {
             return CBERG_ERR_INTERNAL;
         }
-        ch->query_lang[slot] = lang;
     }
     *out_parser = ch->parsers[slot];
     *out_query = ch->queries[slot];
@@ -1003,7 +990,7 @@ static cberg_status query_chunk(cberg_chunker *ch, lang_desc desc, cberg_languag
     }
     TSParser *parser = NULL;
     TSQuery *query = NULL;
-    cberg_status status = ensure_lang(ch, lang, desc, slot, &parser, &query);
+    cberg_status status = ensure_lang(ch, desc, slot, &parser, &query);
     if (status != CBERG_OK) {
         return status;
     }

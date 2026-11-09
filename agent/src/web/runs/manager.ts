@@ -1,9 +1,8 @@
 import { closeBrowserSessions } from '../../core/browser/sessions.js';
-import { createHash } from 'node:crypto';
-import { join } from 'node:path';
+import { sessionRunsDir } from '../sessions/layout.js';
 import type { LearningService } from '../../core/learning/service.js';
 import type { WebSessionStore } from '../sessions/store.js';
-import { isValidSessionId } from '../sessions/records.js';
+import { isValidSessionId } from '../../core/api/sessions.js';
 import { executeRun } from './execution.js';
 import { RunJournal } from './journal.js';
 import { recoverInterruptedRun } from './recovery.js';
@@ -15,6 +14,8 @@ import { RunScheduler } from '../schedules/scheduler.js';
 import { BackgroundJobs } from '../background/manager.js';
 import { withRunScope } from './scope.js';
 import { RunStops } from './stopping.js';
+import { hash } from '../../core/message-fingerprint.js';
+import { abortControlled, searchRunId, SHUTDOWN_REQUEST } from './identity.js';
 
 /** One owner per project/chat. Completed calls are replayed as observations, never executed. */
 export class SearchRuns {
@@ -64,11 +65,11 @@ export class SearchRuns {
     const live = this.active.get(chatId);
     if (live?.record.id === id) return live;
 
-    return this.load(join(this.sessions.dir, '.runs', chatId, id));
+    return this.load(sessionRunsDir(this.sessions.dir, chatId, id));
   }
 
   findRequest(chatId: string, requestId: string): Promise<SearchRun | undefined> {
-    return this.find(chatId, hash(`${chatId}:${requestId}`).slice(0, 32));
+    return this.find(chatId, searchRunId(chatId, requestId));
   }
 
   stream(run: SearchRun, after = 0) {
@@ -89,7 +90,7 @@ export class SearchRuns {
     await this.background.close();
     await Promise.allSettled([...this.admissions.values()]);
     const runs = [...this.active.values()];
-    for (const run of runs) run.controller.abort('shutdown');
+    for (const run of runs) abortControlled(run.controller, SHUTDOWN_REQUEST);
 
     await Promise.all(runs.map((run) => run.done));
     await closeBrowserSessions({ ownerRoot: this.sessions.dir });
@@ -101,7 +102,7 @@ export class SearchRuns {
       throw new RunError(400, 'invalid chat or request id');
     }
 
-    const id = hash(`${input.chatId}:${input.requestId}`).slice(0, 32);
+    const id = searchRunId(input.chatId, input.requestId);
     const fingerprint = hash(JSON.stringify([input.messages, input.trigger]));
     const existing = await this.find(input.chatId, id);
     if (existing) {
@@ -113,7 +114,7 @@ export class SearchRuns {
 
     await validateHistory(this.sessions, input);
     this.stops.check(id);
-    const journal = new RunJournal(join(this.sessions.dir, '.runs', input.chatId, id));
+    const journal = new RunJournal(sessionRunsDir(this.sessions.dir, input.chatId, id));
     const run: SearchRun = { record: { ...input, id, fingerprint, status: 'running', createdAt: Date.now() },
       journal, events: [], tools: [], controller: new AbortController(), listeners: new Set(), done: Promise.resolve() };
     this.active.set(input.chatId, run);
@@ -175,14 +176,10 @@ export class SearchRuns {
       const session = await this.sessions.load(summary.id);
       if (!session?.serverRunId) continue;
 
-      const run = await this.load(join(this.sessions.dir, '.runs', session.id, session.serverRunId));
+      const run = await this.load(sessionRunsDir(this.sessions.dir, session.id, session.serverRunId));
       if (!run) continue;
 
       await saveRunSession(this.sessions, run);
     }
   }
-}
-
-function hash(value: string): string {
-  return createHash('sha256').update(value).digest('hex');
 }

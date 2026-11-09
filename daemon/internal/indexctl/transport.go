@@ -13,7 +13,15 @@ import (
 // routinely exceed Scanner's 64 KiB token limit; bound the whole reply instead.
 const maxResponseBytes = 16 * 1024 * 1024
 
+// maxRequestBytes is the cberg-index request line cap, including the newline.
+// See daemon/docs/ipc.md.
+const maxRequestBytes = 8191
+
 func roundTrip(ctx context.Context, socket, req string, dest any) error {
+	if len(req)+1 > maxRequestBytes {
+		return &IndexerError{Code: "INVALID_ARGUMENT", Message: "request too long"}
+	}
+
 	release, err := acquireSlot(ctx, socket)
 	if err != nil {
 		return err

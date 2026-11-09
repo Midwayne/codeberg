@@ -1,6 +1,5 @@
 import { expect, it, vi } from 'vitest';
 import { browserToolSource } from './tools.js';
-import { isBatchable } from '../tools/batch.js';
 
 it('does not register or launch browser use when disabled', async () => {
   const run = vi.fn();
@@ -10,14 +9,16 @@ it('does not register or launch browser use when disabled', async () => {
 
 it('delegates a task and cancellation signal to a separate browser runner only on execution', async () => {
   const run = vi.fn(async () => ({ status: 'completed' as const, result: 'Page title' }));
-  const tools = await browserToolSource({ CODEBERG_BROWSER_USE: 'true' }, 'openai:chat', run).tools();
+  const source = browserToolSource({ CODEBERG_BROWSER_USE: 'true' }, 'openai:chat', run);
+  const tools = await source.tools();
+  expect(source.batchable).toBe(false);
+  expect(source.untimed).toBe(true);
   expect(run).not.toHaveBeenCalled();
   const controller = new AbortController();
   const execute = tools.browser_task.execute as Function;
 
   expect(await execute({ task: 'Read the title' }, { abortSignal: controller.signal })).toMatchObject({ status: 'completed' });
   expect(run).toHaveBeenCalledWith(expect.objectContaining({ model: 'chat' }), 'Read the title', controller.signal, {});
-  expect(isBatchable('browser_task')).toBe(false);
 });
 
 it('keeps code chat usable with an unsupported browser model and reports it only on delegation', async () => {
@@ -38,6 +39,4 @@ it('passes explicit retention and reuse options and registers session discovery 
   expect(run).toHaveBeenCalledWith(expect.anything(), 'Inspect', undefined, { session_id: 'existing', keep_open: true });
   expect(tools.browser_sessions).toBeDefined();
   expect(tools.browser_close).toBeDefined();
-  expect(isBatchable('browser_close')).toBe(false);
-  expect(isBatchable('browser_sessions')).toBe(false);
 });

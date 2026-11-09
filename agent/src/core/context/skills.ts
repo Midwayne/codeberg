@@ -1,9 +1,9 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { parseSkillDocument } from './skill-document.js';
+import { parseSkillDocument, SKILL_FILE } from './skill-document.js';
 
-import { codebergHome, projectRoots } from '../paths.js';
+import { codebergHome, CURSOR_CONFIG_DIR, LOCAL_CONFIG_DIRS, projectRoots } from '../paths.js';
 import type { ContextStore } from './store.js';
 
 /** A discovered Agent Skill (SKILL.md). The prompt receives name and
@@ -25,6 +25,7 @@ export interface DiscoverSkillsOptions {
   userRoots?: readonly string[];
 }
 
+const AGENTS_DIR = '.agents';
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build']);
 const MAX_DEPTH = 5;
 
@@ -38,9 +39,8 @@ export async function discoverSkills(opts: DiscoverSkillsOptions = {}): Promise<
   const userRoots = opts.userRoots ?? defaultUserSkillRoots(env);
   const projects = projectRoots(env, cwd);
   const projectDirs = projects.flatMap((root) => [
-    join(root, '.agents', 'skills'),
-    join(root, '.cursor', 'skills'),
-    join(root, '.codeberg', 'skills'),
+    join(root, AGENTS_DIR, 'skills'),
+    ...LOCAL_CONFIG_DIRS.map((dir) => join(root, dir, 'skills')),
   ]);
 
   const byName = new Map<string, SkillSummary>();
@@ -95,8 +95,8 @@ export async function publishSkills(
 
 export function defaultUserSkillRoots(env: NodeJS.ProcessEnv): string[] {
   return [
-    join(homedir(), '.agents', 'skills'),
-    join(homedir(), '.cursor', 'skills'),
+    join(homedir(), AGENTS_DIR, 'skills'),
+    join(homedir(), CURSOR_CONFIG_DIR, 'skills'),
     join(codebergHome(env), 'skills'),
   ];
 }
@@ -124,10 +124,8 @@ async function walk(dir: string, depth: number, out: string[]): Promise<void> {
     const path = join(dir, entry.name);
     if (entry.isDirectory()) {
       await walk(path, depth + 1, out);
-    } else if (entry.isFile() && entry.name === 'SKILL.md') {
+    } else if (entry.isFile() && entry.name === SKILL_FILE) {
       out.push(path);
     }
   }
 }
-
-export { parseSkillDocument } from './skill-document.js';

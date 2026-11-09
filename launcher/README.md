@@ -178,11 +178,12 @@ exposed. See [Google's model card](https://huggingface.co/google/embeddinggemma-
 MLX is prepared in a managed Python virtual environment; llama.cpp requires
 `llama-server` on PATH (or `CBERG_LLAMA_SERVER=/path/to/llama-server`). The Qwen
 FP16/BF16 0.6B weights are ~1.2 GB and 4B weights ~8 GB; the quantized
-alternatives use less space and memory. A model switch creates a separate index and sidecars
-under `~/.codeberg/index/<model-id>/`, so the first search re-embeds the source
-tree; switching back reuses the previous index. The original Jina index remains
-at `~/.codeberg/index/codeberg.usearch.*`. An explicitly configured
-`CBERG_INDEX_PATH` is also suffixed by the selected non-Jina model ID.
+alternatives use less space and memory. A model switch tells the daemon a different
+`CODEBERG_INDEX_NAMESPACE`, so vectors land in
+`~/.codeberg/projects/<id>/index/<namespace>/` and a later switch reuses that
+project's previous index. Jina keeps the un-namespaced project index. An
+explicit `CBERG_INDEX_PATH` stays where you put it; the namespace is applied
+beside that file for a local index, and left unchanged for a remote backend.
 
 ### Dependencies (auto-installed)
 
@@ -210,18 +211,19 @@ dependency list.
 
 ### First index can be slow
 
-The daemon only serves `/health` after the indexer has chunked and **embedded**
-the whole tree, and a *cold* first index of a large repo can run several minutes.
-The launcher waits up to **15 minutes** (it used to be 6, which a big repo would
-blow past, forcing a second run). For an exceptionally large tree, raise it:
+The daemon serves `/health` as soon as it is listening. Indexing continues in
+the background, and a cold embedding pass on a large repo can take several
+minutes. The launcher only waits for that HTTP listener (about 30 seconds).
+`CODEBERG_HEALTH_TIMEOUT` is the daemon's deadline for a project indexer to
+become ready, as a Go duration; an invalid value fails startup.
 
 ```sh
 CODEBERG_HEALTH_TIMEOUT=30m codeberg     # any Go duration, e.g. 45m
 ```
 
-During the wait the terminal shows the version and a one-line progress spinner,
-then the browser URL; update notices still appear. Run `codeberg --verbose` (or
-set `CODEBERG_VERBOSE=true`) to list component checks and stream live indexing
+The terminal shows the version and a one-line progress spinner, then the
+browser URL; update notices still appear. Run `codeberg --verbose` (or set
+`CODEBERG_VERBOSE=true`) to list component checks and stream live indexing
 progress instead. Non-interactive output prints plain lines. The launcher
 appends logs across runs under `~/.codeberg/logs/` (or `$CODEBERG_HOME/logs/`):
 `daemon.log` (daemon and mirrored indexer output), `indexer.log` (dedicated C
@@ -244,8 +246,8 @@ Config is resolved from four layers, **highest precedence first**:
 4. built-in defaults
 
 The launcher splits these back into the two scopes the components read —
-**daemon scope** (`CBERG_MODEL` embedding model, `CBERG_INDEX_PATH`,
-port, socket) and **agent scope** (`CODEBERG_MODEL` LLM,
+**daemon scope** (`CBERG_MODEL` embedding model, `CODEBERG_INDEX_NAMESPACE`,
+port) and **agent scope** (`CODEBERG_MODEL` LLM,
 `CODEBERG_SUBAGENT_MODEL` background knowledge LLM, `CODEBERG_DAEMON_URL`,
 `CODEBERG_REASONING`, API keys) — and injects each into the right child process.
 The daemon never receives the LLM key.
@@ -335,14 +337,13 @@ codeberg repos                  # see what's registered
 
 ## Index storage
 
-Each indexed directory gets its **own** vector index, keyed by a hash of the
-resolved root path: the core writes `<CBERG_INDEX_PATH>.<roothash>` plus
-`.chunks`/`.manifest` sidecars under `~/.codeberg/index/`. So switching
-`--root` never mixes chunks between repos. In `--all`/`--repos`
-mode, one `cberg-index` process opens **one index per served repo** (sharing a
-single embedding model) rather than the one this section originally described
-for single-root mode — see [docs/multi-repo.md](../docs/multi-repo.md#architecture-implementation-notes).
-Reverting to a previous root reuses its cached embeddings.
+The daemon stores each project's vectors at
+`~/.codeberg/projects/<id>/index/<namespace>/codeberg.usearch`, with per-repo
+sidecars beside that file. `codeberg-d storage` prints those paths. Switching
+embedding model changes `<namespace>`, so vectors from different models never
+share an index. In `--all`/`--repos` mode, one `cberg-index` process opens one
+index per served repo (sharing a single embedding model) — see
+[docs/multi-repo.md](../docs/multi-repo.md#architecture-implementation-notes).
 
 Because each root keeps its files indefinitely, browsing many repos accumulates
 them. Reclaim the space any time:
@@ -352,8 +353,8 @@ codeberg clean-index --dry-run   # list cached index sets + sizes
 codeberg clean-index             # prune them (active repo re-embeds next run)
 ```
 
-It prunes *all* sets (it can't single out the active one without re-deriving the
-core's XXH3 hash); the repo you next open simply rebuilds its index.
+Clean-index asks `codeberg-d storage` for the file list and removes those
+files. The repo you next open rebuilds its index.
 
 ## Uninstall
 
@@ -364,8 +365,10 @@ codeberg uninstall
 Removes the `codeberg` command from PATH, then **asks separately** before
 deleting anything destructive (each prompt defaults to **No**):
 
-- the embedding model + ONNX weights at `~/.codeberg/models` (~160 MB);
-- the rest of the launcher data (config, index, logs) under `~/.codeberg`;
+- the embedding models under `~/.codeberg/models` and the managed Python
+  environments;
+- launcher data (config, logs, web search, `mcp.json`, the repo list) and,
+  when `codeberg-d` can report it, the project catalog and indexes;
 - the **system** ONNX runtime — this is a shared Homebrew package the launcher
   did not install, so it is only removed on an interactive yes or with
   `--remove-system-onnx` (and **`--yes` never removes it**).

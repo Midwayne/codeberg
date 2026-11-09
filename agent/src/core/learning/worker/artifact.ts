@@ -1,11 +1,12 @@
-import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
+import { readOptionalRecord } from '../fs.js';
 import { withUserNotes } from '../artifact-body.js';
 import { knowledgeBody, validatedClaims } from '../claims.js';
 import { parseExtractionResponse } from '../knowledge-response.js';
 import { sourceCommits, sourceHashes } from '../memory-source.js';
 import { redactSecrets } from '../redact.js';
-import { stableId } from '../store.js';
+import { artifactRevision, parseArtifact } from '../store/artifact.js';
+import { stableId } from '../store/identity.js';
 import type { KnowledgeArtifact } from '../types.js';
 import type { ExtractionContext } from './context.js';
 
@@ -81,22 +82,6 @@ export function buildKnowledgeArtifact(
   };
 }
 
-export function artifactRevision(
-  artifact: KnowledgeArtifact,
-  interactionId: string,
-): string | undefined {
-  return (
-    artifact.source_revisions?.[interactionId] ??
-    (artifact.source_interactions.length === 1 ? artifact.source_revision : undefined)
-  );
-}
-
-export async function readArtifact(path: string): Promise<KnowledgeArtifact | undefined> {
-  try {
-    const { parseArtifact } = await import('../store.js');
-
-    return parseArtifact(await readFile(path, 'utf8'));
-  } catch {
-    return undefined;
-  }
+export function readArtifact(path: string): Promise<KnowledgeArtifact | undefined> {
+  return readOptionalRecord(path, parseArtifact);
 }

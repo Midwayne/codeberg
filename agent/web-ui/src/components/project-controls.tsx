@@ -1,20 +1,24 @@
+import type { ProjectCatalogInfo, ProjectInfo } from '@agent/core/api/projects.js';
 import { FolderPlus } from 'lucide-react';
 
 import { IconButton, Select } from './ui';
-import type { Project, ProjectCatalog } from '../lib/project-api';
+import { useFocusSlot } from '../lib/focus-registry';
 
 export type ProjectToolbarProps = {
-  project: Project | undefined;
+  project: ProjectInfo | undefined;
   selected: string;
-  catalog: ProjectCatalog | undefined;
+  catalog: ProjectCatalogInfo | undefined;
   select: (id: string) => void;
   setAdding: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
 export function ProjectToolbar({ project, selected, catalog, select, setAdding }: ProjectToolbarProps) {
+  const projectSelect = useFocusSlot<HTMLSelectElement>('projectSelect');
+
   return (
     <div className="flex min-w-0 flex-1 items-center gap-1">
       <Select
+        ref={projectSelect}
         aria-label="Project"
         title={project?.roots.map((root) => root.root).join('\n')}
         value={selected}
@@ -41,5 +45,3 @@ export function ProjectToolbar({ project, selected, catalog, select, setAdding }
     </div>
   );
 }
-
-export { ProjectNotice } from './indexing-progress';

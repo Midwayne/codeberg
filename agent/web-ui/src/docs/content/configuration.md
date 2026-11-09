@@ -42,7 +42,7 @@ You can also export `CODEBERG_HOME`. Putting it inside an already-opened config 
 | `CODEBERG_SUBAGENT_MODEL` | Learning model; defaults to chat. |
 | `CODEBERG_REASONING` | Initial chat effort. |
 | `CODEBERG_WEB_PORT` | UI port; default `48088`. |
-| `CODEBERG_HTTP_PORT` | Launcher daemon port; default `48080`. Direct `codeberg-d` uses `8080`. |
+| `CODEBERG_HTTP_PORT` | Daemon HTTP port for the launcher and for `codeberg-d`; default `48080`. |
 | `CODEBERG_VECTOR=false` | Start [without embeddings](/docs/indexing#start-without-an-embedding-model); omit semantic search tools. One-launch flag: `--no-vector`. |
 | `CODEBERG_EMBEDDING_MODEL` | [Embedding selection](/docs/indexing). |
 | `CODEBERG_WEB_USE=false` | Disable web search, URL fetching, and Browser Use. |
@@ -72,7 +72,7 @@ Paths below are relative to Codeberg home. **Settings → Projects** shows the e
 | `config` | Startup settings and supported provider credentials. | After restart. |
 | `models.yml` | [Models](/docs/models), context windows, capabilities, efforts, optional prices. | When settings refresh. |
 | `mcp.json` | Shared servers inside `mcpServers`. | Next chat turn. |
-| `skills/<name>/SKILL.md` | Shared instructions; flat Markdown files also work. | Next chat turn. |
+| `skills/<name>/SKILL.md` | Shared instructions. Only a file named `SKILL.md` is loaded. | Next chat turn. |
 | `projects/<id>/mcp.json` | Project servers; override matching earlier definitions. | Next chat turn. |
 | `projects/<id>/skills/` | Project skills; override matching earlier skills. | Next chat turn. |
 | `projects/<id>/spec.yml` or `spec.yaml` | Database connections and access levels. | After restart; database MCP must be enabled. |

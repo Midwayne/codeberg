@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ToolSettings } from '@agent/core/web/types.js';
 import { useToolSettingsRequest } from './use-tool-settings-request';
+import { jsonRequest } from './response.js';
 
 export function useToolSettings() {
   const [settings, setSettings] = useState<ToolSettings>();
@@ -15,7 +16,7 @@ export function useToolSettings() {
     saving.current = true;
     setBusy(true);
     try {
-      await load({ method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(typeof value === 'boolean' ? { webSearch: value } : value) });
+      await load(jsonRequest('PUT', typeof value === 'boolean' ? { webSearch: value } : value));
     } finally {
       saving.current = false;
       setBusy(false);

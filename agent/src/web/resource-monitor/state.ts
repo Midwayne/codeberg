@@ -1,5 +1,6 @@
 import { Worker } from 'node:worker_threads';
-import type { ResourceSample } from '../resources.js';
+import type { ResourceSample } from '../../core/api/resources.js';
+import { isLoopbackHost } from '../http.js';
 import type { ResourceWorkerData } from './types.js';
 
 export class ResourceMonitorClientState {
@@ -32,7 +33,7 @@ export class ResourceMonitorClientState {
     if (options.daemonUrl) {
       try {
         const url = new URL(options.daemonUrl);
-        if (['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)) this.endpoint = url;
+        if (isLoopbackHost(url.hostname)) this.endpoint = url;
       } catch {
         /* Ancillary monitoring must not break the chat server. */
       }

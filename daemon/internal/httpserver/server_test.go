@@ -29,7 +29,7 @@ func TestHealthAndSearch(t *testing.T) {
 		Repos:          []indexctl.RepoStatus{{Key: "main", Ready: true, Chunks: 2}},
 	})
 	ws := testutil.WsSingle(t.TempDir())
-	srv := New(idx, tools.Default(ws, idx))
+	srv := New(idx, tools.WithVectorSearch(ws, idx, true))
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 
@@ -98,7 +98,7 @@ func TestHealthAndSearch(t *testing.T) {
 func TestSearchMissingQuery(t *testing.T) {
 	idx := &testutil.FakeIndexer{}
 	ws := testutil.WsSingle(t.TempDir())
-	srv := New(idx, tools.Default(ws, idx))
+	srv := New(idx, tools.WithVectorSearch(ws, idx, true))
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 
@@ -135,7 +135,7 @@ func TestCallTool(t *testing.T) {
 
 	idx := testutil.StubIndexer()
 	ws := testutil.WsSingle(root)
-	srv := New(idx, tools.Default(ws, idx))
+	srv := New(idx, tools.WithVectorSearch(ws, idx, true))
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 
@@ -161,7 +161,7 @@ func TestCallPipeTool(t *testing.T) {
 
 	idx := testutil.StubIndexer()
 	ws := testutil.WsSingle(root)
-	srv := New(idx, tools.Default(ws, idx))
+	srv := New(idx, tools.WithVectorSearch(ws, idx, true))
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 
@@ -236,7 +236,7 @@ func TestCallUnsafeSedTool(t *testing.T) {
 
 	idx := testutil.StubIndexer()
 	ws := testutil.WsSingle(root)
-	srv := New(idx, tools.Default(ws, idx))
+	srv := New(idx, tools.WithVectorSearch(ws, idx, true))
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 
@@ -270,7 +270,7 @@ func TestCallUnsafeSedTool(t *testing.T) {
 func TestSearchInvalidMinScore(t *testing.T) {
 	idx := &testutil.FakeIndexer{}
 	ws := testutil.WsSingle(t.TempDir())
-	srv := New(idx, tools.Default(ws, idx))
+	srv := New(idx, tools.WithVectorSearch(ws, idx, true))
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 
@@ -301,7 +301,7 @@ func TestCallToolForbiddenPath(t *testing.T) {
 	root := t.TempDir()
 	idx := testutil.StubIndexer()
 	ws := testutil.WsSingle(root)
-	srv := New(idx, tools.Default(ws, idx))
+	srv := New(idx, tools.WithVectorSearch(ws, idx, true))
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 
@@ -326,7 +326,7 @@ func TestCallToolGetChunk(t *testing.T) {
 		},
 	}).WithStatus(indexctl.Status{Ready: true})
 	ws := testutil.WsSingle(t.TempDir())
-	srv := New(idx, tools.Default(ws, idx))
+	srv := New(idx, tools.WithVectorSearch(ws, idx, true))
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 
@@ -358,7 +358,7 @@ func TestCallToolGetChunk(t *testing.T) {
 func TestSearchToolRegistered(t *testing.T) {
 	idx := testutil.StubIndexer()
 	ws := testutil.WsSingle(t.TempDir())
-	srv := New(idx, tools.Default(ws, idx))
+	srv := New(idx, tools.WithVectorSearch(ws, idx, true))
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 

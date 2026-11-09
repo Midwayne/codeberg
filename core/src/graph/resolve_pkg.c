@@ -6,7 +6,7 @@
  * Safety: bare identifiers (fmt, json, os) and slash-form stdlib/npm packages
  * (encoding/json) are never rewritten — only relative imports (./, ../), Rust
  * `::` paths, Go module-prefixed paths, multi-segment dotted names, or
- * source-file paths (…/*.h) are candidates. Package names from manifests are
+ * source-file paths (…/x.h) are candidates. Package names from manifests are
  * never mapped onto arbitrary first files.
  */
 #include "codeberg/codeberg.h"
@@ -19,10 +19,11 @@
 #include "arena.h"
 #include "fileio.h"
 #include "graph_internal.h"
+#include "grow.h"
 #include "import_cache.h"
+#include "lang.h"
 #include "pathutil.h"
 #include "strmap.h"
-#include "walk_policy.h"
 
 typedef struct cberg_import_cache {
     cberg_strmap *file_set;       /* source membership detects create+modify event coalescing */
@@ -36,10 +37,7 @@ typedef struct cberg_import_cache {
 } pkg_index;
 
 static cberg_status pkg_add_file(pkg_index *idx, const char *rel) {
-    size_t cap = idx->file_cap == 0 ? 64 : idx->file_cap;
-    while (cap < idx->file_len + 1) {
-        cap *= 2;
-    }
+    size_t cap = cberg_grow_cap(idx->file_cap, idx->file_len + 1, 64);
     if (cap != idx->file_cap) {
         char **grown = realloc(idx->file_paths, cap * sizeof(*grown));
         if (grown == NULL) {
@@ -56,11 +54,8 @@ static cberg_status pkg_add_file(pkg_index *idx, const char *rel) {
     return cberg_strmap_set(idx->file_set, copy, 1);
 }
 
-/* Code languages only — not markdown/yaml/toml/json (those are UNKNOWN for imports). */
 static int is_code_source(const char *rel) {
-    cberg_language lang = cberg_language_from_path(rel);
-    return lang != CBERG_LANG_UNKNOWN && lang != CBERG_LANG_MARKDOWN && lang != CBERG_LANG_YAML &&
-           lang != CBERG_LANG_TOML && lang != CBERG_LANG_JSON;
+    return cberg_language_is_code(cberg_language_from_path(rel));
 }
 
 static int walk_cb(const char *abs, const char *rel, void *v) {
@@ -116,11 +111,8 @@ static int import_is_resolvable_shape(const char *imp, const char *go_module) {
         return 1;
     }
     /* Go module-prefixed path. */
-    if (go_module != NULL && go_module[0] != '\0') {
-        size_t mlen = strlen(go_module);
-        if (strncmp(imp, go_module, mlen) == 0 && (imp[mlen] == '\0' || imp[mlen] == '/')) {
-            return 1;
-        }
+    if (cberg_go_module_owns_import(go_module, imp)) {
+        return 1;
     }
     int has_slash = strchr(imp, '/') != NULL || strchr(imp, '\\') != NULL;
     if (has_slash) {
@@ -220,38 +212,7 @@ static void scan_go_mod(pkg_index *idx, const char *root) {
     if (body == NULL) {
         return;
     }
-    /* Skip leading blank lines and // comments before `module`. */
-    const char *p = body;
-    while (*p) {
-        while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') {
-            p++;
-        }
-        if (p[0] == '/' && p[1] == '/') {
-            while (*p && *p != '\n') {
-                p++;
-            }
-            continue;
-        }
-        if (p[0] == '/' && p[1] == '*') {
-            p += 2;
-            while (p[0] && !(p[0] == '*' && p[1] == '/')) {
-                p++;
-            }
-            if (p[0]) {
-                p += 2;
-            }
-            continue;
-        }
-        break;
-    }
-    if (strncmp(p, "module ", 7) == 0) {
-        p += 7;
-        size_t i = 0;
-        while (*p && *p != '\n' && *p != '\r' && i + 1 < sizeof idx->go_module) {
-            idx->go_module[i++] = *p++;
-        }
-        idx->go_module[i] = '\0';
-    }
+    cberg_go_module_path(body, idx->go_module, sizeof idx->go_module);
     free(body);
     if (idx->go_module[0] == '\0') {
         return;

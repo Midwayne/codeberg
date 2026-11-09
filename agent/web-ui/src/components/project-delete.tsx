@@ -1,13 +1,14 @@
+import type { ProjectCatalogInfo, ProjectInfo } from '@agent/core/api/projects.js';
+import { jsonRequest } from '../lib/response.js';
 import { Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import type { Project, ProjectCatalog } from '../lib/project-api';
 import { button } from './project-styles';
-import { Dialog } from './ui';
+import { Dialog } from './dialog';
 import { ProjectDeleteOptions, type ProjectDeletionMode } from './project-delete-options';
 
 export type ProjectDeleteProps = {
-  project: Project;
-  onDeleted: (catalog: ProjectCatalog) => void;
+  project: ProjectInfo;
+  onDeleted: (catalog: ProjectCatalogInfo) => void;
 };
 
 export function ProjectDelete({ project, onDeleted }: ProjectDeleteProps) {
@@ -61,7 +62,7 @@ export function ProjectDeleteDialog({ project, onDeleted, onClose }: ProjectDele
   );
 }
 
-function useProjectDeletion(project: Project, onDeleted: ProjectDeleteProps['onDeleted']) {
+function useProjectDeletion(project: ProjectInfo, onDeleted: ProjectDeleteProps['onDeleted']) {
   const [mode, setMode] = useState<ProjectDeletionMode>('index');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -72,15 +73,11 @@ function useProjectDeletion(project: Project, onDeleted: ProjectDeleteProps['onD
     setBusy(true);
     setError('');
     try {
-      const response = await fetch(`/api/projects/${project.id}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode }),
-      });
+      const response = await fetch(`/api/projects/${project.id}`, jsonRequest('DELETE', { mode }));
       const result = await response.json();
       if (!response.ok) throw new Error(result.message ?? 'Could not delete project. Try again.');
 
-      onDeleted(result as ProjectCatalog);
+      onDeleted(result as ProjectCatalogInfo);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {

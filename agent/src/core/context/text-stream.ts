@@ -19,6 +19,12 @@ interface ScanState {
 
 export class ContextReadError extends Error {}
 
+/** Shared tool replies when a path cannot be resolved under the store. */
+export const CONTEXT_PATH_DENIED = 'error: path not found or not allowed';
+
+/** Shared tool reply when a readable file fails size/encoding checks. */
+export const CONTEXT_FILE_UNREADABLE = 'error: file is unreadable or too large';
+
 const FILE_READ_ERRORS = new Set(['EACCES', 'EPERM', 'ENOENT', 'ENOTDIR', 'EISDIR', 'ELOOP', 'EIO', 'ESTALE']);
 
 export function isContextReadError(error: unknown): boolean {

@@ -1,27 +1,23 @@
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
-
-import { writeJsonAtomic } from '../../core/learning/fs.js';
-import type { CatalogModel, ModelSelection, ModelSettings } from '../../core/model-types.js';
-import { codebergHome } from '../../core/paths.js';
-import { loadModelCatalog, object, validEffort, type ModelCatalogOptions } from './catalog.js';
 import { loadDecisionCatalog, resolveDecision } from '../../core/decisions/catalog.js';
-
-export { MODEL_INPUTS } from '../../core/model-types.js';
-export type {
-  CatalogModel,
-  ModelInput,
-  ModelSelection,
-  ModelSelections,
-  ModelSettings,
+import { readOptionalText, writeJsonAtomic } from '../../core/learning/fs.js';
+import { WriteLock } from '../../core/write-lock.js';
+import {
+  modelsCatalogPath,
+  modelSettingsPath,
+  type CatalogModel,
+  type ModelSelection,
+  type ModelSettings,
 } from '../../core/model-types.js';
+import { codebergHome } from '../../core/paths.js';
+import { record } from '../../core/record.js';
+import { loadModelCatalog, validEffort, type ModelCatalogOptions } from './catalog.js';
 
 export class ModelSelectionError extends Error {}
 
 export class ModelSettingsStore {
   private readonly catalog: ModelCatalogOptions;
   private readonly settingsPath: string;
-  private writing: Promise<void> = Promise.resolve();
+  private readonly lock = new WriteLock();
   private readonly env: NodeJS.ProcessEnv;
 
   constructor(options: {
@@ -35,25 +31,21 @@ export class ModelSettingsStore {
     const home = options.home ?? codebergHome(options.env);
     this.env = options.env ?? process.env;
     this.catalog = {
-      catalogPath: options.catalogPath ?? join(home, 'models.yml'),
+      catalogPath: options.catalogPath ?? modelsCatalogPath(home),
       defaultChat: options.defaultChat,
       defaultLearning: options.defaultLearning,
       availableProvider: options.availableProvider,
     };
-    this.settingsPath = join(home, 'model-settings.json');
+    this.settingsPath = modelSettingsPath(home);
   }
 
   async current(): Promise<ModelSettings> {
     const models = await loadModelCatalog(this.catalog);
     const catalog = await loadDecisionCatalog(this.catalog.catalogPath, this.env);
-    let stored: unknown;
-    try {
-      stored = JSON.parse(await readFile(this.settingsPath, 'utf8'));
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    }
+    const raw = await readOptionalText(this.settingsPath);
+    const stored = raw === undefined ? undefined : JSON.parse(raw);
 
-    const values = object(stored);
+    const values = record(stored);
 
     return {
       models,
@@ -72,11 +64,11 @@ export class ModelSettingsStore {
   }
 
   async update(input: unknown): Promise<ModelSettings> {
-    const values = object(input);
+    const values = record(input);
     if (!values) throw new ModelSelectionError('settings must have chat and learning selections');
 
     // Serialize validation and writes so two browser tabs cannot overwrite each other.
-    const update = this.writing.then(async () => {
+    await this.lock.run(async () => {
       const models = await loadModelCatalog(this.catalog);
       const chat = this.validate(values.chat, models);
       const learning = this.validate(values.learning, models);
@@ -89,15 +81,12 @@ export class ModelSettingsStore {
       await writeJsonAtomic(this.settingsPath, { chat, learning, decisions });
     });
 
-    this.writing = update.catch(() => undefined);
-    await update;
-
     return this.current();
   }
 
   private resolve(raw: unknown, fallback: ModelSelection, models: CatalogModel[]): ModelSelection {
     for (const candidate of [raw, fallback]) {
-      const input = object(candidate);
+      const input = record(candidate);
       const effort = input?.effort;
       if (!validEffort(effort)) continue;
 
@@ -123,7 +112,7 @@ export class ModelSettingsStore {
   }
 
   private validate(raw: unknown, models: CatalogModel[]): ModelSelection {
-    const input = object(raw);
+    const input = record(raw);
     const item = models.find((entry) => entry.key === input?.key);
     if (
       !item ||

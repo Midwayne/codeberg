@@ -1,22 +1,29 @@
-import { createHash } from 'node:crypto';
-
+import { hash } from '../message-fingerprint.js';
 import type { AttemptRecord, FeedbackRecord, LearningEvent } from './types.js';
 
 export function sourceRevision(attempts: AttemptRecord[], feedback: FeedbackRecord[]): string {
-  return createHash('sha256')
-    .update(
-      JSON.stringify({
-        attempts: attempts.map((attempt) => attempt.attempt_id),
-        feedback: feedback.map((entry) => entry.feedback_id),
-      }),
-    )
-    .digest('hex');
+  return hash(
+    JSON.stringify({
+      attempts: attempts.map((attempt) => attempt.attempt_id),
+      feedback: feedback.map((entry) => entry.feedback_id),
+    }),
+  );
+}
+
+export function attemptInteractions(events: LearningEvent[]): Map<string, string> {
+  return new Map(
+    events.flatMap((event) =>
+      event.type === 'attempt_recorded'
+        ? [[event.attempt.attempt_id, event.attempt.interaction_id] as const]
+        : [],
+    ),
+  );
 }
 
 /** Revisions are computed from the append-only log, not a potentially stale job projection. */
 export function interactionRevisions(events: LearningEvent[]): Map<string, string> {
   const attempts = new Map<string, AttemptRecord[]>();
-  const interactionForAttempt = new Map<string, string>();
+  const interactionForAttempt = attemptInteractions(events);
   const feedback = new Map<string, FeedbackRecord[]>();
   for (const event of events) {
     if (event.type !== 'attempt_recorded') continue;
@@ -26,7 +33,6 @@ export function interactionRevisions(events: LearningEvent[]): Map<string, strin
       ...(attempts.get(attempt.interaction_id) ?? []),
       attempt,
     ]);
-    interactionForAttempt.set(attempt.attempt_id, attempt.interaction_id);
   }
 
   for (const event of events) {

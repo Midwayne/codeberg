@@ -2,29 +2,21 @@ import { existsSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { envFlag, expandHome } from '../env.js';
 import type { McpConfigIo, McpStdioServer } from './types.js';
 
 /** MCP server name for the built-in multi-db server. Tools are `mcp_databases_<tool>`. */
 export const DBMCP_SERVER_NAME = 'databases';
 
-/** Spec filenames in the codeberg config directory, first match wins. */
-const SPEC_NAMES = ['spec.yml', 'spec.yaml'] as const;
+/** Spec filenames in a codeberg directory, first match wins. */
+export const DBMCP_SPEC_NAMES = ['spec.yml', 'spec.yaml'] as const;
+
+/** The spec file to use in dir: the first name that exists, otherwise spec.yml. */
+export function dbmcpSpecName(dir: string, exists: (path: string) => boolean): (typeof DBMCP_SPEC_NAMES)[number] {
+  return DBMCP_SPEC_NAMES.find((name) => exists(join(dir, name))) ?? DBMCP_SPEC_NAMES[0];
+}
 
 const WALK_LIMIT = 8;
-
-function flag(value: string | undefined, fallback: boolean): boolean {
-  if (value == null || value.trim() === '') return fallback;
-
-  return !/^(0|false|off|no)$/i.test(value.trim());
-}
-
-function expandHome(p: string, home: string): string {
-  if (p === '~') return home;
-
-  if (p.startsWith('~/')) return join(home, p.slice(2));
-
-  return p;
-}
 
 function stringEnv(env: NodeJS.ProcessEnv): Record<string, string> {
   const out: Record<string, string> = {};
@@ -98,7 +90,7 @@ export interface BuiltinDatabaseResult {
  */
 export function builtinDatabaseServer(opts: BuiltinDatabaseOptions): BuiltinDatabaseResult {
   const warnings: string[] = [];
-  if (!flag(opts.env.CODEBERG_DBMCP_USE, false)) return { warnings };
+  if (!envFlag(opts.env, 'CODEBERG_DBMCP_USE', false)) return { warnings };
 
   const exists = opts.io?.exists ?? existsSync;
   const cwd = opts.io?.cwd ?? process.cwd();
@@ -139,7 +131,7 @@ function specHint(opts: BuiltinDatabaseOptions): string {
   const explicit = opts.env.CODEBERG_DBMCP_SPEC?.trim();
   if (explicit) return expandHome(explicit, opts.userHome);
 
-  return SPEC_NAMES.map((name) => join(opts.home, name)).join(' or ');
+  return DBMCP_SPEC_NAMES.map((name) => join(opts.home, name)).join(' or ');
 }
 
 function resolveSpec(
@@ -155,12 +147,9 @@ function resolveSpec(
     return exists(abs) ? abs : undefined;
   }
 
-  for (const name of SPEC_NAMES) {
-    const path = join(opts.home, name);
-    if (exists(path)) return path;
-  }
+  const name = DBMCP_SPEC_NAMES.find((candidate) => exists(join(opts.home, candidate)));
 
-  return undefined;
+  return name ? join(opts.home, name) : undefined;
 }
 
 function resolveBinary(

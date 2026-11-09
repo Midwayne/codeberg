@@ -5,10 +5,10 @@ import { WorkspaceConversation } from './workspace-conversation';
 import { useWorkspaceSession } from '../../sessions/use-workspace-session';
 import { useState, type ReactNode } from 'react';
 
-import type { CatalogModel } from '../../lib/models';
-import { Dialog } from '../ui';
+import type { CatalogModel } from '@agent/core/model-types.js';
+import { Dialog } from '../dialog';
 
-import { useMediaQuery } from '../../lib/use-media-query';
+import { useDesktopLayout } from '../../lib/use-media-query';
 import { useScheduledChatNavigation } from '../../sessions/use-scheduled-chat-navigation';
 
 /**
@@ -42,7 +42,7 @@ export function useWorkspaceView({
   const session = useWorkspaceSession();
   useScheduledChatNavigation(session.resume);
   const [jump, setJump] = useState<{ sessionId: string; messageId: string; nonce: number }>();
-  const desktop = useMediaQuery('(min-width: 768px)');
+  const desktop = useDesktopLayout();
   const sidebar = (
     <WorkspaceSidebar
       {...session}

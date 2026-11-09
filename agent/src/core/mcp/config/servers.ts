@@ -1,4 +1,5 @@
 import { isAbsolute, join } from 'node:path';
+import { isRecord } from '../../record.js';
 import type {
   McpInterpolateContext,
   McpServer,
@@ -15,7 +16,6 @@ import {
   interpolateMap,
   interpolateMcpString,
   isExplicitFalse,
-  isRecord,
   isTruthy,
   neverKind,
   normalizeKind,

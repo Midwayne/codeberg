@@ -1,9 +1,9 @@
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import { parseDocument } from 'yaml';
+import { modelsCatalogPath, modelSettingsPath } from '../model-types.js';
+import { readOptionalText } from '../learning/fs.js';
+import { readModelsDocument } from '../models-document.js';
 import { codebergHome } from '../paths.js';
+import { record } from '../record.js';
 import type { DecisionApi, DecisionModel } from './types.js';
-import { record } from './validation.js';
 
 const DEFAULTS: Record<string, { api: DecisionApi; endpoint: string; key: string }> = {
   openai: { api: 'openai', endpoint: 'https://api.openai.com/v1/decisions', key: 'OPENAI_API_KEY' },
@@ -20,19 +20,10 @@ export async function loadDecisionCatalog(
   path: string,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<DecisionCatalog> {
-  let raw: string;
-  try {
-    raw = await readFile(path, 'utf8');
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  const file = await readModelsDocument(path);
+  if (!file.found) return { decisionModels: [], decisions: null };
 
-    return { decisionModels: [], decisions: null };
-  }
-
-  const document = parseDocument(raw, { uniqueKeys: true });
-  if (document.errors.length) throw new Error(`invalid models.yml: ${document.errors[0].message}`);
-
-  const root = record(document.toJS());
+  const root = record(file.value);
   const decisionModels = parseProviders(root?.providers);
   const selected = root?.decisions;
   if (selected !== undefined && selected !== null &&
@@ -105,13 +96,9 @@ export function resolveDecision(catalog: DecisionCatalog, stored: unknown): stri
 /** CLI and embedded agents use the same saved choice as the browser. */
 export async function configuredDecision(env: NodeJS.ProcessEnv): Promise<DecisionModel | null> {
   const home = codebergHome(env);
-  const catalog = await loadDecisionCatalog(join(home, 'models.yml'), env);
-  let stored: unknown;
-  try {
-    stored = record(JSON.parse(await readFile(join(home, 'model-settings.json'), 'utf8')))?.decisions;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-  }
+  const catalog = await loadDecisionCatalog(modelsCatalogPath(home), env);
+  const raw = await readOptionalText(modelSettingsPath(home));
+  const stored = raw === undefined ? undefined : record(JSON.parse(raw))?.decisions;
 
   return catalog.decisionModels.find((item) => item.key === resolveDecision(catalog, stored)) ?? null;
 }

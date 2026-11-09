@@ -29,6 +29,9 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"codeberg.org/codeberg/launcher/internal/deps"
+	"codeberg.org/codeberg/launcher/internal/paths"
 )
 
 const repoURL = "https://github.com/searxng/searxng.git"
@@ -47,6 +50,11 @@ type layout struct {
 	ready    string // marker written once deps are installed
 }
 
+// Dir is the managed SearXNG directory under home.
+func Dir(home string) string {
+	return layoutFor(home).base
+}
+
 func layoutFor(home string) layout {
 	base := filepath.Join(home, "searxng")
 	return layout{
@@ -61,18 +69,8 @@ func layoutFor(home string) layout {
 
 func (l layout) python() string { return filepath.Join(l.venv, "bin", "python") }
 
-// hostPython finds a system python to build the venv from.
-func hostPython() (string, bool) {
-	for _, name := range []string{"python3", "python"} {
-		if p, err := exec.LookPath(name); err == nil {
-			return p, true
-		}
-	}
-	return "", false
-}
-
 // Available reports whether SearXNG could be installed here (a host python exists).
-func Available() bool { _, ok := hostPython(); return ok }
+func Available() bool { _, ok := deps.PythonBin(); return ok }
 
 // Installed reports whether the managed install is complete: the venv and source
 // checkout exist AND the dependencies finished installing (the `.ready` marker).
@@ -80,7 +78,7 @@ func Available() bool { _, ok := hostPython(); return ok }
 // reports false so the next run retries it.
 func Installed(home string) bool {
 	l := layoutFor(home)
-	return fileExists(l.python()) && dirExists(l.src) && fileExists(l.ready)
+	return paths.IsFile(l.python()) && paths.IsDir(l.src) && paths.IsFile(l.ready)
 }
 
 // EnsureInstalled installs the managed SearXNG, or upgrades it when upgrade is
@@ -94,7 +92,7 @@ func EnsureInstalled(ctx context.Context, home string, upgrade bool, w io.Writer
 	if Installed(home) && !upgrade {
 		return nil
 	}
-	py, ok := hostPython()
+	py, ok := deps.PythonBin()
 	if !ok {
 		return fmt.Errorf("python3 not found (needed to install SearXNG for web_search)")
 	}
@@ -107,7 +105,7 @@ func EnsureInstalled(ctx context.Context, home string, upgrade bool, w io.Writer
 	}
 
 	// 1. Source checkout (shallow). Update it on upgrade.
-	if dirExists(l.src) {
+	if paths.IsDir(l.src) {
 		if upgrade {
 			_ = exec.CommandContext(ctx, git, "-C", l.src, "pull", "--ff-only").Run()
 		}
@@ -116,7 +114,7 @@ func EnsureInstalled(ctx context.Context, home string, upgrade bool, w io.Writer
 	}
 
 	// 2. Virtualenv.
-	if !fileExists(l.python()) {
+	if !paths.IsFile(l.python()) {
 		if err := runCmd(ctx, w, l.base, py, "-m", "venv", l.venv); err != nil {
 			return fmt.Errorf("creating venv (install python3-venv?): %w", err)
 		}
@@ -340,14 +338,4 @@ func runCmd(ctx context.Context, w io.Writer, dir, name string, args ...string) 
 	}
 
 	return cmd.Run()
-}
-
-func fileExists(p string) bool {
-	fi, err := os.Stat(p)
-	return err == nil && !fi.IsDir()
-}
-
-func dirExists(p string) bool {
-	fi, err := os.Stat(p)
-	return err == nil && fi.IsDir()
 }

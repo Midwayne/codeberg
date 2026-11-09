@@ -1,5 +1,6 @@
-import { memorySourceState, sourceKey, type SourceObservation } from '../memory-source.js';
-import { stableId } from '../store.js';
+import { memorySourceState } from '../memory-source.js';
+import { sourceKey, type SourceObservation } from '../memory-source/reading.js';
+import { stableId } from '../store/identity.js';
 import { syncWatcher, wakeWorker } from './background.js';
 import type { LearningServiceState } from './state.js';
 

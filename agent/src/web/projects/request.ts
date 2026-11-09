@@ -1,10 +1,16 @@
+import { HttpError } from '../../core/api/errors.js';
 import type { ProjectRequestRouterState } from './state.js';
 
-export class ProjectServiceTimeout extends Error {
-  readonly status = 504;
+/** A project with active background work cannot be disposed or deleted yet. */
+export class ProjectBusyError extends HttpError {
+  constructor() {
+    super(409, 'Project is busy. Try again after background jobs finish.');
+  }
+}
 
+export class ProjectServiceTimeout extends HttpError {
   constructor(method: string) {
-    super(method === 'GET'
+    super(504, method === 'GET'
       ? 'Project service did not respond in time. Codeberg may be busy indexing. Try again shortly.'
       : 'Project operation did not respond in time and may still complete. Refresh projects before retrying.');
   }

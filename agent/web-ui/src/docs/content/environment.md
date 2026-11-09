@@ -18,7 +18,7 @@ CODEBERG_CONTEXT_WINDOW=32768 codeberg
 
 > **Restart after changing startup values.** Saving an unknown key in the launcher config does not make it available to a child process. For environment-only settings, export the value before launch. See [Configuration](/docs/configuration) for precedence and editable files.
 
-Use `true` or `false` for switches, plain integers for ports and token counts, and absolute paths for files and directories. Values inside the saved config are literal text; it is not a shell script and does not expand `$VARIABLE` expressions. API keys and connection strings are secrets.
+Use `true` or `false` for switches (agent switches also accept `1`/`on`/`yes` and `0`/`off`/`no` in any letter case; an unrecognized value keeps the switch's default), plain integers for ports and token counts, and absolute paths for files and directories. Values inside the saved config are literal text; it is not a shell script and does not expand `$VARIABLE` expressions. API keys and connection strings are secrets.
 
 ## Home, projects, and startup
 
@@ -44,7 +44,7 @@ Browser projects and the launcher's repository registry are separate catalogs. *
 | --- | --- | --- |
 | `CODEBERG_MODEL` | Optional `provider:model` | Initial chat model. A usable `models.yml` catalog can supply the available choices instead. |
 | `CODEBERG_SUBAGENT_MODEL` | Defaults to the chat model | Initial model for background extraction and learning work. |
-| `CODEBERG_REASONING` | Provider default when unset | `provider-default`, `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. Actual support depends on the selected provider and model. |
+| `CODEBERG_REASONING` | Provider default when unset | `provider-default`, `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. Actual support depends on the selected provider and model. History summaries on the chat model use the same effort; a different summarizer uses its provider default. |
 | `OPENAI_API_KEY` | Secret | Credential for the `openai` provider. |
 | `TYPESAFE_API_KEY` | Secret | Credential for TypeSafe decision models. |
 | `OPENROUTER_API_KEY` | Secret | Credential for OpenRouter decision models. |
@@ -77,7 +77,7 @@ For catalog syntax, local server setup, and saved model choices, see [Models and
 | Variable | Value or default | What it changes |
 | --- | --- | --- |
 | `CODEBERG_WEB_PORT` | Port; `48088` | Browser UI server. |
-| `CODEBERG_HTTP_PORT` | Port; `48080` through the launcher | Daemon HTTP API. Running `codeberg-d` directly defaults to `8080`. |
+| `CODEBERG_HTTP_PORT` | `48080` | Daemon HTTP API, for the launcher and for `codeberg-d` started directly. |
 | `CODEBERG_DAEMON_URL` | `http://127.0.0.1:<daemon port>` | Daemon endpoint used by the agent. Useful when running components separately. |
 | `CBERG_SOCKET` | Path; `/tmp/codeberg-index.sock` | Indexer IPC socket. Separate daemon instances need separate socket paths. |
 | `CBERG_INDEX_BIN` | Optional executable path | Override the `cberg-index` binary. Normally found beside the daemon or on `PATH`. |
@@ -95,6 +95,7 @@ For catalog syntax, local server setup, and saved model choices, see [Models and
 | `CODEBERG_EMBEDDING_MODEL` | Registry ID; `embeddinggemma-2-fp32-mlx` on Apple Silicon, `embeddinggemma-2` elsewhere | Select an embedding model and backend. Existing selections and Jina installations are retained. The first-run prompt also offers Qwen variants and `jina-onnx`. |
 | `CBERG_MODEL` | Optional model path | Custom ONNX model path when no registry selection is set. Otherwise the launcher resolves the selected model. |
 | `CBERG_INDEX_PATH` | Index base path; managed under Codeberg home | Base for vector files and sidecars. Registry selections can use their own model-specific paths; project indexes are isolated. |
+| `CODEBERG_INDEX_NAMESPACE` | Derived from the embedding model; empty for Jina | Directory under each project's `index/` so two embedding models do not share sidecars. Leave unset unless you need to pin a namespace. An explicit `CBERG_INDEX_PATH` stays where it is, and a namespace moves that file into a sibling directory. |
 
 **Environment only** for storage and performance controls:
 
@@ -121,7 +122,7 @@ Remote vector storage still needs the local sidecars and an embedding model. Cha
 | Variable | Value or default | What it changes |
 | --- | --- | --- |
 | `CODEBERG_WEB_USE` | Boolean; `true` | Master switch for web tools. Search also requires its separate opt-in. |
-| `CODEBERG_WEB_SEARCH_USE` | Boolean; `false` | Opt into web search. Sets the initial browser preference; a saved Settings → Tools switch takes precedence. Direct URL fetching is independent. |
+| `CODEBERG_WEB_SEARCH_USE` | Boolean; `false` | Opt into web search; any value other than `0`, `false`, `off`, or `no` enables it. Sets the initial browser preference; a saved Settings → Tools switch takes precedence. Direct URL fetching is independent. |
 | `CODEBERG_SEARXNG_URL` | Optional URL | Use an existing SearXNG service when search is enabled. Otherwise the launcher installs and manages a local instance on demand. |
 | `CODEBERG_SEARXNG_PORT` | Port; `48089` | Preferred managed SearXNG port; the launcher can choose a free port if occupied. |
 
@@ -129,7 +130,7 @@ Remote vector storage still needs the local sidecars and an embedding model. Cha
 
 | Variable | Value or default | What it changes |
 | --- | --- | --- |
-| `CODEBERG_WEB_ALLOW_PRIVATE` | Boolean; `false` | Allow `fetch_url` to reach localhost and private network hosts. |
+| `CODEBERG_WEB_ALLOW_PRIVATE` | Boolean; `false` | Allow `fetch_url` to reach localhost and private network hosts. Any value other than `0`, `false`, `off`, or `no` enables it. |
 | `CODEBERG_WEB_MAX_BYTES` | Positive integer; `1500000` | Maximum raw response body size. |
 | `CODEBERG_WEB_MAX_CHARS` | Positive integer; `20000` | Maximum extracted text length. |
 | `CODEBERG_WEB_TIMEOUT_MS` | Milliseconds; `15000` | Web request timeout. |
@@ -145,7 +146,7 @@ Remote vector storage still needs the local sidecars and an embedding model. Cha
 | `CODEBERG_BROWSER_VISION` | Boolean; `false` | Initial screenshot-access preference and terminal opt-in. Settings → Tools → Browser vision takes precedence in the web app. |
 | `CODEBERG_BROWSER_MODEL` | `provider:model`; current chat model | Separate Browser Use model. Supports openai, anthropic, google, ollama, and llamacpp with their existing provider credentials/endpoints. |
 | `CODEBERG_BROWSER_UV` | Executable path; `uv` on PATH | uv used to run the pinned Browser Use package with Python >=3.11 and <4.0; downloads Python only if no compatible interpreter is available. |
-| `CODEBERG_BROWSER_HEADLESS` | `true` or `1`; `false` | Run the task browser without a visible window. Useful on Linux without a desktop. |
+| `CODEBERG_BROWSER_HEADLESS` | Boolean; `false` | Run the task browser without a visible window. Useful on Linux without a desktop. |
 
 `CODEBERG_WEB_USE=false` also disables browser delegation. Browser Use does not use the managed SearXNG service or Browser Use Cloud. Its model calls are currently outside Codeberg's Model usage totals. Explicitly retained browser sessions reuse their original model/provider settings until closed. Codeberg waits for delegated tasks without a wall-clock deadline or fixed task step limit; **Stop**, disabling Browser Use, and shutdown still cancel active work.
 
@@ -166,7 +167,7 @@ Browser sessions require a model declared with `inputs: [text, vision]` in `mode
 
 > **Extension credentials come from the process environment.** For `${env:MCP_TOKEN}` in `mcp.json`, or `${POSTGRES_URI}` in a database spec, export that variable before starting Codeberg. Arbitrary secret names in the saved launcher config are not forwarded automatically.
 
-**Environment only:** `CODEBERG_CANVAS_USE=true` enables the initial canvas capability. The project's canvas setting in the app can subsequently change it.
+**Environment only:** `CODEBERG_CANVAS_USE=true` enables the initial canvas capability. It uses the same boolean vocabulary as the other `CODEBERG_*` switches. The project's canvas setting in the app can subsequently change it.
 
 ## Advanced component and developer settings
 

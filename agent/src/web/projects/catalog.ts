@@ -1,18 +1,27 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { codebergHome } from '../../core/paths.js';
-import type { Project } from '../../core/projects.js';
+import { projectCatalogPath, type Project, type ProjectCatalog } from '../../core/projects/types.js';
 import { openConfigDirectory } from '../config-directory.js';
-import { readJson, requireJsonMutation, sameOrigin, sendJson, sendText } from '../http.js';
+import { readJson, requireJsonMethod, sendJson, sendText } from '../http.js';
 import type { ProjectRequestRouterState } from './state.js';
 import { daemon, requestProjectService } from './request.js';
+
+/** Catalog JSON with UI fields the browser always expects. */
+export function catalogPayload(state: ProjectRequestRouterState, catalog: ProjectCatalog) {
+  return {
+    ...catalog,
+    catalogPath: projectCatalogPath(state.home),
+    projects: catalog.projects.map(state.projectInfo),
+  };
+}
 
 export async function openConfig(
   state: ProjectRequestRouterState,
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
-  if (!requireJsonMutation(req, res, 'POST', 'config actions')) return;
+  if (!requireJsonMethod(req, res, 'POST')) return;
 
   const path = resolve(state.options.home ?? codebergHome());
   try {
@@ -32,12 +41,7 @@ export async function pickDirectory(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
-  if (req.method !== 'POST') return sendText(res, 405, 'method not allowed');
-
-  if (!sameOrigin(req)) return sendText(res, 403, 'cross-origin folder selection is not allowed');
-
-  if (!req.headers['content-type']?.startsWith('application/json'))
-    return sendText(res, 415, 'application/json required');
+  if (!requireJsonMethod(req, res, 'POST')) return;
 
   const body = await readJson(req);
   const controller = new AbortController();
@@ -67,14 +71,10 @@ export async function projects(
   if (req.method === 'GET') {
     state.catalog = await daemon(state, '/projects');
 
-    return sendJson(res, 200, {
-      ...state.catalog,
-      catalogPath: join(state.home, 'projects.json'),
-      projects: state.catalog.projects.map(state.projectInfo),
-    });
+    return sendJson(res, 200, catalogPayload(state, state.catalog));
   }
 
-  if (!requireJsonMutation(req, res, 'POST', 'project changes')) return;
+  if (!requireJsonMethod(req, res, 'POST')) return;
 
   const project = await daemon(state, '/projects', {
     method: 'POST',
@@ -93,9 +93,9 @@ export async function renameProject(
   res: ServerResponse,
   id: string,
 ): Promise<void> {
-  if (!requireJsonMutation(req, res, 'PATCH', 'project changes')) return;
+  if (!requireJsonMethod(req, res, 'PATCH')) return;
 
-  // Refresh the this.catalog so a project added by another tab is addressable.
+  // Refresh the catalog so a project added by another tab is addressable.
   state.catalog = await daemon(state, '/projects');
   if (!state.catalog.projects.some((project) => project.id === id))
     return sendText(res, 404, 'project not found');

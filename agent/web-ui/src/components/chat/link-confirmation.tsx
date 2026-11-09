@@ -3,7 +3,8 @@ import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { LinkSafetyModalProps } from 'streamdown';
 
-import { CopyButton, Dialog, IconButton } from '../ui';
+import { CopyButton, IconButton } from '../ui';
+import { Dialog } from '../dialog';
 
 /** Keep the confirmation outside transcript paint containment and scroll clipping. */
 export function renderLinkConfirmation(props: LinkSafetyModalProps) {

@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"codeberg.org/codeberg/daemon/internal/indexctl"
@@ -56,7 +55,6 @@ func filterLexicalKind(ctx context.Context, idx indexctl.Indexer, matches []work
 	// when the caller requested a kind; omit untyped/unindexed lines then.
 	filtered := make([]workspace.GrepMatch, 0, len(matches))
 	outlines := make(map[string][]indexctl.SearchResult)
-	kinds := make(map[string]string)
 
 	for _, match := range matches {
 		key := match.Repo + "\x00" + match.Path
@@ -76,37 +74,11 @@ func filterLexicalKind(ctx context.Context, idx indexctl.Indexer, matches []work
 				continue
 			}
 
-			kind, err := outlineChunkKind(ctx, idx, match.Repo, chunk, kinds)
-			if err != nil {
-				return nil, err
-			}
-
-			if strings.EqualFold(kind, requestedKind) {
+			if strings.EqualFold(chunk.Kind, requestedKind) {
 				filtered = append(filtered, match)
 				break
 			}
 		}
 	}
 	return filtered, nil
-}
-
-// outlineChunkKind prefers the kind carried on the outline hit and only falls
-// back to fetching the chunk (memoized in kinds) for indexers that omit it.
-func outlineChunkKind(ctx context.Context, idx indexctl.Indexer, repo string, chunk indexctl.SearchResult, kinds map[string]string) (string, error) {
-	if chunk.Kind != "" {
-		return chunk.Kind, nil
-	}
-
-	chunkKey := fmt.Sprintf("%s\x00%d", repo, chunk.ID)
-	if kind, ok := kinds[chunkKey]; ok {
-		return kind, nil
-	}
-
-	detail, err := idx.GetChunk(ctx, repo, chunk.ID)
-	if err != nil {
-		return "", err
-	}
-
-	kinds[chunkKey] = detail.Kind
-	return detail.Kind, nil
 }

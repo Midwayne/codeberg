@@ -1,17 +1,12 @@
-import { interactionRevisions } from '../revision.js';
-import { KNOWLEDGE_EXTRACTION_VERSION } from '../worker.js';
+import { isDatasetSignal } from '../dataset-extract.js';
+import { attemptInteractions, interactionRevisions } from '../revision.js';
+import { KNOWLEDGE_EXTRACTION_VERSION } from '../worker/constants.js';
 import type { LearningServiceState } from './state.js';
 
 /** Replay the feedback-to-job handoff if the process stopped between the two durable writes. */
 export async function reconcileJobs(state: LearningServiceState): Promise<void> {
   const events = await state.store.events();
-  const interactionForAttempt = new Map(
-    events.flatMap((event) =>
-      event.type === 'attempt_recorded'
-        ? [[event.attempt.attempt_id, event.attempt.interaction_id] as const]
-        : [],
-    ),
-  );
+  const interactionForAttempt = attemptInteractions(events);
 
   const revisions = interactionRevisions(events);
   const everSolved = new Set<string>();
@@ -34,12 +29,8 @@ export async function reconcileJobs(state: LearningServiceState): Promise<void> 
 
     if (everSolved.has(id)) latestKnowledge.set(id, event.timestamp);
 
-    if (
-      event.type === 'feedback_recorded' ||
-      (event.attempt.answer.trim() && event.attempt.tools_invoked.length)
-    ) {
+    if (event.type === 'feedback_recorded' || isDatasetSignal(event.attempt))
       latestDataset.set(id, event.timestamp);
-    }
   }
 
   for (const [id, timestamp] of latestKnowledge) {

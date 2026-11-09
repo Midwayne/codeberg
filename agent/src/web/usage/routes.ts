@@ -1,12 +1,12 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { sendJson, sendText } from '../http.js';
-import { USAGE_KINDS, type UsageRecord } from '../../core/usage.js';
+import { requireMethod, sendJson, sendText, uncached } from '../http.js';
+import { USAGE_KINDS, usageProjectLabel, type UsageRecord } from '../../core/usage.js';
 import type { UsageStore } from './store.js';
 import { summarizeUsage } from './summary.js';
 
 export async function routeUsage(req: IncomingMessage, res: ServerResponse, store: UsageStore, url: URL) {
-  res.setHeader('Cache-Control', 'no-store');
-  if (req.method !== 'GET') return sendText(res, 405, 'method not allowed');
+  uncached(res);
+  if (!requireMethod(req, res, 'GET')) return;
 
   const range = parseRange(url.searchParams);
   if (!range) return sendText(res, 400, 'Choose valid UTC dates within one year and a positive page number.');
@@ -53,7 +53,7 @@ function validDate(value: string) {
 
 function usageCsv(rows: UsageRecord[]) {
   const header = 'Date (UTC),Project,Type,Model,Model key,Input tokens,Output tokens';
-  const lines = rows.map((row) => [new Date(row.timestamp).toISOString(), row.projectName ?? row.project ?? 'Unassigned',
+  const lines = rows.map((row) => [new Date(row.timestamp).toISOString(), usageProjectLabel(row),
     row.kind, row.model, row.key, row.inputTokens, row.outputTokens]
     .map(csvCell).join(','));
 

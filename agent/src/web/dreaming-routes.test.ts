@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 import { LearningService } from '../core/learning/service.js';
 import { routeDreaming } from './dreaming-routes.js';
+import { admitRequest } from './http.js';
 
 let server: Server | undefined;
 let learning: LearningService | undefined;
@@ -27,6 +28,8 @@ async function fixture() {
   });
   await learning.initialize();
   server = createServer((req, res) => {
+    if (!admitRequest(req, res)) return;
+
     void routeDreaming(req, res, learning!, new URL(req.url!, 'http://localhost')).catch(() => {
       res.writeHead(500);
       res.end();

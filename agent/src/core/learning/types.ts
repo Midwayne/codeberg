@@ -1,3 +1,6 @@
+import type { KNOWLEDGE_CATEGORIES } from './preferences.js';
+import { JOB_STATUSES, type JobStatus } from './queue/statuses.js';
+
 export const FEEDBACK_LABELS = [
   'not_useful',
   'partially_useful',
@@ -100,7 +103,7 @@ export interface FeedbackEvent extends LearningEventBase {
 
 export type LearningEvent = AttemptEvent | FeedbackEvent;
 
-export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed';
+export { JOB_STATUSES, type JobStatus };
 
 export type FailureCategory =
   | 'NETWORK_ERROR'
@@ -132,7 +135,7 @@ export interface KnowledgeJob {
   rerun_requested?: boolean;
 }
 
-export type KnowledgeCategory = 'services' | 'flows' | 'concepts' | 'debugging';
+export type KnowledgeCategory = (typeof KNOWLEDGE_CATEGORIES)[number];
 
 export type KnowledgeConfidence = 'low' | 'medium' | 'high';
 
@@ -183,15 +186,4 @@ export interface KnowledgeArtifact {
   confidence: KnowledgeConfidence;
   status: KnowledgeStatus;
   body: string;
-}
-
-export interface LearningSearchHit {
-  score: number;
-  attempt: AttemptRecord;
-  feedback?: FeedbackRecord;
-}
-
-export interface KnowledgeSearchHit {
-  score: number;
-  artifact: KnowledgeArtifact;
 }

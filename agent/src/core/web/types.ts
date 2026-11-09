@@ -43,6 +43,30 @@ export interface WebDeps {
   fetchImpl: typeof fetch;
 }
 
+export const TOOL_SETTINGS_FILE = 'tool-settings.json';
+
+/** Fields stored in tool-settings.json. Browser flags are optional for older files. */
+export interface SavedToolPreferences {
+  webSearch: boolean;
+  browserUse?: boolean;
+  browserVision?: boolean;
+}
+
+export function savedToolPreferences(value: unknown): SavedToolPreferences | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+
+  const stored = value as SavedToolPreferences;
+  if (
+    typeof stored.webSearch !== 'boolean' ||
+    (stored.browserUse !== undefined && typeof stored.browserUse !== 'boolean') ||
+    (stored.browserVision !== undefined && typeof stored.browserVision !== 'boolean')
+  ) {
+    return undefined;
+  }
+
+  return stored;
+}
+
 /** Global browser tool preferences and managed search availability. */
 export interface ToolSettings {
   browserUse: boolean;

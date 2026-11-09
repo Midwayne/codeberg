@@ -2,7 +2,7 @@ import { mkdir, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeJsonAtomic } from '../fs.js';
 import type { FailureCategory, KnowledgeJob } from '../types.js';
-import { BACKOFF_MS, isTransientFailure, MAX_ATTEMPTS } from './policy.js';
+import { BACKOFF_MS, willRetry } from './policy.js';
 import type { DurableJobQueueState } from './state.js';
 import { find, list, path, transition } from './storage.js';
 
@@ -88,7 +88,6 @@ export async function fail(
   job: KnowledgeJob,
   category: FailureCategory,
   error: string,
-  transient = isTransientFailure(category),
 ): Promise<void> {
   const current = await find(state, job.job_id);
   if (current?.status === 'processing' && current.rerun_requested) {
@@ -103,7 +102,7 @@ export async function fail(
     return;
   }
 
-  const permanent = !transient || job.attempt_count >= MAX_ATTEMPTS;
+  const permanent = !willRetry(category, job.attempt_count);
   const delay = BACKOFF_MS[Math.min(Math.max(job.attempt_count - 1, 0), BACKOFF_MS.length - 1)];
   const next: KnowledgeJob = {
     ...job,

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { applyTheme, loadTheme, setTheme, THEMES, THEME_STORAGE_KEY } from './themes';
+import { applyTheme, loadTheme, setTheme, THEME_STORAGE_KEY } from './themes';
+import { THEMES } from './theme-palettes';
 
 describe('themes', () => {
   const properties = new Map<string, string>();

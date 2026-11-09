@@ -1,17 +1,20 @@
+import type { ProjectInfo } from '@agent/core/api/projects.js';
+import { PROJECT_NAME_MAX } from '../lib/project-name.js';
+import { jsonRequest, responseJson } from '../lib/response.js';
 import { createFolderPicker } from './folder-picker';
 
 import { control, button } from './project-styles';
 import { X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { Dialog, IconButton } from './ui';
-import type { Project } from '../lib/project-api';
+import { Dialog } from './dialog';
+import { IconButton } from './ui';
 import type { AddProjectViewProps } from './projects';
 import { ProjectDirectoryField } from './project-directory';
 
 export type AddProjectProps = {
   initialPath?: string;
   onClose: () => void;
-  onAdded: (project: Project) => Promise<void>;
+  onAdded: (project: ProjectInfo) => Promise<void>;
 };
 
 export function AddProject(props: AddProjectProps) {
@@ -23,7 +26,7 @@ export function AddProject(props: AddProjectProps) {
 export type AddProjectOptions = {
   initialPath?: string;
   onClose: () => void;
-  onAdded: (project: Project) => Promise<void>;
+  onAdded: (project: ProjectInfo) => Promise<void>;
 };
 
 export function useAddProject({ initialPath, onClose, onAdded }: AddProjectOptions) {
@@ -148,14 +151,9 @@ export function createProjectAddSubmit({
     if (choosing || busy || !root.trim()) return;
     setBusy(true);
     setError('');
-    void fetch('/api/projects', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, root }),
-    })
+    void fetch('/api/projects', jsonRequest('POST', { name, root }))
       .then(async (response) => {
-        if (!response.ok) throw new Error(await response.text());
-        await onAdded((await response.json()) as Project);
+        await onAdded(await responseJson<ProjectInfo>(response));
       })
       .catch((reason: unknown) => setError(String(reason)))
       .finally(() => setBusy(false));
@@ -172,7 +170,7 @@ function OptionalProjectName({ state }: OptionalProjectNameProps) {
       </span>
       <input
         value={state.name}
-        maxLength={120}
+        maxLength={PROJECT_NAME_MAX}
         onChange={(event) => state.setName(event.target.value)}
         className={control}
       />

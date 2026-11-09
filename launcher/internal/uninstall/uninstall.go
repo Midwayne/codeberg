@@ -14,6 +14,11 @@ import (
 	"strings"
 
 	"codeberg.org/codeberg/launcher/internal/config"
+	"codeberg.org/codeberg/launcher/internal/daemonapi"
+	"codeberg.org/codeberg/launcher/internal/embedding"
+	"codeberg.org/codeberg/launcher/internal/paths"
+	"codeberg.org/codeberg/launcher/internal/registry"
+	"codeberg.org/codeberg/launcher/internal/searxng"
 )
 
 // Options controls prompting.
@@ -34,27 +39,25 @@ func Run(c *config.Config, o Options) error {
 
 	// 2. The embedding model + ONNX weights the launcher downloaded.
 	modelDir := filepath.Dir(c.EmbedModel)
-	if under(modelDir, c.Home) && dirExists(modelDir) {
+	if under(modelDir, c.Home) && paths.IsDir(modelDir) {
 		if p.confirm(fmt.Sprintf("Remove the embedding model and ONNX weights at %s (~160MB)?", modelDir)) {
 			removePath(modelDir, "embedding model")
 			_ = os.Remove(filepath.Dir(modelDir)) // drop now-empty models/ parent
 		} else {
 			fmt.Printf("  kept %s\n", modelDir)
 		}
-	} else if dirExists(modelDir) {
+	} else if paths.IsDir(modelDir) {
 		// A user-pointed model outside the managed home — don't touch it.
 		fmt.Printf("  note: embedding model is outside %s (%s); left untouched\n", c.Home, modelDir)
 	}
 
-	// 3. The rest of the launcher's managed data.
-	leftovers := existing(
-		c.ConfigPath,
-		filepath.Join(c.Home, "index"),
-		filepath.Join(c.Home, "logs"),
-		filepath.Join(c.Home, "searxng"),
-	)
+	// 3. Launcher files plus the directories codeberg-d says it owns.
+	leftovers, storageNote := managedData(c)
+	if storageNote != "" {
+		fmt.Printf("  note: %s\n", storageNote)
+	}
 	if len(leftovers) > 0 {
-		if p.confirm(fmt.Sprintf("Remove launcher data (config, index, logs, web search) under %s?", c.Home)) {
+		if p.confirm(fmt.Sprintf("Remove launcher and project data under %s?", c.Home)) {
 			for _, path := range leftovers {
 				removePath(path, filepath.Base(path))
 			}
@@ -77,6 +80,31 @@ func Run(c *config.Config, o Options) error {
 
 // removeCommand deletes the `codeberg` symlink/binary we installed onto PATH,
 // only when it actually points at (or is) this executable.
+// managedData lists launcher files and, when codeberg-d can answer, the
+// directories the daemon owns. storageNote explains a missing report.
+func managedData(c *config.Config) ([]string, string) {
+	candidates := []string{
+		c.ConfigPath,
+		filepath.Join(c.Home, "logs"),
+		filepath.Join(c.Home, "models"),
+		searxng.Dir(c.Home),
+		paths.McpFile(c.Home),
+		registry.Path(c.Home),
+	}
+	candidates = append(candidates, embedding.VenvDirs(c.Home)...)
+
+	root, _ := c.ResolveRoot()
+	report, err := daemonapi.Storage(daemonapi.Binary(root), c.Home)
+	note := ""
+	if err != nil {
+		note = "project storage was left in place because codeberg-d could not report it"
+	} else {
+		candidates = append(candidates, report.Owned...)
+	}
+
+	return existing(candidates...), note
+}
+
 func removeCommand(p *prompter) {
 	self := resolve(selfPath())
 	removedAny, foundAny := false, false
@@ -92,7 +120,7 @@ func removeCommand(p *prompter) {
 		mine := false
 		if fi.Mode()&os.ModeSymlink != 0 {
 			mine = resolve(link) == self
-		} else if abs(link) == self {
+		} else if paths.Absolute(link) == self {
 			mine = true
 		}
 		// A codeberg that isn't the one we're running from is likely a second or
@@ -244,19 +272,12 @@ func resolve(p string) string {
 	if r, err := filepath.EvalSymlinks(p); err == nil {
 		return r
 	}
-	return abs(p)
-}
-
-func abs(p string) string {
-	if a, err := filepath.Abs(p); err == nil {
-		return a
-	}
-	return p
+	return paths.Absolute(p)
 }
 
 // under reports whether path is inside dir.
 func under(path, dir string) bool {
-	rel, err := filepath.Rel(abs(dir), abs(path))
+	rel, err := filepath.Rel(paths.Absolute(dir), paths.Absolute(path))
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
@@ -268,19 +289,15 @@ func removePath(path, label string) {
 	fmt.Printf("✓ removed %s (%s)\n", label, path)
 }
 
-func existing(paths ...string) []string {
+func existing(candidates ...string) []string {
 	var out []string
-	for _, p := range paths {
-		if _, err := os.Stat(p); err == nil {
-			out = append(out, p)
+	for _, path := range candidates {
+		if paths.Exists(path) {
+			out = append(out, path)
 		}
 	}
-	return out
-}
 
-func dirExists(p string) bool {
-	fi, err := os.Stat(p)
-	return err == nil && fi.IsDir()
+	return out
 }
 
 func isEmptyDir(p string) bool {

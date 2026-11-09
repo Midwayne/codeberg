@@ -1,17 +1,18 @@
+import { join } from 'node:path';
+import { HttpError } from '../../core/api/errors.js';
 import { browserEnabled, browserVisionEnabled } from '../../core/browser/config.js';
 import { cancelBrowserTasks } from '../../core/browser/runner.js';
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import { writeJsonAtomic } from '../../core/learning/fs.js';
+import { readOptionalText, writeJsonAtomic } from '../../core/learning/fs.js';
+import { WriteLock } from '../../core/write-lock.js';
 import { codebergHome } from '../../core/paths.js';
 import { webConfigFromEnv } from '../../core/web/config.js';
-import type { ToolSettings } from '../../core/web/types.js';
+import { savedToolPreferences, TOOL_SETTINGS_FILE, type ToolSettings } from '../../core/web/types.js';
 
 type SearchStatus = { status: 'disabled' | 'starting' | 'ready' | 'error'; url?: string; message?: string };
 
-export class ToolSettingsError extends Error {
-  constructor(message: string, readonly status = 400) {
-    super(message);
+export class ToolSettingsError extends HttpError {
+  constructor(message: string, status = 400) {
+    super(status, message);
   }
 }
 
@@ -20,11 +21,11 @@ export class ToolSettingsStore {
   private readonly env: NodeJS.ProcessEnv;
   private readonly path: string;
   private readonly fetch: typeof fetch;
-  private writing: Promise<unknown> = Promise.resolve();
+  private readonly lock = new WriteLock();
 
   constructor(options: { home?: string; env?: NodeJS.ProcessEnv; fetch?: typeof fetch } = {}) {
     this.env = options.env ?? process.env;
-    this.path = join(options.home ?? codebergHome(this.env), 'tool-settings.json');
+    this.path = join(options.home ?? codebergHome(this.env), TOOL_SETTINGS_FILE);
     this.fetch = options.fetch ?? globalThis.fetch;
   }
 
@@ -72,28 +73,36 @@ export class ToolSettingsStore {
   }
 
   private serialize<T>(action: () => Promise<T>): Promise<T> {
-    const pending = this.writing.then(action);
-    this.writing = pending.catch(() => undefined);
-
-    return pending;
+    return this.lock.run(action);
   }
 
   private async preference(): Promise<{ webSearch: boolean; browserUse: boolean; browserVision: boolean }> {
+    const raw = await readOptionalText(this.path);
+    if (raw === undefined) {
+      return {
+        webSearch: webConfigFromEnv(this.env).searchEnabled,
+        browserUse: browserEnabled(this.env),
+        browserVision: browserVisionEnabled(this.env),
+      };
+    }
+
     try {
-      const stored = JSON.parse(await readFile(this.path, 'utf8'));
-      if (typeof stored?.webSearch !== 'boolean' ||
-        (stored.browserUse !== undefined && typeof stored.browserUse !== 'boolean') ||
-        (stored.browserVision !== undefined && typeof stored.browserVision !== 'boolean')) throw new SyntaxError('Invalid tool settings.');
+      const stored = savedToolPreferences(JSON.parse(raw));
+      if (!stored) throw new SyntaxError('Invalid tool settings.');
 
-      return { webSearch: stored.webSearch, browserUse: stored.browserUse ?? browserEnabled(this.env),
-        browserVision: stored.browserVision ?? browserVisionEnabled(this.env) };
+      return {
+        webSearch: stored.webSearch,
+        browserUse: stored.browserUse ?? browserEnabled(this.env),
+        browserVision: stored.browserVision ?? browserVisionEnabled(this.env),
+      };
     } catch (error) {
-      if (error instanceof SyntaxError)
-        throw new Error('Saved tool settings are invalid. Open the config directory, repair or remove tool-settings.json, and retry.');
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      if (error instanceof SyntaxError) {
+        throw new Error(
+          `Saved tool settings are invalid. Open the config directory, repair or remove ${TOOL_SETTINGS_FILE}, and retry.`,
+        );
+      }
 
-      return { webSearch: webConfigFromEnv(this.env).searchEnabled, browserUse: browserEnabled(this.env),
-        browserVision: browserVisionEnabled(this.env) };
+      throw error;
     }
   }
 

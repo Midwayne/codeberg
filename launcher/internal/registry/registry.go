@@ -13,6 +13,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"codeberg.org/codeberg/launcher/internal/paths"
 )
 
 // Entry is one registered repository: a stable human-facing key and the
@@ -24,6 +26,10 @@ type Entry struct {
 
 // Path returns the registry file inside home.
 func Path(home string) string { return filepath.Join(home, "repos") }
+
+// RootRecord is one "<key>\t<root>" line with no trailing newline.
+// The registry file and CODEBERG_ROOTS both use it.
+func RootRecord(e Entry) string { return e.Key + "\t" + e.Root }
 
 // Load reads the registry. A missing file is an empty registry. Malformed
 // lines are skipped, as are records repeating an earlier key or root, so a
@@ -96,7 +102,7 @@ func Select(home string, items []string, register bool) ([]Entry, error) {
 		if item == "" {
 			continue
 		}
-		if fi, statErr := os.Stat(item); statErr == nil && fi.IsDir() {
+		if paths.IsDir(item) {
 			if register {
 				e, err := Upsert(home, item)
 				if err != nil {
@@ -117,7 +123,7 @@ func Select(home string, items []string, register bool) ([]Entry, error) {
 			continue
 		}
 		if e, ok := byKey[item]; ok {
-			if fi, statErr := os.Stat(e.Root); statErr != nil || !fi.IsDir() {
+			if !paths.IsDir(e.Root) {
 				return nil, fmt.Errorf("registry: repo %q: root no longer exists: %s", item, e.Root)
 			}
 			add(e)
@@ -218,7 +224,7 @@ func appendEntry(home string, e Entry) error {
 	if len(prior) > 0 && prior[len(prior)-1] != '\n' {
 		prior = append(prior, '\n')
 	}
-	record := append(prior, []byte(e.Key+"\t"+e.Root+"\n")...)
+	record := append(prior, []byte(RootRecord(e)+"\n")...)
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, record, 0o644); err != nil {
 		return err

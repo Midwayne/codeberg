@@ -44,6 +44,12 @@ typedef enum cberg_status {
 } cberg_status;
 
 CBERG_API const char *cberg_status_str(cberg_status status);
+
+/* Stable machine code for status ("not_found", "invalid_argument", ...).
+ * Unknown values return "internal_error". Static storage; do not free.
+ * IPC replies send this next to the English cberg_status_str text. */
+CBERG_API const char *cberg_status_code(cberg_status status);
+
 CBERG_API const char *cberg_version(void);
 
 /* --- Configuration ------------------------------------------------------ */
@@ -333,9 +339,9 @@ typedef struct cberg_watcher cberg_watcher;
 /*
  * Indexing trigger: recursively watch `root` and accumulate dirty paths.
  * `root` may be a symlink; it is resolved with realpath at open (target must exist).
- * Symlinked directories inside the tree are followed and indexed. Skips VCS metadata
- * and common dependency trees (.git, node_modules, …) via the watcher walk policy.
- * New directories are registered automatically.
+ * Symlinks inside the tree are not followed. Skips VCS metadata and common
+ * dependency trees (.git, node_modules, …) via cberg_walk_skip_dir, including
+ * directories created after open. New directories are registered automatically.
  *
  * Thread safety: safe to call poll/dirty_paths from one thread while the platform
  * delivers events asynchronously (macOS FSEvents). Do not call poll/dirty_paths
@@ -545,7 +551,7 @@ typedef enum cberg_graph_edge_kind {
 typedef enum cberg_graph_resolution {
     CBERG_GRES_TEXTUAL = 0, /* linked by name match (Phase 1) */
     CBERG_GRES_IMPORT = 1,  /* linked through import/manifest resolution */
-    CBERG_GRES_TYPED = 2,   /* linked through type analysis */
+    CBERG_GRES_TYPED = 2,   /* reserved for type analysis; not produced yet */
 } cberg_graph_resolution;
 
 typedef struct cberg_graph_node {
@@ -655,7 +661,7 @@ CBERG_API cberg_status cberg_graph_load(const char *path, cberg_graph **out_grap
  * that resolve to a repo-relative file so they point at that FILE node with
  * resolution=import (confidence 0.95). Only relative (./ ../), Rust `::` paths,
  * Go module-prefixed imports, multi-segment dotted names, or source-file paths
- * (…/*.h) are candidates — bare identifiers and slash-form stdlib/npm packages
+ * (…/x.h) are candidates — bare identifiers and slash-form stdlib/npm packages
  * (fmt, encoding/json) stay MODULE targets. Already-resolved FILE imports are
  * left alone (idempotent). Unresolved imports keep their MODULE target. Safe
  * to call repeatedly after applies.

@@ -1,6 +1,6 @@
 import { remove, removeOlder } from './deletion.js';
 import { list, load, search } from './reading.js';
-import type { WebSessionRecord, WebSessionSearchResult, WebSessionSummary } from './records.js';
+import type { SessionRecord, SessionSearchResult, SessionSummary } from '../../core/api/sessions.js';
 import { WebSessionStoreState } from './state.js';
 import { save, setFlags, upsert } from './writing.js';
 
@@ -23,35 +23,35 @@ export class WebSessionStore {
     return this.state.dir;
   }
 
-  save(record: WebSessionRecord): Promise<void> {
+  save(record: SessionRecord): Promise<void> {
     return save(this.state, record);
   }
 
   /** Message saves preserve metadata even if a pin/archive action overlaps a turn. */
   upsert(
-    input: Pick<WebSessionRecord, 'id' | 'title' | 'messages'> & { parentId?: string; serverRunId?: string },
-  ): Promise<WebSessionRecord> {
+    input: Pick<SessionRecord, 'id' | 'title' | 'messages'> & { parentId?: string; serverRunId?: string },
+  ): Promise<SessionRecord> {
     return upsert(this.state, input);
   }
 
   setFlags(
     id: string,
     flags: { pinned?: boolean; archived?: boolean },
-  ): Promise<WebSessionRecord | null> {
+  ): Promise<SessionRecord | null> {
     return setFlags(this.state, id, flags);
   }
 
-  load(id: string): Promise<WebSessionRecord | null> {
+  load(id: string): Promise<SessionRecord | null> {
     return load(this.state, id);
   }
 
   /** All sessions, newest first. Corrupt/unreadable files are skipped. */
-  list(query = ''): Promise<WebSessionSummary[]> {
+  list(query = ''): Promise<SessionSummary[]> {
     return list(this.state, query);
   }
 
   /** Message-level results across active and archived sessions, newest chats first. */
-  search(query: string): Promise<WebSessionSearchResult[]> {
+  search(query: string): Promise<SessionSearchResult[]> {
     return search(this.state, query);
   }
 
@@ -64,7 +64,3 @@ export class WebSessionStore {
     return removeOlder(this.state, id, cutoff);
   }
 }
-
-export type { WebSessionRecord, WebSessionSearchResult, WebSessionSummary } from './records.js';
-
-export { isValidSessionId } from './records.js';

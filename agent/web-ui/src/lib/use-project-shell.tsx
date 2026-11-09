@@ -1,17 +1,18 @@
+import type { ProjectCatalogInfo } from '@agent/core/api/projects.js';
+import { responseJson } from './response.js';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { projectFetch, type ProjectCatalog } from './project-api';
-import { ProjectToolbar, ProjectNotice } from '../components/project-controls';
+import { projectFetch } from './project-api';
+import { ProjectToolbar } from '../components/project-controls';
+import { ProjectNotice } from '../components/indexing-progress';
 import { useProjectStatus } from './use-project-status';
-
-export { useProjectStatus, type ProjectStatusOptions } from './use-project-status';
 
 export type ProjectShellOptions = {
   children: (toolbar: ReactNode, loading: boolean, notice: ReactNode) => ReactNode;
 };
 
 export function useProjectShell({ children }: ProjectShellOptions) {
-  const [catalog, setCatalog] = useState<ProjectCatalog>();
+  const [catalog, setCatalog] = useState<ProjectCatalogInfo>();
   const [selected, setSelected] = useState('');
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
@@ -54,7 +55,7 @@ export function useProjectShell({ children }: ProjectShellOptions) {
 }
 
 export type ProjectCatalogOptions = {
-  setCatalog: React.Dispatch<React.SetStateAction<ProjectCatalog | undefined>>;
+  setCatalog: React.Dispatch<React.SetStateAction<ProjectCatalogInfo | undefined>>;
   setSelected: React.Dispatch<React.SetStateAction<string>>;
   setError: React.Dispatch<React.SetStateAction<string>>;
   retry: number;
@@ -65,8 +66,7 @@ export function useProjectCatalog({ setCatalog, setSelected, setError, retry }: 
     const controller = new AbortController();
     void fetch('/api/projects', { signal: controller.signal })
       .then(async (response) => {
-        if (!response.ok) throw new Error(await response.text());
-        const next = (await response.json()) as ProjectCatalog;
+        const next = await responseJson<ProjectCatalogInfo>(response);
         if (controller.signal.aborted) return;
         const requested = new URLSearchParams(window.location.search).get('project');
         let remembered: string | null = null;

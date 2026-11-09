@@ -1,5 +1,5 @@
+import type { SessionSummary } from '@agent/core/api/sessions.js';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import type { SessionSummary } from '../../lib/sessions';
 
 export type SessionSidebarOptions = {
   projectControls?: ReactNode;

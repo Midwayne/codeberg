@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { DatasetExample } from '../datasets.js';
+import type { DatasetExample } from '../datasets/records.js';
 import { outputScorers } from './scorers.js';
 import { judgeScorers } from './judge.js';
 import { evaluateOutputs } from './runner.js';

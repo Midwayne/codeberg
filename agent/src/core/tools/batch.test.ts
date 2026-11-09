@@ -4,9 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { isSpillPreview } from '../context/spill.js';
+import { isSpillPreview } from '../context/spill-preview.js';
 import { ContextStore } from '../context/store.js';
-import { BATCH_TOOL, batchTool, isBatchable, MAX_BATCH_CALLS } from './batch.js';
+import { BATCH_TOOL, batchTool, MAX_BATCH_CALLS } from './batch.js';
 
 const options = { toolCallId: 'call-1', messages: [] } as unknown as ToolExecutionOptions<unknown>;
 
@@ -46,8 +46,10 @@ function slowTools(log: { active: number; peak: number }): ToolSet {
   };
 }
 
+const READ_ONLY = ['grep', 'read_file', 'broken'];
+
 async function run(tools: ToolSet, calls: unknown[]) {
-  const batch = batchTool(tools, store())[BATCH_TOOL] as unknown as {
+  const batch = batchTool(tools, store(), READ_ONLY)[BATCH_TOOL] as unknown as {
     execute: (input: unknown, opts: ToolExecutionOptions<unknown>) => Promise<unknown[]>;
   };
 
@@ -113,16 +115,15 @@ describe('batch tool', () => {
     expect(isSpillPreview((many[0] as { result: string }).result)).toBe(true);
   });
 
-  it('lists only batchable tools in its schema and skips itself', () => {
-    expect(isBatchable(BATCH_TOOL)).toBe(false);
-    expect(isBatchable('load_mcp_tools')).toBe(false);
-    expect(isBatchable('search_code')).toBe(true);
-
-    const set = batchTool(slowTools({ active: 0, peak: 0 }), store());
+  it('lists only the supplied batchable tools and skips itself', () => {
+    const tools = slowTools({ active: 0, peak: 0 });
+    const set = batchTool(tools, store(), [...READ_ONLY, BATCH_TOOL]);
     const schema = JSON.stringify((set[BATCH_TOOL] as { inputSchema: unknown }).inputSchema);
 
     expect(schema).toContain('"grep"');
     expect(schema).not.toContain('canvas_update');
     expect(schema).not.toContain('mcp_github_create_issue');
+    expect(schema).not.toContain(`"${BATCH_TOOL}"`);
+    expect(batchTool(tools, store(), [])).toEqual({});
   });
 });

@@ -21,7 +21,7 @@ func TestWipeUsesCoreNamespaceAndPreservesRuntimeEnvironment(t *testing.T) {
 	}
 	t.Setenv("CODEBERG_TEST_LOADER", "preserve-library-path")
 	t.Setenv("CODEBERG_ROOTS", "unrelated\t/unrelated")
-	cfg := config.Indexer{Bin: bin, Index: filepath.Join(dir, "namespace"), Root: "/chosen", Roots: []domain.Repo{{Key: "chosen", Root: "/chosen"}}}
+	cfg := config.Indexer{Bin: bin, Index: filepath.Join(dir, "namespace"), Roots: []domain.Repo{{Key: "chosen", Root: "/chosen"}}}
 
 	if err := WipeIndex(context.Background(), cfg, "/chosen"); err != nil {
 		t.Fatal(err)

@@ -1,5 +1,5 @@
 import type { UIMessage } from 'ai';
-import { createHash } from 'node:crypto';
+import { hash } from '../../message-fingerprint.js';
 import { redactSecrets } from '../redact.js';
 import { extractTrajectory, messageText } from '../trajectory.js';
 import type { AttemptRecord, FeedbackRecord, RepositoryVersion } from '../types.js';
@@ -28,9 +28,7 @@ export class SessionCapture {
 
     if (message.role !== 'assistant' || !this.user || !this.interactionId) return undefined;
 
-    const snapshot = createHash('sha256')
-      .update(JSON.stringify(redactSecrets(message.parts)))
-      .digest('hex');
+    const snapshot = hash(JSON.stringify(redactSecrets(message.parts)));
     const attemptId = stableId('attempt', this.conversationId, message.id, snapshot);
     this.previousAttempt = attemptId;
     if (existing.has(attemptId)) return undefined;

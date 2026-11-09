@@ -1,6 +1,5 @@
+import type { CleanupCategory } from '@agent/core/api/resources.js';
 import { Activity, BarChart3, BookOpen, Brain, Clock, FolderOpen, Palette, PencilRuler, Puzzle, Trash2, Wrench } from 'lucide-react';
-
-import type { CleanupCategory } from '../lib/resources';
 
 export const sections = [
   { id: 'appearance', label: 'Appearance', shortLabel: 'Appearance', icon: Palette },
@@ -29,5 +28,3 @@ export const descriptions: Record<CleanupCategory, string> = {
   knowledge:
     'Generated service, flow, concept, and debugging documents, plus consolidation reports and revisions. Original repository files are kept.',
 };
-
-export { buttonClass } from './button-styles';

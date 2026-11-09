@@ -1,6 +1,7 @@
 import { mkdir, rmdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { DatasetStoreState } from './state.js';
+import { LearningError } from '../errors.js';
 
 export async function withPromotionLock<T>(
   state: DatasetStoreState,
@@ -15,7 +16,7 @@ export async function withPromotionLock<T>(
     if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
 
     if (Date.now() - (await stat(lock)).mtimeMs < 10 * 60_000)
-      throw new Error('dataset promotion in progress');
+      throw new LearningError('conflict', 'dataset promotion in progress');
 
     await rmdir(lock);
     await mkdir(lock);

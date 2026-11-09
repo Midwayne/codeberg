@@ -5,8 +5,8 @@ import {
   applyPromptHooksToMessages,
   applyPromptHooksToText,
   wrapToolLoopAgentWithPromptHooks,
-  type PromptHook,
-} from './index.js';
+} from './runtime.js';
+import { type PromptHook } from './types.js';
 
 describe('/enhance prompt hook', () => {
   it('rewrites /enhance into an agent brief request', () => {

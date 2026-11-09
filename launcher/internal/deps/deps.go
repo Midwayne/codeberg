@@ -24,6 +24,8 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+
+	"codeberg.org/codeberg/launcher/internal/paths"
 )
 
 // requirement is one external dependency plus where to obtain it per platform.
@@ -122,7 +124,7 @@ func EnsurePython(w io.Writer) error {
 	pm := detectPkgManager()
 	skipInstall := pm == nil || truthy(os.Getenv("CODEBERG_SKIP_DEP_INSTALL"))
 
-	py, ok := pythonBin()
+	py, ok := PythonBin()
 	if !ok {
 		if skipInstall {
 			return errors.New("python3 not found — install Python 3 (with venv and pip) to enable web_search")
@@ -138,7 +140,7 @@ func EnsurePython(w io.Writer) error {
 		if err := pm.installPkg(w, pkg); err != nil {
 			return fmt.Errorf("python3 install failed: %w", err)
 		}
-		py, ok = pythonBin()
+		py, ok = PythonBin()
 		if !ok {
 			return errors.New("python3 still not detected after install")
 		}
@@ -166,8 +168,8 @@ func EnsurePython(w io.Writer) error {
 	return nil
 }
 
-// pythonBin locates a system python3 (preferred) or python interpreter.
-func pythonBin() (string, bool) {
+// PythonBin locates a system python3 (preferred) or python interpreter.
+func PythonBin() (string, bool) {
 	for _, name := range []string{"python3", "python"} {
 		if p, err := exec.LookPath(name); err == nil {
 			return p, true
@@ -198,7 +200,7 @@ func OnnxPresent() bool {
 			continue
 		}
 		for _, suffix := range []string{"include/onnxruntime", "include"} {
-			if fileExists(filepath.Join(h, suffix, "onnxruntime_c_api.h")) {
+			if paths.Exists(filepath.Join(h, suffix, "onnxruntime_c_api.h")) {
 				return true
 			}
 		}
@@ -344,8 +346,6 @@ func CheckNode(node string) error {
 	}
 	return nil
 }
-
-func fileExists(p string) bool { _, err := os.Stat(p); return err == nil }
 
 func truthy(s string) bool {
 	switch strings.ToLower(strings.TrimSpace(s)) {

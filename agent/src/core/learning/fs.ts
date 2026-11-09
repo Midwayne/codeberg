@@ -1,5 +1,100 @@
-import { link, mkdir, open, rename, unlink } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import type { Dirent } from 'node:fs';
+import { link, lstat, mkdir, open, readFile, readdir, rename, unlink } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+
+function missing(error: unknown): boolean {
+  return (error as NodeJS.ErrnoException).code === 'ENOENT';
+}
+
+/** File text, or `undefined` when the path is missing. Every other error is thrown. */
+export async function readOptionalText(path: string): Promise<string | undefined> {
+  try {
+    return await readFile(path, 'utf8');
+  } catch (error) {
+    if (missing(error)) return undefined;
+
+    throw error;
+  }
+}
+
+/** Directory names, or an empty list when the directory is missing. */
+export async function readOptionalDirectory(path: string): Promise<string[]>;
+export async function readOptionalDirectory(path: string, withFileTypes: true): Promise<Dirent[]>;
+export async function readOptionalDirectory(
+  path: string,
+  withFileTypes = false,
+): Promise<string[] | Dirent[]> {
+  try {
+    if (withFileTypes) return await readdir(path, { withFileTypes: true });
+
+    return await readdir(path);
+  } catch (error) {
+    if (missing(error)) return [];
+
+    throw error;
+  }
+}
+
+/** `lstat` result, or `undefined` when the path is missing. Symlinks are not followed. */
+export async function optionalLstat(path: string) {
+  try {
+    return await lstat(path);
+  } catch (error) {
+    if (missing(error)) return undefined;
+
+    throw error;
+  }
+}
+
+/** A parsed record, or `undefined` when the file is missing or unreadable. */
+export async function readOptionalRecord<T>(
+  path: string,
+  parse: (raw: string) => T,
+): Promise<T | undefined> {
+  try {
+    return parse(await readFile(path, 'utf8'));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Records in one directory. A missing or unreadable directory is empty.
+ * One bad file is skipped, and `sort` orders the selected names before reading.
+ */
+export async function readRecordFiles<T>(
+  dir: string,
+  include: (name: string) => boolean,
+  parse: (raw: string) => T,
+  sort = false,
+): Promise<T[]> {
+  let names: string[];
+  try {
+    names = await readdir(dir);
+  } catch {
+    return [];
+  }
+
+  const selected = names.filter(include);
+  if (sort) selected.sort();
+
+  const records: T[] = [];
+  for (const name of selected) {
+    const record = await readOptionalRecord(join(dir, name), parse);
+    if (record !== undefined) records.push(record);
+  }
+
+  return records;
+}
+
+/** Removes a path. A path that is already gone is success. */
+export async function removeIfPresent(path: string): Promise<void> {
+  try {
+    await unlink(path);
+  } catch (error) {
+    if (!missing(error)) throw error;
+  }
+}
 
 export async function appendDurable(path: string, value: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true });

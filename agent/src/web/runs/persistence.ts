@@ -19,7 +19,7 @@ export async function saveRunSession(sessions: WebSessionStore, run: SearchRun, 
     messages,
     serverRunId: run.record.id,
   });
-  await learning?.recordSession(record.id, record.messages, record.parentId).catch((error) => {
+  await learning?.recordSession(record.id, record.messages).catch((error) => {
     console.error('learning session recording failed:', error);
   });
 }

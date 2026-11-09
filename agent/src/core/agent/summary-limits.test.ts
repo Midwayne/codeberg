@@ -5,17 +5,17 @@ import { expect, it, vi } from 'vitest';
 
 import { DaemonClient, DEFAULT_DAEMON_URL } from '../client.js';
 import { ContextStore } from '../context/store.js';
-import { estimateTokens } from '../history.js';
+import { estimateTokens } from '../history-tokens.js';
 import type { Prompt } from '../types.js';
 import { summarize } from './history.js';
-import { AgentState } from './state.js';
+import { createAgentState } from './state.js';
 
 it('fits the complete summary request to a separately configured small model', async () => {
   const root = mkdtempSync(join(tmpdir(), 'cberg-summary-window-'));
 
   try {
     const generate = vi.fn(async (_prompt: Prompt) => 'SUMMARY');
-    const state = new AgentState({
+    const state = createAgentState({
       model: {} as never,
       daemon: new DaemonClient(DEFAULT_DAEMON_URL),
       learning: false,
@@ -45,7 +45,7 @@ it('bounds summary overflow retries, reduces each request, and leaves other fail
     const generate = vi.fn(async (_prompt: Prompt) => 'SUMMARY')
       .mockRejectedValueOnce(overflow)
       .mockRejectedValueOnce(overflow);
-    const state = new AgentState({
+    const state = createAgentState({
       model: {} as never,
       daemon: new DaemonClient(DEFAULT_DAEMON_URL),
       learning: false,

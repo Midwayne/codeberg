@@ -3,7 +3,7 @@ import { parseEntryArgs } from '../core/entry.js';
 import { writeModuleLog } from '../core/module-log.js';
 import type { ModelSettingsStore } from './model-selection/settings.js';
 import type { SetupRequired, SetupStatus } from '../core/setup-types.js';
-import { formatWebTitle } from './title.js';
+import { chatModelTitle } from './title.js';
 
 /** The web shell and setup documentation are usable before model setup. */
 export function webEntry(argv = process.argv, env: NodeJS.ProcessEnv = process.env) {
@@ -16,15 +16,15 @@ export function webEntry(argv = process.argv, env: NodeJS.ProcessEnv = process.e
 
 export async function startupTitle(settings: ModelSettingsStore): Promise<string> {
   try {
-    const selected = await settings.current();
-    const chosen = selected.models.find((model) => model.key === selected.chat.key)!;
-
-    return formatWebTitle(chosen.model, selected.chat.effort);
+    const title = chatModelTitle(await settings.current());
+    if (title) return title;
   } catch {
-    writeModuleLog('agent', 'model_setup_required');
-
-    return 'Codeberg';
+    // Setup is incomplete until a chat model resolves.
   }
+
+  writeModuleLog('agent', 'model_setup_required');
+
+  return 'Codeberg';
 }
 
 /** A terminal hint for users whose browser did not open on the setup checklist. */

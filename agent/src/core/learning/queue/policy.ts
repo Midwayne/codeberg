@@ -1,3 +1,4 @@
+import { JobFailure } from '../errors.js';
 import type { FailureCategory } from '../types.js';
 
 export const DEFAULT_LEASE_MS = 10 * 60_000;
@@ -18,21 +19,23 @@ export function isProcessAlive(pid: number): boolean {
   }
 }
 
-export function isTransientFailure(category: FailureCategory): boolean {
-  return category !== 'PERMANENT_ERROR';
+/** The single retry rule: the queue applies it and reports predict job state with it. */
+export function willRetry(category: FailureCategory, attempt: number): boolean {
+  return category !== 'PERMANENT_ERROR' && attempt < MAX_ATTEMPTS;
 }
 
+/** Own failures carry a category; provider and filesystem errors are only labeled by their text. */
 export function classifyFailure(error: unknown): FailureCategory {
-  const text = String(error).toLowerCase();
-  if (/permanent_error/.test(text)) return 'PERMANENT_ERROR';
+  if (error instanceof JobFailure) return error.category;
 
+  const text = String(error).toLowerCase();
   if (/rate.?limit|\b429\b/.test(text)) return 'RATE_LIMITED';
 
   if (/network|fetch failed|econn|enotfound|timeout|offline/.test(text)) return 'NETWORK_ERROR';
 
   if (/repository|enoent/.test(text)) return 'REPOSITORY_UNAVAILABLE';
 
-  if (/invalid[_ ]response|invalid json|schema/.test(text)) return 'INVALID_RESPONSE';
+  if (/invalid json|schema/.test(text)) return 'INVALID_RESPONSE';
 
   return 'MODEL_ERROR';
 }

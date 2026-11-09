@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 #include "codeberg/codeberg.h"
+#include "index_env.h"
 
 /*
  * One cberg-index process serves N repository roots. The engine owns the
@@ -21,7 +22,9 @@
  * embed_mu; per-repo state is guarded by that repo's mu. Lock order is
  * strictly repo->mu -> embed_mu (indexing) or each alone (search embeds the
  * query under embed_mu only, then takes one repo->mu at a time) — never
- * embed_mu -> repo->mu.
+ * embed_mu -> repo->mu. workspace_graph.c takes graph_mu, then every repo->mu
+ * in repos order, drops the repo locks after the snapshot, and holds graph_mu
+ * for the view. Do not take graph_mu while holding repo->mu or embed_mu.
  */
 
 typedef struct cberg_engine cberg_engine;
@@ -60,10 +63,8 @@ struct cberg_engine {
     int poll_ms;
     int vectors;
     int graph_enabled; /* CBERG_GRAPH != 0 (default on); CBERG_GRAPH_MODE is fast-only for now */
-    cberg_index_config index_cfg;
-    char *vectordb_url;
-    char *vectordb_api_key;
-    char *postgres_url;
+    cberg_index_config index_cfg; /* connection strings point into index_env */
+    cberg_index_env index_env;
 
     cberg_chunker *chunker;          /* main (bootstrap/watch) thread only */
     cberg_embedder *embedder;        /* ONE per process; call only via cberg_engine_embed */
@@ -84,9 +85,9 @@ struct cberg_engine {
     atomic_int bootstrapped; /* all repos attempted (some may have failed) */
 };
 
-/* Opens the engine from the internal CODEBERG_ROOTS environment ("<key>\t<path>"
- * records, newline-separated). Repository keys are preserved.
- * Unresolvable roots are skipped with a warning. */
+/* Opens the engine from CBERG_INDEX_ROOT_ENV ("<key>\t<path>" records,
+ * newline-separated). Repository keys are preserved. Unresolvable roots are
+ * skipped with a warning. An unset or empty list is NOT_FOUND with no warning. */
 cberg_status cberg_engine_open(cberg_engine *eng);
 void cberg_engine_close(cberg_engine *eng);
 
@@ -97,6 +98,26 @@ cberg_status cberg_engine_embed(cberg_engine *eng, const char *const *texts, con
 
 cberg_status cberg_repo_bootstrap(cberg_repo *r);
 
+/* Bootstraps every repo in order, then marks the engine bootstrapped. A repo
+ * that fails stays not-ready instead of taking down its siblings. Returns the
+ * first failure only when no repo bootstrapped and no stop was requested.
+ * *out_ok (nullable) receives the number of repos that bootstrapped. */
+cberg_status cberg_engine_bootstrap(cberg_engine *eng, size_t *out_ok);
+
+/* Async-signal-safe: bootstrap and the watch loop return at the next check. */
+void cberg_engine_request_stop(cberg_engine *eng);
+int cberg_engine_stop_requested(const cberg_engine *eng);
+
+/* Admits one IPC query without waiting: false until bootstrap finishes and
+ * while a watched update runs. A true result holds the work lock, so no update
+ * starts mid-query, until cberg_engine_end_query. */
+int cberg_engine_begin_query(cberg_engine *eng);
+void cberg_engine_end_query(cberg_engine *eng);
+
+/* Readiness for health: bootstrap finished and at least one repo is ready. */
+int cberg_engine_ready(cberg_engine *eng);
+int cberg_engine_indexing(cberg_engine *eng);
+
 /* One non-blocking pass over every repo's watcher, applying any pending
  * changes. *out_events (nullable) receives the number of events handled. */
 cberg_status cberg_engine_step(cberg_engine *eng, size_t *out_events);
@@ -105,13 +126,44 @@ cberg_status cberg_engine_step(cberg_engine *eng, size_t *out_events);
  * returns freed heap to the OS whenever it goes idle after doing work. */
 cberg_status cberg_engine_run(cberg_engine *eng);
 
+/* The repo with this key, or NULL for NULL/""/unknown keys. */
+cberg_repo *cberg_engine_find_repo(cberg_engine *eng, const char *repo_key);
+
 size_t cberg_repo_chunk_count(cberg_repo *r);
 int cberg_repo_ready(cberg_repo *r);
 size_t cberg_engine_chunk_count(cberg_engine *eng);
-const char *cberg_indexer_version(void);
 
 #define CBERG_SNIPPET_MAX 400
 #define CBERG_CHUNK_BODY_MAX 65536
+
+/* Result limits for every engine query. A limit of 0 selects the default and
+ * larger limits are clamped to the max; IPC and the daemon pass limits through
+ * unchanged, so this is the only copy of the policy. */
+#define CBERG_SEARCH_DEFAULT 10
+#define CBERG_SEARCH_MAX 64
+#define CBERG_SYMBOL_DEFAULT 20
+#define CBERG_SYMBOL_MAX 64
+#define CBERG_OUTLINE_MAX 256
+#define CBERG_GRAPH_SEARCH_DEFAULT 20
+#define CBERG_GRAPH_SEARCH_MAX 64
+#define CBERG_TRACE_DEFAULT 64
+#define CBERG_TRACE_MAX 256
+#define CBERG_TRACE_DEPTH_DEFAULT 2
+#define CBERG_HUBS_DEFAULT 10
+#define CBERG_HUBS_MAX 64
+#define CBERG_REFS_DEFAULT 50
+#define CBERG_REFS_MAX 256
+
+/* The number of results to produce for `limit`, never more than `cap` slots. */
+static inline size_t cberg_query_limit(size_t limit, size_t dflt, size_t max, size_t cap) {
+    if (limit == 0) {
+        limit = dflt;
+    }
+    if (limit > max) {
+        limit = max;
+    }
+    return limit < cap ? limit : cap;
+}
 
 typedef struct cberg_search_filters {
     const char *path_glob; /* rg-style glob on chunk.path (see pathglob.h); NULL/empty = any */
@@ -166,9 +218,6 @@ cberg_status cberg_engine_find_symbol(cberg_engine *eng, const char *name, const
 
 /* Return every indexed chunk in a file, sorted by start_line. */
 cberg_status cberg_engine_file_outline(cberg_engine *eng, const char *repo_key, const char *path, cberg_engine_hit *hits, size_t cap, size_t *found);
-
-/* Map kind filter string to cberg_chunk_kind, or -1 when unset/unknown. */
-int cberg_index_parse_kind(const char *s);
 
 /* --- Knowledge graph IPC surface (ADR 0005) --- */
 
@@ -235,16 +284,12 @@ cberg_status cberg_engine_trace_path(cberg_engine *eng, const char *name, uint64
 /* Per-repo graph counts. repo_key NULL/empty → first ready repo with a graph. */
 cberg_status cberg_engine_get_graph_stats(cberg_engine *eng, const char *repo_key, cberg_engine_graph_stats *out);
 
-/* Incoming CALLS/INHERITS/IMPORTS edges for a symbol (graph-first find_references).
- * path_prefix disambiguates same-named symbols (NULL = any; component-aware).
- * REFERENCES is reserved and not extracted yet, so it is omitted from the mask. */
+/* Incoming CALLS/INHERITS/IMPORTS/REFERENCES edges for a symbol (graph-first
+ * find_references). path_prefix disambiguates same-named symbols (NULL = any;
+ * component-aware). */
 cberg_status cberg_engine_graph_references(cberg_engine *eng, const char *name, const char *repo_key, const char *path_prefix, size_t limit, cberg_engine_graph_edge *out, size_t cap, size_t *found);
 
 /* Degree hubs: symbols ranked by incident CALLS (in+out). */
 cberg_status cberg_engine_graph_hubs(cberg_engine *eng, const char *repo_key, size_t limit, cberg_engine_graph_hub *out, size_t cap, size_t *found);
-
-/* Parse graph node/edge kind strings used on the IPC wire. */
-uint32_t cberg_index_parse_gnode_mask(const char *s);
-uint32_t cberg_index_parse_gedge_mask(const char *s);
 
 #endif

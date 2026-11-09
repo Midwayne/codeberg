@@ -1,4 +1,5 @@
-import { compactObservation, isRecord, summarizeAttempt } from './learning-values.js';
+import { isRecord } from '../../core/record.js';
+import { compactObservation, summarizeAttempt } from './learning-values.js';
 
 export function boundLearningContext(input: string, system: string, contextWindow: number): string {
   // Reserve roughly half the token window for output and account for system text.

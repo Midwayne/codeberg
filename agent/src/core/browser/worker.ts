@@ -16,20 +16,18 @@ from browser_use import Agent, Browser, ChatOpenAI, ChatAnthropic, ChatGoogle
 
 
 def model_for(config):
-    provider = config['provider']
+    client = config['client']
     model = config['model']
+    api_key = os.environ.get(config.get('api_key_env') or '', config.get('api_key_default'))
 
-    if provider == 'openai':
-        return ChatOpenAI(model=model)
-    if provider == 'anthropic':
-        return ChatAnthropic(model=model)
-    if provider == 'google':
-        return ChatGoogle(model=model, api_key=os.environ.get('GOOGLE_GENERATIVE_AI_API_KEY'))
-    if provider in ('ollama', 'llamacpp'):
-        prefix = 'OLLAMA' if provider == 'ollama' else 'LLAMACPP'
-        default = 'http://localhost:11434/v1' if provider == 'ollama' else 'http://localhost:8080/v1'
-        return ChatOpenAI(model=model, base_url=os.environ.get(prefix + '_BASE_URL', default),
-                          api_key=os.environ.get(prefix + '_API_KEY', 'local'),
+    if client == 'openai':
+        return ChatOpenAI(model=model, api_key=api_key)
+    if client == 'anthropic':
+        return ChatAnthropic(model=model, api_key=api_key)
+    if client == 'google':
+        return ChatGoogle(model=model, api_key=api_key)
+    if client == 'openai-compatible':
+        return ChatOpenAI(model=model, base_url=config['base_url'], api_key=api_key,
                           temperature=None, frequency_penalty=None)
 
     raise ValueError('Unsupported browser model provider')

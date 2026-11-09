@@ -1,3 +1,5 @@
+import type { FailureCategory } from '../types.js';
+
 export interface EvalScore {
   name: string;
   score: number | null;
@@ -38,7 +40,7 @@ export interface OutputResult {
   source_revision: string;
   repository_commits: { name: string; commit?: string }[];
   model?: string;
-  scores: (EvalScore & { error?: string })[];
+  scores: (EvalScore & { error?: string; category?: FailureCategory })[];
 }
 
 export interface OutputReport {

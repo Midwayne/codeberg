@@ -1,6 +1,7 @@
 import type { DaemonClient } from '../../client.js';
 import { extractHybridHits } from '../../evidence-extract.js';
 import { chunkKey } from '../../types.js';
+import { readChunkBody } from '../chunk-body.js';
 import { boundBundle } from './output.js';
 import { MAX_BUNDLE_HITS, validatePlan, type BundleError, type BundleHit, type BundleInput } from './types.js';
 
@@ -53,10 +54,10 @@ async function expand(daemon: DaemonClient, hit: BundleHit, errors: BundleError[
   if (hit.id <= 0) return hit;
 
   try {
-    const detail = await daemon.callTool('get_chunk', { repo: hit.repo, id: hit.id }, signal);
-    if (!detail || typeof detail !== 'object' || !('body' in detail) || typeof detail.body !== 'string') return hit;
+    const detail = readChunkBody(await daemon.callTool('get_chunk', { repo: hit.repo, id: hit.id }, signal));
+    if (!detail) return hit;
 
-    return { ...hit, body: detail.body, truncated: 'truncated' in detail && detail.truncated === true };
+    return { ...hit, body: detail.body, truncated: detail.truncated };
   } catch (error) {
     signal?.throwIfAborted();
     errors.push({ repo: hit.repo ?? '', stage: 'chunk', error: String(error).slice(0, 200) });

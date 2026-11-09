@@ -1,11 +1,11 @@
+import type { CleanupCategory, CleanupPreview } from '@agent/core/api/resources.js';
 import { CleanupConfirmation, CleanupSelection } from './cleanup-confirmation';
 
 import { useProjectApi } from '../lib/project-api';
 
 import { useEffect, useState } from 'react';
-import { previewCleanup, type CleanupCategory, type CleanupPreview } from '../lib/resources';
+import { previewCleanup } from '../lib/resources';
 import { ErrorNotice } from './ui';
-import type { CleanupPreviewErrorProps } from './settings';
 import { createCleanupAction } from './cleanup-action';
 
 export function CleanupPanel() {
@@ -129,6 +129,13 @@ export type CleanupSelectionProps = Pick<
   | 'setSelected'
   | 'busy'
 >;
+
+type CleanupPreviewErrorProps = {
+  state: {
+    previewError: string;
+    setRevision: React.Dispatch<React.SetStateAction<number>>;
+  };
+};
 
 export function CleanupPreviewError({ state }: CleanupPreviewErrorProps) {
   return (

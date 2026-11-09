@@ -13,7 +13,8 @@ import (
 func KnownKeys() []string {
 	keys := []string{
 		KeyModel, KeySubagentModel, KeyDaemonURL, KeyHTTPPort, KeyEmbedModel, KeyEmbedding, KeyIndexPath,
-		KeySocket, KeyPollMS, KeyIndexBin, KeyGitPullSec, KeyGitDir, KeyReasoning,
+		KeyIndexNamespace, KeyPollMS, KeyIndexBin, KeyGitPullSec, KeyHealthTimeout, KeyEmbedBackend,
+		KeyLogDir, KeyReasoning,
 		KeyVector, KeyWebPort, KeyWebUse, KeyWebSearchUse, KeyLearningUse, KeySearxngURL, KeySearxngPort,
 		KeyAll, KeyReposSel, KeyNoIndex, KeyVerbose, KeyHome, KeyRepo, KeyDist,
 		KeyMcpUse, KeyMcpConfig, KeyDbmcpUse, KeyDbmcpSpec, KeyDbmcpBin,
@@ -51,16 +52,20 @@ func (c *Config) Get(key string) (string, bool) {
 		return c.Embedding, true
 	case KeyIndexPath:
 		return c.IndexPath, true
-	case KeySocket:
-		return c.Socket, true
+	case KeyIndexNamespace:
+		return c.IndexNamespace, true
 	case KeyPollMS:
 		return c.PollMS, true
 	case KeyIndexBin:
 		return c.IndexBin, true
 	case KeyGitPullSec:
 		return c.GitPullSec, true
-	case KeyGitDir:
-		return c.GitDir, true
+	case KeyHealthTimeout:
+		return c.HealthTimeout, true
+	case KeyEmbedBackend:
+		return c.EmbedBackend, true
+	case KeyLogDir:
+		return filepath.Join(c.Home, "logs"), true
 	case KeyReasoning:
 		return c.Reasoning, true
 	case KeyVector:
@@ -173,12 +178,30 @@ func lineKey(line string) string {
 	s := strings.TrimSpace(line)
 	s = strings.TrimPrefix(s, "#")
 	s = strings.TrimSpace(s)
-	s = strings.TrimPrefix(s, "export ")
-	eq := strings.IndexByte(s, '=')
-	if eq <= 0 {
+	key, _, ok := envAssignment(s)
+	if !ok {
 		return ""
 	}
-	return strings.TrimSpace(s[:eq])
+
+	return key
+}
+
+// envAssignment splits one KEY=VALUE line. A leading "export " is ignored.
+// Quotes stay on the value so each caller can strip the kind it accepts.
+func envAssignment(line string) (key, value string, ok bool) {
+	line = strings.TrimSpace(line)
+	line = strings.TrimPrefix(line, "export ")
+	eq := strings.IndexByte(line, '=')
+	if eq <= 0 {
+		return "", "", false
+	}
+
+	key = strings.TrimSpace(line[:eq])
+	if key == "" {
+		return "", "", false
+	}
+
+	return key, strings.TrimSpace(line[eq+1:]), true
 }
 
 func isActiveAssignment(line string) bool {

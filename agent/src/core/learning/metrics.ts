@@ -1,7 +1,10 @@
-import { DatasetStore, type DatasetExample } from './datasets.js';
+import { DatasetStore } from './datasets.js';
+import { isSearchTool } from './tool-class.js';
+import { type DatasetExample } from './datasets/records.js';
 import { average, complexityBucket, strings } from './metrics/summary.js';
 import type { RetrievalReport, RetrievalRun, RetrievalScore } from './metrics/types.js';
-import { effectiveFeedback, type LearningStore } from './store.js';
+import { effectiveFeedback } from './store/feedback.js';
+import { type LearningStore } from './store.js';
 import type { AttemptRecord } from './types.js';
 
 /** Accept runs from any retriever or retrieval agent against the same held-out IDs. */
@@ -78,7 +81,7 @@ export async function historicalEvalMetrics(store: LearningStore) {
     runs.push({
       eval_id: example.id,
       hits: attempts.flatMap((attempt) =>
-        attempt.retrieved_results.filter((hit) => /search|grep|symbol|reference/i.test(hit.tool)),
+        attempt.retrieved_results.filter((hit) => isSearchTool(hit.tool)),
       ),
       tool_calls: attempts.reduce((total, attempt) => total + attempt.tools_invoked.length, 0),
       retrieved_tokens:
@@ -92,8 +95,6 @@ export async function historicalEvalMetrics(store: LearningStore) {
 
   return scoreRetrievalRuns(evals, runs);
 }
-
-export type { RetrievalRun, RetrievalScore } from './metrics/types.js';
 
 function scoreRun(example: DatasetExample, run: RetrievalRun): RetrievalScore {
   const oracle = example.review?.oracle ?? {};

@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { discoverSkills, parseSkillDocument, publishSkills } from './skills.js';
+import { discoverSkills, publishSkills } from './skills.js';
+import { parseSkillDocument } from './skill-document.js';
 import { ContextStore } from './store.js';
 
 describe('parseSkillDocument', () => {

@@ -213,9 +213,9 @@ int main(void) {
     CHECK(!eng.vectors, "chunk-only mode");
 
     if (ra != NULL && rb != NULL) {
-        CHECK(cberg_repo_bootstrap(ra) == CBERG_OK, "alpha bootstraps");
-        CHECK(cberg_repo_bootstrap(rb) == CBERG_OK, "beta bootstraps");
-        eng.bootstrapped = 1;
+        size_t bootstrapped = 0;
+        CHECK(cberg_engine_bootstrap(&eng, &bootstrapped) == CBERG_OK, "engine bootstraps");
+        CHECK(bootstrapped == 2, "alpha and beta bootstrap");
         CHECK(cberg_repo_ready(ra) && cberg_repo_ready(rb), "both ready");
 
         size_t count_a = cberg_repo_chunk_count(ra);
@@ -282,6 +282,22 @@ int main(void) {
             CHECK(ipc_roundtrip(socket_path, "symbol\tAdd\talpha\n", resp, sizeof(resp)) == 0, "symbol roundtrip");
             CHECK(strstr(resp, "\"kind\":\"function\"") != NULL, "symbol results carry kind");
 
+            CHECK(ipc_roundtrip(socket_path, "symbol\tAdd\talpha\tnope\n", resp, sizeof(resp)) == 0, "unknown kind roundtrip");
+            CHECK(strstr(resp, "\"code\":\"invalid_argument\"") != NULL, "unknown kind is invalid_argument");
+            CHECK(strstr(resp, "unknown kind") != NULL, "unknown kind names the field");
+
+            CHECK(ipc_roundtrip(socket_path, "search\tfoo\t5\n", resp, sizeof(resp)) == 0, "chunk-only search code");
+            CHECK(strstr(resp, "\"code\":\"not_implemented\"") != NULL, "chunk-only search code is not_implemented");
+
+            char big[9000];
+            memset(big, 'q', sizeof(big) - 1);
+            memcpy(big, "search\t", 7);
+            big[sizeof(big) - 2] = '\n';
+            big[sizeof(big) - 1] = '\0';
+            CHECK(ipc_roundtrip(socket_path, big, resp, sizeof(resp)) == 0, "oversized request roundtrip");
+            CHECK(strstr(resp, "\"code\":\"invalid_argument\"") != NULL, "oversized request is invalid_argument");
+            CHECK(strstr(resp, "request too long") != NULL, "oversized request names the limit");
+
             cberg_ipc_stop(ipc);
 
             char health_path[256];
@@ -289,7 +305,6 @@ int main(void) {
             CHECK(access(health_path, F_OK) != 0, "shutdown removes the health socket");
 
             /* An unowned socket left by a crashed process can still be reclaimed. */
-            eng.stop = 0;
             int stale = socket(AF_UNIX, SOCK_STREAM, 0);
             struct sockaddr_un addr = {0};
             addr.sun_family = AF_UNIX;

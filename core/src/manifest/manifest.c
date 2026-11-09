@@ -30,11 +30,11 @@
 
 #include "arena.h"
 #include "cacheline.h"
+#include "binio.h"
 #include "fileio.h"
 #include "grow.h"
 #include "pathutil.h"
 #include "statutil.h"
-#include "walk_policy.h"
 
 _Static_assert(offsetof(cberg_manifest_entry, hash) == 0, "manifest leaf hash leads the entry");
 _Static_assert(offsetof(cberg_manifest_entry, hash) + CBERG_HASH_LEN <= CBERG_CACHE_LINE,
@@ -349,7 +349,7 @@ cberg_status cberg_manifest_rebuild(const cberg_manifest *prev, const char *root
     }
 
     build_ctx ctx = {.arena = m->arena, .prev = prev};
-    cberg_status st = cberg_fs_walk(root, "", build_visit, &ctx, cberg_walk_skip_dir_cb, NULL);
+    cberg_status st = cberg_fs_walk(root, "", build_visit, &ctx);
     if (st != CBERG_OK) {
         free(ctx.leaves);
         free(ctx.fp_names);
@@ -583,61 +583,36 @@ cberg_status cberg_manifest_save(const cberg_manifest *manifest, const char *pat
     if (manifest == NULL || path == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
-    char tmp[4096];
-    int n = snprintf(tmp, sizeof tmp, "%s.tmp", path);
-    if (n < 0 || (size_t)n >= sizeof tmp) {
-        return CBERG_ERR_INVALID_ARGUMENT;
+    char tmp[CBERG_ATOMIC_TMP_CAP];
+    FILE *f = NULL;
+    cberg_status st = cberg_atomic_begin(path, tmp, sizeof tmp, &f);
+    if (st != CBERG_OK) {
+        return st;
     }
-    FILE *f = fopen(tmp, "wb");
-    if (f == NULL) {
-        return CBERG_ERR_IO;
-    }
-    cberg_status st = CBERG_OK;
-    uint32_t version = CBERG_MANIFEST_VERSION;
     uint64_t count = manifest->len;
-    if (fwrite(CBERG_MANIFEST_MAGIC, 1, 4, f) != 4 || fwrite(&version, sizeof version, 1, f) != 1 ||
-        fwrite(&count, sizeof count, 1, f) != 1) {
+    if (cberg_snapshot_write_header(f, CBERG_MANIFEST_MAGIC, CBERG_MANIFEST_VERSION) != CBERG_OK ||
+        cberg_bin_w_u64(f, count) != CBERG_OK) {
         st = CBERG_ERR_IO;
         goto fail;
     }
     for (size_t i = 0; i < manifest->len; i++) {
-        uint64_t size = manifest->meta[i].size;
-        int64_t mtime = manifest->meta[i].mtime_ns;
-        size_t plen = strlen(manifest->entries[i].path);
-        if (plen > 0xFFFFFFFFu) {
-            st = CBERG_ERR_INVALID_ARGUMENT;
-            goto fail;
-        }
-        uint32_t plen32 = (uint32_t)plen;
-        if (fwrite(&size, sizeof size, 1, f) != 1 || fwrite(&mtime, sizeof mtime, 1, f) != 1 ||
-            fwrite(manifest->entries[i].hash, 1, CBERG_HASH_LEN, f) != CBERG_HASH_LEN ||
-            fwrite(&plen32, sizeof plen32, 1, f) != 1 ||
-            (plen32 > 0 && fwrite(manifest->entries[i].path, 1, plen32, f) != plen32)) {
+        if (cberg_bin_w_u64(f, manifest->meta[i].size) != CBERG_OK ||
+            cberg_bin_w_i64(f, manifest->meta[i].mtime_ns) != CBERG_OK ||
+            cberg_bin_w_bytes(f, manifest->entries[i].hash, CBERG_HASH_LEN) != CBERG_OK ||
+            cberg_bin_w_str(f, manifest->entries[i].path) != CBERG_OK) {
             st = CBERG_ERR_IO;
             goto fail;
         }
     }
-    if (fflush(f) != 0) {
-        st = CBERG_ERR_IO;
-        goto fail;
-    }
-    if (fclose(f) != 0) {
-        f = NULL;
-        st = CBERG_ERR_IO;
-        goto fail;
-    }
-    if (rename(tmp, path) != 0) {
-        st = CBERG_ERR_IO;
-        remove(tmp);
+    st = cberg_atomic_commit(&f, tmp, path);
+    if (st != CBERG_OK) {
         return st;
     }
+
     return CBERG_OK;
 
 fail:
-    if (f != NULL) {
-        fclose(f);
-    }
-    remove(tmp);
+    cberg_atomic_abort(f, tmp);
     return st;
 }
 
@@ -646,17 +621,14 @@ cberg_status cberg_manifest_load(const char *path, cberg_manifest **out_manifest
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     *out_manifest = NULL;
-    FILE *f = fopen(path, "rb");
-    if (f == NULL) {
+    FILE *f = NULL;
+    if (cberg_snapshot_open(path, &f) != CBERG_OK) {
         return CBERG_ERR_NOT_FOUND;
     }
 
-    char magic[4];
-    uint32_t version = 0;
     uint64_t count = 0;
-    if (fread(magic, 1, 4, f) != 4 || memcmp(magic, CBERG_MANIFEST_MAGIC, 4) != 0 ||
-        fread(&version, sizeof version, 1, f) != 1 || version != CBERG_MANIFEST_VERSION ||
-        fread(&count, sizeof count, 1, f) != 1) {
+    if (cberg_snapshot_header(f, CBERG_MANIFEST_MAGIC, CBERG_MANIFEST_VERSION) != CBERG_OK ||
+        cberg_bin_r_u64(f, &count) != CBERG_OK) {
         fclose(f);
         return CBERG_ERR_NOT_FOUND;
     }
@@ -686,9 +658,11 @@ cberg_status cberg_manifest_load(const char *path, cberg_manifest **out_manifest
             int64_t mtime = 0;
             uint32_t plen = 0;
             uint8_t hash[CBERG_HASH_LEN];
-            if (fread(&size, sizeof size, 1, f) != 1 || fread(&mtime, sizeof mtime, 1, f) != 1 ||
-                fread(hash, 1, CBERG_HASH_LEN, f) != CBERG_HASH_LEN || fread(&plen, sizeof plen, 1, f) != 1) {
-                st = CBERG_ERR_NOT_FOUND; /* truncated/corrupt -> cold start */
+            /* Truncated or corrupt snapshots cold-start (NOT_FOUND), not I/O. */
+            if (cberg_bin_r_u64(f, &size) != CBERG_OK || cberg_bin_r_i64(f, &mtime) != CBERG_OK ||
+                cberg_bin_r_exact(f, hash, CBERG_HASH_LEN) != CBERG_OK ||
+                cberg_bin_r_u32(f, &plen) != CBERG_OK || plen == CBERG_BIN_STR_NULL) {
+                st = CBERG_ERR_NOT_FOUND;
                 goto fail;
             }
             char *p = cberg_arena_alloc(m->arena, (size_t)plen + 1);
@@ -696,7 +670,7 @@ cberg_status cberg_manifest_load(const char *path, cberg_manifest **out_manifest
                 st = CBERG_ERR_OUT_OF_MEMORY;
                 goto fail;
             }
-            if (plen > 0 && fread(p, 1, plen, f) != plen) {
+            if (cberg_bin_r_exact(f, p, plen) != CBERG_OK) {
                 st = CBERG_ERR_NOT_FOUND;
                 goto fail;
             }

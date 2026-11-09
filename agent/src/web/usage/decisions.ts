@@ -1,5 +1,5 @@
 import type { DecisionUsageSink } from '../../core/decisions/types.js';
-import type { Project } from '../../core/projects.js';
+import type { Project } from '../../core/projects/types.js';
 import { captureUsage } from './model.js';
 import type { UsageStore } from './store.js';
 

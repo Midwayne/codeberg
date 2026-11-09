@@ -1,6 +1,8 @@
 import { validatedClaims } from '../claims.js';
 import { knowledgePrompt } from '../knowledge-prompt.js';
-import { evidenceRefs, observeSources, relocatedSources, sourceKey } from '../memory-source.js';
+import { evidenceRefs, observeSources } from '../memory-source.js';
+import { relocatedSources } from '../memory-source/relocation.js';
+import { sourceKey } from '../memory-source/reading.js';
 import { LearningStore } from '../store.js';
 import type { AttemptRecord, KnowledgeArtifact, KnowledgeJob } from '../types.js';
 

@@ -1,3 +1,4 @@
+import type { ProjectCatalogInfo, ProjectInfo } from '@agent/core/api/projects.js';
 import { NoProjects } from './no-projects';
 import { useProjectDeletionFocus } from '../lib/use-project-deletion-focus';
 import type { useAddProject } from './project-add';
@@ -10,7 +11,8 @@ import { useContext, type ReactNode } from 'react';
 import { ProjectChatsContext } from '../sessions/project-chats';
 
 import { ErrorNotice } from './ui';
-import { ProjectApiContext, type Project, type ProjectCatalog } from '../lib/project-api';
+import { ProjectApiContext } from '../lib/project-api';
+import { FocusRegistry } from '../lib/focus-registry';
 
 export type ProjectShellProps = {
   children: (toolbar: ReactNode, loading: boolean, notice: ReactNode) => ReactNode;
@@ -19,7 +21,11 @@ export type ProjectShellProps = {
 export function ProjectShell(props: ProjectShellProps) {
   const state = useProjectShell(props);
 
-  return <ProjectShellView {...state} />;
+  return (
+    <FocusRegistry>
+      <ProjectShellView {...state} />
+    </FocusRegistry>
+  );
 }
 
 export type ProjectShellViewProps = ReturnType<typeof useProjectShell>;
@@ -73,11 +79,11 @@ export function ProjectShellView(state: ProjectShellViewProps) {
 export type AddProjectViewProps = ReturnType<typeof useAddProject>;
 
 export type ProjectListProps = {
-  catalog: ProjectCatalog | undefined;
-  selectedProject: Project | undefined;
-  setCatalog: React.Dispatch<React.SetStateAction<ProjectCatalog | undefined>>;
-  onProjectDeleted: ((catalog: ProjectCatalog) => void) | undefined;
-  onProjectRenamed: ((project: Project) => void) | undefined;
+  catalog: ProjectCatalogInfo | undefined;
+  selectedProject: ProjectInfo | undefined;
+  setCatalog: React.Dispatch<React.SetStateAction<ProjectCatalogInfo | undefined>>;
+  onProjectDeleted: ((catalog: ProjectCatalogInfo) => void) | undefined;
+  onProjectRenamed: ((project: ProjectInfo) => void) | undefined;
 };
 
 export type ProjectRenameProps = Pick<Parameters<typeof ProjectDetails>[0], 'project' | 'onRenamed'> & {
@@ -86,19 +92,11 @@ export type ProjectRenameProps = Pick<Parameters<typeof ProjectDetails>[0], 'pro
   setSaved: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
-export { ProjectsPanel } from './project-list';
-
-export { ProjectDetails } from './project-details';
-
-export { RenameProjectForm } from './project-rename';
-
-export { AddProject } from './project-add';
-
 function useProjectDeletion(state: ProjectShellViewProps) {
   const focusAfterDeletion = useProjectDeletionFocus();
   const chats = useContext(ProjectChatsContext);
 
-  return (catalog: ProjectCatalog) => {
+  return (catalog: ProjectCatalogInfo) => {
     chats?.retain(catalog.projects.map((project) => project.id));
     state.setCatalog(catalog);
     focusAfterDeletion();

@@ -1,11 +1,11 @@
-import type { ToolLoopAgent } from 'ai';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
-import type { ProjectCatalog } from '../core/projects.js';
+import type { ProjectCatalog } from '../core/projects/types.js';
 import { createProjectRequestHandler } from './projects.js';
+import { replyGenerator, userMessage } from './runs/test-fixtures.js';
 import { createRequestHandler } from './server.js';
 import { WebSessionStore } from './sessions/store.js';
 
@@ -42,12 +42,9 @@ it('isolates simultaneous tabs, chat search and branches; legacy requests use th
       daemonUrl: 'http://unused',
       build: async (project) =>
         createRequestHandler({
-          agent: {} as ToolLoopAgent,
           title: project.name,
           sessionStore: new WebSessionStore(join(home, project.id)),
-          respond: async (res) => {
-            res.end(project.id);
-          },
+          generate: replyGenerator(() => project.id),
         }),
     }),
   );
@@ -81,10 +78,10 @@ it('isolates simultaneous tabs, chat search and branches; legacy requests use th
       await fetch(`${base}/api/chat`, {
         method: 'POST',
         headers: headers(catalog.projects[1]!.id),
-        body: '{}',
+        body: JSON.stringify({ messages: [userMessage('Which project?')] }),
       })
     ).text(),
-  ).toBe(catalog.projects[1]!.id);
+  ).toContain(`"delta":"${catalog.projects[1]!.id}"`);
   expect((await fetch(`${base}/api/sessions`, { headers: headers('missing') })).status).toBe(404);
   const owner = catalog.projects[0]!.id;
   const sibling = catalog.projects[1]!.id;

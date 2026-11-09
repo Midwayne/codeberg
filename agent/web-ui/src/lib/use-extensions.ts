@@ -1,14 +1,9 @@
+import type { ExtensionCatalog } from '@agent/core/api/extensions.js';
+import { responseJson } from './response.js';
+import type { ProjectInfo } from '@agent/core/api/projects.js';
 import { useEffect, useState } from 'react';
 
-import type { Project } from './project-api';
-
-export interface ExtensionCatalog {
-  mcps: { name: string; kind: string; scope?: string }[];
-  skills: { name: string; description: string; scope: string }[];
-  warnings: string[];
-}
-
-export type ExtensionsOptions = { project: Project; api: typeof fetch; kind: 'mcp' | 'skill' };
+export type ExtensionsOptions = { project: ProjectInfo; api: typeof fetch; kind: 'mcp' | 'skill' };
 
 export function useExtensions({ project, api, kind }: ExtensionsOptions) {
   const [catalog, setCatalog] = useState<ExtensionCatalog>();
@@ -69,8 +64,7 @@ export function useExtensionCatalog({ setCatalogError, api, setCatalog, revision
     setCatalogError('');
     void api('/api/extensions', { signal: controller.signal })
       .then(async (response) => {
-        if (!response.ok) throw new Error(await response.text());
-        const next = (await response.json()) as ExtensionCatalog;
+        const next = await responseJson<ExtensionCatalog>(response);
         if (!controller.signal.aborted) setCatalog(next);
       })
       .catch((reason: unknown) => {

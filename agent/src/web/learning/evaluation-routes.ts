@@ -1,10 +1,12 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AutomaticEvalReport } from '../../core/learning/evaluation/automatic-types.js';
+import { isEvaluationId } from '../../core/learning/evaluation/reports.js';
 import type { LearningService } from '../../core/learning/service.js';
-import { redactSecrets } from '../../core/learning/redact.js';
-import { sendJson, sendText } from '../http.js';
+import { requireMethod, sendJson, sendText, uncached } from '../http.js';
+import { LEARNING_PATH } from './paths.js';
+import { queueJobsByType } from './queue-jobs.js';
 
-const PATH = '/api/learning/evaluations';
+const PATH = `${LEARNING_PATH}/evaluations`;
 
 /** Inspect background results; execution is driven by review and runtime reconciliation. */
 export async function routeEvaluations(
@@ -13,27 +15,23 @@ export async function routeEvaluations(
   learning: LearningService,
   url: URL,
 ): Promise<void> {
-  res.setHeader('Cache-Control', 'no-store');
-  if (req.method !== 'GET') return sendText(res, 405, 'method not allowed');
+  uncached(res);
+  if (!requireMethod(req, res, 'GET')) return;
 
   if (url.pathname === PATH) {
-    const [reports, pending, processing, failed] = await Promise.all([
+    const [reports, jobs] = await Promise.all([
       learning.evaluationReports.list(),
-      learning.queue.list('pending'),
-      learning.queue.list('processing'),
-      learning.queue.list('failed'),
+      queueJobsByType(learning, 'evaluate_output'),
     ]);
 
     return sendJson(res, 200, {
       reports: reports.slice(0, 50),
-      jobs: [...pending, ...processing, ...failed]
-        .filter((job) => job.type === 'evaluate_output')
-        .map((job) => ({ ...job, last_error: redactSecrets(job.last_error) })),
+      jobs,
     });
   }
 
   const id = url.pathname.slice(PATH.length + 1);
-  if (!/^evaluation-[a-f0-9]{24}$/.test(id)) return sendText(res, 400, 'invalid evaluation id');
+  if (!isEvaluationId(id)) return sendText(res, 400, 'invalid evaluation id');
 
   const report = await learning.evaluationReports.read<AutomaticEvalReport>('reports', id);
 

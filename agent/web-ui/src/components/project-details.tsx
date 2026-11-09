@@ -1,17 +1,17 @@
+import type { ProjectCatalogInfo, ProjectInfo } from '@agent/core/api/projects.js';
 import { Pencil } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { CopyButton } from './ui';
-import type { Project } from '../lib/project-api';
 import type { ProjectRenameProps } from './projects';
 import { ProjectConfigFiles } from './project-config-files';
 import { ProjectDelete } from './project-delete';
 import { RenameProjectForm } from './project-rename';
 
 export type ProjectDetailsProps = {
-  project: Project;
+  project: ProjectInfo;
   current?: boolean;
-  onRenamed: (project: Project) => void;
-  onDeleted?: (catalog: import('../lib/project-api').ProjectCatalog) => void;
+  onRenamed: (project: ProjectInfo) => void;
+  onDeleted?: (catalog: ProjectCatalogInfo) => void;
 };
 
 export function ProjectDetails(state: ProjectDetailsProps) {

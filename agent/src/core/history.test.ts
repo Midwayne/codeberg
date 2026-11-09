@@ -1,7 +1,8 @@
 import type { ModelMessage } from 'ai';
 import { describe, expect, it, vi } from 'vitest';
 
-import { estimateTokens, fitHistory, messageTokens, totalTokens } from './history.js';
+import { estimateTokens, messageTokens, totalTokens } from './history-tokens.js';
+import { fitHistory } from './history.js';
 
 function turn(role: 'user' | 'assistant', content: string): ModelMessage {
   return { role, content };

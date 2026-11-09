@@ -1,11 +1,14 @@
-import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { readRecordFiles } from '../fs.js';
 import { projectDreamingKnowledge } from '../dreaming/projection.js';
 import { DreamingReports } from '../dreaming/reports.js';
-import { memorySourceState, type SourceObservation } from '../memory-source.js';
+import { memorySourceState } from '../memory-source.js';
+import { type SourceObservation } from '../memory-source/reading.js';
+import { KNOWLEDGE_CATEGORIES } from '../preferences.js';
 import { interactionRevisions } from '../revision.js';
 import type { KnowledgeArtifact } from '../types.js';
-import { parseArtifact } from './artifact.js';
+import { stripUserNotes } from '../artifact-body.js';
+import { artifactRevision, parseArtifact } from './artifact.js';
 import { readEvents } from './events.js';
 import { readRepositories } from './repositories.js';
 import type { LearningStoreState } from './state.js';
@@ -21,7 +24,7 @@ export async function currentKnowledgeArtifacts(
 
       return {
         ...verified,
-        body: artifact.body.split('\n## User-confirmed notes (not source-verified)\n')[0].trim(),
+        body: stripUserNotes(artifact.body),
       };
     },
   );
@@ -38,10 +41,7 @@ export async function freshKnowledgeArtifacts(
       artifact.status === 'active' &&
       artifact.source_interactions.length > 0 &&
       artifact.source_interactions.every(
-        (id) =>
-          (artifact.source_revisions?.[id] ??
-            (artifact.source_interactions.length === 1 ? artifact.source_revision : undefined)) ===
-            revisions.get(id) && revisions.has(id),
+        (id) => revisions.has(id) && artifactRevision(artifact, id) === revisions.get(id),
       ),
   );
 
@@ -74,25 +74,14 @@ export async function projectedKnowledgeArtifacts(
 
 export async function knowledgeArtifacts(state: LearningStoreState): Promise<KnowledgeArtifact[]> {
   const artifacts: KnowledgeArtifact[] = [];
-  for (const category of ['services', 'flows', 'concepts', 'debugging'] as const) {
-    let files: string[];
-    try {
-      files = (await readdir(join(state.root, 'knowledge', category))).filter((file) =>
-        file.endsWith('.md'),
-      );
-    } catch {
-      continue;
-    }
-
-    for (const file of files) {
-      try {
-        artifacts.push(
-          parseArtifact(await readFile(join(state.root, 'knowledge', category, file), 'utf8')),
-        );
-      } catch {
-        // One malformed artifact must not hide the rest of the knowledge base.
-      }
-    }
+  for (const category of KNOWLEDGE_CATEGORIES) {
+    artifacts.push(
+      ...(await readRecordFiles(
+        join(state.root, 'knowledge', category),
+        (file) => file.endsWith('.md'),
+        parseArtifact,
+      )),
+    );
   }
 
   return artifacts;

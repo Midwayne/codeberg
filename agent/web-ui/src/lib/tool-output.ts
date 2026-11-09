@@ -1,4 +1,4 @@
-import { isSpillPreview, spillResultCount } from '@agent/core/context/spill-preview.js';
+import { spillResultCount } from '@agent/core/context/spill-preview.js';
 
 const LABELS: Record<string, string> = {
   file_outline: 'outline hits',
@@ -11,8 +11,6 @@ const LABELS: Record<string, string> = {
   search_graph: 'graph hits',
   tree: 'tree results',
 };
-
-export { isSpillPreview };
 
 export function spilledToolTitle(name: string, output: unknown): string {
   const count = spillResultCount(output);

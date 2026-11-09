@@ -1,8 +1,9 @@
+import type { PromptCommand } from '@agent/core/hooks/types.js';
 import type { usePromptInput } from './use-prompt-input';
 
 import { useEffect, useId, useMemo, useRef, useState, type RefObject } from 'react';
 
-import { commandQuery, matchCommands, type PromptCommand } from '../../lib/commands';
+import { commandQuery, matchCommands } from '../../lib/commands';
 import { useCommands } from '../../lib/use-commands';
 
 import { isComposingKey } from '../../lib/prompt-keyboard';

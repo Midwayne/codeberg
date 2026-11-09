@@ -1,13 +1,13 @@
 import type { SearchRuns } from './runs/manager.js';
 import { submitSearch } from './runs/routes.js';
-import { sameOrigin } from './http.js';
-import { validChatId, withCanvasChat } from '../core/canvas/context.js';
+import { validChatId } from '../core/canvas/context.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import type { ModelInput, ModelSelection } from '../core/model-types.js';
-import { readJson, sendText } from './http.js';
+import { readJson, sendJson, sendText } from './http.js';
 import type { ModelSettingsStore } from './model-selection/settings.js';
-import { formatWebTitle } from './title.js';
+import { chatModelTitle, selectedChatModel } from './title.js';
+import { MAX_PROMPT_FILE_BYTES, modelInputForMediaType } from '../core/api/files.js';
 import type { DecisionModel } from '../core/decisions/types.js';
 
 /** A model choice bound to one chat request. */
@@ -15,21 +15,12 @@ export type ResolvedModelSelection = ModelSelection & {
   model: string; contextWindow: number; inputs?: ModelInput[]; decisionModel?: DecisionModel | null;
 };
 
-export type ChatResponder = (
-  res: ServerResponse,
-  messages: unknown[],
-  selected?: ResolvedModelSelection,
-) => Promise<void>;
-
 export async function routeChat(
   req: IncomingMessage,
   res: ServerResponse,
   modelSettings: ModelSettingsStore | undefined,
-  respond: ChatResponder,
-  runs?: SearchRuns,
+  runs: SearchRuns,
 ): Promise<void> {
-  if (!sameOrigin(req)) return sendText(res, 403, 'cross-origin chats are not allowed');
-
   const body = await readJson(req);
   if (body?.id !== undefined) {
     try {
@@ -41,7 +32,7 @@ export async function routeChat(
 
   const messages = Array.isArray(body?.messages) ? body.messages : [];
   const settings = await modelSettings?.current();
-  const selected = settings?.models.find((entry) => entry.key === settings.chat.key);
+  const selected = settings && selectedChatModel(settings);
   const error = validateChatFiles(messages, selected?.inputs ?? ['text']);
   if (error) return sendText(res, 400, error);
 
@@ -50,9 +41,7 @@ export async function routeChat(
       decisionModel: settings.decisionModels?.find((item) => item.key === settings.decisions) ?? null }
     : undefined;
 
-  await withCanvasChat(body?.id, () => runs
-    ? submitSearch(res, body, selection, runs)
-    : respond(res, messages, selection));
+  await submitSearch(res, body, selection, runs);
 }
 
 export async function routeMeta(
@@ -60,17 +49,9 @@ export async function routeMeta(
   options: { title: string; learningEnabled: boolean; modelSettings?: ModelSettingsStore },
 ): Promise<void> {
   const settings = await options.modelSettings?.current();
-  const selected = settings?.models.find((entry) => entry.key === settings.chat.key);
-  res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-  res.end(
-    JSON.stringify({
-      title:
-        settings && selected
-          ? `${formatWebTitle(selected.model, settings.chat.effort)}${selected.key !== selected.model ? ` · ${selected.key.slice(selected.provider.length + 1)}` : ''}`
-          : options.title,
-      capabilities: { learning: options.learningEnabled },
-    }),
-  );
+  const title = (settings && chatModelTitle(settings)) ?? options.title;
+
+  sendJson(res, 200, { title, capabilities: { learning: options.learningEnabled } });
 }
 
 /** Check each submitted file, including previous turns sent again by the browser. */
@@ -88,18 +69,7 @@ function validateChatFiles(messages: unknown[], inputs: readonly ModelInput[]): 
       if (!part || typeof part !== 'object' || part.type !== 'file') continue;
 
       const mediaType = part.mediaType;
-      const input: ModelInput | undefined =
-        typeof mediaType === 'string'
-          ? mediaType.startsWith('image/')
-            ? 'vision'
-            : mediaType.startsWith('audio/')
-              ? 'audio'
-              : mediaType.startsWith('video/')
-                ? 'video'
-                : mediaType === 'application/pdf'
-                  ? 'pdf'
-                  : undefined
-          : undefined;
+      const input = typeof mediaType === 'string' ? modelInputForMediaType(mediaType) : undefined;
 
       if (!input || !inputs.includes(input))
         return `selected model does not support ${String(mediaType)} files`;
@@ -113,7 +83,7 @@ function validateChatFiles(messages: unknown[], inputs: readonly ModelInput[]): 
         return 'files must be base64 data URLs matching their media type';
       }
 
-      if (part.url.length - part.url.indexOf(',') - 1 > Math.ceil((20 * 1024 * 1024 * 4) / 3) + 4) {
+      if (part.url.length - part.url.indexOf(',') - 1 > Math.ceil((MAX_PROMPT_FILE_BYTES * 4) / 3) + 4) {
         return 'files must be 20 MB or smaller';
       }
     }

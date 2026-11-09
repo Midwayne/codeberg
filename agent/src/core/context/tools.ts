@@ -1,5 +1,6 @@
 import { jsonSchema, tool, type ToolSet } from 'ai';
-import { readContext, tailContext } from './files.js';
+import { readContext } from './read.js';
+import { tailContext } from './tail.js';
 
 import { MAX_REGEX_GROUP_DEPTH } from './grep-regex.js';
 import { grepContext, MAX_GREP_PATTERN } from './grep.js';

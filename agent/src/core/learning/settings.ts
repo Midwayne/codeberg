@@ -1,6 +1,6 @@
-import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { writeJsonAtomic } from './fs.js';
+import { readOptionalText, writeJsonAtomic } from './fs.js';
+import { WriteLock } from '../write-lock.js';
 import {
   DEFAULT_LEARNING_SETTINGS,
   mergeLearningSettings,
@@ -9,16 +9,16 @@ import {
 
 export class LearningSettingsStore {
   private loaded?: Promise<LearningSettings>;
-  private writing: Promise<void> = Promise.resolve();
+  private readonly lock = new WriteLock();
 
   constructor(private readonly root: string) {}
 
   current(): Promise<LearningSettings> {
-    this.loaded ??= readFile(join(this.root, 'settings.json'), 'utf8')
-      .then((raw) => mergeLearningSettings(DEFAULT_LEARNING_SETTINGS, JSON.parse(raw)))
-      .catch((error: NodeJS.ErrnoException) => {
-        if (error.code === 'ENOENT') return mergeLearningSettings(DEFAULT_LEARNING_SETTINGS, {});
-
+    this.loaded ??= readOptionalText(join(this.root, 'settings.json'))
+      .then((raw) =>
+        mergeLearningSettings(DEFAULT_LEARNING_SETTINGS, raw === undefined ? {} : JSON.parse(raw)),
+      )
+      .catch((error: unknown) => {
         this.loaded = undefined;
         throw error;
       });
@@ -27,19 +27,12 @@ export class LearningSettingsStore {
   }
 
   update(patch: unknown): Promise<LearningSettings> {
-    const update = this.writing.then(async () => {
+    return this.lock.run(async () => {
       const next = mergeLearningSettings(await this.current(), patch);
       await writeJsonAtomic(join(this.root, 'settings.json'), next);
       this.loaded = Promise.resolve(next);
 
       return structuredClone(next);
     });
-
-    this.writing = update.then(
-      () => undefined,
-      () => undefined,
-    );
-
-    return update;
   }
 }

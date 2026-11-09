@@ -1,6 +1,6 @@
+import type { ResourceSample, ResourceUsage } from '@agent/core/api/resources.js';
 import { USAGE_KINDS, type UsageRecord, type UsageReport } from '@agent/core/usage';
 import { summarizeUsage } from '../../../src/web/usage/summary';
-import type { ResourceSample, ResourceUsage } from '../lib/resources';
 
 const demoTokens = {
   chat: { inputTokens: 12000, outputTokens: 2400 },

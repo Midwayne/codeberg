@@ -120,7 +120,3 @@ export function createLearningGenerator(
     },
   };
 }
-
-export { ReloadableAgentPool } from './reloadable.js';
-
-export { boundLearningContext } from './learning-input.js';

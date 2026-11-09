@@ -2,7 +2,6 @@ import { jsonSchema, tool, type ToolExecutionOptions, type ToolSet } from 'ai';
 
 import { presentToolOutput, SPILL_CHARS } from '../context/spill.js';
 import type { ContextStore } from '../context/store.js';
-import { isBackgroundControl } from '../background/names.js';
 
 export const BATCH_TOOL = 'batch';
 
@@ -22,19 +21,6 @@ interface BatchCall {
 
 type Execute = (args: unknown, options: ToolExecutionOptions<unknown>) => unknown;
 
-/** Read-only lookups a batch may run. State-changing tools (canvas edits),
- *  MCP tools (unknown side effects, loaded per turn), and the batch itself
- *  keep their own calls. */
-export function isBatchable(name: string): boolean {
-  return (
-    !isBackgroundControl(name) &&
-    !name.startsWith('browser_') &&
-    name !== 'load_mcp_tools' &&
-    !name.startsWith('mcp_') &&
-    !name.startsWith('canvas_')
-  );
-}
-
 /**
  * `batch` runs several independent tool calls concurrently inside one model
  * step. Frontier providers emit parallel tool calls natively; many local and
@@ -42,10 +28,11 @@ export function isBatchable(name: string): boolean {
  * this every lookup costs a full round trip that re-sends the transcript.
  *
  * `tools` must be the unwrapped tool set: each result is spilled here against
- * a share of the batch budget instead of the per-tool limit.
+ * a share of the batch budget instead of the per-tool limit. `batchable`
+ * names the read-only lookups it may run (see `ToolSource.batchable`).
  */
-export function batchTool(tools: ToolSet, store: ContextStore): ToolSet {
-  const names = Object.keys(tools).filter(isBatchable);
+export function batchTool(tools: ToolSet, store: ContextStore, batchable: readonly string[]): ToolSet {
+  const names = batchable.filter((name) => name in tools && name !== BATCH_TOOL);
   if (names.length === 0) return {};
 
   return {
@@ -56,7 +43,7 @@ export function batchTool(tools: ToolSet, store: ContextStore): ToolSet {
         '(e.g. grep three names or read two files). ' +
         'Results come back in call order; one failing call does not fail the others.',
       inputSchema: batchSchema(names),
-      execute: (input, options) => runBatch(tools, store, input.calls, options),
+      execute: (input, options) => runBatch(pick(tools, names), store, input.calls, options),
     }),
   };
 }
@@ -122,7 +109,7 @@ async function runCall(
 ) {
   const name = typeof call?.tool === 'string' ? call.tool : '';
   const execute = (tools[name] as { execute?: Execute } | undefined)?.execute;
-  if (!isBatchable(name) || typeof execute !== 'function') {
+  if (!Object.hasOwn(tools, name) || typeof execute !== 'function') {
     return { tool: name, error: `unknown or non-batchable tool: ${name || '(missing)'}` };
   }
 
@@ -138,4 +125,8 @@ async function runCall(
   } catch (error) {
     return { tool: name, error: error instanceof Error ? error.message : String(error) };
   }
+}
+
+function pick(tools: ToolSet, names: readonly string[]): ToolSet {
+  return Object.fromEntries(names.map((name) => [name, tools[name]!]));
 }

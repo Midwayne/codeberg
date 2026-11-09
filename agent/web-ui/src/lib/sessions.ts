@@ -1,30 +1,14 @@
 import type { UIMessage } from 'ai';
 
+import type {
+  SessionFlags,
+  SessionRecord as StoredSession,
+  SessionSummary,
+} from '@agent/core/api/sessions.js';
 import { titleFromText } from '@agent/core/title.js';
+import { jsonRequest } from './response.js';
 
-/** Sidebar row — mirrors the server's WebSessionSummary. */
-export interface SessionSummary {
-  id: string;
-  title: string;
-  updatedAt: number;
-  turns: number;
-  parentId?: string;
-  pinned: boolean;
-  archived: boolean;
-}
-
-/** Full saved chat — UI messages verbatim, so a resume re-renders faithfully. */
-export interface SessionRecord {
-  serverRunId?: string;
-  id: string;
-  title: string;
-  createdAt: number;
-  updatedAt: number;
-  messages: UIMessage[];
-  parentId?: string;
-  pinned?: boolean;
-  archived?: boolean;
-}
+export type SessionRecord = StoredSession<UIMessage>;
 
 const BASE = '/api/sessions';
 
@@ -40,23 +24,11 @@ export async function listSessions(query = '', fetcher: typeof fetch = fetch): P
 
 export async function updateSessionFlags(
   id: string,
-  flags: { pinned?: boolean; archived?: boolean },
+  flags: SessionFlags,
   fetcher: typeof fetch = fetch,
 ): Promise<void> {
-  const response = await fetcher(`${BASE}/${encodeURIComponent(id)}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(flags),
-  });
+  const response = await fetcher(`${BASE}/${encodeURIComponent(id)}`, jsonRequest('PATCH', flags));
   if (!response.ok) throw new Error(`Could not update chat (${response.status})`);
-}
-
-export async function loadSession(id: string, fetcher: typeof fetch = fetch): Promise<SessionRecord | null> {
-  try {
-    return await readSession(id, fetcher);
-  } catch {
-    return null;
-  }
 }
 
 /** Interactive opens must distinguish a missing chat from a failed request. */
@@ -76,15 +48,14 @@ export type SaveSessionInput = {
 };
 
 export async function saveSession(input: SaveSessionInput, fetcher: typeof fetch = fetch): Promise<void> {
-  const response = await fetcher(`${BASE}/${encodeURIComponent(input.id)}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  const response = await fetcher(
+    `${BASE}/${encodeURIComponent(input.id)}`,
+    jsonRequest('PUT', {
       title: input.title,
       messages: input.messages,
       ...(input.parentId ? { parentId: input.parentId } : {}),
     }),
-  });
+  );
   if (!response.ok) throw new Error(`Could not save chat (${response.status})`);
 }
 

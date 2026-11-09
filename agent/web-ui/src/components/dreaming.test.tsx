@@ -1,7 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it } from 'vitest';
-import type { DreamingReport } from '@/lib/dreaming';
-import { DreamingReportList, DreamingReportView } from './dreaming';
+import type { DreamingReport } from '@agent/core/learning/dreaming/types.js';
+import { DreamingReportList } from './dreaming';
+import { DreamingReportView } from './dreaming-report';
 
 const report: DreamingReport = { schema_version: 1, id: 'dream-test', created_at: '2026-10-06T00:00:00Z', summary: 'Inventory findings',
   considered: 2, omitted: 1, changes: [], status: 'proposed', decisions: [] };

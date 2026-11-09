@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
-import { projectDataHome } from '../../core/projects.js';
+import { projectDataHome } from '../../core/projects/types.js';
 import { ProjectRequestRouter } from '../projects.js';
 
 it('restores projects with durable schedules without browser traffic and reuses handlers', async () => {

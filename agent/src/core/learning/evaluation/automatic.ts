@@ -1,29 +1,34 @@
 import type { DatasetStore } from '../datasets.js';
 import type { DurableJobQueue } from '../queue.js';
-import { stableId, type LearningStore } from '../store.js';
-import type {
-  AutomaticEvalReport,
-  EvaluationRuntime,
-  EvaluationTask,
-} from './automatic-types.js';
-import { processEvaluation } from './process.js';
+import { stableId } from '../store/identity.js';
+import type { LearningStore } from '../store.js';
+import type { AutomaticEvalReport, EvaluationRuntime, EvaluationTask } from './automatic-types.js';
+import { EvaluationProcessor } from './process.js';
 import { EvaluationReports } from './reports.js';
+import { EvaluationTaskCheck } from './task-check.js';
 
+/** Schedules one durable task per current held-out example, model pair and repository version. */
 export class AutomaticEvaluations {
   readonly reports: EvaluationReports;
+
+  private readonly check: EvaluationTaskCheck;
+
+  private readonly processor: EvaluationProcessor;
 
   private checking?: Promise<void>;
 
   private rescan = false;
 
   constructor(
-    readonly store: LearningStore,
-    readonly datasets: DatasetStore,
-    readonly queue: DurableJobQueue,
-    readonly runtime: EvaluationRuntime,
+    store: LearningStore,
+    private readonly datasets: DatasetStore,
+    private readonly queue: DurableJobQueue,
+    private readonly runtime: EvaluationRuntime,
     readonly enabled: () => boolean,
   ) {
     this.reports = new EvaluationReports(store.root);
+    this.check = new EvaluationTaskCheck(store, runtime, enabled);
+    this.processor = new EvaluationProcessor(this.reports, datasets, runtime, this.check);
   }
 
   reconcile(): Promise<void> {
@@ -33,6 +38,10 @@ export class AutomaticEvaluations {
     });
 
     return this.checking;
+  }
+
+  process(id: string, attempt: number): Promise<void> {
+    return this.processor.process(id, attempt);
   }
 
   private async scanUntilCurrent(): Promise<void> {
@@ -48,9 +57,7 @@ export class AutomaticEvaluations {
     const configuration = await this.runtime.configuration();
     if (!configuration) return;
 
-    const repositories = (await this.store.repositories()).sort((a, b) =>
-      a.path.localeCompare(b.path),
-    );
+    const repositories = await this.check.repositories();
     for (const example of await this.datasets.active('eval')) {
       if (!this.enabled()) return;
 
@@ -75,9 +82,5 @@ export class AutomaticEvaluations {
         requeueCompleted: previous?.status === 'superseded',
       });
     }
-  }
-
-  process(id: string, attempt: number): Promise<void> {
-    return processEvaluation(this, id, attempt);
   }
 }

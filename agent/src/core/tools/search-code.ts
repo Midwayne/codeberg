@@ -3,6 +3,7 @@ import { jsonSchema, tool, type ToolSet } from 'ai';
 import type { DaemonClient } from '../client.js';
 import { formatLineRange } from '../search-hit.js';
 import type { SearchResult } from '../types.js';
+import { readChunkBody } from './chunk-body.js';
 import { daemonToolError } from './daemon-error.js';
 import type { ToolSource } from './source.js';
 
@@ -112,12 +113,7 @@ async function expandResults(daemon: DaemonClient, results: SearchResult[], quer
           id: hit.id,
         }, ...(signal ? [signal] as const : []));
 
-        return detail &&
-          typeof detail === 'object' &&
-          'body' in detail &&
-          typeof detail.body === 'string'
-          ? { body: detail.body, truncated: 'truncated' in detail && detail.truncated === true }
-          : undefined;
+        return readChunkBody(detail);
       } catch {
         signal?.throwIfAborted();
 

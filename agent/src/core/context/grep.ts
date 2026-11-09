@@ -2,7 +2,7 @@ import { collectFiles } from './files.js';
 import { createRegexMatcher, exceedsRegexGroupDepth, MAX_REGEX_GROUP_DEPTH, RegexMatchError } from './grep-regex.js';
 import { clampInt, MAX_CONTEXT_CHARS, MAX_SEGMENT_CHARS, safeCut, safeStart } from './limits.js';
 import type { ContextStore } from './store.js';
-import { isContextReadError, textSegments } from './text-stream.js';
+import { CONTEXT_PATH_DENIED, isContextReadError, textSegments } from './text-stream.js';
 
 export const MAX_GREP_PATTERN = 16_384;
 
@@ -61,7 +61,7 @@ export async function grepContext(store: ContextStore, input: GrepInput, signal?
     throw error;
   }
 
-  if (files.length === 0) return 'error: path not found or not allowed';
+  if (files.length === 0) return CONTEXT_PATH_DENIED;
 
   return searchFiles(files, matcher, clampInt(input.limit, 40, 100), signal);
 }

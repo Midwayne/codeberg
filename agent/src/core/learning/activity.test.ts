@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DatasetStore } from './datasets.js';
 import { LearningService } from './service.js';
+import { JobFailure } from './errors.js';
 
 const services: LearningService[] = [];
 afterEach(async () => {
@@ -46,7 +47,7 @@ describe('learning execution state', () => {
 
         return [];
       })
-      .mockRejectedValueOnce(new Error('PERMANENT_ERROR: extraction failed'));
+      .mockRejectedValueOnce(new JobFailure('PERMANENT_ERROR', 'extraction failed'));
     await service.queue.enqueueDataset('first');
     service.worker!.wake();
     await vi.waitFor(() => expect(finish).toBeDefined());

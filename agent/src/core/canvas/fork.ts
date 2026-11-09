@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { canvasChatName } from './files.js';
 import { CanvasStore } from './store.js';
 import { atomicWrite, readData, withCanvasLock } from './storage.js';
 import { validateScene } from './validation.js';
@@ -12,14 +12,19 @@ export async function forkChatCanvas(store: CanvasStore | undefined, id: string,
     store.forChat(id);
     store.forChat(parentId);
     await withCanvasLock(store.root, async () => {
-      const target = join(store.root, `chat-${id}.excalidraw`);
+      const target = store.path(store.chatSceneName(id));
       if (await readData(target)) return;
 
-      const parent = await readData(join(store.root, `chat-${parentId}.excalidraw`));
+      const parent = await readData(store.path(store.chatSceneName(parentId)));
       if (!parent) return;
 
       validateScene(parent);
-      await atomicWrite(target, { ...parent, name: `chat-${id}`, revision: 0, updatedAt: new Date().toISOString() });
+      await atomicWrite(target, {
+        ...parent,
+        name: canvasChatName(id),
+        revision: 0,
+        updatedAt: new Date().toISOString(),
+      });
     });
   } catch (error) {
     // A canvas disk failure must not prevent saving the conversation itself.

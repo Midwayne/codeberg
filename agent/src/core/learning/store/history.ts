@@ -18,7 +18,6 @@ export async function recordSession(
   state: LearningStoreState,
   conversationId: string,
   messages: UIMessage[],
-  parentConversationId?: string,
 ): Promise<AttemptRecord[]> {
   const events = await readEvents(state);
   const existing = new Set(
@@ -45,8 +44,6 @@ export async function recordSession(
     existing.add(attempt.attempt_id);
     recorded.push(attempt);
   }
-
-  void parentConversationId; // Branch lineage remains in the session store; history is immutable here.
 
   return recorded;
 }

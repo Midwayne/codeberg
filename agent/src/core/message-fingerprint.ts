@@ -10,6 +10,17 @@ export function hash(value: string | Uint8Array): string {
   return createHash('sha256').update(value).digest('hex');
 }
 
+/** Chain each message onto the previous digest so a prefix can be matched later. */
+export function prefixHashes(messages: readonly unknown[]): string[] {
+  let previous = '';
+
+  return messages.map((message) => {
+    previous = hash(previous + fingerprintMessage(message));
+
+    return previous;
+  });
+}
+
 /** Cache annotations are transport metadata. Business data inside tool inputs
  *  and JSON outputs, including fields named providerOptions, remains significant. */
 export function fingerprintMessage(value: unknown): string {

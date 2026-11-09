@@ -4,7 +4,8 @@ import { readArguments, workerName } from './labels.js';
 import { processUsage, sampleWebProcess } from './measurement.js';
 import { localDaemonPid, readProcesses, selectProcessTree } from './snapshot.js';
 import type { ProcessMonitorState } from './state.js';
-import type { ProcessSnapshot, ProcessUsage } from './types.js';
+import type { ProcessUsage } from '../../core/api/resources.js';
+import type { ProcessSnapshot } from './types.js';
 
 export async function sample(state: ProcessMonitorState): Promise<ProcessUsage> {
   const pid = state.options.pid ?? process.pid;

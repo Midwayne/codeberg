@@ -16,13 +16,24 @@ export function canvasFetch(): typeof fetch {
   };
 }
 
-export function canvasUrl(chatId: string, project?: string, embedded = false): string {
-  const params = new URLSearchParams({ chat: chatId });
-  if (project) params.set('project', project);
+export type CanvasUrlOptions = {
+  project?: string;
+  embedded?: boolean;
+  motion?: 'none';
+};
 
-  if (embedded) params.set('embedded', '1');
+export function canvasUrl(chatId: string, options: CanvasUrlOptions = {}): string {
+  const params = new URLSearchParams({ chat: chatId });
+
+  if (options.project) params.set('project', options.project);
+  if (options.embedded) params.set('embedded', '1');
+  if (options.motion) params.set('motion', options.motion);
 
   return `/canvas?${params}`;
+}
+
+export function canvasMotion(): string | null {
+  return new URL(location.href).searchParams.get('motion');
 }
 
 export function canvasEmbedded(): boolean {

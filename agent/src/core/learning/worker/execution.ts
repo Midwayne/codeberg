@@ -1,11 +1,12 @@
 import { writeLearningTrace, writeModuleLog } from '../../module-log.js';
-import { sourceRevision } from '../datasets.js';
+import { sourceRevision } from '../revision.js';
 import { DreamingConsolidator } from '../dreaming/consolidator.js';
 import { DreamingReports } from '../dreaming/reports.js';
 import { memorySourceState } from '../memory-source.js';
-import { classifyFailure } from '../queue.js';
+import { classifyFailure } from '../queue/policy.js';
 import type { KnowledgeJob } from '../types.js';
-import { KNOWLEDGE_EXTRACTION_VERSION, LearningPaused } from './constants.js';
+import { KNOWLEDGE_EXTRACTION_VERSION } from './constants.js';
+import { LearningPaused } from '../errors.js';
 import { process } from './extraction.js';
 import { enabledType, jobEnabled } from './policy.js';
 import type { KnowledgeWorkerState } from './state.js';

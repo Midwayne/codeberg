@@ -1,33 +1,25 @@
-import { randomUUID } from 'node:crypto';
-import { mkdir, open, readFile, rename, rm } from 'node:fs/promises';
+import { mkdir, open, rm } from 'node:fs/promises';
 import { join } from 'node:path';
+import { readOptionalText, writeAtomic } from '../learning/fs.js';
 import { CanvasError } from './types.js';
 
 export async function readData(path: string): Promise<unknown> {
   try {
-    return JSON.parse(await readFile(path, 'utf8'));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    const raw = await readOptionalText(path);
+    if (raw === undefined) return undefined;
 
-    const reason = error instanceof SyntaxError ? 'invalid JSON' : (error as NodeJS.ErrnoException).code ?? 'unreadable file';
+    return JSON.parse(raw);
+  } catch (error) {
+    const reason =
+      error instanceof SyntaxError ? 'invalid JSON' : ((error as NodeJS.ErrnoException).code ?? 'unreadable file');
+
     throw new CanvasError(`Cannot read canvas data: ${reason}`, 503);
   }
 }
 
+/** Compact JSON through the shared exclusive-temp publish. */
 export async function atomicWrite(path: string, value: unknown): Promise<void> {
-  const temporary = `${path}.${randomUUID()}.tmp`;
-  try {
-    const file = await open(temporary, 'wx', 0o600);
-    try {
-      await file.writeFile(JSON.stringify(value));
-      await file.sync();
-    } finally {
-      await file.close();
-    }
-    await rename(temporary, path);
-  } finally {
-    await rm(temporary, { force: true });
-  }
+  await writeAtomic(path, JSON.stringify(value));
 }
 
 /** Cross-process lock. A crashed owner's lock fails safely and is never stolen. */

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { jsonRequest } from '../lib/response.js';
 import { useProjectApi } from '../lib/project-api';
 
 export function useCanvasSettings() {
@@ -26,8 +27,7 @@ export function useCanvasSettings() {
   const change = async (value: boolean) => {
     setBusy(true);
     try {
-      const response = await fetch('/api/settings/canvas', { method: 'PUT',
-        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: value }) });
+      const response = await fetch('/api/settings/canvas', jsonRequest('PUT', { enabled: value }));
       if (!response.ok) throw new Error((await response.json()).error ?? 'Unable to save canvas settings.');
 
       setEnabled(value);

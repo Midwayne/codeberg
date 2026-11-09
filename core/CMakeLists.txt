@@ -81,6 +81,7 @@ set(CBERG_SOURCES
   src/common/pathglob.c
   src/common/walk_policy.c
   src/common/fileio.c
+  src/common/json_read.c
   src/common/strutil.c
   src/common/strmap.c
   src/common/u64map.c
@@ -91,6 +92,7 @@ set(CBERG_SOURCES
   src/chunk/chunk_table.c
   src/graph/graph_store.c
   src/graph/graph_extract.c
+  src/graph/graph_names.c
   src/graph/scope_syntax.c
   src/graph/scope_imports.c
   src/graph/scope_values.c

@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { hash as digest } from '../../message-fingerprint.js';
 import type { BigIntStats } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 
@@ -51,7 +51,7 @@ export async function readSourceFile(path: string): Promise<SourceFile> {
 
   remove(path);
   const content = await readFile(path);
-  const value = { text: content.toString('utf8'), hash: createHash('sha256').update(content).digest('hex') };
+  const value = { text: content.toString('utf8'), hash: digest(content) };
   if (stamp(await stat(path, { bigint: true })) === signature) retain(path, value, signature);
 
   return value;

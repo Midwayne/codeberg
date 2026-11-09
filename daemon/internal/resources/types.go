@@ -65,7 +65,7 @@ type Usage struct {
 
 type Options struct {
 	Home, ModelPath, IndexPath, LogDir string
-	EmbeddingBackend                   string
+	EmbeddingBackend, EmbedPython      string
 	PID, RootPID, Cores                int
 	TotalMemory                        int64
 	Now                                func() time.Time

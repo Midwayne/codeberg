@@ -1,9 +1,11 @@
 import { constants } from 'node:fs';
-import { lstat, open } from 'node:fs/promises';
+import { open } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { parseArtifact } from '../../core/learning/store.js';
-import { isValidSessionId } from '../sessions/store.js';
-import { type CleanupCategory, ResourceSettingsError, type StoredFile } from './types.js';
+import { optionalLstat } from '../../core/learning/fs.js';
+import { parseArtifact } from '../../core/learning/store/artifact.js';
+import { isValidSessionId } from '../../core/api/sessions.js';
+import type { CleanupCategory } from '../../core/api/resources.js';
+import { ResourceSettingsError, type StoredFile } from './types.js';
 
 export async function readStoredFile(
   path: string,
@@ -40,15 +42,17 @@ export async function readStoredFile(
       mtimeMs: info.mtimeMs,
     };
   } catch (error) {
-    if (
-      (error as NodeJS.ErrnoException).code &&
-      !['ENOENT', 'ELOOP'].includes((error as NodeJS.ErrnoException).code!)
-    )
-      throw error;
-    // Malformed records cannot establish an age and are not cleanup targets.
+    if (!skipCleanupRecord(error)) throw error;
   }
 
   return undefined;
+}
+
+/** A missing file, a symlink loop, or a non-IO failure is not a cleanup target. */
+export function skipCleanupRecord(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException).code;
+
+  return !code || code === 'ENOENT' || code === 'ELOOP';
 }
 
 export function ageCutoff(days: unknown): number {
@@ -59,29 +63,18 @@ export function ageCutoff(days: unknown): number {
 }
 
 export async function fileInfo(path: string) {
-  try {
-    const info = await lstat(path);
+  const info = await optionalLstat(path);
 
-    return info.isFile() ? info : undefined;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
-
-    throw error;
-  }
+  return info?.isFile() ? info : undefined;
 }
 
 export async function realDirectory(path: string, boundary: string): Promise<boolean> {
-  try {
-    if (!(await lstat(path)).isDirectory()) return false;
+  const info = await optionalLstat(path);
+  if (!info?.isDirectory()) return false;
 
-    const parent = dirname(path);
+  const parent = dirname(path);
 
-    return path === boundary || parent === path || (await realDirectory(parent, boundary));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
-
-    throw error;
-  }
+  return path === boundary || parent === path || (await realDirectory(parent, boundary));
 }
 
 export async function readRegularFile(path: string): Promise<string> {

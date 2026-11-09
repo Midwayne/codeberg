@@ -7,7 +7,6 @@ import (
 
 	"codeberg.org/codeberg/daemon/internal/indexctl"
 	"codeberg.org/codeberg/daemon/internal/subprocess"
-	"codeberg.org/codeberg/daemon/internal/tools"
 )
 
 func TestErrorMappingUnsafeAndInvalid(t *testing.T) {
@@ -18,8 +17,8 @@ func TestErrorMappingUnsafeAndInvalid(t *testing.T) {
 		code   string
 	}{
 		{"building", &indexctl.IndexerError{Code: "NOT_READY"}, http.StatusServiceUnavailable, "NOT_READY"},
-		{"unsafe pipe", tools.ErrUnsafePipe, http.StatusBadRequest, "UNSAFE_PIPE"},
-		{"unsafe sed", tools.ErrUnsafeSed, http.StatusBadRequest, "UNSAFE_SED"},
+		{"unsafe pipe", subprocess.ErrUnsafe, http.StatusBadRequest, "UNSAFE_PIPE"},
+		{"unsafe sed", subprocess.ErrUnsafeSed, http.StatusBadRequest, "UNSAFE_SED"},
 		{"invalid pipeline", subprocess.ErrInvalid, http.StatusBadRequest, "INVALID_ARGS"},
 		{"wrapped invalid", errors.Join(subprocess.ErrInvalid, errors.New("empty")), http.StatusBadRequest, "INVALID_ARGS"},
 	}

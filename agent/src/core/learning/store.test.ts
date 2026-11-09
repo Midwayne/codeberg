@@ -8,7 +8,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { DatasetStore } from './datasets.js';
 import { exportDataset } from './export.js';
 import { writeAtomic } from './fs.js';
-import { LearningStore, serializeArtifact } from './store.js';
+import { LearningStore } from './store.js';
+import { serializeArtifact } from './store/artifact.js';
 
 const roots: string[] = [];
 

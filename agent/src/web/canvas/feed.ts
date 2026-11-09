@@ -1,5 +1,6 @@
 import { watch, type FSWatcher } from 'node:fs';
 import type { ServerResponse } from 'node:http';
+import { canvasSceneFile } from '../../core/canvas/files.js';
 import type { CanvasStore } from '../../core/canvas/store.js';
 import { CanvasError } from '../../core/canvas/types.js';
 import { writeModuleLog } from '../../core/module-log.js';
@@ -45,7 +46,8 @@ export class CanvasFeed {
     try {
       this.watcher = watch(this.store.root, { persistent: false }, (_event, filename) => {
         const name = filename?.toString();
-        if (name && this.store.chatId && name !== 'settings.json' && name !== `chat-${this.store.chatId}.excalidraw`) return;
+        const chatFile = this.store.chatId ? canvasSceneFile(this.store.chatSceneName()) : undefined;
+        if (name && chatFile && name !== this.store.settingsFile() && name !== chatFile) return;
         if (this.debounce) clearTimeout(this.debounce);
 
         this.debounce = setTimeout(() => {

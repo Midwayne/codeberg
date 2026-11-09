@@ -1,6 +1,9 @@
 import { mkdir, open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeModuleLog } from '../../module-log.js';
+import { DATASET_BUCKETS } from '../datasets/storage.js';
+import { KNOWLEDGE_CATEGORIES } from '../preferences.js';
+import { JOB_STATUSES } from '../types.js';
 import { syncWatcher, wakeWorker } from './background.js';
 import { scheduleDreaming } from './dreaming-schedule.js';
 import { refreshEvaluations } from './evaluations.js';
@@ -60,14 +63,14 @@ export function stop(state: LearningServiceState): void {
 export async function ensureLayout(state: LearningServiceState): Promise<void> {
   await Promise.all([
     mkdir(join(state.store.root, 'events'), { recursive: true }),
-    ...['services', 'flows', 'concepts', 'debugging'].map((name) =>
+    ...KNOWLEDGE_CATEGORIES.map((name) =>
       mkdir(join(state.store.root, 'knowledge', name), { recursive: true }),
     ),
-    ...['pending', 'processing', 'completed', 'failed'].map((name) =>
+    ...JOB_STATUSES.map((name) =>
       mkdir(join(state.store.root, 'jobs', name), { recursive: true }),
     ),
     mkdir(join(state.store.root, 'datasets', 'embedding'), { recursive: true }),
-    ...['candidates', 'eval', 'training', 'dismissed'].map((name) =>
+    ...DATASET_BUCKETS.map((name) =>
       mkdir(join(state.store.root, 'datasets', name), { recursive: true }),
     ),
   ]);

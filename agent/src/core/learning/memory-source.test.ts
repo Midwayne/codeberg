@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { memorySourceState, observeSources } from './memory-source.js';
 import { DurableJobQueue } from './queue.js';
 import { LearningService } from './service.js';
-import { stableId } from './store.js';
+import { stableId } from './store/identity.js';
 import { KnowledgeWorker } from './worker.js';
 
 const roots: string[] = [];

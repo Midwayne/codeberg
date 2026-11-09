@@ -1,86 +1,61 @@
-add_executable(cberg-index
-  main.c
-  wipe.c
+# Everything cberg-index runs except main(): shared by the binary and the
+# engine tests. The include directories are the library-internal headers the
+# engine is allowed to use; keep them in this one place.
+add_library(cberg_index_engine STATIC
   indexer.c
+  query.c
+  graph_query.c
   embedding.c
   ipc.c
+  ipc_commands.c
+  ipc_json.c
+  wipe.c
+  index_env.c
+  workspace_graph.c
+  workspace_resolve.c
 )
-target_include_directories(cberg-index PRIVATE
+target_include_directories(cberg_index_engine PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/../../src/common
-  ${CMAKE_CURRENT_SOURCE_DIR}/../../src/chunk)
-target_link_libraries(cberg-index PRIVATE codeberg::codeberg)
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../src/chunk
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../src/embed
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../src/graph)
+target_link_libraries(cberg_index_engine PUBLIC codeberg::codeberg)
+if(CBERG_WITH_ONNX)
+  target_compile_definitions(cberg_index_engine PUBLIC CBERG_WITH_ONNX)
+endif()
+
+add_executable(cberg-index main.c)
+target_link_libraries(cberg-index PRIVATE cberg_index_engine)
 set_target_properties(cberg-index PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 add_test(NAME test_cberg_capabilities COMMAND cberg-index --capabilities)
 set_tests_properties(test_cberg_capabilities PROPERTIES
-  ENVIRONMENT "CBERG_MODEL=missing-model;CBERG_ROOTS=invalid-roots")
+  ENVIRONMENT "CBERG_MODEL=missing-model;CODEBERG_ROOTS=invalid-roots")
 if(CBERG_WITH_ONNX)
-  target_compile_definitions(cberg-index PRIVATE CBERG_WITH_ONNX)
   set_tests_properties(test_cberg_capabilities PROPERTIES PASS_REGULAR_EXPRESSION "\"onnx\":true")
 else()
   set_tests_properties(test_cberg_capabilities PROPERTIES PASS_REGULAR_EXPRESSION "\"onnx\":false")
 endif()
 
-add_executable(test_cberg_walk test_walk.c)
-target_include_directories(test_cberg_walk PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}
-  ${CMAKE_CURRENT_SOURCE_DIR}/../../src/common)
-target_link_libraries(test_cberg_walk PRIVATE codeberg::codeberg)
-add_test(NAME test_cberg_walk COMMAND test_cberg_walk)
+function(cberg_engine_test name source)
+  add_executable(${name} ${source})
+  target_link_libraries(${name} PRIVATE cberg_index_engine)
+  add_test(NAME ${name} COMMAND ${name})
+  set_tests_properties(${name} PROPERTIES TIMEOUT 60)
+endfunction()
 
-add_executable(test_cberg_engine test_engine.c indexer.c embedding.c ipc.c)
-target_include_directories(test_cberg_engine PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}
-  ${CMAKE_CURRENT_SOURCE_DIR}/../../src/common
-  ${CMAKE_CURRENT_SOURCE_DIR}/../../src/chunk)
-target_link_libraries(test_cberg_engine PRIVATE codeberg::codeberg)
-add_test(NAME test_cberg_engine COMMAND test_cberg_engine)
-set_tests_properties(test_cberg_engine PROPERTIES TIMEOUT 60)
+cberg_engine_test(test_cberg_walk test_walk.c)
+cberg_engine_test(test_cberg_engine test_engine.c)
+cberg_engine_test(test_workspace_graph test_workspace_graph.c)
+cberg_engine_test(test_cberg_hits test_hits.c)
+cberg_engine_test(test_cberg_wipe test_wipe.c)
 
-add_executable(test_workspace_graph test_workspace_graph.c indexer.c embedding.c ipc.c)
-target_include_directories(test_workspace_graph PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}
-  ${CMAKE_CURRENT_SOURCE_DIR}/../../src/common
-  ${CMAKE_CURRENT_SOURCE_DIR}/../../src/chunk
-  ${CMAKE_CURRENT_SOURCE_DIR}/../../src/embed)
-target_link_libraries(test_workspace_graph PRIVATE codeberg::codeberg)
-add_test(NAME test_workspace_graph COMMAND test_workspace_graph)
-set_tests_properties(test_workspace_graph PROPERTIES TIMEOUT 60)
-
-add_executable(test_cberg_hits test_hits.c indexer.c embedding.c ipc.c)
-target_include_directories(test_cberg_hits PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}
-  ${CMAKE_CURRENT_SOURCE_DIR}/../../src/common
-  ${CMAKE_CURRENT_SOURCE_DIR}/../../src/chunk)
-target_link_libraries(test_cberg_hits PRIVATE codeberg::codeberg)
-add_test(NAME test_cberg_hits COMMAND test_cberg_hits)
-set_tests_properties(test_cberg_hits PROPERTIES TIMEOUT 60)
-
-add_executable(test_cberg_vectors test_vectors.c indexer.c embedding.c ipc.c)
-target_include_directories(test_cberg_vectors PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}
-  ${CMAKE_CURRENT_SOURCE_DIR}/../../src/common
-  ${CMAKE_CURRENT_SOURCE_DIR}/../../src/chunk)
-target_link_libraries(test_cberg_vectors PRIVATE codeberg::codeberg)
+cberg_engine_test(test_cberg_vectors test_vectors.c)
 target_compile_definitions(test_cberg_vectors PRIVATE
   CBERG_LOG_WORKER="${CMAKE_CURRENT_SOURCE_DIR}/embed_log_worker.py")
-add_test(NAME test_cberg_vectors COMMAND test_cberg_vectors)
-set_tests_properties(test_cberg_vectors PROPERTIES TIMEOUT 60)
 add_test(NAME test_cberg_vectors_gemma COMMAND test_cberg_vectors sentence-transformers)
 set_tests_properties(test_cberg_vectors_gemma PROPERTIES TIMEOUT 60)
 add_test(NAME test_cberg_vectors_gemma_mlx COMMAND test_cberg_vectors gemma-mlx)
 set_tests_properties(test_cberg_vectors_gemma_mlx PROPERTIES TIMEOUT 60)
-
-add_executable(test_cberg_wipe test_wipe.c wipe.c)
-target_link_libraries(test_cberg_wipe PRIVATE codeberg::codeberg)
-add_test(NAME test_cberg_wipe COMMAND test_cberg_wipe)
-
-foreach(target cberg-index test_cberg_engine test_cberg_hits test_cberg_vectors)
-  target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../src/embed)
-endforeach()
-
-foreach(target cberg-index test_cberg_engine test_cberg_hits test_cberg_vectors test_workspace_graph)
-  target_sources(${target} PRIVATE workspace_graph.c workspace_resolve.c)
-endforeach()

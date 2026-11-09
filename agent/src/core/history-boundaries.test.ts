@@ -1,7 +1,8 @@
 import type { ModelMessage } from 'ai';
 import { describe, expect, it, vi } from 'vitest';
 
-import { fitHistory, totalTokens } from './history.js';
+import { fitHistory } from './history.js';
+import { totalTokens } from './history-tokens.js';
 
 function exchange(size: number): ModelMessage[] {
   return [

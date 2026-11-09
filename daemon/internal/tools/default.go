@@ -5,10 +5,6 @@ import (
 	"codeberg.org/codeberg/daemon/internal/workspace"
 )
 
-func Default(ws *workspace.Workspace, idx indexctl.Indexer) *Registry {
-	return WithVectorSearch(ws, idx, true)
-}
-
 // WithVectorSearch builds the tool catalogue for the configured startup mode.
 func WithVectorSearch(ws *workspace.Workspace, idx indexctl.Indexer, vectors bool) *Registry {
 	r := NewRegistry()

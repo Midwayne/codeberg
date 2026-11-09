@@ -28,9 +28,12 @@ func TestDeleteProjectModesAndReuse(t *testing.T) {
 				}
 			}
 			stopped := false
-			m.BindDefault(http.NotFoundHandler(), func() { stopped = true })
+			fakeStart(m, http.NotFoundHandler(), func() { stopped = true })
+			if err := m.StartDefault(); err != nil {
+				t.Fatal(err)
+			}
 			w := httptest.NewRecorder()
-			m.Handler(http.NotFoundHandler()).ServeHTTP(w, httptest.NewRequest("DELETE", "/projects/"+p.ID, strings.NewReader(`{"mode":"`+mode+`"}`)))
+			m.Handler().ServeHTTP(w, httptest.NewRequest("DELETE", "/projects/"+p.ID, strings.NewReader(`{"mode":"`+mode+`"}`)))
 			if w.Code != 200 {
 				t.Fatalf("delete: %d %s", w.Code, w.Body)
 			}
@@ -71,7 +74,7 @@ func TestDeleteValidationAndFallback(t *testing.T) {
 	m, _ := setup(t)
 	first := m.catalog.Projects[0]
 	next, _ := m.Add("Next", t.TempDir())
-	handler := m.Handler(http.NotFoundHandler())
+	handler := m.Handler()
 	for _, tc := range []struct {
 		id, body, origin string
 		status           int
@@ -115,7 +118,10 @@ func TestDeleteSaveFailurePreservesDataAndRuntime(t *testing.T) {
 		t.Fatal(err)
 	}
 	stopped := false
-	m.BindDefault(http.NotFoundHandler(), func() { stopped = true })
+	fakeStart(m, http.NotFoundHandler(), func() { stopped = true })
+	if err := m.StartDefault(); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.Remove(filepath.Join(home, "projects.json")); err != nil {
 		t.Fatal(err)
 	}

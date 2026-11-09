@@ -1,9 +1,9 @@
+import type { ProjectCatalogInfo } from '@agent/core/api/projects.js';
 import { DEFAULT_LEARNING_SETTINGS } from '@agent/core/learning/preferences';
-import type { ModelSettings } from '../lib/models';
-import type { ProjectCatalog } from '../lib/project-api';
+import type { ModelSettings } from '@agent/core/model-types.js';
 import type { ReviewDashboard, ReviewExample } from '../lib/training';
 
-export const projects: ProjectCatalog = {
+export const projects: ProjectCatalogInfo = {
   defaultId: 'demo',
   projects: [{ id: 'demo', name: 'Codeberg demo', roots: [{ key: 'demo', root: '/demo/codeberg' }],
     configDirectory: '/demo/config' }],

@@ -1,9 +1,11 @@
 import { basename } from 'node:path';
 import { withUserNotes } from '../artifact-body.js';
-import { knowledgeBody, validatedClaims } from '../claims.js';
+import { knowledgeBody, MAX_CLAIMS, validatedClaims } from '../claims.js';
 import { observeSources, sourceCommits, sourceHashes } from '../memory-source.js';
+import { artifactRevision } from '../store/artifact.js';
 import type { LearningStore } from '../store.js';
 import type { KnowledgeArtifact } from '../types.js';
+import { JobFailure } from '../errors.js';
 
 export async function mergeArtifacts(
   group: KnowledgeArtifact[],
@@ -12,22 +14,22 @@ export async function mergeArtifacts(
 ): Promise<KnowledgeArtifact> {
   const target = group[0];
 
-  const rawClaims = unique(group.flatMap((artifact) => artifact.claims ?? []));
+  const rawClaims = uniqueByValue(group.flatMap((artifact) => artifact.claims ?? []));
   if (
     !rawClaims.length ||
-    rawClaims.length > 12 ||
+    rawClaims.length > MAX_CLAIMS ||
     group.some((artifact) => !artifact.claims?.length)
   ) {
-    throw new Error('INVALID_RESPONSE: merge would omit claims; use links instead');
+    throw new JobFailure('INVALID_RESPONSE', 'merge would omit claims; use links instead');
   }
 
-  const refs = unique(group.flatMap((artifact) => artifact.source_refs ?? []));
+  const refs = uniqueByValue(group.flatMap((artifact) => artifact.source_refs ?? []));
   const observations = await observeSources(refs, repositories);
   const claims = validatedClaims(rawClaims, observations);
   if (claims?.length !== rawClaims.length)
-    throw new Error('INVALID_RESPONSE: merge evidence changed or cannot be verified');
+    throw new JobFailure('INVALID_RESPONSE', 'merge evidence changed or cannot be verified');
 
-  const notes = unique(group.flatMap((artifact) => artifact.user_confirmed_notes ?? []));
+  const notes = uniqueByValue(group.flatMap((artifact) => artifact.user_confirmed_notes ?? []));
   const revisions = mergedRevisions(group);
 
   return {
@@ -53,23 +55,24 @@ export async function mergeArtifacts(
   };
 }
 
-export function mergedRevisions(group: KnowledgeArtifact[]): Record<string, string> {
+function mergedRevisions(group: KnowledgeArtifact[]): Record<string, string> {
   const revisions: Record<string, string> = {};
 
   for (const artifact of group) {
     for (const key of artifact.source_interactions) {
-      revisions[key] = (artifact.source_revisions?.[key] ?? artifact.source_revision)!;
+      const revision = artifactRevision(artifact, key);
+      if (revision) revisions[key] = revision;
     }
   }
 
   return revisions;
 }
 
-export function unique<T>(values: T[]): T[] {
+function uniqueByValue<T>(values: T[]): T[] {
   return [...new Map(values.map((value) => [JSON.stringify(value), value])).values()];
 }
 
-export function lowestConfidence(group: KnowledgeArtifact[]): KnowledgeArtifact['confidence'] {
+function lowestConfidence(group: KnowledgeArtifact[]): KnowledgeArtifact['confidence'] {
   return group.some((artifact) => artifact.confidence === 'low')
     ? 'low'
     : group.some((artifact) => artifact.confidence === 'medium')

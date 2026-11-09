@@ -23,5 +23,11 @@ int main(void) {
         fprintf(stderr, "FAIL: resolve without env\n");
         return 1;
     }
+    if (strcmp(cberg_status_code(CBERG_ERR_NOT_FOUND), "not_found") != 0 ||
+        strcmp(cberg_status_code(CBERG_ERR_CORRUPT), "corrupt") != 0 ||
+        strcmp(cberg_status_str(CBERG_ERR_NOT_FOUND), "not found") != 0) {
+        fprintf(stderr, "FAIL: status code table\n");
+        return 1;
+    }
     return 0;
 }

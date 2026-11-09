@@ -1,46 +1,61 @@
 package projects
 
 import (
-	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
+
+	"codeberg.org/codeberg/daemon/internal/httpserver"
 )
 
-func respond(w http.ResponseWriter, status int, body any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "no-store")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(body)
-}
+const projectJSONLimit = 8192
 
-func (m *Manager) Handler(fallback http.Handler) http.Handler {
+func (m *Manager) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/projects/pick-directory" {
+		switch {
+		case r.URL.Path == "/projects/pick-directory":
 			desktopFolderPicker.ServeHTTP(w, r)
-			return
-		}
-
-		if r.URL.Path == "/projects" {
+		case r.URL.Path == "/projects":
 			m.serveCatalog(w, r)
-			return
+		case strings.HasPrefix(r.URL.Path, "/projects/"):
+			m.serveProject(w, r)
+		default:
+			m.serveDefault(w, r)
 		}
-
-		if !strings.HasPrefix(r.URL.Path, "/projects/") {
-			if r.URL.Path == "/resources" || strings.HasPrefix(r.URL.Path, "/resources/") {
-				fallback.ServeHTTP(w, r)
-			} else {
-				m.serveDefault(w, r)
-			}
-			return
-		}
-
-		m.serveProject(w, r)
 	})
 }
 
 func sameOrigin(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
+
 	return origin == "" || origin == "http://"+r.Host || origin == "https://"+r.Host
+}
+
+func allowProjectChange(w http.ResponseWriter, r *http.Request) bool {
+	if sameOrigin(r) {
+		return true
+	}
+
+	httpserver.WriteError(w, 403, "cross-origin project changes are not allowed")
+
+	return false
+}
+
+func writeProjectError(w http.ResponseWriter, err error) {
+	status := http.StatusInternalServerError
+	if errors.Is(err, errProjectName) {
+		status = http.StatusBadRequest
+	}
+
+	if errors.Is(err, errProjectNotFound) {
+		status = http.StatusNotFound
+	}
+
+	httpserver.WriteError(w, status, err.Error())
+}
+
+func readProjectJSON(w http.ResponseWriter, r *http.Request, dest any) error {
+	return httpserver.DecodeJSON(w, r, projectJSONLimit, dest, false)
 }
 
 func (m *Manager) serveProject(w http.ResponseWriter, r *http.Request) {
@@ -49,7 +64,7 @@ func (m *Manager) serveProject(w http.ResponseWriter, r *http.Request) {
 	_, ok := m.project(parts[0])
 	m.mu.Unlock()
 	if !ok {
-		respond(w, 404, map[string]string{"message": "project not found"})
+		httpserver.WriteError(w, 404, errProjectNotFound.Error())
 		return
 	}
 
@@ -69,7 +84,7 @@ func (m *Manager) serveProject(w http.ResponseWriter, r *http.Request) {
 
 	handler, err := m.activate(parts[0])
 	if err != nil {
-		respond(w, 503, map[string]string{"message": err.Error()})
+		httpserver.WriteError(w, 503, err.Error())
 		return
 	}
 
@@ -89,12 +104,13 @@ func (m *Manager) serveDefault(w http.ResponseWriter, r *http.Request) {
 	m.mu.Unlock()
 
 	if id == "" {
+		// The daemon itself is up; there is just nothing to index yet.
 		if r.URL.Path == "/health" {
-			respond(w, 200, map[string]any{"ready": true, "status": "idle", "chunks": 0})
+			httpserver.WriteJSON(w, 200, map[string]any{"ready": true, "status": "idle", "chunks": 0})
 			return
 		}
 
-		respond(w, 404, map[string]string{"message": "add a project first"})
+		httpserver.WriteError(w, 404, "add a project first")
 		return
 	}
 

@@ -5,6 +5,7 @@ import { CitationTooltip } from './citation-tooltip';
 import { renderLinkConfirmation } from './link-confirmation';
 import { CITE_TAG, parseCiteSource, type Citation } from '../../lib/citations';
 import { transformCitations } from '../../lib/citations';
+import { useClipboard } from '../../lib/use-clipboard';
 
 /**
  * The markdown engine behind <Response>, plus citation rendering. This module
@@ -38,7 +39,7 @@ const linkSafety = { enabled: true, renderModal: renderLinkConfirmation };
 export type CitationChipProps = { citation: Citation; label: ReactNode };
 
 function CitationChip({ citation, label }: CitationChipProps) {
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useClipboard(citation.source);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const anchor = useRef<HTMLButtonElement>(null);
@@ -60,15 +61,7 @@ function CitationChip({ citation, label }: CitationChipProps) {
           setHovered(false);
           setFocused(false);
         }}
-        onClick={async () => {
-          try {
-            await navigator.clipboard.writeText(citation.source);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1200);
-          } catch {
-            /* clipboard unavailable */
-          }
-        }}
+        onClick={() => void copy()}
         className="mx-px inline-flex min-w-4 cursor-pointer items-center justify-center rounded-full bg-muted px-1 align-super font-mono text-[10px] leading-4 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
       >
         {label}

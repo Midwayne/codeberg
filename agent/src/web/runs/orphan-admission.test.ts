@@ -1,10 +1,11 @@
-import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { WebSessionStore } from '../sessions/store.js';
 import { RunJournal } from './journal.js';
+import { hash } from '../../core/message-fingerprint.js';
+import { searchRunId } from './identity.js';
 import { SearchRuns } from './manager.js';
 import type { ChatGenerator, RunInput, RunRecord } from './types.js';
 
@@ -14,8 +15,8 @@ it.each(['missing chat', 'browser snapshot', 'previous run'])('interrupts an unr
   const input: RunInput = { chatId: 'chat', requestId: 'orphan',
     messages: [{ id: 'question', role: 'user', parts: [{ type: 'text', text: 'Find auth' }] }] };
   const record: RunRecord = { ...input,
-    id: createHash('sha256').update('chat:orphan').digest('hex').slice(0, 32),
-    fingerprint: createHash('sha256').update(JSON.stringify([input.messages, input.trigger])).digest('hex'),
+    id: searchRunId('chat', 'orphan'),
+    fingerprint: hash(JSON.stringify([input.messages, input.trigger])),
     status: 'running', createdAt: 1 };
   const journal = new RunJournal(join(directory, '.runs', 'chat', record.id));
   const generate = vi.fn<ChatGenerator>();

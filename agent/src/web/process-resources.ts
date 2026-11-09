@@ -1,6 +1,7 @@
 import { sample } from './process/sampling.js';
 import { ProcessMonitorState } from './process/state.js';
-import type { ProcessSnapshot, ProcessUsage } from './process/types.js';
+import type { ProcessUsage } from '../core/api/resources.js';
+import type { ProcessSnapshot } from './process/types.js';
 
 /** Interval CPU and resident memory for this Codeberg instance, not the host. */
 export class ProcessMonitor {
@@ -27,9 +28,3 @@ export class ProcessMonitor {
     return sample(this.state);
   }
 }
-
-export type { ProcessSnapshot, ProcessUsage } from './process/types.js';
-
-export { workerName } from './process/labels.js';
-
-export { parseProcessSnapshot, selectProcessTree } from './process/snapshot.js';

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { wrapLanguageModel, type LanguageModel } from 'ai';
 import { DEFAULT_DAEMON_URL } from '../client.js';
+import { formatIndexedRoots } from '../paths.js';
 import { createAgent } from '../config.js';
 import { toolJournal } from '../runs/tools.js';
 
@@ -62,7 +63,7 @@ async function attempt(task: Task, trial: number, enabled: boolean, modelSpec: s
     daemonUrl: process.env.CODEBERG_DAEMON_URL ?? DEFAULT_DAEMON_URL,
     learning: false,
     env: { ...process.env, CODEBERG_HOME: join(root, `${task.id}-${trial}-${enabled}`),
-      CODEBERG_ROOTS: task.repositories.map((repo) => `${repo.key}\t${repo.root}`).join('\n'),
+      CODEBERG_ROOTS: formatIndexedRoots(task.repositories),
       CODEBERG_SEARCH_BUNDLE_USE: String(enabled), CODEBERG_MCP_USE: 'false', CODEBERG_WEB_USE: 'false',
       CODEBERG_CANVAS_USE: 'false' },
     transformModel: (model) => measured(model, meter),

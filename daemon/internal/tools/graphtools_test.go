@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"codeberg.org/codeberg/daemon/internal/domain"
 	"codeberg.org/codeberg/daemon/internal/indexctl"
 	"codeberg.org/codeberg/daemon/internal/workspace"
 )
@@ -29,7 +30,7 @@ func TestSymbolTouchesHunk(t *testing.T) {
 
 func TestTracePathForwardsDefinitionScope(t *testing.T) {
 	idx := &mockIndexer{}
-	registry := Default(workspace.New([]workspace.RepoInfo{{Key: "api", Root: t.TempDir()}}, "api"), idx)
+	registry := WithVectorSearch(workspace.New([]domain.Repo{{Key: "api", Root: t.TempDir()}}, "api"), idx, true)
 	_, err := registry.Call(context.Background(), "trace_path", json.RawMessage(
 		`{"name":"Save","repo":"api","path_prefix":"src/store.ts","direction":"in","edge_kind":"calls","max_depth":1}`))
 	if err != nil {
@@ -58,7 +59,7 @@ func TestGetArchitectureUsesHubsAndLanguages(t *testing.T) {
 		},
 	}
 	root := t.TempDir()
-	reg := Default(workspace.New([]workspace.RepoInfo{{Key: "main", Root: root}}, "main"), idx)
+	reg := WithVectorSearch(workspace.New([]domain.Repo{{Key: "main", Root: root}}, "main"), idx, true)
 	out, err := reg.Call(context.Background(), "get_architecture", json.RawMessage(`{"repo":"main","hub_limit":5}`))
 	if err != nil {
 		t.Fatal(err)
@@ -116,7 +117,7 @@ func TestDetectChangesHunkFilterAndPathPrefix(t *testing.T) {
 			{SrcName: "Caller", SrcPath: "b.go", DstName: "Touch", DstPath: "a.go", Kind: "calls"},
 		},
 	}
-	reg := Default(workspace.New([]workspace.RepoInfo{{Key: "main", Root: root}}, "main"), idx)
+	reg := WithVectorSearch(workspace.New([]domain.Repo{{Key: "main", Root: root}}, "main"), idx, true)
 	// Bogus base forces working-tree-vs-HEAD fallback so unstaged edits are visible.
 	out, err := reg.Call(context.Background(), "detect_changes", json.RawMessage(`{"repo":"main","base":"does-not-exist","head":"HEAD","limit":20}`))
 	if err != nil {

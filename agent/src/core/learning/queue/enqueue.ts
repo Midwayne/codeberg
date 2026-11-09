@@ -1,6 +1,6 @@
 import { unlink } from 'node:fs/promises';
 import { writeJsonAtomic } from '../fs.js';
-import { stableId } from '../store.js';
+import { stableId } from '../store/identity.js';
 import type { KnowledgeJob } from '../types.js';
 import type { DurableJobQueueState } from './state.js';
 import { find, path } from './storage.js';

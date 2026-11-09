@@ -1,7 +1,7 @@
-import { readdir, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { KnowledgeJob } from '../types.js';
-import { isProcessAlive, isTransientFailure, MAX_ATTEMPTS } from './policy.js';
+import { readOptionalDirectory, removeIfPresent } from '../fs.js';
+import type { JobStatus, KnowledgeJob } from '../types.js';
+import { isProcessAlive, willRetry } from './policy.js';
 import type { DurableJobQueueState } from './state.js';
 import { list, path, transition } from './storage.js';
 
@@ -28,7 +28,8 @@ export async function recoverExpired(state: DurableJobQueueState): Promise<numbe
 }
 
 export async function reconcileStates(state: DurableJobQueueState): Promise<void> {
-  const statuses = ['processing', 'pending', 'failed', 'completed'] as const;
+  // Scan order picks the surviving copy. It is not the directory-creation order.
+  const statuses = ['processing', 'pending', 'failed', 'completed'] as const satisfies readonly JobStatus[];
   await removeAbandonedWrites(state, statuses);
 
   const byId = new Map<string, KnowledgeJob[]>();
@@ -50,12 +51,8 @@ export async function reconcileStates(state: DurableJobQueueState): Promise<void
     for (const job of jobs) {
       if (job === winner) continue;
 
-      try {
-        await unlink(path(state, job.status, id));
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-        // Another worker may already have removed the duplicate state.
-      }
+      // Another worker may already have removed the duplicate state.
+      await removeIfPresent(path(state, job.status, id));
     }
   }
 }
@@ -63,13 +60,8 @@ export async function reconcileStates(state: DurableJobQueueState): Promise<void
 export async function recoverRetryableFailures(state: DurableJobQueueState): Promise<number> {
   let recovered = 0;
   for (const job of await list(state, 'failed')) {
-    if (
-      !job.last_error_category ||
-      !isTransientFailure(job.last_error_category) ||
-      job.attempt_count >= MAX_ATTEMPTS
-    ) {
+    if (!job.last_error_category || !willRetry(job.last_error_category, job.attempt_count))
       continue;
-    }
 
     const timestamp = state.now().toISOString();
     const next: KnowledgeJob = {
@@ -93,24 +85,13 @@ async function removeAbandonedWrites(
 ): Promise<void> {
   for (const status of statuses) {
     const dir = join(state.root, 'jobs', status);
-    let files: string[];
-    try {
-      files = await readdir(dir);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
-
-      throw error;
-    }
+    const files = await readOptionalDirectory(dir);
 
     for (const file of files) {
       const match = /^job-[a-f\d]+\.json\.(\d+)\.[a-f\d-]+\.tmp$/.exec(file);
       if (!match || isProcessAlive(Number(match[1]))) continue;
 
-      try {
-        await unlink(join(dir, file));
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-      }
+      await removeIfPresent(join(dir, file));
     }
   }
 }

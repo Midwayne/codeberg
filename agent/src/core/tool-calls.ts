@@ -1,5 +1,6 @@
 import type { JSONValue } from 'ai';
 
+import { providerDescriptor } from '../providers/catalog.js';
 import type { ModelProfile } from '../providers/profiles.js';
 
 type ProviderOptions = Record<string, Record<string, JSONValue>>;
@@ -11,14 +12,7 @@ type ProviderOptions = Record<string, Record<string, JSONValue>>;
  * allow parallel calls unless told otherwise.
  */
 export function parallelToolProviderOptions(profile: ModelProfile): ProviderOptions | undefined {
-  switch (profile.provider) {
-    case 'openai':
-    case 'ollama':
-    case 'llamacpp':
-      return { openai: { parallelToolCalls: true } };
-    default:
-      return undefined;
-  }
+  return providerDescriptor(profile.provider)?.openaiWire ? { openai: { parallelToolCalls: true } } : undefined;
 }
 
 /** Shallow-merge per-provider option objects; later parts win per key. */

@@ -2,30 +2,26 @@ package search
 
 import (
 	"fmt"
-	"strings"
 
 	"codeberg.org/codeberg/daemon/internal/indexctl"
 )
 
 func sourceWeight(path, query string) float64 {
-	p := "/" + strings.ToLower(path)
-	request := strings.ToLower(testQuery.FindString(query))
-	if strings.Contains(p, "/build/") || strings.Contains(p, "/generated/") ||
-		strings.Contains(p, "/target/") || strings.Contains(p, "/node_modules/") {
-		if request == "generated" || request == "build" {
-			return 1.05
-		}
-		return 0.9
+	class := classifyPath(path)
+	if requested, asked := requestedClass(query); asked && class == requested {
+		return 1.05
 	}
 
-	if strings.Contains(p, "/src/test/") || strings.Contains(p, "/tests/") ||
-		strings.Contains(p, "/test/") || strings.HasSuffix(p, "_test.go") || strings.HasSuffix(p, ".spec.ts") {
-		if request == "test" || request == "tests" || request == "spec" || request == "specs" {
-			return 1.05
-		}
+	switch class {
+	case sourcePath:
+		return 1
+	case testPath:
 		return 0.85
+	case generatedPath:
+		return 0.9
+	default:
+		panic("search: unknown path class")
 	}
-	return 1
 }
 
 func rankVectors(vectors []indexctl.SearchResult) ([]*rankedHit, map[string]bool) {

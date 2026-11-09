@@ -26,31 +26,21 @@ func resolveRoot(root string) (string, error) {
 		return "", err
 	}
 
-	real, err := filepath.EvalSymlinks(abs)
-	if err != nil {
-		// Path may not exist yet (e.g. first boot); keep the absolute form.
-		return abs, nil
-	}
-	return real, nil
+	return filepath.EvalSymlinks(abs)
 }
 
 func loadRootRecords(raw string) ([]domain.Repo, string, error) {
 	var roots []domain.Repo
 
-	for _, line := range strings.Split(raw, "\n") {
-		key, path, ok := strings.Cut(line, "\t")
-		if !ok || key == "" || path == "" {
+	for _, line := range strings.Split(raw, rootNewline) {
+		key, path, ok := splitRootRecord(line)
+		if !ok {
 			continue
 		}
 
 		resolved, err := resolveRoot(path)
 		if err != nil {
-			log.Printf("skipping repo %q: unresolvable root %q", key, path)
-			continue
-		}
-
-		if _, err := os.Stat(resolved); err != nil {
-			log.Printf("skipping repo %q: missing root %q", key, resolved)
+			log.Printf("skipping repo %q: missing root %q", key, path)
 			continue
 		}
 

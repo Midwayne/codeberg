@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"errors"
 
 	"codeberg.org/codeberg/daemon/internal/indexctl"
 )
@@ -59,7 +60,7 @@ func (c *changeScan) collectIndirect(ctx context.Context, idx indexctl.Indexer, 
 		hops, terr := idx.TracePath(ctx, indexctl.TracePathOptions{
 			Name: t.name, Repo: t.repo, PathPrefix: t.path, Direction: "both", EdgeKind: "calls", MaxDepth: depth, Limit: 32,
 		})
-		if terr != nil {
+		if terr != nil && !errors.Is(terr, indexctl.ErrTruncated) {
 			continue
 		}
 
@@ -100,4 +101,13 @@ func (c *changeScan) addHops(hops []indexctl.GraphHop, t pendingTrace, limit int
 		}
 	}
 	return false
+}
+
+type changeSymbol struct {
+	Repo      string `json:"repo,omitempty"`
+	Name      string `json:"name"`
+	Path      string `json:"path"`
+	StartLine uint32 `json:"start_line,omitempty"`
+	EndLine   uint32 `json:"end_line,omitempty"`
+	Risk      string `json:"risk"` // direct | transitive
 }

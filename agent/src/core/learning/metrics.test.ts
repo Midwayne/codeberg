@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { DatasetExample } from './datasets.js';
+import type { DatasetExample } from './datasets/records.js';
 import { scoreRetrievalRuns } from './metrics.js';
 
 const evalRow = {

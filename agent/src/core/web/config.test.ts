@@ -21,13 +21,15 @@ describe('webConfigFromEnv', () => {
     expect(webConfigFromEnv({ CODEBERG_WEB_SEARCH_USE: 'false' }).searchEnabled).toBe(false);
   });
 
-  it('treats 0/false/off/no (any case) as disabled', () => {
+  it('uses the shared envFlag vocabulary (typos keep the default)', () => {
     for (const v of ['0', 'false', 'off', 'No', 'FALSE']) {
       expect(webConfigFromEnv({ CODEBERG_WEB_USE: v }).enabled).toBe(false);
     }
 
     expect(webConfigFromEnv({ CODEBERG_WEB_USE: '1' }).enabled).toBe(true);
     expect(webConfigFromEnv({ CODEBERG_WEB_USE: 'yes' }).enabled).toBe(true);
+    expect(webConfigFromEnv({ CODEBERG_WEB_USE: 'maybe' }).enabled).toBe(true);
+    expect(webConfigFromEnv({ CODEBERG_WEB_SEARCH_USE: 'maybe' }).searchEnabled).toBe(false);
   });
 
   it('normalizes the SearXNG URL (trim + strip trailing slash)', () => {

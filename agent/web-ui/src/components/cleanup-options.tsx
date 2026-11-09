@@ -1,6 +1,8 @@
-import { labels, descriptions, buttonClass } from './settings-styles';
+import type { CleanupCategory, CleanupPreview } from '@agent/core/api/resources.js';
+import { labels, descriptions } from './settings-styles';
+import { buttonClass } from './button-styles';
 
-import { formatBytes, type CleanupCategory, type CleanupPreview } from '../lib/resources';
+import { formatBytes } from '../lib/resources';
 import { Select } from './ui';
 
 export type CleanupOptionsProps = {

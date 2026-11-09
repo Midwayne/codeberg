@@ -29,6 +29,11 @@ export interface UsageRecord extends UsageTokens {
   costUsd: number | null;
 }
 
+/** CSV and UI show the same project column. */
+export function usageProjectLabel(row: Pick<UsageRecord, 'projectName' | 'project'>): string {
+  return row.projectName ?? row.project ?? 'Unassigned';
+}
+
 export interface UsageTotals {
   requests: number;
   inputTokens: number;

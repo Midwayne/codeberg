@@ -11,8 +11,15 @@ import (
 	"strings"
 )
 
+// Same absolute-directory rule for Add and the folder picker.
+var errAbsoluteDirectory = errors.New("choose an absolute directory path")
+
+func usableDirectoryPath(path string) bool {
+	return filepath.IsAbs(path) && !strings.ContainsAny(path, "\x00\n\r\t")
+}
+
 func existingDirectory(path string) (string, error) {
-	if !filepath.IsAbs(path) || strings.ContainsAny(path, "\x00\n\r\t") {
+	if !usableDirectoryPath(path) {
 		return "", fmt.Errorf("invalid directory path")
 	}
 
@@ -21,6 +28,30 @@ func existingDirectory(path string) (string, error) {
 		return "", err
 	}
 
+	return requireDirectory(canonical)
+}
+
+// openExistingDirectory is Add's user-facing resolve of an absolute directory.
+func openExistingDirectory(path string) (string, error) {
+	if !usableDirectoryPath(path) {
+		return "", errAbsoluteDirectory
+	}
+
+	canonical, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", fmt.Errorf("directory is unavailable: %w", err)
+	}
+
+	root, err := requireDirectory(canonical)
+	if err != nil {
+		return "", fmt.Errorf("choose an existing directory")
+	}
+
+	return root, nil
+}
+
+// requireDirectory confirms a resolved path is an existing directory.
+func requireDirectory(canonical string) (string, error) {
 	info, err := os.Stat(canonical)
 	if err != nil {
 		return "", err
@@ -29,6 +60,7 @@ func existingDirectory(path string) (string, error) {
 	if !info.IsDir() {
 		return "", fmt.Errorf("not a directory")
 	}
+
 	return canonical, nil
 }
 

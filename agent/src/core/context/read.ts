@@ -2,7 +2,13 @@ import { readdir, stat } from 'node:fs/promises';
 
 import { clampInt, MAX_CONTEXT_CHARS, MAX_READ_LINES, safeCut } from './limits.js';
 import type { ContextStore } from './store.js';
-import { ContextReadError, textSegments, type TextSegment } from './text-stream.js';
+import {
+  CONTEXT_FILE_UNREADABLE,
+  CONTEXT_PATH_DENIED,
+  isContextReadError,
+  textSegments,
+  type TextSegment,
+} from './text-stream.js';
 
 export async function readContext(
   store: ContextStore,
@@ -12,7 +18,7 @@ export async function readContext(
   startColumn?: number,
 ): Promise<string> {
   const real = store.resolve(path);
-  if (!real) return 'error: path not found or not allowed';
+  if (!real) return CONTEXT_PATH_DENIED;
 
   const info = await stat(real);
   if (info.isDirectory()) {
@@ -25,7 +31,7 @@ export async function readContext(
   try {
     return await readPage(real, startLine, endLine, startColumn);
   } catch (error) {
-    if (error instanceof ContextReadError) return 'error: file is unreadable or too large';
+    if (isContextReadError(error)) return CONTEXT_FILE_UNREADABLE;
 
     throw error;
   }

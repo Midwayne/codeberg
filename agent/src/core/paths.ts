@@ -1,10 +1,25 @@
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import { isProjectId, projectCatalogPath, projectDataHome, projectMigrationPath } from './projects/types.js';
 
-/** Mirrors the launcher's Go `paths.Home`: honour CODEBERG_HOME, else ~/.codeberg. */
-export function codebergHome(env: NodeJS.ProcessEnv = process.env): string {
-  return env.CODEBERG_HOME ?? join(homedir(), '.codeberg');
+export const CURSOR_CONFIG_DIR = '.cursor';
+
+export const CODEBERG_CONFIG_DIR = '.codeberg';
+
+/** Project-local config directories, Cursor first and then Codeberg. */
+export const LOCAL_CONFIG_DIRS = [CURSOR_CONFIG_DIR, CODEBERG_CONFIG_DIR] as const;
+
+/** Mirrors the launcher's Go `paths.Home`: a non-blank CODEBERG_HOME, else ~/.codeberg. */
+export function codebergHome(env: NodeJS.ProcessEnv = process.env, userHome = homedir()): string {
+  const home = env.CODEBERG_HOME?.trim();
+
+  return home ? home : join(userHome, '.codeberg');
+}
+
+/** The CODEBERG_ROOTS wire format: key, tab, path, one record per line. */
+export function formatIndexedRoots(roots: readonly { key: string; root: string }[]): string {
+  return roots.map((root) => `${root.key}\t${root.root}`).join('\n');
 }
 
 /** Indexed repositories passed internally by the launcher or project catalog. */
@@ -61,15 +76,15 @@ export function codebergDataHome(env: NodeJS.ProcessEnv = process.env): string {
 
   const home = codebergHome(env);
   try {
-    if (!existsSync(join(home, 'projects.json'))) return home;
+    if (!existsSync(projectCatalogPath(home))) return home;
 
-    const catalog = JSON.parse(readFileSync(join(home, 'projects.json'), 'utf8')) as {
+    const catalog = JSON.parse(readFileSync(projectCatalogPath(home), 'utf8')) as {
       defaultId: string;
       legacyId: string;
       projects: { id: string; roots: { root: string }[] }[];
     };
 
-    if (catalog.legacyId && !existsSync(join(home, 'projects-migrated.json'))) return home;
+    if (catalog.legacyId && !existsSync(projectMigrationPath(home))) return home;
 
     const configuredRoots = indexedRootsFromEnv(env);
     // The daemon skips missing keyed roots before registering its workspace.
@@ -86,7 +101,7 @@ export function codebergDataHome(env: NodeJS.ProcessEnv = process.env): string {
         )
       : catalog.projects.find((candidate) => candidate.id === catalog.defaultId);
 
-    if (project && /^p-[a-f0-9]{16}$/.test(project.id)) return join(home, 'projects', project.id);
+    if (project && isProjectId(project.id)) return projectDataHome(home, project.id);
 
     // Once upgraded, an unmatched root cannot write to the old shared store.
     throw new Error('Repository is not registered as a Codeberg project. Add it in the UI first.');

@@ -1,8 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { discoverSkills } from '../../core/context/skills.js';
+import type { ExtensionCatalog, ExtensionScope } from '../../core/api/extensions.js';
 import { mcpConfigFromEnv } from '../../core/mcp/config.js';
-import { readJson, sendJson, sendText } from '../http.js';
+import { readJson, requireJsonMethod, sendJson, sendText } from '../http.js';
 import { previewSkillFiles } from './preview.js';
 import type { ExtensionStoreState } from './state.js';
 import { add } from './writing.js';
@@ -14,10 +15,7 @@ export async function route(
   env: NodeJS.ProcessEnv,
 ) {
   if (new URL(req.url ?? '/', 'http://localhost').pathname === '/api/extensions/skills/preview') {
-    if (req.method !== 'POST') return sendText(res, 405, 'method not allowed');
-
-    if (!req.headers['content-type']?.startsWith('application/json'))
-      return sendText(res, 415, 'application/json required');
+    if (!requireJsonMethod(req, res, 'POST')) return;
 
     try {
       return sendJson(res, 200, { files: previewSkillFiles(await readJson(req)) });
@@ -34,10 +32,7 @@ export async function route(
     return sendJson(res, 200, await listExtensions(state, env));
   }
 
-  if (req.method !== 'POST') return sendText(res, 405, 'method not allowed');
-
-  if (!req.headers['content-type']?.startsWith('application/json'))
-    return sendText(res, 415, 'application/json required');
+  if (!requireJsonMethod(req, res, 'POST')) return;
 
   try {
     await add(state, env.CODEBERG_PROJECT_HOME!, await readJson(req), env);
@@ -48,7 +43,10 @@ export async function route(
   }
 }
 
-async function listExtensions(state: ExtensionStoreState, env: NodeJS.ProcessEnv) {
+async function listExtensions(
+  state: ExtensionStoreState,
+  env: NodeJS.ProcessEnv,
+): Promise<ExtensionCatalog> {
   const mcp = mcpConfigFromEnv(env);
   const skills = await discoverSkills({ env });
 
@@ -78,8 +76,8 @@ async function mcpScope(
   files: string[],
   home: string,
   env: NodeJS.ProcessEnv,
-): Promise<string> {
-  let scope = name === 'databases' ? 'project' : 'global';
+): Promise<ExtensionScope> {
+  let scope: ExtensionScope = name === 'databases' ? 'project' : 'global';
   for (const file of files) {
     let parsed: Record<string, unknown>;
     try {

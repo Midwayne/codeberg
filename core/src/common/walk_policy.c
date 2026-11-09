@@ -17,7 +17,29 @@ int cberg_walk_skip_dir(const char *name) {
     return 0;
 }
 
-bool cberg_walk_skip_dir_cb(const char *name, void *ctx) {
-    (void)ctx;
-    return cberg_walk_skip_dir(name) != 0;
+static bool skip_component(const char *name, size_t len) {
+    char part[256];
+    if (len == 0 || len >= sizeof(part)) {
+        return false;
+    }
+
+    memcpy(part, name, len);
+    part[len] = '\0';
+    return cberg_walk_skip_dir(part) != 0;
+}
+
+bool cberg_walk_skip_rel(const char *rel, bool is_dir) {
+    if (rel == NULL) {
+        return false;
+    }
+
+    const char *start = rel;
+    const char *slash;
+    while ((slash = strchr(start, '/')) != NULL) {
+        if (skip_component(start, (size_t)(slash - start))) {
+            return true;
+        }
+        start = slash + 1;
+    }
+    return is_dir && skip_component(start, strlen(start));
 }

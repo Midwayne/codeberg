@@ -1,5 +1,8 @@
-import { DefaultChatTransport, type ChatTransport, type UIMessage } from 'ai';
+import { DefaultChatTransport, type ChatTransport, type UIMessage, type UIMessageChunk } from 'ai';
 import type { Chat } from '@ai-sdk/react';
+import { RUN_ID_HEADER, type RunSummary } from '@agent/core/api/runs.js';
+import { jsonRequest } from '../lib/response.js';
+import type { SessionRecord } from '../lib/sessions';
 import { reconnectingStream, resumeWithoutAbortError, retryAdmission } from './run-reconnect';
 
 type Submission = Parameters<ChatTransport<UIMessage>['sendMessages']>[0];
@@ -21,7 +24,7 @@ export class RunTransport implements ChatTransport<UIMessage> {
     private readonly wait = () => new Promise<void>((resolve) => setTimeout(resolve, 500))) {
     this.delegate = new DefaultChatTransport({ api: '/api/chat', fetch: async (input, init) => {
       const response = await this.api(input, { ...init, signal: this.signal ?? init?.signal });
-      const runId = response.headers.get('x-codeberg-run');
+      const runId = response.headers.get(RUN_ID_HEADER);
       if (runId) this.runId = runId;
 
       return response;
@@ -82,7 +85,7 @@ export class RunTransport implements ChatTransport<UIMessage> {
     if (response.status === 404) return 'missing';
     if (!response.ok) throw new Error('Could not reconnect to the search. Try again.');
 
-    const run = await response.json() as { id: string; status: string; requestId?: string; messageId?: string; eventCount: number };
+    const run = await response.json() as RunSummary;
     this.checkOwnership(run);
     const fresh = !this.runId;
     if (run.status !== 'running' && this.messages?.().at(-1)?.id === run.messageId
@@ -99,10 +102,10 @@ export class RunTransport implements ChatTransport<UIMessage> {
   async stop(chatId: string): Promise<void> {
     this.resumed?.abort();
     await this.opening?.catch(() => undefined);
-    const response = await this.api(`/api/chat/${encodeURIComponent(chatId)}/stop`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(this.runId ? { runId: this.runId } : { requestId: this.requestId }),
-    });
+    const response = await this.api(
+      `/api/chat/${encodeURIComponent(chatId)}/stop`,
+      jsonRequest('POST', this.runId ? { runId: this.runId } : { requestId: this.requestId }),
+    );
     if (!response.ok) throw new Error('Could not stop the server search. Reconnect and try Stop again.');
   }
 
@@ -114,7 +117,7 @@ export class RunTransport implements ChatTransport<UIMessage> {
     }
     if (!response.ok) throw new Error('Could not read the search status. Reload this chat.');
 
-    const run = await response.json() as { id: string; status: string; requestId?: string };
+    const run = await response.json() as RunSummary;
     this.checkOwnership(run);
     if (run.status === 'running' || run.status === 'completed') {
       this.runId = run.id;
@@ -152,7 +155,7 @@ export class RunTransport implements ChatTransport<UIMessage> {
     const response = await this.api(`/api/sessions/${encodeURIComponent(chat.id)}`);
     if (!response.ok) throw new Error('Search stopped, but its saved history could not be loaded. Retry before continuing.');
 
-    const record = await response.json() as { messages: UIMessage[] };
+    const record = await response.json() as SessionRecord;
     chat.messages = record.messages;
   }
 
@@ -174,7 +177,7 @@ export class RunTransport implements ChatTransport<UIMessage> {
     return `/api/chat/${encodeURIComponent(chatId)}/run${identity ? `?${identity}` : ''}`;
   }
 
-  private checkOwnership(run: { requestId?: string }): void {
+  private checkOwnership(run: Pick<RunSummary, 'requestId'>): void {
     if (this.requestId && !this.runId && run.requestId !== this.requestId) {
       throw new Error('Chat changed in another tab. Reload it before continuing.');
     }
@@ -186,7 +189,7 @@ export class RunTransport implements ChatTransport<UIMessage> {
     return `/api/chat/${encodeURIComponent(chatId)}/stream?${query}`;
   }
 
-  private follow(stream: ReadableStream<import('ai').UIMessageChunk>, chatId: string, signal?: AbortSignal) {
+  private follow(stream: ReadableStream<UIMessageChunk>, chatId: string, signal?: AbortSignal) {
     return reconnectingStream(stream, { signal, wait: this.wait, consumed: () => {
       this.after++;
     },

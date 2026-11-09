@@ -1,4 +1,4 @@
-import type { UsageRecord, UsageReport } from '@agent/core/usage';
+import { usageProjectLabel, type UsageRecord, type UsageReport } from '@agent/core/usage';
 import { formatTokens } from '../lib/model-usage';
 import { buttonClass } from './button-styles';
 import { UsageModelList, UsageRequestList } from './usage-mobile';
@@ -61,7 +61,7 @@ function UsageRow({ row }: { row: UsageRecord }) {
   return (
     <tr className="hover:bg-muted/30">
       <td className="whitespace-nowrap px-4 py-3"><time dateTime={timestamp}>{timestamp.slice(0, 10)}<br />{timestamp.slice(11, 16)}</time></td>
-      <td className="max-w-40 break-words px-4 py-3">{row.projectName ?? row.project ?? 'Unassigned'}</td>
+      <td className="max-w-40 break-words px-4 py-3">{usageProjectLabel(row)}</td>
       <td className="max-w-64 break-words px-4 py-3"><span className="text-xs text-muted-foreground">{usageActivityLabels[row.kind]}</span><div title={row.key}>{row.model}</div></td>
       <td className="px-4 py-3">{token(row.inputTokens)}</td>
       <td className="px-4 py-3">{token(row.outputTokens)}</td>

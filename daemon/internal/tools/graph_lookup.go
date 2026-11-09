@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"errors"
 
 	"codeberg.org/codeberg/daemon/internal/indexctl"
 )
@@ -33,13 +34,18 @@ func searchGraphTool(idx indexctl.Indexer) Tool {
 			"Omitting repo searches all roots configured together. Works without embeddings after parsing; an empty result does not prove the code is absent.",
 		schema,
 		func(ctx context.Context, a searchGraphArgs) (any, error) {
-			return idx.SearchGraph(ctx, indexctl.GraphSearchOptions{
+			nodes, err := idx.SearchGraph(ctx, indexctl.GraphSearchOptions{
 				Name:       a.Name,
 				Repo:       a.Repo,
 				Kind:       a.Kind,
 				PathPrefix: a.PathPrefix,
 				Limit:      a.Limit,
 			})
+			if err != nil && !errors.Is(err, indexctl.ErrTruncated) {
+				return nil, err
+			}
+
+			return nodes, nil
 		})
 }
 
@@ -68,7 +74,7 @@ func tracePathTool(idx indexctl.Indexer) Tool {
 			"Verify source with read_file; an empty result does not prove there is no dependency. Works without embeddings.",
 		schema,
 		func(ctx context.Context, a tracePathArgs) (any, error) {
-			return idx.TracePath(ctx, indexctl.TracePathOptions{
+			hops, err := idx.TracePath(ctx, indexctl.TracePathOptions{
 				Name:       a.Name,
 				Repo:       a.Repo,
 				PathPrefix: a.PathPrefix,
@@ -77,5 +83,28 @@ func tracePathTool(idx indexctl.Indexer) Tool {
 				MaxDepth:   a.MaxDepth,
 				Limit:      a.Limit,
 			})
+			if err != nil && !errors.Is(err, indexctl.ErrTruncated) {
+				return nil, err
+			}
+
+			return hops, nil
 		})
+}
+
+type searchGraphArgs struct {
+	Name       string `json:"name"`
+	Repo       string `json:"repo"`
+	Kind       string `json:"kind"`
+	PathPrefix string `json:"path_prefix"`
+	Limit      int    `json:"limit"`
+}
+
+type tracePathArgs struct {
+	PathPrefix string `json:"path_prefix"`
+	Name       string `json:"name"`
+	Repo       string `json:"repo"`
+	Direction  string `json:"direction"`
+	EdgeKind   string `json:"edge_kind"`
+	MaxDepth   int    `json:"max_depth"`
+	Limit      int    `json:"limit"`
 }

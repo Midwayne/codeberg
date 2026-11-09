@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { selectModel, type CatalogModel } from './models';
+import { selectModel } from './models';
+import { type CatalogModel } from '@agent/core/model-types.js';
 
 describe('model selector', () => {
   const models: CatalogModel[] = [

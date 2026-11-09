@@ -118,3 +118,29 @@ func fileOutlineTool(idx indexctl.Indexer) Tool {
 			return idx.FileOutline(ctx, a.Repo, a.Path)
 		})
 }
+
+type searchArgs struct {
+	Query    string  `json:"query"`
+	K        int     `json:"k"`
+	Repo     string  `json:"repo"`
+	PathGlob string  `json:"path_glob"`
+	Kind     string  `json:"kind"`
+	MinScore float32 `json:"min_score"`
+}
+
+type getChunkArgs struct {
+	Repo string `json:"repo"`
+	ID   uint64 `json:"id"`
+}
+
+type findSymbolArgs struct {
+	Name  string `json:"name"`
+	Repo  string `json:"repo"`
+	Kind  string `json:"kind"`
+	Limit int    `json:"limit"`
+}
+
+type fileOutlineArgs struct {
+	Repo string `json:"repo"`
+	Path string `json:"path"`
+}

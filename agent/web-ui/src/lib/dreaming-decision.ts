@@ -1,6 +1,8 @@
 import type { useDreamingActions } from './use-dreaming-panel';
 
-import { dreamingRequest, type DreamingDashboard, type DreamingDecision, type DreamingReport } from './dreaming';
+import { dreamingRequest } from './dreaming';
+import { type DreamingDashboard } from '@agent/core/learning/dreaming/review.js';
+import { type DreamingDecision, type DreamingReport } from '@agent/core/learning/dreaming/types.js';
 
 export type DreamingDecisionOptions = { state: Parameters<typeof useDreamingActions>[0] };
 

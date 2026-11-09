@@ -7,26 +7,17 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"codeberg.org/codeberg/daemon/internal/procenv"
 )
 
-const runTimeout = 30 * time.Second
+// ToolTimeout bounds git commands run for an interactive tool call.
+const ToolTimeout = 30 * time.Second
 
-// Run executes a git command in dir with a 30s timeout (interactive tool use).
-func Run(ctx context.Context, dir string, args ...string) (string, error) {
-	return run(ctx, dir, runTimeout, args...)
-}
-
-// RunWithTimeout executes a git command in dir, canceling after timeout or when
-// ctx is done. A non-positive timeout means no extra deadline beyond ctx.
-func RunWithTimeout(ctx context.Context, dir string, timeout time.Duration, args ...string) (string, error) {
-	return run(ctx, dir, timeout, args...)
-}
-
-func run(ctx context.Context, dir string, timeout time.Duration, args ...string) (string, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
+// Run executes git in dir, canceling after timeout or when ctx is done. A
+// non-positive timeout means no deadline beyond ctx. Git never prompts for
+// credentials, so a protected remote fails instead of hanging.
+func Run(ctx context.Context, dir string, timeout time.Duration, args ...string) (string, error) {
 	runCtx := ctx
 	var cancel context.CancelFunc
 	if timeout > 0 {
@@ -36,6 +27,7 @@ func run(ctx context.Context, dir string, timeout time.Duration, args ...string)
 
 	cmd := exec.CommandContext(runCtx, "git", args...)
 	cmd.Dir = dir
+	cmd.Env = procenv.Tools()
 
 	var buf bytes.Buffer
 	cmd.Stdout = &buf

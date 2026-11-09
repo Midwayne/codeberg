@@ -1,6 +1,6 @@
+import type { PromptCommand } from '@agent/core/hooks/types.js';
 import { CornerDownLeft } from 'lucide-react';
 
-import type { PromptCommand } from '../../lib/commands';
 import { cn } from '../../lib/utils';
 
 /**

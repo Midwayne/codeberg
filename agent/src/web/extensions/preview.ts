@@ -1,5 +1,7 @@
 import { basename } from 'node:path';
-import { parseSkillDocument } from '../../core/context/skills.js';
+import { SKILL_FILE, parseSkillDocument } from '../../core/context/skill-document.js';
+import { MAX_SKILL_FILES, SKILL_SIZE_LABEL, skillFileCountError, validExtensionName } from '../../core/context/skill-limits.js';
+import { withinSkillLimit } from './limits.js';
 
 export interface SkillFilePreview {
   filename: string;
@@ -10,8 +12,8 @@ export interface SkillFilePreview {
 
 export function previewSkillFiles(input: unknown): SkillFilePreview[] {
   const files = (input as { files?: unknown } | null)?.files;
-  if (!Array.isArray(files) || files.length === 0 || files.length > 20)
-    throw new Error('Choose between 1 and 20 skill files.');
+  if (!Array.isArray(files) || files.length === 0 || files.length > MAX_SKILL_FILES)
+    throw new Error(skillFileCountError());
 
   const names = new Set<string>();
 
@@ -21,16 +23,16 @@ export function previewSkillFiles(input: unknown): SkillFilePreview[] {
       typeof value?.filename === 'string' ? basename(value.filename) : 'Unknown file';
     if (!/\.md$/i.test(filename)) return { filename, error: 'Choose Markdown (.md) skill files.' };
 
-    if (typeof value?.content !== 'string' || Buffer.byteLength(value.content, 'utf8') > 256 * 1024)
-      return { filename, error: 'Each skill file must be at most 256 KB.' };
+    if (typeof value?.content !== 'string' || !withinSkillLimit(value.content))
+      return { filename, error: `Each skill file must be at most ${SKILL_SIZE_LABEL}.` };
 
-    const fallback = filename.toLowerCase() === 'skill.md' ? '' : filename.replace(/\.md$/i, '');
+    const fallback = filename.toLowerCase() === SKILL_FILE.toLowerCase() ? '' : filename.replace(/\.md$/i, '');
     const parsed = parseSkillDocument(value.content, fallback);
-    if (!parsed || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(parsed.name))
+    if (!parsed || !validExtensionName(parsed.name))
       return {
         filename,
         error:
-          'Provide a skill name containing letters, numbers, dashes or underscores, and a description. SKILL.md needs a name in its frontmatter.',
+          `Provide a skill name containing letters, numbers, dashes or underscores, and a description. ${SKILL_FILE} needs a name in its frontmatter.`,
       };
 
     if (names.has(parsed.name))

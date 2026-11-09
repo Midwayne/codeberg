@@ -28,7 +28,3 @@ export class ExtensionStore {
     return route(this.state, req, res, env);
   }
 }
-
-export type { SkillFilePreview } from './extensions/preview.js';
-
-export { previewSkillFiles } from './extensions/preview.js';

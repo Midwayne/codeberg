@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import type { DreamingDashboard, DreamingReport } from './dreaming';
+import type { DreamingDashboard } from '@agent/core/learning/dreaming/review.js';
+import type { DreamingReport } from '@agent/core/learning/dreaming/types.js';
 import { useProjectApi } from './project-api';
 
 import { useDreamingSelection } from './use-dreaming-selection';

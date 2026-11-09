@@ -1,4 +1,5 @@
-import { DatasetStore, exampleFiles } from './datasets.js';
+import { DatasetStore } from './datasets.js';
+import { exampleFiles } from './datasets/records.js';
 import { sameTaskFamily } from './dedup.js';
 import {
   approvedNegatives,
@@ -9,23 +10,32 @@ import {
 } from './export/records.js';
 import { redactSecrets } from './redact.js';
 import { interactionRevisions } from './revision.js';
-import { effectiveFeedback, type LearningStore } from './store.js';
-import type { AttemptRecord, LearningEvent } from './types.js';
+import { effectiveFeedback } from './store/feedback.js';
+import { recordedAttempts } from './store/interactions.js';
+import { type LearningStore } from './store.js';
+import type { AttemptRecord } from './types.js';
 
-export type ExportType =
-  | 'eval'
-  | 'embedding'
-  | 'openai-chat'
-  | 'query-positive-negative'
-  | 'preference'
-  | 'knowledge';
+export const EXPORT_TYPES = [
+  'eval',
+  'embedding',
+  'openai-chat',
+  'query-positive-negative',
+  'preference',
+  'knowledge',
+] as const;
+
+export type ExportType = (typeof EXPORT_TYPES)[number];
+
+export function isExportType(value: string | undefined): value is ExportType {
+  return EXPORT_TYPES.some((type) => type === value);
+}
 
 export async function exportDataset(store: LearningStore, type: ExportType): Promise<unknown[]> {
   if (type === 'knowledge') return exportKnowledge(store);
 
   const events = await store.events();
   const feedback = effectiveFeedback(events);
-  const allAttempts = uniqueAttempts(events);
+  const allAttempts = recordedAttempts(events);
   const revisions = interactionRevisions(events);
   const datasets = new DatasetStore(store);
   const heldOut = await datasets.list('eval');
@@ -116,13 +126,4 @@ async function exportKnowledge(store: LearningStore): Promise<unknown[]> {
     source_commits: artifact.source_commits,
     updated_at: artifact.updated_at,
   }));
-}
-
-function uniqueAttempts(events: LearningEvent[]): AttemptRecord[] {
-  const attempts = new Map<string, AttemptRecord>();
-  for (const event of events) {
-    if (event.type === 'attempt_recorded') attempts.set(event.attempt.attempt_id, event.attempt);
-  }
-
-  return [...attempts.values()];
 }

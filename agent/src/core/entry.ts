@@ -1,3 +1,4 @@
+import { BUILTIN_PROVIDERS } from '../providers/catalog.js';
 import { DEFAULT_DAEMON_URL } from './client.js';
 
 export interface EntryConfig {
@@ -38,6 +39,13 @@ export function entryUsage(program: string): string {
     ')\n' +
     '     CODEBERG_MODEL=openai:gpt-4o-mini\n' +
     '     CODEBERG_SUBAGENT_MODEL=openai:gpt-4o-mini (defaults to CODEBERG_MODEL)\n' +
-    'Providers: openai, anthropic, google (when API keys set)'
+    providersLine()
   );
+}
+
+function providersLine(): string {
+  const hosted = BUILTIN_PROVIDERS.filter((provider) => !provider.local && !provider.external).map((provider) => provider.name);
+  const local = BUILTIN_PROVIDERS.filter((provider) => provider.local).map((provider) => provider.name);
+
+  return `Providers: ${hosted.join(', ')} (when API keys set); ${local.join(', ')} (local servers)`;
 }

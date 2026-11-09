@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto';
-import { appendFile, mkdir, readFile } from 'node:fs/promises';
+import { appendFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { UsageRecord } from '../../core/usage.js';
+import { readOptionalText } from '../../core/learning/fs.js';
 import { codebergHome } from '../../core/paths.js';
+import type { UsageRecord } from '../../core/usage.js';
+import { WriteLock } from '../../core/write-lock.js';
 
 /** Separate from saved chats: cleanup and branching cannot erase or duplicate spend. */
 export class UsageStore {
-  private writing: Promise<void> = Promise.resolve();
+  private readonly lock = new WriteLock();
   failedWrites = 0;
 
   constructor(readonly directory = join(codebergHome(), 'usage')) {}
@@ -14,14 +16,11 @@ export class UsageStore {
   async record(input: Omit<UsageRecord, 'id' | 'timestamp'> & { timestamp?: number }): Promise<void> {
     const row: UsageRecord = { ...input, id: randomUUID(), timestamp: input.timestamp ?? Date.now() };
     const month = new Date(row.timestamp).toISOString().slice(0, 7);
-    const writing = this.writing.then(async () => {
-      await mkdir(this.directory, { recursive: true, mode: 0o700 });
-      await appendFile(join(this.directory, `${month}.jsonl`), JSON.stringify(row) + '\n', { mode: 0o600 });
-    });
-
-    this.writing = writing.catch(() => undefined);
     try {
-      await writing;
+      await this.lock.run(async () => {
+        await mkdir(this.directory, { recursive: true, mode: 0o700 });
+        await appendFile(join(this.directory, `${month}.jsonl`), JSON.stringify(row) + '\n', { mode: 0o600 });
+      });
     } catch (error) {
       this.failedWrites++;
 
@@ -30,7 +29,7 @@ export class UsageStore {
   }
 
   async read(start: string, end: string): Promise<UsageRecord[]> {
-    await this.writing;
+    await this.lock.done();
     const from = Date.parse(start);
     const until = Date.parse(end);
     const rows: UsageRecord[] = [];
@@ -49,13 +48,8 @@ export class UsageStore {
 }
 
 async function readMonth(path: string): Promise<UsageRecord[]> {
-  try {
-    const content = await readFile(path, 'utf8');
+  const content = await readOptionalText(path);
+  if (content === undefined) return [];
 
-    return content.split('\n').filter(Boolean).map((line) => JSON.parse(line) as UsageRecord);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
-
-    throw error;
-  }
+  return content.split('\n').filter(Boolean).map((line) => JSON.parse(line) as UsageRecord);
 }

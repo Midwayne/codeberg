@@ -1,19 +1,20 @@
 import type { UIMessage } from 'ai';
 import { writeModuleLog } from '../../module-log.js';
+import { yieldsDatasetExamples } from '../dataset-extract.js';
+import { HISTORY_CAPTURE_PAUSED, historyCaptureEnabled } from '../preferences.js';
 import type { FeedbackLabel, FeedbackRating, FeedbackRecord } from '../types.js';
 import { wakeWorker } from './background.js';
 import type { LearningServiceState } from './state.js';
+import { LearningError } from '../errors.js';
 
 export async function recordSession(
   state: LearningServiceState,
   conversationId: string,
   messages: UIMessage[],
-  parentConversationId?: string,
 ): Promise<void> {
-  if (!state.preferences.enabled || !state.preferences.history || !state.preferences.historyCapture)
-    return;
+  if (!historyCaptureEnabled(state.preferences)) return;
 
-  const attempts = await state.store.recordSession(conversationId, messages, parentConversationId);
+  const attempts = await state.store.recordSession(conversationId, messages);
   const newIds = new Set(attempts.map((attempt) => attempt.attempt_id));
   for (const id of new Set(attempts.map((attempt) => attempt.interaction_id))) {
     const interaction = await state.store.interaction(id);
@@ -22,12 +23,8 @@ export async function recordSession(
     );
     if (!newAnswers.length) continue;
 
-    if (
-      state.datasetEnabled &&
-      (interaction.feedback.length || newAnswers.some((attempt) => attempt.tools_invoked.length))
-    ) {
+    if (state.datasetEnabled && yieldsDatasetExamples(interaction.attempts, interaction.feedback))
       await state.queue.enqueueDataset(id, { requeueCompleted: true });
-    }
 
     if (
       state.knowledgeCaptureEnabled &&
@@ -55,11 +52,15 @@ export async function feedback(
     reason?: string;
   },
 ): Promise<{ feedback: FeedbackRecord; jobId?: string; jobStatus?: string }> {
-  if (!state.preferences.enabled || !state.preferences.history || !state.preferences.historyCapture)
-    throw new Error('Learning history is paused. Enable it in Settings.');
+  if (!historyCaptureEnabled(state.preferences))
+    throw new LearningError('conflict', HISTORY_CAPTURE_PAUSED);
 
   const attempt = await state.store.attemptForMessage(input.conversationId, input.messageId);
-  if (!attempt) throw new Error('attempt not found; wait for the conversation to finish saving');
+  if (!attempt)
+    throw new LearningError(
+      'not_found',
+      'attempt not found; wait for the conversation to finish saving',
+    );
 
   const feedback = await state.store.recordFeedback({
     attemptId: attempt.attempt_id,

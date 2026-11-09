@@ -33,7 +33,7 @@ func (w *Workspace) grep(ctx context.Context, pattern string, literal bool, repo
 		limit = w.maxMatches
 	}
 
-	key, err := w.resolveKey(repo)
+	key, err := w.ResolveRepo(repo)
 	if err != nil {
 		return nil, err
 	}

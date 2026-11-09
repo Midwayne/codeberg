@@ -41,8 +41,11 @@ flowchart TB
 
 | Package | Role |
 |---------|------|
-| `cmd/codeberg-d` | Wiring: config → supervisor → bootstrap → HTTP + git pull |
-| `internal/config` | Internal `CODEBERG_ROOTS`, git pull dirs, socket path |
+| `cmd/codeberg-d` | Wiring: config → project manager → HTTP; `codeberg-d storage` report |
+| `internal/config` | Every daemon and indexer environment variable |
+| `internal/storage` | `CODEBERG_HOME` layout: catalog, project directories, index paths, sockets |
+| `internal/projects` | Project catalog and per-project indexer runtimes |
+| `internal/procenv` | Child-process environment overlay |
 | `internal/supervisor` | Spawn, restart, and stop `cberg-index` |
 | `internal/bootstrap` | Block until indexer reports `ready` (timeout scales with repo count) |
 | `internal/indexctl` | Unix socket client — status, search, tool proxies |
@@ -61,29 +64,31 @@ Indexer implementation: `core/cmd/cberg-index/` — see
 
 ## Startup sequence
 
-1. **Load config** from environment (`config.LoadDaemon`).
-2. **Start supervisor** — exec `cberg-index` with forwarded env:
-   `CODEBERG_ROOTS`, `CBERG_SOCKET`, `CBERG_POLL_MS`,
-   optional `CBERG_MODEL`, `CBERG_INDEX_PATH`. Other env (e.g. `CBERG_EMBED_THREADS`)
-   is inherited from the daemon process.
-3. **Wait for ready** — `bootstrap.WaitIndexer` polls IPC `status` every 200 ms until
-   `ready: true` or timeout (`5 min × repo count`, max 60 min).
-4. **Start git pull** (optional) — background goroutine when
-   `CODEBERG_GIT_PULL_INTERVAL_SEC > 0`.
-5. **Listen HTTP** — default port 8080 (`CODEBERG_HTTP_PORT`).
+1. **Load config** from environment (`config.LoadDaemon`). Invalid values fail
+   startup.
+2. **Open the project catalog** — `projects.json` under `CODEBERG_HOME`, or a
+   temporary home removed at exit when `CODEBERG_NO_INDEX=true`.
+3. **Start the default project** — every project, default or not, starts the same
+   way: migrate a legacy managed index, exec `cberg-index` with the project's
+   roots, socket, index and log directory (other env such as
+   `CBERG_EMBED_THREADS` is inherited), then start the optional git pull
+   (`CODEBERG_GIT_PULL_INTERVAL_SEC > 0`) and wait in the background for
+   `ready` (`bootstrap.StartupTimeout`: `5 min × repo count`, 15–60 min, or
+   `CODEBERG_HEALTH_TIMEOUT`).
+4. **Listen HTTP** — `127.0.0.1`, default port 48080 (`CODEBERG_HTTP_PORT`).
 
-Failure at steps 1–3 is fatal (`log.Fatal`). The supervisor alone keeps restarting
-a crashed indexer with exponential backoff (1 s → 30 s cap).
+Configuration and catalog errors and a failed listen are fatal. The supervisor
+keeps restarting a crashed indexer with exponential backoff (1 s → 30 s cap).
 
 ---
 
 ## Shutdown sequence
 
-On `SIGTERM` / `SIGINT`:
+On `SIGTERM` / `SIGINT`, or after a fatal listen error:
 
 1. HTTP server graceful shutdown (5 s drain).
-2. Supervisor sends `SIGINT` to `cberg-index`.
-3. Process exits.
+2. Each running project's supervisor sends `SIGINT` to its `cberg-index`.
+3. A `CODEBERG_NO_INDEX` session directory is removed, then the process exits.
 
 ---
 

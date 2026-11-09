@@ -2,7 +2,7 @@ import { LoadingStatus } from '../components/loading';
 import { Excalidraw, MainMenu } from '@excalidraw/excalidraw';
 import '@excalidraw/excalidraw/index.css';
 import { useEditor } from './use-editor';
-import { canvasEmbedded } from './api';
+import { canvasEmbedded, canvasMotion } from './api';
 import './style.css';
 
 export default function CanvasEditor() {
@@ -29,7 +29,7 @@ export default function CanvasEditor() {
       <div className="relative min-h-0 flex-1">
         <LoadingStatus active={!state.scene} label={state.status} className="canvas-loading justify-center p-4" />
         <div ref={state.motion.surface} inert={!state.scene} data-ready={Boolean(state.scene)}
-          data-motion={new URL(location.href).searchParams.get('motion')}
+          data-motion={canvasMotion()}
           className={`canvas-surface local-canvas h-full ${embedded ? 'canvas-preview' : ''}`}>
           <Excalidraw viewModeEnabled={embedded} zenModeEnabled={embedded} excalidrawAPI={state.setApi} onChange={state.onChange}
             initialData={{ appState: { currentItemFontFamily: 5 } }}

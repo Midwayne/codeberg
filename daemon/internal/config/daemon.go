@@ -2,7 +2,9 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -12,35 +14,40 @@ func LoadDaemon() (Daemon, error) {
 		return Daemon{}, err
 	}
 
-	port := os.Getenv(EnvHTTPPort)
-	if port == "" {
-		port = "8080"
+	pull, err := loadSeconds(EnvGitPullSec)
+	if err != nil {
+		return Daemon{}, err
 	}
 
-	gitDirs := make([]string, 0, len(idx.Roots))
-	if dir := os.Getenv(EnvGitDir); dir != "" {
-		gitDirs = append(gitDirs, dir)
-	} else {
-		for _, r := range idx.Roots {
-			gitDirs = append(gitDirs, r.Root)
-		}
+	health, err := loadDuration(EnvHealthTimeout)
+	if err != nil {
+		return Daemon{}, err
 	}
 
-	var pull time.Duration
-	if v := os.Getenv(EnvGitPullSec); v != "" {
-		sec, err := strconv.Atoi(v)
-		if err != nil || sec < 0 {
-			return Daemon{}, invalid(EnvGitPullSec)
-		}
-
-		pull = time.Duration(sec) * time.Second
+	rootPID, err := loadInt(EnvRootPID, 0)
+	if err != nil {
+		return Daemon{}, err
 	}
+
 	return Daemon{
-		Indexer:  idx,
-		HTTPPort: port,
-		GitPull:  pull,
-		GitDirs:  gitDirs,
+		Indexer:       idx,
+		Home:          loadHome(),
+		LogDir:        os.Getenv(EnvLogDir),
+		HTTPPort:      orDefault(os.Getenv(EnvHTTPPort), DefaultHTTPPort),
+		GitPull:       pull,
+		HealthTimeout: health,
+		NoIndex:       isTrue(os.Getenv(EnvNoIndex)),
+		RootPID:       rootPID,
 	}, nil
+}
+
+func loadHome() string {
+	if home := os.Getenv(EnvHome); home != "" {
+		return home
+	}
+
+	userHome, _ := os.UserHomeDir()
+	return filepath.Join(userHome, ".codeberg")
 }
 
 func loadIndexer() (Indexer, error) {
@@ -49,65 +56,79 @@ func loadIndexer() (Indexer, error) {
 		return Indexer{}, err
 	}
 
-	model := os.Getenv(EnvModel)
-	indexPath := os.Getenv(EnvIndexPath)
-	indexBackend := os.Getenv(EnvIndexBackend)
-	indexQuant := os.Getenv(EnvIndexQuant)
-	vectorDBURL := os.Getenv(EnvVectorDBURL)
-	vectorDBKey := os.Getenv(EnvVectorDBKey)
-	postgresURL := os.Getenv(EnvPostgresURL)
-	poll, err := loadPollMS()
+	poll, err := loadInt(EnvPollMS, 1000)
 	if err != nil {
 		return Indexer{}, err
 	}
 
-	socket := os.Getenv(EnvSocket)
-	if socket == "" {
-		socket = "/tmp/codeberg-index.sock"
-	}
-	var root string
-	if len(roots) > 0 {
-		root = roots[0].Root
+	namespace := os.Getenv(EnvIndexNamespace)
+	if namespace != "" && (namespace != filepath.Base(namespace) || strings.HasPrefix(namespace, ".")) {
+		return Indexer{}, invalid(EnvIndexNamespace)
 	}
 
 	idx := Indexer{
-		Root:         root,
-		Roots:        roots,
-		DefaultKey:   defaultKey,
-		Model:        model,
-		EmbedBackend: os.Getenv(EnvEmbedBackend),
-		EmbedWorker:  os.Getenv(EnvEmbedWorker),
-		EmbedPython:  os.Getenv(EnvEmbedPython),
-		LlamaServer:  os.Getenv(EnvLlamaServer),
-		Index:        indexPath,
-		IndexBackend: indexBackend,
-		IndexQuant:   indexQuant,
-		VectorDBURL:  vectorDBURL,
-		VectorDBKey:  vectorDBKey,
-		PostgresURL:  postgresURL,
-		PollMS:       poll,
-		Socket:       socket,
-		Bin:          os.Getenv(EnvIndexerBin),
+		Roots:          roots,
+		DefaultKey:     defaultKey,
+		Index:          os.Getenv(EnvIndexPath),
+		IndexNamespace: namespace,
+		IndexBackend:   os.Getenv(EnvIndexBackend),
+		IndexQuant:     os.Getenv(EnvIndexQuant),
+		VectorDBURL:    os.Getenv(EnvVectorDBURL),
+		VectorDBKey:    os.Getenv(EnvVectorDBKey),
+		PostgresURL:    os.Getenv(EnvPostgresURL),
+		PollMS:         orPositive(poll, 1000),
+		Bin:            os.Getenv(EnvIndexerBin),
 	}
-	disableEmbedding(&idx)
 
+	loadEmbedding(&idx)
 	return idx, nil
 }
 
-func loadPollMS() (int, error) {
-	poll := 1000
-	if v := os.Getenv(EnvPollMS); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil || n < 0 {
-			return 0, invalid(EnvPollMS)
-		}
-
-		poll = n
+func loadInt(name string, fallback int) (int, error) {
+	v := os.Getenv(name)
+	if v == "" {
+		return fallback, nil
 	}
 
-	if poll <= 0 {
-		poll = 1000
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 0 {
+		return 0, invalid(name)
 	}
 
-	return poll, nil
+	return n, nil
+}
+
+func loadSeconds(name string) (time.Duration, error) {
+	sec, err := loadInt(name, 0)
+	return time.Duration(sec) * time.Second, err
+}
+
+func loadDuration(name string) (time.Duration, error) {
+	v := os.Getenv(name)
+	if v == "" {
+		return 0, nil
+	}
+
+	d, err := time.ParseDuration(v)
+	if err != nil || d <= 0 {
+		return 0, invalid(name)
+	}
+
+	return d, nil
+}
+
+func orDefault(v, fallback string) string {
+	if v == "" {
+		return fallback
+	}
+
+	return v
+}
+
+func orPositive(n, fallback int) int {
+	if n <= 0 {
+		return fallback
+	}
+
+	return n
 }

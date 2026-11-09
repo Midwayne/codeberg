@@ -1,4 +1,5 @@
-import { labels, buttonClass } from './settings-styles';
+import { labels } from './settings-styles';
+import { buttonClass } from './button-styles';
 
 import { CleanupOptions } from './cleanup-options';
 import type { CleanupConfirmationProps, CleanupSelectionProps } from './cleanup';

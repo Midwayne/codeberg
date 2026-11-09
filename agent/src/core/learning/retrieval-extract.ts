@@ -1,6 +1,9 @@
+import { estimateTokens } from '../history-tokens.js';
 import type { ExtractionContext } from './dataset-extract.js';
-import type { DatasetExample } from './datasets.js';
-import { emitNegativeExamples, hitKey, unique, uniqueHits } from './retrieval/negatives.js';
+import type { DatasetExample } from './datasets/records.js';
+import { rlvrPayload, unique } from './extraction/trajectories.js';
+import { emitNegativeExamples, hitKey, uniqueHits } from './retrieval/negatives.js';
+import { isReadTool, isSearchTool } from './tool-class.js';
 import type { AttemptRecord, RetrievedResult, ToolInvocation } from './types.js';
 
 /** Retrieval labels retain ranked results. Uncited results stay unjudged. */
@@ -15,7 +18,7 @@ export function extractRetrieval(
   const opened = unique(
     attempts.flatMap((attempt) =>
       attempt.tools_invoked
-        .filter((tool) => /open|read_file/i.test(tool.name))
+        .filter((tool) => isReadTool(tool.name))
         .map(toolFile)
         .filter((path): path is string => typeof path === 'string'),
     ),
@@ -70,7 +73,7 @@ function retrievalSignals(
   return {
     tool_calls: attempts.reduce((count, attempt) => count + attempt.tools_invoked.length, 0),
     files_opened: opened.length,
-    retrieved_tokens: Math.ceil(JSON.stringify(retrieved).length / 4),
+    retrieved_tokens: estimateTokens(JSON.stringify(retrieved)),
     latency_ms:
       attempts.reduce((total, attempt) => total + (attempt.latency_ms ?? 0), 0) || undefined,
     oracle_file_hit: undefined,
@@ -90,24 +93,21 @@ function emitVerificationCandidate(
   repositories: DatasetExample['repositories'],
   positives: RetrievedResult[],
 ): void {
-  const { attempts, final, verifier, trajectory, emit } = context;
+  const { final, verifier, emit } = context;
+  if (!final || !positives.length || verifier) return;
 
-  if (final && positives.length && !verifier) {
-    emit('rlvr', {
-      task: attempts[0].user_query,
-      environment: repositories,
-      available_tools: unique(attempts.flatMap((attempt) => attempt.available_tools ?? [])),
-      observed_tools: unique(
-        attempts.flatMap((attempt) => attempt.tools_invoked.map((tool) => tool.name)),
-      ),
-      verifier: {
+  emit(
+    'rlvr',
+    rlvrPayload(
+      context,
+      repositories,
+      {
         kind: 'repository_evidence',
         proposed_files: unique(positives.map((hit) => hit.path).filter(Boolean)),
         proposed_symbols: unique(positives.map((hit) => hit.symbol).filter(Boolean)),
         status: 'requires_review',
       },
-      successful_trajectory: trajectory,
-      reward_components: [
+      [
         'oracle_file_hit',
         'oracle_symbol_hit',
         'dependency_path_correct',
@@ -115,8 +115,8 @@ function emitVerificationCandidate(
         'retrieved_tokens',
         'latency_ms',
       ],
-    });
-  }
+    ),
+  );
 }
 
 export function isRetrievalTask(attempt: AttemptRecord): boolean {
@@ -126,9 +126,7 @@ export function isRetrievalTask(attempt: AttemptRecord): boolean {
     /\b(where|which|who|trace|find|locate|originat|implement|produce|consume|depend|call|defined|architecture|service|repository|repo|field|topic|flow)\b/i.test(
       query,
     ) ||
-    attempt.tools_invoked.some((tool) =>
-      /search|grep|symbol|reference|open_file|read_file/i.test(tool.name),
-    )
+    attempt.tools_invoked.some((tool) => isSearchTool(tool.name) || isReadTool(tool.name))
   );
 }
 
@@ -139,7 +137,7 @@ function searchResults(
 ): unknown[] {
   return attempts.flatMap((attempt) =>
     attempt.tools_invoked
-      .filter((tool) => /search|grep|symbol|reference/i.test(tool.name))
+      .filter((tool) => isSearchTool(tool.name))
       .map((tool) => {
         const input = tool.input as { query?: string; pattern?: string } | undefined;
         const results = attempt.retrieved_results.filter(

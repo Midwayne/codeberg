@@ -1,6 +1,6 @@
 import { enqueue, enqueueDataset, enqueueDreaming, enqueueKnowledge } from './queue/enqueue.js';
 import { claim, complete, fail, release } from './queue/execution.js';
-import { DEFAULT_LEASE_MS, isTransientFailure } from './queue/policy.js';
+import { DEFAULT_LEASE_MS } from './queue/policy.js';
 import { reconcileStates, recoverExpired, recoverRetryableFailures } from './queue/recovery.js';
 import { counts, nextDueAt } from './queue/scheduling.js';
 import { DurableJobQueueState } from './queue/state.js';
@@ -81,13 +81,8 @@ export class DurableJobQueue {
     return complete(this.state, job);
   }
 
-  fail(
-    job: KnowledgeJob,
-    category: FailureCategory,
-    error: string,
-    transient = isTransientFailure(category),
-  ): Promise<void> {
-    return fail(this.state, job, category, error, transient);
+  fail(job: KnowledgeJob, category: FailureCategory, error: string): Promise<void> {
+    return fail(this.state, job, category, error);
   }
 
   counts(): Promise<Record<JobStatus, number>> {
@@ -102,5 +97,3 @@ export class DurableJobQueue {
     return list(this.state, status);
   }
 }
-
-export { classifyFailure, isTransientFailure } from './queue/policy.js';
