@@ -35,7 +35,7 @@ func (m *Manager) activate(id string) (http.Handler, error) {
 
 	p, ok := m.project(id)
 	if !ok {
-		return nil, fmt.Errorf("unknown project")
+		return nil, errProjectNotFound
 	}
 
 	handler, stop, err := m.start(p, m.projectConfig(p))

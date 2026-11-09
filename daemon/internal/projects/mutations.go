@@ -13,7 +13,7 @@ import (
 
 func (m *Manager) Add(name, root string) (Project, error) {
 	if !usableDirectoryPath(root) {
-		return Project{}, fmt.Errorf("choose an absolute directory path")
+		return Project{}, errAbsoluteDirectory
 	}
 
 	root, err := filepath.EvalSymlinks(root)

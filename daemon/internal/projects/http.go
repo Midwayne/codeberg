@@ -65,7 +65,7 @@ func (m *Manager) serveProject(w http.ResponseWriter, r *http.Request) {
 	_, ok := m.project(parts[0])
 	m.mu.Unlock()
 	if !ok {
-		httpserver.WriteError(w, 404, "project not found")
+		httpserver.WriteError(w, 404, errProjectNotFound.Error())
 		return
 	}
 

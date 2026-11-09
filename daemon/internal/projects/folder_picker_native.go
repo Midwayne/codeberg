@@ -11,6 +11,9 @@ import (
 	"strings"
 )
 
+// Same absolute-directory rule for Add and the folder picker.
+var errAbsoluteDirectory = errors.New("choose an absolute directory path")
+
 func usableDirectoryPath(path string) bool {
 	return filepath.IsAbs(path) && !strings.ContainsAny(path, "\x00\n\r\t")
 }

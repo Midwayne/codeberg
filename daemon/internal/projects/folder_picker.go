@@ -77,7 +77,7 @@ func pickerInitialPath(w http.ResponseWriter, r *http.Request) (string, bool) {
 	initial := body.InitialPath
 	if initial != "" {
 		if !usableDirectoryPath(initial) {
-			httpserver.WriteError(w, 400, "Choose an absolute directory path")
+			httpserver.WriteError(w, 400, errAbsoluteDirectory.Error())
 			return "", false
 		}
 
