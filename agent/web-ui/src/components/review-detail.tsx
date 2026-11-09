@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef } from 'react';
 import { KIND_LABELS, exampleAnswer, type ReviewExample, type ReviewSummary } from '../lib/training';
 
-import { type Decision } from './training-review';
+import type { Decision } from './training-review';
 import { collectReviewEvidence } from '../lib/review-evidence';
 import { ReviewDecisionForm } from './review-decision';
 

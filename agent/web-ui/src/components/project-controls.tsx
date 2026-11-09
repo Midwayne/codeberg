@@ -1,7 +1,7 @@
 import { FolderPlus } from 'lucide-react';
 
 import { IconButton, Select } from './ui';
-import { type Project, type ProjectCatalog } from '../lib/project-api';
+import type { Project, ProjectCatalog } from '../lib/project-api';
 
 export type ProjectToolbarProps = {
   project: Project | undefined;

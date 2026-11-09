@@ -3,7 +3,6 @@ import type { DurableJobQueue } from '../queue.js';
 import { stableId, type LearningStore } from '../store.js';
 import type {
   AutomaticEvalReport,
-  EvaluationConfiguration,
   EvaluationRuntime,
   EvaluationTask,
 } from './automatic-types.js';
@@ -81,11 +80,4 @@ export class AutomaticEvaluations {
   process(id: string, attempt: number): Promise<void> {
     return processEvaluation(this, id, attempt);
   }
-}
-
-export function sameConfiguration(
-  a: EvaluationConfiguration,
-  b?: EvaluationConfiguration,
-): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
 }

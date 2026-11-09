@@ -2,7 +2,7 @@ import { LoadingBoundary } from './loading';
 import { ArrowLeft } from 'lucide-react';
 
 import { ErrorNotice } from './ui';
-import { type TrainingReviewView, type SelectedReviewDetailProps } from './training-review';
+import type { TrainingReviewView, SelectedReviewDetailProps } from './training-review';
 import { ReviewDetail } from './review-detail';
 
 export type ReviewSelectionProps = { state: Parameters<typeof TrainingReviewView>[0] };

@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { LearningService } from '../../core/learning/service.js';
 import { readJson, sendJson, sendText } from '../http.js';
-import { LEARNING_PATH } from '../learning-routes.js';
+import { LEARNING_PATH } from './paths.js';
 
 export async function reviewExample(
   req: IncomingMessage,

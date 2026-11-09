@@ -1,6 +1,6 @@
 import { memorySourceState, sourceKey, type SourceObservation } from '../memory-source.js';
 import { stableId } from '../store.js';
-import { syncWatcher, wakeWorker } from './settings.js';
+import { syncWatcher, wakeWorker } from './background.js';
 import type { LearningServiceState } from './state.js';
 
 export function refreshKnowledge(

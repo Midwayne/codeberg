@@ -1,8 +1,8 @@
 import { Pencil } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { CopyButton } from './ui';
-import { type Project } from '../lib/project-api';
-import { type ProjectRenameProps } from './projects';
+import type { Project } from '../lib/project-api';
+import type { ProjectRenameProps } from './projects';
 import { ProjectConfigFiles } from './project-config-files';
 import { ProjectDelete } from './project-delete';
 import { RenameProjectForm } from './project-rename';

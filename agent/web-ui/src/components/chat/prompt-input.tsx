@@ -4,11 +4,11 @@ import { PromptAttachments, PromptFiles, PromptAction } from './prompt-files';
 import { PromptSteer } from './prompt-actions';
 import { PromptFilePreviews } from './prompt-file-previews';
 
-import { type RefObject } from 'react';
+import type { RefObject } from 'react';
 
 import { CommandMenu } from './command-menu';
 
-import { type CatalogModel } from '../../lib/models';
+import type { CatalogModel } from '../../lib/models';
 
 export { MAX_HEIGHT, MAX_FILE_SIZE, inputFor, clipboardImages } from '../../lib/prompt-files';
 

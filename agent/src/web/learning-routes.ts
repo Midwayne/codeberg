@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { routeDreaming } from './dreaming-routes.js';
 import { getFeedback, postFeedback } from './learning/feedback-routes.js';
+import { LEARNING_PATH } from './learning/paths.js';
 import { reviewExample } from './learning/review-routes.js';
 import { routeEvaluations } from './learning/evaluation-routes.js';
 
@@ -9,8 +10,6 @@ import { reviewDashboard } from '../core/learning/review.js';
 import type { LearningService } from '../core/learning/service.js';
 import { readJson, sameOrigin, sendJson, sendText } from './http.js';
 import { type WebSessionStore } from './sessions/store.js';
-
-export const LEARNING_PATH = '/api/learning';
 
 export async function routeLearning(
   req: IncomingMessage,

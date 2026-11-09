@@ -1,4 +1,4 @@
-import { type ResourceChartView } from './resource-chart';
+import type { ResourceChartView } from './resource-chart';
 
 export type ResourcePlotProps = Pick<
   Parameters<typeof ResourceChartView>[0],

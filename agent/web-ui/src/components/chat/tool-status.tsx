@@ -2,12 +2,12 @@ import { Loader2, Wrench } from 'lucide-react';
 
 import { Collapsible } from '../ui';
 import { spilledToolTitle } from '../../lib/tool-output';
-import {
-  type SpilledOutputProps,
-  type ToolPendingProps,
-  type ToolErrorProps,
-  type GenericToolProps,
-  type JsonBlockProps,
+import type {
+  SpilledOutputProps,
+  ToolPendingProps,
+  ToolErrorProps,
+  GenericToolProps,
+  JsonBlockProps,
 } from './tool-views';
 
 export function SpilledOutput({ name, output }: SpilledOutputProps) {

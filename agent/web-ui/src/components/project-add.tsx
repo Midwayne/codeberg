@@ -4,8 +4,8 @@ import { control, button } from './project-styles';
 import { X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Dialog, IconButton } from './ui';
-import { type Project } from '../lib/project-api';
-import { type AddProjectViewProps } from './projects';
+import type { Project } from '../lib/project-api';
+import type { AddProjectViewProps } from './projects';
 import { ProjectDirectoryField } from './project-directory';
 
 export type AddProjectProps = {

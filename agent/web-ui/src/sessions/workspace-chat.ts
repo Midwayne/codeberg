@@ -1,5 +1,5 @@
 import { Chat } from '@ai-sdk/react';
-import { type ChatTransport, type UIMessage } from 'ai';
+import type { ChatTransport, UIMessage } from 'ai';
 
 import { RunTransport } from './run-transport';
 import { TurnQueue } from './turn-queue';

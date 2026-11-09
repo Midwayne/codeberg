@@ -1,4 +1,4 @@
-import { type useDreamingActions } from './use-dreaming-panel';
+import type { useDreamingActions } from './use-dreaming-panel';
 import { useEffect, useRef } from 'react';
 import { dreamingRequest, type DreamingDashboard, type DreamingReport } from './dreaming';
 

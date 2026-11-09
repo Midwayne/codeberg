@@ -1,10 +1,10 @@
 import { Archive, ArchiveRestore, Pin, PinOff, Trash2 } from 'lucide-react';
 
-import { type SessionSummary } from '../../lib/sessions';
+import type { SessionSummary } from '../../lib/sessions';
 
 import { Dialog } from '../ui';
 import { MotionPresence } from '../motion-presence';
-import { type SidebarMenuProps, type SidebarDeleteProps } from './session-sidebar';
+import type { SidebarMenuProps, SidebarDeleteProps } from './session-sidebar';
 
 export type DeleteChatDialogProps = {
   title: string;

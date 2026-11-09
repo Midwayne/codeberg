@@ -10,7 +10,7 @@ import { servePage } from '../server/routes.js';
 import { deleteProject, trackRequest } from './delete.js';
 import { openConfig, pickDirectory, projects, renameProject } from './catalog.js';
 import type { ProjectRequestRouterState } from './state.js';
-import { ProjectServiceTimeout, requestProjectService } from './request.js';
+import { daemon, ProjectServiceTimeout } from './request.js';
 
 export function handle(
   state: ProjectRequestRouterState,
@@ -56,13 +56,6 @@ export async function route(
   }
 
   return dispatchProject(state, req, res, url);
-}
-
-export async function daemon(state: ProjectRequestRouterState, path: string, init?: RequestInit) {
-  const { response, body } = await requestProjectService(state.options.daemonUrl, path, init);
-  if (!response.ok) throw new Error(body.message ?? 'Project service unavailable');
-
-  return body;
 }
 
 export async function dispatchProject(

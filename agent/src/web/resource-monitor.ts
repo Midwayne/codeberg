@@ -34,8 +34,6 @@ export class ResourceMonitorClient {
   }
 }
 
-export const RESOURCE_WORKER_URL = new URL('./resource-worker.js', import.meta.url);
-
 export type { ResourceReader, ResourceWorkerData } from './resource-monitor/types.js';
 
 export { DISK_MS, RETENTION_MS, SAMPLE_MS } from './resource-monitor/types.js';

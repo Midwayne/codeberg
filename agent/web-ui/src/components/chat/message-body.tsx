@@ -6,14 +6,14 @@ import { ToolViewRouter } from './tool-views';
 import { Collapsible } from '../ui';
 import { userPromptText } from '../../lib/message-rail';
 import { cn } from '../../lib/utils';
-import {
-  type AttachmentProps,
-  type AnyPart,
-  type ActivityGroupProps,
-  type ToolView,
-  type PartProps,
-  type ReasoningProps,
-  type Message,
+import type {
+  AttachmentProps,
+  AnyPart,
+  ActivityGroupProps,
+  ToolView,
+  PartProps,
+  ReasoningProps,
+  Message,
 } from './message';
 
 export function Attachment({ file }: AttachmentProps) {

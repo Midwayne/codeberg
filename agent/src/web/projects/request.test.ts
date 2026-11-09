@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { daemon } from './routing.js';
 import type { ProjectRequestRouterState } from './state.js';
-import { requestProjectService } from './request.js';
+import { daemon, requestProjectService } from './request.js';
 import { handle } from './routing.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { type Project } from './project-api';
+import type { Project } from './project-api';
 
 export interface ExtensionCatalog {
   mcps: { name: string; kind: string; scope?: string }[];

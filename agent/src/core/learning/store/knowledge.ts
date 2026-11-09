@@ -7,7 +7,7 @@ import { interactionRevisions } from '../revision.js';
 import type { KnowledgeArtifact } from '../types.js';
 import { parseArtifact } from './artifact.js';
 import { readEvents } from './events.js';
-import { readRepositories } from './interactions.js';
+import { readRepositories } from './repositories.js';
 import type { LearningStoreState } from './state.js';
 
 export async function currentKnowledgeArtifacts(

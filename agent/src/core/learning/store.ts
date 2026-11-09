@@ -7,7 +7,6 @@ import {
   attempts,
   currentFeedback,
   interaction,
-  readRepositories,
   stats,
 } from './store/interactions.js';
 import {
@@ -15,7 +14,7 @@ import {
   knowledgeArtifacts,
   projectedKnowledgeArtifacts,
 } from './store/knowledge.js';
-import { repositoryVersions } from './store/repositories.js';
+import { readRepositories, repositoryVersions } from './store/repositories.js';
 import { searchKnowledge, searchLearning } from './store/search.js';
 import { LearningStoreState } from './store/state.js';
 import type {

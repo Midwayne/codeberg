@@ -1,4 +1,4 @@
-import { type ReviewDashboard, type ReviewSummary } from './training';
+import type { ReviewDashboard, ReviewSummary } from './training';
 
 export type ReviewFilter = 'ready' | 'reviewed' | 'stale';
 export type ReviewDecision = 'training' | 'eval' | 'dismiss';

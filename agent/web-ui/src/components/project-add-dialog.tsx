@@ -1,5 +1,5 @@
-import { type ProjectCatalog } from '../lib/project-api';
-import { type ProjectShellView } from './projects';
+import type { ProjectCatalog } from '../lib/project-api';
+import type { ProjectShellView } from './projects';
 import { AddProject } from './project-add';
 import { MotionPresence } from './motion-presence';
 

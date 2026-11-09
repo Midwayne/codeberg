@@ -2,7 +2,7 @@ import { GitBranch, MessageSquarePlus } from 'lucide-react';
 
 import { cn } from '../../lib/utils';
 import { IconButton } from '../ui';
-import { type SidebarHeaderProps } from './session-sidebar';
+import type { SidebarHeaderProps } from './session-sidebar';
 
 export function SidebarHeader({ state }: SidebarHeaderProps) {
   return (

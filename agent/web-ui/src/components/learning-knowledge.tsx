@@ -1,9 +1,9 @@
 import { Components, Toggle } from './learning-controls';
 
 import { KNOWLEDGE_CATEGORIES } from '@agent/core/learning/preferences';
-import { type LearningSettings } from '../lib/learning-settings';
+import type { LearningSettings } from '../lib/learning-settings';
 
-import { type LearningSettingsView } from './learning-settings';
+import type { LearningSettingsView } from './learning-settings';
 
 export const categoryLabels = { services: 'Services', flows: 'Flows', concepts: 'Concepts', debugging: 'Debugging' };
 

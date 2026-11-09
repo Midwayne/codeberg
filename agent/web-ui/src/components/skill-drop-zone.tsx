@@ -1,6 +1,6 @@
 import { Upload } from 'lucide-react';
 
-import { type SkillImportView } from './skill-import';
+import type { SkillImportView } from './skill-import';
 import { buttonClass as button } from './button-styles';
 
 export type SkillDropZoneProps = Pick<

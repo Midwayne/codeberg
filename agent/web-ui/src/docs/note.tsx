@@ -1,5 +1,5 @@
 import { Info } from 'lucide-react';
-import { type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 export function DocsNote({ children }: { children?: ReactNode }) {
   return (

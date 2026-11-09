@@ -1,7 +1,7 @@
 import type { UIMessage } from 'ai';
 import { writeModuleLog } from '../../module-log.js';
 import type { FeedbackLabel, FeedbackRating, FeedbackRecord } from '../types.js';
-import { wakeWorker } from './settings.js';
+import { wakeWorker } from './background.js';
 import type { LearningServiceState } from './state.js';
 
 export async function recordSession(

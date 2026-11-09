@@ -1,4 +1,4 @@
-import { type ReviewDetailView } from './review-detail';
+import type { ReviewDetailView } from './review-detail';
 
 import { ArrowRight, Check, CircleHelp, ShieldCheck, Sparkles } from 'lucide-react';
 

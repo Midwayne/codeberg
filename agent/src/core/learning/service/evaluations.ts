@@ -1,5 +1,5 @@
 import { writeModuleLog } from '../../module-log.js';
-import { wakeWorker } from './settings.js';
+import { wakeWorker } from './background.js';
 import type { LearningServiceState } from './state.js';
 
 /** Reconciliation failures cannot roll back an already durable review decision. */

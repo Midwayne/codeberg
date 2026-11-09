@@ -1,5 +1,6 @@
 import { writeModuleLog } from '../../module-log.js';
-import { jobEnabled, syncWatcher } from './settings.js';
+import { syncWatcher } from './background.js';
+import { jobEnabled } from './settings.js';
 import type { LearningServiceState } from './state.js';
 
 export function isWorking(state: LearningServiceState): boolean {

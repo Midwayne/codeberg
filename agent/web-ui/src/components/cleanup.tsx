@@ -5,7 +5,7 @@ import { useProjectApi } from '../lib/project-api';
 import { useEffect, useState } from 'react';
 import { previewCleanup, type CleanupCategory, type CleanupPreview } from '../lib/resources';
 import { ErrorNotice } from './ui';
-import { type CleanupPreviewErrorProps } from './settings';
+import type { CleanupPreviewErrorProps } from './settings';
 import { createCleanupAction } from './cleanup-action';
 
 export function CleanupPanel() {

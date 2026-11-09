@@ -1,6 +1,6 @@
 import { Plus } from 'lucide-react';
 
-import { type ExtensionsView } from './extensions';
+import type { ExtensionsView } from './extensions';
 import { SuccessNotice } from './success-notice';
 
 export const control =

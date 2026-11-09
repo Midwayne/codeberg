@@ -1,4 +1,4 @@
-import { type useDreamingActions } from './use-dreaming-panel';
+import type { useDreamingActions } from './use-dreaming-panel';
 
 import { dreamingRequest, type DreamingDashboard, type DreamingDecision, type DreamingReport } from './dreaming';
 

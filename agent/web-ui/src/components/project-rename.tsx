@@ -2,7 +2,7 @@ import { control, button } from './project-styles';
 
 import { useEffect, useRef, useState } from 'react';
 
-import { type Project } from '../lib/project-api';
+import type { Project } from '../lib/project-api';
 
 export type RenameProjectFormProps = {
   project: Project;

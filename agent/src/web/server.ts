@@ -8,7 +8,7 @@ import { RequestWriteGate } from './server/write-gate.js';
 
 import type { ChatResponder } from './chat-routes.js';
 import { sendText } from './http.js';
-import { LEARNING_PATH } from './learning-routes.js';
+import { LEARNING_PATH } from './learning/paths.js';
 import { ResourceSettings } from './resources.js';
 import { WebSessionStore } from './sessions/store.js';
 import { sharedUsageStore } from './usage/shared.js';

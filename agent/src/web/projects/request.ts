@@ -1,3 +1,5 @@
+import type { ProjectRequestRouterState } from './state.js';
+
 export class ProjectServiceTimeout extends Error {
   readonly status = 504;
 
@@ -27,4 +29,11 @@ export async function requestProjectService(base: string, path: string, init: Re
   } finally {
     clearTimeout(timer);
   }
+}
+
+export async function daemon(state: ProjectRequestRouterState, path: string, init?: RequestInit) {
+  const { response, body } = await requestProjectService(state.options.daemonUrl, path, init);
+  if (!response.ok) throw new Error(body.message ?? 'Project service unavailable');
+
+  return body;
 }

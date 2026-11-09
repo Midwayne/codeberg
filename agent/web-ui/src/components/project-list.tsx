@@ -4,7 +4,7 @@ import { ProjectDetails } from './project-details';
 import { useEffect, useState } from 'react';
 import { CopyButton, ErrorNotice } from './ui';
 import { useProjectApi, type ProjectCatalog } from '../lib/project-api';
-import { type ProjectListProps } from './projects';
+import type { ProjectListProps } from './projects';
 
 export function ProjectsPanel() {
   const { project: selectedProject, onProjectRenamed, onProjectDeleted } = useProjectApi();

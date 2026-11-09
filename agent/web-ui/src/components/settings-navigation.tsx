@@ -8,7 +8,7 @@ import { AppearancePanel } from './appearance';
 import { ProjectsPanel } from './project-list';
 import { cn } from '../lib/utils';
 
-import { type Settings } from './settings';
+import type { Settings } from './settings';
 import { ResourceUsagePanel } from './resource-usage';
 import { CleanupPanel } from './cleanup';
 import { ModelUsagePanel } from './model-usage';

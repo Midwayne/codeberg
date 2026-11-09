@@ -4,7 +4,7 @@ import { useChatSearch } from './use-chat-search';
 import type { UIMessage } from 'ai';
 import { Search, X } from 'lucide-react';
 
-import { type ChatSearchResult } from '../../lib/chat-search';
+import type { ChatSearchResult } from '../../lib/chat-search';
 
 export type ChatSearchProps = {
   open: boolean;

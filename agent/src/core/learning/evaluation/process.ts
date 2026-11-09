@@ -5,12 +5,13 @@ import type { RetrievalRun } from '../metrics/types.js';
 import { classifyFailure, isTransientFailure, MAX_ATTEMPTS } from '../queue/policy.js';
 import { redactSecrets } from '../redact.js';
 import { LearningPaused } from '../worker/constants.js';
-import { sameConfiguration, type AutomaticEvaluations } from './automatic.js';
+import type { AutomaticEvaluations } from './automatic.js';
 import type {
   AutomaticEvalReport,
   EvaluationCheckpoint,
   EvaluationTask,
 } from './automatic-types.js';
+import { sameConfiguration } from './configuration.js';
 import { judgeScorers } from './judge.js';
 import { evaluateOutputs } from './runner.js';
 import { outputScorers } from './scorers.js';

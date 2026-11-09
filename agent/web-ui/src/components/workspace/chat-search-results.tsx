@@ -1,7 +1,7 @@
 import { MessageSquare } from 'lucide-react';
 
 import { cn } from '../../lib/utils';
-import { type ChatSearchView, type ChatSearchResultButtonProps } from './chat-search';
+import type { ChatSearchView, ChatSearchResultButtonProps } from './chat-search';
 
 export type ChatSearchResultsProps = { state: Parameters<typeof ChatSearchView>[0] };
 

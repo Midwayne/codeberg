@@ -1,4 +1,4 @@
-import { type usePromptInput } from './use-prompt-input';
+import type { usePromptInput } from './use-prompt-input';
 
 import { useEffect, useId, useMemo, useRef, useState, type RefObject } from 'react';
 

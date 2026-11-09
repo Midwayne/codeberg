@@ -1,5 +1,5 @@
 import { ArrowLeft, BookOpen } from 'lucide-react';
-import { type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 export function DocsHeader({ search, appLink = true }: { search?: ReactNode; appLink?: boolean }) {
   return (

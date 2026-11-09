@@ -2,8 +2,13 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { projectRoots } from '../../paths.js';
 import type { RepositoryVersion } from '../types.js';
+import type { LearningStoreState } from './state.js';
 
 export const execFileAsync = promisify(execFile);
+
+export function readRepositories(state: LearningStoreState): Promise<RepositoryVersion[]> {
+  return state.repositoryProvider();
+}
 
 export async function repositoryVersions(
   roots = projectRoots(process.env, process.cwd()),

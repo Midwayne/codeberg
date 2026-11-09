@@ -1,4 +1,4 @@
-import { type ResourceUsageView } from './resource-usage';
+import type { ResourceUsageView } from './resource-usage';
 
 import { formatBytes, type ResourceSample } from '../lib/resources';
 import { ResourceChart } from './resource-chart';

@@ -1,6 +1,6 @@
-import { type useSkillImport } from './use-skill-import';
+import type { useSkillImport } from './use-skill-import';
 
-import { type SkillFile } from './skill-files';
+import type { SkillFile } from './skill-files';
 
 export type SkillImportActionOptions = Pick<
   Parameters<typeof useSkillImport>[0],

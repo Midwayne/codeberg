@@ -1,7 +1,7 @@
 import { labels, buttonClass } from './settings-styles';
 
 import { CleanupOptions } from './cleanup-options';
-import { type CleanupConfirmationProps, type CleanupSelectionProps } from './cleanup';
+import type { CleanupConfirmationProps, CleanupSelectionProps } from './cleanup';
 
 export function CleanupConfirmation({
   confirming,
