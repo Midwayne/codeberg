@@ -31,6 +31,25 @@ func existingDirectory(path string) (string, error) {
 	return requireDirectory(canonical)
 }
 
+// openExistingDirectory is Add's user-facing resolve of an absolute directory.
+func openExistingDirectory(path string) (string, error) {
+	if !usableDirectoryPath(path) {
+		return "", errAbsoluteDirectory
+	}
+
+	canonical, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", fmt.Errorf("directory is unavailable: %w", err)
+	}
+
+	root, err := requireDirectory(canonical)
+	if err != nil {
+		return "", fmt.Errorf("choose an existing directory")
+	}
+
+	return root, nil
+}
+
 // requireDirectory confirms a resolved path is an existing directory.
 func requireDirectory(canonical string) (string, error) {
 	info, err := os.Stat(canonical)

@@ -11,18 +11,9 @@ import (
 )
 
 func (m *Manager) Add(name, root string) (Project, error) {
-	if !usableDirectoryPath(root) {
-		return Project{}, errAbsoluteDirectory
-	}
-
-	canonical, err := filepath.EvalSymlinks(root)
+	root, err := openExistingDirectory(root)
 	if err != nil {
-		return Project{}, fmt.Errorf("directory is unavailable: %w", err)
-	}
-
-	root, err = requireDirectory(canonical)
-	if err != nil {
-		return Project{}, fmt.Errorf("choose an existing directory")
+		return Project{}, err
 	}
 
 	name = strings.TrimSpace(name)

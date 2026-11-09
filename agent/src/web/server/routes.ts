@@ -152,8 +152,7 @@ export async function servePage(
     return;
   }
 
-  res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-  res.end('not found');
+  return notFound(res);
 }
 
 export function escapeHtml(s: string): string {
