@@ -1,5 +1,6 @@
 import { DatasetStore } from '../datasets.js';
 import { redactSecrets } from '../redact.js';
+import { pathFromHit } from '../review-payload.js';
 import { CORRECTION } from '../store/session.js';
 import type { AttemptRecord, FeedbackRecord } from '../types.js';
 
@@ -62,9 +63,11 @@ export function approvedNegatives(
 
     if (row.kind !== 'hard_negatives' || !Array.isArray(row.payload.hard_negatives)) return [];
 
-    return row.payload.hard_negatives.flatMap((hit) =>
-      hit && typeof hit === 'object' && typeof hit.path === 'string' ? [hit.path] : [],
-    );
+    return row.payload.hard_negatives.flatMap((hit) => {
+      const path = pathFromHit(hit);
+
+      return path ? [path] : [];
+    });
   });
 
   return new Set(paths);

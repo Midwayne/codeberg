@@ -2,11 +2,11 @@ import { isCurrentExample } from './dataset-extract.js';
 import { type DatasetExample, type DatasetKind } from './datasets/records.js';
 import { type DatasetStore } from './datasets.js';
 import { interactionRevisions } from './revision.js';
-import { answerFromPayload, verifierProposedFiles } from './review-payload.js';
+import { answerFromPayload, pathFromHit, verifierProposedFiles } from './review-payload.js';
 import type { ReviewCandidate, ReviewDashboard, ReviewState } from './review-types.js';
 
 export type { ReviewCandidate, ReviewDashboard, ReviewState };
-export { answerFromPayload, verifierProposedFiles } from './review-payload.js';
+export { answerFromPayload, pathFromHit, verifierProposedFiles } from './review-payload.js';
 
 export async function reviewDashboard(datasets: DatasetStore): Promise<ReviewDashboard> {
   const [candidates, training, evalRows, dismissed, events] = await Promise.all([
@@ -60,9 +60,11 @@ export function proposedFiles(row: DatasetExample): string[] {
 
   const paths = values
     .flatMap((value) => (Array.isArray(value) ? value : []))
-    .flatMap((hit) =>
-      hit && typeof hit === 'object' && typeof hit.path === 'string' ? [hit.path] : [],
-    );
+    .flatMap((hit) => {
+      const path = pathFromHit(hit);
+
+      return path ? [path] : [];
+    });
 
   return [...new Set([...paths, ...verifierProposedFiles(row.payload.verifier)])];
 }

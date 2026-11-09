@@ -1,6 +1,7 @@
 import type { FeedbackRecord } from '../types.js';
 import { LearningError } from '../errors.js';
 import type { DATASET_KINDS } from '../preferences.js';
+import { pathFromHit } from '../review-payload.js';
 
 export type DatasetKind = (typeof DATASET_KINDS)[number];
 
@@ -112,9 +113,11 @@ export function exampleFiles(example: DatasetExample): string[] {
         ? reviewed.filter((file): file is string => typeof file === 'string')
         : []),
       ...(Array.isArray(proposed)
-        ? proposed.flatMap((hit) =>
-            typeof hit === 'object' && hit && typeof hit.path === 'string' ? [hit.path] : [],
-          )
+        ? proposed.flatMap((hit) => {
+            const path = pathFromHit(hit);
+
+            return path ? [path] : [];
+          })
         : []),
     ]),
   ];
