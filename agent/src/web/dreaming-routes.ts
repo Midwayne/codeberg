@@ -4,7 +4,7 @@ import { dreamingSummary } from '../core/learning/dreaming/review.js';
 import type { DreamingDecision } from '../core/learning/dreaming/types.js';
 import { redactSecrets } from '../core/learning/redact.js';
 import type { LearningService } from '../core/learning/service.js';
-import { readJson, requireMethod, sendJson, sendText, uncached } from './http.js';
+import { readJson, requireApplicationJson, requireMethod, sendJson, sendText, uncached } from './http.js';
 import { LEARNING_PATH } from './learning/paths.js';
 import { sendLearningError } from './learning/errors.js';
 
@@ -17,8 +17,7 @@ export async function routeDreaming(
   url: URL,
 ): Promise<void> {
   uncached(res);
-  const invalidWrite = validateDreamingWrite(req);
-  if (invalidWrite) return sendText(res, invalidWrite.status, invalidWrite.message);
+  if (req.method === 'POST' && !requireApplicationJson(req, res)) return;
 
   try {
     if (url.pathname === PATH) {
@@ -81,14 +80,4 @@ async function routeDreamingRoot(
       })),
     canGenerate: learning.knowledgeEnabled,
   });
-}
-
-function validateDreamingWrite(
-  req: IncomingMessage,
-): { status: number; message: string } | undefined {
-  if (req.method === 'POST' && !req.headers['content-type']?.startsWith('application/json')) {
-    return { status: 415, message: 'application/json required' };
-  }
-
-  return undefined;
 }

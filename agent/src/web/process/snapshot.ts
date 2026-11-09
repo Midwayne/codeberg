@@ -1,4 +1,5 @@
 import { basename } from 'node:path';
+import { isLoopbackHost } from '../http.js';
 import { execFileAsync } from './labels.js';
 import type { ProcessSnapshot } from './types.js';
 
@@ -87,7 +88,7 @@ export async function localDaemonPid(daemonUrl?: string): Promise<number | undef
   try {
     const url = new URL('/health', daemonUrl);
     // A remote daemon's PID is meaningless on this machine.
-    if (!['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)) return undefined;
+    if (!isLoopbackHost(url.hostname)) return undefined;
 
     const response = await fetch(url, { signal: AbortSignal.timeout(1500), redirect: 'error' });
     if (!response.ok) return undefined;

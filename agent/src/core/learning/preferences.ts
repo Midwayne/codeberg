@@ -89,6 +89,9 @@ export function historyCaptureEnabled(settings: LearningSettings): boolean {
   return settings.enabled && settings.history && settings.historyCapture;
 }
 
+/** User-facing text when history capture is off (HTTP 409 / LearningError conflict). */
+export const HISTORY_CAPTURE_PAUSED = 'Learning history is paused. Enable it in Settings.';
+
 export function learningRecall(settings: LearningSettings) {
   return {
     history: settings.enabled && settings.history && settings.historyRecall,

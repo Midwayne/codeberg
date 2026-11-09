@@ -3,9 +3,25 @@ import { HttpError } from '../core/api/errors.js';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
+
+/** True when the host is this machine's loopback name or address. */
+export function isLoopbackHost(hostname: string): boolean {
+  return LOOPBACK_HOSTS.has(hostname);
+}
+
 /** This response must not be stored by the browser. */
 export function uncached(res: ServerResponse): void {
   res.setHeader('Cache-Control', 'no-store');
+}
+
+/** Sends 415 unless the request declares `application/json`. */
+export function requireApplicationJson(req: IncomingMessage, res: ServerResponse): boolean {
+  if (req.headers['content-type']?.startsWith('application/json')) return true;
+
+  sendText(res, 415, 'application/json required');
+
+  return false;
 }
 
 export function sendJson(res: ServerResponse, status: number, value: unknown): void {
@@ -62,11 +78,7 @@ export function requireMethod(req: IncomingMessage, res: ServerResponse, method:
 export function requireJsonMethod(req: IncomingMessage, res: ServerResponse, method: string): boolean {
   if (!requireMethod(req, res, method)) return false;
 
-  if (req.headers['content-type']?.startsWith('application/json')) return true;
-
-  sendText(res, 415, 'application/json required');
-
-  return false;
+  return requireApplicationJson(req, res);
 }
 
 /** The parsed JSON object body, or `null` when it is empty or malformed. */

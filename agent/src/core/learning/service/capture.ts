@@ -1,7 +1,7 @@
 import type { UIMessage } from 'ai';
 import { writeModuleLog } from '../../module-log.js';
 import { yieldsDatasetExamples } from '../dataset-extract.js';
-import { historyCaptureEnabled } from '../preferences.js';
+import { HISTORY_CAPTURE_PAUSED, historyCaptureEnabled } from '../preferences.js';
 import type { FeedbackLabel, FeedbackRating, FeedbackRecord } from '../types.js';
 import { wakeWorker } from './background.js';
 import type { LearningServiceState } from './state.js';
@@ -53,7 +53,7 @@ export async function feedback(
   },
 ): Promise<{ feedback: FeedbackRecord; jobId?: string; jobStatus?: string }> {
   if (!historyCaptureEnabled(state.preferences))
-    throw new LearningError('conflict', 'Learning history is paused. Enable it in Settings.');
+    throw new LearningError('conflict', HISTORY_CAPTURE_PAUSED);
 
   const attempt = await state.store.attemptForMessage(input.conversationId, input.messageId);
   if (!attempt)

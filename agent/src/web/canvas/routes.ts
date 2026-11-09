@@ -3,13 +3,22 @@ import { CanvasStore } from '../../core/canvas/store.js';
 import { HttpError } from '../../core/api/errors.js';
 import { CanvasError } from '../../core/canvas/types.js';
 import { writeModuleLog } from '../../core/module-log.js';
-import { notFound, readLimitedJson, requireJsonMethod, sameOrigin, sendJson, sendText, uncached } from '../http.js';
+import {
+  isLoopbackHost,
+  notFound,
+  readLimitedJson,
+  requireJsonMethod,
+  sameOrigin,
+  sendJson,
+  sendText,
+  uncached,
+} from '../http.js';
 import { streamCanvas } from './stream.js';
 
 export async function routeCanvas(req: IncomingMessage, res: ServerResponse, store: CanvasStore, url: URL): Promise<void> {
   const host = new URL(`http://${req.headers.host ?? 'invalid'}`).hostname;
   // Canvas scenes are only exposed to a local browser, even for reads.
-  if (!['127.0.0.1', 'localhost', '[::1]'].includes(host) || !sameOrigin(req)) {
+  if (!isLoopbackHost(host) || !sameOrigin(req)) {
     return sendText(res, 403, 'Canvas requires a same-origin localhost connection.');
   }
   uncached(res);
