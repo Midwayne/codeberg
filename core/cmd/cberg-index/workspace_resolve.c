@@ -203,8 +203,7 @@ static const workspace_file *go_target(const workspace_files *files, const char 
     for (size_t i = 0; i < files->engine->repos_len; i++) {
         const char *module = files->packages[i].go_module;
         size_t length = strlen(module);
-        if (length == 0 || strncmp(import, module, length) != 0 ||
-            (import[length] != '\0' && import[length] != '/'))
+        if (!cberg_go_module_owns_import(module, import))
             continue;
         if (length > best) {
             best = length;

@@ -28,6 +28,11 @@ func existingDirectory(path string) (string, error) {
 		return "", err
 	}
 
+	return requireDirectory(canonical)
+}
+
+// requireDirectory confirms a resolved path is an existing directory.
+func requireDirectory(canonical string) (string, error) {
 	info, err := os.Stat(canonical)
 	if err != nil {
 		return "", err
@@ -36,6 +41,7 @@ func existingDirectory(path string) (string, error) {
 	if !info.IsDir() {
 		return "", fmt.Errorf("not a directory")
 	}
+
 	return canonical, nil
 }
 

@@ -111,11 +111,8 @@ static int import_is_resolvable_shape(const char *imp, const char *go_module) {
         return 1;
     }
     /* Go module-prefixed path. */
-    if (go_module != NULL && go_module[0] != '\0') {
-        size_t mlen = strlen(go_module);
-        if (strncmp(imp, go_module, mlen) == 0 && (imp[mlen] == '\0' || imp[mlen] == '/')) {
-            return 1;
-        }
+    if (cberg_go_module_owns_import(go_module, imp)) {
+        return 1;
     }
     int has_slash = strchr(imp, '/') != NULL || strchr(imp, '\\') != NULL;
     if (has_slash) {

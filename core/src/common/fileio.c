@@ -93,3 +93,14 @@ int cberg_go_module_path(const char *body, char *out, size_t out_cap) {
 
     return i > 0;
 }
+
+int cberg_go_module_owns_import(const char *module, const char *import_path) {
+    if (module == NULL || module[0] == '\0' || import_path == NULL) {
+        return 0;
+    }
+
+    size_t mlen = strlen(module);
+
+    return strncmp(import_path, module, mlen) == 0 &&
+           (import_path[mlen] == '\0' || import_path[mlen] == '/');
+}

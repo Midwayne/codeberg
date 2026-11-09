@@ -17,4 +17,7 @@ char *cberg_read_file(const char *path, size_t *out_len);
  */
 int cberg_go_module_path(const char *body, char *out, size_t out_cap);
 
+/* True when import is the module path or a package path under it. */
+int cberg_go_module_owns_import(const char *module, const char *import_path);
+
 #endif /* CBERG_FILEIO_H */

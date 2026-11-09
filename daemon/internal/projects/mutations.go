@@ -3,7 +3,6 @@ package projects
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"unicode/utf8"
@@ -16,13 +15,13 @@ func (m *Manager) Add(name, root string) (Project, error) {
 		return Project{}, errAbsoluteDirectory
 	}
 
-	root, err := filepath.EvalSymlinks(root)
+	canonical, err := filepath.EvalSymlinks(root)
 	if err != nil {
 		return Project{}, fmt.Errorf("directory is unavailable: %w", err)
 	}
 
-	info, err := os.Stat(root)
-	if err != nil || !info.IsDir() {
+	root, err = requireDirectory(canonical)
+	if err != nil {
 		return Project{}, fmt.Errorf("choose an existing directory")
 	}
 

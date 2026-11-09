@@ -1,8 +1,7 @@
-import { execFile } from 'node:child_process';
 import { basename } from 'node:path';
-import { promisify } from 'node:util';
+import { execFileAsync } from '../../core/exec.js';
 
-export const execFileAsync = promisify(execFile);
+export { execFileAsync };
 
 export function processLabel(command: string): string {
   const name = basename(command);
