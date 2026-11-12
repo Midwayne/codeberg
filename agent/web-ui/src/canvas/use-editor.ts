@@ -35,7 +35,7 @@ export function useEditor() {
       setScene(next);
     },
   }), [api, fetch, motion.transition]);
-  useCanvasEvents(api, sync, setStatus);
+  useCanvasEvents(api, sync, fetch, setStatus);
   usePreviewFit(api);
 
   const onChange = (elements: readonly ExcalidrawElement[], state: AppState, files: BinaryFiles) => {

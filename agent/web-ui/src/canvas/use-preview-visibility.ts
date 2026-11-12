@@ -4,8 +4,7 @@ import { postPreviewVisibility } from './preview-visibility';
 
 /**
  * Hidden Activity trees keep iframe documents alive. Tell the embedded canvas
- * when its chat is hidden so it releases its event stream: browsers allow only
- * six HTTP/1.1 connections per origin, shared by every tab.
+ * when its chat is hidden so it stops polling for scene changes.
  */
 export function usePreviewVisibility() {
   const ref = useRef<HTMLIFrameElement>(null);

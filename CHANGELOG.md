@@ -9,10 +9,12 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Fixed
 
-- Stop **Project status unavailable** from appearing while chats with canvases
-  are open. Canvas previews in hidden chats and background tabs now release
-  their browser connection instead of exhausting the browser's per-site limit,
-  which starved project status checks and other requests.
+- Load chats, models and project status instantly while canvases are open.
+  Canvas previews held an event stream each, and browsers allow only six
+  connections per site across all tabs, so a few canvases queued every other
+  request and showed **Project status unavailable**. Canvases now poll for
+  changes about once a second with an empty `304` when unchanged, and only
+  while visible.
 
 ## [0.1.14] - 2026-11-08
 

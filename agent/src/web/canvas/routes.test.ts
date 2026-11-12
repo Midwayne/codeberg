@@ -84,3 +84,25 @@ it('ends SSE connections during harness shutdown', async () => {
 
   expect((await reader.read()).done).toBe(true);
 });
+
+it('answers unchanged scene polls with an empty 304 so canvases never hold a browser connection', async () => {
+  await store.configure(true);
+  const chat = store.forChat('poll');
+  await chat.ensure();
+
+  const first = await fetch(base + '/api/canvas/scene?chat=poll');
+  const tag = first.headers.get('etag');
+  expect(first.status).toBe(200);
+  expect(tag).toBeTruthy();
+
+  const unchanged = await fetch(base + '/api/canvas/scene?chat=poll', { headers: { 'If-None-Match': tag! } });
+  expect(unchanged.status).toBe(304);
+  expect(await unchanged.text()).toBe('');
+
+  await chat.change('add', { elements: [{ id: 'api', type: 'rectangle', text: 'API' }] });
+  const changed = await fetch(base + '/api/canvas/scene?chat=poll', { headers: { 'If-None-Match': tag! } });
+
+  expect(changed.status).toBe(200);
+  expect(changed.headers.get('etag')).not.toBe(tag);
+  expect((await changed.json()).revision).toBe(1);
+});

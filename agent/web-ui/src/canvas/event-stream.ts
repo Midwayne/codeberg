@@ -1,17 +1,19 @@
 import { useEffect } from 'react';
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
 
-import { canvasProject } from './api';
 import { onPreviewVisibility, previewShown } from './preview-visibility';
+import { pollScene } from './scene-poll';
 import type { CanvasSync } from './sync';
 
-/** Holds one canvas event stream, only while someone can see the canvas. */
+type Connection = { close(): void };
+
+/** Watches the scene for agent edits, only while someone can see the canvas. */
 export class CanvasEvents {
-  private source?: EventSource;
+  private source?: Connection;
   private shown = true;
   private stopped = false;
 
-  constructor(private readonly open: () => EventSource, private readonly pageVisible: () => boolean) {}
+  constructor(private readonly open: () => Connection, private readonly pageVisible: () => boolean) {}
 
   show(visible: boolean): void {
     this.shown = visible;
@@ -35,35 +37,14 @@ export class CanvasEvents {
   }
 }
 
-function openEvents(sync: CanvasSync, status: (value: string) => void): EventSource {
-  const url = new URL('/api/canvas/events', location.origin);
-  url.searchParams.set('chat', new URL(location.href).searchParams.get('chat') ?? '');
-
-  const project = canvasProject();
-  if (project) url.searchParams.set('project', project);
-
-  const events = new EventSource(url);
-  events.onmessage = (event) => {
-    try {
-      const message = JSON.parse(event.data);
-      if (message.scene) sync.receive(message.scene);
-      else if (message.scene === null) status('Waiting for the agent’s drawing…');
-      else if (message.error) status(message.error);
-    } catch {
-      status('Invalid canvas update. Reload to reconnect.');
-    }
-  };
-  events.onerror = () => status('Canvas disconnected. Reconnecting; unsaved changes are kept here.');
-
-  return events;
-}
-
-export function useCanvasEvents(api: ExcalidrawImperativeAPI | undefined, sync: CanvasSync, status: (value: string) => void) {
+export function useCanvasEvents(api: ExcalidrawImperativeAPI | undefined, sync: CanvasSync,
+  fetcher: typeof fetch, status: (value: string) => void) {
   useEffect(() => {
     if (!api) return;
 
-    // Reconnecting replays the current scene, so paused previews catch up.
-    const events = new CanvasEvents(() => openEvents(sync, status), () => document.visibilityState !== 'hidden');
+    // Resuming fetches the current scene first, so paused previews catch up.
+    const open = () => pollScene(fetcher, { scene: (scene) => sync.receive(scene), status });
+    const events = new CanvasEvents(open, () => document.visibilityState !== 'hidden');
     const update = () => events.show(previewShown());
     const unsubscribe = onPreviewVisibility(update);
     update();
@@ -81,5 +62,5 @@ export function useCanvasEvents(api: ExcalidrawImperativeAPI | undefined, sync: 
       document.removeEventListener('visibilitychange', update);
       window.removeEventListener('beforeunload', warn);
     };
-  }, [api, sync, status]);
+  }, [api, sync, fetcher, status]);
 }

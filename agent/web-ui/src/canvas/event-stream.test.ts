@@ -9,7 +9,7 @@ function stream(page = { visible: true }) {
     const source = { close: vi.fn() };
     sources.push(source);
 
-    return source as unknown as EventSource;
+    return source as unknown as { close(): void };
   });
 
   return { events: new CanvasEvents(open, () => page.visible), open, sources, page };

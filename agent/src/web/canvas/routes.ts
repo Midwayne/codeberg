@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { CanvasStore } from '../../core/canvas/store.js';
-import { CanvasError } from '../../core/canvas/types.js';
+import { CanvasError, type Scene } from '../../core/canvas/types.js';
 import { writeModuleLog } from '../../core/module-log.js';
 import { requireJsonMutation, sameOrigin, sendJson, sendText } from '../http.js';
 import { streamCanvas } from './stream.js';
@@ -39,7 +39,7 @@ async function canvasRequest(req: IncomingMessage, res: ServerResponse, store: C
   if (req.method === 'GET') {
     if (path === '/api/canvas/events') return streamCanvas(req, res, store);
 
-    if (path === '/api/canvas/scene') return sendJson(res, 200, await store.current());
+    if (path === '/api/canvas/scene') return sendScene(req, res, await store.current());
 
     return sendText(res, 404, 'not found');
   }
@@ -49,6 +49,19 @@ async function canvasRequest(req: IncomingMessage, res: ServerResponse, store: C
   if (path === '/api/canvas/scene') return sendJson(res, 200, await store.saveBrowser(input));
 
   return sendText(res, 404, 'not found');
+}
+
+/** Browser previews poll; unchanged scenes cost an empty 304, not a held connection. */
+function sendScene(req: IncomingMessage, res: ServerResponse, scene: Scene): void {
+  const tag = `"${scene.name}:${scene.revision}"`;
+  res.setHeader('ETag', tag);
+
+  if (req.headers['if-none-match'] === tag) {
+    res.writeHead(304).end();
+    return;
+  }
+
+  sendJson(res, 200, scene);
 }
 
 async function readCanvasJson(req: IncomingMessage): Promise<Record<string, unknown>> {
