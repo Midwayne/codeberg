@@ -7,6 +7,8 @@ changes may occur in minor releases and are called out explicitly.
 
 ## [Unreleased]
 
+## [0.1.15] - 2026-11-12
+
 ### Fixed
 
 - Load chats, models and project status instantly while canvases are open.
