@@ -128,6 +128,10 @@ node /tmp/source-bench.mjs
 python3 scripts/bench_resource_idle.py /path/to/build/bin/cberg-index --trials 5
 ```
 
+`bench-canvas-stream.ts` was later removed together with the canvas event
+stream it measured; canvases now poll `/api/canvas/scene` instead. Use the
+parent commit of that removal to reproduce the canvas figures above.
+
 Use distinct output paths for baseline and updated bundles, the same Node/Python
 executables, five runs per version, and alternate execution order. Do not run
 builds or test suites concurrently with timing measurements.

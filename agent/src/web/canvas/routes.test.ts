@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { createServer, type Server } from 'node:http';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { CanvasStore } from '../../core/canvas/store.js';
-import { closeCanvasStreams } from './stream.js';
 import { routeCanvas } from './routes.js';
 
 let server: Server;
@@ -43,21 +42,16 @@ it('is opt-in, persists settings and rejects cross-origin or malformed requests'
     headers: { 'Content-Type': 'application/json' }, body: '{broken' })).status).toBe(400);
 });
 
-it('streams only this chat, reads browser edits and rejects stale or cross-chat writes', async () => {
+it('serves only this chat, reads browser edits and rejects stale or cross-chat writes', async () => {
   await store.configure(true);
   const chat = store.forChat('one');
   await chat.ensure();
-  const controller = new AbortController();
-  const response = await fetch(base + '/api/canvas/events?chat=one', { signal: controller.signal });
-  const reader = response.body!.getReader();
-  expect(new TextDecoder().decode((await reader.read()).value)).toContain('"name":"chat-one"');
+  expect((await (await fetch(base + '/api/canvas/scene?chat=one')).json()).name).toBe('chat-one');
 
   await chat.change('add', { elements: [{ id: 'api', type: 'rectangle', text: 'API' }] });
-  let event = '';
-  while (!event.includes('"id":"api"')) event += new TextDecoder().decode((await reader.read()).value);
-  expect(event).toContain('"revision":1');
-
   const scene = await (await fetch(base + '/api/canvas/scene?chat=one')).json();
+  expect(scene.revision).toBe(1);
+
   scene.elements.find((element: { type: string }) => element.type === 'text').text = 'Browser edit';
   expect((await post('/api/canvas/scene?chat=one', scene)).status).toBe(200);
   expect(chat.describe(await chat.current()).elements[0]!.text).toBe('Browser edit');
@@ -69,20 +63,8 @@ it('streams only this chat, reads browser edits and rejects stale or cross-chat 
   expect((await post('/api/canvas/scene?chat=two', scene)).status).toBe(409);
   expect((await fetch(base + '/api/canvas/scene')).status).toBe(400);
   expect((await fetch(base + '/api/canvas/list?chat=one')).status).toBe(404);
-  event = new TextDecoder().decode((await reader.read()).value);
-  expect(event).not.toContain('private');
-  controller.abort();
-});
-
-it('ends SSE connections during harness shutdown', async () => {
-  await store.configure(true);
-  await store.forChat('shutdown').ensure();
-  const response = await fetch(base + '/api/canvas/events?chat=shutdown');
-  const reader = response.body!.getReader();
-  await reader.read();
-  closeCanvasStreams(store);
-
-  expect((await reader.read()).done).toBe(true);
+  expect((await fetch(base + '/api/canvas/events?chat=one')).status).toBe(404);
+  expect(JSON.stringify(await (await fetch(base + '/api/canvas/scene?chat=one')).json())).not.toContain('private');
 });
 
 it('answers unchanged scene polls with an empty 304 so canvases never hold a browser connection', async () => {

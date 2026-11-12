@@ -5,15 +5,15 @@ import { onPreviewVisibility, previewShown } from './preview-visibility';
 import { pollScene } from './scene-poll';
 import type { CanvasSync } from './sync';
 
-type Connection = { close(): void };
+type Poll = { close(): void };
 
 /** Watches the scene for agent edits, only while someone can see the canvas. */
-export class CanvasEvents {
-  private source?: Connection;
+export class SceneWatch {
+  private poll?: Poll;
   private shown = true;
   private stopped = false;
 
-  constructor(private readonly open: () => Connection, private readonly pageVisible: () => boolean) {}
+  constructor(private readonly open: () => Poll, private readonly pageVisible: () => boolean) {}
 
   show(visible: boolean): void {
     this.shown = visible;
@@ -23,11 +23,11 @@ export class CanvasEvents {
   update(): void {
     const live = !this.stopped && this.shown && this.pageVisible();
 
-    if (live && !this.source) this.source = this.open();
+    if (live && !this.poll) this.poll = this.open();
 
-    if (!live && this.source) {
-      this.source.close();
-      this.source = undefined;
+    if (!live && this.poll) {
+      this.poll.close();
+      this.poll = undefined;
     }
   }
 
@@ -37,15 +37,15 @@ export class CanvasEvents {
   }
 }
 
-export function useCanvasEvents(api: ExcalidrawImperativeAPI | undefined, sync: CanvasSync,
+export function useSceneWatch(api: ExcalidrawImperativeAPI | undefined, sync: CanvasSync,
   fetcher: typeof fetch, status: (value: string) => void) {
   useEffect(() => {
     if (!api) return;
 
     // Resuming fetches the current scene first, so paused previews catch up.
     const open = () => pollScene(fetcher, { scene: (scene) => sync.receive(scene), status });
-    const events = new CanvasEvents(open, () => document.visibilityState !== 'hidden');
-    const update = () => events.show(previewShown());
+    const watch = new SceneWatch(open, () => document.visibilityState !== 'hidden');
+    const update = () => watch.show(previewShown());
     const unsubscribe = onPreviewVisibility(update);
     update();
 
@@ -56,7 +56,7 @@ export function useCanvasEvents(api: ExcalidrawImperativeAPI | undefined, sync: 
     window.addEventListener('beforeunload', warn);
 
     return () => {
-      events.stop();
+      watch.stop();
       sync.stop();
       unsubscribe();
       document.removeEventListener('visibilitychange', update);

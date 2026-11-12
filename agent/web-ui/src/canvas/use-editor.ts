@@ -4,7 +4,7 @@ import type { ExcalidrawElement } from '@excalidraw/excalidraw/element/types';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Scene } from '@agent/core/canvas/types';
 import { canvasEmbedded, canvasFetch } from './api';
-import { useCanvasEvents } from './event-stream';
+import { useSceneWatch } from './scene-watch';
 import { CanvasSync } from './sync';
 import { sceneFingerprint } from './merge';
 import { useSceneMotion } from './use-scene-motion';
@@ -35,7 +35,7 @@ export function useEditor() {
       setScene(next);
     },
   }), [api, fetch, motion.transition]);
-  useCanvasEvents(api, sync, fetch, setStatus);
+  useSceneWatch(api, sync, fetch, setStatus);
   usePreviewFit(api);
 
   const onChange = (elements: readonly ExcalidrawElement[], state: AppState, files: BinaryFiles) => {

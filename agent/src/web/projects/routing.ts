@@ -106,8 +106,7 @@ async function dispatchHandler(
 ): Promise<void> {
   if (state.deleting.has(project.id)) return sendText(res, 409, 'project deletion in progress');
 
-  // Canvas event streams are read-only and are closed by runtime disposal.
-  const release = url.pathname.endsWith('/events') ? undefined : trackRequest(state, project.id, res);
+  const release = trackRequest(state, project.id, res);
   try {
     await callHandler(state, req, res, url, project);
   } finally {

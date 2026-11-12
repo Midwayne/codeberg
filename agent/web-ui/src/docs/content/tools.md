@@ -197,7 +197,7 @@ See [Browser Use](/docs/browser-use) for setup, screenshots, retained sessions, 
 
 Enable **Settings → Canvas** for a drawing canvas attached to each chat. Open copies of the same chat share scene updates.
 
-Changes usually appear shortly after a file update. If filesystem notifications are unavailable, a fallback catches up within about 15 seconds. Closing the last connected canvas stops its watcher.
+A visible canvas checks for changes about once a second, so agent edits appear within a second. Canvases in background tabs, or in chats you are not viewing, pause and catch up when shown.
 
 ## Experimental search composition
 

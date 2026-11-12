@@ -16,6 +16,11 @@ changes may occur in minor releases and are called out explicitly.
   changes about once a second with an empty `304` when unchanged, and only
   while visible.
 
+### Removed
+
+- The canvas event stream (`GET /api/canvas/events`) and its benchmark script.
+  Canvases use `GET /api/canvas/scene` polling instead.
+
 ## [0.1.14] - 2026-11-08
 
 ### Added

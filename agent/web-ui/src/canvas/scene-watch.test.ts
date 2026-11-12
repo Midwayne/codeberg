@@ -1,62 +1,62 @@
 import { afterEach, expect, it, vi } from 'vitest';
 
-import { CanvasEvents } from './event-stream';
+import { SceneWatch } from './scene-watch';
 import { onPreviewVisibility, previewShown, receivePreviewVisibility, PREVIEW_VISIBILITY } from './preview-visibility';
 
-function stream(page = { visible: true }) {
-  const sources: { close: ReturnType<typeof vi.fn> }[] = [];
+function setup(page = { visible: true }) {
+  const polls: { close: ReturnType<typeof vi.fn> }[] = [];
   const open = vi.fn(() => {
-    const source = { close: vi.fn() };
-    sources.push(source);
+    const poll = { close: vi.fn() };
+    polls.push(poll);
 
-    return source as unknown as { close(): void };
+    return poll as unknown as { close(): void };
   });
 
-  return { events: new CanvasEvents(open, () => page.visible), open, sources, page };
+  return { watch: new SceneWatch(open, () => page.visible), open, polls, page };
 }
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it('releases its browser connection while a retained chat hides its preview', () => {
-  const { events, open, sources } = stream();
+it('stops polling while a retained chat hides its preview', () => {
+  const { watch, open, polls } = setup();
 
-  events.show(true);
+  watch.show(true);
   expect(open).toHaveBeenCalledOnce();
 
-  events.show(false);
-  expect(sources[0]!.close).toHaveBeenCalledOnce();
+  watch.show(false);
+  expect(polls[0]!.close).toHaveBeenCalledOnce();
 
-  events.show(true);
+  watch.show(true);
   expect(open).toHaveBeenCalledTimes(2);
-  expect(sources[1]!.close).not.toHaveBeenCalled();
+  expect(polls[1]!.close).not.toHaveBeenCalled();
 });
 
-it('releases its connection while the browser tab is in the background', () => {
-  const { events, open, sources, page } = stream();
-  events.show(true);
+it('stops polling while the browser tab is in the background', () => {
+  const { watch, open, polls, page } = setup();
+  watch.show(true);
 
   page.visible = false;
-  events.update();
-  expect(sources[0]!.close).toHaveBeenCalledOnce();
+  watch.update();
+  expect(polls[0]!.close).toHaveBeenCalledOnce();
 
   page.visible = true;
-  events.update();
+  watch.update();
   expect(open).toHaveBeenCalledTimes(2);
 });
 
-it('never holds more than one connection and never reopens after it stops', () => {
-  const { events, open, sources } = stream();
+it('never runs more than one poll and never resumes after it stops', () => {
+  const { watch, open, polls } = setup();
 
-  events.show(true);
-  events.show(true);
-  events.update();
+  watch.show(true);
+  watch.show(true);
+  watch.update();
   expect(open).toHaveBeenCalledOnce();
 
-  events.stop();
-  events.show(true);
-  expect(sources[0]!.close).toHaveBeenCalledOnce();
+  watch.stop();
+  watch.show(true);
+  expect(polls[0]!.close).toHaveBeenCalledOnce();
   expect(open).toHaveBeenCalledOnce();
 });
 

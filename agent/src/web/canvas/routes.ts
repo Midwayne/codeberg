@@ -3,7 +3,6 @@ import { CanvasStore } from '../../core/canvas/store.js';
 import { CanvasError, type Scene } from '../../core/canvas/types.js';
 import { writeModuleLog } from '../../core/module-log.js';
 import { requireJsonMutation, sameOrigin, sendJson, sendText } from '../http.js';
-import { streamCanvas } from './stream.js';
 
 export async function routeCanvas(req: IncomingMessage, res: ServerResponse, store: CanvasStore, url: URL): Promise<void> {
   const host = new URL(`http://${req.headers.host ?? 'invalid'}`).hostname;
@@ -33,22 +32,16 @@ async function canvasRequest(req: IncomingMessage, res: ServerResponse, store: C
     return sendJson(res, 200, await store.configure(input.enabled));
   }
   await store.requireEnabled();
-  if (!['/api/canvas/events', '/api/canvas/scene'].includes(path)) return sendText(res, 404, 'not found');
+  if (path !== '/api/canvas/scene') return sendText(res, 404, 'not found');
 
   store = store.forChat(url.searchParams.get('chat') ?? '');
-  if (req.method === 'GET') {
-    if (path === '/api/canvas/events') return streamCanvas(req, res, store);
+  if (req.method === 'GET') return sendScene(req, res, await store.current());
 
-    if (path === '/api/canvas/scene') return sendScene(req, res, await store.current());
-
-    return sendText(res, 404, 'not found');
-  }
   if (!requireJsonMutation(req, res, 'POST', 'canvas changes')) return;
 
   const input = await readCanvasJson(req);
-  if (path === '/api/canvas/scene') return sendJson(res, 200, await store.saveBrowser(input));
 
-  return sendText(res, 404, 'not found');
+  return sendJson(res, 200, await store.saveBrowser(input));
 }
 
 /** Browser previews poll; unchanged scenes cost an empty 304, not a held connection. */

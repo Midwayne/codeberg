@@ -128,9 +128,12 @@ then ask “Look at my canvas changes and continue mapping the system.” The ne
 ## Synchronization and recovery
 
 Browser changes debounce for 300 ms. Saves require the scene's base revision.
-SSE checks this chat’s persisted state every 500 ms, so agent changes and other
-local editor writes appear without refreshing. Reconnected browsers read the persisted
-authoritative scene. Closing Codeberg ends its canvas streams cleanly.
+Visible canvases poll this chat’s persisted scene about once a second, so agent
+changes and other local editor writes appear without refreshing. Unchanged polls
+return an empty `304` (the `ETag` is the scene name and revision), and no request
+is held open, so canvases never occupy the browser’s six per-origin connections.
+Canvases in hidden chats or background tabs stop polling and read the persisted
+authoritative scene when shown again.
 
 Edits to different elements merge in the browser. Overlapping element edits,
 and failed writes retain your local edits
@@ -139,8 +142,8 @@ and stop automatic saving. Use **Download my edits** to keep a recoverable
 before leaving a tab with pending edits. Check the visible save status before
 closing an editor or disabling the feature.
 
-The HTTP surface is `/api/settings/canvas` (GET/PUT), `/api/canvas/scene?chat=<id>`
-(GET/POST), and `/api/canvas/events?chat=<id>` (SSE). Scene and stream requests
+The HTTP surface is `/api/settings/canvas` (GET/PUT) and `/api/canvas/scene?chat=<id>`
+(GET with optional `If-None-Match`, POST). Scene requests
 require a valid chat ID. Browser saves cannot change the scene’s conversation. Errors stay canvas-specific and
 are logged through the existing agent lifecycle logger without scene contents.
 
@@ -165,7 +168,7 @@ A hosted model still receives that context and requires a network connection.
 To repeat the complete *agent* workflow offline, configure a local model provider;
 the canvas itself does not make model calls or send drawings anywhere.
 
-Verification: `make agent-check` includes canvas storage/tool/HTTP/SSE tests and
+Verification: `make agent-check` includes canvas storage/tool/HTTP/polling tests and
 browser synchronization/merge tests. Browser editing was also exercised against
 a temporary localhost preview, including a manual rename followed by an agent
 mutation that retained the user change.
