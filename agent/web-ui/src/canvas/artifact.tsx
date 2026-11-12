@@ -4,6 +4,7 @@ import { CanvasConversation } from './conversation';
 import { canvasUrl } from './api';
 import { useProjectApi } from '../lib/project-api';
 import { useCanvasSettings } from './use-settings';
+import { usePreviewVisibility } from './use-preview-visibility';
 import type { ToolView } from '../components/chat/message';
 import { ToolError } from '../components/chat/tool-status';
 import './motion.css';
@@ -42,7 +43,14 @@ function CanvasCard({ chatId }: { chatId: string }) {
         </a>}
       </div>
       {enabled === false ? <p className="p-6 text-sm text-muted-foreground">Canvas is disabled. Enable it in Settings to view this drawing.</p> :
-        <iframe title="Chat canvas" src={canvasUrl(chatId, project?.id, true)} className="h-[min(40dvh,24rem)] min-h-64 w-full border-0" />}
+        <CanvasPreview chatId={chatId} project={project?.id} />}
     </section>
   );
+}
+
+function CanvasPreview({ chatId, project }: { chatId: string; project?: string }) {
+  const { ref, onLoad } = usePreviewVisibility();
+
+  return <iframe ref={ref} onLoad={onLoad} title="Chat canvas" src={canvasUrl(chatId, project, true)}
+    className="h-[min(40dvh,24rem)] min-h-64 w-full border-0" />;
 }

@@ -46,7 +46,7 @@ The EmbeddingGemma options use separate managed Python runtimes and FP32 text mo
 
 Cold indexing and embedding batches can be slow without indicating failure. Progress counts describe a stage, not the entire project. For launcher startup timeouts, export `CODEBERG_HEALTH_TIMEOUT=30m` or a longer Go duration. To watch indexing progress in the terminal, start with `codeberg --verbose`; logs are always written to `~/.codeberg/logs/`.
 
-If **Could not check project status** appears, Codeberg retries automatically and keeps the last reported progress. Check that Codeberg is still running if the warning persists; an overdue status check alone does not mean indexing failed. If adding, renaming, or deleting a project times out, refresh the project list before retrying: the operation may have completed.
+If **Could not check project status** appears, Codeberg retries automatically and keeps the last reported progress. Check that Codeberg is still running if the warning persists; an overdue status check alone does not mean indexing failed. Browsers allow only six open connections to Codeberg across all tabs, and each visible canvas uses one, so close extra Codeberg or canvas tabs if the warning appears while many are open. Canvases in background tabs or in chats you are not viewing reconnect when shown. If adding, renaming, or deleting a project times out, refresh the project list before retrying: the operation may have completed.
 
 ## An MCP server or skill is missing
 

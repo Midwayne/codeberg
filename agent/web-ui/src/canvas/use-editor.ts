@@ -3,7 +3,8 @@ import type { ExcalidrawImperativeAPI, AppState, BinaryFiles } from '@excalidraw
 import type { ExcalidrawElement } from '@excalidraw/excalidraw/element/types';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Scene } from '@agent/core/canvas/types';
-import { canvasEmbedded, canvasFetch, canvasProject } from './api';
+import { canvasEmbedded, canvasFetch } from './api';
+import { useCanvasEvents } from './event-stream';
 import { CanvasSync } from './sync';
 import { sceneFingerprint } from './merge';
 import { useSceneMotion } from './use-scene-motion';
@@ -53,39 +54,6 @@ export function useEditor() {
 function browserIsEditing(state: AppState): boolean {
   return Boolean(state.newElement || state.editingTextElement || state.editingLinearElement ||
     state.selectedElementsAreBeingDragged || state.isResizing || state.isRotating);
-}
-
-function useCanvasEvents(api: ExcalidrawImperativeAPI | undefined, sync: CanvasSync, status: (value: string) => void) {
-  useEffect(() => {
-    if (!api) return;
-
-    const url = new URL('/api/canvas/events', location.origin);
-    url.searchParams.set('chat', new URL(location.href).searchParams.get('chat') ?? '');
-    const project = canvasProject();
-    if (project) url.searchParams.set('project', project);
-
-    const events = new EventSource(url);
-    events.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        if (message.scene) sync.receive(message.scene);
-        else if (message.scene === null) status('Waiting for the agent’s drawing…');
-        else if (message.error) status(message.error);
-      } catch {
-        status('Invalid canvas update. Reload to reconnect.');
-      }
-    };
-    events.onerror = () => status('Canvas disconnected. Reconnecting; unsaved changes are kept here.');
-    const warn = (event: BeforeUnloadEvent) => {
-      if (sync.local) event.preventDefault();
-    };
-    window.addEventListener('beforeunload', warn);
-    return () => {
-      events.close();
-      sync.stop();
-      window.removeEventListener('beforeunload', warn);
-    };
-  }, [api, sync, status]);
 }
 
 function usePreviewFit(api: ExcalidrawImperativeAPI | undefined): void {

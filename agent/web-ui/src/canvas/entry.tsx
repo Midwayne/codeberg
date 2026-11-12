@@ -1,9 +1,11 @@
 import { LoadingSuspense } from '../components/loading-suspense';
 import { lazy } from 'react';
 import { CanvasBoundary } from './boundary';
+import { listenForPreviewVisibility } from './preview-visibility';
 import './motion.css';
 
 (window as Window & { EXCALIDRAW_ASSET_PATH?: string }).EXCALIDRAW_ASSET_PATH = '/excalidraw/';
+listenForPreviewVisibility();
 const Editor = lazy(() => import('./editor'));
 
 export function CanvasPage() {

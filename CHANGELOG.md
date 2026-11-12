@@ -7,6 +7,13 @@ changes may occur in minor releases and are called out explicitly.
 
 ## [Unreleased]
 
+### Fixed
+
+- Stop **Project status unavailable** from appearing while chats with canvases
+  are open. Canvas previews in hidden chats and background tabs now release
+  their browser connection instead of exhausting the browser's per-site limit,
+  which starved project status checks and other requests.
+
 ## [0.1.14] - 2026-11-08
 
 ### Added
