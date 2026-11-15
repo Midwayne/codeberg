@@ -12,7 +12,7 @@ export type ExtensionFormProps = { state: Parameters<typeof ExtensionsView>[0] }
 
 export function ExtensionForm({ state }: ExtensionFormProps) {
   return (
-    <form className="space-y-4 border-t border-border pt-5" onSubmit={createExtensionSubmit({ state })}>
+    <form className="space-y-4 border-t border-border pt-5" onSubmit={state.submit}>
       <h3 className="text-sm font-medium">{state.kind === 'mcp' ? 'Add an MCP server' : 'Write a skill'}</h3>
       <ExtensionFields state={state} />
       {state.error && (
@@ -99,47 +99,4 @@ export function ExtensionContentFields({ state }: ExtensionContentFieldsProps) {
       </label>
     </>
   );
-}
-
-export type ExtensionSubmitOptions = Pick<Parameters<typeof ExtensionForm>[0], 'state'>;
-
-function createExtensionSubmit({ state }: ExtensionSubmitOptions) {
-  return (event: React.SubmitEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (state.busy || state.importing) return;
-    state.setError('');
-    state.setSaved('');
-    state.setBusy(true);
-    void Promise.resolve()
-      .then(async () => {
-        const body =
-          state.kind === 'mcp'
-            ? {
-                kind: state.kind,
-                scope: state.scope,
-                name: state.name,
-                config: JSON.parse(state.config) as unknown,
-              }
-            : {
-                kind: state.kind,
-                scope: state.scope,
-                name: state.name,
-                content: `---\nname: ${JSON.stringify(state.name)}\ndescription: ${JSON.stringify(state.description)}\n---\n\n${state.instructions}\n`,
-              };
-        const response = await state.api('/api/extensions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        if (!response.ok) throw new Error(await response.text());
-        state.setSaved(`${state.name} added. Available on the next chat turn.`);
-        state.setName('');
-        state.setConfig('');
-        state.setDescription('');
-        state.setInstructions('');
-        state.setRevision((value) => value + 1);
-      })
-      .catch((reason: unknown) => state.setError(String(reason)))
-      .finally(() => state.setBusy(false));
-  };
 }
