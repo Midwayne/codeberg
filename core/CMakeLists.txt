@@ -90,6 +90,11 @@ set(CBERG_SOURCES
   src/chunk/chunker.c
   src/chunk/chunk_table.c
   src/graph/graph_store.c
+  src/graph/graph_apply.c
+  src/graph/graph_resolve.c
+  src/graph/graph_query.c
+  src/graph/graph_persist.c
+  src/graph/graph_workspace.c
   src/graph/graph_extract.c
   src/graph/scope_syntax.c
   src/graph/scope_imports.c

@@ -9,7 +9,12 @@ fragments incrementally and persists a `.graph` sidecar.
 
 | File | Role |
 |------|------|
-| `graph_store.c` | In-memory store, query, trace, hubs, save/load, import rewrite helper |
+| `graph_store.c`, `graph_store.h` | In-memory records and indexes, insertion, compaction, lifecycle |
+| `graph_apply.c` | Transactional per-file fragment apply, import rewrite helper |
+| `graph_resolve.c` | Query-time name resolution and confidence |
+| `graph_query.c` | Edges, node search, trace, hubs |
+| `graph_persist.c` | `.graph` save/load |
+| `graph_workspace.c` | Multi-repository view: copies and provenance accessors |
 | `graph_extract.c` | Per-language tree-sitter reference queries → fragment |
 | `scope_*.c`, `scope_internal.h` | Go/TS/JS bindings, C/Python lexical scope, receiver types, import aliases |
 | `resolve_relative.c` | Importer-relative paths, entrypoints, JS-to-TS source specifiers |

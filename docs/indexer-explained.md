@@ -758,7 +758,7 @@ accumulated Knowledge, and reviewed Learning datasets.
 Source: state save/load in [repo_state.c](../core/cmd/cberg-index/repo_state.c), vector recovery in
 [repo_vectors.c](../core/cmd/cberg-index/repo_vectors.c),
 [chunk serialization](../core/src/chunk/chunk_table.c),
-[graph serialization](../core/src/graph/graph_store.c), and
+[graph serialization](../core/src/graph/graph_persist.c), and
 [vector provider reference](../core/docs/VECTOR_INDEX_PROVIDERS.md).
 
 ## 12. Worked example: one file through the whole system
@@ -856,7 +856,7 @@ To trace the implementation yourself, follow this order:
 3. [Chunker](../core/src/chunk/chunker.c): language queries, Markdown/config rules, and combined analysis.
 4. [Chunk table](../core/src/chunk/chunk_table.c): IDs, hash comparisons, deltas, fingerprints, persistence.
 5. [Graph extractor](../core/src/graph/graph_extract.c): definition reuse, nesting, reference queries, deduplication.
-6. [Graph store](../core/src/graph/graph_store.c): file replacement, query-time resolution, confidence, traversal, hubs.
+6. Graph store: records and indexes in [graph_store.c](../core/src/graph/graph_store.c), file replacement in [graph_apply.c](../core/src/graph/graph_apply.c), query-time resolution and confidence in [graph_resolve.c](../core/src/graph/graph_resolve.c), traversal and hubs in [graph_query.c](../core/src/graph/graph_query.c).
 7. [Import resolver](../core/src/graph/resolve_pkg.c): safe local-path/module heuristics.
 8. [Embedding lifecycle](../core/cmd/cberg-index/embedding.c) and [facade](../core/src/embed/embed.c): providers, locking, idle unload.
 9. [Python worker](../scripts/embedding_worker.py) or [ONNX backend](../core/src/embed/embed_onnx.c): actual inference.
