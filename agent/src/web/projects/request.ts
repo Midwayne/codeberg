@@ -1,3 +1,4 @@
+import type { ProjectCatalog } from '../../core/projects.js';
 import type { ProjectRequestRouterState } from './state.js';
 
 export class ProjectServiceTimeout extends Error {
@@ -18,6 +19,12 @@ export class ProjectServiceUnreachable extends Error {
     super('Project service is not reachable. It may still be starting; Codeberg retries automatically.');
   }
 }
+
+/**
+ * How long a page load waits for the daemon's project list before using the
+ * last one it reported. A busy daemon must not hold every screen behind it.
+ */
+export const CATALOG_READ_TIMEOUT_MS = 1500;
 
 /** Bound the complete response, release the timer, and never replay mutations. */
 export async function requestProjectService(base: string, path: string, init: RequestInit = {}, timeoutMs = 15_000) {
@@ -43,9 +50,29 @@ export async function requestProjectService(base: string, path: string, init: Re
   }
 }
 
-export async function daemon(state: ProjectRequestRouterState, path: string, init?: RequestInit) {
-  const { response, body } = await requestProjectService(state.options.daemonUrl, path, init);
+export async function daemon(
+  state: ProjectRequestRouterState,
+  path: string,
+  init?: RequestInit,
+  timeoutMs?: number,
+) {
+  const { response, body } = await requestProjectService(state.options.daemonUrl, path, init, timeoutMs);
   if (!response.ok) throw new Error(body.message ?? 'Project service unavailable');
 
   return body;
+}
+
+/**
+ * Reads the project list for a page load. The projects seldom change, so when
+ * the daemon is busy or restarting the last list it reported is served at once;
+ * project status polling reports the underlying problem separately.
+ */
+export async function readCatalog(state: ProjectRequestRouterState): Promise<ProjectCatalog> {
+  try {
+    return await daemon(state, '/projects', undefined, CATALOG_READ_TIMEOUT_MS);
+  } catch (error) {
+    if (error instanceof ProjectServiceTimeout || error instanceof ProjectServiceUnreachable) return state.catalog;
+
+    throw error;
+  }
 }

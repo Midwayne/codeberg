@@ -5,7 +5,7 @@ import type { Project } from '../../core/projects.js';
 import { openConfigDirectory } from '../config-directory.js';
 import { readJson, requireJsonMutation, sameOrigin, sendJson, sendText } from '../http.js';
 import type { ProjectRequestRouterState } from './state.js';
-import { daemon, requestProjectService } from './request.js';
+import { daemon, readCatalog, requestProjectService } from './request.js';
 
 export async function openConfig(
   state: ProjectRequestRouterState,
@@ -65,7 +65,7 @@ export async function projects(
   res: ServerResponse,
 ): Promise<void> {
   if (req.method === 'GET') {
-    state.catalog = await daemon(state, '/projects');
+    state.catalog = await readCatalog(state);
 
     return sendJson(res, 200, {
       ...state.catalog,

@@ -38,6 +38,8 @@ codeberg --no-vector
 
 Routine indexing progress is hidden when embeddings are disabled. A project status error can still appear for a missing directory or an unavailable service; address that error and use **Retry**.
 
+Pages keep loading while the project service is busy or restarting: the project list falls back to the last one the service reported, and chats, settings, and docs stay usable. A project added or renamed elsewhere in that window appears after the service answers again and the page is reloaded.
+
 | Embedding option | Check | Retry setup |
 | --- | --- | --- |
 | EmbeddingGemma 2 | Python 3.10+, venv/pip, network, several GB free. | `codeberg build --embedding embeddinggemma-2` |
