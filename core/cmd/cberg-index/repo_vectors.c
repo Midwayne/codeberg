@@ -224,12 +224,117 @@ done:
     return st;
 }
 
+/* Chunks grouped by identical body, in compressed-sparse-row form: group k's
+ * rows are members[group_start[k] .. group_start[k + 1]). */
+typedef struct {
+    size_t count;        /* number of groups */
+    size_t *reps;        /* group -> one representative row */
+    size_t *group_start; /* count + 1 entries */
+    size_t *members;     /* row indices, contiguous per group */
+} body_groups;
+
+static void body_groups_free(body_groups *g) {
+    free(g->reps);
+    free(g->group_start);
+    free(g->members);
+}
+
+/* Assign each row to a group keyed by its body. A 64-bit hash-prefix hit is
+ * confirmed against the full hash; a mismatch (collision) or an all-zero
+ * prefix (the map reserves key 0) just starts its own group. The map records
+ * only the first group for a prefix, so a collision leaves the original
+ * mapping intact. */
+static cberg_status assign_groups(const cberg_stored_chunk *const *rows, size_t count, body_groups *g, size_t *group_of) {
+    cberg_u64map *seen = cberg_u64map_new(count * 2);
+    if (seen == NULL) {
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+
+    cberg_status st = CBERG_OK;
+    for (size_t u = 0; u < count; u++) {
+        const uint8_t *hash = rows[u]->chunk.content_hash;
+        uint64_t key;
+        memcpy(&key, hash, sizeof(key));
+
+        uint64_t hit = 0;
+        int found = key != 0 && cberg_u64map_get(seen, key, &hit);
+        if (found && memcmp(hash, rows[g->reps[hit]]->chunk.content_hash, CBERG_HASH_LEN) == 0) {
+            group_of[u] = (size_t)hit;
+            continue;
+        }
+
+        if (key != 0 && !found) {
+            st = cberg_u64map_set(seen, key, g->count);
+            if (st != CBERG_OK) {
+                break;
+            }
+        }
+
+        g->reps[g->count] = u;
+        group_of[u] = g->count;
+        g->count++;
+    }
+
+    cberg_u64map_free(seen);
+    return st;
+}
+
+/* Lay the rows out so a representative and all its duplicates are contiguous
+ * in `members`, letting each embed window be freed before the next. */
+static cberg_status collect_members(size_t count, const size_t *group_of, body_groups *g) {
+    g->group_start = calloc(g->count + 1, sizeof(*g->group_start));
+    g->members = malloc(count * sizeof(*g->members));
+    size_t *cursor = malloc(g->count * sizeof(*cursor));
+
+    if (g->group_start == NULL || g->members == NULL || cursor == NULL) {
+        free(cursor);
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+
+    for (size_t u = 0; u < count; u++) {
+        g->group_start[group_of[u] + 1]++;
+    }
+    for (size_t k = 0; k < g->count; k++) {
+        g->group_start[k + 1] += g->group_start[k];
+        cursor[k] = g->group_start[k];
+    }
+    for (size_t u = 0; u < count; u++) {
+        g->members[cursor[group_of[u]]++] = u;
+    }
+
+    free(cursor);
+    return CBERG_OK;
+}
+
+/* Grouping needs only content hashes, so no body is read here. count > 0. */
+static cberg_status group_by_body(const cberg_stored_chunk *const *rows, size_t count, body_groups *out) {
+    body_groups g = {0};
+    g.reps = malloc(count * sizeof(*g.reps));
+    size_t *group_of = malloc(count * sizeof(*group_of)); /* row -> its group */
+
+    cberg_status st = CBERG_ERR_OUT_OF_MEMORY;
+    if (g.reps != NULL && group_of != NULL) {
+        st = assign_groups(rows, count, &g, group_of);
+    }
+    if (st == CBERG_OK) {
+        st = collect_members(count, group_of, &g);
+    }
+    free(group_of);
+
+    if (st != CBERG_OK) {
+        body_groups_free(&g);
+        return st;
+    }
+
+    *out = g;
+    return CBERG_OK;
+}
+
 typedef struct {
     cberg_repo *repo;
     cberg_index *index;
     const cberg_stored_chunk *const *rows;
-    const size_t *group_start;
-    const size_t *members;
+    const body_groups *groups;
     size_t base; /* group index of the window's first representative */
     int show;
     size_t *done;
@@ -240,10 +345,11 @@ typedef struct {
 /* Fan one representative's vector out to every chunk sharing its body. */
 static cberg_status add_group_vector(void *v, size_t item, const float *vec) {
     unique_sink *u = v;
+    const body_groups *g = u->groups;
     size_t k = u->base + item;
 
-    for (size_t m = u->group_start[k]; m < u->group_start[k + 1]; m++) {
-        cberg_status st = cberg_index_add(u->index, u->rows[u->members[m]]->id, vec);
+    for (size_t m = g->group_start[k]; m < g->group_start[k + 1]; m++) {
+        cberg_status st = cberg_index_add(u->index, u->rows[g->members[m]]->id, vec);
         if (st != CBERG_OK) {
             return st;
         }
@@ -259,10 +365,9 @@ static cberg_status add_group_vector(void *v, size_t item, const float *vec) {
 }
 
 /*
- * Embed unique bodies only (keyed by content_hash; full-hash confirm after 8-byte
- * map key). Duplicates reuse the representative vector. Grouping needs only
- * hashes, so bodies are read per embed window (representatives only) and
- * released once embedded rather than held for the whole upsert.
+ * Embed unique bodies only; duplicates reuse their representative's vector.
+ * Bodies are read per embed window (representatives only) and released once
+ * embedded rather than held for the whole upsert.
  */
 static cberg_status embed_unique(cberg_repo *r, cberg_index *index, const cberg_stored_chunk *const *rows, size_t count, int show, size_t *done, size_t total, size_t *out_unique) {
     if (out_unique != NULL) {
@@ -271,108 +376,109 @@ static cberg_status embed_unique(cberg_repo *r, cberg_index *index, const cberg_
     if (count == 0) {
         return CBERG_OK;
     }
-    cberg_u64map *seen = cberg_u64map_new(count * 2);
-    size_t *reps = malloc(count * sizeof(*reps));         /* group -> a representative item index */
-    size_t *group_of = malloc(count * sizeof(*group_of)); /* item -> its group index */
-    size_t *group_start = NULL;
-    size_t *members = NULL;
-    size_t *cursor = NULL;
-    const cberg_stored_chunk **wrows = NULL;
-    cberg_status st = CBERG_ERR_OUT_OF_MEMORY;
-    if (seen == NULL || reps == NULL || group_of == NULL) {
-        goto done;
+
+    body_groups groups;
+    cberg_status st = group_by_body(rows, count, &groups);
+    if (st != CBERG_OK) {
+        return st;
     }
 
-    /* Pass 1: assign each item to a group keyed by its body. A 64-bit hash-prefix hit
-     * is confirmed against the full hash; a mismatch (collision) or an all-zero prefix
-     * (the map reserves key 0) just starts its own group. The map records only the
-     * first group for a prefix, so a collision leaves the original mapping intact. */
-    size_t n_groups = 0;
-    for (size_t u = 0; u < count; u++) {
-        const uint8_t *hash = rows[u]->chunk.content_hash;
-        uint64_t key;
-        memcpy(&key, hash, sizeof(key));
-        uint64_t hit = 0;
-        int found = key != 0 && cberg_u64map_get(seen, key, &hit);
-        if (found && memcmp(hash, rows[reps[hit]]->chunk.content_hash, CBERG_HASH_LEN) == 0) {
-            group_of[u] = (size_t)hit;
-            continue;
-        }
-        if (key != 0 && !found) {
-            st = cberg_u64map_set(seen, key, n_groups);
-            if (st != CBERG_OK) {
-                goto done;
-            }
-        }
-        reps[n_groups] = u;
-        group_of[u] = n_groups;
-        n_groups++;
-    }
-
-    /* Pass 2: CSR-group the items so a representative and all its duplicates are
-     * contiguous in `members`, letting each embed window be freed before the next. */
-    group_start = calloc(n_groups + 1, sizeof(*group_start));
-    members = malloc(count * sizeof(*members));
-    cursor = malloc(n_groups * sizeof(*cursor));
-    if (group_start == NULL || members == NULL || cursor == NULL) {
-        st = CBERG_ERR_OUT_OF_MEMORY;
-        goto done;
-    }
-    for (size_t u = 0; u < count; u++) {
-        group_start[group_of[u] + 1]++;
-    }
-    for (size_t k = 0; k < n_groups; k++) {
-        group_start[k + 1] += group_start[k];
-        cursor[k] = group_start[k];
-    }
-    for (size_t u = 0; u < count; u++) {
-        members[cursor[group_of[u]]++] = u;
+    size_t window_cap = groups.count < EMBED_WINDOW ? groups.count : EMBED_WINDOW;
+    const cberg_stored_chunk **window = malloc(window_cap * sizeof(*window));
+    if (window == NULL) {
+        body_groups_free(&groups);
+        return CBERG_ERR_OUT_OF_MEMORY;
     }
 
     unique_sink sink = {
         .repo = r,
         .index = index,
         .rows = rows,
-        .group_start = group_start,
-        .members = members,
+        .groups = &groups,
         .show = show,
         .done = done,
         .total = total,
         .mark = (*done / PROGRESS_STEP + 1) * PROGRESS_STEP,
     };
 
-    size_t wcap = n_groups < EMBED_WINDOW ? n_groups : EMBED_WINDOW;
-    wrows = malloc(wcap * sizeof(*wrows));
-    if (wrows == NULL) {
-        st = CBERG_ERR_OUT_OF_MEMORY;
-        goto done;
-    }
-
-    st = CBERG_OK;
-    for (size_t g = 0; g < n_groups && st == CBERG_OK; g += EMBED_WINDOW) {
-        size_t wn = n_groups - g < EMBED_WINDOW ? n_groups - g : EMBED_WINDOW;
-        for (size_t b = 0; b < wn; b++) {
-            wrows[b] = rows[reps[g + b]];
+    for (size_t g = 0; g < groups.count && st == CBERG_OK; g += EMBED_WINDOW) {
+        size_t window_len = groups.count - g < EMBED_WINDOW ? groups.count - g : EMBED_WINDOW;
+        for (size_t b = 0; b < window_len; b++) {
+            window[b] = rows[groups.reps[g + b]];
         }
 
         sink.base = g;
-        st = embed_window(r, wrows, wn, add_group_vector, &sink);
-    }
-    if (st == CBERG_OK && out_unique != NULL) {
-        *out_unique = n_groups;
+        st = embed_window(r, window, window_len, add_group_vector, &sink);
     }
 
-done:
-    cberg_u64map_free(seen);
-    free(reps);
-    free(group_of);
-    free(group_start);
-    free(members);
-    free(cursor);
-    free(wrows);
+    if (st == CBERG_OK && out_unique != NULL) {
+        *out_unique = groups.count;
+    }
+
+    free(window);
+    body_groups_free(&groups);
     return st;
 }
 
+/* Embed added and modified chunks. Code upserts carry many byte-identical
+ * chunks (license headers, generated code, trivial accessors), and identical
+ * text maps to an identical vector, so embedding one and reusing it is exact. */
+static cberg_status embed_upserts(cberg_repo *r, const cberg_changes *ch) {
+    size_t upsert_len = ch->added_len + ch->modified_len;
+    if (upsert_len == 0) {
+        return CBERG_OK;
+    }
+
+    const cberg_stored_chunk **rows = calloc(upsert_len, sizeof(*rows));
+    if (rows == NULL) {
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+
+    size_t n = 0;
+    for (size_t i = 0; i < ch->added_len; i++) {
+        rows[n++] = &ch->added[i];
+    }
+    for (size_t i = 0; i < ch->modified_len; i++) {
+        rows[n++] = &ch->modified[i];
+    }
+
+    int show = upsert_len >= PROGRESS_MIN;
+    size_t done = 0;
+    size_t unique = 0;
+    cberg_status st = embed_unique(r, r->index, rows, upsert_len, show, &done, upsert_len, &unique);
+    free(rows);
+
+    if (st == CBERG_OK && show && unique < upsert_len) {
+        fprintf(stderr, "cberg-index[%s]: reused %zu duplicate bodies (embedded %zu unique of %zu chunks)\n", r->key, upsert_len - unique, unique, upsert_len);
+    }
+    return st;
+}
+
+static cberg_status remove_deleted(cberg_repo *r, const cberg_changes *ch) {
+    int show = ch->deleted_len >= PROGRESS_MIN;
+    size_t mark = PROGRESS_STEP;
+
+    for (size_t i = 0; i < ch->deleted_len; i++) {
+        /* NOT_FOUND means already absent — e.g. a kill let the index save
+         * outrun the chunk-table save, so on restart the table still lists an
+         * id the index dropped. The desired post-state (id gone) already
+         * holds, so treat it as done instead of escalating to a full index
+         * rebuild. In steady state every table id has an index entry, so this
+         * only fires while recovering that divergence. */
+        cberg_status st = cberg_index_remove(r->index, ch->deleted[i].id);
+        if (st != CBERG_OK && st != CBERG_ERR_NOT_FOUND) {
+            return st;
+        }
+
+        if (show && (i + 1 >= mark || i + 1 == ch->deleted_len)) {
+            fprintf(stderr, "cberg-index[%s]: removed %zu/%zu chunks (%zu%%)\n", r->key, i + 1, ch->deleted_len, (i + 1) * 100 / ch->deleted_len);
+            mark += PROGRESS_STEP;
+        }
+    }
+    return CBERG_OK;
+}
+
+/* Bring the vector index in line with one chunk-table sync, then save it. */
 static cberg_status apply_vectors(cberg_repo *r, const cberg_changes *ch) {
     size_t total = cberg_chunk_table_len(r->table);
     size_t upsert_len = ch->added_len + ch->modified_len;
@@ -383,68 +489,13 @@ static cberg_status apply_vectors(cberg_repo *r, const cberg_changes *ch) {
         return CBERG_OK;
     }
 
-    if (upsert_len == 0 && ch->deleted_len == 0) {
-        return cberg_index_save(r->index);
+    cberg_status st = embed_upserts(r, ch);
+    if (st == CBERG_OK) {
+        st = remove_deleted(r, ch);
     }
-
-    const cberg_stored_chunk **rows = NULL;
-    cberg_status st = CBERG_OK;
-
-    if (upsert_len > 0) {
-        rows = calloc(upsert_len, sizeof(*rows));
-        if (rows == NULL) {
-            st = CBERG_ERR_OUT_OF_MEMORY;
-            goto done;
-        }
-
-        size_t u = 0;
-        for (size_t i = 0; i < ch->added_len; i++) {
-            rows[u++] = &ch->added[i];
-        }
-        for (size_t i = 0; i < ch->modified_len; i++) {
-            rows[u++] = &ch->modified[i];
-        }
-
-        /* Embed unique bodies only: code upserts carry many byte-identical chunks
-         * (license headers, generated code, trivial accessors), and identical text
-         * maps to an identical vector, so embedding one and reusing it is exact. */
-        int show = upsert_len >= PROGRESS_MIN;
-        size_t done_n = 0;
-        size_t unique = 0;
-        st = embed_unique(r, r->index, rows, upsert_len, show, &done_n, upsert_len, &unique);
-        if (st != CBERG_OK) {
-            goto done;
-        }
-        if (show && unique < upsert_len) {
-            fprintf(stderr, "cberg-index[%s]: reused %zu duplicate bodies (embedded %zu unique of %zu chunks)\n", r->key, upsert_len - unique, unique, upsert_len);
-        }
+    if (st == CBERG_OK) {
+        st = cberg_index_save(r->index);
     }
-
-    int del_show = ch->deleted_len >= PROGRESS_MIN;
-    size_t del_mark = PROGRESS_STEP;
-    for (size_t i = 0; i < ch->deleted_len; i++) {
-        st = cberg_index_remove(r->index, ch->deleted[i].id);
-        if (st == CBERG_ERR_NOT_FOUND) {
-            /* Already absent — e.g. a kill let the index save outrun the chunk-table
-             * save, so on restart the table still lists an id the index dropped. The
-             * desired post-state (id gone) already holds, so treat it as done instead
-             * of escalating to a full index rebuild. In steady state every table id has
-             * an index entry, so this only fires while recovering that divergence. */
-            st = CBERG_OK;
-        }
-        if (st != CBERG_OK) {
-            goto done;
-        }
-        if (del_show && (i + 1 >= del_mark || i + 1 == ch->deleted_len)) {
-            fprintf(stderr, "cberg-index[%s]: removed %zu/%zu chunks (%zu%%)\n", r->key, i + 1, ch->deleted_len, (i + 1) * 100 / ch->deleted_len);
-            del_mark += PROGRESS_STEP;
-        }
-    }
-
-    st = cberg_index_save(r->index);
-
-done:
-    free(rows);
     return st;
 }
 

@@ -40,9 +40,9 @@ typedef struct {
 void chunk_batch_init(chunk_batch *b);
 void chunk_batch_reset(chunk_batch *b);
 
-/* Both take ownership of their argument on success; NULL is a no-op. */
-cberg_status chunk_batch_add_list(chunk_batch *b, cberg_chunk_list *list);
-cberg_status chunk_batch_add_fragment(chunk_batch *b, cberg_graph_fragment *frag);
+/* Add one parsed file. Takes ownership of both arguments, also on failure;
+ * a NULL list (the file yields no chunks) adds nothing. */
+cberg_status chunk_batch_add_file(chunk_batch *b, cberg_chunk_list *list, cberg_graph_fragment *frag);
 
 /* Carry over every chunk in the repo's table except those under `skip` paths. */
 cberg_status chunk_batch_add_table_except(cberg_repo *r, chunk_batch *batch, char **skip, size_t skip_n);

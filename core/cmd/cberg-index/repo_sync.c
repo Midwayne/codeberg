@@ -147,100 +147,96 @@ cberg_status repo_parse_file(cberg_repo *r, const char *abs, const char *rel, cb
     return CBERG_OK;
 }
 
-static cberg_status graph_drop_push(char ***list, size_t *len, size_t *cap, char *path) {
-    if (*len + 1 > *cap) {
-        size_t new_cap = *cap == 0 ? 8 : *cap * 2;
-        char **next = realloc(*list, new_cap * sizeof(**list));
-        if (next == NULL) {
-            return CBERG_ERR_OUT_OF_MEMORY;
+/* Re-chunk each path into the batch. Paths that no longer yield chunks are
+ * appended to `emptied`, which must have room for all of them. */
+static cberg_status rechunk_paths(cberg_repo *r, chunk_batch *batch, char **paths, size_t paths_n, char **emptied, size_t *emptied_n) {
+    for (size_t i = 0; i < paths_n; i++) {
+        char abs[4096];
+        snprintf(abs, sizeof(abs), "%s/%s", r->root, paths[i]);
+
+        cberg_chunk_list *list = NULL;
+        cberg_graph_fragment *frag = NULL;
+        cberg_status st = repo_parse_file(r, abs, paths[i], &list, &frag);
+        if (st != CBERG_OK) {
+            return st;
         }
-        *list = next;
-        *cap = new_cap;
+
+        if (list == NULL) {
+            emptied[(*emptied_n)++] = paths[i];
+        }
+
+        st = chunk_batch_add_file(batch, list, frag);
+        if (st != CBERG_OK) {
+            return st;
+        }
     }
-    (*list)[(*len)++] = path;
     return CBERG_OK;
 }
 
-/* Re-index a set of changed paths: carry over every chunk except those of
- * `rechunk`+`deleted`, re-chunk `rechunk` from disk, and sync the union — so only
- * the affected files are parsed and only chunks whose content moved get
- * re-embedded. The path arrays are borrowed (not freed). Caller holds r->mu.
- *
- * Graph drops for deleted / empty-rechunk paths run after repo_sync_chunks (table +
- * fragment apply) and before repo_sync_vectors, so a vector failure cannot leave
- * stale graph nodes for paths already removed from the chunk table, and a
- * failed parse/repo_sync_chunks cannot drop graph state ahead of the table. */
-cberg_status repo_apply_path_changes(cberg_repo *r, char **rechunk, size_t rechunk_n, char **deleted, size_t deleted_n) {
+static void drop_graph_files(cberg_repo *r, char **paths, size_t paths_n) {
+    if (r->graph == NULL) {
+        return;
+    }
+
+    for (size_t i = 0; i < paths_n; i++) {
+        cberg_graph_remove_file(r->graph, paths[i]);
+    }
+}
+
+static void note_import_changes(cberg_repo *r, char **rechunk, size_t rechunk_n, char **deleted, size_t deleted_n) {
     for (size_t i = 0; i < rechunk_n; i++) {
         cberg_import_cache_note(&r->import_cache, rechunk[i], 0);
     }
     for (size_t i = 0; i < deleted_n; i++) {
         cberg_import_cache_note(&r->import_cache, deleted[i], 1);
     }
+}
+
+/* Carry over every chunk except those of `rechunk`+`deleted`, re-chunk
+ * `rechunk` from disk, and sync the union — so only the affected files are
+ * parsed and only chunks whose content moved get re-embedded.
+ *
+ * Graph drops for deleted / emptied paths run after repo_sync_chunks (table +
+ * fragment apply) and before repo_sync_vectors, so a vector failure cannot
+ * leave stale graph nodes for paths already removed from the chunk table, and
+ * a failed parse or chunk sync cannot drop graph state ahead of the table. */
+cberg_status repo_apply_path_changes(cberg_repo *r, char **rechunk, size_t rechunk_n, char **deleted, size_t deleted_n) {
+    note_import_changes(r, rechunk, rechunk_n, deleted, deleted_n);
+
+    /* `replaced` paths lose their old chunks; `graph_drop` paths also lose
+     * their graph nodes. Both borrow the caller's strings. */
+    size_t changed_n = rechunk_n + deleted_n;
+    char **replaced = calloc(changed_n + 1, sizeof(*replaced));
+    char **graph_drop = calloc(changed_n + 1, sizeof(*graph_drop));
+    size_t replaced_n = 0;
+    size_t graph_drop_n = 0;
 
     chunk_batch batch;
     chunk_batch_init(&batch);
 
-    char **skip = NULL;
-    size_t skip_n = 0;
-    /* Paths whose graph nodes must be dropped after repo_sync_chunks succeeds. */
-    char **graph_drop = NULL;
-    size_t graph_drop_n = 0;
-    size_t graph_drop_cap = 0;
-    if (rechunk_n + deleted_n > 0) {
-        skip = calloc(rechunk_n + deleted_n, sizeof(*skip));
-        if (skip == NULL) {
-            return CBERG_ERR_OUT_OF_MEMORY;
-        }
-        for (size_t i = 0; i < deleted_n; i++) {
-            skip[skip_n++] = deleted[i];
-        }
-        for (size_t i = 0; i < rechunk_n; i++) {
-            skip[skip_n++] = rechunk[i];
-        }
+    cberg_status st = CBERG_ERR_OUT_OF_MEMORY;
+    if (replaced == NULL || graph_drop == NULL) {
+        goto done;
     }
 
-    cberg_status st = chunk_batch_add_table_except(r, &batch, skip, skip_n);
+    for (size_t i = 0; i < deleted_n; i++) {
+        replaced[replaced_n++] = deleted[i];
+    }
+    for (size_t i = 0; i < rechunk_n; i++) {
+        replaced[replaced_n++] = rechunk[i];
+    }
+
+    st = chunk_batch_add_table_except(r, &batch, replaced, replaced_n);
     if (st != CBERG_OK) {
         goto done;
     }
 
-    for (size_t i = 0; i < rechunk_n; i++) {
-        char abs[4096];
-        snprintf(abs, sizeof(abs), "%s/%s", r->root, rechunk[i]);
-        cberg_chunk_list *list = NULL;
-        cberg_graph_fragment *frag = NULL;
-        st = repo_parse_file(r, abs, rechunk[i], &list, &frag);
-        if (st != CBERG_OK) {
-            goto done;
-        }
-        if (list != NULL) {
-            st = chunk_batch_add_list(&batch, list);
-            if (st != CBERG_OK) {
-                cberg_chunk_list_free(list);
-                cberg_graph_fragment_free(frag);
-                goto done;
-            }
-            st = chunk_batch_add_fragment(&batch, frag);
-            if (st != CBERG_OK) {
-                cberg_graph_fragment_free(frag);
-                goto done;
-            }
-        } else {
-            /* Emptied / unreadable-as-chunks: drop graph after table commit. */
-            cberg_graph_fragment_free(frag);
-            st = graph_drop_push(&graph_drop, &graph_drop_n, &graph_drop_cap, rechunk[i]);
-            if (st != CBERG_OK) {
-                goto done;
-            }
-        }
+    st = rechunk_paths(r, &batch, rechunk, rechunk_n, graph_drop, &graph_drop_n);
+    if (st != CBERG_OK) {
+        goto done;
     }
-
     for (size_t i = 0; i < deleted_n; i++) {
-        st = graph_drop_push(&graph_drop, &graph_drop_n, &graph_drop_cap, deleted[i]);
-        if (st != CBERG_OK) {
-            goto done;
-        }
+        graph_drop[graph_drop_n++] = deleted[i];
     }
 
     cberg_changes ch = {0};
@@ -248,17 +244,14 @@ cberg_status repo_apply_path_changes(cberg_repo *r, char **rechunk, size_t rechu
     if (st != CBERG_OK) {
         goto done;
     }
-    if (r->graph != NULL) {
-        for (size_t i = 0; i < graph_drop_n; i++) {
-            cberg_graph_remove_file(r->graph, graph_drop[i]);
-        }
-    }
+    drop_graph_files(r, graph_drop, graph_drop_n);
+
     chunk_batch_reset(&batch);
     st = repo_sync_vectors(r, &ch);
 
 done:
     chunk_batch_reset(&batch);
-    free(skip);
+    free(replaced);
     free(graph_drop);
     return st;
 }
