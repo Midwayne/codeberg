@@ -4,15 +4,18 @@ import { sameOrigin } from './http.js';
 import { validChatId, withCanvasChat } from '../core/canvas/context.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-import type { ModelInput, ModelSelection } from '../core/model-types.js';
+import type { ModelInput, ModelSelection, ModelSettings } from '../core/model-types.js';
 import { readJson, sendText } from './http.js';
 import type { ModelSettingsStore } from './model-selection/settings.js';
 import { formatWebTitle } from './title.js';
 import type { DecisionModel } from '../core/decisions/types.js';
+import { summaryModel, type SummaryModel } from './model-selection/summary.js';
 
 /** A model choice bound to one chat request. */
 export type ResolvedModelSelection = ModelSelection & {
   model: string; contextWindow: number; inputs?: ModelInput[]; decisionModel?: DecisionModel | null;
+  /** History summarizer chosen in Models; absent summarizes on the chat model. */
+  summary?: SummaryModel;
 };
 
 export type ChatResponder = (
@@ -47,12 +50,19 @@ export async function routeChat(
 
   const selection = selected && settings
     ? { ...settings.chat, model: selected.model, contextWindow: selected.contextWindow, inputs: selected.inputs,
-      decisionModel: settings.decisionModels?.find((item) => item.key === settings.decisions) ?? null }
+      decisionModel: settings.decisionModels?.find((item) => item.key === settings.decisions) ?? null,
+      ...summaryChoice(settings) }
     : undefined;
 
   await withCanvasChat(body?.id, () => runs
     ? submitSearch(res, body, selection, runs)
     : respond(res, messages, selection));
+}
+
+function summaryChoice(settings: ModelSettings): { summary?: SummaryModel } {
+  const summary = summaryModel(settings);
+
+  return summary ? { summary } : {};
 }
 
 export async function routeMeta(

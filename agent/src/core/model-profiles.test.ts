@@ -18,3 +18,11 @@ it('infers the separate summary window or shares a catalog window for the same m
   expect(agentProfiles('openai:chat', 'ollama:summary', {}).summaryProfile.contextWindow).toBe(8192);
   expect(agentProfiles('ollama:chat', 'ollama:chat', {}, 16384).summaryProfile.contextWindow).toBe(16384);
 });
+
+it('uses the catalog window of a separately chosen summary model', () => {
+  const result = agentProfiles('openai:chat', 'openai:summary', {}, 400_000, 64_000);
+
+  expect(result.profile.contextWindow).toBe(400_000);
+  expect(result.summaryProfile.contextWindow).toBe(64_000);
+  expect(result.summaryProfile.modelId).toBe('summary');
+});

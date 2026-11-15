@@ -61,6 +61,7 @@ export class ModelSettingsStore {
       decisions: resolveDecision(catalog, values?.decisions),
       chat: this.resolve(values?.chat, this.catalog.defaultChat, models),
       learning: this.resolve(values?.learning, this.catalog.defaultLearning, models),
+      summary: this.resolveSummary(values?.summary, models),
     };
   }
 
@@ -81,12 +82,13 @@ export class ModelSettingsStore {
       const chat = this.validate(values.chat, models);
       const learning = this.validate(values.learning, models);
       const current = await this.current();
+      const summary = this.validateSummary(values.summary, current.summary ?? null, models);
       const decisions = values.decisions === undefined ? current.decisions : values.decisions;
       if (decisions !== null && !current.decisionModels?.some((model) => model.key === decisions)) {
         throw new ModelSelectionError('unknown or unavailable decision model');
       }
 
-      await writeJsonAtomic(this.settingsPath, { chat, learning, decisions });
+      await writeJsonAtomic(this.settingsPath, { chat, learning, summary, decisions });
     });
 
     this.writing = update.catch(() => undefined);
@@ -120,6 +122,27 @@ export class ModelSettingsStore {
       throw new Error('models.yml contains no providers available with the current credentials');
 
     return { key: first.key, effort: first.efforts[0] };
+  }
+
+  /** Null means summaries follow the chat model, including when a saved choice is gone. */
+  private resolveSummary(raw: unknown, models: CatalogModel[]): ModelSelection | null {
+    const input = object(raw);
+    const effort = input?.effort;
+    const item = models.find((entry) => entry.key === input?.key);
+    if (!item || !validEffort(effort) || !item.efforts.includes(effort)) return null;
+
+    return { key: item.key, effort };
+  }
+
+  /** Omitted keeps the saved choice; null returns summaries to the chat model. */
+  private validateSummary(
+    raw: unknown,
+    saved: ModelSelection | null,
+    models: CatalogModel[],
+  ): ModelSelection | null {
+    if (raw === undefined) return saved;
+
+    return raw === null ? null : this.validate(raw, models);
   }
 
   private validate(raw: unknown, models: CatalogModel[]): ModelSelection {

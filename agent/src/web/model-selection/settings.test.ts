@@ -193,6 +193,45 @@ describe('ModelSettingsStore', () => {
     });
   });
 
+  it('summarizes on the chat model by default and persists a chosen summary model', async () => {
+    const home = await fixture();
+    const defaults = { key: 'openai:gpt-5.6-sol', effort: 'low' as const };
+    const store = new ModelSettingsStore({ home, defaultChat: defaults, defaultLearning: defaults });
+    const summary = { key: 'openai:gpt-5.6-luna', effort: 'none' as const };
+
+    expect((await store.current()).summary).toBeNull();
+
+    const chosen = await store.update({ chat: defaults, learning: defaults, summary });
+
+    expect(chosen.summary).toEqual(summary);
+
+    // Older clients omit the field; that must not reset the choice.
+    const kept = await store.update({ chat: defaults, learning: defaults });
+
+    expect(kept.summary).toEqual(summary);
+
+    await expect(
+      store.update({ chat: defaults, learning: defaults, summary: { ...summary, effort: 'high' } }),
+    ).rejects.toThrow(/effort/i);
+
+    const reset = await store.update({ chat: defaults, learning: defaults, summary: null });
+
+    expect(reset.summary).toBeNull();
+  });
+
+  it('falls back to the chat model when the saved summary model leaves the catalog', async () => {
+    const home = await fixture();
+    const defaults = { key: 'openai:gpt-5.6-sol', effort: 'low' as const };
+    await writeFile(
+      join(home, 'model-settings.json'),
+      JSON.stringify({ chat: defaults, learning: defaults, summary: { key: 'openai:removed', effort: 'low' } }),
+    );
+
+    const store = new ModelSettingsStore({ home, defaultChat: defaults, defaultLearning: defaults });
+
+    expect((await store.current()).summary).toBeNull();
+  });
+
   it('rejects unknown models and unsupported efforts without changing stored settings', async () => {
     const home = await fixture();
     const defaults = { key: 'openai:gpt-5.6-sol', effort: 'low' as const };

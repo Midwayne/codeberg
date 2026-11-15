@@ -27,6 +27,8 @@ export interface CatalogModel {
 export interface ModelSelections {
   chat: ModelSelection;
   learning: ModelSelection;
+  /** History summarizer. Null or absent summarizes on the chat model. */
+  summary?: ModelSelection | null;
   decisions?: string | null;
 }
 

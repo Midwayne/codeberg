@@ -10,6 +10,8 @@ import type { Generator } from '../../core/types.js';
 import type { ResolvedModelSelection } from '../chat-routes.js';
 import type { ModelSettingsStore } from './settings.js';
 import type { DecisionUsageSink } from '../../core/decisions/types.js';
+import { budgetWindow, profileFor } from '../../providers/profiles.js';
+import { summaryConfig } from './summary.js';
 
 /** A loop's model, effort, and history budget are immutable for its lifetime. */
 export class ModelAgentPool {
@@ -61,6 +63,7 @@ export function createWebModelPool(
         modelInputs: selection.inputs,
         reasoning: selection.effort === 'provider-default' ? undefined : selection.effort,
         contextWindow: selection.contextWindow,
+        summary: summaryConfig(selection, transformModel),
         learning,
         transformModel: transformModel ? (model) => transformModel(model, selection) : undefined,
       });
@@ -85,6 +88,7 @@ export function createLearningGenerator(
   settings: Pick<ModelSettingsStore, 'current'>,
   resolveModel: (spec: string) => LanguageModel,
   transformModel?: (model: LanguageModel, key: string, spec: string) => LanguageModel,
+  env: NodeJS.ProcessEnv = process.env,
 ): Generator {
   const models = new Map<string, LanguageModel>();
 
@@ -99,9 +103,9 @@ export function createLearningGenerator(
         models.set(modelSpec, model);
       }
 
-      const contextWindow = selected?.contextWindow;
-      const bounded = contextWindow
-        ? boundLearningContext(prompt.prompt, prompt.system, contextWindow)
+      const window = learningWindow(modelSpec, selected?.contextWindow, env);
+      const bounded = window
+        ? boundLearningContext(prompt.prompt, prompt.system, window)
         : prompt.prompt;
       writeLearningTrace('model_request', {
         job_id: prompt.traceId,
@@ -119,6 +123,21 @@ export function createLearningGenerator(
       });
     },
   };
+}
+
+/**
+ * Background learning shares the chat path's working window: a 1M-token model
+ * must not be sent a half-window prompt (long-context premium included) for
+ * one extraction. CODEBERG_CONTEXT_BUDGET raises the ceiling for both.
+ */
+function learningWindow(
+  modelSpec: string,
+  contextWindow: number | undefined,
+  env: NodeJS.ProcessEnv,
+): number | undefined {
+  if (!contextWindow) return undefined;
+
+  return budgetWindow({ ...profileFor(modelSpec, env), contextWindow });
 }
 
 export { ReloadableAgentPool } from './reloadable.js';

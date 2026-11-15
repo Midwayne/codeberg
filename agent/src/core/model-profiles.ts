@@ -6,13 +6,19 @@ export function agentProfiles(
   summarySpec: string,
   env: NodeJS.ProcessEnv,
   contextWindow?: number,
+  summaryWindow?: number,
 ): { profile: ModelProfile; summaryProfile: ModelProfile } {
   const inferred = profileFor(modelSpec, env);
   const profile = contextWindow ? { ...inferred, contextWindow } : inferred;
-  const summaryProfile = modelSpec === summarySpec ? profile : profileFor(summarySpec, {
+  const inferredSummary = modelSpec === summarySpec ? profile : profileFor(summarySpec, {
     CODEBERG_CONTEXT_WINDOW: env.CODEBERG_SUMMARY_CONTEXT_WINDOW,
     CODEBERG_CONTEXT_BUDGET: env.CODEBERG_CONTEXT_BUDGET,
   });
+
+  // A summarizer picked from the catalog carries its own declared window.
+  const summaryProfile = summaryWindow
+    ? { ...inferredSummary, contextWindow: summaryWindow }
+    : inferredSummary;
 
   return { profile, summaryProfile };
 }

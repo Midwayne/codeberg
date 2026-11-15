@@ -1,6 +1,7 @@
 import { LoadingBoundary } from './loading';
 import { useModelSettingsPanel, type Choices } from '../lib/use-model-settings';
 import { DecisionSettings } from './decision-settings';
+import { SummarySettings } from './summary-settings';
 import type { DecisionModel } from '@agent/core/decisions/types.js';
 import { X } from 'lucide-react';
 
@@ -88,6 +89,8 @@ export function ModelSettingsForm({ models, decisionModels = [], value, onChange
       <p className="text-xs leading-5 text-muted-foreground">
         Chat changes apply to the next message. Learning changes apply to the next background job.
       </p>
+      <SummarySettings models={models} value={value.summary}
+        onChange={(summary) => onChange({ ...value, summary })} />
       <DecisionSettings models={decisionModels} value={value.decisions}
         onChange={(decisions) => onChange({ ...value, decisions })} />
     </div>

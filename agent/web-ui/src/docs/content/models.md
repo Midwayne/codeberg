@@ -1,9 +1,10 @@
-Codeberg uses three model roles:
+Codeberg uses four model roles:
 
 | Role | Purpose | Configure |
 | --- | --- | --- |
 | Chat | Answer questions and choose tools. | **Models** in the header. |
 | Learning | Background knowledge work and evaluations. | **Models**; defaults to the chat model. |
+| Summaries | Condense older chat history. | **Models**; defaults to the chat model. |
 | Embedding | Local semantic source search. | [Indexing and search](/docs/indexing). |
 
 ## Choose a provider
@@ -60,6 +61,8 @@ Inputs may include `vision`, `audio`, `video`, and `pdf`. Attachments are limite
 ## Select models in the app
 
 Open **Models**, choose chat and learning models and efforts, then save. Changes apply to new turns and background jobs; running work keeps its selection. Choices persist across restarts and tabs.
+
+**Summaries** starts as **Same as chat model**. Pick a smaller model there to lower the cost of condensing long chats; see [How chat context stays bounded](#how-chat-context-stays-bounded).
 
 | Setup | Available choices |
 | --- | --- |
@@ -187,6 +190,9 @@ Decision calls add provider charges and a chat tool round trip. They may reduce 
 Codeberg archives large tool results locally and summarizes older exchanges when history approaches the model's budget. Recent exchanges and the current request stay available; the agent can recover omitted details from saved context.
 
 - Tool results over **12,000 characters** become previews with paths to full output.
+- Summaries run on the chat model unless you choose another under **Models → Summaries**. The chat model still writes every answer; a summary is at most **2,000 tokens**, so a smaller model usually suffices.
+- A summary model's requests appear under **Chat** in Usage, attributed to that model.
+- Changing the summary model writes new summaries the next time history is condensed; earlier ones are not reused.
 - Reusable summaries live in the project's `context/checkpoints/` directory.
 - The default working ceiling is **200,000 tokens**, capped by the model window. Half is reserved for history.
 - Chat output is capped at **8,192 tokens** or **15%** of the working window, whichever is smaller, with another 15% estimation margin.

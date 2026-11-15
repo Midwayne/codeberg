@@ -11,6 +11,7 @@ import type { ReasoningEffort } from './types.js';
 import { agentProfiles } from './model-profiles.js';
 import type { ModelInput } from './model-types.js';
 import type { DecisionModel, DecisionUsageSink } from './decisions/types.js';
+import { summaryGenerator, type SummaryConfig } from './summary-model.js';
 
 export interface AgentConfig {
   onDecisionUsage?: DecisionUsageSink;
@@ -20,6 +21,8 @@ export interface AgentConfig {
   modelSpec: string;
   modelInputs?: readonly ModelInput[];
   subagentModelSpec?: string;
+  /** Dedicated history summarizer; unset summarizes on the subagent or chat model. */
+  summary?: SummaryConfig;
   daemonUrl: string;
   reasoning?: ReasoningEffort;
   contextWindow?: number;
@@ -62,8 +65,11 @@ export function createAgent(config: AgentConfig): Agent {
       ? registry.resolve(subagentSpec)
       : undefined;
 
+  const summarySpec = config.summary?.modelSpec ?? subagentSpec;
+
   return new Agent({
     model,
+    generator: summaryGenerator(config.summary, (spec) => registry.resolve(spec)),
     decisionModel: config.decisionModel,
     onDecisionUsage: config.onDecisionUsage,
     modelInputs: config.modelInputs,
@@ -77,7 +83,13 @@ export function createAgent(config: AgentConfig): Agent {
         : config.daemonUrl,
     ),
     reasoning: config.reasoning,
-    ...agentProfiles(config.modelSpec, subagentSpec, env, config.contextWindow),
+    ...agentProfiles(
+      config.modelSpec,
+      summarySpec,
+      env,
+      config.contextWindow,
+      config.summary?.contextWindow,
+    ),
   });
 }
 

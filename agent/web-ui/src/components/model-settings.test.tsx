@@ -27,6 +27,28 @@ describe('ModelSettingsForm', () => {
     expect(html).toContain('<option value="openai:beta">openai · Beta (beta)</option>');
   });
 
+  it('defaults summaries to the chat model and shows an effort once a model is chosen', () => {
+    const models: CatalogModel[] = [
+      { key: 'openai:alpha', model: 'openai:alpha', provider: 'openai', label: 'Alpha', contextWindow: 50000, efforts: ['low', 'high'], inputs: ['text'] },
+    ];
+    const choice = { key: 'openai:alpha', effort: 'high' as const };
+    const render = (summary?: typeof choice | null) => renderToStaticMarkup(<ModelSettingsForm
+      models={models}
+      value={{ chat: choice, learning: choice, summary }}
+      onChange={() => undefined}
+    />);
+
+    const unset = render(null);
+
+    expect(unset).toContain('<option value="" selected="">Same as chat model</option>');
+    expect(unset).not.toContain('id="summary-effort"');
+
+    const chosen = render(choice);
+
+    expect(chosen).toContain('id="summary-model"');
+    expect(chosen).toContain('id="summary-effort"');
+  });
+
   it('shows separate decisions choices without offering them for chat or learning', () => {
     const html = renderToStaticMarkup(<ModelSettingsForm
       models={[{ key: 'openai:chat', model: 'openai:chat', provider: 'openai', label: 'Chat', contextWindow: 32000, efforts: ['none'], inputs: ['text'] }]}

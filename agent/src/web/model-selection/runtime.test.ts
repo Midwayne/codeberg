@@ -44,6 +44,42 @@ describe('model runtime', () => {
     expect(model.doGenerateCalls[0].reasoning).toBeUndefined();
   });
 
+  it('caps background learning input at the working window, not the full model window', async () => {
+    const model = new MockLanguageModelV4({
+      doGenerate: async () => ({
+        content: [{ type: 'text', text: 'ok' }],
+        finishReason: { unified: 'stop', raw: undefined },
+        usage: {
+          inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+          outputTokens: { total: 1, text: 1, reasoning: 0 },
+        },
+        warnings: [],
+      }),
+    });
+
+    const settings = {
+      current: async () => ({
+        learning: { key: 'anthropic:large', effort: 'provider-default' },
+        models: [{ key: 'anthropic:large', model: 'anthropic:large', contextWindow: 1_000_000 }],
+      }),
+    } as ModelSettingsStore;
+
+    const sent = () => JSON.stringify(model.doGenerateCalls.at(-1)!.prompt).length;
+    const prompt = 'x'.repeat(900_000);
+
+    await createLearningGenerator(settings, () => model).generate({ system: 'extract', prompt });
+
+    // 200K working window -> about 100K tokens (400K chars) of input.
+    expect(sent()).toBeLessThan(420_000);
+
+    const widened = createLearningGenerator(settings, () => model, undefined, {
+      CODEBERG_CONTEXT_BUDGET: '1000000',
+    });
+    await widened.generate({ system: 'extract', prompt });
+
+    expect(sent()).toBeGreaterThan(900_000);
+  });
+
   it('reuses a chat loop only for the same model, effort and context window', async () => {
     const build = vi.fn(async () => ({}) as ToolLoopAgent);
     const pool = new ModelAgentPool({ build });
