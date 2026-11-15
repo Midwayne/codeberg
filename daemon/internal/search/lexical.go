@@ -88,7 +88,7 @@ func LexicalPattern(query string) string {
 			continue
 		}
 
-		if strings.ContainsAny(term, "_-0123456789") || strings.IndexAny(term[1:], "ABCDEFGHIJKLMNOPQRSTUVWXYZ") >= 0 {
+		if strings.ContainsAny(term, "_-0123456789") || strings.ContainsAny(term[1:], "ABCDEFGHIJKLMNOPQRSTUVWXYZ") {
 			if len(term) > len(codeTerm) {
 				codeTerm = term
 			}

@@ -60,10 +60,6 @@ type Daemon struct {
 	GitDirs  []string
 }
 
-func missing(name string) error {
-	return &Error{Var: name, Msg: "required"}
-}
-
 func invalid(name string) error {
 	return &Error{Var: name, Msg: "invalid value"}
 }

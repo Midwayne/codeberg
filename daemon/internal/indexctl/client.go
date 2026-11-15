@@ -46,7 +46,7 @@ func (c *Client) GetChunk(ctx context.Context, repo string, id uint64) (ChunkDet
 		return ChunkDetail{}, mapIndexerError(out.Error)
 	}
 
-	return chunkDetailFromPayload(out.Chunk), nil
+	return out.Chunk, nil
 }
 
 func (c *Client) FindSymbol(ctx context.Context, opts SymbolOptions) ([]SearchResult, error) {
@@ -131,19 +131,4 @@ func roundHits(ctx context.Context, socket, req string) ([]SearchResult, error) 
 	}
 
 	return out.Results, nil
-}
-
-func chunkDetailFromPayload(p chunkPayload) ChunkDetail {
-	return ChunkDetail{
-		ID:        p.ID,
-		Repo:      p.Repo,
-		Path:      p.Path,
-		Symbol:    p.Symbol,
-		Kind:      p.Kind,
-		StartLine: p.StartLine,
-		EndLine:   p.EndLine,
-		Snippet:   p.Snippet,
-		Body:      p.Body,
-		Truncated: p.Truncated,
-	}
 }
