@@ -6,7 +6,7 @@
  * Safety: bare identifiers (fmt, json, os) and slash-form stdlib/npm packages
  * (encoding/json) are never rewritten — only relative imports (./, ../), Rust
  * `::` paths, Go module-prefixed paths, multi-segment dotted names, or
- * source-file paths (…/*.h) are candidates. Package names from manifests are
+ * source-file paths (such as dir/file.h) are candidates. Package names from manifests are
  * never mapped onto arbitrary first files.
  */
 #include "codeberg/codeberg.h"

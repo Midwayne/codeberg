@@ -3,7 +3,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* The build defines this too; define it here only for standalone compiles. */
+#ifndef XXH_STATIC_LINKING_ONLY
 #define XXH_STATIC_LINKING_ONLY
+#endif
 #include "xxhash.h"
 
 static void digest128_to_out(XXH128_hash_t digest, uint8_t out[CBERG_HASH_LEN]) {
