@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 
-import { deleteSession, updateSessionFlags } from '../lib/sessions';
+import { deleteSession, renameSession, updateSessionFlags } from '../lib/sessions';
 import type { WorkspaceChat } from './workspace-chat';
 
 export type SessionMutationsOptions = {
@@ -56,5 +56,29 @@ export function useSessionMutations({
     [refresh, api],
   );
 
-  return { remove, setFlags };
+  const rename = useSessionRename({ chats, api, refresh, setSessionError });
+
+  return { remove, setFlags, rename };
+}
+
+type SessionRenameOptions = Pick<SessionMutationsOptions, 'chats' | 'api' | 'refresh' | 'setSessionError'>;
+
+function useSessionRename({ chats, api, refresh, setSessionError }: SessionRenameOptions) {
+  return useCallback(
+    async (id: string, title: string) => {
+      try {
+        await renameSession(id, title, api);
+
+        // An open chat resends its title with every save; keep it in step.
+        const open = chats.current.get(id);
+        if (open) open.title = title;
+
+        setSessionError('');
+        await refresh();
+      } catch (error) {
+        setSessionError(error instanceof Error ? error.message : 'Could not rename chat');
+      }
+    },
+    [refresh, api, chats, setSessionError],
+  );
 }

@@ -16,6 +16,19 @@ Recently viewed chats reopen without rebuilding their transcripts. Draft text st
 
 During loading, the previous composer is hidden. **Cancel** returns to the last viewed chat; selecting several chats opens only the latest. On failure, choose **Retry** or **Back to previous chat**. Deleted chats are identified explicitly.
 
+## Rename and organize chats
+
+A new chat is titled from its first question. Open the **⋯** menu beside a chat in the sidebar to change that:
+
+| Action | What happens |
+| --- | --- |
+| **Rename** | Enter a title of up to 200 characters and choose **Save title**. The chat keeps that title through later questions, in every tab, and chat search finds it by the new title. |
+| **Pin** / **Unpin** | Keeps the chat in the **Pinned** group at the top of the sidebar. |
+| **Archive** / **Unarchive** | Moves the chat to or from the archived view. Archiving does not cancel its schedules. |
+| **Delete** | Permanently removes the chat after confirmation. |
+
+Renaming does not change the chat's position in the list or its messages. A chat must be saved before it can be renamed, so wait for the first question to appear in the sidebar. Branches are titled from their conversation, not from a renamed parent.
+
 ## Stop, retry, or regenerate
 
 | Action | What happens |

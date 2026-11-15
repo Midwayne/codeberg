@@ -170,6 +170,7 @@ not built, the server falls back to a dependency-free single-file page, so
 | `GET` | `/api/sessions` | list saved chats, newest first |
 | `GET` | `/api/sessions/<id>` | load one saved chat, or 404 |
 | `PUT` | `/api/sessions/<id>` | upsert `{ title?, messages }` → `{ ok: true }` |
+| `PATCH` | `/api/sessions/<id>` | update `{ title?, pinned?, archived? }` → `{ ok: true }`, or 404; a renamed title survives later upserts |
 | `DELETE` | `/api/sessions/<id>` | delete a saved chat → 204 |
 | `GET` / `POST` | `/api/learning/dreaming` | list recent consolidation reports and jobs / queue a report |
 | `GET` / `POST` | `/api/learning/dreaming/<id>` | inspect snapshots / apply, undo, or dismiss a report |

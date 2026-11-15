@@ -30,6 +30,7 @@ export type WorkspaceSidebarProps = Pick<
   branchFrom: (throughIndex: number) => Promise<void>;
   remove: (id: string) => Promise<void>;
   setFlags: (id: string, flags: { pinned?: boolean; archived?: boolean }) => Promise<void>;
+  rename: (id: string, title: string) => Promise<void>;
 };
 
 export function WorkspaceSidebar({
@@ -46,6 +47,7 @@ export function WorkspaceSidebar({
   branchFrom,
   remove,
   setFlags,
+  rename,
 }: WorkspaceSidebarProps) {
   const schedules = useScheduleWorkspace();
 
@@ -53,13 +55,7 @@ export function WorkspaceSidebar({
     <SessionSidebar
       scheduledChatIds={new Set(schedules?.jobs?.filter(isActiveSchedule).map((job) => job.chatId))}
       projectControls={projectControls}
-      sidebarActions={
-        !desktop && (
-          <IconButton aria-label="Close chats" onClick={onSidebarClose}>
-            <X className="size-4" />
-          </IconButton>
-        )
-      }
+      sidebarActions={!desktop && <CloseChatsButton onClick={onSidebarClose} />}
       sessions={sessions}
       error={sessionError}
       currentId={load?.id ?? sessionId}
@@ -78,7 +74,16 @@ export function WorkspaceSidebar({
       }}
       onDelete={remove}
       onSetFlags={setFlags}
+      onRename={rename}
     />
+  );
+}
+
+function CloseChatsButton({ onClick }: { onClick: () => void }) {
+  return (
+    <IconButton aria-label="Close chats" onClick={onClick}>
+      <X className="size-4" />
+    </IconButton>
   );
 }
 

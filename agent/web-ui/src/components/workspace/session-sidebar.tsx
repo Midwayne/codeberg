@@ -2,6 +2,7 @@ import { useSessionSidebar } from './use-session-sidebar';
 import { SidebarHeader } from './sidebar-header';
 import { SidebarMenu, SidebarDelete } from './sidebar-actions';
 import { SessionRow } from './session-row';
+import { SidebarRename } from './rename-chat-dialog';
 
 import type { ReactNode } from 'react';
 
@@ -21,6 +22,7 @@ export type SessionSidebarProps = {
   onBranch: () => void;
   onDelete: (id: string) => void;
   onSetFlags: (id: string, flags: { pinned?: boolean; archived?: boolean }) => void;
+  onRename: (id: string, title: string) => void;
 };
 
 export function SessionSidebar(props: SessionSidebarProps) {
@@ -49,6 +51,7 @@ function SessionSidebarView(state: SessionSidebarViewProps) {
         <SessionGroups state={state} />
       </div>
       <SidebarMenu state={state} />
+      <SidebarRename state={state} />
       <SidebarDelete state={state} />
     </aside>
   );
@@ -75,10 +78,14 @@ export type SidebarMenuProps = { state: Parameters<typeof SessionSidebarView>[0]
 
 export type SidebarDeleteProps = { state: Parameters<typeof SessionSidebarView>[0] };
 
+export type SidebarRenameProps = { state: Parameters<typeof SessionSidebarView>[0] };
+
 export type SessionRowProps = Pick<Parameters<typeof SessionGroups>[0], 'state'> & { s: SessionSummary };
 
 export type SidebarHeaderProps = { state: Parameters<typeof SessionSidebarView>[0] };
 
 export { DeleteChatDialog } from './sidebar-actions';
+
+export { RenameChatDialog } from './rename-chat-dialog';
 
 export { SessionActionsMenu } from './sidebar-actions';

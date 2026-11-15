@@ -2,7 +2,7 @@ import { remove, removeOlder } from './deletion.js';
 import { list, load, search } from './reading.js';
 import type { WebSessionRecord, WebSessionSearchResult, WebSessionSummary } from './records.js';
 import { WebSessionStoreState } from './state.js';
-import { save, setFlags, upsert } from './writing.js';
+import { rename, save, setFlags, upsert } from './writing.js';
 
 /**
  * File-backed store of browser chat sessions under `<CODEBERG_HOME>/web-sessions/`,
@@ -41,6 +41,11 @@ export class WebSessionStore {
     return setFlags(this.state, id, flags);
   }
 
+  /** A renamed title survives later message saves. */
+  rename(id: string, title: string): Promise<WebSessionRecord | null> {
+    return rename(this.state, id, title);
+  }
+
   load(id: string): Promise<WebSessionRecord | null> {
     return load(this.state, id);
   }
@@ -67,4 +72,4 @@ export class WebSessionStore {
 
 export type { WebSessionRecord, WebSessionSearchResult, WebSessionSummary } from './records.js';
 
-export { isValidSessionId } from './records.js';
+export { isValidSessionId, normalizeSessionTitle } from './records.js';

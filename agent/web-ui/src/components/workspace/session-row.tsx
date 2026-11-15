@@ -39,7 +39,7 @@ export function SessionRow({ s, state }: SessionRowProps) {
           const bounds = event.currentTarget.getBoundingClientRect();
           state.setMenu({
             id: s.id,
-            top: Math.max(8, Math.min(bounds.bottom, window.innerHeight - 124)),
+            top: Math.max(8, Math.min(bounds.bottom, window.innerHeight - 156)),
             left: Math.max(8, bounds.right - 160),
           });
         }}

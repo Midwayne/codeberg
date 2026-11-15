@@ -47,7 +47,7 @@ export function useWorkspaceSession() {
   });
 
   const { branchFrom } = useChatBranch({ chat, transitionIntent, active, api, refresh, setActive, createChat, setSessionError });
-  const { remove, setFlags } = useSessionMutations({
+  const { remove, setFlags, rename } = useSessionMutations({
     cancelResume,
     chats,
     sessionId,
@@ -61,5 +61,5 @@ export function useWorkspaceSession() {
   const scheduledError = useScheduledChatUpdates(registry.chats, api);
 
   return { active, chat, renderedViews, sessions, sessionId, sessionError: sessionError || scheduledError,
-    load, cancelResume, resume, startNew, branchFrom, remove, setFlags };
+    load, cancelResume, resume, startNew, branchFrom, remove, setFlags, rename };
 }

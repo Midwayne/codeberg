@@ -124,4 +124,33 @@ describe('WebSessionStore', () => {
       messages: [userMsg('a', 'first'), userMsg('b', 'second')],
     });
   });
+
+  it('keeps a renamed title when later saves send the derived one', async () => {
+    const store = tempStore();
+    await store.upsert({ id: 'chat', title: 'first', messages: [userMsg('a', 'first')] });
+    const before = await store.load('chat');
+
+    const renamed = await store.rename('chat', 'Auth investigation');
+
+    expect(renamed).toMatchObject({ title: 'Auth investigation', updatedAt: before!.updatedAt });
+
+    await store.upsert({
+      id: 'chat',
+      title: 'first',
+      messages: [userMsg('a', 'first'), userMsg('b', 'second')],
+    });
+
+    expect(await store.load('chat')).toMatchObject({
+      title: 'Auth investigation',
+      messages: [userMsg('a', 'first'), userMsg('b', 'second')],
+    });
+    expect((await store.list())[0]).toMatchObject({ title: 'Auth investigation' });
+  });
+
+  it('does not create a chat when renaming a missing one', async () => {
+    const store = tempStore();
+
+    expect(await store.rename('missing', 'Anything')).toBeNull();
+    expect(await store.load('missing')).toBeNull();
+  });
 });

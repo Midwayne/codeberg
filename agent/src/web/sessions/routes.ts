@@ -5,7 +5,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { LearningService } from '../../core/learning/service.js';
 import { writeModuleLog } from '../../core/module-log.js';
 import { readJson, sendJson, sendText } from '../http.js';
-import { WebSessionStore, isValidSessionId } from './store.js';
+import { WebSessionStore, isValidSessionId, normalizeSessionTitle } from './store.js';
 
 const SESSIONS_PATH = '/api/sessions';
 
@@ -46,7 +46,7 @@ export async function routeSessions(
     case 'PUT':
       return saveSession(req, res, store, id, learning, canvas);
     case 'PATCH':
-      return updateSessionFlags(req, res, store, id);
+      return updateSession(req, res, store, id);
     case 'DELETE': {
       await store.remove(id);
       res.writeHead(204).end();
@@ -99,28 +99,50 @@ async function saveSession(
   return sendJson(res, 200, { ok: true });
 }
 
-async function updateSessionFlags(
+type SessionPatch = { title?: string; flags: { pinned?: boolean; archived?: boolean } };
+
+async function updateSession(
   req: IncomingMessage,
   res: ServerResponse,
   store: WebSessionStore,
   id: string,
 ): Promise<void> {
-  const body = await readJson(req);
-  if (
-    !body ||
-    typeof body !== 'object' ||
-    Array.isArray(body) ||
-    Object.keys(body).length === 0 ||
-    Object.entries(body).some(
-      ([key, value]) => (key !== 'pinned' && key !== 'archived') || typeof value !== 'boolean',
-    )
-  ) {
-    return sendText(res, 400, 'expected pinned and/or archived booleans');
+  const patch = readSessionPatch(await readJson(req));
+  if (!patch) {
+    return sendText(res, 400, 'expected a title and/or pinned and archived booleans');
   }
 
-  const record = await store.setFlags(id, body as { pinned?: boolean; archived?: boolean });
+  let record = patch.title === undefined ? undefined : await store.rename(id, patch.title);
+
+  if (record !== null && Object.keys(patch.flags).length > 0) {
+    record = await store.setFlags(id, patch.flags);
+  }
 
   return record ? sendJson(res, 200, { ok: true }) : sendText(res, 404, 'not found');
+}
+
+/** Accepts only known fields, so a typo cannot silently do nothing. */
+function readSessionPatch(body: unknown): SessionPatch | undefined {
+  if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).length === 0) {
+    return undefined;
+  }
+
+  const patch: SessionPatch = { flags: {} };
+
+  for (const [key, value] of Object.entries(body)) {
+    if (key === 'title') {
+      const title = normalizeSessionTitle(value);
+      if (!title) return undefined;
+
+      patch.title = title;
+    } else if ((key === 'pinned' || key === 'archived') && typeof value === 'boolean') {
+      patch.flags[key] = value;
+    } else {
+      return undefined;
+    }
+  }
+
+  return patch;
 }
 
 /** A valid session id that isn't the record itself — ignored otherwise. */

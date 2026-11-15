@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { DeleteChatDialog, SessionActionsMenu, SessionSidebar } from './session-sidebar';
+import { DeleteChatDialog, RenameChatDialog, SessionActionsMenu, SessionSidebar } from './session-sidebar';
 import type { SessionSummary } from '@/lib/sessions';
 
 const sessions: SessionSummary[] = [
@@ -17,7 +17,7 @@ function render(scheduledChatIds?: ReadonlySet<string>): string {
     scheduledChatIds={scheduledChatIds}
     currentId="pin" canBranch={false} onResume={() => undefined}
     onNew={() => undefined} onBranch={() => undefined}
-    onDelete={() => undefined} onSetFlags={() => undefined}
+    onDelete={() => undefined} onSetFlags={() => undefined} onRename={() => undefined}
   />);
 }
 
@@ -52,9 +52,23 @@ describe('SessionSidebar', () => {
 
   it('shows reversible options and delete in the single actions menu', () => {
     const html = renderToStaticMarkup(<SessionActionsMenu session={sessions[0]!} onAction={() => undefined} />);
+    expect(html).toContain('Rename');
+    expect(html.indexOf('Rename')).toBeLessThan(html.indexOf('Unarchive'));
     expect(html).toContain('Unarchive');
     expect(html).toContain('Pin');
     expect(html).toContain('Delete');
     expect(renderToStaticMarkup(<SessionActionsMenu session={sessions[1]!} onAction={() => undefined} />)).toContain('Unpin');
+  });
+
+  it('prefills the rename dialog with the current title and a labelled field', () => {
+    const html = renderToStaticMarkup(
+      <RenameChatDialog title="A saved investigation" onClose={() => undefined} onRename={() => undefined} />,
+    );
+
+    expect(html).toContain('<dialog');
+    expect(html).toContain('Chat title');
+    expect(html).toContain('value="A saved investigation"');
+    expect(html).toContain('maxLength="200"');
+    expect(html.indexOf('Cancel')).toBeLessThan(html.indexOf('Save title'));
   });
 });

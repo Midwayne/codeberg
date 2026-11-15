@@ -6,8 +6,10 @@ import type { MessageSearchHit } from '../../core/session-search.js';
  *  with full fidelity (tool cards, reasoning, citations). */
 export interface WebSessionRecord {
   id: string;
-  /** Derived from the first user message; shown in the sidebar. */
+  /** Derived from the first user message until the user renames it; shown in the sidebar. */
   title: string;
+  /** Set by a rename so later message saves keep the chosen title. */
+  titleEdited?: boolean;
   createdAt: number;
   updatedAt: number;
   messages: UIMessage[];
@@ -43,6 +45,17 @@ export type WebSessionSearchResult = WebSessionSummary & {
  */
 export function isValidSessionId(id: string): boolean {
   return /^[A-Za-z0-9_-]{1,64}$/.test(id);
+}
+
+export const MAX_SESSION_TITLE_LENGTH = 200;
+
+/** A user-chosen title on one line, or undefined when it is empty or too long. */
+export function normalizeSessionTitle(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+
+  const title = value.replace(/\s+/g, ' ').trim();
+
+  return title && title.length <= MAX_SESSION_TITLE_LENGTH ? title : undefined;
 }
 
 export function home(env: NodeJS.ProcessEnv = process.env): string {

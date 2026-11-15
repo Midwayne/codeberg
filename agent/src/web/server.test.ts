@@ -782,6 +782,13 @@ describe('web server', () => {
     expect((await patch('first', { pinned: true, archived: true })).status).toBe(200);
     expect((await patch('second', { pinned: true })).status).toBe(200);
 
+    expect((await patch('second', { title: '  Other   chat  ' })).status).toBe(200);
+    expect((await patch('second', { title: '   ' })).status).toBe(400);
+    expect((await patch('second', { title: 'x'.repeat(201) })).status).toBe(400);
+    expect((await patch('second', { title: 7 })).status).toBe(400);
+    expect((await patch('missing', { title: 'Nope' })).status).toBe(404);
+    await put('second', 'Derived title', 'Something else', 'The unique answer is here');
+
     const results = await (await fetch(`${url}?q=SECRET%20phrase`)).json();
     expect(results.map((item: { id: string }) => item.id)).toEqual(['first']);
     expect(results[0]).toMatchObject({ pinned: true, archived: true });

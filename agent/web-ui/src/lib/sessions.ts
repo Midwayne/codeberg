@@ -51,6 +51,15 @@ export async function updateSessionFlags(
   if (!response.ok) throw new Error(`Could not update chat (${response.status})`);
 }
 
+export async function renameSession(id: string, title: string, fetcher: typeof fetch = fetch): Promise<void> {
+  const response = await fetcher(`${BASE}/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title }),
+  });
+  if (!response.ok) throw new Error(`Could not rename chat (${response.status})`);
+}
+
 export async function loadSession(id: string, fetcher: typeof fetch = fetch): Promise<SessionRecord | null> {
   try {
     return await readSession(id, fetcher);

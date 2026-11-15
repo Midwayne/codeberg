@@ -1,6 +1,9 @@
-import { Archive, ArchiveRestore, Pin, PinOff, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, Pencil, Pin, PinOff, Trash2 } from 'lucide-react';
+
+import type { KeyboardEvent, ReactNode } from 'react';
 
 import type { SessionSummary } from '../../lib/sessions';
+import { cn } from '../../lib/utils';
 
 import { Dialog } from '../ui';
 import { MotionPresence } from '../motion-presence';
@@ -44,57 +47,63 @@ export function DeleteChatDialog({ title, onClose, onDelete }: DeleteChatDialogP
 
 export type SessionActionsMenuProps = {
   session: SessionSummary;
-  onAction: (action: 'pin' | 'archive' | 'delete') => void;
+  onAction: (action: 'rename' | 'pin' | 'archive' | 'delete') => void;
 };
 
 export function SessionActionsMenu({ session, onAction }: SessionActionsMenuProps) {
   return (
-    <div
-      role="menu"
-      aria-label={`Actions for ${session.title}`}
-      onKeyDown={(event) => {
-        if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
-        event.preventDefault();
-        const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'));
-        const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
-        const next =
-          event.key === 'Home'
-            ? 0
-            : event.key === 'End'
-              ? buttons.length - 1
-              : (current + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
-        buttons[next]?.focus();
-      }}
-    >
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => onAction('pin')}
-        className="flex w-full items-center gap-2 rounded px-2 py-2 text-left hover:bg-accent"
-      >
+    <div role="menu" aria-label={`Actions for ${session.title}`} onKeyDown={moveMenuFocus}>
+      <MenuItem onClick={() => onAction('rename')}>
+        <Pencil className="size-3.5" />
+        Rename
+      </MenuItem>
+      <MenuItem onClick={() => onAction('pin')}>
         {session.pinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
         {session.pinned ? 'Unpin' : 'Pin'}
-      </button>
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => onAction('archive')}
-        className="flex w-full items-center gap-2 rounded px-2 py-2 text-left hover:bg-accent"
-      >
+      </MenuItem>
+      <MenuItem onClick={() => onAction('archive')}>
         {session.archived ? <ArchiveRestore className="size-3.5" /> : <Archive className="size-3.5" />}
         {session.archived ? 'Unarchive' : 'Archive'}
-      </button>
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => onAction('delete')}
-        className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-destructive hover:bg-accent"
-      >
+      </MenuItem>
+      <MenuItem onClick={() => onAction('delete')} className="text-destructive">
         <Trash2 className="size-3.5" />
         Delete
-      </button>
+      </MenuItem>
     </div>
   );
+}
+
+type MenuItemProps = { onClick: () => void; className?: string; children: ReactNode };
+
+function MenuItem({ onClick, className, children }: MenuItemProps) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onClick}
+      className={cn('flex w-full items-center gap-2 rounded px-2 py-2 text-left hover:bg-accent', className)}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Arrow, Home, and End move between menu items, wrapping at either end. */
+function moveMenuFocus(event: KeyboardEvent<HTMLDivElement>) {
+  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+
+  event.preventDefault();
+
+  const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'));
+  const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
+  const next =
+    event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? buttons.length - 1
+        : (current + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
+
+  buttons[next]?.focus();
 }
 
 export function SidebarMenu({ state }: SidebarMenuProps) {
@@ -112,6 +121,7 @@ export function SidebarMenu({ state }: SidebarMenuProps) {
             const s = state.sessions.find((item) => item.id === state.menu!.id)!;
             state.setMenu(undefined);
             state.triggerRef.current?.focus();
+            if (action === 'rename') state.setRenaming(s);
             if (action === 'pin') state.onSetFlags(s.id, { pinned: !s.pinned });
             if (action === 'archive') state.onSetFlags(s.id, { archived: !s.archived });
             if (action === 'delete') state.setDeleting(s);

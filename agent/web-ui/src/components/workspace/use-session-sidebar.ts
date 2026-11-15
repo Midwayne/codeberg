@@ -14,6 +14,7 @@ export type SessionSidebarOptions = {
   onBranch: () => void;
   onDelete: (id: string) => void;
   onSetFlags: (id: string, flags: { pinned?: boolean; archived?: boolean }) => void;
+  onRename: (id: string, title: string) => void;
 };
 
 export function useSessionSidebar(options: SessionSidebarOptions) {
@@ -21,6 +22,7 @@ export function useSessionSidebar(options: SessionSidebarOptions) {
   const [view, setView] = useState<'active' | 'archived'>('active');
   const [menu, setMenu] = useState<{ id: string; top: number; left: number }>();
   const [deleting, setDeleting] = useState<SessionSummary>();
+  const [renaming, setRenaming] = useState<SessionSummary>();
   const menuRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   useSidebarMenuFocus({ menu, menuRef, triggerRef, setMenu });
@@ -42,6 +44,8 @@ export function useSessionSidebar(options: SessionSidebarOptions) {
     menuRef,
     setDeleting,
     deleting,
+    setRenaming,
+    renaming,
   };
 }
 

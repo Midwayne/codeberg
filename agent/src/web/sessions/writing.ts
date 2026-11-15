@@ -26,6 +26,8 @@ export async function upsert(
         : {}),
       pinned: existing?.pinned === true,
       archived: existing?.archived === true,
+      // Browser saves resend the derived title; a rename outranks it.
+      ...(existing?.titleEdited ? { title: existing.title, titleEdited: true } : {}),
     };
 
     await write(state, record);
@@ -44,6 +46,23 @@ export async function setFlags(
     if (!record) return null;
 
     const updated = { ...record, ...flags };
+    await write(state, updated);
+
+    return updated;
+  });
+}
+
+/** Leaves `updatedAt` alone so renaming does not reorder the sidebar. */
+export async function rename(
+  state: WebSessionStoreState,
+  id: string,
+  title: string,
+): Promise<WebSessionRecord | null> {
+  return serial(state, id, async () => {
+    const record = await load(state, id);
+    if (!record) return null;
+
+    const updated = { ...record, title, titleEdited: true };
     await write(state, updated);
 
     return updated;
