@@ -270,14 +270,26 @@ static cberg_status ensure_lang(cberg_chunker *ch, cberg_language lang, lang_des
     return CBERG_OK;
 }
 
-static cberg_status window_chunk(const char *path, const char *src, size_t src_len, cberg_chunk_list **out_list) {
+/* An empty chunk list with its arena, or NULL when out of memory. The caller
+ * owns it and releases it with cberg_chunk_list_free. */
+static cberg_chunk_list *chunk_list_new(void) {
     cberg_chunk_list *list = calloc(1, sizeof(cberg_chunk_list));
     if (list == NULL) {
-        return CBERG_ERR_OUT_OF_MEMORY;
+        return NULL;
     }
+
     list->arena = cberg_arena_new();
     if (list->arena == NULL) {
         free(list);
+        return NULL;
+    }
+
+    return list;
+}
+
+static cberg_status window_chunk(const char *path, const char *src, size_t src_len, cberg_chunk_list **out_list) {
+    cberg_chunk_list *list = chunk_list_new();
+    if (list == NULL) {
         return CBERG_ERR_OUT_OF_MEMORY;
     }
 
@@ -458,13 +470,8 @@ static cberg_status md_emit(cberg_chunk_list *list, chunk_occ_tracker *occ, cons
  * continue as extra chunks under the same symbol.
  */
 static cberg_status markdown_chunk(const char *path, const char *src, size_t src_len, cberg_chunk_list **out_list) {
-    cberg_chunk_list *list = calloc(1, sizeof(cberg_chunk_list));
+    cberg_chunk_list *list = chunk_list_new();
     if (list == NULL) {
-        return CBERG_ERR_OUT_OF_MEMORY;
-    }
-    list->arena = cberg_arena_new();
-    if (list->arena == NULL) {
-        free(list);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
     chunk_occ_tracker *occ = chunk_occ_new();
@@ -960,13 +967,8 @@ static cberg_status json_object_chunks(cfg_ctx *ctx, size_t len, int *out_handle
 }
 
 static cberg_status config_chunk(cberg_language lang, const char *path, const char *src, size_t src_len, cberg_chunk_list **out_list) {
-    cberg_chunk_list *list = calloc(1, sizeof(cberg_chunk_list));
+    cberg_chunk_list *list = chunk_list_new();
     if (list == NULL) {
-        return CBERG_ERR_OUT_OF_MEMORY;
-    }
-    list->arena = cberg_arena_new();
-    if (list->arena == NULL) {
-        free(list);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
     chunk_occ_tracker *occ = chunk_occ_new();
@@ -1024,15 +1026,8 @@ static cberg_status query_chunk(cberg_chunker *ch, lang_desc desc, cberg_languag
         return CBERG_ERR_OUT_OF_MEMORY;
     }
 
-    cberg_chunk_list *list = calloc(1, sizeof(cberg_chunk_list));
+    cberg_chunk_list *list = chunk_list_new();
     if (list == NULL) {
-        ts_query_cursor_delete(cursor);
-        ts_tree_delete(tree);
-        return CBERG_ERR_OUT_OF_MEMORY;
-    }
-    list->arena = cberg_arena_new();
-    if (list->arena == NULL) {
-        free(list);
         ts_query_cursor_delete(cursor);
         ts_tree_delete(tree);
         return CBERG_ERR_OUT_OF_MEMORY;

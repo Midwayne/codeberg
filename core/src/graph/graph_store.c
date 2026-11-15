@@ -1271,6 +1271,20 @@ static int path_matches_prefix(const char *path, const char *prefix, size_t pref
     return next == '\0' || next == '/' || prefix[prefix_len - 1] == '/';
 }
 
+/* A live node of an allowed kind, inside the graph's repo scope and under the
+ * path prefix. A zero kind mask and an empty prefix each match everything. */
+static int node_matches(const cberg_graph *graph, const graph_node_rec *rec, uint32_t kind_mask, const char *path_prefix, size_t prefix_len) {
+    if (rec->dead || (kind_mask != 0 && (kind_mask & CBERG_GNODE_MASK(rec->pub.kind)) == 0)) {
+        return 0;
+    }
+
+    if (graph->scope != NULL && (rec->repo == NULL || strcmp(rec->repo, graph->scope) != 0)) {
+        return 0;
+    }
+
+    return prefix_len == 0 || path_matches_prefix(cberg_graph_source_path(graph, &rec->pub), path_prefix, prefix_len);
+}
+
 cberg_status cberg_graph_find_nodes(const cberg_graph *graph, const char *name, uint32_t kind_mask, const char *path_prefix, const cberg_graph_node **out_nodes, size_t cap, size_t *out_count) {
     if (graph == NULL || out_count == NULL || (out_nodes == NULL && cap > 0)) {
         return CBERG_ERR_INVALID_ARGUMENT;
@@ -1285,12 +1299,7 @@ cberg_status cberg_graph_find_nodes(const cberg_graph *graph, const char *name, 
         }
         for (uint32_t i = (uint32_t)head; i != 0 && *out_count < cap; i = graph->nodes[i - 1].name_next) {
             const graph_node_rec *rec = &graph->nodes[i - 1];
-            if (rec->dead || (kind_mask != 0 && (kind_mask & CBERG_GNODE_MASK(rec->pub.kind)) == 0)) {
-                continue;
-            }
-            if (graph->scope != NULL && (rec->repo == NULL || strcmp(rec->repo, graph->scope) != 0))
-                continue;
-            if (prefix_len > 0 && !path_matches_prefix(cberg_graph_source_path(graph, &rec->pub), path_prefix, prefix_len)) {
+            if (!node_matches(graph, rec, kind_mask, path_prefix, prefix_len)) {
                 continue;
             }
             out_nodes[(*out_count)++] = &rec->pub;
@@ -1300,12 +1309,7 @@ cberg_status cberg_graph_find_nodes(const cberg_graph *graph, const char *name, 
 
     for (size_t i = 0; i < graph->nodes_len && *out_count < cap; i++) {
         const graph_node_rec *rec = &graph->nodes[i];
-        if (rec->dead || (kind_mask != 0 && (kind_mask & CBERG_GNODE_MASK(rec->pub.kind)) == 0)) {
-            continue;
-        }
-        if (graph->scope != NULL && (rec->repo == NULL || strcmp(rec->repo, graph->scope) != 0))
-            continue;
-        if (prefix_len > 0 && !path_matches_prefix(cberg_graph_source_path(graph, &rec->pub), path_prefix, prefix_len)) {
+        if (!node_matches(graph, rec, kind_mask, path_prefix, prefix_len)) {
             continue;
         }
         out_nodes[(*out_count)++] = &rec->pub;

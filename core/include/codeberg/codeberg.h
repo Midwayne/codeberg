@@ -655,7 +655,7 @@ CBERG_API cberg_status cberg_graph_load(const char *path, cberg_graph **out_grap
  * that resolve to a repo-relative file so they point at that FILE node with
  * resolution=import (confidence 0.95). Only relative (./ ../), Rust `::` paths,
  * Go module-prefixed imports, multi-segment dotted names, or source-file paths
- * (…/*.h) are candidates — bare identifiers and slash-form stdlib/npm packages
+ * (such as dir/file.h) are candidates — bare identifiers and slash-form stdlib/npm packages
  * (fmt, encoding/json) stay MODULE targets. Already-resolved FILE imports are
  * left alone (idempotent). Unresolved imports keep their MODULE target. Safe
  * to call repeatedly after applies.

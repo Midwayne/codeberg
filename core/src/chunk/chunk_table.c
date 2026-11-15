@@ -301,16 +301,7 @@ cberg_chunk_table *cberg_chunk_table_new(void) {
 }
 
 void cberg_chunk_table_free(cberg_chunk_table *table) {
-    if (table == NULL) {
-        return;
-    }
-    table_free_change_lists(table);
-    free(table->entries);
-    cberg_strmap_free(table->key_index);
-    cberg_u64map_free(table->id_index);
-    table_free_scratch(table);
-    cberg_arena_free(table->arena);
-    free(table);
+    table_discard(table);
 }
 
 void cberg_chunk_table_fingerprint(const cberg_chunk_table *table, uint8_t out[CBERG_HASH_LEN]) {
