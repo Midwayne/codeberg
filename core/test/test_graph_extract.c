@@ -5,6 +5,7 @@
  */
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include "codeberg/codeberg.h"
 #include "test_common.h"
@@ -245,7 +246,38 @@ static void test_non_code(void) {
     cberg_chunker_close(ch);
 }
 
+/* Generated tables (parsers, bundles) put tens of thousands of call sites in
+ * one scope. Binding must stay near-linear: before declarations were memoised
+ * per scope this input took minutes and stalled a cold index on one file. */
+static void test_generated_source_scales(void) {
+    enum { ENTRIES = 40000 };
+    size_t cap = 256 + (size_t)ENTRIES * 16;
+    char *src = malloc(cap);
+    CHECK(src != NULL, "allocate generated source");
+    if (src == NULL)
+        return;
+
+    size_t off = (size_t)snprintf(src, cap, "static int helper(void) { return 1; }\nstatic const int table[] = {\n");
+    for (int i = 0; i < ENTRIES; i++)
+        off += (size_t)snprintf(src + off, cap - off, "  ENTRY(%d),\n", i);
+    snprintf(src + off, cap - off, "};\nint run(void) { return helper(); }\n");
+
+    graph_corpus c;
+    CHECK(corpus_open(&c) == 0, "generated corpus");
+
+    clock_t started = clock();
+    CHECK(corpus_index(&c, CBERG_LANG_C, "generated.c", src) == CBERG_OK, "index generated source");
+    double seconds = (double)(clock() - started) / CLOCKS_PER_SEC;
+
+    CHECK(seconds < 10.0, "generated source binds in near-linear time");
+    CHECK(named_edge(&c, "run", "helper", CBERG_GEDGE_CALLS) != NULL, "calls after a large table still bind");
+
+    corpus_close(&c);
+    free(src);
+}
+
 int main(void) {
+    test_generated_source_scales();
     test_go();
     test_c_lang();
     test_python();

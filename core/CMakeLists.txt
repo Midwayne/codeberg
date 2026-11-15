@@ -94,6 +94,7 @@ set(CBERG_SOURCES
   src/graph/scope_syntax.c
   src/graph/scope_imports.c
   src/graph/scope_values.c
+  src/graph/scope_cache.c
   src/graph/scope_bind.c
   src/graph/resolve_pkg.c
   src/graph/resolve_relative.c

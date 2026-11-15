@@ -72,25 +72,53 @@ static int go_import(const graph_syntax *syntax, TSNode node, const char *name, 
     return 0;
 }
 
+int graph_import_node(TSNode node) {
+    return graph_is(node, "import_declaration") || graph_is(node, "import_statement");
+}
+
+static int import_binding(const graph_syntax *syntax, TSNode node, const char *name, graph_import *out, int *found) {
+    *found = 0;
+    if (syntax->fragment->lang == CBERG_LANG_GO) {
+        *found = graph_is(node, "import_declaration") && go_import(syntax, node, name, out);
+        return *found;
+    }
+
+    if (!graph_is(node, "import_statement") || !import_name(syntax, node, name, out))
+        return 0;
+
+    /* The first statement that names it decides, even when its source is unusable. */
+    char path[CBERG_GRAPH_NAME_MAX];
+    if (!graph_text(syntax, graph_field(node, "source"), path, sizeof path))
+        return 1;
+
+    size_t length = strlen(path);
+    if (length < 2)
+        return 1;
+
+    path[length - 1] = '\0';
+    snprintf(out->module, sizeof out->module, "%s", path + 1);
+    *found = 1;
+    return 1;
+}
+
 int graph_find_import(const graph_syntax *syntax, const char *name, graph_import *out) {
     memset(out, 0, sizeof(*out));
-    for (uint32_t i = 0; i < ts_node_named_child_count(syntax->root); i++) {
-        TSNode node = ts_node_named_child(syntax->root, i);
-        if (syntax->fragment->lang == CBERG_LANG_GO) {
-            if (graph_is(node, "import_declaration") && go_import(syntax, node, name, out))
-                return 1;
-        } else if (graph_is(node, "import_statement") && import_name(syntax, node, name, out)) {
-            char path[CBERG_GRAPH_NAME_MAX];
-            if (!graph_text(syntax, graph_field(node, "source"), path, sizeof path))
-                return 0;
+    int found = 0;
 
-            size_t length = strlen(path);
-            if (length < 2)
-                return 0;
-            path[length - 1] = '\0';
-            snprintf(out->module, sizeof out->module, "%s", path + 1);
-            return 1;
+    const TSNode *imports = NULL;
+    size_t count = 0;
+    if (graph_root_imports(syntax->cache, syntax->root, &imports, &count)) {
+        for (size_t i = 0; i < count; i++) {
+            if (import_binding(syntax, imports[i], name, out, &found))
+                return found;
         }
+
+        return 0;
+    }
+
+    for (uint32_t i = 0; i < ts_node_named_child_count(syntax->root); i++) {
+        if (import_binding(syntax, ts_node_named_child(syntax->root, i), name, out, &found))
+            return found;
     }
 
     return 0;

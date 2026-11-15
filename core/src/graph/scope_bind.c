@@ -94,9 +94,9 @@ static void bind_receiver(const graph_syntax *syntax, TSNode reference, TSNode r
     }
 }
 
-void cberg_graph_bind_call(const cberg_graph_fragment *fragment, TSNode root, TSNode reference, const char *source, size_t length, cberg_graph_binding *out) {
+void cberg_graph_bind_call(const cberg_graph_fragment *fragment, TSNode root, TSNode reference, const char *source, size_t length, cberg_graph_scope_cache *cache, cberg_graph_binding *out) {
     *out = (cberg_graph_binding){.local_def = -1, .kind = CBERG_BIND_LEGACY};
-    graph_syntax syntax = {.fragment = fragment, .root = root, .source = source, .length = length};
+    graph_syntax syntax = {.fragment = fragment, .root = root, .source = source, .length = length, .cache = cache};
     if (!graph_text(&syntax, reference, out->name, sizeof out->name))
         return;
 

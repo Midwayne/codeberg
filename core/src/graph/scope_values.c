@@ -23,22 +23,26 @@ static int declaration_names(const graph_syntax *syntax, TSNode node, const char
     return 0;
 }
 
-static int declaration_value(const graph_syntax *syntax, TSNode node, const char *name, TSNode *type) {
-    if (graph_is(node, "identifier") && (graph_is(ts_node_parent(node), "formal_parameters") || graph_is(ts_node_parent(node), "parameters")) &&
-        graph_name_is(syntax, node, name)) {
-        *type = (TSNode){0};
-        return 1;
-    }
+int graph_declaration_node(TSNode node) {
+    return graph_is(node, "variable_declarator") || graph_is(node, "required_parameter") ||
+           graph_is(node, "optional_parameter") || graph_is(node, "parameter_declaration") ||
+           graph_is(node, "var_spec") || graph_is(node, "short_var_declaration");
+}
 
-    if (graph_is(node, "variable_declarator") || graph_is(node, "required_parameter") ||
-        graph_is(node, "optional_parameter") || graph_is(node, "parameter_declaration") ||
-        graph_is(node, "var_spec")) {
-        if (!declaration_names(syntax, node, name))
+static int parameter_identifier(TSNode node) {
+    if (!graph_is(node, "identifier"))
+        return 0;
+
+    TSNode parent = ts_node_parent(node);
+    return graph_is(parent, "formal_parameters") || graph_is(parent, "parameters");
+}
+
+static int declaration_value(const graph_syntax *syntax, TSNode node, int parameter, const char *name, TSNode *type) {
+    if (parameter) {
+        if (!graph_name_is(syntax, node, name))
             return 0;
 
-        *type = graph_field(node, "type");
-        if (ts_node_is_null(*type))
-            *type = graph_field(node, "value");
+        *type = (TSNode){0};
         return 1;
     }
 
@@ -52,20 +56,33 @@ static int declaration_value(const graph_syntax *syntax, TSNode node, const char
                 return 1;
             }
         }
+
+        return 0;
     }
 
-    return 0;
+    if (!graph_declaration_node(node) || !declaration_names(syntax, node, name))
+        return 0;
+
+    *type = graph_field(node, "type");
+    if (ts_node_is_null(*type))
+        *type = graph_field(node, "value");
+    return 1;
+}
+
+/* Go, C and Python bind only to declarations that precede the reference. */
+static int declared_before_use(const graph_syntax *syntax) {
+    cberg_language lang = syntax->fragment->lang;
+    return lang == CBERG_LANG_GO || lang == CBERG_LANG_C || lang == CBERG_LANG_PYTHON;
 }
 
 static int find_declaration(const graph_syntax *syntax, TSNode node, const char *name, uint32_t position, TSNode *declaration, TSNode *type) {
     if (graph_scope_node(node))
         return 0;
     int future = ts_node_start_byte(node) >= position;
-    if (future && (syntax->fragment->lang == CBERG_LANG_GO || syntax->fragment->lang == CBERG_LANG_C ||
-                   syntax->fragment->lang == CBERG_LANG_PYTHON))
+    if (future && declared_before_use(syntax))
         return 0;
 
-    if (declaration_value(syntax, node, name, type)) {
+    if (declaration_value(syntax, node, parameter_identifier(node), name, type)) {
         *declaration = node;
         /* JS/TS lexical declarations shadow the entire block, but their value
          * cannot identify a receiver before initialization. */
@@ -85,17 +102,51 @@ static int find_declaration(const graph_syntax *syntax, TSNode node, const char 
     return 0;
 }
 
+/* Reference walk, used when no cache is available for this file. */
+static int walk_scope(const graph_syntax *syntax, TSNode scope, const char *name, uint32_t position, TSNode *declaration, TSNode *type) {
+    uint32_t count = ts_node_named_child_count(scope);
+    for (uint32_t i = count; i > 0; i--) {
+        if (find_declaration(syntax, ts_node_named_child(scope, i - 1), name, position, declaration, type))
+            return 1;
+    }
+
+    return 0;
+}
+
+/* Same answer as walk_scope: the cache lists declarations in that walk's order. */
+static int search_scope(const graph_syntax *syntax, TSNode scope, const char *name, uint32_t position, TSNode *declaration, TSNode *type) {
+    const graph_declaration *declarations = NULL;
+    size_t count = 0;
+    if (!graph_scope_declarations(syntax->cache, scope, &declarations, &count))
+        return walk_scope(syntax, scope, name, position, declaration, type);
+
+    int ordered = declared_before_use(syntax);
+    for (size_t i = 0; i < count; i++) {
+        TSNode node = declarations[i].node;
+        int future = ts_node_start_byte(node) >= position;
+        if (future && ordered)
+            continue;
+
+        if (!declaration_value(syntax, node, declarations[i].parameter, name, type))
+            continue;
+
+        *declaration = node;
+        if (future)
+            *type = (TSNode){0};
+        return 1;
+    }
+
+    return 0;
+}
+
 int graph_find_value(const graph_syntax *syntax, TSNode reference, const char *name, TSNode *declaration, TSNode *type) {
     uint32_t position = ts_node_start_byte(reference);
     for (TSNode scope = reference; !ts_node_is_null(scope); scope = ts_node_parent(scope)) {
         if (!graph_scope_node(scope))
             continue;
 
-        uint32_t count = ts_node_named_child_count(scope);
-        for (uint32_t i = count; i > 0; i--) {
-            if (find_declaration(syntax, ts_node_named_child(scope, i - 1), name, position, declaration, type))
-                return 1;
-        }
+        if (search_scope(syntax, scope, name, position, declaration, type))
+            return 1;
 
         /* A definition in this scope hides values from enclosing scopes. */
         if (graph_definition_in_scope(syntax, scope, name) >= 0)

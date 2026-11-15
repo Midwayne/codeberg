@@ -439,6 +439,9 @@ static cberg_status walk_matches(cberg_graph_fragment *frag, TSQuery *query, TSN
         return CBERG_ERR_OUT_OF_MEMORY;
     }
 
+    /* Optional: binding without it is identical, only slower on large files. */
+    cberg_graph_scope_cache *scopes = cberg_graph_scope_cache_new();
+
     cberg_status st = CBERG_OK;
     char text[CBERG_GRAPH_NAME_MAX];
     char container[CBERG_GRAPH_NAME_MAX];
@@ -467,7 +470,7 @@ static cberg_status walk_matches(cberg_graph_fragment *frag, TSQuery *query, TSN
                     break;
 
                 cberg_graph_binding binding;
-                cberg_graph_bind_call(frag, root, cap.node, src, src_len, &binding);
+                cberg_graph_bind_call(frag, root, cap.node, src, src_len, scopes, &binding);
                 st = add_bound_ref(frag, dedupe, CBERG_GEDGE_REFERENCES, 0, enclosing_def(frag, ts_node_start_byte(cap.node)), binding.name, line, &binding);
                 break;
             }
@@ -478,7 +481,7 @@ static cberg_status walk_matches(cberg_graph_fragment *frag, TSQuery *query, TSN
                     break;
                 }
                 cberg_graph_binding binding;
-                cberg_graph_bind_call(frag, root, cap.node, src, src_len, &binding);
+                cberg_graph_bind_call(frag, root, cap.node, src, src_len, scopes, &binding);
                 st = add_bound_ref(frag, dedupe, CBERG_GEDGE_CALLS, 0, enclosing_def(frag, ts_node_start_byte(cap.node)), binding.name, line, &binding);
                 break;
             }
@@ -528,6 +531,7 @@ static cberg_status walk_matches(cberg_graph_fragment *frag, TSQuery *query, TSN
         }
     }
 
+    cberg_graph_scope_cache_free(scopes);
     cberg_strmap_free(dedupe);
     ts_query_cursor_delete(cursor);
     return st;

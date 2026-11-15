@@ -82,7 +82,17 @@ void cberg_graph_extractor_free(cberg_graph_extractor *extractor);
  */
 cberg_status cberg_graph_extract(cberg_graph_extractor *extractor, const TSLanguage *ts_lang, cberg_language lang, TSNode root, const char *path, const char *src, size_t src_len, const cberg_chunk_list *chunks, cberg_graph_fragment **out_fragment);
 
-void cberg_graph_bind_call(const cberg_graph_fragment *fragment, TSNode root, TSNode reference, const char *source, size_t length, cberg_graph_binding *out);
+/*
+ * Per-file declaration memo for call binding. Create one per extracted tree
+ * and free it with the tree: it borrows that tree's nodes. NULL is accepted
+ * everywhere and binds identically, only slower on large files.
+ */
+typedef struct cberg_graph_scope_cache cberg_graph_scope_cache;
+
+cberg_graph_scope_cache *cberg_graph_scope_cache_new(void);
+void cberg_graph_scope_cache_free(cberg_graph_scope_cache *cache);
+
+void cberg_graph_bind_call(const cberg_graph_fragment *fragment, TSNode root, TSNode reference, const char *source, size_t length, cberg_graph_scope_cache *cache, cberg_graph_binding *out);
 int cberg_graph_reference_use(TSNode reference);
 
 /* Internal: rewrite one IMPORTS edge onto a resolved FILE (resolve_pkg.c). */
