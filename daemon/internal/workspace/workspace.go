@@ -105,6 +105,17 @@ func (w *Workspace) rootFor(repo string) (string, error) {
 	return w.byKey[key], nil
 }
 
+// resolvePath returns the absolute path of a repo-relative path, rejecting
+// paths that leave the repository root.
+func (w *Workspace) resolvePath(repo, path string) (string, error) {
+	root, err := w.rootFor(repo)
+	if err != nil {
+		return "", err
+	}
+
+	return resolve(root, path)
+}
+
 func (w *Workspace) RepoRoot(repo string) (string, error) {
 	root, err := w.rootFor(repo)
 	if err != nil {

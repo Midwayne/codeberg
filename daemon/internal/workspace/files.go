@@ -44,12 +44,7 @@ func (w *Workspace) Glob(_ context.Context, pattern, repo string, limit int) ([]
 }
 
 func (w *Workspace) ReadFile(repo, path string, startLine, endLine uint32) (FileContent, error) {
-	root, err := w.rootFor(repo)
-	if err != nil {
-		return FileContent{}, err
-	}
-
-	full, err := resolve(root, path)
+	full, err := w.resolvePath(repo, path)
 	if err != nil {
 		return FileContent{}, err
 	}
@@ -72,12 +67,7 @@ func (w *Workspace) ReadFile(repo, path string, startLine, endLine uint32) (File
 }
 
 func (w *Workspace) ListDir(repo, path string) ([]DirEntry, error) {
-	root, err := w.rootFor(repo)
-	if err != nil {
-		return nil, err
-	}
-
-	full, err := resolve(root, path)
+	full, err := w.resolvePath(repo, path)
 	if err != nil {
 		return nil, err
 	}
@@ -99,12 +89,7 @@ func (w *Workspace) ListDir(repo, path string) ([]DirEntry, error) {
 }
 
 func (w *Workspace) ReadRaw(repo, path string) ([]byte, error) {
-	root, err := w.rootFor(repo)
-	if err != nil {
-		return nil, err
-	}
-
-	full, err := resolve(root, path)
+	full, err := w.resolvePath(repo, path)
 	if err != nil {
 		return nil, err
 	}
