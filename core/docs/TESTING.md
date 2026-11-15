@@ -1,6 +1,6 @@
 # Testing the C core
 
-Unit and integration tests live under `core/test/` and `core/cmd/cberg-index/`.
+Unit and integration tests live under `core/test/` and `core/cmd/cberg-index/test/`.
 They run via CTest from the repo root:
 
 ```sh
@@ -33,8 +33,8 @@ make check                   # build + test (CI gate)
 | `test_index_providers` | `test/` | usearch + optional qdrant/pgvector at dim 4 and 768 |
 | `test_embed` | `test/` | ONNX embedding pipeline |
 | `test_search` | `test/` | `cberg_search_query` end-to-end |
-| `test_cberg_walk` | `cmd/cberg-index/` | Walk policy, skip directories |
-| `test_cberg_engine` | `cmd/cberg-index/` | Multi-root engine bootstrap + step + graph IPC |
+| `test_cberg_walk` | `cmd/cberg-index/test/` | Walk policy, skip directories |
+| `test_cberg_engine` | `cmd/cberg-index/test/` | Multi-root engine bootstrap + step + graph IPC |
 
 ---
 

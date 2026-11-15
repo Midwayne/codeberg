@@ -6,7 +6,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "../../test/test_common.h"
+#include "../../../test/test_common.h"
 #include "indexer.h"
 
 static void put(const char *root, const char *file, const char *body) {

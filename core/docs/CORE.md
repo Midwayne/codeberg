@@ -588,8 +588,8 @@ not exposed in the public header.
 | `test_index` | usearch add/search/save |
 | `test_embed` | ONNX embed (needs `CBERG_TEST_MODEL`; SKIP 77 without) |
 | `test_search` | End-to-end semantic query (needs model; SKIP 77 without) |
-| `test_cberg_walk` | Walk policy and skip dirs (`cmd/cberg-index/`) |
-| `test_cberg_engine` | Multi-root engine integration (`cmd/cberg-index/`) |
+| `test_cberg_walk` | Walk policy and skip dirs (`cmd/cberg-index/test/`) |
+| `test_cberg_engine` | Multi-root engine integration (`cmd/cberg-index/test/`) |
 
 ```sh
 cd core/build && ctest --output-on-failure

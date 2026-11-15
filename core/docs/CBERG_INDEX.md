@@ -30,6 +30,7 @@ full indexing loop for one or many repository roots in a single process. The Go
 | `ipc_wire.c` | Request fields and JSON response building |
 | `ipc_chunk_commands.c`, `ipc_graph_commands.c` | One handler per IPC command |
 | `wipe.c` | `--wipe` index removal |
+| `test/` | Integration tests and the scripted embedding worker they drive |
 
 ---
 

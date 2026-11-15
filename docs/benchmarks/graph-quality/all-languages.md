@@ -141,7 +141,7 @@ scores. The [original report](README.md#reproduce) documents relinking the same
 evaluator against a frozen baseline archive. The first-pass library is an
 uncommitted session snapshot; its archive checksum is recorded in the summary,
 not represented as a separate commit. The workspace fixture and its full oracle
-are in `core/cmd/cberg-index/test_workspace_graph.c`.
+are in `core/cmd/cberg-index/test/test_workspace_graph.c`.
 
 - [Parent scores](all-languages/parent.jsonl), [first-pass scores](all-languages/first-pass.jsonl), [current scores](all-languages/current.jsonl).
 - [Five workspace trials](all-languages/workspace-trials.json), [five core trials](all-languages/core-bench-trials.json).
