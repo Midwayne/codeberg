@@ -26,7 +26,9 @@ full indexing loop for one or many repository roots in a single process. The Go
 | `query_graph.c` | Knowledge-graph queries |
 | `embedding.c` | Embedder lifecycle (lazy load, idle eviction) |
 | `workspace_graph.c`, `workspace_resolve.c` | Cross-repository graph view |
-| `ipc.c` | Unix-socket protocol |
+| `ipc.c` | Unix-socket server: ownership lock, accept loop, command table |
+| `ipc_wire.c` | Request fields and JSON response building |
+| `ipc_chunk_commands.c`, `ipc_graph_commands.c` | One handler per IPC command |
 | `wipe.c` | `--wipe` index removal |
 
 ---

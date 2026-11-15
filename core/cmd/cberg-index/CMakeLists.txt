@@ -11,6 +11,9 @@ set(CBERG_INDEX_ENGINE_SOURCES
   query_graph.c
   embedding.c
   ipc.c
+  ipc_wire.c
+  ipc_chunk_commands.c
+  ipc_graph_commands.c
   workspace_graph.c
   workspace_resolve.c
 )
