@@ -1055,12 +1055,27 @@ static cberg_graph_edge make_edge(uint64_t src, uint64_t dst, uint8_t kind, cber
 
 #define GRAPH_CONF_IMPORT 0.95f
 
+/* How a ref was resolved; refs stored without a resolution are textual matches. */
+static cberg_graph_resolution ref_resolution(const graph_ref_rec *ref) {
+    return ref->resolution != 0 ? (cberg_graph_resolution)ref->resolution : CBERG_GRES_TEXTUAL;
+}
+
+/* Confidence of a ref bound to a known node: same-file bindings rank below
+ * import-resolved ones, which rank below exact ones. */
+static float bound_ref_confidence(const graph_ref_rec *ref, cberg_graph_resolution resolution) {
+    if (ref->binding == CBERG_BIND_LOCAL) {
+        return GRAPH_CONF_SAME_FILE;
+    }
+
+    return resolution == CBERG_GRES_IMPORT ? GRAPH_CONF_IMPORT : GRAPH_CONF_EXACT;
+}
+
 static int emit_ref_candidates(const cberg_graph *g, const graph_ref_rec *ref, int as_source, graph_edge_sink sink, void *ctx, resolve_memo *memo) {
     graph_candidates cands;
     resolve_name_cached(g, ref, memo, &cands);
     for (size_t c = 0; c < cands.count; c++) {
         uint64_t cand_id = g->nodes[cands.idx[c]].pub.id;
-        cberg_graph_resolution res = ref->resolution != 0 ? (cberg_graph_resolution)ref->resolution : CBERG_GRES_TEXTUAL;
+        cberg_graph_resolution res = ref_resolution(ref);
         cberg_graph_edge edge = as_source ? make_edge(cand_id, ref->src, ref->kind, res, cands.confidence, ref->line)
                                           : make_edge(ref->src, cand_id, ref->kind, res, cands.confidence, ref->line);
         if (sink(ctx, &edge)) {
@@ -1104,10 +1119,8 @@ static int emit_edges_from(const cberg_graph *g, const graph_node_rec *rec, uint
                 if (dst == NULL) {
                     continue;
                 }
-                cberg_graph_resolution res =
-                    ref->resolution != 0 ? (cberg_graph_resolution)ref->resolution : CBERG_GRES_TEXTUAL;
-                float conf = ref->binding == CBERG_BIND_LOCAL ? GRAPH_CONF_SAME_FILE : res == CBERG_GRES_IMPORT ? GRAPH_CONF_IMPORT
-                                                                                                                : GRAPH_CONF_EXACT;
+                cberg_graph_resolution res = ref_resolution(ref);
+                float conf = bound_ref_confidence(ref, res);
                 cberg_graph_edge edge = make_edge(id, ref->dst, ref->kind, res, conf, ref->line);
                 if (sink(ctx, &edge)) {
                     return 1;
@@ -1133,7 +1146,7 @@ static int emit_edges_from(const cberg_graph *g, const graph_node_rec *rec, uint
             if (!candidates_contain(&cands, self_index)) {
                 continue;
             }
-            cberg_graph_resolution res = ref->resolution != 0 ? (cberg_graph_resolution)ref->resolution : CBERG_GRES_TEXTUAL;
+            cberg_graph_resolution res = ref_resolution(ref);
             cberg_graph_edge edge = make_edge(id, ref->src, ref->kind, res, cands.confidence, ref->line);
             if (sink(ctx, &edge)) {
                 return 1;
@@ -1165,10 +1178,8 @@ static int emit_edges_to(const cberg_graph *g, const graph_node_rec *rec, uint32
             if (ref->dead || ref->rev || (mask & ref->kind) == 0 || node_rec_by_id(g, ref->src) == NULL) {
                 continue;
             }
-            cberg_graph_resolution res =
-                ref->resolution != 0 ? (cberg_graph_resolution)ref->resolution : CBERG_GRES_TEXTUAL;
-            float conf = ref->binding == CBERG_BIND_LOCAL ? GRAPH_CONF_SAME_FILE : res == CBERG_GRES_IMPORT ? GRAPH_CONF_IMPORT
-                                                                                                            : GRAPH_CONF_EXACT;
+            cberg_graph_resolution res = ref_resolution(ref);
+            float conf = bound_ref_confidence(ref, res);
             cberg_graph_edge edge = make_edge(ref->src, id, ref->kind, res, conf, ref->line);
             if (sink(ctx, &edge)) {
                 return 1;
@@ -1190,7 +1201,7 @@ static int emit_edges_to(const cberg_graph *g, const graph_node_rec *rec, uint32
             if (!candidates_contain(&cands, self_index)) {
                 continue;
             }
-            cberg_graph_resolution res = ref->resolution != 0 ? (cberg_graph_resolution)ref->resolution : CBERG_GRES_TEXTUAL;
+            cberg_graph_resolution res = ref_resolution(ref);
             cberg_graph_edge edge = make_edge(ref->src, id, ref->kind, res, cands.confidence, ref->line);
             if (sink(ctx, &edge)) {
                 return 1;

@@ -348,14 +348,6 @@ static cberg_status pgvector_wipe(const char *path, size_t dim, const cberg_inde
     return st;
 }
 
-const cberg_index_provider_ops cberg_pgvector_provider = {
-    .id = CBERG_INDEX_PGVECTOR,
-    .name = "pgvector",
-    .rebuild_inplace = 1,
-    .open = pgvector_open,
-    .wipe = pgvector_wipe,
-};
-
 #else /* !CBERG_WITH_PGVECTOR */
 
 static cberg_status pgvector_open(const char *path, size_t dim, const cberg_index_config *config, cberg_index_backend **out_backend) {
@@ -375,6 +367,8 @@ static cberg_status pgvector_wipe(const char *path, size_t dim, const cberg_inde
     return CBERG_ERR_NOT_IMPLEMENTED;
 }
 
+#endif /* CBERG_WITH_PGVECTOR */
+
 const cberg_index_provider_ops cberg_pgvector_provider = {
     .id = CBERG_INDEX_PGVECTOR,
     .name = "pgvector",
@@ -382,5 +376,3 @@ const cberg_index_provider_ops cberg_pgvector_provider = {
     .open = pgvector_open,
     .wipe = pgvector_wipe,
 };
-
-#endif /* CBERG_WITH_PGVECTOR */

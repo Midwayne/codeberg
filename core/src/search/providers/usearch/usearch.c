@@ -324,14 +324,6 @@ static cberg_status usearch_wipe(const char *path, size_t dim, const cberg_index
     return CBERG_OK;
 }
 
-const cberg_index_provider_ops cberg_usearch_provider = {
-    .id = CBERG_INDEX_USEARCH,
-    .name = "usearch",
-    .rebuild_inplace = 0,
-    .open = usearch_open,
-    .wipe = usearch_wipe,
-};
-
 cberg_status cberg_usearch_index_active_expansion(const cberg_index *index, size_t *out) {
     if (index == NULL || out == NULL || index->provider != CBERG_INDEX_USEARCH || index->backend == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
@@ -370,14 +362,6 @@ static cberg_status usearch_wipe(const char *path, size_t dim, const cberg_index
     return CBERG_ERR_NOT_IMPLEMENTED;
 }
 
-const cberg_index_provider_ops cberg_usearch_provider = {
-    .id = CBERG_INDEX_USEARCH,
-    .name = "usearch",
-    .rebuild_inplace = 0,
-    .open = usearch_open,
-    .wipe = usearch_wipe,
-};
-
 cberg_status cberg_usearch_index_active_expansion(const cberg_index *index, size_t *out) {
     (void)index;
     (void)out;
@@ -391,3 +375,11 @@ cberg_status cberg_usearch_index_stored_quant(const cberg_index *index, cberg_in
 }
 
 #endif /* CBERG_WITH_USEARCH */
+
+const cberg_index_provider_ops cberg_usearch_provider = {
+    .id = CBERG_INDEX_USEARCH,
+    .name = "usearch",
+    .rebuild_inplace = 0,
+    .open = usearch_open,
+    .wipe = usearch_wipe,
+};
