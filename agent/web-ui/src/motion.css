@@ -81,6 +81,29 @@ dialog[data-ui-dialog][open]::backdrop {
   opacity: 1;
 }
 
+/* A branch copies the transcript, so only motion shows that the chat changed. */
+@keyframes branch-arrival {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes branch-marker {
+  from {
+    opacity: 0;
+    transform: scaleX(0.92);
+  }
+}
+
+[data-branch-arrival='true'] {
+  animation: branch-arrival 280ms var(--ui-ease-out);
+}
+
+[data-branch-arrival='true'] .branch-marker {
+  animation: branch-marker 420ms var(--ui-ease-out) 120ms backwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   dialog[data-ui-dialog] {
     --ui-enter: 100ms;
@@ -99,6 +122,19 @@ dialog[data-ui-dialog][open]::backdrop {
     transform: none;
     transition-duration: 100ms;
   }
+
+  /* Keep the cue that the chat changed, without the movement. */
+  @keyframes branch-arrival {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes branch-marker {
+    from {
+      opacity: 0;
+    }
+  }
 }
 
 /* Capture-phase input tracking makes keyboard-triggered state changes instant. */
@@ -107,4 +143,9 @@ dialog[data-ui-dialog][open]::backdrop {
 :root[data-ui-motion='instant'] .ui-confirmation,
 :root[data-ui-motion='instant'] .ui-success {
   transition: none;
+}
+
+:root[data-ui-motion='instant'] [data-branch-arrival='true'],
+:root[data-ui-motion='instant'] [data-branch-arrival='true'] .branch-marker {
+  animation: none;
 }

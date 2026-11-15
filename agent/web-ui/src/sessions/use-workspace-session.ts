@@ -1,5 +1,6 @@
 import { useSessionMutations } from './use-session-mutations';
-import { useChatTransitions, useChatBranch } from './use-chat-transitions';
+import { useChatTransitions } from './use-chat-transitions';
+import { useChatBranch } from './use-chat-branch';
 import { useChatRegistry } from './use-chat-registry';
 
 import { useProjectApi } from '../lib/project-api';

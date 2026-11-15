@@ -1,5 +1,5 @@
 import { useChat } from '@ai-sdk/react';
-import { Activity, useLayoutEffect, useState } from 'react';
+import { Activity, useEffect, useLayoutEffect, useState } from 'react';
 
 import { retainChatViews } from '../../sessions/retained-chats';
 import type { WorkspaceChat } from '../../sessions/workspace-chat';
@@ -39,11 +39,34 @@ export function ChatViews({ active, hidden, renderedViews, ...props }: ChatViews
 function RetainedChat({ active, ...props }: Omit<ChatViewsProps, 'renderedViews'>) {
   const chat = useChat({ chat: active.chat });
   const mediaRef = usePauseMedia();
+  const arrival = useBranchArrival(active);
 
   return (
-    <div ref={mediaRef} className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <div ref={mediaRef} data-branch-arrival={arrival} className="flex min-h-0 min-w-0 flex-1 flex-col">
       <ChatSaveNotice state={active.persistence} />
-      <Chat {...props} chat={chat} turns={active.turns} sessionId={active.id} draftStore={active.draft} />
+      <Chat {...props} chat={chat} turns={active.turns} sessionId={active.id} draftStore={active.draft} branch={active.branch} />
     </div>
   );
+}
+
+const BRANCH_ARRIVAL_MS = 600;
+
+/** A new branch arrives once; returning to it later must not replay the motion. */
+function useBranchArrival(active: WorkspaceChat) {
+  const [arriving, setArriving] = useState(() => Boolean(active.branch && !active.branch.announced));
+
+  // A timer, not `animationend`: reduced or instant motion may never run the animation.
+  useEffect(() => {
+    if (!arriving) return;
+
+    const timer = window.setTimeout(() => {
+      if (active.branch) active.branch.announced = true;
+
+      setArriving(false);
+    }, BRANCH_ARRIVAL_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [arriving, active]);
+
+  return arriving ? 'true' : undefined;
 }

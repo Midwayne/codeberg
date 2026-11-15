@@ -29,6 +29,19 @@ A new chat is titled from its first question. Open the **⋯** menu beside a cha
 
 Renaming does not change the chat's position in the list or its messages. A chat must be saved before it can be renamed, so wait for the first question to appear in the sidebar. Branches are titled from their conversation, not from a renamed parent.
 
+## Branch a chat
+
+Branching copies a conversation into a new chat so you can try a different direction without changing the original.
+
+| Control | What is copied |
+| --- | --- |
+| **Branch chat** beside **New chat** | The whole conversation. |
+| **Branch from here** under a message | The conversation up to that message; a question is copied together with its answer. |
+
+Codeberg opens the branch immediately. A **Branched from** line marks where the copied messages end, and the branch appears in the sidebar with a branch icon and a title ending in **(branch)**. The line is shown until the tab is reloaded; the sidebar icon remains.
+
+Both controls are unavailable while a response is running. If the branch cannot be saved, it stays open with a **Retry save** notice; keep the tab open until the save succeeds.
+
 ## Stop, retry, or regenerate
 
 | Action | What happens |

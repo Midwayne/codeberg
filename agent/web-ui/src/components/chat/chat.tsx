@@ -30,6 +30,8 @@ export type ChatProps = {
   chatInputs: CatalogModel['inputs'];
   jump?: { messageId: string; nonce: number };
   draftStore?: { text: string };
+  /** Marks where a chat branched during this page session. */
+  branch?: { parentTitle: string; messageCount: number };
 };
 
 export function Chat(props: ChatProps) {
@@ -40,7 +42,7 @@ export function Chat(props: ChatProps) {
 
 export type ChatViewOptions = ChatProps;
 
-export function useChatView({ chat, turns, onBranch, sessionId, learningEnabled, chatInputs, jump, draftStore }: ChatViewOptions) {
+export function useChatView({ chat, turns, onBranch, sessionId, learningEnabled, chatInputs, jump, draftStore, branch }: ChatViewOptions) {
   const { ready } = useProjectApi();
   const { messages, status, error } = chat;
   const queue = useTurnQueue(turns, chat);
@@ -69,6 +71,7 @@ export function useChatView({ chat, turns, onBranch, sessionId, learningEnabled,
     ready,
     regenerate: queue.regenerate,
     onBranch,
+    branch,
     status,
     error,
     holdAutoScroll,
@@ -109,6 +112,7 @@ export function ChatView(state: ChatViewProps) {
               busy={state.busy}
               onRegenerate={onRegenerate}
               onBranch={state.onBranch}
+              branch={state.branch}
             />
 
             <WorkingStatus status={state.status} messages={state.messages} steering={state.queue.snapshot.steering} />

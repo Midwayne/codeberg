@@ -15,10 +15,20 @@ export interface WorkspaceChatSave {
   parentId?: string;
 }
 
+/** Where a chat forked, so its view can mark the copied part of the transcript. */
+export interface ChatBranchOrigin {
+  parentTitle: string;
+  messageCount: number;
+  /** Set once the arrival animation has played, so reopening the chat stays still. */
+  announced?: boolean;
+}
+
 export interface WorkspaceChat {
   id: string;
   title?: string;
   parentId?: string;
+  /** Present only on a chat branched during this page session. */
+  branch?: ChatBranchOrigin;
   chat: Chat<UIMessage>;
   turns: TurnQueue;
   persistence: ChatSaveState;
@@ -27,6 +37,8 @@ export interface WorkspaceChat {
   readonly disposed: boolean;
   readonly createdAt: number;
   dispose: () => Promise<void>;
+  /** Write the current transcript through the same queue as turn saves. */
+  save: () => Promise<void>;
   reload: (record: WorkspaceChatSave) => Promise<boolean>;
 }
 
@@ -76,6 +88,7 @@ export function createWorkspaceChat(options: CreateWorkspaceChatOptions): Worksp
     persistence: persistence.state,
     draft: { text: '' },
     createdAt: Date.now(),
+    save: () => persistence.save(chat.messages),
     reload: (record) => reloadWorkspaceChat(workspace, record, persistence.settled, () => runTransport?.reset()),
     get disposed() { return disposed; },
     dispose: async () => {

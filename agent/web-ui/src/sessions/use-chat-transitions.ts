@@ -1,68 +1,9 @@
-import type { UseChatHelpers } from '@ai-sdk/react';
 import type { UIMessage } from 'ai';
 import { useCallback, useEffect } from 'react';
-import { createChatBranch } from '../lib/branch';
-
-import { deriveTitle, newSessionId, saveSession } from '../lib/sessions';
+import { newSessionId } from '../lib/sessions';
 import type { WorkspaceChat } from './workspace-chat';
 import { createChatResume, type ChatLoad } from './chat-resume';
 import { restoreChatSelection } from './chat-activation';
-
-export type ChatBranchOptions = {
-  chat: UseChatHelpers<UIMessage>;
-  transitionIntent: React.RefObject<number>;
-  active: WorkspaceChat;
-  api: typeof fetch;
-  refresh: () => Promise<void>;
-  setActive: React.Dispatch<React.SetStateAction<WorkspaceChat>>;
-  createChat: (id: string, messages: UIMessage[], parentId?: string, title?: string) => WorkspaceChat;
-  setSessionError: (error: string) => void;
-};
-
-export function useChatBranch({
-  chat,
-  transitionIntent,
-  active,
-  api,
-  refresh,
-  setActive,
-  createChat,
-  setSessionError,
-}: ChatBranchOptions) {
-  const branchFrom = useCallback(
-    async (throughIndex: number) => {
-      if (chat.status !== 'ready' || chat.messages.length === 0 || throughIndex < 0) return;
-      const intent = ++transitionIntent.current;
-      const sourceId = active.id;
-      const sourceMessages = chat.messages;
-
-      try {
-        // Persist the parent first so the lineage target exists on disk.
-        await saveSession(
-          {
-            id: sourceId,
-            title: active.title ?? deriveTitle(sourceMessages),
-            messages: sourceMessages,
-            parentId: active.parentId,
-          },
-          api,
-        );
-
-        const next = createChatBranch(sourceMessages, throughIndex, sourceId);
-        await saveSession(next, api);
-        void refresh();
-
-        if (intent !== transitionIntent.current) return;
-        setActive(createChat(next.id, next.messages, next.parentId, next.title));
-      } catch (error) {
-        setSessionError(error instanceof Error ? error.message : 'Could not branch chat.');
-      }
-    },
-    [active, chat, createChat, refresh, api, setSessionError],
-  );
-
-  return { branchFrom };
-}
 
 export type ChatTransitionsOptions = {
   transitionIntent: React.RefObject<number>;
