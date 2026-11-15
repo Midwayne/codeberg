@@ -28,6 +28,7 @@ extern const TSLanguage *tree_sitter_rust(void);
 extern const TSLanguage *tree_sitter_ruby(void);
 
 #define CBERG_WINDOW_LINES 50
+#define CBERG_CONFIG_MAX_KEYS 256
 #define CBERG_LANG_SLOTS 10
 
 _Static_assert((int)CBERG_LANG_RUBY + 1 == CBERG_LANG_SLOTS, "update CBERG_LANG_SLOTS when adding tree-sitter languages");
@@ -988,7 +989,11 @@ static cberg_status config_chunk(cberg_language lang, const char *path, const ch
         cberg_chunk_list_free(list);
         return st;
     }
-    if ((lang == CBERG_LANG_JSON && !json_handled) || list->len == 0) {
+    /* Past this many keys the file is a data table (vocabulary, lockfile,
+     * fixture), not configuration; windows keep it searchable without one
+     * embedding per entry. */
+    int data_file = list->len > CBERG_CONFIG_MAX_KEYS;
+    if ((lang == CBERG_LANG_JSON && !json_handled) || list->len == 0 || data_file) {
         cberg_chunk_list_free(list);
         return window_chunk(path, src, src_len, out_list);
     }

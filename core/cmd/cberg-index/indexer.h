@@ -58,6 +58,8 @@ struct cberg_engine {
     char *index_base; /* CBERG_INDEX_PATH as configured; per-root paths derive from it */
     char *socket_path;
     int poll_ms;
+    /* CBERG_MAX_FILE_BYTES: larger sources are not chunked or embedded (0 = no limit). */
+    uint64_t max_file_bytes;
     int vectors;
     int graph_enabled; /* CBERG_GRAPH != 0 (default on); CBERG_GRAPH_MODE is fast-only for now */
     cberg_index_config index_cfg;

@@ -82,6 +82,7 @@ For catalog syntax, local server setup, and saved model choices, see [Models and
 | `CBERG_SOCKET` | Path; `/tmp/codeberg-index.sock` | Indexer IPC socket. Separate daemon instances need separate socket paths. |
 | `CBERG_INDEX_BIN` | Optional executable path | Override the `cberg-index` binary. Normally found beside the daemon or on `PATH`. |
 | `CBERG_POLL_MS` | Milliseconds; `1000` | Watcher polling interval. Non-positive values fall back to `1000`. |
+| `CBERG_MAX_FILE_BYTES` | Bytes; `1048576` (1 MB) | Largest file the indexer chunks and embeds. Larger files are skipped and logged; `0` removes the limit. See [What gets indexed](/docs/indexing#what-gets-indexed). |
 | `CODEBERG_GIT_PULL_INTERVAL_SEC` | Seconds; disabled when unset or `0` | Periodically pull repositories to refresh mirrors. Enable only when automatic pulls suit the source directories. |
 | `CODEBERG_GIT_DIR` | Optional directory | Restrict periodic pulls to one directory; otherwise the served roots are considered. |
 

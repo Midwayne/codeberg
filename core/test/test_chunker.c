@@ -2,6 +2,7 @@
 #include "test_common.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static const cberg_chunk *find_symbol(const cberg_chunk_list *list, const char *symbol) {
@@ -162,6 +163,30 @@ static void test_json_window_fallback(cberg_chunker *ch) {
         CHECK(cberg_chunk_list_at(list, 0)->kind == CBERG_CHUNK_WINDOW, "json window kind");
         cberg_chunk_list_free(list);
     }
+}
+
+/* A vocabulary or lookup table is data, not configuration: one chunk per key
+ * used to turn a single tokenizer file into tens of thousands of embeddings. */
+static void test_json_data_file_windows(cberg_chunker *ch) {
+    enum { KEYS = 1000 };
+    size_t cap = 64 + (size_t)KEYS * 24;
+    char *src = malloc(cap);
+    CHECK(src != NULL, "allocate json data");
+    if (src == NULL)
+        return;
+
+    size_t off = (size_t)snprintf(src, cap, "{\n");
+    for (int i = 0; i < KEYS; i++)
+        off += (size_t)snprintf(src + off, cap - off, "  \"token%d\": %d%s\n", i, i, i + 1 < KEYS ? "," : "");
+    snprintf(src + off, cap - off, "}\n");
+
+    cberg_chunk_list *list = NULL;
+    CHECK(cberg_chunker_parse(ch, CBERG_LANG_JSON, "vocab.json", src, strlen(src), &list) == CBERG_OK, "json data parse");
+    CHECK(cberg_chunk_list_len(list) > 0 && cberg_chunk_list_len(list) <= KEYS / 40, "json data file is windowed, not split per key");
+    CHECK(cberg_chunk_list_len(list) > 0 && cberg_chunk_list_at(list, 0)->kind == CBERG_CHUNK_WINDOW, "json data window kind");
+
+    cberg_chunk_list_free(list);
+    free(src);
 }
 
 static void test_json_jsonc(cberg_chunker *ch) {
@@ -530,6 +555,7 @@ int main(void) {
     test_toml(ch);
     test_json(ch);
     test_json_window_fallback(ch);
+    test_json_data_file_windows(ch);
     test_json_jsonc(ch);
     test_json_trailing(ch);
     test_json_line_split(ch);

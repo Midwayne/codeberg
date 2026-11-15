@@ -111,7 +111,7 @@ The startup project begins indexing on launch. Other indexers start on first use
 
 | Status | Meaning |
 | --- | --- |
-| **Counting chunks** | Parsing has not determined the total yet. |
+| **Scanning files**, such as **1,234 files scanned** | Files are being read and parsed; the chunk total is not known yet. |
 | Chunk counts, such as **1,500 / 2,600** | Measured stored chunks, including cached and duplicate bodies. |
 | **Building graph** or file counts | Graph work for the current repository/stage. |
 | **Finalizing search** | Remaining graph resolution and persistence. |
@@ -122,7 +122,27 @@ Status checks allow up to 20 seconds for a response. One temporary connection fa
 
 Chat, grep, file reads, and directory tools work immediately. When embeddings are enabled, hybrid search can use lexical fallback during indexing; index-only tools report that preparation is in progress. Watched updates retain the last completed readiness and expose indexing activity.
 
+If the indexer stops three times in a row, the panel shows the reason it gave and the log path. Codeberg keeps restarting it with a growing delay of up to 30 seconds. **Retry** restarts a stopped indexer immediately, and replaces one that never started answering.
+
 If the directory disappears or the indexer stays unreachable, inspect `projects/<id>/logs/indexer.log`, fix the dependency or path, then **Retry**. A long embedding batch alone does not need Retry. See [Troubleshooting](/docs/troubleshooting#indexing-stays-pending-or-fails).
+
+## What gets indexed
+
+Indexing covers recognized source, Markdown, and config files under each project directory. Some content is left out so one large file cannot dominate indexing time or search results.
+
+| Content | Behavior |
+| --- | --- |
+| `.git`, `node_modules`, `vendor`, `.venv`, `__pycache__`, `.next`, `dist`, `build`, `target`, `.gradle`, `.idea`, `.terraform` | Directories with these names are skipped. |
+| Files larger than **1 MB** | Not chunked or embedded. Typical cases are generated parsers, bundles, and data dumps. |
+| JSON, YAML, or TOML with more than **256** top-level entries | Indexed in 50-line windows instead of one chunk per key. |
+| Files or folders Codeberg cannot read | Skipped; the rest of the project is still indexed. |
+| Unrecognized file types | Not read. |
+
+Skipped files are listed in `projects/<id>/logs/indexer.log` (the first 20, then every 1,000th). Grep, file reads, and directory tools still reach files that the index leaves out, except inside the skipped directories.
+
+To change the size limit, set `CBERG_MAX_FILE_BYTES` (bytes; `0` removes the limit) before starting Codeberg, then delete the project index and re-add the project to rebuild. See [Environment](/docs/environment).
+
+Vendored code in other directories, such as git submodules under `third_party`, is indexed like your own code and can lengthen a cold index considerably.
 
 ## Memory and storage
 

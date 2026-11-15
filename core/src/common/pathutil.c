@@ -116,12 +116,12 @@ static int walk_files_dir(const char *root, const char *rel, cberg_walk_files_fn
         snprintf(dirpath, sizeof(dirpath), "%s/%s", root, rel);
     }
 
+    /* Only an unreadable root fails the walk. A subdirectory that vanished or
+     * denies access is skipped, matching cberg_fs_walk: one locked folder must
+     * not hide the rest of the tree. */
     DIR *d = opendir(dirpath);
     if (d == NULL) {
-        if (errno == ENOENT) {
-            return 0;
-        }
-        return -1;
+        return rel[0] == '\0' && errno != ENOENT ? -1 : 0;
     }
 
     struct dirent *ent;
@@ -137,19 +137,16 @@ static int walk_files_dir(const char *root, const char *rel, cberg_walk_files_fn
             snprintf(child_rel, sizeof(child_rel), "%s/%s", rel, ent->d_name);
         }
 
+        /* Entries that are too deep to address or cannot be inspected are
+         * skipped rather than failing the walk. */
         char abspath[PATH_MAX];
         if (!cberg_path_join(root, child_rel, abspath, sizeof(abspath))) {
-            closedir(d);
-            return -1;
+            continue;
         }
 
         struct stat st;
         if (lstat(abspath, &st) != 0) {
-            if (errno == ENOENT) {
-                continue;
-            }
-            closedir(d);
-            return -1;
+            continue;
         }
 
         if (S_ISDIR(st.st_mode)) {

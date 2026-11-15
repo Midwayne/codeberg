@@ -26,6 +26,7 @@ full indexing loop for one or many repository roots in a single process. The Go
 | `CBERG_GRAPH_MODE` | no | `fast` (syntactic, default). `moderate` / `full` not implemented yet (warn + fall back) |
 | `CBERG_SOCKET` | no | Unix socket for IPC (default `/tmp/codeberg-index.sock`) |
 | `CBERG_POLL_MS` | no | Watcher idle sleep between steps (default 1000) |
+| `CBERG_MAX_FILE_BYTES` | no | Largest file chunked and embedded, in bytes (default 1048576; `0` = no limit). Larger files are skipped with a warning |
 | `CBERG_EMBED_THREADS` | no | ONNX intra-op thread cap (inherited env) |
 | `CBERG_EMBED_COREML` | no | Apple Silicon CoreML provider opt-in |
 | `CBERG_EMBED_BATCH` | no | Rows per ONNX inference run, `1..1024` (default 16) |

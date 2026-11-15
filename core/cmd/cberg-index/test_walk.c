@@ -66,8 +66,17 @@ int main(void) {
     fputs("module.exports = {}\n", f);
     fclose(f);
 
+    /* A folder the indexer may not enter is skipped, not fatal to the walk. */
+    snprintf(path, sizeof(path), "%s/locked", root);
+    CHECK(mkdir(path, 0000) == 0, "mkdir locked");
+
     CHECK(cberg_fs_walk_files(root, on_file, NULL) == 0, "walk ok");
     CHECK(file_count == 2, "only non-skipped files");
+
+    snprintf(path, sizeof(path), "%s/locked", root);
+    rmdir(path);
+
+    CHECK(cberg_fs_walk_files("/cberg/definitely/missing/root", on_file, NULL) == 0, "missing root is an empty walk");
 
     snprintf(path, sizeof(path), "%s/src/keep.go", root);
     remove(path);

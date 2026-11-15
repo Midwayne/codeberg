@@ -3,14 +3,27 @@ import { expect, it } from 'vitest';
 
 import { ProjectNotice } from './project-controls';
 
-it('shows counting until a real total is available, without a loader or invented percentage', () => {
+it('shows how many files were scanned while the total is still unknown', () => {
+  const html = renderToStaticMarkup(<ProjectNotice
+    project={{ id: 'example', name: 'Example', roots: [] }}
+    currentStatus={{ id: 'example', value: { ready: false, chunks: 0,
+      progress: { repo: 'example', phase: 'counting', completed: 1234, total: 0 } } }}
+    api={fetch} setRetry={() => undefined} setStatus={() => undefined}
+  />);
+
+  expect(html).toContain('Scanning files');
+  expect(html).toContain('1,234 files scanned');
+  expect(html).not.toContain('progressbar');
+});
+
+it('shows scanning until a real total is available, without a loader or invented percentage', () => {
   const html = renderToStaticMarkup(<ProjectNotice
     project={{ id: 'example', name: 'Example', roots: [] }}
     currentStatus={{ id: 'example', value: { ready: false, chunks: 0 } }}
     api={fetch} setRetry={() => undefined} setStatus={() => undefined}
   />);
 
-  expect(html).toContain('Counting chunks');
+  expect(html).toContain('Scanning files');
   expect(html).not.toContain('progressbar');
 });
 

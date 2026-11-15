@@ -32,6 +32,7 @@
  * about 1 KiB of code, so a call is also capped at 32 full-window bodies. */
 #define EMBED_TEXT_COST_MAX 1024
 #define EMBED_CALL_BUDGET (32 * EMBED_TEXT_COST_MAX)
+#define CBERG_DEFAULT_MAX_FILE_BYTES (1024ULL * 1024ULL) /* per-file indexing limit */
 #define PROGRESS_MIN 128  /* only show embed progress for upserts at least this large */
 #define PROGRESS_STEP 512 /* ...and roughly every this many chunks */
 
@@ -781,44 +782,80 @@ static cberg_status sync_table(cberg_repo *r, chunk_batch *batch) {
     return sync_vectors(r, &ch);
 }
 
+/* One bad file must not cost the project its index: say which file was left
+ * out and why, then carry on. Capped so a tree of them cannot flood the log. */
+static void warn_skipped(cberg_repo *r, const char *rel, const char *reason) {
+    static atomic_size_t skipped;
+    size_t n = atomic_fetch_add(&skipped, 1) + 1;
+
+    if (n <= 20 || n % 1000 == 0) {
+        fprintf(stderr, "cberg-index[%s]: warning: skipped '%s': %s (%zu skipped so far)\n", r->key, rel, reason, n);
+    }
+}
+
 /* Chunk (and, when the repo has a graph, extract) one file. out_frag may be
  * NULL to skip extraction; a NULL *out_frag with OK means the file carries no
- * graph structure (markdown, config, unknown language, or unreadable). */
+ * graph structure (markdown, config, unknown language, or unreadable).
+ *
+ * Only running out of memory is an error. A file that cannot be read or
+ * parsed is skipped with a warning and reported like an empty one. */
 static cberg_status parse_file(cberg_repo *r, const char *abs, const char *rel, cberg_chunk_list **out, cberg_graph_fragment **out_frag) {
     *out = NULL;
     if (out_frag != NULL) {
         *out_frag = NULL;
     }
-    size_t len = 0;
-    char *data = cberg_read_file(abs, &len);
-    if (data == NULL) {
-        return errno == ENOENT ? CBERG_OK : CBERG_ERR_IO;
-    }
+
+    /* Decide by name first: binaries and assets are never read into memory. */
     cberg_language lang = cberg_language_from_path(rel);
     if (lang == CBERG_LANG_UNKNOWN) {
-        free(data);
         return CBERG_OK;
     }
+
+    /* Generated parsers, bundles and data dumps dwarf hand-written code and
+     * would dominate both indexing time and search results. */
+    struct stat info;
+    uint64_t limit = r->eng->max_file_bytes;
+    if (limit > 0 && stat(abs, &info) == 0 && (uint64_t)info.st_size > limit) {
+        warn_skipped(r, rel, "larger than CBERG_MAX_FILE_BYTES");
+        return CBERG_OK;
+    }
+
+    size_t len = 0;
+    errno = 0;
+    char *data = cberg_read_file(abs, &len);
+    if (data == NULL) {
+        if (errno == ENOMEM) {
+            return CBERG_ERR_OUT_OF_MEMORY;
+        }
+        if (errno != ENOENT) {
+            warn_skipped(r, rel, errno != 0 ? strerror(errno) : "unreadable");
+        }
+        return CBERG_OK;
+    }
+
     cberg_chunk_list *list = NULL;
     cberg_status st = cberg_chunker_analyze(r->eng->chunker, lang, rel, data, len, &list, r->graph != NULL ? out_frag : NULL);
-    if (st != CBERG_OK) {
-        free(data);
-        return st;
-    }
-    if (list != NULL) {
+    if (st == CBERG_OK && list != NULL) {
         st = cberg_chunk_list_hash_bodies(list, data, len);
-        if (st != CBERG_OK) {
-            if (out_frag != NULL) {
-                cberg_graph_fragment_free(*out_frag);
-                *out_frag = NULL;
-            }
-            cberg_chunk_list_free(list);
-            free(data);
-            return st;
-        }
     }
     free(data);
-    *out = list;
+
+    if (st == CBERG_OK) {
+        *out = list;
+        return CBERG_OK;
+    }
+
+    if (out_frag != NULL) {
+        cberg_graph_fragment_free(*out_frag);
+        *out_frag = NULL;
+    }
+    cberg_chunk_list_free(list);
+
+    if (st == CBERG_ERR_OUT_OF_MEMORY) {
+        return st;
+    }
+
+    warn_skipped(r, rel, cberg_status_str(st));
     return CBERG_OK;
 }
 
@@ -834,6 +871,10 @@ static int bootstrap_cb(const char *abs, const char *rel, void *v) {
     if (++ctx->files % 1000 == 0) {
         fprintf(stderr, "cberg-index[%s]: scanned %zu files...\n", ctx->repo->key, ctx->files);
     }
+
+    /* The total is unknown until the walk ends; report files seen so far so
+     * the scan shows movement instead of an empty meter. */
+    atomic_store(&ctx->repo->progress_completed, ctx->files);
     cberg_chunk_list *list = NULL;
     cberg_graph_fragment *frag = NULL;
     cberg_status st = parse_file(ctx->repo, abs, rel, &list, &frag);
@@ -1305,6 +1346,16 @@ cberg_status cberg_engine_open(cberg_engine *eng) {
     }
     if (eng->poll_ms <= 0) {
         eng->poll_ms = 1000;
+    }
+
+    eng->max_file_bytes = CBERG_DEFAULT_MAX_FILE_BYTES;
+    const char *max_file = getenv("CBERG_MAX_FILE_BYTES");
+    if (max_file != NULL && max_file[0] != '\0') {
+        char *end = NULL;
+        unsigned long long parsed = strtoull(max_file, &end, 10);
+        if (end != max_file && *end == '\0' && max_file[0] != '-') {
+            eng->max_file_bytes = parsed;
+        }
     }
 
     const char *sock = getenv("CBERG_SOCKET");

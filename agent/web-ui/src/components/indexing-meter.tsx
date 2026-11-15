@@ -2,7 +2,7 @@ import type { IndexProgress } from '../lib/project-api';
 
 export function indexingPhase(progress?: IndexProgress): string {
   const labels: Record<string, string> = {
-    counting: 'Counting chunks',
+    counting: 'Scanning files',
     graph: 'Building graph',
     embedding: 'Indexing chunks',
     finalizing: 'Finalizing search',
@@ -11,13 +11,21 @@ export function indexingPhase(progress?: IndexProgress): string {
   return labels[progress?.phase ?? 'counting'] ?? 'Preparing search';
 }
 
+/** Before the total is known the indexer reports how many files it has read. */
+function scanningLabel(progress?: IndexProgress): string {
+  const scanned = progress?.phase === 'counting' ? progress.completed : 0;
+  if (scanned > 0) return `${scanned.toLocaleString()} files scanned`;
+
+  return `${indexingPhase(progress)}…`;
+}
+
 export function IndexingMeter({ progress }: { progress?: IndexProgress }) {
   const total = progress?.total ?? 0;
   const completed = Math.max(0, Math.min(progress?.completed ?? 0, total));
   const unit = progress?.phase === 'graph' ? 'files' : 'chunks';
   const label = total > 0
     ? `${completed.toLocaleString()} / ${total.toLocaleString()} ${unit}`
-    : `${indexingPhase(progress)}…`;
+    : scanningLabel(progress);
 
   return (
     <div className="space-y-2 px-3 pb-2">

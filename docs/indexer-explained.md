@@ -648,8 +648,8 @@ Source: [usearch provider](../core/src/search/providers/usearch/usearch.c),
 8. Build the file manifest and resolve eligible imports.
 9. Mark the root ready and save local state.
 
-During a cold parse, total chunks are not yet known. Progress can therefore
-show “Counting chunks.” Later stages report measured chunk counts, graph work,
+During a cold parse, total chunks are not yet known. Progress therefore shows
+“Scanning files” with the number of files read so far. Later stages report measured chunk counts, graph work,
 or finalization. Duplicate bodies count as stored chunks even when they save
 model inference work. These stages are not a single calibrated end-to-end
 percentage.
