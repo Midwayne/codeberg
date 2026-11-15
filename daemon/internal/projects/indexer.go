@@ -105,7 +105,7 @@ func (m *Manager) startIndexer(p Project, cfg config.Indexer) (http.Handler, fun
 	repos := make([]workspace.RepoInfo, 0, len(p.Roots))
 
 	for _, r := range p.Roots {
-		repos = append(repos, workspace.RepoInfo{Key: r.Key, Root: r.Root})
+		repos = append(repos, r)
 	}
 
 	if m.gitPull > 0 {

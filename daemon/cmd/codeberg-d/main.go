@@ -92,7 +92,7 @@ func serveProjects(cfg config.Daemon, idx *indexctl.Client, metrics *resources.C
 	roots := make([]string, 0, len(cfg.Roots))
 
 	for _, r := range cfg.Roots {
-		repos = append(repos, workspace.RepoInfo{Key: r.Key, Root: r.Root})
+		repos = append(repos, r)
 		roots = append(roots, r.Key+"="+r.Root)
 	}
 
