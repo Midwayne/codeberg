@@ -1,22 +1,12 @@
-import type { LearningService } from '../core/learning/service.js';
-import type { ResourceReader } from './resource-monitor.js';
 import { cleanup, preview } from './resources/cleanup.js';
 import { start, stop, usage } from './resources/monitor.js';
-import { ResourceSettingsState } from './resources/state.js';
-import { type WebSessionStore } from './sessions/store.js';
+import { ResourceSettingsState, type ResourceSettingsOptions } from './resources/state.js';
 
 /** Narrowly scoped cleanup and a cached metrics transport; collection is isolated. */
 export class ResourceSettings {
   private readonly state: ResourceSettingsState;
 
-  constructor(options: {
-    home?: string;
-    sessions: WebSessionStore;
-    learning?: LearningService;
-    daemonUrl?: string;
-    env?: NodeJS.ProcessEnv;
-    monitor?: ResourceReader;
-  }) {
+  constructor(options: ResourceSettingsOptions) {
     this.state = new ResourceSettingsState(options);
   }
 

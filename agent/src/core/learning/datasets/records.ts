@@ -45,21 +45,12 @@ export function validateReview(
   if (!ALLOWED_PROVENANCE.includes(review.provenance)) throw new Error('unknown review provenance');
 
   if (split === 'eval') {
-    const verified: Provenance[] = [
-      'user_confirmed',
-      'tests',
-      'compiler',
-      'static_analysis',
-      'dependency_graph',
-      'repository_structure',
-    ];
-
     if (
       !review.oracle ||
       typeof review.oracle !== 'object' ||
       Array.isArray(review.oracle) ||
       Object.keys(review.oracle).length === 0 ||
-      !verified.includes(review.provenance)
+      !VERIFIED_PROVENANCE.includes(review.provenance)
     ) {
       throw new Error('eval requires reviewed oracle and independent provenance');
     }
@@ -106,13 +97,14 @@ export function exampleFiles(example: DatasetExample): string[] {
   ];
 }
 
-const ALLOWED_PROVENANCE: Provenance[] = [
+/** Sources independent of the agent's own answer; only these may back an eval oracle. */
+const VERIFIED_PROVENANCE: Provenance[] = [
   'user_confirmed',
   'tests',
   'compiler',
   'static_analysis',
   'dependency_graph',
   'repository_structure',
-  'agent_inferred',
-  'answer_referenced',
 ];
+
+const ALLOWED_PROVENANCE: Provenance[] = [...VERIFIED_PROVENANCE, 'agent_inferred', 'answer_referenced'];

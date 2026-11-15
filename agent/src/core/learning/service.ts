@@ -1,9 +1,7 @@
 import type { UIMessage } from 'ai';
-import type { Generator } from '../types.js';
 import { DatasetStore } from './datasets.js';
 import { DreamingReports } from './dreaming/reports.js';
 import type { DreamingDecision } from './dreaming/types.js';
-import type { EvaluationRuntime } from './evaluation/automatic-types.js';
 import { EvaluationReports } from './evaluation/reports.js';
 import type { LearningSettings } from './preferences.js';
 import { DurableJobQueue } from './queue.js';
@@ -20,22 +18,15 @@ import { initialize, stop } from './service/lifecycle.js';
 import { refreshEvaluations } from './service/evaluations.js';
 import { refreshKnowledge } from './service/refresh.js';
 import { getSettings, updateSettings } from './service/settings.js';
-import { LearningServiceState } from './service/state.js';
+import { LearningServiceState, type LearningServiceOptions } from './service/state.js';
 import { LearningStore } from './store.js';
-import type { FeedbackLabel, FeedbackRating, FeedbackRecord, RepositoryVersion } from './types.js';
+import type { FeedbackLabel, FeedbackRating, FeedbackRecord } from './types.js';
 import { KnowledgeWorker } from './worker.js';
 
 export class LearningService {
   private readonly state: LearningServiceState;
 
-  constructor(
-    options: {
-      root?: string;
-      generator?: Generator;
-      evaluation?: EvaluationRuntime;
-      repositories?: () => Promise<RepositoryVersion[]>;
-    } = {},
-  ) {
+  constructor(options: LearningServiceOptions = {}) {
     this.state = new LearningServiceState(options);
   }
 

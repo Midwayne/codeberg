@@ -15,6 +15,13 @@ import { refreshKnowledge } from './refresh.js';
 import { refreshEvaluations } from './evaluations.js';
 import { syncWatcher } from './background.js';
 
+export interface LearningServiceOptions {
+  root?: string;
+  generator?: Generator;
+  evaluation?: EvaluationRuntime;
+  repositories?: () => Promise<RepositoryVersion[]>;
+}
+
 export class LearningServiceState {
   readonly store: LearningStore;
 
@@ -86,14 +93,7 @@ export class LearningServiceState {
 
   readonly sourceWatcher: KnowledgeSourceWatcher;
 
-  constructor(
-    options: {
-      root?: string;
-      generator?: Generator;
-      evaluation?: EvaluationRuntime;
-      repositories?: () => Promise<RepositoryVersion[]>;
-    } = {},
-  ) {
+  constructor(options: LearningServiceOptions = {}) {
     const root = options.root ?? defaultLearningRoot();
     this.store = new LearningStore(root, options.repositories);
     this.dreamingReports = new DreamingReports(root);

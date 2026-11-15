@@ -1,4 +1,5 @@
 import type { UIMessage, UIMessageChunk } from 'ai';
+import type { ToolObservation } from '../../core/runs/tools.js';
 import type { ResolvedModelSelection } from '../chat-routes.js';
 import type { RunJournal } from './journal.js';
 
@@ -21,15 +22,8 @@ export interface RunRecord extends RunInput {
   error?: string;
 }
 
-export interface ToolEntry {
-  kind: 'tool';
-  id: string;
-  name: string;
-  state: 'started' | 'completed' | 'failed';
-  input?: unknown;
-  output?: unknown;
-  error?: string;
-}
+/** A journaled tool call, exactly as the agent records it. */
+export type ToolEntry = ToolObservation;
 
 export type JournalEntry = ToolEntry | { kind: 'chunk'; chunk: UIMessageChunk };
 

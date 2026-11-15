@@ -5,6 +5,15 @@ import { codebergHome } from '../../core/paths.js';
 import { ResourceMonitorClient, type ResourceReader } from '../resource-monitor.js';
 import { type WebSessionStore } from '../sessions/store.js';
 
+export interface ResourceSettingsOptions {
+  home?: string;
+  sessions: WebSessionStore;
+  learning?: LearningService;
+  daemonUrl?: string;
+  env?: NodeJS.ProcessEnv;
+  monitor?: ResourceReader;
+}
+
 export class ResourceSettingsState {
   readonly home: string;
 
@@ -16,16 +25,7 @@ export class ResourceSettingsState {
 
   busy = false;
 
-  constructor(
-    readonly options: {
-      home?: string;
-      sessions: WebSessionStore;
-      learning?: LearningService;
-      daemonUrl?: string;
-      env?: NodeJS.ProcessEnv;
-      monitor?: ResourceReader;
-    },
-  ) {
+  constructor(readonly options: ResourceSettingsOptions) {
     this.env = options.env ?? process.env;
     this.home = resolve(options.home ?? codebergHome(this.env));
     this.learningRoot = resolve(
