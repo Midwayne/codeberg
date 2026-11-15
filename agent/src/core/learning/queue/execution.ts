@@ -56,19 +56,25 @@ export async function release(state: DurableJobQueueState, job: KnowledgeJob): P
   });
 }
 
+/** A rerun requested while the job ran sends it straight back to pending. */
+async function requeueRerun(state: DurableJobQueueState, jobId: string): Promise<boolean> {
+  const current = await find(state, jobId);
+  if (current?.status !== 'processing' || !current.rerun_requested) return false;
+
+  await transition(state, jobId, 'processing', 'pending', {
+    ...current,
+    status: 'pending',
+    updated_at: state.now().toISOString(),
+    next_attempt_at: undefined,
+    lease_expires_at: undefined,
+    rerun_requested: undefined,
+  });
+
+  return true;
+}
+
 export async function complete(state: DurableJobQueueState, job: KnowledgeJob): Promise<void> {
-  const current = await find(state, job.job_id);
-  if (current?.status === 'processing' && current.rerun_requested) {
-    await transition(state, job.job_id, 'processing', 'pending', {
-      ...current,
-      status: 'pending',
-      updated_at: state.now().toISOString(),
-      next_attempt_at: undefined,
-      lease_expires_at: undefined,
-      rerun_requested: undefined,
-    });
-    return;
-  }
+  if (await requeueRerun(state, job.job_id)) return;
 
   const completed: KnowledgeJob = {
     ...job,
@@ -90,18 +96,7 @@ export async function fail(
   error: string,
   transient = isTransientFailure(category),
 ): Promise<void> {
-  const current = await find(state, job.job_id);
-  if (current?.status === 'processing' && current.rerun_requested) {
-    await transition(state, job.job_id, 'processing', 'pending', {
-      ...current,
-      status: 'pending',
-      updated_at: state.now().toISOString(),
-      next_attempt_at: undefined,
-      lease_expires_at: undefined,
-      rerun_requested: undefined,
-    });
-    return;
-  }
+  if (await requeueRerun(state, job.job_id)) return;
 
   const permanent = !transient || job.attempt_count >= MAX_ATTEMPTS;
   const delay = BACKOFF_MS[Math.min(Math.max(job.attempt_count - 1, 0), BACKOFF_MS.length - 1)];

@@ -1,25 +1,12 @@
 import { sample } from './process/sampling.js';
-import { ProcessMonitorState } from './process/state.js';
-import type { ProcessSnapshot, ProcessUsage } from './process/types.js';
+import { ProcessMonitorState, type ProcessMonitorOptions } from './process/state.js';
+import type { ProcessUsage } from './process/types.js';
 
 /** Interval CPU and resident memory for this Codeberg instance, not the host. */
 export class ProcessMonitor {
   private readonly state: ProcessMonitorState;
 
-  constructor(
-    options: {
-      pid?: number;
-      launcherPid?: number;
-      daemonUrl?: string;
-      cores?: number;
-      totalMemoryBytes?: number;
-      readProcesses?: () => Promise<ProcessSnapshot[]>;
-      readArguments?: (pid: number) => Promise<string>;
-      embeddingModel?: string;
-      embeddingBackend?: string;
-      now?: () => number;
-    } = {},
-  ) {
+  constructor(options: ProcessMonitorOptions = {}) {
     this.state = new ProcessMonitorState(options);
   }
 

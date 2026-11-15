@@ -1,9 +1,5 @@
 import { projectFetch } from '../lib/project-api';
 
-export function canvasProject(): string | null {
-  return new URL(location.href).searchParams.get('project');
-}
-
 export function canvasFetch(): typeof fetch {
   const params = new URL(location.href).searchParams;
   const project = params.get('project');

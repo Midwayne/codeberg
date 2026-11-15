@@ -179,9 +179,3 @@ export function lastUserMessageIndex(messages: readonly ModelMessage[]): number 
 
   return -1;
 }
-
-export function lastUserMessage(messages: readonly ModelMessage[]): ModelMessage | undefined {
-  const i = lastUserMessageIndex(messages);
-
-  return i >= 0 ? messages[i] : undefined;
-}

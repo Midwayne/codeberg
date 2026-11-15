@@ -60,14 +60,6 @@ export async function renameSession(id: string, title: string, fetcher: typeof f
   if (!response.ok) throw new Error(`Could not rename chat (${response.status})`);
 }
 
-export async function loadSession(id: string, fetcher: typeof fetch = fetch): Promise<SessionRecord | null> {
-  try {
-    return await readSession(id, fetcher);
-  } catch {
-    return null;
-  }
-}
-
 /** Interactive opens must distinguish a missing chat from a failed request. */
 export async function readSession(id: string, fetcher: typeof fetch = fetch): Promise<SessionRecord | null> {
   const response = await fetcher(`${BASE}/${encodeURIComponent(id)}`);

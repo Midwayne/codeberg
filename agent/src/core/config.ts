@@ -7,7 +7,7 @@ import type { EntryConfig } from './entry.js';
 import type { LearningService } from './learning/service.js';
 import { currentProjectEnvironment } from './projects.js';
 import { assertAgentRuntime } from './runtime.js';
-import type { ReasoningEffort } from './types.js';
+import { REASONING_EFFORTS, type ReasoningEffort } from './types.js';
 import { agentProfiles } from './model-profiles.js';
 import type { ModelInput } from './model-types.js';
 import type { DecisionModel, DecisionUsageSink } from './decisions/types.js';
@@ -29,24 +29,13 @@ export interface AgentConfig {
   learning?: LearningService | false;
 }
 
-const REASONING_EFFORTS: readonly ReasoningEffort[] = [
-  'provider-default',
-  'none',
-  'minimal',
-  'low',
-  'medium',
-  'high',
-  'xhigh',
-  'max',
-];
-
 /** Read CODEBERG_REASONING, including Responses-compatible max. */
 export function reasoningFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): ReasoningEffort | undefined {
   const value = env.CODEBERG_REASONING;
 
-  return value && (REASONING_EFFORTS as string[]).includes(value)
+  return value && (REASONING_EFFORTS as readonly string[]).includes(value)
     ? (value as ReasoningEffort)
     : undefined;
 }

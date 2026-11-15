@@ -1,5 +1,18 @@
 import type { ProcessSnapshot } from './types.js';
 
+export interface ProcessMonitorOptions {
+  pid?: number;
+  launcherPid?: number;
+  daemonUrl?: string;
+  cores?: number;
+  totalMemoryBytes?: number;
+  readProcesses?: () => Promise<ProcessSnapshot[]>;
+  readArguments?: (pid: number) => Promise<string>;
+  embeddingModel?: string;
+  embeddingBackend?: string;
+  now?: () => number;
+}
+
 export class ProcessMonitorState {
   previous = new Map<string, number>();
 
@@ -11,18 +24,5 @@ export class ProcessMonitorState {
 
   fallbackAt?: number;
 
-  constructor(
-    readonly options: {
-      pid?: number;
-      launcherPid?: number;
-      daemonUrl?: string;
-      cores?: number;
-      totalMemoryBytes?: number;
-      readProcesses?: () => Promise<ProcessSnapshot[]>;
-      readArguments?: (pid: number) => Promise<string>;
-      embeddingModel?: string;
-      embeddingBackend?: string;
-      now?: () => number;
-    } = {},
-  ) {}
+  constructor(readonly options: ProcessMonitorOptions = {}) {}
 }
