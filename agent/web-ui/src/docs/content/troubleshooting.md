@@ -25,7 +25,9 @@ Keep the tab open when **Chat changes aren’t saved yet** appears. Check that C
 
 ## Indexing stays pending or fails
 
-Check the source directory exists and is readable, then inspect `projects/<id>/logs/indexer.log`.
+Check the source directory exists and is readable, then inspect `projects/<id>/logs/indexer.log`. When the indexer stops repeatedly, the project panel shows its last message and this log path.
+
+Individual files or folders that cannot be read are skipped and logged; they no longer stop the project from indexing. If a file you expect is missing from search, check the log for a `skipped` line and see [What gets indexed](/docs/indexing#what-gets-indexed).
 
 ```sh
 codeberg doctor

@@ -10,6 +10,15 @@ export class ProjectServiceTimeout extends Error {
   }
 }
 
+/** The daemon is not accepting connections: it is still starting or was restarted. */
+export class ProjectServiceUnreachable extends Error {
+  readonly status = 502;
+
+  constructor() {
+    super('Project service is not reachable. It may still be starting; Codeberg retries automatically.');
+  }
+}
+
 /** Bound the complete response, release the timer, and never replay mutations. */
 export async function requestProjectService(base: string, path: string, init: RequestInit = {}, timeoutMs = 15_000) {
   const controller = new AbortController();
@@ -24,6 +33,9 @@ export async function requestProjectService(base: string, path: string, init: Re
     return { response, body };
   } catch (error) {
     if (controller.signal.aborted) throw controller.signal.reason;
+
+    // fetch rejects with a TypeError only when no HTTP exchange took place.
+    if (error instanceof TypeError && !signal.aborted) throw new ProjectServiceUnreachable();
 
     throw error;
   } finally {

@@ -10,7 +10,7 @@ import { servePage } from '../server/routes.js';
 import { deleteProject, trackRequest } from './delete.js';
 import { openConfig, pickDirectory, projects, renameProject } from './catalog.js';
 import type { ProjectRequestRouterState } from './state.js';
-import { daemon, ProjectServiceTimeout } from './request.js';
+import { daemon, ProjectServiceTimeout, ProjectServiceUnreachable } from './request.js';
 
 export function handle(
   state: ProjectRequestRouterState,
@@ -19,10 +19,16 @@ export function handle(
 ): void {
   void route(state, req, res).catch((error: unknown) => {
     if (!res.headersSent)
-      sendText(res, error instanceof ProjectServiceTimeout ? 504 : 503,
-        error instanceof Error ? error.message : 'Project service unavailable');
+      sendText(res, failureStatus(error), error instanceof Error ? error.message : 'Project service unavailable');
     else res.end();
   });
+}
+
+/** Timeouts and an unreachable daemon are temporary; anything else is a reported failure. */
+function failureStatus(error: unknown): number {
+  if (error instanceof ProjectServiceTimeout || error instanceof ProjectServiceUnreachable) return error.status;
+
+  return 503;
 }
 
 export async function route(

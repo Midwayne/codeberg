@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { projectFetch, type ProjectCatalog } from './project-api';
 import { ProjectToolbar, ProjectNotice } from '../components/project-controls';
 import { useProjectStatus } from './use-project-status';
+import { requestProjectCatalog } from './project-catalog-request';
 
 export { useProjectStatus, type ProjectStatusOptions } from './use-project-status';
 
@@ -63,10 +64,8 @@ export type ProjectCatalogOptions = {
 export function useProjectCatalog({ setCatalog, setSelected, setError, retry }: ProjectCatalogOptions) {
   useEffect(() => {
     const controller = new AbortController();
-    void fetch('/api/projects', { signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(await response.text());
-        const next = (await response.json()) as ProjectCatalog;
+    void requestProjectCatalog(controller.signal)
+      .then((next) => {
         if (controller.signal.aborted) return;
         const requested = new URLSearchParams(window.location.search).get('project');
         let remembered: string | null = null;
@@ -85,7 +84,7 @@ export function useProjectCatalog({ setCatalog, setSelected, setError, retry }: 
         setError('');
       })
       .catch((reason: unknown) => {
-        if (!controller.signal.aborted) setError(String(reason));
+        if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : String(reason));
       });
     return () => controller.abort();
   }, [retry]);

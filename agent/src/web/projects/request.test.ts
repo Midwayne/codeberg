@@ -111,3 +111,18 @@ it('exposes a proxy timeout as HTTP 504 so status polling can recover automatica
   expect(response.writeHead).toHaveBeenCalledWith(504, expect.any(Object));
   expect(response.end).toHaveBeenCalledWith(expect.stringContaining('busy indexing'));
 });
+
+it('reports an unreachable project service as HTTP 502 so status polling retries quietly', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('fetch failed')));
+  const project = { id: 'example', name: 'Example', roots: [] };
+  const catalog = { version: 1 as const, projects: [project], defaultId: project.id, legacyId: project.id };
+  const router = { ...state, catalog, deleting: new Set<string>() } satisfies ProjectRequestRouterState;
+  const request = { url: '/api/project/status', method: 'GET', headers: {} } as IncomingMessage;
+  const response = { headersSent: false, setHeader: vi.fn(), writeHead: vi.fn(), end: vi.fn() };
+
+  handle(router, request, response as unknown as ServerResponse);
+  await vi.advanceTimersByTimeAsync(0);
+
+  expect(response.writeHead).toHaveBeenCalledWith(502, expect.any(Object));
+  expect(response.end).toHaveBeenCalledWith(expect.stringContaining('starting'));
+});
