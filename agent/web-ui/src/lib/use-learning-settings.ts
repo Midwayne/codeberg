@@ -7,74 +7,22 @@ export type LearningSettingsPanelOptions = { onSaved?: () => void };
 
 export function useLearningSettingsPanel({ onSaved }: LearningSettingsPanelOptions) {
   const { fetch: api, project } = useProjectApi();
-  const [settings, setSettings] = useState<LearningSettings | null>();
+  const { settings, setSettings, error, setError, setRetry, active } = useLoadedLearningSettings(api);
   const [busy, setBusy] = useState(false);
-  const saving = useRef(false);
-  const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
-  const [retry, setRetry] = useState(0);
-  const active = useRef(true);
-  useEffect(() => {
-    active.current = true;
-    let current = true;
-    setError('');
-    void loadLearningSettings(api)
-      .then((value) => {
-        if (current) setSettings(value);
-      })
-      .catch((reason: unknown) => {
-        if (current) setError(reason instanceof Error ? reason.message : String(reason));
-      });
-    return () => {
-      current = false;
-      active.current = false;
-    };
-  }, [api, retry]);
-  const { change } = createLearningChange({
-    saving,
-    settings,
-    setBusy,
-    setError,
-    setSaved,
-    setSettings,
-    api,
-    active,
-    onSaved,
-  });
+  const saving = useRef(false);
 
-  return { project, error, settings, setRetry, busy, change, saved };
-}
-
-export type LearningChangeOptions = Pick<Parameters<typeof useLearningSettingsPanel>[0], 'onSaved'> & {
-  saving: React.RefObject<boolean>;
-  settings: LearningSettings | null | undefined;
-  setBusy: React.Dispatch<React.SetStateAction<boolean>>;
-  setError: React.Dispatch<React.SetStateAction<string>>;
-  setSaved: React.Dispatch<React.SetStateAction<boolean>>;
-  setSettings: React.Dispatch<React.SetStateAction<LearningSettings | null | undefined>>;
-  api: typeof fetch;
-  active: React.RefObject<boolean>;
-};
-
-export function createLearningChange({
-  saving,
-  settings,
-  setBusy,
-  setError,
-  setSaved,
-  setSettings,
-  api,
-  active,
-  onSaved,
-}: LearningChangeOptions) {
+  /** Shows the change at once and restores the previous settings if the save fails. */
   const change = async (next: LearningSettings) => {
     if (saving.current || !settings) return;
+
     const previous = settings;
     saving.current = true;
     setBusy(true);
     setError('');
     setSaved(false);
     setSettings(next);
+
     try {
       const value = await saveLearningSettings(next, api);
       if (active.current) {
@@ -93,5 +41,34 @@ export function createLearningChange({
     }
   };
 
-  return { change };
+  return { project, error, settings, setRetry, busy, change, saved };
+}
+
+/** Loads the settings; `active` tells a late save whether this load is still the current one. */
+function useLoadedLearningSettings(api: typeof fetch) {
+  const [settings, setSettings] = useState<LearningSettings | null>();
+  const [error, setError] = useState('');
+  const [retry, setRetry] = useState(0);
+  const active = useRef(true);
+
+  useEffect(() => {
+    active.current = true;
+    let current = true;
+    setError('');
+
+    void loadLearningSettings(api)
+      .then((value) => {
+        if (current) setSettings(value);
+      })
+      .catch((reason: unknown) => {
+        if (current) setError(reason instanceof Error ? reason.message : String(reason));
+      });
+
+    return () => {
+      current = false;
+      active.current = false;
+    };
+  }, [api, retry]);
+
+  return { settings, setSettings, error, setError, setRetry, active };
 }

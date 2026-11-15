@@ -1,9 +1,9 @@
 import { useReviewSave } from './use-review-save';
 import { useProjectApi } from './project-api';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { loadReviewExample, loadTrainingReview, type ReviewDashboard, type ReviewExample } from './training';
-import { reviewRows, reviewSelection, type ReviewFilter } from './training-review';
+import { applyReviewDecision, reviewRows, reviewSelection, type ReviewFilter } from './training-review';
 
 /** Separate read failures from write results; stale reads never replace a newer selection. */
 export function useTrainingReview() {
@@ -11,25 +11,18 @@ export function useTrainingReview() {
   const { dashboard, setDashboard, setDashboardAttempt, loading, dashboardError } = useReviewDashboard({ api });
   const { selectedId, selected, setFilter, setRequestedId, filter, visible } = useReviewSelection({ dashboard });
 
-  const [saveError, setSaveError] = useState('');
-  const [announcement, setAnnouncement] = useState('');
-  const [saving, setSaving] = useState(false);
-  const savingRef = useRef(false);
-  const { mounted } = useReviewMounted();
-  const { example, detailError, setDetailAttempt } = useReviewExample({ setSaveError, selectedId, api });
-  const { save } = useReviewSave({
+  const { save, saving, saveError, setSaveError, announcement } = useReviewSave({
     selected,
-    savingRef,
-    setSaving,
-    setSaveError,
-    setAnnouncement,
     api,
-    mounted,
-    setDashboard,
-    setFilter,
-    setRequestedId,
-    setDashboardAttempt,
+    onSaved: (id, decision) => {
+      setDashboard((current) => (current ? applyReviewDecision(current, id, decision) : current));
+      setFilter('ready');
+      setRequestedId(undefined);
+      setDashboardAttempt((attempt) => attempt + 1);
+    },
   });
+
+  const { example, detailError, setDetailAttempt } = useReviewExample({ setSaveError, selectedId, api });
 
   return {
     dashboard,
@@ -115,19 +108,6 @@ function useReviewExample({ setSaveError, selectedId, api }: ReviewExampleOption
   }, [selectedId, detailAttempt, api]);
 
   return { example, detailError, setDetailAttempt };
-}
-
-function useReviewMounted() {
-  const mounted = useRef(false);
-
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
-
-  return { mounted };
 }
 
 export type ReviewSelectionOptions = { dashboard: ReviewDashboard | undefined };

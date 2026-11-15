@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { previewCleanup, type CleanupCategory, type CleanupPreview } from '../lib/resources';
 import { ErrorNotice } from './ui';
 import type { CleanupPreviewErrorProps } from './settings';
-import { createCleanupAction } from './cleanup-action';
+import { useCleanupRemoval } from './use-cleanup-removal';
 
 export function CleanupPanel() {
   const state = useCleanupPanel();
@@ -18,28 +18,23 @@ export function useCleanupPanel() {
   const { fetch: api } = useProjectApi();
   const [days, setDays] = useState(30);
   const [selected, setSelected] = useState<CleanupCategory[]>([]);
-  const [preview, setPreview] = useState<CleanupPreview>();
-  const [previewError, setPreviewError] = useState('');
-  const [error, setError] = useState('');
-  const [result, setResult] = useState('');
   const [confirming, setConfirming] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [revision, setRevision] = useState(0);
-  useCleanupPreview({ setPreview, setPreviewError, days, api, revision });
+  const { preview, previewError } = useCleanupPreview(days, api, revision);
 
-  const count =
-    preview?.categories.filter((row) => selected.includes(row.category)).reduce((sum, row) => sum + row.count, 0) ?? 0;
-  const { remove } = createCleanupAction({
-    setBusy,
-    setError,
-    setResult,
+  const removal = useCleanupRemoval({
     selected,
     days,
     api,
-    setConfirming,
-    setSelected,
-    setRevision,
+    onSettled: (succeeded) => {
+      setConfirming(false);
+      if (succeeded) setSelected([]);
+      setRevision((value) => value + 1);
+    },
   });
+
+  const count =
+    preview?.categories.filter((row) => selected.includes(row.category)).reduce((sum, row) => sum + row.count, 0) ?? 0;
 
   return {
     previewError,
@@ -48,16 +43,11 @@ export function useCleanupPanel() {
     days,
     setDays,
     setConfirming,
-    setResult,
-    setError,
     selected,
     setSelected,
-    busy,
     confirming,
     count,
-    remove,
-    error,
-    result,
+    ...removal,
   };
 }
 
@@ -142,22 +132,16 @@ export function CleanupPreviewError({ state }: CleanupPreviewErrorProps) {
   );
 }
 
-export type CleanupPreviewOptions = {
-  setPreview: React.Dispatch<React.SetStateAction<CleanupPreview | undefined>>;
-  setPreviewError: React.Dispatch<React.SetStateAction<string>>;
-  days: number;
-  api: {
-    (input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
-    (input: string | URL | Request, init?: RequestInit): Promise<Response>;
-  };
-  revision: number;
-};
+/** Cleanup totals for the chosen age; `revision` forces a recount after a deletion or retry. */
+function useCleanupPreview(days: number, api: typeof fetch, revision: number) {
+  const [preview, setPreview] = useState<CleanupPreview>();
+  const [previewError, setPreviewError] = useState('');
 
-function useCleanupPreview({ setPreview, setPreviewError, days, api, revision }: CleanupPreviewOptions) {
   useEffect(() => {
     let active = true;
     setPreview(undefined);
     setPreviewError('');
+
     void previewCleanup(days, api)
       .then((value) => {
         if (active) setPreview(value);
@@ -165,8 +149,11 @@ function useCleanupPreview({ setPreview, setPreviewError, days, api, revision }:
       .catch((failure: unknown) => {
         if (active) setPreviewError(String(failure));
       });
+
     return () => {
       active = false;
     };
   }, [days, revision]);
+
+  return { preview, previewError };
 }
