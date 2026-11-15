@@ -52,10 +52,10 @@ func main() {
 	// Include indexing/bootstrap in history rather than starting only once ready.
 	metrics.Start(ctx)
 
-	stop := startInitialProject(ctx, cfg, metrics)
+	sup, stop := startInitialProject(ctx, cfg, metrics)
 	defer stop()
 	idx := indexctl.NewClient(cfg.Socket)
-	httpSrv := serveProjects(cfg, idx, metrics, projectManager, stop)
+	httpSrv := serveProjects(cfg, idx, metrics, projectManager, sup, stop)
 
 	<-ctx.Done()
 
@@ -87,7 +87,7 @@ func waitForInitialIndex(ctx context.Context, cfg config.Daemon, idx *indexctl.C
 	metrics.InvalidateDisk()
 }
 
-func serveProjects(cfg config.Daemon, idx *indexctl.Client, metrics *resources.Collector, projectManager *projects.Manager, stop func()) *http.Server {
+func serveProjects(cfg config.Daemon, idx *indexctl.Client, metrics *resources.Collector, projectManager *projects.Manager, sup *supervisor.Supervisor, stop func()) *http.Server {
 	repos := make([]workspace.RepoInfo, 0, len(cfg.Roots))
 	roots := make([]string, 0, len(cfg.Roots))
 
@@ -106,7 +106,7 @@ func serveProjects(cfg config.Daemon, idx *indexctl.Client, metrics *resources.C
 
 	projectManager.WithGitPull(cfg.GitPull)
 	if len(cfg.Roots) > 0 {
-		projectManager.BindDefault(srv.Handler(), stop)
+		projectManager.BindDefault(projects.Supervised(srv.Handler(), sup), stop)
 	}
 	httpSrv := &http.Server{Addr: address, Handler: projectManager.Handler(srv.Handler())}
 	go func() {
@@ -119,9 +119,9 @@ func serveProjects(cfg config.Daemon, idx *indexctl.Client, metrics *resources.C
 	return httpSrv
 }
 
-func startInitialProject(ctx context.Context, cfg config.Daemon, metrics *resources.Collector) func() {
+func startInitialProject(ctx context.Context, cfg config.Daemon, metrics *resources.Collector) (*supervisor.Supervisor, func()) {
 	if len(cfg.Roots) == 0 {
-		return func() {}
+		return nil, func() {}
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -137,7 +137,7 @@ func startInitialProject(ctx context.Context, cfg config.Daemon, metrics *resour
 	}
 
 	go gitpull.Run(ctx, dirs, cfg.GitPull)
-	return func() {
+	return sup, func() {
 		sup.Stop()
 		cancel()
 	}

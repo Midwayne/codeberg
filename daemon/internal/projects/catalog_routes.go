@@ -94,7 +94,15 @@ func (m *Manager) serveRetry(w http.ResponseWriter, r *http.Request, id string) 
 
 	m.mu.Lock()
 	rt, active := m.runtimes[id]
-	if active {
+	m.mu.Unlock()
+
+	// Restart a stopped indexer now; replace one that never started answering.
+	if process := processOf(rt.handler); active && process != nil {
+		process.Retry(m.overdue(id) && probe(rt.handler, r).status >= 400)
+	}
+
+	m.mu.Lock()
+	if rt, active = m.runtimes[id]; active {
 		rt.started = time.Now()
 		m.runtimes[id] = rt
 	}

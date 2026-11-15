@@ -1,12 +1,8 @@
 package projects
 
 import (
-	"context"
 	"net/http"
 	"os"
-	"time"
-
-	"codeberg.org/codeberg/daemon/internal/bootstrap"
 )
 
 // Response buffer keeps not-yet-open IPC sockets from becoming opaque UI errors.
@@ -42,18 +38,16 @@ func (m *Manager) serveHealth(handler http.Handler, w http.ResponseWriter, r *ht
 		}
 	}
 
-	buffered := httptestResponse{header: make(http.Header)}
-	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
-	defer cancel()
-	handler.ServeHTTP(&buffered, r.WithContext(ctx))
-	m.mu.Lock()
-	rt := m.runtimes[id]
-	p, _ := m.project(id)
-	m.mu.Unlock()
+	if message, failing := crashLoop(handler); failing {
+		respond(w, 503, map[string]any{"ready": false, "status": "error", "message": message})
+		return
+	}
+
+	buffered := probe(handler, r)
 
 	// A responding indexer may still be doing a long cold embedding pass.
 	// The startup deadline diagnoses unreachable IPC, not healthy progress.
-	if buffered.status >= 400 && !rt.started.IsZero() && time.Since(rt.started) > bootstrap.StartupTimeout(len(p.Roots)) {
+	if buffered.status >= 400 && m.overdue(id) {
 		respond(w, 503, map[string]any{"ready": false, "status": "error", "message": "Project indexing has not become ready. Check the project indexer log and retry."})
 		return
 	}

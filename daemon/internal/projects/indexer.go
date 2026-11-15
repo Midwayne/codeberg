@@ -120,7 +120,9 @@ func (m *Manager) startIndexer(p Project, cfg config.Indexer) (http.Handler, fun
 
 	idx := indexctl.NewClient(cfg.Socket)
 	ws := workspace.New(repos, cfg.DefaultKey)
-	return httpserver.New(idx, tools.WithVectorSearch(ws, idx, cfg.Model != "")).Handler(), func() {
+	handler := httpserver.New(idx, tools.WithVectorSearch(ws, idx, cfg.Model != "")).Handler()
+
+	return Supervised(handler, sup), func() {
 		sup.Stop()
 		cancel()
 	}, nil

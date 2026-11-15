@@ -51,7 +51,7 @@ embeddings are disabled; actionable project errors remain visible.
 ```
 
 - `ready` — bootstrap finished and at least one repo is searchable.
-- `progress` — optional active repository/stage counts: `{ "repo": "codeberg", "phase": "embedding", "completed": 1500, "total": 2600 }`. Embedding/finalizing counts chunks; graph counts files. A zero total means the workload is still being determined.
+- `progress` — optional active repository/stage counts: `{ "repo": "codeberg", "phase": "embedding", "completed": 1500, "total": 2600 }`. Embedding/finalizing counts chunks; graph counts files. A zero total means the workload is still being determined; in the `counting` phase `completed` is then the number of files scanned so far.
 - `indexing` — bootstrap or a watched update is building the index and graph. File tools remain available; index-only requests return `503 NOT_READY` promptly during that work.
 - `pid` — daemon process ID, used to attribute resource usage for a local daemon.
   A remote daemon's PID must not be interpreted on the client's machine.

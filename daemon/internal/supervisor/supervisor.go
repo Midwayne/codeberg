@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,9 +17,20 @@ type Supervisor struct {
 	cfg     config.Indexer
 	cmd     *exec.Cmd
 	logFile *os.File
+	logPath string
+	tail    lastLine
 	mu      sync.Mutex
 	closed  bool
 	done    chan struct{}
+
+	// Restart bookkeeping, guarded by mu.
+	alive     bool
+	started   time.Time
+	failures  int
+	lastError string
+	backoff   time.Duration
+	replacing bool
+	wake      chan struct{}
 }
 
 func Start(ctx context.Context, cfg config.Indexer) (*Supervisor, error) {
@@ -29,10 +39,12 @@ func Start(ctx context.Context, cfg config.Indexer) (*Supervisor, error) {
 		return nil, err
 	}
 
-	s := &Supervisor{cfg: cfg, done: make(chan struct{})}
+	s := &Supervisor{cfg: cfg, done: make(chan struct{}), wake: make(chan struct{}, 1), backoff: initialBackoff}
 	if err := s.spawn(ctx, bin); err != nil {
 		return nil, err
 	}
+
+	s.alive, s.started = true, time.Now()
 
 	go s.watch(ctx, bin)
 	return s, nil
@@ -57,8 +69,12 @@ func (s *Supervisor) spawn(ctx context.Context, bin string) error {
 		}
 
 		s.logFile = f
+		s.logPath = f.Name()
 		out = io.MultiWriter(os.Stderr, f)
 	}
+
+	// Remember the last line so a failure can say why, not only that it happened.
+	out = io.MultiWriter(out, &s.tail)
 
 	cmd.Stdout = out
 	cmd.Stderr = out
@@ -77,52 +93,6 @@ func (s *Supervisor) closeLog() {
 	if s.logFile != nil {
 		_ = s.logFile.Close()
 		s.logFile = nil
-	}
-}
-
-func (s *Supervisor) watch(ctx context.Context, bin string) {
-	defer close(s.done)
-	backoff := time.Second
-
-	for {
-		err := s.cmd.Wait()
-		s.closeLog()
-		s.mu.Lock()
-
-		if s.closed {
-			s.mu.Unlock()
-			return
-		}
-
-		s.mu.Unlock()
-
-		log.Printf("cberg-index exited: %v; restarting in %s", err, backoff)
-
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(backoff):
-		}
-
-		if backoff < 30*time.Second {
-			backoff *= 2
-		}
-
-		s.mu.Lock()
-
-		if s.closed {
-			s.mu.Unlock()
-			return
-		}
-
-		if spawnErr := s.spawn(ctx, bin); spawnErr != nil {
-			s.mu.Unlock()
-			log.Printf("cberg-index restart failed: %v", spawnErr)
-			return
-		}
-
-		s.mu.Unlock()
-		backoff = time.Second
 	}
 }
 
