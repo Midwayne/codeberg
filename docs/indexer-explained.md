@@ -225,7 +225,8 @@ or unsupported JSON root shapes, including non-object roots, fall back to
 200 lines under the same symbol. Configuration and Markdown chunks do not
 produce source graph fragments.
 
-Source: [chunker.c](../core/src/chunk/chunker.c).
+Source: [chunker.c](../core/src/chunk/chunker.c), [chunk_markdown.c](../core/src/chunk/chunk_markdown.c), and
+[chunk_config.c](../core/src/chunk/chunk_config.c).
 
 ## 5. Chunk identity, hashes, and change classification
 
@@ -853,7 +854,7 @@ To trace the implementation yourself, follow this order:
 
 1. [Process startup](../core/cmd/cberg-index/main.c): engine setup, IPC, root bootstraps, watch loop.
 2. Indexer orchestration: `cberg_repo_bootstrap` and `bootstrap_warm` in [bootstrap.c](../core/cmd/cberg-index/bootstrap.c); `repo_parse_file`, `repo_sync_chunks`, and `repo_apply_path_changes` in [repo_sync.c](../core/cmd/cberg-index/repo_sync.c); `repo_sync_vectors` in [repo_vectors.c](../core/cmd/cberg-index/repo_vectors.c); `repo_step` in [watch_loop.c](../core/cmd/cberg-index/watch_loop.c).
-3. [Chunker](../core/src/chunk/chunker.c): language queries, Markdown/config rules, and combined analysis.
+3. [Chunker](../core/src/chunk/chunker.c): language queries and combined analysis; Markdown rules in [chunk_markdown.c](../core/src/chunk/chunk_markdown.c), config rules in [chunk_config.c](../core/src/chunk/chunk_config.c).
 4. [Chunk table](../core/src/chunk/chunk_table.c): IDs, hash comparisons, deltas, fingerprints, persistence.
 5. [Graph extractor](../core/src/graph/graph_extract.c): definition reuse, nesting, reference queries, deduplication.
 6. Graph store: records and indexes in [graph_store.c](../core/src/graph/graph_store.c), file replacement in [graph_apply.c](../core/src/graph/graph_apply.c), query-time resolution and confidence in [graph_resolve.c](../core/src/graph/graph_resolve.c), traversal and hubs in [graph_query.c](../core/src/graph/graph_query.c).

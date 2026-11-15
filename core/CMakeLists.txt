@@ -88,6 +88,9 @@ set(CBERG_SOURCES
   src/chunk/chunk_keys.c
   src/chunk/chunk_kind.c
   src/chunk/chunker.c
+  src/chunk/chunk_list.c
+  src/chunk/chunk_markdown.c
+  src/chunk/chunk_config.c
   src/chunk/chunk_table.c
   src/graph/graph_store.c
   src/graph/graph_apply.c

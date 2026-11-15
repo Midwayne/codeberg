@@ -2,7 +2,8 @@
 
 Tree-sitter chunking and in-memory incremental change tracking.
 
-**Files:** `chunker.c`, `chunk_table.c`, `chunk_keys.c`  
+**Files:** `chunker.c` (tree-sitter languages), `chunk_markdown.c`, `chunk_config.c`,
+`chunk_list.c` (the list and the line-window fallback), `chunk_table.c`, `chunk_keys.c`  
 **Depends on:** `common/arena`, `common/hash`, `common/strmap`, tree-sitter + seven grammars
 
 ---
@@ -22,7 +23,7 @@ Used by tree-sitter query extraction; window chunks use a linear counter instead
 
 ---
 
-## `chunker.c`
+## `chunker.c` and the format chunkers
 
 Turns source text into `cberg_chunk` records with stable keys and byte spans.
 
