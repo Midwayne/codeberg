@@ -8,6 +8,27 @@ full indexing loop for one or many repository roots in a single process. The Go
 **Implementation header:** `core/cmd/cberg-index/indexer.h`  
 **Design rationale:** [adr/0004-multi-root-engine.md](adr/0004-multi-root-engine.md)
 
+## Source layout
+
+| File | Responsibility |
+|------|----------------|
+| `main.c` | Process startup, signals, capabilities |
+| `indexer.h` | Engine and repo types, engine API |
+| `indexer_internal.h` | Declarations shared between the files below |
+| `engine.c` | Engine and repo lifecycle: environment, open, close |
+| `bootstrap.c` | Cold and warm start of one repo |
+| `watch_loop.c` | Incremental updates from the file watchers |
+| `repo_sync.c` | Parse files, commit chunks and graph fragments |
+| `repo_vectors.c` | Embed changed chunks, retry and rebuild the vector index |
+| `repo_state.c` | Progress, published status, sidecar persistence |
+| `chunk_batch.c` | The set of chunks handed to one sync |
+| `query_chunks.c` | Search, chunk, symbol, and outline queries |
+| `query_graph.c` | Knowledge-graph queries |
+| `embedding.c` | Embedder lifecycle (lazy load, idle eviction) |
+| `workspace_graph.c`, `workspace_resolve.c` | Cross-repository graph view |
+| `ipc.c` | Unix-socket protocol |
+| `wipe.c` | `--wipe` index removal |
+
 ---
 
 ## Environment

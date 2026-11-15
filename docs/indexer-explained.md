@@ -84,7 +84,8 @@ The daemon's lexical search and filesystem tools provide useful access before
 index-dependent tools become ready.
 
 Source: [main.c](../core/cmd/cberg-index/main.c),
-[indexer.c](../core/cmd/cberg-index/indexer.c),
+[engine.c](../core/cmd/cberg-index/engine.c),
+[bootstrap.c](../core/cmd/cberg-index/bootstrap.c),
 [project indexer setup](../daemon/internal/projects/indexer.go), and
 [IPC protocol](../daemon/docs/ipc.md).
 
@@ -116,8 +117,8 @@ text” does not mean “the running indexer embeds every file.”
 Source: [walk policy](../core/src/common/walk_policy.c),
 [skip list](../core/src/common/walk_skip_dirs_gen.inc),
 [filesystem walker](../core/src/common/pathutil.c),
-[language detection](../core/src/common/lang.c), and `parse_file` in
-[indexer.c](../core/cmd/cberg-index/indexer.c).
+[language detection](../core/src/common/lang.c), and `repo_parse_file` in
+[repo_sync.c](../core/cmd/cberg-index/repo_sync.c).
 
 ## 4. What automatic chunking means
 
@@ -560,7 +561,7 @@ The next semantic query or embedding update reloads the model. Setting
 `CBERG_EMBED_IDLE_SECONDS=0` disables this unloading.
 
 Source: `embed_unique`, `embed_window`, and `call_len` in
-[indexer.c](../core/cmd/cberg-index/indexer.c), and
+[repo_vectors.c](../core/cmd/cberg-index/repo_vectors.c), and
 [embedding lifecycle](../core/cmd/cberg-index/embedding.c).
 
 ## 9. How vector search and hybrid retrieval work
@@ -628,7 +629,7 @@ neighbors or embeds a graph-expanded document.
 Source: [usearch provider](../core/src/search/providers/usearch/usearch.c),
 [index defaults](../core/src/search/index_config.c),
 [search orchestration](../core/src/search/search.c),
-[engine search](../core/cmd/cberg-index/indexer.c),
+[engine search](../core/cmd/cberg-index/query_chunks.c),
 [daemon hybrid search](../daemon/internal/tools/hybrid.go), and
 [fusion/ranking](../daemon/internal/search/ranking.go).
 
@@ -715,7 +716,8 @@ the next startup re-chunks files even when their bytes have not changed.
 Source: [watch implementation](../core/src/watch/watch.c),
 [manifest implementation](../core/src/manifest/manifest.c),
 [chunking rules version](../core/src/chunk/chunk_rules.h), and
-bootstrap/update functions in [indexer.c](../core/cmd/cberg-index/indexer.c).
+bootstrap/update functions in [bootstrap.c](../core/cmd/cberg-index/bootstrap.c) and
+[watch_loop.c](../core/cmd/cberg-index/watch_loop.c).
 
 ## 11. What is persisted and how recovery works
 
@@ -753,8 +755,8 @@ information on every restart.
 These files are derived search data. They are distinct from chat history,
 accumulated Knowledge, and reviewed Learning datasets.
 
-Source: state save/load and vector recovery in
-[indexer.c](../core/cmd/cberg-index/indexer.c),
+Source: state save/load in [repo_state.c](../core/cmd/cberg-index/repo_state.c), vector recovery in
+[repo_vectors.c](../core/cmd/cberg-index/repo_vectors.c),
 [chunk serialization](../core/src/chunk/chunk_table.c),
 [graph serialization](../core/src/graph/graph_store.c), and
 [vector provider reference](../core/docs/VECTOR_INDEX_PROVIDERS.md).
@@ -850,7 +852,7 @@ and the source graph's explicit uncertainty.
 To trace the implementation yourself, follow this order:
 
 1. [Process startup](../core/cmd/cberg-index/main.c): engine setup, IPC, root bootstraps, watch loop.
-2. [Indexer orchestration](../core/cmd/cberg-index/indexer.c): `parse_file`, `sync_chunks`, `sync_vectors`, `cberg_repo_bootstrap`, `apply_path_changes`, `bootstrap_warm`, and `repo_step`.
+2. Indexer orchestration: `cberg_repo_bootstrap` and `bootstrap_warm` in [bootstrap.c](../core/cmd/cberg-index/bootstrap.c); `repo_parse_file`, `repo_sync_chunks`, and `repo_apply_path_changes` in [repo_sync.c](../core/cmd/cberg-index/repo_sync.c); `repo_sync_vectors` in [repo_vectors.c](../core/cmd/cberg-index/repo_vectors.c); `repo_step` in [watch_loop.c](../core/cmd/cberg-index/watch_loop.c).
 3. [Chunker](../core/src/chunk/chunker.c): language queries, Markdown/config rules, and combined analysis.
 4. [Chunk table](../core/src/chunk/chunk_table.c): IDs, hash comparisons, deltas, fingerprints, persistence.
 5. [Graph extractor](../core/src/graph/graph_extract.c): definition reuse, nesting, reference queries, deduplication.
