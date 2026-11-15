@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { prepareSkillFiles, type SkillFile } from './skill-files';
-import { createSkillImportAction } from './skill-import-action';
+
+import type { SkillFile } from './skill-files';
+import { importSkillFiles, previewSkillFiles } from './skill-import-requests';
 
 export type SkillImportOptions = {
   api: typeof fetch;
@@ -10,15 +11,60 @@ export type SkillImportOptions = {
   onBusyChange: (busy: boolean) => void;
 };
 
+type SkillAction = 'preview' | 'import';
+
 export function useSkillImport({ api, scope, scopeLabel, onImported, onBusyChange }: SkillImportOptions) {
   const [files, setFiles] = useState<SkillFile[]>([]);
-  const [busy, setBusy] = useState<'preview' | 'import' | null>(null);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState('');
   const input = useRef<HTMLInputElement>(null);
-  const action = useRef<AbortController | null>(null);
   const depth = useRef(0);
+  const { busy, run } = useExclusiveSkillAction(onBusyChange);
+
+  const preview = (selected: File[]) =>
+    run('preview', async (signal) => {
+      setError('');
+      setSaved('');
+      setFiles([]);
+
+      try {
+        const previewed = await previewSkillFiles(selected, api, signal);
+        if (!signal.aborted) setFiles(previewed);
+      } catch (reason) {
+        if (!signal.aborted) setError(reason instanceof Error ? reason.message : String(reason));
+      }
+    });
+
+  const importFiles = () =>
+    run('import', async (signal) => {
+      setError('');
+      setSaved('');
+
+      const { imported, remaining } = await importSkillFiles(files, scope, api, signal);
+      if (signal.aborted) return;
+
+      setFiles(remaining);
+      if (!imported) return;
+
+      const noun = imported === 1 ? 'skill' : 'skills';
+      setSaved(`${imported} ${noun} imported into ${scopeLabel}. Available on the next chat turn.`);
+      onImported();
+    });
+
+  const ready = files.filter((file) => !file.error && file.name && file.content !== undefined).length;
+
+  return {
+    busy, files, ready, error, saved, dragging, scopeLabel,
+    input, depth, setDragging, setFiles, preview, importFiles,
+  };
+}
+
+/** Runs one preview or import at a time, and aborts the running one when the form unmounts. */
+function useExclusiveSkillAction(onBusyChange: (busy: boolean) => void) {
+  const [busy, setBusy] = useState<SkillAction | null>(null);
+  const action = useRef<AbortController | null>(null);
+
   useEffect(
     () => () => {
       action.current?.abort();
@@ -26,86 +72,20 @@ export function useSkillImport({ api, scope, scopeLabel, onImported, onBusyChang
     },
     [onBusyChange],
   );
-  const { preview } = createSkillPreview({ action, setBusy, onBusyChange, setError, setSaved, setFiles, api });
-  const { importFiles } = createSkillImportAction({
-    action,
-    setBusy,
-    onBusyChange,
-    setError,
-    setSaved,
-    files,
-    api,
-    scope,
-    setFiles,
-    scopeLabel,
-    onImported,
-  });
 
-  const ready = files.filter((file) => !file.error && file.name && file.content !== undefined).length;
-  return {
-    busy,
-    depth,
-    setDragging,
-    preview,
-    files,
-    dragging,
-    input,
-    scopeLabel,
-    error,
-    setFiles,
-    ready,
-    importFiles,
-    saved,
-  };
-}
-
-export type SkillPreviewOptions = Pick<Parameters<typeof useSkillImport>[0], 'onBusyChange' | 'api'> & {
-  action: React.RefObject<AbortController | null>;
-  setBusy: React.Dispatch<React.SetStateAction<'preview' | 'import' | null>>;
-  setError: React.Dispatch<React.SetStateAction<string>>;
-  setSaved: React.Dispatch<React.SetStateAction<string>>;
-  setFiles: React.Dispatch<React.SetStateAction<SkillFile[]>>;
-};
-
-export function createSkillPreview({
-  action,
-  setBusy,
-  onBusyChange,
-  setError,
-  setSaved,
-  setFiles,
-  api,
-}: SkillPreviewOptions) {
-  async function preview(selected: File[]) {
+  async function run(kind: SkillAction, work: (signal: AbortSignal) => Promise<void>): Promise<void> {
     if (action.current) return;
+
     const controller = new AbortController();
     action.current = controller;
-    setBusy('preview');
+    setBusy(kind);
     onBusyChange(true);
-    setError('');
-    setSaved('');
-    setFiles([]);
+
     try {
-      const prepared = await prepareSkillFiles(selected);
-      const readable = prepared.filter((file) => !file.error);
-      let results: SkillFile[] = [];
-      if (readable.length) {
-        const response = await api('/api/extensions/skills/preview', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ files: readable }),
-          signal: controller.signal,
-        });
-        if (!response.ok) throw new Error(await response.text());
-        results = ((await response.json()) as { files: SkillFile[] }).files;
-      }
-      let index = 0;
-      if (!controller.signal.aborted)
-        setFiles(prepared.map((file) => (file.error ? file : { ...file, ...results[index++] })));
-    } catch (reason) {
-      if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : String(reason));
+      await work(controller.signal);
     } finally {
       action.current = null;
+
       if (!controller.signal.aborted) {
         setBusy(null);
         onBusyChange(false);
@@ -113,5 +93,5 @@ export function createSkillPreview({
     }
   }
 
-  return { preview };
+  return { busy, run };
 }
