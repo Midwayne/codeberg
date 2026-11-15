@@ -16,22 +16,54 @@ export function RenameProjectForm(props: RenameProjectFormProps) {
   return <RenameProjectFormView {...state} />;
 }
 
-export type RenameProjectOptions = {
-  project: Project;
-  onRenamed: (project: Project) => void;
-  onCancel: () => void;
-};
+const RENAME_FAILED = 'Could not save the project name. Try again.';
 
-export function useRenameProject({ project, onRenamed, onCancel }: RenameProjectOptions) {
+export function useRenameProject({ project, onRenamed, onCancel }: RenameProjectFormProps) {
   const [name, setName] = useState(project.name);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const input = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     input.current?.focus();
     input.current?.select();
   }, []);
-  return { busy, onCancel, name, project, setBusy, setError, onRenamed, input, setName, error };
+
+  function submit(event: React.SubmitEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy || !name.trim() || name.trim() === project.name) return;
+
+    setBusy(true);
+    setError('');
+
+    void renameProject(project.id, name.trim())
+      .then(onRenamed)
+      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason)))
+      .finally(() => setBusy(false));
+  }
+
+  return { busy, onCancel, name, project, input, setName, setError, error, submit };
+}
+
+async function renameProject(id: string, name: string): Promise<Project> {
+  const response = await fetch(`/api/projects/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+
+  const text = await response.text();
+  let result: Project & { message?: string };
+
+  try {
+    result = JSON.parse(text) as typeof result;
+  } catch {
+    throw new Error(text || RENAME_FAILED);
+  }
+
+  if (!response.ok) throw new Error(result.message || RENAME_FAILED);
+
+  return result;
 }
 
 export type RenameProjectFormViewProps = ReturnType<typeof useRenameProject>;
@@ -41,12 +73,11 @@ export function RenameProjectFormView({
   onCancel,
   name,
   project,
-  setBusy,
-  setError,
-  onRenamed,
   input,
   setName,
+  setError,
   error,
+  submit,
 }: RenameProjectFormViewProps) {
   return (
     <form
@@ -58,7 +89,7 @@ export function RenameProjectFormView({
           onCancel();
         }
       }}
-      onSubmit={createProjectRenameSubmit({ busy, name, project, setBusy, setError, onRenamed })}
+      onSubmit={submit}
     >
       <ProjectNameField project={project} />
       <RenameProjectInput
@@ -137,36 +168,4 @@ export function RenameProjectInput({ input, project, name, busy, setName, setErr
       className={control}
     />
   );
-}
-
-export type ProjectRenameSubmitOptions = Pick<
-  Parameters<typeof RenameProjectFormView>[0],
-  'busy' | 'name' | 'project' | 'setBusy' | 'setError' | 'onRenamed'
->;
-
-function createProjectRenameSubmit({ busy, name, project, setBusy, setError, onRenamed }: ProjectRenameSubmitOptions) {
-  return (event: React.SubmitEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (busy || !name.trim() || name.trim() === project.name) return;
-    setBusy(true);
-    setError('');
-    void fetch(`/api/projects/${project.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim() }),
-    })
-      .then(async (response) => {
-        const text = await response.text();
-        let result: Project & { message?: string };
-        try {
-          result = JSON.parse(text) as typeof result;
-        } catch {
-          throw new Error(text || 'Could not save the project name. Try again.');
-        }
-        if (!response.ok) throw new Error(result.message || 'Could not save the project name. Try again.');
-        onRenamed(result);
-      })
-      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason)))
-      .finally(() => setBusy(false));
-  };
 }

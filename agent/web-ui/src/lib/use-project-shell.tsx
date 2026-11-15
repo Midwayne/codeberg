@@ -12,15 +12,11 @@ export type ProjectShellOptions = {
 };
 
 export function useProjectShell({ children }: ProjectShellOptions) {
-  const [catalog, setCatalog] = useState<ProjectCatalog>();
-  const [selected, setSelected] = useState('');
-  const [error, setError] = useState('');
-  const [retry, setRetry] = useState(0);
+  const { catalog, setCatalog, selected, setSelected, error, retry, setRetry } = useProjectCatalog();
   const [adding, setAdding] = useState(false);
   const project = catalog?.projects.find((project) => project.id === selected);
   const api = useMemo(() => (project ? projectFetch(project.id) : projectFetch('unselected')), [project?.id]);
   const { status, setStatus } = useProjectStatus({ project, api, retry, refreshCatalog: setRetry });
-  useProjectCatalog({ setCatalog, setSelected, setError, retry });
 
   function select(id: string) {
     setSelected(id);
@@ -54,14 +50,16 @@ export function useProjectShell({ children }: ProjectShellOptions) {
   return { catalog, project, api, ready, setCatalog, children, toolbar, notice, error, setRetry, adding, setAdding, select };
 }
 
-export type ProjectCatalogOptions = {
-  setCatalog: React.Dispatch<React.SetStateAction<ProjectCatalog | undefined>>;
-  setSelected: React.Dispatch<React.SetStateAction<string>>;
-  setError: React.Dispatch<React.SetStateAction<string>>;
-  retry: number;
-};
+/**
+ * Loads the projects and keeps a valid selection: current, then the URL, then
+ * the last session, then the default. Bumping `retry` loads them again.
+ */
+function useProjectCatalog() {
+  const [catalog, setCatalog] = useState<ProjectCatalog>();
+  const [selected, setSelected] = useState('');
+  const [error, setError] = useState('');
+  const [retry, setRetry] = useState(0);
 
-export function useProjectCatalog({ setCatalog, setSelected, setError, retry }: ProjectCatalogOptions) {
   useEffect(() => {
     const controller = new AbortController();
     void requestProjectCatalog(controller.signal)
@@ -88,4 +86,6 @@ export function useProjectCatalog({ setCatalog, setSelected, setError, retry }: 
       });
     return () => controller.abort();
   }, [retry]);
+
+  return { catalog, setCatalog, selected, setSelected, error, retry, setRetry };
 }

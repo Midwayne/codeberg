@@ -54,10 +54,14 @@ export type ProjectWorkspaceOptions = {
 };
 
 export function useProjectWorkspace({ toolbar, loading, notice }: ProjectWorkspaceOptions) {
-  const { title, chatInputs, learningEnabled, trainingEnabled, learningBusy, refreshMeta } = useWorkspaceMeta({
-    loading,
-  });
+  const meta = useWorkspaceMeta({ loading });
+  const panels = useWorkspacePanels();
 
+  return { ...meta, ...panels, notice, loading, toolbar };
+}
+
+/** Which secondary screens are open, and the buttons that get focus back when they close. */
+function useWorkspacePanels() {
   const desktop = useMediaQuery('(min-width: 768px)');
   const [sidebarPreference, setSidebarOpen] = useState<boolean>();
   const sidebarOpen = sidebarPreference ?? desktop;
@@ -68,37 +72,38 @@ export function useProjectWorkspace({ toolbar, loading, notice }: ProjectWorkspa
   const searchButton = useRef<HTMLButtonElement>(null);
   const settingsButton = useRef<HTMLButtonElement>(null);
   const modelsButton = useRef<HTMLButtonElement>(null);
-  useSearchShortcut({ setSettingsOpen, setModelsOpen, setTrainingOpen, desktop, setSidebarOpen, setSearchOpen });
+
+  function openSearch(): void {
+    setSettingsOpen(false);
+    setModelsOpen(false);
+    setTrainingOpen(false);
+    if (!desktop) setSidebarOpen(false);
+    setSearchOpen(true);
+  }
 
   function closeSettings(): void {
     setSettingsOpen(false);
     settingsButton.current?.focus();
   }
+
+  useSearchShortcut(openSearch, desktop);
+
   return {
-    trainingOpen,
-    settingsOpen,
-    setSidebarOpen,
-    sidebarOpen,
-    title,
-    learningBusy,
-    searchButton,
-    setTrainingOpen,
-    setSettingsOpen,
     desktop,
-    setSearchOpen,
-    trainingEnabled,
-    setModelsOpen,
-    modelsButton,
+    sidebarOpen,
+    setSidebarOpen,
+    settingsOpen,
+    setSettingsOpen,
     modelsOpen,
-    settingsButton,
-    notice,
-    loading,
-    toolbar,
-    learningEnabled,
-    chatInputs,
+    setModelsOpen,
     searchOpen,
+    setSearchOpen,
+    trainingOpen,
+    setTrainingOpen,
+    searchButton,
+    settingsButton,
+    modelsButton,
     closeSettings,
-    refreshMeta,
   };
 }
 
@@ -148,35 +153,18 @@ export function ProjectWorkspaceView(state: ProjectWorkspaceViewProps) {
   );
 }
 
-export type SearchShortcutOptions = {
-  setSettingsOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setModelsOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setTrainingOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  desktop: boolean;
-  setSidebarOpen: React.Dispatch<React.SetStateAction<boolean | undefined>>;
-  setSearchOpen: React.Dispatch<React.SetStateAction<boolean>>;
-};
-
-function useSearchShortcut({
-  setSettingsOpen,
-  setModelsOpen,
-  setTrainingOpen,
-  desktop,
-  setSidebarOpen,
-  setSearchOpen,
-}: SearchShortcutOptions) {
+/** Cmd/Ctrl+K opens chat search. `onOpen` is re-read whenever the layout it depends on changes. */
+function useSearchShortcut(onOpen: () => void, desktop: boolean) {
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
-        setSettingsOpen(false);
-        setModelsOpen(false);
-        setTrainingOpen(false);
-        if (!desktop) setSidebarOpen(false);
-        setSearchOpen(true);
+        onOpen();
       }
     };
+
     window.addEventListener('keydown', shortcut);
+
     return () => window.removeEventListener('keydown', shortcut);
   }, [desktop]);
 }
