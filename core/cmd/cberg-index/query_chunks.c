@@ -155,6 +155,37 @@ static int hit_id_seen(const uint64_t *seen, size_t seen_len, uint64_t id) {
 
 /* Search one repo with an already-embedded query, copying chunk metadata into
  * hits while r->mu is held. NOT_FOUND when the repo is not ready yet. */
+/* Chunk ids already considered across fetch rounds, so a widened refetch
+ * does not return the same chunk twice. */
+typedef struct {
+    uint64_t ids[CBERG_FILTER_FETCH_MAX];
+    size_t len;
+} seen_hits;
+
+/* Appends the fetched results that are new, still in the table, and pass the
+ * filters, until *found reaches limit. */
+static void append_hits(cberg_repo *r, const uint64_t *ids, const float *scores, size_t n, const cberg_search_filters *filters, size_t limit, seen_hits *seen, cberg_engine_hit *hits, size_t *found) {
+    for (size_t i = 0; i < n && *found < limit; i++) {
+        if (hit_id_seen(seen->ids, seen->len, ids[i])) {
+            continue;
+        }
+        if (seen->len < CBERG_FILTER_FETCH_MAX) {
+            seen->ids[seen->len++] = ids[i];
+        }
+
+        const cberg_stored_chunk *sc = cberg_chunk_table_find_by_id(r->table, ids[i]);
+        if (sc == NULL || !chunk_passes_filters(sc, scores[i], filters)) {
+            continue;
+        }
+
+        cberg_engine_hit *h = &hits[(*found)++];
+        fill_hit_meta(r, sc, ids[i], scores[i], h);
+        fill_snippet(r, sc, h->snippet, sizeof(h->snippet));
+    }
+}
+
+/* Vector-searches one repo. Filtered searches oversample and keep doubling
+ * the fetch until k hits pass or the index runs out. */
 static cberg_status repo_search_hits(cberg_repo *r, const float *vec, size_t k, const cberg_search_filters *filters, cberg_engine_hit *hits, size_t cap, size_t *found) {
     *found = 0;
     pthread_mutex_lock(&r->mu);
@@ -164,12 +195,6 @@ static cberg_status repo_search_hits(cberg_repo *r, const float *vec, size_t k, 
     }
 
     const int filtered = search_filters_active(filters);
-    size_t fetch = filtered ? 64 : k;
-
-    uint64_t ids[CBERG_FILTER_FETCH_MAX];
-    float scores[CBERG_FILTER_FETCH_MAX];
-    uint64_t seen_ids[CBERG_FILTER_FETCH_MAX];
-    size_t seen_len = 0;
     cberg_search_config search_cfg;
     cberg_search_config_default(&search_cfg);
     if (filtered) {
@@ -177,47 +202,31 @@ static cberg_status repo_search_hits(cberg_repo *r, const float *vec, size_t k, 
         search_cfg.min_expansion_search = 128;
     }
 
+    uint64_t ids[CBERG_FILTER_FETCH_MAX];
+    float scores[CBERG_FILTER_FETCH_MAX];
+    seen_hits seen = {.len = 0};
+    size_t limit = k < cap ? k : cap;
+    size_t fetch = filtered ? 64 : k;
+    cberg_status st = CBERG_OK;
+
     for (;;) {
         size_t n = 0;
-        cberg_status st = cberg_search_vector(r->index, vec, filtered ? &search_cfg : NULL, fetch, ids, scores, &n);
+        st = cberg_search_vector(r->index, vec, filtered ? &search_cfg : NULL, fetch, ids, scores, &n);
         if (st != CBERG_OK) {
-            pthread_mutex_unlock(&r->mu);
-            return st;
-        }
-
-        for (size_t i = 0; i < n && *found < k && *found < cap; i++) {
-            if (hit_id_seen(seen_ids, seen_len, ids[i])) {
-                continue;
-            }
-            if (seen_len < CBERG_FILTER_FETCH_MAX) {
-                seen_ids[seen_len++] = ids[i];
-            }
-
-            const cberg_stored_chunk *sc = cberg_chunk_table_find_by_id(r->table, ids[i]);
-            if (sc == NULL) {
-                continue;
-            }
-            if (!chunk_passes_filters(sc, scores[i], filters)) {
-                continue;
-            }
-            cberg_engine_hit *h = &hits[*found];
-            fill_hit_meta(r, sc, ids[i], scores[i], h);
-            fill_snippet(r, sc, h->snippet, sizeof(h->snippet));
-            (*found)++;
-        }
-
-        if (*found >= k || !filtered) {
             break;
         }
-        if (n < fetch || fetch >= CBERG_FILTER_FETCH_MAX) {
+
+        append_hits(r, ids, scores, n, filters, limit, &seen, hits, found);
+        if (*found >= k || !filtered || n < fetch || fetch >= CBERG_FILTER_FETCH_MAX) {
             break;
         }
+
         size_t next = fetch * 2;
         fetch = next > CBERG_FILTER_FETCH_MAX ? CBERG_FILTER_FETCH_MAX : next;
     }
 
     pthread_mutex_unlock(&r->mu);
-    return CBERG_OK;
+    return st;
 }
 
 static int hit_score_desc(const void *a, const void *b) {
@@ -244,6 +253,42 @@ static int hit_line_asc(const void *a, const void *b) {
     return 0;
 }
 
+/* Searches every repo with one query vector and keeps the k best hits by
+ * score. Repos that are not ready are skipped; if none is, NOT_FOUND. */
+static cberg_status search_all_repos(cberg_engine *eng, const float *vec, size_t k, const cberg_search_filters *filters, cberg_engine_hit *hits, size_t *found) {
+    cberg_engine_hit *all = malloc(eng->repos_len * k * sizeof(*all));
+    if (all == NULL) {
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+
+    size_t n = 0;
+    size_t searched = 0;
+    cberg_status st = CBERG_OK;
+    for (size_t i = 0; i < eng->repos_len && st == CBERG_OK; i++) {
+        size_t got = 0;
+        cberg_status rst = repo_search_hits(eng->repos[i], vec, k, filters, all + n, k, &got);
+        if (rst == CBERG_OK) {
+            n += got;
+            searched++;
+        } else if (rst != CBERG_ERR_NOT_FOUND) {
+            st = rst; /* a real search failure; not-ready repos are just skipped */
+        }
+    }
+
+    if (st == CBERG_OK && searched == 0) {
+        st = CBERG_ERR_NOT_FOUND;
+    }
+    if (st == CBERG_OK) {
+        qsort(all, n, sizeof(*all), hit_score_desc);
+        for (size_t i = 0; i < n && *found < k; i++) {
+            hits[(*found)++] = all[i];
+        }
+    }
+
+    free(all);
+    return st;
+}
+
 cberg_status cberg_engine_search_hits(cberg_engine *eng, const char *query, const char *repo_key, size_t k, const cberg_search_filters *filters, cberg_engine_hit *hits, size_t cap, size_t *found) {
     if (hits == NULL || found == NULL || query == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
@@ -252,19 +297,16 @@ cberg_status cberg_engine_search_hits(cberg_engine *eng, const char *query, cons
     if (cap == 0 || k == 0) {
         return CBERG_OK;
     }
-    if (k > cap) {
-        k = cap;
-    }
-    if (k > 64) {
-        k = 64;
-    }
+
+    k = k > cap ? cap : k;
+    k = k > 64 ? 64 : k;
     if (!eng->vectors) {
         return CBERG_ERR_NOT_IMPLEMENTED;
     }
+
     if (repo_key != NULL && repo_key[0] == '\0') {
         repo_key = NULL;
     }
-
     cberg_repo *only = engine_find_repo(eng, repo_key);
     if (repo_key != NULL && only == NULL) {
         return CBERG_ERR_NOT_FOUND;
@@ -282,45 +324,12 @@ cberg_status cberg_engine_search_hits(cberg_engine *eng, const char *query, cons
 
     if (only != NULL) {
         st = repo_search_hits(only, vec, k, filters, hits, cap, found);
-        cberg_vectors_free(vec);
-        return st;
+    } else {
+        st = search_all_repos(eng, vec, k, filters, hits, found);
     }
 
-    cberg_engine_hit *all = malloc(eng->repos_len * k * sizeof(*all));
-    if (all == NULL) {
-        cberg_vectors_free(vec);
-        return CBERG_ERR_OUT_OF_MEMORY;
-    }
-    size_t n = 0;
-    size_t searched = 0;
-    st = CBERG_OK;
-    for (size_t i = 0; i < eng->repos_len; i++) {
-        size_t got = 0;
-        cberg_status rst = repo_search_hits(eng->repos[i], vec, k, filters, all + n, k, &got);
-        if (rst == CBERG_OK) {
-            n += got;
-            searched++;
-        } else if (rst != CBERG_ERR_NOT_FOUND) {
-            st = rst; /* a real search failure; not-ready repos are just skipped */
-            break;
-        }
-    }
     cberg_vectors_free(vec);
-    if (st != CBERG_OK) {
-        free(all);
-        return st;
-    }
-    if (searched == 0) {
-        free(all);
-        return CBERG_ERR_NOT_FOUND;
-    }
-
-    qsort(all, n, sizeof(*all), hit_score_desc);
-    for (size_t i = 0; i < n && *found < k; i++) {
-        hits[(*found)++] = all[i];
-    }
-    free(all);
-    return CBERG_OK;
+    return st;
 }
 
 void cberg_engine_chunk_detail_free(cberg_engine_chunk_detail *d) {
