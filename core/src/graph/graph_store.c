@@ -127,10 +127,12 @@ cberg_status graph_add_node(cberg_graph *g, const cberg_graph_node *pub) {
     return CBERG_OK;
 }
 
-cberg_status graph_add_ref(cberg_graph *g, const graph_ref_rec *tpl) {
+/* Makes room for one more ref record. */
+static cberg_status refs_reserve_one(cberg_graph *g) {
     if (g->refs_len >= UINT32_MAX) {
         return CBERG_ERR_OUT_OF_MEMORY;
     }
+
     size_t cap = cberg_grow_cap(g->refs_cap, g->refs_len + 1, 64);
     if (cap == SIZE_MAX || (cap > 0 && cap > SIZE_MAX / sizeof(graph_ref_rec))) {
         return CBERG_ERR_OUT_OF_MEMORY;
@@ -143,7 +145,11 @@ cberg_status graph_add_ref(cberg_graph *g, const graph_ref_rec *tpl) {
         g->refs = grown;
         g->refs_cap = cap;
     }
-    graph_ref_rec *rec = &g->refs[g->refs_len];
+    return CBERG_OK;
+}
+
+/* Copies tpl into rec, duplicating its strings into the graph arena. */
+static cberg_status ref_copy(cberg_graph *g, const graph_ref_rec *tpl, graph_ref_rec *rec) {
     memset(rec, 0, sizeof(*rec));
     rec->src = tpl->src;
     rec->dst = tpl->dst;
@@ -152,6 +158,7 @@ cberg_status graph_add_ref(cberg_graph *g, const graph_ref_rec *tpl) {
     rec->rev = tpl->rev;
     rec->resolution = tpl->resolution;
     rec->binding = tpl->binding;
+
     rec->module = tpl->module != NULL ? cberg_arena_strdup(g->arena, tpl->module) : NULL;
     rec->owner = tpl->owner != NULL ? cberg_arena_strdup(g->arena, tpl->owner) : NULL;
     rec->name = tpl->name != NULL ? cberg_arena_strdup(g->arena, tpl->name) : NULL;
@@ -161,9 +168,21 @@ cberg_status graph_add_ref(cberg_graph *g, const graph_ref_rec *tpl) {
         memset(rec, 0, sizeof(*rec));
         return CBERG_ERR_OUT_OF_MEMORY;
     }
+    return CBERG_OK;
+}
+
+cberg_status graph_add_ref(cberg_graph *g, const graph_ref_rec *tpl) {
+    cberg_status st = refs_reserve_one(g);
+    graph_ref_rec *rec = st == CBERG_OK ? &g->refs[g->refs_len] : NULL;
+    if (st == CBERG_OK) {
+        st = ref_copy(g, tpl, rec);
+    }
+    if (st != CBERG_OK) {
+        return st;
+    }
 
     uint32_t index = (uint32_t)g->refs_len;
-    cberg_status st = chain_push_u64(g->ref_by_src, rec->src, index, &rec->src_next);
+    st = chain_push_u64(g->ref_by_src, rec->src, index, &rec->src_next);
     if (st == CBERG_OK && rec->dst != 0) {
         st = chain_push_u64(g->ref_by_dst, rec->dst, index, &rec->dst_next);
     }
@@ -173,14 +192,15 @@ cberg_status graph_add_ref(cberg_graph *g, const graph_ref_rec *tpl) {
     if (st == CBERG_OK) {
         st = chain_push_str(g->ref_by_path, rec->path, index, &rec->path_next);
     }
+
+    /* A half-indexed record stays, tombstoned, so its chain links stay valid. */
     g->refs_len++;
     g->revision++;
     if (st != CBERG_OK) {
         rec->dead = 1;
         g->refs_dead++;
-        return st;
     }
-    return CBERG_OK;
+    return st;
 }
 
 /* Get-or-create the module node an import points at. */
@@ -229,63 +249,79 @@ static int module_has_importer(const cberg_graph *g, uint64_t module_id) {
  * live set. The new store is built completely before the old one is torn
  * down, so failure leaves the graph untouched.
  */
+/* Copies live nodes into fresh, dropping orphan MODULE nodes that no live
+ * IMPORTS ref points at. */
+static cberg_status compact_nodes(const cberg_graph *g, cberg_graph *fresh) {
+    cberg_status st = CBERG_OK;
+    for (size_t i = 0; i < g->nodes_len && st == CBERG_OK; i++) {
+        const graph_node_rec *rec = &g->nodes[i];
+        if (rec->dead || (rec->pub.kind == CBERG_GNODE_MODULE && !module_has_importer(g, rec->pub.id))) {
+            continue;
+        }
+
+        st = graph_add_node(fresh, &rec->pub);
+        if (st == CBERG_OK && rec->repo != NULL) {
+            graph_node_rec *copy = &fresh->nodes[fresh->nodes_len - 1];
+            copy->repo = cberg_arena_strdup(fresh->arena, rec->repo);
+            copy->native_id = rec->native_id;
+            st = copy->repo != NULL ? CBERG_OK : CBERG_ERR_OUT_OF_MEMORY;
+        }
+    }
+    return st;
+}
+
+/* Copies live refs into fresh, skipping refs whose endpoints were dropped. */
+static cberg_status compact_refs(const cberg_graph *g, cberg_graph *fresh) {
+    cberg_status st = CBERG_OK;
+    for (size_t i = 0; i < g->refs_len && st == CBERG_OK; i++) {
+        const graph_ref_rec *ref = &g->refs[i];
+        if (ref->dead || graph_node_rec_by_id(fresh, ref->src) == NULL) {
+            continue;
+        }
+        if (ref->dst != 0 && graph_node_rec_by_id(fresh, ref->dst) == NULL) {
+            continue;
+        }
+        st = graph_add_ref(fresh, ref);
+    }
+    return st;
+}
+
+/* Frees a graph's storage but not the struct itself. */
+static void graph_free_storage(cberg_graph *g) {
+    cberg_arena_free(g->arena);
+    free(g->nodes);
+    free(g->refs);
+    cberg_u64map_free(g->node_by_id);
+    cberg_strmap_free(g->node_by_name);
+    cberg_strmap_free(g->node_by_path);
+    cberg_u64map_free(g->ref_by_src);
+    cberg_u64map_free(g->ref_by_dst);
+    cberg_strmap_free(g->ref_by_name);
+    cberg_strmap_free(g->ref_by_path);
+}
+
 static cberg_status graph_compact(cberg_graph *g) {
     cberg_graph *fresh = NULL;
     cberg_status st = cberg_graph_new(&fresh);
-    if (st != CBERG_OK) {
-        return st;
+    if (st == CBERG_OK) {
+        st = compact_nodes(g, fresh);
     }
-    for (size_t i = 0; i < g->nodes_len && st == CBERG_OK; i++) {
-        if (g->nodes[i].dead) {
-            continue;
-        }
-        /* Drop orphan MODULE nodes with no live IMPORTS importers. */
-        if (g->nodes[i].pub.kind == CBERG_GNODE_MODULE && !module_has_importer(g, g->nodes[i].pub.id)) {
-            continue;
-        }
-        st = graph_add_node(fresh, &g->nodes[i].pub);
-        if (st == CBERG_OK && g->nodes[i].repo != NULL) {
-            graph_node_rec *copy = &fresh->nodes[fresh->nodes_len - 1];
-            copy->repo = cberg_arena_strdup(fresh->arena, g->nodes[i].repo);
-            copy->native_id = g->nodes[i].native_id;
-            if (copy->repo == NULL)
-                st = CBERG_ERR_OUT_OF_MEMORY;
-        }
-    }
-    for (size_t i = 0; i < g->refs_len && st == CBERG_OK; i++) {
-        if (g->refs[i].dead) {
-            continue;
-        }
-        /* Skip refs whose endpoints were GC'd (orphan modules). */
-        if (graph_node_rec_by_id(fresh, g->refs[i].src) == NULL) {
-            continue;
-        }
-        if (g->refs[i].dst != 0 && graph_node_rec_by_id(fresh, g->refs[i].dst) == NULL) {
-            continue;
-        }
-        st = graph_add_ref(fresh, &g->refs[i]);
+    if (st == CBERG_OK) {
+        st = compact_refs(g, fresh);
     }
     if (st != CBERG_OK) {
         cberg_graph_free(fresh);
         return st;
     }
+
     fresh->workspace = g->workspace;
     fresh->scope = g->scope;
     fresh->revision = g->revision + 1;
+
     cberg_graph old = *g;
     *g = *fresh;
     free(fresh);
-    /* Free the old guts (not the struct we now occupy). */
-    cberg_arena_free(old.arena);
-    free(old.nodes);
-    free(old.refs);
-    cberg_u64map_free(old.node_by_id);
-    cberg_strmap_free(old.node_by_name);
-    cberg_strmap_free(old.node_by_path);
-    cberg_u64map_free(old.ref_by_src);
-    cberg_u64map_free(old.ref_by_dst);
-    cberg_strmap_free(old.ref_by_name);
-    cberg_strmap_free(old.ref_by_path);
+    graph_free_storage(&old);
     return CBERG_OK;
 }
 
@@ -329,16 +365,7 @@ void cberg_graph_free(cberg_graph *graph) {
     if (graph == NULL) {
         return;
     }
-    cberg_arena_free(graph->arena);
-    free(graph->nodes);
-    free(graph->refs);
-    cberg_u64map_free(graph->node_by_id);
-    cberg_strmap_free(graph->node_by_name);
-    cberg_strmap_free(graph->node_by_path);
-    cberg_u64map_free(graph->ref_by_src);
-    cberg_u64map_free(graph->ref_by_dst);
-    cberg_strmap_free(graph->ref_by_name);
-    cberg_strmap_free(graph->ref_by_path);
+    graph_free_storage(graph);
     free(graph);
 }
 
