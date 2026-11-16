@@ -73,58 +73,54 @@ void watch_platform_destroy(cberg_watcher *w) {
     }
 }
 
+/* Records one inotify event: the changed path as dirty, and a new
+ * subdirectory as something to start watching. */
+static void handle_event(cberg_watcher *w, const struct inotify_event *ev) {
+    cberg_watch_dir *dir = dir_by_wd(w, ev->wd);
+    if (dir == NULL || ev->len == 0) {
+        return;
+    }
+
+    char rel[PATH_MAX];
+    if (!watch_rel_join(dir->rel_path, ev->name, rel, sizeof(rel))) {
+        return;
+    }
+
+    if ((ev->mask & IN_ISDIR) != 0 && (ev->mask & IN_CREATE) != 0) {
+        char abs[PATH_MAX];
+        if (cberg_path_join(dir->abs_path, ev->name, abs, sizeof(abs))) {
+            watch_note_created_subdir(w, abs, rel);
+        }
+    }
+
+    watch_note_error(w, watch_dirty_add(w, rel, watch_kind_from_inotify(ev->mask)));
+}
+
+/* Waits up to timeout_ms for events (0 polls without blocking and is not a
+ * timeout), then drains every queued event. */
 cberg_status watch_platform_wait(cberg_watcher *w, int timeout_ms) {
-    if (timeout_ms == 0) {
-        struct pollfd pfd = {.fd = w->inotify_fd, .events = POLLIN};
-        int pr = poll(&pfd, 1, 0);
-        if (pr < 0) {
-            return CBERG_ERR_IO;
-        }
-        if (pr == 0) {
-            return CBERG_OK;
-        }
-    } else {
-        struct pollfd pfd = {.fd = w->inotify_fd, .events = POLLIN};
-        int pr = poll(&pfd, 1, timeout_ms);
-        if (pr < 0) {
-            return CBERG_ERR_IO;
-        }
-        if (pr == 0) {
-            return CBERG_ERR_TIMEOUT;
-        }
+    struct pollfd pfd = {.fd = w->inotify_fd, .events = POLLIN};
+    int pr = poll(&pfd, 1, timeout_ms);
+    if (pr < 0) {
+        return CBERG_ERR_IO;
+    }
+    if (pr == 0) {
+        return timeout_ms == 0 ? CBERG_OK : CBERG_ERR_TIMEOUT;
     }
 
     char buf[4096];
     for (;;) {
         ssize_t n = read(w->inotify_fd, buf, sizeof(buf));
         if (n < 0) {
-            if (errno == EAGAIN) {
-                return CBERG_OK;
-            }
-            return CBERG_ERR_IO;
+            return errno == EAGAIN ? CBERG_OK : CBERG_ERR_IO;
         }
         if (n == 0) {
             return CBERG_OK;
         }
 
-        char *p = buf;
-        while (p < buf + n) {
-            struct inotify_event *ev = (struct inotify_event *)p;
-            cberg_watch_dir *dir = dir_by_wd(w, ev->wd);
-            if (dir != NULL && ev->len > 0) {
-                char rel[PATH_MAX];
-                if (!watch_rel_join(dir->rel_path, ev->name, rel, sizeof(rel))) {
-                    p += sizeof(struct inotify_event) + ev->len;
-                    continue;
-                }
-                if ((ev->mask & IN_ISDIR) != 0 && (ev->mask & IN_CREATE) != 0) {
-                    char abs[PATH_MAX];
-                    if (cberg_path_join(dir->abs_path, ev->name, abs, sizeof(abs))) {
-                        watch_note_created_subdir(w, abs, rel);
-                    }
-                }
-                watch_note_error(w, watch_dirty_add(w, rel, watch_kind_from_inotify(ev->mask)));
-            }
+        for (char *p = buf; p < buf + n;) {
+            const struct inotify_event *ev = (const struct inotify_event *)p;
+            handle_event(w, ev);
             p += sizeof(struct inotify_event) + ev->len;
         }
     }

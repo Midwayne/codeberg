@@ -145,6 +145,22 @@ static void dirty_stage_visit(const char *key, uint64_t value, void *ctx_v) {
     staging->items[staging->len++] = (dirty_staged_item){.path = path, .kind = (cberg_watch_kind)value};
 }
 
+/* Moves the staged paths to the caller's events (or bare paths) array; the
+ * caller then owns them. */
+static void dirty_hand_over(dirty_staging *staging, cberg_watch_event *events, const char **paths) {
+    for (size_t i = 0; i < staging->len; i++) {
+        if (events != NULL) {
+            events[i].path = staging->items[i].path;
+            events[i].kind = staging->items[i].kind;
+        } else {
+            paths[i] = staging->items[i].path;
+        }
+        staging->items[i].path = NULL;
+    }
+}
+
+/* Drains the dirty set. With neither events nor paths, only counts and
+ * clears it; otherwise all entries must fit in cap or nothing is drained. */
 cberg_status watch_dirty_drain(cberg_watcher *w, cberg_watch_event *events, const char **paths, size_t cap, size_t *out_count) {
     if (out_count == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
@@ -156,45 +172,26 @@ cberg_status watch_dirty_drain(cberg_watcher *w, cberg_watch_event *events, cons
 
     watch_lock(w);
 
-    bool transfer = events != NULL || paths != NULL;
     dirty_staging staging = {0};
     cberg_strmap_visit(w->dirty, dirty_stage_visit, &staging);
-    if (staging.status != CBERG_OK) {
-        dirty_staging_free(&staging);
-        watch_note_error(w, staging.status);
-        watch_unlock(w);
-        return staging.status;
-    }
+    bool transfer = events != NULL || paths != NULL;
+    cberg_status st = staging.status;
 
-    size_t total = staging.len;
-    if (!transfer) {
-        *out_count = total;
-        cberg_strmap_clear(w->dirty);
-        dirty_staging_free(&staging);
-        watch_unlock(w);
-        return CBERG_OK;
-    }
-
-    if (total > cap) {
-        dirty_staging_free(&staging);
-        watch_unlock(w);
-        return CBERG_ERR_INVALID_ARGUMENT;
-    }
-
-    for (size_t i = 0; i < total; i++) {
-        if (events != NULL) {
-            events[i].path = staging.items[i].path;
-            events[i].kind = staging.items[i].kind;
-        } else {
-            paths[i] = staging.items[i].path;
+    if (st != CBERG_OK) {
+        watch_note_error(w, st);
+    } else if (transfer && staging.len > cap) {
+        st = CBERG_ERR_INVALID_ARGUMENT;
+    } else {
+        if (transfer) {
+            dirty_hand_over(&staging, events, paths);
         }
-        staging.items[i].path = NULL;
+        *out_count = staging.len;
+        cberg_strmap_clear(w->dirty);
     }
-    *out_count = total;
+
     dirty_staging_free(&staging);
-    cberg_strmap_clear(w->dirty);
     watch_unlock(w);
-    return CBERG_OK;
+    return st;
 }
 
 cberg_status watch_reserve_dirs(cberg_watcher *w, size_t want) {
@@ -240,54 +237,64 @@ bool watch_rel_from_abs(cberg_watcher *w, const char *abs, char *rel_out, size_t
     return true;
 }
 
+/* Stores root's resolved path without trailing slashes. */
+static cberg_status watcher_set_root(cberg_watcher *w, const char *root) {
+    char resolved[PATH_MAX];
+    cberg_status st = cberg_path_resolve(root, resolved, sizeof(resolved));
+    if (st != CBERG_OK) {
+        return st;
+    }
+
+    w->root = cberg_strdup(resolved);
+    if (w->root == NULL) {
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+
+    w->root_len = strlen(w->root);
+    while (w->root_len > 1 && w->root[w->root_len - 1] == '/') {
+        w->root[--w->root_len] = '\0';
+    }
+    return CBERG_OK;
+}
+
+/* Starts the platform backend and registers every directory under root. */
+static cberg_status watcher_start(cberg_watcher *w) {
+    cberg_status st = CBERG_OK;
+#if defined(__linux__)
+    w->inotify_fd = -1;
+    st = watch_platform_begin(w);
+#endif
+
+    if (st == CBERG_OK) {
+        st = watch_walk_register(w, w->root, "");
+    }
+    if (st == CBERG_OK) {
+        st = watch_platform_finish(w);
+    }
+    return st;
+}
+
 cberg_status cberg_watcher_open(const char *root, cberg_watcher **out_watcher) {
     if (root == NULL || out_watcher == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
+
     cberg_watcher *w = calloc(1, sizeof(cberg_watcher));
     if (w == NULL) {
         return CBERG_ERR_OUT_OF_MEMORY;
     }
 
-    char resolved[PATH_MAX];
-    cberg_status st = cberg_path_resolve(root, resolved, sizeof(resolved));
-    if (st != CBERG_OK) {
-        free(w);
-        return st;
+    cberg_status st = watcher_set_root(w, root);
+    if (st == CBERG_OK) {
+        st = watch_mutex_init(w);
     }
-    w->root = cberg_strdup(resolved);
-    if (w->root == NULL) {
-        free(w);
-        return CBERG_ERR_OUT_OF_MEMORY;
-    }
-    w->root_len = strlen(w->root);
-    while (w->root_len > 1 && w->root[w->root_len - 1] == '/') {
-        w->root[--w->root_len] = '\0';
-    }
-
-    st = watch_mutex_init(w);
     if (st != CBERG_OK) {
         free(w->root);
         free(w);
         return st;
     }
 
-#if defined(__linux__)
-    w->inotify_fd = -1;
-    st = watch_platform_begin(w);
-    if (st != CBERG_OK) {
-        cberg_watcher_close(w);
-        return st;
-    }
-#endif
-
-    st = watch_walk_register(w, w->root, "");
-    if (st != CBERG_OK) {
-        cberg_watcher_close(w);
-        return st;
-    }
-
-    st = watch_platform_finish(w);
+    st = watcher_start(w);
     if (st != CBERG_OK) {
         cberg_watcher_close(w);
         return st;
