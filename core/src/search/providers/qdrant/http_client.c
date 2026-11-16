@@ -9,6 +9,8 @@
 #endif
 
 #ifndef CBERG_WITH_CURL
+#include <stdarg.h>
+#include <stdbool.h>
 #include <netdb.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -46,6 +48,23 @@ static size_t curl_write(void *ptr, size_t size, size_t nmemb, void *userdata) {
     return add;
 }
 
+static struct curl_slist *curl_headers(const char *api_key, const char *content_type) {
+    struct curl_slist *headers = NULL;
+
+    if (content_type != NULL) {
+        char htype[128];
+        snprintf(htype, sizeof htype, "Content-Type: %s", content_type);
+        headers = curl_slist_append(headers, htype);
+    }
+
+    if (api_key != NULL && api_key[0] != '\0') {
+        char hkey[512];
+        snprintf(hkey, sizeof hkey, "api-key: %s", api_key);
+        headers = curl_slist_append(headers, hkey);
+    }
+    return headers;
+}
+
 cberg_status cberg_http_request(const char *method, const char *url, const char *api_key, const char *content_type, const char *body, size_t body_len, cberg_http_response *out_resp) {
     if (method == NULL || url == NULL || out_resp == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
@@ -58,18 +77,7 @@ cberg_status cberg_http_request(const char *method, const char *url, const char 
     }
 
     curl_buf buf = {0};
-    struct curl_slist *headers = NULL;
-    if (content_type != NULL) {
-        char htype[128];
-        snprintf(htype, sizeof htype, "Content-Type: %s", content_type);
-        headers = curl_slist_append(headers, htype);
-    }
-    if (api_key != NULL && api_key[0] != '\0') {
-        char hkey[512];
-        snprintf(hkey, sizeof hkey, "api-key: %s", api_key);
-        headers = curl_slist_append(headers, hkey);
-    }
-
+    struct curl_slist *headers = curl_headers(api_key, content_type);
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, method);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
@@ -86,7 +94,6 @@ cberg_status cberg_http_request(const char *method, const char *url, const char 
     if (rc == CURLE_OK) {
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
     }
-
     curl_slist_free_all(headers);
     curl_easy_cleanup(curl);
 
@@ -169,11 +176,13 @@ static int connect_host(const char *host, int port) {
     return fd;
 }
 
-static cberg_status read_http_response(int fd, cberg_http_response *out_resp) {
+/* Reads until EOF into a NUL-terminated buffer (*out caller-freed). */
+static cberg_status read_all(int fd, char **out, size_t *out_len) {
     char *buf = NULL;
     size_t cap = 0;
     size_t len = 0;
     char chunk[4096];
+
     for (;;) {
         ssize_t n = read(fd, chunk, sizeof chunk);
         if (n < 0) {
@@ -183,6 +192,7 @@ static cberg_status read_http_response(int fd, cberg_http_response *out_resp) {
         if (n == 0) {
             break;
         }
+
         if (len + (size_t)n + 1 > cap) {
             size_t new_cap = cap == 0 ? 4096 : cap * 2;
             while (new_cap < len + (size_t)n + 1) {
@@ -196,43 +206,53 @@ static cberg_status read_http_response(int fd, cberg_http_response *out_resp) {
             buf = grown;
             cap = new_cap;
         }
+
         memcpy(buf + len, chunk, (size_t)n);
         len += (size_t)n;
     }
+
     if (buf != NULL) {
         buf[len] = '\0';
     }
+    *out = buf;
+    *out_len = len;
+    return CBERG_OK;
+}
 
-    out_resp->status = 0;
-    out_resp->body = NULL;
-    out_resp->body_len = 0;
-    if (len == 0) {
-        free(buf);
-        return CBERG_ERR_IO;
-    }
-
-    const char *sep = strstr(buf, "\r\n\r\n");
-    if (sep == NULL) {
-        free(buf);
-        return CBERG_ERR_IO;
-    }
-    if (sscanf(buf, "HTTP/%*s %d", &out_resp->status) != 1) {
-        free(buf);
+/* Splits a raw HTTP/1.1 response into its status code and a copied body. */
+static cberg_status parse_http_response(const char *raw, size_t len, cberg_http_response *out_resp) {
+    const char *sep = len > 0 ? strstr(raw, "\r\n\r\n") : NULL;
+    if (sep == NULL || sscanf(raw, "HTTP/%*s %d", &out_resp->status) != 1) {
         return CBERG_ERR_IO;
     }
 
     const char *body = sep + 4;
-    size_t body_len = len - (size_t)(body - buf);
+    size_t body_len = len - (size_t)(body - raw);
     out_resp->body = malloc(body_len + 1);
     if (out_resp->body == NULL) {
-        free(buf);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
+
     memcpy(out_resp->body, body, body_len);
     out_resp->body[body_len] = '\0';
     out_resp->body_len = body_len;
-    free(buf);
     return CBERG_OK;
+}
+
+static cberg_status read_http_response(int fd, cberg_http_response *out_resp) {
+    out_resp->status = 0;
+    out_resp->body = NULL;
+    out_resp->body_len = 0;
+
+    char *raw = NULL;
+    size_t len = 0;
+    cberg_status st = read_all(fd, &raw, &len);
+    if (st == CBERG_OK) {
+        st = parse_http_response(raw, len, out_resp);
+    }
+
+    free(raw);
+    return st;
 }
 
 static cberg_status write_all(int fd, const void *data, size_t len) {
@@ -248,6 +268,34 @@ static cberg_status write_all(int fd, const void *data, size_t len) {
     return CBERG_OK;
 }
 
+/* Appends one formatted header line to req; false when it does not fit. */
+static bool append_header(char *req, size_t cap, size_t *len, const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    int n = vsnprintf(req + *len, cap - *len, fmt, args);
+    va_end(args);
+
+    if (n < 0 || *len + (size_t)n >= cap) {
+        return false;
+    }
+    *len += (size_t)n;
+    return true;
+}
+
+/* Formats the request line and headers, ending with the blank line. */
+static bool build_request_head(char *req, size_t cap, size_t *len, const char *method, const http_url *url, const char *api_key, const char *content_type, size_t body_len) {
+    *len = 0;
+    bool ok = append_header(req, cap, len, "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n", method, url->path, url->host);
+
+    if (ok && api_key != NULL && api_key[0] != '\0') {
+        ok = append_header(req, cap, len, "api-key: %s\r\n", api_key);
+    }
+    if (ok && content_type != NULL) {
+        ok = append_header(req, cap, len, "Content-Type: %s\r\n", content_type);
+    }
+    return ok && append_header(req, cap, len, "Content-Length: %zu\r\n\r\n", body_len);
+}
+
 cberg_status cberg_http_request(const char *method, const char *url, const char *api_key, const char *content_type, const char *body, size_t body_len, cberg_http_response *out_resp) {
     if (method == NULL || url == NULL || out_resp == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
@@ -259,63 +307,28 @@ cberg_status cberg_http_request(const char *method, const char *url, const char 
         return CBERG_ERR_INVALID_ARGUMENT;
     }
 
+    if (body == NULL) {
+        body_len = 0;
+    }
+    char req[8192];
+    size_t head_len = 0;
+    if (!build_request_head(req, sizeof req, &head_len, method, &parsed, api_key, content_type, body_len)) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+
     int fd = connect_host(parsed.host, parsed.port);
     if (fd < 0) {
         return CBERG_ERR_IO;
     }
 
-    char req[8192];
-    int hdr = snprintf(req, sizeof req, "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n", method, parsed.path, parsed.host);
-    if (hdr < 0 || (size_t)hdr >= sizeof req) {
-        close(fd);
-        return CBERG_ERR_INVALID_ARGUMENT;
-    }
-    if (api_key != NULL && api_key[0] != '\0') {
-        int n = snprintf(req + hdr, sizeof req - (size_t)hdr, "api-key: %s\r\n", api_key);
-        if (n < 0 || (size_t)hdr + (size_t)n >= sizeof req) {
-            close(fd);
-            return CBERG_ERR_INVALID_ARGUMENT;
-        }
-        hdr += n;
-    }
-    if (content_type != NULL) {
-        int n = snprintf(req + hdr, sizeof req - (size_t)hdr, "Content-Type: %s\r\n", content_type);
-        if (n < 0 || (size_t)hdr + (size_t)n >= sizeof req) {
-            close(fd);
-            return CBERG_ERR_INVALID_ARGUMENT;
-        }
-        hdr += n;
-    }
-    if (body != NULL && body_len > 0) {
-        int n = snprintf(req + hdr, sizeof req - (size_t)hdr, "Content-Length: %zu\r\n\r\n", body_len);
-        if (n < 0 || (size_t)hdr + (size_t)n >= sizeof req) {
-            close(fd);
-            return CBERG_ERR_INVALID_ARGUMENT;
-        }
-        hdr += n;
-    } else {
-        int n = snprintf(req + hdr, sizeof req - (size_t)hdr, "Content-Length: 0\r\n\r\n");
-        if (n < 0 || (size_t)hdr + (size_t)n >= sizeof req) {
-            close(fd);
-            return CBERG_ERR_INVALID_ARGUMENT;
-        }
-        hdr += n;
-    }
-
-    cberg_status st = write_all(fd, req, (size_t)hdr);
-    if (st != CBERG_OK) {
-        close(fd);
-        return st;
-    }
-    if (body != NULL && body_len > 0) {
+    cberg_status st = write_all(fd, req, head_len);
+    if (st == CBERG_OK && body_len > 0) {
         st = write_all(fd, body, body_len);
-        if (st != CBERG_OK) {
-            close(fd);
-            return st;
-        }
+    }
+    if (st == CBERG_OK) {
+        st = read_http_response(fd, out_resp);
     }
 
-    st = read_http_response(fd, out_resp);
     close(fd);
     return st;
 }
