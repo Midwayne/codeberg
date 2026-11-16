@@ -107,6 +107,7 @@ set(CBERG_SOURCES
   src/graph/scope_cache.c
   src/graph/scope_bind.c
   src/graph/resolve_pkg.c
+  src/graph/import_index.c
   src/graph/resolve_relative.c
   src/manifest/manifest.c
   src/watch/watch.c

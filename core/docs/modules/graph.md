@@ -21,7 +21,8 @@ fragments incrementally and persists a `.graph` sidecar.
 | `scope_*.c`, `scope_internal.h` | Go/TS/JS bindings, C/Python lexical scope, receiver types, import aliases |
 | `resolve_relative.c` | Importer-relative paths, entrypoints, JS-to-TS source specifiers |
 | `workspace_graph.h` | Private query-view cloning, original repo/ID/path provenance, revision counters |
-| `resolve_pkg.c` | Phase 2: manifest + path heuristics → rewrite IMPORTS to FILE |
+| `resolve_pkg.c` | Phase 2: import-shape safety checks, rewrite IMPORTS to FILE |
+| `import_index.c`, `import_index.h` | Per-repo index of source files, go.mod module path, and import-string → file maps |
 | `graph_internal.h` | Fragment / extractor / rewrite internals |
 
 **Depends on:** `common/arena`, `common/binio`, `common/strmap`, `common/u64map`,
@@ -232,7 +233,7 @@ persisted and does not alter the public C ABI or per-repo snapshot format.
 
 ---
 
-## Import resolution (`resolve_pkg.c`)
+## Import resolution (`resolve_pkg.c`, `import_index.c`)
 
 `cberg_graph_resolve_imports(graph, repo_root)` walks the repo for source files,
 reads `go.mod` for the module path when present, maps path-derived import keys
