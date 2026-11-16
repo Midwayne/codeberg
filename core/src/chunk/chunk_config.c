@@ -79,41 +79,37 @@ static cberg_status cfg_emit(cfg_ctx *ctx, const char *sym, size_t start, size_t
  * lines, list items, comments, and `---` separators are never boundaries,
  * so nested content stays inside its top-level key's chunk.
  */
-static int yaml_key_line(const char *line, size_t len, size_t *sym_start, size_t *sym_len) {
-    if (len == 0) {
-        return 0;
-    }
-    char c0 = line[0];
-    if (c0 == ' ' || c0 == '\t' || c0 == '#' || c0 == '-') {
-        return 0;
-    }
-    size_t colon = len;
-    int in_q = 0;
-    char q = 0;
+/* Index of the first `:` that ends a mapping key (followed by space, tab,
+ * or end of line), skipping quoted text and stopping at a comment; len when
+ * there is none. */
+static size_t yaml_key_colon(const char *line, size_t len) {
+    char quote = 0;
     for (size_t i = 0; i < len; i++) {
         char c = line[i];
-        if (in_q) {
-            if (c == q) {
-                in_q = 0;
-            }
-            continue;
-        }
-        if (c == '"' || c == '\'') {
-            in_q = 1;
-            q = c;
-            continue;
-        }
-        if (c == '#') {
-            break;
-        }
-        if (c == ':' && (i + 1 == len || line[i + 1] == ' ' || line[i + 1] == '\t')) {
-            colon = i;
-            break;
+        if (quote != 0) {
+            quote = c == quote ? 0 : quote;
+        } else if (c == '"' || c == '\'') {
+            quote = c;
+        } else if (c == '#') {
+            return len;
+        } else if (c == ':' && (i + 1 == len || line[i + 1] == ' ' || line[i + 1] == '\t')) {
+            return i;
         }
     }
+    return len;
+}
+
+static int yaml_key_line(const char *line, size_t len, size_t *sym_start, size_t *sym_len) {
+    if (len == 0 || line[0] == ' ' || line[0] == '\t' || line[0] == '#' || line[0] == '-') {
+        return 0;
+    }
+
+    size_t colon = yaml_key_colon(line, len);
     if (colon == len || colon == 0) {
         return 0;
     }
+
+    /* The key is the text before the colon, trimmed and unquoted. */
     size_t s = 0;
     size_t e = colon;
     while (e > s && (line[e - 1] == ' ' || line[e - 1] == '\t')) {
@@ -126,6 +122,7 @@ static int yaml_key_line(const char *line, size_t len, size_t *sym_start, size_t
     if (e <= s) {
         return 0;
     }
+
     *sym_start = s;
     *sym_len = e - s;
     return 1;

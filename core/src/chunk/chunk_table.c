@@ -326,61 +326,61 @@ static int compare_stored_id(const void *a, const void *b) {
     return 0;
 }
 
+/* A key seen twice in one sync: the later chunk replaces the earlier row in
+ * next, and a content change is reported once (as an add or a modify). */
+static cberg_status sync_repeat_key(cberg_chunk_table *next, const cberg_chunk *inc, cberg_stored_chunk *slot) {
+    bool hash_changed = memcmp(slot->chunk.content_hash, inc->content_hash, CBERG_HASH_LEN) != 0;
+
+    /* Prior slot strings stay in next->arena until commit/discard. */
+    cberg_status status = chunk_table_copy_chunk(next->arena, inc, &slot->chunk);
+    if (status != CBERG_OK || !hash_changed) {
+        return status;
+    }
+
+    if (refresh_change_snap(next->added, next->added_len, slot) || refresh_change_snap(next->modified, next->modified_len, slot)) {
+        return CBERG_OK;
+    }
+    return push_change_snap(&next->modified, &next->modified_len, &next->modified_cap, slot);
+}
+
+/* Appends a row to next and, when list is given, records it there. */
+static cberg_status sync_append(cberg_chunk_table *next, uint64_t id, const cberg_chunk *chunk, cberg_stored_chunk **list, size_t *len, size_t *cap) {
+    cberg_stored_chunk stored = {.id = id};
+    cberg_status status = chunk_table_copy_chunk(next->arena, chunk, &stored.chunk);
+    if (status == CBERG_OK) {
+        status = chunk_table_append(next, stored);
+    }
+    if (status == CBERG_OK && list != NULL) {
+        status = push_change_snap(list, len, cap, &next->entries[next->len - 1]);
+    }
+    return status;
+}
+
 static cberg_status sync_apply_incoming(cberg_chunk_table *next, const cberg_chunk_table *table, const cberg_chunk *inc, bool *seen) {
+    size_t live_index = 0;
+    bool live = map_find(table, inc->key, &live_index);
+    if (live) {
+        seen[live_index] = true;
+    }
+
     size_t next_index = 0;
     if (map_find(next, inc->key, &next_index)) {
-        cberg_stored_chunk *slot = &next->entries[next_index];
-        size_t live_index = 0;
-        if (map_find(table, inc->key, &live_index)) {
-            seen[live_index] = true;
-        }
-        bool hash_changed = memcmp(slot->chunk.content_hash, inc->content_hash, CBERG_HASH_LEN) != 0;
-        /* Prior slot strings stay in next->arena until commit/discard. */
-        cberg_status status = chunk_table_copy_chunk(next->arena, inc, &slot->chunk);
-        if (status != CBERG_OK) {
-            return status;
-        }
-        if (!hash_changed) {
-            return CBERG_OK;
-        }
-        if (refresh_change_snap(next->added, next->added_len, slot) ||
-            refresh_change_snap(next->modified, next->modified_len, slot)) {
-            return CBERG_OK;
-        }
-        return push_change_snap(&next->modified, &next->modified_len, &next->modified_cap, slot);
+        return sync_repeat_key(next, inc, &next->entries[next_index]);
     }
 
-    size_t live_index = 0;
-    if (!map_find(table, inc->key, &live_index)) {
-        cberg_stored_chunk stored = {.id = next->next_id++};
-        cberg_status status = chunk_table_copy_chunk(next->arena, inc, &stored.chunk);
-        if (status != CBERG_OK) {
-            return status;
-        }
-        status = chunk_table_append(next, stored);
-        if (status != CBERG_OK) {
-            return status;
-        }
-        return push_change_snap(&next->added, &next->added_len, &next->added_cap, &next->entries[next->len - 1]);
+    /* A new key gets a fresh id and is an add. */
+    if (!live) {
+        return sync_append(next, next->next_id++, inc, &next->added, &next->added_len, &next->added_cap);
     }
 
-    seen[live_index] = true;
+    /* A live key keeps its id; it is a modify only when its content changed.
+     * Strings are always copied into next->arena so a failed sync never
+     * mutates live ones. */
     const cberg_stored_chunk *existing = &table->entries[live_index];
-    bool hash_changed = memcmp(existing->chunk.content_hash, inc->content_hash, CBERG_HASH_LEN) != 0;
-    cberg_stored_chunk stored = {.id = existing->id};
-    /* Always copy into next->arena so a failed sync never mutates live strings. */
-    cberg_status status = chunk_table_copy_chunk(next->arena, hash_changed ? inc : &existing->chunk, &stored.chunk);
-    if (status != CBERG_OK) {
-        return status;
+    if (memcmp(existing->chunk.content_hash, inc->content_hash, CBERG_HASH_LEN) == 0) {
+        return sync_append(next, existing->id, &existing->chunk, NULL, NULL, NULL);
     }
-    status = chunk_table_append(next, stored);
-    if (status != CBERG_OK) {
-        return status;
-    }
-    if (hash_changed) {
-        return push_change_snap(&next->modified, &next->modified_len, &next->modified_cap, &next->entries[next->len - 1]);
-    }
-    return CBERG_OK;
+    return sync_append(next, existing->id, inc, &next->modified, &next->modified_len, &next->modified_cap);
 }
 
 static void table_commit(cberg_chunk_table *table, cberg_chunk_table *next) {
