@@ -196,7 +196,7 @@ Fallible functions return `cberg_status`. Out-parameters are valid only on `CBER
 |--------|---------------|--------|--------|
 | `cberg_chunker` | `open`, `close`, `parse` | `chunk/chunker.c` | [chunk.md](modules/chunk.md) |
 | `cberg_chunk_list` | `len`, `at`, `free`, `hash_bodies` | `chunk/chunk_list.c` | [chunk.md](modules/chunk.md) |
-| `cberg_chunk_table` | `new`, `free`, `sync`, `find_by_id`, `save`, `load`, `len`, `fingerprint` | `chunk/chunk_table.c` | [chunk.md](modules/chunk.md) |
+| `cberg_chunk_table` | `new`, `free`, `sync`, `find_by_id`, `save`, `load`, `len`, `fingerprint` | `chunk/chunk_table.c`, `chunk/chunk_table_persist.c` | [chunk.md](modules/chunk.md) |
 | `cberg_manifest` | `build`, `rebuild`, `save`, `load`, `free`, `root`, `len`, `at`, `diff` | `manifest/manifest.c` | [manifest.md](modules/manifest.md) |
 | `cberg_watcher` | `open`, `close`, `poll`, `dirty_paths` | `watch/watch.c` | [watch.md](modules/watch.md) |
 | `cberg_embedder` | `open`, `embed`, `close` | `embed/embed.c` | [embed.md](modules/embed.md) |

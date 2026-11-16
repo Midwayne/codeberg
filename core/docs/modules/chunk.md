@@ -3,7 +3,7 @@
 Tree-sitter chunking and in-memory incremental change tracking.
 
 **Files:** `chunker.c` (tree-sitter languages), `chunk_markdown.c`, `chunk_config.c`,
-`chunk_list.c` (the list and the line-window fallback), `chunk_table.c`, `chunk_keys.c`  
+`chunk_list.c` (the list and the line-window fallback), `chunk_table.c` (sync) and `chunk_table_persist.c` (save/load), `chunk_keys.c`  
 **Depends on:** `common/arena`, `common/hash`, `common/strmap`, tree-sitter + seven grammars
 
 ---
