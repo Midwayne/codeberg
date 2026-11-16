@@ -46,7 +46,7 @@ in `core/src/` and are documented under `core/docs/modules/`.
 | `make build-core` | Configure and compile `libcodeberg` |
 | `make test` | Run all core tests (`ctest`) |
 | `make test TEST=<name>` | Run one test binary (e.g. `test_chunker`) |
-| `make check` | `build-core` + `test` (pre-PR gate; same as CI) |
+| `make check` | `core-lint` + `build-core` + `test` (pre-PR gate; same as CI) |
 | `make build-daemon` | Build `codeberg-d` (requires `cberg-index`) |
 | `make daemon-test` | `go test ./...` in `daemon/` |
 | `make build-agent` | Build agent binaries + web UI |

@@ -174,7 +174,7 @@ and [UI demo](../agent/web-ui/demo/README.md) for more development options.
 Run the checks for the layer you changed:
 
 ```sh
-make check                     # C core: build and tests
+make check                     # C core: size lint, build, and tests
 make daemon-check              # Go daemon: lint, vet, tests, build
 npm ci --prefix agent
 npm ci --prefix agent/web-ui
