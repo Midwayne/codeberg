@@ -161,23 +161,13 @@ static void file_undo_abort(cberg_graph *graph, file_undo *u) {
     }
 }
 
-cberg_status cberg_graph_apply(cberg_graph *graph, const cberg_graph_fragment *fragment, cberg_graph_resolve_fn resolve, void *resolve_ctx) {
-    if (graph == NULL || fragment == NULL || resolve == NULL) {
-        return CBERG_ERR_INVALID_ARGUMENT;
-    }
-
-    file_undo undo = {0};
-    uint64_t *def_ids = NULL;
-    cberg_status st = file_undo_begin(graph, fragment->path, &undo);
-    if (st != CBERG_OK) {
-        return st;
-    }
-
+/* Adds the FILE node every node and edge of the fragment hangs off. */
+static cberg_status apply_file_node(cberg_graph *graph, const cberg_graph_fragment *fragment, uint64_t *out_id) {
     uint64_t file_id = graph_file_id(fragment->path);
     if (file_id == 0) {
-        st = CBERG_ERR_OUT_OF_MEMORY;
-        goto fail_restore;
+        return CBERG_ERR_OUT_OF_MEMORY;
     }
+
     cberg_graph_node file_node = {
         .id = file_id,
         .kind = CBERG_GNODE_FILE,
@@ -186,31 +176,29 @@ cberg_status cberg_graph_apply(cberg_graph *graph, const cberg_graph_fragment *f
         .qname = fragment->path,
         .path = fragment->path,
     };
-    st = graph_add_node(graph, &file_node);
-    if (st != CBERG_OK) {
-        goto fail_restore;
-    }
 
-    if (fragment->defs_len > 0) {
-        def_ids = calloc(fragment->defs_len, sizeof(*def_ids));
-        if (def_ids == NULL) {
-            st = CBERG_ERR_OUT_OF_MEMORY;
-            goto fail_restore;
-        }
-    }
+    *out_id = file_id;
+    return graph_add_node(graph, &file_node);
+}
+
+/* Adds a node per definition that still resolves to a live chunk. def_ids[i]
+ * receives its id, or stays 0 when the definition is skipped. */
+static cberg_status apply_defs(cberg_graph *graph, const cberg_graph_fragment *fragment, cberg_graph_resolve_fn resolve, void *resolve_ctx, uint64_t *def_ids) {
     for (size_t i = 0; i < fragment->defs_len; i++) {
         const cberg_graph_fdef *def = &fragment->defs[i];
+
         uint64_t id = 0;
-        st = resolve(resolve_ctx, def->key, &id);
+        cberg_status st = resolve(resolve_ctx, def->key, &id);
         if (st == CBERG_ERR_NOT_FOUND) {
             continue; /* def no longer in the chunk table; skip its node */
         }
         if (st != CBERG_OK) {
-            goto fail_restore;
+            return st;
         }
         if (id == 0) {
             continue;
         }
+
         cberg_graph_node node = {
             .id = id,
             .kind = node_kind_from_chunk(def->kind),
@@ -222,62 +210,95 @@ cberg_status cberg_graph_apply(cberg_graph *graph, const cberg_graph_fragment *f
         };
         st = graph_add_node(graph, &node);
         if (st != CBERG_OK) {
-            goto fail_restore;
+            return st;
         }
+
         def_ids[i] = id;
     }
 
-    for (size_t i = 0; i < fragment->refs_len; i++) {
-        const cberg_graph_fref *fref = &fragment->refs[i];
-        if (fref->src_def >= 0 && (size_t)fref->src_def >= fragment->defs_len) {
-            continue;
+    return CBERG_OK;
+}
+
+/* A def index is either -1 (the file node) or within the fragment's defs. */
+static bool fref_def_valid(const cberg_graph_fragment *fragment, int32_t def) {
+    return def < 0 || (size_t)def < fragment->defs_len;
+}
+
+/* Adds one reference. References with an invalid endpoint, or one that did
+ * not resolve to a live chunk, are dropped. */
+static cberg_status apply_ref(cberg_graph *graph, const cberg_graph_fragment *fragment, const uint64_t *def_ids, uint64_t file_id, const cberg_graph_fref *fref) {
+    if (!fref_def_valid(fragment, fref->src_def) || !fref_def_valid(fragment, fref->dst_def)) {
+        return CBERG_OK;
+    }
+
+    uint64_t src = fref->src_def >= 0 ? def_ids[fref->src_def] : file_id;
+    if (src == 0) {
+        return CBERG_OK;
+    }
+
+    graph_ref_rec rec = {
+        .src = src,
+        .path = fragment->path,
+        .line = fref->line,
+        .kind = fref->kind,
+        .rev = fref->rev,
+        .binding = fref->binding,
+        .module = fref->module,
+        .owner = fref->owner,
+        .resolution = fref->module != NULL ? CBERG_GRES_IMPORT : CBERG_GRES_TEXTUAL,
+    };
+
+    if (fref->dst_def >= 0) {
+        rec.dst = def_ids[fref->dst_def];
+        if (rec.dst == 0) {
+            return CBERG_OK;
         }
-        if (fref->dst_def >= 0 && (size_t)fref->dst_def >= fragment->defs_len) {
-            continue;
-        }
-        uint64_t src = fref->src_def >= 0 ? def_ids[fref->src_def] : file_id;
-        if (src == 0) {
-            continue; /* source def did not resolve to a live chunk */
-        }
-        graph_ref_rec rec = {
-            .src = src,
-            .path = fragment->path,
-            .line = fref->line,
-            .kind = fref->kind,
-            .rev = fref->rev,
-            .binding = fref->binding,
-            .module = fref->module,
-            .owner = fref->owner,
-            .resolution = fref->module != NULL ? CBERG_GRES_IMPORT : CBERG_GRES_TEXTUAL,
-        };
-        if (fref->dst_def >= 0) {
-            rec.dst = def_ids[fref->dst_def];
-            if (rec.dst == 0) {
-                continue;
-            }
-        } else if (fref->kind == CBERG_GEDGE_IMPORTS) {
-            rec.name = fref->name;
-            st = graph_ensure_module_node(graph, fref->name, fragment->lang, &rec.dst);
-            if (st != CBERG_OK) {
-                goto fail_restore;
-            }
-            /* Module target until cberg_graph_resolve_imports rewrites to a FILE. */
-        } else {
-            rec.name = fref->name;
-        }
-        st = graph_add_ref(graph, &rec);
+    } else {
+        rec.name = fref->name;
+    }
+
+    /* An import targets a MODULE node until cberg_graph_resolve_imports
+     * rewrites it to a FILE. */
+    if (fref->dst_def < 0 && fref->kind == CBERG_GEDGE_IMPORTS) {
+        cberg_status st = graph_ensure_module_node(graph, fref->name, fragment->lang, &rec.dst);
         if (st != CBERG_OK) {
-            goto fail_restore;
+            return st;
         }
     }
-    free(def_ids);
-    file_undo_free(&undo);
-    graph_maybe_compact(graph);
-    return CBERG_OK;
 
-fail_restore:
+    return graph_add_ref(graph, &rec);
+}
+
+cberg_status cberg_graph_apply(cberg_graph *graph, const cberg_graph_fragment *fragment, cberg_graph_resolve_fn resolve, void *resolve_ctx) {
+    if (graph == NULL || fragment == NULL || resolve == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+
+    file_undo undo = {0};
+    cberg_status st = file_undo_begin(graph, fragment->path, &undo);
+    if (st != CBERG_OK) {
+        return st;
+    }
+
+    uint64_t file_id = 0;
+    uint64_t *def_ids = NULL;
+    st = apply_file_node(graph, fragment, &file_id);
+
+    if (st == CBERG_OK && fragment->defs_len > 0) {
+        def_ids = calloc(fragment->defs_len, sizeof(*def_ids));
+        st = def_ids != NULL ? apply_defs(graph, fragment, resolve, resolve_ctx, def_ids) : CBERG_ERR_OUT_OF_MEMORY;
+    }
+
+    for (size_t i = 0; st == CBERG_OK && i < fragment->refs_len; i++) {
+        st = apply_ref(graph, fragment, def_ids, file_id, &fragment->refs[i]);
+    }
+
+    /* A failed apply restores the file's previous nodes and edges. */
+    if (st != CBERG_OK) {
+        file_undo_abort(graph, &undo);
+    }
+
     free(def_ids);
-    file_undo_abort(graph, &undo);
     file_undo_free(&undo);
     graph_maybe_compact(graph);
     return st;
