@@ -51,6 +51,30 @@ static bool dirent_dot(const char *name) {
     return name[0] == '.' && (name[1] == '\0' || (name[1] == '.' && name[2] == '\0'));
 }
 
+/* Visits one directory entry of cberg_fs_walk: recurses into directories
+ * and reports regular files. Symlinks are followed (stat); entries that
+ * cannot be addressed or inspected are skipped. */
+static cberg_status fs_walk_entry(const char *abs, const char *rel, const char *name, cberg_fs_walk_fn fn, void *ctx, cberg_fs_skip_dir_fn skip_dir, void *skip_ctx) {
+    char child_abs[PATH_MAX];
+    char child_rel[PATH_MAX];
+    if (!cberg_path_join(abs, name, child_abs, sizeof(child_abs)) || !cberg_path_join(rel, name, child_rel, sizeof(child_rel))) {
+        return CBERG_OK;
+    }
+
+    struct stat stbuf;
+    if (stat(child_abs, &stbuf) != 0) {
+        return CBERG_OK;
+    }
+
+    if (S_ISDIR(stbuf.st_mode)) {
+        return cberg_fs_walk(child_abs, child_rel, fn, ctx, skip_dir, skip_ctx);
+    }
+    if (S_ISREG(stbuf.st_mode)) {
+        return fn(ctx, child_abs, child_rel, CBERG_FS_FILE);
+    }
+    return CBERG_OK;
+}
+
 cberg_status cberg_fs_walk(const char *abs, const char *rel, cberg_fs_walk_fn fn, void *ctx, cberg_fs_skip_dir_fn skip_dir, void *skip_ctx) {
     if (abs == NULL || rel == NULL || fn == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
@@ -67,45 +91,43 @@ cberg_status cberg_fs_walk(const char *abs, const char *rel, cberg_fs_walk_fn fn
     }
 
     struct dirent *ent;
-    while ((ent = readdir(dir)) != NULL) {
-        if (dirent_dot(ent->d_name)) {
+    while (st == CBERG_OK && (ent = readdir(dir)) != NULL) {
+        if (dirent_dot(ent->d_name) || (skip_dir != NULL && skip_dir(ent->d_name, skip_ctx))) {
             continue;
         }
-        if (skip_dir != NULL && skip_dir(ent->d_name, skip_ctx)) {
-            continue;
-        }
-        char child_abs[PATH_MAX];
-        char child_rel[PATH_MAX];
-        if (!cberg_path_join(abs, ent->d_name, child_abs, sizeof(child_abs))) {
-            continue;
-        }
-        if (!cberg_path_join(rel, ent->d_name, child_rel, sizeof(child_rel))) {
-            continue;
-        }
-        struct stat stbuf;
-        if (stat(child_abs, &stbuf) != 0) {
-            continue;
-        }
-        if (S_ISDIR(stbuf.st_mode)) {
-            st = cberg_fs_walk(child_abs, child_rel, fn, ctx, skip_dir, skip_ctx);
-            if (st != CBERG_OK) {
-                closedir(dir);
-                return st;
-            }
-        } else if (S_ISREG(stbuf.st_mode)) {
-            st = fn(ctx, child_abs, child_rel, CBERG_FS_FILE);
-            if (st != CBERG_OK) {
-                closedir(dir);
-                return st;
-            }
-        }
+        st = fs_walk_entry(abs, rel, ent->d_name, fn, ctx, skip_dir, skip_ctx);
     }
+
     closedir(dir);
-    return CBERG_OK;
+    return st;
 }
 
-static bool dirent_is_dot(const char *name) {
-    return name[0] == '.' && (name[1] == '\0' || (name[1] == '.' && name[2] == '\0'));
+static int walk_files_dir(const char *root, const char *rel, cberg_walk_files_fn fn, void *ctx);
+
+/* Visits one directory entry of cberg_fs_walk_files. Symlinks are not
+ * followed (lstat); skipped directories, special files, and entries too deep
+ * to address or that cannot be inspected are left out. */
+static int walk_files_entry(const char *root, const char *rel, const char *name, cberg_walk_files_fn fn, void *ctx) {
+    char child_rel[PATH_MAX];
+    if (rel[0] == '\0') {
+        snprintf(child_rel, sizeof(child_rel), "%s", name);
+    } else {
+        snprintf(child_rel, sizeof(child_rel), "%s/%s", rel, name);
+    }
+
+    char abspath[PATH_MAX];
+    struct stat st;
+    if (!cberg_path_join(root, child_rel, abspath, sizeof(abspath)) || lstat(abspath, &st) != 0) {
+        return 0;
+    }
+
+    if (S_ISDIR(st.st_mode)) {
+        return cberg_walk_skip_dir(name) ? 0 : walk_files_dir(root, child_rel, fn, ctx);
+    }
+    if (S_ISREG(st.st_mode)) {
+        return fn(abspath, child_rel, ctx) != 0 ? -1 : 0;
+    }
+    return 0;
 }
 
 static int walk_files_dir(const char *root, const char *rel, cberg_walk_files_fn fn, void *ctx) {
@@ -124,54 +146,16 @@ static int walk_files_dir(const char *root, const char *rel, cberg_walk_files_fn
         return rel[0] == '\0' && errno != ENOENT ? -1 : 0;
     }
 
+    int rc = 0;
     struct dirent *ent;
-    while ((ent = readdir(d)) != NULL) {
-        if (dirent_is_dot(ent->d_name)) {
-            continue;
-        }
-
-        char child_rel[PATH_MAX];
-        if (rel[0] == '\0') {
-            snprintf(child_rel, sizeof(child_rel), "%s", ent->d_name);
-        } else {
-            snprintf(child_rel, sizeof(child_rel), "%s/%s", rel, ent->d_name);
-        }
-
-        /* Entries that are too deep to address or cannot be inspected are
-         * skipped rather than failing the walk. */
-        char abspath[PATH_MAX];
-        if (!cberg_path_join(root, child_rel, abspath, sizeof(abspath))) {
-            continue;
-        }
-
-        struct stat st;
-        if (lstat(abspath, &st) != 0) {
-            continue;
-        }
-
-        if (S_ISDIR(st.st_mode)) {
-            if (cberg_walk_skip_dir(ent->d_name)) {
-                continue;
-            }
-            if (walk_files_dir(root, child_rel, fn, ctx) != 0) {
-                closedir(d);
-                return -1;
-            }
-            continue;
-        }
-
-        if (!S_ISREG(st.st_mode)) {
-            continue;
-        }
-
-        if (fn(abspath, child_rel, ctx) != 0) {
-            closedir(d);
-            return -1;
+    while (rc == 0 && (ent = readdir(d)) != NULL) {
+        if (!dirent_dot(ent->d_name)) {
+            rc = walk_files_entry(root, rel, ent->d_name, fn, ctx) != 0 ? -1 : 0;
         }
     }
 
     closedir(d);
-    return 0;
+    return rc;
 }
 
 int cberg_fs_walk_files(const char *root, cberg_walk_files_fn fn, void *ctx) {
