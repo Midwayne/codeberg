@@ -40,7 +40,7 @@ load_env = if [ -f "$(1)" ]; then set -a; . "$(1)"; set +a; echo "› loaded $(1
 DBMCP      := $(ROOT)/third_party/multi-db-mcp-server
 DBMCP_BIN  := $(ROOT)/build/dbmcp
 
-.PHONY: build-core build test bench clean rebuild submodules help check set-version \
+.PHONY: build-core build test bench clean rebuild submodules help check core-lint set-version \
         build-daemon daemon-test daemon-lint daemon-check launcher-lint launcher-check build-agent build-web-ui build-dbmcp update-dbmcp \
         agent-test agent-check dist format \
         run-core run-index run-daemon run-agent run-agent-web gen-walk-skip
@@ -72,7 +72,8 @@ help:
 	@echo "    make launcher-check       Lint, vet, and test the Go launcher"
 	@echo "    make agent-test           Run agent tests (vitest)"
 	@echo "    make agent-check          Lint, typecheck, test, and build agent + web UI (requires npm deps)"
-	@echo "    make check                build-core + test (C core gate)"
+	@echo "    make core-lint            Check C core function size limits"
+	@echo "    make check                core-lint + build-core + test (C core gate)"
 	@echo "    make format               clang-format (C), gofmt (Go), prettier (TS)"
 	@echo "  Misc"
 	@echo "    make gen-walk-skip          Regenerate C/Go skip-dir tables from configs/walk_skip_dirs.txt"
@@ -120,7 +121,12 @@ clean:
 
 rebuild: clean build-core
 
-check: build-core test
+# C core production functions stay within 50 lines (tests and vendored code excluded).
+core-lint:
+	python3 -m unittest scripts/test_check_c_size.py
+	python3 scripts/check-c-size.py
+
+check: core-lint build-core test
 
 format:
 	chmod +x scripts/format.sh

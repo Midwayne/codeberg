@@ -85,6 +85,9 @@ jobs:
       - name: Install build tools
         run: sudo apt-get update && sudo apt-get install -y cmake ninja-build libcurl4-openssl-dev libpq-dev
 
+      - name: Lint C function sizes
+        run: make core-lint
+
       - name: Fetch tree-sitter grammars
         run: make submodules
 

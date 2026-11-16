@@ -22,7 +22,8 @@ paths — use project catalog roots, explicit path arguments, or `cberg_config_*
 | `make build` | Configure and compile `libcodeberg` + `cberg-index` |
 | `make test` | Run all core tests (`ctest`) |
 | `make test TEST=<name>` | Run one test binary (e.g. `test_chunker`) |
-| `make check` | `build` + `test` for the C core |
+| `make core-lint` | C core function size limit (50 lines) |
+| `make check` | `core-lint` + `build` + `test` for the C core |
 | `make build-daemon` | Build Go `codeberg-d` (requires `cberg-index`) |
 | `make daemon-test` | `go test ./...` in `daemon/` |
 | `make daemon-lint` | Daemon file/function size limits and Go formatting |
@@ -64,8 +65,11 @@ layer for local verification.
   functions at most 50 lines, including comments and blank lines
   (`make daemon-lint`, `make launcher-lint`). Methods and anonymous functions
   count too; test and generated files are excluded from size checks. Use `gofmt`, space logical steps, and extract focused helpers.
-- **C core:** keep `codeberg.h` stable; document memory ownership; use exhaustive
-  `switch` with a `default:` `never` check for discriminated unions and enums.
+- **C core:** production functions must be at most 50 lines, including
+  comments and blank lines (`make core-lint`; tests, benchmarks, and
+  `third_party/` are excluded). Keep `codeberg.h` stable; document memory
+  ownership; use exhaustive `switch` with a `default:` `never` check for
+  discriminated unions and enums.
 - **Imports:** `#include` at the top of C files; TypeScript imports at module top.
 - **Secrets:** never commit API keys, tokens, or model credentials.
 - **Performance changes need evidence.** Do not land alignment, cache-line,
