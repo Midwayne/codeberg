@@ -1,5 +1,6 @@
 #include "watch_internal.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 
 #include "pathutil.h"
@@ -11,6 +12,18 @@ static void watch_dir_clear_slot(cberg_watch_dir *dir) {
     free(dir->rel_path);
     dir->abs_path = NULL;
     dir->rel_path = NULL;
+}
+
+/* Only an unwatchable root fails registration. A subdirectory the platform
+ * cannot watch (inotify needs read access) is left out, matching the walk:
+ * one locked folder must not stop the rest of the tree from being watched. */
+static cberg_status watch_skip_unwatchable(const char *rel, cberg_status st) {
+    if (st != CBERG_ERR_IO || rel[0] == '\0') {
+        return st;
+    }
+
+    fprintf(stderr, "cberg-index: warning: not watching '%s': cannot read directory\n", rel);
+    return CBERG_OK;
 }
 
 static cberg_status walk_register_entry(void *ctx, const char *abs, const char *rel, cberg_fs_entry_kind kind) {
@@ -34,7 +47,7 @@ static cberg_status walk_register_entry(void *ctx, const char *abs, const char *
     st = watch_platform_register_dir(w, abs, rel);
     if (st != CBERG_OK) {
         watch_dir_clear_slot(slot);
-        return st;
+        return watch_skip_unwatchable(rel, st);
     }
 
     w->dir_len++;
