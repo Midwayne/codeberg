@@ -149,6 +149,19 @@ int main(void) {
     CHECK(diff.added_len == 0 && diff.modified_len == 0, "delete only");
     cberg_manifest_diff_free(&diff);
 
+    /* A file replaced by a directory of the same name: the file is deleted
+     * and the directory's files are added. */
+    remove_file(root, "src/new.c");
+    write_file(root, "src/new.c/inner.c", "int inner;\n");
+    cberg_manifest *m5 = NULL;
+    CHECK(cberg_manifest_build(root, &m5) == CBERG_OK, "build m5");
+    CHECK(cberg_manifest_diff(m4, m5, &diff) == CBERG_OK, "diff file to directory");
+    CHECK(diff.deleted_len == 1 && has_path(diff.deleted, diff.deleted_len, "src/new.c"), "replaced file deleted");
+    CHECK(diff.added_len == 1 && has_path(diff.added, diff.added_len, "src/new.c/inner.c"), "new directory's file added");
+    CHECK(diff.modified_len == 0, "type change is not a modify");
+    cberg_manifest_diff_free(&diff);
+    cberg_manifest_free(m5);
+
     cberg_manifest_free(m1);
     cberg_manifest_free(m2);
     cberg_manifest_free(m3);

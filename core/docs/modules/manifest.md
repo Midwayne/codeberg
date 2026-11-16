@@ -4,7 +4,7 @@ Content-derived **Merkle manifest** over one repository's files. Detects which
 files changed without relying on filesystem-event watches — the change detector
 that scales across many repositories where inotify watch counts run out.
 
-**Files:** `manifest.c`
+**Files:** `manifest.c` (build), `manifest_diff.c`, `manifest_persist.c` (save/load), `manifest_internal.h` (shared tree layout)
 **Depends on:** `common/arena`, `common/hash` (`cberg_hash`, `cberg_fingerprint`),
 `common/pathutil` (`cberg_fs_walk`), `common/walk_policy` (`cberg_walk_skip_dir`),
 `common/fileio` (`cberg_read_file`)

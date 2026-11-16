@@ -111,6 +111,8 @@ set(CBERG_SOURCES
   src/graph/import_index.c
   src/graph/resolve_relative.c
   src/manifest/manifest.c
+  src/manifest/manifest_diff.c
+  src/manifest/manifest_persist.c
   src/watch/watch.c
   src/watch/watch_walk.c
   ${CBERG_WATCH_PLATFORM_SRC}

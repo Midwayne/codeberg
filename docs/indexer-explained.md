@@ -862,5 +862,5 @@ To trace the implementation yourself, follow this order:
 8. [Embedding lifecycle](../core/cmd/cberg-index/embedding.c) and [facade](../core/src/embed/embed.c): providers, locking, idle unload.
 9. [Python worker](../scripts/embedding_worker.py) or [ONNX backend](../core/src/embed/embed_onnx.c): actual inference.
 10. [Vector provider](../core/src/search/providers/usearch/usearch.c) and [search](../core/src/search/search.c): vector storage and similarity lookup.
-11. [Manifest](../core/src/manifest/manifest.c) and [watcher](../core/src/watch/watch.c): incremental file discovery.
+11. Manifest ([build](../core/src/manifest/manifest.c), [diff](../core/src/manifest/manifest_diff.c), [persistence](../core/src/manifest/manifest_persist.c)) and [watcher](../core/src/watch/watch.c): incremental file discovery.
 12. [Hybrid search](../daemon/internal/tools/hybrid.go) and [ranking](../daemon/internal/search/ranking.go): combine vector and lexical evidence above the C indexer.
