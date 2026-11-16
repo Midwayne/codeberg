@@ -4,6 +4,7 @@
 
 #include "workspace_graph.h"
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -192,45 +193,126 @@ static cberg_status graph_repo(cberg_engine *eng, const char *repo_key, cberg_re
     return CBERG_ERR_NOT_FOUND;
 }
 
+/* Applies a query's default when limit is 0, then caps it at cap. */
+static size_t query_limit(size_t limit, size_t fallback, size_t cap) {
+    if (limit == 0) {
+        limit = fallback;
+    }
+    return limit > cap ? cap : limit;
+}
+
+/* An empty filter string means no filter. */
+static const char *filter_or_null(const char *s) {
+    return s != NULL && s[0] != '\0' ? s : NULL;
+}
+
+/* Locks r if its graph is ready to query; otherwise leaves it unlocked. */
+static bool lock_ready_graph(cberg_repo *r) {
+    pthread_mutex_lock(&r->mu);
+    if (r->ready && r->graph != NULL) {
+        return true;
+    }
+
+    pthread_mutex_unlock(&r->mu);
+    return false;
+}
+
+/* True when node's source file is exactly path (not just under a prefix). */
+static bool node_at_path(const cberg_graph *g, const cberg_graph_node *node, const char *path) {
+    return node->path != NULL && strcmp(cberg_graph_source_path(g, node), path) == 0;
+}
+
 cberg_status cberg_engine_search_graph(cberg_engine *eng, const char *name, const char *repo_key, const char *kind, const char *path_prefix, size_t limit, cberg_engine_graph_node *out, size_t cap, size_t *found) {
     if (eng == NULL || out == NULL || found == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     *found = 0;
-    if (eng->repos_len > 1)
+    if (eng->repos_len > 1) {
         return cberg_workspace_search(eng, name, repo_key, kind, path_prefix, limit, out, cap, found);
+    }
+
     cberg_repo *r = NULL;
     cberg_status st = graph_repo(eng, repo_key, &r);
     if (st != CBERG_OK) {
         return st;
     }
-    if (limit == 0) {
-        limit = 20;
-    }
-    if (limit > cap) {
-        limit = cap;
-    }
-    uint32_t kind_mask = cberg_index_parse_gnode_mask(kind);
-    const char *name_filter = (name != NULL && name[0] != '\0') ? name : NULL;
-    const char *path_filter = (path_prefix != NULL && path_prefix[0] != '\0') ? path_prefix : NULL;
 
+    limit = query_limit(limit, 20, cap);
+    uint32_t kind_mask = cberg_index_parse_gnode_mask(kind);
     const cberg_graph_node *nodes[64];
     size_t n = 0;
-    size_t want = limit > 64 ? 64 : limit;
-    pthread_mutex_lock(&r->mu);
-    if (!r->ready || r->graph == NULL) {
-        pthread_mutex_unlock(&r->mu);
+    if (!lock_ready_graph(r)) {
         return CBERG_ERR_NOT_FOUND;
     }
-    st = cberg_graph_find_nodes(r->graph, name_filter, kind_mask, path_filter, nodes, want, &n);
+
+    st = cberg_graph_find_nodes(r->graph, filter_or_null(name), kind_mask, filter_or_null(path_prefix), nodes, limit > 64 ? 64 : limit, &n);
+    for (size_t i = 0; st == CBERG_OK && i < n; i++) {
+        fill_engine_gnode(&out[i], r->key, r->graph, nodes[i]);
+    }
     if (st == CBERG_OK) {
-        for (size_t i = 0; i < n; i++) {
-            fill_engine_gnode(&out[i], r->key, r->graph, nodes[i]);
-        }
         *found = n;
     }
+
     pthread_mutex_unlock(&r->mu);
     return st;
+}
+
+/* Parses "in", "out", or "both" (the default) into graph direction flags. */
+static cberg_status parse_trace_dirs(const char *direction, uint32_t *out) {
+    *out = CBERG_GRAPH_IN | CBERG_GRAPH_OUT;
+    if (direction == NULL || direction[0] == '\0' || strcasecmp(direction, "both") == 0) {
+        return CBERG_OK;
+    }
+
+    if (strcasecmp(direction, "out") == 0) {
+        *out = CBERG_GRAPH_OUT;
+    } else if (strcasecmp(direction, "in") == 0) {
+        *out = CBERG_GRAPH_IN;
+    } else {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    return CBERG_OK;
+}
+
+/* Finds the node a trace starts from by name. path_prefix narrows the
+ * candidates; a node whose file is exactly that path wins. */
+static cberg_status trace_start_id(const cberg_graph *g, const char *name, const char *path_prefix, uint64_t *out) {
+    if (name == NULL || name[0] == '\0') {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+
+    const char *path_filter = filter_or_null(path_prefix);
+    const cberg_graph_node *nodes[16];
+    size_t n = 0;
+    if (cberg_graph_find_nodes(g, name, 0, path_filter, nodes, 16, &n) != CBERG_OK || n == 0) {
+        return CBERG_ERR_NOT_FOUND;
+    }
+
+    *out = nodes[0]->id;
+    for (size_t i = 0; path_filter != NULL && i < n; i++) {
+        if (node_at_path(g, nodes[i], path_filter)) {
+            *out = nodes[i]->id;
+            break;
+        }
+    }
+    return CBERG_OK;
+}
+
+/* Runs the trace on a locked, ready repo and converts the hops. */
+static cberg_status trace_locked(cberg_repo *r, uint64_t id, uint32_t dirs, uint32_t kind_mask, uint32_t max_depth, size_t limit, cberg_engine_graph_hop *out, size_t *found) {
+    cberg_graph_hop hops[256];
+    size_t hop_n = 0;
+    cberg_status st = cberg_graph_trace(r->graph, id, dirs, kind_mask, max_depth, hops, limit > 256 ? 256 : limit, &hop_n);
+    if (st != CBERG_OK) {
+        return st;
+    }
+
+    for (size_t i = 0; i < hop_n; i++) {
+        fill_engine_gedge(&out[i].edge, r->key, r->graph, &hops[i].edge);
+        out[i].depth = hops[i].depth;
+    }
+    *found = hop_n;
+    return CBERG_OK;
 }
 
 cberg_status cberg_engine_trace_path(cberg_engine *eng, const char *name, uint64_t start_id, const char *repo_key, const char *path_prefix, const char *direction, const char *edge_kind, uint32_t max_depth, size_t limit, cberg_engine_graph_hop *out, size_t cap, size_t *found) {
@@ -238,83 +320,37 @@ cberg_status cberg_engine_trace_path(cberg_engine *eng, const char *name, uint64
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     *found = 0;
-    if (eng->repos_len > 1)
+    if (eng->repos_len > 1) {
         return cberg_workspace_trace(eng, name, start_id, repo_key, path_prefix, direction, edge_kind, max_depth, limit, out, cap, found);
+    }
+
     cberg_repo *r = NULL;
     cberg_status st = graph_repo(eng, repo_key, &r);
     if (st != CBERG_OK) {
         return st;
     }
-    if (limit == 0) {
-        limit = 64;
-    }
-    if (limit > cap) {
-        limit = cap;
-    }
-    if (max_depth == 0) {
-        max_depth = 2;
+
+    uint32_t dirs = 0;
+    st = parse_trace_dirs(direction, &dirs);
+    if (st != CBERG_OK) {
+        return st;
     }
 
-    uint32_t dirs = CBERG_GRAPH_IN | CBERG_GRAPH_OUT;
-    if (direction != NULL && direction[0] != '\0') {
-        if (strcasecmp(direction, "out") == 0) {
-            dirs = CBERG_GRAPH_OUT;
-        } else if (strcasecmp(direction, "in") == 0) {
-            dirs = CBERG_GRAPH_IN;
-        } else if (strcasecmp(direction, "both") != 0) {
-            return CBERG_ERR_INVALID_ARGUMENT;
-        }
-    }
-
+    limit = query_limit(limit, 64, cap);
+    max_depth = max_depth == 0 ? 2 : max_depth;
     uint32_t kind_mask = cberg_index_parse_gedge_mask(edge_kind);
-    if (kind_mask == 0) {
-        kind_mask = CBERG_GEDGE_CALLS;
-    }
+    kind_mask = kind_mask == 0 ? CBERG_GEDGE_CALLS : kind_mask;
 
-    pthread_mutex_lock(&r->mu);
-    if (!r->ready || r->graph == NULL) {
-        pthread_mutex_unlock(&r->mu);
+    if (!lock_ready_graph(r)) {
         return CBERG_ERR_NOT_FOUND;
     }
 
     uint64_t id = start_id;
-    if (id == 0) {
-        if (name == NULL || name[0] == '\0') {
-            pthread_mutex_unlock(&r->mu);
-            return CBERG_ERR_INVALID_ARGUMENT;
-        }
-        const cberg_graph_node *nodes[16];
-        size_t n = 0;
-        /* Prefer exact path match when path_prefix is a full path; fall back to
-         * prefix filter so callers can still pass a directory. */
-        const char *path_filter = (path_prefix != NULL && path_prefix[0] != '\0') ? path_prefix : NULL;
-        st = cberg_graph_find_nodes(r->graph, name, 0, path_filter, nodes, 16, &n);
-        if (st != CBERG_OK || n == 0) {
-            pthread_mutex_unlock(&r->mu);
-            return CBERG_ERR_NOT_FOUND;
-        }
-        id = nodes[0]->id;
-        if (path_filter != NULL) {
-            for (size_t i = 0; i < n; i++) {
-                if (nodes[i]->path != NULL && strcmp(cberg_graph_source_path(r->graph, nodes[i]), path_filter) == 0) {
-                    id = nodes[i]->id;
-                    break;
-                }
-            }
-        }
+    st = id != 0 ? CBERG_OK : trace_start_id(r->graph, name, path_prefix, &id);
+    if (st == CBERG_OK) {
+        st = trace_locked(r, id, dirs, kind_mask, max_depth, limit, out, found);
     }
 
-    cberg_graph_hop hops[256];
-    size_t hop_n = 0;
-    size_t want = limit > 256 ? 256 : limit;
-    st = cberg_graph_trace(r->graph, id, dirs, kind_mask, max_depth, hops, want, &hop_n);
-    if (st == CBERG_OK) {
-        for (size_t i = 0; i < hop_n; i++) {
-            fill_engine_gedge(&out[i].edge, r->key, r->graph, &hops[i].edge);
-            out[i].depth = hops[i].depth;
-        }
-        *found = hop_n;
-    }
     pthread_mutex_unlock(&r->mu);
     return st;
 }
@@ -368,41 +404,50 @@ static void bump_lang(cberg_engine_graph_stats *out, const char *lang) {
     out->languages_len++;
 }
 
+/* Counts FILE nodes by language, from their path extensions. */
+static void count_file_languages(const cberg_graph *g, cberg_engine_graph_stats *out) {
+    const cberg_graph_node **files = calloc(out->nodes, sizeof(*files));
+    if (files == NULL) {
+        return;
+    }
+
+    size_t nfiles = 0;
+    if (cberg_graph_find_nodes(g, NULL, CBERG_GNODE_MASK(CBERG_GNODE_FILE), NULL, files, out->nodes, &nfiles) == CBERG_OK) {
+        for (size_t i = 0; i < nfiles; i++) {
+            const char *path = files[i]->qname != NULL ? files[i]->qname : files[i]->path;
+            bump_lang(out, lang_name(cberg_language_from_path(path)));
+        }
+    }
+    free(files);
+}
+
 cberg_status cberg_engine_get_graph_stats(cberg_engine *eng, const char *repo_key, cberg_engine_graph_stats *out) {
     if (eng == NULL || out == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     memset(out, 0, sizeof(*out));
+
     out->enabled = eng->graph_enabled;
     if (!eng->graph_enabled) {
         return CBERG_ERR_NOT_IMPLEMENTED;
     }
-    if (eng->repos_len > 1 && (repo_key == NULL || repo_key[0] == '\0'))
+    if (eng->repos_len > 1 && (repo_key == NULL || repo_key[0] == '\0')) {
         return cberg_workspace_stats(eng, out);
+    }
+
     cberg_repo *r = NULL;
     cberg_status st = graph_repo(eng, repo_key, &r);
     if (st != CBERG_OK) {
         return st;
     }
+
     pthread_mutex_lock(&r->mu);
     out->repo = r->key;
     out->enabled = r->graph != NULL;
     if (r->graph != NULL) {
         cberg_graph_counts(r->graph, &out->nodes, &out->refs);
-        /* Language mix from FILE node path extensions. */
         if (out->nodes > 0) {
-            const cberg_graph_node **files = calloc(out->nodes, sizeof(*files));
-            if (files != NULL) {
-                size_t nfiles = 0;
-                if (cberg_graph_find_nodes(r->graph, NULL, CBERG_GNODE_MASK(CBERG_GNODE_FILE), NULL, files, out->nodes, &nfiles) ==
-                    CBERG_OK) {
-                    for (size_t i = 0; i < nfiles; i++) {
-                        const char *path = files[i]->qname != NULL ? files[i]->qname : files[i]->path;
-                        bump_lang(out, lang_name(cberg_language_from_path(path)));
-                    }
-                }
-                free(files);
-            }
+            count_file_languages(r->graph, out);
         }
     }
     pthread_mutex_unlock(&r->mu);
@@ -414,43 +459,86 @@ cberg_status cberg_engine_graph_hubs(cberg_engine *eng, const char *repo_key, si
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     *found = 0;
-    if (eng->repos_len > 1)
+    if (eng->repos_len > 1) {
         return cberg_workspace_hubs(eng, repo_key, limit, out, cap, found);
+    }
+
     cberg_repo *r = NULL;
     cberg_status st = graph_repo(eng, repo_key, &r);
     if (st != CBERG_OK) {
         return st;
     }
-    if (limit == 0) {
-        limit = 10;
-    }
-    if (limit > cap) {
-        limit = cap;
-    }
 
-    pthread_mutex_lock(&r->mu);
-    if (!r->ready || r->graph == NULL) {
-        pthread_mutex_unlock(&r->mu);
+    limit = query_limit(limit, 10, cap);
+    if (!lock_ready_graph(r)) {
         return CBERG_ERR_NOT_FOUND;
     }
 
     cberg_graph_hub hubs[64];
     size_t n = 0;
-    size_t want = limit > 64 ? 64 : limit;
-    st = cberg_graph_hubs(r->graph, hubs, want, &n);
-    if (st == CBERG_OK) {
-        for (size_t i = 0; i < n; i++) {
-            const cberg_graph_node *node = cberg_graph_node_by_id(r->graph, hubs[i].id);
-            if (node == NULL) {
-                continue;
-            }
+    st = cberg_graph_hubs(r->graph, hubs, limit > 64 ? 64 : limit, &n);
+    for (size_t i = 0; st == CBERG_OK && i < n; i++) {
+        const cberg_graph_node *node = cberg_graph_node_by_id(r->graph, hubs[i].id);
+        if (node != NULL) {
             fill_engine_gnode(&out[*found].node, r->key, r->graph, node);
             out[*found].degree = hubs[i].degree;
             (*found)++;
         }
     }
+
     pthread_mutex_unlock(&r->mu);
     return st;
+}
+
+/* Finds the nodes named name (narrowed by path_prefix); when several match
+ * and some sit exactly at path_prefix, only those are kept. *out_nodes is
+ * caller-freed. */
+static cberg_status reference_targets(const cberg_graph *g, const char *name, const char *path_prefix, const cberg_graph_node ***out_nodes, size_t *out_len) {
+    const char *path_filter = filter_or_null(path_prefix);
+    size_t capacity = 0;
+    cberg_graph_counts(g, &capacity, NULL);
+
+    const cberg_graph_node **nodes = calloc(capacity + 1, sizeof(*nodes));
+    if (nodes == NULL) {
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+
+    size_t n = 0;
+    if (cberg_graph_find_nodes(g, name, 0, path_filter, nodes, capacity + 1, &n) != CBERG_OK || n == 0) {
+        free(nodes);
+        return CBERG_ERR_NOT_FOUND;
+    }
+
+    size_t exact = 0;
+    for (size_t i = 0; path_filter != NULL && n > 1 && i < n; i++) {
+        if (node_at_path(g, nodes[i], path_filter)) {
+            nodes[exact++] = nodes[i];
+        }
+    }
+
+    *out_nodes = nodes;
+    *out_len = exact > 0 ? exact : n;
+    return CBERG_OK;
+}
+
+/* Writes up to limit incoming uses of nodes — calls, inheritance, imports,
+ * and non-call references such as callbacks and type annotations. */
+static size_t collect_references(cberg_repo *r, const cberg_graph_node **nodes, size_t n_nodes, size_t limit, cberg_engine_graph_edge *out) {
+    uint32_t kind_mask = CBERG_GEDGE_CALLS | CBERG_GEDGE_INHERITS | CBERG_GEDGE_IMPORTS | CBERG_GEDGE_REFERENCES;
+    size_t written = 0;
+
+    for (size_t i = 0; i < n_nodes && written < limit; i++) {
+        cberg_graph_edge edges[256];
+        size_t n_edges = 0;
+        if (cberg_graph_edges_to(r->graph, nodes[i]->id, kind_mask, edges, 256, &n_edges) != CBERG_OK) {
+            continue;
+        }
+
+        for (size_t e = 0; e < n_edges && written < limit; e++) {
+            fill_engine_gedge(&out[written++], r->key, r->graph, &edges[e]);
+        }
+    }
+    return written;
 }
 
 cberg_status cberg_engine_graph_references(cberg_engine *eng, const char *name, const char *repo_key, const char *path_prefix, size_t limit, cberg_engine_graph_edge *out, size_t cap, size_t *found) {
@@ -458,72 +546,29 @@ cberg_status cberg_engine_graph_references(cberg_engine *eng, const char *name, 
         return CBERG_ERR_INVALID_ARGUMENT;
     }
     *found = 0;
-    if (eng->repos_len > 1)
+    if (eng->repos_len > 1) {
         return cberg_workspace_refs(eng, name, repo_key, path_prefix, limit, out, cap, found);
+    }
+
     cberg_repo *r = NULL;
     cberg_status st = graph_repo(eng, repo_key, &r);
     if (st != CBERG_OK) {
         return st;
     }
-    if (limit == 0) {
-        limit = 50;
-    }
-    if (limit > cap) {
-        limit = cap;
-    }
 
-    pthread_mutex_lock(&r->mu);
-    if (!r->ready || r->graph == NULL) {
-        pthread_mutex_unlock(&r->mu);
+    limit = query_limit(limit, 50, cap);
+    if (!lock_ready_graph(r)) {
         return CBERG_ERR_NOT_FOUND;
     }
 
-    const char *path_filter = (path_prefix != NULL && path_prefix[0] != '\0') ? path_prefix : NULL;
-    size_t capacity = 0;
-    cberg_graph_counts(r->graph, &capacity, NULL);
-    const cberg_graph_node **nodes = calloc(capacity + 1, sizeof(*nodes));
-    if (nodes == NULL) {
-        pthread_mutex_unlock(&r->mu);
-        return CBERG_ERR_OUT_OF_MEMORY;
-    }
-
+    const cberg_graph_node **nodes = NULL;
     size_t n_nodes = 0;
-    st = cberg_graph_find_nodes(r->graph, name, 0, path_filter, nodes, capacity + 1, &n_nodes);
-    if (st != CBERG_OK || n_nodes == 0) {
+    st = reference_targets(r->graph, name, path_prefix, &nodes, &n_nodes);
+    if (st == CBERG_OK) {
+        *found = collect_references(r, nodes, n_nodes, limit, out);
         free(nodes);
-        pthread_mutex_unlock(&r->mu);
-        return CBERG_ERR_NOT_FOUND;
-    }
-    /* Prefer an exact path match when path_prefix is a full file path. */
-    if (path_filter != NULL && n_nodes > 1) {
-        size_t exact = 0;
-        for (size_t i = 0; i < n_nodes; i++) {
-            if (nodes[i]->path != NULL && strcmp(cberg_graph_source_path(r->graph, nodes[i]), path_filter) == 0) {
-                nodes[exact++] = nodes[i];
-            }
-        }
-        if (exact > 0) {
-            n_nodes = exact;
-        }
     }
 
-    /* Include non-call symbol uses such as callbacks and type annotations. */
-    uint32_t kind_mask = CBERG_GEDGE_CALLS | CBERG_GEDGE_INHERITS | CBERG_GEDGE_IMPORTS | CBERG_GEDGE_REFERENCES;
-    size_t written = 0;
-    for (size_t i = 0; i < n_nodes && written < limit; i++) {
-        cberg_graph_edge edges[256];
-        size_t n_edges = 0;
-        st = cberg_graph_edges_to(r->graph, nodes[i]->id, kind_mask, edges, 256, &n_edges);
-        if (st != CBERG_OK) {
-            continue;
-        }
-        for (size_t e = 0; e < n_edges && written < limit; e++) {
-            fill_engine_gedge(&out[written], r->key, r->graph, &edges[e]);
-            written++;
-        }
-    }
-    *found = written;
-    free(nodes);
     pthread_mutex_unlock(&r->mu);
-    return CBERG_OK;
+    return st;
 }

@@ -66,6 +66,7 @@ cberg_index_test(test_cberg_wipe test_wipe.c wipe.c)
 cberg_index_engine_test(test_cberg_engine test_engine.c)
 cberg_index_engine_test(test_cberg_bootstrap test_bootstrap.c)
 cberg_index_engine_test(test_workspace_graph test_workspace_graph.c)
+cberg_index_engine_test(test_cberg_graph_queries test_graph_queries.c)
 cberg_index_engine_test(test_cberg_hits test_hits.c)
 cberg_index_engine_test(test_cberg_vectors test_vectors.c)
 
