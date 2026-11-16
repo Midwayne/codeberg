@@ -208,6 +208,15 @@ static void check_workspace(cberg_engine *engine) {
           "lookup decoy references");
     CHECK(count == 0, "same-name unrelated repository must not acquire the caller");
 
+    cberg_engine_graph_hub hubs[16];
+    CHECK(cberg_engine_graph_hubs(engine, "decoy", 16, hubs, 16, &count) == CBERG_OK, "scoped hubs succeed");
+    CHECK(count > 0, "the scoped repository has call hubs");
+    size_t in_scope = 0;
+    for (size_t i = 0; i < count; i++) {
+        in_scope += strcmp(hubs[i].node.repo, "decoy") == 0;
+    }
+    CHECK(in_scope == count, "scoped hubs come only from the scoped repository");
+
     CHECK(cberg_engine_graph_references(engine, "rareMethod", "storage", "many.ts", 16, refs, 16, &count) == CBERG_OK,
           "query many same-name definitions");
     CHECK(count == 1 && strcmp(refs[0].src_name, "rare_run") == 0,

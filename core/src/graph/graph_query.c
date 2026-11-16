@@ -338,9 +338,30 @@ typedef struct trace_ctx {
     cberg_status err;
 } trace_ctx;
 
+/* Queues neighbor for the next BFS level and marks it visited. */
+static cberg_status trace_queue(trace_ctx *t, uint64_t neighbor) {
+    if (cberg_u64map_set(t->visited, neighbor, 1) != CBERG_OK) {
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+
+    size_t cap = cberg_grow_cap(t->next_cap, t->next_len + 1, 16);
+    if (cap != t->next_cap) {
+        uint64_t *grown = realloc(t->next, cap * sizeof(*grown));
+        if (grown == NULL) {
+            return CBERG_ERR_OUT_OF_MEMORY;
+        }
+        t->next = grown;
+        t->next_cap = cap;
+    }
+
+    t->next[t->next_len++] = neighbor;
+    return CBERG_OK;
+}
+
 static int trace_sink(void *v, const cberg_graph_edge *edge) {
     trace_ctx *t = v;
     uint64_t neighbor = edge->src == t->current ? edge->dst : edge->src;
+
     /* A self-loop (recursion) still reports a hop but expands nothing new. */
     if (neighbor != t->current && cberg_u64map_get(t->visited, neighbor, NULL)) {
         return 0;
@@ -348,27 +369,43 @@ static int trace_sink(void *v, const cberg_graph_edge *edge) {
     if (t->count >= t->cap) {
         return 1;
     }
+
     t->out[t->count].edge = *edge;
     t->out[t->count].depth = t->depth;
     t->count++;
+
     if (neighbor != t->current) {
-        if (cberg_u64map_set(t->visited, neighbor, 1) != CBERG_OK) {
-            t->err = CBERG_ERR_OUT_OF_MEMORY;
+        t->err = trace_queue(t, neighbor);
+        if (t->err != CBERG_OK) {
             return 1;
         }
-        size_t cap = cberg_grow_cap(t->next_cap, t->next_len + 1, 16);
-        if (cap != t->next_cap) {
-            uint64_t *grown = realloc(t->next, cap * sizeof(*grown));
-            if (grown == NULL) {
-                t->err = CBERG_ERR_OUT_OF_MEMORY;
-                return 1;
-            }
-            t->next = grown;
-            t->next_cap = cap;
-        }
-        t->next[t->next_len++] = neighbor;
     }
     return t->count >= t->cap;
+}
+
+/* Expands one BFS level: every frontier node's edges in the requested
+ * directions. Hops and the next frontier accumulate in t. */
+static cberg_status trace_level(trace_ctx *t, const uint64_t *frontier, size_t frontier_len, uint32_t directions, uint32_t mask) {
+    for (size_t i = 0; i < frontier_len; i++) {
+        const graph_node_rec *rec = graph_node_rec_by_id(t->g, frontier[i]);
+        if (rec == NULL) {
+            continue;
+        }
+
+        t->current = frontier[i];
+        int stop = 0;
+        if ((directions & CBERG_GRAPH_OUT) != 0) {
+            stop = emit_edges_from(t->g, rec, mask, trace_sink, t);
+        }
+        if (!stop && (directions & CBERG_GRAPH_IN) != 0) {
+            stop = emit_edges_to(t->g, rec, mask, trace_sink, t);
+        }
+
+        if (t->err != CBERG_OK || stop) {
+            break;
+        }
+    }
+    return t->err;
 }
 
 cberg_status cberg_graph_trace(const cberg_graph *graph, uint64_t start_id, uint32_t directions, uint32_t kind_mask, uint32_t max_depth, cberg_graph_hop *out_hops, size_t cap, size_t *out_count) {
@@ -387,51 +424,23 @@ cberg_status cberg_graph_trace(const cberg_graph *graph, uint64_t start_id, uint
     if (t.visited == NULL) {
         return CBERG_ERR_OUT_OF_MEMORY;
     }
-    cberg_status st = cberg_u64map_set(t.visited, start_id, 1);
 
-    uint64_t *frontier = NULL;
-    size_t frontier_len = 0;
-    if (st == CBERG_OK) {
-        frontier = malloc(sizeof(*frontier));
-        if (frontier == NULL) {
-            st = CBERG_ERR_OUT_OF_MEMORY;
-        } else {
-            frontier[0] = start_id;
-            frontier_len = 1;
-        }
-    }
+    /* The start node is level 0; queue it as the first frontier. */
+    t.err = trace_queue(&t, start_id);
+    cberg_status st = t.err;
 
-    for (uint32_t depth = 1; st == CBERG_OK && depth <= max_depth && frontier_len > 0 && t.count < cap; depth++) {
-        t.depth = depth;
-        t.next_len = 0;
-        for (size_t i = 0; i < frontier_len && st == CBERG_OK; i++) {
-            const graph_node_rec *rec = graph_node_rec_by_id(graph, frontier[i]);
-            if (rec == NULL) {
-                continue;
-            }
-            t.current = frontier[i];
-            int stop = 0;
-            if ((directions & CBERG_GRAPH_OUT) != 0) {
-                stop = emit_edges_from(graph, rec, mask, trace_sink, &t);
-            }
-            if (!stop && (directions & CBERG_GRAPH_IN) != 0) {
-                stop = emit_edges_to(graph, rec, mask, trace_sink, &t);
-            }
-            st = t.err;
-            if (stop) {
-                break;
-            }
-        }
-        /* Swap frontiers. */
-        free(frontier);
-        frontier = t.next;
-        frontier_len = t.next_len;
+    for (uint32_t depth = 1; st == CBERG_OK && depth <= max_depth && t.next_len > 0 && t.count < cap; depth++) {
+        uint64_t *frontier = t.next;
+        size_t frontier_len = t.next_len;
         t.next = NULL;
         t.next_len = 0;
         t.next_cap = 0;
+
+        t.depth = depth;
+        st = trace_level(&t, frontier, frontier_len, directions, mask);
+        free(frontier);
     }
 
-    free(frontier);
     free(t.next);
     cberg_u64map_free(t.visited);
     if (st == CBERG_OK) {
@@ -449,15 +458,64 @@ static int hub_cmp(const void *a, const void *b) {
     return ha->id < hb->id ? -1 : (ha->id > hb->id ? 1 : 0);
 }
 
+static void hubs_bump(uint32_t *deg, size_t n, uint32_t idx) {
+    if (idx < n) {
+        deg[idx]++;
+    }
+}
+
+/* Adds one CALLS ref to both endpoints' degree: once for a bound ref, once
+ * per resolved candidate for a named one. */
+static void count_call_ref(const cberg_graph *graph, const graph_ref_rec *ref, resolve_memo *memo, uint32_t *deg) {
+    const graph_node_rec *src = graph_node_rec_by_id(graph, ref->src);
+    if (src == NULL) {
+        return;
+    }
+    uint32_t src_idx = (uint32_t)(src - graph->nodes);
+
+    if (ref->dst != 0) {
+        const graph_node_rec *dst = graph_node_rec_by_id(graph, ref->dst);
+        if (dst != NULL) {
+            hubs_bump(deg, graph->nodes_len, src_idx);
+            hubs_bump(deg, graph->nodes_len, (uint32_t)(dst - graph->nodes));
+        }
+        return;
+    }
+
+    if (ref->name == NULL) {
+        return;
+    }
+
+    graph_candidates cands;
+    graph_resolve_name_cached(graph, ref, memo, &cands);
+    for (size_t c = 0; c < cands.count; c++) {
+        hubs_bump(deg, graph->nodes_len, src_idx);
+        hubs_bump(deg, graph->nodes_len, cands.idx[c]);
+    }
+}
+
 /*
  * Single-pass CALLS degree: walk each live CALLS ref once, resolve name refs
  * once, and bump both endpoints. Matches emit_edges_from/to CALLS counting
  * without O(nodes × refs-per-name) re-resolution.
  */
-static void hubs_bump(uint32_t *deg, size_t n, uint32_t idx) {
-    if (idx < n) {
-        deg[idx]++;
+static void count_call_degrees(const cberg_graph *graph, uint32_t *deg) {
+    resolve_memo memo = {0};
+
+    for (size_t r = 0; r < graph->refs_len; r++) {
+        const graph_ref_rec *ref = &graph->refs[r];
+        if (!ref->dead && ref->kind == CBERG_GEDGE_CALLS && !ref->rev) {
+            count_call_ref(graph, ref, &memo, deg);
+        }
     }
+}
+
+/* Symbols (not files or modules) in the graph's scope with any calls. */
+static bool hub_candidate(const cberg_graph *graph, const graph_node_rec *rec, uint32_t degree) {
+    if (rec->dead || rec->pub.kind == CBERG_GNODE_FILE || rec->pub.kind == CBERG_GNODE_MODULE || degree == 0) {
+        return false;
+    }
+    return graph->scope == NULL || (rec->repo != NULL && strcmp(rec->repo, graph->scope) == 0);
 }
 
 cberg_status cberg_graph_hubs(const cberg_graph *graph, cberg_graph_hub *out, size_t cap, size_t *out_count) {
@@ -468,70 +526,31 @@ cberg_status cberg_graph_hubs(const cberg_graph *graph, cberg_graph_hub *out, si
     if (graph->nodes_len == 0) {
         return CBERG_OK;
     }
+
     uint32_t *deg = calloc(graph->nodes_len, sizeof(*deg));
-    if (deg == NULL) {
+    cberg_graph_hub *ranked = calloc(graph->nodes_len + 1, sizeof(*ranked));
+    if (deg == NULL || ranked == NULL) {
+        free(deg);
+        free(ranked);
         return CBERG_ERR_OUT_OF_MEMORY;
-    }
-    resolve_memo memo = {0};
-    for (size_t r = 0; r < graph->refs_len; r++) {
-        const graph_ref_rec *ref = &graph->refs[r];
-        if (ref->dead || ref->kind != CBERG_GEDGE_CALLS || ref->rev) {
-            continue;
-        }
-        const graph_node_rec *src = graph_node_rec_by_id(graph, ref->src);
-        if (src == NULL) {
-            continue;
-        }
-        uint32_t src_idx = (uint32_t)(src - graph->nodes);
-        if (ref->dst != 0) {
-            const graph_node_rec *dst = graph_node_rec_by_id(graph, ref->dst);
-            if (dst == NULL) {
-                continue;
-            }
-            hubs_bump(deg, graph->nodes_len, src_idx);
-            hubs_bump(deg, graph->nodes_len, (uint32_t)(dst - graph->nodes));
-            continue;
-        }
-        if (ref->name == NULL) {
-            continue;
-        }
-        graph_candidates cands;
-        graph_resolve_name_cached(graph, ref, &memo, &cands);
-        if (cands.count == 0) {
-            continue;
-        }
-        /* One edge per candidate: src degree += N, each candidate += 1. */
-        for (size_t c = 0; c < cands.count; c++) {
-            hubs_bump(deg, graph->nodes_len, src_idx);
-            hubs_bump(deg, graph->nodes_len, cands.idx[c]);
-        }
     }
 
-    cberg_graph_hub *tmp = calloc(graph->nodes_len + 1, sizeof(*tmp));
-    if (tmp == NULL) {
-        free(deg);
-        return CBERG_ERR_OUT_OF_MEMORY;
-    }
+    count_call_degrees(graph, deg);
+
     size_t n = 0;
     for (size_t i = 0; i < graph->nodes_len; i++) {
         const graph_node_rec *rec = &graph->nodes[i];
-        if (rec->dead || rec->pub.kind == CBERG_GNODE_FILE || rec->pub.kind == CBERG_GNODE_MODULE) {
-            continue;
+        if (hub_candidate(graph, rec, deg[i])) {
+            ranked[n++] = (cberg_graph_hub){.id = rec->pub.id, .degree = deg[i]};
         }
-        if (graph->scope != NULL && (rec->repo == NULL || strcmp(rec->repo, graph->scope) != 0))
-            continue;
-        if (deg[i] == 0) {
-            continue;
-        }
-        tmp[n].id = rec->pub.id;
-        tmp[n].degree = deg[i];
-        n++;
     }
-    free(deg);
-    qsort(tmp, n, sizeof(*tmp), hub_cmp);
+    qsort(ranked, n, sizeof(*ranked), hub_cmp);
+
     size_t write = n < cap ? n : cap;
-    memcpy(out, tmp, write * sizeof(*out));
+    memcpy(out, ranked, write * sizeof(*out));
     *out_count = write;
-    free(tmp);
+
+    free(deg);
+    free(ranked);
     return CBERG_OK;
 }
