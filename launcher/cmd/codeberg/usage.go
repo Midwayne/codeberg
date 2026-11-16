@@ -5,8 +5,8 @@ import (
 	"os"
 )
 
-func usage(w *os.File) {
-	fmt.Fprint(w, `codeberg — launch the code-search stack (core + daemon + browser agent)
+// usageText is the top-level help printed by `codeberg help` and on bad usage.
+const usageText = `codeberg — launch the code-search stack (core + daemon + browser agent)
 
 One command builds anything missing, starts the daemon (which brings up the C
 indexer), waits for it to be healthy, and opens the agent chat — like claude.
@@ -85,5 +85,8 @@ KEY SETTINGS
   ANTHROPIC_API_KEY / OPENAI_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY
 
 Note: there is no in-chat /config. Configure from this CLI (above) instead.
-`)
+`
+
+func usage(w *os.File) {
+	fmt.Fprint(w, usageText)
 }

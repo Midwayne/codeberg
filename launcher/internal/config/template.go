@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -39,74 +40,101 @@ func writeIfAbsent(path, body string) (bool, error) {
 	return true, nil
 }
 
+// summaryRow is one KEY  VALUE line of the config summary.
+type summaryRow [2]string
+
 // Summary returns the resolved config as human-readable KEY=VALUE lines, with
 // secrets masked. Useful for `codeberg config` and `codeberg doctor`.
 func (c *Config) Summary() string {
-	rows := [][2]string{
+	rows := c.coreSummaryRows()
+	rows = append(rows, c.optionalSummaryRows()...)
+	rows = append(rows, c.passthroughSummaryRows()...)
+
+	return formatSummary(rows)
+}
+
+// coreSummaryRows are always shown, set or not.
+func (c *Config) coreSummaryRows() []summaryRow {
+	return []summaryRow{
 		{"repo", orUnset(c.Repo)},
 		{"home", c.Home},
 		{"config file", c.ConfigPath},
 		{"--root", orUnset(c.Root)},
-		{KeyAll, fmt.Sprintf("%t", c.All)},
+		{KeyAll, strconv.FormatBool(c.All)},
 		{KeyModel, orUnset(c.Model)},
 		{KeySubagentModel, orUnset(c.SubagentModel)},
 		{KeyDaemonURL, c.DaemonURL},
 		{KeyHTTPPort, c.HTTPPort},
 		{KeyWebPort, c.WebPort},
-		{KeyWebUse, fmt.Sprintf("%t", c.WebUse)},
-		{KeyWebSearchUse, fmt.Sprintf("%t", c.WebSearchUse)},
-		{KeyLearningUse, fmt.Sprintf("%t", c.LearningUse)},
+		{KeyWebUse, strconv.FormatBool(c.WebUse)},
+		{KeyWebSearchUse, strconv.FormatBool(c.WebSearchUse)},
+		{KeyLearningUse, strconv.FormatBool(c.LearningUse)},
 		{KeySearxngURL, orUnset(c.SearxngURL) + searxngManagedNote(c)},
-		{KeyMcpUse, fmt.Sprintf("%t", c.McpUse)},
+		{KeyMcpUse, strconv.FormatBool(c.McpUse)},
 		{"mcp.json", filepath.Join(c.Home, "mcp.json")},
-		{KeyDbmcpUse, fmt.Sprintf("%t", c.DbmcpUse)},
+		{KeyDbmcpUse, strconv.FormatBool(c.DbmcpUse)},
 		{"dbmcp spec", dbmcpSpecSummary(c)},
-		{KeyVector, fmt.Sprintf("%t", c.Vector)},
+		{KeyVector, strconv.FormatBool(c.Vector)},
 		{KeyEmbedding, orUnset(c.Embedding)},
 		{KeyEmbedModel, c.EmbedModel},
 		{KeyIndexPath, c.IndexPath},
 		{KeySocket, c.Socket},
 	}
-	if len(c.Repos) > 0 {
-		rows = append(rows, [2]string{KeyReposSel, strings.Join(c.Repos, ",")})
+}
+
+// optionalSummaryRows are shown only when they differ from the default.
+func (c *Config) optionalSummaryRows() []summaryRow {
+	candidates := []struct {
+		show bool
+		row  summaryRow
+	}{
+		{len(c.Repos) > 0, summaryRow{KeyReposSel, strings.Join(c.Repos, ",")}},
+		{c.NoIndex, summaryRow{KeyNoIndex, "true"}},
+		{c.Verbose, summaryRow{KeyVerbose, "true"}},
+		{c.Reasoning != "", summaryRow{KeyReasoning, c.Reasoning}},
+		{c.McpConfig != "", summaryRow{KeyMcpConfig, c.McpConfig}},
+		{c.DbmcpSpec != "", summaryRow{KeyDbmcpSpec, c.DbmcpSpec}},
+		{c.DbmcpBin != "", summaryRow{KeyDbmcpBin, c.DbmcpBin}},
 	}
-	if c.NoIndex {
-		rows = append(rows, [2]string{KeyNoIndex, "true"})
+
+	var rows []summaryRow
+	for _, candidate := range candidates {
+		if candidate.show {
+			rows = append(rows, candidate.row)
+		}
 	}
-	if c.Verbose {
-		rows = append(rows, [2]string{KeyVerbose, "true"})
-	}
-	if c.Reasoning != "" {
-		rows = append(rows, [2]string{KeyReasoning, c.Reasoning})
-	}
-	if c.McpConfig != "" {
-		rows = append(rows, [2]string{KeyMcpConfig, c.McpConfig})
-	}
-	if c.DbmcpSpec != "" {
-		rows = append(rows, [2]string{KeyDbmcpSpec, c.DbmcpSpec})
-	}
-	if c.DbmcpBin != "" {
-		rows = append(rows, [2]string{KeyDbmcpBin, c.DbmcpBin})
-	}
+
+	return rows
+}
+
+// passthroughSummaryRows lists provider keys in name order, values masked.
+func (c *Config) passthroughSummaryRows() []summaryRow {
 	keys := make([]string, 0, len(c.Passthrough))
 	for k := range c.Passthrough {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
+
+	rows := make([]summaryRow, 0, len(keys))
 	for _, k := range keys {
-		rows = append(rows, [2]string{k, mask(c.Passthrough[k])})
+		rows = append(rows, summaryRow{k, mask(c.Passthrough[k])})
 	}
 
+	return rows
+}
+
+// formatSummary aligns the values in one column.
+func formatSummary(rows []summaryRow) string {
 	width := 0
 	for _, r := range rows {
-		if len(r[0]) > width {
-			width = len(r[0])
-		}
+		width = max(width, len(r[0]))
 	}
+
 	var b strings.Builder
 	for _, r := range rows {
 		fmt.Fprintf(&b, "  %-*s  %s\n", width, r[0], r[1])
 	}
+
 	return b.String()
 }
 

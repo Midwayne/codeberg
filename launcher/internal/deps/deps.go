@@ -15,15 +15,10 @@
 package deps
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"runtime"
-	"strconv"
-	"strings"
 )
 
 // requirement is one external dependency plus where to obtain it per platform.
@@ -78,26 +73,11 @@ func Ensure(w io.Writer, onnx bool) error {
 		if r.check() {
 			continue
 		}
-		// An installed but unsupported Node often remains first on PATH even
-		// after installing the distro package again. Report its version instead
-		// of reinstalling the same (possibly still too old) package.
-		if r.label == "node" {
-			if _, err := exec.LookPath("node"); err == nil {
-				blocking = append(blocking, r)
-				continue
-			}
+
+		if satisfy(w, pm, autoInstall, r) {
+			continue
 		}
-		if pkg := r.pkgFor(pm); autoInstall && pkg != "" {
-			fmt.Fprintf(w, "› installing %s (%s %s)\n", r.label, pm.name, pkg)
-			if err := pm.installPkg(w, pkg); err != nil {
-				fmt.Fprintf(w, "  %s install failed: %v\n", r.label, err)
-			}
-			if r.check() {
-				fmt.Fprintf(w, "✓ %s installed\n", r.label)
-				continue
-			}
-			fmt.Fprintf(w, "  %s still not detected after install\n", r.label)
-		}
+
 		// Still missing: couldn't or wouldn't install, or the install didn't
 		// satisfy the check (e.g. a shell that hasn't refreshed PATH).
 		if r.optional {
@@ -106,251 +86,41 @@ func Ensure(w io.Writer, onnx bool) error {
 			blocking = append(blocking, r)
 		}
 	}
+
 	if len(blocking) > 0 {
 		return blockingErr(pm, autoInstall, blocking)
 	}
+
 	return nil
 }
 
-// EnsurePython makes sure a python3 **with a working pip** is available for the
-// SearXNG web-search backend, auto-installing what's missing via the host
-// package manager when possible. It is intentionally separate from Ensure (the
-// build prerequisites): web search is an optional runtime feature, so callers
-// treat a returned error as advisory and degrade gracefully (web_search off,
-// everything else on).
-func EnsurePython(w io.Writer) error {
-	pm := detectPkgManager()
-	skipInstall := pm == nil || truthy(os.Getenv("CODEBERG_SKIP_DEP_INSTALL"))
-
-	py, ok := pythonBin()
-	if !ok {
-		if skipInstall {
-			return errors.New("python3 not found — install Python 3 (with venv and pip) to enable web_search")
-		}
-		pkg := "python3"
-		switch pm.name {
-		case "brew":
-			pkg = "python"
-		case "apt-get":
-			pkg = "python3-venv" // pulls python3 and the venv module Debian splits out
-		}
-		fmt.Fprintf(w, "› installing python3 (%s %s) for web_search\n", pm.name, pkg)
-		if err := pm.installPkg(w, pkg); err != nil {
-			return fmt.Errorf("python3 install failed: %w", err)
-		}
-		py, ok = pythonBin()
-		if !ok {
-			return errors.New("python3 still not detected after install")
+// satisfy tries to install a missing requirement and reports whether its
+// check passes afterward.
+func satisfy(w io.Writer, pm *pkgManager, autoInstall bool, r requirement) bool {
+	// An installed but unsupported Node often remains first on PATH even
+	// after installing the distro package again. Report its version instead
+	// of reinstalling the same (possibly still too old) package.
+	if r.label == "node" {
+		if _, err := exec.LookPath("node"); err == nil {
+			return false
 		}
 	}
 
-	// SearXNG's managed install runs `python3 -m venv` then `pip install` inside
-	// it (launcher/internal/searxng). Debian/Ubuntu strip pip's bundled wheels
-	// from the base python3 package, so `ensurepip` — and therefore every venv
-	// it creates — has no pip until `python3-pip` is installed system-wide too;
-	// `python3-venv` alone is not sufficient. Homebrew's python formula bundles
-	// pip, so this path is apt-only in practice.
-	if hasPip(py) {
-		return nil
+	pkg := r.pkgFor(pm)
+	if !autoInstall || pkg == "" {
+		return false
 	}
-	if skipInstall || pm.name != "apt-get" {
-		return fmt.Errorf("pip not available for %s — install python3-pip to enable web_search", py)
-	}
-	fmt.Fprintf(w, "› installing python3-pip (%s) for web_search\n", pm.name)
-	if err := pm.installPkg(w, "python3-pip"); err != nil {
-		return fmt.Errorf("python3-pip install failed: %w", err)
-	}
-	if !hasPip(py) {
-		return errors.New("pip still not available after installing python3-pip")
-	}
-	return nil
-}
 
-// pythonBin locates a system python3 (preferred) or python interpreter.
-func pythonBin() (string, bool) {
-	for _, name := range []string{"python3", "python"} {
-		if p, err := exec.LookPath(name); err == nil {
-			return p, true
-		}
+	fmt.Fprintf(w, "› installing %s (%s %s)\n", r.label, pm.name, pkg)
+	if err := pm.installPkg(w, pkg); err != nil {
+		fmt.Fprintf(w, "  %s install failed: %v\n", r.label, err)
 	}
-	return "", false
-}
 
-// hasPip reports whether py's pip module is usable — the actual thing a venv
-// created from it needs, which a bare `python3` binary check doesn't confirm.
-func hasPip(py string) bool {
-	return exec.Command(py, "-m", "pip", "--version").Run() == nil
-}
-
-// OnnxPresent reports whether the ONNX Runtime C headers are installed where
-// core/CMakeLists.txt looks for them — i.e. whether a build will enable
-// embedding. It mirrors that file's search paths so doctor and the build agree.
-func OnnxPresent() bool {
-	hints := []string{
-		os.Getenv("ONNXRUNTIME_ROOT"),
-		"/opt/homebrew/opt/onnxruntime",
-		"/usr/local",
-		"/opt/homebrew",
-		"/usr",
-	}
-	for _, h := range hints {
-		if h == "" {
-			continue
-		}
-		for _, suffix := range []string{"include/onnxruntime", "include"} {
-			if fileExists(filepath.Join(h, suffix, "onnxruntime_c_api.h")) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// --- package managers --------------------------------------------------------
-
-// pkgManager is a host package manager the launcher can drive non-interactively.
-type pkgManager struct {
-	name    string   // "brew" | "apt-get"
-	install []string // argv prefix that installs the packages named after it
-}
-
-// detectPkgManager picks the first supported package manager on PATH, or nil.
-func detectPkgManager() *pkgManager {
-	if p, err := exec.LookPath("brew"); err == nil {
-		return &pkgManager{name: "brew", install: []string{p, "install"}}
-	}
-	if p, err := exec.LookPath("apt-get"); err == nil {
-		// apt needs root; prepend sudo when we are not already root and it exists.
-		argv := []string{p, "install", "-y"}
-		if os.Geteuid() != 0 {
-			if s, err := exec.LookPath("sudo"); err == nil {
-				argv = append([]string{s}, argv...)
-			}
-		}
-		return &pkgManager{name: "apt-get", install: argv}
-	}
-	return nil
-}
-
-func (pm *pkgManager) installPkg(w io.Writer, pkg string) error {
-	argv := append(append([]string{}, pm.install...), pkg)
-	cmd := exec.Command(argv[0], argv[1:]...)
-	cmd.Stdout = w
-	cmd.Stderr = w
-	cmd.Stdin = os.Stdin // apt/sudo may prompt for confirmation or a password
-	return cmd.Run()
-}
-
-// pkgFor returns the package name for r under pm, or "" if pm can't install it.
-func (r requirement) pkgFor(pm *pkgManager) string {
-	if pm == nil {
-		return ""
-	}
-	switch pm.name {
-	case "brew":
-		return r.brewPkg
-	case "apt-get":
-		return r.aptPkg
-	}
-	return ""
-}
-
-// --- reporting ---------------------------------------------------------------
-
-func warnMissing(w io.Writer, r requirement) {
-	msg := "⚠ " + r.label + " not found"
-	if r.note != "" {
-		msg += " — " + r.note
-	}
-	fmt.Fprintln(w, msg)
-}
-
-func blockingErr(pm *pkgManager, autoInstall bool, missing []requirement) error {
-	var b strings.Builder
-	b.WriteString("missing build prerequisites:\n")
-	for _, r := range missing {
-		fmt.Fprintf(&b, "  • %s", r.label)
-		if r.label == "node" {
-			if node, err := exec.LookPath("node"); err == nil {
-				if reason := CheckNode(node); reason != nil {
-					fmt.Fprintf(&b, " — %v", reason)
-					b.WriteByte('\n')
-					continue
-				}
-			}
-		}
-		if cmd := manualInstall(pm, r); cmd != "" {
-			fmt.Fprintf(&b, " — install with: %s", cmd)
-		} else if r.note != "" {
-			fmt.Fprintf(&b, " — %s", r.note)
-		}
-		b.WriteByte('\n')
-	}
-	switch {
-	case pm == nil:
-		b.WriteString("no supported package manager (brew/apt-get) found to auto-install them")
-	case !autoInstall:
-		b.WriteString("auto-install is off (CODEBERG_SKIP_DEP_INSTALL); install the above and re-run")
-	default:
-		b.WriteString("auto-install could not satisfy them; install manually and re-run")
-	}
-	return errors.New(b.String())
-}
-
-// manualInstall returns the command a user could run by hand to get r, honoring
-// platform quirks the package managers don't cover (the macOS C toolchain).
-func manualInstall(pm *pkgManager, r requirement) string {
-	if pkg := r.pkgFor(pm); pkg != "" {
-		return strings.Join(append(append([]string{}, pm.install...), pkg), " ")
-	}
-	if runtime.GOOS == "darwin" && r.label == "make" {
-		return "xcode-select --install"
-	}
-	return ""
-}
-
-// --- small helpers -----------------------------------------------------------
-
-func hasBin(name string) func() bool {
-	return func() bool { _, err := exec.LookPath(name); return err == nil }
-}
-
-func hasSupportedNode() bool {
-	node, err := exec.LookPath("node")
-	return err == nil && CheckNode(node) == nil
-}
-
-// CheckNode verifies the executable that will actually run the agent. Merely
-// finding `node` on PATH is insufficient: older Nodes start the web server but
-// ai-sdk's timed first request then crashes at AbortSignal.any.
-func CheckNode(node string) error {
-	output, err := exec.Command(node, "-p", "process.versions.node + ' ' + (typeof AbortSignal === 'undefined' ? 'undefined' : typeof AbortSignal.any)").Output()
-	if err != nil {
-		return fmt.Errorf("cannot check Node.js runtime at %s: %w", node, err)
-	}
-	fields := strings.Fields(string(output))
-	if len(fields) != 2 {
-		return fmt.Errorf("cannot determine Node.js version and AbortSignal.any support at %s", node)
-	}
-	major, err := strconv.Atoi(strings.SplitN(fields[0], ".", 2)[0])
-	if err != nil {
-		return fmt.Errorf("invalid Node.js version %q at %s", fields[0], node)
-	}
-	if major < 22 {
-		return fmt.Errorf("Codeberg requires Node.js 22 or newer; found %s at %s. Upgrade Node.js and ensure `node --version` reports 22+ on PATH", fields[0], node)
-	}
-	if fields[1] != "function" {
-		return fmt.Errorf("Node.js %s at %s lacks AbortSignal.any, required by the agent. Use a standard Node.js 22+ runtime", fields[0], node)
-	}
-	return nil
-}
-
-func fileExists(p string) bool { _, err := os.Stat(p); return err == nil }
-
-func truthy(s string) bool {
-	switch strings.ToLower(strings.TrimSpace(s)) {
-	case "1", "true", "yes", "on":
+	if r.check() {
+		fmt.Fprintf(w, "✓ %s installed\n", r.label)
 		return true
 	}
+
+	fmt.Fprintf(w, "  %s still not detected after install\n", r.label)
 	return false
 }

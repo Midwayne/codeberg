@@ -1,115 +1,11 @@
 package config
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 )
-
-// KnownKeys are the keys the launcher understands (canonical config + provider
-// pass-through). Used to warn on probable typos in `config set`.
-func KnownKeys() []string {
-	keys := []string{
-		KeyModel, KeySubagentModel, KeyDaemonURL, KeyHTTPPort, KeyEmbedModel, KeyEmbedding, KeyIndexPath,
-		KeySocket, KeyPollMS, KeyIndexBin, KeyGitPullSec, KeyGitDir, KeyReasoning,
-		KeyVector, KeyWebPort, KeyWebUse, KeyWebSearchUse, KeyLearningUse, KeySearxngURL, KeySearxngPort,
-		KeyAll, KeyReposSel, KeyNoIndex, KeyVerbose, KeyHome, KeyRepo, KeyDist,
-		KeyMcpUse, KeyMcpConfig, KeyDbmcpUse, KeyDbmcpSpec, KeyDbmcpBin,
-	}
-	keys = append(keys, passthroughKeys...)
-	sort.Strings(keys)
-	return keys
-}
-
-// IsKnownKey reports whether key is one the launcher reads.
-func IsKnownKey(key string) bool {
-	for _, k := range KnownKeys() {
-		if k == key {
-			return true
-		}
-	}
-	return false
-}
-
-// Get returns the resolved value for a recognized key (after all layers), and
-// whether the key is recognized. Useful for `config get`.
-func (c *Config) Get(key string) (string, bool) {
-	switch key {
-	case KeyModel:
-		return c.Model, true
-	case KeySubagentModel:
-		return c.SubagentModel, true
-	case KeyDaemonURL:
-		return c.DaemonURL, true
-	case KeyHTTPPort:
-		return c.HTTPPort, true
-	case KeyEmbedModel:
-		return c.EmbedModel, true
-	case KeyEmbedding:
-		return c.Embedding, true
-	case KeyIndexPath:
-		return c.IndexPath, true
-	case KeySocket:
-		return c.Socket, true
-	case KeyPollMS:
-		return c.PollMS, true
-	case KeyIndexBin:
-		return c.IndexBin, true
-	case KeyGitPullSec:
-		return c.GitPullSec, true
-	case KeyGitDir:
-		return c.GitDir, true
-	case KeyReasoning:
-		return c.Reasoning, true
-	case KeyVector:
-		return fmt.Sprintf("%t", c.Vector), true
-	case KeyAll:
-		return fmt.Sprintf("%t", c.All), true
-	case KeyReposSel:
-		return strings.Join(c.Repos, ","), true
-	case KeyNoIndex:
-		return fmt.Sprintf("%t", c.NoIndex), true
-	case KeyVerbose:
-		return fmt.Sprintf("%t", c.Verbose), true
-	case KeyWebPort:
-		return c.WebPort, true
-	case KeyWebUse:
-		return fmt.Sprintf("%t", c.WebUse), true
-	case KeyWebSearchUse:
-		return fmt.Sprintf("%t", c.WebSearchUse), true
-	case KeyLearningUse:
-		return fmt.Sprintf("%t", c.LearningUse), true
-	case KeySearxngURL:
-		return c.SearxngURL, true
-	case KeySearxngPort:
-		return c.SearxngPort, true
-	case KeyHome:
-		return c.Home, true
-	case KeyRepo:
-		return c.Repo, true
-	case KeyDist:
-		return c.Dist, true
-	case KeyMcpUse:
-		return fmt.Sprintf("%t", c.McpUse), true
-	case KeyMcpConfig:
-		return c.McpConfig, true
-	case KeyDbmcpUse:
-		return fmt.Sprintf("%t", c.DbmcpUse), true
-	case KeyDbmcpSpec:
-		return c.DbmcpSpec, true
-	case KeyDbmcpBin:
-		return c.DbmcpBin, true
-	}
-	if v, ok := c.Passthrough[key]; ok {
-		return v, true
-	}
-	if IsKnownKey(key) {
-		return "", true // recognized but unset
-	}
-	return "", false
-}
 
 // SetValues upserts KEY=VALUE pairs into the config file, preserving its
 // comments and order. A matching line (active or a commented template line like

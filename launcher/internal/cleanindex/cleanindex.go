@@ -6,7 +6,6 @@
 package cleanindex
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -24,47 +23,100 @@ type Options struct {
 
 const tagLen = 17 // ".<16 hex>"
 
+// inventory is every cached index file found, grouped into per-root sets.
+type inventory struct {
+	bases []string         // index base paths that were searched
+	files []string         // every cached file under those bases
+	sets  map[string]int64 // set label → total bytes
+}
+
 // Run lists the cached index sets and (unless DryRun) removes them.
 func Run(c *config.Config, o Options) error {
 	dir := filepath.Dir(c.IndexPath)
-	bases := []string{c.IndexPath}
-	projectDirs, err := filepath.Glob(filepath.Join(c.Home, "projects", "p-*", "index"))
+
+	inv, err := collect(c)
 	if err != nil {
 		return err
 	}
+
+	if len(inv.files) == 0 {
+		fmt.Printf("no cached index files under %s or project directories\n", dir)
+		return nil
+	}
+
+	report(dir, inv)
+
+	if o.DryRun {
+		fmt.Println("(dry run — nothing removed)")
+		return nil
+	}
+
+	question := fmt.Sprintf("Remove all %d cached index set(s)? The active repo will re-embed on next run.", len(inv.sets))
+	if !confirm(question, o.AssumeYes) {
+		fmt.Println("  kept")
+		return nil
+	}
+
+	remove(inv)
+	return nil
+}
+
+// indexBases returns the launcher's own index base plus one per project.
+func indexBases(c *config.Config) ([]string, error) {
+	projectDirs, err := filepath.Glob(filepath.Join(c.Home, "projects", "p-*", "index"))
+	if err != nil {
+		return nil, err
+	}
+
+	bases := []string{c.IndexPath}
 	for _, projectDir := range projectDirs {
 		bases = append(bases, filepath.Join(projectDir, "codeberg.usearch"))
 	}
-	var matches []string
-	sets := map[string]int64{}
+
+	return bases, nil
+}
+
+// collect finds the cached files under every index base. Sets from project
+// directories are labelled "<project>:<tag>" to tell them apart.
+func collect(c *config.Config) (inventory, error) {
+	bases, err := indexBases(c)
+	if err != nil {
+		return inventory{}, err
+	}
+
+	inv := inventory{bases: bases, sets: map[string]int64{}}
 	seen := map[string]bool{}
+
 	for _, base := range bases {
 		if seen[base] {
 			continue
 		}
 		seen[base] = true
+
 		files, err := filepath.Glob(base + ".*")
 		if err != nil {
-			return err
+			return inventory{}, err
 		}
 		if info, err := os.Stat(base); err == nil && info.Mode().IsRegular() {
 			files = append(files, base)
 		}
-		matches = append(matches, files...)
+		inv.files = append(inv.files, files...)
+
 		for tag, size := range group(base, files) {
 			if base != c.IndexPath {
 				tag = filepath.Base(filepath.Dir(filepath.Dir(base))) + ":" + tag
 			}
-			sets[tag] += size
+			inv.sets[tag] += size
 		}
 	}
-	if len(matches) == 0 {
-		fmt.Printf("no cached index files under %s or project directories\n", dir)
-		return nil
-	}
 
-	tags := make([]string, 0, len(sets))
-	for tag := range sets {
+	return inv, nil
+}
+
+// report prints each set's size and the totals.
+func report(dir string, inv inventory) {
+	tags := make([]string, 0, len(inv.sets))
+	for tag := range inv.sets {
 		tags = append(tags, tag)
 	}
 	sort.Strings(tags)
@@ -72,37 +124,36 @@ func Run(c *config.Config, o Options) error {
 	var total int64
 	fmt.Printf("cached index sets under %s and project directories:\n", dir)
 	for _, tag := range tags {
-		total += sets[tag]
-		fmt.Printf("  %-18s %s\n", tag, human(sets[tag]))
-	}
-	fmt.Printf("total: %d set(s), %d file(s), %s\n", len(sets), len(matches), human(total))
-
-	if o.DryRun {
-		fmt.Println("(dry run — nothing removed)")
-		return nil
-	}
-	if !confirm(fmt.Sprintf("Remove all %d cached index set(s)? The active repo will re-embed on next run.", len(sets)), o.AssumeYes) {
-		fmt.Println("  kept")
-		return nil
+		total += inv.sets[tag]
+		fmt.Printf("  %-18s %s\n", tag, human(inv.sets[tag]))
 	}
 
+	fmt.Printf("total: %d set(s), %d file(s), %s\n", len(inv.sets), len(inv.files), human(total))
+}
+
+// remove deletes every cached file, then any cache directory left empty.
+func remove(inv inventory) {
 	var freed int64
 	removed := 0
-	for _, f := range matches {
+
+	for _, f := range inv.files {
 		if fi, statErr := os.Stat(f); statErr == nil {
 			freed += fi.Size()
 		}
+
 		if rmErr := os.Remove(f); rmErr != nil {
 			fmt.Printf("  could not remove %s: %v\n", f, rmErr)
 			continue
 		}
 		removed++
 	}
-	for _, base := range bases {
+
+	// os.Remove only deletes a directory that is already empty.
+	for _, base := range inv.bases {
 		_ = os.Remove(filepath.Dir(base))
-	} // only empty cache directories
+	}
+
 	fmt.Printf("✓ removed %d file(s), freed %s\n", removed, human(freed))
-	return nil
 }
 
 // group maps each per-root tag (".<16 hex>") to the total size of its files.
@@ -121,36 +172,4 @@ func group(base string, matches []string) map[string]int64 {
 		sets[tag] += size
 	}
 	return sets
-}
-
-func confirm(question string, assumeYes bool) bool {
-	if assumeYes {
-		fmt.Printf("%s [y/N] y (--yes)\n", question)
-		return true
-	}
-	if fi, err := os.Stdin.Stat(); err != nil || fi.Mode()&os.ModeCharDevice == 0 {
-		fmt.Printf("%s [y/N] n (non-interactive)\n", question)
-		return false
-	}
-	fmt.Printf("%s [y/N] ", question)
-	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
-	switch strings.ToLower(strings.TrimSpace(line)) {
-	case "y", "yes":
-		return true
-	}
-	return false
-}
-
-// human renders a byte count compactly.
-func human(n int64) string {
-	const unit = 1024
-	if n < unit {
-		return fmt.Sprintf("%d B", n)
-	}
-	div, exp := int64(unit), 0
-	for x := n / unit; x >= unit; x /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB", float64(n)/float64(div), "KMGTPE"[exp])
 }

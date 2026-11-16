@@ -7,10 +7,34 @@ import (
 	"codeberg.org/codeberg/launcher/internal/config"
 )
 
+// switches holds the boolean flags until parsing finishes, since only the
+// ones that were given become overrides.
+type switches struct {
+	noVector, vector, all, noIndex, verbose *bool
+}
+
 // parseShared parses args into overrides, wiring the --vector/--no-vector pair.
 func parseShared(name string, args []string) (*config.Overrides, error) {
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	o := &config.Overrides{}
+
+	addValueFlags(fs, o)
+	sw := addSwitches(fs)
+
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: codeberg %s [flags]\n\nFlags:\n", name)
+		fs.PrintDefaults()
+	}
+
+	if err := fs.Parse(args); err != nil {
+		return nil, err
+	}
+
+	applySwitches(o, sw)
+	return o, nil
+}
+
+func addValueFlags(fs *flag.FlagSet, o *config.Overrides) {
 	fs.StringVar(&o.Root, "root", "", "optional startup repository tree to index")
 	fs.StringVar(&o.Repos, "repos", "", "comma-separated dirs or repo keys to serve together (CODEBERG_REPOS)")
 	fs.StringVar(&o.Model, "model", "", "LLM as provider:model (CODEBERG_MODEL)")
@@ -27,38 +51,37 @@ func parseShared(name string, args []string) (*config.Overrides, error) {
 	fs.StringVar(&o.Home, "home", "", "managed home dir (default ~/.codeberg)")
 	fs.StringVar(&o.ConfigFile, "config", "", "config file path (default <home>/config)")
 	fs.StringVar(&o.WebPort, "web-port", "", "web UI port (default "+config.DefaultWebPort+")")
-	noVector := fs.Bool("no-vector", false, "skip embedding model and semantic search tools")
-	vector := fs.Bool("vector", false, "force vector search on")
-	all := fs.Bool("all", false, "search across every previously indexed repo (see `codeberg repos`)")
-	noIndex := fs.Bool("no-index", false, "one-off run: register nothing, build no vector index (search off)")
-	verbose := fs.Bool("verbose", false, "show component checks and daemon/indexer logs during startup (CODEBERG_VERBOSE)")
-	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: codeberg %s [flags]\n\nFlags:\n", name)
-		fs.PrintDefaults()
-	}
-	if err := fs.Parse(args); err != nil {
-		return nil, err
-	}
+}
 
-	// Only flags that were given become overrides; the rest stay nil so the
-	// environment and config file still apply. --vector wins over --no-vector.
-	if *noVector {
+func addSwitches(fs *flag.FlagSet) switches {
+	return switches{
+		noVector: fs.Bool("no-vector", false, "skip embedding model and semantic search tools"),
+		vector:   fs.Bool("vector", false, "force vector search on"),
+		all:      fs.Bool("all", false, "search across every previously indexed repo (see `codeberg repos`)"),
+		noIndex:  fs.Bool("no-index", false, "one-off run: register nothing, build no vector index (search off)"),
+		verbose:  fs.Bool("verbose", false, "show component checks and daemon/indexer logs during startup (CODEBERG_VERBOSE)"),
+	}
+}
+
+// applySwitches turns only the switches that were given into overrides; the
+// rest stay nil so the environment and config file still apply. --vector wins
+// over --no-vector.
+func applySwitches(o *config.Overrides, sw switches) {
+	if *sw.noVector {
 		o.Vector = ptr(false)
 	}
-	if *vector {
+	if *sw.vector {
 		o.Vector = ptr(true)
 	}
-	if *all {
+	if *sw.all {
 		o.All = ptr(true)
 	}
-	if *noIndex {
+	if *sw.noIndex {
 		o.NoIndex = ptr(true)
 	}
-	if *verbose {
+	if *sw.verbose {
 		o.Verbose = ptr(true)
 	}
-
-	return o, nil
 }
 
 func ptr[T any](value T) *T { return &value }
@@ -70,12 +93,15 @@ func loadConfigSub(args []string) ([]string, *config.Config, error) {
 	o := &config.Overrides{}
 	fs.StringVar(&o.Home, "home", "", "managed home dir (default ~/.codeberg)")
 	fs.StringVar(&o.ConfigFile, "config", "", "config file path (default <home>/config)")
+
 	if err := fs.Parse(args); err != nil {
 		return nil, nil, err
 	}
+
 	c, err := config.Load(*o)
 	if err != nil {
 		return nil, nil, err
 	}
+
 	return fs.Args(), c, nil
 }

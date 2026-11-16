@@ -7,46 +7,14 @@ package run
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
-	"os/signal"
 	"path/filepath"
-	"strconv"
-	"syscall"
-	"time"
 
 	"codeberg.org/codeberg/launcher/internal/config"
 	"codeberg.org/codeberg/launcher/internal/console"
 	"codeberg.org/codeberg/launcher/internal/deps"
 )
-
-// defaultHealthDeadline bounds how long we wait for the daemon to serve
-// /health. The daemon only starts its HTTP server after the indexer reports
-// ready, and a *first* index of a large tree — parse every file, embed every
-// chunk through ONNX — routinely runs past six minutes, which used to trip the
-// old deadline and force a second `codeberg` run (the rebuilt index then warm-
-// starts). Fifteen minutes covers a cold index of a large repo; override with
-// CODEBERG_HEALTH_TIMEOUT (any Go duration, e.g. "30m") for the truly huge.
-const defaultHealthDeadline = 15 * time.Minute
-
-// healthDeadline returns the configured wait, honoring CODEBERG_HEALTH_TIMEOUT
-// when it parses as a Go duration, otherwise the default scaled by how many
-// repos this run indexes — a first `--all` may cold-index several trees back
-// to back through one embedder.
-func healthDeadline(repos int) time.Duration {
-	if v := os.Getenv("CODEBERG_HEALTH_TIMEOUT"); v != "" {
-		if d, err := time.ParseDuration(v); err == nil && d > 0 {
-			return d
-		}
-		fmt.Fprintf(os.Stderr, "› ignoring invalid CODEBERG_HEALTH_TIMEOUT=%q (want a duration like 30m)\n", v)
-	}
-	d := defaultHealthDeadline
-	if scaled := time.Duration(repos) * 5 * time.Minute; scaled > d {
-		d = scaled
-	}
-	return d
-}
 
 // Run boots the daemon, waits for health, runs the browser UI, and cleans up.
 // Launcher status goes to term; the browser UI keeps writing to the terminal.
@@ -58,10 +26,6 @@ func Run(c *config.Config, term *console.Terminal) error {
 
 	node, err := checkRunnable(c, artifacts)
 	if err != nil {
-		return err
-	}
-
-	if err := os.MkdirAll(filepath.Dir(c.IndexPath), 0o755); err != nil {
 		return err
 	}
 
@@ -77,19 +41,14 @@ func Run(c *config.Config, term *console.Terminal) error {
 	}
 	defer search.Close()
 
-	// Daemon + indexer output always goes to the log file. Verbose runs also
-	// mirror it to the terminal during startup, so developers can watch files
-	// being chunked and embedded without those logs interleaving with the web
-	// server once it starts.
+	// Daemon output goes to its log; verbose runs mirror it during startup.
 	progress := newStartupTee(logs.daemon, term, c.Verbose)
 	daemon, err := startDaemon(artifacts.DaemonBin, root, c, progress)
 	if err != nil {
 		return err
 	}
 
-	daemonExited := make(chan struct{})
-	go func() { _ = daemon.Wait(); close(daemonExited) }()
-
+	daemonExited := watchExit(daemon)
 	stop := stopper(daemon, search, daemonExited)
 	defer stop()
 
@@ -103,35 +62,15 @@ func Run(c *config.Config, term *console.Terminal) error {
 	// the daemon and let the deferred teardown finish.
 	defer stopOnSIGTERM(stop)()
 
-	agentEnv := c.AgentEnv()
-	// Resource monitoring attributes this launcher's managed process tree only.
-	agentEnv["CODEBERG_RESOURCE_ROOT_PID"] = strconv.Itoa(os.Getpid())
-	agentEnv["CODEBERG_SEARCH_CONTROL_URL"] = search.URL
-	agentEnv["CODEBERG_SEARCH_CONTROL_TOKEN"] = search.Token
-
-	if c.Verbose {
-		fmt.Fprintln(term)
-	}
-	fmt.Fprint(term, readyMessage(fmt.Sprintf("http://127.0.0.1:%s", c.WebPort)))
-
-	// The server binds a moment after node starts, so wait for the port to
-	// accept connections before opening the browser — best effort.
-	go openBrowserWhenReady(c.WebPort)
-
-	front := exec.Command(node, artifacts.WebScript)
-	front.Dir = root
-	front.Env = mergeEnv(os.Environ(), agentEnv)
-	front.Stdin = os.Stdin
-	front.Stdout = io.MultiWriter(os.Stdout, logs.web)
-	front.Stderr = io.MultiWriter(os.Stderr, logs.web)
-	err = front.Run()
+	announceReady(term, c)
+	err = runFrontEnd(frontEnd{node: node, root: root, script: artifacts.WebScript}, frontEndEnv(c, search), logs)
 
 	stop()
 	return frontEndResult(err)
 }
 
-// checkRunnable verifies the built components exist and returns the Node
-// binary that runs the agent.
+// checkRunnable verifies the built components exist, creates the index
+// directory, and returns the Node binary that runs the agent.
 func checkRunnable(c *config.Config, artifacts config.Artifacts) (node string, err error) {
 	if _, err := os.Stat(artifacts.DaemonBin); err != nil {
 		return "", fmt.Errorf("daemon binary missing (%s); run `codeberg build`", artifacts.DaemonBin)
@@ -146,56 +85,34 @@ func checkRunnable(c *config.Config, artifacts config.Artifacts) (node string, e
 		return "", fmt.Errorf("node not found on PATH (the agent needs Node >=22)")
 	}
 
-	return node, deps.CheckNode(node)
-}
-
-// awaitDaemon shows startup status until the daemon serves /health. On
-// failure it prints the end of the daemon log, where the cause usually is.
-func awaitDaemon(c *config.Config, term *console.Terminal, progress *startupTee, daemonExited <-chan struct{}) error {
-	logPath := filepath.Join(c.Home, "logs", "daemon.log")
-
-	stopStatus := announceStartup(term, c, logPath)
-	err := waitHealthy(c.DaemonURL, daemonExited, healthDeadline(len(c.Roots)))
-	stopStatus()
-	progress.stopLive()
-
-	if err != nil {
-		fmt.Fprint(term, tailFile(logPath, 20))
+	if err := deps.CheckNode(node); err != nil {
+		return "", err
 	}
-	return err
+
+	// The index directory must exist before the daemon opens it.
+	return node, os.MkdirAll(filepath.Dir(c.IndexPath), 0o755)
 }
 
-// stopOnSIGTERM runs stop when the launcher receives SIGTERM. SIGINT is
-// consumed and left to the foreground child. The returned function ends the
-// subscription.
-func stopOnSIGTERM(stop func()) (cancel func()) {
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+// watchExit returns a channel that closes once the process has exited.
+func watchExit(cmd *exec.Cmd) <-chan struct{} {
+	exited := make(chan struct{})
 
 	go func() {
-		for s := range signals {
-			if s == syscall.SIGTERM {
-				stop()
-				return
-			}
-		}
+		_ = cmd.Wait()
+		close(exited)
 	}()
 
-	return func() { signal.Stop(signals) }
+	return exited
 }
 
-// frontEndResult maps the browser UI's exit to the launcher's: being ended by
-// a signal (Ctrl-C) is a normal exit; other failures are surfaced.
-func frontEndResult(err error) error {
-	if err == nil {
-		return nil
+// announceReady prints the browser URL and opens it once the web server
+// accepts connections — best effort, since it binds a moment after node starts.
+func announceReady(term *console.Terminal, c *config.Config) {
+	if c.Verbose {
+		fmt.Fprintln(term)
 	}
 
-	if exit, ok := err.(*exec.ExitError); ok {
-		if status, ok := exit.Sys().(syscall.WaitStatus); ok && status.Signaled() {
-			return nil
-		}
-	}
+	fmt.Fprint(term, readyMessage(fmt.Sprintf("http://127.0.0.1:%s", c.WebPort)))
 
-	return fmt.Errorf("browser chat UI exited: %w", err)
+	go openBrowserWhenReady(c.WebPort)
 }
