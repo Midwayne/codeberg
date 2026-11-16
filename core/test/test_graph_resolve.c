@@ -436,6 +436,36 @@ static void test_ambiguous_import_stays_module(void) {
     rm_tree(root);
 }
 
+/* Two files that both complete "./util" (util.ts + util.js) are ambiguous;
+ * resolution must not fall through to the util/ directory's index.ts. */
+static void test_ambiguous_extension_skips_entrypoint(void) {
+    char tmpl[] = "/tmp/cberg_ambig_ext_XXXXXX";
+    char *root = mkdtemp(tmpl);
+    CHECK(root != NULL, "mkdtemp");
+    if (root == NULL) {
+        return;
+    }
+
+    write_file(root, "util.ts", "export const a = 1;\n");
+    write_file(root, "util.js", "export const b = 2;\n");
+    write_file(root, "util/index.ts", "export const c = 3;\n");
+    write_file(root, "app.ts", "import \"./util\";\n");
+
+    graph_corpus c;
+    CHECK(corpus_open(&c) == 0, "corpus open");
+    CHECK(corpus_index(&c, CBERG_LANG_TYPESCRIPT, "util.ts", "export const a = 1;\n") == CBERG_OK, "index util.ts");
+    CHECK(corpus_index(&c, CBERG_LANG_JAVASCRIPT, "util.js", "export const b = 2;\n") == CBERG_OK, "index util.js");
+    CHECK(corpus_index(&c, CBERG_LANG_TYPESCRIPT, "util/index.ts", "export const c = 3;\n") == CBERG_OK, "index util/index.ts");
+    CHECK(corpus_index(&c, CBERG_LANG_TYPESCRIPT, "app.ts", "import \"./util\";\n") == CBERG_OK, "index app");
+    CHECK(cberg_graph_resolve_imports(c.graph, root) == CBERG_OK, "resolve");
+
+    CHECK(!edge_to_file(&c, "app.ts", "util/index.ts"), "ambiguous file match does not fall back to the directory");
+    CHECK(!edge_to_file(&c, "app.ts", "util.ts") && !edge_to_file(&c, "app.ts", "util.js"), "neither candidate is picked");
+
+    corpus_close(&c);
+    rm_tree(root);
+}
+
 static void test_cached_resolution(void) {
     char root[] = "/tmp/cberg_cached_XXXXXX";
     CHECK(mkdtemp(root) != NULL, "cache fixture");
@@ -488,6 +518,7 @@ int main(void) {
     test_many_relative_imports();
     test_resolve_survives_compact();
     test_ambiguous_import_stays_module();
+    test_ambiguous_extension_skips_entrypoint();
     if (failures == 0) {
         printf("ok - resolve_imports\n");
     }

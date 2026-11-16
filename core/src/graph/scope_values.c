@@ -156,66 +156,64 @@ int graph_find_value(const graph_syntax *syntax, TSNode reference, const char *n
     return 0;
 }
 
+/* pkg.Type, ns.Type, or obj.Type: binds through the qualifier's import. */
+static void qualified_type_binding(const graph_syntax *syntax, TSNode type, cberg_graph_binding *out) {
+    TSNode qualifier = graph_field(type, "package");
+    if (ts_node_is_null(qualifier))
+        qualifier = graph_field(type, "module");
+    if (ts_node_is_null(qualifier))
+        qualifier = graph_field(type, "object");
+
+    TSNode name = graph_field(type, "name");
+    if (ts_node_is_null(name))
+        name = graph_field(type, "property");
+
+    char alias[CBERG_GRAPH_NAME_MAX];
+    graph_import imported;
+    if (graph_text(syntax, qualifier, alias, sizeof alias) && graph_find_import(syntax, alias, &imported)) {
+        snprintf(out->module, sizeof out->module, "%s", imported.module);
+        graph_text(syntax, name, out->owner, sizeof out->owner);
+    }
+}
+
+/* A bare type name: a visible local class/struct/interface keeps the name as
+ * is; otherwise an import of that name supplies the module and real name. */
+static void named_type_binding(const graph_syntax *syntax, TSNode type, cberg_graph_binding *out) {
+    if (!graph_text(syntax, type, out->owner, sizeof out->owner))
+        return;
+
+    int32_t definition = graph_visible_definition(syntax, type, out->owner);
+    if (definition >= 0) {
+        cberg_chunk_kind kind = syntax->fragment->defs[definition].kind;
+        if (kind == CBERG_CHUNK_CLASS || kind == CBERG_CHUNK_STRUCT || kind == CBERG_CHUNK_INTERFACE)
+            return;
+    }
+
+    graph_import imported;
+    if (graph_find_import(syntax, out->owner, &imported)) {
+        snprintf(out->module, sizeof out->module, "%s", imported.module);
+        snprintf(out->owner, sizeof out->owner, "%s", imported.name);
+    }
+}
+
 void graph_type_binding(const graph_syntax *syntax, TSNode type, cberg_graph_binding *out) {
     if (ts_node_is_null(type))
         return;
 
+    /* Wrappers: bind the type they wrap. */
     if (graph_is(type, "type_annotation") || graph_is(type, "pointer_type") ||
         graph_is(type, "parenthesized_type") || graph_is(type, "expression_list")) {
         graph_type_binding(syntax, ts_node_named_child(type, 0), out);
-        return;
-    }
-
-    if (graph_is(type, "new_expression")) {
+    } else if (graph_is(type, "new_expression")) {
         graph_type_binding(syntax, graph_field(type, "constructor"), out);
-        return;
-    }
-
-    if (graph_is(type, "composite_literal")) {
+    } else if (graph_is(type, "composite_literal")) {
         graph_type_binding(syntax, graph_field(type, "type"), out);
-        return;
-    }
-
-    if (graph_is(type, "unary_expression")) {
+    } else if (graph_is(type, "unary_expression")) {
         graph_type_binding(syntax, graph_field(type, "operand"), out);
-        return;
-    }
-
-    if (graph_is(type, "qualified_type") || graph_is(type, "nested_type_identifier") ||
-        graph_is(type, "member_expression")) {
-        TSNode qualifier = graph_field(type, "package");
-        if (ts_node_is_null(qualifier))
-            qualifier = graph_field(type, "module");
-        if (ts_node_is_null(qualifier))
-            qualifier = graph_field(type, "object");
-        TSNode name = graph_field(type, "name");
-        if (ts_node_is_null(name))
-            name = graph_field(type, "property");
-
-        char alias[CBERG_GRAPH_NAME_MAX];
-        graph_import imported;
-        if (graph_text(syntax, qualifier, alias, sizeof alias) && graph_find_import(syntax, alias, &imported)) {
-            snprintf(out->module, sizeof out->module, "%s", imported.module);
-            graph_text(syntax, name, out->owner, sizeof out->owner);
-        }
-        return;
-    }
-
-    if (graph_is(type, "type_identifier") || graph_is(type, "identifier")) {
-        if (!graph_text(syntax, type, out->owner, sizeof out->owner))
-            return;
-
-        int32_t definition = graph_visible_definition(syntax, type, out->owner);
-        if (definition >= 0) {
-            cberg_chunk_kind kind = syntax->fragment->defs[definition].kind;
-            if (kind == CBERG_CHUNK_CLASS || kind == CBERG_CHUNK_STRUCT || kind == CBERG_CHUNK_INTERFACE)
-                return;
-        }
-
-        graph_import imported;
-        if (graph_find_import(syntax, out->owner, &imported)) {
-            snprintf(out->module, sizeof out->module, "%s", imported.module);
-            snprintf(out->owner, sizeof out->owner, "%s", imported.name);
-        }
+    } else if (graph_is(type, "qualified_type") || graph_is(type, "nested_type_identifier") ||
+               graph_is(type, "member_expression")) {
+        qualified_type_binding(syntax, type, out);
+    } else if (graph_is(type, "type_identifier") || graph_is(type, "identifier")) {
+        named_type_binding(syntax, type, out);
     }
 }
