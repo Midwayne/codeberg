@@ -51,72 +51,158 @@ static int emit_ref_candidates(const cberg_graph *g, const graph_ref_rec *ref, i
     return 0;
 }
 
+/* DEFINES edges from a FILE to its symbols, synthesized from the path index
+ * rather than stored. */
+static int emit_defines_from(const cberg_graph *g, const graph_node_rec *rec, graph_edge_sink sink, void *ctx) {
+    uint64_t head = 0;
+    if (!cberg_strmap_get(g->node_by_path, rec->pub.qname, &head)) {
+        return 0;
+    }
+
+    for (uint32_t i = (uint32_t)head; i != 0; i = g->nodes[i - 1].path_next) {
+        const graph_node_rec *sym = &g->nodes[i - 1];
+        if (sym->dead || sym->pub.kind == CBERG_GNODE_FILE) {
+            continue;
+        }
+
+        cberg_graph_edge edge = make_edge(rec->pub.id, sym->pub.id, CBERG_GEDGE_DEFINES, CBERG_GRES_TEXTUAL, GRAPH_CONF_EXACT, sym->pub.span.start_line);
+        if (sink(ctx, &edge)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* Forward refs stored on this node: bound ones to their target, named ones to
+ * every candidate the name resolves to. */
+static int emit_stored_refs_from(const cberg_graph *g, const graph_node_rec *rec, uint32_t mask, graph_edge_sink sink, void *ctx, resolve_memo *memo) {
+    uint64_t id = rec->pub.id;
+    uint64_t head = 0;
+    if (!cberg_u64map_get(g->ref_by_src, id, &head)) {
+        return 0;
+    }
+
+    for (uint32_t i = (uint32_t)head; i != 0; i = g->refs[i - 1].src_next) {
+        const graph_ref_rec *ref = &g->refs[i - 1];
+        if (ref->dead || ref->rev || (mask & ref->kind) == 0) {
+            continue;
+        }
+
+        if (ref->dst == 0) {
+            if (emit_ref_candidates(g, ref, 0, sink, ctx, memo)) {
+                return 1;
+            }
+            continue;
+        }
+
+        if (graph_node_rec_by_id(g, ref->dst) == NULL) {
+            continue;
+        }
+        cberg_graph_resolution res = ref_resolution(ref);
+        cberg_graph_edge edge = make_edge(id, ref->dst, ref->kind, res, bound_ref_confidence(ref, res), ref->line);
+        if (sink(ctx, &edge)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* Named refs whose name resolves to this node. Forward refs (callers,
+ * subtypes, …) give ref source -> node and need a live source; reversed refs
+ * (e.g. Go receiver methods) name this node as the container, giving
+ * node -> ref source. */
+static int emit_named_refs_to_self(const cberg_graph *g, const graph_node_rec *rec, uint32_t mask, int reversed, graph_edge_sink sink, void *ctx, resolve_memo *memo) {
+    uint64_t head = 0;
+    if (!cberg_strmap_get(g->ref_by_name, rec->pub.name, &head)) {
+        return 0;
+    }
+
+    uint64_t id = rec->pub.id;
+    uint32_t self_index = (uint32_t)(rec - g->nodes);
+    for (uint32_t i = (uint32_t)head; i != 0; i = g->refs[i - 1].name_next) {
+        const graph_ref_rec *ref = &g->refs[i - 1];
+        if (ref->dead || (ref->rev != 0) != (reversed != 0) || (mask & ref->kind) == 0) {
+            continue;
+        }
+        if (!reversed && graph_node_rec_by_id(g, ref->src) == NULL) {
+            continue;
+        }
+
+        graph_candidates cands;
+        graph_resolve_name_cached(g, ref, memo, &cands);
+        if (!graph_candidates_contain(&cands, self_index)) {
+            continue;
+        }
+
+        cberg_graph_resolution res = ref_resolution(ref);
+        cberg_graph_edge edge = reversed ? make_edge(id, ref->src, ref->kind, res, cands.confidence, ref->line)
+                                         : make_edge(ref->src, id, ref->kind, res, cands.confidence, ref->line);
+        if (sink(ctx, &edge)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 /* All resolved edges leaving `rec`'s node. */
 static int emit_edges_from(const cberg_graph *g, const graph_node_rec *rec, uint32_t mask, graph_edge_sink sink, void *ctx) {
-    uint64_t id = rec->pub.id;
     resolve_memo memo = {0};
 
-    /* DEFINES is synthesized from the path index rather than stored. */
-    if (rec->pub.kind == CBERG_GNODE_FILE && (mask & CBERG_GEDGE_DEFINES) != 0) {
-        uint64_t head = 0;
-        if (cberg_strmap_get(g->node_by_path, rec->pub.qname, &head)) {
-            for (uint32_t i = (uint32_t)head; i != 0; i = g->nodes[i - 1].path_next) {
-                const graph_node_rec *sym = &g->nodes[i - 1];
-                if (sym->dead || sym->pub.kind == CBERG_GNODE_FILE) {
-                    continue;
-                }
-                cberg_graph_edge edge = make_edge(id, sym->pub.id, CBERG_GEDGE_DEFINES, CBERG_GRES_TEXTUAL, GRAPH_CONF_EXACT, sym->pub.span.start_line);
-                if (sink(ctx, &edge)) {
-                    return 1;
-                }
-            }
-        }
+    if (rec->pub.kind == CBERG_GNODE_FILE && (mask & CBERG_GEDGE_DEFINES) != 0 && emit_defines_from(g, rec, sink, ctx)) {
+        return 1;
     }
 
+    return emit_stored_refs_from(g, rec, mask, sink, ctx, &memo) || emit_named_refs_to_self(g, rec, mask, 1, sink, ctx, &memo);
+}
+
+/* The DEFINES edge from a symbol's FILE node, when that file is in the graph. */
+static int emit_defines_to(const cberg_graph *g, const graph_node_rec *rec, graph_edge_sink sink, void *ctx) {
+    uint64_t fid = graph_file_id(rec->pub.path);
+    if (graph_node_rec_by_id(g, fid) == NULL) {
+        return 0;
+    }
+
+    cberg_graph_edge edge = make_edge(fid, rec->pub.id, CBERG_GEDGE_DEFINES, CBERG_GRES_TEXTUAL, GRAPH_CONF_EXACT, rec->pub.span.start_line);
+    return sink(ctx, &edge);
+}
+
+/* Forward refs bound directly to this node, from live sources. */
+static int emit_bound_refs_to(const cberg_graph *g, const graph_node_rec *rec, uint32_t mask, graph_edge_sink sink, void *ctx) {
+    uint64_t id = rec->pub.id;
     uint64_t head = 0;
-    if (cberg_u64map_get(g->ref_by_src, id, &head)) {
-        for (uint32_t i = (uint32_t)head; i != 0; i = g->refs[i - 1].src_next) {
-            const graph_ref_rec *ref = &g->refs[i - 1];
-            if (ref->dead || ref->rev || (mask & ref->kind) == 0) {
-                continue;
-            }
-            if (ref->dst != 0) {
-                const graph_node_rec *dst = graph_node_rec_by_id(g, ref->dst);
-                if (dst == NULL) {
-                    continue;
-                }
-                cberg_graph_resolution res = ref_resolution(ref);
-                float conf = bound_ref_confidence(ref, res);
-                cberg_graph_edge edge = make_edge(id, ref->dst, ref->kind, res, conf, ref->line);
-                if (sink(ctx, &edge)) {
-                    return 1;
-                }
-            } else if (emit_ref_candidates(g, ref, 0, sink, ctx, &memo)) {
-                return 1;
-            }
-        }
+    if (!cberg_u64map_get(g->ref_by_dst, id, &head)) {
+        return 0;
     }
 
-    /* Reversed refs (e.g. Go receiver methods) name *this* node as the edge
-     * source: container -> member. */
-    head = 0;
-    if (cberg_strmap_get(g->ref_by_name, rec->pub.name, &head)) {
-        uint32_t self_index = (uint32_t)(rec - g->nodes);
-        for (uint32_t i = (uint32_t)head; i != 0; i = g->refs[i - 1].name_next) {
-            const graph_ref_rec *ref = &g->refs[i - 1];
-            if (ref->dead || !ref->rev || (mask & ref->kind) == 0) {
-                continue;
-            }
-            graph_candidates cands;
-            graph_resolve_name_cached(g, ref, &memo, &cands);
-            if (!graph_candidates_contain(&cands, self_index)) {
-                continue;
-            }
-            cberg_graph_resolution res = ref_resolution(ref);
-            cberg_graph_edge edge = make_edge(id, ref->src, ref->kind, res, cands.confidence, ref->line);
-            if (sink(ctx, &edge)) {
-                return 1;
-            }
+    for (uint32_t i = (uint32_t)head; i != 0; i = g->refs[i - 1].dst_next) {
+        const graph_ref_rec *ref = &g->refs[i - 1];
+        if (ref->dead || ref->rev || (mask & ref->kind) == 0 || graph_node_rec_by_id(g, ref->src) == NULL) {
+            continue;
+        }
+
+        cberg_graph_resolution res = ref_resolution(ref);
+        cberg_graph_edge edge = make_edge(ref->src, id, ref->kind, res, bound_ref_confidence(ref, res), ref->line);
+        if (sink(ctx, &edge)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* Reversed refs stored on this node point back in: member <- container. */
+static int emit_reversed_refs_to(const cberg_graph *g, const graph_node_rec *rec, uint32_t mask, graph_edge_sink sink, void *ctx, resolve_memo *memo) {
+    uint64_t head = 0;
+    if (!cberg_u64map_get(g->ref_by_src, rec->pub.id, &head)) {
+        return 0;
+    }
+
+    for (uint32_t i = (uint32_t)head; i != 0; i = g->refs[i - 1].src_next) {
+        const graph_ref_rec *ref = &g->refs[i - 1];
+        if (ref->dead || !ref->rev || (mask & ref->kind) == 0) {
+            continue;
+        }
+        if (emit_ref_candidates(g, ref, 1, sink, ctx, memo)) {
+            return 1;
         }
     }
     return 0;
@@ -124,71 +210,15 @@ static int emit_edges_from(const cberg_graph *g, const graph_node_rec *rec, uint
 
 /* All resolved edges arriving at `rec`'s node. */
 static int emit_edges_to(const cberg_graph *g, const graph_node_rec *rec, uint32_t mask, graph_edge_sink sink, void *ctx) {
-    uint64_t id = rec->pub.id;
     resolve_memo memo = {0};
 
-    if (rec->pub.kind != CBERG_GNODE_FILE && rec->pub.path != NULL && (mask & CBERG_GEDGE_DEFINES) != 0) {
-        uint64_t fid = graph_file_id(rec->pub.path);
-        if (graph_node_rec_by_id(g, fid) != NULL) {
-            cberg_graph_edge edge = make_edge(fid, id, CBERG_GEDGE_DEFINES, CBERG_GRES_TEXTUAL, GRAPH_CONF_EXACT, rec->pub.span.start_line);
-            if (sink(ctx, &edge)) {
-                return 1;
-            }
-        }
+    bool defines = rec->pub.kind != CBERG_GNODE_FILE && rec->pub.path != NULL && (mask & CBERG_GEDGE_DEFINES) != 0;
+    if (defines && emit_defines_to(g, rec, sink, ctx)) {
+        return 1;
     }
 
-    uint64_t head = 0;
-    if (cberg_u64map_get(g->ref_by_dst, id, &head)) {
-        for (uint32_t i = (uint32_t)head; i != 0; i = g->refs[i - 1].dst_next) {
-            const graph_ref_rec *ref = &g->refs[i - 1];
-            if (ref->dead || ref->rev || (mask & ref->kind) == 0 || graph_node_rec_by_id(g, ref->src) == NULL) {
-                continue;
-            }
-            cberg_graph_resolution res = ref_resolution(ref);
-            float conf = bound_ref_confidence(ref, res);
-            cberg_graph_edge edge = make_edge(ref->src, id, ref->kind, res, conf, ref->line);
-            if (sink(ctx, &edge)) {
-                return 1;
-            }
-        }
-    }
-
-    /* Named refs that resolve to this node: callers, subtypes, … */
-    head = 0;
-    if (cberg_strmap_get(g->ref_by_name, rec->pub.name, &head)) {
-        uint32_t self_index = (uint32_t)(rec - g->nodes);
-        for (uint32_t i = (uint32_t)head; i != 0; i = g->refs[i - 1].name_next) {
-            const graph_ref_rec *ref = &g->refs[i - 1];
-            if (ref->dead || ref->rev || (mask & ref->kind) == 0 || graph_node_rec_by_id(g, ref->src) == NULL) {
-                continue;
-            }
-            graph_candidates cands;
-            graph_resolve_name_cached(g, ref, &memo, &cands);
-            if (!graph_candidates_contain(&cands, self_index)) {
-                continue;
-            }
-            cberg_graph_resolution res = ref_resolution(ref);
-            cberg_graph_edge edge = make_edge(ref->src, id, ref->kind, res, cands.confidence, ref->line);
-            if (sink(ctx, &edge)) {
-                return 1;
-            }
-        }
-    }
-
-    /* Reversed refs on this node point back in: member <- container. */
-    head = 0;
-    if (cberg_u64map_get(g->ref_by_src, id, &head)) {
-        for (uint32_t i = (uint32_t)head; i != 0; i = g->refs[i - 1].src_next) {
-            const graph_ref_rec *ref = &g->refs[i - 1];
-            if (ref->dead || !ref->rev || (mask & ref->kind) == 0) {
-                continue;
-            }
-            if (emit_ref_candidates(g, ref, 1, sink, ctx, &memo)) {
-                return 1;
-            }
-        }
-    }
-    return 0;
+    return emit_bound_refs_to(g, rec, mask, sink, ctx) || emit_named_refs_to_self(g, rec, mask, 0, sink, ctx, &memo) ||
+           emit_reversed_refs_to(g, rec, mask, sink, ctx, &memo);
 }
 
 typedef struct edge_collect_ctx {
