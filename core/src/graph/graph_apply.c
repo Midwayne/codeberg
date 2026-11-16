@@ -50,66 +50,82 @@ static void file_undo_free(file_undo *u) {
     memset(u, 0, sizeof(*u));
 }
 
-static cberg_status file_undo_begin(cberg_graph *graph, const char *path, file_undo *u) {
-    memset(u, 0, sizeof(*u));
-    u->nodes_mark = graph->nodes_len;
-    u->refs_mark = graph->refs_len;
-
-    size_t n_nodes = 0;
-    size_t n_refs = 0;
+static size_t count_live_nodes(const cberg_graph *graph, const char *path) {
     uint64_t head = 0;
-    if (cberg_strmap_get(graph->node_by_path, path, &head)) {
-        for (uint32_t i = (uint32_t)head; i != 0; i = graph->nodes[i - 1].path_next) {
-            if (!graph->nodes[i - 1].dead) {
-                n_nodes++;
-            }
-        }
+    if (!cberg_strmap_get(graph->node_by_path, path, &head)) {
+        return 0;
     }
-    head = 0;
-    if (cberg_strmap_get(graph->ref_by_path, path, &head)) {
-        for (uint32_t i = (uint32_t)head; i != 0; i = graph->refs[i - 1].path_next) {
-            if (!graph->refs[i - 1].dead) {
-                n_refs++;
-            }
-        }
+
+    size_t n = 0;
+    for (uint32_t i = (uint32_t)head; i != 0; i = graph->nodes[i - 1].path_next) {
+        n += !graph->nodes[i - 1].dead;
     }
-    if (n_nodes > 0) {
-        u->node_idx = malloc(n_nodes * sizeof(*u->node_idx));
-        if (u->node_idx == NULL) {
-            return CBERG_ERR_OUT_OF_MEMORY;
-        }
+    return n;
+}
+
+static size_t count_live_refs(const cberg_graph *graph, const char *path) {
+    uint64_t head = 0;
+    if (!cberg_strmap_get(graph->ref_by_path, path, &head)) {
+        return 0;
     }
-    if (n_refs > 0) {
-        u->ref_idx = malloc(n_refs * sizeof(*u->ref_idx));
-        if (u->ref_idx == NULL) {
-            file_undo_free(u);
-            return CBERG_ERR_OUT_OF_MEMORY;
-        }
+
+    size_t n = 0;
+    for (uint32_t i = (uint32_t)head; i != 0; i = graph->refs[i - 1].path_next) {
+        n += !graph->refs[i - 1].dead;
     }
-    head = 0;
-    if (cberg_strmap_get(graph->node_by_path, path, &head)) {
-        for (uint32_t i = (uint32_t)head; i != 0; i = graph->nodes[i - 1].path_next) {
-            graph_node_rec *rec = &graph->nodes[i - 1];
-            if (rec->dead) {
-                continue;
-            }
+    return n;
+}
+
+/* Tombstones path's live nodes, recording their slots in u->node_idx. */
+static void tombstone_nodes(cberg_graph *graph, const char *path, file_undo *u) {
+    uint64_t head = 0;
+    if (!cberg_strmap_get(graph->node_by_path, path, &head)) {
+        return;
+    }
+
+    for (uint32_t i = (uint32_t)head; i != 0; i = graph->nodes[i - 1].path_next) {
+        graph_node_rec *rec = &graph->nodes[i - 1];
+        if (!rec->dead) {
             u->node_idx[u->node_len++] = i - 1;
             rec->dead = 1;
             graph->nodes_dead++;
         }
     }
-    head = 0;
-    if (cberg_strmap_get(graph->ref_by_path, path, &head)) {
-        for (uint32_t i = (uint32_t)head; i != 0; i = graph->refs[i - 1].path_next) {
-            graph_ref_rec *rec = &graph->refs[i - 1];
-            if (rec->dead) {
-                continue;
-            }
+}
+
+/* Tombstones path's live refs, recording their slots in u->ref_idx. */
+static void tombstone_refs(cberg_graph *graph, const char *path, file_undo *u) {
+    uint64_t head = 0;
+    if (!cberg_strmap_get(graph->ref_by_path, path, &head)) {
+        return;
+    }
+
+    for (uint32_t i = (uint32_t)head; i != 0; i = graph->refs[i - 1].path_next) {
+        graph_ref_rec *rec = &graph->refs[i - 1];
+        if (!rec->dead) {
             u->ref_idx[u->ref_len++] = i - 1;
             rec->dead = 1;
             graph->refs_dead++;
         }
     }
+}
+
+static cberg_status file_undo_begin(cberg_graph *graph, const char *path, file_undo *u) {
+    memset(u, 0, sizeof(*u));
+    u->nodes_mark = graph->nodes_len;
+    u->refs_mark = graph->refs_len;
+
+    size_t n_nodes = count_live_nodes(graph, path);
+    size_t n_refs = count_live_refs(graph, path);
+    u->node_idx = n_nodes > 0 ? malloc(n_nodes * sizeof(*u->node_idx)) : NULL;
+    u->ref_idx = n_refs > 0 ? malloc(n_refs * sizeof(*u->ref_idx)) : NULL;
+    if ((n_nodes > 0 && u->node_idx == NULL) || (n_refs > 0 && u->ref_idx == NULL)) {
+        file_undo_free(u);
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+
+    tombstone_nodes(graph, path, u);
+    tombstone_refs(graph, path, u);
     return CBERG_OK;
 }
 
