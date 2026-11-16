@@ -1,4 +1,5 @@
 #include <ctype.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -385,23 +386,76 @@ static const workspace_file *python_target(const workspace_files *files, const c
     return found;
 }
 
+/* The one repo whose Rust crate is named by the import's first segment, or
+ * SIZE_MAX when none or several are. */
+static size_t rust_crate_owner(const workspace_files *files, const char *crate, size_t length) {
+    size_t owner = SIZE_MAX;
+    for (size_t i = 0; i < files->engine->repos_len; i++) {
+        const char *name = files->packages[i].rust_name;
+        if (strlen(name) != length || strncmp(name, crate, length) != 0)
+            continue;
+        if (owner != SIZE_MAX)
+            return SIZE_MAX;
+        owner = i;
+    }
+    return owner;
+}
+
+/* Converts the module path between the crate and the symbol ("a::b") into a
+ * file path ("a/b"). Returns its length, or -1 when it does not fit. */
+static int rust_module_path(const char *start, const char *end, char *module, size_t cap) {
+    size_t used = 0;
+    for (const char *p = start; p < end; p++) {
+        if (used + 1 >= cap)
+            return -1;
+        if (*p == ':' && p + 1 < end && p[1] == ':') {
+            module[used++] = '/';
+            p++;
+        } else {
+            module[used++] = *p;
+        }
+    }
+    module[used] = '\0';
+    return (int)used;
+}
+
+/* The single Rust file in owner that defines name at the module's path:
+ * src/<module>.rs or src/<module>/mod.rs, or src/lib.rs for the crate root. */
+static const workspace_file *rust_module_file(const workspace_files *files, size_t owner, const char *module, const char *name) {
+    char flat[1024];
+    char directory[1024];
+    bool root = module[0] == '\0';
+    if (root)
+        snprintf(flat, sizeof flat, "src/lib.rs");
+    else
+        snprintf(flat, sizeof flat, "src/%s.rs", module);
+    snprintf(directory, sizeof directory, "src/%s/mod.rs", module);
+
+    const workspace_file *found = NULL;
+    for (size_t i = 0; i < files->count; i++) {
+        const workspace_file *file = &files->files[i];
+        if (file->repo != owner || file->language != CBERG_LANG_RUST || !file_defines(files, file, name))
+            continue;
+        if (strcmp(file->relative, flat) != 0 && (root || strcmp(file->relative, directory) != 0))
+            continue;
+        if (found != NULL)
+            return NULL;
+        found = file;
+    }
+    return found;
+}
+
+/* Resolves `crate::module::Symbol` to the file in the crate's repo that
+ * defines Symbol. */
 static const workspace_file *rust_target(const workspace_files *files, const char *import) {
     const char *separator = strstr(import, "::");
     if (separator == NULL)
         return NULL;
-    size_t length = (size_t)(separator - import);
-    size_t owner = SIZE_MAX;
-    for (size_t i = 0; i < files->engine->repos_len; i++) {
-        const char *name = files->packages[i].rust_name;
-        if (strlen(name) != length || strncmp(name, import, length) != 0)
-            continue;
-        if (owner != SIZE_MAX)
-            return NULL;
-        owner = i;
-    }
+
+    size_t owner = rust_crate_owner(files, import, (size_t)(separator - import));
     if (owner == SIZE_MAX)
         return NULL;
-    const workspace_file *found = NULL;
+
     const char *symbol = strrchr(import, ':');
     char name[256];
     size_t count = strcspn(symbol + 1, " ");
@@ -409,34 +463,11 @@ static const workspace_file *rust_target(const workspace_files *files, const cha
         return NULL;
     memcpy(name, symbol + 1, count);
     name[count] = '\0';
-    char module[512] = {0}, flat[1024], directory[1024];
-    size_t used = 0;
-    for (const char *p = separator + 2; p < symbol - 1; p++) {
-        if (used + 1 >= sizeof module)
-            return NULL;
-        if (*p == ':' && p + 1 < symbol - 1 && p[1] == ':') {
-            module[used++] = '/';
-            p++;
-        } else {
-            module[used++] = *p;
-        }
-    }
-    if (used == 0)
-        snprintf(flat, sizeof flat, "src/lib.rs");
-    else
-        snprintf(flat, sizeof flat, "src/%s.rs", module);
-    snprintf(directory, sizeof directory, "src/%s/mod.rs", module);
-    for (size_t i = 0; i < files->count; i++) {
-        const workspace_file *file = &files->files[i];
-        if (file->repo != owner || file->language != CBERG_LANG_RUST || !file_defines(files, file, name))
-            continue;
-        if (strcmp(file->relative, flat) != 0 && (used == 0 || strcmp(file->relative, directory) != 0))
-            continue;
-        if (found != NULL)
-            return NULL;
-        found = file;
-    }
-    return found;
+
+    char module[512];
+    if (rust_module_path(separator + 2, symbol - 1, module, sizeof module) < 0)
+        return NULL;
+    return rust_module_file(files, owner, module, name);
 }
 
 static const workspace_file *import_target(const workspace_files *files, const workspace_file *source, const char *import) {

@@ -563,61 +563,58 @@ static cberg_status embed_table(cberg_repo *r, cberg_index *target) {
     return st;
 }
 
-static cberg_status rebuild_index(cberg_repo *r) {
-    if (!r->eng->vectors || r->index == NULL) {
-        return CBERG_OK;
+/* Remote providers rebuild in place: clear, re-embed, save. */
+static cberg_status rebuild_in_place(cberg_repo *r) {
+    cberg_status st = cberg_index_clear(r->index);
+    if (st == CBERG_OK) {
+        st = embed_table(r, r->index);
     }
+    return st == CBERG_OK ? cberg_index_save(r->index) : st;
+}
 
+/* Local indexes rebuild into "<path>.rebuild" and rename it over the live
+ * file, so a failed rebuild leaves the old index serving. */
+static cberg_status rebuild_by_swap(cberg_repo *r) {
     size_t dim = r->eng->embed_dim;
     const cberg_index_config *cfg = &r->eng->index_cfg;
-    cberg_index *target = r->index;
+
+    char temp[4096];
+    snprintf(temp, sizeof(temp), "%s.rebuild", r->index_path);
+    unlink(temp);
+
     cberg_index *temp_idx = NULL;
-    char temp[4096] = {0};
-
-    if (cberg_index_provider_rebuild_inplace(cfg->provider)) {
-        cberg_status st = cberg_index_clear(r->index);
-        if (st != CBERG_OK) {
-            return st;
-        }
-    } else {
-        snprintf(temp, sizeof(temp), "%s.rebuild", r->index_path);
-        unlink(temp);
-
-        cberg_status st = cberg_index_open(temp, dim, cfg, &temp_idx);
-        if (st != CBERG_OK) {
-            return st;
-        }
-        target = temp_idx;
+    cberg_status st = cberg_index_open(temp, dim, cfg, &temp_idx);
+    if (st != CBERG_OK) {
+        return st;
     }
 
-    cberg_status fill = embed_table(r, target);
-    if (fill != CBERG_OK) {
-        if (temp_idx != NULL) {
-            cberg_index_close(temp_idx);
-            unlink(temp);
-        }
-        return fill;
+    st = embed_table(r, temp_idx);
+    if (st == CBERG_OK) {
+        st = cberg_index_save(temp_idx);
     }
-
-    if (cberg_index_provider_rebuild_inplace(cfg->provider)) {
-        return cberg_index_save(r->index);
-    }
-
-    cberg_status st = cberg_index_save(temp_idx);
     cberg_index_close(temp_idx);
     if (st != CBERG_OK) {
         unlink(temp);
         return st;
     }
 
+    /* Reopen whichever file ended up at the live path. */
     cberg_index_close(r->index);
     r->index = NULL;
-    if (rename(temp, r->index_path) != 0) {
-        st = CBERG_ERR_IO;
-        cberg_index_open(r->index_path, dim, cfg, &r->index);
-        return st;
+    st = rename(temp, r->index_path) == 0 ? CBERG_OK : CBERG_ERR_IO;
+    cberg_status reopened = cberg_index_open(r->index_path, dim, cfg, &r->index);
+    return st != CBERG_OK ? st : reopened;
+}
+
+static cberg_status rebuild_index(cberg_repo *r) {
+    if (!r->eng->vectors || r->index == NULL) {
+        return CBERG_OK;
     }
-    return cberg_index_open(r->index_path, dim, cfg, &r->index);
+
+    if (cberg_index_provider_rebuild_inplace(r->eng->index_cfg.provider)) {
+        return rebuild_in_place(r);
+    }
+    return rebuild_by_swap(r);
 }
 
 cberg_status repo_sync_vectors(cberg_repo *r, const cberg_changes *ch) {

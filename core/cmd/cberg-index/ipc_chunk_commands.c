@@ -154,19 +154,12 @@ void ipc_handle_search(cberg_engine *eng, int fd, char *args) {
     write_hits_response(fd, hits, found);
 }
 
-void ipc_handle_chunk(cberg_engine *eng, int fd, char *args) {
-    char *cursor = args;
-    char *repo = ipc_next_field(&cursor);
-    char *idstr = ipc_next_field(&cursor);
-    if (repo == NULL || repo[0] == '\0' || idstr == NULL || idstr[0] == '\0') {
-        ipc_send_error(fd, "missing repo or id");
-        return;
-    }
-    uint64_t id = (uint64_t)strtoull(idstr, NULL, 10);
-    cberg_engine_chunk_detail detail;
-    cberg_status st = cberg_engine_get_chunk(eng, repo, id, &detail);
-    if (st != CBERG_OK) {
-        ipc_send_error(fd, cberg_status_str(st));
+/* Writes one chunk's detail as the {"ok":true,"chunk":{...}} reply. */
+static void send_chunk_detail(int fd, const cberg_engine_chunk_detail *detail) {
+    size_t body_cap = (detail->body_len + 1) * 2;
+    char *esc_body = calloc(body_cap, 1);
+    if (esc_body == NULL) {
+        ipc_send_error(fd, "out of memory");
         return;
     }
 
@@ -175,36 +168,52 @@ void ipc_handle_chunk(cberg_engine *eng, int fd, char *args) {
     char esc_symbol[256];
     char esc_kind[64];
     char esc_snippet[CBERG_SNIPPET_MAX * 2];
-    char *esc_body = calloc((detail.body_len + 1) * 2, 1);
-    if (esc_body == NULL) {
-        cberg_engine_chunk_detail_free(&detail);
-        ipc_send_error(fd, "out of memory");
-        return;
-    }
-    ipc_json_escape(detail.repo != NULL ? detail.repo : "", esc_repo, sizeof(esc_repo));
-    ipc_json_escape(detail.path, esc_path, sizeof(esc_path));
-    ipc_json_escape(detail.symbol, esc_symbol, sizeof(esc_symbol));
-    ipc_json_escape(detail.kind, esc_kind, sizeof(esc_kind));
-    ipc_json_escape(detail.snippet, esc_snippet, sizeof(esc_snippet));
-    ipc_json_escape(detail.body != NULL ? detail.body : "", esc_body, (detail.body_len + 1) * 2);
+    ipc_json_escape(detail->repo != NULL ? detail->repo : "", esc_repo, sizeof(esc_repo));
+    ipc_json_escape(detail->path, esc_path, sizeof(esc_path));
+    ipc_json_escape(detail->symbol, esc_symbol, sizeof(esc_symbol));
+    ipc_json_escape(detail->kind, esc_kind, sizeof(esc_kind));
+    ipc_json_escape(detail->snippet, esc_snippet, sizeof(esc_snippet));
+    ipc_json_escape(detail->body != NULL ? detail->body : "", esc_body, body_cap);
 
     char resp[131072];
     snprintf(resp, sizeof(resp), "{\"ok\":true,\"chunk\":{\"id\":%llu,\"repo\":\"%s\",\"path\":\"%s\",\"symbol\":\"%s\","
                                  "\"kind\":\"%s\",\"start_line\":%u,\"end_line\":%u,\"snippet\":\"%s\",\"body\":\"%s\","
                                  "\"truncated\":%s}}\n",
-             (unsigned long long)detail.id,
+             (unsigned long long)detail->id,
              esc_repo,
              esc_path,
              esc_symbol,
              esc_kind,
-             detail.start_line,
-             detail.end_line,
+             detail->start_line,
+             detail->end_line,
              esc_snippet,
              esc_body,
-             detail.truncated ? "true" : "false");
+             detail->truncated ? "true" : "false");
     free(esc_body);
-    cberg_engine_chunk_detail_free(&detail);
+
     ipc_write_all(fd, resp, strlen(resp));
+}
+
+/* chunk <repo> <id>: one chunk's location, snippet, and body. */
+void ipc_handle_chunk(cberg_engine *eng, int fd, char *args) {
+    char *cursor = args;
+    char *repo = ipc_next_field(&cursor);
+    char *idstr = ipc_next_field(&cursor);
+    if (repo == NULL || repo[0] == '\0' || idstr == NULL || idstr[0] == '\0') {
+        ipc_send_error(fd, "missing repo or id");
+        return;
+    }
+
+    uint64_t id = (uint64_t)strtoull(idstr, NULL, 10);
+    cberg_engine_chunk_detail detail;
+    cberg_status st = cberg_engine_get_chunk(eng, repo, id, &detail);
+    if (st != CBERG_OK) {
+        ipc_send_error(fd, cberg_status_str(st));
+        return;
+    }
+
+    send_chunk_detail(fd, &detail);
+    cberg_engine_chunk_detail_free(&detail);
 }
 
 void ipc_handle_symbol(cberg_engine *eng, int fd, char *args) {
