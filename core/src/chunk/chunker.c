@@ -218,11 +218,134 @@ static cberg_status ensure_lang(cberg_chunker *ch, cberg_language lang, lang_des
     return CBERG_OK;
 }
 
+/* One file being chunked: its path and source text. */
+typedef struct {
+    const char *path;
+    const char *src;
+    size_t src_len;
+} chunk_source;
+
+/* The chunk one query match describes: the captured definition and, when the
+ * pattern names it, its identifier node. */
+typedef struct {
+    cberg_chunk_kind kind;
+    TSNode node;
+    TSNode name;
+    bool has_name;
+} chunk_match;
+
+/* Reads the chunk and name captures of one match. Returns false when the
+ * match captures no chunk kind. */
+static bool read_chunk_match(const TSQuery *query, const TSQueryMatch *match, chunk_match *out) {
+    bool has_chunk = false;
+    out->has_name = false;
+
+    for (uint16_t i = 0; i < match->capture_count; i++) {
+        TSQueryCapture cap = match->captures[i];
+        uint32_t name_len = 0;
+        const char *cap_name = ts_query_capture_name_for_id(query, cap.index, &name_len);
+        cberg_chunk_kind kind = cberg_chunk_kind_from_capture(cap_name, name_len);
+
+        if (kind != CBERG_CHUNK_UNKNOWN) {
+            out->kind = kind;
+            out->node = cap.node;
+            has_chunk = true;
+        } else if (name_len == 4 && strncmp(cap_name, "name", 4) == 0) {
+            out->name = cap.node;
+            out->has_name = true;
+        }
+    }
+
+    return has_chunk;
+}
+
+/* Appends the chunk for one match. Generated code can carry absurd
+ * identifiers; such a definition is skipped rather than failing the file. */
+static cberg_status push_match_chunk(const chunk_source *file, const chunk_match *m, chunk_occ_tracker *occ, cberg_chunk_list *list) {
+    char sym_buf[CBERG_CHUNK_IDENT_MAX];
+    const char *symbol = NULL;
+    uint32_t sym_start = 0;
+    uint32_t sym_end = 0;
+
+    if (m->has_name) {
+        sym_start = ts_node_start_byte(m->name);
+        sym_end = ts_node_end_byte(m->name);
+        size_t sym_len = (size_t)(sym_end - sym_start);
+
+        if (!chunk_ident_fits(file->path, m->kind, sym_len)) {
+            return CBERG_OK;
+        }
+
+        memcpy(sym_buf, file->src + sym_start, sym_len);
+        sym_buf[sym_len] = '\0';
+        symbol = sym_buf;
+    }
+
+    uint32_t index = 0;
+    cberg_status status = chunk_occ_next(occ, file->path, m->kind, symbol, &index);
+    if (status != CBERG_OK) {
+        return status;
+    }
+
+    cberg_span span = {
+        .start_byte = ts_node_start_byte(m->node),
+        .end_byte = ts_node_end_byte(m->node),
+        .start_line = ts_node_start_point(m->node).row + 1,
+        .end_line = ts_node_end_point(m->node).row + 1,
+    };
+    return chunk_list_push(list, file->path, m->kind, span, file->src, sym_start, sym_end, index);
+}
+
+/* Runs the chunk query over tree and appends every matched chunk to list,
+ * sorted by position. */
+static cberg_status collect_chunks(const TSQuery *query, TSTree *tree, const chunk_source *file, cberg_chunk_list *list) {
+    TSQueryCursor *cursor = ts_query_cursor_new();
+    chunk_occ_tracker *occ = chunk_occ_new();
+    cberg_status status = cursor != NULL && occ != NULL ? CBERG_OK : CBERG_ERR_OUT_OF_MEMORY;
+
+    if (status == CBERG_OK) {
+        ts_query_cursor_exec(cursor, query, ts_tree_root_node(tree));
+    }
+
+    TSQueryMatch match;
+    while (status == CBERG_OK && ts_query_cursor_next_match(cursor, &match)) {
+        chunk_match m;
+        if (read_chunk_match(query, &match, &m)) {
+            status = push_match_chunk(file, &m, occ, list);
+        }
+    }
+
+    if (status == CBERG_OK && list->len > 1) {
+        qsort(list->items, list->len, sizeof(cberg_chunk), compare_chunks);
+    }
+
+    chunk_occ_free(occ);
+    if (cursor != NULL) {
+        ts_query_cursor_delete(cursor);
+    }
+    return status;
+}
+
+/* Graph extraction reuses the chunking parse tree (ADR 0005: one parse pass
+ * feeds both indexes). The extractor is created on first use. */
+static cberg_status extract_graph(cberg_chunker *ch, lang_desc desc, cberg_language lang, TSTree *tree, const chunk_source *file, const cberg_chunk_list *list, cberg_graph_fragment **out_frag) {
+    if (ch->extractor == NULL) {
+        ch->extractor = cberg_graph_extractor_new();
+        if (ch->extractor == NULL) {
+            return CBERG_ERR_OUT_OF_MEMORY;
+        }
+    }
+
+    TSNode root = ts_tree_root_node(tree);
+    return cberg_graph_extract(ch->extractor, desc.language(), lang, root, file->path, file->src, file->src_len, list, out_frag);
+}
+
 static cberg_status query_chunk(cberg_chunker *ch, lang_desc desc, cberg_language lang, const char *path, const char *src, size_t src_len, cberg_chunk_list **out_list, cberg_graph_fragment **out_frag) {
     int slot = lang_slot(lang);
     if (slot < 0) {
         return CBERG_ERR_UNSUPPORTED_LANGUAGE;
     }
+
     TSParser *parser = NULL;
     TSQuery *query = NULL;
     cberg_status status = ensure_lang(ch, lang, desc, slot, &parser, &query);
@@ -235,119 +358,20 @@ static cberg_status query_chunk(cberg_chunker *ch, lang_desc desc, cberg_languag
         return CBERG_ERR_INTERNAL;
     }
 
-    TSQueryCursor *cursor = ts_query_cursor_new();
-    if (cursor == NULL) {
-        ts_tree_delete(tree);
-        return CBERG_ERR_OUT_OF_MEMORY;
-    }
-
+    chunk_source file = {.path = path, .src = src, .src_len = src_len};
     cberg_chunk_list *list = chunk_list_new();
-    if (list == NULL) {
-        ts_query_cursor_delete(cursor);
-        ts_tree_delete(tree);
-        return CBERG_ERR_OUT_OF_MEMORY;
+    status = list != NULL ? collect_chunks(query, tree, &file, list) : CBERG_ERR_OUT_OF_MEMORY;
+
+    if (status == CBERG_OK && out_frag != NULL) {
+        status = extract_graph(ch, desc, lang, tree, &file, list, out_frag);
     }
 
-    ts_query_cursor_exec(cursor, query, ts_tree_root_node(tree));
-    TSQueryMatch match;
-    chunk_occ_tracker *occ = NULL;
-    occ = chunk_occ_new();
-
-    if (occ == NULL) {
-        status = CBERG_ERR_OUT_OF_MEMORY;
-        goto done;
+    if (status == CBERG_OK) {
+        *out_list = list;
+        list = NULL;
     }
 
-    while (ts_query_cursor_next_match(cursor, &match)) {
-        cberg_chunk_kind kind = CBERG_CHUNK_UNKNOWN;
-        TSNode chunk_node;
-        bool have_chunk = false;
-        TSNode name_node;
-        bool have_name = false;
-
-        for (uint16_t i = 0; i < match.capture_count; i++) {
-            TSQueryCapture cap = match.captures[i];
-            uint32_t name_len = 0;
-            const char *cap_name = ts_query_capture_name_for_id(query, cap.index, &name_len);
-            cberg_chunk_kind k = cberg_chunk_kind_from_capture(cap_name, name_len);
-            if (k != CBERG_CHUNK_UNKNOWN) {
-                kind = k;
-                chunk_node = cap.node;
-                have_chunk = true;
-            } else if (name_len == 4 && strncmp(cap_name, "name", 4) == 0) {
-                name_node = cap.node;
-                have_name = true;
-            }
-        }
-        if (!have_chunk) {
-            continue;
-        }
-
-        char sym_buf[CBERG_CHUNK_IDENT_MAX];
-        const char *sym_for_occ = NULL;
-        uint32_t sym_start = 0;
-        uint32_t sym_end = 0;
-        if (have_name) {
-            sym_start = ts_node_start_byte(name_node);
-            sym_end = ts_node_end_byte(name_node);
-            size_t sym_len = (size_t)(sym_end - sym_start);
-
-            /* Generated code can carry absurd identifiers; drop that one
-             * definition rather than failing the whole file. */
-            if (!chunk_ident_fits(path, kind, sym_len)) {
-                continue;
-            }
-
-            memcpy(sym_buf, src + sym_start, sym_len);
-            sym_buf[sym_len] = '\0';
-            sym_for_occ = sym_buf;
-        }
-        uint32_t index = 0;
-        status = chunk_occ_next(occ, path, kind, sym_for_occ, &index);
-        if (status != CBERG_OK) {
-            goto done;
-        }
-
-        cberg_span span = {
-            .start_byte = ts_node_start_byte(chunk_node),
-            .end_byte = ts_node_end_byte(chunk_node),
-            .start_line = ts_node_start_point(chunk_node).row + 1,
-            .end_line = ts_node_end_point(chunk_node).row + 1,
-        };
-        status = chunk_list_push(list, path, kind, span, src, sym_start, sym_end, index);
-        if (status != CBERG_OK) {
-            goto done;
-        }
-    }
-
-    if (list->len > 1) {
-        qsort(list->items, list->len, sizeof(cberg_chunk), compare_chunks);
-    }
-
-    /* Graph extraction reuses this parse tree (ADR 0005: one parse pass feeds
-     * both indexes). Lazily create the extractor on first analyze call. */
-    if (out_frag != NULL) {
-        if (ch->extractor == NULL) {
-            ch->extractor = cberg_graph_extractor_new();
-            if (ch->extractor == NULL) {
-                status = CBERG_ERR_OUT_OF_MEMORY;
-                goto done;
-            }
-        }
-        status = cberg_graph_extract(ch->extractor, desc.language(), lang, ts_tree_root_node(tree), path, src, src_len, list, out_frag);
-        if (status != CBERG_OK) {
-            goto done;
-        }
-    }
-
-    *out_list = list;
-    list = NULL;
-    status = CBERG_OK;
-
-done:
-    chunk_occ_free(occ);
     cberg_chunk_list_free(list);
-    ts_query_cursor_delete(cursor);
     ts_tree_delete(tree);
     return status;
 }
