@@ -139,10 +139,115 @@ void cberg_onnx_close(void *handle) {
     free(impl);
 }
 
+/* Releases status and reports whether the ORT call succeeded. */
+static bool ort_ok(const OrtApi *ort, OrtStatus *status) {
+    ort_discard(ort, status);
+    return status == NULL;
+}
+
+/* Tunes the CPU provider: full graph optimization (constant folding + op
+ * fusion), sequential execution, and no memory-pattern planning. Batch shapes
+ * vary by sequence length, so pattern planning would re-plan on every new shape
+ * instead of helping. */
+static void configure_session(const OrtApi *ort, OrtSessionOptions *opts, int num_threads) {
+    ort_discard(ort, ort->SetSessionGraphOptimizationLevel(opts, ORT_ENABLE_ALL));
+    ort_discard(ort, ort->SetSessionExecutionMode(opts, ORT_SEQUENTIAL));
+    ort_discard(ort, ort->DisableMemPattern(opts));
+
+    /* num_threads <= 0 leaves ORT's default (all physical cores). */
+    if (num_threads > 0) {
+        ort_discard(ort, ort->SetIntraOpNumThreads(opts, num_threads));
+    }
+
+#if defined(__APPLE__)
+    maybe_enable_coreml(ort, opts);
+#endif
+}
+
+/* Creates the ORT environment, session, and CPU memory info. */
+static cberg_status open_session(onnx_impl *impl, const cberg_embed_config *cfg) {
+    const OrtApi *ort = impl->ort;
+    if (!ort_ok(ort, ort->CreateEnv(ORT_LOGGING_LEVEL_WARNING, "codeberg", &impl->env))) {
+        return CBERG_ERR_INTERNAL;
+    }
+
+    OrtSessionOptions *opts = NULL;
+    if (!ort_ok(ort, ort->CreateSessionOptions(&opts))) {
+        return CBERG_ERR_INTERNAL;
+    }
+
+    configure_session(ort, opts, cfg->num_threads);
+    bool created = ort_ok(ort, ort->CreateSession(impl->env, cfg->model_path, opts, &impl->session));
+    ort->ReleaseSessionOptions(opts);
+    if (!created) {
+        return CBERG_ERR_IO;
+    }
+
+    if (!ort_ok(ort, ort->CreateCpuMemoryInfo(OrtArenaAllocator, OrtMemTypeDefault, &impl->mem))) {
+        return CBERG_ERR_INTERNAL;
+    }
+    return CBERG_OK;
+}
+
+/* Reads the model's input names (classified by role) and its output name. */
+static cberg_status read_io_names(onnx_impl *impl) {
+    const OrtApi *ort = impl->ort;
+    OrtAllocator *alloc = NULL;
+    if (!ort_ok(ort, ort->GetAllocatorWithDefaultOptions(&alloc))) {
+        return CBERG_ERR_INTERNAL;
+    }
+
+    size_t n_inputs = 0;
+    if (!ort_ok(ort, ort->SessionGetInputCount(impl->session, &n_inputs)) || n_inputs == 0 || n_inputs > 8) {
+        return CBERG_ERR_INTERNAL;
+    }
+
+    impl->n_inputs = (int)n_inputs;
+    for (size_t i = 0; i < n_inputs; i++) {
+        if (!ort_ok(ort, ort->SessionGetInputName(impl->session, i, alloc, &impl->input_names[i]))) {
+            return CBERG_ERR_INTERNAL;
+        }
+        impl->input_kinds[i] = classify_input(impl->input_names[i]);
+    }
+
+    if (!ort_ok(ort, ort->SessionGetOutputName(impl->session, 0, alloc, &impl->output_name))) {
+        return CBERG_ERR_INTERNAL;
+    }
+    return CBERG_OK;
+}
+
+/* The embedding dimension is the last axis of the first output's shape. */
+static cberg_status read_output_dim(onnx_impl *impl) {
+    const OrtApi *ort = impl->ort;
+    OrtTypeInfo *type_info = NULL;
+    if (!ort_ok(ort, ort->SessionGetOutputTypeInfo(impl->session, 0, &type_info))) {
+        return CBERG_ERR_INTERNAL;
+    }
+
+    const OrtTensorTypeAndShapeInfo *shape_info = NULL;
+    size_t n_dims = 0;
+    int64_t dims[8] = {0};
+    if (ort_ok(ort, ort->CastTypeInfoToTensorInfo(type_info, &shape_info)) && shape_info != NULL) {
+        ort_discard(ort, ort->GetDimensionsCount(shape_info, &n_dims));
+        if (n_dims >= 1 && n_dims <= 8) {
+            ort_discard(ort, ort->GetDimensions(shape_info, dims, n_dims));
+        }
+    }
+    ort->ReleaseTypeInfo(type_info);
+
+    if (n_dims == 0 || n_dims > 8 || dims[n_dims - 1] <= 0) {
+        return CBERG_ERR_INTERNAL;
+    }
+
+    impl->dim = (size_t)dims[n_dims - 1];
+    return CBERG_OK;
+}
+
 cberg_status cberg_onnx_open(const cberg_embed_config *cfg, void **out_impl, size_t *out_dim) {
     if (cfg->model_path == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
+
     const OrtApi *ort = OrtGetApiBase()->GetApi(ORT_API_VERSION);
     if (ort == NULL) {
         return CBERG_ERR_INTERNAL;
@@ -155,94 +260,27 @@ cberg_status cberg_onnx_open(const cberg_embed_config *cfg, void **out_impl, siz
     impl->ort = ort;
     impl->batch = batch_from_env();
 
-    cberg_status status = CBERG_ERR_INTERNAL;
-    OrtSessionOptions *opts = NULL;
-    OrtAllocator *alloc = NULL;
-
+    /* The tokenizer files sit next to the model. */
     char model_dir[2048];
     derive_dir(cfg->model_path, model_dir, sizeof(model_dir));
     impl->tok = cberg_tok_open(model_dir);
-    if (impl->tok == NULL) {
-        status = CBERG_ERR_IO;
-        goto fail;
+
+    cberg_status status = impl->tok != NULL ? open_session(impl, cfg) : CBERG_ERR_IO;
+    if (status == CBERG_OK) {
+        status = read_io_names(impl);
+    }
+    if (status == CBERG_OK) {
+        status = read_output_dim(impl);
     }
 
-    if (ort->CreateEnv(ORT_LOGGING_LEVEL_WARNING, "codeberg", &impl->env) != NULL) {
-        goto fail;
-    }
-    if (ort->CreateSessionOptions(&opts) != NULL) {
-        goto fail;
-    }
-    /* Squeeze the CPU provider: full graph optimization (constant folding + op
-     * fusion), sequential execution, and no memory-pattern planning. Batch shapes
-     * vary by sequence length, so pattern planning would re-plan on every new shape
-     * instead of helping. */
-    ort_discard(ort, ort->SetSessionGraphOptimizationLevel(opts, ORT_ENABLE_ALL));
-    ort_discard(ort, ort->SetSessionExecutionMode(opts, ORT_SEQUENTIAL));
-    ort_discard(ort, ort->DisableMemPattern(opts));
-    /* num_threads <= 0 leaves ORT's default (all physical cores). */
-    if (cfg->num_threads > 0) {
-        ort_discard(ort, ort->SetIntraOpNumThreads(opts, cfg->num_threads));
-    }
-#if defined(__APPLE__)
-    maybe_enable_coreml(ort, opts);
-#endif
-    if (ort->CreateSession(impl->env, cfg->model_path, opts, &impl->session) != NULL) {
-        status = CBERG_ERR_IO;
-        goto fail;
-    }
-    if (ort->CreateCpuMemoryInfo(OrtArenaAllocator, OrtMemTypeDefault, &impl->mem) != NULL) {
-        goto fail;
-    }
-    if (ort->GetAllocatorWithDefaultOptions(&alloc) != NULL) {
-        goto fail;
+    if (status != CBERG_OK) {
+        cberg_onnx_close(impl);
+        return status;
     }
 
-    size_t n_inputs = 0;
-    if (ort->SessionGetInputCount(impl->session, &n_inputs) != NULL || n_inputs == 0 || n_inputs > 8) {
-        goto fail;
-    }
-    impl->n_inputs = (int)n_inputs;
-    for (size_t i = 0; i < n_inputs; i++) {
-        if (ort->SessionGetInputName(impl->session, i, alloc, &impl->input_names[i]) != NULL) {
-            goto fail;
-        }
-        impl->input_kinds[i] = classify_input(impl->input_names[i]);
-    }
-    if (ort->SessionGetOutputName(impl->session, 0, alloc, &impl->output_name) != NULL) {
-        goto fail;
-    }
-
-    OrtTypeInfo *type_info = NULL;
-    if (ort->SessionGetOutputTypeInfo(impl->session, 0, &type_info) != NULL) {
-        goto fail;
-    }
-    const OrtTensorTypeAndShapeInfo *shape_info = NULL;
-    size_t n_dims = 0;
-    int64_t dims[8] = {0};
-    if (ort->CastTypeInfoToTensorInfo(type_info, &shape_info) == NULL && shape_info != NULL) {
-        ort_discard(ort, ort->GetDimensionsCount(shape_info, &n_dims));
-        if (n_dims >= 1 && n_dims <= 8) {
-            ort_discard(ort, ort->GetDimensions(shape_info, dims, n_dims));
-        }
-    }
-    ort->ReleaseTypeInfo(type_info);
-    if (n_dims == 0 || dims[n_dims - 1] <= 0) {
-        goto fail;
-    }
-    impl->dim = (size_t)dims[n_dims - 1];
-
-    ort->ReleaseSessionOptions(opts);
     *out_impl = impl;
     *out_dim = impl->dim;
     return CBERG_OK;
-
-fail:
-    if (opts != NULL) {
-        ort->ReleaseSessionOptions(opts);
-    }
-    cberg_onnx_close(impl);
-    return status;
 }
 
 static void mean_pool_row(const float *hidden, int seq_len, size_t dim, float *out) {
