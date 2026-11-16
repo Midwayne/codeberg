@@ -368,57 +368,76 @@ static void sort_indices_by_len(const int *seq_lens, size_t count, int *order) {
  * the pre-tokenized rows named by order[g_start..], run inference, and scatter each
  * pooled vector back to its caller-facing slot out[order[...]*dim]. Padding tracks
  * the group's own longest row, not the whole call's. */
-static cberg_status run_group(onnx_impl *impl, const int64_t *tokbuf, const int *seq_lens, const int *order, size_t g_start, size_t g_count, float *out) {
-    int max_len = 0;
+/* Padded input tensors and pooled output for one length-sorted group. */
+typedef struct {
+    int64_t *ids;
+    int64_t *mask;
+    int64_t *types; /* token types stay 0 */
+    float *pooled;
+    int *lens;
+} onnx_batch;
+
+static void onnx_batch_free(onnx_batch *batch) {
+    free(batch->ids);
+    free(batch->mask);
+    free(batch->types);
+    free(batch->pooled);
+    free(batch->lens);
+}
+
+static cberg_status onnx_batch_alloc(onnx_batch *batch, size_t count, int max_len, size_t dim) {
+    size_t flat = count * (size_t)max_len;
+    batch->ids = calloc(flat, sizeof(int64_t));
+    batch->mask = calloc(flat, sizeof(int64_t));
+    batch->types = calloc(flat, sizeof(int64_t));
+    batch->pooled = malloc(count * dim * sizeof(float));
+    batch->lens = malloc(count * sizeof(int));
+
+    bool ok = batch->ids != NULL && batch->mask != NULL && batch->types != NULL && batch->pooled != NULL && batch->lens != NULL;
+    return ok ? CBERG_OK : CBERG_ERR_OUT_OF_MEMORY;
+}
+
+/* The longest sequence in the group, at least 1: ORT never gets a
+ * zero-width tensor. */
+static int group_max_len(const int *seq_lens, const int *order, size_t g_start, size_t g_count) {
+    int max_len = 1;
     for (size_t b = 0; b < g_count; b++) {
         int n = seq_lens[order[g_start + b]];
         if (n > max_len) {
             max_len = n;
         }
     }
-    if (max_len == 0) {
-        max_len = 1; /* never hand ORT a zero-width tensor */
+    return max_len;
+}
+
+static cberg_status run_group(onnx_impl *impl, const int64_t *tokbuf, const int *seq_lens, const int *order, size_t g_start, size_t g_count, float *out) {
+    int max_len = group_max_len(seq_lens, order, g_start, g_count);
+
+    onnx_batch batch = {0};
+    cberg_status st = onnx_batch_alloc(&batch, g_count, max_len, impl->dim);
+    if (st != CBERG_OK) {
+        onnx_batch_free(&batch);
+        return st;
     }
 
-    size_t flat = g_count * (size_t)max_len;
-    int64_t *ids = calloc(flat, sizeof(int64_t));
-    int64_t *mask = calloc(flat, sizeof(int64_t));
-    int64_t *types = calloc(flat, sizeof(int64_t));
-    float *pooled = malloc(g_count * impl->dim * sizeof(float));
-    int *glens = malloc(g_count * sizeof(int));
-    if (ids == NULL || mask == NULL || types == NULL || pooled == NULL || glens == NULL) {
-        free(ids);
-        free(mask);
-        free(types);
-        free(pooled);
-        free(glens);
-        return CBERG_ERR_OUT_OF_MEMORY;
-    }
-
+    /* Copy each sequence's tokens into its padded row and mark them real. */
     for (size_t b = 0; b < g_count; b++) {
         int idx = order[g_start + b];
-        int n = seq_lens[idx];
-        glens[b] = n;
         const int64_t *src = tokbuf + (size_t)idx * MAX_SEQ;
-        for (int s = 0; s < n; s++) {
-            size_t off = b * (size_t)max_len + (size_t)s;
-            ids[off] = src[s];
-            mask[off] = 1; /* token_type stays 0 from calloc */
+        batch.lens[b] = seq_lens[idx];
+        for (int t = 0; t < seq_lens[idx]; t++) {
+            size_t off = b * (size_t)max_len + (size_t)t;
+            batch.ids[off] = src[t];
+            batch.mask[off] = 1;
         }
     }
 
-    cberg_status st = run_inference(impl, ids, mask, types, g_count, max_len, glens, pooled);
-    if (st == CBERG_OK) {
-        for (size_t b = 0; b < g_count; b++) {
-            memcpy(out + (size_t)order[g_start + b] * impl->dim, pooled + b * impl->dim, impl->dim * sizeof(float));
-        }
+    st = run_inference(impl, batch.ids, batch.mask, batch.types, g_count, max_len, batch.lens, batch.pooled);
+    for (size_t b = 0; st == CBERG_OK && b < g_count; b++) {
+        memcpy(out + (size_t)order[g_start + b] * impl->dim, batch.pooled + b * impl->dim, impl->dim * sizeof(float));
     }
 
-    free(ids);
-    free(mask);
-    free(types);
-    free(pooled);
-    free(glens);
+    onnx_batch_free(&batch);
     return st;
 }
 
