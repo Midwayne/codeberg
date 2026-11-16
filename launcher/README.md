@@ -378,7 +378,8 @@ the launcher's own assets, for scripts), `--home DIR`, `--remove-system-onnx`.
 
 ```
 launcher/
-  cmd/codeberg/main.go       CLI dispatch + flags
+  cmd/codeberg/              CLI dispatch (main.go), shared flags (flags.go),
+                             one file per command, and the help text (usage.go)
   internal/paths/            repo + home directory discovery
   internal/registry/         ~/.codeberg/repos — remembers every indexed repo
   internal/config/           four-layer config resolution + template

@@ -6,18 +6,13 @@
 package run
 
 import (
-	"context"
 	"fmt"
 	"io"
-	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"runtime"
 	"strconv"
-	"sync"
 	"syscall"
 	"time"
 
@@ -59,90 +54,54 @@ func Run(c *config.Config, term *console.Terminal) error {
 	// root is where the binaries and agent live (a prebuilt dist or the source
 	// checkout's build tree); it is also the working directory for both children.
 	root, _ := c.ResolveRoot()
-	a := config.LocateArtifacts(root)
-	if _, err := os.Stat(a.DaemonBin); err != nil {
-		return fmt.Errorf("daemon binary missing (%s); run `codeberg build`", a.DaemonBin)
-	}
-	if _, err := os.Stat(a.WebScript); err != nil {
-		return fmt.Errorf("web UI server missing (%s); run `codeberg build`", a.WebScript)
-	}
-	node, err := c.NodeBinary()
+	artifacts := config.LocateArtifacts(root)
+
+	node, err := checkRunnable(c, artifacts)
 	if err != nil {
-		return fmt.Errorf("node not found on PATH (the agent needs Node >=22)")
-	}
-	if err := deps.CheckNode(node); err != nil {
 		return err
 	}
 
 	if err := os.MkdirAll(filepath.Dir(c.IndexPath), 0o755); err != nil {
 		return err
 	}
-	logPath := filepath.Join(c.Home, "logs", "daemon.log")
-	logFile, err := openLog(c.Home, "daemon.log")
-	if err != nil {
-		return err
-	}
-	defer logFile.Close()
-	searxLog, err := openLog(c.Home, "searxng.log")
-	if err != nil {
-		return err
-	}
-	defer searxLog.Close()
-	webLog, err := openLog(c.Home, "web.log")
-	if err != nil {
-		return err
-	}
-	defer webLog.Close()
 
-	search, err := searchControl(c, searxLog)
+	logs, err := openLogs(c.Home)
+	if err != nil {
+		return err
+	}
+	defer logs.Close()
+
+	search, err := searchControl(c, logs.searxng)
 	if err != nil {
 		return fmt.Errorf("starting web search control: %w", err)
 	}
 	defer search.Close()
 
-	// --- start the daemon -----------------------------------------------------
 	// Daemon + indexer output always goes to the log file. Verbose runs also
 	// mirror it to the terminal during startup, so developers can watch files
 	// being chunked and embedded without those logs interleaving with the web
 	// server once it starts.
-	progress := newStartupTee(logFile, term, c.Verbose)
-	daemon, err := startDaemon(a.DaemonBin, root, c, progress)
+	progress := newStartupTee(logs.daemon, term, c.Verbose)
+	daemon, err := startDaemon(artifacts.DaemonBin, root, c, progress)
 	if err != nil {
 		return err
 	}
 
-	// Single, idempotent teardown: stop the managed SearXNG (cancelling an
-	// in-flight install), then SIGTERM the daemon's process group, SIGKILL if it
-	// overstays. The daemon's signal handler stops the supervisor, which
-	// interrupts cberg-index.
-	stopped := make(chan struct{})
-	var stopOnce sync.Once
-	stop := func() {
-		stopOnce.Do(func() {
-			search.Close()
-			pgid := -daemon.Process.Pid
-			_ = syscall.Kill(pgid, syscall.SIGTERM)
-			select {
-			case <-stopped:
-			case <-time.After(5 * time.Second):
-				_ = syscall.Kill(pgid, syscall.SIGKILL)
-			}
-		})
-	}
-	go func() { _ = daemon.Wait(); close(stopped) }()
+	daemonExited := make(chan struct{})
+	go func() { _ = daemon.Wait(); close(daemonExited) }()
+
+	stop := stopper(daemon, search, daemonExited)
 	defer stop()
 
-	// --- wait for /health (indexing + embedding happen here) ------------------
-	deadline := healthDeadline(len(c.Roots))
-	stopStatus := announceStartup(term, c, logPath)
-	if err := waitHealthy(c.DaemonURL, stopped, deadline); err != nil {
-		stopStatus()
-		progress.stopLive()
-		fmt.Fprint(term, tailFile(logPath, 20))
+	// Indexing and embedding happen while we wait.
+	if err := awaitDaemon(c, term, progress, daemonExited); err != nil {
 		return err
 	}
-	stopStatus()
-	progress.stopLive()
+
+	// The browser UI shares this terminal's process group: SIGINT (Ctrl-C)
+	// reaches the child and exits it. SIGTERM means "shut down", so we stop
+	// the daemon and let the deferred teardown finish.
+	defer stopOnSIGTERM(stop)()
 
 	agentEnv := c.AgentEnv()
 	// Resource monitoring attributes this launcher's managed process tree only.
@@ -150,15 +109,71 @@ func Run(c *config.Config, term *console.Terminal) error {
 	agentEnv["CODEBERG_SEARCH_CONTROL_URL"] = search.URL
 	agentEnv["CODEBERG_SEARCH_CONTROL_TOKEN"] = search.Token
 
-	// --- run the front end in the foreground ---------------------------------
-	// The browser UI shares this terminal's process group: SIGINT (Ctrl-C)
-	// reaches the child and exits it. SIGTERM means
-	// "shut down", so we stop the daemon and let the deferred teardown finish.
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	defer signal.Stop(sigCh)
+	if c.Verbose {
+		fmt.Fprintln(term)
+	}
+	fmt.Fprint(term, readyMessage(fmt.Sprintf("http://127.0.0.1:%s", c.WebPort)))
+
+	// The server binds a moment after node starts, so wait for the port to
+	// accept connections before opening the browser — best effort.
+	go openBrowserWhenReady(c.WebPort)
+
+	front := exec.Command(node, artifacts.WebScript)
+	front.Dir = root
+	front.Env = mergeEnv(os.Environ(), agentEnv)
+	front.Stdin = os.Stdin
+	front.Stdout = io.MultiWriter(os.Stdout, logs.web)
+	front.Stderr = io.MultiWriter(os.Stderr, logs.web)
+	err = front.Run()
+
+	stop()
+	return frontEndResult(err)
+}
+
+// checkRunnable verifies the built components exist and returns the Node
+// binary that runs the agent.
+func checkRunnable(c *config.Config, artifacts config.Artifacts) (node string, err error) {
+	if _, err := os.Stat(artifacts.DaemonBin); err != nil {
+		return "", fmt.Errorf("daemon binary missing (%s); run `codeberg build`", artifacts.DaemonBin)
+	}
+
+	if _, err := os.Stat(artifacts.WebScript); err != nil {
+		return "", fmt.Errorf("web UI server missing (%s); run `codeberg build`", artifacts.WebScript)
+	}
+
+	node, err = c.NodeBinary()
+	if err != nil {
+		return "", fmt.Errorf("node not found on PATH (the agent needs Node >=22)")
+	}
+
+	return node, deps.CheckNode(node)
+}
+
+// awaitDaemon shows startup status until the daemon serves /health. On
+// failure it prints the end of the daemon log, where the cause usually is.
+func awaitDaemon(c *config.Config, term *console.Terminal, progress *startupTee, daemonExited <-chan struct{}) error {
+	logPath := filepath.Join(c.Home, "logs", "daemon.log")
+
+	stopStatus := announceStartup(term, c, logPath)
+	err := waitHealthy(c.DaemonURL, daemonExited, healthDeadline(len(c.Roots)))
+	stopStatus()
+	progress.stopLive()
+
+	if err != nil {
+		fmt.Fprint(term, tailFile(logPath, 20))
+	}
+	return err
+}
+
+// stopOnSIGTERM runs stop when the launcher receives SIGTERM. SIGINT is
+// consumed and left to the foreground child. The returned function ends the
+// subscription.
+func stopOnSIGTERM(stop func()) (cancel func()) {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+
 	go func() {
-		for s := range sigCh {
+		for s := range signals {
 			if s == syscall.SIGTERM {
 				stop()
 				return
@@ -166,215 +181,21 @@ func Run(c *config.Config, term *console.Terminal) error {
 		}
 	}()
 
-	url := fmt.Sprintf("http://127.0.0.1:%s", c.WebPort)
-	if c.Verbose {
-		fmt.Fprintln(term)
+	return func() { signal.Stop(signals) }
+}
+
+// frontEndResult maps the browser UI's exit to the launcher's: being ended by
+// a signal (Ctrl-C) is a normal exit; other failures are surfaced.
+func frontEndResult(err error) error {
+	if err == nil {
+		return nil
 	}
-	fmt.Fprint(term, readyMessage(url))
-	// The server binds a moment after node starts, so wait for the port to
-	// accept connections before opening the browser — best effort.
-	go openBrowserWhenReady(c.WebPort)
 
-	front := exec.Command(node, a.WebScript)
-	front.Dir = root
-	front.Env = mergeEnv(os.Environ(), agentEnv)
-	front.Stdin = os.Stdin
-	webOutput := io.MultiWriter(os.Stdout, webLog)
-	webErrors := io.MultiWriter(os.Stderr, webLog)
-	front.Stdout = webOutput
-	front.Stderr = webErrors
-	err = front.Run()
-
-	stop()
-	if err != nil {
-		// A non-zero exit from Ctrl-C is normal; surface other failures.
-		if ee, ok := err.(*exec.ExitError); ok {
-			if status, ok := ee.Sys().(syscall.WaitStatus); ok && status.Signaled() {
-				return nil
-			}
-		}
-		return fmt.Errorf("browser chat UI exited: %w", err)
-	}
-	return nil
-}
-
-// openLog keeps output from previous sessions so intermittent failures remain
-// available after a restart. Restrict new logs to the current user: subprocesses
-// may print request details or other private data.
-func openLog(home, name string) (*os.File, error) {
-	dir := filepath.Join(home, "logs")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return nil, err
-	}
-	return os.OpenFile(filepath.Join(dir, name), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
-}
-
-// openBrowserWhenReady polls the local web port until it accepts a connection
-// (or a short deadline passes), then opens the default browser at that URL. It
-// is best effort: any failure just leaves the user to open the URL themselves.
-func openBrowserWhenReady(port string) {
-	addr := net.JoinHostPort("127.0.0.1", port)
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		conn, err := net.DialTimeout("tcp", addr, 500*time.Millisecond)
-		if err == nil {
-			conn.Close()
-			openBrowser("http://" + addr)
-			return
-		}
-		time.Sleep(200 * time.Millisecond)
-	}
-}
-
-// openBrowser launches the platform's default handler for url, detached, and
-// ignores the result — codeberg keeps running whether or not a browser opens.
-func openBrowser(url string) {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "darwin":
-		cmd = exec.Command("open", url)
-	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
-	default: // linux, *bsd
-		cmd = exec.Command("xdg-open", url)
-	}
-	_ = cmd.Start()
-}
-
-func startDaemon(bin, root string, c *config.Config, out io.Writer) (*exec.Cmd, error) {
-	cmd := exec.Command(bin)
-	cmd.Dir = root
-	env := c.DaemonEnv()
-	env["CODEBERG_RESOURCE_ROOT_PID"] = strconv.Itoa(os.Getpid())
-	cmd.Env = mergeEnv(os.Environ(), env)
-	// Same writer for both streams: os/exec then serializes Write calls for us.
-	cmd.Stdout = out
-	cmd.Stderr = out
-	// Own process group so the terminal's Ctrl-C does not reach the daemon — we
-	// manage its lifecycle explicitly.
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("starting daemon: %w", err)
-	}
-	return cmd, nil
-}
-
-// startupTee records daemon/indexer output to the log unconditionally, and
-// mirrors it to the terminal only while "live" — i.e. during a verbose startup,
-// so developers see indexing/embedding progress before the browser UI starts.
-type startupTee struct {
-	mu   sync.Mutex
-	log  io.Writer
-	term io.Writer
-	live bool
-}
-
-func newStartupTee(logw, termw io.Writer, live bool) *startupTee {
-	return &startupTee{log: logw, term: termw, live: live}
-}
-
-func (t *startupTee) Write(p []byte) (int, error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.live {
-		_, _ = t.term.Write(p)
-	}
-	return t.log.Write(p)
-}
-
-func (t *startupTee) stopLive() {
-	t.mu.Lock()
-	t.live = false
-	t.mu.Unlock()
-}
-
-// waitHealthy polls GET <url>/health until it returns 2xx, the daemon exits, or
-// the deadline passes.
-func waitHealthy(daemonURL string, daemonStopped <-chan struct{}, deadline time.Duration) error {
-	ctx, cancel := context.WithTimeout(context.Background(), deadline)
-	defer cancel()
-	client := &http.Client{Timeout: 2 * time.Second}
-	url := daemonURL + "/health"
-
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-		if resp, err := client.Do(req); err == nil {
-			resp.Body.Close()
-			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-				return nil
-			}
-		}
-		// Progress is a status line, or the mirrored daemon log when verbose.
-		select {
-		case <-daemonStopped:
-			return fmt.Errorf("daemon exited before becoming healthy")
-		case <-ctx.Done():
-			return fmt.Errorf("daemon did not become healthy within %s "+
-				"(raise it with CODEBERG_HEALTH_TIMEOUT, e.g. 30m, for a very large first index)", deadline)
-		case <-ticker.C:
+	if exit, ok := err.(*exec.ExitError); ok {
+		if status, ok := exit.Sys().(syscall.WaitStatus); ok && status.Signaled() {
+			return nil
 		}
 	}
-}
 
-// mergeEnv overlays overrides onto base, replacing (not duplicating) keys.
-func mergeEnv(base []string, overrides map[string]string) []string {
-	out := make([]string, 0, len(base)+len(overrides))
-	for _, kv := range base {
-		key := kv
-		if i := indexByte(kv, '='); i >= 0 {
-			key = kv[:i]
-		}
-		if _, ok := overrides[key]; ok {
-			continue
-		}
-		out = append(out, kv)
-	}
-	for k, v := range overrides {
-		out = append(out, k+"="+v)
-	}
-	return out
-}
-
-func indexByte(s string, b byte) int {
-	for i := 0; i < len(s); i++ {
-		if s[i] == b {
-			return i
-		}
-	}
-	return -1
-}
-
-func tailFile(path string, lines int) string {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return ""
-	}
-	all := splitLines(string(data))
-	if len(all) > lines {
-		all = all[len(all)-lines:]
-	}
-	out := "--- daemon.log (tail) ---\n"
-	for _, l := range all {
-		out += l + "\n"
-	}
-	return out
-}
-
-func splitLines(s string) []string {
-	var out []string
-	cur := ""
-	for _, r := range s {
-		if r == '\n' {
-			out = append(out, cur)
-			cur = ""
-			continue
-		}
-		cur += string(r)
-	}
-	if cur != "" {
-		out = append(out, cur)
-	}
-	return out
+	return fmt.Errorf("browser chat UI exited: %w", err)
 }
