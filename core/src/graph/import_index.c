@@ -94,27 +94,18 @@ static void map_path_without_ext(pkg_index *idx, const char *rel) {
     map_put(idx, dotted, rel);
 }
 
-static void scan_go_mod(pkg_index *idx, const char *root) {
-    char path[4096];
-    snprintf(path, sizeof path, "%s/go.mod", root);
-    size_t len = 0;
-    char *body = cberg_read_file(path, &len);
-    if (body == NULL) {
-        return;
-    }
-    /* Skip leading blank lines and // comments before `module`. */
-    const char *p = body;
-    while (*p) {
+/* Skips whitespace and // or block comments before go.mod's first directive. */
+static const char *skip_go_mod_preamble(const char *p) {
+    for (;;) {
         while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') {
             p++;
         }
+
         if (p[0] == '/' && p[1] == '/') {
             while (*p && *p != '\n') {
                 p++;
             }
-            continue;
-        }
-        if (p[0] == '/' && p[1] == '*') {
+        } else if (p[0] == '/' && p[1] == '*') {
             p += 2;
             while (p[0] && !(p[0] == '*' && p[1] == '/')) {
                 p++;
@@ -122,10 +113,25 @@ static void scan_go_mod(pkg_index *idx, const char *root) {
             if (p[0]) {
                 p += 2;
             }
-            continue;
+        } else {
+            return p;
         }
-        break;
     }
+}
+
+/* Reads the module path from root's go.mod into idx->go_module; leaves it
+ * empty when there is no go.mod or it does not start with `module`. */
+static void read_go_module(pkg_index *idx, const char *root) {
+    char path[4096];
+    snprintf(path, sizeof path, "%s/go.mod", root);
+
+    size_t len = 0;
+    char *body = cberg_read_file(path, &len);
+    if (body == NULL) {
+        return;
+    }
+
+    const char *p = skip_go_mod_preamble(body);
     if (strncmp(p, "module ", 7) == 0) {
         p += 7;
         size_t i = 0;
@@ -135,9 +141,16 @@ static void scan_go_mod(pkg_index *idx, const char *root) {
         idx->go_module[i] = '\0';
     }
     free(body);
+}
+
+/* Maps each Go package import path ("<module>/<dir>", or the module itself
+ * for the root package) to a .go file in that directory. */
+static void scan_go_mod(pkg_index *idx, const char *root) {
+    read_go_module(idx, root);
     if (idx->go_module[0] == '\0') {
         return;
     }
+
     size_t mlen = strlen(idx->go_module);
     for (size_t i = 0; i < idx->file_len; i++) {
         const char *rel = idx->file_paths[i];
@@ -145,19 +158,18 @@ static void scan_go_mod(pkg_index *idx, const char *root) {
         if (rlen < 3 || strcmp(rel + rlen - 3, ".go") != 0) {
             continue;
         }
-        char key[1024];
+
         const char *slash = strrchr(rel, '/');
-        if (slash != NULL) {
-            size_t dlen = (size_t)(slash - rel);
-            if (mlen + 1 + dlen + 1 < sizeof key) {
-                memcpy(key, idx->go_module, mlen);
-                key[mlen] = '/';
-                memcpy(key + mlen + 1, rel, dlen);
-                key[mlen + 1 + dlen] = '\0';
-                map_put(idx, key, rel);
-            }
-        } else {
+        if (slash == NULL) {
             map_put(idx, idx->go_module, rel);
+            continue;
+        }
+
+        char key[1024];
+        size_t dlen = (size_t)(slash - rel);
+        if (mlen + 1 + dlen + 1 < sizeof key) {
+            snprintf(key, sizeof key, "%s/%.*s", idx->go_module, (int)dlen, rel);
+            map_put(idx, key, rel);
         }
     }
 }
