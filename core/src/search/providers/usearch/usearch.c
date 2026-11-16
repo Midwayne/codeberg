@@ -230,18 +230,10 @@ clear_fail:
     return CBERG_ERR_INTERNAL;
 }
 
-static cberg_status usearch_open(const char *path, size_t dim, const cberg_index_config *config, cberg_index_backend **out_backend) {
-    if (path == NULL || dim == 0 || out_backend == NULL) {
-        return CBERG_ERR_INVALID_ARGUMENT;
-    }
-    *out_backend = NULL;
-
-    cberg_index_config defaults;
-    cberg_index_config_default(&defaults);
-    const cberg_index_config *cfg = config != NULL ? config : &defaults;
-
+static usearch_init_options_t init_options(const cberg_index_config *cfg, size_t dim) {
     usearch_init_options_t opts;
     memset(&opts, 0, sizeof(opts));
+
     opts.metric_kind = usearch_metric_cos_k;
     opts.quantization = quant_scalar_kind(cfg->quantization);
     opts.dimensions = dim;
@@ -249,54 +241,65 @@ static cberg_status usearch_open(const char *path, size_t dim, const cberg_index
     opts.expansion_add = cfg->expansion_add;
     opts.expansion_search = cfg->expansion_search;
     opts.multi = false;
+    return opts;
+}
 
+/* Loads the index at path when it exists, else creates an empty one. An
+ * existing file keeps its saved scalar kind; the config only applies to newly
+ * created indexes (migration = rebuild). opts->quantization reports the kind
+ * in use. */
+static cberg_status open_index(const char *path, bool loading, usearch_init_options_t *opts, usearch_index_t *out_idx) {
     usearch_error_t err = NULL;
-    int loading = file_exists(path);
     if (loading) {
-        /* An existing file keeps its saved scalar kind; the config only
-         * applies to newly created indexes (migration = rebuild). */
         usearch_init_options_t meta;
         memset(&meta, 0, sizeof(meta));
         usearch_metadata(path, &meta, &err);
         if (err != NULL) {
             return CBERG_ERR_CORRUPT;
         }
-        opts.quantization = meta.quantization;
+        opts->quantization = meta.quantization;
     }
 
-    usearch_index_t idx = usearch_init(&opts, &err);
+    usearch_index_t idx = usearch_init(opts, &err);
     if (err != NULL || idx == NULL) {
         return CBERG_ERR_INTERNAL;
     }
 
+    cberg_status st = CBERG_OK;
     if (loading) {
         usearch_load(idx, path, &err);
-        if (err != NULL) {
-            usearch_free(idx, &err);
-            return CBERG_ERR_CORRUPT;
-        }
+        st = err != NULL ? CBERG_ERR_CORRUPT : CBERG_OK;
     } else {
         usearch_reserve(idx, INITIAL_CAPACITY, &err);
-        if (err != NULL) {
-            usearch_free(idx, &err);
-            return CBERG_ERR_INTERNAL;
-        }
+        st = err != NULL ? CBERG_ERR_INTERNAL : CBERG_OK;
     }
 
-    if (opts.quantization == usearch_scalar_i8_k && !install_i8_cos_metric(idx, dim)) {
+    if (st == CBERG_OK && opts->quantization == usearch_scalar_i8_k && !install_i8_cos_metric(idx, opts->dimensions)) {
+        st = CBERG_ERR_INTERNAL;
+    }
+
+    if (st != CBERG_OK) {
         usearch_free(idx, &err);
-        return CBERG_ERR_INTERNAL;
+        return st;
     }
 
+    *out_idx = idx;
+    return CBERG_OK;
+}
+
+/* Wraps an open index as a backend; takes ownership of idx either way. */
+static cberg_status wrap_backend(usearch_index_t idx, const char *path, bool loading, const usearch_init_options_t *opts, cberg_index_backend **out_backend) {
     usearch_backend *b = calloc(1, sizeof(*b));
     if (b == NULL) {
+        usearch_error_t err = NULL;
         usearch_free(idx, &err);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
+
     b->idx = idx;
-    b->dim = dim;
-    b->expansion_search = cfg->expansion_search;
-    b->quantization = opts.quantization;
+    b->dim = opts->dimensions;
+    b->expansion_search = opts->expansion_search;
+    b->quantization = opts->quantization;
     b->path = cberg_strdup(path);
     b->dirty = !loading;
     if (b->path == NULL) {
@@ -310,8 +313,31 @@ static cberg_status usearch_open(const char *path, size_t dim, const cberg_index
         usearch_backend_destroy(b);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
+
     *out_backend = backend;
     return CBERG_OK;
+}
+
+static cberg_status usearch_open(const char *path, size_t dim, const cberg_index_config *config, cberg_index_backend **out_backend) {
+    if (path == NULL || dim == 0 || out_backend == NULL) {
+        return CBERG_ERR_INVALID_ARGUMENT;
+    }
+    *out_backend = NULL;
+
+    cberg_index_config defaults;
+    cberg_index_config_default(&defaults);
+    const cberg_index_config *cfg = config != NULL ? config : &defaults;
+
+    usearch_init_options_t opts = init_options(cfg, dim);
+    bool loading = file_exists(path);
+
+    usearch_index_t idx = NULL;
+    cberg_status st = open_index(path, loading, &opts, &idx);
+    if (st != CBERG_OK) {
+        return st;
+    }
+
+    return wrap_backend(idx, path, loading, &opts, out_backend);
 }
 
 static cberg_status usearch_wipe(const char *path, size_t dim, const cberg_index_config *config) {
