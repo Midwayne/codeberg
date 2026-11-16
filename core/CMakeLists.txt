@@ -99,6 +99,8 @@ set(CBERG_SOURCES
   src/graph/graph_persist.c
   src/graph/graph_workspace.c
   src/graph/graph_extract.c
+  src/graph/graph_fragment.c
+  src/graph/graph_refs.c
   src/graph/scope_syntax.c
   src/graph/scope_imports.c
   src/graph/scope_values.c

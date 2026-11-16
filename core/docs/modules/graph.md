@@ -15,7 +15,9 @@ fragments incrementally and persists a `.graph` sidecar.
 | `graph_query.c` | Edges, node search, trace, hubs |
 | `graph_persist.c` | `.graph` save/load |
 | `graph_workspace.c` | Multi-repository view: copies and provenance accessors |
-| `graph_extract.c` | Per-language tree-sitter reference queries → fragment |
+| `graph_extract.c`, `graph_extract.h` | Per-language reference queries and the extraction entry point |
+| `graph_fragment.c` | Fragment definitions from symbol chunks and span-nesting CONTAINS edges |
+| `graph_refs.c` | Reference walk: query captures → deduplicated fragment references |
 | `scope_*.c`, `scope_internal.h` | Go/TS/JS bindings, C/Python lexical scope, receiver types, import aliases |
 | `resolve_relative.c` | Importer-relative paths, entrypoints, JS-to-TS source specifiers |
 | `workspace_graph.h` | Private query-view cloning, original repo/ID/path provenance, revision counters |
@@ -131,7 +133,7 @@ verify, rather than a complete compiler-derived call graph.
 
 ---
 
-## Extraction (`graph_extract.c`)
+## Extraction (`graph_extract.c`, `graph_fragment.c`, `graph_refs.c`)
 
 `cberg_chunker_analyze` runs one parse and returns chunks + an optional
 `cberg_graph_fragment`. Languages without tree-sitter (markdown, YAML/TOML/JSON,

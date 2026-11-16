@@ -856,7 +856,7 @@ To trace the implementation yourself, follow this order:
 2. Indexer orchestration: `cberg_repo_bootstrap` and `bootstrap_warm` in [bootstrap.c](../core/cmd/cberg-index/bootstrap.c); `repo_parse_file`, `repo_sync_chunks`, and `repo_apply_path_changes` in [repo_sync.c](../core/cmd/cberg-index/repo_sync.c); `repo_sync_vectors` in [repo_vectors.c](../core/cmd/cberg-index/repo_vectors.c); `repo_step` in [watch_loop.c](../core/cmd/cberg-index/watch_loop.c).
 3. [Chunker](../core/src/chunk/chunker.c): language queries and combined analysis; Markdown rules in [chunk_markdown.c](../core/src/chunk/chunk_markdown.c), config rules in [chunk_config.c](../core/src/chunk/chunk_config.c).
 4. [Chunk table](../core/src/chunk/chunk_table.c): IDs, hash comparisons, deltas, fingerprints, persistence.
-5. [Graph extractor](../core/src/graph/graph_extract.c): definition reuse, nesting, reference queries, deduplication.
+5. Graph extractor: reference queries in [graph_extract.c](../core/src/graph/graph_extract.c), definition reuse and nesting in [graph_fragment.c](../core/src/graph/graph_fragment.c), the reference walk and deduplication in [graph_refs.c](../core/src/graph/graph_refs.c).
 6. Graph store: records and indexes in [graph_store.c](../core/src/graph/graph_store.c), file replacement in [graph_apply.c](../core/src/graph/graph_apply.c), query-time resolution and confidence in [graph_resolve.c](../core/src/graph/graph_resolve.c), traversal and hubs in [graph_query.c](../core/src/graph/graph_query.c).
 7. [Import resolver](../core/src/graph/resolve_pkg.c): safe local-path/module heuristics.
 8. [Embedding lifecycle](../core/cmd/cberg-index/embedding.c) and [facade](../core/src/embed/embed.c): providers, locking, idle unload.
