@@ -71,6 +71,8 @@ make test TEST=test_embed
   ownership of returned memory; opaque handles have matching `*_close` / `*_free`
   (all NULL-safe). Use exhaustive `switch` handling for discriminated unions and
   enums (`default:` with a `never` check).
+  Production functions stay within 50 lines (`make core-lint`); extract
+  named helpers rather than packing statements onto one line.
 - **Imports:** keep `#include` at the top of each translation unit.
 - **Index root:** never hardcode a repository path. Use project catalog roots or an explicit argument to `cberg_watcher_open`.
 - **Secrets:** do not commit API keys, PATs, or model credentials.
