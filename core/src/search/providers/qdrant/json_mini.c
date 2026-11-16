@@ -268,66 +268,77 @@ static int json_object_read_key(const char *obj, const char *key, const char **o
     return 0;
 }
 
+/* Parses a hit's id and score values (located by json_object_read_key). */
+static int read_qdrant_hit(const char *id_val, const char *score_val, uint64_t *out_id, float *out_score) {
+    double score = 0.0;
+    if (cberg_json_read_uint64(id_val, out_id) != 0 || cberg_json_read_double(score_val, &score) != 0) {
+        return -1;
+    }
+    *out_score = (float)score;
+    return 0;
+}
+
+/* Moves past one array element and its separator. Returns NULL on malformed
+ * input; *out_end is set when the closing ']' follows. */
+static const char *next_array_element(const char *element, int *out_end) {
+    const char *p = json_skip_value(element);
+    p = p != NULL ? json_skip_ws(p) : NULL;
+    if (p == NULL) {
+        return NULL;
+    }
+
+    *out_end = *p == ']';
+    if (*out_end) {
+        return p;
+    }
+    return *p == ',' ? p + 1 : NULL;
+}
+
 int cberg_json_parse_qdrant_hits(const char *body, size_t k, uint64_t *out_ids, float *out_scores, size_t *out_found) {
     if (body == NULL || out_ids == NULL || out_scores == NULL || out_found == NULL) {
         return -1;
     }
     *out_found = 0;
-    const char *result = json_object_find(body, "result");
-    if (result == NULL) {
+
+    const char *p = json_object_find(body, "result");
+    p = p != NULL ? json_skip_ws(p) : NULL;
+    if (p == NULL || *p != '[') {
         return -1;
     }
-    result = json_skip_ws(result);
-    if (result == NULL || *result != '[') {
-        return -1;
-    }
-    result++;
+    p++;
+
     size_t found = 0;
-    for (;;) {
-        result = json_skip_ws(result);
-        if (result == NULL) {
+    for (int end = 0; !end;) {
+        p = json_skip_ws(p);
+        if (p == NULL) {
             return -1;
         }
-        if (*result == ']') {
+        if (*p == ']') {
             break;
         }
-        if (*result != '{') {
+        if (*p != '{') {
             return -1;
         }
+
+        /* Every hit needs both keys; only the first k are parsed and kept. */
         const char *id_val = NULL;
         const char *score_val = NULL;
-        if (json_object_read_key(result, "id", &id_val) != 0) {
-            return -1;
-        }
-        if (json_object_read_key(result, "score", &score_val) != 0) {
+        if (json_object_read_key(p, "id", &id_val) != 0 || json_object_read_key(p, "score", &score_val) != 0) {
             return -1;
         }
         if (found < k) {
-            uint64_t id = 0;
-            double score = 0.0;
-            if (cberg_json_read_uint64(id_val, &id) != 0 || cberg_json_read_double(score_val, &score) != 0) {
+            if (read_qdrant_hit(id_val, score_val, &out_ids[found], &out_scores[found]) != 0) {
                 return -1;
             }
-            out_ids[found] = id;
-            out_scores[found] = (float)score;
             found++;
         }
-        result = json_skip_value(result);
-        if (result == NULL) {
+
+        p = next_array_element(p, &end);
+        if (p == NULL) {
             return -1;
         }
-        result = json_skip_ws(result);
-        if (result == NULL) {
-            return -1;
-        }
-        if (*result == ']') {
-            break;
-        }
-        if (*result != ',') {
-            return -1;
-        }
-        result++;
     }
+
     *out_found = found;
     return 0;
 }
