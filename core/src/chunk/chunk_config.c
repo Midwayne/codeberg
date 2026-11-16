@@ -291,6 +291,62 @@ static size_t json_skip_ws(const char *s, size_t len, size_t i, uint32_t *line, 
     return i;
 }
 
+/* Returns the index just past one member value starting at i: at the
+ * top-level ',' that ends it, at the root '}', or after its closing bracket. */
+static size_t json_skip_value(const char *s, size_t len, size_t i, uint32_t *line) {
+    int depth = 0;
+
+    while (i < len) {
+        char c = s[i];
+        if (c == '"') {
+            i = json_skip_string(s, len, i, line);
+            continue;
+        }
+        if (c == '\n') {
+            (*line)++;
+        }
+
+        if (c == '{' || c == '[') {
+            depth++;
+        } else if (c == '}' || c == ']') {
+            if (depth == 0) {
+                return i; /* root '}' closes the object */
+            }
+            depth--;
+            if (depth == 0) {
+                return i + 1;
+            }
+        } else if (c == ',' && depth == 0) {
+            return i;
+        }
+        i++;
+    }
+    return i;
+}
+
+/* Moves end back over trailing whitespace, but not before start. */
+static size_t json_trim_end(const char *s, size_t start, size_t end) {
+    while (end > start && (s[end - 1] == ' ' || s[end - 1] == '\t' || s[end - 1] == '\n' || s[end - 1] == '\r')) {
+        end--;
+    }
+    return end;
+}
+
+/* Finishes at the root object's end (or EOF): anything non-blank after the
+ * closing '}' becomes one untitled chunk. */
+static cberg_status json_close_object(cfg_ctx *ctx, size_t len, size_t i, uint32_t line) {
+    const char *s = ctx->src;
+    if (i < len && s[i] == '}') {
+        i++;
+    }
+
+    i = json_skip_ws(s, len, i, &line, 0);
+    if (i < len && !cfg_span_blank(s, i, len)) {
+        return cfg_emit(ctx, NULL, i, len, line);
+    }
+    return CBERG_OK;
+}
+
 /*
  * Chunks a root JSON object into one chunk per top-level key (span = key
  * through its value, bracket- and string-aware). Sets *out_handled = 0 when
@@ -300,9 +356,8 @@ static size_t json_skip_ws(const char *s, size_t len, size_t i, uint32_t *line, 
  */
 static cberg_status json_object_chunks(cfg_ctx *ctx, size_t len, int *out_handled) {
     const char *s = ctx->src;
-    size_t i = 0;
     uint32_t line = 1;
-    i = json_skip_ws(s, len, i, &line, 0);
+    size_t i = json_skip_ws(s, len, 0, &line, 0);
     if (i >= len || s[i] != '{') {
         *out_handled = 0;
         return CBERG_OK;
@@ -314,14 +369,7 @@ static cberg_status json_object_chunks(cfg_ctx *ctx, size_t len, int *out_handle
     for (;;) {
         i = json_skip_ws(s, len, i, &line, 1);
         if (i >= len || s[i] == '}') {
-            if (i < len && s[i] == '}') {
-                i++;
-            }
-            i = json_skip_ws(s, len, i, &line, 0);
-            if (i < len && !cfg_span_blank(s, i, len)) {
-                return cfg_emit(ctx, NULL, i, len, line);
-            }
-            return CBERG_OK;
+            return json_close_object(ctx, len, i, line);
         }
         if (s[i] != '"') {
             *out_handled = 0;
@@ -334,47 +382,15 @@ static cberg_status json_object_chunks(cfg_ctx *ctx, size_t len, int *out_handle
         size_t key_end = json_skip_string(s, len, i, &line);
         size_t txt_len = key_end > txt_start ? key_end - 1 - txt_start : 0;
         cfg_copy_sym(sym, s, txt_start, txt_len);
-        i = key_end;
 
-        i = json_skip_ws(s, len, i, &line, 0);
+        i = json_skip_ws(s, len, key_end, &line, 0);
         if (i >= len || s[i] != ':') {
             *out_handled = 0;
             return CBERG_OK;
         }
-        i++;
 
-        int depth = 0;
-        while (i < len) {
-            char c = s[i];
-            if (c == '"') {
-                i = json_skip_string(s, len, i, &line);
-                continue;
-            }
-            if (c == '\n') {
-                line++;
-            }
-            if (c == '{' || c == '[') {
-                depth++;
-            } else if (c == '}' || c == ']') {
-                if (depth == 0) {
-                    break; /* root '}' closes the object */
-                }
-                depth--;
-                if (depth == 0) {
-                    i++;
-                    break;
-                }
-            } else if (c == ',' && depth == 0) {
-                break;
-            }
-            i++;
-        }
-
-        size_t vend = i;
-        while (vend > key_byte && (s[vend - 1] == ' ' || s[vend - 1] == '\t' || s[vend - 1] == '\n' || s[vend - 1] == '\r')) {
-            vend--;
-        }
-        cberg_status st = cfg_emit(ctx, sym, key_byte, vend, key_line);
+        i = json_skip_value(s, len, i + 1, &line);
+        cberg_status st = cfg_emit(ctx, sym, key_byte, json_trim_end(s, key_byte, i), key_line);
         if (st != CBERG_OK) {
             return st;
         }
