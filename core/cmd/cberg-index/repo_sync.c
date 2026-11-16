@@ -87,6 +87,35 @@ static void warn_skipped(cberg_repo *r, const char *rel, const char *reason) {
  *
  * Only running out of memory is an error. A file that cannot be read or
  * parsed is skipped with a warning and reported like an empty one. */
+/* Reads a source file into *out_data. Oversized, vanished, or unreadable
+ * files leave *out_data NULL and are skipped (with a warning unless the file
+ * simply vanished); only running out of memory is an error. */
+static cberg_status read_source(cberg_repo *r, const char *abs, const char *rel, char **out_data, size_t *out_len) {
+    *out_data = NULL;
+
+    /* Generated parsers, bundles and data dumps dwarf hand-written code and
+     * would dominate both indexing time and search results. */
+    struct stat info;
+    uint64_t limit = r->eng->max_file_bytes;
+    if (limit > 0 && stat(abs, &info) == 0 && (uint64_t)info.st_size > limit) {
+        warn_skipped(r, rel, "larger than CBERG_MAX_FILE_BYTES");
+        return CBERG_OK;
+    }
+
+    errno = 0;
+    *out_data = cberg_read_file(abs, out_len);
+    if (*out_data != NULL) {
+        return CBERG_OK;
+    }
+    if (errno == ENOMEM) {
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+    if (errno != ENOENT) {
+        warn_skipped(r, rel, errno != 0 ? strerror(errno) : "unreadable");
+    }
+    return CBERG_OK;
+}
+
 cberg_status repo_parse_file(cberg_repo *r, const char *abs, const char *rel, cberg_chunk_list **out, cberg_graph_fragment **out_frag) {
     *out = NULL;
     if (out_frag != NULL) {
@@ -99,30 +128,15 @@ cberg_status repo_parse_file(cberg_repo *r, const char *abs, const char *rel, cb
         return CBERG_OK;
     }
 
-    /* Generated parsers, bundles and data dumps dwarf hand-written code and
-     * would dominate both indexing time and search results. */
-    struct stat info;
-    uint64_t limit = r->eng->max_file_bytes;
-    if (limit > 0 && stat(abs, &info) == 0 && (uint64_t)info.st_size > limit) {
-        warn_skipped(r, rel, "larger than CBERG_MAX_FILE_BYTES");
-        return CBERG_OK;
-    }
-
+    char *data = NULL;
     size_t len = 0;
-    errno = 0;
-    char *data = cberg_read_file(abs, &len);
+    cberg_status st = read_source(r, abs, rel, &data, &len);
     if (data == NULL) {
-        if (errno == ENOMEM) {
-            return CBERG_ERR_OUT_OF_MEMORY;
-        }
-        if (errno != ENOENT) {
-            warn_skipped(r, rel, errno != 0 ? strerror(errno) : "unreadable");
-        }
-        return CBERG_OK;
+        return st;
     }
 
     cberg_chunk_list *list = NULL;
-    cberg_status st = cberg_chunker_analyze(r->eng->chunker, lang, rel, data, len, &list, r->graph != NULL ? out_frag : NULL);
+    st = cberg_chunker_analyze(r->eng->chunker, lang, rel, data, len, &list, r->graph != NULL ? out_frag : NULL);
     if (st == CBERG_OK && list != NULL) {
         st = cberg_chunk_list_hash_bodies(list, data, len);
     }
@@ -133,18 +147,17 @@ cberg_status repo_parse_file(cberg_repo *r, const char *abs, const char *rel, cb
         return CBERG_OK;
     }
 
+    /* A file that fails to parse is skipped like an empty one. */
     if (out_frag != NULL) {
         cberg_graph_fragment_free(*out_frag);
         *out_frag = NULL;
     }
     cberg_chunk_list_free(list);
-
-    if (st == CBERG_ERR_OUT_OF_MEMORY) {
-        return st;
+    if (st != CBERG_ERR_OUT_OF_MEMORY) {
+        warn_skipped(r, rel, cberg_status_str(st));
+        st = CBERG_OK;
     }
-
-    warn_skipped(r, rel, cberg_status_str(st));
-    return CBERG_OK;
+    return st;
 }
 
 /* Re-chunk each path into the batch. Paths that no longer yield chunks are
@@ -200,25 +213,17 @@ static void note_import_changes(cberg_repo *r, char **rechunk, size_t rechunk_n,
  * fragment apply) and before repo_sync_vectors, so a vector failure cannot
  * leave stale graph nodes for paths already removed from the chunk table, and
  * a failed parse or chunk sync cannot drop graph state ahead of the table. */
-cberg_status repo_apply_path_changes(cberg_repo *r, char **rechunk, size_t rechunk_n, char **deleted, size_t deleted_n) {
-    note_import_changes(r, rechunk, rechunk_n, deleted, deleted_n);
-
-    /* `replaced` paths lose their old chunks; `graph_drop` paths also lose
-     * their graph nodes. Both borrow the caller's strings. */
-    size_t changed_n = rechunk_n + deleted_n;
-    char **replaced = calloc(changed_n + 1, sizeof(*replaced));
-    char **graph_drop = calloc(changed_n + 1, sizeof(*graph_drop));
-    size_t replaced_n = 0;
-    size_t graph_drop_n = 0;
-
-    chunk_batch batch;
-    chunk_batch_init(&batch);
-
-    cberg_status st = CBERG_ERR_OUT_OF_MEMORY;
-    if (replaced == NULL || graph_drop == NULL) {
-        goto done;
+/* Fills batch with every unchanged chunk plus the re-chunked files, and
+ * lists in graph_drop the paths that lose their graph nodes: deleted files
+ * and files that no longer yield chunks. graph_drop borrows the caller's
+ * strings and needs room for rechunk_n + deleted_n entries. */
+static cberg_status build_changed_batch(cberg_repo *r, chunk_batch *batch, char **rechunk, size_t rechunk_n, char **deleted, size_t deleted_n, char **graph_drop, size_t *graph_drop_n) {
+    char **replaced = calloc(rechunk_n + deleted_n + 1, sizeof(*replaced));
+    if (replaced == NULL) {
+        return CBERG_ERR_OUT_OF_MEMORY;
     }
 
+    size_t replaced_n = 0;
     for (size_t i = 0; i < deleted_n; i++) {
         replaced[replaced_n++] = deleted[i];
     }
@@ -226,32 +231,43 @@ cberg_status repo_apply_path_changes(cberg_repo *r, char **rechunk, size_t rechu
         replaced[replaced_n++] = rechunk[i];
     }
 
-    st = chunk_batch_add_table_except(r, &batch, replaced, replaced_n);
-    if (st != CBERG_OK) {
-        goto done;
-    }
-
-    st = rechunk_paths(r, &batch, rechunk, rechunk_n, graph_drop, &graph_drop_n);
-    if (st != CBERG_OK) {
-        goto done;
-    }
-    for (size_t i = 0; i < deleted_n; i++) {
-        graph_drop[graph_drop_n++] = deleted[i];
-    }
-
-    cberg_changes ch = {0};
-    st = repo_sync_chunks(r, &batch, &ch);
-    if (st != CBERG_OK) {
-        goto done;
-    }
-    drop_graph_files(r, graph_drop, graph_drop_n);
-
-    chunk_batch_reset(&batch);
-    st = repo_sync_vectors(r, &ch);
-
-done:
-    chunk_batch_reset(&batch);
+    cberg_status st = chunk_batch_add_table_except(r, batch, replaced, replaced_n);
     free(replaced);
+    if (st == CBERG_OK) {
+        st = rechunk_paths(r, batch, rechunk, rechunk_n, graph_drop, graph_drop_n);
+    }
+
+    for (size_t i = 0; st == CBERG_OK && i < deleted_n; i++) {
+        graph_drop[(*graph_drop_n)++] = deleted[i];
+    }
+    return st;
+}
+
+cberg_status repo_apply_path_changes(cberg_repo *r, char **rechunk, size_t rechunk_n, char **deleted, size_t deleted_n) {
+    note_import_changes(r, rechunk, rechunk_n, deleted, deleted_n);
+
+    char **graph_drop = calloc(rechunk_n + deleted_n + 1, sizeof(*graph_drop));
+    if (graph_drop == NULL) {
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+
+    chunk_batch batch;
+    chunk_batch_init(&batch);
+
+    size_t graph_drop_n = 0;
+    cberg_changes ch = {0};
+    cberg_status st = build_changed_batch(r, &batch, rechunk, rechunk_n, deleted, deleted_n, graph_drop, &graph_drop_n);
+    if (st == CBERG_OK) {
+        st = repo_sync_chunks(r, &batch, &ch);
+    }
+
+    if (st == CBERG_OK) {
+        drop_graph_files(r, graph_drop, graph_drop_n);
+        chunk_batch_reset(&batch);
+        st = repo_sync_vectors(r, &ch);
+    }
+
+    chunk_batch_reset(&batch);
     free(graph_drop);
     return st;
 }
