@@ -27,6 +27,7 @@ paths — use project catalog roots, explicit path arguments, or `cberg_config_*
 | `make daemon-test` | `go test ./...` in `daemon/` |
 | `make daemon-lint` | Daemon file/function size limits and Go formatting |
 | `make daemon-check` | Lint, vet, test, and build the Go daemon |
+| `make launcher-check` | Size-lint, vet, and test the Go launcher (`codeberg` CLI) |
 | `make build-agent` | `npm install` + build in `agent/` |
 | `make agent-test` | Vitest in `agent/` |
 | `make agent-check` | Lint, typecheck, test, and build the agent and web UI (install both packages first) |
@@ -59,10 +60,10 @@ layer for local verification.
   line or removing useful whitespace to satisfy the limits; extract focused
   helpers and split files by responsibility instead. Readability-only changes
   must preserve functionality.
-- **Go daemon:** production files must be at most 199 lines and functions at
-  most 50 lines, including comments and blank lines (`make daemon-lint`). Methods
-  and anonymous functions count too; test and generated files are excluded from
-  size checks. Use `gofmt`, space logical steps, and extract focused helpers.
+- **Go daemon and launcher:** production files must be at most 199 lines and
+  functions at most 50 lines, including comments and blank lines
+  (`make daemon-lint`, `make launcher-lint`). Methods and anonymous functions
+  count too; test and generated files are excluded from size checks. Use `gofmt`, space logical steps, and extract focused helpers.
 - **C core:** keep `codeberg.h` stable; document memory ownership; use exhaustive
   `switch` with a `default:` `never` check for discriminated unions and enums.
 - **Imports:** `#include` at the top of C files; TypeScript imports at module top.

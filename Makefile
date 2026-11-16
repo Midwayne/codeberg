@@ -41,7 +41,7 @@ DBMCP      := $(ROOT)/third_party/multi-db-mcp-server
 DBMCP_BIN  := $(ROOT)/build/dbmcp
 
 .PHONY: build-core build test bench clean rebuild submodules help check set-version \
-        build-daemon daemon-test daemon-lint daemon-check build-agent build-web-ui build-dbmcp update-dbmcp \
+        build-daemon daemon-test daemon-lint daemon-check launcher-lint launcher-check build-agent build-web-ui build-dbmcp update-dbmcp \
         agent-test agent-check dist format \
         run-core run-index run-daemon run-agent run-agent-web gen-walk-skip
 
@@ -68,6 +68,8 @@ help:
 	@echo "    make daemon-test          Run Go tests in daemon/"
 	@echo "    make daemon-lint          Check daemon size limits and gofmt"
 	@echo "    make daemon-check         Lint, vet, test, and build the Go daemon"
+	@echo "    make launcher-lint        Check launcher size limits and gofmt"
+	@echo "    make launcher-check       Lint, vet, and test the Go launcher"
 	@echo "    make agent-test           Run agent tests (vitest)"
 	@echo "    make agent-check          Lint, typecheck, test, and build agent + web UI (requires npm deps)"
 	@echo "    make check                build-core + test (C core gate)"
@@ -135,6 +137,13 @@ daemon-lint:
 
 daemon-check: daemon-lint
 	cd $(DAEMON) && go vet ./... && CGO_ENABLED=0 go test ./... && CGO_ENABLED=0 go build ./...
+
+# The launcher shares the daemon's size linter; limits live in launcher/.lint.json.
+launcher-lint:
+	cd $(DAEMON) && go run ./cmd/daemon-lint -root $(LAUNCHER)
+
+launcher-check: launcher-lint
+	cd $(LAUNCHER) && go vet ./... && go test ./...
 
 build-agent:
 	cd $(AGENT) && npm install && npm run build
