@@ -4,9 +4,3 @@
   display: none;
 }
 
-.canvas-preview .excalidraw .layer-ui__wrapper,
-.canvas-preview .excalidraw .App-bottom-bar,
-.canvas-preview .excalidraw .App-menu_top,
-.canvas-preview .excalidraw .App-menu_bottom {
-  display: none;
-}

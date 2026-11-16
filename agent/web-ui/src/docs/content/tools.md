@@ -195,9 +195,9 @@ See [Browser Use](/docs/browser-use) for setup, screenshots, retained sessions, 
 
 ## Optional canvas
 
-Enable **Settings → Canvas** for a drawing canvas attached to each chat. Open copies of the same chat share scene updates.
+Enable **Settings → Canvas** for a drawing canvas attached to each chat. When the agent draws, the chat shows a **Canvas** card; select **Open canvas** to view and edit the drawing in a new browser tab. Chats do not embed the drawing, so switching between chats with canvases stays fast. Open copies of the same chat's canvas share scene updates.
 
-A visible canvas checks for changes about once a second, so agent edits appear within a second. Canvases in background tabs, or in chats you are not viewing, pause and catch up when shown.
+An open canvas tab checks for changes about once a second, so agent edits appear within a second. A canvas in a background tab pauses and catches up when you return to it.
 
 ## Experimental search composition
 

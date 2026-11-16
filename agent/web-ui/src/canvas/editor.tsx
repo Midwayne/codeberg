@@ -2,19 +2,17 @@ import { LoadingStatus } from '../components/loading';
 import { Excalidraw, MainMenu } from '@excalidraw/excalidraw';
 import '@excalidraw/excalidraw/index.css';
 import { useEditor } from './use-editor';
-import { canvasEmbedded } from './api';
 import './style.css';
 
 export default function CanvasEditor() {
   const state = useEditor();
-  const embedded = canvasEmbedded();
 
   return (
     <main className="flex h-dvh min-w-0 flex-col bg-background text-foreground">
-      {!embedded && <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+      <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <h1 className="text-sm font-medium">Canvas</h1>
         <p role="status" className="text-xs text-muted-foreground">{state.status}</p>
-      </header>}
+      </header>
       {state.conflict && (
         <div role="alert" className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3 text-sm">
           <span>Unsaved edits are kept in this tab.</span>
@@ -30,15 +28,15 @@ export default function CanvasEditor() {
         <LoadingStatus active={!state.scene} label={state.status} className="canvas-loading justify-center p-4" />
         <div ref={state.motion.surface} inert={!state.scene} data-ready={Boolean(state.scene)}
           data-motion={new URL(location.href).searchParams.get('motion')}
-          className={`canvas-surface local-canvas h-full ${embedded ? 'canvas-preview' : ''}`}>
-          <Excalidraw viewModeEnabled={embedded} zenModeEnabled={embedded} excalidrawAPI={state.setApi} onChange={state.onChange}
+          className="canvas-surface local-canvas h-full">
+          <Excalidraw excalidrawAPI={state.setApi} onChange={state.onChange}
             initialData={{ appState: { currentItemFontFamily: 5 } }}
             validateEmbeddable={() => false} onLinkOpen={(_element, event) => event.preventDefault()}
             UIOptions={{ canvasActions: { loadScene: false, saveToActiveFile: false,
               export: { saveFileToDisk: true }, saveAsImage: true } }}>
             <MainMenu>
-              {!embedded && <MainMenu.DefaultItems.Export />}
-              {!embedded && <MainMenu.DefaultItems.SaveAsImage />}
+              <MainMenu.DefaultItems.Export />
+              <MainMenu.DefaultItems.SaveAsImage />
             </MainMenu>
           </Excalidraw>
         </div>

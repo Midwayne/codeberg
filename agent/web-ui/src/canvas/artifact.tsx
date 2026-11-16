@@ -1,10 +1,9 @@
 import { useContext } from 'react';
-import { Expand, PenTool } from 'lucide-react';
+import { ExternalLink, PenTool } from 'lucide-react';
 import { CanvasConversation } from './conversation';
 import { canvasUrl } from './api';
 import { useProjectApi } from '../lib/project-api';
 import { useCanvasSettings } from './use-settings';
-import { usePreviewVisibility } from './use-preview-visibility';
 import type { ToolView } from '../components/chat/message';
 import { ToolError } from '../components/chat/tool-status';
 import './motion.css';
@@ -26,31 +25,34 @@ function CanvasCard({ chatId }: { chatId: string }) {
   const { project } = useProjectApi();
   const { enabled } = useCanvasSettings();
   const { editing } = useContext(CanvasConversation);
+  const active = Boolean(editing && enabled !== false);
 
+  // No inline preview: each embedded editor booted a full Excalidraw document
+  // on the chat's main thread, and retained chats kept several alive.
   return (
-    <section aria-label="Canvas" className="my-3 overflow-hidden rounded-xl border border-border bg-background">
-      <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-1.5">
-        <span className="flex items-center gap-2 text-xs text-muted-foreground"><PenTool className="size-3.5" />Canvas</span>
-        <span role="status" className="canvas-editing ml-auto text-xs text-muted-foreground" data-active={Boolean(editing && enabled !== false)}>
-          <span className="canvas-editing-dot" aria-hidden="true" />{editing && enabled !== false ? 'Agent is editing…' : ''}
-        </span>
-        {enabled !== false && <a href={canvasUrl(chatId, project?.id)} target="_blank" rel="noreferrer"
-          onClick={(event) => {
-            event.currentTarget.href = canvasUrl(chatId, project?.id) + (event.detail === 0 ? '&motion=none' : '');
-          }}
-          aria-label="Expand canvas" className="flex min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring">
-          <Expand className="size-4" />
-        </a>}
-      </div>
-      {enabled === false ? <p className="p-6 text-sm text-muted-foreground">Canvas is disabled. Enable it in Settings to view this drawing.</p> :
-        <CanvasPreview chatId={chatId} project={project?.id} />}
+    <section aria-label="Canvas" className="my-3 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-background px-4 py-2">
+      <span className="flex items-center gap-2 text-sm text-muted-foreground"><PenTool className="size-4" />Canvas</span>
+
+      <span role="status" className="canvas-editing text-xs text-muted-foreground" data-active={active}>
+        <span className="canvas-editing-dot" aria-hidden="true" />{active ? 'Agent is editing…' : ''}
+      </span>
+
+      {enabled === false
+        ? <p className="ml-auto text-sm text-muted-foreground">Canvas is disabled. Enable it in Settings to view this drawing.</p>
+        : <OpenCanvasLink chatId={chatId} project={project?.id} />}
     </section>
   );
 }
 
-function CanvasPreview({ chatId, project }: { chatId: string; project?: string }) {
-  const { ref, onLoad } = usePreviewVisibility();
-
-  return <iframe ref={ref} onLoad={onLoad} title="Chat canvas" src={canvasUrl(chatId, project, true)}
-    className="h-[min(40dvh,24rem)] min-h-64 w-full border-0" />;
+function OpenCanvasLink({ chatId, project }: { chatId: string; project?: string }) {
+  return (
+    <a href={canvasUrl(chatId, project)} target="_blank" rel="noreferrer"
+      onClick={(event) => {
+        // Keyboard activation (detail 0) opens without the entrance animation.
+        event.currentTarget.href = canvasUrl(chatId, project) + (event.detail === 0 ? '&motion=none' : '');
+      }}
+      className="ml-auto flex min-h-11 items-center gap-2 rounded-md border border-border px-3 text-sm hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring">
+      <ExternalLink aria-hidden="true" className="size-4" />Open canvas
+    </a>
+  );
 }

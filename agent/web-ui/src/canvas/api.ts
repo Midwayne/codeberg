@@ -12,15 +12,9 @@ export function canvasFetch(): typeof fetch {
   };
 }
 
-export function canvasUrl(chatId: string, project?: string, embedded = false): string {
+export function canvasUrl(chatId: string, project?: string): string {
   const params = new URLSearchParams({ chat: chatId });
   if (project) params.set('project', project);
 
-  if (embedded) params.set('embedded', '1');
-
   return `/canvas?${params}`;
-}
-
-export function canvasEmbedded(): boolean {
-  return new URL(location.href).searchParams.get('embedded') === '1';
 }

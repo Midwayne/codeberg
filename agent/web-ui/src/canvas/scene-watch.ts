@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
 
-import { onPreviewVisibility, previewShown } from './preview-visibility';
 import { pollScene } from './scene-poll';
 import type { CanvasSync } from './sync';
 
@@ -10,18 +9,12 @@ type Poll = { close(): void };
 /** Watches the scene for agent edits, only while someone can see the canvas. */
 export class SceneWatch {
   private poll?: Poll;
-  private shown = true;
   private stopped = false;
 
   constructor(private readonly open: () => Poll, private readonly pageVisible: () => boolean) {}
 
-  show(visible: boolean): void {
-    this.shown = visible;
-    this.update();
-  }
-
   update(): void {
-    const live = !this.stopped && this.shown && this.pageVisible();
+    const live = !this.stopped && this.pageVisible();
 
     if (live && !this.poll) this.poll = this.open();
 
@@ -42,11 +35,10 @@ export function useSceneWatch(api: ExcalidrawImperativeAPI | undefined, sync: Ca
   useEffect(() => {
     if (!api) return;
 
-    // Resuming fetches the current scene first, so paused previews catch up.
+    // Resuming fetches the current scene first, so a background tab catches up.
     const open = () => pollScene(fetcher, { scene: (scene) => sync.receive(scene), status });
     const watch = new SceneWatch(open, () => document.visibilityState !== 'hidden');
-    const update = () => watch.show(previewShown());
-    const unsubscribe = onPreviewVisibility(update);
+    const update = () => watch.update();
     update();
 
     const warn = (event: BeforeUnloadEvent) => {
@@ -58,7 +50,6 @@ export function useSceneWatch(api: ExcalidrawImperativeAPI | undefined, sync: Ca
     return () => {
       watch.stop();
       sync.stop();
-      unsubscribe();
       document.removeEventListener('visibilitychange', update);
       window.removeEventListener('beforeunload', warn);
     };

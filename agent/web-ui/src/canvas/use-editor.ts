@@ -1,9 +1,9 @@
 import { restoreElements } from '@excalidraw/excalidraw';
 import type { ExcalidrawImperativeAPI, AppState, BinaryFiles } from '@excalidraw/excalidraw/types';
 import type { ExcalidrawElement } from '@excalidraw/excalidraw/element/types';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { Scene } from '@agent/core/canvas/types';
-import { canvasEmbedded, canvasFetch } from './api';
+import { canvasFetch } from './api';
 import { useSceneWatch } from './scene-watch';
 import { CanvasSync } from './sync';
 import { sceneFingerprint } from './merge';
@@ -27,7 +27,7 @@ export function useEditor() {
 
         api.addFiles(Object.values(next.files) as BinaryFiles[string][]);
         api.updateScene({ elements, appState: { ...api.getAppState(), ...next.appState } });
-        if (canvasEmbedded() || api.getAppState().name !== next.name) {
+        if (api.getAppState().name !== next.name) {
           api.updateScene({ appState: { ...api.getAppState(), name: next.name } });
           api.scrollToContent(elements, { fitToViewport: true, viewportZoomFactor: 0.8 });
         }
@@ -36,10 +36,9 @@ export function useEditor() {
     },
   }), [api, fetch, motion.transition]);
   useSceneWatch(api, sync, fetch, setStatus);
-  usePreviewFit(api);
 
   const onChange = (elements: readonly ExcalidrawElement[], state: AppState, files: BinaryFiles) => {
-    if (canvasEmbedded() || !sync.base) return;
+    if (!sync.base) return;
 
     const appState = { viewBackgroundColor: state.viewBackgroundColor, gridSize: state.gridSize,
       gridStep: state.gridStep, gridModeEnabled: state.gridModeEnabled };
@@ -54,24 +53,4 @@ export function useEditor() {
 function browserIsEditing(state: AppState): boolean {
   return Boolean(state.newElement || state.editingTextElement || state.editingLinearElement ||
     state.selectedElementsAreBeingDragged || state.isResizing || state.isRotating);
-}
-
-function usePreviewFit(api: ExcalidrawImperativeAPI | undefined): void {
-  useEffect(() => {
-    const container = document.querySelector('.canvas-preview');
-    if (!api || !canvasEmbedded() || !container) return;
-
-    let frame = 0;
-    const observer = new ResizeObserver(() => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => api.scrollToContent(api.getSceneElements(), {
-        fitToViewport: true, viewportZoomFactor: 0.8,
-      }));
-    });
-    observer.observe(container);
-    return () => {
-      cancelAnimationFrame(frame);
-      observer.disconnect();
-    };
-  }, [api]);
 }
