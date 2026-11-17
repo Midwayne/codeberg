@@ -71,3 +71,31 @@ it('sweeps the label with a transform-driven shine overlay instead of repainting
   expect(html).toContain('class="working-label-text">Thinking…');
   expect(html).toContain('class="working-shine"><span class="working-shine-text">Thinking…');
 });
+
+it('keeps the loader through gaps after earlier response text while the turn is still streaming', () => {
+  const intro = { type: 'text' as const, text: 'Checking the source now.', state: 'done' as const };
+  const finishedTool = {
+    type: 'dynamic-tool' as const, toolName: 'grep', toolCallId: 'search', state: 'output-available' as const, input: {}, output: 'hit',
+  };
+
+  const gaps: UIMessage['parts'][] = [
+    [intro, finishedTool],
+    [intro, { type: 'reasoning', text: 'Weighing the hits.', state: 'done' }],
+    [intro, finishedTool, { type: 'step-start' }],
+  ];
+
+  for (const parts of gaps) {
+    const messages: UIMessage[] = [question, { id: 'answer', role: 'assistant', parts }];
+
+    expect(renderToStaticMarkup(<WorkingStatus status="streaming" messages={messages} />)).toContain('class="working-loader"');
+  }
+});
+
+it('hides the loader again once new response text follows a tool', () => {
+  const messages: UIMessage[] = [question, { id: 'answer', role: 'assistant', parts: [
+    { type: 'dynamic-tool', toolName: 'grep', toolCallId: 'search', state: 'output-available', input: {}, output: 'hit' },
+    { type: 'text', text: 'Chunking lives in core/src.', state: 'streaming' },
+  ] }];
+
+  expect(renderToStaticMarkup(<WorkingStatus status="streaming" messages={messages} />)).toBe('');
+});
