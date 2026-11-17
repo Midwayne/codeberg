@@ -38,9 +38,7 @@ export async function ensureLoop(state: AgentState): Promise<ToolLoopAgent> {
 async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
   // Sort tools to keep the cached system prefix stable across processes.
   const base = await buildTools(state);
-  const raw = recordToolExecutions({ ...base, ...backgroundTools(base,
-    (name, args, output) => presentToolOutput(state.context, name, args, output)) });
-  const tools = composedTools(state, raw);
+  const tools = composedTools(state, base);
   const toolNames = Object.keys(tools);
   const providerOptions = await prepareSystem(state, tools);
   const model = manageContextModel(state.model, {
@@ -76,13 +74,20 @@ async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
   return wrapToolLoopAgentWithPromptHooks(loop, state.promptHooks);
 }
 
-/** `batch` and `run_script` wrap the raw tools: they handle each inner result
- *  themselves, and a script sees full results rather than spill previews. */
-function composedTools(state: AgentState, raw: ToolSet): ToolSet {
+/**
+ * `run_script` wraps the unjournaled tools so a long script writes one run
+ * record, not one per inner call, and can itself run as a background job.
+ * `batch` wraps the journaled tools. Both handle each inner result themselves.
+ */
+function composedTools(state: AgentState, base: ToolSet): ToolSet {
   const scripts = scriptConfig(state.env);
+  const local = { ...base, ...(scripts ? scriptTool(base, scripts) : {}) };
+
+  const raw = recordToolExecutions({ ...local, ...backgroundTools(local,
+    (name, args, output) => presentToolOutput(state.context, name, args, output)) });
 
   return deterministicTools({
-    ...wrapToolOutputs({ ...raw, ...(scripts ? scriptTool(raw, scripts) : {}) }, state.context),
+    ...wrapToolOutputs(raw, state.context),
     ...(state.profile.toolBatch ? batchTool(raw, state.context) : {}),
   });
 }

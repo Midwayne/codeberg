@@ -19,13 +19,13 @@ describe('ScriptRun', () => {
     expect(html).toContain('a.ts 3');
   });
 
-  it('names timeouts, failures, and truncation', () => {
+  it('names timeouts and failures', () => {
     const timedOut = renderToStaticMarkup(
-      <ScriptRun part={part({ code: 'x' }, { exit_code: null, output: '', tool_calls: 2, timed_out: true, truncated: true })} />,
+      <ScriptRun part={part({ code: 'x' }, { exit_code: null, output: '', tool_calls: 2, timed_out: true })} />,
     );
     const failed = renderToStaticMarkup(<ScriptRun part={part({ code: 'x' }, { error: 'Python interpreter not found' })} />);
 
-    expect(timedOut).toContain('Script timed out · 2 tool calls, output truncated');
+    expect(timedOut).toContain('Script timed out · 2 tool calls');
     expect(failed).toContain('Script failed to start');
     expect(failed).toContain('Python interpreter not found');
   });

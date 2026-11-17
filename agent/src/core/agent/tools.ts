@@ -19,6 +19,7 @@ import { decisionTools } from '../decisions/tool.js';
 import { BACKGROUND_INSTRUCTIONS } from '../background/tools.js';
 import { envEnabled } from '../env-flag.js';
 import { SCRIPT_INSTRUCTIONS, SCRIPT_TOOL } from '../script/tool.js';
+import { insideScript } from '../script/scope.js';
 
 /** Guidance each tool family adds to the system prompt when any of its tools is offered. */
 const TOOL_FAMILY_INSTRUCTIONS: { offered: (name: string) => boolean; text: string }[] = [
@@ -84,7 +85,10 @@ export async function buildTools(state: AgentState) {
     },
     defaultSearchK: DEFAULT_SEARCH_K,
     searchBundle: envEnabled(state.env.CODEBERG_SEARCH_BUNDLE_USE),
-    onResults: (hits) => state.sources.push(...hits),
+    // A script may make thousands of calls; it reports findings by printing.
+    onResults: (hits) => {
+      if (!insideScript()) state.sources.push(...hits);
+    },
   });
 
   return { ...tools, ...decisionTools(decisions, { env: state.env, daemon: state.daemon, onUsage: state.onDecisionUsage }) };

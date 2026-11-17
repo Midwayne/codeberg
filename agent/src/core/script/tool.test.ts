@@ -3,6 +3,8 @@ import { spawnSync } from 'node:child_process';
 import { tool, jsonSchema, type ToolExecutionOptions, type ToolSet } from 'ai';
 import { describe, expect, it } from 'vitest';
 
+import { MAX_SCRIPT_CALLS_IN_FLIGHT } from './config.js';
+import { insideScript } from './scope.js';
 import { scriptTool, SCRIPT_TOOL, type ScriptOutput } from './tool.js';
 
 const hasPython = spawnSync('python3', ['--version']).status === 0;
@@ -27,8 +29,8 @@ function fakeTools(): ToolSet {
   };
 }
 
-async function run(code: string, timeout_seconds?: number, maxCalls = 64): Promise<ScriptOutput> {
-  const set = scriptTool(fakeTools(), { python: 'python3', maxCalls });
+async function run(code: string, timeout_seconds?: number, tools: ToolSet = fakeTools()): Promise<ScriptOutput> {
+  const set = scriptTool(tools, { python: 'python3' });
   const execute = set[SCRIPT_TOOL]!.execute!;
 
   const options = { toolCallId: 'call-1', messages: [] } as unknown as ToolExecutionOptions<unknown>;
@@ -76,15 +78,49 @@ describe.skipIf(!hasPython)('run_script', () => {
     ].join('\n'));
   });
 
-  it('enforces the per-script tool call limit', async () => {
+  it('has no tool call limit', async () => {
     const result = await run([
-      'for i in range(3):',
-      '    tools.grep(pattern=str(i))',
-    ].join('\n'), undefined, 2);
+      'total = 0',
+      'for i in range(500):',
+      '    total += len(tools.grep(pattern=str(i))["matches"])',
+      'results = parallel([("grep", {"pattern": str(i)}) for i in range(2000)])',
+      'print(total + len(results))',
+    ].join('\n'));
 
-    expect(result.exit_code).toBe(1);
-    expect(result.tool_calls).toBe(2);
-    expect(result.output).toContain('tool call limit reached (2 per script)');
+    expect(result).toMatchObject({ exit_code: 0, output: '2500\n', tool_calls: 2500 });
+  });
+
+  it('paces queued calls instead of running them all at once', async () => {
+    const seen = { active: 0, peak: 0 };
+    const slow = fakeTool(async () => {
+      seen.active += 1;
+      seen.peak = Math.max(seen.peak, seen.active);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      seen.active -= 1;
+
+      return 'ok';
+    });
+
+    const result = await run('print(len(parallel([("slow", {}) for _ in range(100)])))', undefined, { slow });
+
+    expect(result.output).toBe('100\n');
+    expect(seen.peak).toBe(MAX_SCRIPT_CALLS_IN_FLIGHT);
+  });
+
+  it('returns all printed output without truncating it', async () => {
+    const result = await run('print("x" * 300000)');
+
+    expect(result.output).toHaveLength(300_001);
+    expect(result).not.toHaveProperty('truncated');
+  });
+
+  it('marks its tool calls as running inside a script', async () => {
+    const probe = fakeTool(() => ({ inside: insideScript() }));
+
+    const result = await run('print(call("probe")["inside"])', undefined, { probe });
+
+    expect(result.output).toBe('True\n');
+    expect(insideScript()).toBe(false);
   });
 
   it('reports tracebacks with script line numbers', async () => {
@@ -103,7 +139,7 @@ describe.skipIf(!hasPython)('run_script', () => {
   });
 
   it('stops the script and rethrows when the turn is aborted', async () => {
-    const set = scriptTool(fakeTools(), { python: 'python3', maxCalls: 4 });
+    const set = scriptTool(fakeTools(), { python: 'python3' });
     const controller = new AbortController();
     const options = { toolCallId: 'call-3', messages: [], abortSignal: controller.signal } as unknown as ToolExecutionOptions<unknown>;
 
@@ -133,7 +169,7 @@ describe.skipIf(!hasPython)('run_script', () => {
   });
 
   it('explains a missing interpreter', async () => {
-    const set = scriptTool(fakeTools(), { python: 'definitely-not-python-xyz', maxCalls: 4 });
+    const set = scriptTool(fakeTools(), { python: 'definitely-not-python-xyz' });
     const options = { toolCallId: 'call-2', messages: [] } as unknown as ToolExecutionOptions<unknown>;
 
     const result = await set[SCRIPT_TOOL]!.execute!({ code: 'print(1)' }, options);

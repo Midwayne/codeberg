@@ -16,9 +16,10 @@ describe('scriptConfig', () => {
 });
 
 describe('scriptTimeoutMs', () => {
-  it('defaults and clamps the timeout', () => {
-    expect(scriptTimeoutMs(undefined)).toBe(60_000);
-    expect(scriptTimeoutMs(0)).toBe(1_000);
-    expect(scriptTimeoutMs(10_000)).toBe(300_000);
+  it('has no timeout unless one is requested', () => {
+    expect(scriptTimeoutMs(undefined)).toBeUndefined();
+    expect(scriptTimeoutMs(0)).toBeUndefined();
+    expect(scriptTimeoutMs(0.2)).toBe(1_000);
+    expect(scriptTimeoutMs(86_400)).toBe(86_400_000);
   });
 });

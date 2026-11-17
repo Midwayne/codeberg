@@ -6,16 +6,11 @@ import { jsonSchema, tool, type ToolExecutionOptions, type ToolSet } from 'ai';
 
 import { errorMessage } from '../errors.js';
 import { isBatchable } from '../tools/batch.js';
-import {
-  DEFAULT_SCRIPT_TIMEOUT_SECONDS,
-  MAX_SCRIPT_TIMEOUT_SECONDS,
-  scriptTimeoutMs,
-  type ScriptConfig,
-} from './config.js';
+import { SCRIPT_TOOL, scriptTimeoutMs, type ScriptConfig } from './config.js';
 import { runPython } from './process.js';
 import { ScriptDispatcher } from './protocol.js';
 
-export const SCRIPT_TOOL = 'run_script';
+export { SCRIPT_TOOL } from './config.js';
 
 interface ScriptInput {
   code: string;
@@ -27,16 +22,18 @@ export interface ScriptOutput {
   output?: string;
   tool_calls?: number;
   timed_out?: true;
-  truncated?: true;
   error?: string;
 }
 
 /**
  * `run_script` executes model-written Python that calls the same read-only
  * tools `batch` may run, so dependent lookups, loops and filtering happen in
- * one step and only the printed summary enters the transcript.
+ * one step and only the printed summary enters the transcript. Scripts have
+ * no call, output or default time limit; long ones run as background jobs
+ * the agent can check and cancel.
  *
- * `tools` must be the unwrapped tool set: scripts receive full results.
+ * `tools` must be the unwrapped, unjournaled tool set: scripts receive full
+ * results, and a script making 100k calls must not write 100k run records.
  */
 export function scriptTool(tools: ToolSet, config: ScriptConfig): ToolSet {
   const names = Object.keys(tools).filter(isBatchable).sort();
@@ -44,14 +41,14 @@ export function scriptTool(tools: ToolSet, config: ScriptConfig): ToolSet {
 
   return {
     [SCRIPT_TOOL]: tool({
-      description: scriptDescription(config),
+      description: scriptDescription(),
       inputSchema: scriptSchema(),
       execute: (input, options) => runScript(tools, names, config, input, options),
     }),
   };
 }
 
-function scriptDescription(config: ScriptConfig): string {
+function scriptDescription(): string {
   return (
     'Run a Python 3 script that chains several tool calls with real logic: loops, filtering, ' +
     'joining results, or calls whose arguments depend on earlier results. ' +
@@ -59,7 +56,9 @@ function scriptDescription(config: ScriptConfig): string {
     'result as plain Python data; `parallel([(name, args), ...])` runs independent calls concurrently. ' +
     'A failed call raises `ToolError`. `TOOL_NAMES` lists the callable tools. ' +
     'Only what the script prints is returned, so print a compact summary rather than raw results. ' +
-    `Limit: ${config.maxCalls} tool calls per script. The scratch working directory is deleted afterwards.`
+    'There is no limit on tool calls or output, and no timeout unless you set timeout_seconds. ' +
+    'For a script that may run for minutes or more, start it with start_background_tool so you can check ' +
+    'its status and cancel it with cancel_background_tool. The scratch working directory is deleted afterwards.'
   );
 }
 
@@ -72,8 +71,7 @@ function scriptSchema() {
       timeout_seconds: {
         type: 'integer',
         minimum: 1,
-        maximum: MAX_SCRIPT_TIMEOUT_SECONDS,
-        description: `wall-clock limit (default ${DEFAULT_SCRIPT_TIMEOUT_SECONDS})`,
+        description: 'optional wall-clock limit; omit to run until the script finishes or is cancelled',
       },
     },
     required: ['code'],
@@ -92,7 +90,7 @@ async function runScript(
   }
 
   const workdir = await mkdtemp(join(tmpdir(), 'codeberg-script-'));
-  const dispatcher = new ScriptDispatcher(tools, names, config.maxCalls, options);
+  const dispatcher = new ScriptDispatcher(tools, names, options);
 
   try {
     const scriptPath = join(workdir, 'script.py');
@@ -103,7 +101,7 @@ async function runScript(
       scriptPath,
       toolNames: names,
       workdir,
-      timeoutMs: scriptTimeoutMs(input.timeout_seconds),
+      ...timeoutOption(input.timeout_seconds),
       ...(options.abortSignal ? { signal: options.abortSignal } : {}),
       onRequest: (request) => dispatcher.dispatch(request),
     });
@@ -115,7 +113,6 @@ async function runScript(
       output: result.output,
       tool_calls: dispatcher.calls,
       ...(result.timedOut ? { timed_out: true as const } : {}),
-      ...(result.truncated ? { truncated: true as const } : {}),
     };
   } catch (error) {
     options.abortSignal?.throwIfAborted();
@@ -124,6 +121,12 @@ async function runScript(
   } finally {
     await rm(workdir, { recursive: true, force: true });
   }
+}
+
+function timeoutOption(seconds: unknown): { timeoutMs?: number } {
+  const timeoutMs = scriptTimeoutMs(seconds);
+
+  return timeoutMs === undefined ? {} : { timeoutMs };
 }
 
 function launchError(python: string, error: unknown): string {
@@ -138,4 +141,4 @@ export const SCRIPT_INSTRUCTIONS = `
 
 ## Scripts
 
-\`${SCRIPT_TOOL}\` runs Python that calls your read-only tools. Reach for it when the next calls depend on earlier results or you would otherwise make many similar calls: for example, grep for a pattern, read the top hits, and print only the matching functions. Keep using direct calls for one or two lookups. Print a short, structured summary with paths and line numbers you can cite; results that are not printed never reach you.`;
+\`${SCRIPT_TOOL}\` runs Python that calls your read-only tools. Reach for it when the next calls depend on earlier results or you would otherwise make many similar calls: for example, grep for a pattern, read the top hits, and print only the matching functions. Keep using direct calls for one or two lookups. Scripts have no call or output limit and no timeout unless you set one; start a long-running script with start_background_tool so you can check on it and cancel it. Print a short, structured summary with paths and line numbers you can cite; results that are not printed never reach you.`;

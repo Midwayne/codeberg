@@ -4,6 +4,7 @@ import { presentToolOutput, SPILL_CHARS } from '../context/spill.js';
 import type { ContextStore } from '../context/store.js';
 import { isBackgroundControl } from '../background/names.js';
 import { errorMessage } from '../errors.js';
+import { SCRIPT_TOOL } from '../script/config.js';
 
 export const BATCH_TOOL = 'batch';
 
@@ -25,9 +26,11 @@ type Execute = (args: unknown, options: ToolExecutionOptions<unknown>) => unknow
 
 /** Read-only lookups a batch may run. State-changing tools (canvas edits),
  *  MCP tools (unknown side effects, loaded per turn), and control tools
- *  (background, scheduling, load_mcp_tools, batch itself) keep their own calls. */
+ *  (background, scheduling, load_mcp_tools, batch itself) keep their own calls,
+ *  as does run_script, which can run for a long time. */
 export function isBatchable(name: string): boolean {
   return (
+    name !== SCRIPT_TOOL &&
     !isBackgroundControl(name) &&
     !name.startsWith('browser_') &&
     !name.startsWith('mcp_') &&

@@ -225,14 +225,16 @@ Inside a script, the agent can call any tool that `batch` can run:
 | `ToolError` | Raised for a failed call, an unavailable tool, or the call limit. |
 | `TOOL_NAMES` | The tools the script can call. |
 
-Only printed output reaches the agent's context, so a script can read many results and return a short summary. The chat shows the script, its output, exit code, and tool-call count.
+Only printed output reaches the agent's context, so a script can process many results and return a short summary. Calls inside a script do not add citations; the agent cites the paths and lines the script prints. The chat shows the script, its output, exit code, and tool-call count.
 
-| Limit | Value |
+| Behavior | Detail |
 | --- | --- |
-| Run time | 60 seconds by default; the agent can request up to 300. The script and any processes it starts are stopped at the limit or when you select **Stop**. |
-| Tool calls | 64 per script. |
-| Printed output | 200,000 characters; longer output is cut and marked `truncated`. Large output is [saved to context](/docs/tools#large-tool-results). |
-| Callable tools | Read-only source, search, context, knowledge, and web tools. MCP, Browser Use, canvas, scheduling, and background tools are not callable. |
+| Run time | No limit. The agent can set `timeout_seconds`. For a long script, it starts `run_script` with `start_background_tool`, checks `background_tool_status`, and stops it with `cancel_background_tool`. **Stop** also ends a script running in the turn. Stopping kills the script and any processes it started. |
+| Tool calls | No limit. At most 16 run at once; the rest wait their turn so a large script cannot overwhelm the daemon. |
+| Printed output | No limit. Large output is [saved to context](/docs/tools#large-tool-results), but `context_read` and `context_grep` cannot open files over 50 MiB, so print summaries rather than raw results. |
+| Callable tools | Read-only source, search, context, knowledge, and web tools, plus `decide` when configured, which has [separate provider costs](/docs/tools#optional-decisions-tool). MCP, Browser Use, canvas, scheduling, and background tools are not callable. |
+
+A background script follows the normal [background tool rules](/docs/tools#let-a-long-tool-work-while-the-agent-sleeps): it keeps running while the agent sleeps, and a Codeberg restart interrupts it.
 
 > **Not a sandbox.** Scripts run as your user with normal file and network access. Codeberg starts each one in an empty temporary directory, removes it afterwards, and passes no API keys or other environment secrets, but it cannot prevent a script from reading or changing files elsewhere. Enable this only for models and projects you trust, because instructions in source files or web pages could steer the script the agent writes.
 

@@ -87,10 +87,10 @@ async function ask(env: NodeJS.ProcessEnv) {
     context: ContextStore.open(mkdtempSync(join(tmpdir(), 'cberg-script-wiring-'))),
   });
 
-  await agent.ask('where does chunking start?');
+  const result = await agent.ask('where does chunking start?');
   await agent.close();
 
-  return { bodies, calls };
+  return { bodies, calls, sources: result.sources };
 }
 
 function offeredTools(body: Body): string[] {
@@ -105,7 +105,7 @@ describe.skipIf(!hasPython)('run_script in the agent loop', () => {
   });
 
   it('runs dependent daemon calls and returns the printed summary', async () => {
-    const { bodies, calls } = await ask({ CODEBERG_SCRIPT_USE: 'true' });
+    const { bodies, calls, sources } = await ask({ CODEBERG_SCRIPT_USE: 'true' });
 
     expect(offeredTools(bodies[0]!)).toContain('run_script');
     expect(JSON.stringify(bodies[0]!.system)).toContain('## Scripts');
@@ -116,5 +116,8 @@ describe.skipIf(!hasPython)('run_script in the agent loop', () => {
     ]);
 
     expect(JSON.stringify(bodies[1])).toContain('checked core/src/chunk.c lines 3');
+
+    // Inner calls report through printed output, not the citation ledger.
+    expect(sources).toEqual([]);
   });
 });

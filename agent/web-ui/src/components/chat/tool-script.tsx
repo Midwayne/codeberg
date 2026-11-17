@@ -9,7 +9,6 @@ type ScriptOutput = {
   output?: string;
   tool_calls?: number;
   timed_out?: boolean;
-  truncated?: boolean;
   error?: string;
 };
 
@@ -41,9 +40,7 @@ function scriptTitle(out: ScriptOutput): string {
         ? 'finished'
         : `exited ${out.exit_code ?? 'abnormally'}`;
 
-  const truncated = out.truncated ? ', output truncated' : '';
-
-  return `Script ${status} · ${calls} tool call${calls === 1 ? '' : 's'}${truncated}`;
+  return `Script ${status} · ${calls} tool call${calls === 1 ? '' : 's'}`;
 }
 
 function ScriptBlock({ label, text }: { label: string; text: string }) {

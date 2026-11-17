@@ -1,7 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createInterface } from 'node:readline';
 
-import { MAX_SCRIPT_OUTPUT_CHARS } from './config.js';
 import { encodeReply, parseRequest, type ScriptRequest, type ScriptReply } from './protocol.js';
 import { SCRIPT_PRELUDE } from './prelude.js';
 
@@ -11,7 +10,8 @@ export interface PythonRun {
   toolNames: readonly string[];
   /** Scratch directory: the script's cwd, HOME and TMPDIR. */
   workdir: string;
-  timeoutMs: number;
+  /** Stop the script after this long; omitted, it runs until done or aborted. */
+  timeoutMs?: number;
   signal?: AbortSignal;
   onRequest: (request: ScriptRequest) => Promise<ScriptReply>;
 }
@@ -20,7 +20,6 @@ export interface PythonResult {
   exitCode: number | null;
   output: string;
   timedOut: boolean;
-  truncated: boolean;
 }
 
 /** Run the prelude + script, serving tool requests until the process exits. */
@@ -81,7 +80,7 @@ function awaitExit(child: ChildProcess, run: PythonRun, output: OutputBuffer): P
   return new Promise((resolve, reject) => {
     let timedOut = false;
 
-    const timer = setTimeout(() => {
+    const timer = run.timeoutMs === undefined ? undefined : setTimeout(() => {
       timedOut = true;
       killTree(child);
     }, run.timeoutMs);
@@ -101,7 +100,7 @@ function awaitExit(child: ChildProcess, run: PythonRun, output: OutputBuffer): P
 
     child.once('close', (code) => {
       finish();
-      resolve({ exitCode: code, output: output.text, timedOut, truncated: output.truncated });
+      resolve({ exitCode: code, output: output.text(), timedOut });
     });
   });
 }
@@ -117,15 +116,15 @@ function killTree(child: ChildProcess): void {
   }
 }
 
-/** Collects output up to the cap and remembers whether anything was dropped. */
+/** Collects all printed output; large output is spilled to a context file. */
 class OutputBuffer {
-  text = '';
-  truncated = false;
+  private readonly chunks: string[] = [];
 
   push(chunk: string): void {
-    const room = MAX_SCRIPT_OUTPUT_CHARS - this.text.length;
-    if (chunk.length > room) this.truncated = true;
+    this.chunks.push(chunk);
+  }
 
-    if (room > 0) this.text += chunk.slice(0, room);
+  text(): string {
+    return this.chunks.join('');
   }
 }
