@@ -19,6 +19,14 @@ changes may occur in minor releases and are called out explicitly.
   `context/scripts/` and the agent gets its path, size and a preview; later
   scripts and context tools can read it.
 
+### Fixed
+
+- Switching quickly between chats no longer takes 10 seconds or more to show
+  the selected chat. Each answer's rating used to be fetched separately, and
+  every request re-read the whole learning log. Opening a chat now fetches all
+  its ratings in one request, and the server re-reads the log only after it
+  changes.
+
 ## [0.1.15] - 2026-11-12
 
 ### Fixed

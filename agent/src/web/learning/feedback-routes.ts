@@ -45,19 +45,20 @@ export async function postFeedback(
   }
 }
 
+/** One answer's rating with `message_id`, or every rated answer in the conversation without it. */
 export async function getFeedback(
   res: ServerResponse,
   learning: LearningService,
   url: URL,
 ): Promise<void> {
   const conversationId = url.searchParams.get('conversation_id') ?? '';
-  const messageId = url.searchParams.get('message_id') ?? '';
-  if (!isValidSessionId(conversationId) || !messageId) return sendText(res, 400, 'invalid attempt');
+  const messageId = url.searchParams.get('message_id');
+  if (!isValidSessionId(conversationId) || messageId === '') return sendText(res, 400, 'invalid attempt');
 
-  const attempt = await learning.store.attemptForMessage(conversationId, messageId);
-  if (!attempt) return sendJson(res, 200, null);
+  const ratings = await learning.store.conversationFeedback(conversationId);
+  if (messageId === null) return sendJson(res, 200, Object.fromEntries(ratings));
 
-  return sendJson(res, 200, (await learning.store.currentFeedback(attempt.attempt_id)) ?? null);
+  return sendJson(res, 200, ratings.get(messageId) ?? null);
 }
 
 function feedbackInput(body: Record<string, unknown> | null | undefined) {

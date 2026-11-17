@@ -905,6 +905,11 @@ describe('web server', () => {
     const params = new URLSearchParams({ conversation_id: 'conversation1', message_id: 'a1' });
     const current = await (await fetch(`${baseUrl}/api/learning/feedback?${params}`)).json();
     expect(current.label).toBe('partially_useful');
+
+    const conversation = new URLSearchParams({ conversation_id: 'conversation1' });
+    const ratings = await (await fetch(`${baseUrl}/api/learning/feedback?${conversation}`)).json();
+    expect(Object.keys(ratings)).toEqual(['a1']);
+    expect(ratings.a1.label).toBe('partially_useful');
   });
 
   it('reports idle execution without enumerating queued or completed job records for the header', async () => {

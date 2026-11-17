@@ -1,4 +1,5 @@
 import type { UIMessage } from 'ai';
+import { conversationFeedback } from './store/conversation-feedback.js';
 import { readEvents } from './store/events.js';
 import { recordFeedback, recordSession } from './store/history.js';
 import { defaultLearningRoot } from './store/identity.js';
@@ -70,6 +71,11 @@ export class LearningStore {
 
   currentFeedback(attemptId: string): Promise<FeedbackRecord | undefined> {
     return currentFeedback(this.state, attemptId);
+  }
+
+  /** Current rating of each rated answer in a conversation, keyed by assistant message id. */
+  conversationFeedback(conversationId: string): Promise<Map<string, FeedbackRecord>> {
+    return conversationFeedback(this.state, conversationId);
   }
 
   interaction(interactionId: string): Promise<InteractionHistory> {

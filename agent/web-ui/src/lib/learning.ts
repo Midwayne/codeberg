@@ -15,17 +15,43 @@ export interface FeedbackRecord {
   label: FeedbackOption['label'];
 }
 
+type ConversationRatings = Record<string, FeedbackRecord | undefined>;
+
+/** In-flight reads per API client: a chat's answers mount together and share one request. */
+const pending = new WeakMap<typeof fetch, Map<string, Promise<ConversationRatings>>>();
+
 export async function loadFeedback(
   conversationId: string,
   messageId: string,
   fetcher: typeof fetch = fetch,
 ): Promise<FeedbackRecord | null> {
+  const ratings = await conversationRatings(conversationId, fetcher);
+
+  return Object.hasOwn(ratings, messageId) ? ratings[messageId] ?? null : null;
+}
+
+function conversationRatings(conversationId: string, fetcher: typeof fetch): Promise<ConversationRatings> {
+  const requests = pending.get(fetcher) ?? new Map<string, Promise<ConversationRatings>>();
+  pending.set(fetcher, requests);
+
+  const existing = requests.get(conversationId);
+  if (existing) return existing;
+
+  // Forget the request once it settles, so a later open sees ratings saved elsewhere.
+  const request = fetchRatings(conversationId, fetcher).finally(() => requests.delete(conversationId));
+  requests.set(conversationId, request);
+
+  return request;
+}
+
+async function fetchRatings(conversationId: string, fetcher: typeof fetch): Promise<ConversationRatings> {
   try {
-    const params = new URLSearchParams({ conversation_id: conversationId, message_id: messageId });
+    const params = new URLSearchParams({ conversation_id: conversationId });
     const response = await fetcher(`/api/learning/feedback?${params}`);
-    return response.ok ? ((await response.json()) as FeedbackRecord | null) : null;
+
+    return response.ok ? (((await response.json()) as ConversationRatings | null) ?? {}) : {};
   } catch {
-    return null;
+    return {};
   }
 }
 
