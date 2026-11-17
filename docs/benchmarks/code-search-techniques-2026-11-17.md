@@ -140,8 +140,23 @@ Surveys consulted:
 
 ## Reproduce
 
-Experiment scripts and caches are not committed. The shipped pieces have
-committed references and tests:
+The study's code is in [core/bench/techniques/](../../core/bench/techniques/run.py).
+Prerequisites:
+
+1. Create the corpus with `retrieval_corpus.py --header none --output build/embedding-benchmark/hdr-none` ([RETRIEVAL.md](../../core/bench/RETRIEVAL.md)).
+2. Add a worktree at the corpus commit: `git worktree add --detach build/embedding-benchmark/snapshot <commit>`.
+3. Download models into `models/`:
+   - `scripts/fetch-model.sh` for Jina int8;
+   - `CBERG_MODEL_VARIANT=model scripts/fetch-model.sh models/jina-fp32` for fp32;
+   - the Hugging Face ONNX exports for `rerank-jina-v2`, `rerank-mxbai-xs` and `coderankembed`.
+4. Run the experiments. Vectors are cached under `build/embedding-benchmark/exp`.
+
+```sh
+cd core/bench/techniques
+../../../build/embedding-benchmark/venv/bin/python run.py fusion prf windows precision rerank coderank late
+```
+
+The shipped pieces have their own references and tests:
 
 ```sh
 build/embedding-benchmark/venv/bin/python -m unittest discover -s core/bench -p 'test_retrieval_*.py'
