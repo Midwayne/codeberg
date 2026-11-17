@@ -1,29 +1,39 @@
 import { isToolUIPart, type ChatStatus, type UIMessage } from 'ai';
 
+import { CubeLoader } from './cube-loader';
+import { useElapsedSeconds } from './use-elapsed';
+import { formatElapsed, workingPhase } from './working-phase';
+
 import './working-status.css';
+
+/* The waiting label changes every few seconds so long turns still feel alive. */
+const LABEL_SECONDS = 4;
 
 type WorkingStatusProps = { status: ChatStatus; messages: UIMessage[]; steering?: boolean };
 export function WorkingStatus({ status, messages, steering }: WorkingStatusProps) {
   if (!steering && status !== 'submitted' && status !== 'streaming') return null;
   if (!steering && status === 'streaming' && hasVisibleResponse(messages)) return null;
 
-  return (
-    <div role="status" aria-live="polite" aria-atomic="true" className="text-sm text-foreground">
-      <ThinkingLabel />
-    </div>
-  );
+  return <WorkingIndicator messages={messages} />;
 }
 
-function ThinkingLabel() {
+type WorkingIndicatorProps = { messages: UIMessage[] };
+
+function WorkingIndicator({ messages }: WorkingIndicatorProps) {
+  const seconds = useElapsedSeconds();
+
+  const phase = workingPhase(messages, Math.floor(seconds / LABEL_SECONDS));
+  const elapsed = formatElapsed(seconds);
+
   return (
-    <span className="thinking-label">
-      <span className="sr-only">Thinking…</span>
-      <span aria-hidden="true">
-        {Array.from('Thinking…').map((letter, index) => (
-          <span key={index} className="thinking-letter" style={{ animationDelay: `${index * 70}ms` }}>{letter}</span>
-        ))}
+    <div role="status" aria-live="polite" aria-atomic="true" className="working-status text-sm text-foreground">
+      <span className="sr-only">Working…</span>
+      <CubeLoader />
+      <span aria-hidden="true" className="working-label" data-phase={phase.kind} key={phase.label}>
+        {phase.label}…
       </span>
-    </span>
+      {elapsed && <span aria-hidden="true" className="working-elapsed">{elapsed}</span>}
+    </div>
   );
 }
 
