@@ -24,13 +24,15 @@ function WorkingIndicator({ messages }: WorkingIndicatorProps) {
 
   const phase = workingPhase(messages, Math.floor(seconds / LABEL_SECONDS));
   const elapsed = formatElapsed(seconds);
+  const label = `${phase.label}…`;
 
   return (
     <div role="status" aria-live="polite" aria-atomic="true" className="working-status text-sm text-foreground">
       <span className="sr-only">Working…</span>
       <WorkingLoader variant={loaderForTurn(turnCount(messages))} />
       <span aria-hidden="true" className="working-label" data-phase={phase.kind} key={phase.label}>
-        {phase.label}…
+        <span className="working-label-text">{label}</span>
+        <span className="working-shine"><span className="working-shine-text">{label}</span></span>
       </span>
       {elapsed && <span aria-hidden="true" className="working-elapsed">{elapsed}</span>}
     </div>

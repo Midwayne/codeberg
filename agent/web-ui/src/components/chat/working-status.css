@@ -8,10 +8,16 @@
 }
 
 .working-label {
+  position: relative;
   display: inline-block;
+  overflow: hidden;
   font-weight: 500;
   letter-spacing: 0.01em;
   color: color-mix(in oklab, var(--foreground) 70%, transparent);
+}
+
+.working-shine {
+  display: none;
 }
 
 .working-elapsed {
@@ -20,22 +26,31 @@
   color: var(--muted-foreground);
 }
 
-/* A soft highlight sweeps across the label, and each new label fades up into place. */
+/*
+ * A soft highlight sweeps across the label, and each new label fades up into place.
+ * The sweep runs while the chat stream keeps the main thread busy, so it moves only
+ * transforms: a masked bright copy slides right while its text slides back left,
+ * keeping the glyphs still and leaving the work to the compositor.
+ */
 @media (prefers-reduced-motion: no-preference) {
   .working-label {
-    background: linear-gradient(
-      90deg,
-      color-mix(in oklab, var(--foreground) 55%, transparent) 0%,
-      var(--foreground) 50%,
-      color-mix(in oklab, var(--foreground) 55%, transparent) 100%
-    );
-    background-size: 220% 100%;
-    background-clip: text;
-    -webkit-background-clip: text;
-    color: transparent;
-    animation:
-      working-label-in 320ms cubic-bezier(0.83, 0, 0.17, 1) both,
-      working-sweep 2.4s cubic-bezier(0.83, 0, 0.17, 1) infinite;
+    color: color-mix(in oklab, var(--foreground) 55%, transparent);
+    animation: working-label-in 320ms cubic-bezier(0.83, 0, 0.17, 1) both;
+  }
+
+  .working-shine {
+    position: absolute;
+    inset: 0;
+    display: block;
+    color: var(--foreground);
+    /* A label-wide soft band with gentle easing keeps the glow on the text most of each loop. */
+    mask-image: linear-gradient(90deg, transparent, #000 50%, transparent);
+    animation: working-sweep 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  }
+
+  .working-shine-text {
+    display: block;
+    animation: working-sweep-counter 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
   }
 }
 
@@ -47,6 +62,11 @@
 }
 
 @keyframes working-sweep {
-  from { background-position: 110% 0; }
-  to { background-position: -110% 0; }
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+@keyframes working-sweep-counter {
+  from { transform: translateX(100%); }
+  to { transform: translateX(-100%); }
 }

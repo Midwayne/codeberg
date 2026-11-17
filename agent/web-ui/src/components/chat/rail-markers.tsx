@@ -33,9 +33,10 @@ export function RailMarkers({ state }: RailMarkersProps) {
         <span
           aria-hidden="true"
           className={cn(
-            'block rounded-full bg-muted-foreground transition-[width,height,background-color] duration-150',
-            isActive ? 'h-1.5 w-3 bg-foreground' : 'h-[3px] w-2.5',
-            isPreviewed && 'h-1.5 w-3.5 bg-foreground',
+            /* One fixed box scaled per state, so hover and scroll changes stay composite-only. */
+            'block h-1.5 w-3.5 rounded-full bg-muted-foreground transition-[scale,background-color] duration-150',
+            isActive ? 'scale-x-[0.857] bg-foreground' : 'scale-x-[0.714] scale-y-50',
+            isPreviewed && 'scale-100 bg-foreground',
           )}
         />
       </button>

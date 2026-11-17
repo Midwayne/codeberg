@@ -64,3 +64,10 @@ it('labels streamed reasoning', () => {
   expect(html).toContain('data-phase="reasoning"');
   expect(html).toContain('Reasoning…');
 });
+
+it('sweeps the label with a transform-driven shine overlay instead of repainting the text', () => {
+  const html = renderToStaticMarkup(<WorkingStatus status="submitted" messages={[]} />);
+
+  expect(html).toContain('class="working-label-text">Thinking…');
+  expect(html).toContain('class="working-shine"><span class="working-shine-text">Thinking…');
+});
