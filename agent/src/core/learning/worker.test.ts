@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { sourceRevision } from './datasets.js';
 import { exportDataset } from './export.js';
-import { writeAtomic } from './fs.js';
+import { writeAtomic } from '../fs.js';
 import { DurableJobQueue } from './queue.js';
 import { LearningService } from './service.js';
 import { LearningStore, serializeArtifact, stableId } from './store.js';

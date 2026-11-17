@@ -50,14 +50,14 @@ export function ProjectDetails(state: ProjectDetailsProps) {
   );
 }
 
-export type ProjectLocationProps = {
+type ProjectLocationProps = {
   label: string;
   value: string;
   copyLabel: string;
   children?: ReactNode;
 };
 
-export function ProjectLocation({ label, value, copyLabel, children }: ProjectLocationProps) {
+function ProjectLocation({ label, value, copyLabel, children }: ProjectLocationProps) {
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 sm:grid-cols-[8rem_minmax(0,1fr)_auto]">
       <dt className="col-span-2 text-xs leading-6 text-muted-foreground sm:col-span-1">{label}</dt>
@@ -72,9 +72,9 @@ export function ProjectLocation({ label, value, copyLabel, children }: ProjectLo
   );
 }
 
-export type ProjectLocationsProps = Pick<Parameters<typeof ProjectDetails>[0], 'project'>;
+type ProjectLocationsProps = Pick<Parameters<typeof ProjectDetails>[0], 'project'>;
 
-export function ProjectLocations({ project }: ProjectLocationsProps) {
+function ProjectLocations({ project }: ProjectLocationsProps) {
   return (
     <dl className="space-y-3 text-sm">
       {project.roots.map((root) => (
@@ -101,7 +101,7 @@ export function ProjectLocations({ project }: ProjectLocationsProps) {
   );
 }
 
-export type ProjectHeadingProps = Pick<Parameters<typeof ProjectDetails>[0], 'project' | 'current'> & {
+type ProjectHeadingProps = Pick<Parameters<typeof ProjectDetails>[0], 'project' | 'current'> & {
   saved: boolean;
   editing: boolean;
   renameButton: React.RefObject<HTMLButtonElement | null>;
@@ -109,7 +109,7 @@ export type ProjectHeadingProps = Pick<Parameters<typeof ProjectDetails>[0], 'pr
   setSaved: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
-export function ProjectHeading({
+function ProjectHeading({
   project,
   current,
   saved,
@@ -152,7 +152,7 @@ export function ProjectHeading({
   );
 }
 
-export function ProjectRename({ editing, project, setEditing, onRenamed, setSaved }: ProjectRenameProps) {
+function ProjectRename({ editing, project, setEditing, onRenamed, setSaved }: ProjectRenameProps) {
   return (
     editing && (
       <RenameProjectForm

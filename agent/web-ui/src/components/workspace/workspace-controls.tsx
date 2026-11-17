@@ -1,7 +1,8 @@
-import type { UseChatHelpers } from '@ai-sdk/react';
-import type { UIMessage } from 'ai';
 import type { SessionSummary } from '../../lib/sessions';
 import type { ChatLoad } from '../../sessions/chat-resume';
+import type { ChatReadiness } from '../../sessions/use-chat-readiness';
+import { useChatMessagesWhile } from '../../sessions/use-chat-readiness';
+import type { WorkspaceChat } from '../../sessions/workspace-chat';
 
 import { ChatSearch } from './chat-search';
 import { SessionSidebar } from './session-sidebar';
@@ -15,7 +16,7 @@ import type { useWorkspaceView, WorkspaceView } from './workspace';
 import { useScheduleWorkspace } from '../../lib/schedule-workspace';
 import { isActiveSchedule } from '../../lib/schedule-summary';
 
-export type WorkspaceSidebarProps = Pick<
+type WorkspaceSidebarProps = Pick<
   Parameters<typeof useWorkspaceView>[0],
   'projectControls' | 'onSidebarClose'
 > & {
@@ -24,7 +25,8 @@ export type WorkspaceSidebarProps = Pick<
   sessionError: string;
   load?: ChatLoad;
   sessionId: string;
-  chat: UseChatHelpers<UIMessage>;
+  active: WorkspaceChat;
+  readiness: ChatReadiness;
   resume: (id: string) => Promise<void>;
   startNew: () => void;
   branchFrom: (throughIndex: number) => Promise<void>;
@@ -41,7 +43,8 @@ export function WorkspaceSidebar({
   sessionError,
   load,
   sessionId,
-  chat,
+  active,
+  readiness,
   resume,
   startNew,
   branchFrom,
@@ -59,7 +62,7 @@ export function WorkspaceSidebar({
       sessions={sessions}
       error={sessionError}
       currentId={load?.id ?? sessionId}
-      canBranch={!load && chat.status === 'ready' && chat.messages.length > 0}
+      canBranch={!load && readiness.status === 'ready' && readiness.hasMessages}
       onResume={(id) => {
         void resume(id);
         if (!desktop) onSidebarClose();
@@ -69,7 +72,7 @@ export function WorkspaceSidebar({
         if (!desktop) onSidebarClose();
       }}
       onBranch={() => {
-        void branchFrom(chat.messages.length - 1);
+        void branchFrom(active.chat.messages.length - 1);
         if (!desktop) onSidebarClose();
       }}
       onDelete={remove}
@@ -87,9 +90,9 @@ function CloseChatsButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-export type WorkspaceSearchProps = Pick<
+type WorkspaceSearchProps = Pick<
   Parameters<typeof WorkspaceView>[0],
-  'searchOpen' | 'onSearchClose' | 'sessionId' | 'sessions' | 'chat' | 'setJump' | 'resume'
+  'searchOpen' | 'onSearchClose' | 'sessionId' | 'sessions' | 'active' | 'setJump' | 'resume'
 >;
 
 export function WorkspaceSearch({
@@ -97,17 +100,20 @@ export function WorkspaceSearch({
   onSearchClose,
   sessionId,
   sessions,
-  chat,
+  active,
   setJump,
   resume,
 }: WorkspaceSearchProps) {
+  // Follow the streaming transcript only while search is open.
+  const messages = useChatMessagesWhile(active.chat, searchOpen);
+
   return (
     <ChatSearch
       open={searchOpen}
       onClose={onSearchClose}
       currentId={sessionId}
-      currentTitle={sessions.find((item) => item.id === sessionId)?.title ?? deriveTitle(chat.messages)}
-      currentMessages={chat.messages}
+      currentTitle={sessions.find((item) => item.id === sessionId)?.title ?? deriveTitle(messages)}
+      currentMessages={messages}
       currentFlags={{
         archived: sessions.find((item) => item.id === sessionId)?.archived ?? false,
         pinned: sessions.find((item) => item.id === sessionId)?.pinned ?? false,

@@ -2,8 +2,9 @@ import type { UIMessage, UIMessageChunk } from 'ai';
 import type { ToolObservation } from '../../core/runs/tools.js';
 import type { ResolvedModelSelection } from '../chat-routes.js';
 import type { RunJournal } from './journal.js';
+import { HttpError } from '../../core/http-error.js';
 
-export type RunStatus = 'running' | 'completed' | 'stopped' | 'failed' | 'interrupted';
+type RunStatus = 'running' | 'completed' | 'stopped' | 'failed' | 'interrupted';
 
 export interface RunInput {
   chatId: string;
@@ -23,7 +24,7 @@ export interface RunRecord extends RunInput {
 }
 
 /** A journaled tool call, exactly as the agent records it. */
-export type ToolEntry = ToolObservation;
+type ToolEntry = ToolObservation;
 
 export type JournalEntry = ToolEntry | { kind: 'chunk'; chunk: UIMessageChunk };
 
@@ -45,8 +46,4 @@ export type ChatGenerator = (options: {
   runId: string;
 }) => Promise<{ stream: ReadableStream<UIMessageChunk>; close?: () => Promise<void> }>;
 
-export class RunError extends Error {
-  constructor(readonly status: number, message: string) {
-    super(message);
-  }
-}
+export class RunError extends HttpError {}

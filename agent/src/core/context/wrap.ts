@@ -4,6 +4,7 @@ import type { ToolSet } from 'ai';
 import { toolResultOutputText } from '../message.js';
 import { presentToolOutput, recordTerminal, spillText } from './spill.js';
 import type { ContextStore } from './store.js';
+import { errorMessage } from '../errors.js';
 
 type Executable = {
   execute?: (args: unknown, options: unknown) => Promise<unknown> | unknown;
@@ -43,7 +44,7 @@ export function wrapToolOutputs(tools: ToolSet, store: ContextStore): ToolSet {
 
             return preview ? { type: 'text' as const, value: preview } : output;
           } catch (err) {
-            const message = err instanceof Error ? err.message : String(err);
+            const message = errorMessage(err);
             console.error(`› context: failed to spill ${name}: ${message}`);
 
             return output;

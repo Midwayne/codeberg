@@ -1,4 +1,5 @@
 import { DaemonError } from '../client.js';
+import { errorMessage } from '../errors.js';
 
 /** Keep daemon failures in the tool result: SDK-thrown errors become the
  * unhelpful "An error occurred." in some provider transcripts. */
@@ -7,5 +8,5 @@ export function daemonToolError(error: unknown): { error: string } {
     return { error: `${error.code}: ${error.message}` };
   }
 
-  return { error: error instanceof Error ? error.message : String(error) };
+  return { error: errorMessage(error) };
 }

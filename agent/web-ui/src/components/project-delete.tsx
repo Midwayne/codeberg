@@ -4,8 +4,10 @@ import type { Project, ProjectCatalog } from '../lib/project-api';
 import { button } from './project-styles';
 import { Dialog } from './ui';
 import { ProjectDeleteOptions, type ProjectDeletionMode } from './project-delete-options';
+import { errorMessage } from '@agent/core/errors.js';
+import { jsonInit, readJson } from '../lib/http';
 
-export type ProjectDeleteProps = {
+type ProjectDeleteProps = {
   project: Project;
   onDeleted: (catalog: ProjectCatalog) => void;
 };
@@ -31,7 +33,7 @@ export function ProjectDelete({ project, onDeleted }: ProjectDeleteProps) {
 
 type ProjectDeleteDialogProps = ProjectDeleteProps & { onClose: () => void };
 
-export function ProjectDeleteDialog({ project, onDeleted, onClose }: ProjectDeleteDialogProps) {
+function ProjectDeleteDialog({ project, onDeleted, onClose }: ProjectDeleteDialogProps) {
   const state = useProjectDeletion(project, onDeleted);
   const cancel = useRef<HTMLButtonElement>(null);
   useEffect(() => cancel.current?.focus(), []);
@@ -72,17 +74,11 @@ function useProjectDeletion(project: Project, onDeleted: ProjectDeleteProps['onD
     setBusy(true);
     setError('');
     try {
-      const response = await fetch(`/api/projects/${project.id}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode }),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.message ?? 'Could not delete project. Try again.');
+      const response = await fetch(`/api/projects/${project.id}`, jsonInit('DELETE', { mode }));
 
-      onDeleted(result as ProjectCatalog);
+      onDeleted(await readJson<ProjectCatalog>(response, 'Could not delete project. Try again.'));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      setError(errorMessage(reason));
     } finally {
       setBusy(false);
     }

@@ -40,7 +40,7 @@ export function Chat(props: ChatProps) {
   return <ChatView {...state} />;
 }
 
-export type ChatViewOptions = ChatProps;
+type ChatViewOptions = ChatProps;
 
 export function useChatView({ chat, turns, onBranch, sessionId, learningEnabled, chatInputs, jump, draftStore, branch }: ChatViewOptions) {
   const { ready } = useProjectApi();
@@ -56,7 +56,7 @@ export function useChatView({ chat, turns, onBranch, sessionId, learningEnabled,
   };
 
   const promptRef = useRef<HTMLTextAreaElement>(null);
-  const { scrollRef, holdAutoScroll, holdTimer } = useChatScroll({ jump, messages, status });
+  const { scrollRef, holdScroll } = useChatScroll({ jump, messages, status });
   const hasCanvas = useMemo(() => Boolean(canvasAnchor(messages)), [messages]);
 
   return {
@@ -74,15 +74,14 @@ export function useChatView({ chat, turns, onBranch, sessionId, learningEnabled,
     branch,
     status,
     error,
-    holdAutoScroll,
-    holdTimer,
+    holdScroll,
     draft,
     chatInputs,
     queue,
   };
 }
 
-export type ChatViewProps = ReturnType<typeof useChatView>;
+type ChatViewProps = ReturnType<typeof useChatView>;
 
 export function ChatView(state: ChatViewProps) {
   const { ready, regenerate } = state;
@@ -128,7 +127,7 @@ export function ChatView(state: ChatViewProps) {
   );
 }
 
-export type ChatComposerProps = { state: Parameters<typeof ChatView>[0] };
+type ChatComposerProps = { state: Parameters<typeof ChatView>[0] };
 
 function ChatComposer({ state }: ChatComposerProps) {
   return (
@@ -152,20 +151,14 @@ function ChatComposer({ state }: ChatComposerProps) {
   );
 }
 
-export type ChatNavigationProps = { state: Parameters<typeof ChatView>[0] };
+type ChatNavigationProps = { state: Parameters<typeof ChatView>[0] };
 
 function ChatNavigation({ state }: ChatNavigationProps) {
   return (
     <MessageRail
       scrollRef={state.scrollRef}
       messages={state.messages}
-      onNavigate={() => {
-        state.holdAutoScroll.current = true;
-        window.clearTimeout(state.holdTimer.current);
-        state.holdTimer.current = window.setTimeout(() => {
-          state.holdAutoScroll.current = false;
-        }, 700);
-      }}
+      onNavigate={state.holdScroll}
     />
   );
 }

@@ -4,6 +4,7 @@ import { dirname } from 'node:path';
 import { parseArtifact } from '../../core/learning/store.js';
 import { isValidSessionId } from '../sessions/store.js';
 import { type CleanupCategory, ResourceSettingsError, type StoredFile } from './types.js';
+import { isMissing } from '../../core/fs.js';
 
 export async function readStoredFile(
   path: string,
@@ -64,7 +65,7 @@ export async function fileInfo(path: string) {
 
     return info.isFile() ? info : undefined;
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    if (isMissing(error)) return undefined;
 
     throw error;
   }
@@ -78,7 +79,7 @@ export async function realDirectory(path: string, boundary: string): Promise<boo
 
     return path === boundary || parent === path || (await realDirectory(parent, boundary));
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    if (isMissing(error)) return false;
 
     throw error;
   }

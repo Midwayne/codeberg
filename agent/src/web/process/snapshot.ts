@@ -53,7 +53,7 @@ export function parseProcessSnapshot(output: string): ProcessSnapshot[] {
   return rows;
 }
 
-export function cpuTimeMs(value: string): number | undefined {
+function cpuTimeMs(value: string): number | undefined {
   const match = /^(?:(\d+)-)?(?:(\d+):)?(\d+):(\d+(?:\.\d+)?)$/.exec(value);
   if (!match) return undefined;
 

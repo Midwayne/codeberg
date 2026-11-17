@@ -1,14 +1,11 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { writeJsonAtomic } from '../../core/learning/fs.js';
+import { ifMissing, writeJsonAtomic } from '../../core/fs.js';
 import type { BackgroundJob } from '../../core/background/types.js';
 import { isValidSessionId } from '../sessions/records.js';
+import { HttpError } from '../../core/http-error.js';
 
-export class BackgroundError extends Error {
-  constructor(readonly status: number, message: string) {
-    super(message);
-  }
-}
+export class BackgroundError extends HttpError {}
 
 export class BackgroundStore {
   private pending = Promise.resolve();
@@ -33,11 +30,7 @@ export class BackgroundStore {
 
   async read(chatId: string, id: string): Promise<BackgroundJob | undefined> {
     const path = this.path(chatId, id);
-    const json = await readFile(path, 'utf8').catch((error: NodeJS.ErrnoException) => {
-      if (error.code !== 'ENOENT') throw error;
-
-      return undefined;
-    });
+    const json = await readFile(path, 'utf8').catch(ifMissing(undefined));
     if (json === undefined) return;
 
     const job = JSON.parse(json) as BackgroundJob;
@@ -48,11 +41,7 @@ export class BackgroundStore {
 
   async all(): Promise<BackgroundJob[]> {
     const root = join(this.directory, '.jobs');
-    const chats = await readdir(root, { withFileTypes: true }).catch((error: NodeJS.ErrnoException) => {
-      if (error.code !== 'ENOENT') throw error;
-
-      return [];
-    });
+    const chats = await readdir(root, { withFileTypes: true }).catch(ifMissing([]));
     const records: BackgroundJob[] = [];
     for (const chat of chats) {
       if (!chat.isDirectory() || !isValidSessionId(chat.name)) continue;

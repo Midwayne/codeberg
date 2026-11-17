@@ -4,6 +4,7 @@ import { projectFetch, type ProjectCatalog } from './project-api';
 import { ProjectToolbar, ProjectNotice } from '../components/project-controls';
 import { useProjectStatus } from './use-project-status';
 import { requestProjectCatalog } from './project-catalog-request';
+import { errorMessage } from '@agent/core/errors.js';
 
 export { useProjectStatus, type ProjectStatusOptions } from './use-project-status';
 
@@ -82,7 +83,7 @@ function useProjectCatalog() {
         setError('');
       })
       .catch((reason: unknown) => {
-        if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : String(reason));
+        if (!controller.signal.aborted) setError(errorMessage(reason));
       });
     return () => controller.abort();
   }, [retry]);

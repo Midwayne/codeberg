@@ -4,7 +4,7 @@ import { useProjectApi } from './project-api';
 import { useDreamingDecision } from './use-dreaming-decision';
 import { useDreamingSelection } from './use-dreaming-selection';
 
-export type DreamingPanelOptions = { enabled: boolean };
+type DreamingPanelOptions = { enabled: boolean };
 
 export function useDreamingPanel({ enabled }: DreamingPanelOptions) {
   const { fetch: api } = useProjectApi();

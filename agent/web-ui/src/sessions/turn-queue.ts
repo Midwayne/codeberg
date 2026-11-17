@@ -1,9 +1,10 @@
 import type { Chat } from '@ai-sdk/react';
 import type { UIMessage } from 'ai';
+import { errorMessage } from '@agent/core/errors.js';
 
-export type TurnInput = { text: string; files?: FileList };
+type TurnInput = { text: string; files?: FileList };
 export type QueuedTurn = TurnInput & { id: string };
-export type QueueSnapshot = { items: QueuedTurn[]; paused: boolean; steering: boolean; error?: string };
+type QueueSnapshot = { items: QueuedTurn[]; paused: boolean; steering: boolean; error?: string };
 
 export const EMPTY_QUEUE: QueueSnapshot = { items: [], paused: false, steering: false };
 
@@ -137,7 +138,7 @@ export class TurnQueue {
       this.needsSynchronization = false;
       return true;
     } catch (error) {
-      this.update({ paused: true, steering: false, error: error instanceof Error ? error.message : 'Could not stop search.' });
+      this.update({ paused: true, steering: false, error: errorMessage(error, 'Could not stop search.') });
 
       return false;
     }
@@ -168,7 +169,7 @@ export class TurnQueue {
       await action();
       if (this.chat.status === 'error') this.update({ paused: true });
     } catch (error) {
-      this.update({ paused: true, error: error instanceof Error ? error.message : 'Unable to send this follow-up.',
+      this.update({ paused: true, error: errorMessage(error, 'Unable to send this follow-up.'),
         ...(item && !this.disposed ? { items: [item, ...this.snapshot.items] } : {}) });
     } finally {
       this.active = undefined;

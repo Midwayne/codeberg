@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { writeJsonAtomic } from '../../core/learning/fs.js';
+import { writeJsonAtomic } from '../../core/fs.js';
 import { load } from './reading.js';
 import type { WebSessionRecord } from './records.js';
 import type { WebSessionStoreState } from './state.js';
@@ -10,7 +10,7 @@ export async function save(state: WebSessionStoreState, record: WebSessionRecord
 
 export async function upsert(
   state: WebSessionStoreState,
-  input: Pick<WebSessionRecord, 'id' | 'title' | 'messages'> & { parentId?: string; serverRunId?: string },
+  input: Pick<WebSessionRecord, 'id' | 'messages'> & { title?: string; parentId?: string; serverRunId?: string },
 ): Promise<WebSessionRecord> {
   return serial(state, input.id, async () => {
     const existing = await load(state, input.id);
@@ -19,6 +19,8 @@ export async function upsert(
     const now = Date.now();
     const record: WebSessionRecord = {
       ...input,
+      // Without a title, keep the saved one; a new chat starts untitled.
+      title: input.title ?? existing?.title ?? 'New chat',
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
       ...(input.parentId || existing?.parentId

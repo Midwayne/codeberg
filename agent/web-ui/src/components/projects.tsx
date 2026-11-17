@@ -4,17 +4,15 @@ import type { useAddProject } from './project-add';
 import { AddProjectDialog } from './project-add-dialog';
 
 import { ProjectDetails } from './project-details';
-import { useProjectShell } from '../lib/use-project-shell';
+import { useProjectShell, type ProjectShellOptions } from '../lib/use-project-shell';
 
-import { useContext, type ReactNode } from 'react';
+import { useContext } from 'react';
 import { ProjectChatsContext } from '../sessions/project-chats';
 
 import { ErrorNotice } from './ui';
 import { ProjectApiContext, type Project, type ProjectCatalog } from '../lib/project-api';
 
-export type ProjectShellProps = {
-  children: (toolbar: ReactNode, loading: boolean, notice: ReactNode) => ReactNode;
-};
+type ProjectShellProps = ProjectShellOptions;
 
 export function ProjectShell(props: ProjectShellProps) {
   const state = useProjectShell(props);
@@ -22,7 +20,7 @@ export function ProjectShell(props: ProjectShellProps) {
   return <ProjectShellView {...state} />;
 }
 
-export type ProjectShellViewProps = ReturnType<typeof useProjectShell>;
+type ProjectShellViewProps = ReturnType<typeof useProjectShell>;
 
 export function ProjectShellView(state: ProjectShellViewProps) {
   const onProjectDeleted = useProjectDeletion(state);
@@ -85,8 +83,6 @@ export type ProjectRenameProps = Pick<Parameters<typeof ProjectDetails>[0], 'pro
   setEditing: React.Dispatch<React.SetStateAction<boolean>>;
   setSaved: React.Dispatch<React.SetStateAction<boolean>>;
 };
-
-export { ProjectsPanel } from './project-list';
 
 export { ProjectDetails } from './project-details';
 

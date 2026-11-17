@@ -87,6 +87,19 @@ describe('WebSessionStore', () => {
     expect(list[1]).toMatchObject({ title: 'older', turns: 1 });
   });
 
+  it('re-reads a listed chat after its file changes, including writes by another store', async () => {
+    const store = tempStore();
+    const other = new WebSessionStore(store.dir);
+    await store.upsert({ id: 'a', title: 'First', messages: [userMsg('1', 'hi')] });
+    await store.upsert({ id: 'b', title: 'Second', messages: [userMsg('2', 'yo')] });
+    expect((await store.list()).map((row) => row.title).sort()).toEqual(['First', 'Second']);
+
+    await other.rename('a', 'Renamed');
+    await other.remove('b');
+
+    expect((await store.list()).map((row) => row.title)).toEqual(['Renamed']);
+  });
+
   it('lists nothing when the store dir does not exist yet', async () => {
     const store = new WebSessionStore(join(tmpdir(), 'codeberg-nonexistent-xyz'));
     expect(await store.list()).toEqual([]);

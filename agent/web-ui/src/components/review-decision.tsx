@@ -4,7 +4,7 @@ import { ArrowRight, Check, CircleHelp, ShieldCheck, Sparkles } from 'lucide-rea
 
 import { VerifiedSources } from './review-verified-sources';
 
-export type ReviewDecisionFormProps = { state: Parameters<typeof ReviewDetailView>[0] };
+type ReviewDecisionFormProps = { state: Parameters<typeof ReviewDetailView>[0] };
 
 export function ReviewDecisionForm({ state }: ReviewDecisionFormProps) {
   return state.row.state === 'ready' && state.row.eligible ? (
@@ -52,9 +52,9 @@ export function ReviewDecisionForm({ state }: ReviewDecisionFormProps) {
   );
 }
 
-export type ReviewDestinationsProps = Pick<Parameters<typeof ReviewDecisionForm>[0], 'state'>;
+type ReviewDestinationsProps = Pick<Parameters<typeof ReviewDecisionForm>[0], 'state'>;
 
-export function ReviewDestinations({ state }: ReviewDestinationsProps) {
+function ReviewDestinations({ state }: ReviewDestinationsProps) {
   return (
     <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted p-1 text-sm">
       <button
@@ -79,9 +79,9 @@ export function ReviewDestinations({ state }: ReviewDestinationsProps) {
   );
 }
 
-export type DecisionActionsProps = Pick<Parameters<typeof ReviewDecisionForm>[0], 'state'>;
+type DecisionActionsProps = Pick<Parameters<typeof ReviewDecisionForm>[0], 'state'>;
 
-export function DecisionActions({ state }: DecisionActionsProps) {
+function DecisionActions({ state }: DecisionActionsProps) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <button
@@ -113,9 +113,9 @@ export function DecisionActions({ state }: DecisionActionsProps) {
   );
 }
 
-export type ReviewDecisionHelpProps = Pick<Parameters<typeof ReviewDecisionForm>[0], 'state'>;
+type ReviewDecisionHelpProps = Pick<Parameters<typeof ReviewDecisionForm>[0], 'state'>;
 
-export function ReviewDecisionHelp({ state }: ReviewDecisionHelpProps) {
+function ReviewDecisionHelp({ state }: ReviewDecisionHelpProps) {
   return (
     <p className="flex items-start gap-2 text-xs text-muted-foreground">
       {state.destination === 'training' ? (

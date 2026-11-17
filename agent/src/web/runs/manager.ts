@@ -1,5 +1,5 @@
 import { closeBrowserSessions } from '../../core/browser/sessions.js';
-import { createHash } from 'node:crypto';
+import { hash } from '../../core/message-fingerprint.js';
 import { join } from 'node:path';
 import type { LearningService } from '../../core/learning/service.js';
 import type { WebSessionStore } from '../sessions/store.js';
@@ -119,8 +119,7 @@ export class SearchRuns {
     this.active.set(input.chatId, run);
     try {
       await journal.create(run.record);
-      const prior = await this.sessions.load(input.chatId);
-      await this.sessions.upsert({ id: input.chatId, title: prior?.title ?? 'New chat', messages: input.messages, serverRunId: id });
+      await this.sessions.upsert({ id: input.chatId, messages: input.messages, serverRunId: id });
     } catch (error) {
       try {
         await journal.discard();
@@ -181,8 +180,4 @@ export class SearchRuns {
       await saveRunSession(this.sessions, run);
     }
   }
-}
-
-function hash(value: string): string {
-  return createHash('sha256').update(value).digest('hex');
 }

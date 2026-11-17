@@ -5,7 +5,7 @@ import { basename, join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 
 import { sourceRevision } from './datasets.js';
-import { writeAtomic } from './fs.js';
+import { writeAtomic } from '../fs.js';
 import { observeSources, sourceHashes } from './memory-source.js';
 import { DEFAULT_LEARNING_SETTINGS } from './preferences.js';
 import { LearningStore, serializeArtifact } from './store.js';

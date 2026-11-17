@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { DatasetStore, EXTRACTION_VERSION } from './datasets.js';
 import { exportDataset } from './export.js';
-import { writeJsonImmutable } from './fs.js';
+import { writeJsonImmutable } from '../fs.js';
 import { DurableJobQueue } from './queue.js';
 import { LearningService } from './service.js';
 import { LearningStore } from './store.js';

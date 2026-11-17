@@ -1,5 +1,5 @@
 import { extractExamples } from '../dataset-extract.js';
-import { writeJsonImmutable } from '../fs.js';
+import { writeJsonImmutable } from '../../fs.js';
 import { effectiveFeedback } from '../store.js';
 import type { DatasetExample, DatasetKind } from './records.js';
 import type { DatasetStoreState } from './state.js';

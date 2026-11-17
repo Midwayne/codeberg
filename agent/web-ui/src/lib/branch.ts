@@ -6,7 +6,7 @@ import { markerId } from './message-rail';
 import { deriveTitle, newSessionId } from './sessions';
 
 /** Payload the workspace persists and then adopts as the live chat. */
-export interface ChatBranch {
+interface ChatBranch {
   id: string;
   title: string;
   messages: UIMessage[];

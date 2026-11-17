@@ -7,7 +7,7 @@ afterEach(() => { stops.splice(0).forEach((stop) => stop()); vi.useRealTimers();
 describe('learning activity polling', () => {
   it('clears a previous busy state when polling fails instead of leaving the banner stuck', async () => {
     vi.useFakeTimers();
-    const fetch = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ active: 1 })))
+    const fetch = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ working: true })))
       .mockRejectedValueOnce(new Error('network unavailable'));
     vi.stubGlobal('fetch', fetch);
     const busy = vi.fn();
@@ -26,7 +26,7 @@ describe('learning activity polling', () => {
     stops.push(startLearningStatusPolling(vi.fn()));
     await vi.advanceTimersByTimeAsync(4000);
     expect(fetch).toHaveBeenCalledTimes(1);
-    resolve?.(new Response(JSON.stringify({ active: 0 })));
+    resolve?.(new Response(JSON.stringify({ working: false })));
     await vi.advanceTimersByTimeAsync(0);
   });
 
@@ -57,7 +57,7 @@ describe('learning activity polling', () => {
     vi.useFakeTimers();
     let resolve: ((value: Response) => void) | undefined;
     const fetch = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ working: true })))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ active: 1 }), { status: 503 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ working: true }), { status: 503 }))
       .mockResolvedValueOnce(new Response('not json'))
       .mockImplementationOnce(() => new Promise<Response>((done) => { resolve = done; }));
     vi.stubGlobal('fetch', fetch);

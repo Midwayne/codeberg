@@ -113,6 +113,6 @@ export function TracePathResults({ part }: TracePathResultsProps) {
   );
 }
 
-export function inputQuery(part: ToolView): string | undefined {
+function inputQuery(part: ToolView): string | undefined {
   return part.input && typeof part.input === 'object' ? (part.input as { query?: string }).query : undefined;
 }

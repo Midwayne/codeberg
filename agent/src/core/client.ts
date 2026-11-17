@@ -2,12 +2,12 @@ import { normalizeSearchHit } from './search-hit.js';
 import type { SearchOptions, SearchResult, ToolSpec } from './types.js';
 
 /** Default daemon HTTP port (launcher / `codeberg` default; standalone codeberg-d uses 8080). */
-export const DEFAULT_DAEMON_PORT = 48080;
+const DEFAULT_DAEMON_PORT = 48080;
 
 /** Default daemon base URL when CODEBERG_DAEMON_URL is unset. */
 export const DEFAULT_DAEMON_URL = `http://127.0.0.1:${DEFAULT_DAEMON_PORT}`;
 
-export interface DaemonHealth {
+interface DaemonHealth {
   pid?: number;
   ready: boolean;
   indexing?: boolean;
@@ -18,7 +18,7 @@ export interface DaemonHealth {
   repos?: { key: string; ready: boolean; chunks: number }[];
 }
 
-export interface DaemonErrorBody {
+interface DaemonErrorBody {
   ok: false;
   code: string;
   message: string;

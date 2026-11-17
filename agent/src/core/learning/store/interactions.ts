@@ -1,4 +1,4 @@
-import type { AttemptRecord, FeedbackRecord } from '../types.js';
+import type { AttemptRecord, FeedbackRecord, LearningEvent } from '../types.js';
 import { readEvents } from './events.js';
 import { effectiveFeedback } from './feedback.js';
 import { knowledgeArtifacts } from './knowledge.js';
@@ -24,14 +24,23 @@ export async function currentFeedback(
   return effectiveFeedback(await readEvents(state)).get(attemptId);
 }
 
-export async function interaction(
+export type InteractionHistory = { attempts: AttemptRecord[]; feedback: FeedbackRecord[] };
+
+export async function interaction(state: LearningStoreState, interactionId: string): Promise<InteractionHistory> {
+  return interactionFrom(await readEvents(state), interactionId);
+}
+
+/** Several interactions from one read of the event log. */
+export async function interactions(
   state: LearningStoreState,
-  interactionId: string,
-): Promise<{
-  attempts: AttemptRecord[];
-  feedback: FeedbackRecord[];
-}> {
+  interactionIds: Iterable<string>,
+): Promise<Map<string, InteractionHistory>> {
   const events = await readEvents(state);
+
+  return new Map([...interactionIds].map((id) => [id, interactionFrom(events, id)]));
+}
+
+function interactionFrom(events: LearningEvent[], interactionId: string): InteractionHistory {
   const attempts = events.flatMap((event) =>
     event.type === 'attempt_recorded' && event.attempt.interaction_id === interactionId
       ? [event.attempt]

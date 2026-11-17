@@ -1,7 +1,7 @@
 /** Geometry + copy helpers for the ChatGPT-style conversation tick rail. */
 import { isScheduledFollowUp } from '@agent/core/schedules/messages';
 
-export interface RailMessage {
+interface RailMessage {
   id?: string;
   role: string;
   metadata?: unknown;
@@ -16,13 +16,13 @@ export interface UserMarker {
 /** DOM attribute on each chat message, used to scroll a tick to its prompt. */
 export const MESSAGE_ID_ATTR = 'data-message-id';
 
-export type MarkerIdInput = { id?: string; role: string };
+type MarkerIdInput = { id?: string; role: string };
 
 export function markerId(message: MarkerIdInput, index: number): string {
   return message.id && message.id.length > 0 ? message.id : `${message.role}-${index}`;
 }
 
-export interface MarkerLayoutInput {
+interface MarkerLayoutInput {
   id: string;
   /** 0..1 position of the message in the scroll content. */
   fraction: number;
@@ -39,10 +39,10 @@ export interface ContentMarker {
   topInContent: number;
 }
 
-export const EMPTY_PROMPT_PREVIEW = 'Empty message';
-export const DEFAULT_PREVIEW_MAX = 160;
+const EMPTY_PROMPT_PREVIEW = 'Empty message';
+const DEFAULT_PREVIEW_MAX = 160;
 
-export type userPromptTextOptions = { parts?: RailMessage['parts'] };
+type userPromptTextOptions = { parts?: RailMessage['parts'] };
 
 export function userPromptText(message: userPromptTextOptions): string {
   return (message.parts ?? [])
@@ -60,7 +60,7 @@ export function promptPreview(text: string, maxLen = DEFAULT_PREVIEW_MAX): strin
 }
 
 /** User turns, in conversation order. Missing ids fall back to `user-<index>`. */
-export type UserMarkersOptions = readonly RailMessage[];
+type UserMarkersOptions = readonly RailMessage[];
 
 export function collectUserMarkers(messages: UserMarkersOptions): UserMarker[] {
   const out: UserMarker[] = [];

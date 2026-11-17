@@ -9,13 +9,13 @@ import {
   type UserMarker,
 } from '../../lib/message-rail';
 
-export function offsetTopIn(scroll: HTMLElement, el: HTMLElement): number {
+function offsetTopIn(scroll: HTMLElement, el: HTMLElement): number {
   const s = scroll.getBoundingClientRect();
   const e = el.getBoundingClientRect();
   return e.top - s.top + scroll.scrollTop;
 }
 
-export type RailLayoutOptions = Pick<Parameters<typeof useMessageRail>[0], 'scrollRef' | 'messages'> & {
+type RailLayoutOptions = Pick<Parameters<typeof useMessageRail>[0], 'scrollRef' | 'messages'> & {
   setActiveId: React.Dispatch<React.SetStateAction<string | null>>;
   markersRef: React.RefObject<ContentMarker[]>;
   railRef: React.RefObject<HTMLElement | null>;
@@ -74,12 +74,12 @@ export function useRailLayout({
   return { laid };
 }
 
-export type ActiveRailMarkerOptions = Pick<
+type ActiveRailMarkerOptions = Pick<
   Parameters<typeof useRailLayout>[0],
   'scrollRef' | 'setActiveId' | 'markersRef'
 >;
 
-export function useActiveRailMarker({ scrollRef, setActiveId, markersRef }: ActiveRailMarkerOptions) {
+function useActiveRailMarker({ scrollRef, setActiveId, markersRef }: ActiveRailMarkerOptions) {
   const syncActive = useCallback(() => {
     const root = scrollRef.current;
     if (!root) return;
@@ -89,12 +89,12 @@ export function useActiveRailMarker({ scrollRef, setActiveId, markersRef }: Acti
   return { syncActive };
 }
 
-export type RailObserversOptions = Pick<Parameters<typeof useRailLayout>[0], 'messages' | 'scrollRef' | 'railRef'> & {
+type RailObserversOptions = Pick<Parameters<typeof useRailLayout>[0], 'messages' | 'scrollRef' | 'railRef'> & {
   measure: () => void;
   syncActive: () => void;
 };
 
-export function useRailObservers({ measure, messages, scrollRef, railRef, syncActive }: RailObserversOptions) {
+function useRailObservers({ measure, messages, scrollRef, railRef, syncActive }: RailObserversOptions) {
   useLayoutEffect(() => {
     measure();
   }, [measure, messages]);

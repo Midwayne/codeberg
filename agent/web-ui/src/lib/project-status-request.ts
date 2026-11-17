@@ -1,10 +1,5 @@
 import type { ProjectStatus } from './project-api';
-
-class ProjectStatusError extends Error {
-  constructor(message: string, readonly status: number) {
-    super(message);
-  }
-}
+import { HttpError, readJson } from './http';
 
 export async function requestProjectStatus(api: typeof fetch, parent: AbortSignal): Promise<ProjectStatus> {
   const controller = new AbortController();
@@ -15,9 +10,8 @@ export async function requestProjectStatus(api: typeof fetch, parent: AbortSigna
     const response = await api('/api/project/status', {
       signal: AbortSignal.any([parent, controller.signal]),
     });
-    if (!response.ok) throw new ProjectStatusError(await response.text(), response.status);
 
-    return await response.json() as ProjectStatus;
+    return await readJson<ProjectStatus>(response);
   } finally {
     clearTimeout(timer);
   }
@@ -26,9 +20,9 @@ export async function requestProjectStatus(api: typeof fetch, parent: AbortSigna
 export function transientStatusError(error: unknown): boolean {
   return error instanceof TypeError ||
     (error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name)) ||
-    (error instanceof ProjectStatusError && [408, 429, 502, 504].includes(error.status));
+    (error instanceof HttpError && [408, 429, 502, 504].includes(error.status));
 }
 
 export function missingProject(error: unknown): boolean {
-  return error instanceof ProjectStatusError && error.status === 404;
+  return error instanceof HttpError && error.status === 404;
 }

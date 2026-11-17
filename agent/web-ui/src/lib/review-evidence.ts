@@ -2,7 +2,7 @@ import type { useReviewDetail } from '../components/review-detail';
 
 import { proposedEvidence, type EvidencePreview } from './training';
 
-export type ReviewEvidenceOptions = Pick<Parameters<typeof useReviewDetail>[0], 'example' | 'destination' | 'row'>;
+type ReviewEvidenceOptions = Pick<Parameters<typeof useReviewDetail>[0], 'example' | 'destination' | 'row'>;
 
 export function collectReviewEvidence({ example, destination, row }: ReviewEvidenceOptions) {
   const evidence = proposedEvidence(example, 'proposed_evidence');

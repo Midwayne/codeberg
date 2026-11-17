@@ -1,9 +1,10 @@
 import type { Scene } from '@agent/core/canvas/types';
+import { startPoll } from '../lib/poll';
 
 /** How often a visible canvas checks for agent edits. */
-export const SCENE_POLL_MS = 1000;
+const SCENE_POLL_MS = 1000;
 
-export type SceneHandlers = {
+type SceneHandlers = {
   scene: (scene: Scene) => void;
   status: (message: string) => void;
 };
@@ -14,29 +15,23 @@ export type SceneHandlers = {
  * starve chat, model and project requests.
  */
 export function pollScene(fetcher: typeof fetch, on: SceneHandlers, interval = SCENE_POLL_MS): { close(): void } {
-  const controller = new AbortController();
-  let timer: ReturnType<typeof setTimeout> | undefined;
   let tag = '';
 
-  const poll = async () => {
-    try {
-      tag = await checkScene(fetcher, on, tag, controller.signal);
-    } catch {
-      if (controller.signal.aborted) return;
+  const poll = startPoll({
+    load: (signal) => checkScene(fetcher, on, tag, signal),
+    done: (next) => {
+      tag = next;
 
-      on.status('Canvas disconnected. Reconnecting; unsaved changes are kept here.');
-    }
-
-    if (!controller.signal.aborted) timer = setTimeout(() => void poll(), interval);
-  };
-  void poll();
-
-  return {
-    close() {
-      controller.abort();
-      clearTimeout(timer);
+      return interval;
     },
-  };
+    fail: () => {
+      on.status('Canvas disconnected. Reconnecting; unsaved changes are kept here.');
+
+      return interval;
+    },
+  });
+
+  return { close: () => poll.stop() };
 }
 
 async function checkScene(fetcher: typeof fetch, on: SceneHandlers, tag: string, signal: AbortSignal): Promise<string> {

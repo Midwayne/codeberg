@@ -1,16 +1,12 @@
-import { usePromptInput } from './use-prompt-input';
+import { usePromptInput, type PromptInputOptions } from './use-prompt-input';
 import { PromptTextarea } from './prompt-textarea';
 import { PromptAttachments, PromptFiles, PromptAction } from './prompt-files';
 import { PromptSteer } from './prompt-actions';
 import { PromptFilePreviews } from './prompt-file-previews';
 
-import type { RefObject } from 'react';
-
 import { CommandMenu } from './command-menu';
 
-import type { CatalogModel } from '../../lib/models';
-
-export { MAX_HEIGHT, MAX_FILE_SIZE, inputFor, clipboardImages } from '../../lib/prompt-files';
+export { clipboardImages } from '../../lib/prompt-files';
 
 /**
  * Auto-growing composer. Enter sends, Shift+Enter inserts a newline. The action
@@ -21,17 +17,7 @@ export { MAX_HEIGHT, MAX_FILE_SIZE, inputFor, clipboardImages } from '../../lib/
  * hover to preview what a command does. Accepting inserts the trigger so the
  * user can finish the prompt — the command itself is enhanced server-side.
  */
-export type PromptInputProps = {
-  value: string;
-  onValueChange: (value: string) => void;
-  inputRef?: RefObject<HTMLTextAreaElement | null>;
-  busy: boolean;
-  disabled?: boolean;
-  inputs: CatalogModel['inputs'];
-  onSend: (text: string, files: FileList) => void;
-  onSteer?: (text: string, files: FileList) => void;
-  onStop: () => void;
-};
+type PromptInputProps = PromptInputOptions;
 
 export function PromptInput(props: PromptInputProps) {
   const state = usePromptInput(props);

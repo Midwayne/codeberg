@@ -28,7 +28,7 @@ export function useWorkspaceSession() {
   const transitionIntent = useRef(0);
   const renderedViews = useRef<ReadonlySet<WorkspaceChat>>(new Set());
   const seededRailPreview = useRef(false);
-  const { setActive, createChat, sessionId, chat, active } = useChatRegistry({
+  const { setActive, createChat, sessionId, readiness, active } = useChatRegistry({
     api,
     registry,
     refreshRef,
@@ -47,7 +47,7 @@ export function useWorkspaceSession() {
     sessionId,
   });
 
-  const { branchFrom } = useChatBranch({ chat, transitionIntent, active, api, refresh, setActive, createChat, setSessionError });
+  const { branchFrom } = useChatBranch({ transitionIntent, active, api, refresh, setActive, createChat, setSessionError });
   const { remove, setFlags, rename } = useSessionMutations({
     cancelResume,
     chats,
@@ -61,6 +61,6 @@ export function useWorkspaceSession() {
   const sessions = workspaceSummaries(savedSessions, registry.chats);
   const scheduledError = useScheduledChatUpdates(registry.chats, api);
 
-  return { active, chat, renderedViews, sessions, sessionId, sessionError: sessionError || scheduledError,
+  return { active, readiness, renderedViews, sessions, sessionId, sessionError: sessionError || scheduledError,
     load, cancelResume, resume, startNew, branchFrom, remove, setFlags, rename };
 }

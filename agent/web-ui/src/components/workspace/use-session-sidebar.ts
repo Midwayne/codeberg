@@ -49,14 +49,14 @@ export function useSessionSidebar(options: SessionSidebarOptions) {
   };
 }
 
-export type SidebarMenuFocusOptions = {
+type SidebarMenuFocusOptions = {
   menu: { id: string; top: number; left: number } | undefined;
   menuRef: React.RefObject<HTMLDivElement | null>;
   triggerRef: React.RefObject<HTMLButtonElement | null>;
   setMenu: React.Dispatch<React.SetStateAction<{ id: string; top: number; left: number } | undefined>>;
 };
 
-export function useSidebarMenuFocus({ menu, menuRef, triggerRef, setMenu }: SidebarMenuFocusOptions) {
+function useSidebarMenuFocus({ menu, menuRef, triggerRef, setMenu }: SidebarMenuFocusOptions) {
   useEffect(() => {
     if (!menu) return;
     menuRef.current?.querySelector('button')?.focus();

@@ -1,6 +1,7 @@
 import { toolOutputText } from '../message.js';
 import { isSpillPreview } from './spill-preview.js';
 import type { ContextStore } from './store.js';
+import { errorMessage } from '../errors.js';
 
 export { isSpillPreview, spillResultCount } from './spill-preview.js';
 
@@ -8,8 +9,8 @@ export { isSpillPreview, spillResultCount } from './spill-preview.js';
  *  head/tail preview and the path, so the middle is recoverable without
  *  occupying the context window. */
 export const SPILL_CHARS = 12_000;
-export const SPILL_HEAD_CHARS = 2_000;
-export const SPILL_TAIL_CHARS = 1_500;
+const SPILL_HEAD_CHARS = 2_000;
+const SPILL_TAIL_CHARS = 1_500;
 
 const TERMINAL_TOOLS = new Set(['pipe', 'shell', 'bash', 'terminal']);
 
@@ -71,7 +72,7 @@ export async function recordTerminal(
  * (about a third larger) would spill results that fit and cost the model an
  * extra context_read round trip.
  */
-export function wireChars(output: unknown): number {
+function wireChars(output: unknown): number {
   if (typeof output === 'string') return output.length;
 
   if (output == null) return 0;
@@ -110,7 +111,7 @@ export async function presentToolOutput(
 
     return preview ?? output;
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = errorMessage(err);
     console.error(`› context: failed to spill ${toolName}: ${message}`);
 
     return output;

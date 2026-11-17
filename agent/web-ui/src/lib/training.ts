@@ -1,5 +1,10 @@
-export type ExampleKind = 'retrieval' | 'sft' | 'preferences' | 'rlvr' | 'hard_negatives' | 'hard_negative_candidates';
-export type ReviewState = 'ready' | 'training' | 'eval' | 'dismissed' | 'stale';
+import type { DatasetKind } from '@agent/core/learning/datasets/records.js';
+import type { ReviewCandidate, ReviewDashboard, ReviewState } from '@agent/core/learning/review-types.js';
+import { readJson, jsonInit } from './http';
+
+type ExampleKind = DatasetKind;
+export type ReviewSummary = ReviewCandidate;
+export type { ReviewDashboard, ReviewState };
 
 export const KIND_LABELS: Record<ExampleKind, string> = {
   retrieval: 'Search evidence',
@@ -9,32 +14,6 @@ export const KIND_LABELS: Record<ExampleKind, string> = {
   hard_negatives: 'Incorrect result',
   hard_negative_candidates: 'Possible incorrect result',
 };
-
-export interface ReviewSummary {
-  id: string;
-  kind: ExampleKind;
-  query: string;
-  extracted_at: string;
-  state: ReviewState;
-  eligible: boolean;
-  feedback?: { label: string; reason?: string };
-  repositories: string[];
-  answer_preview: string;
-  proposed_files: string[];
-}
-
-export interface ReviewDashboard {
-  stats: {
-    total: number;
-    ready: number;
-    training: number;
-    eval: number;
-    dismissed: number;
-    stale: number;
-    by_kind: Partial<Record<ExampleKind, number>>;
-  };
-  candidates: ReviewSummary[];
-}
 
 export interface ReviewExample {
   id: string;
@@ -47,16 +26,11 @@ export interface ReviewExample {
   confidence: string;
 }
 
-async function readResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) throw new Error(await response.text());
-  return response.json() as Promise<T>;
-}
-
 export async function loadTrainingReview(
   signal?: AbortSignal,
   fetcher: typeof fetch = fetch,
 ): Promise<ReviewDashboard> {
-  return readResponse(await fetcher('/api/learning/review', { signal }));
+  return readJson(await fetcher('/api/learning/review', { signal }));
 }
 
 export async function loadReviewExample(
@@ -64,7 +38,7 @@ export async function loadReviewExample(
   signal?: AbortSignal,
   fetcher: typeof fetch = fetch,
 ): Promise<ReviewExample> {
-  return readResponse(await fetcher(`/api/learning/review/${encodeURIComponent(id)}`, { signal }));
+  return readJson(await fetcher(`/api/learning/review/${encodeURIComponent(id)}`, { signal }));
 }
 
 export async function submitReview(
@@ -73,12 +47,8 @@ export async function submitReview(
   oracle?: Record<string, unknown>,
   fetcher: typeof fetch = fetch,
 ): Promise<void> {
-  await readResponse(
-    await fetcher(`/api/learning/review/${encodeURIComponent(id)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ decision, ...(oracle ? { oracle } : {}) }),
-    }),
+  await readJson(
+    await fetcher(`/api/learning/review/${encodeURIComponent(id)}`, jsonInit('POST', { decision, ...(oracle ? { oracle } : {}) })),
   );
 }
 

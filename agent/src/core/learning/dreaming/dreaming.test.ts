@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import { sourceRevision } from '../datasets.js';
-import { writeAtomic } from '../fs.js';
+import { writeAtomic } from '../../fs.js';
 import { observeSources, sourceCommits, sourceHashes } from '../memory-source.js';
 import { LearningService } from '../service.js';
 import { LearningStore, serializeArtifact } from '../store.js';

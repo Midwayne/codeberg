@@ -3,6 +3,7 @@ import { jsonSchema, tool, type ToolExecutionOptions, type ToolSet } from 'ai';
 import { presentToolOutput, SPILL_CHARS } from '../context/spill.js';
 import type { ContextStore } from '../context/store.js';
 import { isBackgroundControl } from '../background/names.js';
+import { errorMessage } from '../errors.js';
 
 export const BATCH_TOOL = 'batch';
 
@@ -23,13 +24,12 @@ interface BatchCall {
 type Execute = (args: unknown, options: ToolExecutionOptions<unknown>) => unknown;
 
 /** Read-only lookups a batch may run. State-changing tools (canvas edits),
- *  MCP tools (unknown side effects, loaded per turn), and the batch itself
- *  keep their own calls. */
+ *  MCP tools (unknown side effects, loaded per turn), and control tools
+ *  (background, scheduling, load_mcp_tools, batch itself) keep their own calls. */
 export function isBatchable(name: string): boolean {
   return (
     !isBackgroundControl(name) &&
     !name.startsWith('browser_') &&
-    name !== 'load_mcp_tools' &&
     !name.startsWith('mcp_') &&
     !name.startsWith('canvas_')
   );
@@ -136,6 +136,6 @@ async function runCall(
 
     return { tool: name, result: await presentToolOutput(store, name, args, output, limit) };
   } catch (error) {
-    return { tool: name, error: error instanceof Error ? error.message : String(error) };
+    return { tool: name, error: errorMessage(error) };
   }
 }

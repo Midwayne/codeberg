@@ -4,7 +4,7 @@ import { loadModelSettings, saveModelSettings, type ModelSettings } from './mode
 
 export type Choices = Pick<ModelSettings, 'chat' | 'learning' | 'summary' | 'decisions'>;
 
-export type ModelSettingsPanelOptions = { onClose: () => void; onSaved: () => void };
+type ModelSettingsPanelOptions = { onClose: () => void; onSaved: () => void };
 
 export function useModelSettingsPanel({ onClose, onSaved }: ModelSettingsPanelOptions) {
   const [settings, setSettings] = useState<ModelSettings>();

@@ -8,7 +8,7 @@ import { useCommands } from '../../lib/use-commands';
 import { isComposingKey } from '../../lib/prompt-keyboard';
 import { MAX_HEIGHT } from '../../lib/prompt-files';
 
-export type PromptCommandsOptions = Pick<Parameters<typeof usePromptInput>[0], 'inputRef' | 'value'>;
+type PromptCommandsOptions = Pick<Parameters<typeof usePromptInput>[0], 'inputRef' | 'value'>;
 
 export function usePromptCommands({ inputRef, value }: PromptCommandsOptions) {
   const [activeIndex, setActiveIndex] = useState(0);
@@ -21,6 +21,14 @@ export function usePromptCommands({ inputRef, value }: PromptCommandsOptions) {
 
   const commands = useCommands();
   const query = commandQuery(value);
+  const [highlightQuery, setHighlightQuery] = useState(query);
+
+  // Reset the highlight while rendering a new query, not one render later.
+  if (query !== highlightQuery) {
+    setHighlightQuery(query);
+    setActiveIndex(0);
+  }
+
   const matches = useMemo(() => (query === null ? [] : matchCommands(commands, query)), [commands, query]);
   const menuOpen = !dismissed && matches.length > 0;
 
@@ -47,11 +55,6 @@ export function usePromptCommands({ inputRef, value }: PromptCommandsOptions) {
     return () => observer.disconnect();
   }, [ref]);
 
-  // Reset the highlight whenever the set of matches changes (new query).
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [query]);
-
   return { fileRef, setDismissed, ref, menuOpen, setActiveIndex, matches, activeIndex, commandId, commands, helpId };
 }
 
@@ -60,7 +63,7 @@ function resizePrompt(element: HTMLTextAreaElement) {
   element.style.height = `${Math.min(element.scrollHeight, MAX_HEIGHT)}px`;
 }
 
-export type PromptKeyboardOptions = { setValue: Parameters<typeof usePromptInput>[0]['onValueChange'] } & {
+type PromptKeyboardOptions = { setValue: Parameters<typeof usePromptInput>[0]['onValueChange'] } & {
   setDismissed: React.Dispatch<React.SetStateAction<boolean>>;
   ref: RefObject<HTMLTextAreaElement | null>;
   menuOpen: boolean;
@@ -116,12 +119,12 @@ export function usePromptKeyboard({
   return { accept, onKeyDown };
 }
 
-export type CommandAcceptanceOptions = Pick<
+type CommandAcceptanceOptions = Pick<
   Parameters<typeof usePromptKeyboard>[0],
   'setValue' | 'setDismissed' | 'ref'
 >;
 
-export function createCommandAcceptance({ setValue, setDismissed, ref }: CommandAcceptanceOptions) {
+function createCommandAcceptance({ setValue, setDismissed, ref }: CommandAcceptanceOptions) {
   function accept(command: PromptCommand) {
     const next = `${command.trigger} `;
     setValue(next);

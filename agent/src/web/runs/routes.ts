@@ -4,7 +4,7 @@ import { pipeUIMessageStreamToResponse, type UIMessage } from 'ai';
 import type { ResolvedModelSelection } from '../chat-routes.js';
 import { readJson, requireJsonMutation, sendJson, sendText } from '../http.js';
 import type { SearchRuns } from './manager.js';
-import { RunError, type SearchRun } from './types.js';
+import type { SearchRun } from './types.js';
 
 export async function submitSearch(res: ServerResponse, body: Record<string, unknown> | null,
   selection: ResolvedModelSelection | undefined, runs: SearchRuns): Promise<void> {
@@ -15,15 +15,10 @@ export async function submitSearch(res: ServerResponse, body: Record<string, unk
 
   const requestId = typeof body?.requestId === 'string' ? body.requestId
     : String(messages.at(-1).id);
-  try {
-    const run = await runs.admit({ chatId: typeof body?.id === 'string' ? body.id : randomUUID(),
-      requestId, messages, selection, trigger: typeof body?.trigger === 'string' ? body.trigger : undefined });
-    pipeRun(res, runs, run, 0);
-  } catch (error) {
-    if (!(error instanceof RunError)) throw error;
-
-    sendText(res, error.status, error.message);
-  }
+  // A RunError carries its status to the server's error handler.
+  const run = await runs.admit({ chatId: typeof body?.id === 'string' ? body.id : randomUUID(),
+    requestId, messages, selection, trigger: typeof body?.trigger === 'string' ? body.trigger : undefined });
+  pipeRun(res, runs, run, 0);
 }
 
 export async function routeSearchRun(req: IncomingMessage, res: ServerResponse, url: URL, runs: SearchRuns) {
@@ -31,34 +26,28 @@ export async function routeSearchRun(req: IncomingMessage, res: ServerResponse, 
   if (!match) return sendText(res, 404, 'not found');
 
   const [, chatId, action] = match;
-  try {
-    if (action === 'stop') {
-      if (!requireJsonMutation(req, res, 'POST', 'search stops')) return;
+  if (action === 'stop') {
+    if (!requireJsonMutation(req, res, 'POST', 'search stops')) return;
 
-      const body = await readJson(req);
-      const id = body?.runId ?? body?.requestId;
-      if (typeof id !== 'string') return sendText(res, 400, 'runId or requestId required');
+    const body = await readJson(req);
+    const id = body?.runId ?? body?.requestId;
+    if (typeof id !== 'string') return sendText(res, 400, 'runId or requestId required');
 
-      await runs.stop(chatId, id, !body?.runId);
-      return sendJson(res, 200, { ok: true });
-    }
-    if (req.method !== 'GET') return sendText(res, 405, 'method not allowed');
-
-    const requestId = url.searchParams.get('requestId');
-    const run = requestId !== null ? await runs.findRequest(chatId, requestId)
-      : await runs.find(chatId, url.searchParams.get('runId') ?? undefined);
-    if (!run) return action === 'stream' ? void res.writeHead(204).end() : sendText(res, 404, 'not found');
-
-    if (action === 'run') return sendJson(res, 200, { id: run.record.id, requestId: run.record.requestId, status: run.record.status,
-      createdAt: run.record.createdAt, finishedAt: run.record.finishedAt, error: run.record.error,
-      messageId: run.events.find((event) => event.type === 'start')?.messageId, eventCount: run.events.length, tools: run.tools });
-
-    pipeRun(res, runs, run, Number(url.searchParams.get('after') ?? 0));
-  } catch (error) {
-    if (!(error instanceof RunError)) throw error;
-
-    sendText(res, error.status, error.message);
+    await runs.stop(chatId, id, !body?.runId);
+    return sendJson(res, 200, { ok: true });
   }
+  if (req.method !== 'GET') return sendText(res, 405, 'method not allowed');
+
+  const requestId = url.searchParams.get('requestId');
+  const run = requestId !== null ? await runs.findRequest(chatId, requestId)
+    : await runs.find(chatId, url.searchParams.get('runId') ?? undefined);
+  if (!run) return action === 'stream' ? void res.writeHead(204).end() : sendText(res, 404, 'not found');
+
+  if (action === 'run') return sendJson(res, 200, { id: run.record.id, requestId: run.record.requestId, status: run.record.status,
+    createdAt: run.record.createdAt, finishedAt: run.record.finishedAt, error: run.record.error,
+    messageId: run.events.find((event) => event.type === 'start')?.messageId, eventCount: run.events.length, tools: run.tools });
+
+  pipeRun(res, runs, run, Number(url.searchParams.get('after') ?? 0));
 }
 
 function pipeRun(res: ServerResponse, runs: SearchRuns, run: SearchRun, after: number) {

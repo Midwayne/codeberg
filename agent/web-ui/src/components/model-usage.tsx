@@ -14,7 +14,7 @@ export function ModelUsagePanel() {
   return <UsageView {...state} />;
 }
 
-export type UsageViewProps = UsageControlsProps & {
+type UsageViewProps = UsageControlsProps & {
   report?: UsageReport;
   loading?: boolean;
   error?: string;

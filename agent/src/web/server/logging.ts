@@ -3,6 +3,8 @@ import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { writeModuleLog } from '../../core/module-log.js';
 import { LEARNING_PATH } from '../learning/paths.js';
 import { CHAT_PATH } from './types.js';
+import { HttpError } from '../../core/http-error.js';
+import { sendText } from '../http.js';
 
 export function logRequest(
   req: IncomingMessage,
@@ -29,6 +31,9 @@ export function logRequest(
   }
 
   return (err: unknown) => {
+    // A known status is a normal answer, not a server failure.
+    if (err instanceof HttpError && !res.headersSent) return sendText(res, err.status, err.message);
+
     if (id)
       writeModuleLog('agent', 'turn_failed', {
         id,

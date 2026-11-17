@@ -1,7 +1,7 @@
 import type { KnowledgeJob } from '../types.js';
 import type { DreamingReport } from './types.js';
 
-export type DreamingSummary = Omit<DreamingReport, 'changes'> & {
+type DreamingSummary = Omit<DreamingReport, 'changes'> & {
   changes: { id: string; title: string; status: string; reason: string }[];
 };
 

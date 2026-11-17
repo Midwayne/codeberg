@@ -1,5 +1,5 @@
 import { readUIMessageStream, type UIMessage } from 'ai';
-import { titleFromText } from '../../core/title.js';
+import { titleFromMessages } from '../../core/title.js';
 import type { LearningService } from '../../core/learning/service.js';
 import type { WebSessionStore } from '../sessions/store.js';
 import type { SearchRun } from './types.js';
@@ -11,11 +11,9 @@ export async function saveRunSession(sessions: WebSessionStore, run: SearchRun, 
   if (!existing || existing.serverRunId !== run.record.id) return;
   if (JSON.stringify(existing.messages) === JSON.stringify(messages)) return;
 
-  const first = messages.find((message) => message.role === 'user');
-  const text = first?.parts.filter((part) => part.type === 'text').map((part) => part.text).join(' ') ?? '';
   const record = await sessions.upsert({
     id: run.record.chatId,
-    title: existing?.title ?? titleFromText(text, 'New chat'),
+    title: existing?.title ?? titleFromMessages(messages),
     messages,
     serverRunId: run.record.id,
   });

@@ -45,9 +45,9 @@ export function usePromptInput({
   return { ...files, ...commands, ...keyboard, value, setValue, inputs, busy, disabled, onStop, submit, steer };
 }
 
-export type PromptFilesOptions = Pick<Parameters<typeof usePromptInput>[0], 'inputs'>;
+type PromptFilesOptions = Pick<Parameters<typeof usePromptInput>[0], 'inputs'>;
 
-export function usePromptFiles({ inputs }: PromptFilesOptions) {
+function usePromptFiles({ inputs }: PromptFilesOptions) {
   const [files, setFiles] = useState<File[]>([]);
 
   const [fileError, setFileError] = useState('');
@@ -74,7 +74,7 @@ export function usePromptFiles({ inputs }: PromptFilesOptions) {
   return { files, setFiles, setFileError, fileError, acceptedTypes };
 }
 
-export type PromptSubmitOptions = Pick<
+type PromptSubmitOptions = Pick<
   Parameters<typeof usePromptInput>[0],
   'value' | 'disabled' | 'onSend' | 'onSteer'
 > & {

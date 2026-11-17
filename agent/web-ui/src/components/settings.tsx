@@ -6,7 +6,7 @@ import { type sections, buttonClass } from './settings-styles';
 import { ArrowLeft } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-export type SettingsProps = { onClose: () => void; onLearningSaved?: () => void; backLabel?: string };
+type SettingsProps = { onClose: () => void; onLearningSaved?: () => void; backLabel?: string };
 
 export function Settings({ onClose, onLearningSaved, backLabel = 'Back to chats' }: SettingsProps) {
   const [section, setSection] = useState<(typeof sections)[number]['id']>('appearance');

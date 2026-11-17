@@ -1,8 +1,16 @@
 import type { SearchResult } from './types.js';
 
-export function formatSource(result: SearchResult): string {
+type Location = Pick<SearchResult, 'repo' | 'path' | 'start_line' | 'end_line'>;
+
+/** `[repo] path:start-end`, the citation form agents and the ledger share. */
+export function formatLocation(result: Location): string {
   const repo = result.repo ? `[${result.repo}] ` : '';
-  const loc = `${repo}${result.path}:${result.start_line}-${result.end_line}`;
+
+  return `${repo}${result.path}:${result.start_line}-${result.end_line}`;
+}
+
+export function formatSource(result: SearchResult): string {
+  const loc = formatLocation(result);
   if (result.id > 0) {
     return `${loc} (id=${result.id})`;
   }

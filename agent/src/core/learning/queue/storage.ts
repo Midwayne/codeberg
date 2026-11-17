@@ -1,6 +1,6 @@
 import { readdir, readFile, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
-import { writeJsonAtomic } from '../fs.js';
+import { writeJsonAtomic } from '../../fs.js';
 import type { JobStatus, KnowledgeJob } from '../types.js';
 import type { DurableJobQueueState } from './state.js';
 

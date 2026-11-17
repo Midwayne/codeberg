@@ -29,6 +29,4 @@ export class ExtensionStore {
   }
 }
 
-export type { SkillFilePreview } from './extensions/preview.js';
-
 export { previewSkillFiles } from './extensions/preview.js';

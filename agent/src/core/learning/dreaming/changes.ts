@@ -43,7 +43,7 @@ export async function planChanges(
   return [...changes.values()];
 }
 
-export function applyLinks(
+function applyLinks(
   links: DreamingPlan['links'],
   changes: Map<string, DreamingChange>,
   destinations: Map<string, string>,

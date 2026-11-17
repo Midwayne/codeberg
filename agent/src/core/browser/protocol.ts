@@ -1,4 +1,4 @@
-export interface BrowserResult {
+interface BrowserResult {
   status: 'completed' | 'incomplete' | 'error';
   result: string;
   urls?: string[];

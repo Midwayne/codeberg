@@ -14,7 +14,7 @@ export function CleanupPanel() {
   return <CleanupPanelView {...state} />;
 }
 
-export function useCleanupPanel() {
+function useCleanupPanel() {
   const { fetch: api } = useProjectApi();
   const [days, setDays] = useState(30);
   const [selected, setSelected] = useState<CleanupCategory[]>([]);
@@ -51,7 +51,7 @@ export function useCleanupPanel() {
   };
 }
 
-export type CleanupPanelViewProps = ReturnType<typeof useCleanupPanel>;
+type CleanupPanelViewProps = ReturnType<typeof useCleanupPanel>;
 
 export function CleanupPanelView(state: CleanupPanelViewProps) {
   return (
@@ -120,7 +120,7 @@ export type CleanupSelectionProps = Pick<
   | 'busy'
 >;
 
-export function CleanupPreviewError({ state }: CleanupPreviewErrorProps) {
+function CleanupPreviewError({ state }: CleanupPreviewErrorProps) {
   return (
     state.previewError && (
       <ErrorNotice

@@ -9,13 +9,13 @@ export interface ScheduleInput {
   background_job_ids?: string[];
 }
 
-export interface SchedulingService {
+interface SchedulingService {
   create(context: ScheduleContext, input: ScheduleInput): Promise<unknown>;
   list(chatId: string): Promise<unknown>;
   cancel(chatId: string, id: string): Promise<unknown>;
 }
 
-export interface ScheduleContext {
+interface ScheduleContext {
   chatId: string;
   sourceRunId: string;
   scheduler: SchedulingService;

@@ -36,4 +36,4 @@ export class ResourceMonitorClient {
 
 export type { ResourceReader, ResourceWorkerData } from './resource-monitor/types.js';
 
-export { DISK_MS, RETENTION_MS, SAMPLE_MS } from './resource-monitor/types.js';
+export { DISK_MS, SAMPLE_MS } from './resource-monitor/types.js';

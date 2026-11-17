@@ -41,16 +41,11 @@ export function extractVerifiedTask(
   context: ExtractionContext,
   repositories: DatasetExample['repositories'],
 ): void {
-  const { attempts, final, verifier, trajectory, emit } = context;
+  const { final, verifier, trajectory, emit } = context;
   if (!final || !verifier) return;
 
   emit('rlvr', {
-    task: attempts[0].user_query,
-    environment: repositories,
-    available_tools: unique(attempts.flatMap((attempt) => attempt.available_tools ?? [])),
-    observed_tools: unique(
-      attempts.flatMap((attempt) => attempt.tools_invoked.map((tool) => tool.name)),
-    ),
+    ...rlvrTask(context, repositories),
     verifier: {
       tool: verifier.name,
       version: final.tool_versions?.[verifier.name],
@@ -61,6 +56,20 @@ export function extractVerifiedTask(
     successful_trajectory: trajectory,
     reward_components: ['verifier_result', 'tool_calls', 'latency_ms'],
   });
+}
+
+/** The task and environment fields every RLVR record starts with, in stored key order. */
+export function rlvrTask(context: ExtractionContext, repositories: DatasetExample['repositories']) {
+  const { attempts } = context;
+
+  return {
+    task: attempts[0].user_query,
+    environment: repositories,
+    available_tools: unique(attempts.flatMap((attempt) => attempt.available_tools ?? [])),
+    observed_tools: unique(
+      attempts.flatMap((attempt) => attempt.tools_invoked.map((tool) => tool.name)),
+    ),
+  };
 }
 
 export function unique<T>(values: T[]): T[] {

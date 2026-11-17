@@ -1,7 +1,7 @@
 import { basename } from 'node:path';
 import { parseSkillDocument } from '../../core/context/skills.js';
 
-export interface SkillFilePreview {
+interface SkillFilePreview {
   filename: string;
   name?: string;
   description?: string;

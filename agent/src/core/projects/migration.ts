@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, readFile, readlink, rename, symlink, unlink } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import { writeJsonAtomic } from '../learning/fs.js';
+import { ifMissing, writeJsonAtomic } from '../fs.js';
 import { codebergHome } from '../paths.js';
 import { lockMigration } from './lock.js';
 import { type ProjectCatalog, projectDataHome } from './types.js';
@@ -21,7 +21,7 @@ export async function migrateProjectData(home: string, catalog: ProjectCatalog):
   }
 }
 
-export async function migrateLocked(home: string, catalog: ProjectCatalog): Promise<void> {
+async function migrateLocked(home: string, catalog: ProjectCatalog): Promise<void> {
   const marker = join(home, 'projects-migrated.json');
   if (await migrationComplete(marker, catalog.legacyId)) return;
 
@@ -67,7 +67,7 @@ export async function migrateLocked(home: string, catalog: ProjectCatalog): Prom
   await writeJsonAtomic(marker, { version: 1, projectId: catalog.legacyId });
 }
 
-export async function isContextAlias(home: string, target: string, name: string, isLink: boolean) {
+async function isContextAlias(home: string, target: string, name: string, isLink: boolean) {
   return (
     name === 'context' &&
     isLink &&
@@ -79,26 +79,14 @@ export async function isContextAlias(home: string, target: string, name: string,
  * their existing stores until the daemon itself has been upgraded. */
 export async function prepareProjectStorage(env: NodeJS.ProcessEnv = process.env): Promise<void> {
   const home = codebergHome(env);
-  const raw = await readFile(join(home, 'projects.json'), 'utf8').catch(
-    (error: NodeJS.ErrnoException) => {
-      if (error.code !== 'ENOENT') throw error;
-
-      return undefined;
-    },
-  );
+  const raw = await readFile(join(home, 'projects.json'), 'utf8').catch(ifMissing(undefined));
 
   if (raw) await migrateProjectData(home, JSON.parse(raw) as ProjectCatalog);
 }
 
 export async function info(path: string) {
-  return lstat(path).catch((error: NodeJS.ErrnoException) => {
-    if (error.code !== 'ENOENT') throw error;
-
-    return undefined;
-  });
+  return lstat(path).catch(ifMissing(undefined));
 }
-
-export { lockMigration } from './lock.js';
 
 async function makeLinkAbsolute(home: string, name: string): Promise<void> {
   // A relative symlink would change meaning after moving deeper in the tree.
@@ -116,11 +104,7 @@ async function makeLinkAbsolute(home: string, name: string): Promise<void> {
 }
 
 async function migrationComplete(marker: string, legacyId: string): Promise<boolean> {
-  const migrated = await readFile(marker, 'utf8').catch((error: NodeJS.ErrnoException) => {
-    if (error.code !== 'ENOENT') throw error;
-
-    return undefined;
-  });
+  const migrated = await readFile(marker, 'utf8').catch(ifMissing(undefined));
 
   if (migrated) {
     if (JSON.parse(migrated).projectId !== legacyId)

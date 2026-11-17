@@ -17,6 +17,7 @@ import { evaluateOutputs } from './runner.js';
 import { outputScorers } from './scorers.js';
 import type { OutputReport, OutputRun, OutputScorer } from './types.js';
 import { validateInputs } from './validation.js';
+import { permanentFailure } from '../failure.js';
 
 export async function processEvaluation(
   state: AutomaticEvaluations,
@@ -24,7 +25,7 @@ export async function processEvaluation(
   attempt: number,
 ): Promise<void> {
   const task = await state.reports.read<EvaluationTask>('tasks', id);
-  if (!task) throw new Error('PERMANENT_ERROR: evaluation task not found');
+  if (!task) throw permanentFailure('evaluation task not found');
 
   const prior = await state.reports.read<AutomaticEvalReport>('reports', id);
   if (prior && ['completed', 'skipped'].includes(prior.status)) return;
@@ -179,7 +180,7 @@ function cachedScorers(
         task,
         (await state.datasets.active('eval')).find((row) => row.id === task.example_id),
       );
-      if (reason) throw new Error(`PERMANENT_ERROR: ${reason}`);
+      if (reason) throw permanentFailure(`${reason}`);
 
       const cached = checkpoint.scores.find((score) => score.name === scorer.name);
       if (cached) return cached;

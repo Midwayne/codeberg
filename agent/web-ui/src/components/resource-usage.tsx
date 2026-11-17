@@ -1,5 +1,6 @@
 import { LoadingBoundary } from './loading';
 import { useProjectApi } from '../lib/project-api';
+import { startPoll } from '../lib/poll';
 
 import { useEffect, useRef, useState } from 'react';
 import { loadResourceUsage, mergeResourceUsage, type ResourceSample, type ResourceUsage } from '../lib/resources';
@@ -13,7 +14,7 @@ export function ResourceUsagePanel() {
   return <ResourceUsagePanelView {...state} />;
 }
 
-export function useResourceUsagePanel() {
+function useResourceUsagePanel() {
   const { fetch: api } = useProjectApi();
   const [usage, setUsage] = useState<ResourceUsage>();
   const [error, setError] = useState('');
@@ -21,48 +22,50 @@ export function useResourceUsagePanel() {
   const [retry, setRetry] = useState(0);
   const latest = useRef<ResourceUsage>(undefined);
   useEffect(() => {
-    let active = true;
-    let loading = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
     const warmUntil = Date.now() + 5000;
-    const refresh = async () => {
-      if (loading || document.hidden) return;
-      if (timer) clearTimeout(timer);
-      loading = true;
-      try {
-        const value = await loadResourceUsage(latest.current?.current?.timestamp, api);
-        if (active) {
-          latest.current = mergeResourceUsage(latest.current, value);
-          setUsage(latest.current);
-          setError('');
-        }
-      } catch (failure) {
-        if (active) setError(String(failure));
-      } finally {
-        loading = false;
-        if (active && !document.hidden) {
-          const ready = Date.now() > warmUntil || Boolean(latest.current?.current?.disk);
-          timer = setTimeout(() => void refresh(), ready ? 10_000 : 500);
-        }
-      }
+
+    // Hidden tabs pause; becoming visible loads at once.
+    const nextDelay = () => {
+      if (document.hidden) return undefined;
+
+      const ready = Date.now() > warmUntil || Boolean(latest.current?.current?.disk);
+
+      return ready ? 10_000 : 500;
     };
-    void refresh();
+
+    const poll = startPoll({
+      load: () => loadResourceUsage(latest.current?.current?.timestamp, api),
+      done: (value) => {
+        latest.current = mergeResourceUsage(latest.current, value);
+        setUsage(latest.current);
+        setError('');
+
+        return nextDelay();
+      },
+      fail: (failure) => {
+        setError(String(failure));
+
+        return nextDelay();
+      },
+      start: !document.hidden,
+    });
+
     const visible = () => {
-      if (!document.hidden) void refresh();
+      if (!document.hidden) poll.wake();
     };
     document.addEventListener('visibilitychange', visible);
+
     return () => {
-      active = false;
-      if (timer) clearTimeout(timer);
+      poll.stop();
       document.removeEventListener('visibilitychange', visible);
     };
   }, [retry]);
   return { error, setError, setRetry, usage, range, setRange };
 }
 
-export type ResourceUsagePanelViewProps = ReturnType<typeof useResourceUsagePanel>;
+type ResourceUsagePanelViewProps = ReturnType<typeof useResourceUsagePanel>;
 
-export function ResourceUsagePanelView({
+function ResourceUsagePanelView({
   error,
   setError,
   setRetry,
@@ -89,7 +92,7 @@ export function ResourceUsagePanelView({
   );
 }
 
-export type ResourceUsageViewProps = {
+type ResourceUsageViewProps = {
   usage: ResourceUsage;
   range: number;
   onRange: (value: number) => void;
@@ -135,9 +138,9 @@ export function ResourceUsageView({ usage, range, onRange }: ResourceUsageViewPr
   );
 }
 
-export type ResourceTimeRangeProps = Pick<Parameters<typeof ResourceUsageView>[0], 'range' | 'onRange'>;
+type ResourceTimeRangeProps = Pick<Parameters<typeof ResourceUsageView>[0], 'range' | 'onRange'>;
 
-export function ResourceTimeRange({ range, onRange }: ResourceTimeRangeProps) {
+function ResourceTimeRange({ range, onRange }: ResourceTimeRangeProps) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <h3 className="text-sm font-medium">Usage history</h3>

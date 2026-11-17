@@ -38,7 +38,7 @@ export function ScopedScheduledRuns({ state, projectName, chatId, onOpenChat }: 
     projectName={projectName} chatId={chatId} onOpenChat={onOpenChat} filter={filter} onFilter={onFilter} />;
 }
 
-export interface ScheduledRunsProps {
+interface ScheduledRunsProps {
   projectName: string;
   jobs?: ScheduleSummary[];
   loading: boolean;

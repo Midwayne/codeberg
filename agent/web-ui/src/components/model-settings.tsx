@@ -9,7 +9,7 @@ import { Dialog, ErrorNotice, IconButton, Select } from './ui';
 
 import { selectModel, type CatalogModel, type ModelSelection } from '../lib/models';
 
-export type ModelSettingsPanelProps = { onClose: () => void; onSaved: () => void };
+type ModelSettingsPanelProps = { onClose: () => void; onSaved: () => void };
 
 export function ModelSettingsPanel(props: ModelSettingsPanelProps) {
   const state = useModelSettingsPanel(props);
@@ -17,7 +17,7 @@ export function ModelSettingsPanel(props: ModelSettingsPanelProps) {
   return <ModelSettingsPanelView {...state} />;
 }
 
-export type ModelSettingsPanelViewProps = ReturnType<typeof useModelSettingsPanel>;
+type ModelSettingsPanelViewProps = ReturnType<typeof useModelSettingsPanel>;
 
 function ModelSettingsPanelView({
   onClose,
@@ -62,7 +62,7 @@ function ModelSettingsPanelView({
   );
 }
 
-export type ModelSettingsFormProps = {
+type ModelSettingsFormProps = {
   models: readonly CatalogModel[];
   decisionModels?: readonly DecisionModel[];
   value: Choices;
@@ -97,7 +97,7 @@ export function ModelSettingsForm({ models, decisionModels = [], value, onChange
   );
 }
 
-export type ChoiceFieldsProps = {
+type ChoiceFieldsProps = {
   label: string;
   prefix: string;
   models: readonly CatalogModel[];
@@ -148,7 +148,7 @@ function ChoiceFields({ label, prefix, models, value, onChange }: ChoiceFieldsPr
   );
 }
 
-export type ModelSettingsActionsProps = Pick<
+type ModelSettingsActionsProps = Pick<
   Parameters<typeof ModelSettingsPanelView>[0],
   'onClose' | 'draft' | 'saving'
 >;
@@ -174,7 +174,7 @@ function ModelSettingsActions({ onClose, draft, saving }: ModelSettingsActionsPr
   );
 }
 
-export type ModelSettingsErrorProps = Pick<
+type ModelSettingsErrorProps = Pick<
   Parameters<typeof ModelSettingsPanelView>[0],
   'error' | 'draft' | 'save' | 'setAttempt'
 >;

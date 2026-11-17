@@ -1,11 +1,7 @@
+import type { PromptCommand } from '@agent/core/hooks/types.js';
+
 /** A slash command surfaced by the server's hook catalog (`/api/commands`). */
-export interface PromptCommand {
-  trigger: string;
-  title: string;
-  summary: string;
-  description: string;
-  argHint?: string;
-}
+export type { PromptCommand };
 
 /** The available slash commands, or an empty list on any network/parse error. */
 export async function listCommands(): Promise<PromptCommand[]> {

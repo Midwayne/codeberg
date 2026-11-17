@@ -5,7 +5,7 @@ import { DocsLink } from '../docs-link';
 
 import type { ProjectWorkspaceView, useProjectWorkspace } from '../../App';
 
-export type WorkspaceHeaderProps = { state: Parameters<typeof ProjectWorkspaceView>[0] };
+type WorkspaceHeaderProps = { state: Parameters<typeof ProjectWorkspaceView>[0] };
 
 export function WorkspaceHeader({ state }: WorkspaceHeaderProps) {
   return (
@@ -48,9 +48,9 @@ export function WorkspaceHeader({ state }: WorkspaceHeaderProps) {
   );
 }
 
-export type TrainingButtonProps = { state: ReturnType<typeof useProjectWorkspace> };
+type TrainingButtonProps = { state: ReturnType<typeof useProjectWorkspace> };
 
-export function TrainingButton({ state }: TrainingButtonProps) {
+function TrainingButton({ state }: TrainingButtonProps) {
   return (
     state.trainingEnabled && (
       <IconButton
@@ -72,9 +72,9 @@ export function TrainingButton({ state }: TrainingButtonProps) {
   );
 }
 
-export type ModelsButtonProps = { state: ReturnType<typeof useProjectWorkspace> };
+type ModelsButtonProps = { state: ReturnType<typeof useProjectWorkspace> };
 
-export function ModelsButton({ state }: ModelsButtonProps) {
+function ModelsButton({ state }: ModelsButtonProps) {
   return (
     <IconButton
       ref={state.modelsButton}
@@ -93,9 +93,9 @@ export function ModelsButton({ state }: ModelsButtonProps) {
   );
 }
 
-export type SettingsButtonProps = { state: ReturnType<typeof useProjectWorkspace> };
+type SettingsButtonProps = { state: ReturnType<typeof useProjectWorkspace> };
 
-export function SettingsButton({ state }: SettingsButtonProps) {
+function SettingsButton({ state }: SettingsButtonProps) {
   return (
     <IconButton
       ref={state.settingsButton}
@@ -117,9 +117,9 @@ export function SettingsButton({ state }: SettingsButtonProps) {
   );
 }
 
-export type SearchButtonProps = { state: ReturnType<typeof useProjectWorkspace> };
+type SearchButtonProps = { state: ReturnType<typeof useProjectWorkspace> };
 
-export function SearchButton({ state }: SearchButtonProps) {
+function SearchButton({ state }: SearchButtonProps) {
   return (
     <IconButton
       ref={state.searchButton}

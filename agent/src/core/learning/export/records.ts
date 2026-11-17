@@ -75,7 +75,7 @@ export function approvedNegatives(
   return new Set(paths);
 }
 
-export function documentText(hit: AttemptRecord['retrieved_results'][number]): string {
+function documentText(hit: AttemptRecord['retrieved_results'][number]): string {
   if (!hit.snippet?.trim()) return '';
 
   return redactSecrets([hit.repo, hit.path, hit.symbol, hit.snippet].filter(Boolean).join('\n'));
@@ -128,6 +128,6 @@ export function embeddingRecord(attempt: AttemptRecord, verifiedNegatives: Set<s
   };
 }
 
-export function resultKey(hit: AttemptRecord['retrieved_results'][number]): string {
+function resultKey(hit: AttemptRecord['retrieved_results'][number]): string {
   return `${hit.repo ?? ''}:${hit.path ?? ''}:${hit.symbol ?? ''}:${hit.start_line ?? ''}`;
 }

@@ -1,10 +1,10 @@
 /** What each built-in provider needs before Codeberg can chat with it. */
-export interface ProviderRequirement {
+interface ProviderRequirement {
   label: string;
   env: readonly string[];
 }
 
-export const PROVIDER_REQUIREMENTS: Readonly<Record<string, ProviderRequirement>> = {
+const PROVIDER_REQUIREMENTS: Readonly<Record<string, ProviderRequirement>> = {
   openai: { label: 'OpenAI', env: ['OPENAI_API_KEY'] },
   anthropic: { label: 'Anthropic', env: ['ANTHROPIC_API_KEY'] },
   google: { label: 'Google', env: ['GOOGLE_GENERATIVE_AI_API_KEY'] },

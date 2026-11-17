@@ -5,6 +5,7 @@ import { CitationTooltip } from './citation-tooltip';
 import { renderLinkConfirmation } from './link-confirmation';
 import { CITE_TAG, parseCiteSource, type Citation } from '../../lib/citations';
 import { transformCitations } from '../../lib/citations';
+import { useCopied } from '../../lib/use-copied';
 
 /**
  * The markdown engine behind <Response>, plus citation rendering. This module
@@ -22,7 +23,7 @@ import { transformCitations } from '../../lib/citations';
 const allowedTags = { [CITE_TAG]: ['source'] };
 const literalTagContent = [CITE_TAG];
 
-export type CiteChipTagProps = { source?: unknown; children?: ReactNode };
+type CiteChipTagProps = { source?: unknown; children?: ReactNode };
 
 function CiteChipTag({ source, children }: CiteChipTagProps) {
   const citation = typeof source === 'string' ? parseCiteSource(source) : null;
@@ -35,10 +36,10 @@ function CiteChipTag({ source, children }: CiteChipTagProps) {
 const components = { [CITE_TAG]: CiteChipTag };
 const linkSafety = { enabled: true, renderModal: renderLinkConfirmation };
 
-export type CitationChipProps = { citation: Citation; label: ReactNode };
+type CitationChipProps = { citation: Citation; label: ReactNode };
 
 function CitationChip({ citation, label }: CitationChipProps) {
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopied();
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const anchor = useRef<HTMLButtonElement>(null);
@@ -60,15 +61,7 @@ function CitationChip({ citation, label }: CitationChipProps) {
           setHovered(false);
           setFocused(false);
         }}
-        onClick={async () => {
-          try {
-            await navigator.clipboard.writeText(citation.source);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1200);
-          } catch {
-            /* clipboard unavailable */
-          }
-        }}
+        onClick={() => void copy(citation.source)}
         className="mx-px inline-flex min-w-4 cursor-pointer items-center justify-center rounded-full bg-muted px-1 align-super font-mono text-[10px] leading-4 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
       >
         {label}
@@ -82,7 +75,7 @@ function CitationChip({ citation, label }: CitationChipProps) {
   );
 }
 
-export type MarkdownProps = { children: string; className?: string };
+type MarkdownProps = { children: string; className?: string };
 
 export default function Markdown({ children, className }: MarkdownProps) {
   const markdown = useMemo(() => transformCitations(children), [children]);

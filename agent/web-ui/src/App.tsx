@@ -32,9 +32,9 @@ export function App() {
   );
 }
 
-export type ProjectWorkspaceProps = { toolbar: ReactNode; loading: boolean; notice: ReactNode };
+type ProjectWorkspaceProps = { toolbar: ReactNode; loading: boolean; notice: ReactNode };
 
-export function ProjectWorkspace(props: ProjectWorkspaceProps) {
+function ProjectWorkspace(props: ProjectWorkspaceProps) {
   const state = useProjectWorkspace(props);
 
   return <ScheduleWorkspaceProvider enabled={!props.loading} onOpenChat={() => {
@@ -47,7 +47,7 @@ export function ProjectWorkspace(props: ProjectWorkspaceProps) {
   }}><ProjectWorkspaceView {...state} /></ScheduleWorkspaceProvider>;
 }
 
-export type ProjectWorkspaceOptions = {
+type ProjectWorkspaceOptions = {
   toolbar: ReactNode;
   loading: boolean;
   notice: ReactNode;
@@ -107,7 +107,7 @@ function useWorkspacePanels() {
   };
 }
 
-export type ProjectWorkspaceViewProps = ReturnType<typeof useProjectWorkspace>;
+type ProjectWorkspaceViewProps = ReturnType<typeof useProjectWorkspace>;
 
 export function ProjectWorkspaceView(state: ProjectWorkspaceViewProps) {
   return (

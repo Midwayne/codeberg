@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { BROWSER_USE_VERSION, workerEnvironment, type BrowserConfig } from './config.js';
 import { parseWorkerResult, type WorkerResult } from './protocol.js';
 import { BROWSER_WORKER } from './worker.js';
+import { envEnabled } from '../env-flag.js';
 
 interface Pending {
   resolve: (value: WorkerResult) => void;
@@ -56,7 +57,7 @@ export class BrowserWorker {
     signal.addEventListener('abort', abort, { once: true });
     if (signal.aborted) abort();
     else this.child.stdin!.write(JSON.stringify({ task, keepOpen, vision, provider: this.config.provider, model: this.config.model,
-      headless: ['true', '1'].includes(this.config.env.CODEBERG_BROWSER_HEADLESS ?? '') }) + '\n');
+      headless: envEnabled(this.config.env.CODEBERG_BROWSER_HEADLESS) }) + '\n');
 
     try {
       return await result;

@@ -1,7 +1,7 @@
 import type { ResolvedModelSelection } from '../chat-routes.js';
 import type { ModelAgentPool } from './runtime.js';
 
-export interface PoolGeneration {
+interface PoolGeneration {
   pool: ModelAgentPool;
   revision: number | string;
   users: number;

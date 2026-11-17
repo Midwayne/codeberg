@@ -15,7 +15,7 @@ export interface EvaluationConfiguration {
   judge: EvaluationModel;
 }
 
-export type CandidateOutput = Omit<OutputRun, 'eval_id'> & Omit<RetrievalRun, 'eval_id'>;
+type CandidateOutput = Omit<OutputRun, 'eval_id'> & Omit<RetrievalRun, 'eval_id'>;
 
 export interface EvaluationRuntime {
   configuration(): Promise<EvaluationConfiguration | undefined>;

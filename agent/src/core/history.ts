@@ -4,6 +4,7 @@ import { messageText, messageTranscript } from './message.js';
 import { recentHistoryStart } from './history-recent.js';
 import { totalTokens } from './history-tokens.js';
 import { IncompleteSummaryError, isContextOverflow } from './context-errors.js';
+import { errorMessage } from './errors.js';
 
 export { estimateTokens, messageTokens, totalTokens } from './history-tokens.js';
 
@@ -30,6 +31,13 @@ export interface FitOptions {
 export const SUMMARY_INPUT_CHARS = 80_000;
 
 const HISTORY_FILE_RE = /<history_file>([^<]+)<\/history_file>/g;
+
+/** True when `text` references at least one archive and every one still resolves. */
+export function historyArchivesResolve(text: string, resolve: (file: string) => unknown): boolean {
+  const archives = [...text.matchAll(HISTORY_FILE_RE)];
+
+  return archives.length > 0 && archives.every((match) => Boolean(resolve(match[1]!)));
+}
 
 export function boundTranscript(full: string, maxChars = SUMMARY_INPUT_CHARS): string {
   if (full.length <= maxChars) return full;
@@ -119,7 +127,7 @@ async function archiveTranscript(
 
     return trimmed ? trimmed : undefined;
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = errorMessage(err);
     console.error(`› context: failed to archive history: ${message}`);
 
     return undefined;

@@ -2,7 +2,7 @@ import { BookOpen, CornerDownLeft } from 'lucide-react';
 import { useLayoutEffect, useRef } from 'react';
 import type { DocSearchHit } from './search';
 
-export type DocsSearchResultsProps = {
+type DocsSearchResultsProps = {
   hits: DocSearchHit[];
   query: string;
   active: number;

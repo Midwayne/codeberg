@@ -1,3 +1,5 @@
+import { ensureOk, jsonInit } from './http';
+
 export const FEEDBACK_OPTIONS = [
   { rating: 0, label: 'not_useful', title: 'Not useful' },
   { rating: 1, label: 'partially_useful', title: 'Partially useful' },
@@ -34,18 +36,14 @@ export async function rateAttempt(
   reason?: string,
   fetcher: typeof fetch = fetch,
 ): Promise<FeedbackRecord> {
-  const response = await fetcher('/api/learning/feedback', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  const response = await fetcher('/api/learning/feedback', jsonInit('POST', {
       conversation_id: conversationId,
       message_id: messageId,
       rating: option.rating,
       label: option.label,
       ...(reason ? { reason } : {}),
-    }),
-  });
-  if (!response.ok) throw new Error(await response.text());
+    }));
+  await ensureOk(response);
   const result = (await response.json()) as { feedback: FeedbackRecord };
   return result.feedback;
 }

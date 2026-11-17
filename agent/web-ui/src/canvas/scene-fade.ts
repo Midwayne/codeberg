@@ -1,3 +1,5 @@
+import { prefersReducedMotion } from '../lib/motion-input';
+
 /** Crossfade rendered pixels without delaying or changing the authoritative scene. */
 export class SceneFade {
   private snapshot?: HTMLCanvasElement;
@@ -7,7 +9,7 @@ export class SceneFade {
   constructor(private readonly surface: () => HTMLElement | null) {}
 
   capture(): void {
-    if (document.hidden || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (document.hidden || prefersReducedMotion()) return;
 
     const source = this.surface()?.querySelector<HTMLCanvasElement>('canvas.excalidraw__canvas.static');
     if (!source?.width || !source.height || !source.parentElement) return;

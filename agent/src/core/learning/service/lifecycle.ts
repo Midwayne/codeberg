@@ -57,7 +57,7 @@ export function stop(state: LearningServiceState): void {
   state.worker?.stop();
 }
 
-export async function ensureLayout(state: LearningServiceState): Promise<void> {
+async function ensureLayout(state: LearningServiceState): Promise<void> {
   await Promise.all([
     mkdir(join(state.store.root, 'events'), { recursive: true }),
     ...['services', 'flows', 'concepts', 'debugging'].map((name) =>

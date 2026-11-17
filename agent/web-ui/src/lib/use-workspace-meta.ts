@@ -6,7 +6,7 @@ import { loadModelSettings, type CatalogModel } from './models';
 import { loadLearningSettings } from './learning-settings';
 import { startLearningStatusPolling } from './learning-status';
 
-export type WorkspaceMetaOptions = { loading: boolean };
+type WorkspaceMetaOptions = { loading: boolean };
 
 export function useWorkspaceMeta({ loading }: WorkspaceMetaOptions) {
   const { fetch: api } = useProjectApi();

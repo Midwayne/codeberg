@@ -9,7 +9,7 @@ import './indexing-progress.css';
 
 type Status = { id: string; value?: ProjectStatus; error?: string };
 
-export type ProjectNoticeProps = {
+type ProjectNoticeProps = {
   vectorsEnabled?: boolean;
   currentStatus: Status | undefined;
   project: Project;

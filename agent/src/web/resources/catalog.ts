@@ -54,7 +54,7 @@ export async function listFiles(
 }
 
 /** A report and its decision receipts form one age-filtered knowledge revision family. */
-export async function dreamingFiles(state: ResourceSettingsState): Promise<StoredFile[]> {
+async function dreamingFiles(state: ResourceSettingsState): Promise<StoredFile[]> {
   const dir = join(state.learningRoot, 'dreaming');
   if (!(await realDirectory(dir, state.learningRoot))) return [];
 

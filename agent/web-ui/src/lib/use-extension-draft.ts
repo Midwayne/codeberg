@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { ensureOk, jsonInit } from './http';
 
-export type ExtensionDraftOptions = {
+type ExtensionDraftOptions = {
   api: typeof fetch;
   kind: 'mcp' | 'skill';
   scope: string;
@@ -57,13 +58,9 @@ export function useExtensionDraft({ api, kind, scope, blocked, onAdded }: Extens
 }
 
 async function postExtension(api: typeof fetch, extension: Record<string, unknown>): Promise<void> {
-  const response = await api('/api/extensions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(extension),
-  });
+  const response = await api('/api/extensions', jsonInit('POST', extension));
 
-  if (!response.ok) throw new Error(await response.text());
+  await ensureOk(response);
 }
 
 function skillFile(name: string, description: string, instructions: string): string {

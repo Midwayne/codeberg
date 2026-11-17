@@ -17,7 +17,7 @@ export function parseSkillDocument(
   return { name, description };
 }
 
-export function firstParagraph(body: string): string {
+function firstParagraph(body: string): string {
   for (const block of body.split(/\n\s*\n/)) {
     const line = block
       .split(/\r?\n/)
@@ -31,7 +31,7 @@ export function firstParagraph(body: string): string {
   return '';
 }
 
-export function parseFrontmatter(text: string): { fields: Map<string, string>; body: string } {
+function parseFrontmatter(text: string): { fields: Map<string, string>; body: string } {
   const split = splitFrontmatter(text);
   if (!split) return { fields: new Map(), body: text };
 
@@ -39,7 +39,7 @@ export function parseFrontmatter(text: string): { fields: Map<string, string>; b
 }
 
 /** The block between the opening and closing `---` fences. */
-export function splitFrontmatter(text: string): { yaml: string; body: string } | null {
+function splitFrontmatter(text: string): { yaml: string; body: string } | null {
   const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/);
   if ((lines[0] ?? '').trim() !== '---') return null;
 
@@ -53,7 +53,7 @@ export function splitFrontmatter(text: string): { yaml: string; body: string } |
 }
 
 /** String fields from a YAML map. Aliases are rejected, so a skill cannot expand one. */
-export function yamlFields(yamlText: string): Map<string, string> {
+function yamlFields(yamlText: string): Map<string, string> {
   let parsed: unknown;
   try {
     parsed = parse(yamlText, { maxAliasCount: 0 });

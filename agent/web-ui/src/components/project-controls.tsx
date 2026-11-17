@@ -3,7 +3,7 @@ import { FolderPlus } from 'lucide-react';
 import { IconButton, Select } from './ui';
 import type { Project, ProjectCatalog } from '../lib/project-api';
 
-export type ProjectToolbarProps = {
+type ProjectToolbarProps = {
   project: Project | undefined;
   selected: string;
   catalog: ProjectCatalog | undefined;

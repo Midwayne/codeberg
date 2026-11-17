@@ -2,7 +2,7 @@ import { promptPreview } from '../../lib/message-rail';
 import { cn } from '../../lib/utils';
 import type { MessageRailView } from './message-rail';
 
-export type RailMarkersProps = { state: Parameters<typeof MessageRailView>[0] };
+type RailMarkersProps = { state: Parameters<typeof MessageRailView>[0] };
 
 export function RailMarkers({ state }: RailMarkersProps) {
   return state.laid.map((m, i) => {
@@ -43,7 +43,7 @@ export function RailMarkers({ state }: RailMarkersProps) {
   });
 }
 
-export type RailTooltipProps = { state: Parameters<typeof MessageRailView>[0] };
+type RailTooltipProps = { state: Parameters<typeof MessageRailView>[0] };
 
 export function RailTooltip({ state }: RailTooltipProps) {
   return (

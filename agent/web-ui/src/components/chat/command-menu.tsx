@@ -10,7 +10,7 @@ import { cn } from '../../lib/utils';
  * Hovering a row makes it active (so the detail text updates), matching how
  * agent harnesses preview what a command does before you accept it.
  */
-export type CommandMenuProps = {
+type CommandMenuProps = {
   id: string;
   commands: PromptCommand[];
   activeIndex: number;
@@ -40,7 +40,7 @@ export function CommandMenu({ id, commands, activeIndex, onActivate, onSelect }:
   );
 }
 
-export type CommandRowsProps = Pick<
+type CommandRowsProps = Pick<
   Parameters<typeof CommandMenu>[0],
   'commands' | 'activeIndex' | 'id' | 'onActivate' | 'onSelect'
 >;

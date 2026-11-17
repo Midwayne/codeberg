@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { writeLearningTrace } from '../../module-log.js';
 import { validatedClaims } from '../claims.js';
-import { writeAtomic } from '../fs.js';
+import { writeAtomic } from '../../fs.js';
 import { parseExtractionResponse } from '../knowledge-response.js';
 import { interactionRevisions } from '../revision.js';
 import { serializeArtifact } from '../store.js';

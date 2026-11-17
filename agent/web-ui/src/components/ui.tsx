@@ -1,6 +1,5 @@
 import { AlertTriangle, Check, ChevronDown, ChevronRight, Copy } from 'lucide-react';
 import {
-  useState,
   type ButtonHTMLAttributes,
   type ReactNode,
   type Ref,
@@ -8,11 +7,12 @@ import {
 } from 'react';
 
 import { cn } from '../lib/utils';
+import { useCopied } from '../lib/use-copied';
 
-export { Dialog, type DialogProps } from './dialog';
+export { Dialog } from './dialog';
 
 /** Quiet trigger, with native selection, labels, and keyboard behavior intact. */
-export type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & { wrapperClassName?: string };
+type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & { wrapperClassName?: string };
 
 export function Select({ className, wrapperClassName, ...props }: SelectProps) {
   return (
@@ -32,7 +32,7 @@ export function Select({ className, wrapperClassName, ...props }: SelectProps) {
   );
 }
 
-export type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { ref?: Ref<HTMLButtonElement> };
+type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { ref?: Ref<HTMLButtonElement> };
 
 export function IconButton({ className, ...props }: IconButtonProps) {
   return (
@@ -48,7 +48,7 @@ export function IconButton({ className, ...props }: IconButtonProps) {
   );
 }
 
-export type ErrorNoticeProps = { title: string; detail: string; onRetry: () => void };
+type ErrorNoticeProps = { title: string; detail: string; onRetry: () => void };
 
 export function ErrorNotice({ title, detail, onRetry }: ErrorNoticeProps) {
   return (
@@ -72,24 +72,17 @@ export function ErrorNotice({ title, detail, onRetry }: ErrorNoticeProps) {
   );
 }
 
-export type CopyButtonProps = { text: string; className?: string; label?: string };
+type CopyButtonProps = { text: string; className?: string; label?: string };
 
 export function CopyButton({ text, className, label = 'Copy' }: CopyButtonProps) {
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopied();
+
   return (
     <IconButton
       className={className}
       aria-label={label}
       title={label}
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(text);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1200);
-        } catch {
-          /* clipboard unavailable */
-        }
-      }}
+      onClick={() => void copy(text)}
     >
       {copied ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
     </IconButton>
@@ -100,7 +93,7 @@ export function CopyButton({ text, className, label = 'Copy' }: CopyButtonProps)
  * A native <details> disclosure styled to match (used for reasoning and tool
  * panels). Native keeps it accessible and keyboard-toggleable with no state.
  */
-export type CollapsibleProps = {
+type CollapsibleProps = {
   icon?: ReactNode;
   title: ReactNode;
   badge?: ReactNode;

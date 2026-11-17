@@ -6,7 +6,7 @@ import { ErrorNotice, Select } from './ui';
 import { SkillImport } from './skill-import';
 import { useProjectApi, type Project } from '../lib/project-api';
 
-export type ProjectExtensionsProps = { kind: 'mcp' | 'skill' };
+type ProjectExtensionsProps = { kind: 'mcp' | 'skill' };
 
 export function ProjectExtensions({ kind }: ProjectExtensionsProps) {
   const { project, fetch: api } = useProjectApi();
@@ -18,15 +18,15 @@ export function ProjectExtensions({ kind }: ProjectExtensionsProps) {
     </p>
   );
 }
-export type ExtensionsProps = { project: Project; api: typeof fetch; kind: 'mcp' | 'skill' };
+type ExtensionsProps = { project: Project; api: typeof fetch; kind: 'mcp' | 'skill' };
 
-export function Extensions(props: ExtensionsProps) {
+function Extensions(props: ExtensionsProps) {
   const state = useExtensions(props);
 
   return <ExtensionsView {...state} />;
 }
 
-export type ExtensionsViewProps = ReturnType<typeof useExtensions>;
+type ExtensionsViewProps = ReturnType<typeof useExtensions>;
 
 export function ExtensionsView(state: ExtensionsViewProps) {
   return (
@@ -76,7 +76,7 @@ export function ExtensionsView(state: ExtensionsViewProps) {
   );
 }
 
-export type ExtensionCatalogViewProps = { state: Parameters<typeof ExtensionsView>[0] };
+type ExtensionCatalogViewProps = { state: Parameters<typeof ExtensionsView>[0] };
 
 function ExtensionCatalogView({ state }: ExtensionCatalogViewProps) {
   return (

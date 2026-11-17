@@ -1,12 +1,8 @@
 import { join } from 'node:path';
+import { isRecord } from '../../record.js';
 import type { McpInterpolateContext, McpTransportKind } from '../types.js';
 
-/** A flag env var: anything but 0/false/off/no (case-insensitive) is "on". */
-export function flag(value: string | undefined, fallback: boolean): boolean {
-  if (value == null || value.trim() === '') return fallback;
-
-  return !/^(0|false|off|no)$/i.test(value.trim());
-}
+export { envFlag as flag } from '../../env-flag.js';
 
 export function splitList(v: string): string[] {
   const out: string[] = [];
@@ -24,10 +20,6 @@ export function expandHome(p: string, home: string): string {
   if (p.startsWith('~/')) return join(home, p.slice(2));
 
   return p;
-}
-
-export function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
 export function asString(v: unknown): string {
@@ -59,14 +51,14 @@ export function isExplicitFalse(v: unknown): boolean {
   return v === false || v === 0 || v === 'false' || v === '0';
 }
 
-export const REF = /\$\{([^}]+)\}/g;
+const REF = /\$\{([^}]+)\}/g;
 
 /** Expand Cursor/VS Code style `${env:NAME}`, `${workspaceFolder}`, `${userHome}`. */
 export function interpolateMcpString(value: string, ctx: McpInterpolateContext): string {
   return value.replace(REF, (_, raw: string) => resolveRef(String(raw).trim(), ctx));
 }
 
-export function resolveRef(raw: string, ctx: McpInterpolateContext): string {
+function resolveRef(raw: string, ctx: McpInterpolateContext): string {
   if (raw.startsWith('input:')) return '';
 
   const key = raw.startsWith('env:') ? raw.slice(4) : raw;

@@ -36,7 +36,7 @@ export function processUsage(
   };
 }
 
-export function processMeasurement(
+function processMeasurement(
   state: ProcessMonitorState,
   item: ProcessSnapshot,
   pid: number,

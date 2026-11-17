@@ -3,7 +3,7 @@ import type { ResourceUsageView } from './resource-usage';
 import { formatBytes, type ResourceSample } from '../lib/resources';
 import { ResourceChart } from './resource-chart';
 
-export type MetricProps = { label: string; value: string; detail: string };
+type MetricProps = { label: string; value: string; detail: string };
 
 export function Metric({ label, value, detail }: MetricProps) {
   return (
@@ -15,7 +15,7 @@ export function Metric({ label, value, detail }: MetricProps) {
   );
 }
 
-export type ResourceMetricsProps = {
+type ResourceMetricsProps = {
   current: ResourceSample | null;
   percentage: (value: number) => string;
   percent: (used: number, total: number) => number;
@@ -53,7 +53,7 @@ export function ResourceMetrics({ current, percentage, percent }: ResourceMetric
   );
 }
 
-export type MeasuredProcessesProps = Pick<Parameters<typeof ResourceUsageView>[0], 'usage'> & {
+type MeasuredProcessesProps = Pick<Parameters<typeof ResourceUsageView>[0], 'usage'> & {
   current: ResourceSample | null;
   scopes: Record<
     'managed-stack' | 'web-and-daemon' | 'daemon-process-tree' | 'web-process-tree' | 'web-process',
@@ -79,9 +79,9 @@ export function MeasuredProcesses({ current, scopes, usage }: MeasuredProcessesP
   );
 }
 
-export type ProcessTableProps = Pick<Parameters<typeof MeasuredProcesses>[0], 'current'>;
+type ProcessTableProps = Pick<Parameters<typeof MeasuredProcesses>[0], 'current'>;
 
-export function ProcessTable({ current }: ProcessTableProps) {
+function ProcessTable({ current }: ProcessTableProps) {
   return (
     current && (
       <div className="mt-3 overflow-x-auto">
@@ -112,7 +112,7 @@ export function ProcessTable({ current }: ProcessTableProps) {
   );
 }
 
-export type ResourceHistoryProps = Pick<Parameters<typeof ResourceUsageView>[0], 'range'> & {
+type ResourceHistoryProps = Pick<Parameters<typeof ResourceUsageView>[0], 'range'> & {
   rows: ResourceSample[];
   percentage: (value: number) => string;
   end: number;

@@ -2,7 +2,7 @@ import { KIND_LABELS, type ReviewDashboard, type ReviewSummary } from '../lib/tr
 
 import type { TrainingReviewView } from './training-review';
 
-export type ReviewQueueProps = { state: Parameters<typeof TrainingReviewView>[0] & { dashboard: ReviewDashboard } };
+type ReviewQueueProps = { state: Parameters<typeof TrainingReviewView>[0] & { dashboard: ReviewDashboard } };
 
 export function ReviewQueue({ state }: ReviewQueueProps) {
   return (
@@ -30,9 +30,9 @@ export function ReviewQueue({ state }: ReviewQueueProps) {
   );
 }
 
-export type ReviewFiltersProps = Pick<Parameters<typeof ReviewQueue>[0], 'state'>;
+type ReviewFiltersProps = Pick<Parameters<typeof ReviewQueue>[0], 'state'>;
 
-export function ReviewFilters({ state }: ReviewFiltersProps) {
+function ReviewFilters({ state }: ReviewFiltersProps) {
   return (
     <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1 text-xs" aria-label="Example filters">
       {(
@@ -63,9 +63,9 @@ export function ReviewFilters({ state }: ReviewFiltersProps) {
   );
 }
 
-export type ReviewQueueItemProps = Pick<Parameters<typeof ReviewQueue>[0], 'state'> & { row: ReviewSummary };
+type ReviewQueueItemProps = Pick<Parameters<typeof ReviewQueue>[0], 'state'> & { row: ReviewSummary };
 
-export function ReviewQueueItem({ row, state }: ReviewQueueItemProps) {
+function ReviewQueueItem({ row, state }: ReviewQueueItemProps) {
   return (
     <button
       key={row.id}

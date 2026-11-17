@@ -17,7 +17,7 @@ export interface SkillSummary {
   dir: string;
 }
 
-export interface DiscoverSkillsOptions {
+interface DiscoverSkillsOptions {
   env?: NodeJS.ProcessEnv;
   cwd?: string;
   /** User-level skill roots, searched before project roots. Defaults to
@@ -93,7 +93,7 @@ export async function publishSkills(
   return skills;
 }
 
-export function defaultUserSkillRoots(env: NodeJS.ProcessEnv): string[] {
+function defaultUserSkillRoots(env: NodeJS.ProcessEnv): string[] {
   return [
     join(homedir(), '.agents', 'skills'),
     join(homedir(), '.cursor', 'skills'),

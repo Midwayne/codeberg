@@ -62,7 +62,7 @@ export function GenericTool({ part, name }: GenericToolProps) {
   );
 }
 
-export function JsonBlock({ label, value }: JsonBlockProps) {
+function JsonBlock({ label, value }: JsonBlockProps) {
   const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
   return (
     <div>

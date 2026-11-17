@@ -19,6 +19,35 @@ export function fingerprintMessage(value: unknown): string {
   return hash(canonical(message));
 }
 
+const promptPrints = new WeakMap<readonly unknown[], readonly string[]>();
+
+/**
+ * Fingerprints of every message in a prompt, computed once per prompt array.
+ * Checkpoint restore, the budget estimate and usage recording all see the same
+ * array within a model step. Prompts are rebuilt, never edited in place, so an
+ * array's fingerprints cannot go stale.
+ */
+export function promptFingerprints(prompt: readonly unknown[]): readonly string[] {
+  let prints = promptPrints.get(prompt);
+  if (!prints) {
+    prints = prompt.map(fingerprintMessage);
+    promptPrints.set(prompt, prints);
+  }
+
+  return prints;
+}
+
+/** Chained prefix keys: entry i identifies messages[0..i] as a whole. */
+export function prefixHashes(messages: readonly unknown[]): string[] {
+  let previous = '';
+
+  return promptFingerprints(messages).map((print) => {
+    previous = hash(previous + print);
+
+    return previous;
+  });
+}
+
 function cleanPart(value: unknown): Record<string, unknown> {
   if ((value as Record<string, unknown>).type === 'custom') return value as Record<string, unknown>;
 

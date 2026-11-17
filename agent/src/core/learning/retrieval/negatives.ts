@@ -1,7 +1,7 @@
 import type { ExtractionContext } from '../dataset-extract.js';
 import type { AttemptRecord, RetrievedResult } from '../types.js';
 
-export function rejectedHits(
+function rejectedHits(
   context: ExtractionContext,
   positives: RetrievedResult[],
 ): RetrievedResult[] {
@@ -69,7 +69,7 @@ export function emitNegativeExamples(
   }
 }
 
-export function correctedPaths(attempts: AttemptRecord[]): Set<string> {
+function correctedPaths(attempts: AttemptRecord[]): Set<string> {
   const paths = new Set<string>();
   for (let index = 0; index < attempts.length - 1; index++) {
     const query = attempts[index + 1].user_query.trim();
@@ -82,7 +82,7 @@ export function correctedPaths(attempts: AttemptRecord[]): Set<string> {
   return paths;
 }
 
-export function explicitlyRejectsFile(reason: string, path: string): boolean {
+function explicitlyRejectsFile(reason: string, path: string): boolean {
   const after = reason.toLowerCase().split(path.toLowerCase())[1];
 
   return Boolean(

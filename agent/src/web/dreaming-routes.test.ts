@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 import { LearningService } from '../core/learning/service.js';
 import { routeDreaming } from './dreaming-routes.js';
+import { HttpError } from '../core/http-error.js';
 
 let server: Server | undefined;
 let learning: LearningService | undefined;
@@ -27,8 +28,9 @@ async function fixture() {
   });
   await learning.initialize();
   server = createServer((req, res) => {
-    void routeDreaming(req, res, learning!, new URL(req.url!, 'http://localhost')).catch(() => {
-      res.writeHead(500);
+    // Mirrors the web server: errors that carry a status answer with it.
+    void routeDreaming(req, res, learning!, new URL(req.url!, 'http://localhost')).catch((error: unknown) => {
+      res.writeHead(error instanceof HttpError ? error.status : 500);
       res.end();
     });
   });

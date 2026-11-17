@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
+import { errorMessage } from '@agent/core/errors.js';
+import { jsonInit, readJson } from '../lib/http';
 
 const PICKER_UNAVAILABLE = 'Could not open the folder picker. Enter the directory path manually.';
 
-export type FolderPickerOptions = {
+type FolderPickerOptions = {
   /** True while the form is submitting; the picker stays closed. */
   busy: boolean;
   root: string;
@@ -38,7 +40,7 @@ export function useFolderPicker({ busy, root, initialPath, setRoot, setError }: 
         setRoot(result.path);
       }
     } catch (reason) {
-      if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : String(reason));
+      if (!controller.signal.aborted) setError(errorMessage(reason));
     } finally {
       if (!controller.signal.aborted) {
         setChoosing(false);
@@ -55,23 +57,7 @@ export function useFolderPicker({ busy, root, initialPath, setRoot, setError }: 
 type PickedDirectory = { path?: string; cancelled?: boolean; message?: string };
 
 async function pickDirectory(initialPath: string | undefined, signal: AbortSignal): Promise<PickedDirectory> {
-  const response = await fetch('/api/projects/pick-directory', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ initialPath }),
-    signal,
-  });
+  const response = await fetch('/api/projects/pick-directory', jsonInit('POST', { initialPath }, { signal }));
 
-  const text = await response.text();
-  let result: PickedDirectory;
-
-  try {
-    result = JSON.parse(text) as PickedDirectory;
-  } catch {
-    throw new Error(text || PICKER_UNAVAILABLE);
-  }
-
-  if (!response.ok) throw new Error(result.message || PICKER_UNAVAILABLE);
-
-  return result;
+  return readJson<PickedDirectory>(response, PICKER_UNAVAILABLE);
 }

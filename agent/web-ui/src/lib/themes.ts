@@ -59,5 +59,3 @@ export function setTheme(id: ThemeId): void {
 }
 
 export { THEMES } from './theme-palettes';
-
-export type { ThemeId } from './theme-palettes';

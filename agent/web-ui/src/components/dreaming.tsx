@@ -7,9 +7,7 @@ import type { DreamingDashboard } from '../lib/dreaming';
 
 import { ErrorNotice } from './ui';
 
-export { actionClass } from './button-styles';
-
-export type DreamingPanelProps = { enabled: boolean };
+type DreamingPanelProps = { enabled: boolean };
 
 export function DreamingPanel(props: DreamingPanelProps) {
   const state = useDreamingPanel(props);
@@ -17,7 +15,7 @@ export function DreamingPanel(props: DreamingPanelProps) {
   return <DreamingPanelView {...state} />;
 }
 
-export type DreamingPanelViewProps = ReturnType<typeof useDreamingPanel>;
+type DreamingPanelViewProps = ReturnType<typeof useDreamingPanel>;
 
 function DreamingPanelView(state: DreamingPanelViewProps) {
   return (
@@ -65,7 +63,7 @@ function DreamingPanelView(state: DreamingPanelViewProps) {
     </section>
   );
 }
-export type DreamingReportListProps = {
+type DreamingReportListProps = {
   dashboard: DreamingDashboard;
   selectedId?: string;
   busy: boolean;
@@ -104,7 +102,7 @@ export function DreamingReportList({ dashboard, selectedId, busy, onSelect }: Dr
   );
 }
 
-export type DreamingHeaderProps = { state: Parameters<typeof DreamingPanelView>[0] };
+type DreamingHeaderProps = { state: Parameters<typeof DreamingPanelView>[0] };
 
 function DreamingHeader({ state }: DreamingHeaderProps) {
   return (
@@ -142,7 +140,7 @@ function DreamingHeader({ state }: DreamingHeaderProps) {
   );
 }
 
-export type DreamingJobErrorsProps = { state: Parameters<typeof DreamingPanelView>[0] };
+type DreamingJobErrorsProps = { state: Parameters<typeof DreamingPanelView>[0] };
 
 function DreamingJobErrors({ state }: DreamingJobErrorsProps) {
   return state.dashboard?.jobs
@@ -157,7 +155,7 @@ function DreamingJobErrors({ state }: DreamingJobErrorsProps) {
 
 export { DreamingReportView } from './dreaming-report';
 
-export type DreamingModelNoticeProps = { state: Parameters<typeof DreamingPanelView>[0] };
+type DreamingModelNoticeProps = { state: Parameters<typeof DreamingPanelView>[0] };
 
 function DreamingModelNotice({ state }: DreamingModelNoticeProps) {
   return (

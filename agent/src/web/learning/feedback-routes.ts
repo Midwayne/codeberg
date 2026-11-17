@@ -60,7 +60,7 @@ export async function getFeedback(
   return sendJson(res, 200, (await learning.store.currentFeedback(attempt.attempt_id)) ?? null);
 }
 
-export function feedbackInput(body: Record<string, unknown> | null | undefined) {
+function feedbackInput(body: Record<string, unknown> | null | undefined) {
   const conversationId = typeof body?.conversation_id === 'string' ? body.conversation_id : '';
   const messageId = typeof body?.message_id === 'string' ? body.message_id : '';
   const rating = body?.rating;

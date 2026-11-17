@@ -1,3 +1,6 @@
+import { parseModelSpec } from './spec.js';
+import { envToggle } from '../core/env-flag.js';
+
 /** Per-model "memory limits" plus the prompt-caching strategy the context
  *  manager keys off. Resolved from the "provider:model" spec so every layer
  *  (history budgeting, in-loop pruning, cache hints) reasons in one model's
@@ -79,13 +82,13 @@ function positiveTokens(value: string | undefined): number | undefined {
 }
 
 export function profileFor(spec: string, env: NodeJS.ProcessEnv = process.env): ModelProfile {
-  const sep = spec.indexOf(':');
-  const provider = sep > 0 ? spec.slice(0, sep) : '';
-  const modelId = sep > 0 ? spec.slice(sep + 1) : spec;
+  const parsed = parseModelSpec(spec);
+  const provider = parsed?.provider ?? '';
+  const modelId = parsed?.modelId ?? spec;
 
   const contextWindow = positiveTokens(env.CODEBERG_CONTEXT_WINDOW) ?? windowFor(provider, modelId);
   const workingWindow = positiveTokens(env.CODEBERG_CONTEXT_BUDGET) ?? DEFAULT_WORKING_WINDOW;
-  const toolBatch = toggle(env.CODEBERG_TOOL_BATCH) ?? !nativeParallelTools(provider);
+  const toolBatch = envToggle(env.CODEBERG_TOOL_BATCH) ?? !nativeParallelTools(provider);
 
   return {
     provider,
@@ -111,15 +114,6 @@ function nativeParallelTools(provider: string): boolean {
   }
 }
 
-function toggle(value: string | undefined): boolean | undefined {
-  const v = (value ?? '').trim().toLowerCase();
-  if (['1', 'true', 'on', 'yes'].includes(v)) return true;
-
-  if (['0', 'false', 'off', 'no'].includes(v)) return false;
-
-  return undefined;
-}
-
 /** Tokens the budgets below are fractions of: the window, capped by `workingWindow`. */
 export function budgetWindow(profile: ModelProfile): number {
   return Math.min(profile.contextWindow, profile.workingWindow ?? profile.contextWindow);
@@ -137,11 +131,11 @@ export const DEFAULT_PROFILE: ModelProfile = {
 /** Fraction of the window the conversation transcript may occupy before
  *  compaction kicks in. The rest is reserved for the system prompt, tool
  *  schemas, freshly retrieved evidence, and the model's output. */
-export const HISTORY_BUDGET_FRACTION = 0.5;
+const HISTORY_BUDGET_FRACTION = 0.5;
 
 /** Legacy transcript-only threshold retained for callers. The agent now sizes
  *  complete provider requests, including schemas, instructions, and output. */
-export const PRUNE_BUDGET_FRACTION = 0.6;
+const PRUNE_BUDGET_FRACTION = 0.6;
 
 export function historyBudget(profile: ModelProfile): number {
   return Math.floor(budgetWindow(profile) * HISTORY_BUDGET_FRACTION);

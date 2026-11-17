@@ -5,7 +5,7 @@ import { ErrorNotice } from './ui';
 import type { TrainingReviewView, SelectedReviewDetailProps } from './training-review';
 import { ReviewDetail } from './review-detail';
 
-export type ReviewSelectionProps = { state: Parameters<typeof TrainingReviewView>[0] };
+type ReviewSelectionProps = { state: Parameters<typeof TrainingReviewView>[0] };
 
 export function ReviewSelection({ state }: ReviewSelectionProps) {
   return (
@@ -54,7 +54,7 @@ function ReviewSelectionContent({ state }: ReviewSelectionProps) {
   );
 }
 
-export function SelectedReviewDetail({ state }: SelectedReviewDetailProps) {
+function SelectedReviewDetail({ state }: SelectedReviewDetailProps) {
   return (
     <ReviewDetail
       trainingEnabled={state.trainingEnabled}

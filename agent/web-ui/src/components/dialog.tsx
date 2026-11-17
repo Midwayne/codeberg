@@ -3,7 +3,7 @@ import { useLayoutEffect, useRef, type ReactNode } from 'react';
 import { cn } from '../lib/utils';
 import { useMotionPresence } from './motion-presence';
 
-export type DialogProps = {
+type DialogProps = {
   open?: boolean;
   label: string;
   onClose: () => void;

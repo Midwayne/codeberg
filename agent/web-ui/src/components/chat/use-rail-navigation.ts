@@ -3,19 +3,16 @@ import type { useMessageRail } from './use-message-rail';
 import { useCallback, type WheelEvent } from 'react';
 
 import { MESSAGE_ID_ATTR, nearestMarkerId, type MarkerLayout } from '../../lib/message-rail';
+import { prefersReducedMotion } from '../../lib/motion-input';
 
-export function prefersReducedMotion(): boolean {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
-export function flashMessage(el: HTMLElement): void {
+function flashMessage(el: HTMLElement): void {
   el.classList.remove('message-flash');
   // Force a reflow so re-clicking the same tick replays the highlight.
   void el.offsetWidth;
   el.classList.add('message-flash');
 }
 
-export type RailNavigationOptions = Pick<Parameters<typeof useMessageRail>[0], 'scrollRef' | 'onNavigate'> & {
+type RailNavigationOptions = Pick<Parameters<typeof useMessageRail>[0], 'scrollRef' | 'onNavigate'> & {
   railRef: React.RefObject<HTMLElement | null>;
   laid: MarkerLayout[];
 };

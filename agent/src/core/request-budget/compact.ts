@@ -12,7 +12,7 @@ export interface RequestContext {
   saveCheckpoint?: (request: LanguageModelV4CallOptions, checkpoint: RequestCheckpoint) => Promise<void>;
 }
 
-export class ContextBudgetError extends Error {
+class ContextBudgetError extends Error {
   constructor() {
     super('The current request, instructions, tool schemas, or completion reservation exceed this model context. Narrow the request, lower reasoning effort, or use a larger context window.');
     this.name = 'ContextBudgetError';

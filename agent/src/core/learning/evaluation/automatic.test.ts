@@ -7,7 +7,7 @@ import { LearningService } from '../service.js';
 import { DatasetStore } from '../datasets.js';
 import type { EvaluationConfiguration, EvaluationRuntime } from './automatic-types.js';
 import type { RepositoryVersion } from '../types.js';
-import { writeJsonAtomic } from '../fs.js';
+import { writeJsonAtomic } from '../../fs.js';
 
 const roots: string[] = [];
 const services: LearningService[] = [];

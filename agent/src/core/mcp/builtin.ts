@@ -3,6 +3,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { McpConfigIo, McpStdioServer } from './types.js';
+import { envFlag as flag } from '../env-flag.js';
 
 /** MCP server name for the built-in multi-db server. Tools are `mcp_databases_<tool>`. */
 export const DBMCP_SERVER_NAME = 'databases';
@@ -11,12 +12,6 @@ export const DBMCP_SERVER_NAME = 'databases';
 const SPEC_NAMES = ['spec.yml', 'spec.yaml'] as const;
 
 const WALK_LIMIT = 8;
-
-function flag(value: string | undefined, fallback: boolean): boolean {
-  if (value == null || value.trim() === '') return fallback;
-
-  return !/^(0|false|off|no)$/i.test(value.trim());
-}
 
 function expandHome(p: string, home: string): string {
   if (p === '~') return home;
@@ -73,7 +68,7 @@ function findBuiltBinary(starts: string[], exists: (path: string) => boolean): s
   return undefined;
 }
 
-export interface BuiltinDatabaseOptions {
+interface BuiltinDatabaseOptions {
   env: NodeJS.ProcessEnv;
   /** Codeberg config directory (`CODEBERG_HOME`, default `~/.codeberg`). */
   home: string;
@@ -81,7 +76,7 @@ export interface BuiltinDatabaseOptions {
   io?: McpConfigIo;
 }
 
-export interface BuiltinDatabaseResult {
+interface BuiltinDatabaseResult {
   server?: McpStdioServer;
   warnings: string[];
 }

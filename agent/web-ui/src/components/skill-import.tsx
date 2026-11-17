@@ -1,19 +1,11 @@
 import { SkillDropZone } from './skill-drop-zone';
 import { SkillPreviewList } from './skill-preview';
-import { useSkillImport } from '../lib/use-skill-import';
+import { useSkillImport, type SkillImportOptions } from '../lib/use-skill-import';
 import { SuccessNotice } from './success-notice';
 
 import type { SkillFile } from '../lib/skill-files';
 
-export { buttonClass as button } from './button-styles';
-
-export type SkillImportProps = {
-  api: typeof fetch;
-  scope: string;
-  scopeLabel: string;
-  onImported: () => void;
-  onBusyChange: (busy: boolean) => void;
-};
+type SkillImportProps = SkillImportOptions;
 
 export function SkillImport(props: SkillImportProps) {
   const state = useSkillImport(props);
@@ -21,7 +13,7 @@ export function SkillImport(props: SkillImportProps) {
   return <SkillImportView {...state} />;
 }
 
-export type SkillImportViewProps = ReturnType<typeof useSkillImport>;
+type SkillImportViewProps = ReturnType<typeof useSkillImport>;
 
 export function SkillImportView(state: SkillImportViewProps) {
   return (

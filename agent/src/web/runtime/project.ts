@@ -99,7 +99,7 @@ async function initializeRuntime(runtime: OwnedRuntime, owned: OwnedRuntime[]) {
   }
 }
 
-export function projectGenerator(
+function projectGenerator(
   pool: ReloadableAgentPool,
   extensions: ExtensionStore,
   learning?: LearningService,

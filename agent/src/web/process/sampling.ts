@@ -18,7 +18,7 @@ export async function sample(state: ProcessMonitorState): Promise<ProcessUsage> 
   }
 }
 
-export async function sampleProcesses(
+async function sampleProcesses(
   state: ProcessMonitorState,
   pid: number,
   cores: number,
@@ -52,7 +52,7 @@ export async function sampleProcesses(
   return processUsage(state, selected, { pid, cores, totalBytes, now, scope });
 }
 
-export async function resolveNames(
+async function resolveNames(
   state: ProcessMonitorState,
   selected: ProcessSnapshot[],
 ): Promise<void> {

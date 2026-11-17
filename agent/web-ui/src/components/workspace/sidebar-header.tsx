@@ -40,9 +40,9 @@ export function SidebarHeader({ state }: SidebarHeaderProps) {
   );
 }
 
-export type SidebarViewTabsProps = Pick<Parameters<typeof SidebarHeader>[0], 'state'>;
+type SidebarViewTabsProps = Pick<Parameters<typeof SidebarHeader>[0], 'state'>;
 
-export function SidebarViewTabs({ state }: SidebarViewTabsProps) {
+function SidebarViewTabs({ state }: SidebarViewTabsProps) {
   return (
     <div className="flex gap-1 rounded-lg bg-muted/50 p-1" role="group" aria-label="Chat view">
       {(['active', 'archived'] as const).map((name) => (

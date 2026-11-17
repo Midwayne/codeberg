@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -51,6 +51,18 @@ describe('ContextStore', () => {
     store.allow(outside);
     expect(store.resolve(join(outside, 'SKILL.md'))).toBe(realpathSync(join(outside, 'SKILL.md')));
     expect(store.resolve(join(outside, 'link', 'secret.txt'))).toBeNull();
+  });
+
+  it('honours an extra root that is created after earlier lookups', () => {
+    const store = tempStore();
+    const later = join(mkdtempSync(join(tmpdir(), 'cberg-later-')), 'skills');
+    store.allow(later);
+    expect(store.resolve(join(later, 'SKILL.md'))).toBeNull();
+
+    mkdirSync(later);
+    writeFileSync(join(later, 'SKILL.md'), 'skill');
+
+    expect(store.resolve(join(later, 'SKILL.md'))).toBe(realpathSync(join(later, 'SKILL.md')));
   });
 
   it('appends terminal entries to one log', async () => {

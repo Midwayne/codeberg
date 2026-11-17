@@ -30,7 +30,7 @@ export function wake(state: KnowledgeWorkerState): void {
     });
 }
 
-export async function scheduleRetry(state: KnowledgeWorkerState): Promise<void> {
+async function scheduleRetry(state: KnowledgeWorkerState): Promise<void> {
   if (state.stopping || state.paused) return;
 
   const type = enabledType(state);

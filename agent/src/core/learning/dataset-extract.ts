@@ -10,7 +10,7 @@ import type { AttemptRecord, FeedbackRecord, ToolInvocation } from './types.js';
 
 export const EXTRACTION_VERSION = 2;
 
-export type RecordedAttempt = {
+type RecordedAttempt = {
   attempt_id: string;
   user_query: string;
   answer: string;
@@ -19,7 +19,7 @@ export type RecordedAttempt = {
   feedback?: FeedbackRecord;
 };
 
-export type EmitExample = (
+type EmitExample = (
   kind: DatasetKind,
   payload: Record<string, unknown>,
   provenance?: Provenance,

@@ -164,5 +164,3 @@ export { interpolateMcpString } from './config/values.js';
 export type { ParseMcpJsonOptions } from './config/types.js';
 
 export { parseMcpJson } from './config/parse.js';
-
-export { defaultReadFile } from './config/io.js';

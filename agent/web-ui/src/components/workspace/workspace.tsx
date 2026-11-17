@@ -14,7 +14,7 @@ import { useScheduledChatNavigation } from '../../sessions/use-scheduled-chat-na
 /**
  * Composes the chat and sidebar around the shared session lifecycle.
  */
-export type WorkspaceProps = {
+type WorkspaceProps = {
   projectControls?: ReactNode;
   sidebarOpen: boolean;
   onSidebarClose: () => void;
@@ -89,7 +89,7 @@ export function WorkspaceView(state: WorkspaceViewProps) {
         onSearchClose={state.onSearchClose}
         sessionId={state.sessionId}
         sessions={state.sessions}
-        chat={state.chat}
+        active={state.active}
         setJump={state.setJump}
         resume={state.resume}
       />

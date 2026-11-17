@@ -22,7 +22,7 @@ export function HitList({ icon, title, hits }: HitListProps) {
   );
 }
 
-export function SourceCard({ hit }: SourceCardProps) {
+function SourceCard({ hit }: SourceCardProps) {
   const path = hit.path;
   const lang = langFromPath(path);
   const lines = formatLineRange(hit);

@@ -1,3 +1,5 @@
+import { readJson, jsonInit } from './http';
+
 export type CleanupCategory = 'chats' | 'training' | 'knowledge';
 export interface ResourceSample {
   timestamp: number;
@@ -19,7 +21,7 @@ export interface ResourceUsage {
 export interface CleanupPreview {
   categories: { category: CleanupCategory; count: number; bytes: number }[];
 }
-export interface CleanupResult {
+interface CleanupResult {
   deleted: number;
   failed: number;
   bytesFreed: number;
@@ -28,8 +30,7 @@ export interface CleanupResult {
 
 async function request<T>(path: string, options?: RequestInit, fetcher: typeof fetch = fetch): Promise<T> {
   const response = await fetcher(`/api/settings/${path}`, { cache: 'no-store', ...options });
-  if (!response.ok) throw new Error(await response.text());
-  return response.json() as Promise<T>;
+  return readJson<T>(response);
 }
 
 export const loadResourceUsage = (after?: number, fetcher: typeof fetch = fetch) =>
@@ -65,11 +66,7 @@ export const previewCleanup = (days: number, fetcher: typeof fetch = fetch) =>
 export const cleanupResources = (categories: CleanupCategory[], olderThanDays: number, fetcher: typeof fetch = fetch) =>
   request<CleanupResult>(
     'cleanup',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ categories, olderThanDays }),
-    },
+    jsonInit('POST', { categories, olderThanDays }),
     fetcher,
   );
 

@@ -14,9 +14,11 @@ export async function recordSession(
     return;
 
   const attempts = await state.store.recordSession(conversationId, messages, parentConversationId);
+  if (attempts.length === 0) return;
+
   const newIds = new Set(attempts.map((attempt) => attempt.attempt_id));
-  for (const id of new Set(attempts.map((attempt) => attempt.interaction_id))) {
-    const interaction = await state.store.interaction(id);
+  const histories = await state.store.interactions(new Set(attempts.map((attempt) => attempt.interaction_id)));
+  for (const [id, interaction] of histories) {
     const newAnswers = interaction.attempts.filter(
       (attempt) => newIds.has(attempt.attempt_id) && attempt.answer.trim(),
     );

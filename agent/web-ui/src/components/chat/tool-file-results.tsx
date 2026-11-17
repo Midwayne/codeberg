@@ -89,7 +89,7 @@ export function TextOutput({ title, part }: TextOutputProps) {
   );
 }
 
-export function formatListItem(item: unknown): string {
+function formatListItem(item: unknown): string {
   if (typeof item === 'string') return item;
   if (!item || typeof item !== 'object') return String(item);
   const o = item as Record<string, unknown>;

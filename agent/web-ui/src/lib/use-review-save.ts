@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { submitReview, type ReviewSummary } from './training';
 import type { ReviewDecision } from './training-review';
 
-export type ReviewSaveOptions = {
+type ReviewSaveOptions = {
   selected: ReviewSummary | undefined;
   api: typeof fetch;
   /** Runs in the same update as the announcement, only while still mounted. */

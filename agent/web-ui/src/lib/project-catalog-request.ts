@@ -1,18 +1,13 @@
 import type { ProjectCatalog } from './project-api';
+import { HttpError, readJson } from './http';
 
 /** Waits between attempts while the project service is still starting (about 10 seconds in all). */
 const RETRY_DELAYS_MS = [500, 1000, 2000, 3000, 4000];
 
-class ProjectCatalogError extends Error {
-  constructor(message: string, readonly status: number) {
-    super(message);
-  }
-}
-
 /** A dropped connection, an unreachable daemon (502) or a proxy timeout (504) usually clears by itself. */
 function transient(error: unknown): boolean {
   return error instanceof TypeError ||
-    (error instanceof ProjectCatalogError && [502, 504].includes(error.status));
+    (error instanceof HttpError && [502, 504].includes(error.status));
 }
 
 function wait(ms: number, signal: AbortSignal): Promise<void> {
@@ -27,17 +22,16 @@ function wait(ms: number, signal: AbortSignal): Promise<void> {
 }
 
 async function fetchCatalog(signal: AbortSignal): Promise<ProjectCatalog> {
-  const response = await fetch('/api/projects', { signal });
-  if (!response.ok) throw new ProjectCatalogError(await response.text(), response.status);
-
-  return await response.json() as ProjectCatalog;
+  return readJson<ProjectCatalog>(await fetch('/api/projects', { signal }));
 }
 
 /**
  * Loads the project catalog, quietly retrying while the project service comes
  * up so a page opened during startup loads instead of showing an error.
  */
-export async function requestProjectCatalog(signal: AbortSignal): Promise<ProjectCatalog> {
+export async function requestProjectCatalog(
+  signal: AbortSignal = new AbortController().signal,
+): Promise<ProjectCatalog> {
   for (let attempt = 0; ; attempt++) {
     try {
       return await fetchCatalog(signal);

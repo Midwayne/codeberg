@@ -9,7 +9,7 @@ import { Dialog } from '../ui';
 import { MotionPresence } from '../motion-presence';
 import type { SidebarMenuProps, SidebarDeleteProps } from './session-sidebar';
 
-export type DeleteChatDialogProps = {
+type DeleteChatDialogProps = {
   title: string;
   onClose: () => void;
   onDelete: () => void;
@@ -45,7 +45,7 @@ export function DeleteChatDialog({ title, onClose, onDelete }: DeleteChatDialogP
   );
 }
 
-export type SessionActionsMenuProps = {
+type SessionActionsMenuProps = {
   session: SessionSummary;
   onAction: (action: 'rename' | 'pin' | 'archive' | 'delete') => void;
 };

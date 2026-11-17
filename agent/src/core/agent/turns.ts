@@ -50,7 +50,7 @@ export async function ask(
   }
 }
 
-export async function askTurn(
+async function askTurn(
   state: AgentState,
   question: string,
   opts: AskOptions,

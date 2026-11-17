@@ -7,8 +7,9 @@ import { Dialog, IconButton } from './ui';
 import type { Project } from '../lib/project-api';
 import type { AddProjectViewProps } from './projects';
 import { ProjectDirectoryField } from './project-directory';
+import { readJson, jsonInit } from '../lib/http';
 
-export type AddProjectProps = {
+type AddProjectProps = {
   initialPath?: string;
   onClose: () => void;
   onAdded: (project: Project) => Promise<void>;
@@ -34,16 +35,8 @@ export function useAddProject({ initialPath, onClose, onAdded }: AddProjectProps
     setBusy(true);
     setError('');
 
-    void fetch('/api/projects', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, root }),
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(await response.text());
-
-        await onAdded((await response.json()) as Project);
-      })
+    void fetch('/api/projects', jsonInit('POST', { name, root }))
+      .then(async (response) => onAdded(await readJson<Project>(response)))
       .catch((reason: unknown) => setError(String(reason)))
       .finally(() => setBusy(false));
   }
@@ -87,12 +80,12 @@ export function AddProjectView(state: AddProjectViewProps) {
   );
 }
 
-export type AddProjectActionsProps = Pick<
+type AddProjectActionsProps = Pick<
   Parameters<typeof AddProjectView>[0],
   'onClose' | 'busy' | 'choosing' | 'root'
 >;
 
-export function AddProjectActions({ onClose, busy, choosing, root }: AddProjectActionsProps) {
+function AddProjectActions({ onClose, busy, choosing, root }: AddProjectActionsProps) {
   return (
     <div className="flex justify-end gap-2">
       <button type="button" className={button} onClick={onClose}>
@@ -109,7 +102,7 @@ export function AddProjectActions({ onClose, busy, choosing, root }: AddProjectA
   );
 }
 
-export type OptionalProjectNameProps = { state: Parameters<typeof AddProjectView>[0] };
+type OptionalProjectNameProps = { state: Parameters<typeof AddProjectView>[0] };
 
 function OptionalProjectName({ state }: OptionalProjectNameProps) {
   return (

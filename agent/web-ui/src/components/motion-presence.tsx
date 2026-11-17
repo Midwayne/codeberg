@@ -7,7 +7,7 @@ const PresenceContext = createContext(true);
 
 export const useMotionPresence = () => useContext(PresenceContext);
 
-export type MotionPresenceProps = { visible: boolean; exitMs?: number; children: ReactNode };
+type MotionPresenceProps = { visible: boolean; exitMs?: number; children: ReactNode };
 
 /** Preserve the last committed content for a visual exit, without keeping modality. */
 export function MotionPresence({ visible, exitMs = 150, children }: MotionPresenceProps) {

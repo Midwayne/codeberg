@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import { cleanupResources, formatBytes, type CleanupCategory } from '../lib/resources';
 
-export type CleanupRemovalOptions = {
+type CleanupRemovalOptions = {
   selected: CleanupCategory[];
   days: number;
   api: typeof fetch;

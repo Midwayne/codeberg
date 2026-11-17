@@ -1,6 +1,6 @@
 import type { ResourceChartView } from './resource-chart';
 
-export type ResourcePlotProps = Pick<
+type ResourcePlotProps = Pick<
   Parameters<typeof ResourceChartView>[0],
   | 'title'
   | 'active'
@@ -55,7 +55,7 @@ export function ResourcePlot({
   );
 }
 
-export type ResourceTooltipProps = Pick<
+type ResourceTooltipProps = Pick<
   Parameters<typeof ResourceChartView>[0],
   'active' | 'tooltipId' | 'x' | 'title' | 'format' | 'value'
 >;
@@ -78,9 +78,9 @@ export function ResourceTooltip({ active, tooltipId, x, title, format, value }: 
   );
 }
 
-export type ResourceActivePointProps = Pick<Parameters<typeof ResourcePlot>[0], 'active' | 'x' | 'y'>;
+type ResourceActivePointProps = Pick<Parameters<typeof ResourcePlot>[0], 'active' | 'x' | 'y'>;
 
-export function ResourceActivePoint({ active, x, y }: ResourceActivePointProps) {
+function ResourceActivePoint({ active, x, y }: ResourceActivePointProps) {
   return (
     active && (
       <>

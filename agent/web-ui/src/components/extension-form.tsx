@@ -8,7 +8,7 @@ export const control =
 
 export const button = 'min-h-11 rounded-lg border border-border px-3 py-2 text-sm hover:bg-accent disabled:opacity-50';
 
-export type ExtensionFormProps = { state: Parameters<typeof ExtensionsView>[0] };
+type ExtensionFormProps = { state: Parameters<typeof ExtensionsView>[0] };
 
 export function ExtensionForm({ state }: ExtensionFormProps) {
   return (
@@ -36,9 +36,9 @@ export function ExtensionForm({ state }: ExtensionFormProps) {
   );
 }
 
-export type ExtensionFieldsProps = Pick<Parameters<typeof ExtensionForm>[0], 'state'>;
+type ExtensionFieldsProps = Pick<Parameters<typeof ExtensionForm>[0], 'state'>;
 
-export function ExtensionFields({ state }: ExtensionFieldsProps) {
+function ExtensionFields({ state }: ExtensionFieldsProps) {
   return (
     <fieldset disabled={state.busy || state.importing} className="space-y-4">
       <label className="block space-y-2 text-sm">
@@ -56,9 +56,9 @@ export function ExtensionFields({ state }: ExtensionFieldsProps) {
   );
 }
 
-export type ExtensionContentFieldsProps = Pick<Parameters<typeof ExtensionFields>[0], 'state'>;
+type ExtensionContentFieldsProps = Pick<Parameters<typeof ExtensionFields>[0], 'state'>;
 
-export function ExtensionContentFields({ state }: ExtensionContentFieldsProps) {
+function ExtensionContentFields({ state }: ExtensionContentFieldsProps) {
   return state.kind === 'mcp' ? (
     <label className="block space-y-2 text-sm">
       <span>Server configuration (JSON)</span>

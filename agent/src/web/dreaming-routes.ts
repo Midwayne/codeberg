@@ -17,41 +17,32 @@ export async function routeDreaming(
   const invalidWrite = validateDreamingWrite(req);
   if (invalidWrite) return sendText(res, invalidWrite.status, invalidWrite.message);
 
-  try {
-    if (url.pathname === PATH) {
-      return await routeDreamingRoot(req, res, learning);
-    }
-
-    const id = url.pathname.slice(PATH.length + 1);
-    if (!/^dream-[a-z0-9-]{1,70}$/.test(id))
-      return sendText(res, 400, 'invalid dreaming report id');
-
-    if (req.method === 'GET') {
-      const report = await learning.dreamingReports.get(id);
-
-      return report ? sendJson(res, 200, report) : sendText(res, 404, 'dreaming report not found');
-    }
-
-    if (req.method !== 'POST') return sendText(res, 405, 'method not allowed');
-
-    const body = await readJson(req);
-    if (
-      !body ||
-      typeof body.action !== 'string' ||
-      !['apply', 'undo', 'dismiss'].includes(body.action)
-    )
-      return sendText(res, 400, 'invalid dreaming action');
-
-    return sendJson(res, 200, await learning.decideDreaming(id, body.action as DreamingDecision));
-  } catch (error) {
-    const message = String(error);
-    if (message.includes('not found')) return sendText(res, 404, message);
-
-    if (/paused|no learning model|stale|already|no changes/.test(message))
-      return sendText(res, 409, message);
-
-    throw error;
+  // Not-found and conflict errors carry their status to the server's error handler.
+  if (url.pathname === PATH) {
+    return await routeDreamingRoot(req, res, learning);
   }
+
+  const id = url.pathname.slice(PATH.length + 1);
+  if (!/^dream-[a-z0-9-]{1,70}$/.test(id))
+    return sendText(res, 400, 'invalid dreaming report id');
+
+  if (req.method === 'GET') {
+    const report = await learning.dreamingReports.get(id);
+
+    return report ? sendJson(res, 200, report) : sendText(res, 404, 'dreaming report not found');
+  }
+
+  if (req.method !== 'POST') return sendText(res, 405, 'method not allowed');
+
+  const body = await readJson(req);
+  if (
+    !body ||
+    typeof body.action !== 'string' ||
+    !['apply', 'undo', 'dismiss'].includes(body.action)
+  )
+    return sendText(res, 400, 'invalid dreaming action');
+
+  return sendJson(res, 200, await learning.decideDreaming(id, body.action as DreamingDecision));
 }
 
 async function routeDreamingRoot(

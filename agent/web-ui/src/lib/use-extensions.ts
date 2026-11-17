@@ -3,14 +3,15 @@ import { useEffect, useState } from 'react';
 import { useExtensionDraft } from './use-extension-draft';
 
 import type { Project } from './project-api';
+import { ensureOk } from './http';
 
-export interface ExtensionCatalog {
+interface ExtensionCatalog {
   mcps: { name: string; kind: string; scope?: string }[];
   skills: { name: string; description: string; scope: string }[];
   warnings: string[];
 }
 
-export type ExtensionsOptions = { project: Project; api: typeof fetch; kind: 'mcp' | 'skill' };
+type ExtensionsOptions = { project: Project; api: typeof fetch; kind: 'mcp' | 'skill' };
 
 export function useExtensions({ project, api, kind }: ExtensionsOptions) {
   const { catalog, catalogError, setRevision } = useExtensionCatalog(api);
@@ -56,7 +57,7 @@ function useExtensionCatalog(api: typeof fetch) {
 
     void api('/api/extensions', { signal: controller.signal })
       .then(async (response) => {
-        if (!response.ok) throw new Error(await response.text());
+        await ensureOk(response);
 
         const next = (await response.json()) as ExtensionCatalog;
         if (!controller.signal.aborted) setCatalog(next);

@@ -3,8 +3,10 @@ import { control, button } from './project-styles';
 import { useEffect, useRef, useState } from 'react';
 
 import type { Project } from '../lib/project-api';
+import { errorMessage } from '@agent/core/errors.js';
+import { jsonInit, readJson } from '../lib/http';
 
-export type RenameProjectFormProps = {
+type RenameProjectFormProps = {
   project: Project;
   onRenamed: (project: Project) => void;
   onCancel: () => void;
@@ -18,7 +20,7 @@ export function RenameProjectForm(props: RenameProjectFormProps) {
 
 const RENAME_FAILED = 'Could not save the project name. Try again.';
 
-export function useRenameProject({ project, onRenamed, onCancel }: RenameProjectFormProps) {
+function useRenameProject({ project, onRenamed, onCancel }: RenameProjectFormProps) {
   const [name, setName] = useState(project.name);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -38,7 +40,7 @@ export function useRenameProject({ project, onRenamed, onCancel }: RenameProject
 
     void renameProject(project.id, name.trim())
       .then(onRenamed)
-      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason)))
+      .catch((reason: unknown) => setError(errorMessage(reason)))
       .finally(() => setBusy(false));
   }
 
@@ -46,29 +48,14 @@ export function useRenameProject({ project, onRenamed, onCancel }: RenameProject
 }
 
 async function renameProject(id: string, name: string): Promise<Project> {
-  const response = await fetch(`/api/projects/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name }),
-  });
+  const response = await fetch(`/api/projects/${id}`, jsonInit('PATCH', { name }));
 
-  const text = await response.text();
-  let result: Project & { message?: string };
-
-  try {
-    result = JSON.parse(text) as typeof result;
-  } catch {
-    throw new Error(text || RENAME_FAILED);
-  }
-
-  if (!response.ok) throw new Error(result.message || RENAME_FAILED);
-
-  return result;
+  return readJson<Project>(response, RENAME_FAILED);
 }
 
-export type RenameProjectFormViewProps = ReturnType<typeof useRenameProject>;
+type RenameProjectFormViewProps = ReturnType<typeof useRenameProject>;
 
-export function RenameProjectFormView({
+function RenameProjectFormView({
   busy,
   onCancel,
   name,
@@ -110,9 +97,9 @@ export function RenameProjectFormView({
   );
 }
 
-export type ProjectNameFieldProps = Pick<Parameters<typeof RenameProjectFormView>[0], 'project'>;
+type ProjectNameFieldProps = Pick<Parameters<typeof RenameProjectFormView>[0], 'project'>;
 
-export function ProjectNameField({ project }: ProjectNameFieldProps) {
+function ProjectNameField({ project }: ProjectNameFieldProps) {
   return (
     <label htmlFor={`project-name-${project.id}`} className="block text-sm font-medium">
       Project name
@@ -120,12 +107,12 @@ export function ProjectNameField({ project }: ProjectNameFieldProps) {
   );
 }
 
-export type RenameProjectActionsProps = Pick<
+type RenameProjectActionsProps = Pick<
   Parameters<typeof RenameProjectFormView>[0],
   'busy' | 'onCancel' | 'name' | 'project'
 >;
 
-export function RenameProjectActions({ busy, onCancel, name, project }: RenameProjectActionsProps) {
+function RenameProjectActions({ busy, onCancel, name, project }: RenameProjectActionsProps) {
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
       <button
@@ -147,12 +134,12 @@ export function RenameProjectActions({ busy, onCancel, name, project }: RenamePr
   );
 }
 
-export type RenameProjectInputProps = Pick<
+type RenameProjectInputProps = Pick<
   Parameters<typeof RenameProjectFormView>[0],
   'input' | 'project' | 'name' | 'busy' | 'setName' | 'setError'
 >;
 
-export function RenameProjectInput({ input, project, name, busy, setName, setError }: RenameProjectInputProps) {
+function RenameProjectInput({ input, project, name, busy, setName, setError }: RenameProjectInputProps) {
   return (
     <input
       ref={input}

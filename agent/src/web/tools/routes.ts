@@ -1,6 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { requireJsonMutation, sameOrigin, sendJson, sendText } from '../http.js';
+import { readBody, requireJsonMutation, sameOrigin, sendJson, sendText } from '../http.js';
 import { ToolSettingsError, type ToolSettingsStore } from './settings.js';
+import { HttpError } from '../../core/http-error.js';
+import { errorMessage } from '../../core/errors.js';
 
 export async function routeToolSettings(req: IncomingMessage, res: ServerResponse, store: ToolSettingsStore): Promise<void> {
   if (!sameOrigin(req)) return sendText(res, 403, 'Cross-origin tool settings are not allowed.');
@@ -13,29 +15,16 @@ export async function routeToolSettings(req: IncomingMessage, res: ServerRespons
 
     return sendJson(res, 200, await store.update(await readToolSettingsJson(req)));
   } catch (error) {
-    return sendJson(res, error instanceof ToolSettingsError ? error.status : 503,
-      { error: error instanceof Error ? error.message : 'Tool settings unavailable. Retry.' });
+    return sendJson(res, error instanceof HttpError ? error.status : 503,
+      { error: errorMessage(error, 'Tool settings unavailable. Retry.') });
   }
 }
 
 async function readToolSettingsJson(req: IncomingMessage): Promise<unknown> {
-  const chunks: Buffer[] = [];
-  let size = 0;
-
-  for await (const chunk of req.iterator({ destroyOnReturn: false })) {
-    const bytes = Buffer.from(chunk);
-    size += bytes.length;
-    if (size > 4096) {
-      req.resume();
-
-      throw new ToolSettingsError('Tool settings request exceeds 4 KB.', 413);
-    }
-
-    chunks.push(bytes);
-  }
+  const body = await readBody(req, 4096, 'Tool settings request exceeds 4 KB.');
 
   try {
-    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    return JSON.parse(body.toString('utf8'));
   } catch {
     throw new ToolSettingsError('Malformed tool settings JSON.');
   }

@@ -1,29 +1,13 @@
-import { useSessionSidebar } from './use-session-sidebar';
+import { useSessionSidebar, type SessionSidebarOptions } from './use-session-sidebar';
 import { SidebarHeader } from './sidebar-header';
 import { SidebarMenu, SidebarDelete } from './sidebar-actions';
 import { SessionRow } from './session-row';
 import { SidebarRename } from './rename-chat-dialog';
 
-import type { ReactNode } from 'react';
-
 import type { SessionSummary } from '../../lib/sessions';
 
 /** Chat organization is only a view over the same resumable conversations. */
-export type SessionSidebarProps = {
-  projectControls?: ReactNode;
-  sidebarActions?: ReactNode;
-  sessions: SessionSummary[];
-  scheduledChatIds?: ReadonlySet<string>;
-  error?: string;
-  currentId: string;
-  canBranch: boolean;
-  onResume: (id: string) => void;
-  onNew: () => void;
-  onBranch: () => void;
-  onDelete: (id: string) => void;
-  onSetFlags: (id: string, flags: { pinned?: boolean; archived?: boolean }) => void;
-  onRename: (id: string, title: string) => void;
-};
+type SessionSidebarProps = SessionSidebarOptions;
 
 export function SessionSidebar(props: SessionSidebarProps) {
   const state = useSessionSidebar(props);
@@ -31,7 +15,7 @@ export function SessionSidebar(props: SessionSidebarProps) {
   return <SessionSidebarView {...state} />;
 }
 
-export type SessionSidebarViewProps = ReturnType<typeof useSessionSidebar>;
+type SessionSidebarViewProps = ReturnType<typeof useSessionSidebar>;
 
 function SessionSidebarView(state: SessionSidebarViewProps) {
   return (
@@ -57,7 +41,7 @@ function SessionSidebarView(state: SessionSidebarViewProps) {
   );
 }
 
-export type SessionGroupsProps = { state: Parameters<typeof SessionSidebarView>[0] };
+type SessionGroupsProps = { state: Parameters<typeof SessionSidebarView>[0] };
 
 function SessionGroups({ state }: SessionGroupsProps) {
   return state.groups

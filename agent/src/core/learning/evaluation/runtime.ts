@@ -1,5 +1,6 @@
 import { generateText, type LanguageModel } from 'ai';
-import { maxReasoningProviderOptions } from '../../reasoning.js';
+import { reasoningCallOptions } from '../../reasoning.js';
+import { specProvider } from '../../../providers/spec.js';
 import type { Generator, Prompt, SearchOptions, SearchResult } from '../../types.js';
 import { redactSecrets } from '../redact.js';
 import type {
@@ -7,8 +8,9 @@ import type {
   EvaluationModel,
   EvaluationRuntime,
 } from './automatic-types.js';
+import { invalidResponse, permanentFailure } from '../failure.js';
 
-export interface EvaluationRuntimeOptions {
+interface EvaluationRuntimeOptions {
   configuration(): Promise<EvaluationConfiguration | undefined>;
   resolveModel(selection: EvaluationModel): LanguageModel;
   search(query: string, options: SearchOptions, signal: AbortSignal): Promise<SearchResult[]>;
@@ -76,7 +78,7 @@ function evaluationGenerator(
   return {
     generate: async (prompt: Prompt) => {
       if (prompt.system.length + prompt.prompt.length > promptBudget(selection))
-        throw new Error('PERMANENT_ERROR: evaluation prompt exceeds the configured context budget');
+        throw permanentFailure('evaluation prompt exceeds the configured context budget');
 
       const { text } = await generateText({
         model: options.resolveModel(selection),
@@ -85,14 +87,10 @@ function evaluationGenerator(
         maxOutputTokens: 2_048,
         timeout: 120_000,
         maxRetries: 0,
-        ...(selection.effort === 'max'
-          ? { providerOptions: maxReasoningProviderOptions(selection.model.split(':', 1)[0]) }
-          : selection.effort !== 'provider-default'
-            ? { reasoning: selection.effort }
-            : {}),
+        ...reasoningCallOptions(specProvider(selection.model), selection.effort),
       });
       if (!text.trim())
-        throw new Error('INVALID_RESPONSE: evaluation model returned an empty response');
+        throw invalidResponse('evaluation model returned an empty response');
 
       return text;
     },

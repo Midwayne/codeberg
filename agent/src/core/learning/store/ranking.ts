@@ -47,7 +47,7 @@ export function rankKnowledge(query: string, artifacts: KnowledgeArtifact[]): Kn
   }));
 }
 
-export function searchTerms(value: string): string[] {
+function searchTerms(value: string): string[] {
   return (
     value
       .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
@@ -75,6 +75,6 @@ export function lexicalScore(query: string, document: string): number {
   return matched / terms.length + occurrences / Math.max(20, terms.length * 10) + phrase;
 }
 
-export function tokenize(value: string): string[] {
+function tokenize(value: string): string[] {
   return [...new Set(value.toLowerCase().match(/[a-z0-9_./-]{2,}/g) ?? [])];
 }

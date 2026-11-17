@@ -1,22 +1,19 @@
 import type { ProjectCatalog } from '../../core/projects.js';
 import type { ProjectRequestRouterState } from './state.js';
+import { HttpError } from '../../core/http-error.js';
 
-export class ProjectServiceTimeout extends Error {
-  readonly status = 504;
-
+class ProjectServiceTimeout extends HttpError {
   constructor(method: string) {
-    super(method === 'GET'
+    super(504, method === 'GET'
       ? 'Project service did not respond in time. Codeberg may be busy indexing. Try again shortly.'
       : 'Project operation did not respond in time and may still complete. Refresh projects before retrying.');
   }
 }
 
 /** The daemon is not accepting connections: it is still starting or was restarted. */
-export class ProjectServiceUnreachable extends Error {
-  readonly status = 502;
-
+class ProjectServiceUnreachable extends HttpError {
   constructor() {
-    super('Project service is not reachable. It may still be starting; Codeberg retries automatically.');
+    super(502, 'Project service is not reachable. It may still be starting; Codeberg retries automatically.');
   }
 }
 
@@ -24,7 +21,7 @@ export class ProjectServiceUnreachable extends Error {
  * How long a page load waits for the daemon's project list before using the
  * last one it reported. A busy daemon must not hold every screen behind it.
  */
-export const CATALOG_READ_TIMEOUT_MS = 1500;
+const CATALOG_READ_TIMEOUT_MS = 1500;
 
 /** Bound the complete response, release the timer, and never replay mutations. */
 export async function requestProjectService(base: string, path: string, init: RequestInit = {}, timeoutMs = 15_000) {
@@ -57,7 +54,10 @@ export async function daemon(
   timeoutMs?: number,
 ) {
   const { response, body } = await requestProjectService(state.options.daemonUrl, path, init, timeoutMs);
-  if (!response.ok) throw new Error(body.message ?? 'Project service unavailable');
+  if (!response.ok) {
+    // The daemon's own 4xx answers pass through; its failures mean the project service is unavailable.
+    throw new HttpError(response.status >= 500 ? 503 : response.status, body.message ?? 'Project service unavailable');
+  }
 
   return body;
 }

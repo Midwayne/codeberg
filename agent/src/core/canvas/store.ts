@@ -6,6 +6,7 @@ import { atomicWrite, readData, withCanvasLock } from './storage.js';
 import { mutate } from './mutations.js';
 import { CanvasError, CanvasRevisionConflict, validName, type Mutation, type Scene } from './types.js';
 import { portableAppState, validateScene } from './validation.js';
+import { ifMissing } from '../fs.js';
 
 export class CanvasStore {
   constructor(readonly root: string, readonly url: string, private readonly defaultEnabled = false, readonly chatId?: string) {}
@@ -102,11 +103,7 @@ export class CanvasStore {
 
   async list() {
     await this.requireEnabled();
-    const names = await readdir(this.root).catch((error: NodeJS.ErrnoException) => {
-      if (error.code === 'ENOENT') return [];
-
-      throw error;
-    });
+    const names = await readdir(this.root).catch(ifMissing([]));
     return Promise.all(names.filter((name) => name.endsWith('.excalidraw')).sort().map(async (file) => {
       const scene = await this.current(file.slice(0, -11));
       return { name: scene.name, updatedAt: scene.updatedAt,

@@ -16,7 +16,7 @@ import { ScheduledRunsPanel } from './scheduled-runs';
 
 type SettingsSection = (typeof sections)[number]['id'];
 
-export type SettingsNavigationProps = {
+type SettingsNavigationProps = {
   section: SettingsSection;
   setSection: React.Dispatch<React.SetStateAction<SettingsSection>>;
 };
@@ -44,7 +44,7 @@ export function SettingsNavigation({ section, setSection }: SettingsNavigationPr
   );
 }
 
-export type SettingsPanelsProps = Pick<Parameters<typeof Settings>[0], 'onLearningSaved'> & {
+type SettingsPanelsProps = Pick<Parameters<typeof Settings>[0], 'onLearningSaved'> & {
   section: SettingsSection;
 };
 
@@ -82,14 +82,14 @@ export function SettingsPanels({ section, onLearningSaved }: SettingsPanelsProps
   );
 }
 
-export type SettingsTabProps = Pick<Parameters<typeof SettingsNavigation>[0], 'section' | 'setSection'> & {
+type SettingsTabProps = Pick<Parameters<typeof SettingsNavigation>[0], 'section' | 'setSection'> & {
   id: SettingsSection;
   label: (typeof sections)[number]['label'];
   Icon: (typeof sections)[number]['icon'];
   shortLabel: (typeof sections)[number]['shortLabel'];
 };
 
-export function SettingsTab({ id, label, section, setSection, Icon, shortLabel }: SettingsTabProps) {
+function SettingsTab({ id, label, section, setSection, Icon, shortLabel }: SettingsTabProps) {
   return (
     <button
       key={id}

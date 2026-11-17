@@ -5,7 +5,9 @@ import { extractTrajectory, messageText } from '../trajectory.js';
 import type { AttemptRecord, FeedbackRecord, RepositoryVersion } from '../types.js';
 import { stableId } from './identity.js';
 
-export const CORRECTION = /^(?:no\b|actually\b|i meant\b|that's not\b|that is not\b|but\b)/i;
+const CORRECTION = /^(?:no\b|actually\b|i meant\b|that's not\b|that is not\b|but\b)/i;
+
+export type PendingAttempt = { attemptId: string; build: (repositories: RepositoryVersion[]) => AttemptRecord };
 
 export class SessionCapture {
   private interactionId = '';
@@ -16,10 +18,10 @@ export class SessionCapture {
   constructor(
     private readonly conversationId: string,
     private readonly feedback: Map<string, FeedbackRecord>,
-    private readonly repositories: RepositoryVersion[],
   ) {}
 
-  next(message: UIMessage, existing: Set<string>): AttemptRecord | undefined {
+  /** A new assistant answer as an attempt to build; repository versions are read only when one exists. */
+  next(message: UIMessage, existing: Set<string>): PendingAttempt | undefined {
     if (message.role === 'user') {
       this.acceptUser(message);
 
@@ -35,14 +37,15 @@ export class SessionCapture {
     this.previousAttempt = attemptId;
     if (existing.has(attemptId)) return undefined;
 
-    return sessionAttempt(message, {
+    const context = {
       conversationId: this.conversationId,
       interactionId: this.interactionId,
       parentInteraction: this.parentInteraction,
       attemptId,
       user: this.user,
-      repositories: this.repositories,
-    });
+    };
+
+    return { attemptId, build: (repositories) => sessionAttempt(message, { ...context, repositories }) };
   }
 
   private acceptUser(message: UIMessage): void {
@@ -63,7 +66,7 @@ export class SessionCapture {
   }
 }
 
-export interface SessionAttemptContext {
+interface SessionAttemptContext {
   conversationId: string;
   interactionId: string;
   parentInteraction?: string;
@@ -72,7 +75,7 @@ export interface SessionAttemptContext {
   repositories: RepositoryVersion[];
 }
 
-export function sessionAttempt(message: UIMessage, context: SessionAttemptContext): AttemptRecord {
+function sessionAttempt(message: UIMessage, context: SessionAttemptContext): AttemptRecord {
   const trajectory = extractTrajectory(message);
 
   return redactSecrets({
@@ -96,7 +99,7 @@ export function sessionAttempt(message: UIMessage, context: SessionAttemptContex
   });
 }
 
-export function attemptMetadata(message: UIMessage): Partial<AttemptRecord> {
+function attemptMetadata(message: UIMessage): Partial<AttemptRecord> {
   const metadata = message.metadata as Record<string, unknown> | undefined;
   const usage = metadata?.usage as Record<string, unknown> | undefined;
   const inputTokens = usage?.inputTokens ?? usage?.promptTokens;

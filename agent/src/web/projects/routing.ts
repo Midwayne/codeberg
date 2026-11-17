@@ -10,7 +10,9 @@ import { servePage } from '../server/routes.js';
 import { deleteProject, trackRequest } from './delete.js';
 import { openConfig, pickDirectory, projects, renameProject } from './catalog.js';
 import type { ProjectRequestRouterState } from './state.js';
-import { daemon, ProjectServiceTimeout, ProjectServiceUnreachable } from './request.js';
+import { daemon } from './request.js';
+import { HttpError } from '../../core/http-error.js';
+import { errorMessage } from '../../core/errors.js';
 
 export function handle(
   state: ProjectRequestRouterState,
@@ -19,16 +21,14 @@ export function handle(
 ): void {
   void route(state, req, res).catch((error: unknown) => {
     if (!res.headersSent)
-      sendText(res, failureStatus(error), error instanceof Error ? error.message : 'Project service unavailable');
+      sendText(res, failureStatus(error), errorMessage(error, 'Project service unavailable'));
     else res.end();
   });
 }
 
-/** Timeouts and an unreachable daemon are temporary; anything else is a reported failure. */
+/** Errors that carry a status (including the daemon's own) keep it; anything else is unavailable. */
 function failureStatus(error: unknown): number {
-  if (error instanceof ProjectServiceTimeout || error instanceof ProjectServiceUnreachable) return error.status;
-
-  return 503;
+  return error instanceof HttpError ? error.status : 503;
 }
 
 export async function route(
@@ -64,7 +64,7 @@ export async function route(
   return dispatchProject(state, req, res, url);
 }
 
-export async function dispatchProject(
+async function dispatchProject(
   state: ProjectRequestRouterState,
   req: IncomingMessage,
   res: ServerResponse,
@@ -110,8 +110,7 @@ async function dispatchHandler(
   url: URL,
   project: Project,
 ): Promise<void> {
-  if (state.deleting.has(project.id)) return sendText(res, 409, 'project deletion in progress');
-
+  // dispatchProject already refused a deleting project, with no await in between.
   const release = trackRequest(state, project.id, res);
   try {
     await callHandler(state, req, res, url, project);

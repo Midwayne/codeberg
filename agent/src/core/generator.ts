@@ -1,6 +1,7 @@
 import { generateText, type LanguageModel } from 'ai';
 
-import { maxReasoningProviderOptions } from './reasoning.js';
+import { reasoningCallOptions } from './reasoning.js';
+import { specProvider } from '../providers/spec.js';
 import { IncompleteSummaryError } from './context-errors.js';
 import type { Generator, Prompt, ReasoningEffort } from './types.js';
 
@@ -18,11 +19,7 @@ export function fromAiSdk(
         ...(p.abortSignal ? { abortSignal: p.abortSignal } : {}),
         ...(p.requireComplete ? { timeout: { totalMs: 120_000 } } : {}),
         ...(p.maxOutputTokens !== undefined ? { maxOutputTokens: p.maxOutputTokens } : {}),
-        ...(effort === 'max'
-          ? { providerOptions: maxReasoningProviderOptions(modelSpec?.split(':', 1)[0] ?? '') }
-          : effort && effort !== 'provider-default'
-            ? { reasoning: effort }
-            : {}),
+        ...reasoningCallOptions(specProvider(modelSpec), effort),
       });
 
       if (p.requireComplete && (!text.trim() || finishReason !== 'stop')) {

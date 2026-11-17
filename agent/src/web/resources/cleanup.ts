@@ -70,7 +70,7 @@ export async function cleanup(state: ResourceSettingsState, input: unknown) {
   }
 }
 
-export async function removeFiles(
+async function removeFiles(
   state: ResourceSettingsState,
   categories: CleanupCategory[],
   cutoff: number,

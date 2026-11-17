@@ -1,4 +1,6 @@
-export type ChatSaveSnapshot = { error?: string; retrying: boolean };
+import { errorMessage } from '@agent/core/errors.js';
+
+type ChatSaveSnapshot = { error?: string; retrying: boolean };
 
 /** A failed disk/network save stays visible independently of model generation. */
 export class ChatSaveState {
@@ -22,7 +24,7 @@ export class ChatSaveState {
   };
 
   failed = (error: unknown) => {
-    this.update({ retrying: this.snapshot.retrying, error: error instanceof Error ? error.message : 'Chat storage is unavailable.' });
+    this.update({ retrying: this.snapshot.retrying, error: errorMessage(error, 'Chat storage is unavailable.') });
   };
 
   retry = async () => {

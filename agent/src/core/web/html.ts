@@ -3,7 +3,7 @@
 const BLOCK_CLOSE =
   /<\/(p|div|section|article|header|footer|li|ul|ol|tr|table|h[1-6]|pre|blockquote|figure|main|nav|aside)>/gi;
 
-export interface ExtractedPage {
+interface ExtractedPage {
   title: string;
   text: string;
 }

@@ -16,7 +16,7 @@ import type {
   Message,
 } from './message';
 
-export function Attachment({ file }: AttachmentProps) {
+function Attachment({ file }: AttachmentProps) {
   const name = file.filename ?? file.mediaType;
   // Saved sessions may contain arbitrary URLs; only preview local embedded attachments.
   const url = file.url.startsWith(`data:${file.mediaType};base64,`) ? file.url : undefined;
@@ -34,7 +34,7 @@ export function Attachment({ file }: AttachmentProps) {
   );
 }
 
-export function isToolPart(part: AnyPart): boolean {
+function isToolPart(part: AnyPart): boolean {
   return part.type === 'dynamic-tool' || part.type.startsWith('tool-');
 }
 
@@ -42,7 +42,7 @@ export function isActivityPart(part: AnyPart): boolean {
   return part.type === 'reasoning' || (isToolPart(part) && !isCanvasDrawing(part as ToolView));
 }
 
-export function ActivityGroup({ parts }: ActivityGroupProps) {
+function ActivityGroup({ parts }: ActivityGroupProps) {
   const toolCount = parts.filter(isToolPart).length;
   const reasoningCount = parts.length - toolCount;
   const title = [
@@ -91,7 +91,7 @@ export function Part({ part }: PartProps) {
   return null;
 }
 
-export function Reasoning({ text }: ReasoningProps) {
+function Reasoning({ text }: ReasoningProps) {
   if (!text?.trim()) return null;
   return (
     <Collapsible icon={<Brain className="size-3.5" />} title="Reasoning">
@@ -100,7 +100,7 @@ export function Reasoning({ text }: ReasoningProps) {
   );
 }
 
-export type MessageBodyProps = Pick<Parameters<typeof Message>[0], 'message'> & {
+type MessageBodyProps = Pick<Parameters<typeof Message>[0], 'message'> & {
   isUser: boolean;
   firstActivityIndex: number;
   activityParts: AnyPart[];

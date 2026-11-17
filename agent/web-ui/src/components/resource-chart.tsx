@@ -17,7 +17,7 @@ export function sampleAtPosition(
   );
 }
 
-export type ResourceChartProps = {
+type ResourceChartProps = {
   title: string;
   rows: ResourceSample[];
   value: (row: ResourceSample) => number;
@@ -32,16 +32,7 @@ export function ResourceChart(props: ResourceChartProps) {
   return <ResourceChartView {...state} />;
 }
 
-export type ResourceChartOptions = {
-  title: string;
-  rows: ResourceSample[];
-  value: (row: ResourceSample) => number;
-  format: (value: number) => string;
-  range: number;
-  end: number;
-};
-
-function useResourceChart({ title, rows, value, format, range, end }: ResourceChartOptions) {
+function useResourceChart({ title, rows, value, format, range, end }: ResourceChartProps) {
   const tooltipId = useId();
   const [activeTimestamp, setActiveTimestamp] = useState<number>();
   const active = rows.find((row) => row.timestamp === activeTimestamp);
@@ -80,7 +71,7 @@ function useResourceChart({ title, rows, value, format, range, end }: ResourceCh
   };
 }
 
-export type ResourceChartViewProps = ReturnType<typeof useResourceChart>;
+type ResourceChartViewProps = ReturnType<typeof useResourceChart>;
 
 export function ResourceChartView(state: ResourceChartViewProps) {
   return (
@@ -123,7 +114,7 @@ export function ResourceChartView(state: ResourceChartViewProps) {
   );
 }
 
-export type ChartNavigationOptions = Pick<Parameters<typeof useResourceChart>[0], 'rows' | 'end'> & {
+type ChartNavigationOptions = Pick<Parameters<typeof useResourceChart>[0], 'rows' | 'end'> & {
   setActiveTimestamp: React.Dispatch<React.SetStateAction<number | undefined>>;
   start: number;
   activeTimestamp: number | undefined;
@@ -154,7 +145,7 @@ function createChartNavigation({ setActiveTimestamp, rows, start, end, activeTim
   return { point, navigate };
 }
 
-export type ResourceCaptionProps = Pick<
+type ResourceCaptionProps = Pick<
   Parameters<typeof ResourceChartView>[0],
   'title' | 'latest' | 'format' | 'value'
 >;

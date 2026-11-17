@@ -9,6 +9,7 @@ import type {
   ScoreSummary,
 } from './types.js';
 import { validateInputs, validateScore } from './validation.js';
+import { errorMessage } from '../../errors.js';
 
 /** Pass DatasetStore.active('eval') so superseded reviews cannot enter a comparison. */
 export async function evaluateOutputs(
@@ -61,7 +62,7 @@ async function evaluateExample(
       scores.push({
         name: scorer.name,
         score: null,
-        error: redactSecrets(String(error instanceof Error ? error.message : error)),
+        error: redactSecrets(errorMessage(error)),
       });
     }
   }

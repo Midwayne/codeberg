@@ -1,6 +1,6 @@
 import { useId, type ReactNode } from 'react';
 
-export type ComponentsProps = { label: string; disabled: boolean; children: ReactNode };
+type ComponentsProps = { label: string; disabled: boolean; children: ReactNode };
 
 export function Components({ label, disabled, children }: ComponentsProps) {
   return (
@@ -15,7 +15,7 @@ export function Components({ label, disabled, children }: ComponentsProps) {
   );
 }
 
-export type ToggleProps = {
+type ToggleProps = {
   label: string;
   description?: string;
   impact?: string;

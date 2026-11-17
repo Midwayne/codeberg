@@ -1,9 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { parseDocument } from 'yaml';
 import { codebergHome } from '../paths.js';
 import type { DecisionApi, DecisionModel } from './types.js';
-import { record } from './validation.js';
+import { record } from '../record.js';
+import { readModelsFile, type ModelsFile } from '../models-file.js';
+import { isMissing } from '../fs.js';
 
 const DEFAULTS: Record<string, { api: DecisionApi; endpoint: string; key: string }> = {
   openai: { api: 'openai', endpoint: 'https://api.openai.com/v1/decisions', key: 'OPENAI_API_KEY' },
@@ -11,7 +12,7 @@ const DEFAULTS: Record<string, { api: DecisionApi; endpoint: string; key: string
   openrouter: { api: 'system-one', endpoint: 'https://openrouter.ai/api/alpha/decisions', key: 'OPENROUTER_API_KEY' },
 };
 
-export interface DecisionCatalog {
+interface DecisionCatalog {
   decisionModels: DecisionModel[];
   decisions: string | null;
 }
@@ -19,20 +20,12 @@ export interface DecisionCatalog {
 export async function loadDecisionCatalog(
   path: string,
   env: NodeJS.ProcessEnv = process.env,
+  file?: ModelsFile,
 ): Promise<DecisionCatalog> {
-  let raw: string;
-  try {
-    raw = await readFile(path, 'utf8');
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  const models = file ?? await readModelsFile(path);
+  if (models.missing) return { decisionModels: [], decisions: null };
 
-    return { decisionModels: [], decisions: null };
-  }
-
-  const document = parseDocument(raw, { uniqueKeys: true });
-  if (document.errors.length) throw new Error(`invalid models.yml: ${document.errors[0].message}`);
-
-  const root = record(document.toJS());
+  const root = record(models.root);
   const decisionModels = parseProviders(root?.providers);
   const selected = root?.decisions;
   if (selected !== undefined && selected !== null &&
@@ -110,7 +103,7 @@ export async function configuredDecision(env: NodeJS.ProcessEnv): Promise<Decisi
   try {
     stored = record(JSON.parse(await readFile(join(home, 'model-settings.json'), 'utf8')))?.decisions;
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    if (!isMissing(error)) throw error;
   }
 
   return catalog.decisionModels.find((item) => item.key === resolveDecision(catalog, stored)) ?? null;

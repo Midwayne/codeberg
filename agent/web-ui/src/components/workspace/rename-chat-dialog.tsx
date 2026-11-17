@@ -7,7 +7,7 @@ import type { SidebarRenameProps } from './session-sidebar';
 /** Mirrors the server's limit so an overlong title is stopped while typing. */
 const MAX_TITLE_LENGTH = 200;
 
-export type RenameChatDialogProps = {
+type RenameChatDialogProps = {
   title: string;
   onClose: () => void;
   onRename: (title: string) => void;

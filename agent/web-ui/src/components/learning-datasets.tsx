@@ -6,7 +6,7 @@ import { KIND_LABELS } from '../lib/training';
 
 import type { LearningSettingsView } from './learning-settings';
 
-export type HistorySettingsProps = Pick<Parameters<typeof LearningSettingsView>[0], 'settings'> & {
+type HistorySettingsProps = Pick<Parameters<typeof LearningSettingsView>[0], 'settings'> & {
   locked: boolean;
   set: (key: keyof LearningSettings, value: boolean) => void;
 };
@@ -49,7 +49,7 @@ export function HistorySettings({ settings, locked, set }: HistorySettingsProps)
   );
 }
 
-export type DatasetSettingsProps = Pick<Parameters<typeof LearningSettingsView>[0], 'settings' | 'onChange'> & {
+type DatasetSettingsProps = Pick<Parameters<typeof LearningSettingsView>[0], 'settings' | 'onChange'> & {
   locked: boolean;
   set: (key: keyof LearningSettings, value: boolean) => void;
 };

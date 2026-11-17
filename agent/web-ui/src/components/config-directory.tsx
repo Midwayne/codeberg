@@ -2,6 +2,7 @@ import { buttonClass } from './settings-styles';
 
 import { FolderOpen } from 'lucide-react';
 import { useState } from 'react';
+import { errorMessage } from '@agent/core/errors.js';
 
 export function OpenConfigDirectory() {
   const [busy, setBusy] = useState(false);
@@ -23,13 +24,13 @@ export function OpenConfigDirectory() {
   );
 }
 
-export type OpenDirectoryButtonProps = {
+type OpenDirectoryButtonProps = {
   busy: boolean;
   setBusy: React.Dispatch<React.SetStateAction<boolean>>;
   setResult: React.Dispatch<React.SetStateAction<{ path?: string; error?: string } | undefined>>;
 };
 
-export function OpenDirectoryButton({ busy, setBusy, setResult }: OpenDirectoryButtonProps) {
+function OpenDirectoryButton({ busy, setBusy, setResult }: OpenDirectoryButtonProps) {
   return (
     <button
       type="button"
@@ -57,7 +58,7 @@ export function OpenDirectoryButton({ busy, setBusy, setResult }: OpenDirectoryB
               error: response.ok ? undefined : (value.message ?? 'Could not open the config directory.'),
             });
           })
-          .catch((reason: unknown) => setResult({ error: reason instanceof Error ? reason.message : String(reason) }))
+          .catch((reason: unknown) => setResult({ error: errorMessage(reason) }))
           .finally(() => setBusy(false));
       }}
     >

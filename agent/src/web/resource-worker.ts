@@ -6,6 +6,7 @@ import { parentPort, workerData } from 'node:worker_threads';
 import { ProcessMonitor, parseProcessSnapshot } from './process-resources.js';
 import { DISK_MS, SAMPLE_MS, type ResourceWorkerData } from './resource-monitor.js';
 import type { ResourceSample } from './resources.js';
+import { isMissing } from '../core/fs.js';
 
 // Standalone/older-daemon fallback. Synchronous filesystem work happens only on
 // this dedicated thread, avoiding the chat event loop AND its shared libuv pool.
@@ -69,7 +70,7 @@ function scanDisk() {
             .map((name) => join(dirname(base), name)),
         );
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        if (!isMissing(error)) throw error;
       }
     }
 
@@ -102,7 +103,7 @@ function directoryBytes(path: string, visited: Set<string>, deadline: number): n
   try {
     info = lstatSync(path);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return 0;
+    if (isMissing(error)) return 0;
 
     throw error;
   }
@@ -141,7 +142,7 @@ function homeFilesystem(home: string) {
       fs = statfsSync(home);
       break;
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT' || dirname(home) === home) throw error;
+      if (!isMissing(error) || dirname(home) === home) throw error;
 
       home = dirname(home);
     }

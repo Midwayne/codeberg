@@ -3,7 +3,7 @@ import { FileText, X } from 'lucide-react';
 import type { SkillImportView, SkillPreviewRowProps } from './skill-import';
 import { buttonClass as button } from './button-styles';
 
-export type SkillPreviewListProps = Pick<
+type SkillPreviewListProps = Pick<
   Parameters<typeof SkillImportView>[0],
   'files' | 'scopeLabel' | 'busy' | 'setFiles' | 'ready' | 'importFiles'
 >;
@@ -37,7 +37,7 @@ export function SkillPreviewList({ files, scopeLabel, busy, setFiles, ready, imp
   );
 }
 
-export function SkillPreviewRow({ index, file, busy, setFiles }: SkillPreviewRowProps) {
+function SkillPreviewRow({ index, file, busy, setFiles }: SkillPreviewRowProps) {
   return (
     <li key={`${index}:${file.filename}`} className="flex items-start gap-3 py-3">
       <FileText aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted-foreground" />

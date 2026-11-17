@@ -27,7 +27,7 @@ export function AppearancePanel() {
   );
 }
 
-export type ThemePickerProps = { value: ThemeId; onChange: (id: ThemeId) => void };
+type ThemePickerProps = { value: ThemeId; onChange: (id: ThemeId) => void };
 
 export function ThemePicker({ value, onChange }: ThemePickerProps) {
   return (

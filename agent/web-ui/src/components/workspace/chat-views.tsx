@@ -37,7 +37,8 @@ export function ChatViews({ active, hidden, renderedViews, ...props }: ChatViews
 }
 
 function RetainedChat({ active, ...props }: Omit<ChatViewsProps, 'renderedViews'>) {
-  const chat = useChat({ chat: active.chat });
+  // Batch streamed tokens into at most ~20 commits a second; the text itself is unchanged.
+  const chat = useChat({ chat: active.chat, experimental_throttle: 50 });
   const mediaRef = usePauseMedia();
   const arrival = useBranchArrival(active);
 

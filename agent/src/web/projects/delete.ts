@@ -4,7 +4,9 @@ import type { ProjectCatalog } from '../../core/projects.js';
 import { trackWrite } from '../server/write-gate.js';
 import { readJson, requireJsonMutation, sendJson } from '../http.js';
 import type { ProjectRequestRouterState } from './state.js';
-import { daemon, ProjectServiceTimeout, requestProjectService } from './request.js';
+import { daemon, requestProjectService } from './request.js';
+import { HttpError } from '../../core/http-error.js';
+import { errorMessage } from '../../core/errors.js';
 
 export async function deleteProject(
   state: ProjectRequestRouterState,
@@ -33,8 +35,8 @@ export async function deleteProject(
 
     return await removeProject(state, res, id, body.mode);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return sendJson(res, error instanceof ProjectServiceTimeout ? 504 : message.startsWith('Project is busy.') ? 409 : 503, { message });
+    const message = errorMessage(error);
+    return sendJson(res, error instanceof HttpError ? error.status : 503, { message });
   } finally {
     state.deleting.delete(id);
   }

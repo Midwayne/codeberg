@@ -2,7 +2,7 @@ import type { SetupProvider, SetupStatus } from '@agent/core/setup-types.js';
 
 export type { SetupProvider, SetupRequired, SetupStatus } from '@agent/core/setup-types.js';
 
-export type RootScreen = 'canvas' | 'docs' | 'setup' | 'app' | 'loading';
+type RootScreen = 'canvas' | 'docs' | 'setup' | 'app' | 'loading';
 
 export const SETUP_DOCS_PATH = '/docs/getting-started';
 

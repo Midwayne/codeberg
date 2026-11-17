@@ -3,7 +3,7 @@ import { Upload } from 'lucide-react';
 import type { SkillImportView } from './skill-import';
 import { buttonClass as button } from './button-styles';
 
-export type SkillDropZoneProps = Pick<
+type SkillDropZoneProps = Pick<
   Parameters<typeof SkillImportView>[0],
   'busy' | 'depth' | 'setDragging' | 'preview' | 'dragging' | 'input'
 >;
@@ -53,7 +53,7 @@ export function SkillDropZone({ busy, depth, setDragging, preview, dragging, inp
   );
 }
 
-export type SkillDropPromptProps = Pick<Parameters<typeof SkillDropZone>[0], 'busy' | 'dragging' | 'input'>;
+type SkillDropPromptProps = Pick<Parameters<typeof SkillDropZone>[0], 'busy' | 'dragging' | 'input'>;
 
 function SkillDropPrompt({ busy, dragging, input }: SkillDropPromptProps) {
   return (

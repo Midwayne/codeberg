@@ -1,6 +1,6 @@
 import { mkdir, rename } from 'node:fs/promises';
 import { join } from 'node:path';
-import { writeJsonAtomic } from '../fs.js';
+import { writeJsonAtomic } from '../../fs.js';
 import type { FailureCategory, KnowledgeJob } from '../types.js';
 import { BACKOFF_MS, isTransientFailure, MAX_ATTEMPTS } from './policy.js';
 import type { DurableJobQueueState } from './state.js';

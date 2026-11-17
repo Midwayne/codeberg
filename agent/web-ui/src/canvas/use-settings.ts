@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useProjectApi } from '../lib/project-api';
+import { ensureOk, jsonInit, readJson } from '../lib/http';
 
 export function useCanvasSettings() {
   const { project, fetch } = useProjectApi();
@@ -11,7 +12,7 @@ export function useCanvasSettings() {
       const response = await fetch('/api/settings/canvas');
       if (!response.ok) throw new Error('Canvas settings unavailable. Retry.');
 
-      setEnabled((await response.json()).enabled);
+      setEnabled((await readJson<{ enabled: boolean }>(response)).enabled);
       setError('');
     } catch (error) {
       setError(String(error));
@@ -26,9 +27,8 @@ export function useCanvasSettings() {
   const change = async (value: boolean) => {
     setBusy(true);
     try {
-      const response = await fetch('/api/settings/canvas', { method: 'PUT',
-        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: value }) });
-      if (!response.ok) throw new Error((await response.json()).error ?? 'Unable to save canvas settings.');
+      const response = await fetch('/api/settings/canvas', jsonInit('PUT', { enabled: value }));
+      await ensureOk(response, 'Unable to save canvas settings.');
 
       setEnabled(value);
       setError('');

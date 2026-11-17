@@ -4,7 +4,7 @@ export interface SetupProvider {
   missing: string[];
 }
 
-export type SetupReason = 'no-model' | 'missing-credentials' | 'invalid-config';
+type SetupReason = 'no-model' | 'missing-credentials' | 'invalid-config';
 
 /** Whether chat can start, and what the user must configure when it cannot. */
 export type SetupStatus =

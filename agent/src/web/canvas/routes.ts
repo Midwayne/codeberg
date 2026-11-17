@@ -1,8 +1,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { CanvasStore } from '../../core/canvas/store.js';
 import { CanvasError, type Scene } from '../../core/canvas/types.js';
+import { HttpError } from '../../core/http-error.js';
 import { writeModuleLog } from '../../core/module-log.js';
-import { requireJsonMutation, sameOrigin, sendJson, sendText } from '../http.js';
+import { readBody, requireJsonMutation, sameOrigin, sendJson, sendText } from '../http.js';
+import { errorMessage } from '../../core/errors.js';
 
 export async function routeCanvas(req: IncomingMessage, res: ServerResponse, store: CanvasStore, url: URL): Promise<void> {
   const host = new URL(`http://${req.headers.host ?? 'invalid'}`).hostname;
@@ -14,8 +16,8 @@ export async function routeCanvas(req: IncomingMessage, res: ServerResponse, sto
     await canvasRequest(req, res, store, url);
   } catch (error) {
     writeModuleLog('agent', 'canvas_request_failed', { error: String(error) });
-    sendJson(res, error instanceof CanvasError ? error.status : 503,
-      { error: error instanceof Error ? error.message : 'Canvas unavailable. Retry.' });
+    sendJson(res, error instanceof HttpError ? error.status : 503,
+      { error: errorMessage(error, 'Canvas unavailable. Retry.') });
   }
 }
 
@@ -58,16 +60,10 @@ function sendScene(req: IncomingMessage, res: ServerResponse, scene: Scene): voi
 }
 
 async function readCanvasJson(req: IncomingMessage): Promise<Record<string, unknown>> {
-  const chunks: Buffer[] = [];
-  let size = 0;
-  for await (const chunk of req) {
-    size += chunk.length;
-    if (size > 20_000_000) throw new CanvasError('Canvas request exceeds 20 MB.', 413);
+  const body = await readBody(req, 20_000_000, 'Canvas request exceeds 20 MB.');
 
-    chunks.push(Buffer.from(chunk));
-  }
   try {
-    const value = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    const value = JSON.parse(body.toString('utf8'));
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error();
 
     return value;

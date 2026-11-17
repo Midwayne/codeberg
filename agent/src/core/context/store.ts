@@ -20,6 +20,7 @@ export function defaultContextRoot(env: NodeJS.ProcessEnv = process.env): string
  */
 export class ContextStore {
   private readonly extra: string[] = [];
+  private roots: readonly string[] | undefined;
 
   private constructor(readonly root: string) {}
 
@@ -34,6 +35,7 @@ export class ContextStore {
     if (!root) return;
 
     this.extra.push(resolve(root));
+    this.roots = undefined;
   }
 
   /**
@@ -52,11 +54,23 @@ export class ContextStore {
       return null;
     }
 
-    for (const root of this.realRoots()) {
-      if (contains(root, real)) return real;
-    }
+    if (this.allowed(this.cachedRoots(), real)) return real;
 
-    return null;
+    // A root created or moved since the cache was filled: re-check before refusing.
+    this.roots = undefined;
+
+    return this.allowed(this.cachedRoots(), real) ? real : null;
+  }
+
+  private allowed(roots: readonly string[], real: string): boolean {
+    return roots.some((root) => contains(root, real));
+  }
+
+  /** Real paths of the allowed roots; directory walks resolve every entry against them. */
+  private cachedRoots(): readonly string[] {
+    this.roots ??= this.realRoots();
+
+    return this.roots;
   }
 
   /** Write `body` at a relative path inside the context root. Returns the

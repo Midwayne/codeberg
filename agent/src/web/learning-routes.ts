@@ -5,7 +5,6 @@ import { LEARNING_PATH } from './learning/paths.js';
 import { reviewExample } from './learning/review-routes.js';
 import { routeEvaluations } from './learning/evaluation-routes.js';
 
-import { LearningSettingsError } from '../core/learning/preferences.js';
 import { reviewDashboard } from '../core/learning/review.js';
 import type { LearningService } from '../core/learning/service.js';
 import { readJson, sameOrigin, sendJson, sendText } from './http.js';
@@ -67,13 +66,8 @@ async function routeLearningSettings(
   if (!req.headers['content-type']?.startsWith('application/json'))
     return sendText(res, 415, 'application/json required');
 
-  try {
-    return sendJson(res, 200, await learning.updateSettings(await readJson(req)));
-  } catch (error) {
-    if (error instanceof LearningSettingsError) return sendText(res, 400, error.message);
-
-    throw error;
-  }
+  // LearningSettingsError carries its 400 to the server's error handler.
+  return sendJson(res, 200, await learning.updateSettings(await readJson(req)));
 }
 
 async function getLearningStatus(

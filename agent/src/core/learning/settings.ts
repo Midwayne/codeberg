@@ -1,11 +1,12 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { writeJsonAtomic } from './fs.js';
+import { writeJsonAtomic } from '../fs.js';
 import {
   DEFAULT_LEARNING_SETTINGS,
   mergeLearningSettings,
   type LearningSettings,
 } from './preferences.js';
+import { isMissing } from '../fs.js';
 
 export class LearningSettingsStore {
   private loaded?: Promise<LearningSettings>;
@@ -16,8 +17,8 @@ export class LearningSettingsStore {
   current(): Promise<LearningSettings> {
     this.loaded ??= readFile(join(this.root, 'settings.json'), 'utf8')
       .then((raw) => mergeLearningSettings(DEFAULT_LEARNING_SETTINGS, JSON.parse(raw)))
-      .catch((error: NodeJS.ErrnoException) => {
-        if (error.code === 'ENOENT') return mergeLearningSettings(DEFAULT_LEARNING_SETTINGS, {});
+      .catch((error: unknown) => {
+        if (isMissing(error)) return mergeLearningSettings(DEFAULT_LEARNING_SETTINGS, {});
 
         this.loaded = undefined;
         throw error;

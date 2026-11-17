@@ -2,7 +2,7 @@ import type { DreamingDecision, DreamingReport } from '../lib/dreaming';
 
 import { actionClass } from './button-styles';
 
-export type DreamingReportViewProps = {
+type DreamingReportViewProps = {
   report: DreamingReport;
   enabled: boolean;
   busy: boolean;
@@ -33,9 +33,9 @@ export function DreamingReportView({ report, enabled, busy, onDecision }: Dreami
   );
 }
 
-export type DreamingChangesProps = Pick<Parameters<typeof DreamingReportView>[0], 'report'>;
+type DreamingChangesProps = Pick<Parameters<typeof DreamingReportView>[0], 'report'>;
 
-export function DreamingChanges({ report }: DreamingChangesProps) {
+function DreamingChanges({ report }: DreamingChangesProps) {
   return report.changes.map((change) => (
     <details key={change.before.id} className="border-b border-border pb-3">
       <summary className="min-h-11 cursor-pointer break-words py-3 text-sm font-medium">
@@ -72,12 +72,12 @@ export function DreamingChanges({ report }: DreamingChangesProps) {
   ));
 }
 
-export type DreamingDecisionsProps = Pick<
+type DreamingDecisionsProps = Pick<
   Parameters<typeof DreamingReportView>[0],
   'report' | 'busy' | 'enabled' | 'onDecision'
 >;
 
-export function DreamingDecisions({ report, busy, enabled, onDecision }: DreamingDecisionsProps) {
+function DreamingDecisions({ report, busy, enabled, onDecision }: DreamingDecisionsProps) {
   return (
     <div className="flex flex-wrap gap-2">
       {report.status === 'proposed' && (

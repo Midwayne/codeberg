@@ -2,9 +2,10 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { artifactFingerprint } from './revision.js';
 
-import { writeJsonImmutable } from '../fs.js';
+import { ifMissing, isMissing, writeJsonImmutable } from '../../fs.js';
 import type { LearningStore } from '../store.js';
 import type { DreamingDecision, DreamingReport } from './types.js';
+import { conflict, notFound } from '../../http-error.js';
 
 /** Immutable proposals and decision revisions; publication uses an atomic create, not a lock lease. */
 export class DreamingReports {
@@ -31,16 +32,12 @@ export class DreamingReports {
     try {
       report = JSON.parse(await readFile(join(this.dir, `${id}.json`), 'utf8')) as DreamingReport;
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+      if (isMissing(error)) return undefined;
 
       throw error;
     }
 
-    const revisions = await readdir(join(this.dir, id)).catch((error: NodeJS.ErrnoException) => {
-      if (error.code === 'ENOENT') return [];
-
-      throw error;
-    });
+    const revisions = await readdir(join(this.dir, id)).catch(ifMissing([]));
 
     const latest = revisions
       .filter((file) => /^\d{8}\.json$/.test(file))
@@ -60,11 +57,7 @@ export class DreamingReports {
   }
 
   async list(): Promise<DreamingReport[]> {
-    const files = await readdir(this.dir).catch((error: NodeJS.ErrnoException) => {
-      if (error.code === 'ENOENT') return [];
-
-      throw error;
-    });
+    const files = await readdir(this.dir).catch(ifMissing([]));
 
     const reports = await Promise.all(
       files
@@ -83,14 +76,14 @@ export class DreamingReports {
     store: LearningStore,
   ): Promise<DreamingReport> {
     const report = await this.get(id);
-    if (!report) throw new Error('dreaming report not found');
+    if (!report) throw notFound('dreaming report not found');
 
     if (action === 'undo' ? report.status !== 'applied' : report.status !== 'proposed') {
-      throw new Error('dreaming report already decided');
+      throw conflict('dreaming report already decided');
     }
 
     if (action === 'apply') {
-      if (!report.changes.length) throw new Error('dreaming report has no changes');
+      if (!report.changes.length) throw conflict('dreaming report has no changes');
 
       const freshIds = new Set(
         (await store.currentKnowledgeArtifacts()).map((artifact) => artifact.id),
@@ -108,7 +101,7 @@ export class DreamingReports {
             artifactFingerprint(current.get(before.id)!) === artifactFingerprint(before),
         )
       ) {
-        throw new Error('stale dreaming report; generate a new report against current knowledge');
+        throw conflict('stale dreaming report; generate a new report against current knowledge');
       }
     }
 
@@ -119,7 +112,7 @@ export class DreamingReports {
       { status, decisions },
     );
 
-    if (!published) throw new Error('dreaming decision already changed; refresh the report');
+    if (!published) throw conflict('dreaming decision already changed; refresh the report');
 
     return { ...report, status, decisions };
   }

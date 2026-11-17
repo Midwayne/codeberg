@@ -25,7 +25,7 @@ export function refreshKnowledge(
   return state.checking;
 }
 
-export async function drainScans(state: LearningServiceState): Promise<void> {
+async function drainScans(state: LearningServiceState): Promise<void> {
   while (state.fullScanRequested || state.pendingSources.size) {
     const sources = state.fullScanRequested ? undefined : new Set(state.pendingSources);
     state.fullScanRequested = false;
@@ -34,7 +34,7 @@ export async function drainScans(state: LearningServiceState): Promise<void> {
   }
 }
 
-export async function scanKnowledge(
+async function scanKnowledge(
   state: LearningServiceState,
   sources?: Set<string>,
 ): Promise<void> {

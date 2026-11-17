@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { loadSetupStatus, type SetupStatus } from './status';
 
-export type SetupState = {
+type SetupState = {
   status: SetupStatus | undefined;
   checking: boolean;
   stillMissing: boolean;

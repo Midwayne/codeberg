@@ -1,7 +1,8 @@
 import type { McpInterpolateContext, McpServer } from '../types.js';
 import { parseServer } from './servers.js';
 import type { ParseMcpJsonOptions } from './types.js';
-import { isRecord } from './values.js';
+import { isRecord } from '../../record.js';
+import { errorMessage } from '../../errors.js';
 
 /**
  * Parse a Cursor-compatible MCP JSON document (`mcpServers`, or VS Code `servers`).
@@ -17,7 +18,7 @@ export function parseMcpJson(
   try {
     parsed = JSON.parse(text) as unknown;
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = errorMessage(err);
 
     return { servers: [], warnings: [`invalid JSON (${msg})`] };
   }

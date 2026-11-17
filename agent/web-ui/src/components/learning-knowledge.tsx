@@ -5,9 +5,9 @@ import type { LearningSettings } from '../lib/learning-settings';
 
 import type { LearningSettingsView } from './learning-settings';
 
-export const categoryLabels = { services: 'Services', flows: 'Flows', concepts: 'Concepts', debugging: 'Debugging' };
+const categoryLabels = { services: 'Services', flows: 'Flows', concepts: 'Concepts', debugging: 'Debugging' };
 
-export type KnowledgeSettingsProps = Pick<Parameters<typeof LearningSettingsView>[0], 'settings' | 'onChange'> & {
+type KnowledgeSettingsProps = Pick<Parameters<typeof LearningSettingsView>[0], 'settings' | 'onChange'> & {
   locked: boolean;
   set: (key: keyof LearningSettings, value: boolean) => void;
 };
@@ -63,12 +63,12 @@ export function KnowledgeSettings({ settings, locked, set, onChange }: Knowledge
   );
 }
 
-export type KnowledgeCategoriesProps = Pick<
+type KnowledgeCategoriesProps = Pick<
   Parameters<typeof KnowledgeSettings>[0],
   'locked' | 'settings' | 'onChange'
 >;
 
-export function KnowledgeCategories({ locked, settings, onChange }: KnowledgeCategoriesProps) {
+function KnowledgeCategories({ locked, settings, onChange }: KnowledgeCategoriesProps) {
   return (
     <Components label="Knowledge categories" disabled={locked || !settings.knowledge}>
       {KNOWLEDGE_CATEGORIES.map((key) => (

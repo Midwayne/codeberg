@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react';
 import { CopyButton, ErrorNotice } from './ui';
 import { useProjectApi, type ProjectCatalog } from '../lib/project-api';
 import type { ProjectListProps } from './projects';
+import { errorMessage } from '@agent/core/errors.js';
+import { requestProjectCatalog } from '../lib/project-catalog-request';
 
 export function ProjectsPanel() {
   const { project: selectedProject, onProjectRenamed, onProjectDeleted } = useProjectApi();
@@ -14,14 +16,12 @@ export function ProjectsPanel() {
   useEffect(() => {
     const controller = new AbortController();
     setError('');
-    void fetch('/api/projects', { signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(await response.text());
-        const value = (await response.json()) as ProjectCatalog;
+    void requestProjectCatalog(controller.signal)
+      .then((value) => {
         if (!controller.signal.aborted) setCatalog(value);
       })
       .catch((reason: unknown) => {
-        if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : String(reason));
+        if (!controller.signal.aborted) setError(errorMessage(reason));
       });
     return () => controller.abort();
   }, [retry]);
@@ -52,9 +52,9 @@ export function ProjectsPanel() {
   );
 }
 
-export type ProjectCatalogLocationProps = { catalog: ProjectCatalog | undefined };
+type ProjectCatalogLocationProps = { catalog: ProjectCatalog | undefined };
 
-export function ProjectCatalogLocation({ catalog }: ProjectCatalogLocationProps) {
+function ProjectCatalogLocation({ catalog }: ProjectCatalogLocationProps) {
   return (
     catalog?.catalogPath && (
       <div className="space-y-2 border-t border-border pt-5">
@@ -73,7 +73,7 @@ export function ProjectCatalogLocation({ catalog }: ProjectCatalogLocationProps)
   );
 }
 
-export function ProjectList({ catalog, selectedProject, setCatalog, onProjectRenamed, onProjectDeleted }: ProjectListProps) {
+function ProjectList({ catalog, selectedProject, setCatalog, onProjectRenamed, onProjectDeleted }: ProjectListProps) {
   return (
     <div className="divide-y divide-border">
       {catalog?.projects.map((project) => (

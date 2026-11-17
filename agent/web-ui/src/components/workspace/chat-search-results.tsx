@@ -56,7 +56,7 @@ export function ChatSearchResults({ state }: ChatSearchResultsProps) {
   );
 }
 
-export function ChatSearchResultButton({ hit, position, state }: ChatSearchResultButtonProps) {
+function ChatSearchResultButton({ hit, position, state }: ChatSearchResultButtonProps) {
   return (
     <button
       key={`${hit.id}-${hit.messageId ?? 'title'}-${position}`}
@@ -86,7 +86,7 @@ export function ChatSearchResultButton({ hit, position, state }: ChatSearchResul
   );
 }
 
-export type ChatSearchEmptyQueryProps = Pick<Parameters<typeof ChatSearchResults>[0], 'state'>;
+type ChatSearchEmptyQueryProps = Pick<Parameters<typeof ChatSearchResults>[0], 'state'>;
 
 function ChatSearchEmptyQuery({ state }: ChatSearchEmptyQueryProps) {
   return (

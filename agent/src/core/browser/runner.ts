@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import type { BrowserConfig } from './config.js';
 import type { BrowserTaskOptions } from './protocol.js';
 import { closeBrowserSessions, createBrowserSession, disposeBrowserSession, findBrowserSession } from './sessions.js';
+import { ifMissing } from '../fs.js';
 
 const active = new Map<AbortController, { path?: string; done: Promise<unknown> }>();
 
@@ -57,11 +58,7 @@ async function execute(config: BrowserConfig, task: string, signal: AbortSignal,
 async function requireBrowserPermission(config: BrowserConfig) {
   if (!config.enabled) throw new Error('Browser Use is disabled.');
   if (config.settingsPath) {
-    const saved = await readFile(config.settingsPath, 'utf8').catch((error: NodeJS.ErrnoException) => {
-      if (error.code !== 'ENOENT') throw error;
-
-      return undefined;
-    });
+    const saved = await readFile(config.settingsPath, 'utf8').catch(ifMissing(undefined));
     if (saved === undefined) return config.vision;
 
     const value = JSON.parse(saved);

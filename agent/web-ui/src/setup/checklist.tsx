@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { buttonClass } from '../components/button-styles';
 import { configLines, type SetupRequired } from './status';
 
-export type SetupChecklistProps = {
+type SetupChecklistProps = {
   status: SetupRequired;
   checking: boolean;
   stillMissing: boolean;

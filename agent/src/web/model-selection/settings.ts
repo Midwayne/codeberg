@@ -1,13 +1,12 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { writeJsonAtomic } from '../../core/learning/fs.js';
+import { ifMissing, writeJsonAtomic } from '../../core/fs.js';
 import type { CatalogModel, ModelSelection, ModelSettings } from '../../core/model-types.js';
 import { codebergHome } from '../../core/paths.js';
 import { loadModelCatalog, object, validEffort, type ModelCatalogOptions } from './catalog.js';
 import { loadDecisionCatalog, resolveDecision } from '../../core/decisions/catalog.js';
 
-export { MODEL_INPUTS } from '../../core/model-types.js';
 export type {
   CatalogModel,
   ModelInput,
@@ -15,8 +14,14 @@ export type {
   ModelSelections,
   ModelSettings,
 } from '../../core/model-types.js';
+import { HttpError } from '../../core/http-error.js';
+import { readModelsFile } from '../../core/models-file.js';
 
-export class ModelSelectionError extends Error {}
+export class ModelSelectionError extends HttpError {
+  constructor(message: string) {
+    super(400, message);
+  }
+}
 
 export class ModelSettingsStore {
   private readonly catalog: ModelCatalogOptions;
@@ -44,15 +49,10 @@ export class ModelSettingsStore {
   }
 
   async current(): Promise<ModelSettings> {
-    const models = await loadModelCatalog(this.catalog);
-    const catalog = await loadDecisionCatalog(this.catalog.catalogPath, this.env);
-    let stored: unknown;
-    try {
-      stored = JSON.parse(await readFile(this.settingsPath, 'utf8'));
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    }
-
+    // Both catalogs come from one models.yml parse, read alongside the saved choices.
+    const [file, stored] = await Promise.all([readModelsFile(this.catalog.catalogPath), this.stored()]);
+    const models = await loadModelCatalog(this.catalog, file);
+    const catalog = await loadDecisionCatalog(this.catalog.catalogPath, this.env, file);
     const values = object(stored);
 
     return {
@@ -63,6 +63,12 @@ export class ModelSettingsStore {
       learning: this.resolve(values?.learning, this.catalog.defaultLearning, models),
       summary: this.resolveSummary(values?.summary, models),
     };
+  }
+
+  private async stored(): Promise<unknown> {
+    const text = await readFile(this.settingsPath, 'utf8').catch(ifMissing(undefined));
+
+    return text === undefined ? undefined : JSON.parse(text);
   }
 
   /** Providers the catalog names, whether or not their credentials are set. */

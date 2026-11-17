@@ -1,4 +1,4 @@
-export type SuccessNoticeProps = { message: string; sizingText: string };
+type SuccessNoticeProps = { message: string; sizingText: string };
 
 /** The hidden sizer reserves wrapped lines without announcing a pending success. */
 export function SuccessNotice({ message, sizingText }: SuccessNoticeProps) {

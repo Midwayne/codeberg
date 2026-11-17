@@ -83,17 +83,17 @@ export interface FeedbackRecord {
   supersedes_feedback_id?: string;
 }
 
-export interface LearningEventBase {
+interface LearningEventBase {
   event_id: string;
   timestamp: string;
 }
 
-export interface AttemptEvent extends LearningEventBase {
+interface AttemptEvent extends LearningEventBase {
   type: 'attempt_recorded';
   attempt: AttemptRecord;
 }
 
-export interface FeedbackEvent extends LearningEventBase {
+interface FeedbackEvent extends LearningEventBase {
   type: 'feedback_recorded';
   feedback: FeedbackRecord;
 }

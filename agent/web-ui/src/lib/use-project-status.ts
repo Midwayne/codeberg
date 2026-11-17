@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 
 import type { Project, ProjectStatus } from './project-api';
 import { missingProject, requestProjectStatus, transientStatusError } from './project-status-request';
+import { errorMessage } from '@agent/core/errors.js';
+import { startPoll } from './poll';
 
 export type ProjectStatusOptions = {
   project: Project | undefined;
@@ -16,39 +18,32 @@ export function useProjectStatus({ project, api, retry, refreshCatalog }: Projec
   useEffect(() => {
     if (!project) return;
 
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout>;
     let last: ProjectStatus | undefined;
     let failures = 0;
-    const poll = async () => {
-      let ready = false;
-      try {
-        const value = await requestProjectStatus(api, controller.signal);
-        if (controller.signal.aborted) return;
 
+    const poll = startPoll({
+      load: (signal) => requestProjectStatus(api, signal),
+      done: (value) => {
         last = value;
         failures = 0;
-        ready = value.ready && !value.indexing;
         setStatus({ id: project.id, value });
-      } catch (reason) {
-        if (controller.signal.aborted) return;
+
+        return value.ready && !value.indexing ? 10000 : 2000;
+      },
+      fail: (reason) => {
         if (missingProject(reason)) refreshCatalog?.((value) => value + 1);
 
         failures++;
         const transient = transientStatusError(reason);
         if (!transient || failures > 1) setStatus({ id: project.id, value: last,
           error: transient ? 'Could not check project status. Retrying automatically. Last reported progress may be out of date.'
-            : reason instanceof Error ? reason.message : String(reason) });
-      }
+            : errorMessage(reason) });
 
-      if (!controller.signal.aborted) timer = setTimeout(() => void poll(), ready ? 10000 : 2000);
-    };
-    void poll();
+        return 2000;
+      },
+    });
 
-    return () => {
-      controller.abort();
-      clearTimeout(timer);
-    };
+    return () => poll.stop();
   }, [project?.id, api, retry]);
 
   return { status, setStatus };

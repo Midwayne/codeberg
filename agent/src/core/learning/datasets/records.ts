@@ -1,4 +1,5 @@
 import type { FeedbackRecord } from '../types.js';
+import { invalidRequest } from '../../http-error.js';
 
 export type DatasetKind =
   | 'retrieval'
@@ -42,7 +43,7 @@ export function validateReview(
   split: 'eval' | 'training',
   review: { provenance: Provenance; oracle?: Record<string, unknown> },
 ): void {
-  if (!ALLOWED_PROVENANCE.includes(review.provenance)) throw new Error('unknown review provenance');
+  if (!ALLOWED_PROVENANCE.includes(review.provenance)) throw invalidRequest('unknown review provenance');
 
   if (split === 'eval') {
     if (
@@ -52,7 +53,7 @@ export function validateReview(
       Object.keys(review.oracle).length === 0 ||
       !VERIFIED_PROVENANCE.includes(review.provenance)
     ) {
-      throw new Error('eval requires reviewed oracle and independent provenance');
+      throw invalidRequest('eval requires reviewed oracle and independent provenance');
     }
 
     const retrievalOracle = ['files', 'symbols', 'repositories', 'dependency_path'];

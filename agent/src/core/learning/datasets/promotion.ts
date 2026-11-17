@@ -1,12 +1,13 @@
 import { EXTRACTION_VERSION } from '../dataset-extract.js';
 import { sameTaskFamily } from '../dedup.js';
-import { writeJsonImmutable } from '../fs.js';
+import { writeJsonImmutable } from '../../fs.js';
 import { redactSecrets } from '../redact.js';
 import { sourceRevision } from '../revision.js';
 import { withPromotionLock } from './lock.js';
 import { type DatasetExample, exampleFiles, type Provenance, validateReview } from './records.js';
 import type { DatasetStoreState } from './state.js';
 import { list, path } from './storage.js';
+import { conflict, notFound } from '../../http-error.js';
 
 export async function promote(
   state: DatasetStoreState,
@@ -15,14 +16,14 @@ export async function promote(
   review: { provenance: Provenance; oracle?: Record<string, unknown> },
 ): Promise<DatasetExample> {
   const example = (await list(state, 'candidates')).find((row) => row.id === id);
-  if (!example) throw new Error('candidate not found');
+  if (!example) throw notFound('candidate not found');
 
   if (example.extraction_version !== EXTRACTION_VERSION)
-    throw new Error('candidate was extracted with an obsolete schema; re-extract and review');
+    throw conflict('candidate was extracted with an obsolete schema; re-extract and review');
 
   const current = await state.store.interaction(example.source_interaction_id);
   if (example.source_revision !== sourceRevision(current.attempts, current.feedback)) {
-    throw new Error('candidate is stale; extract the latest feedback revision before promotion');
+    throw conflict('candidate is stale; extract the latest feedback revision before promotion');
   }
 
   validateReview(example, split, review);
@@ -40,7 +41,7 @@ export async function promote(
     });
 
     if (!(await writeJsonImmutable(path(state, split, id), promoted)))
-      throw new Error('already promoted');
+      throw conflict('already promoted');
 
     return promoted;
   });
@@ -48,14 +49,14 @@ export async function promote(
 
 export async function dismiss(state: DatasetStoreState, id: string): Promise<DatasetExample> {
   const example = (await list(state, 'candidates')).find((row) => row.id === id);
-  if (!example) throw new Error('candidate not found');
+  if (!example) throw notFound('candidate not found');
 
   const current = await state.store.interaction(example.source_interaction_id);
   if (
     example.extraction_version !== EXTRACTION_VERSION ||
     example.source_revision !== sourceRevision(current.attempts, current.feedback)
   ) {
-    throw new Error('candidate is stale');
+    throw conflict('candidate is stale');
   }
 
   return withPromotionLock(state, async () => {
@@ -63,7 +64,7 @@ export async function dismiss(state: DatasetStoreState, id: string): Promise<Dat
       (['training', 'eval', 'dismissed'] as const).map((bucket) => list(state, bucket)),
     );
     if (reviewed.some((rows) => rows.some((row) => row.id === id))) {
-      throw new Error('already reviewed');
+      throw conflict('already reviewed');
     }
 
     const dismissed: DatasetExample = {
@@ -73,13 +74,13 @@ export async function dismiss(state: DatasetStoreState, id: string): Promise<Dat
     };
 
     if (!(await writeJsonImmutable(path(state, 'dismissed', id), dismissed)))
-      throw new Error('already reviewed');
+      throw conflict('already reviewed');
 
     return dismissed;
   });
 }
 
-export async function validateReservation(
+async function validateReservation(
   state: DatasetStoreState,
   example: DatasetExample,
   split: 'eval' | 'training',
@@ -97,12 +98,12 @@ export async function validateReservation(
         ),
     )
   ) {
-    throw new Error('query or semantic duplicate reserved for opposite split');
+    throw conflict('query or semantic duplicate reserved for opposite split');
   }
 
   if ((await list(state, split)).some((row) => row.id === example.id))
-    throw new Error('already promoted');
+    throw conflict('already promoted');
 
   if ((await list(state, 'dismissed')).some((row) => row.id === example.id))
-    throw new Error('already dismissed');
+    throw conflict('already dismissed');
 }

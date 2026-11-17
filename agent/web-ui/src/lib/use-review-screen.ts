@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { proposedEvidence, type ReviewExample, type ReviewSummary } from './training';
 import { prepareReviewDecision } from './training-review';
 import { useProjectApi } from './project-api';
-import { loadLearningSettings, type LearningSettings } from './learning-settings';
+import { useLoadedLearningSettings } from './use-learning-settings';
 import { useTrainingReview } from './use-training-review';
 import { useMediaQuery } from './use-media-query';
 
@@ -46,34 +46,19 @@ export function useReviewScreen() {
   };
 }
 
-export function useReviewPermissions() {
+function useReviewPermissions() {
   const { fetch: api } = useProjectApi();
-  const [settings, setSettings] = useState<LearningSettings | null>();
-  const [settingsError, setSettingsError] = useState('');
-  const [retrySettings, setRetrySettings] = useState(0);
-  useEffect(() => {
-    let active = true;
-    setSettingsError('');
-    void loadLearningSettings(api)
-      .then((value) => {
-        if (active) setSettings(value);
-      })
-      .catch((reason: unknown) => {
-        if (active) setSettingsError(String(reason));
-      });
-    return () => {
-      active = false;
-    };
-  }, [api, retrySettings]);
+  const { settings, error: settingsError, setRetry: setRetrySettings } = useLoadedLearningSettings(api);
+
   const trainingEnabled = Boolean(settings?.enabled && settings.datasets && settings.training);
   const evalEnabled = Boolean(settings?.enabled && settings.datasets && settings.evals);
 
   return { trainingEnabled, evalEnabled, settingsError, setRetrySettings };
 }
 
-export type ReviewNavigationOptions = { selectedId: string | undefined };
+type ReviewNavigationOptions = { selectedId: string | undefined };
 
-export function useReviewNavigation({ selectedId }: ReviewNavigationOptions) {
+function useReviewNavigation({ selectedId }: ReviewNavigationOptions) {
   const [mobileDetails, setMobileDetails] = useState(false);
 
   const desktop = useMediaQuery('(min-width: 1024px)');
@@ -105,7 +90,7 @@ export function useReviewNavigation({ selectedId }: ReviewNavigationOptions) {
   return { setMobileDetails, titleRef, queueRef, mobileDetails, detailRef, backToExamples };
 }
 
-export type ReviewDecisionOptions = {
+type ReviewDecisionOptions = {
   trainingEnabled: boolean;
   evalEnabled: boolean;
   selectedId: string | undefined;
@@ -115,48 +100,59 @@ export type ReviewDecisionOptions = {
   review: ReturnType<typeof useTrainingReview>;
 };
 
-export function useReviewDecision(state: ReviewDecisionOptions) {
-  const [destination, setDestination] = useState<'training' | 'eval'>('training');
-
-  const [verified, setVerified] = useState<string[]>([]);
-
-  const [otherPaths, setOtherPaths] = useState('');
-
-  const [expected, setExpected] = useState('');
-
-  const [validationError, setValidationError] = useState('');
-
-  useEffect(() => {
-    setVerified([]);
-    setOtherPaths('');
-    setExpected('');
-    setDestination(state.trainingEnabled || !state.evalEnabled ? 'training' : 'eval');
-    setValidationError('');
-  }, [state.selectedId, state.trainingEnabled, state.evalEnabled]);
+function useReviewDecision(state: ReviewDecisionOptions) {
+  const form = useDecisionForm(state);
 
   function decide(decision: Decision): void {
     if (!state.selected || state.example?.id !== state.selected.id || state.locked) return;
+
     const result = prepareReviewDecision(
       state.selected,
       decision,
-      { verified, otherPaths, expected },
+      { verified: form.verified, otherPaths: form.otherPaths, expected: form.expected },
       proposedEvidence(state.example, 'proposed_negatives').map((hit) => hit.path),
     );
-    setValidationError(result.ok ? '' : result.error);
+    form.setValidationError(result.ok ? '' : result.error);
     if (result.ok) void state.review.save(decision, result.oracle);
   }
 
+  return { ...form, decide };
+}
+
+function defaultDestination({ trainingEnabled, evalEnabled }: ReviewDecisionOptions): 'training' | 'eval' {
+  return trainingEnabled || !evalEnabled ? 'training' : 'eval';
+}
+
+/** Form fields that start over for each selected example or permission change. */
+function useDecisionForm(state: ReviewDecisionOptions) {
+  const [destination, setDestination] = useState(() => defaultDestination(state));
+  const [verified, setVerified] = useState<string[]>([]);
+  const [otherPaths, setOtherPaths] = useState('');
+  const [expected, setExpected] = useState('');
+  const [validationError, setValidationError] = useState('');
+
+  // Reset while rendering, so a newly selected example never shows the previous one's input.
+  const resetKey = `${state.selectedId}|${state.trainingEnabled}|${state.evalEnabled}`;
+  const [formKey, setFormKey] = useState(resetKey);
+  if (formKey !== resetKey) {
+    setFormKey(resetKey);
+    setVerified([]);
+    setOtherPaths('');
+    setExpected('');
+    setDestination(defaultDestination(state));
+    setValidationError('');
+  }
+
   return {
-    setValidationError,
     destination,
     setDestination,
-    setVerified,
     verified,
+    setVerified,
     otherPaths,
     setOtherPaths,
     expected,
     setExpected,
     validationError,
-    decide,
+    setValidationError,
   };
 }

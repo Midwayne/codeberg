@@ -7,6 +7,7 @@ import {
   type FeedbackLabel,
   type FeedbackRating,
   type FeedbackRecord,
+  type RepositoryVersion,
 } from '../types.js';
 import { append, readEvents } from './events.js';
 import { effectiveFeedback } from './feedback.js';
@@ -28,13 +29,17 @@ export async function recordSession(
   );
 
   const feedback = effectiveFeedback(events);
-  const repositories = await readRepositories(state);
   const recorded: AttemptRecord[] = [];
-  const capture = new SessionCapture(conversationId, feedback, repositories);
+  const capture = new SessionCapture(conversationId, feedback);
+  // Versioning spawns git per root; a save with no new answer needs none.
+  let repositories: RepositoryVersion[] | undefined;
 
   for (const message of messages) {
-    const attempt = capture.next(message, existing);
-    if (!attempt) continue;
+    const pending = capture.next(message, existing);
+    if (!pending) continue;
+
+    repositories ??= await readRepositories(state);
+    const attempt = pending.build(repositories);
 
     await append(state, {
       event_id: randomUUID(),

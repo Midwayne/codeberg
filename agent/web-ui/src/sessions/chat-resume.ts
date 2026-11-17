@@ -3,6 +3,7 @@ import { readSession } from '../lib/sessions';
 import type { ChatTransitionsOptions } from './use-chat-transitions';
 import { activateChat, restoreChatSelection } from './chat-activation';
 import type { WorkspaceChat } from './workspace-chat';
+import { errorMessage } from '@agent/core/errors.js';
 
 export type ChatLoad = { id: string; status: 'loading' } | { id: string; status: 'error'; message: string };
 
@@ -65,7 +66,7 @@ async function loadSavedChat(id: string, intent: number, existing: WorkspaceChat
 
     const message = error instanceof TypeError
       ? 'Could not load chat. Check your connection and try again.'
-      : error instanceof Error ? error.message : 'Could not load chat. Try again.';
+      : errorMessage(error, 'Could not load chat. Try again.');
     setLoad({ id, status: 'error', message });
   }
 }

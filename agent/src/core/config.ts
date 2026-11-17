@@ -13,7 +13,7 @@ import type { ModelInput } from './model-types.js';
 import type { DecisionModel, DecisionUsageSink } from './decisions/types.js';
 import { summaryGenerator, type SummaryConfig } from './summary-model.js';
 
-export interface AgentConfig {
+interface AgentConfig {
   onDecisionUsage?: DecisionUsageSink;
   decisionModel?: DecisionModel | null;
   transformModel?: (model: LanguageModel) => LanguageModel;

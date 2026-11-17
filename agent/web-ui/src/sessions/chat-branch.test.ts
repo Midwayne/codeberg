@@ -1,4 +1,3 @@
-import type { UseChatHelpers } from '@ai-sdk/react';
 import type { UIMessage } from 'ai';
 import { expect, it, vi } from 'vitest';
 
@@ -31,10 +30,8 @@ function fixture(persist: (record: WorkspaceChatSave) => Promise<void>) {
   const refresh = vi.fn(async () => {});
   const setSessionError = vi.fn();
   const transitionIntent = { current: 0 };
-  const chat = { status: 'ready', messages: transcript } as UseChatHelpers<UIMessage>;
-
   const { branchFrom } = useChatBranch({
-    chat, transitionIntent, active, api: vi.fn<typeof fetch>(), refresh, setActive, createChat, setSessionError,
+    transitionIntent, active, api: vi.fn<typeof fetch>(), refresh, setActive, createChat, setSessionError,
   });
 
   return { branchFrom, saved, setActive, refresh, setSessionError, transitionIntent };
@@ -81,9 +78,10 @@ it('keeps the branch open and reports the failure when saving fails', async () =
 
 it('does not branch while a response is still streaming', async () => {
   const state = fixture(async () => {});
-  const streaming = { status: 'streaming', messages: transcript } as UseChatHelpers<UIMessage>;
+  const busy = createWorkspaceChat({ id: 'busy', messages: transcript, persist: async () => {} });
+  const streaming = { ...busy, chat: { status: 'streaming', messages: transcript } } as unknown as WorkspaceChat;
   const { branchFrom } = useChatBranch({
-    chat: streaming, transitionIntent: state.transitionIntent, active: createWorkspaceChat({ id: 'busy', messages: transcript, persist: async () => {} }),
+    transitionIntent: state.transitionIntent, active: streaming,
     api: vi.fn<typeof fetch>(), refresh: state.refresh, setActive: state.setActive, createChat: vi.fn(), setSessionError: state.setSessionError,
   });
 

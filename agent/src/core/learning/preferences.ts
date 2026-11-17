@@ -1,3 +1,5 @@
+import { HttpError } from '../http-error.js';
+
 /** Shared wire format; defaults retain the existing learning behavior. */
 export const KNOWLEDGE_CATEGORIES = ['services', 'flows', 'concepts', 'debugging'] as const;
 export const DATASET_KINDS = [
@@ -50,7 +52,11 @@ export const DEFAULT_LEARNING_SETTINGS: LearningSettings = {
   },
 };
 
-export class LearningSettingsError extends Error {}
+export class LearningSettingsError extends HttpError {
+  constructor(message: string) {
+    super(400, message);
+  }
+}
 
 /** Accept a partial patch, rejecting typos and non-boolean values before writing. */
 export function mergeLearningSettings(current: LearningSettings, patch: unknown): LearningSettings {

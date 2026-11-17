@@ -57,7 +57,7 @@ export function useMessageRail({ scrollRef, messages, onNavigate }: MessageRailO
   };
 }
 
-export function useRailMeasurements() {
+function useRailMeasurements() {
   const markersRef = useRef<ContentMarker[]>([]);
 
   const [trackHeight, setTrackHeight] = useState(0);
@@ -67,14 +67,14 @@ export function useRailMeasurements() {
   return { setActiveId, markersRef, setTrackHeight, setContentMarkers, contentMarkers, trackHeight, activeId };
 }
 
-export type RailTooltipOptions = {
+type RailTooltipOptions = {
   tooltipRef: React.RefObject<HTMLDivElement | null>;
   railRef: React.RefObject<HTMLElement | null>;
   previewId: string | null;
   previewLayout: MarkerLayout | undefined;
 };
 
-export function useRailTooltip({ tooltipRef, railRef, previewId, previewLayout }: RailTooltipOptions) {
+function useRailTooltip({ tooltipRef, railRef, previewId, previewLayout }: RailTooltipOptions) {
   const [tooltipTop, setTooltipTop] = useState(0);
 
   useLayoutEffect(() => {

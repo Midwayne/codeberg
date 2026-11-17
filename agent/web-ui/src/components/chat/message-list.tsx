@@ -1,6 +1,6 @@
 import { CanvasConversation, canvasAnchor, canvasEditing } from '../../canvas/conversation';
 import type { UIMessage } from 'ai';
-import { Fragment, memo } from 'react';
+import { Fragment, memo, useMemo } from 'react';
 
 import { BranchMarker } from './branch-marker';
 import { Message } from './message';
@@ -24,8 +24,13 @@ export const MessageList = memo(function MessageList({
   onBranch?: (throughIndex: number) => void;
   branch?: { parentTitle: string; messageCount: number };
 }) {
+  const anchor = canvasAnchor(messages);
+  const editing = busy && canvasEditing(messages);
+  // A new context object per token would re-render every canvas consumer.
+  const canvas = useMemo(() => ({ chatId: sessionId, anchor, editing }), [sessionId, anchor, editing]);
+
   return (
-    <CanvasConversation.Provider value={{ chatId: sessionId, anchor: canvasAnchor(messages), editing: busy && canvasEditing(messages) }}>
+    <CanvasConversation.Provider value={canvas}>
       {messages.map((message, index) => (
         <Fragment key={message.id || `${message.role}-${index}`}>
           <Message
@@ -34,7 +39,8 @@ export const MessageList = memo(function MessageList({
             conversationId={sessionId}
             learningEnabled={learningEnabled && !busy}
             onRegenerate={!busy && message.role === 'assistant' && index === messages.length - 1 ? onRegenerate : undefined}
-            onBranch={!busy && onBranch ? () => onBranch(index) : undefined}
+            onBranch={!busy ? onBranch : undefined}
+            index={index}
           />
 
           {branch && index === branch.messageCount - 1 && <BranchMarker parentTitle={branch.parentTitle} />}

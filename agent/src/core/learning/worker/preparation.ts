@@ -13,13 +13,14 @@ import {
 import { recordCorrectionNote } from './correction.js';
 import { invalidateKnowledge } from './persistence.js';
 import type { KnowledgeWorkerState } from './state.js';
+import { permanentFailure } from '../failure.js';
 
 export async function prepareExtraction(
   state: KnowledgeWorkerState,
   job: KnowledgeJob,
 ): Promise<ExtractionContext | undefined> {
   const interaction = await state.store.interaction(job.interaction_id);
-  if (interaction.attempts.length === 0) throw new Error('PERMANENT_ERROR: interaction not found');
+  if (interaction.attempts.length === 0) throw permanentFailure('interaction not found');
 
   const effective = effectiveFeedback(await state.store.events());
   const revision = sourceRevision(interaction.attempts, interaction.feedback);
@@ -50,7 +51,7 @@ export async function prepareExtraction(
   return collectEvidence(state, context);
 }
 
-export async function shouldExtract(
+async function shouldExtract(
   state: KnowledgeWorkerState,
   context: PreparationContext,
 ): Promise<boolean> {
@@ -93,7 +94,7 @@ export async function shouldExtract(
   return true;
 }
 
-export async function collectEvidence(
+async function collectEvidence(
   state: KnowledgeWorkerState,
   context: PreparationContext,
 ): Promise<ExtractionContext | undefined> {
@@ -136,7 +137,7 @@ export async function collectEvidence(
   };
 }
 
-export async function relatedArtifacts(
+async function relatedArtifacts(
   state: KnowledgeWorkerState,
   final: AttemptRecord,
   artifacts: KnowledgeArtifact[],

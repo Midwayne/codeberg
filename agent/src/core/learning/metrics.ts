@@ -93,7 +93,7 @@ export async function historicalEvalMetrics(store: LearningStore) {
   return scoreRetrievalRuns(evals, runs);
 }
 
-export type { RetrievalRun, RetrievalScore } from './metrics/types.js';
+export type { RetrievalRun } from './metrics/types.js';
 
 function scoreRun(example: DatasetExample, run: RetrievalRun): RetrievalScore {
   const oracle = example.review?.oracle ?? {};

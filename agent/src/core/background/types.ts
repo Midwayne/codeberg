@@ -22,7 +22,7 @@ export interface BackgroundJob extends BackgroundOwner {
   error?: string;
 }
 
-export type BackgroundSummary = Omit<BackgroundJob, 'args' | 'fingerprint' | 'output' | 'progress'>;
+type BackgroundSummary = Omit<BackgroundJob, 'args' | 'fingerprint' | 'output' | 'progress'>;
 export type BackgroundExecute = (signal: AbortSignal) => unknown;
 export type ReleaseBackground = () => Promise<void>;
 export type RetainBackground = () => ReleaseBackground;

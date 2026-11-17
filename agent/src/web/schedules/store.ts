@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { writeJsonAtomic } from '../../core/learning/fs.js';
+import { ifMissing, writeJsonAtomic } from '../../core/fs.js';
 import type { ScheduledRun } from './types.js';
 
 /** A single owner serializes queue mutations and flushes each transition. */
@@ -26,11 +26,7 @@ export class ScheduleStore {
   }
 
   async read(): Promise<ScheduledRun[]> {
-    const json = await readFile(join(this.directory, '.schedules', 'queue.json'), 'utf8').catch((error: NodeJS.ErrnoException) => {
-      if (error.code !== 'ENOENT') throw error;
-
-      return '[]';
-    });
+    const json = await readFile(join(this.directory, '.schedules', 'queue.json'), 'utf8').catch(ifMissing('[]'));
     const jobs = JSON.parse(json) as ScheduledRun[];
     if (!Array.isArray(jobs)) throw new Error('Invalid scheduled run storage.');
 

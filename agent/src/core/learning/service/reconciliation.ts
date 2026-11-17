@@ -51,7 +51,7 @@ export async function reconcileJobs(state: LearningServiceState): Promise<void> 
   }
 }
 
-export async function reconcileJob(
+async function reconcileJob(
   state: LearningServiceState,
   kind: 'knowledge' | 'dataset',
   interactionId: string,

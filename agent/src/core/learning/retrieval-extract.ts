@@ -2,6 +2,7 @@ import type { ExtractionContext } from './dataset-extract.js';
 import type { DatasetExample } from './datasets.js';
 import { emitNegativeExamples, hitKey, unique, uniqueHits } from './retrieval/negatives.js';
 import type { AttemptRecord, RetrievedResult, ToolInvocation } from './types.js';
+import { rlvrTask } from './extraction/trajectories.js';
 
 /** Retrieval labels retain ranked results. Uncited results stay unjudged. */
 export function extractRetrieval(
@@ -90,16 +91,11 @@ function emitVerificationCandidate(
   repositories: DatasetExample['repositories'],
   positives: RetrievedResult[],
 ): void {
-  const { attempts, final, verifier, trajectory, emit } = context;
+  const { final, verifier, trajectory, emit } = context;
 
   if (final && positives.length && !verifier) {
     emit('rlvr', {
-      task: attempts[0].user_query,
-      environment: repositories,
-      available_tools: unique(attempts.flatMap((attempt) => attempt.available_tools ?? [])),
-      observed_tools: unique(
-        attempts.flatMap((attempt) => attempt.tools_invoked.map((tool) => tool.name)),
-      ),
+      ...rlvrTask(context, repositories),
       verifier: {
         kind: 'repository_evidence',
         proposed_files: unique(positives.map((hit) => hit.path).filter(Boolean)),

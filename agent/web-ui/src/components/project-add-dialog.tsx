@@ -1,9 +1,9 @@
-import type { ProjectCatalog } from '../lib/project-api';
+import { requestProjectCatalog } from '../lib/project-catalog-request';
 import type { ProjectShellView } from './projects';
 import { AddProject } from './project-add';
 import { MotionPresence } from './motion-presence';
 
-export type AddProjectDialogProps = Pick<
+type AddProjectDialogProps = Pick<
   Parameters<typeof ProjectShellView>[0],
   'adding' | 'project' | 'setAdding' | 'setCatalog' | 'select'
 >;
@@ -15,10 +15,7 @@ export function AddProjectDialog({ adding, project, setAdding, setCatalog, selec
         initialPath={project?.roots[0]?.root}
         onClose={() => setAdding(false)}
         onAdded={async (project) => {
-          const response = await fetch('/api/projects');
-          if (!response.ok) throw new Error(await response.text());
-
-          setCatalog((await response.json()) as ProjectCatalog);
+          setCatalog(await requestProjectCatalog());
           select(project.id);
           setAdding(false);
         }}

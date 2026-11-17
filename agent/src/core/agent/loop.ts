@@ -33,7 +33,7 @@ export async function ensureLoop(state: AgentState): Promise<ToolLoopAgent> {
   return state.loop;
 }
 
-export async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
+async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
   // Sort tools to keep the cached system prefix stable across processes.
   // `batch` wraps the raw tools: it spills each result against its own budget.
   const base = await buildTools(state);

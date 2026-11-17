@@ -52,7 +52,7 @@ export async function drain(state: KnowledgeWorkerState): Promise<void> {
   }
 }
 
-export async function runJob(state: KnowledgeWorkerState, job: KnowledgeJob): Promise<void> {
+async function runJob(state: KnowledgeWorkerState, job: KnowledgeJob): Promise<void> {
   if (job.type === 'evaluate_output') {
     await state.evaluations!.process(job.interaction_id, job.attempt_count);
   } else if (job.type === 'consolidate_knowledge') {

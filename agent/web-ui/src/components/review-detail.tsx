@@ -5,7 +5,7 @@ import type { Decision } from './training-review';
 import { collectReviewEvidence } from '../lib/review-evidence';
 import { ReviewDecisionForm } from './review-decision';
 
-export type ReviewDetailProps = {
+type ReviewDetailProps = {
   trainingEnabled?: boolean;
   evalEnabled?: boolean;
   row: ReviewSummary;
@@ -31,27 +31,7 @@ export function ReviewDetail(props: ReviewDetailProps) {
   return <ReviewDetailView {...state} />;
 }
 
-export type ReviewDetailOptions = {
-  trainingEnabled?: boolean;
-  evalEnabled?: boolean;
-  row: ReviewSummary;
-  example: ReviewExample;
-  destination: 'training' | 'eval';
-  onDestination: (value: 'training' | 'eval') => void;
-  verified: string[];
-  onVerified: (path: string) => void;
-  otherPaths: string;
-  onOtherPaths: (value: string) => void;
-  expected: string;
-  onExpected: (value: string) => void;
-  saving: boolean;
-  error?: string;
-  canNext?: boolean;
-  onDecide: (decision: Decision) => void;
-  onNext: () => void;
-};
-
-export function useReviewDetail(state: ReviewDetailOptions) {
+export function useReviewDetail(state: ReviewDetailProps) {
   const { canNext = true, trainingEnabled = true, evalEnabled = true } = state;
 
   const answer = exampleAnswer(state.example);
@@ -91,7 +71,7 @@ export function useReviewDetail(state: ReviewDetailOptions) {
   };
 }
 
-export type ReviewDetailViewProps = ReturnType<typeof useReviewDetail>;
+type ReviewDetailViewProps = ReturnType<typeof useReviewDetail>;
 
 export function ReviewDetailView(state: ReviewDetailViewProps) {
   return (
@@ -136,9 +116,9 @@ export function ReviewDetailView(state: ReviewDetailViewProps) {
   );
 }
 
-export type ReviewEvidenceProps = { state: Parameters<typeof ReviewDetailView>[0] };
+type ReviewEvidenceProps = { state: Parameters<typeof ReviewDetailView>[0] };
 
-export function ReviewEvidence({ state }: ReviewEvidenceProps) {
+function ReviewEvidence({ state }: ReviewEvidenceProps) {
   return (
     state.allEvidence.size > 0 && (
       <div>
@@ -158,9 +138,9 @@ export function ReviewEvidence({ state }: ReviewEvidenceProps) {
   );
 }
 
-export type ReviewAnswerProps = { state: Parameters<typeof ReviewDetailView>[0] };
+type ReviewAnswerProps = { state: Parameters<typeof ReviewDetailView>[0] };
 
-export function ReviewAnswer({ state }: ReviewAnswerProps) {
+function ReviewAnswer({ state }: ReviewAnswerProps) {
   return (
     state.answer && (
       <div>
@@ -173,7 +153,7 @@ export function ReviewAnswer({ state }: ReviewAnswerProps) {
   );
 }
 
-export type ReviewErrorOptions = Pick<Parameters<typeof useReviewDetail>[0], 'error'>;
+type ReviewErrorOptions = Pick<Parameters<typeof useReviewDetail>[0], 'error'>;
 
 function useReviewError({ error }: ReviewErrorOptions) {
   const errorId = useId();

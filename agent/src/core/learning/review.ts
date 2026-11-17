@@ -5,34 +5,9 @@ import {
   type DatasetStore,
 } from './datasets.js';
 import { interactionRevisions } from './revision.js';
+import type { ReviewCandidate, ReviewDashboard, ReviewState } from './review-types.js';
 
-export type ReviewState = 'ready' | 'training' | 'eval' | 'dismissed' | 'stale';
-
-export interface ReviewCandidate {
-  id: string;
-  kind: DatasetKind;
-  query: string;
-  extracted_at: string;
-  state: ReviewState;
-  eligible: boolean;
-  feedback?: { label: string; reason?: string };
-  repositories: string[];
-  answer_preview: string;
-  proposed_files: string[];
-}
-
-export interface ReviewDashboard {
-  stats: {
-    total: number;
-    ready: number;
-    training: number;
-    eval: number;
-    dismissed: number;
-    stale: number;
-    by_kind: Partial<Record<DatasetKind, number>>;
-  };
-  candidates: ReviewCandidate[];
-}
+export type { ReviewCandidate, ReviewDashboard, ReviewState };
 
 export async function reviewDashboard(datasets: DatasetStore): Promise<ReviewDashboard> {
   const [candidates, training, evalRows, dismissed, events] = await Promise.all([
@@ -72,7 +47,7 @@ export async function reviewDashboard(datasets: DatasetStore): Promise<ReviewDas
   };
 }
 
-export function answerFor(row: DatasetExample): string {
+function answerFor(row: DatasetExample): string {
   const payload = row.payload;
   if (typeof payload.answer === 'string') return payload.answer;
 
@@ -83,7 +58,7 @@ export function answerFor(row: DatasetExample): string {
   return Array.isArray(trajectory) ? String(trajectory.at(-1)?.answer ?? '') : '';
 }
 
-export function proposedFiles(row: DatasetExample): string[] {
+function proposedFiles(row: DatasetExample): string[] {
   const values = [
     row.payload.proposed_evidence,
     row.payload.positive,

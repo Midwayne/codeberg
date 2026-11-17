@@ -11,7 +11,7 @@ import { DocsSearchDialog } from './search-dialog';
 import './styles.css';
 import './motion.css';
 
-export type DocsPageProps = {
+type DocsPageProps = {
   path?: string;
   /** First-run setup steps; while shown, the docs are the whole app. */
   setup?: ReactNode;

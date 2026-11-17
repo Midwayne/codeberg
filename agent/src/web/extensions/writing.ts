@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { parseSkillDocument } from '../../core/context/skills.js';
-import { writeJsonAtomic } from '../../core/learning/fs.js';
+import { ifMissing, writeJsonAtomic } from '../../core/fs.js';
 import { parseMcpJson } from '../../core/mcp/config.js';
 import { indexedRootsFromEnv } from '../../core/paths.js';
 import type { ExtensionStoreState } from './state.js';
@@ -74,11 +74,7 @@ async function writeMcp(root: string, body: ExtensionInput, env: NodeJS.ProcessE
     );
 
   const file = join(root, 'mcp.json');
-  const text = await readFile(file, 'utf8').catch((error: NodeJS.ErrnoException) => {
-    if (error.code !== 'ENOENT') throw error;
-
-    return '{}';
-  });
+  const text = await readFile(file, 'utf8').catch(ifMissing('{}'));
 
   const config = JSON.parse(text);
   if (!config || typeof config !== 'object' || Array.isArray(config))

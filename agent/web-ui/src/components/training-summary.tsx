@@ -1,6 +1,6 @@
 import { KIND_LABELS, type ReviewDashboard } from '../lib/training';
 
-export type TrainingSummaryProps = { stats: ReviewDashboard['stats'] };
+type TrainingSummaryProps = { stats: ReviewDashboard['stats'] };
 
 export function TrainingSummary({ stats }: TrainingSummaryProps) {
   const reviewed = stats.training + stats.eval + stats.dismissed;
@@ -40,9 +40,9 @@ export function TrainingSummary({ stats }: TrainingSummaryProps) {
   );
 }
 
-export type TrainingCountsProps = Pick<Parameters<typeof TrainingSummary>[0], 'stats'>;
+type TrainingCountsProps = Pick<Parameters<typeof TrainingSummary>[0], 'stats'>;
 
-export function TrainingCounts({ stats }: TrainingCountsProps) {
+function TrainingCounts({ stats }: TrainingCountsProps) {
   return (
     <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
       {(

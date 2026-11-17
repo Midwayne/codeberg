@@ -1,6 +1,6 @@
 import type { ReviewDecisionForm } from './review-decision';
 
-export type VerifiedSourcesProps = Pick<Parameters<typeof ReviewDecisionForm>[0], 'state'>;
+type VerifiedSourcesProps = Pick<Parameters<typeof ReviewDecisionForm>[0], 'state'>;
 
 export function VerifiedSources({ state }: VerifiedSourcesProps) {
   return (

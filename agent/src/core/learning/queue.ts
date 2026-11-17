@@ -103,4 +103,4 @@ export class DurableJobQueue {
   }
 }
 
-export { classifyFailure, isTransientFailure } from './queue/policy.js';
+export { classifyFailure } from './queue/policy.js';

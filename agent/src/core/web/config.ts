@@ -1,4 +1,5 @@
 import type { WebConfig } from './types.js';
+import { envFlag as flag } from '../env-flag.js';
 
 const DEFAULT_MAX_BYTES = 1_500_000; // 1.5 MB raw body cap
 const DEFAULT_MAX_CHARS = 20_000; // ~5k tokens of extracted text
@@ -6,12 +7,6 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_SEARCH_COUNT = 6;
 
 /** A flag env var: anything but 0/false/off/no (case-insensitive) is "on". */
-function flag(value: string | undefined, fallback: boolean): boolean {
-  if (value == null || value.trim() === '') return fallback;
-
-  return !/^(0|false|off|no)$/i.test(value.trim());
-}
-
 function positiveInt(value: string | undefined, fallback: number): number {
   const n = Number(value);
 

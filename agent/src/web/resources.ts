@@ -41,4 +41,4 @@ export class ResourceSettings {
 
 export type { CleanupCategory, ResourceSample } from './resources/types.js';
 
-export { CLEANUP_CATEGORIES, ResourceSettingsError } from './resources/types.js';
+export { ResourceSettingsError } from './resources/types.js';

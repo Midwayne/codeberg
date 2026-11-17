@@ -23,5 +23,9 @@ export function instantMotion(): boolean {
 export function exitDuration(duration: number): number {
   if (instantMotion()) return 0;
 
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 100 : duration;
+  return prefersReducedMotion() ? 100 : duration;
+}
+
+export function prefersReducedMotion(): boolean {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }

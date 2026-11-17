@@ -2,16 +2,18 @@ import { browserEnabled, browserVisionEnabled } from '../../core/browser/config.
 import { cancelBrowserTasks } from '../../core/browser/runner.js';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { writeJsonAtomic } from '../../core/learning/fs.js';
+import { isMissing, writeJsonAtomic } from '../../core/fs.js';
 import { codebergHome } from '../../core/paths.js';
 import { webConfigFromEnv } from '../../core/web/config.js';
 import type { ToolSettings } from '../../core/web/types.js';
+import { errorMessage } from '../../core/errors.js';
+import { HttpError } from '../../core/http-error.js';
 
 type SearchStatus = { status: 'disabled' | 'starting' | 'ready' | 'error'; url?: string; message?: string };
 
-export class ToolSettingsError extends Error {
-  constructor(message: string, readonly status = 400) {
-    super(message);
+export class ToolSettingsError extends HttpError {
+  constructor(message: string, status = 400) {
+    super(status, message);
   }
 }
 
@@ -90,7 +92,7 @@ export class ToolSettingsStore {
     } catch (error) {
       if (error instanceof SyntaxError)
         throw new Error('Saved tool settings are invalid. Open the config directory, repair or remove tool-settings.json, and retry.');
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      if (!isMissing(error)) throw error;
 
       return { webSearch: webConfigFromEnv(this.env).searchEnabled, browserUse: browserEnabled(this.env),
         browserVision: browserVisionEnabled(this.env) };
@@ -129,7 +131,7 @@ export class ToolSettingsStore {
 }
 
 function searchControlError(error: unknown): SearchStatus {
-  return { status: 'error', message: error instanceof Error ? error.message : 'Web search service unavailable. Restart Codeberg and retry.' };
+  return { status: 'error', message: errorMessage(error, 'Web search service unavailable. Restart Codeberg and retry.') };
 }
 
 function validateSearchStatus(value: unknown, enabled: boolean): SearchStatus {

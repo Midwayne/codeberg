@@ -1,3 +1,5 @@
+import { HttpError } from '../http-error.js';
+
 export interface Element {
   id: string;
   type: string;
@@ -48,9 +50,9 @@ export interface Mutation {
   mode?: 'horizontal' | 'vertical' | 'flow';
 }
 
-export class CanvasError extends Error {
-  constructor(message: string, readonly status = 400) {
-    super(message);
+export class CanvasError extends HttpError {
+  constructor(message: string, status = 400) {
+    super(status, message);
   }
 }
 

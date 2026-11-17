@@ -1,4 +1,5 @@
 import type { LanguageModel } from 'ai';
+import { parseModelSpec } from './spec.js';
 
 /** Creates an ai-sdk LanguageModel for a provider-specific model id. */
 export interface ModelProvider {
@@ -22,13 +23,12 @@ export class ProviderRegistry {
 
   /** Resolve "provider:modelId" (e.g. openai:gpt-4o-mini). */
   resolve(spec: string): LanguageModel {
-    const sep = spec.indexOf(':');
-    if (sep <= 0) {
+    const parsed = parseModelSpec(spec);
+    if (!parsed) {
       throw new Error(`invalid model spec "${spec}", want provider:model`);
     }
 
-    const name = spec.slice(0, sep);
-    const modelId = spec.slice(sep + 1);
+    const { provider: name, modelId } = parsed;
     const provider = this.providers.get(name);
     if (!provider) {
       throw new Error(`unknown provider "${name}"`);

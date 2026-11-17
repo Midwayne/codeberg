@@ -39,6 +39,7 @@ export async function executeRun(run: SearchRun, generate: ChatGenerator, sessio
 
         run.record.finishedAt = Date.now();
         await run.journal.save(run.record);
+        await run.journal.close();
         await saveRunSession(sessions, run, learning);
       } finally {
         await generation?.close?.();
@@ -48,16 +49,23 @@ export async function executeRun(run: SearchRun, generate: ChatGenerator, sessio
   }));
 }
 
+/** Chunks read ahead of the journal; beyond this the reader waits for the disk. */
+const MAX_UNSYNCED_CHUNKS = 256;
+
 async function consumeRun(run: SearchRun, stream: ReadableStream<import('ai').UIMessageChunk>) {
   const reader = stream.getReader();
   const abort = () => void reader.cancel().catch(() => undefined);
   run.controller.signal.addEventListener('abort', abort, { once: true });
+  // Reading continues while earlier chunks sync; each is still published only once durable.
+  const publishing = new PublishQueue(run);
   try {
     while (true) {
       run.controller.signal.throwIfAborted();
+      publishing.throwIfFailed();
       const next = await reader.read();
       run.controller.signal.throwIfAborted();
       if (next.done) {
+        await publishing.drain();
         if (!run.events.some((event) => ['finish', 'error', 'abort'].includes(event.type))) throw new Error('Provider stream ended before completion.');
 
         break;
@@ -68,9 +76,10 @@ async function consumeRun(run: SearchRun, stream: ReadableStream<import('ai').UI
         run.record.error = next.value.errorText;
       }
       if (next.value.type === 'abort') run.record.status = 'stopped';
-      await publish(run, next.value);
+      await publishing.add(next.value);
     }
   } catch (error) {
+    await publishing.settle();
     // Stop both provider generation and its stream before releasing run ownership.
     if (!run.controller.signal.aborted) run.controller.abort(error);
 
@@ -90,5 +99,38 @@ async function finishInterruptedRun(run: SearchRun): Promise<void> {
       : { type: 'error', errorText: `Search interrupted: ${run.record.error ?? run.record.status}` });
   } catch {
     // The prior durable starts remain uncertain if storage itself failed.
+  }
+}
+
+/** Publishes chunks in order without waiting for each one's sync before reading the next. */
+class PublishQueue {
+  private readonly inflight: Promise<void>[] = [];
+  private failure: { error: unknown } | undefined;
+
+  constructor(private readonly run: SearchRun) {}
+
+  async add(chunk: import('ai').UIMessageChunk): Promise<void> {
+    const published = publish(this.run, chunk).catch((error: unknown) => {
+      this.failure ??= { error };
+      // Stop the provider now; a reader waiting on a live stream would not notice otherwise.
+      if (!this.run.controller.signal.aborted) this.run.controller.abort(error);
+    });
+    this.inflight.push(published);
+
+    if (this.inflight.length >= MAX_UNSYNCED_CHUNKS) await this.inflight.shift();
+  }
+
+  throwIfFailed(): void {
+    if (this.failure) throw this.failure.error;
+  }
+
+  /** Waits for every chunk, then reports the first failure. */
+  async drain(): Promise<void> {
+    await this.settle();
+    this.throwIfFailed();
+  }
+
+  async settle(): Promise<void> {
+    await Promise.all(this.inflight.splice(0));
   }
 }

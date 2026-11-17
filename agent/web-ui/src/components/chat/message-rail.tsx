@@ -1,7 +1,5 @@
 import { RailMarkers, RailTooltip } from './rail-markers';
-import { useMessageRail } from './use-message-rail';
-
-import type { UIMessage } from 'ai';
+import { useMessageRail, type MessageRailOptions } from './use-message-rail';
 
 import { cn } from '../../lib/utils';
 
@@ -11,12 +9,7 @@ import { cn } from '../../lib/utils';
  * jumps to that message. Ticks map to the prompt's position in the scroll
  * content and spread apart when they'd otherwise collide.
  */
-export type MessageRailProps = {
-  scrollRef: { current: HTMLElement | null };
-  messages: UIMessage[];
-  /** Fired before a tick scrolls the transcript, so the parent can pause pin-to-bottom. */
-  onNavigate?: () => void;
-};
+type MessageRailProps = MessageRailOptions;
 
 export function MessageRail(props: MessageRailProps) {
   const state = useMessageRail(props);
@@ -24,7 +17,7 @@ export function MessageRail(props: MessageRailProps) {
   return state ? <MessageRailView {...state} /> : null;
 }
 
-export type MessageRailViewProps = NonNullable<ReturnType<typeof useMessageRail>>;
+type MessageRailViewProps = NonNullable<ReturnType<typeof useMessageRail>>;
 
 export function MessageRailView(state: MessageRailViewProps) {
   return (

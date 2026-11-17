@@ -1,7 +1,7 @@
 import { ChevronDown } from 'lucide-react';
 import type { ProjectDetailsProps } from './project-details';
 
-export type ProjectConfigFilesProps = { state: ProjectDetailsProps };
+type ProjectConfigFilesProps = { state: ProjectDetailsProps };
 
 export function ProjectConfigFiles({ state }: ProjectConfigFilesProps) {
   return (

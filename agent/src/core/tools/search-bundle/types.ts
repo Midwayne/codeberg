@@ -1,6 +1,6 @@
 import type { SearchResult } from '../../types.js';
 
-export interface BundleQuery {
+interface BundleQuery {
   repo: string;
   query: string;
 }

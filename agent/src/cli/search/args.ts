@@ -1,7 +1,7 @@
 import { DEFAULT_DAEMON_URL } from '../../core/client.js';
 import type { SearchOptions } from '../../core/types.js';
 
-export const VALUE_FLAGS = [
+const VALUE_FLAGS = [
   '--daemon',
   '--k',
   '--repo',
@@ -10,9 +10,9 @@ export const VALUE_FLAGS = [
   '--min-score',
 ] as const;
 
-export type ValueFlag = (typeof VALUE_FLAGS)[number];
+type ValueFlag = (typeof VALUE_FLAGS)[number];
 
-export function isValueFlag(arg: string): arg is ValueFlag {
+function isValueFlag(arg: string): arg is ValueFlag {
   return (VALUE_FLAGS as readonly string[]).includes(arg);
 }
 
@@ -30,7 +30,7 @@ export interface SearchCliOptions extends SearchOptions {
   json?: boolean;
 }
 
-export function requireValue(flag: string, value: string | undefined): string {
+function requireValue(flag: string, value: string | undefined): string {
   if (value == null || value.trim() === '') {
     throw new SearchCliError(`${flag} requires a value`);
   }
@@ -38,7 +38,7 @@ export function requireValue(flag: string, value: string | undefined): string {
   return value;
 }
 
-export function parsePositiveInt(flag: string, raw: string): number {
+function parsePositiveInt(flag: string, raw: string): number {
   const n = Number(raw);
   if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
     throw new SearchCliError(`${flag} must be a positive integer`);
@@ -47,7 +47,7 @@ export function parsePositiveInt(flag: string, raw: string): number {
   return n;
 }
 
-export function parseScore(flag: string, raw: string): number {
+function parseScore(flag: string, raw: string): number {
   const n = Number(raw);
   if (!Number.isFinite(n) || n < 0 || n > 1) {
     throw new SearchCliError(`${flag} must be a number between 0 and 1`);
@@ -97,7 +97,7 @@ export function parseSearchArgs(
   return options;
 }
 
-export function applyValueFlag(options: SearchCliOptions, flag: ValueFlag, raw: string): void {
+function applyValueFlag(options: SearchCliOptions, flag: ValueFlag, raw: string): void {
   switch (flag) {
     case '--daemon':
       options.daemonUrl = raw;

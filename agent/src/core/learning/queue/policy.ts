@@ -1,3 +1,4 @@
+import { LearningFailure } from '../failure.js';
 import type { FailureCategory } from '../types.js';
 
 export const DEFAULT_LEASE_MS = 10 * 60_000;
@@ -23,6 +24,11 @@ export function isTransientFailure(category: FailureCategory): boolean {
 }
 
 export function classifyFailure(error: unknown): FailureCategory {
+  if (error instanceof LearningFailure) return error.category;
+
+  if (Number((error as { statusCode?: unknown } | null)?.statusCode) === 429) return 'RATE_LIMITED';
+
+  // Errors from providers, git and the filesystem are classified by their text.
   const text = String(error).toLowerCase();
   if (/permanent_error/.test(text)) return 'PERMANENT_ERROR';
 

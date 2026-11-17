@@ -15,7 +15,7 @@ export interface SourceObservation extends SourceRef {
 }
 
 // Retain checked source for quote validation without sending whole files to the model.
-export const sourceText = new WeakMap<SourceObservation, string>();
+const sourceText = new WeakMap<SourceObservation, string>();
 
 export function sourceTextFor(observation: SourceObservation): string | undefined {
   return sourceText.get(observation);

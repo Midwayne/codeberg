@@ -9,7 +9,7 @@ import type { LearningSettings } from '../lib/learning-settings';
 
 import { ErrorNotice } from './ui';
 
-export type LearningSettingsPanelProps = { onSaved?: () => void };
+type LearningSettingsPanelProps = { onSaved?: () => void };
 
 export function LearningSettingsPanel(props: LearningSettingsPanelProps) {
   const state = useLearningSettingsPanel(props);
@@ -17,7 +17,7 @@ export function LearningSettingsPanel(props: LearningSettingsPanelProps) {
   return <LearningSettingsPanelView {...state} />;
 }
 
-export type LearningSettingsPanelViewProps = ReturnType<typeof useLearningSettingsPanel>;
+type LearningSettingsPanelViewProps = ReturnType<typeof useLearningSettingsPanel>;
 
 function LearningSettingsPanelView({
   project,
@@ -69,7 +69,7 @@ function LearningSettingsContent({ settings, error, busy, change }: Pick<Learnin
   );
 }
 
-export type LearningSettingsViewProps = {
+type LearningSettingsViewProps = {
   settings: LearningSettings;
   busy: boolean;
   onChange: (settings: LearningSettings) => void;
@@ -104,7 +104,7 @@ export function LearningSettingsView({ settings, busy, onChange }: LearningSetti
   );
 }
 
-export type LearningSettingsErrorProps = Pick<
+type LearningSettingsErrorProps = Pick<
   Parameters<typeof LearningSettingsPanelView>[0],
   'error' | 'settings' | 'setRetry'
 >;

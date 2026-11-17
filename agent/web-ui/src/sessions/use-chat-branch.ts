@@ -1,13 +1,12 @@
-import type { UseChatHelpers } from '@ai-sdk/react';
 import type { UIMessage } from 'ai';
 import { useCallback } from 'react';
 
 import { createChatBranch } from '../lib/branch';
 import { deriveTitle } from '../lib/sessions';
 import type { WorkspaceChat } from './workspace-chat';
+import { errorMessage } from '@agent/core/errors.js';
 
 export type ChatBranchOptions = {
-  chat: UseChatHelpers<UIMessage>;
   transitionIntent: React.RefObject<number>;
   active: WorkspaceChat;
   api: typeof fetch;
@@ -19,7 +18,6 @@ export type ChatBranchOptions = {
 
 /** Branching selects the copy at once; saving follows and never gates the switch. */
 export function useChatBranch({
-  chat,
   transitionIntent,
   active,
   refresh,
@@ -29,6 +27,8 @@ export function useChatBranch({
 }: ChatBranchOptions) {
   const branchFrom = useCallback(
     async (throughIndex: number) => {
+      // Read at call time: a stable callback keeps streamed messages from re-rendering branch controls.
+      const { chat } = active;
       if (chat.status !== 'ready' || chat.messages.length === 0 || throughIndex < 0) return;
 
       // Supersede any chat that is still loading; the branch is the newest choice.
@@ -46,7 +46,7 @@ export function useChatBranch({
       await saveBranch(active, branch, setSessionError);
       void refresh();
     },
-    [active, chat, createChat, refresh, setActive, setSessionError, transitionIntent],
+    [active, createChat, refresh, setActive, setSessionError, transitionIntent],
   );
 
   return { branchFrom };
@@ -61,6 +61,6 @@ async function saveBranch(parent: WorkspaceChat, branch: WorkspaceChat, setSessi
     setSessionError('');
   } catch (error) {
     // The branch stays open and listed; its own save notice offers a retry.
-    setSessionError(error instanceof Error ? error.message : 'Could not save the branched chat.');
+    setSessionError(errorMessage(error, 'Could not save the branched chat.'));
   }
 }

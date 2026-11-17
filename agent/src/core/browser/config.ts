@@ -1,5 +1,7 @@
 import type { ModelInput } from '../model-types.js';
 import { browserModelSupportsVision } from './model-capabilities.js';
+import { parseModelSpec } from '../../providers/spec.js';
+import { envEnabled, envToggle } from '../env-flag.js';
 
 export const BROWSER_USE_VERSION = '0.13.11';
 
@@ -15,21 +17,20 @@ export interface BrowserConfig {
 }
 
 export function browserEnabled(env: NodeJS.ProcessEnv): boolean {
-  return ['true', '1', 'on', 'yes'].includes((env.CODEBERG_BROWSER_USE ?? '').trim().toLowerCase()) &&
-    !['false', '0', 'off', 'no'].includes((env.CODEBERG_WEB_USE ?? '').trim().toLowerCase());
+  return envEnabled(env.CODEBERG_BROWSER_USE) && envToggle(env.CODEBERG_WEB_USE) !== false;
 }
 
 export function browserVisionEnabled(env: NodeJS.ProcessEnv): boolean {
-  return ['true', '1', 'on', 'yes'].includes((env.CODEBERG_BROWSER_VISION ?? '').trim().toLowerCase());
+  return envEnabled(env.CODEBERG_BROWSER_VISION);
 }
 
 export function browserConfig(env: NodeJS.ProcessEnv, fallback = '', validateModel = true, inputs?: readonly ModelInput[]): BrowserConfig {
   const enabled = browserEnabled(env);
   const spec = env.CODEBERG_BROWSER_MODEL?.trim() || fallback || env.CODEBERG_MODEL || '';
-  const separator = spec.indexOf(':');
-  const provider = spec.slice(0, separator);
-  const model = spec.slice(separator + 1);
-  if (enabled && validateModel && (separator < 1 || !model.trim())) throw new Error('Choose a browser model as provider:model.');
+  const parsed = parseModelSpec(spec);
+  const provider = parsed?.provider ?? '';
+  const model = parsed?.modelId ?? spec;
+  if (enabled && validateModel && (!parsed || !model.trim())) throw new Error('Choose a browser model as provider:model.');
   if (enabled && validateModel && !['openai', 'anthropic', 'google', 'ollama', 'llamacpp'].includes(provider))
     throw new Error('Unsupported browser model provider. Use openai, anthropic, google, ollama, or llamacpp.');
 

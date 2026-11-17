@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { appendFile, mkdir, readFile } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { UsageRecord } from '../../core/usage.js';
 import { codebergHome } from '../../core/paths.js';
+import { appendDurable, ifMissing } from '../../core/fs.js';
 
 /** Separate from saved chats: cleanup and branching cannot erase or duplicate spend. */
 export class UsageStore {
@@ -16,7 +17,7 @@ export class UsageStore {
     const month = new Date(row.timestamp).toISOString().slice(0, 7);
     const writing = this.writing.then(async () => {
       await mkdir(this.directory, { recursive: true, mode: 0o700 });
-      await appendFile(join(this.directory, `${month}.jsonl`), JSON.stringify(row) + '\n', { mode: 0o600 });
+      await appendDurable(join(this.directory, `${month}.jsonl`), row);
     });
 
     this.writing = writing.catch(() => undefined);
@@ -48,14 +49,9 @@ export class UsageStore {
   }
 }
 
+/** Strict: a corrupt spend record is reported, never silently dropped. */
 async function readMonth(path: string): Promise<UsageRecord[]> {
-  try {
-    const content = await readFile(path, 'utf8');
+  const content = await readFile(path, 'utf8').catch(ifMissing(''));
 
-    return content.split('\n').filter(Boolean).map((line) => JSON.parse(line) as UsageRecord);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
-
-    throw error;
-  }
+  return content.split('\n').filter(Boolean).map((line) => JSON.parse(line) as UsageRecord);
 }

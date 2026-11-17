@@ -38,16 +38,9 @@ export type WebSessionSearchResult = WebSessionSummary & {
   snippet: string;
 };
 
-/**
- * Session ids double as filenames and arrive from the client, so constrain them
- * to a safe charset — this is the guard against path traversal on the by-id
- * routes (a `../` id can never reach `join`).
- */
-export function isValidSessionId(id: string): boolean {
-  return /^[A-Za-z0-9_-]{1,64}$/.test(id);
-}
+export { isValidSessionId } from '../../core/session-id.js';
 
-export const MAX_SESSION_TITLE_LENGTH = 200;
+const MAX_SESSION_TITLE_LENGTH = 200;
 
 /** A user-chosen title on one line, or undefined when it is empty or too long. */
 export function normalizeSessionTitle(value: unknown): string | undefined {

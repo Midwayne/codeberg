@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { dreamingRequest, type DreamingDashboard, type DreamingReport } from './dreaming';
 
-export type DreamingSelectionOptions = { api: typeof fetch; retry: number; enabled: boolean };
+type DreamingSelectionOptions = { api: typeof fetch; retry: number; enabled: boolean };
 
 export type DreamingSelection = ReturnType<typeof useDreamingSelection>;
 

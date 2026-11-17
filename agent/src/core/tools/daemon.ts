@@ -8,7 +8,7 @@ import type { ToolSpec } from '../types.js';
 /** Daemon tools bridged elsewhere — omit to avoid duplicate/conflicting schemas. */
 const HIDDEN_DAEMON_TOOLS = new Set(['search']);
 
-export interface DaemonToolSourceOptions {
+interface DaemonToolSourceOptions {
   daemon: DaemonClient;
   /** Reuse the catalogue already fetched for capability-based registration. */
   specs?: readonly ToolSpec[];

@@ -7,7 +7,7 @@ import { routeChat, routeMeta, type ChatResponder } from '../chat-routes.js';
 import { readJson, sendJson, sendText } from '../http.js';
 import { routeLearning } from '../learning-routes.js';
 import { LEARNING_PATH } from '../learning/paths.js';
-import { ModelSelectionError, type ModelSettingsStore } from '../model-selection/settings.js';
+import type { ModelSettingsStore } from '../model-selection/settings.js';
 import { CHAT_PAGE_HTML } from '../page.js';
 import { ResourceSettings } from '../resources.js';
 import { routeSessions } from '../sessions/routes.js';
@@ -62,7 +62,7 @@ export async function route(
   return servePage(req, res, opts, path);
 }
 
-export async function routeApi(
+async function routeApi(
   req: IncomingMessage,
   res: ServerResponse,
   opts: WebServerOptions,
@@ -113,7 +113,7 @@ export async function routeApi(
   return sendText(res, 404, 'not found');
 }
 
-export async function routeModels(
+async function routeModels(
   req: IncomingMessage,
   res: ServerResponse,
   settings: ModelSettingsStore,
@@ -122,16 +122,11 @@ export async function routeModels(
   if (req.method === 'GET') return sendJson(res, 200, await settings.current());
 
   if (req.method === 'PUT') {
-    try {
-      const result = await settings.update(await readJson(req));
-      await learning?.refreshEvaluations();
+    // ModelSelectionError carries its 400 to the server's error handler.
+    const result = await settings.update(await readJson(req));
+    await learning?.refreshEvaluations();
 
-      return sendJson(res, 200, result);
-    } catch (error) {
-      if (error instanceof ModelSelectionError) return sendText(res, 400, error.message);
-
-      throw error;
-    }
+    return sendJson(res, 200, result);
   }
 
   return sendText(res, 405, 'method not allowed');
@@ -162,7 +157,7 @@ export async function servePage(
   res.end('not found');
 }
 
-export function escapeHtml(s: string): string {
+function escapeHtml(s: string): string {
   return s
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')

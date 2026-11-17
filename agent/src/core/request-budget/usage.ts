@@ -1,11 +1,11 @@
 import type { LanguageModelV4CallOptions, LanguageModelV4Usage } from '@ai-sdk/provider';
 
 import { estimateRequest, schemaKey } from './estimate.js';
-import { fingerprintMessage } from '../message-fingerprint.js';
+import { promptFingerprints } from '../message-fingerprint.js';
 
 interface Anchor {
   tools: string;
-  messages: string[];
+  messages: readonly string[];
   estimated: number;
   measured: number;
 }
@@ -16,9 +16,8 @@ export class RequestUsage {
   private readonly anchors: Anchor[] = [];
 
   estimate(request: LanguageModelV4CallOptions): number {
-    const estimated = estimateRequest(request);
-    const tools = schemaKey(request);
-    const messages = request.prompt.map(fingerprintMessage);
+    const { estimated, tools } = measure(request);
+    const messages = promptFingerprints(request.prompt);
 
     for (let index = this.anchors.length - 1; index >= 0; index--) {
       const anchor = this.anchors[index]!;
@@ -39,12 +38,21 @@ export class RequestUsage {
     const measured = usage.inputTokens.total;
     if (measured === undefined || !Number.isSafeInteger(measured) || measured <= 0) return;
 
-    this.anchors.push({
-      tools: schemaKey(request),
-      messages: request.prompt.map(fingerprintMessage),
-      estimated: estimateRequest(request),
-      measured,
-    });
+    const { estimated, tools } = measure(request);
+    this.anchors.push({ tools, messages: promptFingerprints(request.prompt), estimated, measured });
     if (this.anchors.length > 64) this.anchors.shift();
   }
+}
+
+const measures = new WeakMap<LanguageModelV4CallOptions, { estimated: number; tools: string }>();
+
+/** A request's size estimate and schema key; `record` reuses what `estimate` computed. */
+function measure(request: LanguageModelV4CallOptions): { estimated: number; tools: string } {
+  let value = measures.get(request);
+  if (!value) {
+    value = { estimated: estimateRequest(request), tools: schemaKey(request) };
+    measures.set(request, value);
+  }
+
+  return value;
 }

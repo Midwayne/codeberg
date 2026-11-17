@@ -1,6 +1,6 @@
 import { docGroups, docPages, type DocPage } from './catalog';
 
-export type DocsNavigationProps = {
+type DocsNavigationProps = {
   current?: DocPage;
 };
 

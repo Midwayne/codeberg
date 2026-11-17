@@ -2,7 +2,7 @@ import { Select } from './ui';
 
 import { selectModel, type CatalogModel, type ModelSelection } from '../lib/models';
 
-export type SummarySettingsProps = {
+type SummarySettingsProps = {
   models: readonly CatalogModel[];
   value?: ModelSelection | null;
   onChange: (value: ModelSelection | null) => void;

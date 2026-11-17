@@ -18,7 +18,7 @@ export function TrainingReview() {
   return <TrainingReviewView {...state} />;
 }
 
-export type TrainingReviewViewProps = ReturnType<typeof useReviewScreen>;
+type TrainingReviewViewProps = ReturnType<typeof useReviewScreen>;
 
 export function TrainingReviewView(state: TrainingReviewViewProps) {
   return (
@@ -71,7 +71,7 @@ export type SelectedReviewDetailProps = {
   state: ReturnType<typeof useReviewScreen> & { selected: ReviewSummary; example: ReviewExample };
 };
 
-export type ReviewHeaderProps = { state: Parameters<typeof TrainingReviewView>[0] };
+type ReviewHeaderProps = { state: Parameters<typeof TrainingReviewView>[0] };
 
 function ReviewHeader({ state }: ReviewHeaderProps) {
   return (

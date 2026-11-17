@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { SkillFile } from './skill-files';
 import { importSkillFiles, previewSkillFiles } from './skill-import-requests';
+import { errorMessage } from '@agent/core/errors.js';
 
 export type SkillImportOptions = {
   api: typeof fetch;
@@ -32,7 +33,7 @@ export function useSkillImport({ api, scope, scopeLabel, onImported, onBusyChang
         const previewed = await previewSkillFiles(selected, api, signal);
         if (!signal.aborted) setFiles(previewed);
       } catch (reason) {
-        if (!signal.aborted) setError(reason instanceof Error ? reason.message : String(reason));
+        if (!signal.aborted) setError(errorMessage(reason));
       }
     });
 

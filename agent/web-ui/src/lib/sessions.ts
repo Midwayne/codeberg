@@ -1,6 +1,7 @@
 import type { UIMessage } from 'ai';
 
-import { titleFromText } from '@agent/core/title.js';
+import { titleFromMessages } from '@agent/core/title.js';
+import { jsonInit } from './http';
 
 /** Sidebar row — mirrors the server's WebSessionSummary. */
 export interface SessionSummary {
@@ -14,7 +15,7 @@ export interface SessionSummary {
 }
 
 /** Full saved chat — UI messages verbatim, so a resume re-renders faithfully. */
-export interface SessionRecord {
+interface SessionRecord {
   serverRunId?: string;
   id: string;
   title: string;
@@ -43,20 +44,12 @@ export async function updateSessionFlags(
   flags: { pinned?: boolean; archived?: boolean },
   fetcher: typeof fetch = fetch,
 ): Promise<void> {
-  const response = await fetcher(`${BASE}/${encodeURIComponent(id)}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(flags),
-  });
+  const response = await fetcher(`${BASE}/${encodeURIComponent(id)}`, jsonInit('PATCH', flags));
   if (!response.ok) throw new Error(`Could not update chat (${response.status})`);
 }
 
 export async function renameSession(id: string, title: string, fetcher: typeof fetch = fetch): Promise<void> {
-  const response = await fetcher(`${BASE}/${encodeURIComponent(id)}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title }),
-  });
+  const response = await fetcher(`${BASE}/${encodeURIComponent(id)}`, jsonInit('PATCH', { title }));
   if (!response.ok) throw new Error(`Could not rename chat (${response.status})`);
 }
 
@@ -77,15 +70,11 @@ export type SaveSessionInput = {
 };
 
 export async function saveSession(input: SaveSessionInput, fetcher: typeof fetch = fetch): Promise<void> {
-  const response = await fetcher(`${BASE}/${encodeURIComponent(input.id)}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  const response = await fetcher(`${BASE}/${encodeURIComponent(input.id)}`, jsonInit('PUT', {
       title: input.title,
       messages: input.messages,
       ...(input.parentId ? { parentId: input.parentId } : {}),
-    }),
-  });
+    }));
   if (!response.ok) throw new Error(`Could not save chat (${response.status})`);
 }
 
@@ -100,11 +89,4 @@ export function newSessionId(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-export function deriveTitle(messages: UIMessage[]): string {
-  const firstUser = messages.find((m) => m.role === 'user');
-  const text = (firstUser?.parts ?? [])
-    .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
-    .map((p) => p.text)
-    .join(' ');
-  return titleFromText(text, 'New chat');
-}
+export const deriveTitle = titleFromMessages;

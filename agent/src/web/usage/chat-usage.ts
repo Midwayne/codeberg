@@ -20,8 +20,9 @@ export async function trackedChatAgent(
   const agent = selection && opts.selectAgent ? await opts.selectAgent(selection) : opts.agent;
   if (!agent) throw new Error('Select an available chat model.');
 
+  // Selections from the chat route carry their rates; older journaled runs look them up.
   const rates = selection
-    ? (await opts.modelSettings?.current())?.models.find((entry) => entry.key === selection.key)?.pricing
+    ? selection.pricing ?? (await opts.modelSettings?.current())?.models.find((entry) => entry.key === selection.key)?.pricing
     : undefined;
 
   const onStepEnd: StepEnd = async (step) => {

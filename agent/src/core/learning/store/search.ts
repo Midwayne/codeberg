@@ -1,7 +1,7 @@
 import type { KnowledgeArtifact, KnowledgeSearchHit, LearningSearchHit } from '../types.js';
 import { readEvents } from './events.js';
 import { effectiveFeedback } from './feedback.js';
-import { currentKnowledgeArtifacts, projectedKnowledgeArtifacts } from './knowledge.js';
+import { currentKnowledgeArtifacts, freshKnowledgeArtifacts, projectedKnowledgeArtifacts } from './knowledge.js';
 import { attemptText, lexicalScore, rankKnowledge } from './ranking.js';
 import type { LearningStoreState } from './state.js';
 
@@ -34,15 +34,9 @@ export async function searchKnowledge(
     categories?: Partial<Record<KnowledgeArtifact['category'], boolean>>;
   } = {},
 ): Promise<KnowledgeSearchHit[]> {
-  const artifacts = options.includeUnverified
-    ? (await projectedKnowledgeArtifacts(state)).filter(
-        (artifact) => artifact.status !== 'archived',
-      )
-    : await currentKnowledgeArtifacts(state);
-
-  const currentIds = options.includeUnverified
-    ? new Set((await currentKnowledgeArtifacts(state)).map((artifact) => artifact.id))
-    : undefined;
+  const { artifacts, currentIds } = options.includeUnverified
+    ? await withUnverified(state)
+    : { artifacts: await currentKnowledgeArtifacts(state), currentIds: undefined };
   const navigationKey = query.trim().replace(/^\[\[|\]\]$/g, '');
 
   return rankKnowledge(
@@ -65,4 +59,15 @@ export async function searchKnowledge(
           ? { ...artifact, status: 'needs_verification' as const }
           : artifact,
     }));
+}
+
+/** Every non-archived artifact plus which ones are current, from one projection. */
+async function withUnverified(state: LearningStoreState) {
+  const projected = await projectedKnowledgeArtifacts(state);
+  const fresh = await freshKnowledgeArtifacts(state, projected);
+
+  return {
+    artifacts: projected.filter((artifact) => artifact.status !== 'archived'),
+    currentIds: new Set(fresh.map((artifact) => artifact.id)),
+  };
 }

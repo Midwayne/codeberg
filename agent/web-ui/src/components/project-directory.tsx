@@ -2,7 +2,7 @@ import type { AddProjectView } from './project-add';
 
 import { Folder } from 'lucide-react';
 
-export type ProjectDirectoryFieldProps = Pick<
+type ProjectDirectoryFieldProps = Pick<
   Parameters<typeof AddProjectView>[0],
   'choosing' | 'busy' | 'chooseFolder' | 'directoryInput' | 'root' | 'setRoot'
 >;

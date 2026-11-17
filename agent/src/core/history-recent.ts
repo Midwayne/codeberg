@@ -3,8 +3,8 @@ import type { ModelMessage } from 'ai';
 import { messageTokens } from './history-tokens.js';
 
 /** Recent history shares the window with its checkpoint and new evidence. */
-export const RECENT_HISTORY_FRACTION = 0.25;
-export const MAX_RECENT_HISTORY_TOKENS = 15_000;
+const RECENT_HISTORY_FRACTION = 0.25;
+const MAX_RECENT_HISTORY_TOKENS = 15_000;
 
 /** A user message and all replies/tool exchanges after it are kept together. */
 export function recentHistoryStart(

@@ -45,7 +45,7 @@ export function useTrainingReview() {
   };
 }
 
-export type ReviewDashboardOptions = {
+type ReviewDashboardOptions = {
   api: typeof fetch;
 };
 
@@ -78,7 +78,7 @@ function useReviewDashboard({ api }: ReviewDashboardOptions) {
   return { dashboard, setDashboard, setDashboardAttempt, loading, dashboardError };
 }
 
-export type ReviewExampleOptions = {
+type ReviewExampleOptions = {
   setSaveError: React.Dispatch<React.SetStateAction<string>>;
   selectedId: string | undefined;
   api: typeof fetch;
@@ -110,7 +110,7 @@ function useReviewExample({ setSaveError, selectedId, api }: ReviewExampleOption
   return { example, detailError, setDetailAttempt };
 }
 
-export type ReviewSelectionOptions = { dashboard: ReviewDashboard | undefined };
+type ReviewSelectionOptions = { dashboard: ReviewDashboard | undefined };
 
 function useReviewSelection({ dashboard }: ReviewSelectionOptions) {
   const [filter, setFilter] = useState<ReviewFilter>('ready');

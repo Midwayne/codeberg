@@ -1,8 +1,9 @@
 import { missingProviderEnv, providerLabel } from '../../providers/requirements.js';
 import type { SetupStatus } from '../../core/setup-types.js';
 import type { ModelSettingsStore } from '../model-selection/settings.js';
+import { errorMessage } from '../../core/errors.js';
 
-export type { SetupProvider, SetupReason, SetupRequired, SetupStatus } from '../../core/setup-types.js';
+export type { SetupProvider, SetupRequired, SetupStatus } from '../../core/setup-types.js';
 
 type SetupSettings = Pick<ModelSettingsStore, 'current' | 'catalogProviders'>;
 
@@ -15,7 +16,7 @@ export async function setupStatus(
 
     return { ready: true };
   } catch (error) {
-    return required(settings, env, message(error));
+    return required(settings, env, errorMessage(error));
   }
 }
 
@@ -28,7 +29,7 @@ async function required(
   try {
     names = await settings.catalogProviders();
   } catch (error) {
-    return { ready: false, reason: 'invalid-config', detail: message(error), providers: [] };
+    return { ready: false, reason: 'invalid-config', detail: errorMessage(error), providers: [] };
   }
 
   if (names.length === 0) return { ready: false, reason: 'no-model', detail, providers: [] };
@@ -40,8 +41,4 @@ async function required(
   const reason = providers.length > 0 ? 'missing-credentials' : 'invalid-config';
 
   return { ready: false, reason, detail, providers };
-}
-
-function message(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

@@ -4,6 +4,7 @@ import type { KnowledgeJob } from '../types.js';
 import { isProcessAlive, isTransientFailure, MAX_ATTEMPTS } from './policy.js';
 import type { DurableJobQueueState } from './state.js';
 import { list, path, transition } from './storage.js';
+import { isMissing } from '../../fs.js';
 
 export async function recoverExpired(state: DurableJobQueueState): Promise<number> {
   let recovered = 0;
@@ -53,7 +54,7 @@ export async function reconcileStates(state: DurableJobQueueState): Promise<void
       try {
         await unlink(path(state, job.status, id));
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        if (!isMissing(error)) throw error;
         // Another worker may already have removed the duplicate state.
       }
     }
@@ -97,7 +98,7 @@ async function removeAbandonedWrites(
     try {
       files = await readdir(dir);
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+      if (isMissing(error)) continue;
 
       throw error;
     }
@@ -109,7 +110,7 @@ async function removeAbandonedWrites(
       try {
         await unlink(join(dir, file));
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        if (!isMissing(error)) throw error;
       }
     }
   }

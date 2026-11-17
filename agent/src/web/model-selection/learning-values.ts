@@ -1,3 +1,5 @@
+import { isRecord } from '../../core/record.js';
+
 export function summarizeAttempt(
   attempt: Record<string, unknown>,
   authoritative?: Record<string, unknown>,
@@ -34,11 +36,7 @@ export function compactObservation(value: unknown, maxChars: number): unknown {
   };
 }
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
-}
-
-export function compactOutput(value: unknown, maxChars: number): unknown {
+function compactOutput(value: unknown, maxChars: number): unknown {
   const text = JSON.stringify(value);
   if (!text || text.length <= maxChars) return value;
 

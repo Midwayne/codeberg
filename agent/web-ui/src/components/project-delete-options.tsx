@@ -1,6 +1,6 @@
 export type ProjectDeletionMode = 'index' | 'all';
 
-export type ProjectDeleteOptionsProps = {
+type ProjectDeleteOptionsProps = {
   mode: ProjectDeletionMode;
   onChange: (mode: ProjectDeletionMode) => void;
   disabled: boolean;

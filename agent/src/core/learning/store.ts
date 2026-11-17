@@ -7,7 +7,9 @@ import {
   attempts,
   currentFeedback,
   interaction,
+  interactions,
   stats,
+  type InteractionHistory,
 } from './store/interactions.js';
 import {
   currentKnowledgeArtifacts,
@@ -70,11 +72,12 @@ export class LearningStore {
     return currentFeedback(this.state, attemptId);
   }
 
-  interaction(interactionId: string): Promise<{
-    attempts: AttemptRecord[];
-    feedback: FeedbackRecord[];
-  }> {
+  interaction(interactionId: string): Promise<InteractionHistory> {
     return interaction(this.state, interactionId);
+  }
+
+  interactions(interactionIds: Iterable<string>): Promise<Map<string, InteractionHistory>> {
+    return interactions(this.state, interactionIds);
   }
 
   attempts(): Promise<AttemptRecord[]> {

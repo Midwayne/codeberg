@@ -12,4 +12,5 @@ export async function recoverInterruptedRun(run: SearchRun): Promise<void> {
   await settleInterruptedEvents(run);
   await publish(run, { type: 'error', errorText: run.record.error });
   await run.journal.save(run.record);
+  await run.journal.close();
 }

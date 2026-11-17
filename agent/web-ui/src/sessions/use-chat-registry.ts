@@ -1,14 +1,14 @@
 import { RunTransport } from './run-transport';
 
-import { useChat } from '@ai-sdk/react';
 import type { UIMessage } from 'ai';
 import { useCallback, useEffect, useState } from 'react';
 
 import { newSessionId, saveSession } from '../lib/sessions';
 import { createWorkspaceChat, type WorkspaceChat } from './workspace-chat';
 import type { ProjectChats } from './project-chat-registry';
+import { useChatReadiness } from './use-chat-readiness';
 
-export type ChatRegistryOptions = {
+type ChatRegistryOptions = {
   api: typeof fetch;
   registry: ProjectChats;
   refreshRef: React.RefObject<() => Promise<void>>;
@@ -47,7 +47,8 @@ export function useChatRegistry({ api, registry, refreshRef, chats, seededRailPr
   }, [registry]);
 
   useEffect(() => registry.subscribe(() => void refreshRef.current()), [registry, refreshRef]);
-  const chat = useChat({ chat: active.chat });
+  // Status only: subscribing to messages here would re-render the whole workspace per token.
+  const readiness = useChatReadiness(active.chat);
   const sessionId = active.id;
 
   // Dev-only: `?preview=rail` fills a tall transcript so the tick rail can be
@@ -62,5 +63,5 @@ export function useChatRegistry({ api, registry, refreshRef, chats, seededRailPr
     });
   }, [active]);
 
-  return { setActive, createChat, sessionId, chat, active };
+  return { setActive, createChat, sessionId, readiness, active };
 }

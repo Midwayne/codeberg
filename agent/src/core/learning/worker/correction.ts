@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { writeLearningTrace } from '../../module-log.js';
 import { withUserNotes } from '../artifact-body.js';
-import { writeAtomic } from '../fs.js';
+import { writeAtomic } from '../../fs.js';
 import { redactSecrets } from '../redact.js';
 import { serializeArtifact } from '../store.js';
 import type { AttemptRecord, KnowledgeArtifact, KnowledgeJob } from '../types.js';
@@ -54,7 +54,7 @@ export async function recordCorrectionNote(
   await saveCorrectionNote(state, match, job, revision, redacted);
 }
 
-export async function saveCorrectionNote(
+async function saveCorrectionNote(
   state: KnowledgeWorkerState,
   match: KnowledgeArtifact,
   job: KnowledgeJob,

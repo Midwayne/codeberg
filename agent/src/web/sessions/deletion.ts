@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { load } from './reading.js';
 import type { WebSessionStoreState } from './state.js';
 import { serial } from './writing.js';
+import { ifMissing } from '../../core/fs.js';
 
 export async function remove(state: WebSessionStoreState, id: string): Promise<void> {
   await serial(state, id, async () => {
@@ -26,11 +27,7 @@ export async function removeOlder(
 ): Promise<number | undefined> {
   return serial(state, id, async () => {
     const path = join(state.dir, `${id}.json`);
-    const info = await lstat(path).catch((error: NodeJS.ErrnoException) => {
-      if (error.code === 'ENOENT') return undefined;
-
-      throw error;
-    });
+    const info = await lstat(path).catch(ifMissing(undefined));
 
     if (!info?.isFile()) return undefined;
 

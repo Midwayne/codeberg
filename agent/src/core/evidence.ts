@@ -1,4 +1,5 @@
 import { chunkKey, type SearchResult } from './types.js';
+import { formatLocation } from './format.js';
 
 /**
  * A running ledger of code the agent has already retrieved this conversation,
@@ -42,10 +43,9 @@ export class EvidenceLedger {
       .slice(-this.max)
       .reverse()
       .map((r) => {
-        const repo = r.repo ? `[${r.repo}] ` : '';
         const sym = r.symbol ? ` ${r.symbol}` : '';
 
-        return `- ${repo}${r.path}:${r.start_line}-${r.end_line}${sym}`;
+        return `- ${formatLocation(r)}${sym}`;
       });
 
     return (

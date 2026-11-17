@@ -1,20 +1,11 @@
 import { ChatSearchResults } from './chat-search-results';
-import { useChatSearch } from './use-chat-search';
+import { useChatSearch, type ChatSearchOptions } from './use-chat-search';
 
-import type { UIMessage } from 'ai';
 import { Search, X } from 'lucide-react';
 
 import type { ChatSearchResult } from '../../lib/chat-search';
 
-export type ChatSearchProps = {
-  open: boolean;
-  onClose: () => void;
-  onSelect: (id: string, messageId?: string) => void;
-  currentId: string;
-  currentTitle: string;
-  currentMessages: readonly UIMessage[];
-  currentFlags: Pick<ChatSearchResult, 'archived' | 'pinned'>;
-};
+type ChatSearchProps = ChatSearchOptions;
 
 export function ChatSearch(props: ChatSearchProps) {
   const state = useChatSearch(props);
@@ -22,7 +13,7 @@ export function ChatSearch(props: ChatSearchProps) {
   return state ? <ChatSearchView {...state} /> : null;
 }
 
-export type ChatSearchViewProps = NonNullable<ReturnType<typeof useChatSearch>>;
+type ChatSearchViewProps = NonNullable<ReturnType<typeof useChatSearch>>;
 
 export function ChatSearchView(state: ChatSearchViewProps) {
   return (
@@ -43,7 +34,7 @@ export type ChatSearchResultButtonProps = Pick<Parameters<typeof ChatSearchResul
   position: number;
 };
 
-export type ChatSearchInputProps = { state: Parameters<typeof ChatSearchView>[0] };
+type ChatSearchInputProps = { state: Parameters<typeof ChatSearchView>[0] };
 
 function ChatSearchInput({ state }: ChatSearchInputProps) {
   return (
@@ -78,7 +69,7 @@ function ChatSearchInput({ state }: ChatSearchInputProps) {
   );
 }
 
-export type ChatSearchDialogProps = { state: Parameters<typeof ChatSearchView>[0] };
+type ChatSearchDialogProps = { state: Parameters<typeof ChatSearchView>[0] };
 
 function ChatSearchDialog({ state }: ChatSearchDialogProps) {
   return (

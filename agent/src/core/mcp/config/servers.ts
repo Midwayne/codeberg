@@ -15,12 +15,12 @@ import {
   interpolateMap,
   interpolateMcpString,
   isExplicitFalse,
-  isRecord,
   isTruthy,
   neverKind,
   normalizeKind,
   parseEnvFile,
 } from './values.js';
+import { isRecord } from '../../record.js';
 
 export function parseServer(
   name: string,
@@ -67,7 +67,7 @@ export function parseServer(
   return parseTransport(name, kind, raw, { command, url }, ctx, opts, warnings);
 }
 
-export function parseTransport(
+function parseTransport(
   name: string,
   kind: McpTransportKind,
   raw: Record<string, unknown>,
@@ -103,7 +103,7 @@ export function parseTransport(
   }
 }
 
-export function parseStdioServer(
+function parseStdioServer(
   name: string,
   command: string,
   raw: Record<string, unknown>,
@@ -131,7 +131,7 @@ export function parseStdioServer(
   return server;
 }
 
-export function loadStdioEnv(
+function loadStdioEnv(
   raw: Record<string, unknown>,
   ctx: McpInterpolateContext,
   opts: ParseMcpJsonOptions,

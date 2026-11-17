@@ -61,7 +61,7 @@ export async function process(state: KnowledgeWorkerState, job: KnowledgeJob): P
   await persistExtraction(state, context, response, claims, rejectedIndexes);
 }
 
-export async function generateExtraction(state: KnowledgeWorkerState, context: ExtractionContext) {
+async function generateExtraction(state: KnowledgeWorkerState, context: ExtractionContext) {
   const { job, refresh, final, currentFeedback, interaction, existing, observations } = context;
 
   const prompt = knowledgePrompt({

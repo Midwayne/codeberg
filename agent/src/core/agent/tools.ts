@@ -10,12 +10,21 @@ import { maxReasoningProviderOptions } from '../reasoning.js';
 import { mergeProviderOptions, parallelToolProviderOptions } from '../tool-calls.js';
 import { createAgentTools } from '../tools/agent-tools.js';
 import { BATCH_TOOL, MAX_BATCH_CALLS } from '../tools/batch.js';
+import { SEARCH_BUNDLE_INSTRUCTIONS } from '../tools/search-bundle.js';
 import { DEFAULT_SEARCH_K } from './options.js';
 import type { AgentState } from './state.js';
 import { budgetWindow } from '../../providers/profiles.js';
 import { configuredDecision } from '../decisions/catalog.js';
 import { decisionTools } from '../decisions/tool.js';
 import { BACKGROUND_INSTRUCTIONS } from '../background/tools.js';
+import { envEnabled } from '../env-flag.js';
+
+/** Guidance each tool family adds to the system prompt when any of its tools is offered. */
+const TOOL_FAMILY_INSTRUCTIONS: { offered: (name: string) => boolean; text: string }[] = [
+  { offered: (name) => name === 'search_bundle', text: SEARCH_BUNDLE_INSTRUCTIONS },
+  { offered: (name) => name.startsWith('canvas_'), text: CANVAS_INSTRUCTIONS },
+  { offered: (name) => name === 'sleep_agent', text: BACKGROUND_INSTRUCTIONS },
+];
 
 export async function prepareSystem(
   state: AgentState,
@@ -35,10 +44,9 @@ export async function prepareSystem(
     decisions: toolNames.includes('decide'),
     vectors: toolNames.includes('search_code'),
   });
-  if (toolNames.includes('search_bundle')) state.system += '\n\nsearch_bundle is an experimental read-only pipeline for up to four explicit repository/query pairs. Use repos to discover keys, then use it for cross-repository evidence. Inspect partial failures and omitted results before concluding absence.';
-
-  if (toolNames.some((name) => name.startsWith('canvas_'))) state.system += CANVAS_INSTRUCTIONS;
-  if (toolNames.includes('sleep_agent')) state.system += BACKGROUND_INSTRUCTIONS;
+  for (const family of TOOL_FAMILY_INSTRUCTIONS) {
+    if (toolNames.some(family.offered)) state.system += family.text;
+  }
 
   const knowledgeIndex = await state.learning?.knowledgeIndex();
   if (knowledgeIndex) state.system += `\n\n${knowledgeIndex}`;
@@ -73,7 +81,7 @@ export async function buildTools(state: AgentState) {
       return state.mcpSource;
     },
     defaultSearchK: DEFAULT_SEARCH_K,
-    searchBundle: ['true', '1', 'on', 'yes'].includes((state.env.CODEBERG_SEARCH_BUNDLE_USE ?? '').toLowerCase()),
+    searchBundle: envEnabled(state.env.CODEBERG_SEARCH_BUNDLE_USE),
     onResults: (hits) => state.sources.push(...hits),
   });
 

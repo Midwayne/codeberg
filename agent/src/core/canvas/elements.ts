@@ -23,7 +23,7 @@ export function makeElement(input: ElementInput, index: number): Element {
   };
 }
 
-export function textProperties(text: string): Record<string, unknown> {
+function textProperties(text: string): Record<string, unknown> {
   return { text, originalText: text, fontSize: 20, fontFamily: 5, textAlign: 'center',
     verticalAlign: 'middle', containerId: null, autoResize: true, lineHeight: 1.25 };
 }

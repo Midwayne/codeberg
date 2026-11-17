@@ -1,5 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
+import { HttpError } from '../core/http-error.js';
+
 export function sendJson(res: ServerResponse, status: number, value: unknown): void {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(value));
@@ -45,18 +47,42 @@ export function requireJsonMutation(
   return true;
 }
 
-export async function readJson(req: IncomingMessage): Promise<Record<string, unknown> | null> {
+/**
+ * Reads a request body, refusing more than `maxBytes` with a 413. The rest of
+ * an oversized body is drained so the response can still be delivered.
+ */
+export async function readBody(
+  req: IncomingMessage,
+  maxBytes = Number.POSITIVE_INFINITY,
+  tooLarge = 'Request body is too large.',
+): Promise<Buffer> {
   const chunks: Buffer[] = [];
-  for await (const chunk of req) {
-    chunks.push(chunk as Buffer);
+  let size = 0;
+
+  for await (const chunk of req.iterator({ destroyOnReturn: false })) {
+    const bytes = Buffer.from(chunk as Buffer);
+    size += bytes.length;
+    if (size > maxBytes) {
+      req.resume();
+
+      throw new HttpError(413, tooLarge);
+    }
+
+    chunks.push(bytes);
   }
 
-  if (chunks.length === 0) {
+  return Buffer.concat(chunks);
+}
+
+/** A JSON body, or null when it is empty or malformed. */
+export async function readJson(req: IncomingMessage): Promise<Record<string, unknown> | null> {
+  const body = await readBody(req);
+  if (body.length === 0) {
     return null;
   }
 
   try {
-    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    return JSON.parse(body.toString('utf8'));
   } catch {
     return null;
   }

@@ -3,7 +3,7 @@ import { labels, descriptions, buttonClass } from './settings-styles';
 import { formatBytes, type CleanupCategory, type CleanupPreview } from '../lib/resources';
 import { Select } from './ui';
 
-export type CleanupOptionsProps = {
+type CleanupOptionsProps = {
   preview?: CleanupPreview;
   selected: CleanupCategory[];
   onSelect: (value: CleanupCategory[]) => void;
@@ -56,12 +56,12 @@ export function CleanupOptions({
   );
 }
 
-export type CleanupCategoriesProps = Pick<
+type CleanupCategoriesProps = Pick<
   Parameters<typeof CleanupOptions>[0],
   'busy' | 'preview' | 'selected' | 'onSelect' | 'unavailable'
 > & { rows: { category: CleanupCategory; count: number; bytes: number }[] | undefined };
 
-export function CleanupCategories({ busy, preview, rows, selected, onSelect, unavailable }: CleanupCategoriesProps) {
+function CleanupCategories({ busy, preview, rows, selected, onSelect, unavailable }: CleanupCategoriesProps) {
   return (
     <fieldset disabled={busy || !preview} className="space-y-3">
       <legend className="sr-only">Data to delete</legend>
@@ -103,9 +103,9 @@ export function CleanupCategories({ busy, preview, rows, selected, onSelect, una
   );
 }
 
-export type CleanupAgeProps = Pick<Parameters<typeof CleanupOptions>[0], 'days' | 'busy' | 'onDays'>;
+type CleanupAgeProps = Pick<Parameters<typeof CleanupOptions>[0], 'days' | 'busy' | 'onDays'>;
 
-export function CleanupAge({ days, busy, onDays }: CleanupAgeProps) {
+function CleanupAge({ days, busy, onDays }: CleanupAgeProps) {
   return (
     <label className="block text-sm font-medium">
       Older than{' '}

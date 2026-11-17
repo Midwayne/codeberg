@@ -3,6 +3,10 @@ import type { UIMessage } from 'ai';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { rankChatResults, searchChats, type ChatSearchResult } from '../../lib/chat-search';
+import { errorMessage } from '@agent/core/errors.js';
+
+/** Server hits, tagged with the query that produced them. */
+type RemoteHits = { query: string; hits: ChatSearchResult[] };
 
 export type ChatSearchOptions = {
   open: boolean;
@@ -44,7 +48,7 @@ export function useChatSearch({
   useSearchResultScroll({ resultsRef, active, remote, query });
 
   if (!open) return null;
-  const { choose } = createSearchSelection({ onSelect, onClose });
+  const choose = selectAndClose(onSelect, onClose);
 
   return {
     onClose,
@@ -64,15 +68,15 @@ export function useChatSearch({
   };
 }
 
-export type RemoteSearchOptions = Pick<Parameters<typeof useChatSearch>[0], 'open'> & {
+type RemoteSearchOptions = Pick<Parameters<typeof useChatSearch>[0], 'open'> & {
   query: string;
   setLoading: React.Dispatch<React.SetStateAction<boolean>>;
   setError: React.Dispatch<React.SetStateAction<string>>;
   api: typeof fetch;
-  setRemote: React.Dispatch<React.SetStateAction<{ query: string; hits: ChatSearchResult[] }>>;
+  setRemote: React.Dispatch<React.SetStateAction<RemoteHits>>;
 };
 
-export function useRemoteSearch({ query, open, setLoading, setError, api, setRemote }: RemoteSearchOptions) {
+function useRemoteSearch({ query, open, setLoading, setError, api, setRemote }: RemoteSearchOptions) {
   useEffect(() => {
     const term = query.trim();
     if (!open || !term) {
@@ -90,7 +94,7 @@ export function useRemoteSearch({ query, open, setLoading, setError, api, setRem
         })
         .catch((reason: unknown) => {
           if (controller.signal.aborted) return;
-          setError(reason instanceof Error ? reason.message : 'Search failed');
+          setError(errorMessage(reason, 'Search failed'));
           setLoading(false);
         });
     }, 180);
@@ -101,12 +105,12 @@ export function useRemoteSearch({ query, open, setLoading, setError, api, setRem
   }, [open, query, api]);
 }
 
-export type SearchFocusOptions = Pick<Parameters<typeof useChatSearch>[0], 'open'>;
+type SearchFocusOptions = Pick<Parameters<typeof useChatSearch>[0], 'open'>;
 
 function useSearchFocus({ open }: SearchFocusOptions) {
   const [query, setQuery] = useState('');
 
-  const [remote, setRemote] = useState<{ query: string; hits: ChatSearchResult[] }>({ query: '', hits: [] });
+  const [remote, setRemote] = useState<RemoteHits>({ query: '', hits: [] });
 
   const [active, setActive] = useState(0);
 
@@ -128,10 +132,10 @@ function useSearchFocus({ open }: SearchFocusOptions) {
   return { query, setRemote, remote, resultsRef, active, dialogRef, setActive, inputRef, setQuery };
 }
 
-export type RankedChatResultsOptions = Pick<
+type RankedChatResultsOptions = Pick<
   Parameters<typeof useChatSearch>[0],
   'currentId' | 'currentTitle' | 'currentMessages' | 'currentFlags'
-> & { query: string; remote: { query: string; hits: ChatSearchResult[] } };
+> & { query: string; remote: RemoteHits };
 
 function useRankedChatResults({
   query,
@@ -157,10 +161,10 @@ function useRankedChatResults({
   return { current, others };
 }
 
-export type SearchResultScrollOptions = {
+type SearchResultScrollOptions = {
   resultsRef: React.RefObject<HTMLDivElement | null>;
   active: number;
-  remote: { query: string; hits: ChatSearchResult[] };
+  remote: RemoteHits;
   query: string;
 };
 
@@ -170,14 +174,9 @@ function useSearchResultScroll({ resultsRef, active, remote, query }: SearchResu
   }, [active, remote, query]);
 }
 
-function createSearchSelection({
-  onSelect,
-  onClose,
-}: Pick<Parameters<typeof useChatSearch>[0], 'onSelect' | 'onClose'>) {
-  const choose = (item: ChatSearchResult) => {
+function selectAndClose(onSelect: ChatSearchOptions['onSelect'], onClose: ChatSearchOptions['onClose']) {
+  return (item: ChatSearchResult) => {
     onSelect(item.id, item.messageId);
     onClose();
   };
-
-  return { choose };
 }

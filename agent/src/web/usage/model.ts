@@ -5,7 +5,7 @@ import { estimateCost } from './cost.js';
 import type { UsageStore } from './store.js';
 
 type ProviderUsage = Awaited<ReturnType<Parameters<NonNullable<LanguageModelMiddleware['wrapGenerate']>>[0]['doGenerate']>>['usage'];
-export type UsageContext = Pick<UsageRecord, 'model' | 'key' | 'kind' | 'project' | 'projectName'>;
+type UsageContext = Pick<UsageRecord, 'model' | 'key' | 'kind' | 'project' | 'projectName'>;
 
 export function trackModelUsage(
   model: LanguageModel,

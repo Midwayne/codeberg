@@ -8,7 +8,7 @@ import { Select } from '../ui';
 import { cn } from '../../lib/utils';
 import { FEEDBACK_OPTIONS, loadFeedback, rateAttempt, type FeedbackOption } from '../../lib/learning';
 
-export type FeedbackActionsProps = { conversationId: string; messageId: string };
+type FeedbackActionsProps = { conversationId: string; messageId: string };
 
 export function FeedbackActions(props: FeedbackActionsProps) {
   const state = useFeedbackActions(props);
@@ -16,9 +16,7 @@ export function FeedbackActions(props: FeedbackActionsProps) {
   return <FeedbackActionsView {...state} />;
 }
 
-export type FeedbackActionsOptions = { conversationId: string; messageId: string };
-
-export function useFeedbackActions({ conversationId, messageId }: FeedbackActionsOptions) {
+function useFeedbackActions({ conversationId, messageId }: FeedbackActionsProps) {
   const { fetch: api } = useProjectApi();
   const [selected, setSelected] = useState<string>();
   const [failed, setFailed] = useState(false);
@@ -33,7 +31,7 @@ export function useFeedbackActions({ conversationId, messageId }: FeedbackAction
     setSelected(undefined);
     setFailed(false);
     void loadFeedback(conversationId, messageId, api).then((feedback) => {
-      if (request === generation.current && !savingRef.current) setSelected(feedback?.label);
+      if (request === generation.current) setSelected(feedback?.label);
     });
     return () => {
       generation.current++;
@@ -66,9 +64,9 @@ export function useFeedbackActions({ conversationId, messageId }: FeedbackAction
   return { saving, selected, choose, failed };
 }
 
-export type FeedbackActionsViewProps = ReturnType<typeof useFeedbackActions>;
+type FeedbackActionsViewProps = ReturnType<typeof useFeedbackActions>;
 
-export function FeedbackActionsView({ saving, selected, choose, failed }: FeedbackActionsViewProps) {
+function FeedbackActionsView({ saving, selected, choose, failed }: FeedbackActionsViewProps) {
   return (
     <div
       role="group"

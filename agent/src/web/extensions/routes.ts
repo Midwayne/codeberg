@@ -6,6 +6,8 @@ import { readJson, sendJson, sendText } from '../http.js';
 import { previewSkillFiles } from './preview.js';
 import type { ExtensionStoreState } from './state.js';
 import { add } from './writing.js';
+import { errorMessage } from '../../core/errors.js';
+import { DBMCP_SERVER_NAME } from '../../core/mcp/builtin.js';
 
 export async function route(
   state: ExtensionStoreState,
@@ -25,7 +27,7 @@ export async function route(
       return sendText(
         res,
         400,
-        error instanceof Error ? error.message : 'Could not preview skill files',
+        errorMessage(error, 'Could not preview skill files'),
       );
     }
   }
@@ -44,7 +46,7 @@ export async function route(
 
     return sendJson(res, 201, { ok: true });
   } catch (error) {
-    return sendText(res, 400, error instanceof Error ? error.message : 'Could not add extension');
+    return sendText(res, 400, errorMessage(error, 'Could not add extension'));
   }
 }
 
@@ -79,7 +81,7 @@ async function mcpScope(
   home: string,
   env: NodeJS.ProcessEnv,
 ): Promise<string> {
-  let scope = name === 'databases' ? 'project' : 'global';
+  let scope = name === DBMCP_SERVER_NAME ? 'project' : 'global';
   for (const file of files) {
     let parsed: Record<string, unknown>;
     try {

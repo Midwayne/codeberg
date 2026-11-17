@@ -5,6 +5,8 @@ import { isScheduledFollowUp } from '@agent/core/schedules/messages';
 
 import type { UIMessage } from 'ai';
 
+import { memo } from 'react';
+
 import { cn } from '../../lib/utils';
 
 export type AnyPart = UIMessage['parts'][number];
@@ -20,24 +22,29 @@ export interface ToolView {
   errorText?: string;
 }
 
-export type MessageProps = {
+type MessageProps = {
   message: UIMessage;
   onRegenerate?: () => void;
-  onBranch?: () => void;
+  /** Branches through this message's `index`; a stable callback keeps earlier rows memoized. */
+  onBranch?: (index: number) => void;
+  index?: number;
   /** Stable id written to the DOM so the tick rail can scroll here. */
   domId?: string;
   conversationId?: string;
   learningEnabled?: boolean;
 };
 
-export function Message({
+/** Earlier messages keep their object identity while a reply streams, so they skip re-rendering. */
+export const Message = memo(function Message({
   message,
   onRegenerate,
-  onBranch,
+  onBranch: branchThrough,
+  index = 0,
   domId,
   conversationId,
   learningEnabled = true,
 }: MessageProps) {
+  const onBranch = branchThrough ? () => branchThrough(index) : undefined;
   const isUser = message.role === 'user';
   const scheduled = isScheduledFollowUp(message);
   const showActions = !scheduled && Boolean(onRegenerate || onBranch || (!isUser && message.parts.length > 0));
@@ -68,7 +75,7 @@ export function Message({
       )}
     </div>
   );
-}
+});
 
 export type AttachmentProps = { file: Extract<AnyPart, { type: 'file' }> };
 

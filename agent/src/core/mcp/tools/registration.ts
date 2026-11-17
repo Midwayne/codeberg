@@ -4,6 +4,7 @@ import type { McpClientHandle } from '../client.js';
 import { mcpToolName } from '../names.js';
 import type { McpServer } from '../types.js';
 import type { OpenedServer } from './state.js';
+import { errorMessage } from '../../errors.js';
 
 export async function openServer(
   server: McpServer,
@@ -32,7 +33,7 @@ export async function openServer(
   };
 }
 
-export async function registerTools(
+async function registerTools(
   server: McpServer,
   defs: ToolSet,
   out: ToolSet,
@@ -69,16 +70,12 @@ export async function registerTools(
   return { rawNames, tools };
 }
 
-export function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
-export function describeTool(def: Tool): string {
+function describeTool(def: Tool): string {
   return typeof def.description === 'string' ? def.description : '';
 }
 
 /** A new tool object. The client's definition keeps its original description. */
-export function copyWithServerDescription(serverName: string, def: Tool): Tool {
+function copyWithServerDescription(serverName: string, def: Tool): Tool {
   const desc = describeTool(def);
   const prefix = `MCP server "${serverName}"`;
   const description = desc ? `${prefix}: ${desc}` : prefix;
@@ -86,7 +83,7 @@ export function copyWithServerDescription(serverName: string, def: Tool): Tool {
   return { ...def, description } as Tool;
 }
 
-export async function readJsonSchema(def: Tool): Promise<unknown> {
+async function readJsonSchema(def: Tool): Promise<unknown> {
   const schema = def.inputSchema;
   if (schema == null) return {};
 

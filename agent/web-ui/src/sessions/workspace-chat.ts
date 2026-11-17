@@ -7,16 +7,12 @@ import { chatPersistence } from './workspace-persistence';
 import { persistingTransport } from './persisting-transport';
 import type { ChatSaveState } from './chat-save-state';
 import { reloadWorkspaceChat } from './chat-reload';
+import type { SaveSessionInput } from '../lib/sessions';
 
-export interface WorkspaceChatSave {
-  id: string;
-  title: string;
-  messages: UIMessage[];
-  parentId?: string;
-}
+export type WorkspaceChatSave = SaveSessionInput;
 
 /** Where a chat forked, so its view can mark the copied part of the transcript. */
-export interface ChatBranchOrigin {
+interface ChatBranchOrigin {
   parentTitle: string;
   messageCount: number;
   /** Set once the arrival animation has played, so reopening the chat stays still. */

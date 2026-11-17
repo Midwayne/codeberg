@@ -23,7 +23,7 @@ export function extractEvidence(toolName: string, output: unknown): SearchResult
   return hits;
 }
 
-export function extractToolHits(toolName: string, output: unknown): SearchResult[] {
+function extractToolHits(toolName: string, output: unknown): SearchResult[] {
   switch (toolName) {
     case 'search_bundle':
       return output && typeof output === 'object' && 'evidence' in output ? extractSearchHits(output.evidence) : [];
@@ -83,7 +83,7 @@ export function extractSearchHits(output: unknown): SearchResult[] {
   return output.map(normalizeSearchHit).filter((h): h is SearchResult => h != null);
 }
 
-export function extractChunkDetail(output: unknown): SearchResult[] {
+function extractChunkDetail(output: unknown): SearchResult[] {
   const hit = normalizeSearchHit(output);
 
   return hit ? [hit] : [];

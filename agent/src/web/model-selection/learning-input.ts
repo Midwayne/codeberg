@@ -1,4 +1,5 @@
-import { compactObservation, isRecord, summarizeAttempt } from './learning-values.js';
+import { isRecord } from '../../core/record.js';
+import { compactObservation, summarizeAttempt } from './learning-values.js';
 
 export function boundLearningContext(input: string, system: string, contextWindow: number): string {
   // Reserve roughly half the token window for output and account for system text.
@@ -31,12 +32,12 @@ export function boundLearningContext(input: string, system: string, contextWindo
   });
 }
 
-export interface KnowledgeInput extends Record<string, unknown> {
+interface KnowledgeInput extends Record<string, unknown> {
   authoritative_attempt_id: string;
   interaction: Record<string, unknown> & { attempts: unknown[] };
 }
 
-export function parseKnowledgeInput(input: string): KnowledgeInput | undefined {
+function parseKnowledgeInput(input: string): KnowledgeInput | undefined {
   try {
     const value = JSON.parse(input) as unknown;
     if (
@@ -54,7 +55,7 @@ export function parseKnowledgeInput(input: string): KnowledgeInput | undefined {
   return undefined;
 }
 
-export function compactKnowledgeInput(data: KnowledgeInput, maxChars: number): string {
+function compactKnowledgeInput(data: KnowledgeInput, maxChars: number): string {
   const summary = knowledgeSummary(data);
 
   const compact = JSON.stringify(summary);

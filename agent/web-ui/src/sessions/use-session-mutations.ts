@@ -2,8 +2,9 @@ import { useCallback } from 'react';
 
 import { deleteSession, renameSession, updateSessionFlags } from '../lib/sessions';
 import type { WorkspaceChat } from './workspace-chat';
+import { errorMessage } from '@agent/core/errors.js';
 
-export type SessionMutationsOptions = {
+type SessionMutationsOptions = {
   cancelResume: () => void;
   chats: React.RefObject<Map<string, WorkspaceChat>>;
   sessionId: string;
@@ -34,7 +35,7 @@ export function useSessionMutations({
         await deleteSession(id, api);
         setSessionError('');
       } catch (error) {
-        setSessionError(error instanceof Error ? error.message : 'Could not delete chat.');
+        setSessionError(errorMessage(error, 'Could not delete chat.'));
       } finally {
         chats.current.delete(id);
         void refresh();
@@ -50,7 +51,7 @@ export function useSessionMutations({
         setSessionError('');
         await refresh();
       } catch (error) {
-        setSessionError(error instanceof Error ? error.message : 'Could not update chat');
+        setSessionError(errorMessage(error, 'Could not update chat'));
       }
     },
     [refresh, api],
@@ -76,7 +77,7 @@ function useSessionRename({ chats, api, refresh, setSessionError }: SessionRenam
         setSessionError('');
         await refresh();
       } catch (error) {
-        setSessionError(error instanceof Error ? error.message : 'Could not rename chat');
+        setSessionError(errorMessage(error, 'Could not rename chat'));
       }
     },
     [refresh, api, chats, setSessionError],

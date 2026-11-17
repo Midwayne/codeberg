@@ -15,7 +15,7 @@ const Markdown = lazy(() => import('./markdown'));
  * citations (`[path:12-40]`) render as numbered hover chips instead of full
  * paths (see markdown.tsx).
  */
-export type ResponseProps = { children: string; className?: string };
+type ResponseProps = { children: string; className?: string };
 
 export function Response({ children, className }: ResponseProps) {
   return (

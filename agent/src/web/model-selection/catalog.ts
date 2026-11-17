@@ -1,29 +1,21 @@
-import { readFile } from 'node:fs/promises';
-
-import { parseDocument } from 'yaml';
-
 import {
   MODEL_INPUTS,
   type CatalogModel,
   type ModelInput,
   type ModelSelection,
 } from '../../core/model-types.js';
-import { maxReasoningProviderOptions } from '../../core/reasoning.js';
+import { assertMaxEffort } from '../../core/reasoning.js';
 import { REASONING_EFFORTS, type ReasoningEffort } from '../../core/types.js';
 import { profileFor } from '../../providers/profiles.js';
 import { parsePricing } from '../usage/pricing.js';
+import { record as object } from '../../core/record.js';
+import { readModelsFile, type ModelsFile } from '../../core/models-file.js';
 
 export interface ModelCatalogOptions {
   catalogPath: string;
   defaultChat: ModelSelection;
   defaultLearning: ModelSelection;
   availableProvider?: (provider: string) => boolean;
-}
-
-function object(value: unknown): Record<string, unknown> | undefined {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
 }
 
 function validEffort(value: unknown): value is ReasoningEffort {
@@ -38,7 +30,7 @@ function fallbackCatalog(options: ModelCatalogOptions): CatalogModel[] {
       (options.defaultChat.key === spec && options.defaultChat.effort === 'max') ||
       (options.defaultLearning.key === spec && options.defaultLearning.effort === 'max')
     ) {
-      maxReasoningProviderOptions(profile.provider);
+      assertMaxEffort(profile.provider);
     }
 
     return {
@@ -64,20 +56,11 @@ function fallbackCatalog(options: ModelCatalogOptions): CatalogModel[] {
 }
 
 /** Read and validate the catalog independently of a user's saved selections. */
-export async function loadModelCatalog(options: ModelCatalogOptions): Promise<CatalogModel[]> {
-  let raw: string;
-  try {
-    raw = await readFile(options.catalogPath, 'utf8');
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+export async function loadModelCatalog(options: ModelCatalogOptions, file?: ModelsFile): Promise<CatalogModel[]> {
+  const parsed = file ?? await readModelsFile(options.catalogPath);
+  if (parsed.missing) return fallbackCatalog(options);
 
-    return fallbackCatalog(options);
-  }
-
-  const document = parseDocument(raw, { uniqueKeys: true });
-  if (document.errors.length) throw new Error(`invalid models.yml: ${document.errors[0].message}`);
-
-  const providers = object(object(document.toJS())?.providers);
+  const providers = object(object(parsed.root)?.providers);
   if (!providers) throw new Error('models.yml must contain providers with models');
 
   const models: CatalogModel[] = [];
@@ -121,7 +104,7 @@ function parseCatalogModel(provider: string, id: string, definition: unknown): C
     throw new Error(`invalid efforts for ${provider}:${id}`);
   }
 
-  if (efforts.includes('max')) maxReasoningProviderOptions(provider);
+  if (efforts.includes('max')) assertMaxEffort(provider);
 
   const inputs = value.inputs ?? ['text'];
   if (

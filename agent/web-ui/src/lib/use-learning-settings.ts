@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 
 import { loadLearningSettings, saveLearningSettings, type LearningSettings } from './learning-settings';
 import { useProjectApi } from './project-api';
+import { errorMessage } from '@agent/core/errors.js';
 
-export type LearningSettingsPanelOptions = { onSaved?: () => void };
+type LearningSettingsPanelOptions = { onSaved?: () => void };
 
 export function useLearningSettingsPanel({ onSaved }: LearningSettingsPanelOptions) {
   const { fetch: api, project } = useProjectApi();
@@ -33,7 +34,7 @@ export function useLearningSettingsPanel({ onSaved }: LearningSettingsPanelOptio
     } catch (reason) {
       if (active.current) {
         setSettings(previous);
-        setError(reason instanceof Error ? reason.message : String(reason));
+        setError(errorMessage(reason));
       }
     } finally {
       saving.current = false;
@@ -45,7 +46,7 @@ export function useLearningSettingsPanel({ onSaved }: LearningSettingsPanelOptio
 }
 
 /** Loads the settings; `active` tells a late save whether this load is still the current one. */
-function useLoadedLearningSettings(api: typeof fetch) {
+export function useLoadedLearningSettings(api: typeof fetch) {
   const [settings, setSettings] = useState<LearningSettings | null>();
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
@@ -61,7 +62,7 @@ function useLoadedLearningSettings(api: typeof fetch) {
         if (current) setSettings(value);
       })
       .catch((reason: unknown) => {
-        if (current) setError(reason instanceof Error ? reason.message : String(reason));
+        if (current) setError(errorMessage(reason));
       });
 
     return () => {

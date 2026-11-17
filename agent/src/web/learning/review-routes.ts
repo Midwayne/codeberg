@@ -40,37 +40,26 @@ export async function reviewExample(
   return applyReview(res, learning, id, body, oracle);
 }
 
-export async function applyReview(
+async function applyReview(
   res: ServerResponse,
   learning: LearningService,
   id: string,
   body: Record<string, unknown>,
   oracle?: Record<string, unknown>,
 ): Promise<void> {
-  try {
-    const result =
-      body.decision === 'dismiss'
-        ? await learning.datasets.dismiss(id)
-        : await learning.datasets.promote(id, body.decision as 'training' | 'eval', {
-            provenance: 'user_confirmed',
-            ...(oracle ? { oracle } : {}),
-          });
+  // Not-found, conflict and invalid-review errors carry their status to the server's error handler.
+  const result =
+    body.decision === 'dismiss'
+      ? await learning.datasets.dismiss(id)
+      : await learning.datasets.promote(id, body.decision as 'training' | 'eval', {
+          provenance: 'user_confirmed',
+          ...(oracle ? { oracle } : {}),
+        });
 
-    return sendJson(res, 201, result);
-  } catch (error) {
-    const message = String(error);
-    if (message.includes('candidate not found')) return sendText(res, 404, 'candidate not found');
-
-    if (/stale|obsolete|already|duplicate|in progress/.test(message))
-      return sendText(res, 409, message);
-
-    if (/requires|unknown review/.test(message)) return sendText(res, 400, message);
-
-    throw error;
-  }
+  return sendJson(res, 201, result);
 }
 
-export function reviewOracle(input: unknown): Record<string, unknown> | undefined {
+function reviewOracle(input: unknown): Record<string, unknown> | undefined {
   if (input === undefined) return undefined;
 
   if (!input || typeof input !== 'object' || Array.isArray(input)) return undefined;

@@ -7,7 +7,7 @@ import { scoreOutputsFile } from './output-evals.js';
 import { DatasetStore, type Provenance } from '../core/learning/datasets.js';
 import { exportDataset, type ExportType } from '../core/learning/export.js';
 import { EvaluationReports } from '../core/learning/evaluation/reports.js';
-import { writeAtomic } from '../core/learning/fs.js';
+import { writeAtomic } from '../core/fs.js';
 import {
   historicalEvalMetrics,
   scoreRetrievalRuns,

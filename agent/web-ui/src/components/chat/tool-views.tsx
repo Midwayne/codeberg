@@ -19,7 +19,7 @@ import type { ToolView } from './message';
 import { isSpillPreview } from '../../lib/tool-output';
 
 /** Dispatch to a rich renderer when we know the tool shape; otherwise JSON. */
-export type ToolViewRouterProps = { part: ToolView };
+type ToolViewRouterProps = { part: ToolView };
 
 export function ToolViewRouter({ part }: ToolViewRouterProps) {
   const name =
@@ -82,7 +82,7 @@ export type SourceCardProps = { hit: DisplayHit };
 
 export type JsonBlockProps = { label: string; value: unknown };
 
-export type CompletedToolProps = { name: string; part: ToolView };
+type CompletedToolProps = { name: string; part: ToolView };
 
 function CompletedTool({ name, part }: CompletedToolProps) {
   switch (name) {

@@ -1,6 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { writeJsonAtomic, writeJsonImmutable } from '../fs.js';
+import { ifMissing, isMissing, writeJsonAtomic, writeJsonImmutable } from '../../fs.js';
 import { redactSecrets } from '../redact.js';
 import type {
   AutomaticEvalReport,
@@ -22,7 +22,7 @@ export class EvaluationReports {
     try {
       return JSON.parse(await readFile(this.path(bucket, id), 'utf8')) as T;
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+      if (isMissing(error)) return undefined;
 
       throw error;
     }
@@ -41,13 +41,7 @@ export class EvaluationReports {
   }
 
   async list(): Promise<AutomaticEvalReport[]> {
-    const files = await readdir(join(this.root, 'evaluations', 'reports')).catch(
-      (error: NodeJS.ErrnoException) => {
-        if (error.code === 'ENOENT') return [];
-
-        throw error;
-      },
-    );
+    const files = await readdir(join(this.root, 'evaluations', 'reports')).catch(ifMissing([]));
     const reports = await Promise.all(
       files
         .filter((file) => /^evaluation-[a-f0-9]{24}\.json$/.test(file))

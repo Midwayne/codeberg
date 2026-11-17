@@ -1,4 +1,5 @@
 import type { ProcessUsage } from '../process-resources.js';
+import { HttpError } from '../../core/http-error.js';
 
 export const CLEANUP_CATEGORIES = ['chats', 'training', 'knowledge'] as const;
 
@@ -23,11 +24,8 @@ export interface StoredFile {
   mtimeMs: number;
 }
 
-export class ResourceSettingsError extends Error {
-  constructor(
-    message: string,
-    readonly status = 400,
-  ) {
-    super(message);
+export class ResourceSettingsError extends HttpError {
+  constructor(message: string, status = 400) {
+    super(status, message);
   }
 }

@@ -5,7 +5,7 @@ import { inputFor, MAX_FILE_SIZE } from '../../lib/prompt-files';
 
 export { PromptAction } from './prompt-actions';
 
-export type PromptAttachmentsProps = { state: Parameters<typeof PromptInputView>[0] };
+type PromptAttachmentsProps = { state: Parameters<typeof PromptInputView>[0] };
 
 export function PromptAttachments({ state }: PromptAttachmentsProps) {
   return (
@@ -49,7 +49,7 @@ export function PromptAttachments({ state }: PromptAttachmentsProps) {
   );
 }
 
-export type PromptFilesProps = { state: Parameters<typeof PromptInputView>[0] };
+type PromptFilesProps = { state: Parameters<typeof PromptInputView>[0] };
 
 export function PromptFiles({ state }: PromptFilesProps) {
   return (
