@@ -1,8 +1,8 @@
 import { isToolUIPart, type ChatStatus, type UIMessage } from 'ai';
 
-import { CubeLoader } from './cube-loader';
 import { useElapsedSeconds } from './use-elapsed';
-import { formatElapsed, workingPhase } from './working-phase';
+import { loaderForTurn, WorkingLoader } from './working-loader';
+import { formatElapsed, turnCount, workingPhase } from './working-phase';
 
 import './working-status.css';
 
@@ -28,7 +28,7 @@ function WorkingIndicator({ messages }: WorkingIndicatorProps) {
   return (
     <div role="status" aria-live="polite" aria-atomic="true" className="working-status text-sm text-foreground">
       <span className="sr-only">Working…</span>
-      <CubeLoader />
+      <WorkingLoader variant={loaderForTurn(turnCount(messages))} />
       <span aria-hidden="true" className="working-label" data-phase={phase.kind} key={phase.label}>
         {phase.label}…
       </span>

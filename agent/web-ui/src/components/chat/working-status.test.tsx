@@ -12,8 +12,8 @@ it('shows the cube loader while waiting and hides it once response text is visib
 
   expect(submitted).toContain('role="status"');
   expect(submitted).toContain('class="sr-only">Working…');
-  expect(submitted).toContain('class="cube-loader"');
-  expect(submitted.match(/class="cube-loader-face"/g)).toHaveLength(6);
+  expect(submitted).toContain('data-loader="cube"');
+  expect(submitted.match(/class="loader-cube-face"/g)).toHaveLength(6);
   expect(submitted).toContain('data-phase="waiting"');
   expect(submitted).toContain('Thinking…');
 
@@ -38,13 +38,13 @@ it('names the running tool and keeps the loader while steering', () => {
 
   expect(streaming).toContain('data-phase="tool"');
   expect(streaming).toContain('Searching the code…');
-  expect(renderToStaticMarkup(<WorkingStatus status="ready" messages={messages} steering />)).toContain('cube-loader');
+  expect(renderToStaticMarkup(<WorkingStatus status="ready" messages={messages} steering />)).toContain('class="working-loader"');
 });
 
 it('shows the loader before the first text delta and again when a tool follows response text', () => {
   const messages: UIMessage[] = [{ id: 'answer', role: 'assistant', parts: [{ type: 'text', text: '', state: 'streaming' }] }];
 
-  expect(renderToStaticMarkup(<WorkingStatus status="streaming" messages={messages} />)).toContain('cube-loader');
+  expect(renderToStaticMarkup(<WorkingStatus status="streaming" messages={messages} />)).toContain('class="working-loader"');
 
   messages[0]!.parts = [
     { type: 'text', text: 'Checking the source now.', state: 'done' },

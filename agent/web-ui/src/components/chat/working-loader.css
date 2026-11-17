@@ -1,0 +1,132 @@
+.working-loader {
+  /* easeInOutQuint: a quick launch and a firm landing, with a rest between moves. */
+  --loader-ease: cubic-bezier(0.83, 0, 0.17, 1);
+  --loader-line: color-mix(in oklab, var(--foreground) 70%, transparent);
+  --loader-light: color-mix(in oklab, var(--foreground) 22%, var(--background));
+  --loader-mid: color-mix(in oklab, var(--foreground) 45%, var(--background));
+  --loader-dark: color-mix(in oklab, var(--foreground) 68%, var(--background));
+
+  display: inline-grid;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+}
+
+/* Cube: two quarter turns; 225deg matches 45deg by symmetry, so the loop is seamless. */
+.working-loader[data-loader='cube'] {
+  --cube-size: 0.75rem;
+  --cube-half: calc(var(--cube-size) / 2);
+
+  perspective: 6rem;
+}
+
+.loader-cube {
+  position: relative;
+  width: var(--cube-size);
+  height: var(--cube-size);
+  transform-style: preserve-3d;
+  transform: rotateX(-35deg) rotateY(45deg);
+}
+
+.loader-cube-face {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--loader-line);
+  border-radius: 1.5px;
+  background: color-mix(in oklab, var(--foreground) 12%, var(--background));
+  backface-visibility: hidden;
+}
+
+.loader-cube-face[data-part='top'],
+.loader-cube-face[data-part='bottom'] { background: var(--loader-light); }
+
+.loader-cube-face[data-part='left'],
+.loader-cube-face[data-part='right'] { background: var(--loader-mid); }
+
+.loader-cube-face[data-part='front'] { transform: translateZ(var(--cube-half)); }
+.loader-cube-face[data-part='back'] { transform: rotateY(180deg) translateZ(var(--cube-half)); }
+.loader-cube-face[data-part='right'] { transform: rotateY(90deg) translateZ(var(--cube-half)); }
+.loader-cube-face[data-part='left'] { transform: rotateY(-90deg) translateZ(var(--cube-half)); }
+.loader-cube-face[data-part='top'] { transform: rotateX(90deg) translateZ(var(--cube-half)); }
+.loader-cube-face[data-part='bottom'] { transform: rotateX(-90deg) translateZ(var(--cube-half)); }
+
+/* Tiles: a 2x2 grid where each tile spins down and back, one after another clockwise. */
+.loader-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, 0.3125rem);
+  gap: 0.125rem;
+}
+
+.loader-tile {
+  width: 0.3125rem;
+  height: 0.3125rem;
+  border-radius: 1px;
+  background: var(--loader-dark);
+}
+
+/* Stack: three isometric plates fold together and fan back out, like layers being indexed. */
+.loader-stack {
+  position: relative;
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.loader-plate {
+  --y: calc((var(--i) - 1) * 0.25rem);
+
+  position: absolute;
+  inset: 0.125rem;
+  border: 1px solid var(--loader-line);
+  border-radius: 1.5px;
+  transform: translateY(var(--y)) rotateX(60deg) rotateZ(45deg);
+}
+
+.loader-plate[data-part='0'] { z-index: 3; background: var(--loader-light); }
+.loader-plate[data-part='1'] { z-index: 2; background: var(--loader-mid); }
+.loader-plate[data-part='2'] { z-index: 1; background: var(--loader-dark); }
+
+/* Split: a rounded square breaks into quarters that flip and snap back together. */
+.loader-split {
+  display: grid;
+  grid-template-columns: repeat(2, 0.375rem);
+}
+
+.loader-quarter {
+  width: 0.375rem;
+  height: 0.375rem;
+  background: var(--loader-dark);
+}
+
+.loader-quarter[data-part='tl'] { --dx: -2px; --dy: -2px; border-top-left-radius: 3px; }
+.loader-quarter[data-part='tr'] { --dx: 2px; --dy: -2px; border-top-right-radius: 3px; }
+.loader-quarter[data-part='bl'] { --dx: -2px; --dy: 2px; border-bottom-left-radius: 3px; }
+.loader-quarter[data-part='br'] { --dx: 2px; --dy: 2px; border-bottom-right-radius: 3px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .loader-cube { animation: loader-tumble 2.4s var(--loader-ease) infinite; }
+  .loader-tile { animation: loader-tile 1.8s var(--loader-ease) calc(var(--i) * 140ms) infinite both; }
+  .loader-plate { animation: loader-stack 2s var(--loader-ease) calc(var(--i) * 80ms) infinite both; }
+  .loader-quarter { animation: loader-split 2s var(--loader-ease) infinite; }
+}
+
+@keyframes loader-tumble {
+  0%, 10% { transform: rotateX(-35deg) rotateY(45deg); }
+  40%, 50% { transform: rotateX(-35deg) rotateY(135deg); }
+  80%, 100% { transform: rotateX(-35deg) rotateY(225deg); }
+}
+
+@keyframes loader-tile {
+  0%, 50%, 100% { transform: none; opacity: 1; }
+  25% { transform: scale(0.35) rotate(90deg); opacity: 0.4; }
+}
+
+@keyframes loader-stack {
+  0%, 15%, 100% { transform: translateY(var(--y)) rotateX(60deg) rotateZ(45deg); }
+  45%, 65% { transform: translateY(0) rotateX(60deg) rotateZ(45deg); }
+}
+
+@keyframes loader-split {
+  0%, 15%, 100% { transform: none; }
+  45%, 65% { transform: translate(var(--dx), var(--dy)) rotate(180deg); }
+}

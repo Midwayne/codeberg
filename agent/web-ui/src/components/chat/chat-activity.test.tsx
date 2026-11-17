@@ -18,7 +18,7 @@ it.each(['submitted', 'streaming'] as const)('shows %s activity in the conversat
     </ProjectApiContext.Provider>,
   );
   const [conversation = '', composer = ''] = html.split('<section aria-label="Message composer"');
-  const label = 'class="cube-loader"';
+  const label = 'class="working-loader"';
 
   expect(conversation).toContain(label);
   expect(conversation.indexOf('Current request')).toBeLessThan(conversation.indexOf(label));

@@ -51,9 +51,13 @@ export function waitingLabel(turn: number, tick: number): string {
   return waitingLabels[(turn + tick) % waitingLabels.length]!;
 }
 
+export function turnCount(messages: UIMessage[]): number {
+  return messages.filter((message) => message.role === 'user').length;
+}
+
 export function workingPhase(messages: UIMessage[], tick: number): WorkingPhase {
   const latest = messages.at(-1);
-  const turn = messages.filter((message) => message.role === 'user').length;
+  const turn = turnCount(messages);
 
   const waiting: WorkingPhase = { kind: 'waiting', label: waitingLabel(turn, tick) };
   if (latest?.role !== 'assistant') return waiting;

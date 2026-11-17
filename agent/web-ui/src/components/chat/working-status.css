@@ -34,8 +34,8 @@
     -webkit-background-clip: text;
     color: transparent;
     animation:
-      working-label-in 240ms cubic-bezier(0.23, 1, 0.32, 1) both,
-      working-sweep 2.2s cubic-bezier(0.645, 0.045, 0.355, 1) infinite;
+      working-label-in 320ms cubic-bezier(0.83, 0, 0.17, 1) both,
+      working-sweep 2.4s cubic-bezier(0.83, 0, 0.17, 1) infinite;
   }
 }
 
