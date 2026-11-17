@@ -20,7 +20,7 @@ def jina_embedder(path):
         vectors = []
         for start in range(0, len(texts), 16):
             inputs = tokenizer(texts[start:start + 16], padding=True, truncation=True,
-                               max_length=256, return_tensors="np")
+                               max_length=512, return_tensors="np")
             feed = {name: inputs[name].astype(np.int64) for name in names}
             output = session.run(None, feed)[0]
             if output.ndim == 3:

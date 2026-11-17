@@ -20,6 +20,7 @@ import (
 	"codeberg.org/codeberg/daemon/internal/indexctl"
 	"codeberg.org/codeberg/daemon/internal/projects"
 	"codeberg.org/codeberg/daemon/internal/resources"
+	"codeberg.org/codeberg/daemon/internal/search"
 	"codeberg.org/codeberg/daemon/internal/supervisor"
 	"codeberg.org/codeberg/daemon/internal/tools"
 	"codeberg.org/codeberg/daemon/internal/workspace"
@@ -97,7 +98,8 @@ func serveProjects(cfg config.Daemon, idx *indexctl.Client, metrics *resources.C
 	}
 
 	ws := workspace.New(repos, cfg.DefaultKey)
-	srv := httpserver.New(idx, tools.WithVectorSearch(ws, idx, cfg.Model != "")).WithResources(metrics)
+	ranked := search.NewRescorer(idx, ws)
+	srv := httpserver.New(ranked, tools.WithVectorSearch(ws, ranked, cfg.Model != "")).WithResources(metrics)
 
 	// Repository APIs are local-only. Never expose unauthenticated tools on a
 	// wildcard interface; remote access must go through an authenticated proxy.

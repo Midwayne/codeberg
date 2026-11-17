@@ -49,7 +49,7 @@ def token_stats(model, backend, corpus):
 
     directory = model.parent if model.is_file() else model
     tokenizer = AutoTokenizer.from_pretrained(directory, local_files_only=True)
-    limit = 256 if backend == "jina-onnx" else 512 if backend == "mlx" else 8192
+    limit = 512 if backend in ("jina-onnx", "mlx") else 8192
     prefix = "title: none | text: " if backend in ("gemma-mlx", "sentence-transformers") else ""
     lengths = [len(tokenizer(prefix + row["body"])["input_ids"]) for row in corpus]
     return {"limit": limit, "p50": float(np.percentile(lengths, 50)),

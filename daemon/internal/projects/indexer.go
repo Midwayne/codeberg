@@ -14,6 +14,7 @@ import (
 	"codeberg.org/codeberg/daemon/internal/gitpull"
 	"codeberg.org/codeberg/daemon/internal/httpserver"
 	"codeberg.org/codeberg/daemon/internal/indexctl"
+	"codeberg.org/codeberg/daemon/internal/search"
 	"codeberg.org/codeberg/daemon/internal/supervisor"
 	"codeberg.org/codeberg/daemon/internal/tools"
 	"codeberg.org/codeberg/daemon/internal/workspace"
@@ -118,8 +119,8 @@ func (m *Manager) startIndexer(p Project, cfg config.Indexer) (http.Handler, fun
 		go gitpull.Run(ctx, dirs, m.gitPull)
 	}
 
-	idx := indexctl.NewClient(cfg.Socket)
 	ws := workspace.New(repos, cfg.DefaultKey)
+	idx := search.NewRescorer(indexctl.NewClient(cfg.Socket), ws)
 	handler := httpserver.New(idx, tools.WithVectorSearch(ws, idx, cfg.Model != "")).Handler()
 
 	return Supervised(handler, sup), func() {

@@ -22,7 +22,7 @@ class RetrievalSettingsTest(unittest.TestCase):
         with mock.patch.dict(sys.modules, {"transformers": transformers}):
             for backend, limit, truncated in [
                 ("gemma-mlx", 8192, 1), ("sentence-transformers", 8192, 1),
-                ("mlx", 512, 2), ("jina-onnx", 256, 2),
+                ("mlx", 512, 2), ("jina-onnx", 512, 2),
             ]:
                 with self.subTest(backend=backend):
                     result = token_stats(Path("/local/model"), backend, corpus)

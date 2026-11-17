@@ -9,6 +9,16 @@ Indexing runs locally in the background and updates as files change. Chat and em
 
 A **chunk** is a source piece with a path and line range. An **embedding** represents it numerically; the **vector index** stores embeddings for similarity search.
 
+## How semantic search ranks results
+
+`search_code` and `hybrid_search` rank by meaning first, then by the query's exact code terms:
+
+1. Up to 64 chunks with the most similar embeddings are retrieved.
+2. Each one's code is scored for the query's words, with identifiers split at camelCase and snake_case boundaries (`retryWithBackoff` matches "retry backoff").
+3. Results are ordered by 70% similarity and 30% keyword match, so a chunk using your exact terms can move ahead of a slightly closer one that does not.
+
+The reported `score` and the `min_score` filter remain semantic similarity. Keyword matching only reorders chunks already among the 64 most similar. To find an exact identifier anywhere, use `grep` or `find_symbol`. This ranking is always on and has no settings.
+
 ## Start without an embedding model
 
 Skip embedding selection, downloads, and model workers for one launch:
@@ -104,6 +114,12 @@ First setup needs network access and several GB of space for dependencies and we
 An existing saved `embeddinggemma-2` choice stays on Sentence Transformers until explicitly changed. MLX setup converts Google's original weights and saves only the text model.
 
 Both use the 270M text encoder, 768-dimensional normalized vectors, and an 8,192-token input limit including prompts. Longer inputs are truncated. Code queries and documents use distinct prompts. FP16 is incompatible; image, audio, and video indexing are unavailable. See [Google's model card](https://huggingface.co/google/embeddinggemma-2).
+
+## Jina input limit
+
+Jina ONNX embeds the first **512 tokens** of each chunk, about 2 KB of code; the rest of a longer chunk does not affect its vector. Before November 2026 the limit was 256 tokens.
+
+An index built with the old limit keeps its 256-token vectors for unchanged chunks; new and edited chunks use 512. To re-embed everything, delete the project's indexed files and add the project again (see [Data and maintenance](/docs/storage#free-up-space)). A full embedding pass took about 20% longer than with 256 tokens on Codeberg's own source; repositories with many long functions take longer.
 
 ## Read indexing progress
 

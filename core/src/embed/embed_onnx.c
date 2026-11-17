@@ -14,7 +14,10 @@
 #include "coreml_provider_factory.h"
 #endif
 
-#define MAX_SEQ 256
+/* Token window per text. Jina v2 accepts 8,192 tokens, but cost grows with
+ * length; 512 covers most functions whole and measurably improved retrieval
+ * over 256 (docs/benchmarks/code-search-techniques-2026-11-17.md). */
+#define MAX_SEQ 512
 #define DEFAULT_BATCH 16
 #define MAX_BATCH 1024
 
@@ -449,7 +452,7 @@ cberg_status cberg_onnx_embed(void *handle, const char *const *texts, const size
 
     /* Tokenize everything up front, then sort by length so each inference batch pads
      * to its own group's longest row instead of the whole call's. Code chunks range
-     * from one-liners to 256-token windows, so batching mixed lengths wastes compute
+     * from one-liners to full token windows, so batching mixed lengths wastes compute
      * on padding; length-homogeneous batches cut that waste. */
     int64_t *tokbuf = malloc(count * (size_t)MAX_SEQ * sizeof(int64_t));
     int *seq_lens = malloc(count * sizeof(int));

@@ -14,10 +14,12 @@
 
 #define EMBED_WINDOW 1024 /* chunks read and length-sorted together before embedding */
 #define EMBED_CALL 96     /* max chunks per embedder call, i.e. per embed_mu hold */
-/* Inference cost grows with tokens, and the 256-token model window fills at
- * about 1 KiB of code, so a call is also capped at 32 full-window bodies. */
-#define EMBED_TEXT_COST_MAX 1024
-#define EMBED_CALL_BUDGET (32 * EMBED_TEXT_COST_MAX)
+/* Inference cost grows with tokens, and a 512-token model window fills at
+ * about 2 KiB of code. The call budget stays at 32 KiB of text (16
+ * full-window bodies), so an embed_mu hold covers about as many tokens as it
+ * did with the earlier 256-token window. */
+#define EMBED_TEXT_COST_MAX 2048
+#define EMBED_CALL_BUDGET (16 * EMBED_TEXT_COST_MAX)
 #define PROGRESS_MIN 128  /* only show embed progress for upserts at least this large */
 #define PROGRESS_STEP 512 /* ...and roughly every this many chunks */
 

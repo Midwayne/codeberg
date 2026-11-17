@@ -37,7 +37,7 @@ static int failures;
 #define N_FILES 60
 #define FUNCS_PER_FILE 3
 #define MAX_EMBED_CALL 96
-#define MAX_LONG_PER_CALL 32 /* texts of >= 1 KiB, which fill the 256-token window */
+#define MAX_LONG_PER_CALL 32 /* texts of >= 1 KiB: the 32 KiB call budget charges each at least 1 KiB */
 #define N_LONG_FUNCS 40
 #define LONG_FUNC_LINES 120
 

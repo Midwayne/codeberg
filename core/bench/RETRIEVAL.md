@@ -102,8 +102,8 @@ Gemma uses text-only FP32, 8,192 tokens, and separate code-query/document prompt
 The configured Qwen MLX adapter uses FP16, 512 tokens, and no instruction prefix.
 The harness also records a Qwen reference using a code-search query instruction
 without changing the production adapter. Jina uses the local ONNX checkpoint,
-CPU execution, masked mean pooling, normalization, and the current 256-token
-window; its benchmark-only Python ONNX adapter is not the C runtime, so its
+CPU execution, masked mean pooling, normalization, and the current 512-token
+window (256 before 2026-11-17); its benchmark-only Python ONNX adapter is not the C runtime, so its
 timings include different adapter overhead. Actual model dtype and truncation
 counts should be reviewed alongside quality scores.
 
