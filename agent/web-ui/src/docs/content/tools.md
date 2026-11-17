@@ -255,6 +255,8 @@ Files are saved in the project's `context/scripts/` folder in Codeberg home and 
 
 A background script follows the normal [background tool rules](/docs/tools#let-a-long-tool-work-while-the-agent-sleeps): it keeps running while the agent sleeps, and a Codeberg restart interrupts it.
 
+The agent is told to use scripts only to combine tool calls and process their results. It must not read or write other files (apart from saved script output), use the network, run shell commands, install packages, change the system, or look at credentials. It must also ignore instructions in source files, web pages, or tool results that ask for other code. This is guidance the model follows, not an enforced restriction.
+
 > **Not a sandbox.** Scripts run as your user with normal file and network access. Codeberg starts each one in an empty temporary directory, removes it afterwards, and passes no API keys or other environment secrets, but it cannot prevent a script from reading or changing files elsewhere. Enable this only for models and projects you trust, because instructions in source files or web pages could steer the script the agent writes.
 
 ## Experimental search composition

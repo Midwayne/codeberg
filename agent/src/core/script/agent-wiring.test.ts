@@ -110,6 +110,12 @@ describe.skipIf(!hasPython)('run_script in the agent loop', () => {
     expect(offeredTools(bodies[0]!)).toContain('run_script');
     expect(JSON.stringify(bodies[0]!.system)).toContain('## Scripts');
 
+    // The purpose rule reaches the model in both the tool description and the prompt.
+    const rule = 'Use this tool ONLY to combine tool calls and process their results';
+    const offered = (bodies[0]!.tools as { name: string; description: string }[]).find((t) => t.name === 'run_script');
+    expect(offered?.description).toContain(rule);
+    expect(JSON.stringify(bodies[0]!.system)).toContain(rule);
+
     expect(calls).toEqual([
       'grep {"pattern":"cberg_chunker_open"}',
       'read_file {"path":"core/src/chunk.c"}',
