@@ -40,14 +40,24 @@ export interface ElementInput {
   to?: string;
   strokeColor?: string;
   backgroundColor?: string;
+  role?: string;
+  group?: string;
+  strokeStyle?: 'solid' | 'dashed' | 'dotted';
+  fillStyle?: 'solid' | 'hachure' | 'cross-hatch';
+  strokeWidth?: number;
+  fontSize?: number;
+  startArrowhead?: Arrowhead | null;
+  endArrowhead?: Arrowhead | null;
 }
+
+export type Arrowhead = 'arrow' | 'triangle' | 'dot' | 'bar';
 
 export interface Mutation {
   name?: string;
   revision?: number;
   elements?: ElementInput[];
   ids?: string[];
-  mode?: 'horizontal' | 'vertical' | 'flow';
+  mode?: 'horizontal' | 'vertical' | 'flow' | 'flow-down';
 }
 
 export class CanvasError extends HttpError {

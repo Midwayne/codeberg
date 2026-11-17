@@ -7,14 +7,15 @@ import type { CanvasStore } from './store.js';
 import { CanvasRevisionConflict, type Mutation } from './types.js';
 import { canvasSchemas } from './schemas.js';
 import { conflictResult, mutationProblem } from './recovery.js';
+import { findIssues } from './issues.js';
 
 const descriptions: Record<string, string> = {
   get: 'Read compact entities and relationships, including the user’s edits. Inspect before modifying; use revision on mutations. Paginate with offset/limit. raw=true returns the full scene only when necessary.',
-  add: 'Add shapes, text, arrows or lines using semantic IDs. Shape text becomes a bound label. Arrows with from/to semantic IDs calculate endpoints automatically.',
-  update: 'Patch elements by semantic ID. Only supplied properties change. Use text to rename a shape or arrow label.',
+  add: 'Add shapes, text, arrows or lines using semantic IDs. Give shapes a role for coordinated styling and a group to place them in a boundary. Shape text becomes a bound label and shapes size themselves to fit it. Arrows with from/to semantic IDs calculate endpoints automatically. Results list layout issues to fix.',
+  update: 'Patch elements by semantic ID. Only supplied properties change. Use text to rename a shape or arrow label, role to restyle, group to move between boundaries.',
   delete: 'Delete elements by semantic ID, together with their labels and attached arrows.',
   clear: 'Clear this chat’s canvas. Inspect canvas_get first.',
-  layout: 'Arrange nodes horizontally, vertically or in graph flow; reposition bound labels and arrows.',
+  layout: 'Size-aware layered layout: flow (left-to-right) or flow-down (top-to-bottom) follows arrows, minimizes crossings and keeps groups together; horizontal/vertical make one row or column. Refits boundaries and places titles above the drawing.',
 };
 
 export function canvasToolSource(store: CanvasStore): ToolSource {
@@ -55,8 +56,9 @@ async function execute(store: CanvasStore, operation: string, input: Mutation & 
   if (problem) return problem;
 
   const scene = await store.change(operation, input);
+  const issues = findIssues(scene.elements);
 
-  return store.summary(scene);
+  return issues.length ? { ...store.summary(scene), issues } : store.summary(scene);
 }
 
 export const CANVAS_INSTRUCTIONS = `
@@ -73,25 +75,26 @@ Use canvas_add to start or extend the drawing; no creation or selection step is 
 Reason about entities and connections: give shapes stable semantic IDs and labels; connect arrows
 with from/to IDs. Keep diagrams focused and readable, grounded in the code or facts you have verified;
 label assumptions. Use canvas_layout for an initial flow, preserving manual arrangements on later edits.
-Make the first drawing HUMAN READABLE. Let the diagram grow as large as the explanation needs;
-do not limit its dimensions, number of nodes, rows, columns or label length to fit the inline preview.
-Use generous box sizes and whitespace. Size each box to fit its content with comfortable padding,
-wrap longer labels cleanly and leave clear space between boxes and around their connections.
-Keep the default readable text size. Do not shrink text or boxes to squeeze in more content.
-Use consistent alignment and a clear visual hierarchy; preserve the content and relationships being explained.
-Make diagrams visually pleasing to a human reader. Use a small, coordinated color palette to distinguish
-roles or layers, with light backgroundColor fills and dark strokeColor outlines; for example blue services
-(#d0ebff / #1864ab), green data stores (#d3f9d8 / #2b8a3e), and amber decisions (#fff3bf / #e67700).
-Keep labels legible with strong contrast. Use colors consistently and explain their meaning with a small
-legend when it is not obvious; labels and shapes must carry the meaning even without color.
-Choose shapes by meaning: rectangles for services or modules, ellipses for actors or data stores,
-diamonds for decisions, and text for notes. Use arrows for directed flows and lines for undirected links.
-Use varied shapes when they clarify different roles, while keeping equivalent roles visually consistent.
-Separate arrows and their labels from boxes and other text; minimize crossings and overlapping paths.
-Treat canvas_layout as a starting point: its fixed spacing may be too tight for larger boxes.
-Inspect canvas_get after drawing to check label fit and element bounds, then use canvas_update to
-enlarge boxes or adjust positions and spacing before replying. Never leave clipped text, overlapping
-boxes or clutter for the user to fix with a follow-up request.
+Make the first drawing HUMAN READABLE and visually polished, not a grid of plain boxes:
+- Give every shape a semantic role instead of hand-picking colors: service, component, datastore,
+  queue, external, actor, decision, step, error, note, title or boundary. Roles pick a coordinated
+  shape, palette and line style, so equivalent things look alike. Override colors only for emphasis.
+- Start with one role=title text naming the diagram. Group related shapes into layers, processes or
+  ownership areas with a role=boundary rectangle labelled with the area name, and set group on each
+  member; boundaries size themselves around members and sit behind them. Nest boundaries sparingly.
+- Label arrows with the verb or data that flows ("query", "emits event"). Use strokeStyle dashed for
+  async, optional or planned links; startArrowhead for two-way links; lines for undirected links.
+- Add a role=note shape for key caveats or assumptions near what it explains, not on top of it.
+- Shapes grow to fit their labels; keep labels short (a name plus an optional short second line)
+  and put detail in your written answer. Keep default text sizes; do not shrink text to fit more.
+- Let the diagram grow as large as the explanation needs; do not limit it to fit the inline preview.
+- When several roles appear, add a small legend: one small shape per role used, labelled with its meaning.
+Run canvas_layout (flow for pipelines and dependencies, flow-down for hierarchies and sequences) after
+the first batch of shapes and arrows, then position notes and legends beside the result.
+Every mutation result and canvas_get lists issues (overlaps, labels that do not fit, shapes outside
+or wrongly inside a group). Fix every issue with canvas_update before replying. Never leave clipped
+text, overlapping boxes or clutter for the user to fix with a follow-up request.
+Preserve manual arrangements on later edits instead of re-running layout over the user's moves.
 Preserve the user's edits. Every mutation requires revision from canvas_get or the last successful mutation.
 Run dependent mutations sequentially, using the new revision returned by each successful write.
 Treat CANVAS_REVISION_CONFLICT as recoverable contention: the rejected mutation applied nothing.

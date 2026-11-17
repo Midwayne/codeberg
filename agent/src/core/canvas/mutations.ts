@@ -1,6 +1,13 @@
-import { makeElement, bump, setLabel } from './elements.js';
+import { makeElement, bump, codebergData } from './elements.js';
+import { setLabel } from './labels.js';
 import { reconnect } from './connections.js';
-import { CanvasError, type Element, type Mutation, type Scene } from './types.js';
+import { fitGroups, insertionIndex, isBoundary, isLinear } from './groups.js';
+import { layout } from './layout.js';
+import { roleStyle } from './roles.js';
+import { CanvasError, type Element, type ElementInput, type Mutation, type Scene } from './types.js';
+
+const STYLE_KEYS = ['x', 'y', 'width', 'height', 'strokeColor', 'backgroundColor', 'strokeStyle',
+  'fillStyle', 'strokeWidth', 'startArrowhead', 'endArrowhead'] as const;
 
 export function mutate(scene: Scene, operation: string, input: Mutation): void {
   switch (operation) {
@@ -17,25 +24,39 @@ export function mutate(scene: Scene, operation: string, input: Mutation): void {
       scene.elements = [];
       break;
     case 'layout':
-      layout(scene, input.mode ?? 'flow');
+      reconnect(scene.elements);
+      layout(scene.elements, input.mode ?? 'flow');
       break;
     default: throw new CanvasError('Unknown canvas operation.');
   }
+  if (operation !== 'layout') fitGroups(scene.elements, false);
+
   reconnect(scene.elements);
 }
 
 function add(scene: Scene, input: Mutation): void {
   if (!input.elements?.length) throw new CanvasError('elements are required.');
 
-  const labels: { element: Element; text: string }[] = [];
+  const labels: { element: Element; text: string; fontSize?: number }[] = [];
+  let nextX = rightEdge(scene.elements);
+
   for (const item of input.elements) {
-    const element = makeElement(item, scene.elements.filter((element) => !element.containerId).length);
+    const element = makeElement({ ...item, x: item.x ?? nextX }, 0);
     if (scene.elements.some((existing) => existing.id === element.id)) throw new CanvasError(`Element already exists: ${element.id}`);
 
-    scene.elements.push(element);
-    if (item.text !== undefined && element.type !== 'text') labels.push({ element, text: item.text });
+    scene.elements.splice(insertionIndex(scene.elements, element), 0, element);
+    if (!isLinear(element) && !isBoundary(element) && item.x === undefined) nextX = element.x + element.width + 80;
+
+    if (item.text !== undefined && element.type !== 'text') labels.push({ element, text: item.text, fontSize: item.fontSize });
   }
-  for (const { element, text } of labels) setLabel(scene.elements, element, text);
+  for (const { element, text, fontSize } of labels) setLabel(scene.elements, element, text, fontSize);
+}
+
+/** Default x for unpositioned shapes: right of the current drawing so nothing stacks up. */
+function rightEdge(elements: Element[]): number {
+  const shapes = elements.filter((element) => !element.isDeleted && !element.containerId && !isLinear(element));
+
+  return shapes.length ? Math.max(...shapes.map((element) => element.x + element.width)) + 80 : 100;
 }
 
 function update(scene: Scene, input: Mutation): void {
@@ -45,18 +66,43 @@ function update(scene: Scene, input: Mutation): void {
     const element = scene.elements.find((element) => element.id === item.id && !element.isDeleted);
     if (!element) throw new CanvasError(`Unknown element: ${item.id}`);
 
-    for (const key of ['x', 'y', 'width', 'height', 'strokeColor', 'backgroundColor'] as const) {
+    if (item.role !== undefined) applyRole(element, item);
+
+    for (const key of STYLE_KEYS) {
       if (item[key] !== undefined) Object.assign(element, { [key]: item[key] });
     }
-    if (item.from || item.to) {
-      element.customData = { codeberg: {
-        from: item.from ?? element.startBinding?.elementId, to: item.to ?? element.endBinding?.elementId,
-      } };
+    updateData(element, item);
+    if (item.text !== undefined || item.fontSize !== undefined) {
+      setLabel(scene.elements, element, item.text ?? labelText(scene.elements, element), item.fontSize);
     }
-    if (item.text !== undefined) setLabel(scene.elements, element, item.text);
-
     bump(element);
   }
+}
+
+function applyRole(element: Element, item: ElementInput): void {
+  const style = roleStyle(item.role)!;
+
+  Object.assign(element, { strokeColor: style.strokeColor, backgroundColor: style.backgroundColor,
+    strokeStyle: style.strokeStyle ?? 'solid', strokeWidth: style.strokeWidth ?? 2 });
+}
+
+function updateData(element: Element, item: ElementInput): void {
+  const data = codebergData(element);
+  const next = { ...data,
+    from: item.from ?? data.from ?? element.startBinding?.elementId,
+    to: item.to ?? data.to ?? element.endBinding?.elementId,
+    role: item.role ?? data.role,
+    group: item.group === undefined ? data.group : item.group || undefined };
+
+  element.customData = { ...(element.customData as object | undefined), codeberg: next };
+}
+
+function labelText(elements: Element[], element: Element): string {
+  if (element.type === 'text') return String(element.originalText ?? element.text ?? '');
+
+  const label = elements.find((item) => item.containerId === element.id && !item.isDeleted);
+
+  return String(label?.originalText ?? label?.text ?? '');
 }
 
 function remove(scene: Scene, ids: string[]): void {
@@ -72,35 +118,4 @@ function remove(scene: Scene, ids: string[]): void {
       bump(element);
     }
   }
-}
-
-function layout(scene: Scene, mode: string): void {
-  if (!['horizontal', 'vertical', 'flow'].includes(mode)) throw new CanvasError('Invalid layout mode.');
-
-  const nodes = scene.elements.filter((element) => !element.isDeleted && !element.containerId && !['arrow', 'line'].includes(element.type));
-  const levels = graphLevels(nodes, scene.elements);
-  const rows = new Map<number, number>();
-  nodes.forEach((node, index) => {
-    const column = mode === 'flow' ? levels.get(node.id)! : index;
-    const row = rows.get(column) ?? 0;
-    rows.set(column, row + 1);
-    node.x = 100 + (mode === 'vertical' ? 0 : column * 320);
-    node.y = 100 + (mode === 'vertical' ? index * 180 : row * 180);
-    bump(node);
-  });
-}
-
-function graphLevels(nodes: Element[], elements: Element[]): Map<string, number> {
-  const levels = new Map(nodes.map((node) => [node.id, 0]));
-  // Bounded relaxation handles disconnected components and cycles deterministically.
-  for (let pass = 0; pass < nodes.length; pass++) {
-    for (const arrow of elements.filter((element) => element.type === 'arrow' && !element.isDeleted)) {
-      const from = arrow.startBinding?.elementId;
-      const to = arrow.endBinding?.elementId;
-      if (from && to && levels.has(from) && levels.has(to)) {
-        levels.set(to, Math.min(nodes.length - 1, Math.max(levels.get(to)!, levels.get(from)! + 1)));
-      }
-    }
-  }
-  return levels;
 }

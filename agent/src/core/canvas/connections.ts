@@ -1,5 +1,6 @@
 import { CanvasError, type Element } from './types.js';
-import { bump } from './elements.js';
+import { bump, codebergData } from './elements.js';
+import { CHAR_WIDTH, LINE_HEIGHT, innerWidth, wrapLines } from './sizing.js';
 
 export function reconnect(elements: Element[]): void {
   const live = elements.filter((element) => !element.isDeleted);
@@ -14,9 +15,9 @@ export function reconnect(elements: Element[]): void {
 }
 
 function connectArrow(arrow: Element, elements: Element[]): void {
-  const data = arrow.customData as { codeberg?: { from?: string; to?: string } } | undefined;
-  const from = data?.codeberg?.from ?? arrow.startBinding?.elementId;
-  const to = data?.codeberg?.to ?? arrow.endBinding?.elementId;
+  const data = codebergData(arrow);
+  const from = data.from ?? arrow.startBinding?.elementId;
+  const to = data.to ?? arrow.endBinding?.elementId;
   if (!from || !to) return;
 
   const start = elements.find((element) => element.id === from);
@@ -49,35 +50,41 @@ function positionLabel(label: Element, elements: Element[]): void {
 
   if (container.type === 'arrow') wrapArrowLabel(label, container);
 
-  const lines = String(label.text ?? '').split('\n');
-  const width = container.type === 'arrow' ? arrowLabelWidth(container) : container.width - 16;
-  label.width = Math.max(20, Math.min(width, Math.max(...lines.map((line) => line.length)) * 12));
-  label.height = Math.max(25, container.type === 'arrow' ? lines.length * 25 : Math.ceil((label.text?.length ?? 0) * 12 / label.width) * 25);
-  const points = container.points as number[][] | undefined;
-  const dx = points?.[1]?.[0] ?? container.width;
-  const dy = points?.[1]?.[1] ?? container.height;
-  label.x = container.x + dx / 2 - label.width / 2;
-  label.y = container.y + dy / 2 - label.height / 2;
+  const fontSize = Number(label.fontSize ?? 20);
+  const available = container.type === 'arrow' ? arrowLabelWidth(container) : innerWidth(container);
+  const lines = container.type === 'arrow'
+    ? String(label.text ?? '').split('\n')
+    : wrapLines(String(label.originalText ?? label.text ?? ''), available / (fontSize * CHAR_WIDTH));
+  const longest = Math.max(1, ...lines.map((line) => line.length));
+
+  label.width = Math.max(20, Math.min(available, longest * fontSize * CHAR_WIDTH));
+  label.height = Math.max(25, lines.length * fontSize * LINE_HEIGHT);
+  placeLabel(label, container);
   (container.boundElements as { id: string; type: string }[]).push({ id: label.id, type: 'text' });
   bump(label);
 }
 
-function wrapArrowLabel(label: Element, arrow: Element): void {
-  const limit = Math.max(2, Math.floor(arrowLabelWidth(arrow) / 12));
-  const original = String(label.originalText ?? label.text ?? '');
-  const lines: string[] = [];
-  let line = '';
-  const words = original.split(/\s+/).flatMap((word) => word.match(new RegExp(`.{1,${limit}}`, 'gu')) ?? []);
-  for (const word of words) {
-    if (line && line.length + word.length + 1 > limit) {
-      lines.push(line);
-      line = '';
-    }
-    line = line ? `${line} ${word}` : word;
+function placeLabel(label: Element, container: Element): void {
+  if (label.verticalAlign === 'top') {
+    label.x = container.x + 16;
+    label.y = container.y + 12;
+    return;
   }
-  lines.push(line);
-  label.text = lines.join('\n');
+  const points = container.points as number[][] | undefined;
+  const dx = points?.[1]?.[0] ?? container.width;
+  const dy = points?.[1]?.[1] ?? container.height;
+
+  label.x = container.x + dx / 2 - label.width / 2;
+  label.y = container.y + dy / 2 - label.height / 2;
+}
+
+function wrapArrowLabel(label: Element, arrow: Element): void {
   label.fontSize ??= 16;
+
+  const limit = Math.max(2, Math.floor(arrowLabelWidth(arrow) / (Number(label.fontSize) * CHAR_WIDTH)));
+  const original = String(label.originalText ?? label.text ?? '');
+
+  label.text = wrapLines(original, limit).join('\n');
   label.autoResize = false;
 }
 

@@ -7,6 +7,8 @@ import { mutate } from './mutations.js';
 import { CanvasError, CanvasRevisionConflict, validName, type Mutation, type Scene } from './types.js';
 import { portableAppState, validateScene } from './validation.js';
 import { ifMissing } from '../fs.js';
+import { findIssues } from './issues.js';
+import { styleSummary } from './describe.js';
 
 export class CanvasStore {
   constructor(readonly root: string, readonly url: string, private readonly defaultEnabled = false, readonly chatId?: string) {}
@@ -146,10 +148,10 @@ export class CanvasStore {
       elements: entities.slice(offset, offset + limit).map((element) => ({
         id: element.id, type: element.type, x: element.x, y: element.y,
         width: element.width, height: element.height,
-        strokeColor: element.strokeColor, backgroundColor: element.backgroundColor,
+        ...styleSummary(element),
         text: (element.text ?? live.find((label) => label.containerId === element.id)?.text)?.slice(0, 2000),
         from: element.startBinding?.elementId, to: element.endBinding?.elementId,
-      })) };
+      })), issues: findIssues(scene.elements) };
   }
 
   summary(scene: Scene) {

@@ -199,6 +199,33 @@ Enable **Settings → Canvas** for a drawing canvas attached to each chat. When 
 
 An open canvas tab checks for changes about once a second, so agent edits appear within a second. A canvas in a background tab pauses and catches up when you return to it.
 
+### How the agent styles drawings
+
+The agent marks each shape with what it represents, and Codeberg applies a matching shape and colour scheme so similar things look the same:
+
+| Role | Look |
+|------|------|
+| Service | Blue rounded box |
+| Component (module, library) | Violet rounded box |
+| Data store | Green ellipse |
+| Queue | Teal box |
+| External system | Grey dashed box |
+| Actor (person, client) | Orange ellipse |
+| Decision | Amber diamond |
+| Step | Neutral box |
+| Error | Red box |
+| Note | Yellow sticky note |
+| Title | Large heading above the drawing |
+| Boundary | Dashed grey area that encloses a group, such as a layer or team |
+
+- Boxes grow to fit their labels, so text is not clipped.
+- Group areas resize around their members and stay behind them.
+- Dashed arrows mark async, optional or planned links.
+- The automatic layout follows the arrows left to right or top to bottom, sizes gaps to each box, reduces crossing lines, and gives each group its own lane so group areas do not cover unrelated shapes.
+- After each change the agent sees a list of overlapping shapes, labels that do not fit and shapes outside their group, and fixes them before replying.
+
+The automatic arrangement and styling only apply when the agent draws. Your own moves and colour changes are kept; ask the agent if you want the drawing laid out again.
+
 ## Optional script playground
 
 Opt into `run_script` before launch to let the agent write a short Python script that chains tool calls:
