@@ -2,7 +2,7 @@
 
 import argparse
 import hashlib
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 import json
 from pathlib import Path
 import platform
@@ -59,6 +59,21 @@ def token_stats(model, backend, corpus):
                                     if row["category"] == "long_context"]}
 
 
+PACKAGES = ("mlx", "mlx-vlm", "mlx-embeddings", "torch", "transformers",
+            "sentence-transformers", "onnxruntime")
+
+
+def package_versions():
+    """Installed adapter packages; None for absent ones (e.g. MLX off macOS)."""
+    versions = {}
+    for name in PACKAGES:
+        try:
+            versions[name] = version(name)
+        except PackageNotFoundError:
+            versions[name] = None
+    return versions
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--backend", required=True)
@@ -97,8 +112,7 @@ def main():
                   "corpus_sha256": hashlib.sha256(args.corpus.read_bytes()).hexdigest(),
                   "cases_sha256": hashlib.sha256(args.cases.read_bytes()).hexdigest(),
                   "system": {"platform": platform.platform(), "python": platform.python_version()},
-                  "versions": {name: version(name) for name in ("mlx", "mlx-vlm", "mlx-embeddings",
-                              "torch", "transformers", "sentence-transformers", "onnxruntime")}}
+                  "versions": package_versions()}
         np.savez(args.output.with_suffix(".vectors.npz"), documents=documents, queries=queries)
         if args.backend == "mlx":
             reference_rows, reference_metrics, _, _ = evaluate(worker, corpus, cases, documents, instruct=True)

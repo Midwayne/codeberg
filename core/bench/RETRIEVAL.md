@@ -107,6 +107,17 @@ window; its benchmark-only Python ONNX adapter is not the C runtime, so its
 timings include different adapter overhead. Actual model dtype and truncation
 counts should be reviewed alongside quality scores.
 
+## Location headers and doc-comment queries
+
+`retrieval_corpus.py --header {none,path,path-symbol,comment}` places each
+body's location (path, chunk kind, symbol) before it, to test whether
+embedding structural context helps. Production indexing embeds bare bodies.
+`retrieval_doc_eval.py` adds about 500 natural queries: each production
+function's doc comment, with its own name masked. It ranks the function
+against one or more corpora. The
+[2026-11-17 header study](../../docs/benchmarks/embedding-context-headers-2026-11-17.md)
+records the negative result and the commands to reproduce it.
+
 ## Report and checks
 
 The completed local run is recorded in

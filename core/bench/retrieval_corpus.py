@@ -70,6 +70,7 @@ def extract(root, lib):
                     symbol = (item.symbol or b"").decode()
                     digest = hashlib.sha256(body.encode()).hexdigest()
                     rows.append({"id": digest, "body": body, "path": relative, "symbol": symbol,
+                                 "kind": item.kind,
                                  "line": item.span.start_line, "end_line": item.span.end_line,
                                  "aliases": [[relative, symbol]], "category": "repository"})
             finally:
@@ -84,6 +85,53 @@ def extract(root, lib):
         else:
             unique[row["id"]] = row
     return list(unique.values())
+
+
+KIND_NAMES = {1: "function", 2: "method"}
+HEADER_STYLES = ("none", "path", "path-symbol", "comment")
+
+
+def comment_marker(path):
+    return "#" if path.endswith(".py") else "//"
+
+
+def context_header(path, kind, symbol, style):
+    """Location text placed before a chunk body for the header study.
+
+    Production indexing embeds bare bodies; see
+    docs/benchmarks/embedding-context-headers-2026-11-17.md for why.
+    """
+    kind_name = KIND_NAMES.get(kind, "chunk")
+    if style == "none":
+        return ""
+    if style == "path":
+        return f"path: {path}\n\n"
+    if style == "path-symbol":
+        return f"path: {path}\n{kind_name}: {symbol}\n\n" if symbol else f"path: {path}\n\n"
+    if style == "comment":
+        label = f" · {kind_name} {symbol}" if symbol else ""
+        return f"{comment_marker(path)} {path}{label}\n"
+    raise ValueError(f"unknown header style {style}")
+
+
+def fixture_location(body):
+    """Neutral path and the function name for a synthetic snippet."""
+    if body.startswith("def "):
+        keyword, path = "def ", "fixture/snippet.py"
+    else:
+        keyword, path = "function ", "fixture/snippet.ts"
+
+    return path, body.split(keyword, 1)[1].split("(", 1)[0]
+
+
+def apply_headers(rows, style):
+    # Synthetic snippets get one neutral location shared by both sides of a
+    # pair, so the header cannot leak a pair's concept or break a tie.
+    for row in rows:
+        synthetic = row["category"] != "repository"
+        path, symbol = fixture_location(row["body"]) if synthetic else (row["path"], row["symbol"])
+        row["body"] = context_header(path, row.get("kind", 1), symbol, style) + row["body"]
+    return rows
 
 
 def match(row, target):
@@ -132,9 +180,12 @@ if __name__ == "__main__":
     parser.add_argument("--library", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--cap", type=int, default=2000)
+    parser.add_argument("--header", choices=HEADER_STYLES, default="none",
+                        help="location header placed before each embedded body")
     args = parser.parse_args()
     fixture = json.loads(Path(__file__).with_name("retrieval_cases.json").read_text())
     corpus, cases, available = assemble(args.root.resolve(), library(args.library.resolve()), fixture, args.cap)
+    corpus = apply_headers(corpus, args.header)
     args.output.mkdir(parents=True, exist_ok=True)
     (args.output / "corpus.json").write_text(json.dumps(corpus, indent=2))
     (args.output / "cases.json").write_text(json.dumps(cases, indent=2))
