@@ -7,7 +7,7 @@ export function ChatSaveNotice({ state }: { state: ChatSaveState }) {
   if (!error) return null;
 
   return (
-    <div role="alert" className="mx-auto flex w-full max-w-3xl flex-wrap items-center gap-3 px-4 py-3 text-sm sm:px-8">
+    <div role="alert" className="mx-auto flex w-full max-w-4xl flex-wrap items-center gap-3 px-4 py-3 text-sm sm:px-8">
       <div className="min-w-0 flex-1 break-words">
         <p className="font-medium text-destructive">Chat changes aren’t saved yet. Keep this tab open.</p>
         <p className="mt-1 text-xs text-muted-foreground">{error}</p>
