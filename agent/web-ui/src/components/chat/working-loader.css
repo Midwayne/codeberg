@@ -2,74 +2,103 @@
   /* easeInOutQuint: a quick launch and a firm landing, with a rest between moves. */
   --loader-ease: cubic-bezier(0.83, 0, 0.17, 1);
   --loader-line: color-mix(in oklab, var(--foreground) 70%, transparent);
+  --loader-base: color-mix(in oklab, var(--foreground) 12%, var(--background));
   --loader-light: color-mix(in oklab, var(--foreground) 22%, var(--background));
   --loader-mid: color-mix(in oklab, var(--foreground) 45%, var(--background));
   --loader-dark: color-mix(in oklab, var(--foreground) 68%, var(--background));
+  --loader-view: rotateX(-35deg) rotateY(45deg);
+  --cube-size: 0.75rem;
 
-  display: inline-grid;
-  place-items: center;
+  position: relative;
+  display: inline-block;
   width: 1.25rem;
   height: 1.25rem;
   flex-shrink: 0;
-}
-
-/* Cube: two quarter turns; 225deg matches 45deg by symmetry, so the loop is seamless. */
-.working-loader[data-loader='cube'] {
-  --cube-size: 0.75rem;
-  --cube-half: calc(var(--cube-size) / 2);
-
   perspective: 6rem;
 }
 
-.loader-cube {
-  position: relative;
-  width: var(--cube-size);
-  height: var(--cube-size);
+/* Shared 3D scene: a camera tilt, then boxes built from six faces around their center. */
+.loader-view {
+  position: absolute;
+  inset: 0;
   transform-style: preserve-3d;
-  transform: rotateX(-35deg) rotateY(45deg);
+  transform: var(--loader-view);
 }
 
-.loader-cube-face {
+.loader-box {
+  --cube-half: calc(var(--cube-size) / 2);
+
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--cube-size);
+  height: var(--cube-size);
+  margin: calc(var(--cube-half) * -1) 0 0 calc(var(--cube-half) * -1);
+  transform-style: preserve-3d;
+}
+
+.loader-face {
   position: absolute;
   inset: 0;
   border: 1px solid var(--loader-line);
-  border-radius: 1.5px;
-  background: color-mix(in oklab, var(--foreground) 12%, var(--background));
+  border-radius: 1px;
+  background: var(--loader-base);
   backface-visibility: hidden;
 }
 
-.loader-cube-face[data-part='top'],
-.loader-cube-face[data-part='bottom'] { background: var(--loader-light); }
+.loader-face[data-face='top'],
+.loader-face[data-face='bottom'] { background: var(--loader-light); }
 
-.loader-cube-face[data-part='left'],
-.loader-cube-face[data-part='right'] { background: var(--loader-mid); }
+.loader-face[data-face='left'],
+.loader-face[data-face='right'] { background: var(--loader-mid); }
 
-.loader-cube-face[data-part='front'] { transform: translateZ(var(--cube-half)); }
-.loader-cube-face[data-part='back'] { transform: rotateY(180deg) translateZ(var(--cube-half)); }
-.loader-cube-face[data-part='right'] { transform: rotateY(90deg) translateZ(var(--cube-half)); }
-.loader-cube-face[data-part='left'] { transform: rotateY(-90deg) translateZ(var(--cube-half)); }
-.loader-cube-face[data-part='top'] { transform: rotateX(90deg) translateZ(var(--cube-half)); }
-.loader-cube-face[data-part='bottom'] { transform: rotateX(-90deg) translateZ(var(--cube-half)); }
+.loader-face[data-face='front'] { transform: translateZ(var(--cube-half)); }
+.loader-face[data-face='back'] { transform: rotateY(180deg) translateZ(var(--cube-half)); }
+.loader-face[data-face='right'] { transform: rotateY(90deg) translateZ(var(--cube-half)); }
+.loader-face[data-face='left'] { transform: rotateY(-90deg) translateZ(var(--cube-half)); }
+.loader-face[data-face='top'] { transform: rotateX(90deg) translateZ(var(--cube-half)); }
+.loader-face[data-face='bottom'] { transform: rotateX(-90deg) translateZ(var(--cube-half)); }
 
-/* Tiles: a 2x2 grid where each tile spins down and back, one after another clockwise. */
-.loader-tiles {
-  display: grid;
-  grid-template-columns: repeat(2, 0.3125rem);
-  gap: 0.125rem;
+/* Roll: a one-color cube tips over its front edge while sliding back, so it rolls in place. */
+.working-loader[data-loader='roll'] {
+  --cube-size: 0.625rem;
+  --loader-view: rotateX(-25deg) rotateY(-30deg);
 }
 
-.loader-tile {
-  width: 0.3125rem;
-  height: 0.3125rem;
-  border-radius: 1px;
+.working-loader[data-loader='roll'] .loader-face { background: var(--loader-mid); }
+.working-loader[data-loader='roll'] .loader-box { transform-origin: 100% 100%; }
+
+/* Bounce: a ball drops and squashes inside a turning glass cube. */
+.working-loader[data-loader='bounce'] .loader-face {
+  background: color-mix(in oklab, var(--foreground) 8%, transparent);
+  backface-visibility: visible;
+}
+
+.loader-ball {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0.25rem;
+  height: 0.25rem;
+  margin: -0.125rem 0 0 -0.125rem;
+  border-radius: 50%;
   background: var(--loader-dark);
 }
 
-/* Stack: three isometric plates fold together and fan back out, like layers being indexed. */
-.loader-stack {
-  position: relative;
-  width: 0.875rem;
-  height: 0.875rem;
+/* Burst: eight cubes start as one and spread along their diagonals. */
+.working-loader[data-loader='burst'] {
+  --cube-size: 0.3125rem;
+  --gap: calc(var(--cube-size) / 2);
+}
+
+.working-loader[data-loader='burst'] .loader-box {
+  transform: translate3d(calc(var(--x) * var(--gap)), calc(var(--y) * var(--gap)), calc(var(--z) * var(--gap)));
+}
+
+/* Twist and stack: three isometric plates that rotate in turn, or fold together and fan out. */
+.loader-plates {
+  position: absolute;
+  inset: 0.1875rem;
 }
 
 .loader-plate {
@@ -82,51 +111,6 @@
   transform: translateY(var(--y)) rotateX(60deg) rotateZ(45deg);
 }
 
-.loader-plate[data-part='0'] { z-index: 3; background: var(--loader-light); }
-.loader-plate[data-part='1'] { z-index: 2; background: var(--loader-mid); }
-.loader-plate[data-part='2'] { z-index: 1; background: var(--loader-dark); }
-
-/* Split: a rounded square breaks into quarters that flip and snap back together. */
-.loader-split {
-  display: grid;
-  grid-template-columns: repeat(2, 0.375rem);
-}
-
-.loader-quarter {
-  width: 0.375rem;
-  height: 0.375rem;
-  background: var(--loader-dark);
-}
-
-.loader-quarter[data-part='tl'] { --dx: -2px; --dy: -2px; border-top-left-radius: 3px; }
-.loader-quarter[data-part='tr'] { --dx: 2px; --dy: -2px; border-top-right-radius: 3px; }
-.loader-quarter[data-part='bl'] { --dx: -2px; --dy: 2px; border-bottom-left-radius: 3px; }
-.loader-quarter[data-part='br'] { --dx: 2px; --dy: 2px; border-bottom-right-radius: 3px; }
-
-@media (prefers-reduced-motion: no-preference) {
-  .loader-cube { animation: loader-tumble 2.4s var(--loader-ease) infinite; }
-  .loader-tile { animation: loader-tile 1.8s var(--loader-ease) calc(var(--i) * 140ms) infinite both; }
-  .loader-plate { animation: loader-stack 2s var(--loader-ease) calc(var(--i) * 80ms) infinite both; }
-  .loader-quarter { animation: loader-split 2s var(--loader-ease) infinite; }
-}
-
-@keyframes loader-tumble {
-  0%, 10% { transform: rotateX(-35deg) rotateY(45deg); }
-  40%, 50% { transform: rotateX(-35deg) rotateY(135deg); }
-  80%, 100% { transform: rotateX(-35deg) rotateY(225deg); }
-}
-
-@keyframes loader-tile {
-  0%, 50%, 100% { transform: none; opacity: 1; }
-  25% { transform: scale(0.35) rotate(90deg); opacity: 0.4; }
-}
-
-@keyframes loader-stack {
-  0%, 15%, 100% { transform: translateY(var(--y)) rotateX(60deg) rotateZ(45deg); }
-  45%, 65% { transform: translateY(0) rotateX(60deg) rotateZ(45deg); }
-}
-
-@keyframes loader-split {
-  0%, 15%, 100% { transform: none; }
-  45%, 65% { transform: translate(var(--dx), var(--dy)) rotate(180deg); }
-}
+.loader-plate[data-plate='0'] { z-index: 3; background: var(--loader-light); }
+.loader-plate[data-plate='1'] { z-index: 2; background: var(--loader-mid); }
+.loader-plate[data-plate='2'] { z-index: 1; background: var(--loader-dark); }

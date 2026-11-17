@@ -13,7 +13,7 @@ it('shows the cube loader while waiting and hides it once response text is visib
   expect(submitted).toContain('role="status"');
   expect(submitted).toContain('class="sr-only">Working…');
   expect(submitted).toContain('data-loader="cube"');
-  expect(submitted.match(/class="loader-cube-face"/g)).toHaveLength(6);
+  expect(submitted.match(/class="loader-face"/g)).toHaveLength(6);
   expect(submitted).toContain('data-phase="waiting"');
   expect(submitted).toContain('Thinking…');
 

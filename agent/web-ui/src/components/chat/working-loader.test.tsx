@@ -15,11 +15,14 @@ describe('working loader', () => {
   });
 
   it.each([
-    ['cube', 'loader-cube-face', 6],
-    ['tiles', 'loader-tile', 4],
+    ['cube', 'loader-face', 6],
+    ['roll', 'loader-face', 6],
+    ['bounce', 'loader-face', 6],
+    ['bounce', 'loader-ball', 1],
+    ['burst', 'loader-face', 48],
+    ['twist', 'loader-plate', 3],
     ['stack', 'loader-plate', 3],
-    ['split', 'loader-quarter', 4],
-  ] as const)('renders the %s loader as decorative parts', (variant, part, count) => {
+  ] as const)('renders the %s loader with %s parts', (variant, part, count) => {
     const html = renderToStaticMarkup(<WorkingLoader variant={variant} />);
 
     expect(html).toContain('aria-hidden="true"');
@@ -27,9 +30,10 @@ describe('working loader', () => {
     expect(html.match(new RegExp(`class="${part}"`, 'g'))).toHaveLength(count);
   });
 
-  it('staggers the tiles clockwise', () => {
-    const html = renderToStaticMarkup(<WorkingLoader variant="tiles" />);
+  it('places the burst cubes at every corner', () => {
+    const html = renderToStaticMarkup(<WorkingLoader variant="burst" />);
+    const corners = html.match(/--x:-?1;--y:-?1;--z:-?1/g) ?? [];
 
-    expect(html.match(/--i:(\d)/g)).toEqual(['--i:0', '--i:1', '--i:3', '--i:2']);
+    expect(new Set(corners).size).toBe(8);
   });
 });
