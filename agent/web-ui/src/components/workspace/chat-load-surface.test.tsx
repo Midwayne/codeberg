@@ -29,3 +29,18 @@ it('replaces loading feedback with an actionable error and a way back', () => {
   expect(html).toContain('Back to previous chat');
   expect(html).not.toContain('Loading chat…');
 });
+
+it('previews the conversation shape while the chat loads', () => {
+  const html = renderToStaticMarkup(<ChatLoadSurface {...actions}
+    title="Investigate authentication" load={{ id: 'first', status: 'loading' }} />);
+
+  expect(html).toContain('class="ui-loading-chat"');
+});
+
+it('keeps the chat loading label for screen readers only', () => {
+  const html = renderToStaticMarkup(<ChatLoadSurface {...actions}
+    title="Investigate authentication" load={{ id: 'first', status: 'loading' }} />);
+
+  expect(html).toContain('class="sr-only">Loading chat…');
+  expect(html).not.toContain('ui-loading-indicator');
+});

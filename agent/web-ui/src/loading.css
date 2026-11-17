@@ -48,7 +48,7 @@
   opacity: 1;
   visibility: visible;
   transition: opacity 180ms var(--ui-ease-feedback);
-  transition-delay: 80ms;
+  transition-delay: 200ms;
 }
 
 @starting-style {
@@ -95,7 +95,12 @@
   transition: opacity 120ms var(--ui-ease-feedback), visibility 120ms;
 }
 
-.ui-loading-status[data-present='true'] { opacity: 1; visibility: visible; }
+.ui-loading-status[data-present='true'] { opacity: 1; visibility: visible; transition-delay: 200ms; }
+
+@starting-style {
+  .ui-loading-status[data-present='true'] { opacity: 0; }
+}
+
 .ui-loading-indicator { animation: ui-loading-spin 800ms linear infinite; }
 [data-present='false'] .ui-loading-indicator { animation-play-state: paused; }
 

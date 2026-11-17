@@ -50,3 +50,12 @@ describe('loading surfaces', () => {
     expect(html).toContain('aria-hidden="true"');
   });
 });
+
+describe('skeleton screens', () => {
+  it('lets the skeleton speak for itself and keeps the label for screen readers only', () => {
+    const html = renderToStaticMarkup(<LoadingBoundary loading label="Loading models…" kind="form" />);
+
+    expect(html).toContain('class="sr-only">Loading models…');
+    expect(html).not.toContain('ui-loading-indicator');
+  });
+});

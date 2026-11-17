@@ -1,5 +1,4 @@
 import type { ChatLoad } from '../../sessions/chat-resume';
-import { LoadingStatus } from '../loading';
 import { LoadingSkeleton } from '../loading-skeleton';
 
 type ChatLoadSurfaceProps = {
@@ -17,10 +16,10 @@ export function ChatLoadSurface({ load, title, onRetry, onCancel }: ChatLoadSurf
       <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 sm:px-8">
         <h1 className="text-lg font-semibold break-words">{title}</h1>
         {loading ? (
-          <>
-            <LoadingStatus label="Loading chat…" />
-            <LoadingSkeleton kind="section" />
-          </>
+          <div className="ui-loading-reveal">
+            <p role="status" className="sr-only">Loading chat…</p>
+            <LoadingSkeleton kind="chat" />
+          </div>
         ) : (
           <p role="alert" className="text-sm break-words text-destructive">{load.message}</p>
         )}

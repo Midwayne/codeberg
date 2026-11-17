@@ -7,8 +7,10 @@ export function DocsLoading() {
       <DocsHeader />
       <DocsGrid>
         <aside aria-hidden="true" className="hidden md:block">
-          <div className="ui-loading-scaffold px-3">
-            {Array.from({ length: 11 }, (_, index) => <span key={index} className="ui-loading-line" />)}
+          <div className="ui-loading-reveal">
+            <div className="ui-loading-scaffold px-3">
+              {Array.from({ length: 11 }, (_, index) => <span key={index} className="ui-loading-line" />)}
+            </div>
           </div>
         </aside>
         <LoadingBoundary loading label="Loading documentation…" kind="detail" className="min-h-[60dvh]" />

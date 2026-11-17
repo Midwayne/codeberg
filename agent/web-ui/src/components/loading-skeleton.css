@@ -1,0 +1,126 @@
+/* Chat skeleton: prompt bubbles on the right, answer lines on the left. */
+.ui-loading-chat {
+  display: grid;
+  align-content: start;
+  gap: 2rem;
+}
+
+.ui-loading-turn {
+  display: grid;
+  gap: 1rem;
+}
+
+.ui-loading-bubble {
+  display: block;
+  justify-self: end;
+  width: min(60%, 20rem);
+  height: 2.75rem;
+  border-radius: 1.25rem;
+  background: var(--muted);
+}
+
+.ui-loading-turn + .ui-loading-turn .ui-loading-bubble {
+  width: min(40%, 14rem);
+}
+
+.ui-loading-answer {
+  display: grid;
+  gap: 0.625rem;
+}
+
+.ui-loading-answer .ui-loading-line:first-child { width: 92%; }
+.ui-loading-answer .ui-loading-line:nth-child(2) { width: 80%; }
+.ui-loading-answer .ui-loading-line:last-child { width: 55%; }
+
+/*
+ * A soft highlight sweeps each placeholder so a wait reads as progress, not a
+ * frozen screen. It moves only a transform, so the compositor keeps it smooth
+ * while the page is busy loading.
+ */
+.ui-loading-line,
+.ui-loading-block,
+.ui-loading-bubble,
+.ui-loading-composer {
+  position: relative;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Every placeholder breathes in sync, so the whole screen reads as one live surface. */
+  .ui-loading-line,
+  .ui-loading-block,
+  .ui-loading-bubble,
+  .ui-loading-composer {
+    animation: ui-loading-pulse 1.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  }
+
+  .ui-loading-line::after,
+  .ui-loading-block::after,
+  .ui-loading-bubble::after,
+  .ui-loading-composer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklab, var(--foreground) 10%, transparent),
+      transparent
+    );
+    transform: translateX(-100%);
+    animation: ui-loading-shimmer 1.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  }
+}
+
+/* The loading surface stays mounted after content arrives; stop its motion there. */
+[data-present='false'] .ui-loading-line,
+[data-present='false'] .ui-loading-block,
+[data-present='false'] .ui-loading-bubble,
+[data-present='false'] .ui-loading-composer,
+:root[data-ui-motion='instant'] .ui-loading-line,
+:root[data-ui-motion='instant'] .ui-loading-block,
+:root[data-ui-motion='instant'] .ui-loading-bubble,
+:root[data-ui-motion='instant'] .ui-loading-composer {
+  animation: none;
+}
+
+[data-present='false'] .ui-loading-line::after,
+[data-present='false'] .ui-loading-block::after,
+[data-present='false'] .ui-loading-bubble::after,
+[data-present='false'] .ui-loading-composer::after,
+:root[data-ui-motion='instant'] .ui-loading-line::after,
+:root[data-ui-motion='instant'] .ui-loading-block::after,
+:root[data-ui-motion='instant'] .ui-loading-bubble::after,
+:root[data-ui-motion='instant'] .ui-loading-composer::after {
+  animation: none;
+  content: none;
+}
+
+@keyframes ui-loading-pulse {
+  50% { opacity: 0.5; }
+}
+
+@keyframes ui-loading-shimmer {
+  to { transform: translateX(100%); }
+}
+
+/* Loaders that mount directly wait briefly, so fast loads never flash a skeleton. */
+.ui-loading-reveal {
+  display: contents;
+}
+
+.ui-loading-reveal > * {
+  animation: ui-loading-reveal 180ms cubic-bezier(0.4, 0, 0.2, 1) 200ms both;
+}
+
+@keyframes ui-loading-reveal {
+  from { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-loading-reveal > * { animation-duration: 100ms; }
+}
+
+:root[data-ui-motion='instant'] .ui-loading-reveal > * {
+  animation: none;
+}

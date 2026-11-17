@@ -26,10 +26,8 @@ export function LoadingBoundary({ loading, contentReady = !loading, label, kind 
         role={loading ? 'status' : undefined}
         aria-hidden={!loading || undefined}
       >
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 aria-hidden="true" className="ui-loading-indicator size-4 shrink-0" />
-          <span>{label}</span>
-        </div>
+        {/* The shimmering skeleton is the visual cue; the label is announced, not shown. */}
+        <span className="sr-only">{label}</span>
         <LoadingSkeleton kind={kind} />
       </div>
     </div>
