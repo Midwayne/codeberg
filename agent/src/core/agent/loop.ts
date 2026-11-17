@@ -1,10 +1,12 @@
 import { recordToolExecutions } from '../runs/tools.js';
-import { isLoopFinished, ToolLoopAgent } from 'ai';
+import { isLoopFinished, ToolLoopAgent, type ToolSet } from 'ai';
 import { cachedInstructions, deterministicTools, withConversationCache } from '../cache.js';
 import { wrapToolOutputs } from '../context/wrap.js';
 import { wrapToolLoopAgentWithPromptHooks } from '../hooks/index.js';
 import { prepareStepPatch } from '../mcp/active.js';
 import { batchTool } from '../tools/batch.js';
+import { scriptConfig } from '../script/config.js';
+import { scriptTool } from '../script/tool.js';
 import { manageContextModel } from '../request-budget/model.js';
 import { summarize } from './history.js';
 import { HISTORY_SUMMARY_SYSTEM } from '../prompts/history-summary.js';
@@ -35,14 +37,10 @@ export async function ensureLoop(state: AgentState): Promise<ToolLoopAgent> {
 
 async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
   // Sort tools to keep the cached system prefix stable across processes.
-  // `batch` wraps the raw tools: it spills each result against its own budget.
   const base = await buildTools(state);
   const raw = recordToolExecutions({ ...base, ...backgroundTools(base,
     (name, args, output) => presentToolOutput(state.context, name, args, output)) });
-  const tools = deterministicTools({
-    ...wrapToolOutputs(raw, state.context),
-    ...(state.profile.toolBatch ? batchTool(raw, state.context) : {}),
-  });
+  const tools = composedTools(state, raw);
   const toolNames = Object.keys(tools);
   const providerOptions = await prepareSystem(state, tools);
   const model = manageContextModel(state.model, {
@@ -76,4 +74,15 @@ async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
   });
 
   return wrapToolLoopAgentWithPromptHooks(loop, state.promptHooks);
+}
+
+/** `batch` and `run_script` wrap the raw tools: they handle each inner result
+ *  themselves, and a script sees full results rather than spill previews. */
+function composedTools(state: AgentState, raw: ToolSet): ToolSet {
+  const scripts = scriptConfig(state.env);
+
+  return deterministicTools({
+    ...wrapToolOutputs({ ...raw, ...(scripts ? scriptTool(raw, scripts) : {}) }, state.context),
+    ...(state.profile.toolBatch ? batchTool(raw, state.context) : {}),
+  });
 }

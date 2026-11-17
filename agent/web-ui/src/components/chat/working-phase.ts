@@ -38,6 +38,7 @@ const toolLabels: Record<string, string> = {
   git_blame: 'Reading history',
   detect_changes: 'Checking recent changes',
   batch: 'Running several tools',
+  run_script: 'Running a script',
   browser_task: 'Browsing the web',
   web: 'Browsing the web',
 };

@@ -199,6 +199,43 @@ Enable **Settings → Canvas** for a drawing canvas attached to each chat. When 
 
 An open canvas tab checks for changes about once a second, so agent edits appear within a second. A canvas in a background tab pauses and catches up when you return to it.
 
+## Optional script playground
+
+Opt into `run_script` before launch to let the agent write a short Python script that chains tool calls:
+
+```sh
+CODEBERG_SCRIPT_USE=true codeberg
+```
+
+Requires Python 3 on `PATH` (`python3`, or `python` on Windows). Set `CODEBERG_SCRIPT_PYTHON` to use another interpreter. Restart after changing either variable.
+
+Use it for work where each call depends on the last, or that would otherwise take many similar calls:
+
+```text
+Grep for every handler registered in daemon/internal/httpserver, read each one,
+and list the handlers that do not check the request method.
+```
+
+Inside a script, the agent can call any tool that `batch` can run:
+
+| Script API | Behavior |
+| --- | --- |
+| `tools.grep(pattern="x")`, `call("grep", pattern="x")` | Run one tool and return its full result as Python data. |
+| `parallel([("grep", {...}), ("read_file", {...})])` | Run independent calls concurrently; results keep call order. Pass `return_errors=True` to get failures in place. |
+| `ToolError` | Raised for a failed call, an unavailable tool, or the call limit. |
+| `TOOL_NAMES` | The tools the script can call. |
+
+Only printed output reaches the agent's context, so a script can read many results and return a short summary. The chat shows the script, its output, exit code, and tool-call count.
+
+| Limit | Value |
+| --- | --- |
+| Run time | 60 seconds by default; the agent can request up to 300. The script and any processes it starts are stopped at the limit or when you select **Stop**. |
+| Tool calls | 64 per script. |
+| Printed output | 200,000 characters; longer output is cut and marked `truncated`. Large output is [saved to context](/docs/tools#large-tool-results). |
+| Callable tools | Read-only source, search, context, knowledge, and web tools. MCP, Browser Use, canvas, scheduling, and background tools are not callable. |
+
+> **Not a sandbox.** Scripts run as your user with normal file and network access. Codeberg starts each one in an empty temporary directory, removes it afterwards, and passes no API keys or other environment secrets, but it cannot prevent a script from reading or changing files elsewhere. Enable this only for models and projects you trust, because instructions in source files or web pages could steer the script the agent writes.
+
 ## Experimental search composition
 
 Opt into `search_bundle` before launch:

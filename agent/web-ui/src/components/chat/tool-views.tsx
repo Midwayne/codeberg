@@ -2,6 +2,7 @@ import { CanvasArtifact } from '../../canvas/artifact';
 import { isCanvasDrawing } from '../../canvas/conversation';
 import { SpilledOutput, ToolPending, ToolError, GenericTool } from './tool-status';
 import { FileContent, FileList, ReposList, TextOutput } from './tool-file-results';
+import { ScriptRun } from './tool-script';
 import type { DisplayHit } from './tool-source-cards';
 import {
   SearchResults,
@@ -119,6 +120,8 @@ function CompletedTool({ name, part }: CompletedToolProps) {
     case 'git_log':
     case 'git_blame':
       return <TextOutput title={name} part={part} />;
+    case 'run_script':
+      return <ScriptRun part={part} />;
     default:
       return <GenericTool part={part} name={name} />;
   }

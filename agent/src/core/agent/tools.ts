@@ -18,12 +18,14 @@ import { configuredDecision } from '../decisions/catalog.js';
 import { decisionTools } from '../decisions/tool.js';
 import { BACKGROUND_INSTRUCTIONS } from '../background/tools.js';
 import { envEnabled } from '../env-flag.js';
+import { SCRIPT_INSTRUCTIONS, SCRIPT_TOOL } from '../script/tool.js';
 
 /** Guidance each tool family adds to the system prompt when any of its tools is offered. */
 const TOOL_FAMILY_INSTRUCTIONS: { offered: (name: string) => boolean; text: string }[] = [
   { offered: (name) => name === 'search_bundle', text: SEARCH_BUNDLE_INSTRUCTIONS },
   { offered: (name) => name.startsWith('canvas_'), text: CANVAS_INSTRUCTIONS },
   { offered: (name) => name === 'sleep_agent', text: BACKGROUND_INSTRUCTIONS },
+  { offered: (name) => name === SCRIPT_TOOL, text: SCRIPT_INSTRUCTIONS },
 ];
 
 export async function prepareSystem(

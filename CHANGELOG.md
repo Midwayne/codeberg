@@ -7,6 +7,15 @@ changes may occur in minor releases and are called out explicitly.
 
 ## [Unreleased]
 
+### Added
+
+- Opt-in `run_script` tool (`CODEBERG_SCRIPT_USE=true`). The agent can write
+  a Python script that chains read-only tool calls with loops, filtering, and
+  dependent arguments in one step. Only the script's printed output enters the
+  transcript. Scripts are limited to 60 seconds by default (300 maximum) and
+  64 tool calls, start in a temporary directory, and receive no API keys. They
+  are not sandboxed.
+
 ## [0.1.15] - 2026-11-12
 
 ### Fixed
