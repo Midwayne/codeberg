@@ -17,7 +17,7 @@ A **chunk** is a source piece with a path and line range. An **embedding** repre
 2. Each one's code is scored for the query's words, with identifiers split at camelCase and snake_case boundaries (`retryWithBackoff` matches "retry backoff").
 3. Results are ordered by 70% similarity and 30% keyword match, so a chunk using your exact terms can move ahead of a slightly closer one that does not.
 
-The reported `score` and the `min_score` filter remain semantic similarity. Keyword matching only reorders chunks already among the 64 most similar. To find an exact identifier anywhere, use `grep` or `find_symbol`. This ranking is always on and has no settings.
+In benchmarks this helped most with Jina; with a stronger code embedding model the effect was neutral. The reported `score` and the `min_score` filter remain semantic similarity. Keyword matching only reorders chunks already among the 64 most similar. To find an exact identifier anywhere, use `grep` or `find_symbol`. This ranking is always on and has no settings.
 
 ## Start without an embedding model
 

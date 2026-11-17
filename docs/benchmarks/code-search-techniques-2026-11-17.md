@@ -45,9 +45,12 @@ fixture then served as held-out validation.
 | Vector pseudo-relevance feedback (Rocchio), 4 settings [7] | 0.463–0.540 | −0.063 to +0.014 | 0.546–0.563 | −0.012 to −0.029; 3 of 4 significant | Rejected |
 | 1,024-token window [6] | 0.633 | +0.108 | 0.578 | +0.003 | No gain over 512 |
 | fp32 model instead of int8 | 0.551 | +0.026 [−0.016, +0.076] | 0.580 | +0.005 [−0.005, +0.015] | Rejected: 2.7× slower, within noise |
-| Cross-encoder reranking of top 20 [10] | *running* | | | | |
-| CodeRankEmbed model [9] | *running* | | | | |
-| Late chunking [5] | *running* | | | | |
+| Cross-encoder rerank top 20 of dense: jina-reranker-v2 [10] | 0.665 | +0.139 [−0.020, +0.300] | 0.547 | −0.028 [−0.059, +0.004] | Rejected; ~2.5 s/query on CPU |
+| Cross-encoder rerank top 20 of hybrid: jina-reranker-v2 [10] | 0.674 | +0.020 vs hybrid [−0.142, +0.183] | 0.541 | −0.065 vs hybrid [−0.094, −0.036] | Rejected: hurts |
+| Cross-encoder rerank top 20 of dense: mxbai-rerank-xsmall [10] | 0.469 | −0.057 [−0.217, +0.115] | 0.442 | −0.133 [−0.166, −0.098] | Rejected: hurts |
+| **CodeRankEmbed, 512 tokens** [9] | **0.709** | **+0.184 [+0.064, +0.304]** | **0.640** | **+0.065 [+0.035, +0.095]** | **Best model; not shipped (see below)** |
+| CodeRankEmbed + BM25 rescoring, vs CodeRankEmbed alone | 0.750 | +0.041 [−0.022, +0.106] | 0.632 | −0.008 [−0.023, +0.007] | Rescoring neutral on a stronger model |
+| Late chunking, 2,048-token file windows [5] | 0.493 | −0.032 [−0.176, +0.102]; −0.146 vs 512 [−0.264, −0.043] | 0.470 | −0.106 [−0.142, −0.070] | Rejected: hurts |
 
 Minimal-pair MRR (0.511 at baseline) stayed between 0.509 and 0.563 for every
 shipped variant. Long-context fixtures stay unsolved: they run 1,824–1,845
@@ -58,6 +61,30 @@ tokens, and their deciding code comes after 1,024.
 the 512 window improves MRR by +0.034 [+0.003, +0.068]. On the rest the change
 is neutral (−0.005, interval touching zero). The improvement appears exactly
 where the mechanism predicts.
+
+**CodeRankEmbed** (137M parameters, MIT, from CoRNStack [9]) beat Jina at the
+same 512-token window on doc-comment queries: +0.062 [+0.032, +0.092]. The
+repository gain was +0.070 [−0.028, +0.167]. Embedding took about twice as long
+as Jina int8, because the export is fp32. It is not shipped. Adding it as a
+model choice requires one of two sources:
+
+- the official weights, which need `trust_remote_code` (Python from the model
+  repository runs at load);
+- a third-party ONNX export (tested here), which could not be checked against
+  the official weights without PyTorch.
+
+**Rescoring on stronger models.** Keyword rescoring helped Jina significantly.
+On CodeRankEmbed it was neutral (−0.008 doc-comment, within noise). Its benefit
+shrinks as the dense model improves. The default EmbeddingGemma 2 was not
+measured.
+
+**Rerankers and late chunking.** Both rerankers lowered doc-comment MRR. The
+code-aware jina-reranker-v2 (CC-BY-NC) also took about 2.5 s per query on
+CPU. Late chunking pooled base Jina's token states over whole-file context,
+with every query comment removed from that context. It lost to plain
+per-chunk embedding on both sets. The paper's strongest results use a model
+fine-tuned for late chunking. MaxP over sub-windows [Dai & Callan 2019] was not
+run, because the 512-token window already covers 98.6% of chunks whole.
 
 ### How the shipped rescoring works
 
@@ -101,12 +128,12 @@ use batch size 1 for reproducibility.
 | 2 | Bruch, Gai, Ingber. *An Analysis of Fusion Functions for Hybrid Retrieval.* TOIS 2023 (arXiv 2210.11934). | Convex score fusion | Tested; **shipped** |
 | 3 | Robertson, Zaragoza. *The Probabilistic Relevance Framework: BM25 and Beyond.* FnTIR 2009. | BM25 | Tested; **shipped** in fusion |
 | 4 | Li et al. *CoIR: A Comprehensive Benchmark for Code Information Retrieval Models.* ACL 2025 (arXiv 2407.02883). | Benchmark; dense vs. lexical baselines | Informed design |
-| 5 | Günther et al. *Late Chunking: Contextual Chunk Embeddings Using Long-Context Embedding Models.* arXiv 2409.04701. | Late chunking | *Running* |
+| 5 | Günther et al. *Late Chunking: Contextual Chunk Embeddings Using Long-Context Embedding Models.* arXiv 2409.04701. | Late chunking | Tested; rejected |
 | 6 | Günther et al. *Jina Embeddings 2: 8192-Token General-Purpose Text Embeddings.* arXiv 2310.19923. | Long-context ALiBi encoder | Window tested; **512 shipped** |
 | 7 | Li, Mourad, Zhuang, Koopman, Zuccon. *Pseudo Relevance Feedback with Deep Language Models and Dense Retrievers: Successes and Pitfalls.* TOIS (arXiv 2108.11044). | Vector PRF | Tested; rejected |
 | 8 | Yu, Xiong, Callan. *Improving Query Representations for Dense Retrieval with Pseudo Relevance Feedback* (ANCE-PRF). CIKM 2021. | Learned PRF encoder | Not tested: needs training |
-| 9 | Suresh et al. *CoRNStack: High-Quality Contrastive Data for Better Code Retrieval and Reranking.* arXiv 2412.01007. | CodeRankEmbed | *Running* |
-| 10 | Nogueira, Cho. *Passage Re-ranking with BERT.* arXiv 1901.04085. | Cross-encoder reranking | *Running* |
+| 9 | Suresh et al. *CoRNStack: High-Quality Contrastive Data for Better Code Retrieval and Reranking.* arXiv 2412.01007. | CodeRankEmbed | Tested; **best model**, not yet shipped |
+| 10 | Nogueira, Cho. *Passage Re-ranking with BERT.* arXiv 1901.04085. | Cross-encoder reranking | Tested (2 rerankers); rejected |
 | 11 | Wang et al. *CodeRAG-Bench: Can Retrieval Augment Code Generation?* Findings of NAACL 2025 (arXiv 2406.14497). | Retrievers fail at low lexical overlap | Motivated hybrid |
 | 12 | Zhang et al. *cAST: Enhancing Code RAG with Structural Chunking via AST.* arXiv 2506.15655. | AST chunking | Already in Codeberg (tree-sitter) |
 | 13 | Husain et al. *CodeSearchNet Challenge.* arXiv 1909.09436. | Benchmark; strong lexical baseline | Informed design |
