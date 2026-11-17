@@ -29,4 +29,19 @@ describe('ScriptRun', () => {
     expect(failed).toContain('Script failed to start');
     expect(failed).toContain('Python interpreter not found');
   });
+
+  it('shows where file output was saved with its preview', () => {
+    const html = renderToStaticMarkup(
+      <ScriptRun part={part({ code: 'x', output_to_file: true }, {
+        exit_code: 0, tool_calls: 3, output_file: '/home/u/.codeberg/context/scripts/run_script-a.txt',
+        output_bytes: 3 * 1024 * 1024, output_preview: 'first line',
+      })} />,
+    );
+
+    expect(html).toContain('Output saved to');
+    expect(html).toContain('/home/u/.codeberg/context/scripts/run_script-a.txt');
+    expect(html).toContain('(3.0 MiB)');
+    expect(html).toContain('output preview');
+    expect(html).toContain('first line');
+  });
 });

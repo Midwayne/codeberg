@@ -1,10 +1,14 @@
 import { spawnSync } from 'node:child_process';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { jsonSchema, tool, type ToolSet } from 'ai';
 import { expect, it, vi } from 'vitest';
 
 import { backgroundContext, type BackgroundContext } from '../background/context.js';
 import { backgroundTools } from '../background/tools.js';
+import { ContextStore } from '../context/store.js';
 import { scriptTool, SCRIPT_TOOL } from './tool.js';
 
 const hasPython = spawnSync('python3', ['--version']).status === 0;
@@ -15,7 +19,7 @@ const options = { toolCallId: 'start', messages: [], abortSignal: new AbortContr
 
 it.skipIf(!hasPython)('runs a script as a background job the agent can cancel', async () => {
   const grep = tool({ inputSchema: jsonSchema({ type: 'object' }), execute: async () => ({ matches: [] }) });
-  const local: ToolSet = { grep, ...scriptTool({ grep }, { python: 'python3' }) };
+  const local: ToolSet = { grep, ...scriptTool({ grep }, { python: 'python3' }, ContextStore.open(mkdtempSync(join(tmpdir(), 'cberg-script-bg-')))) };
 
   // The job service owns the signal; cancel_background_tool aborts it.
   const controller = new AbortController();

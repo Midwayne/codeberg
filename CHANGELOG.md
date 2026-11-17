@@ -15,6 +15,9 @@ changes may occur in minor releases and are called out explicitly.
   transcript. Scripts have no tool-call, output, or default time limit; the
   agent can run a long script as a background job and cancel it. They start
   in a temporary directory, receive no API keys, and are not sandboxed.
+  With `output_to_file`, printed output is streamed to a file under
+  `context/scripts/` and the agent gets its path, size and a preview; later
+  scripts and context tools can read it.
 
 ## [0.1.15] - 2026-11-12
 

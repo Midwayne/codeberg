@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createInterface } from 'node:readline';
 
+import type { OutputSink, SinkResult } from './output.js';
 import { encodeReply, parseRequest, type ScriptRequest, type ScriptReply } from './protocol.js';
 import { SCRIPT_PRELUDE } from './prelude.js';
 
@@ -14,11 +15,13 @@ export interface PythonRun {
   timeoutMs?: number;
   signal?: AbortSignal;
   onRequest: (request: ScriptRequest) => Promise<ScriptReply>;
+  /** Receives printed output and tracebacks. */
+  sink: OutputSink;
 }
 
 export interface PythonResult {
   exitCode: number | null;
-  output: string;
+  output: SinkResult;
   timedOut: boolean;
 }
 
@@ -33,11 +36,10 @@ export function runPython(run: PythonRun): Promise<PythonResult> {
     windowsHide: true,
   });
 
-  const output = new OutputBuffer();
-  serveRequests(child, run, output);
-  child.stderr?.setEncoding('utf8').on('data', (chunk: string) => output.push(chunk));
+  serveRequests(child, run);
+  child.stderr?.setEncoding('utf8').on('data', (chunk: string) => run.sink.push(chunk, child.stderr!));
 
-  return awaitExit(child, run, output);
+  return awaitExit(child, run);
 }
 
 /** Only what Python needs: no API keys or other secrets from this process. */
@@ -59,14 +61,14 @@ function scriptEnv(workdir: string): NodeJS.ProcessEnv {
   };
 }
 
-function serveRequests(child: ChildProcess, run: PythonRun, output: OutputBuffer): void {
+function serveRequests(child: ChildProcess, run: PythonRun): void {
   // A script that exits mid-call closes stdin; late replies are dropped.
   child.stdin?.on('error', () => {});
 
   createInterface({ input: child.stdout! }).on('line', (line) => {
     const request = parseRequest(line);
     if (!request) {
-      output.push(`${line}\n`);
+      run.sink.push(`${line}\n`);
       return;
     }
 
@@ -76,7 +78,7 @@ function serveRequests(child: ChildProcess, run: PythonRun, output: OutputBuffer
   });
 }
 
-function awaitExit(child: ChildProcess, run: PythonRun, output: OutputBuffer): Promise<PythonResult> {
+function awaitExit(child: ChildProcess, run: PythonRun): Promise<PythonResult> {
   return new Promise((resolve, reject) => {
     let timedOut = false;
 
@@ -95,12 +97,12 @@ function awaitExit(child: ChildProcess, run: PythonRun, output: OutputBuffer): P
 
     child.once('error', (error) => {
       finish();
-      reject(error);
+      run.sink.close().finally(() => reject(error));
     });
 
     child.once('close', (code) => {
       finish();
-      resolve({ exitCode: code, output: output.text(), timedOut });
+      run.sink.close().then((output) => resolve({ exitCode: code, output, timedOut }), reject);
     });
   });
 }
@@ -113,18 +115,5 @@ function killTree(child: ChildProcess): void {
     else process.kill(-child.pid, 'SIGKILL');
   } catch {
     child.kill('SIGKILL');
-  }
-}
-
-/** Collects all printed output; large output is spilled to a context file. */
-class OutputBuffer {
-  private readonly chunks: string[] = [];
-
-  push(chunk: string): void {
-    this.chunks.push(chunk);
-  }
-
-  text(): string {
-    return this.chunks.join('');
   }
 }

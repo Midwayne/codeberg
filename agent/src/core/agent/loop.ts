@@ -81,7 +81,7 @@ async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
  */
 function composedTools(state: AgentState, base: ToolSet): ToolSet {
   const scripts = scriptConfig(state.env);
-  const local = { ...base, ...(scripts ? scriptTool(base, scripts) : {}) };
+  const local = { ...base, ...(scripts ? scriptTool(base, scripts, state.context) : {}) };
 
   const raw = recordToolExecutions({ ...local, ...backgroundTools(local,
     (name, args, output) => presentToolOutput(state.context, name, args, output)) });

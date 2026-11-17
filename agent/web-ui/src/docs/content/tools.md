@@ -231,8 +231,27 @@ Only printed output reaches the agent's context, so a script can process many re
 | --- | --- |
 | Run time | No limit. The agent can set `timeout_seconds`. For a long script, it starts `run_script` with `start_background_tool`, checks `background_tool_status`, and stops it with `cancel_background_tool`. **Stop** also ends a script running in the turn. Stopping kills the script and any processes it started. |
 | Tool calls | No limit. At most 16 run at once; the rest wait their turn so a large script cannot overwhelm the daemon. |
-| Printed output | No limit. Large output is [saved to context](/docs/tools#large-tool-results), but `context_read` and `context_grep` cannot open files over 50 MiB, so print summaries rather than raw results. |
+| Printed output | No limit. Large output is [saved to context](/docs/tools#large-tool-results), but `context_read` and `context_grep` cannot open files over 50 MiB. Print summaries, or save output to a file (below). |
 | Callable tools | Read-only source, search, context, knowledge, and web tools, plus `decide` when configured, which has [separate provider costs](/docs/tools#optional-decisions-tool). MCP, Browser Use, canvas, scheduling, and background tools are not callable. |
+
+### Save script output to a file
+
+When a script produces bulk data, the agent can set `output_to_file: true`. Everything the script prints, including any traceback, is written to a new file as it runs, rather than returned to the chat. The agent receives:
+
+| Field | Contents |
+| --- | --- |
+| `output_file` | Full path to the file. |
+| `output_bytes` | File size. |
+| `output_preview` | The whole output when short; otherwise the first 1,000 and last 2,000 characters. |
+
+The agent can search the file with `context_grep`, page through it with `context_read` (files up to 50 MiB), or open the path in a later script to process it further. The chat shows the path, size, and preview.
+
+```text
+Collect every exported symbol across the repo into a file, then use a second
+script to count them by directory.
+```
+
+Files are saved in the project's `context/scripts/` folder in Codeberg home and kept until you delete them.
 
 A background script follows the normal [background tool rules](/docs/tools#let-a-long-tool-work-while-the-agent-sleeps): it keeps running while the agent sleeps, and a Codeberg restart interrupts it.
 

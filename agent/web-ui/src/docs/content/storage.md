@@ -12,6 +12,7 @@ Source files stay in the directory you add. Codeberg stores configuration and de
       .schedules/         # Durable scheduled follow-ups and their status
       .jobs/              # Background invocation status, progress and results
     context/              # Retrieved text, archives, checkpoints
+      scripts/            # Script output saved with output_to_file
     learning/             # History, knowledge, datasets, evaluations
     canvas/               # Drawings, when enabled
     index/                # Derived search data

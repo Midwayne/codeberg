@@ -1,8 +1,12 @@
 import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { tool, jsonSchema, type ToolExecutionOptions, type ToolSet } from 'ai';
 import { describe, expect, it } from 'vitest';
 
+import { ContextStore } from '../context/store.js';
 import { MAX_SCRIPT_CALLS_IN_FLIGHT } from './config.js';
 import { insideScript } from './scope.js';
 import { scriptTool, SCRIPT_TOOL, type ScriptOutput } from './tool.js';
@@ -29,13 +33,15 @@ function fakeTools(): ToolSet {
   };
 }
 
-async function run(code: string, timeout_seconds?: number, tools: ToolSet = fakeTools()): Promise<ScriptOutput> {
-  const set = scriptTool(tools, { python: 'python3' });
+const store = ContextStore.open(mkdtempSync(join(tmpdir(), 'cberg-script-context-')));
+
+async function run(code: string, timeout_seconds?: number, tools: ToolSet = fakeTools(), extra = {}): Promise<ScriptOutput> {
+  const set = scriptTool(tools, { python: 'python3' }, store);
   const execute = set[SCRIPT_TOOL]!.execute!;
 
   const options = { toolCallId: 'call-1', messages: [] } as unknown as ToolExecutionOptions<unknown>;
 
-  return (await execute({ code, timeout_seconds }, options)) as ScriptOutput;
+  return (await execute({ code, timeout_seconds, ...extra }, options)) as ScriptOutput;
 }
 
 describe.skipIf(!hasPython)('run_script', () => {
@@ -114,6 +120,44 @@ describe.skipIf(!hasPython)('run_script', () => {
     expect(result).not.toHaveProperty('truncated');
   });
 
+  it('streams printed output to a context file when asked', async () => {
+    const result = await run([
+      'for i in range(20000):',
+      '    print(tools.grep(pattern=f"n{i}")["matches"][0]["path"])',
+    ].join('\n'), undefined, fakeTools(), { output_to_file: true });
+
+    const file = result.output_file!;
+    const lines = readFileSync(file, 'utf8').split('\n');
+
+    expect(result).not.toHaveProperty('output');
+    expect(store.resolve(file)).toBe(file);
+    expect(file).toContain(join('scripts', 'run_script-'));
+    expect(lines).toHaveLength(20_001);
+    expect(lines[19_999]).toBe('n19999.ts');
+    expect(result.output_bytes).toBe(readFileSync(file).byteLength);
+
+    expect(result.output_preview).toMatch(/^n0\.ts\n/);
+    expect(result.output_preview).toContain('chars omitted; the full output is in the file');
+    expect(result.output_preview).toMatch(/n19999\.ts\n$/);
+  });
+
+  it('keeps short file output whole in the preview, tracebacks included', async () => {
+    const result = await run('print("partial")\nraise RuntimeError("stopped")', undefined, fakeTools(), { output_to_file: true });
+
+    expect(result.exit_code).toBe(1);
+    expect(result.output_preview).toContain('partial\nTraceback');
+    expect(result.output_preview).toContain('RuntimeError: stopped');
+    expect(readFileSync(result.output_file!, 'utf8')).toBe(result.output_preview);
+  });
+
+  it('lets a later script read an earlier output file', async () => {
+    const first = await run('for i in range(5):\n    print(i)', undefined, fakeTools(), { output_to_file: true });
+
+    const second = await run(`print(sum(int(x) for x in open(${JSON.stringify(first.output_file)})))`);
+
+    expect(second.output).toBe('10\n');
+  });
+
   it('marks its tool calls as running inside a script', async () => {
     const probe = fakeTool(() => ({ inside: insideScript() }));
 
@@ -139,7 +183,7 @@ describe.skipIf(!hasPython)('run_script', () => {
   });
 
   it('stops the script and rethrows when the turn is aborted', async () => {
-    const set = scriptTool(fakeTools(), { python: 'python3' });
+    const set = scriptTool(fakeTools(), { python: 'python3' }, store);
     const controller = new AbortController();
     const options = { toolCallId: 'call-3', messages: [], abortSignal: controller.signal } as unknown as ToolExecutionOptions<unknown>;
 
@@ -169,7 +213,7 @@ describe.skipIf(!hasPython)('run_script', () => {
   });
 
   it('explains a missing interpreter', async () => {
-    const set = scriptTool(fakeTools(), { python: 'definitely-not-python-xyz' });
+    const set = scriptTool(fakeTools(), { python: 'definitely-not-python-xyz' }, store);
     const options = { toolCallId: 'call-2', messages: [] } as unknown as ToolExecutionOptions<unknown>;
 
     const result = await set[SCRIPT_TOOL]!.execute!({ code: 'print(1)' }, options);
