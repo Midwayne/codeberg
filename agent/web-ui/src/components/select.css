@@ -1,0 +1,111 @@
+/*
+ * Dropdowns stay native <select> elements (keyboard, labels, forms, screen
+ * readers), restyled where the browser allows. Browsers with customizable
+ * selects get a styled menu; others keep their native menu.
+ */
+
+.ui-select-icon {
+  transition: rotate 150ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+@supports (appearance: base-select) {
+  .ui-select,
+  .ui-select::picker(select) {
+    appearance: base-select;
+  }
+
+  /* The shared chevron already marks the trigger. */
+  .ui-select::picker-icon {
+    display: none;
+  }
+
+  .ui-select:open + .ui-select-icon {
+    rotate: 180deg;
+  }
+
+  .ui-select::picker(select) {
+    min-width: max(anchor-size(width), 10rem);
+    max-height: min(20rem, 60dvh);
+    margin-block: 0.375rem;
+    padding: 0.25rem;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--popover);
+    color: var(--popover-foreground);
+    box-shadow:
+      0 12px 32px -12px rgb(0 0 0 / 40%),
+      0 2px 8px rgb(0 0 0 / 12%);
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+    transform-origin: top center;
+    transition:
+      opacity 140ms cubic-bezier(0.19, 1, 0.22, 1),
+      transform 140ms cubic-bezier(0.19, 1, 0.22, 1),
+      display 140ms allow-discrete,
+      overlay 140ms allow-discrete;
+  }
+
+  .ui-select:open::picker(select) {
+    opacity: 1;
+    transform: none;
+  }
+
+  @starting-style {
+    .ui-select:open::picker(select) {
+      opacity: 0;
+      transform: translateY(-4px) scale(0.98);
+    }
+  }
+
+  .ui-select option {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 2.25rem;
+    padding: 0.375rem 0.625rem;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--popover-foreground);
+    font-size: 0.875rem;
+    font-weight: 400;
+    cursor: pointer;
+  }
+
+  /* Popover and accent share a colour in dark mode, so highlight with a foreground tint. */
+  .ui-select option:hover,
+  .ui-select option:focus-visible {
+    outline: none;
+    background: color-mix(in oklab, var(--foreground) 8%, transparent);
+  }
+
+  .ui-select option:checked {
+    font-weight: 500;
+  }
+
+  .ui-select option::checkmark {
+    order: 1;
+    margin-inline-start: auto;
+    color: var(--muted-foreground);
+  }
+
+  .ui-select option:disabled {
+    cursor: default;
+    opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-select::picker(select) {
+    transform: none;
+  }
+
+  .ui-select-icon {
+    transition: none;
+  }
+}
+
+:root[data-ui-motion='instant'] .ui-select::picker(select),
+:root[data-ui-motion='instant'] .ui-select-icon {
+  transition: none;
+}

@@ -9,6 +9,8 @@ import {
 import { cn } from '../lib/utils';
 import { useCopied } from '../lib/use-copied';
 
+import './select.css';
+
 export { Dialog } from './dialog';
 
 /** Quiet trigger, with native selection, labels, and keyboard behavior intact. */
@@ -20,13 +22,15 @@ export function Select({ className, wrapperClassName, ...props }: SelectProps) {
       <select
         {...props}
         className={cn(
-          'peer min-h-11 min-w-0 max-w-full cursor-pointer appearance-none truncate rounded-md border-0 bg-transparent py-2 pl-2 pr-7 text-base font-medium text-foreground [field-sizing:content] transition-colors hover:text-accent-foreground focus-visible:text-accent-foreground disabled:cursor-default disabled:opacity-50 sm:text-sm [&>option]:bg-popover [&>option]:text-popover-foreground',
+          'ui-select peer min-h-11 min-w-0 max-w-full cursor-pointer appearance-none truncate rounded-md border-0 bg-transparent py-2 pl-2 pr-7 text-base font-medium text-foreground [field-sizing:content] transition-colors sm:text-sm [&>option]:bg-popover [&>option]:text-popover-foreground',
+          // A soft fill marks hover, focus, and the open menu instead of an outline ring.
+          'hover:bg-accent focus-visible:bg-accent focus-visible:outline-none open:bg-accent disabled:cursor-default disabled:bg-transparent disabled:opacity-50',
           className,
         )}
       />
       <ChevronDown
         aria-hidden="true"
-        className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground peer-disabled:opacity-50"
+        className="ui-select-icon pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground peer-disabled:opacity-50"
       />
     </span>
   );

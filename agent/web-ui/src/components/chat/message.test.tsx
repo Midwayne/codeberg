@@ -76,8 +76,9 @@ describe('assistant activity group', () => {
     expect(control).toContain('border-0');
     expect(control).toContain('bg-transparent');
     expect(control).not.toContain('hover:border');
-    expect(control).toContain('hover:text-accent-foreground');
-    expect(control).toContain('focus-visible:text-accent-foreground');
+    expect(control).toContain('hover:bg-accent');
+    expect(control).toContain('focus-visible:bg-accent');
+    expect(control).toContain('focus-visible:outline-none');
     expect(html).toContain('bg-popover text-popover-foreground');
   });
   it('wraps reasoning and tools in one disclosure while keeping their individual disclosures', () => {
