@@ -224,6 +224,23 @@ The agent marks each shape with what it represents, and Codeberg applies a match
 - The automatic layout follows the arrows left to right or top to bottom, sizes gaps to each box, reduces crossing lines, and gives each group its own lane so group areas do not cover unrelated shapes.
 - After each change the agent sees a list of overlapping shapes, labels that do not fit and shapes outside their group, and fixes them before replying.
 
+### Excalidraw features the agent can use
+
+Beyond roles, the agent can use most of what you can do in the Excalidraw editor. Ask for any of these by name, for example "redraw it in a clean style with elbow arrows".
+
+| Feature | What it does |
+|---------|--------------|
+| Drawing style | Sketchy (default), clean or rough lines; hand-drawn, Nunito, code or other Excalidraw fonts; sharp or round corners; background colour and grid. Changing the style restyles the existing drawing, and shapes you draw afterwards use it too. |
+| Arrow routes | Straight, curved, or elbow (right-angled) connectors |
+| Arrowheads | Arrow, triangle, dot, bar, circle, diamond (filled or outlined), and crow's-foot ends for database relationships |
+| Frames | Named Excalidraw frames that hold a separate view, such as an overview next to a data model |
+| Emphasis | Opacity, line width, hatched, cross-hatched or zigzag fills, rotation, and text alignment |
+| Custom shapes | Multi-point lines, closed polygons and freehand strokes for highlights |
+| Icons | Small SVG images, such as a database or logo icon |
+| Editing aids | Selection groups that move together, and locked elements that can't be dragged by accident |
+
+Links and embedded web pages stay disabled on local canvases. Arrows the agent connects are re-routed whenever it changes the drawing, so a bend you add to a connected arrow by hand may be straightened by the agent's next edit.
+
 The automatic arrangement and styling only apply when the agent draws. Your own moves and colour changes are kept; ask the agent if you want the drawing laid out again.
 
 ## Optional script playground

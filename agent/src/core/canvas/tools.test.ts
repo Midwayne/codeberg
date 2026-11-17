@@ -20,7 +20,7 @@ it('registers only when opted in and fails safely if disabled during a turn', as
 
   await store.configure(true);
   const tools = await source.tools();
-  expect(Object.keys(tools)).toHaveLength(6);
+  expect(Object.keys(tools)).toHaveLength(7);
   const execute = tools.canvas_add!.execute!;
   expect(await execute({ revision: 0, elements: [{ type: 'rectangle' }] }, { toolCallId: 'test', messages: [], context: undefined })).toMatchObject({ kind: 'canvas', url: expect.stringContaining('/canvas?chat=') });
 

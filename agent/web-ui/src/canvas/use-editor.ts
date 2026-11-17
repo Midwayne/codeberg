@@ -8,6 +8,7 @@ import { useSceneWatch } from './scene-watch';
 import { CanvasSync } from './sync';
 import { sceneFingerprint } from './merge';
 import { useSceneMotion } from './use-scene-motion';
+import { styleDefaults } from './style-defaults';
 
 export function useEditor() {
   const [api, setApi] = useState<ExcalidrawImperativeAPI>();
@@ -41,7 +42,7 @@ export function useEditor() {
     if (!sync.base) return;
 
     const appState = { viewBackgroundColor: state.viewBackgroundColor, gridSize: state.gridSize,
-      gridStep: state.gridStep, gridModeEnabled: state.gridModeEnabled };
+      gridStep: state.gridStep, gridModeEnabled: state.gridModeEnabled, ...styleDefaults(state, sync.base.appState) };
     const next = { ...sync.base, elements: elements as unknown as Scene['elements'], appState, files };
     if (sceneFingerprint(next) === applied.current) return;
 

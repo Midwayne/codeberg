@@ -3,12 +3,18 @@ import { bump, codebergData } from './elements.js';
 
 export const GROUP_PADDING = { side: 32, top: 56 };
 
-export function isBoundary(element: Element): boolean {
-  return codebergData(element).role === 'boundary';
+export function isFrame(element: Element): boolean {
+  return element.type === 'frame' || element.type === 'magicframe';
 }
 
+/** Group containers: role=boundary areas and Excalidraw frames. */
+export function isBoundary(element: Element): boolean {
+  return codebergData(element).role === 'boundary' || isFrame(element);
+}
+
+/** Paths and annotations rather than nodes: excluded from layout, sizing and overlap checks. */
 export function isLinear(element: Element): boolean {
-  return element.type === 'arrow' || element.type === 'line';
+  return element.type === 'arrow' || element.type === 'line' || element.type === 'freedraw';
 }
 
 /** IDs of every boundary enclosing an element, innermost first; cycles stop the walk. */
@@ -38,6 +44,21 @@ export function fitGroups(elements: Element[], exact: boolean): void {
     const members = live.filter((element) => !isLinear(element) && element !== boundary &&
       codebergData(element).group === boundary.id);
     if (members.length) fitBoundary(boundary, members, exact || boundary.version <= 1);
+    if (isFrame(boundary)) adoptFrameMembers(boundary, members, elements);
+  }
+}
+
+/** Excalidraw clips frame contents by frameId, including the bound labels of members. */
+function adoptFrameMembers(frame: Element, members: Element[], elements: Element[]): void {
+  const ids = new Set(members.map((member) => member.id));
+
+  for (const element of elements) {
+    if (element.isDeleted || element.frameId === frame.id) continue;
+
+    if (ids.has(element.id) || ids.has(element.containerId ?? '')) {
+      element.frameId = frame.id;
+      bump(element);
+    }
   }
 }
 

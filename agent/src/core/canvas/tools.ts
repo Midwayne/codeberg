@@ -15,6 +15,7 @@ const descriptions: Record<string, string> = {
   update: 'Patch elements by semantic ID. Only supplied properties change. Use text to rename a shape or arrow label, role to restyle, group to move between boundaries.',
   delete: 'Delete elements by semantic ID, together with their labels and attached arrows.',
   clear: 'Clear this chat’s canvas. Inspect canvas_get first.',
+  scene: 'Set the canvas look: background, grid, and default roughness, font and corner roundness. Restyles existing elements unless restyle=false; new elements, including ones the user draws, follow the defaults.',
   layout: 'Size-aware layered layout: flow (left-to-right) or flow-down (top-to-bottom) follows arrows, minimizes crossings and keeps groups together; horizontal/vertical make one row or column. Refits boundaries and places titles above the drawing.',
 };
 
@@ -89,6 +90,17 @@ Make the first drawing HUMAN READABLE and visually polished, not a grid of plain
   and put detail in your written answer. Keep default text sizes; do not shrink text to fit more.
 - Let the diagram grow as large as the explanation needs; do not limit it to fit the inline preview.
 - When several roles appear, add a small legend: one small shape per role used, labelled with its meaning.
+Use the full Excalidraw toolkit when it fits the content:
+- Look: canvas_scene sets the whole drawing's style. Prefer roughness 0 with nunito for formal
+  architecture or reference diagrams; keep the sketchy default for brainstorming and informal flows.
+- Arrows: arrowType elbow for flowcharts and org charts, curved to route around clutter or show
+  feedback loops; crowfoot_* arrowheads with lines for ER cardinality; dot/bar/diamond for UML-style ends.
+- Containers: a frame (type frame) for a self-contained view or slide; role=boundary for areas inside one view.
+- Emphasis: lower opacity for context or out-of-scope parts, thicker strokeWidth for the critical path,
+  fillStyle hachure or cross-hatch to mark deprecated or planned pieces, textAlign left for notes and lists.
+- Detail: line with points (and closed for polygons) for custom shapes, freedraw for highlights or
+  hand-drawn underlines, image with svg for small icons or logos, groupIds to keep a cluster selectable
+  together, locked for backgrounds the user should not drag by accident.
 Run canvas_layout (flow for pipelines and dependencies, flow-down for hierarchies and sequences) after
 the first batch of shapes and arrows, then position notes and legends beside the result.
 Every mutation result and canvas_get lists issues (overlaps, labels that do not fit, shapes outside

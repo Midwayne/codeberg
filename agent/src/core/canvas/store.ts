@@ -8,6 +8,7 @@ import { CanvasError, CanvasRevisionConflict, validName, type Mutation, type Sce
 import { portableAppState, validateScene } from './validation.js';
 import { ifMissing } from '../fs.js';
 import { findIssues } from './issues.js';
+import { codebergData } from './elements.js';
 import { styleSummary } from './describe.js';
 
 export class CanvasStore {
@@ -133,8 +134,8 @@ export class CanvasStore {
       next.appState = portableAppState(next.appState);
       // Browser bindings are authoritative after users reconnect or detach arrows.
       for (const element of next.elements) {
-        if (element.type === 'arrow') element.customData = { codeberg: {
-          from: element.startBinding?.elementId, to: element.endBinding?.elementId,
+        if (element.type === 'arrow') element.customData = { ...element.customData as object, codeberg: {
+          ...codebergData(element), from: element.startBinding?.elementId, to: element.endBinding?.elementId,
         } };
       }
       return this.commit(next);
@@ -144,7 +145,7 @@ export class CanvasStore {
   describe(scene: Scene, offset = 0, limit = 100) {
     const live = scene.elements.filter((element) => !element.isDeleted);
     const entities = live.filter((element) => !element.containerId);
-    return { ...this.summary(scene), total: entities.length,
+    return { ...this.summary(scene), scene: portableAppState(scene.appState), total: entities.length,
       elements: entities.slice(offset, offset + limit).map((element) => ({
         id: element.id, type: element.type, x: element.x, y: element.y,
         width: element.width, height: element.height,

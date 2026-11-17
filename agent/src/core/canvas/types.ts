@@ -1,4 +1,5 @@
 import { HttpError } from '../http-error.js';
+import type { ARROWHEADS } from './styles.js';
 
 export interface Element {
   id: string;
@@ -30,7 +31,7 @@ export interface Scene {
 
 export interface ElementInput {
   id?: string;
-  type?: 'rectangle' | 'ellipse' | 'diamond' | 'text' | 'arrow' | 'line';
+  type?: 'rectangle' | 'ellipse' | 'diamond' | 'text' | 'arrow' | 'line' | 'freedraw' | 'image' | 'frame';
   text?: string;
   x?: number;
   y?: number;
@@ -38,19 +39,42 @@ export interface ElementInput {
   height?: number;
   from?: string;
   to?: string;
-  strokeColor?: string;
-  backgroundColor?: string;
   role?: string;
   group?: string;
+  strokeColor?: string;
+  backgroundColor?: string;
   strokeStyle?: 'solid' | 'dashed' | 'dotted';
-  fillStyle?: 'solid' | 'hachure' | 'cross-hatch';
+  fillStyle?: 'solid' | 'hachure' | 'cross-hatch' | 'zigzag';
   strokeWidth?: number;
+  roughness?: number;
+  opacity?: number;
+  angle?: number;
+  roundness?: 'sharp' | 'round';
   fontSize?: number;
+  fontFamily?: string;
+  textAlign?: 'left' | 'center' | 'right';
+  verticalAlign?: 'top' | 'middle' | 'bottom';
   startArrowhead?: Arrowhead | null;
   endArrowhead?: Arrowhead | null;
+  arrowType?: 'straight' | 'curved' | 'elbow';
+  points?: number[][];
+  closed?: boolean;
+  svg?: string;
+  groupIds?: string[];
+  locked?: boolean;
 }
 
-export type Arrowhead = 'arrow' | 'triangle' | 'dot' | 'bar';
+export type Arrowhead = typeof ARROWHEADS[number];
+
+export interface SceneInput {
+  background?: string;
+  grid?: boolean;
+  gridSize?: number;
+  roughness?: number;
+  fontFamily?: string;
+  roundness?: 'sharp' | 'round';
+  restyle?: boolean;
+}
 
 export interface Mutation {
   name?: string;
@@ -58,6 +82,7 @@ export interface Mutation {
   elements?: ElementInput[];
   ids?: string[];
   mode?: 'horizontal' | 'vertical' | 'flow' | 'flow-down';
+  scene?: SceneInput;
 }
 
 export class CanvasError extends HttpError {
