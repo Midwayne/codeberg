@@ -60,14 +60,14 @@ export function ScheduledRunsView(props: ScheduledRunsProps) {
   return <section className="space-y-5" aria-labelledby={headingId}>
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0 space-y-2">
-        <h2 id={headingId} className="text-lg font-semibold">Scheduled runs</h2>
-        <p className="max-w-prose break-words text-sm leading-6 text-muted-foreground">{props.chatId ? 'Scheduled runs and background tools for this chat.' : `Scheduled runs and background tools across all chats in ${props.projectName}.`}</p>
+        <h2 id={headingId} className={props.chatId ? 'sr-only' : 'text-lg font-semibold'}>Scheduled runs</h2>
+        <p className={`max-w-prose break-words leading-6 text-muted-foreground ${props.chatId ? 'text-xs' : 'text-sm'}`}>{props.chatId ? 'Scheduled runs and background tools for this chat.' : `Scheduled runs and background tools across all chats in ${props.projectName}.`}</p>
       </div>
       <button type="button" className={buttonClass} disabled={props.loading || Boolean(props.cancellingId)} onClick={props.onRefresh}>
         {props.loading && props.jobs ? 'Refreshing…' : 'Refresh'}
       </button>
     </div>
-    <p className="max-w-prose text-sm leading-6 text-muted-foreground">Cancel schedule prevents future checks. Stop &amp; cancel also stops the active turn. Cancel tool requests a stop for background work separately; cancelling a wake-up leaves its tool running. Keep Codeberg running.</p>
+    <p className={`max-w-prose leading-6 text-muted-foreground ${props.chatId ? 'text-xs' : 'text-sm'}`}>Cancel schedule prevents future checks. Stop &amp; cancel also stops the active turn. Cancel tool requests a stop for background work separately; cancelling a wake-up leaves its tool running. Keep Codeberg running.</p>
     <ScheduleFilters {...props} />
     {props.error && <p role="alert" className="break-words text-sm text-destructive">{props.error}</p>}
     {props.notice && <p role="status" className="text-sm">{props.notice}</p>}
@@ -86,7 +86,7 @@ export function ScheduledRunsView(props: ScheduledRunsProps) {
 function ScheduleFilters({ filter, onFilter }: ScheduledRunsProps) {
   return <div role="group" aria-label="Filter scheduled runs" className="flex flex-wrap gap-2">
     {(['active', 'all'] as const).map((value) => <button key={value} type="button" aria-pressed={filter === value}
-      className={`${buttonClass} ${filter === value ? 'bg-accent font-medium' : 'text-muted-foreground'}`} onClick={() => onFilter(value)}>
+      className={`${buttonClass} md:min-h-8 md:py-1 md:text-xs ${filter === value ? 'bg-foreground/10 font-medium text-foreground' : 'text-muted-foreground'}`} onClick={() => onFilter(value)}>
       {value === 'active' ? 'Active' : 'All'}
     </button>)}
   </div>;

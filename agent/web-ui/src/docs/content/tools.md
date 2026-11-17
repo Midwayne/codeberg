@@ -78,7 +78,7 @@ Each schedule also has **Open chat**, which opens its originating conversation a
 
 Background tools also appear here with their invocation status and a **Cancel tool** action. Cancelling requests a cooperative stop; the entry stays active until the call settles. If the call has already finished, a late cancellation preserves its final status and saved result or error. Cancelling a wake-up leaves its background tool running, and cancelling a background tool leaves its wake-up scheduled. Native MCP jobs use their own status/cancel tools.
 
-Inside a chat, the **Scheduled runs** bar appears only when that chat has schedules or background tool entries, including history. Expand it above the conversation to inspect and cancel only that chat's jobs. The count shows pending and running work; **All** includes that chat's schedule history. A small clock beside a sidebar chat title indicates it has a pending schedule or an active occurrence. It disappears after that work completes or cancellation settles.
+Inside a chat, a **Scheduled** button appears in the header only when that chat has schedules or background tool entries, including history. Select it to open a dialog where you can inspect and cancel only that chat's jobs. The count and green dot show pending and running work; **All** includes that chat's schedule history. A small clock beside a sidebar chat title indicates it has a pending schedule or an active occurrence. It disappears after that work completes or cancellation settles.
 
 The view refreshes every five seconds while visible; **Refresh** checks immediately. Times use your browser's timezone. Switch projects to manage another project's schedules. You can cancel a retained schedule even after its chat was deleted.
 
@@ -108,7 +108,7 @@ choose when to check again. Keep checking until it completes, then summarize.
 
 A scheduled turn can also call `sleep_agent` again to continue unfinished work. Each wake-up resumes in the original chat, can write a progress update or final answer, and can choose another wait without a new user message. Use a recurring schedule for fixed intervals; repeated sleeps let the agent adapt the delay to the task.
 
-The chat marks each follow-up with **Resuming scheduled task…**. Its continuation prompt stays collapsed under **Task details**; the agent’s progress update or answer appears normally below it.
+The chat marks each follow-up with a **Resuming scheduled task… · Task details** divider. Select it to show the continuation prompt; the agent’s progress update or answer appears normally below it.
 
 | Tool | What it does |
 | --- | --- |

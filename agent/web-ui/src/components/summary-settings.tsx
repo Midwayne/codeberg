@@ -15,11 +15,12 @@ export function SummarySettings({ models, value, onChange }: SummarySettingsProp
 
   return (
     <fieldset className="space-y-2">
-      <legend className="mb-2 text-sm font-medium">Summaries</legend>
+      <legend className="float-left mb-2 w-full text-sm font-medium">Summaries</legend>
       <label htmlFor="summary-model" className="block text-xs text-muted-foreground">
         Model
       </label>
       <Select
+        field
         id="summary-model"
         value={value?.key ?? ''}
         onChange={(event) => {
@@ -60,6 +61,7 @@ function SummaryEffort({ value, efforts, onChange }: SummaryEffortProps) {
         Effort
       </label>
       <Select
+        field
         id="summary-effort"
         value={value.effort}
         onChange={(event) =>

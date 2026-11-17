@@ -8,9 +8,9 @@ export function DecisionSettings({ models, value, onChange }: {
 }) {
   return (
     <fieldset className="space-y-2">
-      <legend className="mb-2 text-sm font-medium">Decisions API</legend>
+      <legend className="float-left mb-2 w-full text-sm font-medium">Decisions API</legend>
       <label htmlFor="decisions-model" className="block text-xs text-muted-foreground">Model</label>
-      <Select id="decisions-model" value={value ?? ''}
+      <Select field id="decisions-model" value={value ?? ''}
         onChange={(event) => onChange(event.currentTarget.value || null)}>
         <option value="">Off</option>
         {models.map((model) => (

@@ -82,7 +82,7 @@ function FeedbackActionsView({ saving, selected, choose, failed }: FeedbackActio
           const option = FEEDBACK_OPTIONS.find((entry) => entry.label === event.currentTarget.value);
           if (option) void choose(option);
         }}
-        className={cn('text-muted-foreground sm:min-h-9 sm:text-xs', selected && 'text-foreground')}
+        className={cn('text-muted-foreground sm:min-h-9 sm:text-xs md:min-h-7', selected && 'text-foreground')}
       >
         <option value="" disabled={selected !== undefined} className="bg-popover text-popover-foreground">
           Rate answer

@@ -7,6 +7,7 @@ import { installDemoApi } from './api';
 import '@/index.css';
 import '@/motion.css';
 import '@/loading.css';
+import '@/markdown.css';
 import './style.css';
 
 const delay = Number(new URL(location.href).searchParams.get('delay') ?? 1500);

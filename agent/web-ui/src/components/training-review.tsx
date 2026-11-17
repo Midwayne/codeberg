@@ -33,7 +33,11 @@ export function TrainingReviewView(state: TrainingReviewViewProps) {
         )}
         <ReviewHeader state={state} />
 
-        <LoadingStatus active={state.review.loading && Boolean(state.dashboard)} label="Refreshing training data…" />
+        <LoadingStatus
+          active={state.review.loading && Boolean(state.dashboard)}
+          label="Refreshing training data…"
+          className="-mt-4 mb-0"
+        />
         {state.review.dashboardError && (
           <ErrorNotice
             title={state.dashboard ? 'Could not refresh training data' : 'Could not load training data'}

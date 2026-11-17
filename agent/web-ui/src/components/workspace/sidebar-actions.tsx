@@ -81,7 +81,7 @@ function MenuItem({ onClick, className, children }: MenuItemProps) {
       type="button"
       role="menuitem"
       onClick={onClick}
-      className={cn('flex w-full items-center gap-2 rounded px-2 py-2 text-left hover:bg-accent', className)}
+      className={cn('flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent', className)}
     >
       {children}
     </button>
@@ -112,7 +112,7 @@ export function SidebarMenu({ state }: SidebarMenuProps) {
     state.sessions.find((s) => s.id === state.menu!.id) && (
       <div
         ref={state.menuRef}
-        className="fixed z-50 w-40 rounded-lg border border-border bg-popover p-1 text-xs text-popover-foreground shadow-xl"
+        className="fixed z-50 w-36 rounded-lg border border-border bg-popover p-1 text-xs text-popover-foreground shadow-xl"
         style={{ top: state.menu.top, left: state.menu.left }}
       >
         <SessionActionsMenu

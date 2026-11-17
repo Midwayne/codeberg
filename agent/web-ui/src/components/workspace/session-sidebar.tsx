@@ -21,12 +21,12 @@ function SessionSidebarView(state: SessionSidebarViewProps) {
   return (
     <aside
       id="chat-sidebar"
-      className="flex min-h-0 w-full flex-1 flex-col bg-card/30 md:w-72 md:flex-none md:border-r md:border-border"
+      className="flex min-h-0 w-full flex-1 flex-col bg-card/30 md:w-64 md:flex-none md:border-r md:border-border"
       aria-label="Chats"
     >
       <SidebarHeader state={state} />
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
         {state.visible.length === 0 && (
           <p className="px-2 py-4 text-xs text-muted-foreground">
             {state.view === 'archived' ? 'No archived chats yet.' : 'No saved chats yet.'}
@@ -47,9 +47,9 @@ function SessionGroups({ state }: SessionGroupsProps) {
   return state.groups
     .filter((group) => group.items.length > 0)
     .map((group) => (
-      <section key={group.label} aria-label={group.label} className="mb-3">
-        <h2 className="px-2 pt-4 pb-2 text-xs font-medium text-muted-foreground">{group.label}</h2>
-        <ul className="space-y-0.5">
+      <section key={group.label} aria-label={group.label} className="mb-1">
+        <h2 className="px-2 pt-3 pb-1 text-xs font-medium text-muted-foreground md:text-[11px]">{group.label}</h2>
+        <ul className="space-y-px">
           {group.items.map((s) => (
             <SessionRow key={s.id} s={s} state={state} />
           ))}

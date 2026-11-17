@@ -8,13 +8,13 @@ export function PromptAction({ state }: { state: PromptInputViewProps }) {
   return (
     <>
       {state.busy && <button type="button" onClick={state.onStop} aria-label="Stop response" title="Stop response"
-        className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground">
+        className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent md:size-8 hover:text-foreground">
         <Square aria-hidden="true" className="size-3.5 fill-current" />
       </button>}
       <button type="button" onClick={state.submit} aria-label={label} title={label}
         disabled={state.disabled || (!state.value.trim() && !state.files.length)}
-        className="inline-flex size-12 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-30">
-        {state.busy ? <ListPlus aria-hidden="true" className="size-5" /> : <ArrowRight aria-hidden="true" className="size-6" />}
+        className="inline-flex size-12 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-30 md:size-8">
+        {state.busy ? <ListPlus aria-hidden="true" className="size-5 md:size-4" /> : <ArrowRight aria-hidden="true" className="size-6 md:size-4" />}
       </button>
     </>
   );

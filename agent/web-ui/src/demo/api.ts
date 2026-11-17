@@ -1,6 +1,7 @@
 import { canvas, example, extensions, learning, models, projects, review } from './fixtures';
 import { resourceReport, usageReport } from './reports';
 import { scheduleDemoResponse } from './schedules';
+import { transcriptChat, transcriptSession } from './transcript';
 
 /** Only the demo entry installs this transport; real UI builds use the server. */
 export function installDemoApi(delay: number): void {
@@ -21,6 +22,9 @@ export function installDemoApi(delay: number): void {
 }
 
 function demoResponse(url: URL, init?: RequestInit): Response {
+  const transcript = transcriptResponse(url, init);
+  if (transcript) return transcript;
+
   const schedule = scheduleDemoResponse(url, init);
   if (schedule) return schedule;
 
@@ -56,6 +60,13 @@ function demoResponse(url: URL, init?: RequestInit): Response {
   if (url.pathname.startsWith('/api/sessions/') && init?.method) return Response.json({});
 
   return new Response('This action is unavailable in the motion demo.', { status: 404 });
+}
+
+/** The transcript chat opens with a finished, tool-backed answer. */
+function transcriptResponse(url: URL, init?: RequestInit): Response | undefined {
+  if (init?.method || url.pathname !== `/api/sessions/${transcriptChat.id}`) return;
+
+  return Response.json(transcriptSession());
 }
 
 const toolSettings = { webSearch: false, allowed: true, provider: 'managed', status: 'disabled' };

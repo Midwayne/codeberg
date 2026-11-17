@@ -27,7 +27,7 @@ export function SettingsNavigation({ section, setSection }: SettingsNavigationPr
       role="tablist"
       aria-label="Settings sections"
       aria-orientation="vertical"
-      className="grid grid-cols-2 gap-1 sm:grid-cols-3 border-b border-border pb-3 md:sticky md:top-0 md:grid-cols-1 md:border-b-0 md:pb-0"
+      className="grid grid-cols-2 gap-1 sm:grid-cols-3 md:gap-0.5 border-b border-border pb-3 md:sticky md:top-0 md:grid-cols-1 md:border-b-0 md:pb-0"
     >
       {sections.map(({ id, label, shortLabel, icon: Icon }) => (
         <SettingsTab
@@ -119,7 +119,7 @@ function SettingsTab({ id, label, section, setSection, Icon, shortLabel }: Setti
         event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
       }}
       className={cn(
-        'flex min-h-11 items-center justify-center gap-2 rounded-lg px-2 py-3 text-sm md:justify-start md:px-3 focus-visible:outline-2 focus-visible:outline-ring',
+        'flex min-h-11 items-center justify-center gap-2 rounded-lg px-2 py-3 text-sm transition-colors md:min-h-8 md:justify-start md:px-2.5 md:py-1.5 focus-visible:outline-2 focus-visible:outline-ring',
         section === id
           ? 'bg-accent font-medium text-foreground'
           : 'text-muted-foreground hover:bg-accent hover:text-foreground',

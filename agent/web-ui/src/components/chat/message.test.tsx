@@ -11,9 +11,13 @@ it('shows scheduled continuations as neutral markers with collapsed task details
   };
   const html = renderToStaticMarkup(<Message message={message} onBranch={() => undefined} />);
 
-  expect(html).toContain('Resuming scheduled task…');
   expect(html).toContain('data-message-id="wake-0"');
-  expect(html).toMatch(/<details[^>]*>\s*<summary[^>]*>Task details<\/summary>/);
+
+  // The marker itself is the collapsed toggle: one summary names the event and its details.
+  const summary = /<details[^>]*>\s*<summary[^>]*>([\s\S]*?)<\/summary>/.exec(html)?.[1] ?? '';
+  expect(summary).toContain('Resuming scheduled task…');
+  expect(summary).toContain('Task details');
+
   expect(html).toContain(message.parts[0]!.type === 'text' ? message.parts[0]!.text : '');
   expect(html).not.toMatch(/<details[^>]*\bopen(?:=|\s|>)/);
   expect(html).not.toContain('bg-muted');

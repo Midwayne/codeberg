@@ -1,5 +1,6 @@
 import type { ScheduleSummary } from '@agent/core/schedules/summary';
 import { scheduledFollowUpMessage } from '@agent/core/schedules/messages';
+import { transcriptChat } from './transcript';
 
 const jobs: ScheduleSummary[] = [
   { id: 'demo-background', chatId: 'demo-chat-two', chatTitle: 'API review', chatDeleted: false,
@@ -19,17 +20,20 @@ const jobs: ScheduleSummary[] = [
 /** Simulated schedules belong only to the demo transport. */
 export function scheduleDemoResponse(url: URL, init?: RequestInit): Response | undefined {
   if (url.pathname === '/api/schedules') return Response.json(jobs);
-  if (url.pathname === '/api/sessions' && !init?.method) return Response.json(jobs.filter((job, index) => jobs.findIndex((item) => item.chatId === job.chatId) === index).map((job) => ({
-    id: job.chatId, title: job.chatTitle, createdAt: job.createdAt, updatedAt: job.createdAt,
-    turns: 1, pinned: false, archived: false,
-  })));
+  if (url.pathname === '/api/sessions' && !init?.method) return Response.json([
+    { ...transcriptChat, turns: 1, pinned: false, archived: false },
+    ...jobs.filter((job, index) => jobs.findIndex((item) => item.chatId === job.chatId) === index).map((job) => ({
+      id: job.chatId, title: job.chatTitle, createdAt: job.createdAt, updatedAt: job.createdAt,
+      turns: 1, pinned: false, archived: false,
+    })),
+  ]);
 
   const chat = jobs.find((job) => url.pathname === `/api/sessions/${job.chatId}`);
   if (chat && !init?.method) return Response.json({
     id: chat.chatId, title: chat.chatTitle, createdAt: chat.createdAt, updatedAt: chat.createdAt,
     messages: [
       scheduledFollowUpMessage(`${chat.id}-question`, chat.id, chat.prompt),
-      { id: `${chat.id}-answer`, role: 'assistant', parts: [{ type: 'text', text: 'This simulated scheduled check has been saved in its originating chat. Expand Scheduled runs above to inspect this chat’s jobs.' }] },
+      { id: `${chat.id}-answer`, role: 'assistant', parts: [{ type: 'text', text: 'This simulated scheduled check has been saved in its originating chat. Open Scheduled in the header to inspect this chat’s jobs.' }] },
     ],
   });
 

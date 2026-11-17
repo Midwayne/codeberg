@@ -26,17 +26,17 @@ export function MessageActions({
         isUser && 'flex-row-reverse',
       )}
     >
-      {!isUser && text && <CopyButton text={text} />}
+      {!isUser && text && <CopyButton text={text} className="md:size-7" />}
       {!isUser && learningEnabled && conversationId && (
         <FeedbackActions conversationId={conversationId} messageId={message.id} />
       )}
       {onBranch && (
-        <IconButton onClick={onBranch} aria-label="Branch from here" title="Branch from here">
+        <IconButton onClick={onBranch} aria-label="Branch from here" title="Branch from here" className="md:size-7">
           <GitBranch className="size-3.5" />
         </IconButton>
       )}
       {onRegenerate && (
-        <IconButton onClick={onRegenerate} aria-label="Regenerate" title="Regenerate">
+        <IconButton onClick={onRegenerate} aria-label="Regenerate" title="Regenerate" className="md:size-7">
           <RefreshCw className="size-3.5" />
         </IconButton>
       )}

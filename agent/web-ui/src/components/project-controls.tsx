@@ -20,7 +20,7 @@ export function ProjectToolbar({ project, selected, catalog, select, setAdding }
         value={selected}
         disabled={!catalog}
         onChange={(event) => select(event.target.value)}
-        className="font-semibold sm:text-base"
+        className="font-semibold sm:text-base md:min-h-8 md:py-1 md:text-sm"
       >
         {!catalog && <option value="">Loading projects…</option>}
         {catalog?.projects.map((project) => (
@@ -34,7 +34,7 @@ export function ProjectToolbar({ project, selected, catalog, select, setAdding }
         title="Add project"
         disabled={!catalog}
         onClick={() => setAdding(true)}
-        className="size-11 sm:size-11"
+        className="size-11 sm:size-11 md:size-8"
       >
         <FolderPlus className="size-4" />
       </IconButton>

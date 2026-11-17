@@ -13,18 +13,24 @@ import './select.css';
 
 export { Dialog } from './dialog';
 
-/** Quiet trigger, with native selection, labels, and keyboard behavior intact. */
-type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & { wrapperClassName?: string };
+/**
+ * Quiet trigger, with native selection, labels, and keyboard behavior intact.
+ * `field` draws a full-width bordered control for forms.
+ */
+type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & { wrapperClassName?: string; field?: boolean };
 
-export function Select({ className, wrapperClassName, ...props }: SelectProps) {
+const FIELD_SELECT = 'w-full border border-input bg-card font-normal [field-sizing:fixed] md:min-h-9 md:py-1.5';
+
+export function Select({ className, wrapperClassName, field, ...props }: SelectProps) {
   return (
-    <span className={cn('relative inline-flex min-w-0 max-w-full align-middle', wrapperClassName)}>
+    <span className={cn('relative inline-flex min-w-0 max-w-full align-middle', field && 'flex w-full', wrapperClassName)}>
       <select
         {...props}
         className={cn(
           'ui-select peer min-h-11 min-w-0 max-w-full cursor-pointer appearance-none truncate rounded-md border-0 bg-transparent py-2 pl-2 pr-7 text-base font-medium text-foreground [field-sizing:content] transition-colors sm:text-sm [&>option]:bg-popover [&>option]:text-popover-foreground',
           // A soft fill marks hover, focus, and the open menu instead of an outline ring.
           'hover:bg-accent focus-visible:bg-accent focus-visible:outline-none open:bg-accent disabled:cursor-default disabled:bg-transparent disabled:opacity-50',
+          field && FIELD_SELECT,
           className,
         )}
       />
@@ -109,7 +115,7 @@ export function Collapsible({ icon, title, badge, defaultOpen = false, children 
   return (
     <details
       open={defaultOpen}
-      className="group/collapsible my-1 min-w-0 max-w-full overflow-hidden rounded-lg border border-border bg-card/40"
+      className="group/collapsible mt-1 min-w-0 max-w-full overflow-hidden rounded-lg border border-border bg-card/40"
     >
       <summary className="flex min-w-0 cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs text-muted-foreground [&::-webkit-details-marker]:hidden">
         <ChevronRight className="size-3.5 shrink-0 transition-transform group-open/collapsible:rotate-90" />

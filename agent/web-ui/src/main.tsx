@@ -7,6 +7,7 @@ import { trackMotionInput } from './lib/motion-input';
 import '@/index.css';
 import '@/motion.css';
 import '@/loading.css';
+import '@/markdown.css';
 
 applyTheme(loadTheme());
 

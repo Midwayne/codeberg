@@ -16,7 +16,7 @@ export function Settings({ onClose, onLearningSaved, backLabel = 'Back to chats'
   }, []);
   return (
     <main className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto max-w-6xl space-y-8 p-4 sm:p-8">
+      <div className="mx-auto max-w-6xl space-y-8 p-4 sm:p-8 md:space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <button
@@ -28,13 +28,13 @@ export function Settings({ onClose, onLearningSaved, backLabel = 'Back to chats'
               <ArrowLeft className="size-4" />
               <span className="hidden sm:inline">{backLabel}</span>
             </button>
-            <h1 ref={heading} tabIndex={-1} className="text-2xl font-semibold tracking-tight outline-none">
+            <h1 ref={heading} tabIndex={-1} className="text-2xl font-semibold tracking-tight outline-none md:text-xl">
               Settings
             </h1>
           </div>
           <OpenConfigDirectory />
         </div>
-        <div className="grid items-start gap-6 md:grid-cols-[12rem_minmax(0,1fr)] md:gap-10">
+        <div className="grid items-start gap-6 md:grid-cols-[11rem_minmax(0,1fr)] md:gap-10">
           <SettingsNavigation section={section} setSection={setSection} />
           <SettingsPanels section={section} onLearningSaved={onLearningSaved} />
         </div>

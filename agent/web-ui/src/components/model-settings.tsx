@@ -35,7 +35,7 @@ function ModelSettingsPanelView({
       motion="anchored"
       label="Model settings"
       onClose={onClose}
-      className="fixed inset-auto top-20 right-4 m-0 max-h-[calc(100dvh-6rem)] w-[28rem] bg-background"
+      className="fixed inset-auto top-20 right-4 m-0 md:top-14 max-h-[calc(100dvh-6rem)] w-[28rem] bg-background"
     >
       <form
         className="flex max-h-[calc(100dvh-6rem)] flex-col p-5"
@@ -71,7 +71,7 @@ type ModelSettingsFormProps = {
 
 export function ModelSettingsForm({ models, decisionModels = [], value, onChange }: ModelSettingsFormProps) {
   return (
-    <div className="space-y-4">
+    <div className="divide-y divide-border [&>*]:py-4 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
       <ChoiceFields
         label="Chat"
         prefix="chat"
@@ -109,11 +109,12 @@ function ChoiceFields({ label, prefix, models, value, onChange }: ChoiceFieldsPr
   const selected = models.find((entry) => entry.key === value.key);
   return (
     <fieldset className="space-y-2">
-      <legend className="mb-2 text-sm font-medium">{label}</legend>
+      <legend className="float-left mb-2 w-full text-sm font-medium">{label}</legend>
       <label htmlFor={`${prefix}-model`} className="block text-xs text-muted-foreground">
         Model
       </label>
       <Select
+        field
         id={`${prefix}-model`}
         value={value.key}
         onChange={(event) => onChange(selectModel(value, event.currentTarget.value, models))}
@@ -129,6 +130,7 @@ function ChoiceFields({ label, prefix, models, value, onChange }: ChoiceFieldsPr
         Effort
       </label>
       <Select
+        field
         id={`${prefix}-effort`}
         value={value.effort}
         onChange={(event) => onChange({ ...value, effort: event.currentTarget.value as ModelSelection['effort'] })}
@@ -159,14 +161,14 @@ function ModelSettingsActions({ onClose, draft, saving }: ModelSettingsActionsPr
       <button
         type="button"
         onClick={onClose}
-        className="min-h-11 rounded-lg border border-border px-4 text-sm hover:bg-accent"
+        className="min-h-11 rounded-lg border border-border px-4 text-sm hover:bg-accent md:min-h-9"
       >
         Cancel
       </button>
       <button
         type="submit"
         disabled={!draft || saving}
-        className="min-h-11 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+        className="min-h-11 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 md:min-h-9"
       >
         {saving ? 'Saving…' : 'Save settings'}
       </button>

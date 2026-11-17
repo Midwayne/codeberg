@@ -2,6 +2,7 @@ import { GraduationCap, PanelLeft, Search, Settings2, SlidersHorizontal } from '
 
 import { IconButton } from '../ui';
 import { DocsLink } from '../docs-link';
+import { ChatScheduledRunsButton } from './chat-scheduled-runs';
 
 import type { ProjectWorkspaceView, useProjectWorkspace } from '../../App';
 
@@ -10,7 +11,7 @@ type WorkspaceHeaderProps = { state: Parameters<typeof ProjectWorkspaceView>[0] 
 export function WorkspaceHeader({ state }: WorkspaceHeaderProps) {
   return (
     <header className="shrink-0 border-b border-border">
-      <div className="flex min-h-16 flex-wrap items-center gap-1 px-2 text-sm sm:gap-2 sm:px-4">
+      <div className="flex min-h-16 flex-wrap items-center gap-1 px-2 text-sm sm:gap-2 sm:px-4 md:min-h-11 md:gap-0.5 md:px-3">
         {!state.trainingOpen && !state.settingsOpen && (
           <IconButton
             onClick={() => state.setSidebarOpen(!state.sidebarOpen)}
@@ -18,6 +19,7 @@ export function WorkspaceHeader({ state }: WorkspaceHeaderProps) {
             aria-expanded={state.sidebarOpen}
             aria-controls="chat-sidebar"
             title="Toggle chats"
+            className="md:size-8"
           >
             <PanelLeft className="size-4" />
           </IconButton>
@@ -39,6 +41,7 @@ export function WorkspaceHeader({ state }: WorkspaceHeaderProps) {
           </span>
         )}
         <SearchButton state={state} />
+        {!state.trainingOpen && !state.settingsOpen && <ChatScheduledRunsButton />}
         <TrainingButton state={state} />
         <ModelsButton state={state} />
         <SettingsButton state={state} />
@@ -63,7 +66,7 @@ function TrainingButton({ state }: TrainingButtonProps) {
         aria-label={state.trainingOpen ? 'Back to chats' : 'Training review'}
         aria-pressed={state.trainingOpen}
         title={state.trainingOpen ? 'Back to chats' : 'Review training data'}
-        className={`gap-2 md:w-auto md:px-3 ${state.trainingOpen ? 'bg-accent text-foreground' : ''}`}
+        className={`gap-2 md:h-8 md:w-auto md:px-2.5 ${state.trainingOpen ? 'bg-accent text-foreground' : ''}`}
       >
         <GraduationCap className="size-4" />
         <span className="hidden text-xs md:inline">Training</span>
@@ -85,7 +88,7 @@ function ModelsButton({ state }: ModelsButtonProps) {
       aria-label="Model settings"
       aria-expanded={state.modelsOpen}
       title="Model settings"
-      className="gap-2 md:w-auto md:px-3"
+      className="gap-2 md:h-8 md:w-auto md:px-2.5"
     >
       <SlidersHorizontal className="size-4" />
       <span className="hidden text-xs md:inline">Models</span>
@@ -109,7 +112,7 @@ function SettingsButton({ state }: SettingsButtonProps) {
       aria-label="Settings"
       aria-expanded={state.settingsOpen}
       title="Settings"
-      className={`gap-2 md:w-auto md:px-3 ${state.settingsOpen ? 'bg-accent text-foreground' : ''}`}
+      className={`gap-2 md:h-8 md:w-auto md:px-2.5 ${state.settingsOpen ? 'bg-accent text-foreground' : ''}`}
     >
       <Settings2 className="size-4" />
       <span className="hidden text-xs md:inline">Settings</span>
@@ -131,7 +134,7 @@ function SearchButton({ state }: SearchButtonProps) {
       }}
       aria-label="Search chats"
       title="Search chats (⌘K / Ctrl+K)"
-      className="ml-auto gap-2 md:w-auto md:px-3"
+      className="ml-auto gap-2 md:h-8 md:w-auto md:px-2.5"
     >
       <Search className="size-4" />
       <span className="hidden text-xs md:inline">Search</span>

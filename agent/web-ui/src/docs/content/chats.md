@@ -18,7 +18,7 @@ During loading, the previous composer is hidden. **Cancel** returns to the last 
 
 ## Rename and organize chats
 
-A new chat is titled from its first question. Open the **⋯** menu beside a chat in the sidebar to change that:
+A new chat is titled from its first question. Open the **⋯** menu beside a chat in the sidebar to change that (with a mouse, it appears when you hover the chat or focus it with Tab):
 
 | Action | What happens |
 | --- | --- |
@@ -60,13 +60,13 @@ You can keep the same chat open in multiple tabs. Simply viewing it does not blo
 
 ## Scheduled work
 
-The **Scheduled runs** bar appears above a conversation only when that chat has schedules or background tool entries, including history. Expand it to inspect and cancel that chat's jobs. Background tools appear in the same list with a Cancel tool action. Its count and the small clock beside a sidebar chat title indicate pending schedules or active background work. **All** includes completed, cancelled and failed history.
+A **Scheduled** button appears in the header only when the open chat has schedules or background tool entries, including history. Select it to open a dialog where you can inspect and cancel that chat's jobs. Background tools appear in the same list with a Cancel tool action. A green dot and count on the button, and the small clock beside a sidebar chat title, indicate pending schedules or active background work. **All** includes completed, cancelled and failed history.
 
 The expanded schedule list scrolls within the available chat space, leaving the canvas shortcut and message composer accessible on smaller screens.
 
 Scheduled responses appear automatically in their original chat; no page reload is needed. Codeberg checks for new scheduled turns every five seconds while the browser tab is visible, then streams the response. Drafts stay intact. If a chat has streaming, queued or unsaved local work, updates wait until that work settles.
 
-Each scheduled follow-up starts with **Resuming scheduled task…**, followed by the agent’s normal progress update or answer. Expand **Task details** beneath the marker to read the continuation prompt. These markers are separate from your messages and do not add ticks to the user-message navigation rail.
+Each scheduled follow-up starts with a divider marked **Resuming scheduled task… · Task details**, followed by the agent’s normal progress update or answer. Select the marker to show or hide the continuation prompt. These markers are separate from your messages and do not add ticks to the user-message navigation rail.
 
 **Settings → Scheduled runs** shows all chats in the selected project. Choose **Open chat** on a schedule to reach its conversation; idle chats load the latest saved results while preserving draft text. Streaming, queued or unsaved local work stays intact. See [scheduling and cancellation](/docs/tools#schedule-a-follow-up) for timing, costs and recovery.
 

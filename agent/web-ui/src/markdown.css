@@ -1,0 +1,73 @@
+/*
+ * Streamdown draws code blocks and tables as a padded card around a second
+ * bordered card. Flatten them into one surface with a slim header so answers
+ * read as prose with embedded blocks, not stacked boxes.
+ */
+
+[data-streamdown='code-block'],
+[data-streamdown='table-wrapper'] {
+  margin-block: 0.75rem;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background-color: var(--card);
+}
+
+[data-streamdown='code-block-header'] {
+  min-height: 2rem;
+  padding: 0.125rem 0.25rem 0.125rem 0.75rem;
+  font-size: 0.6875rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+[data-streamdown='code-block-header'] > span {
+  text-transform: uppercase;
+}
+
+/* The sticky actions row pulls itself up over the header; match the header height. */
+[data-streamdown='code-block-header'] + div {
+  top: 0.125rem;
+  margin-top: -2rem;
+  padding-right: 0.25rem;
+}
+
+[data-streamdown='code-block-actions'] {
+  gap: 0.125rem;
+  padding: 0;
+  border: 0;
+}
+
+[data-streamdown='code-block-body'] {
+  padding: 0.75rem 1rem;
+  border-width: 1px 0 0;
+  border-radius: 0;
+  background-color: color-mix(in oklch, var(--background) 60%, var(--card));
+  font-size: 0.8125rem;
+}
+
+/* The table toolbar is the wrapper's first child; the scroller follows it. */
+[data-streamdown='table-wrapper'] > :first-child:not(:last-child) {
+  padding: 0.125rem 0.25rem;
+}
+
+[data-streamdown='table-wrapper'] > :last-child {
+  border-width: 1px 0 0;
+  border-radius: 0;
+}
+
+[data-streamdown='table-header-cell'],
+[data-streamdown='table-cell'] {
+  padding: 0.4375rem 0.75rem;
+}
+
+[data-streamdown='ordered-list'],
+[data-streamdown='unordered-list'] {
+  padding-left: 1.25rem;
+}
+
+[data-streamdown='list-item'] {
+  padding-block: 0.0625rem;
+}

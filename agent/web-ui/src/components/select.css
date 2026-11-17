@@ -14,6 +14,11 @@
     appearance: base-select;
   }
 
+  /* base-select is a flex box that top-aligns its value; center it with the chevron. */
+  .ui-select {
+    align-items: center;
+  }
+
   /* The shared chevron already marks the trigger. */
   .ui-select::picker-icon {
     display: none;
