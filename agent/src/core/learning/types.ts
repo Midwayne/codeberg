@@ -1,3 +1,5 @@
+import type { KnowledgeJobType } from './job-types.js';
+
 export const FEEDBACK_LABELS = [
   'not_useful',
   'partially_useful',
@@ -113,7 +115,7 @@ export type FailureCategory =
 
 export interface KnowledgeJob {
   job_id: string;
-  type: 'extract_knowledge' | 'extract_dataset' | 'consolidate_knowledge' | 'evaluate_output';
+  type: KnowledgeJobType;
   interaction_id: string;
   source_revision?: string;
   extraction_version?: number;

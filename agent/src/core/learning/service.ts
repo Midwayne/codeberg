@@ -20,6 +20,8 @@ import { refreshKnowledge } from './service/refresh.js';
 import { getSettings, updateSettings } from './service/settings.js';
 import { LearningServiceState, type LearningServiceOptions } from './service/state.js';
 import { LearningStore } from './store.js';
+import { profileContext } from './profile/extract.js';
+import type { ProfileStore } from './profile/store.js';
 import type { FeedbackLabel, FeedbackRating, FeedbackRecord } from './types.js';
 import { KnowledgeWorker } from './worker.js';
 
@@ -101,6 +103,17 @@ export class LearningService {
 
   knowledgeIndex(): Promise<string> {
     return knowledgeIndex(this.state);
+  }
+
+  /** Learned working-style notes; kept while paused so they can still be reviewed. */
+  get profile(): ProfileStore {
+    return this.state.profile;
+  }
+
+  async profileContext(): Promise<string> {
+    if (!this.state.preferences.enabled || !this.state.preferences.profile) return '';
+
+    return profileContext(await this.state.profile.list());
   }
 
   recordSession(

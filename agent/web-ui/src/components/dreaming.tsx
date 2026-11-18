@@ -74,7 +74,7 @@ export function DreamingReportList({ dashboard, selectedId, busy, onSelect }: Dr
   if (!dashboard.reports.length)
     return (
       <p className="text-sm leading-6 text-muted-foreground">
-        No reports yet. Generate one after a few solved investigations have saved knowledge.
+        No reports yet. Generate one after a few confirmed investigations have saved knowledge.
       </p>
     );
   return (

@@ -2,6 +2,7 @@ import type { LearningStore } from '../store.js';
 import type { KnowledgeArtifact } from '../types.js';
 import { mergeArtifacts } from './merge.js';
 import type { DreamingChange, DreamingPlan } from './types.js';
+import { LearningFailure } from '../failure.js';
 
 export async function planChanges(
   plan: DreamingPlan,
@@ -11,23 +12,14 @@ export async function planChanges(
 ): Promise<DreamingChange[]> {
   const changes = new Map<string, DreamingChange>();
   const destinations = new Map<string, string>();
-  for (const merge of plan.merges) {
-    const group = [merge.target_id, ...merge.source_ids].map((key) => originals.get(key)!);
-    const target = group[0];
-    const after = await mergeArtifacts(group, repositories, now);
+  const links = [...plan.links];
 
-    changes.set(target.id, { before: target, after, reason: merge.reason });
-    for (const artifact of group.slice(1)) {
-      destinations.set(artifact.id, target.id);
-      changes.set(artifact.id, {
-        before: artifact,
-        after: { ...artifact, status: 'archived', merged_into: target.id, updated_at: now },
-        reason: merge.reason,
-      });
-    }
+  for (const merge of plan.merges) {
+    if (!(await applyMerge(merge, originals, repositories, now, changes, destinations)))
+      links.push(...linksInstead(merge));
   }
 
-  applyLinks(plan.links, changes, destinations, originals, now);
+  applyLinks(links, changes, destinations, originals, now);
 
   // Link-only targets must also be revision-checked before the report is applied.
   for (const change of [...changes.values()])
@@ -66,4 +58,46 @@ function applyLinks(
       reason: [prior?.reason, link.reason].filter(Boolean).join(' '),
     });
   }
+}
+
+function linksInstead(merge: DreamingPlan['merges'][number]): DreamingPlan['links'] {
+  return merge.source_ids.map((id) => ({
+    from_id: id,
+    to_id: merge.target_id,
+    reason: `${merge.reason} Linked instead of merged because the combined claims could not be preserved.`,
+  }));
+}
+
+/** Returns false when the group cannot be merged without dropping a claim or its evidence. */
+async function applyMerge(
+  merge: DreamingPlan['merges'][number],
+  originals: Map<string, KnowledgeArtifact>,
+  repositories: Awaited<ReturnType<LearningStore['repositories']>>,
+  now: string,
+  changes: Map<string, DreamingChange>,
+  destinations: Map<string, string>,
+): Promise<boolean> {
+  const group = [merge.target_id, ...merge.source_ids].map((key) => originals.get(key)!);
+  const target = group[0];
+
+  let after: KnowledgeArtifact;
+  try {
+    after = await mergeArtifacts(group, repositories, now);
+  } catch (error) {
+    if (error instanceof LearningFailure && error.category === 'INVALID_RESPONSE') return false;
+
+    throw error;
+  }
+
+  changes.set(target.id, { before: target, after, reason: merge.reason });
+  for (const artifact of group.slice(1)) {
+    destinations.set(artifact.id, target.id);
+    changes.set(artifact.id, {
+      before: artifact,
+      after: { ...artifact, status: 'archived', merged_into: target.id, updated_at: now },
+      reason: merge.reason,
+    });
+  }
+
+  return true;
 }

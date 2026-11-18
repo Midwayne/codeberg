@@ -1,6 +1,8 @@
 import { LoadingBoundary } from './loading';
 import { DatasetSettings, HistorySettings } from './learning-datasets';
 import { KnowledgeSettings } from './learning-knowledge';
+import { ProfileSettings } from './learning-profile';
+import { MemoryPanel } from './memory-panel';
 import { Toggle } from './learning-controls';
 import { useLearningSettingsPanel } from '../lib/use-learning-settings';
 import { DreamingPanel } from './dreaming';
@@ -41,6 +43,7 @@ function LearningSettingsPanelView({
       </div>
       <LearningSettingsError error={error} settings={settings} setRetry={setRetry} />
       <LearningSettingsContent settings={settings} error={error} busy={busy} change={change} />
+      {settings && <MemoryPanel key={`memory-${project?.id ?? 'default'}`} />}
       {settings && <DreamingPanel key={project?.id ?? 'default'} enabled={settings.enabled && settings.knowledge} />}
       {settings && (
         <p role="status" className="min-h-5 text-xs text-muted-foreground">
@@ -96,6 +99,7 @@ export function LearningSettingsView({ settings, busy, onChange }: LearningSetti
         </p>
       </div>
       <div className="divide-y divide-border">
+        <ProfileSettings settings={settings} locked={locked} set={set} />
         <KnowledgeSettings settings={settings} locked={locked} set={set} onChange={onChange} />
         <HistorySettings settings={settings} locked={locked} set={set} />
         <DatasetSettings settings={settings} locked={locked} set={set} onChange={onChange} />

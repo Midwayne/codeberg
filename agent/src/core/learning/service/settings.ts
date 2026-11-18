@@ -52,6 +52,8 @@ export function jobEnabled(
 ): boolean {
   if (job.type === 'evaluate_output') return Boolean(state.evaluations?.enabled());
 
+  if (job.type === 'extract_profile') return state.profileCaptureEnabled;
+
   if (job.type === 'consolidate_knowledge')
     return (
       state.knowledgeEnabled &&

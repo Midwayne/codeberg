@@ -22,6 +22,8 @@ export interface LearningSettings {
   knowledgeRefresh: boolean;
   /** Generate daily consolidation proposals without automatically applying them. */
   dreaming: boolean;
+  /** Learn how the user works from their messages and feedback, and use it in chats. */
+  profile: boolean;
   datasets: boolean;
   training: boolean;
   evals: boolean;
@@ -38,6 +40,7 @@ export const DEFAULT_LEARNING_SETTINGS: LearningSettings = {
   knowledgeRecall: true,
   knowledgeRefresh: true,
   dreaming: false,
+  profile: true,
   datasets: true,
   training: true,
   evals: true,

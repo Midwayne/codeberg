@@ -1,7 +1,8 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest';
+import { DEFAULT_LEARNING_SETTINGS } from '../preferences.js';
 import { sourceRevision } from '../datasets.js';
 import { writeAtomic } from '../../fs.js';
 import { observeSources, sourceCommits, sourceHashes } from '../memory-source.js';
@@ -10,6 +11,15 @@ import { LearningStore, serializeArtifact } from '../store.js';
 import type { KnowledgeArtifact } from '../types.js';
 import { DreamingConsolidator } from './consolidator.js';
 import { DreamingReports } from './reports.js';
+
+// These tests count knowledge model calls and jobs; profile learning has its own tests.
+beforeAll(() => {
+  DEFAULT_LEARNING_SETTINGS.profile = false;
+});
+
+afterAll(() => {
+  DEFAULT_LEARNING_SETTINGS.profile = true;
+});
 
 const roots: string[] = [];
 const services: LearningService[] = [];
@@ -148,7 +158,7 @@ it('drops an applied view when its original knowledge or source evidence changes
   await reports.decide(report.id, 'undo', store);
   expect(await store.currentKnowledgeArtifacts()).toEqual([]);
 });
-it('rejects invented IDs, overlapping merges, and malformed plans', async () => {
+it('drops invented IDs and overlapping merges but keeps the valid part of a plan', async () => {
   const { consolidator, generate } = await fixture();
   generate.mockResolvedValueOnce(
     JSON.stringify({
@@ -156,17 +166,55 @@ it('rejects invented IDs, overlapping merges, and malformed plans', async () => 
       links: [],
     }),
   );
-  await expect(consolidator.plan('dream-test')).rejects.toThrow(/INVALID_RESPONSE/);
+
+  const invented = await consolidator.plan('dream-test');
+
+  expect(invented.changes).toEqual([]);
+  expect(invented.summary).toBe('No knowledge groups to consolidate.');
+
   generate.mockResolvedValueOnce(
     JSON.stringify({
+      summary: 'Overlap.',
       merges: [
         { target_id: 'knowledge-0', source_ids: ['knowledge-1'], reason: 'x' },
         { target_id: 'knowledge-1', source_ids: ['knowledge-0'], reason: 'x' },
       ],
-      links: [],
+      links: [{ from_id: 'knowledge-0', to_id: 'missing', reason: 'x' }],
     }),
   );
-  await expect(consolidator.plan('dream-overlap')).rejects.toThrow(/INVALID_RESPONSE/);
+
+  const overlap = await consolidator.plan('dream-overlap');
+
+  expect(overlap.changes.map((change) => change.after.status).sort()).toEqual([
+    'active',
+    'archived',
+  ]);
+});
+it('tolerates missing lists, blank reasons, self-references and prose around the JSON', async () => {
+  const { consolidator, generate } = await fixture();
+  generate.mockResolvedValueOnce(
+    'Here is the plan:\n' +
+      JSON.stringify({
+        summary: 'Link inventory.',
+        merges: [{ target_id: 'knowledge-0', source_ids: ['knowledge-0'], reason: '' }],
+        links: [{ from_id: 'knowledge-0', to_id: 'knowledge-1', reason: '' }],
+      }) +
+      '\nDone.',
+  );
+
+  const report = await consolidator.plan('dream-lenient');
+  const linked = report.changes.find((change) => change.before.id === 'knowledge-0')!;
+
+  expect(linked.after.related_ids).toEqual(['knowledge-1']);
+  expect(linked.reason).toBe('Related topic.');
+
+  generate.mockResolvedValueOnce(JSON.stringify({ summary: 'Nothing to do.' }));
+
+  expect((await consolidator.plan('dream-empty')).changes).toEqual([]);
+
+  generate.mockResolvedValueOnce('not json');
+
+  await expect(consolidator.plan('dream-malformed')).rejects.toThrow(/malformed dreaming plan/);
 });
 it('reuses a durable report on job retry without another model call', async () => {
   const { consolidator, generate } = await fixture();
@@ -305,7 +353,7 @@ it('lets the agent follow related IDs and startup index paths through knowledge 
     'knowledge-0',
   );
 });
-it('rejects merging claims whose quotes no longer match freshly read code', async () => {
+it('links instead of merging claims whose quotes no longer match freshly read code', async () => {
   const { consolidator, generate, repo } = await fixture();
   generate.mockImplementationOnce(async () => {
     await writeFile(join(repo, 'Flow.ts'), 'export const available = total;');
@@ -316,7 +364,12 @@ it('rejects merging claims whose quotes no longer match freshly read code', asyn
       links: [],
     });
   });
-  await expect(consolidator.plan('dream-changed-evidence')).rejects.toThrow(/evidence changed/);
+  const report = await consolidator.plan('dream-changed-evidence');
+
+  expect(report.changes.every((change) => change.after.status === 'active')).toBe(true);
+  expect(report.changes.find((change) => change.before.id === 'knowledge-1')?.after.related_ids).toEqual([
+    'knowledge-0',
+  ]);
 });
 it('never discards claims to fit the twelve-claim limit', async () => {
   const { store, consolidator, artifacts } = await fixture();
@@ -331,7 +384,9 @@ it('never discards claims to fit the twelve-claim limit', async () => {
     );
   }
 
-  await expect(consolidator.plan('dream-too-many-claims')).rejects.toThrow(/omit claims/);
+  const report = await consolidator.plan('dream-too-many-claims');
+
+  expect(report.changes.some((change) => change.after.status === 'archived')).toBe(false);
   expect(
     (await store.currentKnowledgeArtifacts()).map((artifact) => artifact.claims!.length),
   ).toEqual([7, 7]);

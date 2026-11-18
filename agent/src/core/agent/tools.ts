@@ -54,6 +54,9 @@ export async function prepareSystem(
   const knowledgeIndex = await state.learning?.knowledgeIndex();
   if (knowledgeIndex) state.system += `\n\n${knowledgeIndex}`;
 
+  const profile = await state.learning?.profileContext();
+  if (profile) state.system += `\n\n${profile}`;
+
   return mergeProviderOptions(
     requestProviderOptions(state.system, toolNames, state.profile),
     parallelToolProviderOptions(state.profile),

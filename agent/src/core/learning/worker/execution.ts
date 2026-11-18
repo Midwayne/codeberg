@@ -7,6 +7,7 @@ import { classifyFailure } from '../queue.js';
 import type { KnowledgeJob } from '../types.js';
 import { KNOWLEDGE_EXTRACTION_VERSION, LearningPaused } from './constants.js';
 import { process } from './extraction.js';
+import { extractProfile } from '../profile/extract.js';
 import { enabledType, jobEnabled } from './policy.js';
 import type { KnowledgeWorkerState } from './state.js';
 
@@ -55,6 +56,11 @@ export async function drain(state: KnowledgeWorkerState): Promise<void> {
 async function runJob(state: KnowledgeWorkerState, job: KnowledgeJob): Promise<void> {
   if (job.type === 'evaluate_output') {
     await state.evaluations!.process(job.interaction_id, job.attempt_count);
+  } else if (job.type === 'extract_profile') {
+    const args = [state.store, state.profile, state.generator!, job.interaction_id] as const;
+
+    // New notes reach chats through a rebuilt system prompt.
+    if (await extractProfile(...args, job.job_id)) state.onKnowledgeChanged?.();
   } else if (job.type === 'consolidate_knowledge') {
     await new DreamingConsolidator(
       state.store,

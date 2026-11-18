@@ -2,6 +2,7 @@ import { writeLearningTrace } from '../../module-log.js';
 import { sourceRevision } from '../datasets.js';
 import { memorySourceState, observeSources } from '../memory-source.js';
 import { effectiveFeedback } from '../store.js';
+import { capturesKnowledge } from '../knowledge-feedback.js';
 import type { AttemptRecord, KnowledgeArtifact, KnowledgeJob } from '../types.js';
 import { artifactRevision } from './artifact.js';
 import {
@@ -64,12 +65,12 @@ async function shouldExtract(
     await invalidateKnowledge(state, job.interaction_id);
   }
 
-  // An older solved answer does not verify an ungraded or corrected later answer.
-  if (currentFeedback?.label !== 'solved') {
+  // An older confirmed answer does not verify an ungraded or corrected later answer.
+  if (!capturesKnowledge(currentFeedback?.label)) {
     await invalidateKnowledge(state, job.interaction_id);
     writeLearningTrace('extraction_skipped', {
       job_id: job.job_id,
-      reason: 'latest_attempt_not_solved',
+      reason: 'latest_attempt_not_confirmed',
     });
 
     return false;

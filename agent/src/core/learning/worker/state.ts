@@ -5,6 +5,7 @@ import type { AutomaticEvaluations } from '../evaluation/automatic.js';
 import { DEFAULT_LEARNING_SETTINGS, type LearningSettings } from '../preferences.js';
 import { DurableJobQueue } from '../queue.js';
 import { LearningStore } from '../store.js';
+import { ProfileStore } from '../profile/store.js';
 
 export class KnowledgeWorkerState {
   readonly logDir = moduleLogDirectory();
@@ -19,6 +20,8 @@ export class KnowledgeWorkerState {
 
   processing = false;
 
+  readonly profile: ProfileStore;
+
   constructor(
     readonly store: LearningStore,
     readonly queue: DurableJobQueue,
@@ -27,5 +30,8 @@ export class KnowledgeWorkerState {
     readonly settings: () => LearningSettings = () => DEFAULT_LEARNING_SETTINGS,
     readonly datasets = new DatasetStore(store),
     readonly evaluations?: AutomaticEvaluations,
-  ) {}
+    profile?: ProfileStore,
+  ) {
+    this.profile = profile ?? new ProfileStore(store.root);
+  }
 }

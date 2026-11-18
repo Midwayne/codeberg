@@ -75,7 +75,11 @@ export function buildKnowledgeArtifact(
     source_hashes: sourceHashes(freshObservations),
     claims,
     user_confirmed_notes: prior?.user_confirmed_notes,
-    confidence: response.confidence!,
+    // A "mostly correct" rating names a flaw somewhere, so it never yields high confidence.
+    confidence:
+      context.currentFeedback?.label === 'mostly_correct' && response.confidence === 'high'
+        ? 'medium'
+        : response.confidence!,
     status: response.status!,
     body: withUserNotes(knowledgeBody(claims), prior?.user_confirmed_notes),
   };

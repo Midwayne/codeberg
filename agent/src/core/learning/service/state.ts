@@ -7,6 +7,7 @@ import type { EvaluationRuntime } from '../evaluation/automatic-types.js';
 import { DEFAULT_LEARNING_SETTINGS, type LearningSettings } from '../preferences.js';
 import { DurableJobQueue } from '../queue.js';
 import { LearningSettingsStore } from '../settings.js';
+import { ProfileStore } from '../profile/store.js';
 import { KnowledgeSourceWatcher } from '../source-watcher.js';
 import { LearningStore, defaultLearningRoot } from '../store.js';
 import type { RepositoryVersion } from '../types.js';
@@ -26,6 +27,8 @@ export class LearningServiceState {
   readonly store: LearningStore;
 
   readonly dreamingReports: DreamingReports;
+
+  readonly profile: ProfileStore;
 
   readonly queue: DurableJobQueue;
 
@@ -65,6 +68,11 @@ export class LearningServiceState {
     );
   }
 
+  /** Profile extraction needs saved history and a learning model. */
+  get profileCaptureEnabled(): boolean {
+    return this.preferences.enabled && this.preferences.profile && this.hasGenerator;
+  }
+
   get datasetEnabled(): boolean {
     return (
       this.preferences.enabled &&
@@ -97,6 +105,7 @@ export class LearningServiceState {
     const root = options.root ?? defaultLearningRoot();
     this.store = new LearningStore(root, options.repositories);
     this.dreamingReports = new DreamingReports(root);
+    this.profile = new ProfileStore(root);
     this.queue = new DurableJobQueue(root);
     this.hasGenerator = Boolean(options.generator);
     this.settingsStore = new LearningSettingsStore(root);
@@ -134,6 +143,7 @@ export class LearningServiceState {
       () => this.preferences,
       this.datasets,
       this.evaluations,
+      this.profile,
     );
   }
 }

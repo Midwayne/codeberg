@@ -17,7 +17,7 @@ export function KnowledgeSettings({ settings, locked, set, onChange }: Knowledge
     <div className="pb-5">
       <Toggle
         label="Codebase knowledge"
-        description="Save and reuse source-backed findings from solved investigations."
+        description="Save and reuse source-backed findings from confirmed investigations."
         impact="Background model calls"
         checked={settings.knowledge}
         disabled={locked}
@@ -26,8 +26,8 @@ export function KnowledgeSettings({ settings, locked, set, onChange }: Knowledge
       <fieldset disabled={locked || !settings.knowledge} className="min-w-0 pl-4 sm:pl-5">
         <legend className="sr-only">Knowledge components</legend>
         <Toggle
-          label="Learn from solved answers"
-          description="Call the learning model to create knowledge from new solved feedback."
+          label="Learn from confirmed answers"
+          description="Call the learning model to create knowledge when you rate an answer Solved or Mostly correct."
           checked={settings.knowledgeCapture}
           disabled={locked || !settings.knowledge}
           onChange={(value) => set('knowledgeCapture', value)}

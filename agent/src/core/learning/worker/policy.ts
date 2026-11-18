@@ -8,6 +8,8 @@ export function jobEnabled(state: KnowledgeWorkerState, job: KnowledgeJob): bool
 
   if (job.type === 'evaluate_output') return Boolean(state.evaluations?.enabled());
 
+  if (job.type === 'extract_profile') return Boolean(state.generator) && settings.profile;
+
   if (
     job.type === 'consolidate_knowledge' &&
     isDailyDreaming(job.interaction_id) &&
@@ -37,7 +39,9 @@ export function enabledType(
 
   const datasets = settings.datasets && Object.values(settings.kinds).some(Boolean);
 
-  return knowledge || state.evaluations?.enabled()
+  const profile = Boolean(state.generator) && settings.profile;
+
+  return knowledge || profile || state.evaluations?.enabled()
     ? undefined
     : datasets
       ? 'extract_dataset'

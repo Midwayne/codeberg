@@ -61,9 +61,13 @@ async function routeDreamingRoot(
     learning.queue.list('failed'),
   ]);
 
+  // A newer report supersedes older failures; showing them would imply it is still broken.
+  const latest = reports[0]?.created_at ?? '';
+  const current = failed.filter((job) => job.updated_at > latest);
+
   return sendJson(res, 200, {
     reports: reports.slice(0, 20).map(dreamingSummary),
-    jobs: [...pending, ...processing, ...failed]
+    jobs: [...pending, ...processing, ...current]
       .filter((job) => job.type === 'consolidate_knowledge')
       .sort((a, b) => b.created_at.localeCompare(a.created_at))
       .slice(0, 5)

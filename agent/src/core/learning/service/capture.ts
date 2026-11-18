@@ -1,5 +1,6 @@
 import type { UIMessage } from 'ai';
 import { writeModuleLog } from '../../module-log.js';
+import { capturesKnowledge } from '../knowledge-feedback.js';
 import type { FeedbackLabel, FeedbackRating, FeedbackRecord } from '../types.js';
 import { wakeWorker } from './background.js';
 import type { LearningServiceState } from './state.js';
@@ -24,6 +25,8 @@ export async function recordSession(
     );
     if (!newAnswers.length) continue;
 
+    await enqueueProfile(state, id);
+
     if (
       state.datasetEnabled &&
       (interaction.feedback.length || newAnswers.some((attempt) => attempt.tools_invoked.length))
@@ -33,13 +36,13 @@ export async function recordSession(
 
     if (
       state.knowledgeCaptureEnabled &&
-      interaction.feedback.some((feedback) => feedback.label === 'solved')
+      interaction.feedback.some((feedback) => capturesKnowledge(feedback.label))
     ) {
       await state.queue.enqueueKnowledge(id, { requeueCompleted: true });
     } else {
       writeModuleLog('learning-agent', 'knowledge_not_queued', {
         interaction_id: id,
-        reason: 'no_solved_feedback',
+        reason: 'no_positive_feedback',
       });
     }
 
@@ -71,17 +74,18 @@ export async function feedback(
   });
 
   await enqueueFeedbackDataset(state, attempt.interaction_id);
+  await enqueueProfile(state, attempt.interaction_id);
 
   // A change to an older attempt can invalidate knowledge learned from a newer
   // solved attempt (or vice versa). Revisit the entire logical interaction.
   const interaction = await state.store.interaction(attempt.interaction_id);
   if (
     !state.knowledgeCaptureEnabled ||
-    !interaction.feedback.some((entry) => entry.label === 'solved')
+    !interaction.feedback.some((entry) => capturesKnowledge(entry.label))
   ) {
     writeModuleLog('learning-agent', 'knowledge_not_queued', {
       interaction_id: attempt.interaction_id,
-      reason: 'no_solved_feedback',
+      reason: 'no_positive_feedback',
     });
 
     return { feedback };
@@ -123,5 +127,17 @@ async function enqueueFeedbackKnowledge(
     writeModuleLog('learning-agent', 'knowledge_enqueue_failed', { error: String(error) });
 
     return { feedback };
+  }
+}
+
+/** Every answer and rating can show how the user works, so profile learning runs eagerly. */
+async function enqueueProfile(state: LearningServiceState, interactionId: string): Promise<void> {
+  if (!state.profileCaptureEnabled) return;
+
+  try {
+    await state.queue.enqueueProfile(interactionId);
+    wakeWorker(state);
+  } catch (error) {
+    writeModuleLog('learning-agent', 'profile_enqueue_failed', { error: String(error) });
   }
 }

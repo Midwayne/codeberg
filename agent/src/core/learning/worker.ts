@@ -4,6 +4,7 @@ import type { AutomaticEvaluations } from './evaluation/automatic.js';
 import { DEFAULT_LEARNING_SETTINGS, type LearningSettings } from './preferences.js';
 import { DurableJobQueue } from './queue.js';
 import { LearningStore } from './store.js';
+import type { ProfileStore } from './profile/store.js';
 import {
   initialize,
   isProcessing,
@@ -28,6 +29,7 @@ export class KnowledgeWorker {
     settings: () => LearningSettings = () => DEFAULT_LEARNING_SETTINGS,
     datasets = new DatasetStore(store),
     evaluations?: AutomaticEvaluations,
+    profile?: ProfileStore,
   ) {
     this.state = new KnowledgeWorkerState(
       store,
@@ -37,6 +39,7 @@ export class KnowledgeWorker {
       settings,
       datasets,
       evaluations,
+      profile,
     );
   }
 

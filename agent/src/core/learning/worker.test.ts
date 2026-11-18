@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 
 import type { UIMessage } from 'ai';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { DEFAULT_LEARNING_SETTINGS } from './preferences.js';
 
 import { sourceRevision } from './datasets.js';
 import { exportDataset } from './export.js';
@@ -12,6 +13,15 @@ import { DurableJobQueue } from './queue.js';
 import { LearningService } from './service.js';
 import { LearningStore, serializeArtifact, stableId } from './store.js';
 import { KnowledgeWorker, parseExtractionResponse } from './worker.js';
+
+// These tests count knowledge model calls and jobs; profile learning has its own tests.
+beforeAll(() => {
+  DEFAULT_LEARNING_SETTINGS.profile = false;
+});
+
+afterAll(() => {
+  DEFAULT_LEARNING_SETTINGS.profile = true;
+});
 
 const roots: string[] = [];
 
