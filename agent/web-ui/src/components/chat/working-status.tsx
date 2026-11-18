@@ -1,4 +1,4 @@
-import { isToolUIPart, type ChatStatus, type UIMessage } from 'ai';
+import type { ChatStatus, UIMessage } from 'ai';
 
 import { useElapsedSeconds } from './use-elapsed';
 import { loaderForTurn, WorkingLoader } from './working-loader';
@@ -39,17 +39,15 @@ function WorkingIndicator({ messages }: WorkingIndicatorProps) {
   );
 }
 
+/*
+ * Only text being written right now replaces the indicator. Earlier text does not:
+ * after a finished tool, finished reasoning, or a new step the turn is still running.
+ */
 function hasVisibleResponse(messages: UIMessage[]): boolean {
   const latest = messages.at(-1);
   if (latest?.role !== 'assistant') return false;
 
-  for (const part of [...latest.parts].reverse()) {
-    if (isToolUIPart(part) && ['input-streaming', 'input-available'].includes(part.state)) {
-      return false;
-    }
-    if (part.type === 'reasoning' && part.state === 'streaming') return false;
-    if (part.type === 'text') return Boolean(part.text.trim());
-  }
+  const part = latest.parts.at(-1);
 
-  return false;
+  return part?.type === 'text' && Boolean(part.text.trim());
 }

@@ -1,5 +1,12 @@
-import { makeElement, bump, setLabel } from './elements.js';
+import { makeElement, bump } from './elements.js';
+import { setLabel } from './labels.js';
 import { reconnect } from './connections.js';
+import { fitGroups, insertionIndex, isBoundary, isLinear } from './groups.js';
+import { layout } from './layout.js';
+import { attachSvg, pruneFiles } from './media.js';
+import { configureScene } from './scene.js';
+import { sceneDefaults, textStyle } from './styles.js';
+import { update } from './update.js';
 import { CanvasError, type Element, type Mutation, type Scene } from './types.js';
 
 export function mutate(scene: Scene, operation: string, input: Mutation): void {
@@ -17,46 +24,48 @@ export function mutate(scene: Scene, operation: string, input: Mutation): void {
       scene.elements = [];
       break;
     case 'layout':
-      layout(scene, input.mode ?? 'flow');
+      reconnect(scene.elements);
+      layout(scene.elements, input.mode ?? 'flow');
+      break;
+    case 'scene':
+      configureScene(scene, input.scene ?? {});
       break;
     default: throw new CanvasError('Unknown canvas operation.');
   }
+  if (operation !== 'layout') fitGroups(scene.elements, false);
+
   reconnect(scene.elements);
+  if (operation === 'delete' || operation === 'clear') pruneFiles(scene);
 }
 
 function add(scene: Scene, input: Mutation): void {
   if (!input.elements?.length) throw new CanvasError('elements are required.');
 
-  const labels: { element: Element; text: string }[] = [];
+  const defaults = sceneDefaults(scene.appState);
+  const labels: { element: Element; text: string; style: Partial<Element> }[] = [];
+  let nextX = rightEdge(scene.elements);
+
   for (const item of input.elements) {
-    const element = makeElement(item, scene.elements.filter((element) => !element.containerId).length);
+    const element = makeElement({ ...item, x: item.x ?? nextX }, 0, defaults);
     if (scene.elements.some((existing) => existing.id === element.id)) throw new CanvasError(`Element already exists: ${element.id}`);
 
-    scene.elements.push(element);
-    if (item.text !== undefined && element.type !== 'text') labels.push({ element, text: item.text });
+    if (element.type === 'image') attachSvg(scene, element, item);
+
+    scene.elements.splice(insertionIndex(scene.elements, element), 0, element);
+    if (!isLinear(element) && !isBoundary(element) && item.x === undefined) nextX = element.x + element.width + 80;
+
+    if (item.text !== undefined && !['text', 'image', 'freedraw'].includes(element.type)) {
+      labels.push({ element, text: item.text, style: textStyle(item) });
+    }
   }
-  for (const { element, text } of labels) setLabel(scene.elements, element, text);
+  for (const { element, text, style } of labels) setLabel(scene.elements, element, text, style, defaults);
 }
 
-function update(scene: Scene, input: Mutation): void {
-  if (!input.elements?.length) throw new CanvasError('elements are required.');
+/** Default x for unpositioned shapes: right of the current drawing so nothing stacks up. */
+function rightEdge(elements: Element[]): number {
+  const shapes = elements.filter((element) => !element.isDeleted && !element.containerId && !isLinear(element));
 
-  for (const item of input.elements) {
-    const element = scene.elements.find((element) => element.id === item.id && !element.isDeleted);
-    if (!element) throw new CanvasError(`Unknown element: ${item.id}`);
-
-    for (const key of ['x', 'y', 'width', 'height', 'strokeColor', 'backgroundColor'] as const) {
-      if (item[key] !== undefined) Object.assign(element, { [key]: item[key] });
-    }
-    if (item.from || item.to) {
-      element.customData = { codeberg: {
-        from: item.from ?? element.startBinding?.elementId, to: item.to ?? element.endBinding?.elementId,
-      } };
-    }
-    if (item.text !== undefined) setLabel(scene.elements, element, item.text);
-
-    bump(element);
-  }
+  return shapes.length ? Math.max(...shapes.map((element) => element.x + element.width)) + 80 : 100;
 }
 
 function remove(scene: Scene, ids: string[]): void {
@@ -71,36 +80,6 @@ function remove(scene: Scene, ids: string[]): void {
       element.isDeleted = true;
       bump(element);
     }
+    if (removed.has(element.frameId as string)) element.frameId = null;
   }
-}
-
-function layout(scene: Scene, mode: string): void {
-  if (!['horizontal', 'vertical', 'flow'].includes(mode)) throw new CanvasError('Invalid layout mode.');
-
-  const nodes = scene.elements.filter((element) => !element.isDeleted && !element.containerId && !['arrow', 'line'].includes(element.type));
-  const levels = graphLevels(nodes, scene.elements);
-  const rows = new Map<number, number>();
-  nodes.forEach((node, index) => {
-    const column = mode === 'flow' ? levels.get(node.id)! : index;
-    const row = rows.get(column) ?? 0;
-    rows.set(column, row + 1);
-    node.x = 100 + (mode === 'vertical' ? 0 : column * 320);
-    node.y = 100 + (mode === 'vertical' ? index * 180 : row * 180);
-    bump(node);
-  });
-}
-
-function graphLevels(nodes: Element[], elements: Element[]): Map<string, number> {
-  const levels = new Map(nodes.map((node) => [node.id, 0]));
-  // Bounded relaxation handles disconnected components and cycles deterministically.
-  for (let pass = 0; pass < nodes.length; pass++) {
-    for (const arrow of elements.filter((element) => element.type === 'arrow' && !element.isDeleted)) {
-      const from = arrow.startBinding?.elementId;
-      const to = arrow.endBinding?.elementId;
-      if (from && to && levels.has(from) && levels.has(to)) {
-        levels.set(to, Math.min(nodes.length - 1, Math.max(levels.get(to)!, levels.get(from)! + 1)));
-      }
-    }
-  }
-  return levels;
 }

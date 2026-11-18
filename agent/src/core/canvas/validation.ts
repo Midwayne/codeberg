@@ -65,7 +65,8 @@ function validateFiles(files: Record<string, unknown>): void {
 
 /** Persist portable scene preferences, never selections, collaborators or viewport state. */
 export function portableAppState(state: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(['viewBackgroundColor', 'gridSize', 'gridStep', 'gridModeEnabled'].map(
+  return Object.fromEntries(['viewBackgroundColor', 'gridSize', 'gridStep', 'gridModeEnabled',
+    'currentItemRoughness', 'currentItemFontFamily', 'currentItemRoundness'].map(
     (key) => [key, state[key]],
   ).filter(([, value]) => value !== undefined));
 }

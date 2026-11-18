@@ -199,6 +199,50 @@ Enable **Settings → Canvas** for a drawing canvas attached to each chat. When 
 
 An open canvas tab checks for changes about once a second, so agent edits appear within a second. A canvas in a background tab pauses and catches up when you return to it.
 
+### How the agent styles drawings
+
+The agent marks each shape with what it represents, and Codeberg applies a matching shape and colour scheme so similar things look the same:
+
+| Role | Look |
+|------|------|
+| Service | Blue rounded box |
+| Component (module, library) | Violet rounded box |
+| Data store | Green ellipse |
+| Queue | Teal box |
+| External system | Grey dashed box |
+| Actor (person, client) | Orange ellipse |
+| Decision | Amber diamond |
+| Step | Neutral box |
+| Error | Red box |
+| Note | Yellow sticky note |
+| Title | Large heading above the drawing |
+| Boundary | Dashed grey area that encloses a group, such as a layer or team |
+
+- Boxes grow to fit their labels, so text is not clipped.
+- Group areas resize around their members and stay behind them.
+- Dashed arrows mark async, optional or planned links.
+- The automatic layout follows the arrows left to right or top to bottom, sizes gaps to each box, reduces crossing lines, and gives each group its own lane so group areas do not cover unrelated shapes.
+- After each change the agent sees a list of overlapping shapes, labels that do not fit and shapes outside their group, and fixes them before replying.
+
+### Excalidraw features the agent can use
+
+Beyond roles, the agent can use most of what you can do in the Excalidraw editor. Ask for any of these by name, for example "redraw it in a clean style with elbow arrows".
+
+| Feature | What it does |
+|---------|--------------|
+| Drawing style | Sketchy (default), clean or rough lines; hand-drawn, Nunito, code or other Excalidraw fonts; sharp or round corners; background colour and grid. Changing the style restyles the existing drawing, and shapes you draw afterwards use it too. |
+| Arrow routes | Straight, curved, or elbow (right-angled) connectors |
+| Arrowheads | Arrow, triangle, dot, bar, circle, diamond (filled or outlined), and crow's-foot ends for database relationships |
+| Frames | Named Excalidraw frames that hold a separate view, such as an overview next to a data model |
+| Emphasis | Opacity, line width, hatched, cross-hatched or zigzag fills, rotation, and text alignment |
+| Custom shapes | Multi-point lines, closed polygons and freehand strokes for highlights |
+| Icons | Small SVG images, such as a database or logo icon |
+| Editing aids | Selection groups that move together, and locked elements that can't be dragged by accident |
+
+Links and embedded web pages stay disabled on local canvases. Arrows the agent connects are re-routed whenever it changes the drawing, so a bend you add to a connected arrow by hand may be straightened by the agent's next edit.
+
+The automatic arrangement and styling only apply when the agent draws. Your own moves and colour changes are kept; ask the agent if you want the drawing laid out again.
+
 ## Optional script playground
 
 Opt into `run_script` before launch to let the agent write a short Python script that chains tool calls:

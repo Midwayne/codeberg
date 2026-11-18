@@ -6,7 +6,7 @@ export const CanvasConversation = createContext<{ chatId: string; anchor?: strin
 
 export function isCanvasDrawing(part: ToolView): boolean {
   const name = part.type === 'dynamic-tool' ? part.toolName : part.type.slice(5);
-  return ['canvas_add', 'canvas_update', 'canvas_delete', 'canvas_clear', 'canvas_layout'].includes(name ?? '');
+  return ['canvas_add', 'canvas_update', 'canvas_delete', 'canvas_clear', 'canvas_layout', 'canvas_scene'].includes(name ?? '');
 }
 
 export function canvasAnchor(messages: UIMessage[]): string | undefined {

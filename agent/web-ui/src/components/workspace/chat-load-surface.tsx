@@ -13,7 +13,7 @@ export function ChatLoadSurface({ load, title, onRetry, onCancel }: ChatLoadSurf
 
   return (
     <section aria-label="Open chat" aria-busy={loading} className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 sm:px-8">
+      <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-6 sm:px-8">
         <h1 className="text-lg font-semibold break-words">{title}</h1>
         {loading ? (
           <div className="ui-loading-reveal">
