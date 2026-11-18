@@ -9,7 +9,7 @@ type RememberInput = { kind: ProfileKind; statement: string; evidence: string; r
 
 export const REMEMBER_INSTRUCTIONS = `
 
-Memory: when the user asks you to remember, always do, or stop doing something, or states a lasting preference, workflow, convention, ongoing decision or where to find something, call remember right away with the user's exact words as evidence. When they say a remembered note is wrong or ask you to forget it, call forget with its id from "How this user works". Do not remember facts you can read from the code, one-off task details, or anything that is not in the user's own words.`;
+Memory: when the user asks you to remember, always do, or stop doing something, or states a lasting preference, workflow, convention, ongoing decision or where to find something, call remember right away with the user's exact words as evidence. When they say a remembered note is wrong or ask you to forget it, call forget with its id from "How this user works". Do not remember facts you can read from the code, task state, one-off details, or anything that is not in the user's own words.`;
 
 /** Explicit, user-directed memory. Evidence must quote a user message, never a tool result. */
 export function rememberTools(profile: ProfileStore): ToolSet {
@@ -80,7 +80,7 @@ const rememberSchema = jsonSchema<RememberInput>({
     kind: { type: 'string', enum: [...PROFILE_KINDS] },
     statement: {
       type: 'string',
-      description: 'Short third-person note, e.g. "Prefers pnpm over npm".',
+      description: 'Short third-person note, e.g. "Wants the SQL shown with results".',
     },
     evidence: { type: 'string', description: "Exact excerpt of the user's message." },
     replaces: { type: 'string', description: 'Id of a remembered note this corrects, if any.' },

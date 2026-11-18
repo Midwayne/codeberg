@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { redactSecrets } from '../../core/learning/redact.js';
 import type { LearningService } from '../../core/learning/service.js';
 import type { KnowledgeJob } from '../../core/learning/types.js';
+import { KnowledgeUsage } from '../../core/learning/knowledge-usage.js';
 import { sameOrigin, sendJson, sendText } from '../http.js';
 import { LEARNING_PATH } from './paths.js';
 
@@ -39,12 +40,13 @@ export async function routeMemory(
 }
 
 async function memoryDashboard(learning: LearningService) {
-  const [profile, knowledge, pending, processing, failed] = await Promise.all([
+  const [profile, knowledge, pending, processing, failed, uses] = await Promise.all([
     learning.profile.list(),
     learning.store.knowledgeArtifacts(),
     learning.queue.list('pending'),
     learning.queue.list('processing'),
     learning.queue.list('failed'),
+    new KnowledgeUsage(learning.store.root).all(),
   ]);
 
   const memoryJobs = (jobs: KnowledgeJob[]) => jobs.filter((job) => MEMORY_JOBS.includes(job.type));
@@ -61,6 +63,8 @@ async function memoryDashboard(learning: LearningService) {
         status,
         confidence,
         updated_at,
+        uses: uses[id]?.count ?? 0,
+        last_used_at: uses[id]?.last_used_at,
       })),
     pending: memoryJobs(pending).length + memoryJobs(processing).length,
     errors: memoryJobs([...pending, ...failed])

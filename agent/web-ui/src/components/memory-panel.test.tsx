@@ -29,8 +29,8 @@ it('lists profile notes with a remove action, knowledge, and pending or failed s
           },
         ],
         knowledge: [
-          { id: 'k1', title: 'Checkout flow', category: 'flows', status: 'active', confidence: 'medium', updated_at: '2026-01-01' },
-          { id: 'confirmed-1', title: 'Refund rules', category: 'concepts', status: 'active', confidence: 'low', updated_at: '2026-01-01' },
+          { id: 'k1', title: 'Checkout flow', category: 'flows', status: 'active', confidence: 'medium', updated_at: '2026-01-01', uses: 3, last_used_at: '2026-02-01T00:00:00Z' },
+          { id: 'confirmed-1', title: 'Refund rules', category: 'concepts', status: 'active', confidence: 'low', updated_at: '2026-01-01', uses: 0 },
         ],
         pending: 2,
         errors: [{ type: 'extract_profile', status: 'pending', error: 'MODEL_ERROR: offline' }],
@@ -44,6 +44,8 @@ it('lists profile notes with a remove action, knowledge, and pending or failed s
   expect(html).toContain('aria-label="Remove note: Prefers tables."');
   expect(html).toContain('Checkout flow');
   expect(html).toContain('confirmed answer, not source-verified');
+  expect(html).toContain('used 3 times');
+  expect(html).toContain('not used yet');
   expect(html).toContain('Saving from 2 recent answers');
   expect(html).toContain('Learning how you work will retry: MODEL_ERROR: offline');
 });

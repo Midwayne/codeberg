@@ -92,7 +92,8 @@ function KnowledgeList({ dashboard }: { dashboard: MemoryDashboard }) {
               <span className="break-words">{item.title}</span>
               <span className="mt-1 block text-xs capitalize text-muted-foreground">
                 {item.category} · {item.status.replace('_', ' ')} ·{' '}
-                {item.id.startsWith('confirmed-') ? 'confirmed answer, not source-verified' : `${item.confidence} confidence`}
+                {item.id.startsWith('confirmed-') ? 'confirmed answer, not source-verified' : `${item.confidence} confidence`} ·{' '}
+                {usageLabel(item)}
               </span>
             </li>
           ))}
@@ -123,4 +124,12 @@ function MemoryActivity({ dashboard }: { dashboard: MemoryDashboard }) {
       ))}
     </>
   );
+}
+
+function usageLabel({ uses, last_used_at }: MemoryDashboard['knowledge'][number]): string {
+  if (!uses) return 'not used yet';
+
+  const last = last_used_at ? `, last ${new Date(last_used_at).toLocaleDateString()}` : '';
+
+  return `used ${uses} ${uses === 1 ? 'time' : 'times'}${last}`;
 }

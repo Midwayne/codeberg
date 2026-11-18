@@ -31,7 +31,7 @@ function teaching(): UIMessage[] {
       parts: [
         {
           type: 'text',
-          text: 'To find live orders, join orders to customers and always skip deleted customers.',
+          text: 'To find live orders, join orders to customers and always skip deleted customers. Never touch the primary.',
         },
       ],
     },
@@ -65,6 +65,12 @@ const plan = {
     { instruction: 'Unknown call.', call: 7 },
   ],
   rules: [{ statement: 'Exclude deleted customers.', evidence: 'skip deleted customers' }],
+  never: [
+    { statement: 'Never query the primary.', evidence: 'never touch the primary' },
+    { statement: 'Invented ban.', evidence: 'not something the user said' },
+  ],
+  inputs: ['date range'],
+  done_when: 'One count of live orders.',
 };
 
 async function setup(response: unknown) {
@@ -108,7 +114,15 @@ it('learns a taught tool-call procedure from a Solved answer and keeps it recall
   expect(hit.artifact.body).not.toContain('Invented step.');
   expect(hit.artifact.body).not.toContain('Unknown call.');
 
-  expect(await service.knowledgeIndex()).toContain('[[procedures/count-live-orders]]');
+  expect(hit.artifact.body).toContain('## Inputs needed\n\n- date range');
+  expect(hit.artifact.body).toContain('## Done when\n\nOne count of live orders.');
+  expect(hit.artifact.body).toContain('## Never\n\n- Never query the primary.');
+  expect(hit.artifact.body).not.toContain('Invented ban.');
+
+  const index = await service.knowledgeIndex();
+
+  expect(index).toContain('(use when: "Questions about current orders.")');
+  expect(index).toContain('[[procedures/count-live-orders]]');
 
   await service.feedback({ conversationId: 'c', messageId: 'a1', rating: 0, label: 'not_useful' });
   await service.waitForCurrent();

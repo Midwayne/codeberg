@@ -34,7 +34,17 @@ A procedure is a way of getting something done that you show the agent, such as 
 2. When the result is right, rate the final answer **Solved**, or **Mostly correct** with a reason for what to change.
 3. The learning model reads that chat up to the rated answer and saves the procedure under **Procedures**.
 
-Each saved step either reuses a tool call the agent actually made, with its recorded input such as the SQL, or quotes your own words. Steps it cannot tie to either are dropped. Teaching the same task again in a later chat updates the existing procedure instead of adding another.
+A saved procedure has these sections:
+
+| Section | Contents |
+| --- | --- |
+| When to use | The kind of request it answers. Shown in each chat's index so the agent can match it. |
+| Inputs needed | What a new request must supply, such as a customer id or date range. |
+| Steps | Each step reuses a tool call the agent made, with its recorded input such as the SQL, or quotes your words. |
+| Done when | What a correct result looks like. |
+| Rules and Never | Constraints and prohibitions you stated, each quoted. |
+
+Steps, rules, and prohibitions the learning model cannot tie to a tool call or your words are dropped. State prohibitions plainly, for example `never query the primary database`. Teaching the same task again in a later chat updates the existing procedure instead of adding another.
 
 Procedures are listed first in each new chat's knowledge index, and the agent is told to follow a matching one, adapting inputs to the request. Because they are not tied to source files, code changes do not hide them. Lowering the rating withdraws one. A procedure replaces the plain confirmed answer for the same rating.
 
@@ -46,27 +56,27 @@ Turn off the **Procedures** category to stop learning and using them. The learni
 
 | Kind | Example |
 | --- | --- |
-| Preference | Prefers tables over prose. |
-| Workflow | Runs the tests before committing. |
-| Convention | Uses pnpm, not npm. |
-| Context | Works mainly on the billing service. |
-| Project | Migrating auth to OAuth by March. |
-| Reference | Bugs are tracked in the PAY project in Linear. |
+| Preference | Wants the SQL shown with the results. |
+| Workflow | Checks production data before trusting the code. |
+| Convention | "Active customer" means an order in the last 90 days. |
+| Context | Is on the billing team. |
+| Project | Investigating the March refund spike. |
+| Reference | Incidents are tracked in the PAY project in Linear. |
 
 Notes are saved in two ways:
 
 | How | When |
 | --- | --- |
-| Ask in chat | Say `remember that we use pnpm`, or state a lasting rule. The agent saves it at once and confirms. Say `forget that` or correct it to remove or replace a note. Works without a learning model. |
+| Ask in chat | Say `remember that amounts are always in USD`, or state a lasting rule. The agent saves it at once and confirms. Say `forget that` or correct it to remove or replace a note. Works without a learning model. |
 | Automatically | After each answer and each rating, the learning model reads your messages and rating reasons and updates the notes. No rating is needed. |
 
-Every note quotes your own words; text from files, tools, or web pages can never create one. Facts that can be read from the code are left to codebase knowledge. The 24 newest notes are added to each new chat with the date each was last updated, and the newer note wins when two conflict. At most 40 are kept. When the switch is first on, your 10 most recent saved questions are read once.
+Every note quotes your own words; text from files, tools, or web pages can never create one. Summaries of a chat, task state such as ticket numbers or counts, and facts that can be read from the code are not saved; codebase knowledge covers the code. The 24 newest notes are added to each new chat with the date each was last updated, and the newer note wins when two conflict. At most 40 are kept. When the switch is first on, your 10 most recent saved questions are read once.
 
 Automatic notes need **Record chats and feedback** and a learning model. Turn the switch off to stop learning, saving, and using notes; saved notes are kept.
 
 ## See what is saved
 
-**Settings → Learning → Saved memory** lists your work-style notes and saved codebase findings, with their status. Select **Remove** to delete a note you disagree with. The panel also shows saves that are still running and any errors, such as a missing learning model.
+**Settings → Learning → Saved memory** lists your work-style notes and saved codebase findings, with their status and how often chats have used each finding. A finding that is never used is a candidate to remove or improve. Select **Remove** to delete a note you disagree with. The panel also shows saves that are still running and any errors, such as a missing learning model.
 
 ## Memory settings
 

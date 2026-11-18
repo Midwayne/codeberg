@@ -4,6 +4,7 @@ import { wakeWorker } from './background.js';
 import { initialize } from './lifecycle.js';
 import type { LearningServiceState } from './state.js';
 import { conflict } from '../../http-error.js';
+import { procedureTrigger } from '../procedure/render.js';
 
 export async function requestDreaming(state: LearningServiceState) {
   await initialize(state);
@@ -53,10 +54,13 @@ export async function knowledgeIndex(state: LearningServiceState): Promise<strin
   const listed = artifacts
     .sort((a, b) => rank(a) - rank(b) || a.id.localeCompare(b.id))
     .slice(0, 24);
-  const lines = listed.map(
-    (artifact) =>
-      `- ${JSON.stringify(artifact.title.slice(0, 120))}: [[${artifact.category}/${artifact.slug}]]`,
-  );
+  const lines = listed.map((artifact) => {
+    const trigger =
+      artifact.category === 'procedures' ? procedureTrigger(artifact.body) : undefined;
+    const when = trigger ? ` (use when: ${JSON.stringify(trigger)})` : '';
+
+    return `- ${JSON.stringify(artifact.title.slice(0, 120))}${when}: [[${artifact.category}/${artifact.slug}]]`;
+  });
 
   const procedures = listed.some((artifact) => artifact.category === 'procedures')
     ? '\nEntries under procedures/ are workflows the user taught and confirmed (tool calls, queries, steps). When a request matches one, open it with search_knowledge and follow its steps, adapting inputs to the request.'

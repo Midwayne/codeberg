@@ -8,15 +8,16 @@ The user confirmed the final answer (feedback.label solved or mostly_correct). S
 Rules:
 1. Each step has an instruction. Point a step at a recorded tool call with "call": <index from tool_calls> to reuse that exact tool and input; prefer the final successful call over failed attempts. A step without a call must quote the user: "evidence" is an EXACT excerpt (at least 4 characters) from user_messages.
 2. Describe what varies between runs (for example "replace the customer id") in the instruction. Do not invent tools, tables, columns or inputs; they come from tool_calls or the user's words.
-3. rules are constraints the user stated ("always filter deleted rows"), each with an exact user excerpt as evidence.
-4. If an existing procedure covers the same task, reuse its slug and return the COMPLETE updated procedure. Otherwise choose a new stable lowercase-kebab-case slug.
-5. For mostly_correct, follow the feedback reason and later attempts; never save a step the user disputed.
-6. Never include credentials, tokens or personal identifiers.
+3. rules are constraints the user stated ("always filter deleted rows"), and never are actions the user forbade ("never query the primary database"); each needs an exact user excerpt as evidence.
+4. inputs are what a later request must supply (for example "customer id" or "date range"); done_when says what a correct result looks like (for example "one row per order, amounts in USD").
+5. If an existing procedure covers the same task, reuse its slug and return the COMPLETE updated procedure. Otherwise choose a new stable lowercase-kebab-case slug.
+6. For mostly_correct, follow the feedback reason and later attempts; never save a step the user disputed.
+7. Never include credentials, tokens or personal identifiers.
 
 Return ONLY one JSON object, without prose or fences:
 {"action":"none","reason":"..."}
 or
-{"action":"upsert","reason":"...","slug":"kebab-case","title":"short task name","when_to_use":"what kind of request this answers","steps":[{"instruction":"...","call":0},{"instruction":"...","evidence":"exact user excerpt"}],"rules":[{"statement":"...","evidence":"exact user excerpt"}]}`;
+{"action":"upsert","reason":"...","slug":"kebab-case","title":"short task name","when_to_use":"what kind of request this answers","steps":[{"instruction":"...","call":0},{"instruction":"...","evidence":"exact user excerpt"}],"inputs":["..."],"done_when":"...","rules":[{"statement":"...","evidence":"exact user excerpt"}],"never":[{"statement":"...","evidence":"exact user excerpt"}]}`;
 
 const MAX_ATTEMPTS = 8;
 const MAX_CALLS = 40;

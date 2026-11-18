@@ -15,6 +15,9 @@ export interface Procedure {
   when_to_use: string;
   steps: ProcedureStep[];
   rules: { statement: string; evidence: string }[];
+  never: { statement: string; evidence: string }[];
+  inputs: string[];
+  done_when: string;
 }
 
 const MAX_STEPS = 20;
@@ -40,19 +43,21 @@ export function parseProcedure(
     .slice(0, MAX_STEPS);
   if (!steps.length) return undefined;
 
-  const rules = (Array.isArray(value.rules) ? value.rules : []).filter(isRecord).flatMap((rule) => {
-    const statement = text(rule.statement, 300);
-    const evidence = text(rule.evidence, 300);
-
-    return statement && evidence && grounded(evidence) ? [{ statement, evidence }] : [];
-  });
+  const quoted = quotedList(grounded);
+  const inputs = (Array.isArray(value.inputs) ? value.inputs : [])
+    .map((input) => text(input, 120))
+    .filter(Boolean)
+    .slice(0, 10);
 
   return redactSecrets({
     slug,
     title,
     when_to_use: text(value.when_to_use, 500) || title,
     steps,
-    rules,
+    rules: quoted(value.rules),
+    never: quoted(value.never),
+    inputs,
+    done_when: text(value.done_when, 500),
   });
 }
 
@@ -71,6 +76,17 @@ function groundedStep(
   const evidence = text(step.evidence, 300);
 
   return evidence && grounded(evidence) ? [{ instruction, evidence }] : [];
+}
+
+/** Rules and prohibitions must quote the user. */
+function quotedList(grounded: (evidence: string) => boolean) {
+  return (value: unknown) =>
+    (Array.isArray(value) ? value : []).filter(isRecord).flatMap((entry) => {
+      const statement = text(entry.statement, 300);
+      const evidence = text(entry.evidence, 300);
+
+      return statement && evidence && grounded(evidence) ? [{ statement, evidence }] : [];
+    });
 }
 
 function text(value: unknown, limit: number): string {
