@@ -8,6 +8,7 @@ import { serializeArtifact } from '../store.js';
 import { artifactRevision, buildKnowledgeArtifact, readArtifact } from './artifact.js';
 import type { ExtractionContext } from './context.js';
 import { recordCorrectionNote } from './correction.js';
+import { retireConfirmedAnswer } from './confirmed.js';
 import type { KnowledgeWorkerState } from './state.js';
 
 export async function persistExtraction(
@@ -38,6 +39,7 @@ export async function persistExtraction(
   const artifact = buildKnowledgeArtifact(context, response, claims, prior, revisions);
 
   await writeAtomic(path, serializeArtifact(artifact));
+  await retireConfirmedAnswer(state, job.interaction_id);
   writeLearningTrace('artifact_upserted', {
     job_id: job.job_id,
     slug: artifact.slug,

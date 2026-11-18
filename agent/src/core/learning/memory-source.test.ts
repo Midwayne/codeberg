@@ -161,18 +161,16 @@ describe('source-aware codebase memory', () => {
     expect(generate.mock.calls[1][0].prompt).not.toContain('verysecretvalue');
     expect(await service.store.searchKnowledge('inventory flow')).toHaveLength(1);
 
+    // A commit that leaves the cited file unchanged needs no refresh and no model call.
     setCommit('commit-B');
-    expect(await service.store.searchKnowledge('inventory flow')).toEqual([]);
+    expect(await service.store.searchKnowledge('inventory flow')).toHaveLength(1);
     await service.refreshKnowledge();
     await service.waitForCurrent();
-    expect((await service.store.knowledgeArtifacts())[0].source_commits['inventory-service']).toBe(
-      'commit-B',
-    );
     expect(
       (await memorySourceState((await service.store.knowledgeArtifacts())[0], await repositories()))
         .fresh,
     ).toBe(true);
-    expect(generate).toHaveBeenCalledTimes(3);
+    expect(generate).toHaveBeenCalledTimes(2);
     service.stop();
   });
 

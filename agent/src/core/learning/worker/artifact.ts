@@ -9,7 +9,7 @@ import { stableId } from '../store.js';
 import type { KnowledgeArtifact } from '../types.js';
 import type { ExtractionContext } from './context.js';
 
-function artifactLineage(
+export function artifactLineage(
   prior: KnowledgeArtifact | undefined,
   interactionId: string,
   revision: string,

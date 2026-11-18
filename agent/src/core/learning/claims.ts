@@ -4,6 +4,7 @@ import { sourceTextFor, type SourceObservation } from './memory-source.js';
 import { redactSecrets } from './redact.js';
 import type { KnowledgeClaim } from './types.js';
 import { isRecord } from '../record.js';
+import { locateQuote } from './quote.js';
 
 /** Enforce provenance for *each* claim; exact quotations are evidence, not semantic proof. */
 export function validatedClaims(
@@ -95,16 +96,11 @@ function validateEvidence(
     return undefined;
   }
 
-  const { repo, path, quote } = value;
-  const source = observations.find(
-    (observation) =>
-      observation.hash &&
-      observation.path === path &&
-      (observation.repo === repo || basename(observation.repo) === repo) &&
-      redactSecrets(sourceTextFor(observation) ?? observation.excerpt ?? '').includes(quote),
-  );
+  const { repo, path } = value;
+  const match = quotedSource(observations, repo, path, value.quote);
+  if (!match) return undefined;
 
-  if (!source) return undefined;
+  const { source, quote } = match;
 
   const { startLine, endLine } = evidenceLines(source, quote);
   if (
@@ -154,4 +150,27 @@ function evidenceLines(source: SourceObservation, quote: string) {
   const endLine = startLine === undefined ? undefined : startLine + countNewlines(quote);
 
   return { startLine, endLine };
+}
+
+/** The cited observation containing the quote, with the quote as it appears in source. */
+function quotedSource(
+  observations: SourceObservation[],
+  repo: string,
+  path: string,
+  quote: string,
+): { source: SourceObservation; quote: string } | undefined {
+  for (const observation of observations) {
+    if (
+      !observation.hash ||
+      observation.path !== path ||
+      (observation.repo !== repo && basename(observation.repo) !== repo)
+    )
+      continue;
+
+    const text = redactSecrets(sourceTextFor(observation) ?? observation.excerpt ?? '');
+    const found = locateQuote(text, quote);
+    if (found) return { source: observation, quote: found };
+  }
+
+  return undefined;
 }

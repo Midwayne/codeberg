@@ -91,15 +91,16 @@ function KnowledgeList({ dashboard }: { dashboard: MemoryDashboard }) {
             <li key={item.id} className="py-3 text-sm">
               <span className="break-words">{item.title}</span>
               <span className="mt-1 block text-xs capitalize text-muted-foreground">
-                {item.category} · {item.status.replace('_', ' ')} · {item.confidence} confidence
+                {item.category} · {item.status.replace('_', ' ')} ·{' '}
+                {item.id.startsWith('confirmed-') ? 'confirmed answer, not source-verified' : `${item.confidence} confidence`}
               </span>
             </li>
           ))}
         </ul>
       ) : (
         <p className="text-sm leading-6 text-muted-foreground">
-          Nothing yet. Rate an answer <strong>Solved</strong> or <strong>Mostly correct</strong> after the agent read
-          the relevant source files; findings are saved only when they can be quoted from current code.
+          Nothing yet. Rate an answer <strong>Solved</strong> to save it, or <strong>Mostly correct</strong> to save
+          only what can be quoted from current code.
         </p>
       )}
     </div>

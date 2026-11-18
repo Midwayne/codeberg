@@ -12,6 +12,7 @@ import {
   refreshObservations,
 } from './context.js';
 import { recordCorrectionNote } from './correction.js';
+import { saveConfirmedAnswer } from './confirmed.js';
 import { invalidateKnowledge } from './persistence.js';
 import type { KnowledgeWorkerState } from './state.js';
 import { permanentFailure } from '../failure.js';
@@ -122,6 +123,14 @@ async function collectEvidence(
       existing_artifacts: existing.map((artifact) => artifact.slug),
     });
     await recordCorrectionNote(state, job, final, revision, existing);
+    await saveConfirmedAnswer(state, {
+      job,
+      final,
+      revision,
+      currentFeedback: context.currentFeedback,
+      observations,
+      currentRepositories,
+    });
     return;
   }
 

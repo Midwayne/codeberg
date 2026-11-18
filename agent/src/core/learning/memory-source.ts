@@ -7,28 +7,12 @@ import {
   type SourceRef,
 } from './memory-source/reading.js';
 
-import type { AttemptRecord, KnowledgeArtifact, RepositoryVersion } from './types.js';
+import { isConfirmedAnswer } from './confirmed-answer.js';
+import type { KnowledgeArtifact, RepositoryVersion } from './types.js';
+
+export { evidenceRefs } from './memory-source/evidence.js';
 
 /** Follow repository-relative citations, never an arbitrary path from model output. */
-export function evidenceRefs(attempt: AttemptRecord): SourceRef[] {
-  const repositories = attempt.repositories;
-  const byKey = new Map<string, SourceRef>();
-  for (const hit of attempt.evidence_used) {
-    if (!hit.path) continue;
-
-    const repo =
-      repositories.find((entry) => entry.path === hit.repo || basename(entry.path) === hit.repo) ??
-      (repositories.length === 1 ? repositories[0] : undefined);
-    if (!repo) continue;
-
-    const ref = { repo: repo.path, path: hit.path, ...(hit.symbol ? { symbol: hit.symbol } : {}) };
-    byKey.set(sourceKey(ref), ref);
-    if (byKey.size >= 12) break;
-  }
-
-  return [...byKey.values()];
-}
-
 export async function observeSources(
   refs: SourceRef[],
   repositories: RepositoryVersion[],
@@ -104,9 +88,19 @@ export async function memorySourceState(
   const filesCurrent = observations.every(
     (item) => item.hash && item.hash === artifact.source_hashes?.[sourceKey(item)],
   );
-  const fresh = commitsCurrent && filesCurrent;
+  const fresh =
+    filesCurrent && (observations.length > 0 || commitsCurrent || filelessAnswer(artifact));
 
   return { fresh, revision, observations, hashes };
+}
+
+/**
+ * Unchanged cited files keep a finding current across unrelated commits. A finding with
+ * no readable citations falls back to the repository commit, except a confirmed answer
+ * that consulted no files: only a rating change can make it stale.
+ */
+function filelessAnswer(artifact: KnowledgeArtifact): boolean {
+  return isConfirmedAnswer(artifact) && !artifact.source_refs?.length;
 }
 
 function repositoryCurrent(

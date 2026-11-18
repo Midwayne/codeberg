@@ -2,10 +2,11 @@ import { writeLearningTrace } from '../../module-log.js';
 import { validatedClaims } from '../claims.js';
 import { EXTRACTION_SYSTEM, knowledgePrompt } from '../knowledge-prompt.js';
 import { parseExtractionResponse, validateResponse } from '../knowledge-response.js';
-import type { KnowledgeJob } from '../types.js';
+import type { KnowledgeCategory, KnowledgeJob } from '../types.js';
 import { LearningPaused } from './constants.js';
 import type { ExtractionContext } from './context.js';
 import { recordCorrectionNote } from './correction.js';
+import { saveConfirmedAnswer } from './confirmed.js';
 import { persistExtraction } from './persistence.js';
 import { jobEnabled } from './policy.js';
 import { prepareExtraction } from './preparation.js';
@@ -15,7 +16,6 @@ export async function process(state: KnowledgeWorkerState, job: KnowledgeJob): P
   const context = await prepareExtraction(state, job);
   if (!context) return;
 
-  const { final, revision, existing, observations } = context;
   const response = await generateExtraction(state, context);
 
   if (response.action === 'none') {
@@ -24,11 +24,19 @@ export async function process(state: KnowledgeWorkerState, job: KnowledgeJob): P
       reason: 'model_returned_none',
       model_reason: response.reason,
     });
-    await recordCorrectionNote(state, job, final, revision, existing);
+    await keepUngrounded(state, context);
     return;
   }
 
-  validateResponse(response);
+  try {
+    validateResponse(response);
+  } catch (error) {
+    // A Solved answer is kept even when the model's update is unusable.
+    if (await keepUngrounded(state, context)) return;
+
+    throw error;
+  }
+
   if (
     !state.settings().enabled ||
     !state.settings().knowledge ||
@@ -36,10 +44,26 @@ export async function process(state: KnowledgeWorkerState, job: KnowledgeJob): P
   )
     return;
 
+  const { claims, rejectedIndexes } = groundClaims(job, response.claims, context);
+
+  if (!claims) {
+    writeLearningTrace('extraction_skipped', {
+      job_id: job.job_id,
+      reason: 'claims_not_grounded',
+      model_reason: response.reason,
+    });
+    // Unsupported model output cannot reactivate a memory, but a Solved answer is kept unverified.
+    await keepUngrounded(state, context, response.category);
+    return;
+  }
+
+  await persistExtraction(state, context, response, claims, rejectedIndexes);
+}
+
+function groundClaims(job: KnowledgeJob, raw: unknown, context: ExtractionContext) {
   const rejectedIndexes: number[] = [];
-  const claims = validatedClaims(response.claims, observations, (index) =>
-    rejectedIndexes.push(index),
-  );
+  const claims = validatedClaims(raw, context.observations, (index) => rejectedIndexes.push(index));
+
   if (rejectedIndexes.length)
     writeLearningTrace('claims_rejected', {
       job_id: job.job_id,
@@ -48,17 +72,20 @@ export async function process(state: KnowledgeWorkerState, job: KnowledgeJob): P
       reason: 'invalid_or_unmatched_current_source_quote',
     });
 
-  if (!claims) {
-    writeLearningTrace('extraction_skipped', {
-      job_id: job.job_id,
-      reason: 'claims_not_grounded',
-      model_reason: response.reason,
-    });
-    await recordCorrectionNote(state, job, final, revision, existing);
-    return; // Unsupported model output cannot reactivate a memory.
-  }
+  return { claims, rejectedIndexes };
+}
 
-  await persistExtraction(state, context, response, claims, rejectedIndexes);
+/** No grounded claim: keep explicit corrections and, for Solved answers, the answer itself. */
+async function keepUngrounded(
+  state: KnowledgeWorkerState,
+  context: ExtractionContext,
+  category?: KnowledgeCategory,
+): Promise<boolean> {
+  const { job, final, revision, existing } = context;
+
+  await recordCorrectionNote(state, job, final, revision, existing);
+
+  return saveConfirmedAnswer(state, { ...context, category });
 }
 
 async function generateExtraction(state: KnowledgeWorkerState, context: ExtractionContext) {

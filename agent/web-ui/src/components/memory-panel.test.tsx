@@ -30,6 +30,7 @@ it('lists profile notes with a remove action, knowledge, and pending or failed s
         ],
         knowledge: [
           { id: 'k1', title: 'Checkout flow', category: 'flows', status: 'active', confidence: 'medium', updated_at: '2026-01-01' },
+          { id: 'confirmed-1', title: 'Refund rules', category: 'concepts', status: 'active', confidence: 'low', updated_at: '2026-01-01' },
         ],
         pending: 2,
         errors: [{ type: 'extract_profile', status: 'pending', error: 'MODEL_ERROR: offline' }],
@@ -42,6 +43,7 @@ it('lists profile notes with a remove action, knowledge, and pending or failed s
   expect(html).toContain('Prefers tables.');
   expect(html).toContain('aria-label="Remove note: Prefers tables."');
   expect(html).toContain('Checkout flow');
+  expect(html).toContain('confirmed answer, not source-verified');
   expect(html).toContain('Saving from 2 recent answers');
   expect(html).toContain('Learning how you work will retry: MODEL_ERROR: offline');
 });

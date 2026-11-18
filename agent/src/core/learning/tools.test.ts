@@ -98,7 +98,7 @@ it('excludes unverified and legacy knowledge from agent recall while retaining a
   ).toEqual([]);
 });
 
-it('rechecks source edits, commits and corrections on every recall using the same tool', async () => {
+it('rechecks source edits and corrections on every recall, surviving unrelated commits', async () => {
   const root = await mkdtemp(join(tmpdir(), 'codeberg-knowledge-tool-'));
   roots.push(root);
   const repo = join(root, 'repo');
@@ -158,11 +158,10 @@ it('rechecks source edits, commits and corrections on every recall using the sam
 
   await writeFile(path, original);
   expect(await recall()).toHaveLength(1);
+  // An unrelated commit leaves the cited file byte-identical, so the finding stays current.
   commit = 'commit-12pm';
-  expect(await recall()).toEqual([]);
-
-  commit = 'commit-10am';
   expect(await recall()).toHaveLength(1);
+
   await store.recordFeedback({ attemptId: attempt.attempt_id, rating: 0, label: 'not_useful' });
   expect(await recall()).toEqual([]);
 });

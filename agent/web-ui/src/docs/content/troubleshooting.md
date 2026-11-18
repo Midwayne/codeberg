@@ -124,7 +124,7 @@ Replaying a saved run does not repeat completed model/tool calls. A failed initi
 
 ## A rated answer was not saved to memory
 
-Open **Settings → Learning → Saved memory** for queued saves and learning-model errors. A **Solved** rating can still save nothing when the answer cited no source files or the model's quotes did not match the code. See [Why an answer was not saved](/docs/knowledge#why-an-answer-was-not-saved) for each cause and its log reason.
+Open **Settings → Learning → Saved memory** for queued saves and learning-model errors. A **Solved** answer is kept at least as a low-confidence confirmed answer; it is skipped mainly when a newer retry is unrated or the learning model is missing. See [Why an answer was not saved](/docs/knowledge#why-an-answer-was-not-saved) for each cause and its log reason.
 
 ## Find logs
 

@@ -15,9 +15,15 @@ Findings retain source references and provenance. Later questions can build on c
 
 ## When findings are saved
 
-Rate an answer **Solved** or **Mostly correct** to save what it found. **Mostly correct** findings are capped at medium confidence, and a rating reason that disputes a claim keeps it out. **Partially useful** and **Not useful** save nothing.
+Rate an answer **Solved** to save it. The learning model turns it into claims quoted from current source, using the files the answer names and the files the agent read or searched.
 
-A finding is kept only when it can be quoted from current source. If the agent answered without reading the relevant files, nothing is saved; ask it to open the files, then rate again.
+| Rating | What is saved |
+| --- | --- |
+| **Solved** | Source-quoted claims. If none can be quoted, the answer itself is kept as a low-confidence **confirmed answer**, marked not source-verified. |
+| **Mostly correct** | Source-quoted claims only, capped at medium confidence. A rating reason that disputes a claim keeps it out. |
+| **Partially useful**, **Not useful** | Nothing. Lowering a rating withdraws what was saved from that answer. |
+
+A later answer that can be quoted replaces its confirmed answer. Chats still treat confirmed answers as unverified and check current code before relying on them.
 
 ## How you work
 
@@ -47,7 +53,7 @@ Open **Settings → Learning** for the selected project. Every memory switch is 
 | **Enable learning** | Master switch. Off pauses all memory, history, and dataset work; data and individual choices are kept. | — | — |
 | **Learn how you work** | Learn your work-style notes and add them to new chats. | Record chats and feedback, a learning model | One call per answer and per rating; adds chat context |
 | **Codebase knowledge** | Turn the knowledge capability on or off. Off also disables the switches under it. | — | — |
-| **Learn from confirmed answers** | Save findings when you rate an answer **Solved** or **Mostly correct**. | Record chats and feedback, a learning model | One call per confirming rating |
+| **Learn from confirmed answers** | Save findings when you rate an answer **Solved** or **Mostly correct**; see [When findings are saved](#when-findings-are-saved). | Record chats and feedback, a learning model | One call per confirming rating |
 | **Use knowledge in chats** | Add up to 24 finding titles to each chat and let the agent search saved findings. | — | Adds chat context |
 | **Automatic source refresh** | Recheck findings when their cited files change. | A learning model | One call per changed finding |
 | **Daily knowledge consolidation** | Generate one reviewable report a day; off by default. Manual reports work without it. | A learning model | One call per report |
@@ -73,36 +79,38 @@ Choose the learning model in **Models**. Without one, saved memory is still used
 
 Each finding stores its cited files, their content hashes, and the repository commit.
 
-1. When a cited file changes, the finding is hidden from chats immediately.
+1. When a cited file changes, the finding is hidden from chats immediately. Commits that leave the cited files unchanged do not affect it.
 2. With **Automatic source refresh** on, the learning model rereads the current files and rewrites the finding from claims it can quote. Disproven claims are dropped.
 3. If the new code cannot confirm it, the finding stays **needs verification** and out of chats until its files return or a new confirmed answer repairs it.
 4. A later **Solved** or **Mostly correct** answer on the same topic replaces the finding's claims instead of adding a duplicate.
 5. Lowering a rating to **Partially useful** or **Not useful** withdraws findings learned from that answer.
 
-Refresh only follows cited files. If behavior moved to a file the finding never quoted, ask the question again and rate the new answer. Work-style notes are not tied to source: they change only when you state a new preference, contradict an old one, or select **Remove**.
+Refresh only follows cited files. If behavior moved to a file the finding never quoted, ask the question again and rate the new answer. A confirmed answer that consulted no files changes only with its rating. One whose files change is hidden and is not re-saved from the old answer; rate a new answer to replace it. Work-style notes are not tied to source: they change only when you state a new preference, contradict an old one, or select **Remove**.
 
 ## Why an answer was not saved
 
-A **Solved** rating starts extraction, but each step below can skip the save without an error.
+A **Solved** answer is almost always saved, at least as a confirmed answer. It can still be skipped when:
 
 | Cause | What to do |
 | --- | --- |
-| The answer did not name the file it relied on. Only files whose path or symbol appears in the answer count as evidence. | Ask the agent to cite file paths, then rate again. |
 | You rated an earlier answer, but a newer retry in the same question is unrated or rated lower. | Rate the latest answer. |
-| The learning model found nothing reusable or verifiable and returned no update. | Check the reason in the trace log; a larger learning model is less cautious. |
-| The model's quotes did not match the current file exactly, so its claims were rejected. | Use a stronger learning model, or ask again after the code settles. |
-| The source did not fit the learning model's context, or the fact was far from the cited symbol in a large file. | Use a learning model with a larger context window. |
-| No learning model, **Learn from confirmed answers** is off, or the category is off. | Check **Models** and **Settings → Learning**. |
+| The answer already produced a finding that later went stale. The old answer is not re-saved over it. | Ask again and rate the new answer. |
+| No learning model, **Learn from confirmed answers** is off, or every category is off. | Check **Models** and **Settings → Learning**. |
+| The learning model request failed. | The panel shows the error; the job retries automatically. |
+
+A **Mostly correct** answer is skipped when no claim can be quoted from the files the agent consulted, or the source did not fit the learning model's context. A stronger learning model with a larger context window quotes more reliably.
 
 The **Saved memory** panel shows queued saves and model errors. Skipped saves appear only in the trace log, `projects/<id>/logs/learning-agent-trace.log` under Codeberg home. Search it for `extraction_skipped` and read `reason`:
 
 | `reason` | Meaning |
 | --- | --- |
-| `no_current_source_evidence` | No cited source file could be read. |
+| `no_current_source_evidence` | No consulted source file could be read. A Solved answer is kept as a confirmed answer. |
 | `latest_attempt_not_confirmed` | The latest answer is not rated **Solved** or **Mostly correct**. |
-| `model_returned_none` | The model declined; `model_reason` says why. |
-| `claims_not_grounded` | Every claim's quote failed to match current code. |
+| `model_returned_none` | The model declined; `model_reason` says why. A Solved answer is kept as a confirmed answer. |
+| `claims_not_grounded` | No claim's quote matched current code, even ignoring whitespace. A Solved answer is kept as a confirmed answer. |
 | `own_artifacts_already_current` | The findings from this answer are already up to date. |
+
+A `confirmed_answer_saved` entry means a Solved answer was kept without quoted claims.
 
 `model_response` entries show the learning model's raw output. Remove private source before sharing the log.
 
