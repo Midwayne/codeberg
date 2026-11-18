@@ -14,5 +14,6 @@ it('reveals the welcome content in order', () => {
   const html = renderToStaticMarkup(<NoProjects onAdd={() => undefined} />);
   const steps = [...html.matchAll(/data-onboard-step="(\d)"/g)].map((match) => match[1]);
 
-  expect(steps).toEqual(['0', '1', '2', '3']);
+  expect(steps).toEqual(['0', '1', '2']);
+  expect(html).not.toContain('Choose a repository');
 });
