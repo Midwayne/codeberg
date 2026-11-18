@@ -12,6 +12,12 @@ features need git. External MCP servers may have their own runtime requirements.
 
 ## Publish a release
 
+The web UI bundles `CHANGELOG.md` at build time. The released section that
+matches `VERSION` is what users see in the in-app **What's new** window and on
+`/docs/whats-new`, so write those entries for users and move them out of
+`[Unreleased]` before tagging. Headings must stay in the
+`## [X.Y.Z] - YYYY-MM-DD` form to be picked up.
+
 1. Update `VERSION` using `make set-version v=vX.Y.Z` and commit the change.
 2. Push a matching `vX.Y.Z` tag. `.github/workflows/release.yml` checks the version,
    builds three platform bundles, runs core/launcher/installer tests, and starts

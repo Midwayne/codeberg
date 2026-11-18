@@ -15,6 +15,7 @@ import { MotionPresence } from './components/motion-presence';
 
 import { useMediaQuery } from './lib/use-media-query';
 import { ScheduleWorkspaceProvider } from './lib/schedule-workspace';
+import { WhatsNew } from './whats-new/whats-new';
 
 // Secondary screens load only when opened; the chat stays on the critical path.
 const Settings = lazy(() => import('@/components/settings').then((module) => ({ default: module.Settings })));
@@ -149,6 +150,7 @@ export function ProjectWorkspaceView(state: ProjectWorkspaceViewProps) {
           onSaved={state.refreshMeta}
         />
       </MotionPresence>
+      <WhatsNew enabled={!state.loading} />
     </div>
   );
 }

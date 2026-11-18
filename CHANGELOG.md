@@ -9,6 +9,13 @@ changes may occur in minor releases and are called out explicitly.
 
 ### Added
 
+- A **What's new** window opens once after you update Codeberg, with notes for
+  up to the three releases you have not seen. Every release is also listed on
+  the new **What's new** docs page.
+- Animated first-run screens: the **Add a project** screen shows a short
+  indexing illustration, and the setup checklist reveals its steps in order.
+  Both respect reduced-motion settings.
+
 - Opt-in `run_script` tool (`CODEBERG_SCRIPT_USE=true`). The agent can write
   a Python script that chains read-only tool calls with loops, filtering, and
   dependent arguments in one step. Only the script's printed output enters the

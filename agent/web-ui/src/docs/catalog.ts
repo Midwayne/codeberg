@@ -14,6 +14,9 @@ import troubleshooting from './content/troubleshooting.md?raw';
 import chats from './content/chats.md?raw';
 import browserUse from './content/browser-use.md?raw';
 import evaluations from './content/evaluations.md?raw';
+import whatsNew from './content/whats-new.md?raw';
+import { bundledReleases } from '../whats-new/changelog';
+import { releaseNotesMarkdown } from '../whats-new/releases';
 
 export type DocPage = {
   id: string;
@@ -56,6 +59,9 @@ export const docPages: DocPage[] = [
     summary: 'Know what is stored, what leaves your machine, and how to clean up.' },
   { id: 'troubleshooting', title: 'Troubleshooting', group: 'Guides', content: troubleshooting,
     summary: 'Recover from missing models, indexing failures, and extension errors.' },
+  { id: 'whats-new', title: "What's new", group: 'Guides',
+    content: `${whatsNew.trim()}\n\n${releaseNotesMarkdown(bundledReleases)}`,
+    summary: 'Release notes for every Codeberg version, newest first.' },
 ];
 
 export const docGroups = ['Setup', 'Concepts', 'Guides'] as const;

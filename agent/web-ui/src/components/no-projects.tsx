@@ -3,12 +3,16 @@ import { Settings2 } from 'lucide-react';
 import { DocsLink } from './docs-link';
 import { LoadingSuspense } from './loading-suspense';
 import { OnboardingMark } from './onboarding-mark';
+import { useRecordFirstRun } from '../whats-new/whats-new';
 
 const Settings = lazy(() => import('./settings').then((module) => ({ default: module.Settings })));
 
 export function NoProjects({ onAdd }: { onAdd: () => void }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsButton = useRef<HTMLButtonElement>(null);
+
+  useRecordFirstRun();
+
   const close = () => {
     setSettingsOpen(false);
     settingsButton.current?.focus();

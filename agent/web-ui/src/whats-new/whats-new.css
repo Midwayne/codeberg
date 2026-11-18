@@ -1,0 +1,74 @@
+/* The badge lands with a small bounce, then its sparkle twinkles twice. */
+.whats-new-badge {
+  animation: whats-new-badge 620ms var(--ui-ease-out) backwards;
+}
+
+.whats-new-sparkle {
+  animation: whats-new-twinkle 1.4s var(--ui-ease-feedback) 400ms 2 both;
+}
+
+@keyframes whats-new-badge {
+  0% { opacity: 0; transform: scale(0.6) rotate(-12deg); }
+  60% { opacity: 1; transform: scale(1.08) rotate(4deg); }
+  100% { transform: none; }
+}
+
+@keyframes whats-new-twinkle {
+  0%, 100% { transform: scale(1) rotate(0); opacity: 1; }
+  40% { transform: scale(1.22) rotate(18deg); opacity: 0.85; }
+  70% { transform: scale(0.94) rotate(-6deg); }
+}
+
+.whats-new-chevron {
+  transition: transform 160ms var(--ui-ease-out);
+}
+
+.whats-new-release[open] .whats-new-chevron {
+  transform: rotate(180deg);
+}
+
+.whats-new-release summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Docs prose, tightened to fit a dialog. */
+.whats-new-notes.docs-prose {
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.whats-new-notes.docs-prose h3 {
+  margin-top: 1rem;
+  margin-bottom: 0.25rem;
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.whats-new-notes.docs-prose > :first-child,
+.whats-new-notes.docs-prose > * > :first-child {
+  margin-top: 0.25rem;
+}
+
+.whats-new-notes.docs-prose p,
+.whats-new-notes.docs-prose ul,
+.whats-new-notes.docs-prose ol {
+  margin-block: 0.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .whats-new-badge,
+  .whats-new-sparkle {
+    animation: none;
+  }
+
+  .whats-new-chevron {
+    transition: none;
+  }
+}
+
+:root[data-ui-motion='instant'] .whats-new-badge,
+:root[data-ui-motion='instant'] .whats-new-sparkle {
+  animation: none;
+}

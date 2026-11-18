@@ -85,6 +85,8 @@ Stop Codeberg, re-run the installer, restart, and reload existing browser tabs. 
 
 Stable builds check for a newer release at startup and print a terminal notice. Installation is manual; an offline or failed check does not block startup.
 
+After an update, the app opens **What's new** once with that release's notes. You can read every release in [What's new](/docs/whats-new).
+
 Installer overrides apply to `sh`; custom paths must be absolute. Replace this example version with a published release tag:
 
 ```sh
