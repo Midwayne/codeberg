@@ -134,7 +134,7 @@ export interface KnowledgeJob {
   rerun_requested?: boolean;
 }
 
-export type KnowledgeCategory = 'services' | 'flows' | 'concepts' | 'debugging';
+export type KnowledgeCategory = 'services' | 'flows' | 'concepts' | 'debugging' | 'procedures';
 
 export type KnowledgeConfidence = 'low' | 'medium' | 'high';
 

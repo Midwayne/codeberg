@@ -1,6 +1,9 @@
 import type { KnowledgeCategory, KnowledgeConfidence, KnowledgeStatus } from './types.js';
 import { invalidResponse } from './failure.js';
 
+/** Categories the source-quoted extractor may write; procedures are learned from tool calls. */
+const SOURCE_CATEGORIES = ['services', 'flows', 'concepts', 'debugging'];
+
 interface ExtractionResponse {
   action: 'none' | 'upsert';
   reason?: string;
@@ -32,7 +35,7 @@ export function parseExtractionResponse(raw: string): ExtractionResponse {
 export function validateResponse(response: ExtractionResponse): void {
   if (
     response.action !== 'upsert' ||
-    !['services', 'flows', 'concepts', 'debugging'].includes(response.category ?? '') ||
+    !SOURCE_CATEGORIES.includes(response.category ?? '') ||
     !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(response.slug ?? '') ||
     !response.title?.trim() ||
     !Array.isArray(response.claims) ||

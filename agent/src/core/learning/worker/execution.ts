@@ -8,6 +8,7 @@ import type { KnowledgeJob } from '../types.js';
 import { KNOWLEDGE_EXTRACTION_VERSION, LearningPaused } from './constants.js';
 import { process } from './extraction.js';
 import { extractProfile } from '../profile/extract.js';
+import { learnProcedure } from '../procedure/learn.js';
 import { enabledType, jobEnabled } from './policy.js';
 import type { KnowledgeWorkerState } from './state.js';
 
@@ -84,6 +85,7 @@ async function runJob(state: KnowledgeWorkerState, job: KnowledgeJob): Promise<v
         ).revision;
 
       await process(state, job);
+      await learnProcedure(state, job);
     }
   }
 }

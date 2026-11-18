@@ -12,13 +12,15 @@ import { LearningService } from './service.js';
 import { stableId } from './store.js';
 import { KnowledgeWorker } from './worker.js';
 
-// These tests count knowledge model calls and jobs; profile learning has its own tests.
+// These tests count knowledge model calls and jobs; profile and procedure learning have their own tests.
 beforeAll(() => {
   DEFAULT_LEARNING_SETTINGS.profile = false;
+  DEFAULT_LEARNING_SETTINGS.categories.procedures = false;
 });
 
 afterAll(() => {
   DEFAULT_LEARNING_SETTINGS.profile = true;
+  DEFAULT_LEARNING_SETTINGS.categories.procedures = true;
 });
 
 const roots: string[] = [];

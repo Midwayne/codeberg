@@ -97,10 +97,13 @@ export async function memorySourceState(
 /**
  * Unchanged cited files keep a finding current across unrelated commits. A finding with
  * no readable citations falls back to the repository commit, except a confirmed answer
- * that consulted no files: only a rating change can make it stale.
+ * that consulted no files, or a taught procedure: only a rating change can make it stale.
  */
 function filelessAnswer(artifact: KnowledgeArtifact): boolean {
-  return isConfirmedAnswer(artifact) && !artifact.source_refs?.length;
+  return (
+    (isConfirmedAnswer(artifact) || artifact.category === 'procedures') &&
+    !artifact.source_refs?.length
+  );
 }
 
 function repositoryCurrent(

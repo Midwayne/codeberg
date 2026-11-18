@@ -109,7 +109,7 @@ async function generateExtraction(state: KnowledgeWorkerState, context: Extracti
   if (!jobEnabled(state, job)) throw new LearningPaused();
 
   const categories = Object.entries(state.settings().categories)
-    .filter(([, enabled]) => enabled)
+    .filter(([category, enabled]) => enabled && category !== 'procedures')
     .map(([category]) => category);
   const system = `${EXTRACTION_SYSTEM}\nOnly use these enabled categories: ${categories.join(', ')}. Return action none for other categories.`;
   const raw = await state.generator!.generate({ system, prompt, traceId: job.job_id });

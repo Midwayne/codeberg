@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { fileInfo, readRegularFile, readStoredFile, realDirectory } from './filesystem.js';
 import type { ResourceSettingsState } from './state.js';
 import type { CleanupCategory, StoredFile } from './types.js';
+import { KNOWLEDGE_CATEGORIES } from '../../core/learning/preferences.js';
 
 export async function listFiles(
   state: ResourceSettingsState,
@@ -18,7 +19,7 @@ export async function listFiles(
         ? ['candidates', 'training', 'eval', 'dismissed'].map((bucket) =>
             join(state.learningRoot, 'datasets', bucket),
           )
-        : ['services', 'flows', 'concepts', 'debugging'].map((bucket) =>
+        : KNOWLEDGE_CATEGORIES.map((bucket) =>
             join(state.learningRoot, 'knowledge', bucket),
           );
 

@@ -5,7 +5,13 @@ import type { LearningSettings } from '../lib/learning-settings';
 
 import type { LearningSettingsView } from './learning-settings';
 
-const categoryLabels = { services: 'Services', flows: 'Flows', concepts: 'Concepts', debugging: 'Debugging' };
+const categoryLabels = {
+  services: 'Services',
+  flows: 'Flows',
+  concepts: 'Concepts',
+  debugging: 'Debugging',
+  procedures: 'Procedures',
+};
 
 type KnowledgeSettingsProps = Pick<Parameters<typeof LearningSettingsView>[0], 'settings' | 'onChange'> & {
   locked: boolean;

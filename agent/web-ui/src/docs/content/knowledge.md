@@ -10,6 +10,7 @@ Knowledge is project-specific and works through chat context, without updating m
 | Flows | How checkout reaches a payment provider. |
 | Concepts | What a domain-specific state means. |
 | Debugging findings | Why a retry failed and which source explains it. |
+| Procedures | How to find live orders: which tables to join, which tool to call, and which rows to skip. |
 
 Findings retain source references and provenance. Later questions can build on confirmed investigations, but the agent should still check the current source. Raw attempts, corrections, and feedback live separately in learning history.
 
@@ -19,11 +20,25 @@ Rate an answer **Solved** to save it. The learning model turns it into claims qu
 
 | Rating | What is saved |
 | --- | --- |
-| **Solved** | Source-quoted claims. If none can be quoted, the answer itself is kept as a low-confidence **confirmed answer**, marked not source-verified. |
-| **Mostly correct** | Source-quoted claims only, capped at medium confidence. A rating reason that disputes a claim keeps it out. |
+| **Solved** | Source-quoted claims, plus a [procedure](#teach-codeberg-a-procedure) when the chat taught one. If neither can be saved, the answer itself is kept as a low-confidence **confirmed answer**, marked not source-verified. |
+| **Mostly correct** | Source-quoted claims capped at medium confidence, and taught procedures. A rating reason that disputes a claim or step keeps it out. |
 | **Partially useful**, **Not useful** | Nothing. Lowering a rating withdraws what was saved from that answer. |
 
 A later answer that can be quoted replaces its confirmed answer. Chats still treat confirmed answers as unverified and check current code before relying on them.
+
+## Teach Codeberg a procedure
+
+A procedure is a way of getting something done that you show the agent, such as a series of tool calls, a database query with specific joins, or an MCP sequence. It need not appear in the code.
+
+1. In a chat, walk the agent through the task. Tell it which tools to use, correct its queries, and state any rules, for example `always skip deleted customers`.
+2. When the result is right, rate the final answer **Solved**, or **Mostly correct** with a reason for what to change.
+3. The learning model reads that chat up to the rated answer and saves the procedure under **Procedures**.
+
+Each saved step either reuses a tool call the agent actually made, with its recorded input such as the SQL, or quotes your own words. Steps it cannot tie to either are dropped. Teaching the same task again in a later chat updates the existing procedure instead of adding another.
+
+Procedures are listed first in each new chat's knowledge index, and the agent is told to follow a matching one, adapting inputs to the request. Because they are not tied to source files, code changes do not hide them. Lowering the rating withdraws one. A procedure replaces the plain confirmed answer for the same rating.
+
+Turn off the **Procedures** category to stop learning and using them. The learning model reads at most the last 8 messages and 40 tool calls of the chat, so teach one task per chat.
 
 ## How you work
 
@@ -53,11 +68,11 @@ Open **Settings → Learning** for the selected project. Every memory switch is 
 | **Enable learning** | Master switch. Off pauses all memory, history, and dataset work; data and individual choices are kept. | — | — |
 | **Learn how you work** | Learn your work-style notes and add them to new chats. | Record chats and feedback, a learning model | One call per answer and per rating; adds chat context |
 | **Codebase knowledge** | Turn the knowledge capability on or off. Off also disables the switches under it. | — | — |
-| **Learn from confirmed answers** | Save findings when you rate an answer **Solved** or **Mostly correct**; see [When findings are saved](#when-findings-are-saved). | Record chats and feedback, a learning model | One call per confirming rating |
+| **Learn from confirmed answers** | Save findings and procedures when you rate an answer **Solved** or **Mostly correct**; see [When findings are saved](#when-findings-are-saved). | Record chats and feedback, a learning model | Up to two calls per confirming rating |
 | **Use knowledge in chats** | Add up to 24 finding titles to each chat and let the agent search saved findings. | — | Adds chat context |
 | **Automatic source refresh** | Recheck findings when their cited files change. | A learning model | One call per changed finding |
 | **Daily knowledge consolidation** | Generate one reviewable report a day; off by default. Manual reports work without it. | A learning model | One call per report |
-| **Knowledge categories** | Choose which categories are saved and recalled. Turning one off keeps its files. | — | — |
+| **Knowledge categories** | Choose which categories are saved and recalled, including **Procedures**. Turning one off keeps its files. | — | — |
 | **Learning history** | Turn local history of earlier investigations on or off. | — | — |
 | **Record chats and feedback** | Save answers, tool results, and ratings. Ratings and all memory learning need it. | — | Disk only |
 | **Use history in chats** | Let the agent search earlier attempts and corrections. | — | Adds chat context |
@@ -110,7 +125,7 @@ The **Saved memory** panel shows queued saves and model errors. Skipped saves ap
 | `claims_not_grounded` | No claim's quote matched current code, even ignoring whitespace. A Solved answer is kept as a confirmed answer. |
 | `own_artifacts_already_current` | The findings from this answer are already up to date. |
 
-A `confirmed_answer_saved` entry means a Solved answer was kept without quoted claims.
+A `confirmed_answer_saved` entry means a Solved answer was kept without quoted claims. `procedure_saved` means a procedure was saved; `procedure_skipped` shows the model's raw reply when no step could be tied to a tool call or your words.
 
 `model_response` entries show the learning model's raw output. Remove private source before sharing the log.
 

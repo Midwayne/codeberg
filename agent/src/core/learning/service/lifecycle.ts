@@ -8,6 +8,7 @@ import { reconcileJobs } from './reconciliation.js';
 import { refreshKnowledge } from './refresh.js';
 import { getSettings } from './settings.js';
 import type { LearningServiceState } from './state.js';
+import { KNOWLEDGE_CATEGORIES } from '../preferences.js';
 
 export function initialize(state: LearningServiceState): Promise<void> {
   state.starting ??= start(state).catch((error: unknown) => {
@@ -60,7 +61,7 @@ export function stop(state: LearningServiceState): void {
 async function ensureLayout(state: LearningServiceState): Promise<void> {
   await Promise.all([
     mkdir(join(state.store.root, 'events'), { recursive: true }),
-    ...['services', 'flows', 'concepts', 'debugging'].map((name) =>
+    ...KNOWLEDGE_CATEGORIES.map((name) =>
       mkdir(join(state.store.root, 'knowledge', name), { recursive: true }),
     ),
     ...['pending', 'processing', 'completed', 'failed'].map((name) =>

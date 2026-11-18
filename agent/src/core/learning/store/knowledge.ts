@@ -9,6 +9,7 @@ import { parseArtifact } from './artifact.js';
 import { readEvents } from './events.js';
 import { readRepositories } from './repositories.js';
 import type { LearningStoreState } from './state.js';
+import { KNOWLEDGE_CATEGORIES } from '../preferences.js';
 
 export async function currentKnowledgeArtifacts(
   state: LearningStoreState,
@@ -74,7 +75,7 @@ export async function projectedKnowledgeArtifacts(
 
 export async function knowledgeArtifacts(state: LearningStoreState): Promise<KnowledgeArtifact[]> {
   const artifacts: KnowledgeArtifact[] = [];
-  for (const category of ['services', 'flows', 'concepts', 'debugging'] as const) {
+  for (const category of KNOWLEDGE_CATEGORIES) {
     let files: string[];
     try {
       files = (await readdir(join(state.root, 'knowledge', category))).filter((file) =>

@@ -71,6 +71,7 @@ async function learnedBefore(state: KnowledgeWorkerState, interactionId: string)
   return (await state.store.knowledgeArtifacts()).some(
     (artifact) =>
       !isConfirmedAnswer(artifact) &&
+      artifact.category !== 'procedures' &&
       artifact.status !== 'archived' &&
       artifact.source_interactions.includes(interactionId),
   );

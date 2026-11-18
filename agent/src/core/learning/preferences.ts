@@ -1,7 +1,13 @@
 import { HttpError } from '../http-error.js';
 
 /** Shared wire format; defaults retain the existing learning behavior. */
-export const KNOWLEDGE_CATEGORIES = ['services', 'flows', 'concepts', 'debugging'] as const;
+export const KNOWLEDGE_CATEGORIES = [
+  'services',
+  'flows',
+  'concepts',
+  'debugging',
+  'procedures',
+] as const;
 export const DATASET_KINDS = [
   'retrieval',
   'sft',
@@ -44,7 +50,7 @@ export const DEFAULT_LEARNING_SETTINGS: LearningSettings = {
   datasets: true,
   training: true,
   evals: true,
-  categories: { services: true, flows: true, concepts: true, debugging: true },
+  categories: { services: true, flows: true, concepts: true, debugging: true, procedures: true },
   kinds: {
     retrieval: true,
     sft: true,
