@@ -90,7 +90,7 @@ it('updates, removes and de-duplicates notes, newest first', () => {
   });
 });
 
-it('learns from every answer, without a rating, and adds the profile to chat context', async () => {
+it('learns from a rating reason, not from every answer, and adds the profile to chat context', async () => {
   const root = await mkdtemp(join(tmpdir(), 'codeberg-profile-'));
   roots.push(root);
 
@@ -101,7 +101,7 @@ it('learns from every answer, without a rating, and adds the profile to chat con
             {
               kind: 'preference',
               statement: 'Prefers answers as tables.',
-              evidence: 'answer with a table',
+              evidence: 'use a table next time',
             },
           ],
           update: [],
@@ -118,6 +118,18 @@ it('learns from every answer, without a rating, and adds the profile to chat con
     { id: 'u1', role: 'user', parts: [{ type: 'text', text: userText[0] }] },
     { id: 'a1', role: 'assistant', parts: [{ type: 'text', text: '| a | b |' }] },
   ]);
+
+  await service.waitForCurrent();
+
+  expect(generate).not.toHaveBeenCalledWith(expect.objectContaining({ system: PROFILE_SYSTEM }));
+
+  await service.feedback({
+    conversationId: 'c',
+    messageId: 'a1',
+    rating: 1,
+    label: 'partially_useful',
+    reason: 'Too long; use a table next time.',
+  });
 
   await vi.waitFor(async () => expect(await service.profile.list()).toHaveLength(1), {
     timeout: 2_000,

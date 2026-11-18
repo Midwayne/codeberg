@@ -18,14 +18,14 @@ export async function recordSession(
   if (attempts.length === 0) return;
 
   const newIds = new Set(attempts.map((attempt) => attempt.attempt_id));
-  const histories = await state.store.interactions(new Set(attempts.map((attempt) => attempt.interaction_id)));
+  const histories = await state.store.interactions(
+    new Set(attempts.map((attempt) => attempt.interaction_id)),
+  );
   for (const [id, interaction] of histories) {
     const newAnswers = interaction.attempts.filter(
       (attempt) => newIds.has(attempt.attempt_id) && attempt.answer.trim(),
     );
     if (!newAnswers.length) continue;
-
-    await enqueueProfile(state, id);
 
     if (
       state.datasetEnabled &&
@@ -74,7 +74,7 @@ export async function feedback(
   });
 
   await enqueueFeedbackDataset(state, attempt.interaction_id);
-  await enqueueProfile(state, attempt.interaction_id);
+  if (input.reason?.trim()) await enqueueProfile(state, attempt.interaction_id);
 
   // A change to an older attempt can invalidate knowledge learned from a newer
   // solved attempt (or vice versa). Revisit the entire logical interaction.
@@ -130,7 +130,10 @@ async function enqueueFeedbackKnowledge(
   }
 }
 
-/** Every answer and rating can show how the user works, so profile learning runs eagerly. */
+/**
+ * A rating reason never reaches the chat model, so it is the one signal the
+ * remember tool cannot capture; learn work-style notes from it in the background.
+ */
 async function enqueueProfile(state: LearningServiceState, interactionId: string): Promise<void> {
   if (!state.profileCaptureEnabled) return;
 

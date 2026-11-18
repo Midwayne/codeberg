@@ -46,6 +46,9 @@ export async function learnProcedure(
   const attempts = teachingAttempts(conversation, final);
   const calls = recordedCalls(attempts);
 
+  // A single question answered without tools teaches no procedure; skip the model call.
+  if (!calls.length && attempts.length < 2) return;
+
   const raw = await state.generator.generate({
     system: PROCEDURE_SYSTEM,
     traceId: job.job_id,

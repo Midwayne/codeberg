@@ -3,8 +3,6 @@ import { capturesKnowledge } from '../knowledge-feedback.js';
 import { KNOWLEDGE_EXTRACTION_VERSION } from '../worker.js';
 import type { LearningServiceState } from './state.js';
 
-const PROFILE_BACKFILL = 10;
-
 /** Replay the feedback-to-job handoff if the process stopped between the two durable writes. */
 export async function reconcileJobs(state: LearningServiceState): Promise<void> {
   const events = await state.store.events();
@@ -17,12 +15,12 @@ export async function reconcileJobs(state: LearningServiceState): Promise<void> 
   );
 
   const revisions = interactionRevisions(events);
-  const everSolved = new Set<string>();
+  const everConfirmed = new Set<string>();
   for (const event of events) {
     if (event.type !== 'feedback_recorded' || !capturesKnowledge(event.feedback.label)) continue;
 
     const id = interactionForAttempt.get(event.feedback.attempt_id);
-    if (id) everSolved.add(id);
+    if (id) everConfirmed.add(id);
   }
 
   const latestKnowledge = new Map<string, string>();
@@ -35,7 +33,7 @@ export async function reconcileJobs(state: LearningServiceState): Promise<void> 
 
     if (!id) continue;
 
-    if (everSolved.has(id)) latestKnowledge.set(id, event.timestamp);
+    if (everConfirmed.has(id)) latestKnowledge.set(id, event.timestamp);
 
     if (
       event.type === 'feedback_recorded' ||
@@ -51,24 +49,6 @@ export async function reconcileJobs(state: LearningServiceState): Promise<void> 
 
   for (const [id, timestamp] of latestDataset) {
     await reconcileJob(state, 'dataset', id, timestamp, revisions.get(id));
-  }
-
-  await backfillProfile(state, events);
-}
-
-/** Learn from recent history once; stable job ids make later startups a no-op. */
-async function backfillProfile(
-  state: LearningServiceState,
-  events: Awaited<ReturnType<LearningServiceState['store']['events']>>,
-): Promise<void> {
-  if (!state.profileCaptureEnabled) return;
-
-  const recent = events
-    .flatMap((event) => (event.type === 'attempt_recorded' ? [event.attempt.interaction_id] : []))
-    .reverse();
-
-  for (const id of [...new Set(recent)].slice(0, PROFILE_BACKFILL)) {
-    await state.queue.enqueueProfile(id, { requeueCompleted: false });
   }
 }
 

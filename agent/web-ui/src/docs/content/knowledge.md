@@ -68,15 +68,15 @@ Notes are saved in two ways:
 | How | When |
 | --- | --- |
 | Ask in chat | Say `remember that amounts are always in USD`, or state a lasting rule. The agent saves it at once and confirms. Say `forget that` or correct it to remove or replace a note. Works without a learning model. |
-| Automatically | After each answer and each rating, the learning model reads your messages and rating reasons and updates the notes. No rating is needed. |
+| From a rating reason | When you rate an answer and write a reason, the learning model reads the reason and your messages and updates the notes. Ratings without a reason add nothing. |
 
-Every note quotes your own words; text from files, tools, or web pages can never create one. Summaries of a chat, task state such as ticket numbers or counts, and facts that can be read from the code are not saved; codebase knowledge covers the code. The 24 newest notes are added to each new chat with the date each was last updated, and the newer note wins when two conflict. At most 40 are kept. When the switch is first on, your 10 most recent saved questions are read once.
+Every note quotes your own words; text from files, tools, or web pages can never create one. Summaries of a chat, task state such as ticket numbers or counts, and facts that can be read from the code are not saved; codebase knowledge covers the code. The 24 newest notes are added to each new chat with the date each was last updated, and the newer note wins when two conflict. At most 40 are kept.
 
-Automatic notes need **Record chats and feedback** and a learning model. Turn the switch off to stop learning, saving, and using notes; saved notes are kept.
+Notes from rating reasons need **Record chats and feedback** and a learning model. Turn the switch off to stop learning, saving, and using notes; saved notes are kept.
 
 ## See what is saved
 
-**Settings → Learning → Saved memory** lists your work-style notes and saved codebase findings, with their status and how often chats have used each finding. A finding that is never used is a candidate to remove or improve. Select **Remove** to delete a note you disagree with. The panel also shows saves that are still running and any errors, such as a missing learning model.
+**Settings → Learning → Saved memory** lists your work-style notes and saved codebase findings, with their status. Select **Remove** to delete a note you disagree with. The panel also shows saves that are still running and any errors, such as a missing learning model.
 
 ## Memory settings
 
@@ -85,7 +85,7 @@ Open **Settings → Learning** for the selected project. Every memory switch is 
 | Switch | What it does | Needs | Cost |
 | --- | --- | --- | --- |
 | **Enable learning** | Master switch. Off pauses all memory, history, and dataset work; data and individual choices are kept. | — | — |
-| **Learn how you work** | Learn your work-style notes, let the agent **remember** and **forget** notes on request, and add them to new chats. | Record chats and feedback and a learning model for automatic notes | One call per answer and per rating; adds chat context |
+| **Learn how you work** | Learn your work-style notes, let the agent **remember** and **forget** notes on request, and add them to new chats. | Record chats and feedback and a learning model for notes from rating reasons | One call per rating with a reason; adds chat context |
 | **Codebase knowledge** | Turn the knowledge capability on or off. Off also disables the switches under it. | — | — |
 | **Learn from confirmed answers** | Save findings and procedures when you rate an answer **Solved** or **Mostly correct**; see [When findings are saved](#when-findings-are-saved). | Record chats and feedback, a learning model | Up to two calls per confirming rating |
 | **Use knowledge in chats** | Add up to 24 finding titles to each chat and let the agent search saved findings. | — | Adds chat context |
@@ -158,6 +158,6 @@ Consolidation changes saved explanations. Source refresh rechecks evidence; neit
 
 ## Costs and persistence
 
-Background knowledge and work-style learning consume model tokens; learning how you work makes one call per answer and per rating. Recall and work-style notes add context to chat calls. Check **Settings → Usage**.
+Background knowledge and work-style learning consume model tokens; learning how you work makes one call per rating with a reason; **remember** makes none. Recall and work-style notes add context to chat calls. Check **Settings → Usage**.
 
 Deleting only indexes retains knowledge and work-style notes. Deleting the project's entire history removes both. See [Data and maintenance](/docs/storage).

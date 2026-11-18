@@ -36,12 +36,9 @@ export class DurableJobQueue {
     return enqueueDreaming(this.state, runId);
   }
 
-  /** Profile jobs rerun on every new answer or rating in the interaction. */
-  enqueueProfile(
-    interactionId: string,
-    options: { requeueCompleted?: boolean } = { requeueCompleted: true },
-  ): Promise<KnowledgeJob> {
-    return enqueue(this.state, 'extract_profile', interactionId, options);
+  /** Profile jobs rerun whenever the interaction gets a new rating reason. */
+  enqueueProfile(interactionId: string): Promise<KnowledgeJob> {
+    return enqueue(this.state, 'extract_profile', interactionId, { requeueCompleted: true });
   }
 
   enqueueEvaluation(

@@ -4,11 +4,7 @@ import { ensureOk, readJson } from './http';
 
 export type { ProfileNote };
 
-export type MemoryKnowledge = Pick<KnowledgeArtifact, 'id' | 'title' | 'category' | 'status' | 'confidence' | 'updated_at'> & {
-  /** Times chats retrieved this finding through search_knowledge. */
-  uses: number;
-  last_used_at?: string;
-};
+export type MemoryKnowledge = Pick<KnowledgeArtifact, 'id' | 'title' | 'category' | 'status' | 'confidence' | 'updated_at'>;
 
 export type MemoryDashboard = {
   profile: ProfileNote[];
