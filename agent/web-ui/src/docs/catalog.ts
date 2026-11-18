@@ -14,6 +14,7 @@ import troubleshooting from './content/troubleshooting.md?raw';
 import chats from './content/chats.md?raw';
 import browserUse from './content/browser-use.md?raw';
 import evaluations from './content/evaluations.md?raw';
+import fineTuning from './content/fine-tuning.md?raw';
 
 export type DocPage = {
   id: string;
@@ -52,6 +53,8 @@ export const docPages: DocPage[] = [
     summary: 'Delegate website tasks to an agent running a local browser.' },
   { id: 'evaluations', title: 'Evaluations', group: 'Guides', content: evaluations,
     summary: 'Compare models against reviewed, held-out examples.' },
+  { id: 'fine-tuning', title: 'Fine-tune embeddings', group: 'Guides', content: fineTuning,
+    summary: 'Adapt EmbeddingGemma 2 to your code and docs, measure it, and use it for search.' },
   { id: 'storage', title: 'Data and maintenance', group: 'Guides', content: storage,
     summary: 'Know what is stored, what leaves your machine, and how to clean up.' },
   { id: 'troubleshooting', title: 'Troubleshooting', group: 'Guides', content: troubleshooting,

@@ -96,7 +96,7 @@ For catalog syntax, local server setup, and saved model choices, see [Models and
 | --- | --- | --- |
 | `CODEBERG_VECTOR` | Boolean; `true` | Set `false` (or launch with `--no-vector`) to skip embedding setup and omit semantic search tools. Exact-text, file, symbol, and graph tools still work. Restart to change modes. |
 | `CODEBERG_EMBEDDING_MODEL` | Registry ID; `embeddinggemma-2-fp32-mlx` on Apple Silicon, `embeddinggemma-2` elsewhere | Select an embedding model and backend. Existing selections and Jina installations are retained. The first-run prompt also offers Qwen variants and `jina-onnx`. |
-| `CBERG_MODEL` | Optional model path | Custom ONNX model path when no registry selection is set. Otherwise the launcher resolves the selected model. |
+| `CBERG_MODEL` | Optional model path | Overrides the selected model's file, such as a [fine-tuned model](/docs/fine-tuning). Without a registry selection, a custom ONNX model path. Unset, the launcher resolves the selected model. |
 | `CBERG_INDEX_PATH` | Index base path; managed under Codeberg home | Base for vector files and sidecars. Registry selections can use their own model-specific paths; project indexes are isolated. |
 
 **Environment only** for storage and performance controls:
