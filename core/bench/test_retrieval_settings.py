@@ -1,11 +1,13 @@
 """Ensure benchmark metadata matches the production input limits."""
 
+from importlib.metadata import PackageNotFoundError
 from pathlib import Path
 import sys
 from types import SimpleNamespace
 import unittest
 from unittest import mock
 
+import bench_retrieval
 from bench_retrieval import token_stats
 
 
@@ -30,6 +32,20 @@ class RetrievalSettingsTest(unittest.TestCase):
                     self.assertEqual(result["limit"], limit)
                     self.assertEqual(result["truncated_documents"], truncated)
                     self.assertEqual(result["long_fixture_tokens"], lengths)
+
+
+class VersionMetadataTest(unittest.TestCase):
+    def test_missing_optional_packages_are_recorded_as_absent(self):
+        def fake_version(name):
+            if name == "onnxruntime":
+                return "1.20.1"
+            raise PackageNotFoundError(name)
+
+        with mock.patch.object(bench_retrieval, "version", side_effect=fake_version):
+            versions = bench_retrieval.package_versions()
+
+        self.assertEqual(versions["onnxruntime"], "1.20.1")
+        self.assertIsNone(versions["mlx"])
 
 
 if __name__ == "__main__":
