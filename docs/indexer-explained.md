@@ -458,7 +458,7 @@ it does not independently pick the launcher's preferred model.
 | --- | --- | --- |
 | EmbeddingGemma 2 / Sentence Transformers | Load local text model, apply saved prompt/pooling/projection/normalization modules | 8,192 tokens including prompt |
 | EmbeddingGemma 2 / MLX | Load converted unquantized FP32 text model and obtain its text embeddings | 8,192 tokens including prefix |
-| Jina / ONNX | Tokenize, transformer inference, mean pooling, L2 normalization | 256 tokens in the C adapter |
+| Jina / ONNX | Tokenize, transformer inference, mean pooling, L2 normalization | 512 tokens in the C adapter |
 | Existing Qwen / MLX | Tokenize and use the MLX embedding output | 512 tokens in this adapter |
 | Existing llama.cpp worker | Call a locally owned `llama-server` embedding endpoint with last pooling | Runtime/model dependent |
 
@@ -494,7 +494,7 @@ every chunk or query.
 ### The ONNX path in more detail
 
 1. Load the model and its tokenizer from local files.
-2. Tokenize every input in the call. The adapter keeps at most 256 tokens,
+2. Tokenize every input in the call. The adapter keeps at most 512 tokens,
    preserving the closing special token when truncating.
 3. Sort tokenized rows by length.
 4. Build batches, normally up to 16 rows, padding each batch to its own longest
@@ -611,6 +611,12 @@ fill the requested result count. This bounded post-filtering can still return
 fewer results than requested even when more matching chunks exist elsewhere in
 the index.
 
+Before results leave the daemon, **keyword rescoring** reorders them. The
+daemon fetches the 64 nearest chunks, scores each body with BM25 over
+identifier-split tokens, and orders by a 70/30 mix of normalized semantic and
+keyword scores. The reported score stays the cosine similarity. This applies to
+`search`, HTTP `/search`, and the semantic half of hybrid search.
+
 The Go daemon's **hybrid search** adds an independent lexical path. It starts
 vector retrieval and ripgrep retrieval concurrently, extracts useful lexical
 query terms, then combines the ranked candidates using reciprocal-rank fusion.
@@ -632,7 +638,9 @@ Source: [usearch provider](../core/src/search/providers/usearch/usearch.c),
 [search orchestration](../core/src/search/search.c),
 [engine search](../core/cmd/cberg-index/query_chunks.c),
 [daemon hybrid search](../daemon/internal/tools/hybrid.go), and
-[fusion/ranking](../daemon/internal/search/ranking.go).
+[fusion/ranking](../daemon/internal/search/ranking.go), and
+[keyword rescoring](../daemon/internal/search/rescore.go). Every formula, with
+the reasoning behind it, is in [The math behind Codeberg's search](search-math.md).
 
 ## 10. First index, live updates, and warm restart
 

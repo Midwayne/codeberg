@@ -11,6 +11,10 @@ Project-wide overview. **libcodeberg** details live under [core/docs](../core/do
 graphs, embeddings, vector/hybrid search, live updates, and warm restarts, with
 worked examples and links to the implementation.
 
+[The math behind Codeberg's search](search-math.md) gives every formula used to
+embed code and rank results, from tokenization to keyword rescoring and hybrid
+fusion, and explains why each works.
+
 ## Repository layout
 
 | Path                  | Role                                                            |
