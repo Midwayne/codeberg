@@ -71,3 +71,20 @@ it('shows the checklist above the docs and hides the way back to the app', () =>
   expect(html).not.toContain('Back to app');
   expect(renderToStaticMarkup(<DocsPage path="/docs/getting-started" />)).toContain('Back to app');
 });
+
+it('reveals the setup steps in order', () => {
+  const html = render(missing);
+  const steps = [...html.matchAll(/data-onboard-step="(\d)"/g)].map((match) => match[1]);
+
+  expect(html).toContain('data-onboard-card');
+  expect(steps).toEqual(['1', '2', '3', '4']);
+});
+
+it('spins the refresh icon while a check is running', () => {
+  const html = renderToStaticMarkup(
+    <SetupChecklist status={missing} checking stillMissing={false} onCheck={() => undefined} />,
+  );
+
+  expect(html).toContain('Checking…');
+  expect(html).toMatch(/<svg[^>]*onboard-spin/);
+});

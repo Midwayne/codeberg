@@ -2,6 +2,7 @@ import { lazy, useRef, useState } from 'react';
 import { Settings2 } from 'lucide-react';
 import { DocsLink } from './docs-link';
 import { LoadingSuspense } from './loading-suspense';
+import { OnboardingMark } from './onboarding-mark';
 
 const Settings = lazy(() => import('./settings').then((module) => ({ default: module.Settings })));
 
@@ -29,10 +30,13 @@ export function NoProjects({ onAdd }: { onAdd: () => void }) {
       {settingsOpen ? <LoadingSuspense label="Loading settings…" className="min-h-0 flex-1">
         <Settings onClose={close} backLabel="Back to setup" />
       </LoadingSuspense> : <main className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-y-auto p-6 text-center">
-        <h1 className="text-lg font-semibold">Add a project to get started</h1>
-        <p className="max-w-prose text-sm leading-6 text-muted-foreground">Choose a repository to index and explore.</p>
-        <button type="button" data-add-project onClick={onAdd}
-          className="min-h-11 rounded-lg bg-primary px-4 text-sm text-primary-foreground">
+        <div data-onboard-step="0"><OnboardingMark /></div>
+        <h1 data-onboard-step="1" className="text-lg font-semibold">Add a project to get started</h1>
+        <p data-onboard-step="2" className="max-w-prose text-sm leading-6 text-muted-foreground">
+          Choose a repository to index and explore.
+        </p>
+        <button type="button" data-add-project data-onboard-step="3" onClick={onAdd}
+          className="onboard-cta min-h-11 rounded-lg bg-primary px-4 text-sm text-primary-foreground">
           Add project
         </button>
       </main>}

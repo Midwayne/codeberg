@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
+import { RefreshCw } from 'lucide-react';
 
 import { buttonClass } from '../components/button-styles';
 import { configLines, type SetupRequired } from './status';
+import '../components/onboarding.css';
 
 type SetupChecklistProps = {
   status: SetupRequired;
@@ -13,24 +15,22 @@ type SetupChecklistProps = {
 /** Guided first-run steps shown above the docs until a chat model is usable. */
 export function SetupChecklist({ status, checking, stillMissing, onCheck }: SetupChecklistProps) {
   return (
-    <section aria-labelledby="setup-title" className="mb-12 rounded-xl border border-border bg-card p-5 sm:p-6">
+    <section aria-labelledby="setup-title" data-onboard-card className="mb-12 rounded-xl border border-border bg-card p-5 sm:p-6">
       <h2 id="setup-title" className="text-xl font-semibold">Finish setting up Codeberg</h2>
       <p className="mt-2 leading-7 text-muted-foreground">
         Chat needs a model you can use. Until one is configured, Codeberg shows only these docs.
       </p>
       <SetupReasonDetail status={status} />
       <ol className="mt-5 list-decimal space-y-4 pl-5 leading-7">
-        <li>In a terminal, run <code>codeberg config edit</code> to open your Codeberg config.</li>
+        <li data-onboard-step="1">In a terminal, run <code>codeberg config edit</code> to open your Codeberg config.</li>
         {status.reason !== 'invalid-config' && (
-          <li>Add these lines with your values, then save the file.<SetupLines status={status} /></li>
+          <li data-onboard-step="2">Add these lines with your values, then save the file.<SetupLines status={status} /></li>
         )}
-        <li>Stop Codeberg with <kbd>Ctrl-C</kbd> in its terminal, then run <code>codeberg</code> again.</li>
-        <li>
-          <button type="button" className={buttonClass} disabled={checking} onClick={onCheck}>
-            {checking ? 'Checking…' : 'Check again'}
-          </button>
+        <li data-onboard-step="3">Stop Codeberg with <kbd>Ctrl-C</kbd> in its terminal, then run <code>codeberg</code> again.</li>
+        <li data-onboard-step="4">
+          <CheckButton checking={checking} onCheck={onCheck} />
           {stillMissing && (
-            <p role="status" className="mt-2 text-sm text-muted-foreground">
+            <p role="status" data-onboard-step="0" className="mt-2 text-sm text-muted-foreground">
               Still not configured. Codeberg reads these settings when it starts, so restart it after saving.
             </p>
           )}
@@ -40,6 +40,15 @@ export function SetupChecklist({ status, checking, stillMissing, onCheck }: Setu
         More help: <a href="/docs/getting-started#connect-a-model">Connect a model</a> · <a href="/docs/models">Models</a>
       </p>
     </section>
+  );
+}
+
+function CheckButton({ checking, onCheck }: { checking: boolean; onCheck: () => void }) {
+  return (
+    <button type="button" className={`${buttonClass} onboard-cta inline-flex items-center gap-2`} disabled={checking} onClick={onCheck}>
+      <RefreshCw aria-hidden="true" className={checking ? 'size-4 onboard-spin' : 'size-4'} />
+      {checking ? 'Checking…' : 'Check again'}
+    </button>
   );
 }
 
