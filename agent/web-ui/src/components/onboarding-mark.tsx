@@ -2,11 +2,12 @@ import type { CSSProperties } from 'react';
 
 import './onboarding.css';
 
-const CODE_LINES = [44, 30, 52, 36, 48, 24];
+const CODE_LINES = [40, 28, 46, 32, 42, 22];
 
 const PACKET_ROWS = [38, 54, 70];
 
-const NODES: Array<[number, number]> = [[150, 30], [180, 44], [158, 62], [188, 82], [140, 88]];
+// Mirrors the file's footprint (x 16–80) around the centre line at x = 100.
+const NODES: Array<[number, number]> = [[127, 24], [176, 28], [152, 56], [178, 86], [130, 90]];
 
 const EDGES: Array<[number, number]> = [[0, 1], [0, 2], [1, 2], [2, 3], [2, 4], [3, 4]];
 
@@ -28,12 +29,12 @@ export function OnboardingMark() {
 function SourceFile() {
   return (
     <g>
-      <rect className="onboard-file" x="8" y="8" width="72" height="96" rx="8" />
+      <rect className="onboard-file" x="16" y="8" width="64" height="96" rx="8" />
       {CODE_LINES.map((width, index) => (
         <rect key={index} className="onboard-line" style={stagger(index, 260)}
-          x="18" y={22 + index * 12} width={width} height="5" rx="2.5" />
+          x="25" y={22 + index * 12} width={width} height="5" rx="2.5" />
       ))}
-      <rect className="onboard-scan" x="12" y="14" width="64" height="2" rx="1" />
+      <rect className="onboard-scan" x="20" y="14" width="56" height="2" rx="1" />
     </g>
   );
 }
@@ -47,7 +48,7 @@ function VectorGraph() {
       ))}
       {NODES.map(([cx, cy], index) => (
         <circle key={`${cx}-${cy}`} className="onboard-node" style={stagger(index, 340)}
-          cx={cx} cy={cy} r={index === 2 ? 5 : 4} />
+          cx={cx} cy={cy} r={index === 2 ? 6 : 4.5} />
       ))}
     </g>
   );

@@ -109,10 +109,10 @@
 }
 
 @keyframes onboard-packet {
-  0% { opacity: 0; transform: translateX(-8px) scale(0.8); }
+  0% { opacity: 0; transform: translateX(-4px) scale(0.8); }
   25% { opacity: 0.6; }
-  70% { opacity: 0.6; transform: translateX(30px) scale(1); }
-  100% { opacity: 0; transform: translateX(40px) scale(0.4); }
+  70% { opacity: 0.6; transform: translateX(14px) scale(1); }
+  100% { opacity: 0; transform: translateX(18px) scale(0.4); }
 }
 
 .onboard-edge {
