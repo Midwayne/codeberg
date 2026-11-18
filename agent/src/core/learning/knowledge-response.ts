@@ -1,8 +1,6 @@
 import type { KnowledgeCategory, KnowledgeConfidence, KnowledgeStatus } from './types.js';
 import { invalidResponse } from './failure.js';
-
-/** Categories the source-quoted extractor may write; procedures are learned from tool calls. */
-const SOURCE_CATEGORIES = ['services', 'flows', 'concepts', 'debugging'];
+import { SOURCE_CATEGORIES } from './preferences.js';
 
 interface ExtractionResponse {
   action: 'none' | 'upsert';
@@ -16,26 +14,31 @@ interface ExtractionResponse {
 }
 
 export function parseExtractionResponse(raw: string): ExtractionResponse {
+  return parseModelJson(raw, 'knowledge extractor') as ExtractionResponse;
+}
+
+/** The first JSON value in a model reply, accepting fences and surrounding prose. */
+export function parseModelJson(raw: string, source: string): unknown {
   const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(raw)?.[1];
   const candidates = [fenced, raw.trim(), ...jsonObjects(raw)].filter(
     (candidate): candidate is string => Boolean(candidate?.trim()),
   );
   for (const candidate of new Set(candidates)) {
     try {
-      return JSON.parse(candidate.trim()) as ExtractionResponse;
+      return JSON.parse(candidate.trim()) as unknown;
     } catch {
       // Models sometimes wrap valid JSON in prose.
     }
   }
 
   const detail = raw.trim() ? `malformed JSON (${raw.length} chars)` : 'an empty response';
-  throw invalidResponse(`knowledge extractor returned ${detail}`);
+  throw invalidResponse(`${source} returned ${detail}`);
 }
 
 export function validateResponse(response: ExtractionResponse): void {
   if (
     response.action !== 'upsert' ||
-    !SOURCE_CATEGORIES.includes(response.category ?? '') ||
+    !SOURCE_CATEGORIES.includes(response.category as (typeof SOURCE_CATEGORIES)[number]) ||
     !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(response.slug ?? '') ||
     !response.title?.trim() ||
     !Array.isArray(response.claims) ||

@@ -4,7 +4,10 @@ import { ensureOk, readJson } from './http';
 
 export type { ProfileNote };
 
-export type MemoryKnowledge = Pick<KnowledgeArtifact, 'id' | 'title' | 'category' | 'status' | 'confidence' | 'updated_at'>;
+export type MemoryKnowledge = Pick<
+  KnowledgeArtifact,
+  'id' | 'title' | 'category' | 'status' | 'confidence' | 'updated_at' | 'verification'
+>;
 
 export type MemoryDashboard = {
   profile: ProfileNote[];
@@ -14,8 +17,8 @@ export type MemoryDashboard = {
   errors: { type: string; status: string; error?: string }[];
 };
 
-export async function loadMemory(fetcher: typeof fetch = fetch): Promise<MemoryDashboard> {
-  const response = await fetcher('/api/learning/memory', { signal: AbortSignal.timeout(10_000) });
+export async function loadMemory(fetcher: typeof fetch = fetch, signal?: AbortSignal): Promise<MemoryDashboard> {
+  const response = await fetcher('/api/learning/memory', { signal });
 
   return readJson<MemoryDashboard>(response, 'Could not load saved memory.');
 }

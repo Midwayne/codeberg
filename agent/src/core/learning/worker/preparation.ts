@@ -11,8 +11,7 @@ import {
   type PreparationContext,
   refreshObservations,
 } from './context.js';
-import { recordCorrectionNote } from './correction.js';
-import { saveConfirmedAnswer } from './confirmed.js';
+import { keepUngrounded } from './confirmed.js';
 import { invalidateKnowledge } from './persistence.js';
 import type { KnowledgeWorkerState } from './state.js';
 import { permanentFailure } from '../failure.js';
@@ -116,25 +115,7 @@ async function collectEvidence(
   const refresh = sourceChanged || repositoryChanged;
   observations = await refreshObservations(observations, currentRepositories, refresh);
 
-  if (!observations.some((item) => item.hash)) {
-    writeLearningTrace('extraction_skipped', {
-      job_id: job.job_id,
-      reason: 'no_current_source_evidence',
-      existing_artifacts: existing.map((artifact) => artifact.slug),
-    });
-    await recordCorrectionNote(state, job, final, revision, existing);
-    await saveConfirmedAnswer(state, {
-      job,
-      final,
-      revision,
-      currentFeedback: context.currentFeedback,
-      observations,
-      currentRepositories,
-    });
-    return;
-  }
-
-  return {
+  const extraction: ExtractionContext = {
     job,
     revision,
     final,
@@ -145,6 +126,17 @@ async function collectEvidence(
     currentRepositories,
     currentFeedback: context.currentFeedback,
   };
+
+  if (observations.some((item) => item.hash)) return extraction;
+
+  writeLearningTrace('extraction_skipped', {
+    job_id: job.job_id,
+    reason: 'no_current_source_evidence',
+    existing_artifacts: existing.map((artifact) => artifact.slug),
+  });
+  await keepUngrounded(state, extraction);
+
+  return undefined;
 }
 
 async function relatedArtifacts(

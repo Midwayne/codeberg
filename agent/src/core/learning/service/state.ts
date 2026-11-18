@@ -4,7 +4,7 @@ import { DatasetStore } from '../datasets.js';
 import { DreamingReports } from '../dreaming/reports.js';
 import { AutomaticEvaluations } from '../evaluation/automatic.js';
 import type { EvaluationRuntime } from '../evaluation/automatic-types.js';
-import { DEFAULT_LEARNING_SETTINGS, type LearningSettings } from '../preferences.js';
+import { DEFAULT_LEARNING_SETTINGS, profileActive, type LearningSettings } from '../preferences.js';
 import { DurableJobQueue } from '../queue.js';
 import { LearningSettingsStore } from '../settings.js';
 import { ProfileStore } from '../profile/store.js';
@@ -70,7 +70,7 @@ export class LearningServiceState {
 
   /** Profile extraction needs saved history and a learning model. */
   get profileCaptureEnabled(): boolean {
-    return this.preferences.enabled && this.preferences.profile && this.hasGenerator;
+    return profileActive(this.preferences) && this.hasGenerator;
   }
 
   get datasetEnabled(): boolean {

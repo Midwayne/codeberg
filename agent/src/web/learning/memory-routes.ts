@@ -54,15 +54,16 @@ async function memoryDashboard(learning: LearningService) {
     knowledge: knowledge
       .filter((artifact) => artifact.status !== 'archived')
       .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
-      .map(({ id, title, category, status, confidence, updated_at }) => ({
+      .map(({ id, title, category, status, confidence, updated_at, verification }) => ({
         id,
         title,
         category,
         status,
         confidence,
         updated_at,
+        verification,
       })),
-    pending: memoryJobs(pending).length + memoryJobs(processing).length,
+    pending: memoryJobs([...pending, ...processing]).length,
     errors: memoryJobs([...pending, ...failed])
       .filter((job) => job.last_error)
       .sort((a, b) => b.updated_at.localeCompare(a.updated_at))

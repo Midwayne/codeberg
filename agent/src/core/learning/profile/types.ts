@@ -30,6 +30,9 @@ export interface ProfileUpdate {
 
 export const MAX_PROFILE_NOTES = 40;
 
+/** Newest notes added to each chat's system prompt; the rest stay listed in Saved memory. */
+export const MAX_PROMPT_NOTES = 24;
+
 export const MAX_STATEMENT_CHARS = 240;
 
 export const MAX_EVIDENCE_CHARS = 240;

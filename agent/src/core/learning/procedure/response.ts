@@ -1,4 +1,5 @@
 import { isRecord } from '../../record.js';
+import { quotedBy } from '../quote.js';
 import { parseExtractionResponse } from '../knowledge-response.js';
 import { redactSecrets } from '../redact.js';
 import type { RecordedCall } from './prompt.js';
@@ -32,7 +33,7 @@ export function parseProcedure(
   const value: unknown = parseExtractionResponse(raw);
   if (!isRecord(value) || value.action !== 'upsert') return undefined;
 
-  const grounded = groundedIn(userText);
+  const grounded = quotedBy(userText);
   const slug = typeof value.slug === 'string' ? value.slug : '';
   const title = text(value.title, 120);
   if (!SLUG.test(slug) || !title) return undefined;
@@ -91,15 +92,4 @@ function quotedList(grounded: (evidence: string) => boolean) {
 
 function text(value: unknown, limit: number): string {
   return typeof value === 'string' ? value.trim().slice(0, limit) : '';
-}
-
-function groundedIn(userText: string[]): (evidence: string) => boolean {
-  const normalize = (value: string) => value.toLowerCase().replace(/\s+/g, ' ').trim();
-  const haystack = userText.map(normalize);
-
-  return (evidence) => {
-    const needle = normalize(evidence).replace(/^["'“”]+|["'“”.…]+$/g, '');
-
-    return needle.length >= 4 && haystack.some((entry) => entry.includes(needle));
-  };
 }

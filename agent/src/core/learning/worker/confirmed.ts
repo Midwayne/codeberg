@@ -1,11 +1,11 @@
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 import { writeLearningTrace } from '../../module-log.js';
 import { writeAtomic } from '../../fs.js';
 import { sourceCommits, sourceHashes, type SourceObservation } from '../memory-source.js';
 import { interactionRevisions } from '../revision.js';
 import { redactSecrets } from '../redact.js';
-import { serializeArtifact } from '../store.js';
+import { serializeArtifact, stableId } from '../store.js';
 import type {
   AttemptRecord,
   FeedbackRecord,
@@ -13,11 +13,17 @@ import type {
   KnowledgeCategory,
   KnowledgeJob,
 } from '../types.js';
-import { artifactLineage } from './artifact.js';
-import { confirmedAnswerId, isConfirmedAnswer } from '../confirmed-answer.js';
+import { artifactLineage, readArtifact } from './artifact.js';
+import { KNOWLEDGE_CATEGORIES } from '../preferences.js';
+import { recordCorrectionNote } from './correction.js';
 import type { KnowledgeWorkerState } from './state.js';
 
 const MAX_ANSWER_CHARS = 4_000;
+/** One confirmed answer per interaction, so re-rating overwrites rather than duplicates it. */
+function confirmedAnswerId(interactionId: string): string {
+  return stableId('confirmed', interactionId);
+}
+
 const FALLBACK_ORDER: KnowledgeCategory[] = ['concepts', 'flows', 'services', 'debugging'];
 
 export interface ConfirmedAnswerInput {
@@ -27,8 +33,20 @@ export interface ConfirmedAnswerInput {
   currentFeedback?: FeedbackRecord;
   observations: SourceObservation[];
   currentRepositories: Awaited<ReturnType<KnowledgeWorkerState['store']['repositories']>>;
+  /** This answer's own findings plus related ones, already read by extraction. */
+  existing: KnowledgeArtifact[];
   /** Category the model chose, when it answered but its claims could not be grounded. */
   category?: KnowledgeCategory;
+}
+
+/** No grounded claim: keep explicit corrections and, for Solved answers, the answer itself. */
+export async function keepUngrounded(
+  state: KnowledgeWorkerState,
+  input: ConfirmedAnswerInput,
+): Promise<boolean> {
+  await recordCorrectionNote(state, input.job, input.final, input.revision, input.existing);
+
+  return saveConfirmedAnswer(state, input);
 }
 
 /**
@@ -37,7 +55,7 @@ export interface ConfirmedAnswerInput {
  * clearly unverified finding instead of discarding it. Source-change refreshes
  * skip this: an old answer must not be re-confirmed against changed code.
  */
-export async function saveConfirmedAnswer(
+async function saveConfirmedAnswer(
   state: KnowledgeWorkerState,
   input: ConfirmedAnswerInput,
 ): Promise<boolean> {
@@ -46,7 +64,7 @@ export async function saveConfirmedAnswer(
     return false;
 
   const category = confirmedCategory(state, input.category);
-  if (!category || (await learnedBefore(state, job.interaction_id))) return false;
+  if (!category || learnedBefore(input.existing, job.interaction_id)) return false;
 
   const id = confirmedAnswerId(job.interaction_id);
   const revisions = interactionRevisions(await state.store.events());
@@ -66,29 +84,31 @@ export async function saveConfirmedAnswer(
   return true;
 }
 
-/** A finding already learned from this answer is refreshed or left unverified, never replaced by it. */
-async function learnedBefore(state: KnowledgeWorkerState, interactionId: string): Promise<boolean> {
-  return (await state.store.knowledgeArtifacts()).some(
+/** A source-backed finding already learned from this answer is refreshed, never replaced by it. */
+function learnedBefore(existing: KnowledgeArtifact[], interactionId: string): boolean {
+  return existing.some(
     (artifact) =>
-      !isConfirmedAnswer(artifact) &&
-      artifact.category !== 'procedures' &&
+      artifact.verification !== 'user' &&
       artifact.status !== 'archived' &&
       artifact.source_interactions.includes(interactionId),
   );
 }
 
-/** A grounded finding supersedes the unverified answer it came from. */
+/** A grounded finding or taught procedure supersedes the unverified answer it came from. */
 export async function retireConfirmedAnswer(
   state: KnowledgeWorkerState,
   interactionId: string,
 ): Promise<void> {
   const id = confirmedAnswerId(interactionId);
 
-  for (const artifact of await state.store.knowledgeArtifacts()) {
-    if (artifact.id !== id || artifact.status === 'archived') continue;
+  // The id is known; only its category is not, so read at most one file per category.
+  for (const category of KNOWLEDGE_CATEGORIES) {
+    const path = join(state.store.root, 'knowledge', category, `${id}.md`);
+    const artifact = await readArtifact(path);
+    if (!artifact || artifact.status === 'archived') continue;
 
     await writeAtomic(
-      join(state.store.root, 'knowledge', artifact.category, `${artifact.slug}.md`),
+      path,
       serializeArtifact({ ...artifact, status: 'archived', updated_at: new Date().toISOString() }),
     );
   }
@@ -117,7 +137,7 @@ function confirmedArtifact(
       (repo) =>
         cited.has(repo.path) || final.repositories.some((entry) => entry.path === repo.path),
     )
-    .map((repo) => repo.path.split(/[\\/]/).at(-1)!);
+    .map((repo) => basename(repo.path));
 
   return redactSecrets({
     id,
@@ -138,13 +158,14 @@ function confirmedArtifact(
     source_hashes: sourceHashes(observations),
     claims: [],
     confidence: 'low',
+    verification: 'user',
     status: 'active',
     body: confirmedBody(final, observations),
   });
 }
 
 function confirmedBody(final: AttemptRecord, observations: SourceObservation[]): string {
-  const files = observations.map((item) => `- ${item.repo.split(/[\\/]/).at(-1)}:${item.path}`);
+  const files = observations.map((item) => `- ${basename(item.repo)}:${item.path}`);
 
   return [
     '## Confirmed answer (not source-verified)',

@@ -52,7 +52,11 @@ export class ProfileStore {
   update(change: (notes: ProfileNote[]) => ProfileNote[]): Promise<ProfileNote[]> {
     const entry = shared(this.path);
     const next = entry.queue.then(async () => {
-      const notes = change(await this.list());
+      const current = await this.list();
+      const notes = change(current);
+
+      // An unchanged profile is not rewritten, so chats keep their cached prompt.
+      if (JSON.stringify(notes) === JSON.stringify(current)) return notes;
 
       await writeJsonAtomic(this.path, { schema_version: 1, notes });
       entry.revision++;

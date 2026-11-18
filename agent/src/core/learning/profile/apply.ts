@@ -56,6 +56,9 @@ function touch(
   interactionId: string,
   now: string,
 ): ProfileNote {
+  // Restating a note unchanged is not news; keep its date so prompts stay cached.
+  if (note.statement === change.statement && note.evidence === change.evidence) return note;
+
   return redactSecrets({
     ...note,
     statement: change.statement,

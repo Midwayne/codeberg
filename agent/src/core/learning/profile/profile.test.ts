@@ -53,7 +53,9 @@ it('keeps grounded notes and drops invented, malformed or identifying ones', () 
   expect(update.update.map((entry) => entry.id)).toEqual(['profile-1']);
   expect(update.remove).toEqual(['profile-2']);
 
-  expect(() => parseProfileUpdate('no json here', userText)).toThrow(/malformed profile update/);
+  expect(() => parseProfileUpdate('no json here', userText)).toThrow(
+    /profile extractor returned malformed JSON/,
+  );
 });
 
 it('updates, removes and de-duplicates notes, newest first', () => {

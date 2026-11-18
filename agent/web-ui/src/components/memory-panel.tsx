@@ -92,7 +92,7 @@ function KnowledgeList({ dashboard }: { dashboard: MemoryDashboard }) {
               <span className="break-words">{item.title}</span>
               <span className="mt-1 block text-xs capitalize text-muted-foreground">
                 {item.category} · {item.status.replace('_', ' ')} ·{' '}
-                {item.id.startsWith('confirmed-') ? 'confirmed answer, not source-verified' : `${item.confidence} confidence`}
+                {trustLabel(item)}
               </span>
             </li>
           ))}
@@ -123,4 +123,10 @@ function MemoryActivity({ dashboard }: { dashboard: MemoryDashboard }) {
       ))}
     </>
   );
+}
+
+function trustLabel(item: MemoryDashboard['knowledge'][number]): string {
+  if (item.verification !== 'user') return `${item.confidence} confidence`;
+
+  return item.category === 'procedures' ? 'taught by you' : 'confirmed answer, not source-verified';
 }

@@ -3,7 +3,7 @@ import { DatasetStore } from './datasets.js';
 import { DreamingReports } from './dreaming/reports.js';
 import type { DreamingDecision } from './dreaming/types.js';
 import { EvaluationReports } from './evaluation/reports.js';
-import type { LearningSettings } from './preferences.js';
+import { profileActive, type LearningSettings } from './preferences.js';
 import { DurableJobQueue } from './queue.js';
 import {
   activeJobs,
@@ -65,10 +65,6 @@ export class LearningService {
     return this.state.settingsRevision + this.state.profile.revision;
   }
 
-  set settingsRevision(value: typeof this.state.settingsRevision) {
-    this.state.settingsRevision = value - this.state.profile.revision;
-  }
-
   get settings(): LearningSettings {
     return this.state.settings;
   }
@@ -112,7 +108,7 @@ export class LearningService {
   }
 
   async profileContext(): Promise<string> {
-    if (!this.state.preferences.enabled || !this.state.preferences.profile) return '';
+    if (!profileActive(this.state.preferences)) return '';
 
     return profileContext(await this.state.profile.list());
   }
@@ -136,7 +132,9 @@ export class LearningService {
   }
 
   get busy(): boolean {
-    return Boolean(this.state.background || this.state.checking || this.state.maintenance || this.isWorking());
+    return Boolean(
+      this.state.background || this.state.checking || this.state.maintenance || this.isWorking(),
+    );
   }
 
   isWorking(): boolean {

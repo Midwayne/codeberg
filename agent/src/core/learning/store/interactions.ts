@@ -26,7 +26,10 @@ export async function currentFeedback(
 
 export type InteractionHistory = { attempts: AttemptRecord[]; feedback: FeedbackRecord[] };
 
-export async function interaction(state: LearningStoreState, interactionId: string): Promise<InteractionHistory> {
+export async function interaction(
+  state: LearningStoreState,
+  interactionId: string,
+): Promise<InteractionHistory> {
   return interactionFrom(await readEvents(state), interactionId);
 }
 
@@ -40,7 +43,10 @@ export async function interactions(
   return new Map([...interactionIds].map((id) => [id, interactionFrom(events, id)]));
 }
 
-function interactionFrom(events: LearningEvent[], interactionId: string): InteractionHistory {
+export function interactionFrom(
+  events: LearningEvent[],
+  interactionId: string,
+): InteractionHistory {
   const attempts = events.flatMap((event) =>
     event.type === 'attempt_recorded' && event.attempt.interaction_id === interactionId
       ? [event.attempt]

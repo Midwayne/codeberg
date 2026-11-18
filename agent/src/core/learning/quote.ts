@@ -13,3 +13,18 @@ export function locateQuote(text: string, quote: string): string | undefined {
 
   return new RegExp(pattern).exec(text)?.[0];
 }
+
+/**
+ * Whether evidence quotes the user: a whitespace- and case-insensitive substring of
+ * their own text, ignoring surrounding quote marks and trailing punctuation.
+ */
+export function quotedBy(userText: string[]): (evidence: string) => boolean {
+  const normalize = (text: string) => text.toLowerCase().replace(/\s+/g, ' ').trim();
+  const haystack = userText.map(normalize);
+
+  return (evidence) => {
+    const needle = normalize(evidence).replace(/^["'“”]+|["'“”.…]+$/g, '');
+
+    return needle.length >= 4 && haystack.some((text) => text.includes(needle));
+  };
+}

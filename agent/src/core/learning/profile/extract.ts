@@ -5,19 +5,19 @@ import { applyProfileUpdate } from './apply.js';
 import { PROFILE_SYSTEM, profilePrompt, userText } from './prompt.js';
 import { parseProfileUpdate } from './response.js';
 import type { ProfileStore } from './store.js';
-import type { ProfileNote } from './types.js';
+import { MAX_PROMPT_NOTES, type ProfileNote } from './types.js';
 
-/** Learn how the user works from one interaction; returns whether the saved profile changed. */
+/** Learn how the user works from one interaction's messages and rating reasons. */
 export async function extractProfile(
   store: LearningStore,
   profile: ProfileStore,
   generator: Generator,
   interactionId: string,
   traceId?: string,
-): Promise<boolean> {
+): Promise<void> {
   const interaction = await store.interaction(interactionId);
   const text = userText(interaction);
-  if (!text.length) return false;
+  if (!text.length) return;
 
   const raw = await generator.generate({
     system: PROFILE_SYSTEM,
@@ -26,7 +26,7 @@ export async function extractProfile(
   });
 
   const update = parseProfileUpdate(raw, text);
-  if (!update.add.length && !update.update.length && !update.remove.length) return false;
+  if (!update.add.length && !update.update.length && !update.remove.length) return;
 
   const now = new Date().toISOString();
 
@@ -41,8 +41,6 @@ export async function extractProfile(
     removed: update.remove.length,
     total: notes.length,
   });
-
-  return true;
 }
 
 /** System-prompt block; notes are the user's own preferences but still untrusted text. */
@@ -50,7 +48,7 @@ export function profileContext(notes: ProfileNote[]): string {
   if (!notes.length) return '';
 
   const lines = notes
-    .slice(0, 24)
+    .slice(0, MAX_PROMPT_NOTES)
     .map(
       (note) =>
         `- [${note.id}] (${note.kind}, ${note.updated_at.slice(0, 10)}) ${JSON.stringify(note.statement)}`,

@@ -30,7 +30,7 @@ it('lists profile notes with a remove action, knowledge, and pending or failed s
         ],
         knowledge: [
           { id: 'k1', title: 'Checkout flow', category: 'flows', status: 'active', confidence: 'medium', updated_at: '2026-01-01' },
-          { id: 'confirmed-1', title: 'Refund rules', category: 'concepts', status: 'active', confidence: 'low', updated_at: '2026-01-01' },
+          { id: 'confirmed-1', title: 'Refund rules', category: 'concepts', status: 'active', confidence: 'low', updated_at: '2026-01-01', verification: 'user' },
         ],
         pending: 2,
         errors: [{ type: 'extract_profile', status: 'pending', error: 'MODEL_ERROR: offline' }],

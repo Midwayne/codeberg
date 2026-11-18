@@ -58,10 +58,14 @@ async function runJob(state: KnowledgeWorkerState, job: KnowledgeJob): Promise<v
   if (job.type === 'evaluate_output') {
     await state.evaluations!.process(job.interaction_id, job.attempt_count);
   } else if (job.type === 'extract_profile') {
-    const args = [state.store, state.profile, state.generator!, job.interaction_id] as const;
-
-    // New notes reach chats through a rebuilt system prompt.
-    if (await extractProfile(...args, job.job_id)) state.onKnowledgeChanged?.();
+    // A changed profile bumps its own revision, which rebuilds chat prompts.
+    await extractProfile(
+      state.store,
+      state.profile,
+      state.generator!,
+      job.interaction_id,
+      job.job_id,
+    );
   } else if (job.type === 'consolidate_knowledge') {
     await new DreamingConsolidator(
       state.store,

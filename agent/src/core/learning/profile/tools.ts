@@ -1,7 +1,7 @@
 import { jsonSchema, tool, type ModelMessage, type ToolSet } from 'ai';
 
 import { applyProfileUpdate } from './apply.js';
-import { parseProfileUpdate } from './response.js';
+import { validateProfileUpdate } from './response.js';
 import type { ProfileStore } from './store.js';
 import { PROFILE_KINDS, type ProfileKind } from './types.js';
 
@@ -38,12 +38,11 @@ async function remember(
   toolCallId: string,
 ) {
   const entry = { kind: input.kind, statement: input.statement, evidence: input.evidence };
-  const update = parseProfileUpdate(
-    JSON.stringify({
+  const update = validateProfileUpdate(
+    {
       add: input.replaces ? [] : [entry],
       update: input.replaces ? [{ id: input.replaces, ...entry }] : [],
-      remove: [],
-    }),
+    },
     userMessages(messages),
   );
 

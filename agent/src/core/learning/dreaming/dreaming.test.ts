@@ -216,7 +216,7 @@ it('tolerates missing lists, blank reasons, self-references and prose around the
 
   generate.mockResolvedValueOnce('not json');
 
-  await expect(consolidator.plan('dream-malformed')).rejects.toThrow(/malformed dreaming plan/);
+  await expect(consolidator.plan('dream-malformed')).rejects.toThrow(/consolidation planner returned malformed JSON/);
 });
 it('reuses a durable report on job retry without another model call', async () => {
   const { consolidator, generate } = await fixture();

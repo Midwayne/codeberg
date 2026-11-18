@@ -1,5 +1,7 @@
 import { isRecord } from '../../record.js';
+import { quotedBy } from '../quote.js';
 import { invalidResponse } from '../failure.js';
+import { parseModelJson } from '../knowledge-response.js';
 import {
   MAX_EVIDENCE_CHARS,
   MAX_STATEMENT_CHARS,
@@ -13,8 +15,18 @@ const IDENTIFIER = /[\w.+-]+@[\w-]+\.[\w.]+|\+?\d[\d\s().-]{8,}\d/;
 
 /** Lenient parse: invalid entries are dropped so one bad note never discards the rest. */
 export function parseProfileUpdate(raw: string, userText: string[]): ProfileUpdate {
-  const value = parseObject(raw);
-  const grounded = groundedIn(userText);
+  const value = parseModelJson(raw, 'profile extractor');
+  if (!isRecord(value)) throw invalidResponse('profile extractor returned no JSON object');
+
+  return validateProfileUpdate(value, userText);
+}
+
+/** Keep only well-formed notes whose evidence quotes the user. */
+export function validateProfileUpdate(
+  value: Record<string, unknown>,
+  userText: string[],
+): ProfileUpdate {
+  const grounded = quotedBy(userText);
 
   const add = list(value.add)
     .flatMap((entry) => {
@@ -38,23 +50,6 @@ export function parseProfileUpdate(raw: string, userText: string[]): ProfileUpda
   return { add, update, remove };
 }
 
-function parseObject(raw: string): Record<string, unknown> {
-  const text = raw.replace(/^\s*```(?:json)?\s*|\s*```\s*$/g, '');
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-
-  try {
-    const value: unknown = JSON.parse(
-      start >= 0 && end > start ? text.slice(start, end + 1) : text,
-    );
-    if (isRecord(value)) return value;
-  } catch {
-    // Reported below as an unusable response.
-  }
-
-  throw invalidResponse('malformed profile update');
-}
-
 function list(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? value.filter(isRecord) : [];
 }
@@ -74,16 +69,4 @@ function noteFields(
   if (IDENTIFIER.test(statement) || IDENTIFIER.test(evidence)) return undefined;
 
   return { statement, evidence };
-}
-
-/** Whitespace- and case-insensitive substring match against the user's own words. */
-function groundedIn(userText: string[]): (evidence: string) => boolean {
-  const normalize = (text: string) => text.toLowerCase().replace(/\s+/g, ' ').trim();
-  const haystack = userText.map(normalize);
-
-  return (evidence) => {
-    const needle = normalize(evidence).replace(/^["'“”]+|["'“”.…]+$/g, '');
-
-    return needle.length >= 4 && haystack.some((text) => text.includes(needle));
-  };
 }

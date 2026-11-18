@@ -8,7 +8,14 @@ import { capturesKnowledge } from '../knowledge-feedback.js';
 import { sourceCommits } from '../memory-source.js';
 import { interactionRevisions } from '../revision.js';
 import { effectiveFeedback, parseArtifact, serializeArtifact, stableId } from '../store.js';
-import type { AttemptRecord, FeedbackRecord, KnowledgeArtifact, KnowledgeJob } from '../types.js';
+import type {
+  AttemptRecord,
+  FeedbackRecord,
+  KnowledgeArtifact,
+  KnowledgeJob,
+  LearningEvent,
+} from '../types.js';
+import { interactionFrom } from '../store/interactions.js';
 import { artifactLineage, artifactRevision } from '../worker/artifact.js';
 import { retireConfirmedAnswer } from '../worker/confirmed.js';
 import type { KnowledgeWorkerState } from '../worker/state.js';
@@ -27,11 +34,13 @@ export async function learnProcedure(
 ): Promise<void> {
   if (job.source_refresh || !state.generator || !state.settings().categories.procedures) return;
 
-  const interaction = await state.store.interaction(job.interaction_id);
+  // One read of the event log serves the interaction, feedback, conversation and revisions.
+  const events = await state.store.events();
+  const interaction = interactionFrom(events, job.interaction_id);
   const final = interaction.attempts.at(-1);
   if (!final) return;
 
-  const feedback = effectiveFeedback(await state.store.events()).get(final.attempt_id);
+  const feedback = effectiveFeedback(events).get(final.attempt_id);
   if (!capturesKnowledge(feedback?.label)) return;
 
   const revision = sourceRevision(interaction.attempts, interaction.feedback);
@@ -40,9 +49,7 @@ export async function learnProcedure(
   );
   if (alreadyLearned(existing, job.interaction_id, revision)) return;
 
-  const conversation = (await state.store.attempts()).filter(
-    (attempt) => attempt.conversation_id === final.conversation_id,
-  );
+  const conversation = conversationAttempts(events, final.conversation_id);
   const attempts = teachingAttempts(conversation, final);
   const calls = recordedCalls(attempts);
 
@@ -62,7 +69,26 @@ export async function learnProcedure(
     return;
   }
 
-  await saveProcedure(state, { job, final, revision, feedback, procedure });
+  await saveProcedure(state, {
+    job,
+    final,
+    revision,
+    feedback,
+    procedure,
+    revisions: interactionRevisions(events),
+  });
+}
+
+/** Attempts of one conversation, latest record per attempt id, in log order. */
+function conversationAttempts(events: LearningEvent[], conversationId: string): AttemptRecord[] {
+  const byId = new Map<string, AttemptRecord>();
+
+  for (const event of events) {
+    if (event.type === 'attempt_recorded' && event.attempt.conversation_id === conversationId)
+      byId.set(event.attempt.attempt_id, event.attempt);
+  }
+
+  return [...byId.values()];
 }
 
 function alreadyLearned(
@@ -86,14 +112,16 @@ async function saveProcedure(
     revision: string;
     feedback?: FeedbackRecord;
     procedure: Procedure;
+    revisions: Map<string, string>;
   },
 ): Promise<void> {
-  const { job, final, revision, feedback, procedure } = input;
+  const { job, final, revision, feedback, procedure, revisions } = input;
   const path = join(state.store.root, 'knowledge', 'procedures', `${procedure.slug}.md`);
-  const prior = await readFile(path, 'utf8').then(parseArtifact, () => undefined);
-  const revisions = interactionRevisions(await state.store.events());
+  const [prior, repositories] = await Promise.all([
+    readFile(path, 'utf8').then(parseArtifact, () => undefined),
+    state.store.repositories(),
+  ]);
   const now = new Date().toISOString();
-  const repositories = await state.store.repositories();
 
   const artifact: KnowledgeArtifact = {
     id: prior?.id ?? stableId('procedure', procedure.slug),
@@ -109,6 +137,7 @@ async function saveProcedure(
     source_refs: [],
     claims: [],
     confidence: feedback?.label === 'solved' ? 'high' : 'medium',
+    verification: 'user',
     status: 'active',
     body: procedureBody(procedure),
   };

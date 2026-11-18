@@ -1,4 +1,5 @@
 import { isDailyDreaming } from '../dreaming/scheduler.js';
+import { profileActive } from '../preferences.js';
 import type { KnowledgeJob } from '../types.js';
 import type { KnowledgeWorkerState } from './state.js';
 
@@ -8,7 +9,7 @@ export function jobEnabled(state: KnowledgeWorkerState, job: KnowledgeJob): bool
 
   if (job.type === 'evaluate_output') return Boolean(state.evaluations?.enabled());
 
-  if (job.type === 'extract_profile') return Boolean(state.generator) && settings.profile;
+  if (job.type === 'extract_profile') return Boolean(state.generator) && profileActive(settings);
 
   if (
     job.type === 'consolidate_knowledge' &&
@@ -39,7 +40,7 @@ export function enabledType(
 
   const datasets = settings.datasets && Object.values(settings.kinds).some(Boolean);
 
-  const profile = Boolean(state.generator) && settings.profile;
+  const profile = Boolean(state.generator) && profileActive(settings);
 
   return knowledge || profile || state.evaluations?.enabled()
     ? undefined

@@ -8,6 +8,10 @@ export const KNOWLEDGE_CATEGORIES = [
   'debugging',
   'procedures',
 ] as const;
+/** Categories extracted from quoted source; procedures are learned from tool calls instead. */
+export const SOURCE_CATEGORIES = KNOWLEDGE_CATEGORIES.filter(
+  (category) => category !== 'procedures',
+);
 export const DATASET_KINDS = [
   'retrieval',
   'sft',
@@ -91,6 +95,11 @@ export function mergeLearningSettings(current: LearningSettings, patch: unknown)
   }
 
   return merge(current as unknown as Record<string, unknown>, patch) as unknown as LearningSettings;
+}
+
+/** Work-style notes are learned, remembered and recalled only while this holds. */
+export function profileActive(settings: LearningSettings): boolean {
+  return settings.enabled && settings.profile;
 }
 
 export function learningRecall(settings: LearningSettings) {

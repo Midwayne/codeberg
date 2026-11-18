@@ -1,48 +1,44 @@
-import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+
+import { errorMessage } from '@agent/core/errors.js';
 
 import { loadMemory, removeProfileNote, type MemoryDashboard } from './memory';
+import { startPoll, type Poll } from './poll';
 import { useProjectApi } from './project-api';
 
-const PENDING_POLL_MS = 5_000;
+/** Refresh while saves are queued so new notes appear; each refresh reads every saved finding. */
+const PENDING_POLL_MS = 10_000;
 
 export function useMemoryPanel() {
   const { fetch: api } = useProjectApi();
   const [dashboard, setDashboard] = useState<MemoryDashboard>();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [retry, setRetry] = useState(0);
+  const poll = useRef<Poll>(undefined);
 
   useEffect(() => {
-    let cancelled = false;
-
-    loadMemory(api)
-      .then((next) => {
-        if (cancelled) return;
-
+    poll.current = startPoll({
+      load: (signal) => loadMemory(api, signal),
+      timeoutMs: 10_000,
+      done: (next) => {
         setDashboard(next);
         setError('');
-      })
-      .catch((reason: unknown) => {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason));
-      });
 
-    return () => {
-      cancelled = true;
-    };
-  }, [api, retry]);
+        return next.pending ? PENDING_POLL_MS : undefined;
+      },
+      fail: (reason) => {
+        setError(errorMessage(reason));
 
-  // Refresh while background saves are queued so new notes appear without a manual reload.
-  useEffect(() => {
-    if (!dashboard?.pending) return;
+        return undefined;
+      },
+    });
 
-    const timer = setTimeout(() => setRetry((value) => value + 1), PENDING_POLL_MS);
-
-    return () => clearTimeout(timer);
-  }, [dashboard]);
+    return () => poll.current?.stop();
+  }, [api]);
 
   const remove = useRemoveNote(api, setDashboard, setError, setBusy);
 
-  return { dashboard, error, busy, remove, refresh: () => setRetry((value) => value + 1) };
+  return { dashboard, error, busy, remove, refresh: () => poll.current?.wake() };
 }
 
 function useRemoveNote(
@@ -59,7 +55,7 @@ function useRemoveNote(
         await removeProfileNote(id, api);
         setDashboard((current) => current && { ...current, profile: current.profile.filter((note) => note.id !== id) });
       } catch (reason) {
-        setError(reason instanceof Error ? reason.message : String(reason));
+        setError(errorMessage(reason));
       } finally {
         setBusy(false);
       }

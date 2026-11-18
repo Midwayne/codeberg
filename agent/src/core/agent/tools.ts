@@ -53,11 +53,11 @@ export async function prepareSystem(
     if (toolNames.some(family.offered)) state.system += family.text;
   }
 
-  const knowledgeIndex = await state.learning?.knowledgeIndex();
-  if (knowledgeIndex) state.system += `\n\n${knowledgeIndex}`;
-
-  const profile = await state.learning?.profileContext();
-  if (profile) state.system += `\n\n${profile}`;
+  const [knowledgeIndex, profile] = await Promise.all([
+    state.learning?.knowledgeIndex(),
+    state.learning?.profileContext(),
+  ]);
+  for (const block of [knowledgeIndex, profile]) if (block) state.system += `\n\n${block}`;
 
   return mergeProviderOptions(
     requestProviderOptions(state.system, toolNames, state.profile),

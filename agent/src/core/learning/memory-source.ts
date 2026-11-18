@@ -7,7 +7,6 @@ import {
   type SourceRef,
 } from './memory-source/reading.js';
 
-import { isConfirmedAnswer } from './confirmed-answer.js';
 import type { KnowledgeArtifact, RepositoryVersion } from './types.js';
 
 export { evidenceRefs } from './memory-source/evidence.js';
@@ -96,14 +95,12 @@ export async function memorySourceState(
 
 /**
  * Unchanged cited files keep a finding current across unrelated commits. A finding with
- * no readable citations falls back to the repository commit, except a confirmed answer
- * that consulted no files, or a taught procedure: only a rating change can make it stale.
+ * no readable citations falls back to the repository commit, except a record the user
+ * verified (a confirmed answer or taught procedure) with no files: only its rating can
+ * make it stale.
  */
 function filelessAnswer(artifact: KnowledgeArtifact): boolean {
-  return (
-    (isConfirmedAnswer(artifact) || artifact.category === 'procedures') &&
-    !artifact.source_refs?.length
-  );
+  return artifact.verification === 'user' && !artifact.source_refs?.length;
 }
 
 function repositoryCurrent(

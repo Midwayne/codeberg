@@ -1,12 +1,12 @@
 import { writeLearningTrace } from '../../module-log.js';
+import { SOURCE_CATEGORIES } from '../preferences.js';
 import { validatedClaims } from '../claims.js';
 import { EXTRACTION_SYSTEM, knowledgePrompt } from '../knowledge-prompt.js';
 import { parseExtractionResponse, validateResponse } from '../knowledge-response.js';
-import type { KnowledgeCategory, KnowledgeJob } from '../types.js';
+import type { KnowledgeJob } from '../types.js';
 import { LearningPaused } from './constants.js';
 import type { ExtractionContext } from './context.js';
-import { recordCorrectionNote } from './correction.js';
-import { saveConfirmedAnswer } from './confirmed.js';
+import { keepUngrounded } from './confirmed.js';
 import { persistExtraction } from './persistence.js';
 import { jobEnabled } from './policy.js';
 import { prepareExtraction } from './preparation.js';
@@ -53,7 +53,7 @@ export async function process(state: KnowledgeWorkerState, job: KnowledgeJob): P
       model_reason: response.reason,
     });
     // Unsupported model output cannot reactivate a memory, but a Solved answer is kept unverified.
-    await keepUngrounded(state, context, response.category);
+    await keepUngrounded(state, { ...context, category: response.category });
     return;
   }
 
@@ -73,19 +73,6 @@ function groundClaims(job: KnowledgeJob, raw: unknown, context: ExtractionContex
     });
 
   return { claims, rejectedIndexes };
-}
-
-/** No grounded claim: keep explicit corrections and, for Solved answers, the answer itself. */
-async function keepUngrounded(
-  state: KnowledgeWorkerState,
-  context: ExtractionContext,
-  category?: KnowledgeCategory,
-): Promise<boolean> {
-  const { job, final, revision, existing } = context;
-
-  await recordCorrectionNote(state, job, final, revision, existing);
-
-  return saveConfirmedAnswer(state, { ...context, category });
 }
 
 async function generateExtraction(state: KnowledgeWorkerState, context: ExtractionContext) {
@@ -109,7 +96,10 @@ async function generateExtraction(state: KnowledgeWorkerState, context: Extracti
   if (!jobEnabled(state, job)) throw new LearningPaused();
 
   const categories = Object.entries(state.settings().categories)
-    .filter(([category, enabled]) => enabled && category !== 'procedures')
+    .filter(
+      ([category, enabled]) =>
+        enabled && SOURCE_CATEGORIES.includes(category as (typeof SOURCE_CATEGORIES)[number]),
+    )
     .map(([category]) => category);
   const system = `${EXTRACTION_SYSTEM}\nOnly use these enabled categories: ${categories.join(', ')}. Return action none for other categories.`;
   const raw = await state.generator!.generate({ system, prompt, traceId: job.job_id });
