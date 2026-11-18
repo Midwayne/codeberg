@@ -1,7 +1,6 @@
-#!/usr/bin/env python3
 """Fine-tune an embedding model on mined (query, code) pairs.
 
-    python train.py --model ~/.codeberg/models/embeddinggemma-2 \\
+    python finetune.py train --model ~/.codeberg/models/embeddinggemma-2 \\
         --data ~/ft-data --output ~/ft-models/gemma-company
 
 Contrastive training with in-batch and hard negatives (cached multiple
@@ -9,11 +8,10 @@ negatives ranking loss), using the model's own query/document prompts, in
 FP32. Runs on Apple Silicon (MPS), CUDA or CPU.
 """
 
-import argparse
 import json
 from pathlib import Path
 
-from encode import load_model, prompts, read_jsonl
+from .encode import load_model, prompts, read_jsonl
 
 
 def datasets(rows, max_negatives):
@@ -35,8 +33,7 @@ def datasets(rows, max_negatives):
     return out
 
 
-def parse_args():
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+def add_arguments(p):
     p.add_argument("--model", required=True)
     p.add_argument("--data", type=Path, required=True, help="directory with train_mined.jsonl (or train.jsonl)")
     p.add_argument("--output", type=Path, required=True)
@@ -47,10 +44,9 @@ def parse_args():
     p.add_argument("--max-length", type=int, default=1024)
     p.add_argument("--max-negatives", type=int, default=1)
     p.add_argument("--seed", type=int, default=42)
-    return p.parse_args()
 
 
-def main():
+def run(args):
     from sentence_transformers import SentenceTransformerTrainer, SentenceTransformerTrainingArguments
     try:  # sentence-transformers 6.1+
         from sentence_transformers.sentence_transformer.losses import CachedMultipleNegativesRankingLoss
@@ -59,7 +55,6 @@ def main():
         from sentence_transformers.losses import CachedMultipleNegativesRankingLoss
         from sentence_transformers.training_args import BatchSamplers
 
-    args = parse_args()
     source = args.data / "train_mined.jsonl"
     rows = read_jsonl(source if source.exists() else args.data / "train.jsonl")
 
@@ -84,6 +79,3 @@ def main():
     (args.output / "codeberg_finetune.json").write_text(json.dumps(meta, indent=2) + "\n")
     print(f"saved {args.output}")
 
-
-if __name__ == "__main__":
-    main()

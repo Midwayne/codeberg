@@ -4,9 +4,9 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from comments import leading_comment, python_docstrings
-from docs import html_sections, markdown_sections, openapi_operations
-from pairs import (SymbolIndex, doc_comment_pairs, group_of, mask_names, section_pairs,
+from pipeline.comments import leading_comment, python_docstrings
+from pipeline.docs import html_sections, markdown_sections, openapi_operations
+from pipeline.pairs import (SymbolIndex, doc_comment_pairs, group_of, mask_names, section_pairs,
                    split_rows)
 
 

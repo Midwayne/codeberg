@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from metrics import gold_ranks, paired_bootstrap, summarize
+from pipeline.metrics import gold_ranks, paired_bootstrap, summarize
 
 
 class MetricsTest(unittest.TestCase):

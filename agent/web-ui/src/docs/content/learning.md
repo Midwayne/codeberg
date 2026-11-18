@@ -17,8 +17,6 @@ Recorded attempts can include ordered tools and observations, source evidence, c
 
 > **Codeberg collects, reviews, exports, and evaluates data.** Model weight updates, training jobs, and executable RL runners run outside the app.
 
-To fine-tune the search embedding model from your code, documentation and these exports, see [Fine-tune embeddings](/docs/fine-tuning).
-
 ## Enable collection
 
 Open **Settings → Learning** for the project.

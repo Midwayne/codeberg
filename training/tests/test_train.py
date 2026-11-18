@@ -9,7 +9,7 @@ HAS_DATASETS = importlib.util.find_spec("datasets") is not None
 @unittest.skipUnless(HAS_DATASETS, "needs the training environment (datasets)")
 class DatasetsTest(unittest.TestCase):
     def test_rows_split_into_triplets_and_pairs(self):
-        from train import datasets
+        from pipeline.train import datasets
 
         rows = [{"query": "q1", "positive": "p1", "negatives": ["n1", "n2"]},
                 {"query": "q2", "positive": "p2", "negatives": []},

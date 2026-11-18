@@ -1,7 +1,6 @@
-#!/usr/bin/env python3
 """Build embedding fine-tuning data from repositories and their documentation.
 
-    python3 extract_pairs.py --library core/build/libcodeberg.dylib \\
+    python finetune.py extract --library core/build/libcodeberg.dylib \\
         --repo payments=~/src/payments --repo web=~/src/web \\
         --docs ~/exports/wiki --docs ~/src/payments/api/openapi.yaml \\
         --learning-export ~/exports/query-positive-negative.jsonl --output ~/ft-data
@@ -11,20 +10,18 @@ eval.jsonl (held out by repository directory), and stats.json. Nothing leaves
 the machine.
 """
 
-import argparse
 from collections import Counter
 import json
 from pathlib import Path
 
-from chunks import DEFINITIONS, chunk_repo, load_library
-from docs import doc_files, file_sections
-from pairs import SymbolIndex, doc_comment_pairs, section_pairs, split_rows
+from .chunks import DEFINITIONS, chunk_repo, load_library
+from .docs import doc_files, file_sections
+from .pairs import SymbolIndex, doc_comment_pairs, section_pairs, split_rows
 
 TEST_MARKERS = ("/test/", "/tests/", "_test.", ".test.", ".spec.", "/__tests__/")
 
 
-def parse_args():
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+def add_arguments(p):
     p.add_argument("--library", type=Path, required=True, help="libcodeberg shared library (make build)")
     p.add_argument("--repo", action="append", required=True, metavar="NAME=PATH")
     p.add_argument("--docs", action="append", default=[], type=Path,
@@ -34,7 +31,6 @@ def parse_args():
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--eval-percent", type=int, default=15)
     p.add_argument("--include-tests", action="store_true", help="also use test code as positives")
-    return p.parse_args()
 
 
 def repos_from(specs):
@@ -74,8 +70,7 @@ def write_jsonl(path, rows):
             f.write(json.dumps(row) + "\n")
 
 
-def main():
-    args = parse_args()
+def run(args):
     repos = repos_from(args.repo)
     lib = load_library(args.library)
 
@@ -98,6 +93,3 @@ def main():
     (args.output / "stats.json").write_text(json.dumps(stats, indent=2) + "\n")
     print(json.dumps(stats, indent=2))
 
-
-if __name__ == "__main__":
-    main()

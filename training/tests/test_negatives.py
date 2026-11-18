@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 
-from negatives import choose_negatives
+from pipeline.negatives import choose_negatives
 
 
 def row(i, path, line, end_line, text):

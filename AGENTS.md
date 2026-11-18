@@ -10,6 +10,7 @@ embeds vectors, and exposes search via a Go daemon and TypeScript agent.
 | `core/` | C library — chunking, watching, embedding, vector search |
 | `daemon/` | Go `codeberg-d` — HTTP API, agent tools, supervises `cberg-index` |
 | `agent/` | TypeScript agent (`codeberg-ask`, `codeberg-web`) over the daemon API |
+| `training/` | Optional standalone embedding fine-tuning (`finetune.py`); not part of the app, documented in `training/README.md` only |
 
 The public C ABI is in `core/include/codeberg/codeberg.h`. Never hardcode repository
 paths — use project catalog roots, explicit path arguments, or `cberg_config_*` helpers.

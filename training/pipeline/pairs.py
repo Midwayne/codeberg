@@ -4,7 +4,7 @@ from collections import defaultdict
 import hashlib
 import re
 
-from comments import leading_comment, python_docstrings
+from .comments import leading_comment, python_docstrings
 
 MIN_QUERY_WORDS = 6
 MAX_QUERY_CHARS = 1200

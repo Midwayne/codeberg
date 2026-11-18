@@ -1,0 +1,9 @@
+# Training environment for finetune.py (not needed to run Codeberg).
+# sentence-transformers and transformers match the versions Codeberg uses to run EmbeddingGemma 2.
+torch
+sentence-transformers==6.1.0
+transformers==5.19.0
+datasets
+accelerate
+numpy
+pyyaml  # optional: OpenAPI specs written in YAML
