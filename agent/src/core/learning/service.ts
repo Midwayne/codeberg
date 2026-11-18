@@ -60,12 +60,13 @@ export class LearningService {
     return this.state.datasets;
   }
 
+  /** Changes when settings, knowledge or remembered notes change, so chats rebuild their prompt. */
   get settingsRevision() {
-    return this.state.settingsRevision;
+    return this.state.settingsRevision + this.state.profile.revision;
   }
 
   set settingsRevision(value: typeof this.state.settingsRevision) {
-    this.state.settingsRevision = value;
+    this.state.settingsRevision = value - this.state.profile.revision;
   }
 
   get settings(): LearningSettings {

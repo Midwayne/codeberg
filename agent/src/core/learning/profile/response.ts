@@ -44,7 +44,9 @@ function parseObject(raw: string): Record<string, unknown> {
   const end = text.lastIndexOf('}');
 
   try {
-    const value: unknown = JSON.parse(start >= 0 && end > start ? text.slice(start, end + 1) : text);
+    const value: unknown = JSON.parse(
+      start >= 0 && end > start ? text.slice(start, end + 1) : text,
+    );
     if (isRecord(value)) return value;
   } catch {
     // Reported below as an unusable response.

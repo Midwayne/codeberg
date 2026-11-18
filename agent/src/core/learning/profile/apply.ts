@@ -11,7 +11,9 @@ export function applyProfileUpdate(
   now: string,
 ): ProfileNote[] {
   const removed = new Set(update.remove);
-  const next = new Map(notes.filter((note) => !removed.has(note.id)).map((note) => [note.id, note]));
+  const next = new Map(
+    notes.filter((note) => !removed.has(note.id)).map((note) => [note.id, note]),
+  );
 
   for (const change of update.update) {
     const note = next.get(change.id);
@@ -31,13 +33,16 @@ export function applyProfileUpdate(
     }
 
     const id = `profile-${randomUUID().slice(0, 8)}`;
-    next.set(id, redactSecrets({
+    next.set(
       id,
-      ...addition,
-      source_interactions: [interactionId],
-      created_at: now,
-      updated_at: now,
-    }));
+      redactSecrets({
+        id,
+        ...addition,
+        source_interactions: [interactionId],
+        created_at: now,
+        updated_at: now,
+      }),
+    );
   }
 
   return [...next.values()]

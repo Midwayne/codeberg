@@ -68,7 +68,13 @@ it('removes disabled recall tools and their prompt instructions independently', 
   const service = await fixture();
   await service.updateSettings({ knowledgeRecall: false });
   const tools = await learningToolSource(service.store, () => service.settings).tools();
-  expect(Object.keys(tools)).toEqual(['search_learning']);
+  expect(Object.keys(tools)).toEqual(['remember', 'forget', 'search_learning']);
+
+  await service.updateSettings({ profile: false });
+  expect(
+    Object.keys(await learningToolSource(service.store, () => service.settings).tools()),
+  ).toEqual(['search_learning']);
+  await service.updateSettings({ profile: true });
   const prompt = agentSystemPrompt({
     enabled: false,
     search: false,
@@ -141,6 +147,6 @@ it('retains recall while recording, extraction, and refresh are disabled', async
   expect(await service.queue.list('pending')).toHaveLength(2);
   expect(
     Object.keys(await learningToolSource(service.store, () => service.settings).tools()),
-  ).toEqual(['search_learning', 'search_knowledge']);
+  ).toEqual(['remember', 'forget', 'search_learning', 'search_knowledge']);
   expect(generate).not.toHaveBeenCalled();
 });

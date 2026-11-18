@@ -3,6 +3,7 @@ import { CANVAS_INSTRUCTIONS } from '../canvas/tools.js';
 import { requestProviderOptions } from '../cache.js';
 import { publishSkills } from '../context/skills.js';
 import { learningRecall } from '../learning/preferences.js';
+import { REMEMBER_INSTRUCTIONS } from '../learning/profile/tools.js';
 import { mcpConfigFromEnv } from '../mcp/config.js';
 import { mcpToolSource } from '../mcp/tools.js';
 import { agentSystemPrompt } from '../prompt.js';
@@ -27,6 +28,7 @@ const TOOL_FAMILY_INSTRUCTIONS: { offered: (name: string) => boolean; text: stri
   { offered: (name) => name.startsWith('canvas_'), text: CANVAS_INSTRUCTIONS },
   { offered: (name) => name === 'sleep_agent', text: BACKGROUND_INSTRUCTIONS },
   { offered: (name) => name === SCRIPT_TOOL, text: SCRIPT_INSTRUCTIONS },
+  { offered: (name) => name === 'remember', text: REMEMBER_INSTRUCTIONS },
 ];
 
 export async function prepareSystem(

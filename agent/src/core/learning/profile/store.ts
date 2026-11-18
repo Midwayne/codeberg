@@ -4,14 +4,33 @@ import { join } from 'node:path';
 import { isMissing, writeJsonAtomic } from '../../fs.js';
 import type { ProfileNote } from './types.js';
 
-/** One small JSON file per project; writes are serialized within the process. */
+/**
+ * Writers share one queue and revision per file, so the chat `remember` tool,
+ * the background extractor and the settings page never race each other.
+ */
+const files = new Map<string, { queue: Promise<unknown>; revision: number }>();
+
+function shared(path: string) {
+  let entry = files.get(path);
+  if (!entry) {
+    entry = { queue: Promise.resolve(), revision: 0 };
+    files.set(path, entry);
+  }
+
+  return entry;
+}
+
+/** One small JSON file per project. */
 export class ProfileStore {
   readonly path: string;
 
-  private queue: Promise<unknown> = Promise.resolve();
-
   constructor(root: string) {
     this.path = join(root, 'profile', 'notes.json');
+  }
+
+  /** Increments on every write in this process; chats rebuild their prompt when it changes. */
+  get revision(): number {
+    return shared(this.path).revision;
   }
 
   async list(): Promise<ProfileNote[]> {
@@ -29,17 +48,19 @@ export class ProfileStore {
     return Array.isArray(value.notes) ? value.notes : [];
   }
 
-  /** Read, transform and write under one in-process lock so a delete cannot race an extraction. */
+  /** Read, transform and write under the shared lock. */
   update(change: (notes: ProfileNote[]) => ProfileNote[]): Promise<ProfileNote[]> {
-    const next = this.queue.then(async () => {
+    const entry = shared(this.path);
+    const next = entry.queue.then(async () => {
       const notes = change(await this.list());
 
       await writeJsonAtomic(this.path, { schema_version: 1, notes });
+      entry.revision++;
 
       return notes;
     });
 
-    this.queue = next.catch(() => undefined);
+    entry.queue = next.catch(() => undefined);
 
     return next;
   }

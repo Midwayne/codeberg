@@ -1,5 +1,12 @@
 /** How the user works, distilled from their own messages and feedback; separate from codebase knowledge. */
-export const PROFILE_KINDS = ['preference', 'workflow', 'convention', 'context'] as const;
+export const PROFILE_KINDS = [
+  'preference',
+  'workflow',
+  'convention',
+  'context',
+  'project',
+  'reference',
+] as const;
 
 export type ProfileKind = (typeof PROFILE_KINDS)[number];
 

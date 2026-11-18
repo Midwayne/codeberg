@@ -3,6 +3,8 @@ import { jsonSchema, tool, type ToolSet } from 'ai';
 import type { ToolSource } from '../tools/source.js';
 import { DEFAULT_LEARNING_SETTINGS, learningRecall, type LearningSettings } from './preferences.js';
 import type { LearningStore } from './store.js';
+import { ProfileStore } from './profile/store.js';
+import { rememberTools } from './profile/tools.js';
 
 export function learningToolSource(
   store: LearningStore,
@@ -11,6 +13,9 @@ export function learningToolSource(
   return {
     name: 'learning',
     tools: (): ToolSet => ({
+      ...(settings().enabled && settings().profile
+        ? rememberTools(new ProfileStore(store.root))
+        : {}),
       ...(learningRecall(settings()).history
         ? {
             search_learning: tool({

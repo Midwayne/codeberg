@@ -29,13 +29,19 @@ it('keeps grounded notes and drops invented, malformed or identifying ones', () 
     'Sure:\n' +
       JSON.stringify({
         add: [
-          { kind: 'preference', statement: 'Prefers tables.', evidence: 'always answer with a TABLE' },
+          {
+            kind: 'preference',
+            statement: 'Prefers tables.',
+            evidence: 'always answer with a TABLE',
+          },
           { kind: 'preference', statement: 'Likes emoji.', evidence: 'use emoji everywhere' },
           { kind: 'mood', statement: 'Is happy.', evidence: 'keep it short' },
           { kind: 'context', statement: 'Email is a@b.co', evidence: 'keep it short' },
           'not an object',
         ],
-        update: [{ id: 'profile-1', statement: 'Wants short answers.', evidence: 'keep it short.' }],
+        update: [
+          { id: 'profile-1', statement: 'Wants short answers.', evidence: 'keep it short.' },
+        ],
         remove: ['profile-2', 3],
       }),
     userText,
@@ -62,7 +68,10 @@ it('updates, removes and de-duplicates notes, newest first', () => {
   });
 
   const notes = applyProfileUpdate(
-    [note('profile-1', 'Wants short answers.', '2026-01-01'), note('profile-2', 'Old.', '2026-01-02')],
+    [
+      note('profile-1', 'Wants short answers.', '2026-01-01'),
+      note('profile-2', 'Old.', '2026-01-02'),
+    ],
     {
       add: [{ kind: 'preference', statement: 'wants short answers.', evidence: 'keep it short' }],
       update: [],
@@ -88,7 +97,13 @@ it('learns from every answer, without a rating, and adds the profile to chat con
   const generate = vi.fn(async ({ system }: { system: string; prompt: string }) =>
     system === PROFILE_SYSTEM
       ? JSON.stringify({
-          add: [{ kind: 'preference', statement: 'Prefers answers as tables.', evidence: 'answer with a table' }],
+          add: [
+            {
+              kind: 'preference',
+              statement: 'Prefers answers as tables.',
+              evidence: 'answer with a table',
+            },
+          ],
           update: [],
           remove: [],
         })
@@ -104,7 +119,9 @@ it('learns from every answer, without a rating, and adds the profile to chat con
     { id: 'a1', role: 'assistant', parts: [{ type: 'text', text: '| a | b |' }] },
   ]);
 
-  await vi.waitFor(async () => expect(await service.profile.list()).toHaveLength(1), { timeout: 2_000 });
+  await vi.waitFor(async () => expect(await service.profile.list()).toHaveLength(1), {
+    timeout: 2_000,
+  });
 
   const context = await service.profileContext();
 

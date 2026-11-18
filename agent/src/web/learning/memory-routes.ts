@@ -32,9 +32,8 @@ export async function routeMemory(
 
   if (!sameOrigin(req)) return sendText(res, 403, 'cross-origin memory changes are not allowed');
 
+  // Removing bumps the profile revision, which rebuilds chat prompts.
   if (!(await learning.profile.remove(id))) return sendText(res, 404, 'profile note not found');
-
-  learning.settingsRevision++;
 
   return sendJson(res, 200, { removed: id });
 }

@@ -42,7 +42,7 @@ Turn off the **Procedures** category to stop learning and using them. The learni
 
 ## How you work
 
-**Learn how you work** keeps short notes about your preferences, separate from codebase findings:
+**Learn how you work** keeps short notes about you, separate from codebase findings:
 
 | Kind | Example |
 | --- | --- |
@@ -50,10 +50,19 @@ Turn off the **Procedures** category to stop learning and using them. The learni
 | Workflow | Runs the tests before committing. |
 | Convention | Uses pnpm, not npm. |
 | Context | Works mainly on the billing service. |
+| Project | Migrating auth to OAuth by March. |
+| Reference | Bugs are tracked in the PAY project in Linear. |
 
-After each answer and each rating, the learning model reads your messages and rating reasons and updates the notes. No rating is needed. Every note quotes your own words, so state preferences plainly in a message or a rating reason, for example `keep answers short and cite file paths`. The 24 newest notes are added to each new chat; at most 40 are kept. When the switch is first on, your 10 most recent saved questions are read once.
+Notes are saved in two ways:
 
-Notes need **Record chats and feedback** and a learning model. Turn the switch off to stop both learning and using notes; saved notes are kept.
+| How | When |
+| --- | --- |
+| Ask in chat | Say `remember that we use pnpm`, or state a lasting rule. The agent saves it at once and confirms. Say `forget that` or correct it to remove or replace a note. Works without a learning model. |
+| Automatically | After each answer and each rating, the learning model reads your messages and rating reasons and updates the notes. No rating is needed. |
+
+Every note quotes your own words; text from files, tools, or web pages can never create one. Facts that can be read from the code are left to codebase knowledge. The 24 newest notes are added to each new chat with the date each was last updated, and the newer note wins when two conflict. At most 40 are kept. When the switch is first on, your 10 most recent saved questions are read once.
+
+Automatic notes need **Record chats and feedback** and a learning model. Turn the switch off to stop learning, saving, and using notes; saved notes are kept.
 
 ## See what is saved
 
@@ -66,7 +75,7 @@ Open **Settings → Learning** for the selected project. Every memory switch is 
 | Switch | What it does | Needs | Cost |
 | --- | --- | --- | --- |
 | **Enable learning** | Master switch. Off pauses all memory, history, and dataset work; data and individual choices are kept. | — | — |
-| **Learn how you work** | Learn your work-style notes and add them to new chats. | Record chats and feedback, a learning model | One call per answer and per rating; adds chat context |
+| **Learn how you work** | Learn your work-style notes, let the agent **remember** and **forget** notes on request, and add them to new chats. | Record chats and feedback and a learning model for automatic notes | One call per answer and per rating; adds chat context |
 | **Codebase knowledge** | Turn the knowledge capability on or off. Off also disables the switches under it. | — | — |
 | **Learn from confirmed answers** | Save findings and procedures when you rate an answer **Solved** or **Mostly correct**; see [When findings are saved](#when-findings-are-saved). | Record chats and feedback, a learning model | Up to two calls per confirming rating |
 | **Use knowledge in chats** | Add up to 24 finding titles to each chat and let the agent search saved findings. | — | Adds chat context |

@@ -13,7 +13,7 @@ export function ProfileSettings({ settings, locked, set }: ProfileSettingsProps)
     <div className="pb-5">
       <Toggle
         label="Learn how you work"
-        description="After each answer and rating, note reusable preferences you showed, such as answer style, tools and conventions. Chats follow them. Needs Record chats and feedback."
+        description="Ask the agent to remember or forget something, and after each answer and rating it notes reusable preferences, conventions, ongoing decisions and where things live. Chats follow them. Automatic notes need Record chats and feedback."
         impact="Background model calls · adds chat context"
         checked={settings.profile}
         disabled={locked}
