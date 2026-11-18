@@ -38,24 +38,73 @@ Notes need **Record chats and feedback** and a learning model. Turn the switch o
 
 **Settings → Learning → Saved memory** lists your work-style notes and saved codebase findings, with their status. Select **Remove** to delete a note you disagree with. The panel also shows saves that are still running and any errors, such as a missing learning model.
 
-## Choose what runs
+## Memory settings
 
-Open **Settings → Learning** for the selected project.
+Open **Settings → Learning** for the selected project. Every memory switch is listed here, including the history switches that memory depends on.
 
-| Control | Purpose |
+| Switch | What it does | Needs | Cost |
+| --- | --- | --- | --- |
+| **Enable learning** | Master switch. Off pauses all memory, history, and dataset work; data and individual choices are kept. | — | — |
+| **Learn how you work** | Learn your work-style notes and add them to new chats. | Record chats and feedback, a learning model | One call per answer and per rating; adds chat context |
+| **Codebase knowledge** | Turn the knowledge capability on or off. Off also disables the switches under it. | — | — |
+| **Learn from confirmed answers** | Save findings when you rate an answer **Solved** or **Mostly correct**. | Record chats and feedback, a learning model | One call per confirming rating |
+| **Use knowledge in chats** | Add up to 24 finding titles to each chat and let the agent search saved findings. | — | Adds chat context |
+| **Automatic source refresh** | Recheck findings when their cited files change. | A learning model | One call per changed finding |
+| **Daily knowledge consolidation** | Generate one reviewable report a day; off by default. Manual reports work without it. | A learning model | One call per report |
+| **Knowledge categories** | Choose which categories are saved and recalled. Turning one off keeps its files. | — | — |
+| **Learning history** | Turn local history of earlier investigations on or off. | — | — |
+| **Record chats and feedback** | Save answers, tool results, and ratings. Ratings and all memory learning need it. | — | Disk only |
+| **Use history in chats** | Let the agent search earlier attempts and corrections. | — | Adds chat context |
+
+Choose the learning model in **Models**. Without one, saved memory is still used in chats, but nothing new is learned. An in-flight model request may finish after a switch is turned off.
+
+### Common setups
+
+| Goal | Turn on | Turn off |
+| --- | --- | --- |
+| Learn as much as possible | All except daily consolidation | — |
+| Use what is saved, no new background calls | **Codebase knowledge**, **Use knowledge in chats** | **Learn how you work**, **Learn from confirmed answers**, **Automatic source refresh**, **Daily knowledge consolidation** |
+| Codebase findings only, no personal notes | Knowledge switches, **Record chats and feedback** | **Learn how you work** |
+| Nothing new saved | — | **Record chats and feedback** |
+
+`CODEBERG_LEARNING_USE=false` disables the whole subsystem after restart and keeps stored data. See [Environment variables](/docs/environment).
+
+## Keep knowledge current
+
+Each finding stores its cited files, their content hashes, and the repository commit.
+
+1. When a cited file changes, the finding is hidden from chats immediately.
+2. With **Automatic source refresh** on, the learning model rereads the current files and rewrites the finding from claims it can quote. Disproven claims are dropped.
+3. If the new code cannot confirm it, the finding stays **needs verification** and out of chats until its files return or a new confirmed answer repairs it.
+4. A later **Solved** or **Mostly correct** answer on the same topic replaces the finding's claims instead of adding a duplicate.
+5. Lowering a rating to **Partially useful** or **Not useful** withdraws findings learned from that answer.
+
+Refresh only follows cited files. If behavior moved to a file the finding never quoted, ask the question again and rate the new answer. Work-style notes are not tied to source: they change only when you state a new preference, contradict an old one, or select **Remove**.
+
+## Why an answer was not saved
+
+A **Solved** rating starts extraction, but each step below can skip the save without an error.
+
+| Cause | What to do |
 | --- | --- |
-| **Learn how you work** | Learn and use your work-style preferences. |
-| **Codebase knowledge** | Enable the knowledge capability. |
-| **Use knowledge in chats** | Recall saved findings. |
-| **Learn from confirmed answers** | Extract new findings when you rate an answer **Solved** or **Mostly correct**. |
-| **Automatic source refresh** | Update findings when relevant source changes. |
-| **Daily knowledge consolidation** | Propose combined or improved explanations; off by default. |
+| The answer did not name the file it relied on. Only files whose path or symbol appears in the answer count as evidence. | Ask the agent to cite file paths, then rate again. |
+| You rated an earlier answer, but a newer retry in the same question is unrated or rated lower. | Rate the latest answer. |
+| The learning model found nothing reusable or verifiable and returned no update. | Check the reason in the trace log; a larger learning model is less cautious. |
+| The model's quotes did not match the current file exactly, so its claims were rejected. | Use a stronger learning model, or ask again after the code settles. |
+| The source did not fit the learning model's context, or the fact was far from the cited symbol in a large file. | Use a learning model with a larger context window. |
+| No learning model, **Learn from confirmed answers** is off, or the category is off. | Check **Models** and **Settings → Learning**. |
 
-Expand categories to choose what is collected or recalled. Disabling a category retains its files.
+The **Saved memory** panel shows queued saves and model errors. Skipped saves appear only in the trace log, `projects/<id>/logs/learning-agent-trace.log` under Codeberg home. Search it for `extraction_skipped` and read `reason`:
 
-For recall without new background knowledge calls, keep **Codebase knowledge** and **Use knowledge in chats** on, and extraction, refresh, consolidation, and **Learn how you work** off. **Record chats and feedback** and dataset capture can stay off.
+| `reason` | Meaning |
+| --- | --- |
+| `no_current_source_evidence` | No cited source file could be read. |
+| `latest_attempt_not_confirmed` | The latest answer is not rated **Solved** or **Mostly correct**. |
+| `model_returned_none` | The model declined; `model_reason` says why. |
+| `claims_not_grounded` | Every claim's quote failed to match current code. |
+| `own_artifacts_already_current` | The findings from this answer are already up to date. |
 
-> **Enable learning** is the shared master switch. Turning it off pauses knowledge, history, and dataset work while retaining data and individual choices. An in-flight model request may finish.
+`model_response` entries show the learning model's raw output. Remove private source before sharing the log.
 
 ## Review consolidation
 
@@ -69,4 +118,4 @@ Consolidation changes saved explanations. Source refresh rechecks evidence; neit
 
 Background knowledge and work-style learning consume model tokens; learning how you work makes one call per answer and per rating. Recall and work-style notes add context to chat calls. Check **Settings → Usage**.
 
-Deleting only indexes retains knowledge. Deleting the project's entire history removes it. `CODEBERG_LEARNING_USE=false` disables the encompassing subsystem after restart and keeps stored data. See [Data and maintenance](/docs/storage).
+Deleting only indexes retains knowledge and work-style notes. Deleting the project's entire history removes both. See [Data and maintenance](/docs/storage).

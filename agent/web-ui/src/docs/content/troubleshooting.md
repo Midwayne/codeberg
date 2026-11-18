@@ -122,6 +122,10 @@ After upgrading, restart Codeberg and reload browser tabs. For source UI changes
 
 Replaying a saved run does not repeat completed model/tool calls. A failed initial save can be retried with the same question. A tool start without a saved outcome is uncertain; check external effects before retrying. See [Chats](/docs/chats).
 
+## A rated answer was not saved to memory
+
+Open **Settings → Learning → Saved memory** for queued saves and learning-model errors. A **Solved** rating can still save nothing when the answer cited no source files or the model's quotes did not match the code. See [Why an answer was not saved](/docs/knowledge#why-an-answer-was-not-saved) for each cause and its log reason.
+
 ## Find logs
 
 Paths are relative to Codeberg home:

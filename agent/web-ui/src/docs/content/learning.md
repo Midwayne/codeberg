@@ -27,9 +27,9 @@ Open **Settings → Learning** for the project.
 | **Dataset capture** | Derive candidates; choose example types separately. |
 | **Training review** | Enable training approvals. |
 | **Evaluations** | Enable held-out approvals and automatic evaluation runs. |
-| **Enable learning** | Master switch for history, datasets, and knowledge. |
+| **Enable learning** | Master switch for history, datasets, knowledge, and work-style notes. |
 
-Knowledge has separate switches on this page. It can be used without training-data collection. The master switch pauses all these workflows while preserving data and choices; an in-flight model request may finish.
+Knowledge and **Learn how you work** have separate switches on this page; see [Memory settings](/docs/knowledge#memory-settings). Both can be used without training-data collection. The master switch pauses all these workflows while preserving data and choices; an in-flight model request may finish.
 
 ## Review examples
 
