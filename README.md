@@ -23,10 +23,11 @@ codeberg
 The installer includes Node, ripgrep, and native libraries; no source build is
 needed. It adds the command to `~/.local/bin` and prints PATH instructions if
 needed. In the browser, add a project and configure your chat model and provider
-credentials. You can also open a repository directly:
+credentials. A project is a directory and can hold several repositories. You can
+also open one directly:
 
 ```sh
-codeberg /path/to/repository
+codeberg /path/to/project
 ```
 
 Semantic search downloads a separate embedding model on first use. The default

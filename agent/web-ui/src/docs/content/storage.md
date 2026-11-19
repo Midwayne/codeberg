@@ -39,7 +39,7 @@ uv caches runtime dependencies separately in its user cache. Browser results may
 
 ## Data sent to services
 
-The folder picker does not upload your repository. Configured services receive the data needed for their requests:
+The folder picker does not upload your project. Configured services receive the data needed for their requests:
 
 | Service | Data that can leave the machine |
 | --- | --- |
@@ -57,7 +57,7 @@ The docs are bundled locally and require no LLM, project, or external documentat
 
 Stop Codeberg before copying its home for a consistent backup. Include project storage to retain chats and knowledge. Back up source repositories separately; Codeberg home does not contain a copy of them.
 
-Changing `CODEBERG_HOME` selects another config/catalog without moving existing data. Project IDs follow canonical source paths, so moving a repository also changes its identity.
+Changing `CODEBERG_HOME` selects another config/catalog without moving existing data. Project IDs follow canonical source paths, so moving a project directory also changes its identity.
 
 ## Free up space
 

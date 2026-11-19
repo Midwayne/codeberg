@@ -10,7 +10,8 @@ are in the git history.
 
 ### Added
 
-- Projects: each repository gets its own index, chats, knowledge, and extensions.
+- Projects: each project is a directory with its own index, chats, knowledge, and
+  extensions. It can hold several repositories.
 - Indexing for Go, TypeScript, JavaScript, Python, Java, Kotlin, C, Rust, Ruby,
   Markdown, YAML, TOML, and JSON. The index updates as files change.
 - Optional local semantic search. `codeberg --no-vector` turns it off.

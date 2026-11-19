@@ -1,4 +1,4 @@
-Most users only need a chat model and its credentials. Add projects in the app; a startup repository is optional.
+Most users only need a chat model and its credentials. Add projects in the app; a startup project is optional.
 
 ## Set a value in the right place
 

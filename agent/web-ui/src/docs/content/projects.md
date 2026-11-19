@@ -1,5 +1,7 @@
 ## Add a project
 
+A project is a directory. It can hold one repository or several, and Codeberg indexes them together.
+
 Run `codeberg`, then choose **Add project**. Select an existing directory on the Codeberg host with **Choose folder**, or enter an absolute path. On Linux, the picker needs `zenity` or `kdialog` and a desktop session; manual entry works without them.
 
 Projects return on later launches. With no projects, the daemon stays idle and the app shows **Add a project to get started**. Codeberg's own directory is not automatically added.
@@ -7,8 +9,8 @@ Projects return on later launches. With no projects, the daemon stays idle and t
 For an explicit startup project:
 
 ```sh
-codeberg /absolute/repository
-# Or: codeberg --root /absolute/repository
+codeberg /absolute/project-dir
+# Or: codeberg --root /absolute/project-dir
 ```
 
 ## Switch projects
@@ -26,7 +28,7 @@ Responses and queued follow-ups keep running in their original chats when you sw
 | Knowledge, learning history, datasets | Usage accounting |
 | Project MCP servers, skills, database spec | Appearance within the same browser |
 
-IDs follow the canonical source path. Symlinks to the same directory share a project. Renaming its display label keeps history; moving the repository changes its identity. Do not merge histories by moving catalog files.
+IDs follow the canonical source path. Symlinks to the same directory share a project. Renaming its display label keeps history; moving the directory changes its identity. Do not merge histories by moving catalog files.
 
 Older multi-repository startup configurations remain one **Existing workspace**, preserving their repository keys and combined search.
 

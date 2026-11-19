@@ -11,12 +11,12 @@ export function ProjectDeleteOptions({ mode, onChange, disabled }: ProjectDelete
     <fieldset disabled={disabled} className="min-w-0 space-y-4">
       <legend className="mb-3 text-sm font-medium">Choose what to delete</legend>
       <DeletionOption value="index" mode={mode} onChange={onChange} title="Delete indexed files only">
-        Keep chats, history and knowledge. Knowledge will be reused if you add this repository again.
+        Keep chats, history and knowledge. Knowledge will be reused if you add this directory again.
       </DeletionOption>
       <DeletionOption value="all" mode={mode} onChange={onChange} title="Delete entire history, including knowledge">
         Permanently delete indexed files, chats, knowledge, learning data and project configuration. This cannot be undone.
       </DeletionOption>
-      <p className="text-xs leading-5 text-muted-foreground">Your repository and source files stay on disk.</p>
+      <p className="text-xs leading-5 text-muted-foreground">Your project directory and source files stay on disk.</p>
     </fieldset>
   );
 }

@@ -40,7 +40,7 @@ export const docPages: DocPage[] = [
   { id: 'skills', title: 'Skills', group: 'Setup', content: skills,
     summary: 'Give the agent reusable instructions and import existing skills.' },
   { id: 'projects', title: 'Projects', group: 'Concepts', content: projects,
-    summary: 'Give each repository its own search index, chats, knowledge, and extensions.' },
+    summary: 'Give each project directory its own search index, chats, knowledge, and extensions.' },
   { id: 'indexing', title: 'Indexing and search', group: 'Concepts', content: indexing,
     summary: 'Turn source files into searchable chunks, with optional semantic search.' },
   { id: 'tools', title: 'Tools and answers', group: 'Concepts', content: tools,

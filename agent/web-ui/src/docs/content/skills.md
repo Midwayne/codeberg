@@ -41,7 +41,7 @@ Later locations override the same skill name:
 | Order | Locations |
 | --- | --- |
 | Global | `~/.agents/skills`, `~/.cursor/skills`, Codeberg home's `skills/`. |
-| Repository | `.agents/skills`, `.cursor/skills`, `.codeberg/skills`. |
+| Project directory | `.agents/skills`, `.cursor/skills`, `.codeberg/skills`. |
 | Stored project | `projects/<id>/skills/` in Codeberg home. |
 
 Each location accepts Markdown files or directories containing `SKILL.md`. Inspect effective skills and scopes in Settings. Changes apply to the next chat turn; active streams retain their current context.

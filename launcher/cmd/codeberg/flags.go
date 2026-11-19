@@ -35,7 +35,7 @@ func parseShared(name string, args []string) (*config.Overrides, error) {
 }
 
 func addValueFlags(fs *flag.FlagSet, o *config.Overrides) {
-	fs.StringVar(&o.Root, "root", "", "optional startup repository tree to index")
+	fs.StringVar(&o.Root, "root", "", "optional startup project directory to index")
 	fs.StringVar(&o.Repos, "repos", "", "comma-separated dirs or repo keys to serve together (CODEBERG_REPOS)")
 	fs.StringVar(&o.Model, "model", "", "LLM as provider:model (CODEBERG_MODEL)")
 	fs.StringVar(&o.SubagentModel, "subagent-model", "", "background/subagent LLM as provider:model")

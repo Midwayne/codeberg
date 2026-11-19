@@ -50,7 +50,7 @@ Global `~/.codeberg/mcp.json` wraps named servers in `mcpServers`:
 Discovery order, lowest priority first:
 
 1. Global `mcp.json`.
-2. Repository `.cursor/mcp.json`, then `.codeberg/mcp.json`.
+2. Project directory `.cursor/mcp.json`, then `.codeberg/mcp.json`.
 3. Extra files in `CODEBERG_MCP_CONFIG`.
 4. Selected project's stored configuration.
 
@@ -65,7 +65,7 @@ codeberg config set CODEBERG_MCP_CONFIG=~/.cursor/mcp.json
 | Placeholder | Resolves to |
 | --- | --- |
 | `${env:NAME}`, `${NAME}` | Process environment value. |
-| `${workspaceFolder}` | Selected repository. |
+| `${workspaceFolder}` | Selected project directory. |
 | `${userHome}` | User home directory. |
 
 Export extension secrets before launching; arbitrary secret names in launcher config are not forwarded. Restart after environment changes.

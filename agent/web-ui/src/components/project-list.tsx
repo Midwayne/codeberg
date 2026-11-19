@@ -35,7 +35,7 @@ export function ProjectsPanel() {
         <div className="space-y-6">
           {catalog?.projects.length === 0 && (
             <p className="text-sm leading-6 text-muted-foreground">
-              No projects yet. Use Add project in the chat sidebar to choose a repository.
+              No projects yet. Use Add project in the chat sidebar to choose a project directory.
             </p>
           )}
           <ProjectList
