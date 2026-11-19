@@ -27,10 +27,9 @@ const (
 
 // Discovered is a folder inside a project directory indexed as its own root.
 type Discovered struct {
-	Key    string `json:"key"`
-	Root   string `json:"root"`
-	Path   string `json:"path"`
-	Marker string `json:"marker"`
+	Root   string
+	Path   string
+	Marker string
 }
 
 // repoMarker names the first marker in dir, or "" when it has none.
@@ -50,25 +49,20 @@ func repoMarker(dir string) string {
 
 // discoverRepositories finds repositories up to discoverDepth levels below dir,
 // without looking inside one once found. A directory that is itself a
-// repository stays whole. Ignored holds root-relative paths to leave in dir.
-func discoverRepositories(dir string, ignored []string) []Discovered {
+// repository stays whole.
+func discoverRepositories(dir string) []Discovered {
 	if repoMarker(dir) != "" {
 		return nil
 	}
 
-	skip := map[string]bool{}
-	for _, rel := range ignored {
-		skip[filepath.ToSlash(filepath.Clean(rel))] = true
-	}
-
 	var found []Discovered
-	scanForRepositories(dir, "", 1, skip, &found)
+	scanForRepositories(dir, "", 1, &found)
 
 	sort.Slice(found, func(i, j int) bool { return found[i].Path < found[j].Path })
 	return found
 }
 
-func scanForRepositories(dir, rel string, depth int, skip map[string]bool, found *[]Discovered) {
+func scanForRepositories(dir, rel string, depth int, found *[]Discovered) {
 	entries, err := os.ReadDir(filepath.Join(dir, filepath.FromSlash(rel)))
 	if err != nil {
 		return
@@ -84,14 +78,12 @@ func scanForRepositories(dir, rel string, depth int, skip map[string]bool, found
 		root := filepath.Join(dir, filepath.FromSlash(child))
 
 		if marker := repoMarker(root); marker != "" {
-			if !skip[child] {
-				*found = append(*found, Discovered{Root: root, Path: child, Marker: marker})
-			}
+			*found = append(*found, Discovered{Root: root, Path: child, Marker: marker})
 			continue
 		}
 
 		if depth < discoverDepth {
-			scanForRepositories(dir, child, depth+1, skip, found)
+			scanForRepositories(dir, child, depth+1, found)
 		}
 	}
 }
@@ -122,15 +114,4 @@ func uniqueKey(used map[string]bool, preferred, fallback string) string {
 
 	used[key] = true
 	return key
-}
-
-// withKeys fills Discovered keys to match rootsFor.
-func withKeys(dir string, found []Discovered) []Discovered {
-	roots := rootsFor(dir, found)
-
-	for i := range found {
-		found[i].Key = roots[i+1].Key
-	}
-
-	return found
 }

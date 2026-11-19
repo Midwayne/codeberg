@@ -2,10 +2,6 @@ package projects
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -64,7 +60,7 @@ func discoveredPaths(found []Discovered) []string {
 }
 
 func TestDiscoverFindsRepositoriesByGitOrManifest(t *testing.T) {
-	found := discoverRepositories(teamDir(t), nil)
+	found := discoverRepositories(teamDir(t))
 
 	want := []string{"api", "storage", "tools/b", "web"}
 	if got := discoveredPaths(found); !reflect.DeepEqual(got, want) {
@@ -80,16 +76,8 @@ func TestDiscoverKeepsARepositoryDirectoryWhole(t *testing.T) {
 	repo := t.TempDir()
 	touch(t, repo, ".git/HEAD", "services/api/go.mod")
 
-	if found := discoverRepositories(repo, nil); len(found) != 0 {
+	if found := discoverRepositories(repo); len(found) != 0 {
 		t.Fatalf("a repository was split: %v", discoveredPaths(found))
-	}
-}
-
-func TestDiscoverSkipsIgnoredFolders(t *testing.T) {
-	found := discoverRepositories(teamDir(t), []string{"web", "tools/b"})
-
-	if got := discoveredPaths(found); !reflect.DeepEqual(got, []string{"api", "storage"}) {
-		t.Fatalf("discovered %v", got)
 	}
 }
 
@@ -97,7 +85,7 @@ func TestDiscoveredKeysAreUnique(t *testing.T) {
 	team := filepath.Join(t.TempDir(), "svc")
 	touch(t, team, "x/svc/go.mod", "y/svc/go.mod", "z/svc/go.mod")
 
-	roots := rootsFor(team, discoverRepositories(team, nil))
+	roots := rootsFor(team, discoverRepositories(team))
 
 	var keys []string
 	for _, r := range roots {
@@ -113,12 +101,12 @@ func TestAddSplitsAProjectDirectoryWithAStableID(t *testing.T) {
 	m, _ := setup(t)
 	team := teamDir(t)
 
-	p, err := m.AddWith(AddOptions{Root: team, Ignored: []string{"web"}})
+	p, err := m.Add("", team)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if p.ID != projectID(rootsFor(team, nil)) || p.Directory != team || !p.Discover {
+	if p.ID != projectID(rootsFor(team, nil)) || p.Directory != team {
 		t.Fatalf("project = %+v", p)
 	}
 
@@ -127,13 +115,19 @@ func TestAddSplitsAProjectDirectoryWithAStableID(t *testing.T) {
 		roots = append(roots, r.Key+"="+r.Root)
 	}
 
-	want := []string{"team-a=" + team, "api=" + filepath.Join(team, "api"), "storage=" + filepath.Join(team, "storage"), "b=" + filepath.Join(team, "tools/b")}
-	if !reflect.DeepEqual(roots, want) || !reflect.DeepEqual(p.Ignored, []string{"web"}) {
-		t.Fatalf("roots = %v ignored = %v", roots, p.Ignored)
+	want := []string{
+		"team-a=" + team,
+		"api=" + filepath.Join(team, "api"),
+		"storage=" + filepath.Join(team, "storage"),
+		"b=" + filepath.Join(team, "tools/b"),
+		"web=" + filepath.Join(team, "web"),
+	}
+	if !reflect.DeepEqual(roots, want) {
+		t.Fatalf("roots = %v", roots)
 	}
 }
 
-func TestRescanSplitsAnExistingProjectWithoutChangingItsID(t *testing.T) {
+func TestStartupSplitsAnExistingProjectWithoutChangingItsID(t *testing.T) {
 	m, home := setup(t)
 	team := teamDir(t)
 
@@ -142,20 +136,25 @@ func TestRescanSplitsAnExistingProjectWithoutChangingItsID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	stopped := false
-	m.runtimes[legacy.ID] = runtime{handler: http.NotFoundHandler(), stop: func() { stopped = true }}
-
-	p, err := m.Rescan(legacy.ID, nil)
+	restored, err := New(context.Background(), home, m.base)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer restored.Close()
 
-	if p.ID != legacy.ID || len(p.Roots) != 5 || !p.Discover || !stopped {
-		t.Fatalf("rescanned = %+v stopped = %v", p, stopped)
+	got, ok := restored.project(legacy.ID)
+	if !ok || len(got.Roots) != 5 || got.Directory != team || got.Name != "Team A" {
+		t.Fatalf("restored = %+v", got)
 	}
+}
 
-	if _, running := m.runtimes[legacy.ID]; running {
-		t.Fatal("indexer kept the old roots")
+func TestStartupLeavesFixedMultiRootWorkspacesAlone(t *testing.T) {
+	m, home := setup(t)
+	a, b := teamDir(t), t.TempDir()
+
+	fixed := Project{ID: projectID(rootsFor(a, nil)), Name: "Existing workspace", Roots: append(rootsFor(a, nil), rootsFor(b, nil)...)}
+	if _, err := m.addProject(fixed); err != nil {
+		t.Fatal(err)
 	}
 
 	restored, err := New(context.Background(), home, m.base)
@@ -164,8 +163,8 @@ func TestRescanSplitsAnExistingProjectWithoutChangingItsID(t *testing.T) {
 	}
 	defer restored.Close()
 
-	if got, _ := restored.project(legacy.ID); len(got.Roots) != 5 {
-		t.Fatalf("restored roots = %+v", got.Roots)
+	if got, _ := restored.project(fixed.ID); !reflect.DeepEqual(got.Roots, fixed.Roots) {
+		t.Fatalf("fixed roots changed: %+v", got.Roots)
 	}
 }
 
@@ -173,7 +172,7 @@ func TestStartupPicksUpNewRepositories(t *testing.T) {
 	m, home := setup(t)
 	team := teamDir(t)
 
-	p, err := m.AddWith(AddOptions{Root: team})
+	p, err := m.Add("", team)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,53 +188,5 @@ func TestStartupPicksUpNewRepositories(t *testing.T) {
 	got, _ := restored.project(p.ID)
 	if len(got.Roots) != len(p.Roots)+1 || got.Roots[1].Key != "api" || got.Roots[2].Key != "billing" {
 		t.Fatalf("startup roots = %+v", got.Roots)
-	}
-}
-
-func TestDiscoverEndpointPreviewsWithoutAdding(t *testing.T) {
-	m, _ := setup(t)
-	team := teamDir(t)
-	before := len(m.catalog.Projects)
-
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/projects/discover?root="+url.QueryEscape(team), nil)
-	m.Handler(http.NotFoundHandler()).ServeHTTP(w, req)
-
-	if w.Code != 200 {
-		t.Fatalf("discover = %d %s", w.Code, w.Body)
-	}
-
-	var preview struct {
-		Directory    string       `json:"directory"`
-		Repositories []Discovered `json:"repositories"`
-	}
-	if err := json.Unmarshal(w.Body.Bytes(), &preview); err != nil {
-		t.Fatal(err)
-	}
-
-	if preview.Directory != team || len(preview.Repositories) != 4 || len(m.catalog.Projects) != before {
-		t.Fatalf("preview = %+v, projects %d -> %d", preview, before, len(m.catalog.Projects))
-	}
-}
-
-func TestRescanEndpointAppliesIgnoredFolders(t *testing.T) {
-	m, _ := setup(t)
-
-	p, err := m.AddWith(AddOptions{Root: teamDir(t)})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/projects/"+p.ID+"/rescan", strings.NewReader(`{"ignored":["api"]}`))
-	m.Handler(http.NotFoundHandler()).ServeHTTP(w, req)
-
-	if w.Code != 200 {
-		t.Fatalf("rescan = %d %s", w.Code, w.Body)
-	}
-
-	got, _ := m.project(p.ID)
-	if len(got.Roots) != len(p.Roots)-1 || !reflect.DeepEqual(got.Ignored, []string{"api"}) {
-		t.Fatalf("after rescan = %+v", got)
 	}
 }

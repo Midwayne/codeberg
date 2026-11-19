@@ -25,11 +25,6 @@ func (m *Manager) Handler(fallback http.Handler) http.Handler {
 			return
 		}
 
-		if r.URL.Path == "/projects/discover" {
-			m.serveDiscover(w, r)
-			return
-		}
-
 		if !strings.HasPrefix(r.URL.Path, "/projects/") {
 			if r.URL.Path == "/resources" || strings.HasPrefix(r.URL.Path, "/resources/") {
 				fallback.ServeHTTP(w, r)
@@ -69,11 +64,6 @@ func (m *Manager) serveProject(w http.ResponseWriter, r *http.Request) {
 
 	if parts[1] == "retry" {
 		m.serveRetry(w, r, parts[0])
-		return
-	}
-
-	if parts[1] == "rescan" {
-		m.serveRescan(w, r, parts[0])
 		return
 	}
 

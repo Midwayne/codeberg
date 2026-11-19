@@ -19,11 +19,9 @@ type Project struct {
 	Roots []domain.Repo `json:"roots"`
 	// Keep the original provider namespace on upgrade (remote names hash this path).
 	LegacyIndex string `json:"legacyIndex,omitempty"`
-	// Directory is the folder the project was added from; its repositories
-	// are found again at startup and on rescan when Discover is set.
-	Directory string   `json:"directory,omitempty"`
-	Discover  bool     `json:"discover,omitempty"`
-	Ignored   []string `json:"ignored,omitempty"`
+	// Directory is the folder the project was added from. Its repositories
+	// are found again every time the daemon starts.
+	Directory string `json:"directory,omitempty"`
 }
 
 type RemovedProject struct {

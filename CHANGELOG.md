@@ -9,7 +9,7 @@ are in the git history.
 ### Added
 
 - Projects find the repositories inside their directory and index each one on its own, so traces can follow calls between them.
-- Choose which folders are separate repositories when adding a project, and rescan in Settings.
+- Repositories added to a project directory are picked up the next time Codeberg starts.
 
 ### Changed
 

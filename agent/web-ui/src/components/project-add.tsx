@@ -5,7 +5,6 @@ import type { Project } from '../lib/project-api';
 import type { AddProjectViewProps } from './projects';
 import { ProjectDirectoryField } from './project-directory';
 import { useAddProject, type AddProjectProps } from './use-add-project';
-import { AddProjectRepositories } from './project-add-repositories';
 
 export { useAddProject } from './use-add-project';
 
@@ -39,13 +38,6 @@ export function AddProjectView(state: AddProjectViewProps) {
           directoryInput={state.directoryInput}
           root={state.root}
           setRoot={state.setRoot}
-        />
-        <AddProjectRepositories
-          preview={state.preview}
-          ignored={state.ignored}
-          busy={state.busy}
-          onToggle={state.toggleRepository}
-          onSetIgnored={state.setIgnored}
         />
         <OptionalProjectName state={state} />
         {state.error && (

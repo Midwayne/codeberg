@@ -6,7 +6,6 @@ import type { ProjectRenameProps } from './projects';
 import { ProjectConfigFiles } from './project-config-files';
 import { ProjectDelete } from './project-delete';
 import { RenameProjectForm } from './project-rename';
-import { ProjectRepositories } from './project-repositories';
 
 export type ProjectDetailsProps = {
   project: Project;
@@ -45,11 +44,6 @@ export function ProjectDetails(state: ProjectDetailsProps) {
         setSaved={setSaved}
       />
       <ProjectLocations project={state.project} />
-      <ProjectRepositories
-        key={JSON.stringify(state.project.roots)}
-        project={state.project}
-        onUpdated={state.onRenamed}
-      />
       <ProjectConfigFiles state={state} />
       {state.onDeleted && <ProjectDelete project={state.project} onDeleted={state.onDeleted} />}
     </article>
@@ -85,10 +79,10 @@ type ProjectLocationsProps = Pick<Parameters<typeof ProjectDetails>[0], 'project
 function ProjectLocations({ project }: ProjectLocationsProps) {
   return (
     <dl className="space-y-3 text-sm">
-      {locationRoots(project).map((root) => (
+      {project.roots.map((root, index) => (
         <ProjectLocation
           key={root.key}
-          label="Directory"
+          label={rootLabel(project, index)}
           value={root.root}
           copyLabel={`Copy directory path for ${root.key}`}
         >
@@ -113,9 +107,11 @@ function ProjectLocations({ project }: ProjectLocationsProps) {
   );
 }
 
-// Repositories found inside a project directory are listed under Repositories.
-function locationRoots(project: Project) {
-  return project.discover ? project.roots.slice(0, 1) : project.roots;
+// Codeberg finds the repositories inside a project directory on its own; they follow it.
+function rootLabel(project: Project, index: number) {
+  if (!project.directory) return 'Directory';
+
+  return index === 0 ? 'Project directory' : 'Repository';
 }
 
 type ProjectHeadingProps = Pick<Parameters<typeof ProjectDetails>[0], 'project' | 'current'> & {

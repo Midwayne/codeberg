@@ -11,7 +11,6 @@ import { deleteProject, trackRequest } from './delete.js';
 import { openConfig, pickDirectory, projects, renameProject } from './catalog.js';
 import type { ProjectRequestRouterState } from './state.js';
 import { daemon } from './request.js';
-import { discoverRepositories, rescanProject } from './rescan.js';
 import { HttpError } from '../../core/http-error.js';
 import { errorMessage } from '../../core/errors.js';
 
@@ -51,14 +50,9 @@ export async function route(
       return pickDirectory(state, req, res);
     case '/api/projects':
       return projects(state, req, res);
-    case '/api/projects/discover':
-      return discoverRepositories(state, req, res, url);
     case '/api/setup':
       return sendJson(res, 200, (await state.options.setup?.()) ?? { ready: true });
   }
-
-  const rescanRoute = /^\/api\/projects\/([^/]+)\/rescan$/.exec(url.pathname);
-  if (rescanRoute) return rescanProject(state, req, res, rescanRoute[1]!);
 
   const projectRoute = /^\/api\/projects\/([^/]+)$/.exec(url.pathname);
   if (projectRoute) {

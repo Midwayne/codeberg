@@ -6,8 +6,8 @@ export type AddProjectResult =
   | { kind: 'existing'; project: Project };
 
 /** Adds a project; a directory that already has one returns that project instead. */
-export async function requestAddProject(name: string, root: string, ignored: string[] = []): Promise<AddProjectResult> {
-  const response = await fetch('/api/projects', jsonInit('POST', { name, root, ignored }));
+export async function requestAddProject(name: string, root: string): Promise<AddProjectResult> {
+  const response = await fetch('/api/projects', jsonInit('POST', { name, root }));
 
   if (response.status === 409) {
     const body = await response.json() as { message?: string; project?: Project };

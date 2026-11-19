@@ -4,9 +4,7 @@ A project is a directory, such as one team's folder. It can hold one repository 
 
 1. Run `codeberg`, then choose **Add project**.
 2. Select an existing directory on the Codeberg host with **Choose folder**, or enter an absolute path. On Linux, the picker needs `zenity` or `kdialog` and a desktop session; manual entry works without them.
-3. Choose **Add project**. Every repository found is indexed on its own; the dialog summarizes them, for example **50 repositories found · all indexed separately**.
-
-To keep some folders part of the project directory instead, choose **Review** before adding, then uncheck them. Lists of more than eight have a filter with **Check all** and **Uncheck all**, which apply to the folders shown.
+3. Choose **Add project**. Codeberg finds the repositories inside the directory and indexes each one on its own; there is nothing to configure.
 
 ```text
 team-a/            project directory: README, docs, and other loose files
@@ -26,13 +24,9 @@ Codeberg indexes each repository on its own, so imports resolve inside each one 
 
 Codeberg looks up to three folders deep and does not split a repository it has found, so a monorepo's own packages stay together. Hidden folders and dependency folders such as `node_modules` are skipped. A directory that is itself a repository is indexed as one.
 
-Codeberg looks again each time it starts. To pick up a repository you just cloned, or to change which folders are separate, open **Settings → Projects**:
+Codeberg looks again each time it starts, so a repository cloned into the directory is picked up after the next restart, and a removed one is dropped. Projects added before Codeberg found repositories are split the same way on their next start; their repositories are indexed once, and chats and knowledge stay with the project. **Settings → Projects** lists the project directory and the repositories found.
 
-- **Rescan repositories** finds repositories added or removed.
-- Uncheck a repository, or check a folder kept in the project directory, then choose **Save repositories**. Long lists have the same filter and bulk controls.
-- Projects added before Codeberg found repositories show **Find repositories**. Codeberg indexes the repositories it finds once; chats and knowledge stay with the project.
-
-Changing the repositories restarts the project's indexer, and Codeberg refuses while a chat in that project is running. Each repository's MCP servers and skills are loaded alongside the project directory's.
+Each repository's MCP servers and skills are loaded alongside the project directory's.
 
 Each directory belongs to one project. Adding a directory that is already a project opens that project instead of creating a second one. Directories inside another project's directory can be their own projects; each project keeps its own index, chats, and knowledge.
 

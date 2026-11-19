@@ -2,7 +2,6 @@ import { useState } from 'react';
 
 import { requestAddProject } from '../lib/project-add-request';
 import type { Project } from '../lib/project-api';
-import { useRepositoryPreview } from '../lib/use-repository-preview';
 import { useFolderPicker } from './use-folder-picker';
 
 export type AddProjectProps = {
@@ -39,10 +38,9 @@ export function useAddProject({ initialPath, onClose, onAdded, onExisting }: Add
     setRoot,
     setError,
   });
-  const { preview, ignored, toggleRepository, setIgnored } = useRepositoryPreview(root);
 
   async function add() {
-    const result = await requestAddProject(name, root, ignored);
+    const result = await requestAddProject(name, root);
 
     if (result.kind === 'added') return onAdded(result.project);
 
@@ -70,10 +68,6 @@ export function useAddProject({ initialPath, onClose, onAdded, onExisting }: Add
     error,
     existing,
     submit,
-    preview,
-    ignored,
-    toggleRepository,
-    setIgnored,
   };
 }
 

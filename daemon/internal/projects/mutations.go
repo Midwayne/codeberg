@@ -9,27 +9,15 @@ import (
 	"unicode/utf8"
 )
 
-// AddOptions describes a new project. Ignored lists folders under Root that
-// stay part of the project directory instead of becoming their own roots.
-type AddOptions struct {
-	Name    string   `json:"name"`
-	Root    string   `json:"root"`
-	Ignored []string `json:"ignored,omitempty"`
-}
-
+// Add adds a project directory and the repositories found inside it. The ID
+// depends only on the directory, so later scans keep the same project.
 func (m *Manager) Add(name, root string) (Project, error) {
-	return m.AddWith(AddOptions{Name: name, Root: root})
-}
-
-// AddWith adds a project directory and the repositories found inside it. The
-// ID depends only on the directory, so later rescans keep the same project.
-func (m *Manager) AddWith(opts AddOptions) (Project, error) {
-	root, err := projectDirectory(opts.Root)
+	root, err := projectDirectory(root)
 	if err != nil {
 		return Project{}, err
 	}
 
-	name := strings.TrimSpace(opts.Name)
+	name = strings.TrimSpace(name)
 	if name == "" {
 		name = filepath.Base(root)
 	}
@@ -38,11 +26,8 @@ func (m *Manager) AddWith(opts AddOptions) (Project, error) {
 		return Project{}, fmt.Errorf("project name must be 120 characters or shorter")
 	}
 
-	found := discoverRepositories(root, opts.Ignored)
-	p := Project{
-		ID: projectID(rootsFor(root, nil)), Name: name, Roots: rootsFor(root, found),
-		Directory: root, Discover: true, Ignored: cleanIgnored(opts.Ignored),
-	}
+	p := Project{ID: projectID(rootsFor(root, nil)), Name: name, Directory: root}
+	p.Roots = rootsFor(root, discoverRepositories(root))
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -73,19 +58,6 @@ func projectDirectory(root string) (string, error) {
 	}
 
 	return root, nil
-}
-
-func cleanIgnored(ignored []string) []string {
-	var out []string
-
-	for _, rel := range ignored {
-		rel = filepath.ToSlash(filepath.Clean(rel))
-		if rel != "." && !strings.HasPrefix(rel, "../") && !filepath.IsAbs(rel) {
-			out = append(out, rel)
-		}
-	}
-
-	return out
 }
 
 func (m *Manager) addProject(p Project) (Project, error) {
