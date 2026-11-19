@@ -79,7 +79,9 @@ it('leaves fixed multi-root workspaces alone', () => {
 });
 
 it('sends preview and rescan requests to the project service', async () => {
-  const fetch = vi.fn(async () => Response.json({ directory: '/work/team-a', repositories: [] }));
+  const fetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+    Response.json({ directory: '/work/team-a', repositories: [] }),
+  );
   vi.stubGlobal('fetch', fetch);
 
   await previewRepositories('/work/team-a');
@@ -87,5 +89,5 @@ it('sends preview and rescan requests to the project service', async () => {
 
   expect(fetch.mock.calls[0]![0]).toBe('/api/projects/discover?root=%2Fwork%2Fteam-a');
   expect(fetch.mock.calls[1]![0]).toBe('/api/projects/p-1/rescan');
-  expect(JSON.parse((fetch.mock.calls[1]![1] as RequestInit).body as string)).toEqual({ ignored: ['web'] });
+  expect(JSON.parse(fetch.mock.calls[1]![1]!.body as string)).toEqual({ ignored: ['web'] });
 });
