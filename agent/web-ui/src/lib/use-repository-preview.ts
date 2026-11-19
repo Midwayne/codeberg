@@ -37,5 +37,5 @@ export function useRepositoryPreview(root: string) {
 
   const toggleRepository = (path: string) => setIgnored((current) => toggled(current, path));
 
-  return { preview, ignored, toggleRepository };
+  return { preview, ignored, toggleRepository, setIgnored };
 }

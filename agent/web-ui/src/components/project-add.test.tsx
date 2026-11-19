@@ -24,6 +24,7 @@ function render(overrides: Partial<AddProjectViewProps>) {
     preview: undefined,
     ignored: [],
     toggleRepository: () => undefined,
+    setIgnored: () => undefined,
     ...overrides,
   };
 

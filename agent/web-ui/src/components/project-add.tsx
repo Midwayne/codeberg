@@ -45,6 +45,7 @@ export function AddProjectView(state: AddProjectViewProps) {
           ignored={state.ignored}
           busy={state.busy}
           onToggle={state.toggleRepository}
+          onSetIgnored={state.setIgnored}
         />
         <OptionalProjectName state={state} />
         {state.error && (

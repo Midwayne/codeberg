@@ -78,6 +78,7 @@ function DiscoveredRepositories({ project, ignored, busy, setIgnored, rescan }: 
           ignored={ignored}
           disabled={busy}
           onToggle={(path) => setIgnored(toggled(ignored, path))}
+          onSetIgnored={setIgnored}
         />
       )}
       <div className="flex flex-wrap gap-2">

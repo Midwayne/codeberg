@@ -39,7 +39,7 @@ export function useAddProject({ initialPath, onClose, onAdded, onExisting }: Add
     setRoot,
     setError,
   });
-  const { preview, ignored, toggleRepository } = useRepositoryPreview(root);
+  const { preview, ignored, toggleRepository, setIgnored } = useRepositoryPreview(root);
 
   async function add() {
     const result = await requestAddProject(name, root, ignored);
@@ -73,6 +73,7 @@ export function useAddProject({ initialPath, onClose, onAdded, onExisting }: Add
     preview,
     ignored,
     toggleRepository,
+    setIgnored,
   };
 }
 
