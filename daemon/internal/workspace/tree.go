@@ -13,10 +13,12 @@ func (w *Workspace) Tree(repo, path string, maxDepth int) ([]TreeNode, error) {
 		maxDepth = defaultTreeDepth
 	}
 
-	root, err := w.rootFor(repo)
+	key, err := w.resolveKey(repo)
 	if err != nil {
 		return nil, err
 	}
+
+	root := w.byKey[key]
 
 	base, err := resolve(root, path)
 	if err != nil {
@@ -28,10 +30,12 @@ func (w *Workspace) Tree(repo, path string, maxDepth int) ([]TreeNode, error) {
 		return nil, fmt.Errorf("codeberg: resolve root: %w", err)
 	}
 
-	return walkTree(base, realRoot, maxDepth)
+	return walkTree(base, realRoot, maxDepth, w.nested[key])
 }
 
-func walkTree(base, realRoot string, maxDepth int) ([]TreeNode, error) {
+// walkTree lists a nested root as a directory without descending into it;
+// its contents belong to that root.
+func walkTree(base, realRoot string, maxDepth int, nested []string) ([]TreeNode, error) {
 	var nodes []TreeNode
 	walkErr := filepath.WalkDir(base, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -54,7 +58,7 @@ func walkTree(base, realRoot string, maxDepth int) ([]TreeNode, error) {
 			return errStopWalk
 		}
 
-		if d.IsDir() && depth >= maxDepth {
+		if d.IsDir() && (depth >= maxDepth || nestedPath(nested, relRoot)) {
 			return fs.SkipDir
 		}
 		return nil

@@ -43,26 +43,31 @@ func (w *Workspace) grep(ctx context.Context, pattern string, literal bool, repo
 		return nil, fmt.Errorf("%w: repo", ErrNotFound)
 	}
 
-	hits, err := grepRoot(ctx, dir, pattern, literal, pathGlob, limit, perFileLimit)
+	nested := w.nested[key]
+	hits, err := grepRoot(ctx, dir, grepArgs(pattern, literal, pathGlob, perFileLimit, nested), limit)
 	if err != nil {
 		return nil, err
 	}
 
-	for i := range hits {
-		hits[i].Repo = key
+	kept := hits[:0]
+	for _, hit := range hits {
+		if !nestedPath(nested, hit.Path) {
+			hit.Repo = key
+			kept = append(kept, hit)
+		}
 	}
 
-	return hits, nil
+	return kept, nil
 }
 
 // grepRoot streams rg output and stops rg once limit matches are read, so a
 // broad pattern costs only what the caller keeps rather than buffering every
 // match in the tree.
-func grepRoot(ctx context.Context, dir, pattern string, literal bool, pathGlob string, limit, perFileLimit int) ([]GrepMatch, error) {
+func grepRoot(ctx context.Context, dir string, args []string, limit int) ([]GrepMatch, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "rg", grepArgs(pattern, literal, pathGlob, perFileLimit)...)
+	cmd := exec.CommandContext(ctx, "rg", args...)
 	cmd.Dir = dir
 
 	var stderr bytes.Buffer
@@ -95,7 +100,9 @@ func grepRoot(ctx context.Context, dir, pattern string, literal bool, pathGlob s
 	return grepResult(matches, waitErr, &stderr)
 }
 
-func grepArgs(pattern string, literal bool, pathGlob string, perFileLimit int) []string {
+// grepArgs builds the rg command line. Nested-root exclusions come after the
+// caller's glob so they win when both match.
+func grepArgs(pattern string, literal bool, pathGlob string, perFileLimit int, nested []string) []string {
 	args := []string{
 		"--no-heading", "--line-number", "--with-filename", "--color=never", "--no-messages",
 		// Minified bundles and generated data put megabytes on one line; a
@@ -115,6 +122,7 @@ func grepArgs(pattern string, literal bool, pathGlob string, perFileLimit int) [
 		args = append(args, "--glob", pathGlob)
 	}
 
+	args = append(args, nestedGlobs(nested)...)
 	return append(args, "--", pattern, ".")
 }
 

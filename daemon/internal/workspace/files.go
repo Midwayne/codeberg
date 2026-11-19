@@ -35,6 +35,10 @@ func (w *Workspace) Glob(_ context.Context, pattern, repo string, limit int) ([]
 	var files []FileRef
 
 	for _, m := range ms {
+		if nestedPath(w.nested[repoKey], m) {
+			continue
+		}
+
 		files = append(files, FileRef{Repo: repoKey, Path: filepath.ToSlash(m)})
 		if len(files) >= limit {
 			break

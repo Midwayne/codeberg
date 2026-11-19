@@ -38,6 +38,7 @@ type Workspace struct {
 	maxMatches int
 	maxFiles   int
 	maxBytes   int
+	nested     map[string][]string
 }
 
 // New builds a workspace over one or more repos. defaultKey names the repo
@@ -56,6 +57,7 @@ func New(repos []RepoInfo, defaultKey string) *Workspace {
 		maxMatches: defaultMaxMatches,
 		maxFiles:   defaultMaxFiles,
 		maxBytes:   defaultMaxBytes,
+		nested:     nestedRoots(repos),
 	}
 }
 

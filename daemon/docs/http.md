@@ -233,6 +233,11 @@ during indexing. Graph tools return `501` / `graph disabled` when `CBERG_GRAPH=0
 with a single served repo it defaults to that repo; in multi-repo (`--all`) mode
 the key is required and an invalid value returns the available keys in the error.
 
+When one served root lies inside another (a project directory and the
+repositories under it), the outer root leaves the inner one to itself: `grep`
+and `glob` skip it, and `tree` lists it as a directory without descending.
+`read_file` and `list_dir` still accept paths through the outer root.
+
 Structural tools are an exception: `search_graph`, `find_references`, hubs, and
 architecture inspect all configured roots when `repo` is omitted. `trace_path`
 can follow import-backed links across roots, but an ambiguous starting name
