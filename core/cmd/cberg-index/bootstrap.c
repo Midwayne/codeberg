@@ -47,7 +47,7 @@ static void build_manifest(cberg_repo *r) {
     }
 
     cberg_manifest *built = NULL;
-    if (cberg_manifest_build(r->root, &built) != CBERG_OK) {
+    if (cberg_manifest_rebuild_ex(NULL, r->root, &r->exclusions, &built) != CBERG_OK) {
         fprintf(stderr, "cberg-index[%s]: warning: manifest build failed; restarts will re-scan all files\n", r->key);
         return;
     }
@@ -65,7 +65,7 @@ static cberg_status walk_and_sync(cberg_repo *r) {
     chunk_batch_init(&batch);
 
     walk_ctx ctx = {.repo = r, .batch = &batch};
-    if (cberg_fs_walk_files(r->root, bootstrap_cb, &ctx) != 0) {
+    if (cberg_fs_walk_files(r->root, &r->exclusions, bootstrap_cb, &ctx) != 0) {
         chunk_batch_reset(&batch);
         return ctx.err != CBERG_OK ? ctx.err : CBERG_ERR_IO;
     }
@@ -124,7 +124,7 @@ static void rebuild_graph(cberg_repo *r) {
     repo_progress_begin(r, "graph", 0, 0);
 
     graph_walk_ctx ctx = {.repo = r};
-    if (cberg_fs_walk_files(r->root, graph_rebuild_cb, &ctx) != 0) {
+    if (cberg_fs_walk_files(r->root, &r->exclusions, graph_rebuild_cb, &ctx) != 0) {
         cberg_status why = ctx.err != CBERG_OK ? ctx.err : CBERG_ERR_IO;
         fprintf(stderr, "cberg-index[%s]: warning: graph rebuild walk failed (%s); graph is partial\n", r->key, cberg_status_str(why));
     }
@@ -194,7 +194,7 @@ static cberg_status apply_manifest_diff(cberg_repo *r, const cberg_manifest_chan
  * fresh tree, owned by the caller. */
 static cberg_status sync_since(cberg_repo *r, const cberg_manifest *saved, cberg_manifest **out_current) {
     cberg_manifest *current = NULL;
-    cberg_status st = cberg_manifest_rebuild(saved, r->root, &current);
+    cberg_status st = cberg_manifest_rebuild_ex(saved, r->root, &r->exclusions, &current);
     if (st != CBERG_OK) {
         return st;
     }

@@ -365,6 +365,10 @@ static cberg_status adopt_leaves(cberg_manifest *m, build_ctx *ctx) {
 }
 
 cberg_status cberg_manifest_rebuild(const cberg_manifest *prev, const char *root, cberg_manifest **out_manifest) {
+    return cberg_manifest_rebuild_ex(prev, root, NULL, out_manifest);
+}
+
+cberg_status cberg_manifest_rebuild_ex(const cberg_manifest *prev, const char *root, const cberg_exclusions *exclusions, cberg_manifest **out_manifest) {
     if (root == NULL || out_manifest == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
@@ -376,7 +380,7 @@ cberg_status cberg_manifest_rebuild(const cberg_manifest *prev, const char *root
     }
 
     build_ctx ctx = {.arena = m->arena, .prev = prev};
-    cberg_status st = cberg_fs_walk(root, "", build_visit, &ctx, cberg_walk_skip_dir_cb, NULL);
+    cberg_status st = cberg_fs_walk(root, "", build_visit, &ctx, cberg_walk_skip_dir_cb, (void *)exclusions);
     if (st != CBERG_OK && ctx.err != CBERG_OK) {
         st = ctx.err;
     }

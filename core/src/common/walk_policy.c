@@ -17,7 +17,39 @@ int cberg_walk_skip_dir(const char *name) {
     return 0;
 }
 
-bool cberg_walk_skip_dir_cb(const char *name, void *ctx) {
-    (void)ctx;
-    return cberg_walk_skip_dir(name) != 0;
+/* `dir` covers `rel` when they are equal or `rel` continues past a '/'. */
+static bool dir_covers(const char *dir, const char *rel) {
+    size_t len = strlen(dir);
+
+    while (len > 0 && dir[len - 1] == '/') {
+        len--;
+    }
+
+    if (len == 0 || strncmp(dir, rel, len) != 0) {
+        return false;
+    }
+
+    return rel[len] == '\0' || rel[len] == '/';
+}
+
+bool cberg_walk_excluded(const cberg_exclusions *exclusions, const char *rel) {
+    if (exclusions == NULL || rel == NULL) {
+        return false;
+    }
+
+    for (size_t i = 0; i < exclusions->len; i++) {
+        if (exclusions->dirs[i] != NULL && dir_covers(exclusions->dirs[i], rel)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool cberg_walk_skip_dir_cb(const char *name, const char *rel, void *ctx) {
+    if (cberg_walk_skip_dir(name) != 0) {
+        return true;
+    }
+
+    return cberg_walk_excluded(ctx, rel);
 }

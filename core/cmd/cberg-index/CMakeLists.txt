@@ -13,6 +13,7 @@ set(CBERG_INDEX_ENGINE_SOURCES
   repo_sync.c
   repo_vectors.c
   repo_state.c
+  nested_roots.c
   chunk_batch.c
   query_chunks.c
   query_graph.c
@@ -68,6 +69,7 @@ cberg_index_engine_test(test_cberg_bootstrap test_bootstrap.c)
 cberg_index_engine_test(test_workspace_graph test_workspace_graph.c)
 cberg_index_engine_test(test_cberg_graph_queries test_graph_queries.c)
 cberg_index_engine_test(test_cberg_hits test_hits.c)
+cberg_index_engine_test(test_cberg_nested_roots test_nested_roots.c)
 cberg_index_engine_test(test_cberg_vectors test_vectors.c)
 
 # test_cberg_vectors drives a scripted embedding worker; its argument picks the

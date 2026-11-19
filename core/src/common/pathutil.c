@@ -92,7 +92,12 @@ cberg_status cberg_fs_walk(const char *abs, const char *rel, cberg_fs_walk_fn fn
 
     struct dirent *ent;
     while (st == CBERG_OK && (ent = readdir(dir)) != NULL) {
-        if (dirent_dot(ent->d_name) || (skip_dir != NULL && skip_dir(ent->d_name, skip_ctx))) {
+        char child_rel[PATH_MAX];
+        if (dirent_dot(ent->d_name) || !cberg_path_join(rel, ent->d_name, child_rel, sizeof(child_rel))) {
+            continue;
+        }
+
+        if (skip_dir != NULL && skip_dir(ent->d_name, child_rel, skip_ctx)) {
             continue;
         }
         st = fs_walk_entry(abs, rel, ent->d_name, fn, ctx, skip_dir, skip_ctx);
@@ -102,12 +107,19 @@ cberg_status cberg_fs_walk(const char *abs, const char *rel, cberg_fs_walk_fn fn
     return st;
 }
 
-static int walk_files_dir(const char *root, const char *rel, cberg_walk_files_fn fn, void *ctx);
+typedef struct {
+    const char *root;
+    const cberg_exclusions *exclusions;
+    cberg_walk_files_fn fn;
+    void *ctx;
+} walk_files_state;
+
+static int walk_files_dir(const walk_files_state *w, const char *rel);
 
 /* Visits one directory entry of cberg_fs_walk_files. Symlinks are not
  * followed (lstat); skipped directories, special files, and entries too deep
  * to address or that cannot be inspected are left out. */
-static int walk_files_entry(const char *root, const char *rel, const char *name, cberg_walk_files_fn fn, void *ctx) {
+static int walk_files_entry(const walk_files_state *w, const char *rel, const char *name) {
     char child_rel[PATH_MAX];
     if (rel[0] == '\0') {
         snprintf(child_rel, sizeof(child_rel), "%s", name);
@@ -117,25 +129,26 @@ static int walk_files_entry(const char *root, const char *rel, const char *name,
 
     char abspath[PATH_MAX];
     struct stat st;
-    if (!cberg_path_join(root, child_rel, abspath, sizeof(abspath)) || lstat(abspath, &st) != 0) {
+    if (!cberg_path_join(w->root, child_rel, abspath, sizeof(abspath)) || lstat(abspath, &st) != 0) {
         return 0;
     }
 
     if (S_ISDIR(st.st_mode)) {
-        return cberg_walk_skip_dir(name) ? 0 : walk_files_dir(root, child_rel, fn, ctx);
+        bool skip = cberg_walk_skip_dir(name) || cberg_walk_excluded(w->exclusions, child_rel);
+        return skip ? 0 : walk_files_dir(w, child_rel);
     }
     if (S_ISREG(st.st_mode)) {
-        return fn(abspath, child_rel, ctx) != 0 ? -1 : 0;
+        return w->fn(abspath, child_rel, w->ctx) != 0 ? -1 : 0;
     }
     return 0;
 }
 
-static int walk_files_dir(const char *root, const char *rel, cberg_walk_files_fn fn, void *ctx) {
+static int walk_files_dir(const walk_files_state *w, const char *rel) {
     char dirpath[PATH_MAX];
     if (rel[0] == '\0') {
-        snprintf(dirpath, sizeof(dirpath), "%s", root);
+        snprintf(dirpath, sizeof(dirpath), "%s", w->root);
     } else {
-        snprintf(dirpath, sizeof(dirpath), "%s/%s", root, rel);
+        snprintf(dirpath, sizeof(dirpath), "%s/%s", w->root, rel);
     }
 
     /* Only an unreadable root fails the walk. A subdirectory that vanished or
@@ -150,7 +163,7 @@ static int walk_files_dir(const char *root, const char *rel, cberg_walk_files_fn
     struct dirent *ent;
     while (rc == 0 && (ent = readdir(d)) != NULL) {
         if (!dirent_dot(ent->d_name)) {
-            rc = walk_files_entry(root, rel, ent->d_name, fn, ctx) != 0 ? -1 : 0;
+            rc = walk_files_entry(w, rel, ent->d_name) != 0 ? -1 : 0;
         }
     }
 
@@ -158,9 +171,11 @@ static int walk_files_dir(const char *root, const char *rel, cberg_walk_files_fn
     return rc;
 }
 
-int cberg_fs_walk_files(const char *root, cberg_walk_files_fn fn, void *ctx) {
+int cberg_fs_walk_files(const char *root, const cberg_exclusions *exclusions, cberg_walk_files_fn fn, void *ctx) {
     if (root == NULL || fn == NULL) {
         return -1;
     }
-    return walk_files_dir(root, "", fn, ctx);
+
+    walk_files_state w = {.root = root, .exclusions = exclusions, .fn = fn, .ctx = ctx};
+    return walk_files_dir(&w, "");
 }

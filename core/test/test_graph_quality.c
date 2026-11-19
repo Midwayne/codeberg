@@ -179,7 +179,7 @@ static int evaluate_case(const char *name, size_t allowed_misses, size_t allowed
     if (corpus_open(&quality.corpus) != 0)
         return -1;
 
-    int error = cberg_fs_walk_files(root, index_source, &quality) != 0 || quality.error;
+    int error = cberg_fs_walk_files(root, NULL, index_source, &quality) != 0 || quality.error;
     if (!error)
         error = cberg_graph_resolve_imports(quality.corpus.graph, root) != CBERG_OK;
 

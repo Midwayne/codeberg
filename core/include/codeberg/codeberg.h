@@ -224,6 +224,17 @@ CBERG_API cberg_status cberg_chunk_table_load(const char *path, cberg_chunk_tabl
 /* --- Merkle manifest (content-derived change detection) ----------------- */
 
 /*
+ * Root-relative directories a walk leaves out, such as nested roots that are
+ * indexed separately ("api", "services/billing"). A directory matches only as
+ * a whole path component, so "api" does not exclude "apiary". Borrowed: the
+ * caller keeps `dirs` alive for the call; functions that retain it copy it.
+ */
+typedef struct cberg_exclusions {
+    const char *const *dirs;
+    size_t len;
+} cberg_exclusions;
+
+/*
  * A Merkle tree over one repository's files. Leaves are file bodies hashed with
  * XXH3-128; directory nodes roll up the (name, hash) pairs of their children.
  * The root hash is a single digest over the whole tree.
@@ -261,6 +272,9 @@ CBERG_API cberg_status cberg_manifest_build(const char *root, cberg_manifest **o
  * with an occasional full build (prev = NULL) to self-heal.
  */
 CBERG_API cberg_status cberg_manifest_rebuild(const cberg_manifest *prev, const char *root, cberg_manifest **out_manifest);
+
+/* cberg_manifest_rebuild that also leaves out `exclusions` (NULL for none). */
+CBERG_API cberg_status cberg_manifest_rebuild_ex(const cberg_manifest *prev, const char *root, const cberg_exclusions *exclusions, cberg_manifest **out_manifest);
 
 CBERG_API void cberg_manifest_free(cberg_manifest *manifest);
 
@@ -342,6 +356,10 @@ typedef struct cberg_watcher cberg_watcher;
  * concurrently from multiple threads.
  */
 CBERG_API cberg_status cberg_watcher_open(const char *root, cberg_watcher **out_watcher);
+
+/* cberg_watcher_open that neither watches nor reports `exclusions` (NULL for
+ * none). The watcher copies the list. */
+CBERG_API cberg_status cberg_watcher_open_ex(const char *root, const cberg_exclusions *exclusions, cberg_watcher **out_watcher);
 CBERG_API void cberg_watcher_close(cberg_watcher *watcher);
 
 /*

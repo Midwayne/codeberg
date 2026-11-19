@@ -52,7 +52,7 @@ void repo_resolve_imports(cberg_repo *r) {
     if (r->graph == NULL || r->root == NULL) {
         return;
     }
-    cberg_status st = cberg_graph_resolve_cached(r->graph, r->root, &r->import_cache);
+    cberg_status st = cberg_graph_resolve_cached_ex(r->graph, r->root, &r->exclusions, &r->import_cache);
     if (st != CBERG_OK) {
         fprintf(stderr, "cberg-index[%s]: warning: import resolution failed: %s\n", r->key, cberg_status_str(st));
     }
@@ -66,7 +66,7 @@ void repo_refresh_manifest(cberg_repo *r) {
         return;
     }
     cberg_manifest *next = NULL;
-    cberg_status st = cberg_manifest_rebuild(r->manifest, r->root, &next);
+    cberg_status st = cberg_manifest_rebuild_ex(r->manifest, r->root, &r->exclusions, &next);
     if (st != CBERG_OK) {
         fprintf(stderr, "cberg-index[%s]: warning: could not refresh manifest: %s\n", r->key, cberg_status_str(st));
         return;

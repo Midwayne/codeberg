@@ -3,6 +3,7 @@
 #include "grow.h"
 #include "pathutil.h"
 #include "strutil.h"
+#include "walk_policy.h"
 
 #include <limits.h>
 #include <pthread.h>
@@ -74,6 +75,12 @@ cberg_status watch_dirty_add(cberg_watcher *w, const char *rel, cberg_watch_kind
     if (w == NULL || rel == NULL || rel[0] == '\0') {
         return CBERG_OK;
     }
+
+    // Nested roots report through their own watcher.
+    if (cberg_walk_excluded(&w->exclusions, rel)) {
+        return CBERG_OK;
+    }
+
     watch_lock(w);
     if (w->dirty == NULL) {
         w->dirty = cberg_strmap_new(256);
@@ -274,7 +281,42 @@ static cberg_status watcher_start(cberg_watcher *w) {
     return st;
 }
 
+/* Copies `exclusions` so the caller's list may go away after open. */
+static cberg_status watcher_set_exclusions(cberg_watcher *w, const cberg_exclusions *exclusions) {
+    if (exclusions == NULL || exclusions->len == 0) {
+        return CBERG_OK;
+    }
+
+    w->excluded_dirs = calloc(exclusions->len, sizeof(char *));
+    if (w->excluded_dirs == NULL) {
+        return CBERG_ERR_OUT_OF_MEMORY;
+    }
+
+    for (size_t i = 0; i < exclusions->len; i++) {
+        w->excluded_dirs[i] = cberg_strdup(exclusions->dirs[i] != NULL ? exclusions->dirs[i] : "");
+        if (w->excluded_dirs[i] == NULL) {
+            return CBERG_ERR_OUT_OF_MEMORY;
+        }
+        w->exclusions.len++;
+    }
+
+    w->exclusions.dirs = (const char *const *)w->excluded_dirs;
+    return CBERG_OK;
+}
+
+static void watcher_free_exclusions(cberg_watcher *w) {
+    for (size_t i = 0; i < w->exclusions.len; i++) {
+        free(w->excluded_dirs[i]);
+    }
+
+    free(w->excluded_dirs);
+}
+
 cberg_status cberg_watcher_open(const char *root, cberg_watcher **out_watcher) {
+    return cberg_watcher_open_ex(root, NULL, out_watcher);
+}
+
+cberg_status cberg_watcher_open_ex(const char *root, const cberg_exclusions *exclusions, cberg_watcher **out_watcher) {
     if (root == NULL || out_watcher == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
@@ -286,9 +328,13 @@ cberg_status cberg_watcher_open(const char *root, cberg_watcher **out_watcher) {
 
     cberg_status st = watcher_set_root(w, root);
     if (st == CBERG_OK) {
+        st = watcher_set_exclusions(w, exclusions);
+    }
+    if (st == CBERG_OK) {
         st = watch_mutex_init(w);
     }
     if (st != CBERG_OK) {
+        watcher_free_exclusions(w);
         free(w->root);
         free(w);
         return st;
@@ -317,6 +363,7 @@ void cberg_watcher_close(cberg_watcher *watcher) {
     }
     free(watcher->dirs);
     cberg_strmap_free(watcher->dirty);
+    watcher_free_exclusions(watcher);
     free(watcher->root);
     pthread_mutex_destroy(&watcher->mu);
     free(watcher);

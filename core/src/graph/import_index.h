@@ -29,6 +29,6 @@ int graph_is_code_source(const char *rel);
 
 /* Walks root for source files, reads go.mod, and maps each language's import
  * strings to the files they name. *out is freed with cberg_import_cache_free. */
-cberg_status graph_import_index_build(const char *root, pkg_index **out);
+cberg_status graph_import_index_build(const char *root, const cberg_exclusions *exclusions, pkg_index **out);
 
 #endif

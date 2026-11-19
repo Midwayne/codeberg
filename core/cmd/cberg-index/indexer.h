@@ -30,6 +30,9 @@ typedef struct cberg_repo {
     cberg_engine *eng; /* back-pointer for the shared embedder/chunker */
     char *key;         /* human-facing repo identity (registry key / basename) */
     char *root;        /* resolved absolute root */
+    /* Nested roots indexed separately (owned), and a view of them. */
+    char **excluded_dirs;
+    cberg_exclusions exclusions;
 
     char *index_path;    /* per-root "<base>.<roothash>" (NULL in chunk-only mode) */
     char *chunks_path;   /* persisted chunk table (sidecar of index_path) */

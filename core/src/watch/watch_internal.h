@@ -31,6 +31,9 @@ typedef struct {
 struct cberg_watcher {
     char *root;
     size_t root_len;
+    /* Owned copies of the open-time exclusions, and a view of them. */
+    char **excluded_dirs;
+    cberg_exclusions exclusions;
     cberg_watch_dir *dirs;
     size_t dir_len;
     size_t dir_cap;

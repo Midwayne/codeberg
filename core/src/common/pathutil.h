@@ -17,13 +17,15 @@ typedef enum cberg_fs_entry_kind {
 
 typedef cberg_status (*cberg_fs_walk_fn)(void *ctx, const char *abs, const char *rel, cberg_fs_entry_kind kind);
 
-typedef bool (*cberg_fs_skip_dir_fn)(const char *name, void *ctx);
+/* `rel` is the directory's root-relative path; return true to leave it out. */
+typedef bool (*cberg_fs_skip_dir_fn)(const char *name, const char *rel, void *ctx);
 
 cberg_status cberg_fs_walk(const char *abs, const char *rel, cberg_fs_walk_fn fn, void *ctx, cberg_fs_skip_dir_fn skip_dir, void *skip_ctx);
 
 typedef int (*cberg_walk_files_fn)(const char *abs, const char *rel, void *ctx);
 
-/* File-only walk with lstat (no symlink follow) and indexer skip policy. */
-int cberg_fs_walk_files(const char *root, cberg_walk_files_fn fn, void *ctx);
+/* File-only walk with lstat (no symlink follow), the indexer skip policy, and
+ * `exclusions` (NULL for none). */
+int cberg_fs_walk_files(const char *root, const cberg_exclusions *exclusions, cberg_walk_files_fn fn, void *ctx);
 
 #endif /* CBERG_PATHUTIL_H */

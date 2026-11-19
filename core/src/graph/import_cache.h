@@ -11,4 +11,7 @@ void cberg_import_cache_free(cberg_import_cache *cache);
 void cberg_import_cache_note(cberg_import_cache **cache, const char *path, int deleted);
 cberg_status cberg_graph_resolve_cached(cberg_graph *graph, const char *root, cberg_import_cache **cache);
 
+/* cberg_graph_resolve_cached whose package map leaves out `exclusions` (NULL for none). */
+cberg_status cberg_graph_resolve_cached_ex(cberg_graph *graph, const char *root, const cberg_exclusions *exclusions, cberg_import_cache **cache);
+
 #endif

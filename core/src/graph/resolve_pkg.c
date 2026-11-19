@@ -246,6 +246,10 @@ static cberg_status resolve_with_cache(cberg_graph *graph, pkg_index *idx) {
 }
 
 cberg_status cberg_graph_resolve_cached(cberg_graph *graph, const char *root, cberg_import_cache **cache) {
+    return cberg_graph_resolve_cached_ex(graph, root, NULL, cache);
+}
+
+cberg_status cberg_graph_resolve_cached_ex(cberg_graph *graph, const char *root, const cberg_exclusions *exclusions, cberg_import_cache **cache) {
     if (graph == NULL || root == NULL || cache == NULL) {
         return CBERG_ERR_INVALID_ARGUMENT;
     }
@@ -254,7 +258,7 @@ cberg_status cberg_graph_resolve_cached(cberg_graph *graph, const char *root, cb
         if (reset != CBERG_OK)
             return reset;
 
-        cberg_status st = graph_import_index_build(root, cache);
+        cberg_status st = graph_import_index_build(root, exclusions, cache);
         if (st != CBERG_OK) {
             return st;
         }

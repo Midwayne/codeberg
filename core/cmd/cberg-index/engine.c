@@ -109,6 +109,7 @@ static void repo_close(cberg_repo *r) {
     }
     cberg_graph_free(r->graph);
     cberg_import_cache_free(r->import_cache);
+    repo_free_exclusions(r);
     free(r->key);
     free(r->root);
     free(r->index_path);
@@ -233,9 +234,6 @@ static cberg_status repo_open_parts(cberg_repo *r) {
 
     if (r->eng->graph_enabled) {
         st = cberg_graph_new(&r->graph);
-    }
-    if (st == CBERG_OK) {
-        st = cberg_watcher_open(r->root, &r->watcher);
     }
     if (st == CBERG_OK) {
         st = repo_set_sidecar_paths(r);
@@ -540,6 +538,12 @@ cberg_status cberg_engine_open(cberg_engine *eng) {
     }
     if (st == CBERG_OK) {
         st = open_repos_from_env(eng);
+    }
+    if (st == CBERG_OK) {
+        st = engine_link_nested_roots(eng);
+    }
+    if (st == CBERG_OK) {
+        st = engine_open_watchers(eng);
     }
 
     if (st != CBERG_OK) {

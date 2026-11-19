@@ -292,6 +292,19 @@ missed (stat-cache race); pair with an occasional full build (`prev = NULL`).
 
 **Returns:** as `cberg_manifest_build`.
 
+### `cberg_exclusions`
+
+`{ const char *const *dirs; size_t len; }` — root-relative directories a walk leaves
+out, such as nested roots indexed separately (`"api"`, `"services/billing"`). A
+directory matches only as a whole path component: `"api"` does not exclude
+`"apiary"`. Borrowed for the call; functions that keep it copy it.
+
+### `cberg_manifest_rebuild_ex(const cberg_manifest *prev, const char *root, const cberg_exclusions *exclusions, cberg_manifest **out_manifest)`
+
+`cberg_manifest_rebuild` that also leaves out `exclusions` (NULL for none).
+
+**Returns:** as `cberg_manifest_build`.
+
 ### `cberg_manifest_free(cberg_manifest *manifest)`
 
 Releases the manifest (NULL-safe).
@@ -370,6 +383,14 @@ if missing). **Symlink roots** are supported. **Symlinks inside** the tree are f
 when walking and registering watches. See also the single keyed-root `cberg_config_*` helpers.
 
 **Returns:** `CBERG_OK`, `CBERG_ERR_INVALID_ARGUMENT`, `CBERG_ERR_OUT_OF_MEMORY`, `CBERG_ERR_IO`.
+
+### `cberg_watcher_open_ex(const char *root, const cberg_exclusions *exclusions, cberg_watcher **out_watcher)`
+
+`cberg_watcher_open` that neither watches nor reports paths inside `exclusions`
+(NULL for none). The watcher copies the list. `cberg-index` uses it when one
+configured root contains another, so changes reach only the inner root.
+
+**Returns:** as `cberg_watcher_open`.
 
 ### `cberg_watcher_close(cberg_watcher *watcher)`
 

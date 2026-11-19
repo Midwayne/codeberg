@@ -55,8 +55,13 @@ static cberg_status walk_register_entry(void *ctx, const char *abs, const char *
 }
 
 cberg_status watch_walk_register(cberg_watcher *w, const char *abs, const char *rel) {
+    // A directory created inside a nested root belongs to that root's watcher.
+    if (cberg_walk_excluded(&w->exclusions, rel)) {
+        return CBERG_OK;
+    }
+
     pthread_mutex_lock(&w->mu);
-    cberg_status st = cberg_fs_walk(abs, rel, walk_register_entry, w, cberg_walk_skip_dir_cb, NULL);
+    cberg_status st = cberg_fs_walk(abs, rel, walk_register_entry, w, cberg_walk_skip_dir_cb, (void *)&w->exclusions);
     pthread_mutex_unlock(&w->mu);
     return st;
 }

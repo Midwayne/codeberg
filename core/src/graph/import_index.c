@@ -273,7 +273,7 @@ void cberg_import_cache_note(cberg_import_cache **cache, const char *path, int d
     *cache = NULL;
 }
 
-cberg_status graph_import_index_build(const char *root, cberg_import_cache **out) {
+cberg_status graph_import_index_build(const char *root, const cberg_exclusions *exclusions, cberg_import_cache **out) {
     pkg_index *idx = calloc(1, sizeof(*idx));
     if (idx == NULL) {
         return CBERG_ERR_OUT_OF_MEMORY;
@@ -285,7 +285,7 @@ cberg_status graph_import_index_build(const char *root, cberg_import_cache **out
         cberg_import_cache_free(idx);
         return CBERG_ERR_OUT_OF_MEMORY;
     }
-    if (cberg_fs_walk_files(root, walk_cb, idx) != 0) {
+    if (cberg_fs_walk_files(root, exclusions, walk_cb, idx) != 0) {
         cberg_status st = idx->err != CBERG_OK ? idx->err : CBERG_ERR_IO;
         cberg_import_cache_free(idx);
         return st;

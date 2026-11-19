@@ -67,6 +67,12 @@ void repo_save_state(cberg_repo *r); /* chunk table + manifest + graph */
 void repo_refresh_manifest(cberg_repo *r);
 void repo_resolve_imports(cberg_repo *r);
 
+/* nested_roots.c: a root leaves out other configured roots inside it. Link
+ * before opening watchers; watchers need the final exclusions. */
+cberg_status engine_link_nested_roots(cberg_engine *eng);
+cberg_status engine_open_watchers(cberg_engine *eng);
+void repo_free_exclusions(cberg_repo *r);
+
 /* ------------------------------------------------------------------- sync */
 
 /* Chunk one file and, when the repo has a graph, extract its fragment.
