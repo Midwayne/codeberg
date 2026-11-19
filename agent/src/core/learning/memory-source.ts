@@ -8,6 +8,7 @@ import {
 } from './memory-source/reading.js';
 
 import type { KnowledgeArtifact, RepositoryVersion } from './types.js';
+import { canonicalArtifact, canonicalRef } from './memory-source/canonical.js';
 
 export { evidenceRefs } from './memory-source/evidence.js';
 
@@ -18,7 +19,8 @@ export async function observeSources(
   cache?: Map<string, Promise<SourceObservation>>,
 ): Promise<SourceObservation[]> {
   return Promise.all(
-    refs.map((ref) => {
+    refs.map((cited) => {
+      const ref = canonicalRef(cited, repositories);
       const key = `${sourceKey(ref)}\0${ref.symbol ?? ''}`;
       let observation = cache?.get(key);
       if (!observation) {
@@ -45,7 +47,7 @@ export function sourceCommits(repositories: RepositoryVersion[]): Record<string,
 
 /** The fingerprint changes on a commit, working-tree edit, deletion, or repo loss. */
 export async function memorySourceState(
-  artifact: KnowledgeArtifact,
+  saved: KnowledgeArtifact,
   repositories: RepositoryVersion[],
   cache?: Map<string, Promise<SourceObservation>>,
 ): Promise<{
@@ -54,6 +56,7 @@ export async function memorySourceState(
   observations: SourceObservation[];
   hashes: Record<string, string>;
 }> {
+  const artifact = canonicalArtifact(saved, repositories);
   const relevant = repositories.filter(
     (repo) =>
       artifact.repositories.includes(basename(repo.path)) ||
