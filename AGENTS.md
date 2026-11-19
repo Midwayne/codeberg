@@ -73,6 +73,10 @@ layer for local verification.
   discriminated unions and enums.
 - **Imports:** `#include` at the top of C files; TypeScript imports at module top.
 - **Secrets:** never commit API keys, tokens, or model credentials.
+- **Changelog:** keep `CHANGELOG.md` simple. One short line per user-visible
+  change under `[Unreleased]`, grouped as Added, Changed, Fixed, or Removed.
+  No intros, marketing, internals, file paths, or API endpoints. Users read it
+  in the app's **What's new** window.
 - **Performance changes need evidence.** Do not land alignment, cache-line,
   packing, SoA/AoS, or allocator “optimizations” on intuition alone. For each
   claimed win: (1) state a falsifiable claim, (2) capture a **baseline** on the
