@@ -21,6 +21,9 @@ function render(overrides: Partial<AddProjectViewProps>) {
     error: '',
     existing: undefined,
     submit: () => undefined,
+    preview: undefined,
+    ignored: [],
+    toggleRepository: () => undefined,
     ...overrides,
   };
 

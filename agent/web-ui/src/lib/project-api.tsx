@@ -5,6 +5,12 @@ export interface Project {
   name: string;
   roots: { key: string; root: string }[];
   configDirectory?: string;
+  /** The folder the project was added from; its repositories are the other roots. */
+  directory?: string;
+  /** Set once repositories are found automatically; unset for projects added before. */
+  discover?: boolean;
+  /** Folders under the directory kept in it instead of indexed on their own. */
+  ignored?: string[];
 }
 export interface ProjectCatalog {
   defaultId: string;

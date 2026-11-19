@@ -1,20 +1,13 @@
-import { useFolderPicker } from './use-folder-picker';
-
 import { control, button } from './project-styles';
 import { X } from 'lucide-react';
-import { useState } from 'react';
 import { Dialog, IconButton } from './ui';
 import type { Project } from '../lib/project-api';
 import type { AddProjectViewProps } from './projects';
 import { ProjectDirectoryField } from './project-directory';
-import { requestAddProject } from '../lib/project-add-request';
+import { useAddProject, type AddProjectProps } from './use-add-project';
+import { AddProjectRepositories } from './project-add-repositories';
 
-type AddProjectProps = {
-  initialPath?: string;
-  onClose: () => void;
-  onAdded: (project: Project) => Promise<void>;
-  onExisting: (project: Project) => Promise<void>;
-};
+export { useAddProject } from './use-add-project';
 
 export function AddProject(props: AddProjectProps) {
   const state = useAddProject(props);
@@ -22,52 +15,14 @@ export function AddProject(props: AddProjectProps) {
   return <AddProjectView {...state} />;
 }
 
-export function useAddProject({ initialPath, onClose, onAdded, onExisting }: AddProjectProps) {
-  const [root, setRootValue] = useState('');
-  const [name, setName] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [existing, setExisting] = useState<Project>();
-
-  // Editing the path starts a new attempt, so an earlier match no longer applies.
-  const setRoot = (value: string) => {
-    setRootValue(value);
-    setExisting(undefined);
-  };
-
-  const { choosing, directoryInput, chooseFolder } = useFolderPicker({ busy, root, initialPath, setRoot, setError });
-
-  async function add() {
-    const result = await requestAddProject(name, root);
-
-    if (result.kind === 'added') return onAdded(result.project);
-
-    setExisting(result.project);
-    await onExisting(result.project);
-  }
-
-  function submit(event: React.SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (choosing || busy || !root.trim()) return;
-
-    setBusy(true);
-    setError('');
-
-    void add()
-      .catch((reason: unknown) => setError(String(reason)))
-      .finally(() => setBusy(false));
-  }
-
-  return { onClose, choosing, busy, root, name, chooseFolder, directoryInput, setRoot, setName, error, existing, submit };
-}
-
 export function AddProjectView(state: AddProjectViewProps) {
   return (
-    <Dialog label="Add project" onClose={state.onClose} className="m-auto w-[calc(100vw-2rem)] max-w-xl">
-      <form
-        className="space-y-5 p-5 sm:p-6"
-        onSubmit={state.submit}
-      >
+    <Dialog
+      label="Add project"
+      onClose={state.onClose}
+      className="m-auto w-[calc(100vw-2rem)] max-w-xl"
+    >
+      <form className="space-y-5 p-5 sm:p-6" onSubmit={state.submit}>
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">Add project</h2>
           <IconButton aria-label="Close add project" onClick={state.onClose}>
@@ -84,6 +39,12 @@ export function AddProjectView(state: AddProjectViewProps) {
           directoryInput={state.directoryInput}
           root={state.root}
           setRoot={state.setRoot}
+        />
+        <AddProjectRepositories
+          preview={state.preview}
+          ignored={state.ignored}
+          busy={state.busy}
+          onToggle={state.toggleRepository}
         />
         <OptionalProjectName state={state} />
         {state.error && (
@@ -112,7 +73,11 @@ function AddProjectActions({ state }: { state: Parameters<typeof AddProjectView>
   if (existing) {
     return (
       <div className="flex justify-end">
-        <button type="button" className={`${button} bg-primary text-primary-foreground hover:bg-primary/90`} onClick={onClose}>
+        <button
+          type="button"
+          className={`${button} bg-primary text-primary-foreground hover:bg-primary/90`}
+          onClick={onClose}
+        >
           Done
         </button>
       </div>

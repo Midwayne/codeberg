@@ -6,6 +6,7 @@ import type { ProjectRenameProps } from './projects';
 import { ProjectConfigFiles } from './project-config-files';
 import { ProjectDelete } from './project-delete';
 import { RenameProjectForm } from './project-rename';
+import { ProjectRepositories } from './project-repositories';
 
 export type ProjectDetailsProps = {
   project: Project;
@@ -44,6 +45,11 @@ export function ProjectDetails(state: ProjectDetailsProps) {
         setSaved={setSaved}
       />
       <ProjectLocations project={state.project} />
+      <ProjectRepositories
+        key={JSON.stringify(state.project.roots)}
+        project={state.project}
+        onUpdated={state.onRenamed}
+      />
       <ProjectConfigFiles state={state} />
       {state.onDeleted && <ProjectDelete project={state.project} onDeleted={state.onDeleted} />}
     </article>
@@ -63,7 +69,9 @@ function ProjectLocation({ label, value, copyLabel, children }: ProjectLocationP
       <dt className="col-span-2 text-xs leading-6 text-muted-foreground sm:col-span-1">{label}</dt>
       <dd className="min-w-0 space-y-0.5 leading-6">
         {children}
-        <code className="block break-all text-xs leading-6 text-muted-foreground select-all">{value}</code>
+        <code className="block break-all text-xs leading-6 text-muted-foreground select-all">
+          {value}
+        </code>
       </dd>
       <dd>
         <CopyButton text={value} label={copyLabel} />
@@ -77,7 +85,7 @@ type ProjectLocationsProps = Pick<Parameters<typeof ProjectDetails>[0], 'project
 function ProjectLocations({ project }: ProjectLocationsProps) {
   return (
     <dl className="space-y-3 text-sm">
-      {project.roots.map((root) => (
+      {locationRoots(project).map((root) => (
         <ProjectLocation
           key={root.key}
           label="Directory"
@@ -89,7 +97,11 @@ function ProjectLocations({ project }: ProjectLocationsProps) {
           </span>
         </ProjectLocation>
       ))}
-      <ProjectLocation label="Project ID" value={project.id} copyLabel={`Copy project ID for ${project.name}`} />
+      <ProjectLocation
+        label="Project ID"
+        value={project.id}
+        copyLabel={`Copy project ID for ${project.name}`}
+      />
       {project.configDirectory && (
         <ProjectLocation
           label="Config directory"
@@ -99,6 +111,11 @@ function ProjectLocations({ project }: ProjectLocationsProps) {
       )}
     </dl>
   );
+}
+
+// Repositories found inside a project directory are listed under Repositories.
+function locationRoots(project: Project) {
+  return project.discover ? project.roots.slice(0, 1) : project.roots;
 }
 
 type ProjectHeadingProps = Pick<Parameters<typeof ProjectDetails>[0], 'project' | 'current'> & {
@@ -124,7 +141,9 @@ function ProjectHeading({
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <h3 className="min-w-0 max-w-full break-words text-base font-semibold">{project.name}</h3>
           {current && (
-            <span className="rounded-md bg-accent px-2 py-1 text-xs text-accent-foreground">Current project</span>
+            <span className="rounded-md bg-accent px-2 py-1 text-xs text-accent-foreground">
+              Current project
+            </span>
           )}
         </div>
         {saved && (
