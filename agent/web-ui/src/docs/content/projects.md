@@ -39,6 +39,8 @@ codeberg /absolute/project-dir
 # Or: codeberg --root /absolute/project-dir
 ```
 
+A startup project indexes exactly the directories you name, without looking for repositories inside. To have Codeberg find them, add the directory with **Add project** instead.
+
 ## Switch projects
 
 Use the sidebar's project selector; open the sidebar on phones. Selection belongs to the current tab and its `?project=` URL, so different tabs can use different projects.

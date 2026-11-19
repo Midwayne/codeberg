@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"codeberg.org/codeberg/daemon/internal/domain"
 )
 
 func touch(t *testing.T, root string, rels ...string) {
@@ -188,5 +190,67 @@ func TestStartupPicksUpNewRepositories(t *testing.T) {
 	got, _ := restored.project(p.ID)
 	if len(got.Roots) != len(p.Roots)+1 || got.Roots[1].Key != "api" || got.Roots[2].Key != "billing" {
 		t.Fatalf("startup roots = %+v", got.Roots)
+	}
+}
+
+func TestStartupLeavesTheConfiguredStartupRootAlone(t *testing.T) {
+	m, home := setup(t)
+	startup := m.base.Roots[0].Root
+	touch(t, startup, "api/.git/HEAD")
+
+	restored, err := New(context.Background(), home, m.base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer restored.Close()
+
+	got, _ := restored.project(restored.catalog.LegacyID)
+	if len(got.Roots) != 1 || got.Roots[0].Key != "original" || got.Directory != "" {
+		t.Fatalf("startup project changed: %+v", got)
+	}
+}
+
+func TestStartupKeepsAProjectsDirectoryKey(t *testing.T) {
+	m, home := setup(t)
+	team := teamDir(t)
+
+	legacy := Project{ID: projectID(rootsFor(team, nil)), Name: "Team A", Roots: []domain.Repo{{Key: "team", Root: team}}}
+	if _, err := m.addProject(legacy); err != nil {
+		t.Fatal(err)
+	}
+
+	restored, err := New(context.Background(), home, m.base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer restored.Close()
+
+	if got, _ := restored.project(legacy.ID); got.Roots[0].Key != "team" || len(got.Roots) != 5 {
+		t.Fatalf("roots = %+v", got.Roots)
+	}
+}
+
+func TestStartupKeepsRepositoriesWhenTheDirectoryIsUnavailable(t *testing.T) {
+	m, home := setup(t)
+	team := teamDir(t)
+
+	p, err := m.Add("", team)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	moved := team + "-unmounted"
+	if err := os.Rename(team, moved); err != nil {
+		t.Fatal(err)
+	}
+
+	restored, err := New(context.Background(), home, m.base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer restored.Close()
+
+	if got, _ := restored.project(p.ID); !reflect.DeepEqual(got.Roots, p.Roots) {
+		t.Fatalf("roots collapsed while the directory was missing: %+v", got.Roots)
 	}
 }

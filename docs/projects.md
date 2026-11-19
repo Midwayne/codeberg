@@ -177,8 +177,10 @@ levels below it that holds `.git` or a manifest (`go.mod`, `package.json`,
 becomes another root; the search stops inside a found repository and skips
 hidden and dependency folders. A directory that is itself a repository stays one
 root. The ID hashes only the directory, so it never changes when roots do. At
-startup every project with a directory (or a single root) is scanned again;
-workspaces started with several fixed roots are left as configured. Project APIs
+startup every project added in the browser is scanned again; a directory that
+cannot be read keeps its previous roots, and the directory root keeps its key.
+Projects from launch configuration (`CODEBERG_ROOTS`, `--root`, the migration
+owner) keep exactly their configured roots and keys. Project APIs
 use `/projects/<id>/health`, `/search`, `/tools` and `/tools/call`.
 `GET /projects` includes top-level `vectorsEnabled` launch metadata before any
 indexer starts. The same field is returned with successful deletion catalogs,

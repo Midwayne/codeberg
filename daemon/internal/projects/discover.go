@@ -91,8 +91,13 @@ func scanForRepositories(dir, rel string, depth int, found *[]Discovered) {
 // rootsFor lists the project directory first, then its repositories, each
 // with a unique key: the folder name, else its path with '-' for '/'.
 func rootsFor(dir string, found []Discovered) []domain.Repo {
-	used := map[string]bool{filepath.Base(dir): true}
-	roots := []domain.Repo{{Key: filepath.Base(dir), Root: dir}}
+	return rootsWithKey(dir, filepath.Base(dir), found)
+}
+
+// rootsWithKey is rootsFor with the project directory's key chosen by the caller.
+func rootsWithKey(dir, key string, found []Discovered) []domain.Repo {
+	used := map[string]bool{key: true}
+	roots := []domain.Repo{{Key: key, Root: dir}}
 
 	for _, d := range found {
 		key := uniqueKey(used, filepath.Base(d.Root), strings.ReplaceAll(d.Path, "/", "-"))
