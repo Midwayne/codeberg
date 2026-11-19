@@ -1,8 +1,37 @@
 ## Add a project
 
-A project is a directory. It can hold one repository or several, and Codeberg indexes them together.
+A project is a directory, such as one team's folder. It can hold one repository or several.
 
-Run `codeberg`, then choose **Add project**. Select an existing directory on the Codeberg host with **Choose folder**, or enter an absolute path. On Linux, the picker needs `zenity` or `kdialog` and a desktop session; manual entry works without them.
+1. Run `codeberg`, then choose **Add project**.
+2. Select an existing directory on the Codeberg host with **Choose folder**, or enter an absolute path. On Linux, the picker needs `zenity` or `kdialog` and a desktop session; manual entry works without them.
+3. Check the **Repositories found** list. Each checked folder is indexed as its own repository; uncheck a folder to keep it part of the project directory.
+4. Choose **Add project**.
+
+```text
+team-a/            project directory: README, docs, and other loose files
+├── api/           repository (.git)
+├── storage/       repository (go.mod)
+└── docs/          part of team-a
+```
+
+## Repositories in a project
+
+Codeberg indexes each repository on its own, so imports resolve inside each one and traces can follow calls from one repository into another. Files outside any repository stay searchable under the project directory. Each file is indexed once, under the innermost folder that holds it.
+
+| A folder becomes a repository when it has | Examples |
+| --- | --- |
+| Version control | `.git` |
+| A build manifest | `go.mod`, `package.json`, `Cargo.toml`, `pyproject.toml`, `setup.py`, `pom.xml`, `build.gradle`, `Gemfile`, `CMakeLists.txt` |
+
+Codeberg looks up to three folders deep and does not split a repository it has found, so a monorepo's own packages stay together. Hidden folders and dependency folders such as `node_modules` are skipped. A directory that is itself a repository is indexed as one.
+
+Codeberg looks again each time it starts. To pick up a repository you just cloned, or to change which folders are separate, open **Settings → Projects**:
+
+- **Rescan repositories** finds repositories added or removed.
+- Uncheck a repository, or check a folder kept in the project directory, then choose **Save repositories**.
+- Projects added before Codeberg found repositories show **Find repositories**. Codeberg indexes the repositories it finds once; chats and knowledge stay with the project.
+
+Changing the repositories restarts the project's indexer, and Codeberg refuses while a chat in that project is running. Each repository's MCP servers and skills are loaded alongside the project directory's.
 
 Each directory belongs to one project. Adding a directory that is already a project opens that project instead of creating a second one. Directories inside another project's directory can be their own projects; each project keeps its own index, chats, and knowledge.
 
@@ -34,11 +63,11 @@ IDs follow the canonical source path. Symlinks to the same directory share a pro
 
 Older multi-repository startup configurations remain one **Existing workspace**, preserving their repository keys and combined search.
 
-To trace dependencies between repositories, select their roots together in one workspace. Structural search and references can inspect all those roots, and import-backed edges can cross between them. Repository keys distinguish identical file paths and symbol IDs. Independently selected projects remain isolated. See [Cross-repo graph setup and limits](/docs/indexing#follow-dependencies-across-repositories).
+Repositories in the same project share one graph: structural search and references inspect all of them, and import-backed edges can cross between them. Repository keys distinguish identical file paths and symbol IDs. Separate projects stay isolated. See [Cross-repo graph setup and limits](/docs/indexing#follow-dependencies-across-repositories).
 
 ## Inspect or rename
 
-Open **Settings → Projects** to see source paths, IDs, config directories, and current selection. Use the copy controls to locate files.
+Open **Settings → Projects** to see the project directory, its repositories, IDs, config directories, and current selection. Use the copy controls to locate files.
 
 Choose **Rename**, edit the label, then **Save name**. **Cancel** keeps the original label.
 

@@ -50,7 +50,7 @@ Global `~/.codeberg/mcp.json` wraps named servers in `mcpServers`:
 Discovery order, lowest priority first:
 
 1. Global `mcp.json`.
-2. Project directory `.cursor/mcp.json`, then `.codeberg/mcp.json`.
+2. `.cursor/mcp.json`, then `.codeberg/mcp.json`, in the project directory and each of its repositories.
 3. Extra files in `CODEBERG_MCP_CONFIG`.
 4. Selected project's stored configuration.
 

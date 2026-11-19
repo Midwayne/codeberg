@@ -58,13 +58,15 @@ After upgrading the graph format, the first launch rebuilds the graph from sourc
 
 ## Follow dependencies across repositories
 
-Select the repositories together in one workspace:
+Put the repositories in one project directory and add that directory as a project. Codeberg indexes each repository on its own and joins their graphs; see [Repositories in a project](/docs/projects#repositories-in-a-project).
+
+From a terminal, list the repositories together instead:
 
 ```sh
 codeberg --root "$HOME/projects/api,$HOME/projects/storage" --no-vector
 ```
 
-Registered selections also work with `--repos api,storage` or `--all`. Separately selected browser projects keep separate indexers; opening two projects does not automatically join their graphs. See [Projects](/docs/projects).
+Registered selections also work with `--repos api,storage` or `--all`. Separate projects keep separate indexers; opening two projects does not join their graphs.
 
 Unscoped graph search, references, hubs, and architecture inspect all configured roots. Set `repo` to choose a starting symbol's repository. Incoming callers and outgoing traces can then cross an import into another configured root. Ambiguous trace names spanning several repos require `repo`; the tool does not choose an arbitrary repository.
 

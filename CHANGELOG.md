@@ -6,9 +6,15 @@ are in the git history.
 
 ## [Unreleased]
 
+### Added
+
+- Projects find the repositories inside their directory and index each one on its own, so traces can follow calls between them.
+- Choose which folders are separate repositories when adding a project, and rescan in Settings.
+
 ### Changed
 
 - Adding a directory that is already a project opens that project instead.
+- Files in a repository inside a project are indexed once, under that repository.
 
 ## [1.0.0] - 2026-11-19
 
