@@ -73,6 +73,9 @@ layer for local verification.
   discriminated unions and enums.
 - **Imports:** `#include` at the top of C files; TypeScript imports at module top.
 - **Secrets:** never commit API keys, tokens, or model credentials.
+- **Terminology:** in user-facing text, a *project* is a directory that can hold
+  several repositories. Say "project" or "project directory", never "each
+  repository", when you mean a project.
 - **Changelog:** keep `CHANGELOG.md` simple. One short line per user-visible
   change under `[Unreleased]`, grouped as Added, Changed, Fixed, or Removed.
   No intros, marketing, internals, file paths, or API endpoints. Users read it
