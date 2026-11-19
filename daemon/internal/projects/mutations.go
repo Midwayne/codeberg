@@ -7,26 +7,29 @@ import (
 	"path/filepath"
 	"strings"
 	"unicode/utf8"
-
-	"codeberg.org/codeberg/daemon/internal/domain"
 )
 
+// AddOptions describes a new project. Ignored lists folders under Root that
+// stay part of the project directory instead of becoming their own roots.
+type AddOptions struct {
+	Name    string   `json:"name"`
+	Root    string   `json:"root"`
+	Ignored []string `json:"ignored,omitempty"`
+}
+
 func (m *Manager) Add(name, root string) (Project, error) {
-	if !filepath.IsAbs(root) || strings.ContainsAny(root, "\x00\n\r\t") {
-		return Project{}, fmt.Errorf("choose an absolute directory path")
-	}
+	return m.AddWith(AddOptions{Name: name, Root: root})
+}
 
-	root, err := filepath.EvalSymlinks(root)
+// AddWith adds a project directory and the repositories found inside it. The
+// ID depends only on the directory, so later rescans keep the same project.
+func (m *Manager) AddWith(opts AddOptions) (Project, error) {
+	root, err := projectDirectory(opts.Root)
 	if err != nil {
-		return Project{}, fmt.Errorf("directory is unavailable: %w", err)
+		return Project{}, err
 	}
 
-	info, err := os.Stat(root)
-	if err != nil || !info.IsDir() {
-		return Project{}, fmt.Errorf("choose an existing directory")
-	}
-
-	name = strings.TrimSpace(name)
+	name := strings.TrimSpace(opts.Name)
 	if name == "" {
 		name = filepath.Base(root)
 	}
@@ -35,8 +38,12 @@ func (m *Manager) Add(name, root string) (Project, error) {
 		return Project{}, fmt.Errorf("project name must be 120 characters or shorter")
 	}
 
-	roots := []domain.Repo{{Key: filepath.Base(root), Root: root}}
-	p := Project{ID: projectID(roots), Name: name, Roots: roots}
+	found := discoverRepositories(root, opts.Ignored)
+	p := Project{
+		ID: projectID(rootsFor(root, nil)), Name: name, Roots: rootsFor(root, found),
+		Directory: root, Discover: true, Ignored: cleanIgnored(opts.Ignored),
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -47,6 +54,38 @@ func (m *Manager) Add(name, root string) (Project, error) {
 	}
 
 	return m.addProject(p)
+}
+
+// projectDirectory resolves an absolute, existing directory path.
+func projectDirectory(root string) (string, error) {
+	if !filepath.IsAbs(root) || strings.ContainsAny(root, "\x00\n\r\t") {
+		return "", fmt.Errorf("choose an absolute directory path")
+	}
+
+	root, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", fmt.Errorf("directory is unavailable: %w", err)
+	}
+
+	info, err := os.Stat(root)
+	if err != nil || !info.IsDir() {
+		return "", fmt.Errorf("choose an existing directory")
+	}
+
+	return root, nil
+}
+
+func cleanIgnored(ignored []string) []string {
+	var out []string
+
+	for _, rel := range ignored {
+		rel = filepath.ToSlash(filepath.Clean(rel))
+		if rel != "." && !strings.HasPrefix(rel, "../") && !filepath.IsAbs(rel) {
+			out = append(out, rel)
+		}
+	}
+
+	return out
 }
 
 func (m *Manager) addProject(p Project) (Project, error) {

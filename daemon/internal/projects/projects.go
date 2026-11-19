@@ -19,6 +19,11 @@ type Project struct {
 	Roots []domain.Repo `json:"roots"`
 	// Keep the original provider namespace on upgrade (remote names hash this path).
 	LegacyIndex string `json:"legacyIndex,omitempty"`
+	// Directory is the folder the project was added from; its repositories
+	// are found again at startup and on rescan when Discover is set.
+	Directory string   `json:"directory,omitempty"`
+	Discover  bool     `json:"discover,omitempty"`
+	Ignored   []string `json:"ignored,omitempty"`
 }
 
 type RemovedProject struct {
@@ -61,6 +66,8 @@ func New(ctx context.Context, home string, cfg config.Indexer) (*Manager, error)
 	if len(cfg.Roots) > 0 {
 		m.registerStartup(cfg)
 	}
+
+	m.refreshDiscovered()
 
 	if err := m.save(); err != nil {
 		return nil, err

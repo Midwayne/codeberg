@@ -26,16 +26,13 @@ func (m *Manager) serveAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var body struct {
-		Name string `json:"name"`
-		Root string `json:"root"`
-	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&body); err != nil {
+	var body AddOptions
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64*1024)).Decode(&body); err != nil {
 		respond(w, 400, map[string]string{"message": "invalid project"})
 		return
 	}
 
-	p, err := m.Add(body.Name, body.Root)
+	p, err := m.AddWith(body)
 
 	var exists *ExistingProjectError
 	if errors.As(err, &exists) {

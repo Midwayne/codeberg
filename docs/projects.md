@@ -168,7 +168,21 @@ timeout. Unavailable native pickers return an error with a manual-entry fallback
 The daemon exposes `GET /projects` and `POST /projects` with
 `{"root":"/absolute/directory","name":"Optional label"}`. A directory that
 already belongs to a project returns 409 with `message` and the existing
-`project`; nested or overlapping directories are separate projects. Project APIs
+`project`; nested or overlapping directories are separate projects. Adding
+`"ignored":["rel/path"]` keeps those folders in the project directory.
+
+A new project's directory becomes its first root, and each folder up to three
+levels below it that holds `.git` or a manifest (`go.mod`, `package.json`,
+`Cargo.toml`, `pyproject.toml`, `setup.py`, `setup.cfg`, `pom.xml`,
+`build.gradle[.kts]`, `Gemfile`, `*.gemspec`, `CMakeLists.txt`, `meson.build`)
+becomes another root; the search stops inside a found repository and skips
+hidden and dependency folders. A directory that is itself a repository stays one
+root. The ID hashes only the directory, so it never changes when roots do.
+Projects with `"discover":true` are scanned again at startup.
+`GET /projects/discover?root=/abs` previews the repositories without adding a
+project. `POST /projects/<id>/rescan` with optional `{"ignored":[…]}` scans again
+(splitting a project added before discovery), saves the roots, and restarts its
+indexer when they changed. Project APIs
 use `/projects/<id>/health`, `/search`, `/tools` and `/tools/call`.
 `GET /projects` includes top-level `vectorsEnabled` launch metadata before any
 indexer starts. The same field is returned with successful deletion catalogs,
