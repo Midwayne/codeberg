@@ -23,7 +23,7 @@ export function WhatsNewDialog({ since, version, onClose, releases = bundledRele
   const gotIt = useRef<HTMLButtonElement>(null);
 
   // showModal focuses the first release; start on the dismiss action instead.
-  useEffect(() => gotIt.current?.focus(), []);
+  useEffect(() => gotIt.current?.focus({ preventScroll: true }), []);
 
   // A release without notes (or a trimmed changelog) has nothing to announce.
   useEffect(() => {
@@ -35,7 +35,7 @@ export function WhatsNewDialog({ since, version, onClose, releases = bundledRele
   return (
     <Dialog label="What's new in Codeberg" onClose={onClose} className="m-auto w-[min(40rem,calc(100vw-2rem))]">
       <WhatsNewHeader version={version} count={shown.length} />
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
+      <div className="max-h-[calc(100dvh-16rem)] min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
         {shown.map((release, index) => (
           <ReleaseNotes key={release.version} release={release} step={index + 1} open={index === 0} />
         ))}
