@@ -166,7 +166,9 @@ requests are rejected; one dialog can be open across all tabs, with a five-minut
 timeout. Unavailable native pickers return an error with a manual-entry fallback.
 
 The daemon exposes `GET /projects` and `POST /projects` with
-`{"root":"/absolute/directory","name":"Optional label"}`. Project repository APIs
+`{"root":"/absolute/directory","name":"Optional label"}`. A directory that
+already belongs to a project returns 409 with `message` and the existing
+`project`; nested or overlapping directories are separate projects. Project APIs
 use `/projects/<id>/health`, `/search`, `/tools` and `/tools/call`.
 `GET /projects` includes top-level `vectorsEnabled` launch metadata before any
 indexer starts. The same field is returned with successful deletion catalogs,

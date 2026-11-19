@@ -36,6 +36,13 @@ func (m *Manager) serveAdd(w http.ResponseWriter, r *http.Request) {
 	}
 
 	p, err := m.Add(body.Name, body.Root)
+
+	var exists *ExistingProjectError
+	if errors.As(err, &exists) {
+		respond(w, 409, map[string]any{"message": err.Error(), "project": exists.Project})
+		return
+	}
+
 	if err != nil {
 		respond(w, 400, map[string]string{"message": err.Error()})
 		return

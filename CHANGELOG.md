@@ -6,6 +6,10 @@ are in the git history.
 
 ## [Unreleased]
 
+### Changed
+
+- Adding a directory that is already a project opens that project instead.
+
 ## [1.0.0] - 2026-11-19
 
 ### Added

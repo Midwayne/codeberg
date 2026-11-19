@@ -5,7 +5,7 @@ import type { Project } from '../../core/projects.js';
 import { openConfigDirectory } from '../config-directory.js';
 import { readJson, requireJsonMutation, sameOrigin, sendJson, sendText } from '../http.js';
 import type { ProjectRequestRouterState } from './state.js';
-import { daemon, readCatalog, requestProjectService } from './request.js';
+import { daemon, readCatalog, requestProjectService, serviceError } from './request.js';
 
 export async function openConfig(
   state: ProjectRequestRouterState,
@@ -76,15 +76,21 @@ export async function projects(
 
   if (!requireJsonMutation(req, res, 'POST', 'project changes')) return;
 
-  const project = await daemon(state, '/projects', {
+  const { response, body } = await requestProjectService(state.options.daemonUrl, '/projects', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(await readJson(req)),
   });
 
+  // Same directory as an existing project: point the browser at that project instead.
+  if (response.status === 409 && body.project)
+    return sendJson(res, 409, { message: body.message, project: state.projectInfo(body.project) });
+
+  if (!response.ok) throw serviceError(response, body);
+
   state.catalog = await daemon(state, '/projects');
 
-  return sendJson(res, 201, state.projectInfo(project));
+  return sendJson(res, 201, state.projectInfo(body));
 }
 
 export async function renameProject(

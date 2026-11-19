@@ -7,12 +7,13 @@ import { Dialog, IconButton } from './ui';
 import type { Project } from '../lib/project-api';
 import type { AddProjectViewProps } from './projects';
 import { ProjectDirectoryField } from './project-directory';
-import { readJson, jsonInit } from '../lib/http';
+import { requestAddProject } from '../lib/project-add-request';
 
 type AddProjectProps = {
   initialPath?: string;
   onClose: () => void;
   onAdded: (project: Project) => Promise<void>;
+  onExisting: (project: Project) => Promise<void>;
 };
 
 export function AddProject(props: AddProjectProps) {
@@ -21,12 +22,29 @@ export function AddProject(props: AddProjectProps) {
   return <AddProjectView {...state} />;
 }
 
-export function useAddProject({ initialPath, onClose, onAdded }: AddProjectProps) {
-  const [root, setRoot] = useState('');
+export function useAddProject({ initialPath, onClose, onAdded, onExisting }: AddProjectProps) {
+  const [root, setRootValue] = useState('');
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [existing, setExisting] = useState<Project>();
+
+  // Editing the path starts a new attempt, so an earlier match no longer applies.
+  const setRoot = (value: string) => {
+    setRootValue(value);
+    setExisting(undefined);
+  };
+
   const { choosing, directoryInput, chooseFolder } = useFolderPicker({ busy, root, initialPath, setRoot, setError });
+
+  async function add() {
+    const result = await requestAddProject(name, root);
+
+    if (result.kind === 'added') return onAdded(result.project);
+
+    setExisting(result.project);
+    await onExisting(result.project);
+  }
 
   function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -35,13 +53,12 @@ export function useAddProject({ initialPath, onClose, onAdded }: AddProjectProps
     setBusy(true);
     setError('');
 
-    void fetch('/api/projects', jsonInit('POST', { name, root }))
-      .then(async (response) => onAdded(await readJson<Project>(response)))
+    void add()
       .catch((reason: unknown) => setError(String(reason)))
       .finally(() => setBusy(false));
   }
 
-  return { onClose, choosing, busy, root, name, chooseFolder, directoryInput, setRoot, setName, error, submit };
+  return { onClose, choosing, busy, root, name, chooseFolder, directoryInput, setRoot, setName, error, existing, submit };
 }
 
 export function AddProjectView(state: AddProjectViewProps) {
@@ -74,18 +91,34 @@ export function AddProjectView(state: AddProjectViewProps) {
             {state.error}
           </p>
         )}
-        <AddProjectActions onClose={state.onClose} busy={state.busy} choosing={state.choosing} root={state.root} />
+        {state.existing && <ExistingProjectNotice project={state.existing} />}
+        <AddProjectActions state={state} />
       </form>
     </Dialog>
   );
 }
 
-type AddProjectActionsProps = Pick<
-  Parameters<typeof AddProjectView>[0],
-  'onClose' | 'busy' | 'choosing' | 'root'
->;
+function ExistingProjectNotice({ project }: { project: Project }) {
+  return (
+    <p role="status" className="break-words rounded-lg bg-muted p-3 text-sm leading-6">
+      This directory already belongs to <strong>{project.name}</strong>, so Codeberg switched to it.
+    </p>
+  );
+}
 
-function AddProjectActions({ onClose, busy, choosing, root }: AddProjectActionsProps) {
+function AddProjectActions({ state }: { state: Parameters<typeof AddProjectView>[0] }) {
+  const { onClose, busy, choosing, root, existing } = state;
+
+  if (existing) {
+    return (
+      <div className="flex justify-end">
+        <button type="button" className={`${button} bg-primary text-primary-foreground hover:bg-primary/90`} onClick={onClose}>
+          Done
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex justify-end gap-2">
       <button type="button" className={button} onClick={onClose}>

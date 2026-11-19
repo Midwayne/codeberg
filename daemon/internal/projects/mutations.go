@@ -42,7 +42,7 @@ func (m *Manager) Add(name, root string) (Project, error) {
 
 	for _, existing := range m.catalog.Projects {
 		if existing.ID == p.ID {
-			return existing, nil
+			return Project{}, &ExistingProjectError{Project: existing}
 		}
 	}
 
@@ -69,6 +69,16 @@ func (m *Manager) addProject(p Project) (Project, error) {
 		return Project{}, err
 	}
 	return p, nil
+}
+
+// ExistingProjectError reports a directory that already belongs to a project.
+// Projects may overlap, but two projects never share the same directory.
+type ExistingProjectError struct {
+	Project Project
+}
+
+func (e *ExistingProjectError) Error() string {
+	return fmt.Sprintf("%q already uses this directory", e.Project.Name)
 }
 
 var errProjectNotFound = errors.New("project not found")

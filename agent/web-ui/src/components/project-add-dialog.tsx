@@ -19,6 +19,10 @@ export function AddProjectDialog({ adding, project, setAdding, setCatalog, selec
           select(project.id);
           setAdding(false);
         }}
+        onExisting={async (project) => {
+          setCatalog(await requestProjectCatalog());
+          select(project.id);
+        }}
       />
     </MotionPresence>
   );

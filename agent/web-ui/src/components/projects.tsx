@@ -23,6 +23,24 @@ export function ProjectShell(props: ProjectShellProps) {
 type ProjectShellViewProps = ReturnType<typeof useProjectShell>;
 
 export function ProjectShellView(state: ProjectShellViewProps) {
+  // The add dialog stays outside the per-project subtree so switching projects keeps it open.
+  return (
+    <>
+      <ProjectScope state={state} />
+
+      <AddProjectDialog
+        adding={state.adding}
+        project={state.project}
+        setAdding={state.setAdding}
+        setCatalog={state.setCatalog}
+        select={state.select}
+      />
+    </>
+  );
+}
+
+/** Everything that belongs to the selected project; remounts when the selection changes. */
+function ProjectScope({ state }: { state: ProjectShellViewProps }) {
   const onProjectDeleted = useProjectDeletion(state);
 
   return (
@@ -38,7 +56,9 @@ export function ProjectShellView(state: ProjectShellViewProps) {
             (current) =>
               current && {
                 ...current,
-                projects: current.projects.map((project) => (project.id === updated.id ? updated : project)),
+                projects: current.projects.map((project) =>
+                  project.id === updated.id ? updated : project,
+                ),
               },
           );
         },
@@ -46,7 +66,9 @@ export function ProjectShellView(state: ProjectShellViewProps) {
     >
       {state.catalog?.projects.length === 0 ? (
         <NoProjects onAdd={() => state.setAdding(true)} />
-      ) : state.children(state.toolbar, !state.project, state.notice)}
+      ) : (
+        state.children(state.toolbar, !state.project, state.notice)
+      )}
       {state.error && (
         <div className="fixed inset-x-4 bottom-4 z-40">
           <ErrorNotice
@@ -56,14 +78,6 @@ export function ProjectShellView(state: ProjectShellViewProps) {
           />
         </div>
       )}
-
-      <AddProjectDialog
-        adding={state.adding}
-        project={state.project}
-        setAdding={state.setAdding}
-        setCatalog={state.setCatalog}
-        select={state.select}
-      />
     </ProjectApiContext.Provider>
   );
 }
@@ -78,7 +92,10 @@ export type ProjectListProps = {
   onProjectRenamed: ((project: Project) => void) | undefined;
 };
 
-export type ProjectRenameProps = Pick<Parameters<typeof ProjectDetails>[0], 'project' | 'onRenamed'> & {
+export type ProjectRenameProps = Pick<
+  Parameters<typeof ProjectDetails>[0],
+  'project' | 'onRenamed'
+> & {
   editing: boolean;
   setEditing: React.Dispatch<React.SetStateAction<boolean>>;
   setSaved: React.Dispatch<React.SetStateAction<boolean>>;
@@ -98,6 +115,7 @@ function useProjectDeletion(state: ProjectShellViewProps) {
     chats?.retain(catalog.projects.map((project) => project.id));
     state.setCatalog(catalog);
     focusAfterDeletion();
-    if (!catalog.projects.some((project) => project.id === state.project?.id)) state.select(catalog.defaultId);
+    if (!catalog.projects.some((project) => project.id === state.project?.id))
+      state.select(catalog.defaultId);
   };
 }

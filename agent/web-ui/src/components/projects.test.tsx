@@ -3,7 +3,7 @@ import { expect, it } from 'vitest';
 import { AddProject, ProjectDetails, RenameProjectForm } from './projects';
 
 it('offers the native folder picker alongside manual directory entry', () => {
-  const html = renderToStaticMarkup(<AddProject onClose={() => undefined} onAdded={async () => undefined} />);
+  const html = renderToStaticMarkup(<AddProject onClose={() => undefined} onAdded={async () => undefined} onExisting={async () => undefined} />);
   expect(html).toContain('Choose folder');
   expect(html).toContain('Directory path');
   expect(html).toMatch(/<button[^>]*aria-label="Choose folder"/);

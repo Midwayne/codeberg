@@ -54,12 +54,14 @@ export async function daemon(
   timeoutMs?: number,
 ) {
   const { response, body } = await requestProjectService(state.options.daemonUrl, path, init, timeoutMs);
-  if (!response.ok) {
-    // The daemon's own 4xx answers pass through; its failures mean the project service is unavailable.
-    throw new HttpError(response.status >= 500 ? 503 : response.status, body.message ?? 'Project service unavailable');
-  }
+  if (!response.ok) throw serviceError(response, body);
 
   return body;
+}
+
+/** The daemon's own 4xx answers pass through; its failures mean the project service is unavailable. */
+export function serviceError(response: Response, body: { message?: string }): HttpError {
+  return new HttpError(response.status >= 500 ? 503 : response.status, body.message ?? 'Project service unavailable');
 }
 
 /**

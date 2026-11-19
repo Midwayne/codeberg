@@ -3,6 +3,7 @@ package projects
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -42,9 +43,13 @@ func TestCatalogCanonicalRootsAndRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	duplicate, err := m.Add("Alias", filepath.Join(root, "."))
-	if err != nil || duplicate.ID != p.ID {
-		t.Fatalf("duplicate = %#v, %v", duplicate, err)
+	var exists *ExistingProjectError
+	if _, err := m.Add("Alias", filepath.Join(root, ".")); !errors.As(err, &exists) || exists.Project.ID != p.ID {
+		t.Fatalf("duplicate path error = %v", err)
+	}
+
+	if len(m.catalog.Projects) != 2 {
+		t.Fatalf("duplicate path added a project: %d projects", len(m.catalog.Projects))
 	}
 
 	restored, err := New(context.Background(), home, m.base)
