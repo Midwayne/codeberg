@@ -6,25 +6,7 @@ are in the git history.
 
 ## [Unreleased]
 
-### Added
-
-- Projects find the repositories inside their directory and index each one on its own, so traces can follow calls between them.
-- Repositories added to a project directory are picked up the next time Codeberg starts.
-- The agent can split independent checks, such as health, metrics, and logs for several services, across parallel subagents. Read-only explorers are the default, and the agent can ask a subagent follow-up questions.
-- The chat shows each subagent as it works: its status, current step, the tool it is calling, and its report.
-- **Models → Subagents** turns subagents on or off and picks the model they run on.
-- Python scripts can call loaded MCP tools that are read-only, or every loaded tool from servers listed in `CODEBERG_SCRIPT_MCP`.
-
-### Changed
-
-- Adding a directory that is already a project opens that project instead.
-- Files in a repository inside a project are indexed once, under that repository.
-
-### Fixed
-
-- `CODEBERG_SCRIPT_USE` and `CODEBERG_SCRIPT_PYTHON` saved in the Codeberg config file now turn on the Python script tool.
-
-## [1.0.0] - 2026-11-19
+## [1.0.0] - 2026-11-21
 
 ### Added
 
@@ -41,7 +23,19 @@ are in the git history.
 - Knowledge, Learning, and Evaluations.
 - **What's new** window after each update.
 - Animated first-run screens.
+- Projects find the repositories inside their directory and index each one on its own, so traces can follow calls between them.
+- Repositories added to a project directory are picked up the next time Codeberg starts.
+- The agent can split independent checks, such as health, metrics, and logs for several services, across parallel subagents. Read-only explorers are the default, and the agent can ask a subagent follow-up questions.
+- The chat shows each subagent as it works: its status, current step, the tool it is calling, and its report.
+- **Models → Subagents** turns subagents on or off and picks the model they run on.
+- Python scripts can call loaded MCP tools that are read-only, or every loaded tool from servers listed in `CODEBERG_SCRIPT_MCP`.
+
+### Changed
+
+- Adding a directory that is already a project opens that project instead.
+- Files in a repository inside a project are indexed once, under that repository.
 
 ### Fixed
 
 - Switching chats no longer takes 10 seconds or more.
+- `CODEBERG_SCRIPT_USE` and `CODEBERG_SCRIPT_PYTHON` saved in the Codeberg config file now turn on the Python script tool.
