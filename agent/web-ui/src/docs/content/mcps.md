@@ -74,6 +74,8 @@ Export extension secrets before launching; arbitrary secret names in launcher co
 
 The agent sees server catalogs and loads relevant tools through `load_mcp_tools`. Names use `mcp_<server>_<tool>` and cannot replace built-ins.
 
+With the [script playground](/docs/tools#optional-script-playground) on, `run_script` can also call loaded MCP tools that the server marks read-only, or every loaded tool from servers listed in `CODEBERG_SCRIPT_MCP`.
+
 For handshake or credential failures, inspect Settings warnings and project logs. Set `CODEBERG_MCP_USE=false` to disable file-configured servers.
 
 ## Database MCP

@@ -10,6 +10,7 @@ import { isBatchable } from '../tools/batch.js';
 import { SCRIPT_TOOL, scriptTimeoutMs, type ScriptConfig } from './config.js';
 import { SCRIPT_DESCRIPTION, scriptSchema, type ScriptInput } from './describe.js';
 import { FileSink, MemorySink, type OutputSink, type SinkResult } from './output.js';
+import { recordedMcpTools } from './mcp.js';
 import { runPython } from './process.js';
 import { ScriptDispatcher } from './protocol.js';
 
@@ -29,9 +30,13 @@ export interface ScriptOutput {
   error?: string;
 }
 
+/** MCP tool names a script may call at the moment it starts. */
+export type ScriptMcpNames = () => readonly string[];
+
 interface ScriptRun {
   tools: ToolSet;
   names: readonly string[];
+  mcpNames: ScriptMcpNames;
   config: ScriptConfig;
   store: ContextStore;
 }
@@ -46,12 +51,15 @@ interface ScriptRun {
  *
  * `tools` must be the unwrapped, unjournaled tool set: scripts receive full
  * results, and a script making 100k calls must not write 100k run records.
+ * MCP tools named by `mcpNames` are the exception: they can change things
+ * outside Codeberg, so each of their calls is journaled.
  */
-export function scriptTool(tools: ToolSet, config: ScriptConfig, store: ContextStore): ToolSet {
+export function scriptTool(tools: ToolSet, config: ScriptConfig, store: ContextStore, mcpNames: ScriptMcpNames = () => []): ToolSet {
   const names = Object.keys(tools).filter(isBatchable).sort();
   if (names.length === 0) return {};
 
-  const run: ScriptRun = { tools, names, config, store };
+  const callable = { ...tools, ...recordedMcpTools(tools) };
+  const run: ScriptRun = { tools: callable, names, mcpNames, config, store };
 
   return {
     [SCRIPT_TOOL]: tool({
@@ -67,8 +75,9 @@ async function runScript(run: ScriptRun, input: ScriptInput, options: ToolExecut
     return { error: 'code must be a non-empty Python script' };
   }
 
+  const names = [...run.names, ...run.mcpNames()].sort();
   const workdir = await mkdtemp(join(tmpdir(), 'codeberg-script-'));
-  const dispatcher = new ScriptDispatcher(run.tools, run.names, options);
+  const dispatcher = new ScriptDispatcher(run.tools, names, options);
 
   try {
     const scriptPath = join(workdir, 'script.py');
@@ -79,7 +88,7 @@ async function runScript(run: ScriptRun, input: ScriptInput, options: ToolExecut
     const result = await runPython({
       python: run.config.python,
       scriptPath,
-      toolNames: run.names,
+      toolNames: names,
       workdir,
       sink,
       ...timeoutOption(input.timeout_seconds),

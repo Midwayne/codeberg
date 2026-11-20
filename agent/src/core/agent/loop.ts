@@ -6,6 +6,7 @@ import { wrapToolLoopAgentWithPromptHooks } from '../hooks/index.js';
 import { prepareStepPatch } from '../mcp/active.js';
 import { batchTool } from '../tools/batch.js';
 import { scriptConfig } from '../script/config.js';
+import { scriptMcpNames } from '../script/mcp.js';
 import { scriptTool } from '../script/tool.js';
 import { manageContextModel } from '../request-budget/model.js';
 import { summarize } from './history.js';
@@ -77,11 +78,14 @@ async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
 /**
  * `run_script` wraps the unjournaled tools so a long script writes one run
  * record, not one per inner call, and can itself run as a background job.
+ * Its MCP calls, limited to loaded read-only or trusted-server tools, are
+ * the exception and are journaled one by one.
  * `batch` wraps the journaled tools. Both handle each inner result themselves.
  */
 function composedTools(state: AgentState, base: ToolSet): ToolSet {
   const scripts = scriptConfig(state.env);
-  const local = { ...base, ...(scripts ? scriptTool(base, scripts, state.context) : {}) };
+  const mcpNames = () => scriptMcpNames({ tools: base, source: state.mcpSource, trusted: scripts?.mcpServers ?? [] });
+  const local = { ...base, ...(scripts ? scriptTool(base, scripts, state.context, mcpNames) : {}) };
 
   const raw = recordToolExecutions({ ...local, ...backgroundTools(local,
     (name, args, output) => presentToolOutput(state.context, name, args, output)) });

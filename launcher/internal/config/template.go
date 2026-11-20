@@ -97,6 +97,7 @@ func (c *Config) optionalSummaryRows() []summaryRow {
 		{c.DbmcpSpec != "", summaryRow{KeyDbmcpSpec, c.DbmcpSpec}},
 		{c.DbmcpBin != "", summaryRow{KeyDbmcpBin, c.DbmcpBin}},
 		{c.ScriptPython != "", summaryRow{KeyScriptPython, c.ScriptPython}},
+		{c.ScriptMcp != "", summaryRow{KeyScriptMcp, c.ScriptMcp}},
 	}
 
 	var rows []summaryRow

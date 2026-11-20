@@ -282,7 +282,34 @@ Only printed output reaches the agent's context, so a script can process many re
 | Run time | No limit. The agent can set `timeout_seconds`. For a long script, it starts `run_script` with `start_background_tool`, checks `background_tool_status`, and stops it with `cancel_background_tool`. **Stop** also ends a script running in the turn. Stopping kills the script and any processes it started. |
 | Tool calls | No limit. At most 16 run at once; the rest wait their turn so a large script cannot overwhelm the daemon. |
 | Printed output | No limit. Large output is [saved to context](/docs/tools#large-tool-results), but `context_read` and `context_grep` cannot open files over 50 MiB. Print summaries, or save output to a file (below). |
-| Callable tools | Read-only source, search, context, knowledge, and web tools, plus `decide` when configured, which has [separate provider costs](/docs/tools#optional-decisions-tool). MCP, Browser Use, canvas, scheduling, and background tools are not callable. |
+| Callable tools | Read-only source, search, context, knowledge, and web tools, plus `decide` when configured, which has [separate provider costs](/docs/tools#optional-decisions-tool). Some MCP tools too; see **MCP tools in scripts** below. Browser Use, canvas, scheduling, and background tools are not callable. |
+
+### MCP tools in scripts
+
+A script can call an MCP tool when both are true:
+
+1. The agent has loaded the tool with `load_mcp_tools` in this chat, so it has read the tool's arguments.
+2. The MCP server marks the tool read-only, or you trust the server with `CODEBERG_SCRIPT_MCP`.
+
+To let scripts call every loaded tool from some servers, including tools that change data, list them by their configured names and restart:
+
+```sh
+codeberg config set CODEBERG_SCRIPT_MCP=jira,databases
+```
+
+The built-in database MCP is named `databases`. The read-only mark is the server's own claim; Codeberg does not check it. `TOOL_NAMES` lists the MCP tools a script can call when it starts.
+
+```text
+List my open Jira issues, find the files each one mentions with grep, and
+print the issues whose files changed this week.
+```
+
+| Behavior | Detail |
+| --- | --- |
+| Results | The MCP result as Python data: a `content` list, plus `structuredContent` when the server sends it. |
+| Errors | An MCP error result raises `ToolError` with the server's message. A tool that is not loaded or not allowed also raises `ToolError`, saying why. |
+| Run records | Each MCP call from a script is saved in the run record, unlike other script calls, so you can see what a script did outside Codeberg. |
+| Limits | None beyond the usual 16 calls at once. A script loop can call an MCP tool many times, so only trust servers whose tools are safe to repeat. |
 
 ### Save script output to a file
 

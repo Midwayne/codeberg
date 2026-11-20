@@ -274,6 +274,11 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 #
 # CODEBERG_SCRIPT_USE=true
 # CODEBERG_SCRIPT_PYTHON=   # default python3 (python on Windows)
+#
+# Scripts can call MCP tools the agent has loaded when the server marks them
+# read-only. List MCP servers (by config name) to let scripts call all of
+# their loaded tools, including ones that change data:
+# CODEBERG_SCRIPT_MCP=jira,databases
 
 # =============================================================================
 # Launcher runtime (environment only — not read from this file)

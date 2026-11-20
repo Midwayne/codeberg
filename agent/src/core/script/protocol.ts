@@ -2,6 +2,8 @@ import type { ToolExecutionOptions, ToolSet } from 'ai';
 
 import { errorMessage } from '../errors.js';
 import { MAX_SCRIPT_CALLS_IN_FLIGHT } from './config.js';
+import { mcpErrorText } from './mcp.js';
+import { isDeferredMcpTool } from '../mcp/active.js';
 import { inScript } from './scope.js';
 
 /** One line the script writes to request a tool call. */
@@ -57,7 +59,7 @@ export class ScriptDispatcher {
     const { id, tool: name } = request;
 
     if (!this.allowed.has(name)) {
-      return { id, ok: false, error: `unknown or unavailable tool: ${name}` };
+      return { id, ok: false, error: unavailable(name) };
     }
 
     this.calls += 1;
@@ -103,10 +105,23 @@ class Gate {
   }
 }
 
-/** Tools report recoverable failures as `{ error }`; surface those as ToolError. */
+function unavailable(name: string): string {
+  if (!isDeferredMcpTool(name)) return `unknown or unavailable tool: ${name}`;
+
+  return `MCP tool not callable from scripts: ${name}. Load it with load_mcp_tools first; ` +
+    'a tool its server does not mark read-only also needs that server in CODEBERG_SCRIPT_MCP.';
+}
+
+/** Tools report recoverable failures as `{ error }`, MCP tools as `isError`
+ *  results; surface both as ToolError. */
 function replyFor(id: number, result: unknown): ScriptReply {
   if (isErrorResult(result)) {
     return { id, ok: false, error: result.error };
+  }
+
+  const mcpError = mcpErrorText(result);
+  if (mcpError !== undefined) {
+    return { id, ok: false, error: mcpError };
   }
 
   return { id, ok: true, result: result ?? null };

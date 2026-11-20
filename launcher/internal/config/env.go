@@ -127,6 +127,7 @@ func (c *Config) addAgentTools(e map[string]string) {
 
 	e[KeyScriptUse] = strconv.FormatBool(c.ScriptUse)
 	putIf(e, KeyScriptPython, c.ScriptPython)
+	putIf(e, KeyScriptMcp, c.ScriptMcp)
 }
 
 // rootRecords encodes the served repos as newline-separated "key\tpath"

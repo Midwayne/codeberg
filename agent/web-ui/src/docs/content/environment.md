@@ -166,6 +166,7 @@ Browser sessions require a model declared with `inputs: [text, vision]` in `mode
 | `CODEBERG_LEARNING_USE` | Boolean; `true` | Enable learning, history recall, feedback, and background extraction. Disabling it retains existing stored data. |
 | `CODEBERG_SCRIPT_USE` | Boolean; `false` | Offer the `run_script` tool, which runs agent-written Python that chains read-only tool calls with no call, output, or default time limit; output can also be saved to a file. Not a sandbox; see [Optional script playground](/docs/tools#optional-script-playground). Restart after changing the environment. |
 | `CODEBERG_SCRIPT_PYTHON` | Command or path; `python3` (`python` on Windows) | Interpreter used by `run_script`. |
+| `CODEBERG_SCRIPT_MCP` | Comma-separated MCP server names; none | Let `run_script` call every loaded tool from these servers, not only tools marked read-only. See **MCP tools in scripts** under [Optional script playground](/docs/tools#optional-script-playground). |
 
 > **Extension credentials come from the process environment.** For `${env:MCP_TOKEN}` in `mcp.json`, or `${POSTGRES_URI}` in a database spec, export that variable before starting Codeberg. Arbitrary secret names in the saved launcher config are not forwarded automatically.
 

@@ -44,6 +44,7 @@ func (c *Config) settings() map[string]string {
 		KeyDbmcpBin:      c.DbmcpBin,
 		KeyScriptUse:     strconv.FormatBool(c.ScriptUse),
 		KeyScriptPython:  c.ScriptPython,
+		KeyScriptMcp:     c.ScriptMcp,
 	}
 }
 

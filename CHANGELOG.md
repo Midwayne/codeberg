@@ -10,6 +10,7 @@ are in the git history.
 
 - Projects find the repositories inside their directory and index each one on its own, so traces can follow calls between them.
 - Repositories added to a project directory are picked up the next time Codeberg starts.
+- Python scripts can call loaded MCP tools that are read-only, or every loaded tool from servers listed in `CODEBERG_SCRIPT_MCP`.
 
 ### Changed
 

@@ -1,4 +1,5 @@
 import { envEnabled } from '../env-flag.js';
+import { splitList } from '../mcp/config/values.js';
 
 export const SCRIPT_TOOL = 'run_script';
 
@@ -9,6 +10,8 @@ export const MAX_SCRIPT_CALLS_IN_FLIGHT = 16;
 export interface ScriptConfig {
   /** Interpreter command or path. */
   python: string;
+  /** MCP servers whose loaded tools scripts may call even when not marked read-only. */
+  mcpServers?: readonly string[];
 }
 
 /**
@@ -16,6 +19,8 @@ export interface ScriptConfig {
  * - `CODEBERG_SCRIPT_USE=true` registers the tool.
  * - `CODEBERG_SCRIPT_PYTHON` overrides the interpreter (default `python3`,
  *   or `python` on Windows).
+ * - `CODEBERG_SCRIPT_MCP` lists MCP servers (comma-separated config names)
+ *   whose loaded tools scripts may call without a read-only mark.
  */
 export function scriptConfig(env: NodeJS.ProcessEnv): ScriptConfig | undefined {
   if (!envEnabled(env.CODEBERG_SCRIPT_USE)) return undefined;
@@ -23,7 +28,9 @@ export function scriptConfig(env: NodeJS.ProcessEnv): ScriptConfig | undefined {
   const python = env.CODEBERG_SCRIPT_PYTHON?.trim()
     || (process.platform === 'win32' ? 'python' : 'python3');
 
-  return { python };
+  const mcpServers = splitList(env.CODEBERG_SCRIPT_MCP ?? '');
+
+  return { python, mcpServers };
 }
 
 /** A timeout the agent asked for, in milliseconds; none means run until done. */

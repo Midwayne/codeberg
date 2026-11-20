@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 
 import { ContextStore } from '../context/store.js';
 import { MAX_SCRIPT_CALLS_IN_FLIGHT } from './config.js';
+import { toolJournal, type ToolObservation } from '../runs/tools.js';
 import { insideScript } from './scope.js';
 import { scriptTool, SCRIPT_TOOL, type ScriptOutput } from './tool.js';
 
@@ -82,6 +83,43 @@ describe.skipIf(!hasPython)('run_script', () => {
       "['broken', 'grep', 'read_file', 'throws']",
       '',
     ].join('\n'));
+  });
+
+  it('calls the MCP tools it is offered and records each call', async () => {
+    const tools = {
+      ...fakeTools(),
+      mcp_jira_search: fakeTool((args) => ({ content: [{ type: 'text', text: `found ${String(args.q)}` }] })),
+      mcp_jira_get: fakeTool(() => ({ isError: true, content: [{ type: 'text', text: 'no such issue' }] })),
+      mcp_jira_create: fakeTool(() => ({ content: [] })),
+    };
+    const set = scriptTool(tools, { python: 'python3', mcpServers: [] }, store, () => ['mcp_jira_search', 'mcp_jira_get']);
+    const entries: ToolObservation[] = [];
+    const journal = { append: async (entry: ToolObservation) => void entries.push(entry), pending: new Set<Promise<unknown>>() };
+    const options = { toolCallId: 'call-mcp', messages: [] } as unknown as ToolExecutionOptions<unknown>;
+
+    const code = [
+      'hit = tools.mcp_jira_search(q="bug")["content"][0]["text"]',
+      'grep = tools.grep(pattern=hit.split()[1])["matches"][0]["path"]',
+      'print(hit, grep)',
+      'for name in ["mcp_jira_get", "mcp_jira_create"]:',
+      '    try:',
+      '        call(name)',
+      '    except ToolError as error:',
+      '        print(error)',
+    ].join('\n');
+    const result = (await toolJournal.run(journal, () => set[SCRIPT_TOOL]!.execute!({ code }, options))) as ScriptOutput;
+
+    expect(result.output).toBe([
+      'found bug bug.ts',
+      'mcp_jira_get: no such issue',
+      'mcp_jira_create: MCP tool not callable from scripts: mcp_jira_create. Load it with load_mcp_tools first; ' +
+        'a tool its server does not mark read-only also needs that server in CODEBERG_SCRIPT_MCP.',
+      '',
+    ].join('\n'));
+
+    const recorded = entries.filter((entry) => entry.state === 'completed').map((entry) => [entry.name, entry.id]);
+
+    expect(recorded).toEqual([['mcp_jira_search', 'call-mcp:script:1'], ['mcp_jira_get', 'call-mcp:script:3']]);
   });
 
   it('has no tool call limit', async () => {

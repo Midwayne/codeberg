@@ -13,6 +13,14 @@ describe('scriptConfig', () => {
 
     expect(config?.python).toBe('/opt/py/bin/python3');
   });
+
+  it('trusts no MCP server unless some are listed', () => {
+    expect(scriptConfig({ CODEBERG_SCRIPT_USE: 'true' })?.mcpServers).toEqual([]);
+
+    const config = scriptConfig({ CODEBERG_SCRIPT_USE: 'true', CODEBERG_SCRIPT_MCP: ' jira, databases ,' });
+
+    expect(config?.mcpServers).toEqual(['jira', 'databases']);
+  });
 });
 
 describe('scriptTimeoutMs', () => {

@@ -137,6 +137,7 @@ func (c *Config) loadTools(from layers) {
 	// Python script playground (run_script). Off until the user opts in.
 	c.ScriptUse = from.enabled(KeyScriptUse, nil, false)
 	c.ScriptPython = from.value(KeyScriptPython, "")
+	c.ScriptMcp = from.value(KeyScriptMcp, "")
 }
 
 // loadEmbedding resolves the embedding model and the vector index built from
