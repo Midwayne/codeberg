@@ -21,6 +21,8 @@ import { BACKGROUND_INSTRUCTIONS } from '../background/tools.js';
 import { envEnabled } from '../env-flag.js';
 import { SCRIPT_INSTRUCTIONS, SCRIPT_TOOL } from '../script/tool.js';
 import { insideScript } from '../script/scope.js';
+import { SUBAGENT_TOOL } from '../subagents/names.js';
+import { SUBAGENT_INSTRUCTIONS } from '../subagents/prompt.js';
 
 /** Guidance each tool family adds to the system prompt when any of its tools is offered. */
 const TOOL_FAMILY_INSTRUCTIONS: { offered: (name: string) => boolean; text: string }[] = [
@@ -29,6 +31,7 @@ const TOOL_FAMILY_INSTRUCTIONS: { offered: (name: string) => boolean; text: stri
   { offered: (name) => name === 'sleep_agent', text: BACKGROUND_INSTRUCTIONS },
   { offered: (name) => name === SCRIPT_TOOL, text: SCRIPT_INSTRUCTIONS },
   { offered: (name) => name === 'remember', text: REMEMBER_INSTRUCTIONS },
+  { offered: (name) => name === SUBAGENT_TOOL, text: SUBAGENT_INSTRUCTIONS },
 ];
 
 export async function prepareSystem(

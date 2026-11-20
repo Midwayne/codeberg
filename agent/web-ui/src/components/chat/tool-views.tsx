@@ -3,6 +3,8 @@ import { isCanvasDrawing } from '../../canvas/conversation';
 import { SpilledOutput, ToolPending, ToolError, GenericTool } from './tool-status';
 import { FileContent, FileList, ReposList, TextOutput } from './tool-file-results';
 import { ScriptRun } from './tool-script';
+import { SubagentRun } from './subagent-run';
+import { isSubagentTool } from '../../lib/subagents';
 import type { DisplayHit } from './tool-source-cards';
 import {
   SearchResults,
@@ -14,6 +16,7 @@ import {
   TracePathResults,
 } from './tool-search-results';
 import type { ReactNode } from 'react';
+import { getToolName } from 'ai';
 
 import type { ToolView } from './message';
 
@@ -23,12 +26,10 @@ import { isSpillPreview } from '../../lib/tool-output';
 type ToolViewRouterProps = { part: ToolView };
 
 export function ToolViewRouter({ part }: ToolViewRouterProps) {
-  const name =
-    part.type === 'dynamic-tool'
-      ? (part.toolName ?? 'tool')
-      : part.type.startsWith('tool-')
-        ? part.type.slice('tool-'.length)
-        : 'tool';
+  const name = getToolName(part as Parameters<typeof getToolName>[0]) || 'tool';
+
+  // Subagents render their own live card from the first input to the last report.
+  if (isSubagentTool(name)) return <SubagentRun name={name} part={part} />;
 
   if (part.state !== 'output-available' && part.state !== 'output-error') {
     return <ToolPending name={name} part={part} />;

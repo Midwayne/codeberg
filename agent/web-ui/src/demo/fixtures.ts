@@ -12,10 +12,13 @@ export const projects: ProjectCatalog = {
 
 export const models: ModelSettings = {
   models: [{ key: 'demo:model', model: 'demo:model', provider: 'demo', label: 'Demo model',
-    contextWindow: 128000, efforts: ['low', 'high'], inputs: ['text'] }],
+    contextWindow: 128000, efforts: ['low', 'high'], inputs: ['text'] },
+  { key: 'demo:small', model: 'demo:small', provider: 'demo', label: 'Demo small',
+    contextWindow: 64000, efforts: ['none', 'low', 'medium'], inputs: ['text'] }],
   chat: { key: 'demo:model', effort: 'low' },
   learning: { key: 'demo:model', effort: 'low' },
   summary: null,
+  subagents: { enabled: true, model: null },
   decisions: null,
   decisionModels: [{ key: 'demo:decisions', provider: 'demo', model: 'decisions', label: 'Demo decisions',
     api: 'openai', endpoint: 'https://example.invalid/decisions', apiKeyEnv: 'DEMO_DECISIONS_KEY' }],

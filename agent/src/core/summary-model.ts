@@ -21,12 +21,21 @@ export interface SummaryConfig {
  */
 export function summaryGenerator(
   summary: SummaryConfig | undefined,
-  resolve: (spec: string) => LanguageModel,
+  model: LanguageModel | undefined,
 ): Generator | undefined {
+  if (!summary || !model) return undefined;
+
+  return fromAiSdk(model, summary.reasoning, summary.modelSpec);
+}
+
+/** The chosen summary model, usage-wrapped; subagents run on it too. */
+export function summaryLanguageModel(
+  summary: SummaryConfig | undefined,
+  resolve: (spec: string) => LanguageModel,
+): LanguageModel | undefined {
   if (!summary) return undefined;
 
   const resolved = resolve(summary.modelSpec);
-  const model = summary.transformModel ? summary.transformModel(resolved) : resolved;
 
-  return fromAiSdk(model, summary.reasoning, summary.modelSpec);
+  return summary.transformModel ? summary.transformModel(resolved) : resolved;
 }

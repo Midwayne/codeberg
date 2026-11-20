@@ -11,12 +11,15 @@ import { formatWebTitle } from './title.js';
 import type { DecisionModel } from '../core/decisions/types.js';
 import type { ModelPricing } from '../core/usage.js';
 import { summaryModel, type SummaryModel } from './model-selection/summary.js';
+import { subagentChoice, type SubagentChoice } from './model-selection/subagents.js';
 
 /** A model choice bound to one chat request. */
 export type ResolvedModelSelection = ModelSelection & {
   model: string; contextWindow: number; inputs?: ModelInput[]; decisionModel?: DecisionModel | null;
   /** History summarizer chosen in Models; absent summarizes on the chat model. */
   summary?: SummaryModel;
+  /** The subagent switch and model chosen in Models. */
+  subagents?: SubagentChoice;
   /** The chat model's rates, resolved with the selection so usage need not reload the catalog. */
   pricing?: ModelPricing;
 };
@@ -55,7 +58,7 @@ export async function routeChat(
     ? { ...settings.chat, model: selected.model, contextWindow: selected.contextWindow, inputs: selected.inputs,
       ...(selected.pricing ? { pricing: selected.pricing } : {}),
       decisionModel: settings.decisionModels?.find((item) => item.key === settings.decisions) ?? null,
-      ...summaryChoice(settings) }
+      ...summaryChoice(settings), subagents: subagentChoice(settings) }
     : undefined;
 
   await withCanvasChat(body?.id, () => runs

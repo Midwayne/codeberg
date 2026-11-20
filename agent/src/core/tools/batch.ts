@@ -5,6 +5,7 @@ import type { ContextStore } from '../context/store.js';
 import { isBackgroundControl } from '../background/names.js';
 import { errorMessage } from '../errors.js';
 import { SCRIPT_TOOL } from '../script/config.js';
+import { isStreamingTool } from './streaming.js';
 
 export const BATCH_TOOL = 'batch';
 
@@ -125,7 +126,7 @@ async function runCall(
 ) {
   const name = typeof call?.tool === 'string' ? call.tool : '';
   const execute = (tools[name] as { execute?: Execute } | undefined)?.execute;
-  if (!isBatchable(name) || typeof execute !== 'function') {
+  if (!isBatchable(name) || isStreamingTool(tools[name]) || typeof execute !== 'function') {
     return { tool: name, error: `unknown or non-batchable tool: ${name || '(missing)'}` };
   }
 

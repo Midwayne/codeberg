@@ -1,6 +1,6 @@
 import { defaultProviders } from '../providers/index.js';
 import type { LanguageModel } from 'ai';
-import { Agent } from './agent.js';
+import { Agent, type AgentOptions } from './agent.js';
 import { DaemonClient } from './client.js';
 import { ContextStore, defaultContextRoot } from './context/store.js';
 import type { EntryConfig } from './entry.js';
@@ -11,7 +11,9 @@ import { REASONING_EFFORTS, type ReasoningEffort } from './types.js';
 import { agentProfiles } from './model-profiles.js';
 import type { ModelInput } from './model-types.js';
 import type { DecisionModel, DecisionUsageSink } from './decisions/types.js';
-import { summaryGenerator, type SummaryConfig } from './summary-model.js';
+import { summaryGenerator, summaryLanguageModel, type SummaryConfig } from './summary-model.js';
+import type { SubagentConfig } from './subagents/config.js';
+import { profileFor } from '../providers/profiles.js';
 
 interface AgentConfig {
   onDecisionUsage?: DecisionUsageSink;
@@ -23,6 +25,8 @@ interface AgentConfig {
   subagentModelSpec?: string;
   /** Dedicated history summarizer; unset summarizes on the subagent or chat model. */
   summary?: SummaryConfig;
+  /** Subagent switch and model; unset follows CODEBERG_SUBAGENTS_USE and the summary model. */
+  subagents?: SubagentConfig;
   daemonUrl: string;
   reasoning?: ReasoningEffort;
   contextWindow?: number;
@@ -55,10 +59,14 @@ export function createAgent(config: AgentConfig): Agent {
       : undefined;
 
   const summarySpec = config.summary?.modelSpec ?? subagentSpec;
+  const summaryModel = summaryLanguageModel(config.summary, (spec) => registry.resolve(spec));
 
   return new Agent({
     model,
-    generator: summaryGenerator(config.summary, (spec) => registry.resolve(spec)),
+    generator: summaryGenerator(config.summary, summaryModel),
+    summaryModel,
+    summaryReasoning: config.summary?.reasoning,
+    subagents: subagentOptions(config.subagents, (spec) => registry.resolve(spec), env),
     decisionModel: config.decisionModel,
     onDecisionUsage: config.onDecisionUsage,
     modelInputs: config.modelInputs,
@@ -95,4 +103,19 @@ export function createAgentFromEntry(entry: EntryConfig): Agent {
     daemonUrl: entry.daemonUrl,
     reasoning: reasoningFromEnv(),
   });
+}
+
+function subagentOptions(
+  config: SubagentConfig | undefined,
+  resolve: (spec: string) => LanguageModel,
+  env: NodeJS.ProcessEnv,
+): AgentOptions['subagents'] {
+  const chosen = config?.model;
+  const model = summaryLanguageModel(chosen, resolve);
+  if (!chosen || !model) return config?.enabled === undefined ? undefined : { enabled: config.enabled };
+
+  const inferred = profileFor(chosen.modelSpec, env);
+  const profile = chosen.contextWindow ? { ...inferred, contextWindow: chosen.contextWindow } : inferred;
+
+  return { enabled: config?.enabled, model, reasoning: chosen.reasoning, profile };
 }

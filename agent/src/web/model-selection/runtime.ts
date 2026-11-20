@@ -12,36 +12,10 @@ import type { ModelSettingsStore } from './settings.js';
 import type { DecisionUsageSink } from '../../core/decisions/types.js';
 import { budgetWindow, profileFor } from '../../providers/profiles.js';
 import { summaryConfig } from './summary.js';
+import { subagentConfig } from './subagents.js';
+import { ModelAgentPool } from './model-pool.js';
 
-/** A loop's model, effort, and history budget are immutable for its lifetime. */
-export class ModelAgentPool {
-  private readonly loops = new Map<string, Promise<ToolLoopAgent>>();
-
-  constructor(
-    private readonly options: {
-      build: (selection: ResolvedModelSelection) => Promise<ToolLoopAgent>;
-      close?: () => Promise<void>;
-    },
-  ) {}
-
-  forSelection(selection: ResolvedModelSelection): Promise<ToolLoopAgent> {
-    const key = JSON.stringify(selection);
-    let loop = this.loops.get(key);
-    if (!loop) {
-      loop = this.options.build(selection).catch((error: unknown) => {
-        this.loops.delete(key);
-        throw error;
-      });
-      this.loops.set(key, loop);
-    }
-
-    return loop;
-  }
-
-  async close(): Promise<void> {
-    await this.options.close?.();
-  }
-}
+export { ModelAgentPool } from './model-pool.js';
 
 export function createWebModelPool(
   daemonUrl: string,
@@ -50,36 +24,67 @@ export function createWebModelPool(
   transformModel?: (model: LanguageModel, selection: ResolvedModelSelection) => LanguageModel,
   onDecisionUsage?: DecisionUsageSink,
 ): ModelAgentPool {
-  const agents: Array<{ close(): Promise<void> }> = [];
+  const deps: AgentDeps = { daemonUrl, learning, env, transformModel, onDecisionUsage };
+  const agents = new Set<Closeable>();
+  const owners = new Map<ToolLoopAgent, Closeable>();
 
   return new ModelAgentPool({
     build: async (selection) => {
-      const core = createAgent({
-        daemonUrl,
-        env,
-        modelSpec: selection.model,
-        decisionModel: selection.decisionModel,
-        onDecisionUsage,
-        modelInputs: selection.inputs,
-        reasoning: selection.effort === 'provider-default' ? undefined : selection.effort,
-        contextWindow: selection.contextWindow,
-        summary: summaryConfig(selection, transformModel),
-        learning,
-        transformModel: transformModel ? (model) => transformModel(model, selection) : undefined,
-      });
+      const core = selectionAgent(selection, deps);
+      agents.add(core);
 
-      agents.push(core);
       try {
-        return wrapToolLoopAgentWithCompaction(await core.toolLoopAgent(), core.historyCompactor());
+        const loop = wrapToolLoopAgentWithCompaction(await core.toolLoopAgent(), core.historyCompactor());
+        owners.set(loop, core);
+
+        return loop;
       } catch (error) {
-        agents.splice(agents.indexOf(core), 1);
+        agents.delete(core);
         await core.close();
         throw error;
       }
     },
-    close: async () => {
-      await Promise.all(agents.map((agent) => agent.close()));
+    closeLoop: async (loop) => {
+      const core = owners.get(loop);
+      if (!core) return;
+
+      owners.delete(loop);
+      agents.delete(core);
+      await core.close();
     },
+    close: async () => {
+      await Promise.all([...agents].map((agent) => agent.close()));
+    },
+  });
+}
+
+type Closeable = { close(): Promise<void> };
+
+interface AgentDeps {
+  daemonUrl: string;
+  learning: LearningService | false;
+  env?: NodeJS.ProcessEnv;
+  transformModel?: (model: LanguageModel, selection: ResolvedModelSelection) => LanguageModel;
+  onDecisionUsage?: DecisionUsageSink;
+}
+
+/** One agent for a chat selection: its models, effort, window, summarizer, and subagents. */
+function selectionAgent(selection: ResolvedModelSelection, deps: AgentDeps) {
+  const { transformModel } = deps;
+
+  return createAgent({
+    daemonUrl: deps.daemonUrl,
+    env: deps.env,
+    modelSpec: selection.model,
+    decisionModel: selection.decisionModel,
+    onDecisionUsage: deps.onDecisionUsage,
+    modelInputs: selection.inputs,
+    reasoning: selection.effort === 'provider-default' ? undefined : selection.effort,
+    contextWindow: selection.contextWindow,
+    summary: summaryConfig(selection, transformModel),
+    subagents: subagentConfig(selection, transformModel),
+    learning: deps.learning,
+    transformModel: transformModel ? (model) => transformModel(model, selection) : undefined,
   });
 }
 

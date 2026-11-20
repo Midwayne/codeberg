@@ -2,6 +2,7 @@ import { validateTypes } from '@ai-sdk/provider-utils';
 import type { ToolExecutionOptions, ToolSet } from 'ai';
 import { currentBackground } from './context.js';
 import { isBackgroundControl } from './names.js';
+import { isStreamingTool } from '../tools/streaming.js';
 
 export type PresentBackground = (name: string, args: unknown, output: unknown) => Promise<unknown>;
 type Execute = (args: unknown, options: ToolExecutionOptions<unknown>) => unknown;
@@ -22,12 +23,14 @@ export async function startTool(tools: ToolSet, input: { tool: string; args: Rec
     const output = await execute.call(definition, args, { ...options,
       toolCallId: `${context.sourceRunId}:${options.toolCallId}:background`, abortSignal: signal });
 
-    return presentOutput(output, (value) => present ? present(input.tool, args, value) : Promise.resolve(value));
+    return presentOutput(output, isStreamingTool(definition),
+      (value) => present ? present(input.tool, args, value) : Promise.resolve(value));
   }, context.retain);
 }
 
-function presentOutput(output: unknown, present: (value: unknown) => Promise<unknown>): unknown {
-  if (output && typeof output === 'object' && Symbol.asyncIterator in output) {
+/** Streaming tools (marked like every other layer checks) present each progress value; others present once. */
+function presentOutput(output: unknown, streaming: boolean, present: (value: unknown) => Promise<unknown>): unknown {
+  if (streaming) {
     return (async function* () {
       for await (const item of output as AsyncIterable<unknown>) yield await present(item);
     })();

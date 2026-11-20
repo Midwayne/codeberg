@@ -10,6 +10,9 @@ are in the git history.
 
 - Projects find the repositories inside their directory and index each one on its own, so traces can follow calls between them.
 - Repositories added to a project directory are picked up the next time Codeberg starts.
+- The agent can split independent checks, such as health, metrics, and logs for several services, across parallel subagents. Read-only explorers are the default, and the agent can ask a subagent follow-up questions.
+- The chat shows each subagent as it works: its status, current step, the tool it is calling, and its report.
+- **Models → Subagents** turns subagents on or off and picks the model they run on.
 - Python scripts can call loaded MCP tools that are read-only, or every loaded tool from servers listed in `CODEBERG_SCRIPT_MCP`.
 
 ### Changed

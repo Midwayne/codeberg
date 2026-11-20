@@ -1,10 +1,11 @@
-Codeberg uses four model roles:
+Codeberg uses five model roles:
 
 | Role | Purpose | Configure |
 | --- | --- | --- |
 | Chat | Answer questions and choose tools. | **Models** in the header. |
 | Learning | Background knowledge work and evaluations. | **Models**; defaults to the chat model. |
 | Summaries | Condense older chat history. | **Models**; defaults to the chat model. |
+| Subagents | Run [parallel checks](/docs/tools#split-work-across-subagents) for the chat agent. | **Models**; on by default and uses the summary model. |
 | Embedding | Local semantic source search. | [Indexing and search](/docs/indexing). |
 
 ## Choose a provider
@@ -61,6 +62,8 @@ Inputs may include `vision`, `audio`, `video`, and `pdf`. Attachments are limite
 ## Select models in the app
 
 Open **Models**, choose chat and learning models and efforts, then save. Changes apply to new turns and background jobs; running work keeps its selection. Choices persist across restarts and tabs.
+
+**Subagents** has an on/off switch, a model, and an effort. The model starts as **Same as summary model**, and its effort follows that model until you pick one. Any model in your catalog can be chosen; add more in `models.yml`. Choose a small, fast model to keep [parallel checks](/docs/tools#split-work-across-subagents) cheap; the chat model still reviews every report.
 
 **Summaries** starts as **Same as chat model**. Pick a smaller model there to lower the cost of condensing long chats; see [How chat context stays bounded](#how-chat-context-stays-bounded).
 
@@ -208,7 +211,7 @@ Open **Settings → Usage**. **All**, **Chat**, **Learning**, and **Decisions** 
 
 | Category | Includes |
 | --- | --- |
-| Chat | Recorded browser chat and conversation summarization. |
+| Chat | Recorded browser chat, conversation summarization, and subagents. |
 | Learning | Background worker calls, including knowledge jobs and automatic evaluations. |
 | Decisions | Provider calls made by the browser agent's `decide` tool; local result-cache hits do not add calls or tokens. |
 | Not reported | A request whose provider omitted token counts. |

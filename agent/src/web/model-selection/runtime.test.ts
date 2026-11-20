@@ -413,3 +413,23 @@ it('keeps a detached tool connection alive after its foreground lease is release
   await releaseWork();
   expect(close).toHaveBeenCalledOnce();
 });
+
+it('releases the generation even when closing an evicted agent fails', async () => {
+  const close = vi.fn(async () => undefined);
+  const closeLoop = vi.fn(async () => {
+    throw new Error('mcp close failed');
+  });
+  const pool = new ReloadableAgentPool(() => new ModelAgentPool({ build: async () => ({}) as ToolLoopAgent, closeLoop, close }));
+  const choice = (index: number) => ({ key: `openai:m${index}`, model: 'openai:test', effort: 'low' as const, contextWindow: 50_000 });
+
+  for (let index = 0; index < 5; index++) {
+    const lease = await pool.acquire(choice(index), 0);
+    await expect(lease.release()).resolves.toBeUndefined();
+  }
+
+  const newer = await pool.acquire(choice(0), 1);
+  await newer.release();
+
+  expect(closeLoop).toHaveBeenCalled();
+  expect(close).toHaveBeenCalledTimes(1);
+});

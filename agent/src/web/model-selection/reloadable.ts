@@ -33,7 +33,17 @@ export class ReloadableAgentPool {
     try {
       if (previous) await this.retire(previous);
 
-      return { agent: await generation.pool.forSelection(selection), release, retain: () => this.retain(generation) };
+      const releaseAgent = generation.pool.retain(selection);
+      const agent = await generation.pool.forSelection(selection).catch(async (error: unknown) => {
+        await releaseAgent();
+        throw error;
+      });
+
+      return {
+        agent,
+        release: both(releaseAgent, release),
+        retain: () => both(generation.pool.retain(selection), this.retain(generation)),
+      };
     } catch (error) {
       await release();
       throw error;
@@ -64,4 +74,15 @@ export class ReloadableAgentPool {
 
     await Promise.all([...this.generations].map((generation) => this.retire(generation)));
   }
+}
+
+/** Release the agent, then its generation; each runs at most once, and a failure closing one never skips the other. */
+function both(agent: () => Promise<void>, generation: () => Promise<void>): () => Promise<void> {
+  return async () => {
+    try {
+      await agent();
+    } finally {
+      await generation();
+    }
+  };
 }

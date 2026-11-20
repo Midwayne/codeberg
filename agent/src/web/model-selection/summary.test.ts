@@ -2,7 +2,7 @@ import type { LanguageModel } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
 import { expect, it, vi } from 'vitest';
 
-import { summaryGenerator } from '../../core/summary-model.js';
+import { summaryGenerator, summaryLanguageModel } from '../../core/summary-model.js';
 import type { ModelSettings } from './settings.js';
 import { summaryConfig, summaryModel } from './summary.js';
 
@@ -51,7 +51,7 @@ it('summarizes on the chosen model and tracks it under its own key', async () =>
   const selection = { ...chat, model: 'openai:big', contextWindow: 400_000, summary };
 
   const config = summaryConfig(selection, track);
-  const generator = summaryGenerator(config, resolve);
+  const generator = summaryGenerator(config, summaryLanguageModel(config, resolve));
 
   expect(await generator!.generate({ system: 'summarize', prompt: 'history' })).toBe('summary');
   expect(resolve).toHaveBeenCalledWith('openai:small');
@@ -64,5 +64,5 @@ it('leaves summaries on the chat model when none is chosen', () => {
   const selection = { ...chat, model: 'openai:big', contextWindow: 400_000 };
 
   expect(summaryConfig(selection)).toBeUndefined();
-  expect(summaryGenerator(undefined, () => mockModel())).toBeUndefined();
+  expect(summaryGenerator(undefined, mockModel())).toBeUndefined();
 });

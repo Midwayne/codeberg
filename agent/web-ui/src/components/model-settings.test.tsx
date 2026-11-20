@@ -12,7 +12,7 @@ describe('ModelSettingsForm', () => {
     ];
     const html = renderToStaticMarkup(<ModelSettingsForm
       models={models}
-      value={{ chat: { key: 'openai:alpha', effort: 'high' }, learning: { key: 'openai:beta', effort: 'none' } }}
+      value={{ chat: { key: 'openai:alpha', effort: 'high' }, learning: { key: 'openai:beta', effort: 'none' }, subagents: { enabled: true, model: null } }}
       onChange={() => undefined}
     />);
     expect(html).toContain('id="chat-model"');
@@ -34,19 +34,46 @@ describe('ModelSettingsForm', () => {
     const choice = { key: 'openai:alpha', effort: 'high' as const };
     const render = (summary?: typeof choice | null) => renderToStaticMarkup(<ModelSettingsForm
       models={models}
-      value={{ chat: choice, learning: choice, summary }}
+      value={{ chat: choice, learning: choice, summary, subagents: { enabled: true, model: null } }}
       onChange={() => undefined}
     />);
 
     const unset = render(null);
 
     expect(unset).toContain('<option value="" selected="">Same as chat model</option>');
-    expect(unset).not.toContain('id="summary-effort"');
+    expect(unset).toMatch(/id="summary-effort"[^>]*disabled=""|disabled=""[^>]*id="summary-effort"/);
+    expect(unset).toContain('Pick a model above to choose its effort.');
 
     const chosen = render(choice);
 
     expect(chosen).toContain('id="summary-model"');
     expect(chosen).toContain('id="summary-effort"');
+    expect(chosen).toContain('<option value="high" selected="">high</option>');
+    // Only the still-unset Subagents section keeps its hint.
+    expect(chosen.match(/Pick a model above/g)).toHaveLength(1);
+  });
+
+  it('shows the subagent switch on by default, following the summary model', () => {
+    const models: CatalogModel[] = [
+      { key: 'openai:alpha', model: 'openai:alpha', provider: 'openai', label: 'Alpha', contextWindow: 50000, efforts: ['low', 'high'], inputs: ['text'] },
+    ];
+    const choice = { key: 'openai:alpha', effort: 'high' as const };
+    const render = (subagents: { enabled: boolean; model: typeof choice | null } = { enabled: true, model: null }) => renderToStaticMarkup(<ModelSettingsForm
+      models={models}
+      value={{ chat: choice, learning: choice, subagents }}
+      onChange={() => undefined}
+    />);
+
+    const unset = render();
+
+    expect(unset).toMatch(/role="switch"[^>]*checked=""/);
+    expect(unset).toContain('<option value="" selected="">Same as summary model</option>');
+    expect(unset).toMatch(/id="subagent-effort"[^>]*disabled=""|disabled=""[^>]*id="subagent-effort"/);
+
+    const off = render({ enabled: false, model: choice });
+
+    expect(off).toMatch(/id="subagent-model"[^>]*disabled=""|disabled=""[^>]*id="subagent-model"/);
+    expect(off).toContain('id="subagent-effort"');
   });
 
   it('shows separate decisions choices without offering them for chat or learning', () => {
@@ -54,7 +81,7 @@ describe('ModelSettingsForm', () => {
       models={[{ key: 'openai:chat', model: 'openai:chat', provider: 'openai', label: 'Chat', contextWindow: 32000, efforts: ['none'], inputs: ['text'] }]}
       decisionModels={[{ key: 'typesafe:fast', provider: 'typesafe', model: 'jev-latest', label: 'Jev',
         api: 'system-one', endpoint: 'https://api.typesafe.ai/v1/systemone', apiKeyEnv: 'TYPESAFE_API_KEY' }]}
-      value={{ chat: { key: 'openai:chat', effort: 'none' }, learning: { key: 'openai:chat', effort: 'none' }, decisions: 'typesafe:fast' }}
+      value={{ chat: { key: 'openai:chat', effort: 'none' }, learning: { key: 'openai:chat', effort: 'none' }, decisions: 'typesafe:fast', subagents: { enabled: true, model: null } }}
       onChange={() => undefined}
     />);
 

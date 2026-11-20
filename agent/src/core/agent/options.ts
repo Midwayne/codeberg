@@ -22,6 +22,15 @@ export const DEFAULT_TIMEOUT = {
   chunkMs: 60_000,
 } as const;
 
+// A step that runs subagents waits for every one of them (each bounded at 5
+// minutes per message, possibly queued behind the chat's other subagents),
+// so turns that offer them get room for two full rounds per step.
+export const SUBAGENT_TURN_TIMEOUT = {
+  totalMs: 1_800_000,
+  stepMs: 720_000,
+  chunkMs: DEFAULT_TIMEOUT.chunkMs,
+} as const;
+
 export interface AgentOptions {
   /** Optional decisions tool. Undefined loads the saved choice; null disables it. */
   decisionModel?: DecisionModel | null;
@@ -34,6 +43,18 @@ export interface AgentOptions {
   /** Model for background work: knowledge extraction and history-compaction
    *  summaries. Defaults to the main model. */
   subagentModel?: LanguageModel;
+  /** Model chosen for history summaries. Subagents started with
+   *  `run_subagents` run on it, falling back to the subagent, then chat, model. */
+  summaryModel?: LanguageModel;
+  summaryReasoning?: ReasoningEffort;
+  /** Subagent switch and model from Models. Unset `enabled` follows
+   *  CODEBERG_SUBAGENTS_USE; unset `model` follows the summary model. */
+  subagents?: {
+    enabled?: boolean;
+    model?: LanguageModel;
+    reasoning?: ReasoningEffort;
+    profile?: ModelProfile;
+  };
   daemon: DaemonClient;
   generator?: Generator;
   /** Standardized ai-sdk v7 reasoning-effort control, applied to every run. */

@@ -2,12 +2,14 @@ import { LoadingBoundary } from './loading';
 import { useModelSettingsPanel, type Choices } from '../lib/use-model-settings';
 import { DecisionSettings } from './decision-settings';
 import { SummarySettings } from './summary-settings';
+import { SubagentSettings } from './subagent-settings';
 import type { DecisionModel } from '@agent/core/decisions/types.js';
 import { X } from 'lucide-react';
 
-import { Dialog, ErrorNotice, IconButton, Select } from './ui';
+import { Dialog, IconButton, Select } from './ui';
+import { ModelSettingsActions, ModelSettingsError } from './model-settings-actions';
 
-import { selectModel, type CatalogModel, type ModelSelection } from '../lib/models';
+import { modelOptionLabel, selectModel, type CatalogModel, type ModelSelection } from '../lib/models';
 
 type ModelSettingsPanelProps = { onClose: () => void; onSaved: () => void };
 
@@ -91,6 +93,8 @@ export function ModelSettingsForm({ models, decisionModels = [], value, onChange
       </p>
       <SummarySettings models={models} value={value.summary}
         onChange={(summary) => onChange({ ...value, summary })} />
+      <SubagentSettings models={models} value={value.subagents}
+        onChange={(subagents) => onChange({ ...value, subagents })} />
       <DecisionSettings models={decisionModels} value={value.decisions}
         onChange={(decisions) => onChange({ ...value, decisions })} />
     </div>
@@ -121,8 +125,7 @@ function ChoiceFields({ label, prefix, models, value, onChange }: ChoiceFieldsPr
       >
         {models.map((model) => (
           <option key={model.key} value={model.key}>
-            {model.provider} · {model.label}
-            {model.key !== model.model ? ` (${model.key.slice(model.provider.length + 1)})` : ''}
+            {modelOptionLabel(model)}
           </option>
         ))}
       </Select>
@@ -147,53 +150,5 @@ function ChoiceFields({ label, prefix, models, value, onChange }: ChoiceFieldsPr
         </p>
       )}
     </fieldset>
-  );
-}
-
-type ModelSettingsActionsProps = Pick<
-  Parameters<typeof ModelSettingsPanelView>[0],
-  'onClose' | 'draft' | 'saving'
->;
-
-function ModelSettingsActions({ onClose, draft, saving }: ModelSettingsActionsProps) {
-  return (
-    <div className="mt-5 flex shrink-0 justify-end gap-2 border-t border-border pt-4">
-      <button
-        type="button"
-        onClick={onClose}
-        className="min-h-11 rounded-lg border border-border px-4 text-sm hover:bg-accent md:min-h-9"
-      >
-        Cancel
-      </button>
-      <button
-        type="submit"
-        disabled={!draft || saving}
-        className="min-h-11 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 md:min-h-9"
-      >
-        {saving ? 'Saving…' : 'Save settings'}
-      </button>
-    </div>
-  );
-}
-
-type ModelSettingsErrorProps = Pick<
-  Parameters<typeof ModelSettingsPanelView>[0],
-  'error' | 'draft' | 'save' | 'setAttempt'
->;
-
-function ModelSettingsError({ error, draft, save, setAttempt }: ModelSettingsErrorProps) {
-  return (
-    error && (
-      <div className="mt-3">
-        <ErrorNotice
-          title={draft ? 'Could not save model settings' : 'Could not load models'}
-          detail={error}
-          onRetry={() => {
-            if (draft) void save();
-            else setAttempt((value) => value + 1);
-          }}
-        />
-      </div>
-    )
   );
 }

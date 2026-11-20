@@ -61,7 +61,7 @@ function serverByTool(source: Pick<McpToolSource, 'reports'>): Map<string, strin
   return out;
 }
 
-function isReadOnly(definition: ToolSet[string] | undefined): boolean {
+export function isReadOnly(definition: ToolSet[string] | undefined): boolean {
   const metadata = (definition as { metadata?: { annotations?: { readOnlyHint?: unknown } } } | undefined)?.metadata;
 
   return metadata?.annotations?.readOnlyHint === true;

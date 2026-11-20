@@ -24,15 +24,25 @@ export interface CatalogModel {
   inputs: ModelInput[];
 }
 
+/** Whether the agent may start subagents, and the model they run on. */
+export interface SubagentSettings {
+  enabled: boolean;
+  /** Null runs subagents on the summary model (itself defaulting to the chat model). */
+  model: ModelSelection | null;
+}
+
 export interface ModelSelections {
   chat: ModelSelection;
   learning: ModelSelection;
   /** History summarizer. Null or absent summarizes on the chat model. */
   summary?: ModelSelection | null;
+  subagents?: SubagentSettings;
   decisions?: string | null;
 }
 
 export interface ModelSettings extends ModelSelections {
+  /** Always resolved by the server, falling back to CODEBERG_SUBAGENTS_USE. */
+  subagents: SubagentSettings;
   models: CatalogModel[];
   decisionModels?: DecisionModel[];
 }

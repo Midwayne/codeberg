@@ -1,4 +1,4 @@
-import { browserConversation } from '../../core/browser/scope.js';
+import { chatScope } from '../../core/chat-scope.js';
 import { join } from 'node:path';
 import { toolJournal, type ToolJournalContext } from '../../core/runs/tools.js';
 import type { LearningService } from '../../core/learning/service.js';
@@ -18,7 +18,7 @@ export async function executeRun(run: SearchRun, generate: ChatGenerator, sessio
       throw error;
     }
   } };
-  await browserConversation.run(join(sessions.dir, run.record.chatId), () => toolJournal.run(context, async () => {
+  await chatScope.run(join(sessions.dir, run.record.chatId), () => toolJournal.run(context, async () => {
     let generation: Awaited<ReturnType<ChatGenerator>> | undefined;
     try {
       generation = await generate({ messages: run.record.messages, selection: run.record.selection,

@@ -2,7 +2,8 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { ifMissing, writeJsonAtomic } from '../../core/fs.js';
-import type { CatalogModel, ModelSelection, ModelSettings } from '../../core/model-types.js';
+import type { CatalogModel, ModelSelection, ModelSettings, SubagentSettings } from '../../core/model-types.js';
+import { subagentsEnabled } from '../../core/subagents/config.js';
 import { codebergHome } from '../../core/paths.js';
 import { loadModelCatalog, object, validEffort, type ModelCatalogOptions } from './catalog.js';
 import { loadDecisionCatalog, resolveDecision } from '../../core/decisions/catalog.js';
@@ -61,7 +62,8 @@ export class ModelSettingsStore {
       decisions: resolveDecision(catalog, values?.decisions),
       chat: this.resolve(values?.chat, this.catalog.defaultChat, models),
       learning: this.resolve(values?.learning, this.catalog.defaultLearning, models),
-      summary: this.resolveSummary(values?.summary, models),
+      summary: this.resolveOptional(values?.summary, models),
+      subagents: this.resolveSubagents(values?.subagents, models),
     };
   }
 
@@ -89,12 +91,13 @@ export class ModelSettingsStore {
       const learning = this.validate(values.learning, models);
       const current = await this.current();
       const summary = this.validateSummary(values.summary, current.summary ?? null, models);
+      const subagents = values.subagents === undefined ? current.subagents : this.validateSubagents(values.subagents, models);
       const decisions = values.decisions === undefined ? current.decisions : values.decisions;
       if (decisions !== null && !current.decisionModels?.some((model) => model.key === decisions)) {
         throw new ModelSelectionError('unknown or unavailable decision model');
       }
 
-      await writeJsonAtomic(this.settingsPath, { chat, learning, summary, decisions });
+      await writeJsonAtomic(this.settingsPath, { chat, learning, summary, subagents, decisions });
     });
 
     this.writing = update.catch(() => undefined);
@@ -130,14 +133,31 @@ export class ModelSettingsStore {
     return { key: first.key, effort: first.efforts[0] };
   }
 
-  /** Null means summaries follow the chat model, including when a saved choice is gone. */
-  private resolveSummary(raw: unknown, models: CatalogModel[]): ModelSelection | null {
+  /** An optional model choice (summaries, subagents); null follows another model, including when a saved choice is gone. */
+  private resolveOptional(raw: unknown, models: CatalogModel[]): ModelSelection | null {
     const input = object(raw);
     const effort = input?.effort;
     const item = models.find((entry) => entry.key === input?.key);
     if (!item || !validEffort(effort) || !item.efforts.includes(effort)) return null;
 
     return { key: item.key, effort };
+  }
+
+  /** Unsaved, subagents follow CODEBERG_SUBAGENTS_USE; a removed model falls back to the summary model. */
+  private resolveSubagents(raw: unknown, models: CatalogModel[]): SubagentSettings {
+    const input = object(raw);
+    const enabled = typeof input?.enabled === 'boolean' ? input.enabled : subagentsEnabled(this.env);
+
+    return { enabled, model: this.resolveOptional(input?.model, models) };
+  }
+
+  private validateSubagents(raw: unknown, models: CatalogModel[]): SubagentSettings {
+    const input = object(raw);
+    if (typeof input?.enabled !== 'boolean') throw new ModelSelectionError('subagents need an enabled switch');
+
+    const model = input.model == null ? null : this.validate(input.model, models);
+
+    return { enabled: input.enabled, model };
   }
 
   /** Omitted keeps the saved choice; null returns summaries to the chat model. */

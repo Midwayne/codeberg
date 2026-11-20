@@ -2,6 +2,7 @@ import { Loader2, Wrench } from 'lucide-react';
 
 import { Collapsible } from '../ui';
 import { spilledToolTitle } from '../../lib/tool-output';
+import { toolInputLabel } from '@agent/core/tool-label.js';
 import type {
   SpilledOutputProps,
   ToolPendingProps,
@@ -21,16 +22,7 @@ export function SpilledOutput({ name, output }: SpilledOutputProps) {
 }
 
 export function ToolPending({ name, part }: ToolPendingProps) {
-  const query =
-    part.input && typeof part.input === 'object'
-      ? (part.input as { query?: string; pattern?: string; name?: string; symbol?: string })
-      : undefined;
-  const label =
-    query?.query ??
-    query?.pattern ??
-    query?.name ??
-    query?.symbol ??
-    (part.input && typeof part.input === 'object' ? ((part.input as { path?: string }).path ?? '') : '');
+  const label = toolInputLabel(part.input);
 
   return (
     <div className="my-2 flex items-center gap-2 text-xs text-muted-foreground">

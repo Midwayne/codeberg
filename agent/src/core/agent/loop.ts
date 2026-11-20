@@ -11,13 +11,15 @@ import { scriptTool } from '../script/tool.js';
 import { manageContextModel } from '../request-budget/model.js';
 import { summarize } from './history.js';
 import { HISTORY_SUMMARY_SYSTEM } from '../prompts/history-summary.js';
-import { DEFAULT_TIMEOUT } from './options.js';
+import { turnTimeouts } from './turn-timeouts.js';
 import type { AgentState } from './state.js';
 import { buildTools, prepareSystem } from './tools.js';
 import { modelTimeout } from './model-timeout.js';
 import { backgroundTools } from '../background/tools.js';
 import { agentIsSleeping } from '../background/context.js';
 import { presentToolOutput } from '../context/spill.js';
+import { subagentTools } from '../subagents/tool.js';
+import { subagentsOn, subagentWorker } from './worker.js';
 
 export async function toolLoopAgent(state: AgentState): Promise<ToolLoopAgent> {
   return ensureLoop(state);
@@ -48,19 +50,18 @@ async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
     summarize: (transcript, limit, signal) => summarize(state, transcript, limit, signal),
     checkpointPolicy: JSON.stringify([state.summaryProfile, HISTORY_SUMMARY_SYSTEM]),
   });
-  const browser = toolNames.includes('browser_task');
+  const { perCallTimeout, timeout } = turnTimeouts(toolNames);
 
   const loop = new ToolLoopAgent({
-    model: browser ? modelTimeout(model) : model,
+    model: perCallTimeout ? modelTimeout(model) : model,
     // Cache the large, frozen system prompt instead of re-billing it on
     // every tool round and every turn.
     instructions: cachedInstructions(state.system, state.profile),
     tools,
     // Continue until the model answers instead of inheriting the SDK's
-    // default 20-step limit. Browser tools wait without a run-wide deadline;
-    // their provider calls retain timeouts independently of tool execution.
+    // default 20-step limit. Deadlines follow the offered tools (turnTimeouts).
     stopWhen: [isLoopFinished(), agentIsSleeping],
-    ...(browser ? {} : { timeout: DEFAULT_TIMEOUT }),
+    ...(timeout ? { timeout } : {}),
     ...(providerOptions ? { providerOptions } : {}),
     ...(state.reasoning && state.reasoning !== 'max' ? { reasoning: state.reasoning } : {}),
     // The model boundary archives/compacts complete tool exchanges as needed.
@@ -81,11 +82,13 @@ async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
  * Its MCP calls, limited to loaded read-only or trusted-server tools, are
  * the exception and are journaled one by one.
  * `batch` wraps the journaled tools. Both handle each inner result themselves.
+ * The subagent tools sit beside them so `run_subagents` can also run as a background job.
  */
 function composedTools(state: AgentState, base: ToolSet): ToolSet {
   const scripts = scriptConfig(state.env);
   const mcpNames = () => scriptMcpNames({ tools: base, source: state.mcpSource, trusted: scripts?.mcpServers ?? [] });
-  const local = { ...base, ...(scripts ? scriptTool(base, scripts, state.context, mcpNames) : {}) };
+  const scripted = { ...base, ...(scripts ? scriptTool(base, scripts, state.context, mcpNames) : {}) };
+  const local = { ...scripted, ...subagents(state, scripted) };
 
   const raw = recordToolExecutions({ ...local, ...backgroundTools(local,
     (name, args, output) => presentToolOutput(state.context, name, args, output)) });
@@ -94,4 +97,11 @@ function composedTools(state: AgentState, base: ToolSet): ToolSet {
     ...wrapToolOutputs(raw, state.context),
     ...(state.profile.toolBatch ? batchTool(raw, state.context) : {}),
   });
+}
+
+/** Subagents call the same tools, with large results spilled to context like the main loop's. */
+function subagents(state: AgentState, tools: ToolSet): ToolSet {
+  if (!subagentsOn(state)) return {};
+
+  return subagentTools(subagentWorker(state), wrapToolOutputs(tools, state.context), state.context);
 }

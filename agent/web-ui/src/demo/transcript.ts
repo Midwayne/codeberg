@@ -1,5 +1,7 @@
 import type { UIMessage } from 'ai';
 
+import { subagentDemoPart } from './subagents';
+
 /** A finished answer with tools, prose, and code so chat styling can be reviewed in the demo. */
 export const transcriptChat = {
   id: 'demo-chat-transcript',
@@ -62,12 +64,14 @@ return split_children(c, node, depth + 1);
 
 > Files without a grammar fall back to line windows.`;
 
-const answer = {
-  id: 'demo-transcript-answer',
-  role: 'assistant',
-  parts: [searchTool, grepTool, { type: 'text', text: answerText }],
-} as unknown as UIMessage;
+function answer(): UIMessage {
+  return {
+    id: 'demo-transcript-answer',
+    role: 'assistant',
+    parts: [searchTool, grepTool, subagentDemoPart(), { type: 'text', text: answerText }],
+  } as unknown as UIMessage;
+}
 
 export function transcriptSession() {
-  return { ...transcriptChat, messages: [question, answer] };
+  return { ...transcriptChat, messages: [question, answer()] };
 }

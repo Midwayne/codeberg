@@ -53,6 +53,9 @@ export class AgentState {
 
   readonly learning?: LearningService;
 
+  /** The options this agent was built with; `subagentWorker` picks the subagent model from them. */
+  readonly options: AgentOptions;
+
   readonly ownsLearning: boolean;
 
   learningStarted?: Promise<void>;
@@ -108,5 +111,6 @@ export class AgentState {
             evaluation: agentEvaluationRuntime(opts),
           }));
     this.ownsLearning = opts.learning === undefined;
+    this.options = opts;
   }
 }

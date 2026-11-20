@@ -1,5 +1,6 @@
 import { normalizeSearchHit } from './search-hit.js';
 import type { SearchOptions, SearchResult, ToolSpec } from './types.js';
+import { sleep } from './sleep.js';
 
 /** Default daemon HTTP port (launcher / `codeberg` default; standalone codeberg-d uses 8080). */
 const DEFAULT_DAEMON_PORT = 48080;
@@ -146,8 +147,4 @@ function parseError(status: number, body: DaemonErrorBody | { message?: string }
   }
 
   return new DaemonError('DAEMON_ERROR', String(body.message ?? status), status);
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

@@ -1,6 +1,9 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { ToolSet } from 'ai';
 
+import { isStreamingTool } from '../tools/streaming.js';
+import { recordedStream } from './stream.js';
+
 export interface ToolObservation {
   kind: 'tool';
   id: string;
@@ -20,11 +23,21 @@ export const toolJournal = new AsyncLocalStorage<ToolJournalContext>();
 
 type Execute = (input: unknown, options: { toolCallId: string }) => unknown;
 
+type StreamOptions = { toolCallId: string; abortSignal?: AbortSignal };
+
 /** Resolve a tool only after its outcome is durable; a missing outcome remains uncertain. */
 export function recordToolExecutions(tools: ToolSet): ToolSet {
   return Object.fromEntries(Object.entries(tools).map(([name, definition]) => {
     const execute = definition.execute as Execute | undefined;
     if (!execute) return [name, definition];
+
+    if (isStreamingTool(definition)) return [name, { ...definition, execute: (input: unknown, options: StreamOptions) => {
+      const context = toolJournal.getStore();
+      if (!context) return execute.call(definition, input, options);
+
+      return recordedStream(context, { kind: 'tool', id: options.toolCallId, name }, input,
+        () => execute.call(definition, input, options) as AsyncIterable<unknown>, options.abortSignal);
+    } }];
 
     return [name, { ...definition, execute: async (input: unknown, options: { toolCallId: string }) => {
       const context = toolJournal.getStore();

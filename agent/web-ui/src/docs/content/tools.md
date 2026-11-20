@@ -131,6 +131,39 @@ For example, the Kafka MCP's `scan_messages` and `count_messages` can return a n
 
 Native job lifetime depends on the MCP server. This Kafka MCP stores jobs in memory with retention and scan time limits; restarting its process loses those jobs. Saving a wake-up does not make an external job durable.
 
+## Split work across subagents
+
+When a request needs several independent checks, the agent can hand each one to a subagent with `run_subagents`. Subagents run at the same time on a smaller model, and each returns a short report, so the chat model reads conclusions instead of every log line or metric.
+
+```text
+Check the health, error-rate metrics, and last hour of logs for checkout,
+billing, and search in staging. Summarize anything unusual.
+```
+
+Reports go to the agent, which checks surprising claims and writes the answer.
+
+### Watch subagents work
+
+Each `run_subagents` call shows as a card in the chat, outside the folded tool-call list. Every subagent has a row with its short description, type, and status: **Queued**, **Running**, **Done**, **Stopped at its step limit**, or **Failed**. A running row shows its current step, tool calls, elapsed time, and the tool it is calling now. Select a row to read its report, the brief it was given, its token use, and the path to its full transcript. Follow-ups sent with `message_subagent` show as their own card.
+
+| Behavior | Details |
+| --- | --- |
+| Model | The model chosen under **Models → Subagents**. **Same as summary model** (the default) uses the **Summaries** model, then the chat model. Requests appear in Usage under that model. |
+| Types | `explorer` (default) only reads: search, files, Git, saved context, web pages, and MCP tools their server marks read-only. `worker` can also run scripts and call any loaded MCP tool. |
+| Limits | Up to 8 tasks per call and 8 running at once in each chat. Each subagent gets 16 model steps and 5 minutes per message. A chat turn that can start subagents allows 12 minutes per step and 30 minutes in total; each model request still times out after 2 minutes. |
+| Not available | Scheduling or sleeping, background jobs, the browser or canvas, saving memories, starting more subagents, loading MCP tools, and tools that need approval. Subagents use the MCP tools the agent has already loaded in the chat. |
+| Context | A subagent sees only its brief, not the chat. The agent writes each brief to stand on its own. |
+| Follow-ups | Each report has an `agent_id`. The agent can ask that subagent a follow-up with `message_subagent`; it keeps its own history until Codeberg restarts. Each chat keeps its 16 most recently used subagents, and one chat cannot message another chat's subagents. |
+| Out of budget | A subagent that reaches its step limit writes a final report from what it found, marked `incomplete`. |
+| Failures | A failed subagent is reported with its error; the others still return. **Stop** cancels all of them. |
+| Transcripts | Saved as `subagents/<agent_id>.json` in the project's context directory; the agent can open them with context tools. |
+
+Quick lookups and steps that depend on an earlier result stay with the chat model. Each subagent makes its own model requests, so eight tasks cost roughly eight small investigations. For a long sweep, the agent can start `run_subagents` as a [background tool](#let-a-long-tool-work-while-the-agent-sleeps) and check on it later.
+
+### Turn subagents on or off
+
+Open **Models** and use the **Subagents** switch, then save. The change applies to the next message; a running subagent finishes its work. Subagents start on unless `CODEBERG_SUBAGENTS_USE=false` was set before you first saved model settings; after that, the switch decides.
+
 ## Follow the evidence
 
 Ask for a concrete investigation:

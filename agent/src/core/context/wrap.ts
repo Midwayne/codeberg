@@ -5,6 +5,7 @@ import { toolResultOutputText } from '../message.js';
 import { presentToolOutput, recordTerminal, spillText } from './spill.js';
 import type { ContextStore } from './store.js';
 import { errorMessage } from '../errors.js';
+import { isStreamingTool } from '../tools/streaming.js';
 
 type Executable = {
   execute?: (args: unknown, options: unknown) => Promise<unknown> | unknown;
@@ -23,7 +24,8 @@ export function wrapToolOutputs(tools: ToolSet, store: ContextStore): ToolSet {
   const wrapped: ToolSet = {};
   for (const [name, def] of Object.entries(tools)) {
     const execute = (def as Executable).execute;
-    if (typeof execute !== 'function') {
+    // Streaming tools bound their own output, and awaiting them would end the stream.
+    if (typeof execute !== 'function' || isStreamingTool(def)) {
       wrapped[name] = def;
       continue;
     }
