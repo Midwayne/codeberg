@@ -51,6 +51,8 @@ const (
 	KeyDbmcpUse      = "CODEBERG_DBMCP_USE"             // "true" => built-in multi-db MCP (agent scope)
 	KeyDbmcpSpec     = "CODEBERG_DBMCP_SPEC"            // spec.yml path; default <home>/spec.yml (agent scope)
 	KeyDbmcpBin      = "CODEBERG_DBMCP_BIN"             // dbmcp binary override (agent scope)
+	KeyScriptUse     = "CODEBERG_SCRIPT_USE"            // "true" => run_script tool (agent scope)
+	KeyScriptPython  = "CODEBERG_SCRIPT_PYTHON"         // run_script interpreter override (agent scope)
 )
 
 // DefaultSearxngPort is the preferred listen port for the launcher-managed
@@ -153,6 +155,8 @@ type Config struct {
 	DbmcpUse      bool   // built-in multi-db MCP server enabled
 	DbmcpSpec     string // explicit spec path; "" => <home>/spec.yml then spec.yaml
 	DbmcpBin      string // explicit dbmcp binary; "" => <root>/build/dbmcp
+	ScriptUse     bool   // agent run_script tool enabled
+	ScriptPython  string // run_script interpreter; "" => the agent's default
 
 	Passthrough map[string]string
 	ConfigPath  string // the file we read (whether or not it existed)

@@ -98,19 +98,9 @@ func (c *Config) AgentEnv() map[string]string {
 	e[KeyLearningUse] = strconv.FormatBool(c.LearningUse)
 	putIf(e, KeySearxngURL, c.SearxngURL)
 
-	// MCP: the agent discovers mcp.json itself; we pass home + indexed roots so
-	// it finds ~/.codeberg/mcp.json and per-repo configs even though the child
-	// cwd is the codeberg checkout/dist, not the indexed tree.
 	e[KeyHome] = c.Home
-	e[KeyMcpUse] = strconv.FormatBool(c.McpUse)
-	putIf(e, KeyMcpConfig, c.McpConfig)
 	putIf(e, KeyRoots, c.rootRecords())
-
-	e[KeyDbmcpUse] = strconv.FormatBool(c.DbmcpUse)
-	putIf(e, KeyDbmcpSpec, c.DbmcpSpec)
-	if c.DbmcpUse {
-		putIf(e, KeyDbmcpBin, c.DbmcpBinary())
-	}
+	c.addAgentTools(e)
 
 	for k, v := range c.Passthrough {
 		e[k] = v
@@ -119,6 +109,24 @@ func (c *Config) AgentEnv() map[string]string {
 	c.addVectorMode(e)
 	c.addRuntimePath(e)
 	return e
+}
+
+// addAgentTools passes the optional tool switches the agent reads.
+func (c *Config) addAgentTools(e map[string]string) {
+	// MCP: the agent discovers mcp.json itself; home + indexed roots (set by
+	// the caller) let it find ~/.codeberg/mcp.json and per-repo configs even
+	// though the child cwd is the codeberg checkout/dist, not the indexed tree.
+	e[KeyMcpUse] = strconv.FormatBool(c.McpUse)
+	putIf(e, KeyMcpConfig, c.McpConfig)
+
+	e[KeyDbmcpUse] = strconv.FormatBool(c.DbmcpUse)
+	putIf(e, KeyDbmcpSpec, c.DbmcpSpec)
+	if c.DbmcpUse {
+		putIf(e, KeyDbmcpBin, c.DbmcpBinary())
+	}
+
+	e[KeyScriptUse] = strconv.FormatBool(c.ScriptUse)
+	putIf(e, KeyScriptPython, c.ScriptPython)
 }
 
 // rootRecords encodes the served repos as newline-separated "key\tpath"

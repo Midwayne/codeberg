@@ -74,6 +74,7 @@ func (c *Config) coreSummaryRows() []summaryRow {
 		{"mcp.json", filepath.Join(c.Home, "mcp.json")},
 		{KeyDbmcpUse, strconv.FormatBool(c.DbmcpUse)},
 		{"dbmcp spec", dbmcpSpecSummary(c)},
+		{KeyScriptUse, strconv.FormatBool(c.ScriptUse)},
 		{KeyVector, strconv.FormatBool(c.Vector)},
 		{KeyEmbedding, orUnset(c.Embedding)},
 		{KeyEmbedModel, c.EmbedModel},
@@ -95,6 +96,7 @@ func (c *Config) optionalSummaryRows() []summaryRow {
 		{c.McpConfig != "", summaryRow{KeyMcpConfig, c.McpConfig}},
 		{c.DbmcpSpec != "", summaryRow{KeyDbmcpSpec, c.DbmcpSpec}},
 		{c.DbmcpBin != "", summaryRow{KeyDbmcpBin, c.DbmcpBin}},
+		{c.ScriptPython != "", summaryRow{KeyScriptPython, c.ScriptPython}},
 	}
 
 	var rows []summaryRow

@@ -266,6 +266,16 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # CODEBERG_DBMCP_BIN=      # override the dbmcp binary path
 
 # =============================================================================
+# Python script playground (run_script)
+# =============================================================================
+#
+# Off by default. Lets the agent run Python that chains read-only tool calls.
+# Not a sandbox. Requires Python 3; override the interpreter if needed.
+#
+# CODEBERG_SCRIPT_USE=true
+# CODEBERG_SCRIPT_PYTHON=   # default python3 (python on Windows)
+
+# =============================================================================
 # Launcher runtime (environment only — not read from this file)
 # =============================================================================
 

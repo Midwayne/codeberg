@@ -42,3 +42,6 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # Built-in database MCP (MongoDB, PostgreSQL, Redis). Off by default.
 # Add connections as ~/.codeberg/spec.yml, then set:
 # CODEBERG_DBMCP_USE=true
+
+# Python script playground (run_script). Off by default; not a sandbox.
+# CODEBERG_SCRIPT_USE=true

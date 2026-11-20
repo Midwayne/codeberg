@@ -245,13 +245,19 @@ The automatic arrangement and styling only apply when the agent draws. Your own 
 
 ## Optional script playground
 
-Opt into `run_script` before launch to let the agent write a short Python script that chains tool calls:
+Opt into `run_script` to let the agent write a short Python script that chains tool calls. Save the setting, then restart Codeberg:
+
+```sh
+codeberg config set CODEBERG_SCRIPT_USE=true
+```
+
+Or enable it for one launch:
 
 ```sh
 CODEBERG_SCRIPT_USE=true codeberg
 ```
 
-Requires Python 3 on `PATH` (`python3`, or `python` on Windows). Set `CODEBERG_SCRIPT_PYTHON` to use another interpreter. Restart after changing either variable.
+Requires Python 3 on `PATH` (`python3`, or `python` on Windows). Set `CODEBERG_SCRIPT_PYTHON` the same way to use another interpreter. Restart after changing either setting.
 
 Use it for work where each call depends on the last, or that would otherwise take many similar calls:
 

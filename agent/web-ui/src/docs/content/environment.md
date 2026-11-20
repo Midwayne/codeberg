@@ -68,8 +68,6 @@ For catalog syntax, local server setup, and saved model choices, see [Models and
 | `CODEBERG_SUMMARY_CONTEXT_WINDOW` | Positive token count; inferred separately when a different summarizer is configured | Window of the different `CODEBERG_SUBAGENT_MODEL` used for CLI/history summarization. A summarizer using the chat model shares its window, including a catalog override. A summary model chosen under **Models → Summaries** in the browser uses its catalog `context_window` instead. |
 | `CODEBERG_CONTEXT_BUDGET` | Positive token count; `200000` | Working context ceiling, capped by each model's hard window. History, complete-request, summary, and background learning-input budgets use this ceiling. |
 | `CODEBERG_SEARCH_BUNDLE_USE` | Boolean; `false` | Opt into experimental read-only `search_bundle` composition across up to four repository/query pairs. Requires embeddings; omitted when `CODEBERG_VECTOR=false`. Restart after changing the environment. It remains off pending full-agent evaluation. |
-| `CODEBERG_SCRIPT_USE` | Boolean; `false` | Offer the `run_script` tool, which runs agent-written Python that chains read-only tool calls with no call, output, or default time limit; output can also be saved to a file. Not a sandbox; see [Optional script playground](/docs/tools#optional-script-playground). Restart after changing the environment. |
-| `CODEBERG_SCRIPT_PYTHON` | Command or path; `python3` (`python` on Windows) | Interpreter used by `run_script`. |
 | `CODEBERG_TOOL_BATCH` | Boolean; automatic by provider | Enable the `batch` tool for models that struggle to return several tool calls in one response. Local and unknown providers enable it by default. |
 
 ## Local services and ports
@@ -156,7 +154,7 @@ Browser sessions require a model declared with `inputs: [text, vision]` in `mode
 
 ## MCP servers, databases, and learning
 
-**Config or environment.** These enable optional capabilities; their detailed setup lives in [MCP servers](/docs/mcps), [Knowledge](/docs/knowledge), and [Learning](/docs/learning).
+**Config or environment.** These enable optional capabilities; their detailed setup lives in [MCP servers](/docs/mcps), [Knowledge](/docs/knowledge), [Learning](/docs/learning), and [Optional script playground](/docs/tools#optional-script-playground).
 
 | Variable | Value or default | What it changes |
 | --- | --- | --- |
@@ -166,6 +164,8 @@ Browser sessions require a model declared with `inputs: [text, vision]` in `mode
 | `CODEBERG_DBMCP_SPEC` | Optional spec path | Override the database connection spec. Newly added projects normally use their own `spec.yml` or `spec.yaml`. |
 | `CODEBERG_DBMCP_BIN` | Optional executable path | Override the built-in `dbmcp` binary. |
 | `CODEBERG_LEARNING_USE` | Boolean; `true` | Enable learning, history recall, feedback, and background extraction. Disabling it retains existing stored data. |
+| `CODEBERG_SCRIPT_USE` | Boolean; `false` | Offer the `run_script` tool, which runs agent-written Python that chains read-only tool calls with no call, output, or default time limit; output can also be saved to a file. Not a sandbox; see [Optional script playground](/docs/tools#optional-script-playground). Restart after changing the environment. |
+| `CODEBERG_SCRIPT_PYTHON` | Command or path; `python3` (`python` on Windows) | Interpreter used by `run_script`. |
 
 > **Extension credentials come from the process environment.** For `${env:MCP_TOKEN}` in `mcp.json`, or `${POSTGRES_URI}` in a database spec, export that variable before starting Codeberg. Arbitrary secret names in the saved launcher config are not forwarded automatically.
 

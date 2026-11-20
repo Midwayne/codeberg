@@ -133,6 +133,10 @@ func (c *Config) loadTools(from layers) {
 	c.DbmcpUse = from.enabled(KeyDbmcpUse, nil, false)
 	c.DbmcpSpec = from.value(KeyDbmcpSpec, "")
 	c.DbmcpBin = from.value(KeyDbmcpBin, "")
+
+	// Python script playground (run_script). Off until the user opts in.
+	c.ScriptUse = from.enabled(KeyScriptUse, nil, false)
+	c.ScriptPython = from.value(KeyScriptPython, "")
 }
 
 // loadEmbedding resolves the embedding model and the vector index built from

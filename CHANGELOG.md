@@ -16,6 +16,10 @@ are in the git history.
 - Adding a directory that is already a project opens that project instead.
 - Files in a repository inside a project are indexed once, under that repository.
 
+### Fixed
+
+- `CODEBERG_SCRIPT_USE` and `CODEBERG_SCRIPT_PYTHON` saved in the Codeberg config file now turn on the Python script tool.
+
 ## [1.0.0] - 2026-11-19
 
 ### Added
