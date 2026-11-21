@@ -15,6 +15,7 @@ import { MessageList } from './message-list';
 import { MessageRail } from './message-rail';
 import { PromptInput } from './prompt-input';
 import { ChatEmptyState } from './chat-empty';
+import { ContextMeter } from './context-meter';
 
 import type { CatalogModel } from '../../lib/models';
 
@@ -145,6 +146,7 @@ function ChatComposer({ state }: ChatComposerProps) {
           onSend={state.queue.send}
           onSteer={state.queue.steer}
           onStop={state.queue.stop}
+          accessory={<ContextMeter sessionId={state.sessionId} busy={state.busy} />}
         />
       </div>
     </section>

@@ -51,6 +51,7 @@ async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
     context: state.context,
     summarize: (transcript, limit, signal) => summarize(state, transcript, limit, signal),
     checkpointPolicy: JSON.stringify([state.summaryProfile, HISTORY_SUMMARY_SYSTEM]),
+    describeSystem: () => ({ stable: state.system, context: state.systemContext }),
   });
   const { perCallTimeout, timeout } = turnTimeouts(toolNames);
 

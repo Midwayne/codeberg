@@ -7,8 +7,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ContextStore } from '../context/store.js';
 import { spillPreview } from '../context/spill.js';
 import { clearOldToolResults } from './clear.js';
-import { withBudgetRetry } from './retry.js';
-import { RequestUsage } from './usage.js';
 
 const roots: string[] = [];
 
@@ -84,6 +82,30 @@ describe('clearOldToolResults', () => {
     expect(readdirSync(join(context.root, 'tools')).filter((name) => name.endsWith('.txt') && name !== 'INDEX.txt')).toHaveLength(7);
   });
 
+  it('writes each cleared result to disk once across steps', async () => {
+    const context = store();
+    const write = vi.spyOn(context, 'writeToolOutput');
+    const results = Array.from({ length: 13 }, (_, index) => `${big(index)} once`);
+
+    await clearOldToolResults(request(results), context);
+    await clearOldToolResults(request(results), context);
+
+    expect(write).toHaveBeenCalledTimes(8);
+  });
+
+  it('writes a cleared result again when its file was removed', async () => {
+    const context = store();
+    const results = Array.from({ length: 13 }, (_, index) => `${big(index)} removed`);
+
+    const first = resultTexts(await clearOldToolResults(request(results), context));
+    const file = /saved in (.+?)\. /.exec(first[0]!)![1]!;
+    rmSync(file);
+
+    await clearOldToolResults(request(results), context);
+
+    expect(readFileSync(file, 'utf8')).toBe(results[0]);
+  });
+
   it('leaves the cleared prefix byte-identical as the conversation grows', async () => {
     const context = store();
     const results = Array.from({ length: 14 }, (_, index) => big(index));
@@ -92,34 +114,5 @@ describe('clearOldToolResults', () => {
     const second = await clearOldToolResults(request(results), context);
 
     expect(second.prompt.slice(0, first.prompt.length - 2)).toEqual(first.prompt.slice(0, first.prompt.length - 2));
-  });
-});
-
-describe('withBudgetRetry', () => {
-  it('clears old tool results once a request passes half the compaction ceiling', async () => {
-    const context = store();
-    const summarize = vi.fn(async () => 'summary');
-    const results = Array.from({ length: 13 }, (_, index) => big(index));
-    const sent: LanguageModelV4CallOptions[] = [];
-
-    const profile = { provider: 'test', modelId: 'test', contextWindow: 12_000, cache: 'none' as const };
-    await withBudgetRetry(request(results), { profile, context, summarize }, new RequestUsage(), async (call) => {
-      sent.push(call);
-    });
-
-    expect(resultTexts(sent[0]!)[0]).toMatch(/^\[cleared grep result/);
-    expect(summarize).not.toHaveBeenCalled();
-  });
-
-  it('sends short requests unchanged', async () => {
-    const results = Array.from({ length: 13 }, () => 'short');
-    const sent: LanguageModelV4CallOptions[] = [];
-
-    const profile = { provider: 'test', modelId: 'test', contextWindow: 200_000, cache: 'none' as const };
-    await withBudgetRetry(request(results), { profile, context: store(), summarize: vi.fn() }, new RequestUsage(), async (call) => {
-      sent.push(call);
-    });
-
-    expect(resultTexts(sent[0]!)).toEqual(results);
   });
 });

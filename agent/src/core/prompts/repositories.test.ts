@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import { repositoryContext } from './repositories.js';
 
+function stalled() {
+  return {
+    callTool: (_name: string, _args: Record<string, unknown>, signal?: AbortSignal) => new Promise<unknown>((_resolve, reject) => {
+      signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+    }),
+  };
+}
+
 function daemon(result: unknown) {
   return {
     callTool: async (name: string) => {
@@ -42,5 +50,12 @@ describe('repositoryContext', () => {
     expect(await repositoryContext(daemon(new Error('down')), ['repos'])).toBeUndefined();
     expect(await repositoryContext(daemon([]), ['repos'])).toBeUndefined();
     expect(await repositoryContext(daemon({ nope: true }), ['repos'])).toBeUndefined();
+  });
+
+  it('gives up on a stalled daemon so the first turn can start', async () => {
+    const started = Date.now();
+
+    expect(await repositoryContext(stalled(), ['repos'], 50)).toBeUndefined();
+    expect(Date.now() - started).toBeLessThan(2_000);
   });
 });

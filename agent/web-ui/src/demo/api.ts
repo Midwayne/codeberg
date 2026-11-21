@@ -1,3 +1,4 @@
+import { contextDemoResponse } from './context';
 import { canvas, example, extensions, learning, models, projects, review } from './fixtures';
 import { resourceReport, usageReport } from './reports';
 import { scheduleDemoResponse } from './schedules';
@@ -22,6 +23,9 @@ export function installDemoApi(delay: number): void {
 }
 
 function demoResponse(url: URL, init?: RequestInit): Response {
+  const context = contextDemoResponse(url, init);
+  if (context) return context;
+
   const transcript = transcriptResponse(url, init);
   if (transcript) return transcript;
 

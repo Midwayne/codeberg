@@ -58,6 +58,18 @@ Stopping while a saved response reconnects also returns the chat to its ready st
 
 You can keep the same chat open in multiple tabs. Simply viewing it does not block follow-ups. Codeberg uses the server's saved answers when continuing a chat. If another tab submits a new question or regenerates an answer, reload older tabs before continuing there.
 
+## See what fills the context
+
+Once the agent sends its first request in a chat, a ring beside **Send** shows how much of the chat model's working window the last request used. Select it to see:
+
+| Part | What it shows |
+| --- | --- |
+| Breakdown | Estimated tokens for instructions, project context (repositories, MCP servers, skills, knowledge), tool schemas, conversation, tool results, cleared results, summary, and attachments. |
+| Marks on the bar | Where older tool output starts to be cleared, and where older messages are summarized. |
+| Counters | Model requests, summaries, clearing passes, results cleared now, the largest request, and the share of input read from the provider's prompt cache. |
+
+The numbers update every few seconds while the agent works. Breakdown values are estimates; cache figures come from the provider and appear only when it reports them. Subagents and summary requests are not included. Codeberg saves these numbers with the chat and deletes them with it. See [How chat context stays bounded](/docs/models#how-chat-context-stays-bounded) for what clearing and summaries do.
+
 ## Scheduled work
 
 A **Scheduled** button appears in the header only when the open chat has schedules or background tool entries, including history. Select it to open a dialog where you can inspect and cancel that chat's jobs. Background tools appear in the same list with a Cancel tool action. A green dot and count on the button, and the small clock beside a sidebar chat title, indicate pending schedules or active background work. **All** includes completed, cancelled and failed history.

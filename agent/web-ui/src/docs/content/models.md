@@ -236,7 +236,7 @@ Decision calls add provider charges and a chat tool round trip. They may reduce 
 Codeberg archives large tool results locally, clears stale tool output, and summarizes older exchanges only when history still approaches the model's budget. Recent exchanges and the current request stay available; the agent can recover omitted details from saved context.
 
 - Tool results over **12,000 characters** become previews with paths to full output, including results in a reopened chat. Change this per model with `tool_output_limit`.
-- Once a request passes half its working ceiling, older tool results over 1,000 characters are replaced with a short note naming the saved file. The newest four results always stay, and older ones are cleared eight at a time so cached prompts stay reusable. The agent reads a cleared result again when it needs it.
+- Once a chat's full history passes half the working ceiling, older tool results over 1,000 characters are replaced with a short note naming the saved file. The newest four results always stay, and older ones are cleared eight at a time so cached prompts stay reusable. The agent reads a cleared result again when it needs it.
 - Summaries run on the chat model unless you choose another under **Models → Summaries**. The chat model still writes every answer; a summary is at most **2,000 tokens**, so a smaller model usually suffices.
 - A summary model's requests appear under **Chat** in Usage, attributed to that model.
 - Changing the summary model writes new summaries the next time history is condensed; earlier ones are not reused.
@@ -246,6 +246,8 @@ Codeberg archives large tool results locally, clears stale tool output, and summ
 - Anthropic thinking budgets also consume completion space; high effort can leave less room for history.
 
 A context-limit error can trigger up to three smaller retries. Completed local tool calls are retained. Recovery after streamed output begins is limited; authentication, rate-limit, and cancellation errors do not trigger context recovery.
+
+To watch this in a chat, select the context ring beside **Send**; see [See what fills the context](/docs/chats#see-what-fills-the-context).
 
 If the current request still cannot fit, narrow attachments, reduce integrations, lower effort, or use a larger window. Estimates for text and media are approximate. See [Environment variables](/docs/environment#context-and-tool-calling) for window overrides and [Data and maintenance](/docs/storage) for saved context.
 

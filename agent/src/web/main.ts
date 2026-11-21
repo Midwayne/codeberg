@@ -17,6 +17,7 @@ import { setupNotice, startupTitle, webEntry } from './startup.js';
 import { setupStatus } from './setup/status.js';
 import { ToolSettingsStore } from './tools/settings.js';
 import { requestProjectService } from './projects/request.js';
+import { trackChatContext } from './sessions/context-stats.js';
 
 // Serves the interactive chat UI over HTTP. The route streams the shared
 // `toolLoopAgent()`'s UI-message output
@@ -55,6 +56,9 @@ async function main(): Promise<void> {
     },
     availableProvider: (provider) => Boolean(providers.get(provider)),
   });
+
+  // Record each chat's context use for the composer's context panel.
+  trackChatContext();
 
   const catalog = await loadProjectCatalog(entry.daemonUrl);
   const extensions = new ExtensionStore(codebergHome());

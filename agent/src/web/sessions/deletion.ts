@@ -6,18 +6,23 @@ import { load } from './reading.js';
 import type { WebSessionStoreState } from './state.js';
 import { serial } from './writing.js';
 import { ifMissing } from '../../core/fs.js';
+import { contextStatsPath } from './context-stats.js';
 
 export async function remove(state: WebSessionStoreState, id: string): Promise<void> {
   await serial(state, id, async () => {
     await closeBrowserSessions({ owner: join(state.dir, id) });
-    try {
-      await unlink(join(state.dir, `${id}.json`));
-      await rm(join(state.dir, '.runs', id), { recursive: true, force: true });
-      await rm(join(state.dir, '.jobs', id), { recursive: true, force: true });
-    } catch {
-      // already gone / unreadable — nothing to do
-    }
+
+    // Each file goes on its own, so a chat whose record is already gone still loses its runs and stats.
+    await unlink(join(state.dir, `${id}.json`)).catch(() => undefined);
+    await removeChatFiles(state.dir, id);
   });
+}
+
+/** Run journals, background jobs, and context stats stored beside a chat. */
+async function removeChatFiles(dir: string, id: string): Promise<void> {
+  const paths = [join(dir, '.runs', id), join(dir, '.jobs', id), contextStatsPath(dir, id)];
+
+  await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true }).catch(() => undefined)));
 }
 
 export async function removeOlder(
@@ -38,8 +43,7 @@ export async function removeOlder(
     await closeBrowserSessions({ owner: join(state.dir, id) });
 
     await unlink(path);
-    await rm(join(state.dir, '.runs', id), { recursive: true, force: true });
-    await rm(join(state.dir, '.jobs', id), { recursive: true, force: true });
+    await removeChatFiles(state.dir, id);
 
     return bytes;
   });

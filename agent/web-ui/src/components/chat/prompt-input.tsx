@@ -5,6 +5,7 @@ import { PromptSteer } from './prompt-actions';
 import { PromptFilePreviews } from './prompt-file-previews';
 
 import { CommandMenu } from './command-menu';
+import type { ReactNode } from 'react';
 
 export { clipboardImages } from '../../lib/prompt-files';
 
@@ -17,15 +18,18 @@ export { clipboardImages } from '../../lib/prompt-files';
  * hover to preview what a command does. Accepting inserts the trigger so the
  * user can finish the prompt — the command itself is enhanced server-side.
  */
-type PromptInputProps = PromptInputOptions;
+type PromptInputProps = PromptInputOptions & {
+  /** Extra control beside the send actions, such as the context meter. */
+  accessory?: ReactNode;
+};
 
-export function PromptInput(props: PromptInputProps) {
+export function PromptInput({ accessory, ...props }: PromptInputProps) {
   const state = usePromptInput(props);
 
-  return <PromptInputView {...state} />;
+  return <PromptInputView {...state} accessory={accessory} />;
 }
 
-export type PromptInputViewProps = ReturnType<typeof usePromptInput>;
+export type PromptInputViewProps = ReturnType<typeof usePromptInput> & { accessory?: ReactNode };
 
 export function PromptInputView(state: PromptInputViewProps) {
   return (
@@ -55,6 +59,7 @@ export function PromptInputView(state: PromptInputViewProps) {
             <PromptAttachments state={state} />
           </div>
           <div className="flex items-center gap-2">
+            {state.accessory}
             <PromptSteer state={state} />
             <PromptAction state={state} />
           </div>

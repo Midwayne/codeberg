@@ -1,0 +1,22 @@
+/* Categorical slots for the context breakdown, validated for each theme's popover surface. */
+.context-viz {
+  --context-1: #2a78d6;
+  --context-2: #eb6834;
+  --context-3: #1baf7a;
+  --context-4: #eda100;
+  --context-5: #e87ba4;
+  --context-6: #008300;
+  --context-7: #6250d6;
+  --context-8: #e34948;
+}
+
+.dark .context-viz {
+  --context-1: #3987e5;
+  --context-2: #d95926;
+  --context-3: #199e70;
+  --context-4: #c98500;
+  --context-5: #d55181;
+  --context-6: #0ca30c;
+  --context-7: #9085e9;
+  --context-8: #e66767;
+}

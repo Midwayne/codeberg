@@ -6,8 +6,10 @@ import type { LearningService } from '../../core/learning/service.js';
 import { writeModuleLog } from '../../core/module-log.js';
 import { readJson, sendJson, sendText } from '../http.js';
 import { WebSessionStore, isValidSessionId, normalizeSessionTitle } from './store.js';
+import { readContextStats } from './context-stats.js';
 
 const SESSIONS_PATH = '/api/sessions';
+const CONTEXT_SUFFIX = '/context';
 
 /** Saved-chat collection and item routes; the client owns the conversation and id. */
 export async function routeSessions(
@@ -21,14 +23,11 @@ export async function routeSessions(
   const rest = decodeURIComponent(path.slice(SESSIONS_PATH.length).replace(/^\//, ''));
 
   // Collection: list saved chats.
-  if (rest === '') {
-    if (req.method !== 'GET') {
-      return sendText(res, 405, 'method not allowed');
-    }
+  if (rest === '') return listSessions(req, res, store);
 
-    const query = new URL(req.url ?? '/', 'http://localhost').searchParams.get('q') ?? '';
-
-    return sendJson(res, 200, await store.list(query));
+  // Context usage for one chat, recorded as its turns run.
+  if (rest.endsWith(CONTEXT_SUFFIX)) {
+    return routeContextStats(req, res, store, rest.slice(0, -CONTEXT_SUFFIX.length));
   }
 
   // Item: one chat by id.
@@ -152,4 +151,20 @@ function readParentId(value: unknown, id: string): string | undefined {
   }
 
   return value;
+}
+
+async function routeContextStats(req: IncomingMessage, res: ServerResponse, store: WebSessionStore, id: string): Promise<void> {
+  if (req.method !== 'GET') return sendText(res, 405, 'method not allowed');
+
+  if (!isValidSessionId(id)) return sendText(res, 400, 'invalid session id');
+
+  return sendJson(res, 200, await readContextStats(store.dir, id));
+}
+
+async function listSessions(req: IncomingMessage, res: ServerResponse, store: WebSessionStore): Promise<void> {
+  if (req.method !== 'GET') return sendText(res, 405, 'method not allowed');
+
+  const query = new URL(req.url ?? '/', 'http://localhost').searchParams.get('q') ?? '';
+
+  return sendJson(res, 200, await store.list(query));
 }

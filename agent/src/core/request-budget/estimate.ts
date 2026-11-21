@@ -11,6 +11,11 @@ export function estimateRequest(request: LanguageModelV4CallOptions): number {
     request.prompt.reduce((sum, message) => sum + estimateMessage(message), 0);
 }
 
+/** Tokens for tool schemas, response format, and tool choice. */
+export function estimateSchemas(request: LanguageModelV4CallOptions): number {
+  return estimateTokens(requestSchemas(request));
+}
+
 export function schemaKey(request: LanguageModelV4CallOptions): string {
   return hash(requestSchemas(request));
 }
@@ -25,9 +30,10 @@ export function estimateMessage(message: LanguageModelV4Message): number {
   return message.content.reduce((sum, part) => sum + partTokens(part), 8);
 }
 
-type Part = Exclude<LanguageModelV4Message, { role: 'system' }>['content'][number];
+export type MessagePart = Exclude<LanguageModelV4Message, { role: 'system' }>['content'][number];
 
-function partTokens(part: Part): number {
+/** Tokens for one non-system message part, without message framing. */
+export function partTokens(part: MessagePart): number {
   switch (part.type) {
     case 'text':
     case 'reasoning':

@@ -8,6 +8,7 @@ are in the git history.
 
 ### Added
 
+- A context ring beside **Send** opens a breakdown of what fills the chat's context, with counts of summaries and cleared tool results.
 - Set `tier: light` on a model in `models.yml` to give a smaller model shorter instructions, fewer tools, and a reminder of the evidence rules.
 - Set `tool_batch`, `tool_output_limit`, and `instructions` on a model in `models.yml`.
 

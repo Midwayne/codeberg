@@ -3,6 +3,9 @@ import { isRecord } from '../record.js';
 
 const MAX_REPOSITORIES_LISTED = 50;
 
+/** A stalled daemon must not hold up the first turn; the agent can still call repos. */
+const REPOSITORIES_TIMEOUT_MS = 3_000;
+
 interface RepositoryEntry {
   key: string;
   root: string;
@@ -17,10 +20,11 @@ interface RepositoryEntry {
 export async function repositoryContext(
   daemon: Pick<DaemonClient, 'callTool'>,
   toolNames: readonly string[],
+  timeoutMs = REPOSITORIES_TIMEOUT_MS,
 ): Promise<string | undefined> {
   if (!toolNames.includes('repos')) return undefined;
 
-  const repos = await listRepositories(daemon);
+  const repos = await listRepositories(daemon, timeoutMs);
   if (repos.length === 0) return undefined;
 
   const listed = repos.slice(0, MAX_REPOSITORIES_LISTED);
@@ -37,9 +41,9 @@ export async function repositoryContext(
   return lines.join('\n');
 }
 
-async function listRepositories(daemon: Pick<DaemonClient, 'callTool'>): Promise<RepositoryEntry[]> {
+async function listRepositories(daemon: Pick<DaemonClient, 'callTool'>, timeoutMs: number): Promise<RepositoryEntry[]> {
   try {
-    const result = await daemon.callTool('repos', {});
+    const result = await daemon.callTool('repos', {}, AbortSignal.timeout(timeoutMs));
     if (!Array.isArray(result)) return [];
 
     return result.filter(isRepository);

@@ -2,7 +2,6 @@ import type { LanguageModelV4CallOptions } from '@ai-sdk/provider';
 
 import { budgetWindow, type ModelProfile } from '../../providers/profiles.js';
 import { isContextOverflow } from '../context-errors.js';
-import { CLEAR_TRIGGER, clearOldToolResults } from './clear.js';
 import { compactRequest, type RequestContext } from './compact.js';
 import { completionTokens, type ModelIdentity } from './completion.js';
 import { estimateRequest } from './estimate.js';
@@ -14,22 +13,24 @@ export interface BudgetOptions extends RequestContext {
   model?: ModelIdentity;
 }
 
+/** Output reserve and the prompt size at which older history is summarized. */
+export function requestLimits(input: LanguageModelV4CallOptions, options: Pick<BudgetOptions, 'profile' | 'model'>) {
+  const window = budgetWindow(options.profile);
+  const reserve = Math.max(1, Math.min(input.maxOutputTokens ?? 8192, Math.floor(window * 0.15)));
+  const completion = completionTokens(input, options.model ?? options.profile, reserve);
+  const ceiling = Math.max(1, Math.floor(window * 0.85) - completion);
+
+  return { window, reserve, ceiling };
+}
+
 export async function withBudgetRetry<T>(
   input: LanguageModelV4CallOptions,
   options: BudgetOptions,
   usage: RequestUsage,
   call: (request: LanguageModelV4CallOptions) => Promise<T>,
 ): Promise<T> {
-  const window = budgetWindow(options.profile);
-  const reserve = Math.max(1, Math.min(input.maxOutputTokens ?? 8192, Math.floor(window * 0.15)));
-  const completion = completionTokens(input, options.model ?? options.profile, reserve);
-  const ceiling = Math.max(1, Math.floor(window * 0.85) - completion);
+  const { reserve, ceiling } = requestLimits(input, options);
   let request = { ...input, maxOutputTokens: reserve };
-
-  // Stale tool output goes first; summarizing older turns is the lossy fallback.
-  if (usage.estimate(request) > ceiling * CLEAR_TRIGGER) {
-    request = await clearOldToolResults(request, options.context) as typeof request;
-  }
 
   let target = ceiling;
   let rejectedSize = 0;

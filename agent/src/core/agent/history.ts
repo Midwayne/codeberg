@@ -4,6 +4,7 @@ import { externalizeToolResults } from '../context/externalize.js';
 import { HISTORY_SUMMARY_SYSTEM } from '../prompts/history-summary.js';
 import type { AgentState } from './state.js';
 import { summarizeWithinWindow } from './summary.js';
+import { reportCompaction } from '../request-budget/report.js';
 
 export async function compactHistory(
   state: AgentState,
@@ -31,6 +32,10 @@ export function historyCompactor(
   return (messages, abortSignal) => compactHistory(state, messages, abortSignal);
 }
 
+/** Both compaction paths summarize here, so each call is one compaction of this chat. */
 export async function summarize(state: AgentState, transcript: string, outputLimit?: number, abortSignal?: AbortSignal): Promise<string> {
-  return summarizeWithinWindow(state, transcript, outputLimit, abortSignal);
+  const summary = await summarizeWithinWindow(state, transcript, outputLimit, abortSignal);
+  reportCompaction();
+
+  return summary;
 }
