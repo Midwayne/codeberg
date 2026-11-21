@@ -17,9 +17,11 @@ import { buildTools, prepareSystem } from './tools.js';
 import { modelTimeout } from './model-timeout.js';
 import { backgroundTools } from '../background/tools.js';
 import { agentIsSleeping } from '../background/context.js';
-import { presentToolOutput } from '../context/spill.js';
+import { presentToolOutput, SPILL_CHARS } from '../context/spill.js';
 import { subagentTools } from '../subagents/tool.js';
 import { subagentsOn, subagentWorker } from './worker.js';
+import { toolsForTier } from './light-tools.js';
+import { withTierReminder } from '../prompts/reminder.js';
 
 export async function toolLoopAgent(state: AgentState): Promise<ToolLoopAgent> {
   return ensureLoop(state);
@@ -40,7 +42,7 @@ export async function ensureLoop(state: AgentState): Promise<ToolLoopAgent> {
 
 async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
   // Sort tools to keep the cached system prefix stable across processes.
-  const base = await buildTools(state);
+  const base = toolsForTier(await buildTools(state), state.profile);
   const tools = composedTools(state, base);
   const toolNames = Object.keys(tools);
   const providerOptions = await prepareSystem(state, tools);
@@ -67,7 +69,9 @@ async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
     // The model boundary archives/compacts complete tool exchanges as needed.
     // Keep the transcript cacheable and activate only requested MCP schemas.
     prepareStep: async ({ messages }) => {
-      const next = withConversationCache(messages, state.profile);
+      // Light models get the key rules again at the end of the latest user message.
+      const reminded = withTierReminder(messages, state.profile);
+      const next = withConversationCache(reminded, state.profile);
 
       return prepareStepPatch(messages, next, state.mcpSource?.activeTools(toolNames, next));
     },
@@ -90,11 +94,16 @@ function composedTools(state: AgentState, base: ToolSet): ToolSet {
   const scripted = { ...base, ...(scripts ? scriptTool(base, scripts, state.context, mcpNames) : {}) };
   const local = { ...scripted, ...subagents(state, scripted) };
 
-  const raw = recordToolExecutions({ ...local, ...backgroundTools(local,
-    (name, args, output) => presentToolOutput(state.context, name, args, output)) });
+  const limit = outputLimit(state);
+  const present = (name: string, args: unknown, output: unknown) =>
+    presentToolOutput(state.context, name, args, output, limit);
+  const recorded = recordToolExecutions({ ...local, ...backgroundTools(local, present) });
+
+  // Subagent and background tools are added here, so the tier filter runs again.
+  const raw = toolsForTier(recorded, state.profile);
 
   return deterministicTools({
-    ...wrapToolOutputs(raw, state.context),
+    ...wrapToolOutputs(raw, state.context, limit),
     ...(state.profile.toolBatch ? batchTool(raw, state.context) : {}),
   });
 }
@@ -103,5 +112,10 @@ function composedTools(state: AgentState, base: ToolSet): ToolSet {
 function subagents(state: AgentState, tools: ToolSet): ToolSet {
   if (!subagentsOn(state)) return {};
 
-  return subagentTools(subagentWorker(state), wrapToolOutputs(tools, state.context), state.context);
+  return subagentTools(subagentWorker(state), wrapToolOutputs(tools, state.context, outputLimit(state)), state.context);
+}
+
+/** The chat model's spill threshold from models.yml, or the default. */
+function outputLimit(state: AgentState): number {
+  return state.profile.toolOutputLimit ?? SPILL_CHARS;
 }

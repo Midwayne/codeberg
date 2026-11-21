@@ -38,6 +38,8 @@ export interface AgentSystemPromptOptions {
   compact?: boolean;
   /** Encourage bounded judgments only when the decide tool is registered. */
   decisions?: boolean;
+  /** Custom text from models.yml that replaces the built-in tool manual and strategy. */
+  instructions?: string;
 }
 
 const MAX_MCP_TOOLS_LISTED = 40;
@@ -102,6 +104,8 @@ export function agentSystemPrompt(web: AgentSystemPromptOptions): string {
 }
 
 function promptBase(web: AgentSystemPromptOptions): string {
+  if (web.instructions) return web.instructions.trim();
+
   const learning = web.learning ?? true;
   const knowledge = typeof learning === 'boolean' ? learning : learning.knowledge;
   const history = typeof learning === 'boolean' ? learning : learning.history;

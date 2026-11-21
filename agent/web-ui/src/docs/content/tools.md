@@ -180,7 +180,7 @@ With `codeberg --no-vector` (or `CODEBERG_VECTOR=false`), `search_code`, `hybrid
 
 ## Large tool results
 
-Codeberg saves large results locally and gives the agent a preview and path.
+Codeberg saves large results locally and gives the agent a preview and path. Results over 12,000 characters are saved this way; set `tool_output_limit` on a model in `models.yml` to change it. A `light` model sees fewer tools; see [Tune a model for smaller budgets](/docs/models#tune-a-model-for-smaller-budgets).
 
 | Tool | Limit per call |
 | --- | --- |

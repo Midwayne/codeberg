@@ -1,5 +1,9 @@
 import { parseModelSpec } from './spec.js';
 import { envToggle } from '../core/env-flag.js';
+import { tierFromEnv, type ModelTier } from './tier.js';
+
+export type { ModelTier } from './tier.js';
+export type { ModelOverrides } from './overrides.js';
 
 /** Per-model "memory limits" plus the prompt-caching strategy the context
  *  manager keys off. Resolved from the "provider:model" spec so every layer
@@ -25,6 +29,12 @@ export interface ModelProfile {
   /** Register the `batch` tool, for models that may return only one tool
    *  call per response. Unset means off. */
   toolBatch?: boolean;
+  /** How much prompt scaffolding the model needs. Unset means `standard`. */
+  tier?: ModelTier;
+  /** Spill threshold for tool results, in characters. Unset uses the default. */
+  toolOutputLimit?: number;
+  /** Replaces the built-in tool manual and strategy in the system prompt. */
+  instructions?: string;
 }
 
 const ONE_MILLION = 1_000_000;
@@ -97,6 +107,7 @@ export function profileFor(spec: string, env: NodeJS.ProcessEnv = process.env): 
     workingWindow,
     cache: cacheFor(provider),
     toolBatch,
+    ...tierFromEnv(env.CODEBERG_MODEL_TIER),
   };
 }
 
@@ -117,6 +128,14 @@ function nativeParallelTools(provider: string): boolean {
 /** Tokens the budgets below are fractions of: the window, capped by `workingWindow`. */
 export function budgetWindow(profile: ModelProfile): number {
   return Math.min(profile.contextWindow, profile.workingWindow ?? profile.contextWindow);
+}
+
+/** Working windows at or below this always get the compact prompt. */
+const COMPACT_PROMPT_WINDOW = 16_384;
+
+/** Light models and small working windows get the compact system prompt. */
+export function usesCompactPrompt(profile: ModelProfile): boolean {
+  return profile.tier === 'light' || budgetWindow(profile) <= COMPACT_PROMPT_WINDOW;
 }
 
 /** A permissive profile for callers that don't resolve a spec (tests, the

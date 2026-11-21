@@ -13,7 +13,7 @@ import type { ModelInput } from './model-types.js';
 import type { DecisionModel, DecisionUsageSink } from './decisions/types.js';
 import { summaryGenerator, summaryLanguageModel, type SummaryConfig } from './summary-model.js';
 import type { SubagentConfig } from './subagents/config.js';
-import { profileFor } from '../providers/profiles.js';
+import { profileFor, type ModelOverrides } from '../providers/profiles.js';
 
 interface AgentConfig {
   onDecisionUsage?: DecisionUsageSink;
@@ -30,6 +30,8 @@ interface AgentConfig {
   daemonUrl: string;
   reasoning?: ReasoningEffort;
   contextWindow?: number;
+  /** Catalog settings for the chat model; unset fields follow the environment. */
+  overrides?: ModelOverrides;
   learning?: LearningService | false;
 }
 
@@ -86,6 +88,7 @@ export function createAgent(config: AgentConfig): Agent {
       env,
       config.contextWindow,
       config.summary?.contextWindow,
+      config.overrides,
     ),
   });
 }

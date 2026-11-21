@@ -2,7 +2,7 @@ import type { ToolResultOutput } from '@ai-sdk/provider-utils';
 import type { ToolSet } from 'ai';
 
 import { toolResultOutputText } from '../message.js';
-import { presentToolOutput, recordTerminal, spillText } from './spill.js';
+import { presentToolOutput, recordTerminal, SPILL_CHARS, spillText } from './spill.js';
 import type { ContextStore } from './store.js';
 import { errorMessage } from '../errors.js';
 import { isStreamingTool } from '../tools/streaming.js';
@@ -17,10 +17,11 @@ type Executable = {
 };
 
 /**
- * Wrap every tool execute so long results are spilled to the context store
- * before they enter the model transcript. Tools without `execute` pass through.
+ * Wrap every tool execute so results longer than `limit` characters are
+ * spilled to the context store before they enter the model transcript.
+ * Tools without `execute` pass through.
  */
-export function wrapToolOutputs(tools: ToolSet, store: ContextStore): ToolSet {
+export function wrapToolOutputs(tools: ToolSet, store: ContextStore, limit = SPILL_CHARS): ToolSet {
   const wrapped: ToolSet = {};
   for (const [name, def] of Object.entries(tools)) {
     const execute = (def as Executable).execute;
@@ -42,7 +43,7 @@ export function wrapToolOutputs(tools: ToolSet, store: ContextStore): ToolSet {
           const text = toolResultOutputText(output);
           try {
             await recordTerminal(store, name, options.input, text);
-            const preview = await spillText(store, name, text);
+            const preview = await spillText(store, name, text, limit);
 
             return preview ? { type: 'text' as const, value: preview } : output;
           } catch (err) {
@@ -61,7 +62,7 @@ export function wrapToolOutputs(tools: ToolSet, store: ContextStore): ToolSet {
       execute: async (args: unknown, options: unknown) => {
         const result = await execute.call(def, args, options);
 
-        return presentToolOutput(store, name, args, result);
+        return presentToolOutput(store, name, args, result, limit);
       },
     } as ToolSet[string];
   }

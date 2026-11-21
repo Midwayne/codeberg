@@ -1,6 +1,7 @@
 import type { ReasoningEffort } from './types.js';
 import type { ModelPricing } from './usage.js';
 import type { DecisionModel } from './decisions/types.js';
+import type { ModelOverrides } from '../providers/overrides.js';
 
 export const MODEL_INPUTS = ['text', 'vision', 'audio', 'video', 'pdf'] as const;
 
@@ -22,7 +23,11 @@ export interface CatalogModel {
   contextWindow: number;
   efforts: ReasoningEffort[];
   inputs: ModelInput[];
+  /** Per-model settings from models.yml; `instructionsFile` is an absolute path. */
+  overrides?: CatalogOverrides;
 }
+
+export type CatalogOverrides = Omit<ModelOverrides, 'instructions'> & { instructionsFile?: string };
 
 /** Whether the agent may start subagents, and the model they run on. */
 export interface SubagentSettings {

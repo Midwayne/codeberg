@@ -71,6 +71,45 @@ describe('ModelSettingsStore', () => {
     );
     await expect(store.current()).rejects.toThrow(/inputs/);
   });
+  it('reads optional per-model settings and resolves instructions beside models.yml', async () => {
+    const home = await fixture();
+    await writeFile(
+      join(home, 'models.yml'),
+      'providers:\n  openai:\n    models:\n      small:\n        context_window: 32000\n        efforts: [none]\n        tier: light\n        tool_batch: true\n        tool_output_limit: 4000\n        instructions: prompts/small.md\n      plain:\n        context_window: 32000\n        efforts: [none]\n',
+    );
+    const store = new ModelSettingsStore({
+      home,
+      defaultChat: { key: 'openai:small', effort: 'none' },
+      defaultLearning: { key: 'openai:plain', effort: 'none' },
+    });
+
+    expect((await store.current()).models.map((model) => model.overrides)).toEqual([
+      { tier: 'light', toolBatch: true, toolOutputLimit: 4000, instructionsFile: join(home, 'prompts/small.md') },
+      undefined,
+    ]);
+  });
+
+  it.each([
+    ['tier: tiny', /tier/],
+    ['tool_batch: maybe', /tool_batch/],
+    ['tool_output_limit: 10', /tool_output_limit/],
+    ['tool_output_limit: 3999', /tool_output_limit/],
+    ['instructions: ""', /instructions/],
+  ])('rejects %s', async (field, error) => {
+    const home = await fixture();
+    await writeFile(
+      join(home, 'models.yml'),
+      `providers:\n  openai:\n    models:\n      bad:\n        context_window: 32000\n        efforts: [none]\n        ${field}\n`,
+    );
+    const store = new ModelSettingsStore({
+      home,
+      defaultChat: { key: 'openai:bad', effort: 'none' },
+      defaultLearning: { key: 'openai:bad', effort: 'none' },
+    });
+
+    await expect(store.current()).rejects.toThrow(error);
+  });
+
   it('accepts max effort for Responses models and rejects it for other providers', async () => {
     const home = await fixture();
     await writeFile(

@@ -26,3 +26,14 @@ it('uses the catalog window of a separately chosen summary model', () => {
   expect(result.summaryProfile.contextWindow).toBe(64_000);
   expect(result.summaryProfile.modelId).toBe('summary');
 });
+
+it('applies catalog overrides to the chat profile over the environment', () => {
+  const env = { CODEBERG_MODEL_TIER: 'standard', CODEBERG_TOOL_BATCH: 'on' };
+  const overrides = { tier: 'light' as const, toolBatch: false, toolOutputLimit: 4000, instructions: 'Custom rules.' };
+  const { profile, summaryProfile } = agentProfiles('openai:chat', 'openai:summary', env, undefined, undefined, overrides);
+
+  expect(profile).toMatchObject(overrides);
+  expect(summaryProfile.instructions).toBeUndefined();
+  expect(agentProfiles('openai:chat', 'openai:chat', env).profile).toMatchObject({ tier: 'standard', toolBatch: true });
+  expect(agentProfiles('openai:chat', 'openai:chat', {}).profile).not.toHaveProperty('tier');
+});

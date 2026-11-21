@@ -52,12 +52,55 @@ providers:
 | `context_window` | Required integer of at least 1,024. Match the endpoint's actual capacity. |
 | `efforts` | Required nonempty list of supported reasoning efforts. |
 | `inputs` | Defaults to `[text]`. Add capabilities only when the model and API support them. |
+| `tier` | Optional: `standard` or `light`. Defaults to `standard`. See [Tune a model for smaller budgets](#tune-a-model-for-smaller-budgets). |
+| `tool_batch` | Optional `true` or `false`. Offers the `batch` tool to a model that returns one tool call at a time. Defaults to `CODEBERG_TOOL_BATCH`, then on for local and unknown providers. |
+| `tool_output_limit` | Optional integer of at least 4,000. Characters a tool result may carry before it becomes a preview. Defaults to 12,000. |
+| `instructions` | Optional path to a text file that replaces the built-in agent instructions. Relative paths start from the folder that holds `models.yml`. |
 
 Effort values are `provider-default`, `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`. `max` requires a supported OpenAI Responses-compatible provider.
 
 Inputs may include `vision`, `audio`, `video`, and `pdf`. Attachments are limited to **20 MB per file**. A replacement model must support attachments already in the chat.
 
 > **Browser Use requires declared vision support.** Its model must have `inputs: [text, vision]`, even when screenshots are off. The separate **Browser vision** switch controls screenshot access. See [Browser Use](/docs/browser-use).
+
+## Tune a model for smaller budgets
+
+Smaller chat models often answer worse with the full agent setup: a long tool manual, worked examples, and about 25 tools. Codeberg does not guess which models these are. Set the fields yourself on the model's `models.yml` entry.
+
+```yaml
+providers:
+  anthropic:
+    models:
+      quick:
+        model: claude-haiku-4-5
+        context_window: 200000
+        efforts: [provider-default]
+        tier: light
+        tool_output_limit: 6000
+```
+
+| Tier | What the chat model gets |
+| --- | --- |
+| `standard` | Default. Full instructions with the tracing playbook and examples, and every enabled tool. |
+| `light` | Short instructions, a short reminder of the citation and evidence rules after each of your messages, and fewer tools. |
+
+A `light` model does not see `decide`, subagents, schedules, background tools, `search_learning`, `detect_changes`, `get_architecture`, `git_log`, `git_blame`, `head`, `tail`, or `wc`. This holds even when a decisions model is chosen or **Models → Subagents** is on; use `standard` to keep them. Search, read, graph, context, web, and MCP tools stay, and so do scripts, canvas, and Browser Use when you turn them on.
+
+To write your own instructions for one model, point `instructions` at a text file. It replaces the built-in tool manual and strategy, whatever the tier. Codeberg still adds the sections for spilled output, MCP servers, skills, and the `batch` tool when they apply. An empty or unreadable file stops the chat with an error that names the file.
+
+```yaml
+providers:
+  anthropic:
+    models:
+      quick:
+        model: claude-haiku-4-5
+        context_window: 200000
+        efforts: [provider-default]
+        tier: light
+        instructions: prompts/quick.md
+```
+
+These settings apply to the chat model only. A model whose working context is 16,384 tokens or less always gets the short instructions. For terminal questions or a model without catalog settings, set `CODEBERG_MODEL_TIER` and `CODEBERG_TOOL_BATCH`. Changes to `models.yml` or an instructions file apply to the next turn; environment changes need a restart. Compare answers on your [Evaluations](/docs/evaluations) set before and after each change.
 
 ## Select models in the app
 
@@ -192,7 +235,7 @@ Decision calls add provider charges and a chat tool round trip. They may reduce 
 
 Codeberg archives large tool results locally and summarizes older exchanges when history approaches the model's budget. Recent exchanges and the current request stay available; the agent can recover omitted details from saved context.
 
-- Tool results over **12,000 characters** become previews with paths to full output.
+- Tool results over **12,000 characters** become previews with paths to full output, including results in a reopened chat. Change this per model with `tool_output_limit`.
 - Summaries run on the chat model unless you choose another under **Models → Summaries**. The chat model still writes every answer; a summary is at most **2,000 tokens**, so a smaller model usually suffices.
 - A summary model's requests appear under **Chat** in Usage, attributed to that model.
 - Changing the summary model writes new summaries the next time history is condensed; earlier ones are not reused.

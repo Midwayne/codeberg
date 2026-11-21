@@ -4,18 +4,21 @@ import { sameOrigin } from './http.js';
 import { validChatId, withCanvasChat } from '../core/canvas/context.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-import type { ModelInput, ModelSelection, ModelSettings } from '../core/model-types.js';
+import type { CatalogModel, ModelInput, ModelSelection, ModelSettings } from '../core/model-types.js';
 import { readJson, sendText } from './http.js';
 import type { ModelSettingsStore } from './model-selection/settings.js';
 import { formatWebTitle } from './title.js';
 import type { DecisionModel } from '../core/decisions/types.js';
 import type { ModelPricing } from '../core/usage.js';
+import type { ModelOverrides } from '../providers/overrides.js';
+import { resolveOverrides } from './model-selection/overrides.js';
+import { errorMessage } from '../core/errors.js';
 import { summaryModel, type SummaryModel } from './model-selection/summary.js';
 import { subagentChoice, type SubagentChoice } from './model-selection/subagents.js';
 
 /** A model choice bound to one chat request. */
 export type ResolvedModelSelection = ModelSelection & {
-  model: string; contextWindow: number; inputs?: ModelInput[]; decisionModel?: DecisionModel | null;
+  model: string; contextWindow: number; overrides?: ModelOverrides; inputs?: ModelInput[]; decisionModel?: DecisionModel | null;
   /** History summarizer chosen in Models; absent summarizes on the chat model. */
   summary?: SummaryModel;
   /** The subagent switch and model chosen in Models. */
@@ -54,8 +57,16 @@ export async function routeChat(
   const error = validateChatFiles(messages, selected?.inputs ?? ['text']);
   if (error) return sendText(res, 400, error);
 
+  let overrides: { overrides?: ModelOverrides };
+  try {
+    overrides = await overridesChoice(selected?.overrides);
+  } catch (failure) {
+    return sendText(res, 400, errorMessage(failure));
+  }
+
   const selection = selected && settings
     ? { ...settings.chat, model: selected.model, contextWindow: selected.contextWindow, inputs: selected.inputs,
+      ...overrides,
       ...(selected.pricing ? { pricing: selected.pricing } : {}),
       decisionModel: settings.decisionModels?.find((item) => item.key === settings.decisions) ?? null,
       ...summaryChoice(settings), subagents: subagentChoice(settings) }
@@ -64,6 +75,12 @@ export async function routeChat(
   await withCanvasChat(body?.id, () => runs
     ? submitSearch(res, body, selection, runs)
     : respond(res, messages, selection));
+}
+
+async function overridesChoice(catalog: CatalogModel['overrides'] | undefined): Promise<{ overrides?: ModelOverrides }> {
+  const overrides = await resolveOverrides(catalog);
+
+  return overrides ? { overrides } : {};
 }
 
 function summaryChoice(settings: ModelSettings): { summary?: SummaryModel } {

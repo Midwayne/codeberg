@@ -13,6 +13,15 @@ describe('agentSystemPrompt', () => {
     expect(prompt).toContain('find_symbol');
   });
 
+  it('replaces the built-in instructions with custom ones and keeps the dynamic sections', () => {
+    const prompt = agentSystemPrompt({ enabled: false, search: false, instructions: 'Custom rules for this model.', contextRoot: '/ctx', batch: 5 });
+
+    expect(prompt.startsWith('Custom rules for this model.')).toBe(true);
+    expect(prompt).not.toContain('Data-source tracing strategy');
+    expect(prompt).toContain('Dynamic context:');
+    expect(prompt).toContain('Batch tool:');
+  });
+
   it('keeps built-in tools immediately available and limits discovery to MCP tools', () => {
     expect(AGENT_SYSTEM).toContain('Every tool listed below is built in');
     expect(AGENT_SYSTEM).toContain('Only tools whose names start with `mcp_` are discovery-based');

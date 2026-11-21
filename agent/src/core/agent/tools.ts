@@ -14,7 +14,7 @@ import { BATCH_TOOL, MAX_BATCH_CALLS } from '../tools/batch.js';
 import { SEARCH_BUNDLE_INSTRUCTIONS } from '../tools/search-bundle.js';
 import { DEFAULT_SEARCH_K } from './options.js';
 import type { AgentState } from './state.js';
-import { budgetWindow } from '../../providers/profiles.js';
+import { usesCompactPrompt } from '../../providers/profiles.js';
 import { configuredDecision } from '../decisions/catalog.js';
 import { decisionTools } from '../decisions/tool.js';
 import { BACKGROUND_INSTRUCTIONS } from '../background/tools.js';
@@ -41,16 +41,17 @@ export async function prepareSystem(
   const toolNames = Object.keys(tools);
   const skills = await publishSkills(state.context, { env: state.env });
   state.system = agentSystemPrompt({
-    learning: state.learning ? learningRecall(state.learning.settings) : false,
+    learning: offeredRecall(state, toolNames),
     enabled: state.web.enabled,
     search: state.web.searchEnabled && Boolean(state.web.searxngUrl),
     mcp: state.mcpSource?.reports() ?? [],
     skills,
     contextRoot: state.context.root,
     batch: toolNames.includes(BATCH_TOOL) ? MAX_BATCH_CALLS : undefined,
-    compact: budgetWindow(state.profile) <= 16_384,
+    compact: usesCompactPrompt(state.profile),
     decisions: toolNames.includes('decide'),
     vectors: toolNames.includes('search_code'),
+    instructions: state.profile.instructions,
   });
   for (const family of TOOL_FAMILY_INSTRUCTIONS) {
     if (toolNames.some(family.offered)) state.system += family.text;
@@ -67,6 +68,18 @@ export async function prepareSystem(
     parallelToolProviderOptions(state.profile),
     state.reasoning === 'max' ? maxReasoningProviderOptions(state.profile.provider) : undefined,
   );
+}
+
+/** Recall instructions only for the recall tools this model is offered. */
+function offeredRecall(state: AgentState, toolNames: readonly string[]) {
+  if (!state.learning) return false;
+
+  const recall = learningRecall(state.learning.settings);
+
+  return {
+    knowledge: recall.knowledge && toolNames.includes('search_knowledge'),
+    history: recall.history && toolNames.includes('search_learning'),
+  };
 }
 
 export async function buildTools(state: AgentState) {

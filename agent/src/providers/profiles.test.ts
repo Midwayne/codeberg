@@ -7,6 +7,7 @@ import {
   historyBudget,
   profileFor,
   pruneBudget,
+  usesCompactPrompt,
 } from './profiles.js';
 
 describe('profileFor', () => {
@@ -103,5 +104,44 @@ describe('budgets', () => {
 
   it('keeps the window uncapped for profiles without a working window', () => {
     expect(budgetWindow(DEFAULT_PROFILE)).toBe(1_000_000);
+  });
+});
+
+describe('capability tier', () => {
+  it('leaves the tier unset for every model so saved checkpoint keys stay the same', () => {
+    for (const spec of ['anthropic:claude-opus-4-8', 'anthropic:claude-haiku-4-5', 'openai:gpt-4o-mini', 'ollama:qwen3', 'thinktank:x']) {
+      expect(profileFor(spec, {})).not.toHaveProperty('tier');
+    }
+  });
+
+  it('honours CODEBERG_MODEL_TIER', () => {
+    expect(profileFor('anthropic:claude-opus-4-8', { CODEBERG_MODEL_TIER: 'LIGHT' }).tier).toBe('light');
+    expect(profileFor('ollama:qwen3', { CODEBERG_MODEL_TIER: 'standard' }).tier).toBe('standard');
+  });
+
+  it('ignores an unknown CODEBERG_MODEL_TIER', () => {
+    expect(profileFor('ollama:qwen3', { CODEBERG_MODEL_TIER: 'tiny' })).not.toHaveProperty('tier');
+  });
+});
+
+describe('usesCompactPrompt', () => {
+  it('compacts light models even with a large window', () => {
+    const light = profileFor('anthropic:claude-haiku-4-5', { CODEBERG_MODEL_TIER: 'light' });
+
+    expect(usesCompactPrompt(light)).toBe(true);
+  });
+
+  it('keeps the full prompt for standard models with a large window', () => {
+    expect(usesCompactPrompt(profileFor('anthropic:claude-opus-4-8', {}))).toBe(false);
+  });
+
+  it('compacts any model whose working window is small', () => {
+    const small = profileFor('openai:gpt-5', { CODEBERG_CONTEXT_BUDGET: '16384' });
+
+    expect(usesCompactPrompt(small)).toBe(true);
+  });
+
+  it('keeps the full prompt for profiles without a tier', () => {
+    expect(usesCompactPrompt(DEFAULT_PROFILE)).toBe(false);
   });
 });

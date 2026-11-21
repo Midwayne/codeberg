@@ -15,7 +15,7 @@ export async function compactHistory(
   // Recoverable tool output is cheaper to move to disk than to summarize.
   // Size the prepared transcript so a large resumed result cannot cause an
   // otherwise unnecessary model call or fill the summarizer's input.
-  const prepared = await externalizeToolResults(messages, state.context);
+  const prepared = await externalizeToolResults(messages, state.context, state.profile.toolOutputLimit);
 
   return state.checkpoints.fit(prepared, {
     abortSignal,

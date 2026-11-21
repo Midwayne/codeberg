@@ -81,6 +81,7 @@ function selectionAgent(selection: ResolvedModelSelection, deps: AgentDeps) {
     modelInputs: selection.inputs,
     reasoning: selection.effort === 'provider-default' ? undefined : selection.effort,
     contextWindow: selection.contextWindow,
+    overrides: selection.overrides,
     summary: summaryConfig(selection, transformModel),
     subagents: subagentConfig(selection, transformModel),
     learning: deps.learning,

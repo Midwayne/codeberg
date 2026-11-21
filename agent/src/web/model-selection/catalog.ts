@@ -1,3 +1,5 @@
+import { dirname } from 'node:path';
+
 import {
   MODEL_INPUTS,
   type CatalogModel,
@@ -7,6 +9,7 @@ import {
 import { assertMaxEffort } from '../../core/reasoning.js';
 import { REASONING_EFFORTS, type ReasoningEffort } from '../../core/types.js';
 import { profileFor } from '../../providers/profiles.js';
+import { catalogOverrides } from './catalog-overrides.js';
 import { parsePricing } from '../usage/pricing.js';
 import { record as object } from '../../core/record.js';
 import { readModelsFile, type ModelsFile } from '../../core/models-file.js';
@@ -74,7 +77,7 @@ export async function loadModelCatalog(options: ModelCatalogOptions, file?: Mode
     if (!entries) throw new Error(`models.yml provider ${provider} must define models`);
 
     for (const [id, definition] of Object.entries(entries)) {
-      const model = parseCatalogModel(provider, id, definition);
+      const model = parseCatalogModel(provider, id, definition, dirname(options.catalogPath));
       if (!options.availableProvider || options.availableProvider(provider)) models.push(model);
     }
   }
@@ -84,7 +87,7 @@ export async function loadModelCatalog(options: ModelCatalogOptions, file?: Mode
   return models;
 }
 
-function parseCatalogModel(provider: string, id: string, definition: unknown): CatalogModel {
+function parseCatalogModel(provider: string, id: string, definition: unknown, dir: string): CatalogModel {
   const value = object(definition);
   if (!id.trim() || /\s/.test(id) || !value)
     throw new Error(`invalid model in models.yml: ${provider}:${id}`);
@@ -130,6 +133,7 @@ function parseCatalogModel(provider: string, id: string, definition: unknown): C
     contextWindow: Number(window),
     efforts: [...new Set(efforts)],
     inputs: [...new Set(inputs)] as ModelInput[],
+    ...catalogOverrides(value, `${provider}:${id}`, dir),
   };
 }
 

@@ -105,6 +105,23 @@ describe('wrapToolOutputs', () => {
     expect(isSpillPreview(String(seen))).toBe(true);
   });
 
+  it('spills at a per-model limit', async () => {
+    const store = ContextStore.open(mkdtempSync(join(tmpdir(), 'cberg-wrap-limit-')));
+    const tools: ToolSet = {
+      grep: tool({
+        description: 'grep',
+        inputSchema: { type: 'object', properties: {} } as never,
+        execute: async () => 'z'.repeat(2_000),
+      }),
+    };
+
+    const execute = (tools: ToolSet) =>
+      (tools.grep as { execute: (args: unknown, opts: unknown) => Promise<unknown> }).execute({}, {});
+
+    expect(isSpillPreview(String(await execute(wrapToolOutputs(tools, store, 1_000))))).toBe(true);
+    expect(isSpillPreview(String(await execute(wrapToolOutputs(tools, store))))).toBe(false);
+  });
+
   it('preserves custom tool output contracts and spills after toModelOutput', async () => {
     const store = ContextStore.open(mkdtempSync(join(tmpdir(), 'cberg-wrap-convert-')));
     const raw = {
