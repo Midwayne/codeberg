@@ -122,6 +122,10 @@ set(CBERG_SOURCES
   src/search/search.c
 )
 
+# ONNX embeddings (Jina) build when ONNX Runtime is found. Release packages turn
+# them off: the onnxruntime-extensions tokenizer submodule is no longer published.
+option(CBERG_ONNX "Build ONNX embedding support when ONNX Runtime is found" ON)
+
 find_path(ONNXRUNTIME_INCLUDE_DIR
   NAMES onnxruntime_c_api.h
   HINTS ${ONNXRUNTIME_ROOT} ENV ONNXRUNTIME_ROOT /opt/homebrew/opt/onnxruntime /usr/local /opt/homebrew /usr
@@ -130,7 +134,7 @@ find_library(ONNXRUNTIME_LIB
   NAMES onnxruntime
   HINTS ${ONNXRUNTIME_ROOT} ENV ONNXRUNTIME_ROOT /opt/homebrew/opt/onnxruntime /usr/local /opt/homebrew /usr
   PATH_SUFFIXES lib)
-if(ONNXRUNTIME_INCLUDE_DIR AND ONNXRUNTIME_LIB)
+if(CBERG_ONNX AND ONNXRUNTIME_INCLUDE_DIR AND ONNXRUNTIME_LIB)
   set(CBERG_WITH_ONNX ON)
   list(APPEND CBERG_SOURCES src/embed/embed_onnx.c src/embed/tokenize.c)
   message(STATUS "codeberg: ONNX embedding enabled (${ONNXRUNTIME_LIB})")

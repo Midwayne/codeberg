@@ -92,7 +92,7 @@ New installs default to **EmbeddingGemma 2**, text encoder only, in FP32. Existi
 | --- | --- | --- |
 | `embeddinggemma-2-fp32-mlx` | MLX-VLM; default on Apple Silicon. | Apple Silicon, Python 3.10+ with venv/pip. |
 | `embeddinggemma-2` | Sentence Transformers/PyTorch; default elsewhere. | Python 3.10+ with venv/pip; CPU/CUDA. |
-| `jina-onnx` | ONNX Runtime. | Runtime bundled with prebuilt packages; no Python. |
+| `jina-onnx` | ONNX Runtime. | Source installations only; prebuilt packages do not include ONNX support. No Python. |
 | Qwen variants | MLX or llama.cpp. | Separate managed Python runtime for MLX, or `llama-server`. |
 
 Choose for one launch, or save a default:

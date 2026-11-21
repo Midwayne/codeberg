@@ -46,7 +46,7 @@ Pages keep loading while the project service is busy or restarting: the project 
 | EmbeddingGemma MLX | Same prerequisites, plus Apple Silicon. | `codeberg build --embedding embeddinggemma-2-fp32-mlx` |
 | Jina ONNX, source installation | ONNX Runtime headers and library. Install through Homebrew on macOS, or export `ONNXRUNTIME_ROOT` to the runtime prefix on Linux. | `codeberg build --vector --embedding jina-onnx` |
 
-The EmbeddingGemma options use separate managed Python runtimes and FP32 text models; neither needs ONNX or `llama-server`. Jina's ONNX runtime is bundled in prebuilt installations. See [Indexing and search](/docs/indexing).
+The EmbeddingGemma options use separate managed Python runtimes and FP32 text models; neither needs ONNX or `llama-server`. Prebuilt packages do not include ONNX support, so `jina-onnx` needs a source installation; if it was your saved choice, Codeberg starts without semantic search until you switch with `codeberg config set CODEBERG_EMBEDDING_MODEL=embeddinggemma-2`. See [Indexing and search](/docs/indexing).
 
 Cold indexing and embedding batches can be slow without indicating failure. Progress counts describe a stage, not the entire project. For launcher startup timeouts, export `CODEBERG_HEALTH_TIMEOUT=30m` or a longer Go duration. To watch indexing progress in the terminal, start with `codeberg --verbose`; logs are always written to `~/.codeberg/logs/`.
 

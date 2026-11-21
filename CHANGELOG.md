@@ -32,6 +32,7 @@ are in the git history.
 
 ### Changed
 
+- Prebuilt packages no longer include ONNX support, so the Jina ONNX embedding model needs a source installation. The default EmbeddingGemma models are unaffected.
 - Adding a directory that is already a project opens that project instead.
 - Files in a repository inside a project are indexed once, under that repository.
 
