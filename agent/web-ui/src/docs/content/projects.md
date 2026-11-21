@@ -60,7 +60,7 @@ IDs follow the canonical source path. Symlinks to the same directory share a pro
 
 Older multi-repository startup configurations remain one **Existing workspace**, preserving their repository keys and combined search.
 
-Repositories in the same project share one graph: structural search and references inspect all of them, and import-backed edges can cross between them. Repository keys distinguish identical file paths and symbol IDs. Separate projects stay isolated. See [Cross-repo graph setup and limits](/docs/indexing#follow-dependencies-across-repositories).
+Repositories in the same project share one graph: structural search and references inspect all of them, and import-backed edges can cross between them. Repository keys distinguish identical file paths and symbol IDs. The agent's instructions list the project's repository keys, read when the agent starts for a model. When you add a repository later, the agent finds it with the `repos` tool. Separate projects stay isolated. See [Cross-repo graph setup and limits](/docs/indexing#follow-dependencies-across-repositories).
 
 ## Inspect or rename
 

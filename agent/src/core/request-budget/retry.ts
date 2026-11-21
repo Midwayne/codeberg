@@ -2,6 +2,7 @@ import type { LanguageModelV4CallOptions } from '@ai-sdk/provider';
 
 import { budgetWindow, type ModelProfile } from '../../providers/profiles.js';
 import { isContextOverflow } from '../context-errors.js';
+import { CLEAR_TRIGGER, clearOldToolResults } from './clear.js';
 import { compactRequest, type RequestContext } from './compact.js';
 import { completionTokens, type ModelIdentity } from './completion.js';
 import { estimateRequest } from './estimate.js';
@@ -24,6 +25,12 @@ export async function withBudgetRetry<T>(
   const completion = completionTokens(input, options.model ?? options.profile, reserve);
   const ceiling = Math.max(1, Math.floor(window * 0.85) - completion);
   let request = { ...input, maxOutputTokens: reserve };
+
+  // Stale tool output goes first; summarizing older turns is the lossy fallback.
+  if (usage.estimate(request) > ceiling * CLEAR_TRIGGER) {
+    request = await clearOldToolResults(request, options.context) as typeof request;
+  }
+
   let target = ceiling;
   let rejectedSize = 0;
   const shrink = [0.7, 0.5, 0.35];

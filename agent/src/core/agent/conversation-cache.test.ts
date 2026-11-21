@@ -12,6 +12,7 @@ import { webConfigFromEnv } from '../web/config.js';
 
 interface AnthropicBlock {
   type: string;
+  text?: string;
   cache_control?: { type: string };
 }
 
@@ -76,9 +77,17 @@ function mockDaemon(): DaemonClient {
       description: 'Search source files',
       schema: { type: 'object', properties: { pattern: { type: 'string' } } },
     },
+    {
+      name: 'repos',
+      description: 'List repositories',
+      schema: { type: 'object', properties: {} },
+    },
   ]);
 
-  vi.spyOn(daemon, 'callTool').mockResolvedValue([{ path: 'core/src/chunk.c', line: 12 }]);
+  vi.spyOn(daemon, 'callTool').mockImplementation(async (name) =>
+    name === 'repos'
+      ? [{ key: 'codeberg', root: '/work/codeberg' }]
+      : [{ path: 'core/src/chunk.c', line: 12 }]);
 
   return daemon;
 }
@@ -116,6 +125,7 @@ describe('Anthropic conversation caching', () => {
     const system = requests[0]!.system ?? [];
     expect(system[0]?.cache_control?.type).toBe('ephemeral');
     expect(system.slice(1).filter((block) => block.cache_control)).toEqual([]);
+    expect(system.slice(1).map((block) => block.text).join('\n')).toContain('- codeberg: /work/codeberg');
     expect(cachedBlocks(requests[0]!)).toEqual(['user:text']);
 
     // Step 2 reads the question prefix step 1 wrote and writes through the first result.

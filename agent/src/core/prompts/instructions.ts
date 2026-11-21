@@ -25,7 +25,7 @@ Pick the tool by the lead you have:
 - A diff → detect_changes. An unfamiliar codebase → get_architecture. An unfamiliar file → file_outline.
 - More of a hit → get_chunk when an indexed body is absent or truncated; read_file for surrounding lines, imports, or lexical-only hits (id=0).
 - Ownership or recent changes → git_log, git_blame. Structure → list_dir, tree.
-- Unknown repository keys in multi-repo mode → repos.
+- Repository keys → the Repositories list when present; otherwise, or when a key seems missing, repos.
 ${recall.length > 0 ? `${recall.join('\n')}\n` : ''}
 Indexing runs in the background. On NOT_READY or an unavailable indexer, keep going with grep, glob, read_file, and tree${vectors ? '; hybrid_search and find_references fall back to text matches' : '; find_references falls back to text matches'}. Do not wait for indexing.
 Graph edges are partial and their confidence is heuristic, not a probability. Keep repo with IDs and paths. Same-name methods can yield several candidates, and aliases or dynamic calls may be missing. Cross-repo edges follow imports, so trace HTTP and RPC through clients, routes, and configuration.

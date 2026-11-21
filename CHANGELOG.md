@@ -16,6 +16,8 @@ are in the git history.
 - Shorter, clearer agent instructions, so each chat step sends fewer tokens.
 - Database query rules are sent only when a database server is connected.
 - Adding an MCP server or skill no longer resets cached instructions for Anthropic models.
+- The agent already knows the project's repositories, so it no longer spends a step listing them.
+- Long chats clear stale tool output before summarizing older messages, so summaries happen later.
 
 ## [1.0.0] - 2026-11-21
 

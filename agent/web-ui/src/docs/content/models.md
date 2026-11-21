@@ -233,9 +233,10 @@ Decision calls add provider charges and a chat tool round trip. They may reduce 
 
 ## How chat context stays bounded
 
-Codeberg archives large tool results locally and summarizes older exchanges when history approaches the model's budget. Recent exchanges and the current request stay available; the agent can recover omitted details from saved context.
+Codeberg archives large tool results locally, clears stale tool output, and summarizes older exchanges only when history still approaches the model's budget. Recent exchanges and the current request stay available; the agent can recover omitted details from saved context.
 
 - Tool results over **12,000 characters** become previews with paths to full output, including results in a reopened chat. Change this per model with `tool_output_limit`.
+- Once a request passes half its working ceiling, older tool results over 1,000 characters are replaced with a short note naming the saved file. The newest four results always stay, and older ones are cleared eight at a time so cached prompts stay reusable. The agent reads a cleared result again when it needs it.
 - Summaries run on the chat model unless you choose another under **Models → Summaries**. The chat model still writes every answer; a summary is at most **2,000 tokens**, so a smaller model usually suffices.
 - A summary model's requests appear under **Chat** in Usage, attributed to that model.
 - Changing the summary model writes new summaries the next time history is condensed; earlier ones are not reused.

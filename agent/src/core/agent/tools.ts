@@ -7,6 +7,7 @@ import { REMEMBER_INSTRUCTIONS } from '../learning/profile/tools.js';
 import { mcpConfigFromEnv } from '../mcp/config.js';
 import { mcpToolSource } from '../mcp/tools.js';
 import { agentSystemSections } from '../prompt.js';
+import { repositoryContext } from '../prompts/repositories.js';
 import { maxReasoningProviderOptions } from '../reasoning.js';
 import { mergeProviderOptions, parallelToolProviderOptions } from '../tool-calls.js';
 import { createAgentTools } from '../tools/agent-tools.js';
@@ -59,12 +60,13 @@ export async function prepareSystem(
     if (toolNames.some(family.offered)) state.system += family.text;
   }
 
-  const [knowledgeIndex, profile] = await Promise.all([
+  const [repositories, knowledgeIndex, profile] = await Promise.all([
+    repositoryContext(state.daemon, toolNames),
     state.learning?.knowledgeIndex(),
     state.learning?.profileContext(),
   ]);
 
-  state.systemContext = [sections.dynamic, knowledgeIndex, profile]
+  state.systemContext = [repositories, sections.dynamic, knowledgeIndex, profile]
     .filter((block): block is string => Boolean(block))
     .map((block) => block.replace(/^\n+/, ''))
     .join('\n\n');
