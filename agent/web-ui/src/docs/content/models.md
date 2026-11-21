@@ -86,7 +86,7 @@ providers:
 
 A `light` model does not see `decide`, subagents, schedules, background tools, `search_learning`, `detect_changes`, `get_architecture`, `git_log`, `git_blame`, `head`, `tail`, or `wc`. This holds even when a decisions model is chosen or **Models → Subagents** is on; use `standard` to keep them. Search, read, graph, context, web, and MCP tools stay, and so do scripts, canvas, and Browser Use when you turn them on.
 
-To write your own instructions for one model, point `instructions` at a text file. It replaces the built-in tool manual and strategy, whatever the tier. Codeberg still adds the sections for spilled output, MCP servers, skills, and the `batch` tool when they apply. An empty or unreadable file stops the chat with an error that names the file.
+To write your own instructions for one model, point `instructions` at a text file. It replaces the built-in tool guide, strategy, and [database query rules](/docs/mcps#database-mcp), whatever the tier. Codeberg still adds the sections for spilled output, MCP servers, skills, and the `batch` tool when they apply. An empty or unreadable file stops the chat with an error that names the file.
 
 ```yaml
 providers:

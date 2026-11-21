@@ -96,6 +96,10 @@ Export the credential, choose the intended access level, and restart. `CODEBERG_
 
 Database MCP is independent of `CODEBERG_MCP_USE`. A configured server named `databases` replaces the built-in command.
 
+When a database server is connected, the agent finds the matching statement and its call site in your indexed code before it queries the live database. If you ask it to write a new query, it shows the query, explains what it reads or changes, and runs it only after you agree. A statement or connection you give explicitly is followed as written.
+
+These rules apply to the built-in server and to any connected server whose name or tool names mention a database, such as `postgres`, `mysql`, `sql`, `mongo`, or `redis`. Name a custom database server that way so the agent follows them. Custom `instructions` in `models.yml` replace these rules too.
+
 ## Long-running calls
 
 The agent can use [background tools and sleep](/docs/tools#let-a-long-tool-work-while-the-agent-sleeps) to start a call once and choose when to check its result. Calls keep their MCP connection after the turn ends; they still depend on Codeberg, the MCP process and any service timeouts.

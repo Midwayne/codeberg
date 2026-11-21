@@ -112,7 +112,10 @@ describe('Anthropic conversation caching', () => {
     expect(result.answer).toContain('core/src/chunk.c');
     expect(requests).toHaveLength(3);
 
-    expect(requests[0]!.system?.at(-1)?.cache_control?.type).toBe('ephemeral');
+    // The stable prompt holds the breakpoint; changing context (skills, MCP) follows it uncached.
+    const system = requests[0]!.system ?? [];
+    expect(system[0]?.cache_control?.type).toBe('ephemeral');
+    expect(system.slice(1).filter((block) => block.cache_control)).toEqual([]);
     expect(cachedBlocks(requests[0]!)).toEqual(['user:text']);
 
     // Step 2 reads the question prefix step 1 wrote and writes through the first result.

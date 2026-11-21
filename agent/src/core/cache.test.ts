@@ -46,6 +46,24 @@ describe('cachedInstructions', () => {
     expect(cachedInstructions('SYS', openai)).toBe('SYS');
     expect(cachedInstructions('SYS', plain)).toBe('SYS');
   });
+
+  it('sends changing context as a second, uncached anthropic block', () => {
+    const ins = cachedInstructions('SYS', anthropic, 'MCP');
+
+    expect(ins).toEqual([
+      {
+        role: 'system',
+        content: 'SYS',
+        providerOptions: { anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } } },
+      },
+      { role: 'system', content: 'MCP' },
+    ]);
+  });
+
+  it('appends changing context after the stable text for other providers', () => {
+    expect(cachedInstructions('SYS', openai, 'MCP')).toBe('SYS\nMCP');
+    expect(cachedInstructions('SYS', plain, '')).toBe('SYS');
+  });
 });
 
 describe('requestProviderOptions', () => {

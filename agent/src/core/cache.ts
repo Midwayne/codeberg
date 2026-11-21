@@ -1,4 +1,4 @@
-import type { Instructions, ModelMessage, ToolSet } from 'ai';
+import type { Instructions, ModelMessage, SystemModelMessage, ToolSet } from 'ai';
 
 import type { ModelProfile } from '../providers/profiles.js';
 
@@ -23,19 +23,25 @@ function stableKey(parts: string[]): string {
  * plain string and the cache key is pinned on the request options instead.
  * Either way the prompt text is byte-identical across calls - the precondition
  * for any prefix cache to hit.
+ *
+ * `context` holds the parts that change between sessions (MCP servers, skills,
+ * knowledge index, user profile). It goes after the breakpoint, so a change
+ * there re-bills only that block; the conversation breakpoints cover it.
  */
-export function cachedInstructions(system: string, profile: ModelProfile): Instructions {
-  if (profile.cache === 'anthropic') {
-    return {
-      role: 'system',
-      content: system,
-      providerOptions: {
-        anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } },
-      },
-    };
+export function cachedInstructions(system: string, profile: ModelProfile, context = ''): Instructions {
+  if (profile.cache !== 'anthropic') {
+    return context ? `${system}\n${context}` : system;
   }
 
-  return system;
+  const stable: SystemModelMessage = {
+    role: 'system',
+    content: system,
+    providerOptions: {
+      anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } },
+    },
+  };
+
+  return context ? [stable, { role: 'system', content: context }] : stable;
 }
 
 /**

@@ -10,8 +10,6 @@ export function compactAgentSystem(knowledge: boolean, history: boolean, vectors
     history ? 'Use search_learning when prior corrections or failed attempts may help.' : '',
     'Put every independent tool call in the same response. Wait only for dependencies. Reuse available evidence instead of repeating calls. Use pipe for supported read-only search/filter pipelines. Continue tracing when source points to another file or repository.',
     'For data-source questions, trace entrypoints through services and clients to reads, writes, schema, migrations, and producers. Distinguish readers from writers and confirm ownership. A client or schema alone does not establish the source of truth. State external/missing-code boundaries.',
-    'Database queries: first find the statement, object, or key and its executing call site in indexed code, unless the user explicitly supplied the live-query path. An unrelated name or repository is not a path. A query you compose is not authorized until the user agrees to run it.',
-    'When asked to invent a query, inspect source statements, schemas, and indexes, then show the query and explain what it reads or changes. Ask whether to execute it; execute only after agreement. For an explicit user-supplied path, follow it and cite matching code when available. Use connected server schemas; never assume a fixed database-tool catalog.',
     'Answer concisely with source citations as [path:start-end]. Separate verified findings from inference. Do not invent code, unseen tool output, or missing evidence. Explain what is blocked and why.',
   ].filter(Boolean).join('\n\n');
 }

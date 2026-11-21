@@ -11,6 +11,12 @@ are in the git history.
 - Set `tier: light` on a model in `models.yml` to give a smaller model shorter instructions, fewer tools, and a reminder of the evidence rules.
 - Set `tool_batch`, `tool_output_limit`, and `instructions` on a model in `models.yml`.
 
+### Changed
+
+- Shorter, clearer agent instructions, so each chat step sends fewer tokens.
+- Database query rules are sent only when a database server is connected.
+- Adding an MCP server or skill no longer resets cached instructions for Anthropic models.
+
 ## [1.0.0] - 2026-11-21
 
 ### Added

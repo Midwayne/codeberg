@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { AGENT_SYSTEM, agentSystemPrompt } from './prompt.js';
+import { AGENT_SYSTEM, agentSystemPrompt, agentSystemSections } from './prompt.js';
 
 describe('agentSystemPrompt', () => {
   it.each([false, true])('uses lexical guidance without embeddings (compact: %s)', (compact) => {
@@ -17,16 +17,40 @@ describe('agentSystemPrompt', () => {
     const prompt = agentSystemPrompt({ enabled: false, search: false, instructions: 'Custom rules for this model.', contextRoot: '/ctx', batch: 5 });
 
     expect(prompt.startsWith('Custom rules for this model.')).toBe(true);
-    expect(prompt).not.toContain('Data-source tracing strategy');
+    expect(prompt).not.toContain('Data-source questions:');
     expect(prompt).toContain('Dynamic context:');
     expect(prompt).toContain('Batch tool:');
   });
 
   it('keeps built-in tools immediately available and limits discovery to MCP tools', () => {
-    expect(AGENT_SYSTEM).toContain('Every tool listed below is built in');
-    expect(AGENT_SYSTEM).toContain('Only tools whose names start with `mcp_` are discovery-based');
-    expect(AGENT_SYSTEM).toContain('Set `literal: true` for plain text');
-    expect(AGENT_SYSTEM).toContain('retry once with fewer constraints');
+    expect(AGENT_SYSTEM).toContain('Every built-in tool is callable now');
+    expect(AGENT_SYSTEM).toContain('Only tools whose names start with `mcp_` need discovery');
+  });
+
+  it('routes by lead instead of repeating each tool description', () => {
+    expect(AGENT_SYSTEM).toContain('Pick the tool by the lead you have:');
+    expect(AGENT_SYSTEM).not.toContain('Set `literal: true` for plain text');
+    expect(AGENT_SYSTEM).not.toContain('- glob: find files by pattern.');
+  });
+
+  it('states the citation rule once', () => {
+    expect(AGENT_SYSTEM.split('[path:start-end]')).toHaveLength(2);
+    expect(AGENT_SYSTEM).toContain('Evidence and citations:');
+  });
+
+  it('keeps MCP servers and skills out of the stable section', () => {
+    const sections = agentSystemSections({
+      enabled: true,
+      search: true,
+      contextRoot: '/ctx',
+      mcp: [{ name: 'github', state: 'connected', tools: [{ name: 'list_issues', callable: 'mcp_github_list_issues' }] }],
+      skills: [{ name: 'review-diff', description: 'Summarize risk.', file: '/s/SKILL.md', dir: '/s' }],
+    });
+
+    expect(sections.stable).toBe(agentSystemSections({ enabled: true, search: true, contextRoot: '/ctx' }).stable);
+    expect(sections.stable).not.toContain('mcp_github_list_issues');
+    expect(sections.dynamic).toContain('mcp_github_list_issues');
+    expect(sections.dynamic).toContain('review-diff');
   });
 
   it('asks every model to group independent tool calls into one response', () => {
@@ -87,46 +111,59 @@ describe('agentSystemPrompt', () => {
     expect(p).not.toContain('mongo_list_collections');
   });
 
-  it('tells the agent to find queries in the index before running them', () => {
-    expect(AGENT_SYSTEM).toContain('Respect the index');
-    expect(AGENT_SYSTEM).toContain(
-      'Always look for the query in the indexed code before you execute it against a database',
-    );
-    expect(AGENT_SYSTEM).toContain('unless the user has explicitly defined the path to take');
-    expect(AGENT_SYSTEM).toContain("What query loads a user's orders?");
-    expect(AGENT_SYSTEM).toContain('How many orders are open right now?');
-    expect(AGENT_SYSTEM).toContain('SELECT status, count(*) FROM orders GROUP BY status');
-    expect(AGENT_SYSTEM).toContain('Does the orders table the API writes match');
-    expect(AGENT_SYSTEM).toContain('Show me the schema.');
-    expect(AGENT_SYSTEM).toContain(
-      'Write a query for orders placed yesterday that are still unpaid.',
-    );
-    expect(AGENT_SYSTEM).toContain('Should I run this?');
-    expect(AGENT_SYSTEM).toContain(
-      'which database indexes migrations or existing queries already use',
-    );
-    expect(AGENT_SYSTEM).toContain('This reads unpaid orders created yesterday');
-    expect(AGENT_SYSTEM).toContain('SELECT id, status, created_at');
-    expect(AGENT_SYSTEM).toContain('leave the live database alone');
-    expect(AGENT_SYSTEM).toContain('Do not compose a new statement');
-    expect(AGENT_SYSTEM).not.toContain('postgres_list_databases');
-    expect(AGENT_SYSTEM).not.toContain('mongo_list_collections');
+  it('leaves the database rules out when no database server is connected', () => {
+    expect(AGENT_SYSTEM).not.toContain('Respect the index');
+    expect(AGENT_SYSTEM).not.toContain('Should I run this?');
+
     const p = agentSystemPrompt({
       enabled: false,
       search: false,
-      mcp: [
-        {
-          name: 'databases',
-          state: 'connected',
-          tools: [{ name: 'query', callable: 'mcp_databases_query' }],
-        },
-      ],
+      mcp: [{ name: 'github', state: 'connected', tools: [{ name: 'list_issues', callable: 'mcp_github_list_issues' }] }],
+    });
+
+    expect(p).not.toContain('Respect the index');
+  });
+
+  it.each([
+    ['databases', 'query'],
+    ['warehouse', 'run_sql'],
+    ['pg', 'postgres_query'],
+  ])('tells the agent to find queries in the index before running them (%s)', (name, tool) => {
+    const p = agentSystemPrompt({
+      enabled: false,
+      search: false,
+      mcp: [{ name, state: 'connected', tools: [{ name: tool, callable: `mcp_${name}_${tool}` }] }],
     });
 
     expect(p).toContain('Respect the index');
-    expect(p).toContain('mcp_databases_query');
+    expect(p).toContain('Always look for the query in the indexed code before you execute it against a database');
+    expect(p).toContain('unless the user has explicitly defined the path to take');
+    expect(p).toContain("What query loads a user's orders?");
+    expect(p).toContain('How many orders are open right now?');
+    expect(p).toContain('SELECT status, count(*) FROM orders GROUP BY status');
+    expect(p).toContain('Does the orders table the API writes match');
+    expect(p).toContain('Show me the schema.');
+    expect(p).toContain('Write a query for orders placed yesterday that are still unpaid.');
+    expect(p).toContain('Should I run this?');
+    expect(p).toContain('which database indexes migrations or existing queries already use');
+    expect(p).toContain('This reads unpaid orders created yesterday');
+    expect(p).toContain('SELECT id, status, created_at');
+    expect(p).toContain('leave the live database alone');
+    expect(p).toContain('Do not compose a new statement');
+    expect(p).toContain(`mcp_${name}_${tool}`);
     expect(p).toContain('load_mcp_tools');
     expect(p).not.toContain('postgres_list_databases');
+    expect(p).not.toContain('mongo_list_collections');
+  });
+
+  it('skips the database rules for an unavailable database server', () => {
+    const p = agentSystemPrompt({
+      enabled: false,
+      search: false,
+      mcp: [{ name: 'databases', state: 'unavailable', tools: [], detail: 'spawn failed' }],
+    });
+
+    expect(p).not.toContain('Respect the index');
   });
 
   it('lists MCP catalogs and unavailable servers without inlining schemas', () => {

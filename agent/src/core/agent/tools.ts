@@ -6,7 +6,7 @@ import { learningRecall } from '../learning/preferences.js';
 import { REMEMBER_INSTRUCTIONS } from '../learning/profile/tools.js';
 import { mcpConfigFromEnv } from '../mcp/config.js';
 import { mcpToolSource } from '../mcp/tools.js';
-import { agentSystemPrompt } from '../prompt.js';
+import { agentSystemSections } from '../prompt.js';
 import { maxReasoningProviderOptions } from '../reasoning.js';
 import { mergeProviderOptions, parallelToolProviderOptions } from '../tool-calls.js';
 import { createAgentTools } from '../tools/agent-tools.js';
@@ -40,7 +40,7 @@ export async function prepareSystem(
 ) {
   const toolNames = Object.keys(tools);
   const skills = await publishSkills(state.context, { env: state.env });
-  state.system = agentSystemPrompt({
+  const sections = agentSystemSections({
     learning: offeredRecall(state, toolNames),
     enabled: state.web.enabled,
     search: state.web.searchEnabled && Boolean(state.web.searxngUrl),
@@ -53,6 +53,8 @@ export async function prepareSystem(
     vectors: toolNames.includes('search_code'),
     instructions: state.profile.instructions,
   });
+
+  state.system = sections.stable;
   for (const family of TOOL_FAMILY_INSTRUCTIONS) {
     if (toolNames.some(family.offered)) state.system += family.text;
   }
@@ -61,7 +63,11 @@ export async function prepareSystem(
     state.learning?.knowledgeIndex(),
     state.learning?.profileContext(),
   ]);
-  for (const block of [knowledgeIndex, profile]) if (block) state.system += `\n\n${block}`;
+
+  state.systemContext = [sections.dynamic, knowledgeIndex, profile]
+    .filter((block): block is string => Boolean(block))
+    .map((block) => block.replace(/^\n+/, ''))
+    .join('\n\n');
 
   return mergeProviderOptions(
     requestProviderOptions(state.system, toolNames, state.profile),

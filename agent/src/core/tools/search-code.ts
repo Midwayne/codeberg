@@ -73,7 +73,8 @@ function searchCodeTool(opts: SearchCodeOptions) {
   return tool({
     description:
       'Semantic code search. Returns relevant chunks with path, lines, snippet, and bounded full bodies for the top hits. ' +
-      'Searches every indexed repo unless `repo` narrows it to one (keys via the repos tool).',
+      'Start here for conceptual questions. Searches every indexed repo unless `repo` narrows it to one ' +
+      '(keys via the repos tool); `path_glob`, `kind`, and `min_score` narrow further.',
     inputSchema: searchCodeSchema,
     execute: (input, options) => executeSearch(opts, input, options.abortSignal),
   });

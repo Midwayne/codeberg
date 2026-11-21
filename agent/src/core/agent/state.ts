@@ -62,10 +62,13 @@ export class AgentState {
 
   mcpSource?: McpToolSource;
 
-  /** System prompt for this agent — `AGENT_SYSTEM` plus web/MCP sections matching
-   *  the tools that actually registered. Built in `ensureLoop` so it stays
-   *  byte-stable for the process, including connected MCP server names. */
+  /** Stable system prompt: `AGENT_SYSTEM` plus the sections for the tools that
+   *  registered. Built in `ensureLoop` so it stays byte-stable for the process. */
   system = '';
+
+  /** System text that changes between sessions: MCP servers, skills, the
+   *  knowledge index, and the user profile. Sent after the cached `system`. */
+  systemContext = '';
 
   // Built once on first use (tools require an async daemon round-trip), then
   // reused across every ask instead of reconstructing the loop each call.

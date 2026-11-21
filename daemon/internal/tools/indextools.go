@@ -67,7 +67,8 @@ func getChunkTool(idx indexctl.Indexer) Tool {
 }`
 
 	return New("get_chunk",
-		"Fetch a full indexed chunk (repo + id) when search_code's bounded body is absent or truncated.",
+		"Fetch a full indexed chunk (repo + id) when search_code's bounded body is absent or truncated. "+
+			"Prefer this over read_file for indexed chunks.",
 		schema,
 		func(ctx context.Context, a getChunkArgs) (any, error) {
 			return idx.GetChunk(ctx, a.Repo, a.ID)
@@ -88,7 +89,8 @@ func findSymbolTool(idx indexctl.Indexer) Tool {
 }`
 
 	return New("find_symbol",
-		"Exact symbol lookup in the chunk index (case-insensitive). Works without vector search.",
+		"Exact symbol lookup in the chunk index (case-insensitive) for known function, class, or type names. "+
+			"Works without vector search.",
 		schema,
 		func(ctx context.Context, a findSymbolArgs) (any, error) {
 			return idx.FindSymbol(ctx, indexctl.SymbolOptions{
@@ -112,7 +114,8 @@ func fileOutlineTool(idx indexctl.Indexer) Tool {
 }`
 
 	return New("file_outline",
-		"List indexed chunks (functions, classes, etc.) in a file with line ranges.",
+		"List indexed chunks (functions, classes, etc.) in a file with line ranges. "+
+			"Use it to orient in an unfamiliar file before deep reading.",
 		schema,
 		func(ctx context.Context, a fileOutlineArgs) (any, error) {
 			return idx.FileOutline(ctx, a.Repo, a.Path)

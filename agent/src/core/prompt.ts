@@ -3,6 +3,7 @@ import type { McpServerReport } from './mcp/catalog.js';
 import { AGENT_GUIDANCE } from './prompts/guidance.js';
 import { compactAgentSystem } from './prompts/compact.js';
 import { DECISION_INSTRUCTIONS } from './prompts/decisions.js';
+import { dynamicPromptLines } from './prompts/dynamic.js';
 import {
   batchInstructions,
   strategyInstructions,
@@ -14,7 +15,7 @@ function baseAgentSystem(learning: boolean | { knowledge: boolean; history: bool
   const history = typeof learning === 'boolean' ? learning : learning.history;
 
   return (
-    toolInstructions(knowledge, history, vectors) + strategyInstructions(knowledge, history, vectors) + AGENT_GUIDANCE
+    toolInstructions(knowledge, history, vectors) + strategyInstructions(knowledge, history) + AGENT_GUIDANCE
   );
 }
 
@@ -42,21 +43,30 @@ export interface AgentSystemPromptOptions {
   instructions?: string;
 }
 
-const MAX_MCP_TOOLS_LISTED = 40;
-const MAX_SKILLS_LISTED = 30;
-const MAX_SKILL_DESCRIPTION = 280;
+/** The system prompt in two parts: `stable` depends only on configuration and
+ *  tools, `dynamic` on connected MCP servers and installed skills. */
+export interface AgentSystemSections {
+  stable: string;
+  dynamic: string;
+}
 
 /**
- * The system prompt, optionally extended with web-tools and MCP sections. Kept
- * as a pure function of the enabled capabilities so the cached prefix is
- * byte-stable for a given configuration: when web use is off and no MCP
- * servers connected the prompt is exactly `AGENT_SYSTEM`, and the `web_search`
- * line appears only when a search backend is configured — so the model is
- * never told about a tool that isn't registered.
+ * The system prompt as one string. Kept as a pure function of the enabled
+ * capabilities so the cached prefix is byte-stable for a given configuration:
+ * when web use is off and no MCP servers connected the prompt is exactly
+ * `AGENT_SYSTEM`, and the `web_search` line appears only when a search
+ * backend is configured, so the model is never told about a tool that isn't
+ * registered.
  */
 export function agentSystemPrompt(web: AgentSystemPromptOptions): string {
-  const mcp = web.mcp ?? [];
-  const skills = web.skills ?? [];
+  const { stable, dynamic } = agentSystemSections(web);
+
+  return dynamic ? `${stable}\n${dynamic}` : stable;
+}
+
+/** Stable and changing parts, sent as separate system blocks so a new MCP
+ *  server or skill does not invalidate the cached stable prefix. */
+export function agentSystemSections(web: AgentSystemPromptOptions): AgentSystemSections {
   const contextRoot = web.contextRoot;
   const lines = [promptBase(web), ...(web.decisions ? DECISION_INSTRUCTIONS : [])];
   if (web.batch) {
@@ -76,31 +86,15 @@ export function agentSystemPrompt(web: AgentSystemPromptOptions): string {
 
   lines.push(...webInstructions(web));
 
-  if (mcp.length > 0) {
-    lines.push(
-      '',
-      'MCP tools:',
-      'Only server and tool names are listed here. Each connected server has a folder of JSON files (one tool per file) holding the description and argument schema. Call load_mcp_tools with the callable names you will use; those tools join the tool list on the next step. Read a tool JSON file before calling it when you are unsure of its arguments. Prefer local code-search tools for questions about this repository.',
-      'If a server is unavailable, say so and include the error. When the error is an authentication failure, tell the user to re-authenticate. Do not pretend that server was never configured.',
-      ...mcp.map((server) => formatMcpServer(server)),
-    );
-  }
+  const dynamic = dynamicPromptLines({
+    mcp: web.mcp ?? [],
+    skills: web.skills ?? [],
+    contextRoot,
+    compact: web.compact,
+    custom: Boolean(web.instructions),
+  });
 
-  if (skills.length > 0) {
-    lines.push(
-      '',
-      'Agent skills:',
-      'Only the name and description are included here. Read the SKILL.md, and any files beside it, with context_read before following a skill.',
-      ...skills.slice(0, MAX_SKILLS_LISTED).map((skill) => formatSkill(skill)),
-    );
-    if (skills.length > MAX_SKILLS_LISTED && contextRoot) {
-      lines.push(
-        `${skills.length - MAX_SKILLS_LISTED} more skills are listed in \`${contextRoot}/skills/INDEX.md\`.`,
-      );
-    }
-  }
-
-  return lines.join('\n');
+  return { stable: lines.join('\n'), dynamic: dynamic.join('\n') };
 }
 
 function promptBase(web: AgentSystemPromptOptions): string {
@@ -141,47 +135,4 @@ function webInstructions(web: AgentSystemPromptOptions): string[] {
   );
 
   return lines;
-}
-
-function formatMcpServer(server: McpServerReport): string {
-  switch (server.state) {
-    case 'unavailable': {
-      const detail = server.detail ? ` (${clip(server.detail, 240)})` : '';
-      const status = server.catalogDir ? ` Status file: ${server.catalogDir}/STATUS.txt.` : '';
-
-      return `- ${server.name}: unavailable${detail}.${status}`;
-    }
-    case 'connected': {
-      const listed = server.tools.slice(0, MAX_MCP_TOOLS_LISTED);
-      const names =
-        listed.length === 0
-          ? 'no tools'
-          : listed.map((entry) => `${entry.name} (${entry.callable})`).join(', ');
-
-      const extra =
-        server.tools.length > listed.length
-          ? `, and ${server.tools.length - listed.length} more (list the server folder)`
-          : '';
-
-      const folder = server.catalogDir ? ` Folder: ${server.catalogDir}.` : '';
-
-      return `- ${server.name}: connected. Tools: ${names}${extra}.${folder}`;
-    }
-    default: {
-      const _never: never = server.state;
-
-      return _never;
-    }
-  }
-}
-
-function formatSkill(skill: SkillSummary): string {
-  return `- ${skill.name}: ${clip(skill.description, MAX_SKILL_DESCRIPTION)} File: ${skill.file}`;
-}
-
-function clip(text: string, max: number): string {
-  const flat = text.replace(/\s+/g, ' ').trim();
-  if (flat.length <= max) return flat;
-
-  return `${flat.slice(0, max - 1)}…`;
 }

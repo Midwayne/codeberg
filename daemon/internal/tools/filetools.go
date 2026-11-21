@@ -36,7 +36,11 @@ func grepTool(ws *workspace.Workspace) Tool {
 }`
 
 	return New("grep",
-		"Literal/regex search over real files; returns repo/path/line matches.",
+		"Case-sensitive exact text or regex search over real files; returns repo/path/line matches. "+
+			"Use for symbols, routes, table names, config keys, queue or event names, endpoints, and imports. "+
+			"Set literal: true for plain text; otherwise the pattern is a regex. "+
+			"In multi-repo mode pass the exact repo key; path_glob matches paths inside that repo, so use **/name/** for a directory, not the repo key. "+
+			"If a plausible search returns nothing, retry once with fewer constraints or a case-insensitive regex such as (?i)rollups.",
 		schema,
 		func(ctx context.Context, a grepArgs) (any, error) {
 			return ws.Grep(ctx, a.Pattern, a.Literal, a.Repo, a.PathGlob, a.Limit)
@@ -77,7 +81,8 @@ func readFileTool(ws *workspace.Workspace) Tool {
 }`
 
 	return New("read_file",
-		"Read a file, optionally a line range.",
+		"Read a file, optionally a line range. Use for surrounding context, imports, "+
+			"or lines outside indexed chunk boundaries; prefer get_chunk for a whole indexed chunk.",
 		schema,
 		func(_ context.Context, a readFileArgs) (any, error) {
 			return ws.ReadFile(a.Repo, a.Path, a.StartLine, a.EndLine)

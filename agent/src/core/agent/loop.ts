@@ -58,7 +58,7 @@ async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
     model: perCallTimeout ? modelTimeout(model) : model,
     // Cache the large, frozen system prompt instead of re-billing it on
     // every tool round and every turn.
-    instructions: cachedInstructions(state.system, state.profile),
+    instructions: cachedInstructions(state.system, state.profile, state.systemContext),
     tools,
     // Continue until the model answers instead of inheriting the SDK's
     // default 20-step limit. Deadlines follow the offered tools (turnTimeouts).
