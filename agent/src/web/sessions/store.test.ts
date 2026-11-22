@@ -160,6 +160,46 @@ describe('WebSessionStore', () => {
     expect((await store.list())[0]).toMatchObject({ title: 'Auth investigation' });
   });
 
+  it('marks a chat unread when a server run finishes until it is read', async () => {
+    const store = tempStore();
+    await store.upsert({ id: 'chat', title: 'Example', messages: [userMsg('a', 'first')] });
+
+    expect((await store.list())[0]!.unread).toBeUndefined();
+
+    await store.upsert({ id: 'chat', messages: [userMsg('a', 'first')], serverRunId: 'run', responded: true });
+
+    expect((await store.list())[0]).toMatchObject({ id: 'chat', unread: true });
+
+    const before = await store.load('chat');
+    expect(await store.markRead('chat')).not.toBeNull();
+
+    expect((await store.list())[0]!.unread).toBeUndefined();
+    expect((await store.load('chat'))!.updatedAt).toBe(before!.updatedAt);
+  });
+
+  it('keeps read state across later saves, pins, and renames', async () => {
+    const store = tempStore();
+    await store.upsert({ id: 'chat', messages: [userMsg('a', 'first')], serverRunId: 'run', responded: true });
+
+    await store.setFlags('chat', { pinned: true });
+    await store.rename('chat', 'Renamed');
+    await store.upsert({ id: 'chat', messages: [userMsg('a', 'first')], serverRunId: 'run' });
+
+    expect((await store.list())[0]).toMatchObject({ unread: true, pinned: true });
+
+    await store.markRead('chat');
+    await store.upsert({ id: 'chat', messages: [userMsg('a', 'first'), userMsg('b', 'next')], serverRunId: 'run2' });
+
+    expect((await store.list())[0]!.unread).toBeUndefined();
+  });
+
+  it('does not create a chat when marking a missing one read', async () => {
+    const store = tempStore();
+
+    expect(await store.markRead('missing')).toBeNull();
+    expect(await store.load('missing')).toBeNull();
+  });
+
   it('does not create a chat when renaming a missing one', async () => {
     const store = tempStore();
 

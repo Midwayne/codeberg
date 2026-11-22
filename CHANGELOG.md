@@ -8,6 +8,7 @@ are in the git history.
 
 ### Added
 
+- The sidebar marks chats with a finished response you have not opened yet.
 - Optional step limits for chat turns and subagents.
 - Settings for model and tool timeouts.
 - A context ring beside **Send** opens a breakdown of what fills the chat's context, with counts of summaries and cleared tool results.

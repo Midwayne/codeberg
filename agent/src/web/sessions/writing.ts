@@ -8,9 +8,17 @@ export async function save(state: WebSessionStoreState, record: WebSessionRecord
   await serial(state, record.id, () => write(state, record));
 }
 
+export type UpsertInput = Pick<WebSessionRecord, 'id' | 'messages'> & {
+  title?: string;
+  parentId?: string;
+  serverRunId?: string;
+  /** A server run just finished with this reply, so the chat becomes unread. */
+  responded?: boolean;
+};
+
 export async function upsert(
   state: WebSessionStoreState,
-  input: Pick<WebSessionRecord, 'id' | 'messages'> & { title?: string; parentId?: string; serverRunId?: string },
+  { responded, ...input }: UpsertInput,
 ): Promise<WebSessionRecord> {
   return serial(state, input.id, async () => {
     const existing = await load(state, input.id);
@@ -19,6 +27,7 @@ export async function upsert(
     const now = Date.now();
     const record: WebSessionRecord = {
       ...input,
+      ...readState(existing, responded ? now : undefined),
       // Without a title, keep the saved one; a new chat starts untitled.
       title: input.title ?? existing?.title ?? 'New chat',
       createdAt: existing?.createdAt ?? now,
@@ -48,6 +57,29 @@ export async function setFlags(
     if (!record) return null;
 
     const updated = { ...record, ...flags };
+    await write(state, updated);
+
+    return updated;
+  });
+}
+
+/** Read and reply times carry over every message save; a finished run sets a new reply time. */
+function readState(existing: WebSessionRecord | null, respondedAt?: number): Pick<WebSessionRecord, 'respondedAt' | 'readAt'> {
+  const replied = respondedAt ?? existing?.respondedAt;
+
+  return {
+    ...(replied === undefined ? {} : { respondedAt: replied }),
+    ...(existing?.readAt === undefined ? {} : { readAt: existing.readAt }),
+  };
+}
+
+/** Records that the user has seen the latest reply. Leaves `updatedAt` alone so the sidebar keeps its order. */
+export async function markRead(state: WebSessionStoreState, id: string): Promise<WebSessionRecord | null> {
+  return serial(state, id, async () => {
+    const record = await load(state, id);
+    if (!record) return null;
+
+    const updated = { ...record, readAt: Math.max(Date.now(), record.respondedAt ?? 0) };
     await write(state, updated);
 
     return updated;

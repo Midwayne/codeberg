@@ -2,7 +2,7 @@ import { remove, removeOlder } from './deletion.js';
 import { list, load, search } from './reading.js';
 import type { WebSessionRecord, WebSessionSearchResult, WebSessionSummary } from './records.js';
 import { WebSessionStoreState } from './state.js';
-import { rename, save, setFlags, upsert } from './writing.js';
+import { markRead, rename, save, setFlags, upsert } from './writing.js';
 
 /**
  * File-backed store of browser chat sessions under `<CODEBERG_HOME>/web-sessions/`,
@@ -37,6 +37,11 @@ export class WebSessionStore {
     flags: { pinned?: boolean; archived?: boolean },
   ): Promise<WebSessionRecord | null> {
     return setFlags(this.state, id, flags);
+  }
+
+  /** The user has seen the latest reply; the sidebar stops marking the chat unread. */
+  markRead(id: string): Promise<WebSessionRecord | null> {
+    return markRead(this.state, id);
   }
 
   /** A renamed title survives later message saves. */

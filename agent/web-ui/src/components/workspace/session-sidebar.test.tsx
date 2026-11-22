@@ -29,6 +29,19 @@ describe('SessionSidebar', () => {
     expect(html).toContain('Pinned conversation');
     expect(render()).not.toContain('Has active scheduled runs or background tools');
   });
+  it('marks unread replies on other chats but not on the open one', () => {
+    const unread = sessions.map((session) => session.archived ? session : { ...session, unread: true });
+    const html = renderToStaticMarkup(<SessionSidebar
+      sessions={unread}
+      currentId="pin" canBranch={false} onResume={() => undefined}
+      onNew={() => undefined} onBranch={() => undefined}
+      onDelete={() => undefined} onSetFlags={() => undefined} onRename={() => undefined}
+    />);
+
+    expect(html.match(/aria-label="Unread response"/g)).toHaveLength(1);
+    expect(html.indexOf('Recent conversation')).toBeLessThan(html.indexOf('Unread response'));
+    expect(render()).not.toContain('Unread response');
+  });
   it('requires a separate destructive action and offers a safe cancel button', () => {
     const html = renderToStaticMarkup(<DeleteChatDialog title="A saved investigation" onClose={() => undefined} onDelete={() => undefined} />);
     expect(html).toContain('<dialog');

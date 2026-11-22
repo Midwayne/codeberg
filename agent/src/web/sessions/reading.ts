@@ -6,6 +6,7 @@ import {
   type WebSessionSearchResult,
   type WebSessionSummary,
   countTurns,
+  isUnread,
 } from './records.js';
 import type { WebSessionStoreState } from './state.js';
 
@@ -101,6 +102,7 @@ function summarize(record: WebSessionRecord): WebSessionSummary {
     pinned: record.pinned === true,
     archived: record.archived === true,
     ...(record.parentId ? { parentId: record.parentId } : {}),
+    ...(isUnread(record) ? { unread: true as const } : {}),
   };
 }
 

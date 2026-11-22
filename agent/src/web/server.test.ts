@@ -845,6 +845,9 @@ describe('web server', () => {
     expect((await patch('missing', { pinned: true })).status).toBe(404);
     expect((await patch('first', { messages: [] })).status).toBe(400);
     expect((await patch('first', { archived: 'yes' })).status).toBe(400);
+    expect((await patch('first', { read: true })).status).toBe(200);
+    expect((await patch('first', { read: false })).status).toBe(400);
+    expect((await patch('missing', { read: true })).status).toBe(404);
   });
 
   it('404s a missing session and 400s a traversal id', async () => {

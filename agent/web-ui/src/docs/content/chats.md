@@ -6,6 +6,8 @@ The first submitted prompt adds the chat to the sidebar before generation starts
 
 You can open another chat, Settings, Training review, or another project while a response runs. Responses and queued questions stay with their original chat. Return to see progress or the completed answer.
 
+When a response finishes in a chat you are not viewing, including a scheduled follow-up, the sidebar shows that chat's title in bold with a dot beside it. Opening the chat clears the mark. The chat you have open never shows it, but a reply that finishes while the browser tab is in the background stays marked until you come back to the tab. Unread marks are saved with the chat, so they are the same in every tab and after a reload.
+
 | State | Where it stays |
 | --- | --- |
 | Submitted questions and saved answers | Server storage, with the original project. |

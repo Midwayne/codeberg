@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
 
-import { deleteSession, renameSession, saveSession } from './sessions';
+import { deleteSession, markSessionRead, renameSession, saveSession } from './sessions';
 
 const input = { id: 'chat', title: 'Question', messages: [] };
 
@@ -35,4 +35,21 @@ it('sends a rename as a title patch and reports failures', async () => {
   api.mockResolvedValue(new Response('Unavailable', { status: 500 }));
 
   await expect(renameSession('chat', 'Auth investigation', api)).rejects.toThrow('Could not rename chat (500)');
+});
+
+it('marks a chat read without failing for one deleted meanwhile', async () => {
+  const api = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 200 }));
+
+  await markSessionRead('chat', api);
+
+  expect(api).toHaveBeenCalledWith('/api/sessions/chat', expect.objectContaining({
+    method: 'PATCH',
+    body: JSON.stringify({ read: true }),
+  }));
+
+  api.mockResolvedValue(new Response('Not found', { status: 404 }));
+  await expect(markSessionRead('chat', api)).resolves.toBeUndefined();
+
+  api.mockResolvedValue(new Response('Unavailable', { status: 500 }));
+  await expect(markSessionRead('chat', api)).rejects.toThrow('Could not mark chat read (500)');
 });

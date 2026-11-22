@@ -12,6 +12,8 @@ export interface SessionSummary {
   parentId?: string;
   pinned: boolean;
   archived: boolean;
+  /** A finished reply the user has not opened yet. */
+  unread?: boolean;
 }
 
 /** Full saved chat — UI messages verbatim, so a resume re-renders faithfully. */
@@ -51,6 +53,12 @@ export async function updateSessionFlags(
 export async function renameSession(id: string, title: string, fetcher: typeof fetch = fetch): Promise<void> {
   const response = await fetcher(`${BASE}/${encodeURIComponent(id)}`, jsonInit('PATCH', { title }));
   if (!response.ok) throw new Error(`Could not rename chat (${response.status})`);
+}
+
+/** Clears the chat's unread mark without reordering the sidebar. */
+export async function markSessionRead(id: string, fetcher: typeof fetch = fetch): Promise<void> {
+  const response = await fetcher(`${BASE}/${encodeURIComponent(id)}`, jsonInit('PATCH', { read: true }));
+  if (!response.ok && response.status !== 404) throw new Error(`Could not mark chat read (${response.status})`);
 }
 
 /** Interactive opens must distinguish a missing chat from a failed request. */

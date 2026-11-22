@@ -20,11 +20,7 @@ export function SessionRow({ s, state }: SessionRowProps) {
         className="min-w-0 flex-1 px-2 py-3 text-left md:py-1.5"
         title={s.title}
       >
-        <span className="flex min-w-0 items-center gap-1">
-          {s.parentId && <GitBranch className="size-3 shrink-0 text-muted-foreground" aria-label="Branched chat" />}
-          <ScheduleBadge active={state.scheduledChatIds?.has(s.id)} />
-          <span className="line-clamp-2 leading-5 text-foreground md:line-clamp-1">{s.title}</span>
-        </span>
+        <SessionTitle s={s} state={state} />
         <span className="mt-1 block truncate text-xs text-muted-foreground md:mt-0 md:text-[11px] md:leading-4">
           {timeAgo(s.updatedAt)} · {s.turns} turn{s.turns === 1 ? '' : 's'}
         </span>
@@ -62,4 +58,23 @@ function ScheduleBadge({ active }: { active?: boolean }) {
   return active && <span role="img" aria-label="Has active scheduled runs or background tools" title="Has active scheduled runs or background tools" className="shrink-0 text-muted-foreground">
     <Clock className="size-3" aria-hidden="true" />
   </span>;
+}
+
+function SessionTitle({ s, state }: SessionRowProps) {
+  // The open chat is being read, so it never shows the mark.
+  const unread = s.unread === true && s.id !== state.currentId;
+
+  return (
+    <span className="flex min-w-0 items-center gap-1">
+      {s.parentId && <GitBranch className="size-3 shrink-0 text-muted-foreground" aria-label="Branched chat" />}
+      <ScheduleBadge active={state.scheduledChatIds?.has(s.id)} />
+      <span className={cn('line-clamp-2 leading-5 text-foreground md:line-clamp-1', unread && 'font-semibold')}>{s.title}</span>
+      <UnreadDot unread={unread} />
+    </span>
+  );
+}
+
+function UnreadDot({ unread }: { unread: boolean }) {
+  return unread && <span role="img" aria-label="Unread response" title="Unread response"
+    className="ml-auto size-2 shrink-0 rounded-full bg-primary" />;
 }

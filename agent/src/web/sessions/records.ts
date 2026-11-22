@@ -19,6 +19,15 @@ export interface WebSessionRecord {
   serverRunId?: string;
   pinned?: boolean;
   archived?: boolean;
+  /** When a server run last finished with a reply; does not move `updatedAt`. */
+  respondedAt?: number;
+  /** When the user last viewed this chat. */
+  readAt?: number;
+}
+
+/** True when a finished reply arrived after the user last viewed the chat. */
+export function isUnread(record: Pick<WebSessionRecord, 'respondedAt' | 'readAt'>): boolean {
+  return (record.respondedAt ?? 0) > (record.readAt ?? 0);
 }
 
 /** Lightweight row for the sidebar list (no message bodies sent). */
@@ -30,6 +39,8 @@ export interface WebSessionSummary {
   parentId?: string;
   pinned: boolean;
   archived: boolean;
+  /** Present only when a finished reply has not been seen yet. */
+  unread?: true;
 }
 
 export type WebSessionSearchResult = WebSessionSummary & {

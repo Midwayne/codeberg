@@ -14,6 +14,7 @@ import { workspaceSummaries } from './workspace-summaries';
 import type { ChatLoad } from './chat-resume';
 import type { WorkspaceChat } from './workspace-chat';
 import { useScheduledChatUpdates } from './use-scheduled-chat-updates';
+import { useUnreadChats } from './use-unread-chats';
 
 /** Owns the conversation lifecycle shared by the chat and session sidebar. */
 export function useWorkspaceSession() {
@@ -60,6 +61,8 @@ export function useWorkspaceSession() {
 
   const sessions = workspaceSummaries(savedSessions, registry.chats);
   const scheduledError = useScheduledChatUpdates(registry.chats, api);
+
+  useUnreadChats({ sessions, currentId: sessionId, api, refresh });
 
   return { active, readiness, renderedViews, sessions, sessionId, sessionError: sessionError || scheduledError,
     load, cancelResume, resume, startNew, branchFrom, remove, setFlags, rename };
