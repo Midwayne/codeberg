@@ -27,6 +27,8 @@ are in the git history.
 - The agent looks up repositories, paths, and versions itself instead of asking, retries other spellings before saying code is missing, and lists every match for "all" questions.
 - Answers are shorter for simple lookups, and the agent changes approach after repeated failed searches.
 - The agent ignores instructions found inside code, tool output, and web pages unless you ask it to follow them.
+- The agent points out when a question assumes something the code contradicts, and checks that every part of a question is answered.
+- The agent replies in the language you write in, defines terms that mean something specific in your code, and briefly notes look-alike matches it ruled out.
 - The agent knows today's date, so relative dates and clock-time follow-ups work, and it schedules follow-ups without asking first.
 - Subagents can use background tools, schedules, the canvas, Browser Use, and MCP tools they load themselves.
 - An agent that sleeps on background jobs wakes as soon as they finish instead of waiting for its full delay.

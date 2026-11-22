@@ -1,4 +1,5 @@
 import { jsonSchema, tool, type ToolSet } from 'ai';
+import { SEARCH_CODE_DESCRIPTION } from './search-code-description.js';
 
 import type { DaemonClient } from '../client.js';
 import { formatLineRange } from '../search-hit.js';
@@ -71,10 +72,7 @@ const searchCodeSchema = jsonSchema<SearchCodeInput>({
 
 function searchCodeTool(opts: SearchCodeOptions) {
   return tool({
-    description:
-      'Semantic code search. Returns relevant chunks with path, lines, snippet, and bounded full bodies for the top hits. ' +
-      'Start here for conceptual questions. Searches every indexed repo unless `repo` narrows it to one ' +
-      '(keys via the repos tool); `path_glob`, `kind`, and `min_score` narrow further.',
+    description: SEARCH_CODE_DESCRIPTION,
     inputSchema: searchCodeSchema,
     execute: (input, options) => executeSearch(opts, input, options.abortSignal),
   });

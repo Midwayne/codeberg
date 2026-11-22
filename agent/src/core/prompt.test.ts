@@ -68,6 +68,20 @@ describe('agentSystemPrompt', () => {
     expect(prompt).toContain('three different searches');
   });
 
+  it.each([false, true])('challenges wrong premises and checks every part of the question (compact: %s)', (compact) => {
+    const prompt = agentSystemPrompt({ enabled: false, search: false, compact });
+
+    expect(prompt).toContain('If the question assumes something the code contradicts, say so first');
+    expect(prompt).toContain('every part of the question');
+    expect(prompt).toMatch(/specific (meaning )?in this codebase/);
+    expect(prompt).toMatch(/user's language|language of the user's message/);
+  });
+
+  it('lists near-misses as gaps instead of dropping them silently', () => {
+    expect(AGENT_SYSTEM).toContain('list it under gaps in one line with the reason');
+    expect(AGENT_SYSTEM).not.toContain('Leave out files and APIs that merely contain the search term.');
+  });
+
   it('scales answer length to the question', () => {
     expect(AGENT_SYSTEM).toContain('Match length to the question.');
   });

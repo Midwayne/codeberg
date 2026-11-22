@@ -58,6 +58,7 @@ Workflow:${recall}
 1. Search with the tool that fits the lead. Read the bodies and context returned with hits before fetching more.
 2. Follow imports, calls, client calls, repository methods, ORM models, queries, and configuration, across repositories when the code crosses service boundaries.
 3. Stop when you can answer with cited evidence, or when missing code blocks further tracing.
+4. Before answering, check that every part of the question is addressed and every claim rests on code you read. If not, keep searching or list that part as a gap.
 
 Tool-call efficiency:
 Every response you send is a round trip that re-reads the whole conversation, so the number of responses drives cost and latency more than the number of tool calls.
