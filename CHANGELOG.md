@@ -8,6 +8,7 @@ are in the git history.
 
 ### Added
 
+- The agent reads each repository's `AGENTS.md` (or `CLAUDE.md` and similar files) for layout and conventions.
 - The sidebar marks chats with a finished response you have not opened yet.
 - Optional step limits for chat turns and subagents.
 - Settings for model and tool timeouts.
@@ -25,6 +26,8 @@ are in the git history.
 - The agent already knows the project's repositories, so it no longer spends a step listing them.
 - Long chats clear stale tool output before summarizing older messages, so summaries happen later.
 - The agent looks up repositories, paths, and versions itself instead of asking, retries other spellings before saying code is missing, and lists every match for "all" questions.
+- Answers are shorter for simple lookups, and the agent changes approach after repeated failed searches.
+- The agent ignores instructions found inside code, tool output, and web pages unless you ask it to follow them.
 - The agent knows today's date, so relative dates and clock-time follow-ups work, and it schedules follow-ups without asking first.
 - Subagents can use background tools, schedules, the canvas, Browser Use, and MCP tools they load themselves.
 - An agent that sleeps on background jobs wakes as soon as they finish instead of waiting for its full delay.

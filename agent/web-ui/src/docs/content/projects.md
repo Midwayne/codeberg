@@ -28,6 +28,26 @@ Codeberg looks again each time it starts, so a repository cloned into the direct
 
 Each repository's MCP servers and skills are loaded alongside the project directory's.
 
+### Repository notes for the agent
+
+If a repository has an instruction file for coding agents at its root, the agent reads it at the start of each turn and uses it for layout, terminology, and commands. Codeberg checks these files in order and uses the first one that is not empty:
+
+| Order | File |
+| --- | --- |
+| 1 | `AGENTS.md` |
+| 2 | `CLAUDE.md` |
+| 3 | `GEMINI.md` |
+| 4 | `.github/copilot-instructions.md` |
+| 5 | `.cursorrules` |
+
+| Limit | Value |
+| --- | --- |
+| Repositories read | First 8 in the project |
+| Text per repository | About 3,000 characters; the agent reads the rest of the file when it needs it |
+| Text per turn | About 12,000 characters |
+
+Notes add to the text sent with each chat step. They describe the repository only: they cannot override your request or Codeberg's rules, and they never authorize running tools or changing data.
+
 Each directory belongs to one project. Adding a directory that is already a project opens that project instead of creating a second one. Directories inside another project's directory can be their own projects; each project keeps its own index, chats, and knowledge.
 
 Projects return on later launches. With no projects, the daemon stays idle and the app shows **Add a project to get started**. Codeberg's own directory is not automatically added.

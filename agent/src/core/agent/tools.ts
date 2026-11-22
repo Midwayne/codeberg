@@ -8,7 +8,8 @@ import { mcpConfigFromEnv } from '../mcp/config.js';
 import { mcpToolSource } from '../mcp/tools.js';
 import { agentSystemSections } from '../prompt.js';
 import { clockContext } from '../prompts/clock.js';
-import { repositoryContext } from '../prompts/repositories.js';
+import { formatRepositories, indexedRepositories } from '../prompts/repositories.js';
+import { repositoryNotes } from '../prompts/repository-notes.js';
 import { maxReasoningProviderOptions } from '../reasoning.js';
 import { mergeProviderOptions, parallelToolProviderOptions } from '../tool-calls.js';
 import { createAgentTools } from '../tools/agent-tools.js';
@@ -63,16 +64,18 @@ export async function prepareSystem(
     if (toolNames.some(family.offered)) state.system += family.text;
   }
 
-  const [repositories, knowledgeIndex, profile] = await Promise.all([
-    repositoryContext(state.daemon, toolNames),
+  const [repos, knowledgeIndex, profile] = await Promise.all([
+    indexedRepositories(state.daemon, toolNames),
     state.learning?.knowledgeIndex(),
     state.learning?.profileContext(),
   ]);
 
+  const notes = await repositoryNotes(state.daemon, repos, toolNames);
+  const repositories = formatRepositories(repos);
   const clock = clockContext();
 
-  state.systemContext = contextBlocks([clock, repositories, sections.dynamic, knowledgeIndex, profile]);
-  state.subagentContext = contextBlocks([clock, repositories, sections.dynamic]);
+  state.systemContext = contextBlocks([clock, repositories, notes, sections.dynamic, knowledgeIndex, profile]);
+  state.subagentContext = contextBlocks([clock, repositories, notes, sections.dynamic]);
 
   return mergeProviderOptions(
     requestProviderOptions(state.system, toolNames, state.profile),

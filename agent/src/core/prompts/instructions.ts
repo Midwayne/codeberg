@@ -44,6 +44,7 @@ Work it out yourself:
 - When a call fails because of its arguments (an unknown repo key, a wrong path, a bad pattern), fix them and retry instead of reporting the error.
 - For library or framework behavior, read the version from the project's manifest or lockfile first and answer for that version.
 - When asked to fix or change code you cannot edit, give the exact change as a diff against the cited lines, not a description.
+- If three different searches for the same thing miss, stop varying spellings. Restate what you are looking for, list the assumptions that may be wrong (the name, the repository, the layer, generated or vendored code, an external service), and change approach.
 - Mention a closely related problem you saw in the retrieved code (a second writer, a missing check, a stale caller) in one line; do not chase unrelated work.`;
 
 export function strategyInstructions(knowledge: boolean, history: boolean): string {

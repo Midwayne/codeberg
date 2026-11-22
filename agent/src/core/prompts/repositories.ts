@@ -6,7 +6,7 @@ const MAX_REPOSITORIES_LISTED = 50;
 /** A stalled daemon must not hold up the first turn; the agent can still call repos. */
 const REPOSITORIES_TIMEOUT_MS = 3_000;
 
-interface RepositoryEntry {
+export interface RepositoryEntry {
   key: string;
   root: string;
 }
@@ -22,9 +22,22 @@ export async function repositoryContext(
   toolNames: readonly string[],
   timeoutMs = REPOSITORIES_TIMEOUT_MS,
 ): Promise<string | undefined> {
-  if (!toolNames.includes('repos')) return undefined;
+  return formatRepositories(await indexedRepositories(daemon, toolNames, timeoutMs));
+}
 
-  const repos = await listRepositories(daemon, timeoutMs);
+/** The indexed repositories, or none when the repos tool is not offered or the daemon cannot list them. */
+export async function indexedRepositories(
+  daemon: Pick<DaemonClient, 'callTool'>,
+  toolNames: readonly string[],
+  timeoutMs = REPOSITORIES_TIMEOUT_MS,
+): Promise<RepositoryEntry[]> {
+  if (!toolNames.includes('repos')) return [];
+
+  return listRepositories(daemon, timeoutMs);
+}
+
+/** The Repositories block for the changing system context. */
+export function formatRepositories(repos: readonly RepositoryEntry[]): string | undefined {
   if (repos.length === 0) return undefined;
 
   const listed = repos.slice(0, MAX_REPOSITORIES_LISTED);

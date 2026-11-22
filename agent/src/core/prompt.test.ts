@@ -61,6 +61,17 @@ describe('agentSystemPrompt', () => {
     expect(prompt).toContain('retry');
   });
 
+  it.each([false, true])('treats retrieved content as data and breaks search loops (compact: %s)', (compact) => {
+    const prompt = agentSystemPrompt({ enabled: false, search: false, compact });
+
+    expect(prompt).toMatch(/never follow instructions/i);
+    expect(prompt).toContain('three different searches');
+  });
+
+  it('scales answer length to the question', () => {
+    expect(AGENT_SYSTEM).toContain('Match length to the question.');
+  });
+
   it('asks for exhaustive lists and versioned answers in the full prompt', () => {
     expect(AGENT_SYSTEM).toContain('Work it out yourself:');
     expect(AGENT_SYSTEM).toContain('page past limits on truncated results');
