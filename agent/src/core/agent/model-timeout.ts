@@ -27,13 +27,13 @@ export function modelTimeout(model: LanguageModelV4, liveness: ModelLiveness = m
       }
     }),
     wrapStream: ({ model: provider, params }) => withRetries(name, liveness, params.abortSignal, async () => {
-      const deadline = new ModelDeadline(params.abortSignal, liveness.requestMs, liveness.idleMs);
+      const deadline = new ModelDeadline(params.abortSignal, liveness.requestMs, liveness.idleMs, isOutput);
 
       try {
         const result = await deadline.wait(provider.doStream({ ...params, abortSignal: deadline.signal }));
 
         // Wait for the first chunk inside this attempt, so a stream that never starts is retried too.
-        return { ...result, stream: await primed(deadline.stream(result.stream)) };
+        return { ...result, stream: await primed(deadline.stream(result.stream), isOutput) };
       } catch (error) {
         deadline.close();
         throw error;
@@ -57,16 +57,27 @@ async function withRetries<T>(name: string, liveness: ModelLiveness, parent: Abo
   }
 }
 
-/** Read the first chunk now, then hand back a stream that starts with it. */
-async function primed<T>(source: ReadableStream<T>): Promise<ReadableStream<T>> {
+/** Stream parts that show the provider is producing a response; headers and metadata do not. */
+const NOT_OUTPUT = new Set(['stream-start', 'response-metadata', 'raw']);
+
+function isOutput(chunk: unknown): boolean {
+  return !NOT_OUTPUT.has((chunk as { type?: string } | undefined)?.type ?? '');
+}
+
+/** Read up to the first output chunk now, then hand back a stream that replays what was read. */
+async function primed<T>(source: ReadableStream<T>, output: (chunk: T) => boolean): Promise<ReadableStream<T>> {
   const reader = source.getReader();
-  const first = await reader.read();
-  let pending: ReadableStreamReadResult<T> | undefined = first;
+  const buffered: Array<ReadableStreamReadResult<T>> = [];
+
+  for (;;) {
+    const next = await reader.read();
+    buffered.push(next);
+    if (next.done || output(next.value)) break;
+  }
 
   return new ReadableStream<T>({
     pull: async (controller) => {
-      const next = pending ?? await reader.read();
-      pending = undefined;
+      const next = buffered.shift() ?? await reader.read();
 
       if (next.done) controller.close();
       else controller.enqueue(next.value);

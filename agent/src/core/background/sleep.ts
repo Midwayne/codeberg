@@ -1,5 +1,8 @@
+import type { ModelMessage } from 'ai';
+
 import { scheduleContext } from '../schedules/context.js';
-import { currentBackground, subagentsThisStep, type BackgroundContext } from './context.js';
+import { SUBAGENT_TOOL_NAMES } from '../subagents/names.js';
+import { backgroundContext, currentBackground, subagentsThisStep, type BackgroundContext } from './context.js';
 
 export interface SleepInput {
   delay_seconds?: number;
@@ -58,4 +61,50 @@ async function refuseForeground(context: BackgroundContext, scheduler: Scheduler
   }
 
   throw new Error(FOREGROUND_SUBAGENTS);
+}
+
+const WITHDRAWN_NOTE = 'Your sleep_agent was withdrawn: run_subagents ran in the same step, and its reports are above. ' +
+  'Read them first; call sleep_agent again only if work is still running.';
+
+type StepCalls = { steps: Array<{ toolCalls: ReadonlyArray<{ toolName: string }> }> };
+
+/**
+ * The main loop's stop condition for sleep. A step that saved a sleep and
+ * also called run_subagents in the foreground has fresh reports nobody read,
+ * so the wake-up is withdrawn and the turn continues, whatever order the
+ * calls ran in.
+ */
+export async function sleepEndsTurn({ steps }: StepCalls): Promise<boolean> {
+  const context = backgroundContext.getStore();
+  if (context?.sleeping !== true) return false;
+
+  const ranSubagents = steps.at(-1)?.toolCalls.some((call) => SUBAGENT_TOOL_NAMES.includes(call.toolName));
+  if (!ranSubagents) return true;
+
+  const wakeId = context.sleepWakeId;
+  context.sleeping = false;
+  context.sleepRequest = undefined;
+  context.sleepWakeId = undefined;
+  context.sleepWithdrawn = true;
+
+  const scheduler = scheduleContext.getStore()?.scheduler;
+  if (wakeId && scheduler) await refuseQuietly(context, scheduler, wakeId);
+
+  return false;
+}
+
+/** Append the withdrawal note once, on the step after a sleep was withdrawn. */
+export function withSleepNote(messages: ModelMessage[]): ModelMessage[] {
+  const context = backgroundContext.getStore();
+  if (!context?.sleepWithdrawn) return messages;
+
+  context.sleepWithdrawn = false;
+
+  return [...messages, { role: 'user', content: WITHDRAWN_NOTE }];
+}
+
+async function refuseQuietly(context: BackgroundContext, scheduler: Scheduler, wakeId: string): Promise<void> {
+  await scheduler.cancel(context.chatId, wakeId).catch(() => {
+    context.withdrawWakeIds = [...(context.withdrawWakeIds ?? []), wakeId];
+  });
 }

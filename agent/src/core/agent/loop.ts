@@ -17,7 +17,8 @@ import { finalStep, turnMaxSteps } from './turn-budget.js';
 import { toolTimeoutMs, withToolTimeouts } from '../tools/timeout.js';
 import { modelLiveness } from './liveness.js';
 import { backgroundTools } from '../background/tools.js';
-import { agentIsSleeping, beginAgentStep } from '../background/context.js';
+import { beginAgentStep } from '../background/context.js';
+import { sleepEndsTurn, withSleepNote } from '../background/sleep.js';
 import { presentToolOutput, SPILL_CHARS } from '../context/spill.js';
 import { subagentTools } from '../subagents/tool.js';
 import { subagentsOn, subagentWorker } from './worker.js';
@@ -65,7 +66,7 @@ async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
     // Continue until the model answers instead of inheriting the SDK's
     // default 20-step limit. There is no turn or step deadline; Stop ends a
     // turn, and CODEBERG_MAX_TURN_STEPS can cap unattended ones.
-    stopWhen: [isLoopFinished(), agentIsSleeping, ...(maxSteps ? [isStepCount(maxSteps)] : [])],
+    stopWhen: [isLoopFinished(), sleepEndsTurn, ...(maxSteps ? [isStepCount(maxSteps)] : [])],
     ...(providerOptions ? { providerOptions } : {}),
     ...(state.reasoning && state.reasoning !== 'max' ? { reasoning: state.reasoning } : {}),
     // The model boundary archives/compacts complete tool exchanges as needed.
@@ -74,7 +75,7 @@ async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
       beginAgentStep();
 
       // Light models get the key rules again at the end of the latest user message.
-      const reminded = withTierReminder(messages, state.profile);
+      const reminded = withSleepNote(withTierReminder(messages, state.profile));
       const final = finalStep(stepNumber, maxSteps, reminded);
       const next = withConversationCache(final?.messages ?? reminded, state.profile);
       const patch = prepareStepPatch(messages, next, state.mcpSource?.activeTools(toolNames, next));

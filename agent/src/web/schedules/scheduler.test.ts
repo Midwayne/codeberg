@@ -8,6 +8,7 @@ import { WebSessionStore } from '../sessions/store.js';
 import type { ChatGenerator } from '../runs/types.js';
 import { scheduleContext } from '../../core/schedules/context.js';
 import { scheduleToolSource } from '../../core/schedules/tools.js';
+import { BackgroundError } from '../background/store.js';
 
 const dirs: string[] = [];
 const owners: SearchRuns[] = [];
@@ -348,4 +349,25 @@ it('keeps a sleeping wake-up scheduled when its jobs cannot be read before it is
   await (await f.runs.find('chat'))!.done;
 
   expect(f.generator).toHaveBeenCalledOnce();
+});
+
+it('wakes early when a waited-on job no longer exists, and logs other read errors once', async () => {
+  const f = await fixture();
+  const owner = { chatId: 'chat', sourceRunId: 'origin' };
+  const background = await f.runs.background.start(owner, { callId: 'gone', tool: 'grep', args: {} }, () => new Promise(() => undefined));
+  const job = await f.scheduler.create(f.context, { prompt: 'Check', delay_seconds: 3600, background_job_ids: [background.id] });
+  const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+  const read = vi.spyOn(f.runs.background, 'get').mockRejectedValue(new Error('EIO'));
+  for (let tick = 0; tick < 3; tick++) await f.scheduler.tick(job.dueAt! - 1);
+
+  expect(error).toHaveBeenCalledOnce();
+  expect(f.generator).not.toHaveBeenCalled();
+
+  read.mockRejectedValue(new BackgroundError(404, 'Background job not found in this chat.'));
+  await f.scheduler.tick(job.dueAt! - 1);
+  await (await f.runs.find('chat'))!.done;
+
+  expect(f.generator).toHaveBeenCalledOnce();
+  expect(JSON.stringify(f.generator.mock.calls[0]![0].messages.at(-1)?.parts)).toContain('missing');
 });

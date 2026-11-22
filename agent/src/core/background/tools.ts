@@ -4,6 +4,7 @@ import { startTool, type PresentBackground } from './invoke.js';
 import { sleepAgent, type SleepInput } from './sleep.js';
 import { SUBAGENT_TOOL_NAMES } from '../subagents/names.js';
 import { boundedOutput } from '../tools/bounded.js';
+import type { BackgroundJob } from './types.js';
 
 export function backgroundTools(tools: ToolSet, present?: PresentBackground): ToolSet {
   return {
@@ -25,8 +26,7 @@ export function backgroundTools(tools: ToolSet, present?: PresentBackground): To
 
         const job = await jobs.get(chatId, job_id);
 
-        // Subagent reports bound their own size, as in the foreground; the chat shows them as a card.
-        return SUBAGENT_TOOL_NAMES.includes(job.tool) ? boundedOutput(job) : job;
+        return SUBAGENT_TOOL_NAMES.includes(job.tool) ? subagentStatus(job) : job;
       },
     }),
     cancel_background_tool: tool({
@@ -63,3 +63,22 @@ tool after waking. A completed invocation can contain a still-running native job
 After Codeberg restarts, an in-flight invocation is interrupted with an uncertain outcome. Inspect external state
 before starting it again. Existing normal tool permissions and server limits apply to background work too.
 `;
+
+/**
+ * A subagent job as the agent and the chat card read it: status, task
+ * labels, and reports. Reports bound their own size, as in the foreground,
+ * so the result is not spilled; full briefs and internals stay out.
+ */
+function subagentStatus(job: BackgroundJob) {
+  const { id, chatId, tool, status, createdAt, finishedAt, error } = job;
+  const tasks = (job.args as { tasks?: Array<{ description?: unknown; agent_type?: unknown }> }).tasks;
+  const value = (job.output ?? job.progress) as { results?: unknown } | undefined;
+
+  return boundedOutput({
+    id, chatId, tool, status, createdAt,
+    ...(finishedAt === undefined ? {} : { finishedAt }),
+    ...(error === undefined ? {} : { error }),
+    ...(Array.isArray(tasks) ? { tasks: tasks.map(({ description, agent_type }) => ({ description, agent_type })) } : {}),
+    results: Array.isArray(value?.results) ? value.results : [],
+  });
+}

@@ -1,6 +1,6 @@
 import { validateTypes } from '@ai-sdk/provider-utils';
 import type { ToolExecutionOptions, ToolSet } from 'ai';
-import { currentBackground, detachedCallId } from './context.js';
+import { currentBackground, detachedCallId, runCallId } from './context.js';
 import { isBackgroundControl } from './names.js';
 import { isStreamingTool } from '../tools/streaming.js';
 import { SUBAGENT_TOOL_NAMES } from '../subagents/names.js';
@@ -19,10 +19,12 @@ export async function startTool(tools: ToolSet, input: { tool: string; args: Rec
   if (definition.needsApproval) throw new Error('This tool requires foreground approval.');
   if (!input.args || typeof input.args !== 'object' || Array.isArray(input.args)) throw new Error('Tool args must be an object.');
 
-  return context.jobs.start(context, { callId: options.toolCallId, tool: input.tool, args: input.args }, async (signal) => {
+  const callId = runCallId(options.toolCallId);
+
+  return context.jobs.start(context, { callId, tool: input.tool, args: input.args }, async (signal) => {
     const args = await validateTypes({ value: input.args, schema: definition.inputSchema });
     const output = await execute.call(definition, args, { ...options,
-      toolCallId: detachedCallId(context.sourceRunId, options.toolCallId), abortSignal: signal });
+      toolCallId: detachedCallId(context.sourceRunId, callId), abortSignal: signal });
 
     // Subagent reports bound their own size, as in the foreground; the chat reads them structured.
     const shown = present && !SUBAGENT_TOOL_NAMES.includes(input.tool) ? present : undefined;

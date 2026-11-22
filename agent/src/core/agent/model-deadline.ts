@@ -1,15 +1,18 @@
 /**
  * Timers exist only while a provider request or its response stream is
- * active. `duration` bounds the wait for a response to start; once a stream
- * produces output, only the `chunkMs` gap between chunks is bounded.
+ * active. `duration` bounds the wait for output to start; once a stream
+ * produces output (as `isOutput` judges it), only the `chunkMs` gap between
+ * chunks is bounded. Metadata such as `stream-start` does not count.
  */
 export class ModelDeadline {
   readonly signal: AbortSignal;
   private readonly controller = new AbortController();
   private readonly total: ReturnType<typeof setTimeout>;
   private idle?: ReturnType<typeof setTimeout>;
+  private live = false;
 
-  constructor(parent: AbortSignal | undefined, duration: number, private readonly chunkMs?: number) {
+  constructor(parent: AbortSignal | undefined, duration: number, private readonly chunkMs?: number,
+    private readonly isOutput: (chunk: unknown) => boolean = () => true) {
     this.signal = parent ? AbortSignal.any([parent, this.controller.signal]) : this.controller.signal;
     this.signal.throwIfAborted();
 
@@ -67,7 +70,7 @@ export class ModelDeadline {
             finish();
             controller.close();
           } else {
-            this.touch();
+            this.touch(next.value);
             controller.enqueue(next.value);
           }
         } catch (error) {
@@ -85,7 +88,10 @@ export class ModelDeadline {
     });
   }
 
-  private touch() {
+  private touch(chunk: unknown) {
+    this.live ||= this.isOutput(chunk);
+    if (!this.live) return;
+
     // The response is live: from here only silence ends it.
     clearTimeout(this.total);
     if (this.chunkMs === undefined) return;

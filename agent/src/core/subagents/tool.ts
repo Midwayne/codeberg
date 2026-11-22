@@ -24,7 +24,7 @@ interface Brief {
 const RUN_DESCRIPTION = [
   `Run up to ${MAX_SUBAGENTS} independent tasks in parallel, each on a fresh subagent using the subagent model.`,
   'Subagents do not see this conversation, so each prompt must be a complete brief.',
-  'Both types can call any MCP tool. agent_type "explorer" (default) only investigates; "worker" may also change things: scripts, background jobs, schedules, the canvas, the browser, and MCP calls with side effects.',
+  'agent_type "explorer" (default) only reads, including read-only MCP tools; "worker" may also change things: scripts, background jobs, schedules, the canvas, the browser, and every MCP tool.',
   'Returns one report per task, in order, with an agent_id for message_subagent.',
   'Use for independent multi-step checks (health, metrics, logs, separate code areas), not single lookups.',
 ].join(' ');

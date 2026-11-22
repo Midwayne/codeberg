@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { jsonSchema, tool } from 'ai';
 import { expect, it, vi } from 'vitest';
 import { backgroundTools } from './tools.js';
-import { backgroundContext, beginAgentStep, detachedCallId, noteForegroundSubagents, subagentsThisStep } from './context.js';
+import { sleepEndsTurn, withSleepNote } from './sleep.js';
+import { backgroundContext, beginAgentStep, callerScope, detachedCallId, noteForegroundSubagents, subagentsThisStep } from './context.js';
 import { scheduleContext } from '../schedules/context.js';
 import { ContextStore } from '../context/store.js';
 import { wrapToolOutputs } from '../context/wrap.js';
@@ -108,7 +109,8 @@ it('keeps detached subagent reports structured, as in the foreground, instead of
 
 it('never spills a subagent job read with background_tool_status, but still spills other large jobs', async () => {
   const store = ContextStore.open(mkdtempSync(join(tmpdir(), 'codeberg-status-spill-')));
-  const job = (tool: string) => ({ ...owner(), id: 'job', tool, args: {}, fingerprint: '', createdAt: 1, status: 'completed' as const,
+  const job = (tool: string) => ({ ...owner(), id: 'job', tool, fingerprint: 'f', createdAt: 1, status: 'completed' as const,
+    args: { tasks: [{ description: 'Check', prompt: 'p'.repeat(16_000), agent_type: 'worker' }] },
     output: { results: [{ agent_id: 'a1', report: 'x'.repeat(50_000) }] } });
   let current = job('run_subagents');
   const jobs = { start: vi.fn(), get: vi.fn(async () => current), cancel: vi.fn(), list: vi.fn() };
@@ -116,7 +118,11 @@ it('never spills a subagent job read with background_tool_status, but still spil
   const status = () => backgroundContext.run({ ...owner(), jobs, sleeping: false }, () =>
     (tools.background_tool_status.execute as any)({ job_id: 'job' }, options));
 
-  expect(await status()).toMatchObject({ tool: 'run_subagents', output: { results: [{ agent_id: 'a1' }] } });
+  const read = await status() as Record<string, unknown>;
+
+  // Only what the agent and the chat card use: no full briefs, fingerprint, or raw progress.
+  expect(read).toEqual({ id: 'job', chatId: 'chat', tool: 'run_subagents', status: 'completed', createdAt: 1,
+    tasks: [{ description: 'Check', agent_type: 'worker' }], results: [{ agent_id: 'a1', report: 'x'.repeat(50_000) }] });
 
   current = job('grep');
 
@@ -137,4 +143,40 @@ it('keeps a wake-up it could not withdraw for the turn to cancel, and still refu
 
   expect(scope.sleeping).toBe(false);
   expect(scope.withdrawWakeIds).toEqual(['wake']);
+});
+
+it('withdraws a saved sleep at the end of a step that also called run_subagents, and notes it for the next step', async () => {
+  const scheduler = { create: vi.fn(), list: vi.fn(), cancel: vi.fn(async () => ({})) };
+  const scope: Record<string, unknown> = { ...owner(), jobs: {}, sleeping: true, sleepWakeId: 'wake', sleepRequest: Promise.resolve() };
+  const step = (...names: string[]) => ({ steps: [{ toolCalls: names.map((toolName) => ({ toolName })) }] });
+
+  await scheduleContext.run({ ...owner(), scheduler }, () => backgroundContext.run(scope as never, async () => {
+    expect(await sleepEndsTurn(step('sleep_agent', 'run_subagents'))).toBe(false);
+
+    expect(scope.sleeping).toBe(false);
+    expect(scheduler.cancel).toHaveBeenCalledExactlyOnceWith('chat', 'wake');
+    expect(JSON.stringify(withSleepNote([]))).toContain('sleep_agent was withdrawn');
+    expect(withSleepNote([])).toEqual([]);
+
+    scope.sleeping = true;
+    expect(await sleepEndsTurn(step('sleep_agent', 'start_background_tool'))).toBe(true);
+  }));
+});
+
+it('keeps background jobs from different subagents apart even when their tool call ids repeat', async () => {
+  const starts: string[] = [];
+  const jobs = { start: vi.fn(async (_owner, input) => {
+    starts.push(input.callId);
+    return { ...owner(), id: input.callId, tool: 'example', status: 'running' as const, createdAt: 1 };
+  }), get: vi.fn(), cancel: vi.fn(), list: vi.fn() };
+  const tools = backgroundTools({ example: tool({ inputSchema: jsonSchema({ type: 'object' }), execute: async () => 'ok' }) });
+  const start = () => (tools.start_background_tool.execute as any)({ tool: 'example', args: {} }, { ...options, toolCallId: 'call_0' });
+
+  await backgroundContext.run({ ...owner(), jobs, sleeping: false }, async () => {
+    await callerScope.run('sa_1', start);
+    await callerScope.run('sa_2', start);
+    await start();
+  });
+
+  expect(starts).toEqual(['sa_1:call_0', 'sa_2:call_0', 'call_0']);
 });

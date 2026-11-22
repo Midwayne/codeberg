@@ -122,6 +122,7 @@ describe('run_subagents', () => {
     const { prompt, tools } = model.doGenerateCalls[0]!;
 
     expect(JSON.stringify(prompt[0])).toContain('explorer');
+    expect(JSON.stringify(prompt[0])).not.toContain('load_mcp_tools');
     expect(prompt.filter((entry) => entry.role === 'user')).toHaveLength(1);
     expect(JSON.stringify(prompt.at(-1))).toContain('Check checkout health');
     expect((tools ?? []).map((entry) => entry.name)).toEqual(['service_status']);
@@ -296,5 +297,29 @@ describe('stopping subagents', () => {
     expect(seen.at(-1)?.[0]).toMatchObject({ status: 'completed', report: long.trim() });
     expect(seen.at(-1)?.[0]?.report_truncated).toBeUndefined();
     expect(snapshots).toEqual([]);
+  });
+});
+
+describe('stopping a subagent mid-run', () => {
+  it('settles when the user stops it during a later step instead of hanging', async () => {
+    let calls = 0;
+    const { set } = setup(async ({ abortSignal }) => {
+      if (++calls === 1) return call('service_status', { service: 'checkout' });
+
+      return new Promise((_resolve, reject) => abortSignal!.addEventListener('abort', () => reject(abortSignal!.reason)));
+    });
+    const controller = new AbortController();
+    const output = await set[SUBAGENT_TOOL]!.execute!({ tasks: [{ description: 'Check checkout', prompt: 'Check checkout' }] },
+      { ...options, abortSignal: controller.signal });
+
+    const drained = (async () => {
+      for await (const _item of output as AsyncIterable<unknown>) { /* drain */ }
+    })();
+
+    await vi.waitFor(() => expect(calls).toBe(2));
+    controller.abort(new Error('User stopped'));
+
+    await expect(Promise.race([drained, new Promise((_resolve, reject) => setTimeout(() => reject(new Error('hung')), 2_000))]))
+      .rejects.toThrow('User stopped');
   });
 });

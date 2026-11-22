@@ -34,7 +34,8 @@ export function roleLoop(
   let loop = loops.get(type);
 
   if (!loop) {
-    loop = createLoop(worker, type, reportingTools(roleTools(type, localMcpLoads(tools))));
+    // Loads check against the role's own tools, so an explorer cannot load a write.
+    loop = createLoop(worker, type, reportingTools(localMcpLoads(roleTools(type, tools))));
     loops.set(type, loop);
   }
 
@@ -47,7 +48,7 @@ function createLoop(worker: SubagentWorker, type: SubagentType, tools: ToolSet):
 
   return new ToolLoopAgent({
     model: worker.model,
-    instructions: cachedInstructions(subagentSystem(type), worker.profile, worker.context?.() || undefined),
+    instructions: cachedInstructions(subagentSystem(type, names.includes('load_mcp_tools')), worker.profile, worker.context?.() || undefined),
     tools,
     stopWhen: [isLoopFinished(), ...(worker.maxSteps ? [isStepCount(worker.maxSteps)] : [])],
     ...reasoning,

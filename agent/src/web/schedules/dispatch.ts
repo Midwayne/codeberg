@@ -2,6 +2,7 @@ import type { SearchRuns } from '../runs/manager.js';
 import { scheduledFollowUpMessage } from '../../core/schedules/messages.js';
 import { RunError, type SearchRun } from '../runs/types.js';
 import { requestId, type ScheduledRun } from './types.js';
+import { BackgroundError } from '../background/store.js';
 
 export async function readyPrompt(runs: SearchRuns, job: ScheduledRun, now: number): Promise<string | undefined> {
   if (!job.afterToolCallId) return await isDue(runs, job, now) ? wakePrompt(runs, job, now) : undefined;
@@ -64,12 +65,16 @@ export async function isDue(runs: SearchRuns, job: ScheduledRun, now: number): P
   if (job.everySeconds || !job.backgroundJobIds?.length) return false;
 
   try {
-    const jobs = await Promise.all(job.backgroundJobIds.map((id) => runs.background.get(job.chatId, id)));
+    const jobs = await Promise.all(job.backgroundJobIds.map((id) => backgroundJob(runs, job.chatId, id)));
 
-    return jobs.every((item) => !UNFINISHED.has(item.status));
+    unreadable.delete(job.id);
+
+    // A job that no longer exists has nothing left to wait for.
+    return jobs.every((item) => !item || !UNFINISHED.has(item.status));
   } catch (error) {
     // Waking early is optional: on a read error, wait for the chosen time instead of failing the wake-up.
-    console.error(`Could not check background jobs for wake-up ${job.id}:`, error);
+    if (!unreadable.has(job.id)) console.error(`Could not check background jobs for wake-up ${job.id}:`, error);
+    unreadable.add(job.id);
 
     return false;
   }
@@ -77,11 +82,26 @@ export async function isDue(runs: SearchRuns, job: ScheduledRun, now: number): P
 
 const UNFINISHED = new Set(['running', 'cancelling']);
 
+/** Wake-ups whose job read error was already logged, so a long sleep logs it once. */
+const unreadable = new Set<string>();
+
+/** A background job, or undefined when its record is gone. */
+async function backgroundJob(runs: SearchRuns, chatId: string, id: string) {
+  return runs.background.get(chatId, id).catch((error: unknown) => {
+    if (error instanceof BackgroundError && error.status === 404) return undefined;
+
+    throw error;
+  });
+}
+
 async function wakePrompt(runs: SearchRuns, job: ScheduledRun, now: number): Promise<string> {
   if (!job.backgroundJobIds?.length) return job.prompt;
 
   const snapshots = await Promise.all(job.backgroundJobIds.map(async (id) => {
-    const { output: _output, args: _args, fingerprint: _fingerprint, progress: _progress, ...summary } = await runs.background.get(job.chatId, id);
+    const found = await backgroundJob(runs, job.chatId, id);
+    if (!found) return { id, status: 'missing' };
+
+    const { output: _output, args: _args, fingerprint: _fingerprint, progress: _progress, ...summary } = found;
 
     return summary;
   }));

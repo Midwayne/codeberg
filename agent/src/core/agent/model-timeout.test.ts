@@ -216,3 +216,38 @@ it('retries a stream that opened but never produced output', async () => {
   expect(calls).toBe(2);
   expect(vi.getTimerCount()).toBe(0);
 });
+
+it('retries a stream that sent only stream-start, waiting the request window rather than the idle window', async () => {
+  vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  let calls = 0;
+  const model = modelTimeout(new MockLanguageModelV4({ doStream: async () => {
+    calls++;
+
+    return { stream: new ReadableStream({ start(controller) {
+      controller.enqueue({ type: 'stream-start', warnings: [] });
+      controller.enqueue({ type: 'response-metadata', id: 'r1' });
+      if (calls === 1) return;
+
+      controller.enqueue({ type: 'text-delta', id: 't', delta: 'answer' });
+      controller.close();
+    } }) };
+  } }), liveness);
+  const opened = model.doStream({ prompt: [] });
+
+  // Past the idle window but inside the request window: still waiting on the first attempt.
+  await vi.advanceTimersByTimeAsync(400_000);
+  expect(calls).toBe(1);
+
+  await vi.advanceTimersByTimeAsync(260_000);
+  const parts: unknown[] = [];
+  const reader = (await opened).stream.getReader();
+  for (let next = await reader.read(); !next.done; next = await reader.read()) parts.push(next.value);
+
+  expect(calls).toBe(2);
+  expect(parts).toEqual([
+    { type: 'stream-start', warnings: [] },
+    { type: 'response-metadata', id: 'r1' },
+    { type: 'text-delta', id: 't', delta: 'answer' },
+  ]);
+  expect(vi.getTimerCount()).toBe(0);
+});

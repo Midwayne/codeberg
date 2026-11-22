@@ -48,6 +48,16 @@ describe('statusSubagents', () => {
       part: expect.objectContaining({ state: 'output-available', input: { tasks }, output: { status: 'completed', results } }) });
   });
 
+  it('reads the trimmed status shape: task labels and top-level results', () => {
+    const results = [{ agent_id: 'a1', status: 'completed', tool_calls: 1, report: 'fine' }];
+    const part = { type: 'tool-background_tool_status', state: 'output-available',
+      output: { id: 'job-1', tool: 'run_subagents', status: 'completed', tasks: [{ description: 'Check checkout' }], results } };
+
+    expect(statusSubagents('background_tool_status', part)?.part).toMatchObject({
+      input: { tasks: [{ description: 'Check checkout' }] }, output: { status: 'completed', results },
+    });
+  });
+
   it('leaves job lists and other jobs to the generic view', () => {
     const list = { type: 'tool-background_tool_status', state: 'output-available', output: [{ id: 'job-1', tool: 'run_subagents' }] };
     const grep = { type: 'tool-background_tool_status', state: 'output-available', output: { id: 'j', tool: 'grep', status: 'completed' } };

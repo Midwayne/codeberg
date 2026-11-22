@@ -42,15 +42,18 @@ export function detachedSubagents(name: string, part: Part): DetachedSubagents |
 export function statusSubagents(name: string, part: Part): { name: string; part: Part } | undefined {
   if (name !== 'background_tool_status' || part.state !== 'output-available') return undefined;
 
-  const job = part.output as { tool?: unknown; args?: unknown; status?: unknown; error?: unknown; output?: unknown; progress?: unknown };
+  const job = part.output as { tool?: unknown; args?: unknown; tasks?: unknown; status?: unknown; error?: unknown;
+    output?: unknown; progress?: unknown; results?: unknown };
   if (!job || typeof job !== 'object' || Array.isArray(job)) return undefined;
 
   if (typeof job.tool !== 'string' || !isSubagentTool(job.tool) || typeof job.status !== 'string') return undefined;
 
-  const results = resultsOf(job.output) ?? resultsOf(job.progress) ?? [];
+  // Current results are trimmed (task labels, top-level results); older saved chats hold the raw job.
+  const results = resultsOf(job) ?? resultsOf(job.output) ?? resultsOf(job.progress) ?? [];
   const error = typeof job.error === 'string' ? job.error : undefined;
+  const input = Array.isArray(job.tasks) ? { tasks: job.tasks } : job.args;
 
-  return { name: job.tool, part: progressPart(job.args, { status: job.status, error, results }) };
+  return { name: job.tool, part: progressPart(input, { status: job.status, error, results }) };
 }
 
 /** A tool part the subagent card reads: live while the job runs, final once it settles. */

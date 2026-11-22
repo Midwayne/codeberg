@@ -8,7 +8,8 @@ are in the git history.
 
 ### Added
 
-- Set `CODEBERG_SUBAGENT_MAX_STEPS` or `CODEBERG_MAX_TURN_STEPS` to cap subagent or chat turn steps, and `CODEBERG_MODEL_REQUEST_TIMEOUT_MS`, `CODEBERG_MODEL_IDLE_TIMEOUT_MS`, `CODEBERG_MODEL_TIMEOUT_RETRIES`, and `CODEBERG_TOOL_TIMEOUT_MS` to tune timeouts.
+- Optional step limits for chat turns and subagents.
+- Settings for model and tool timeouts.
 - A context ring beside **Send** opens a breakdown of what fills the chat's context, with counts of summaries and cleared tool results.
 - Set `tier: light` on a model in `models.yml` to give a smaller model shorter instructions, fewer tools, and a reminder of the evidence rules.
 - Set `tool_batch`, `tool_output_limit`, and `instructions` on a model in `models.yml`.
@@ -22,7 +23,7 @@ are in the git history.
 - Adding an MCP server or skill no longer resets cached instructions for Anthropic models.
 - The agent already knows the project's repositories, so it no longer spends a step listing them.
 - Long chats clear stale tool output before summarizing older messages, so summaries happen later.
-- Subagents can use background tools, schedules, the canvas, Browser Use, and every MCP tool, which they load themselves; explorers still only investigate.
+- Subagents can use background tools, schedules, the canvas, Browser Use, and MCP tools they load themselves.
 - An agent that sleeps on background jobs wakes as soon as they finish instead of waiting for its full delay.
 - Chat turns and subagents no longer stop after a fixed time or number of steps; they work until they answer or you press **Stop**.
 - A model request now fails only when the provider stops responding, and is retried first.

@@ -1,5 +1,5 @@
 import { jsonSchema, tool, type ToolSet } from 'ai';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { roleTools } from './roles.js';
 import { workerTools } from './tools.js';
@@ -85,7 +85,7 @@ describe('roleTools', () => {
     browser_task: noop(),
   };
 
-  it('gives explorers every MCP tool but no scripts, starts, schedules, edits, or browsing', () => {
+  it('gives explorers only read-only MCP tools and no scripts, starts, schedules, edits, or browsing', () => {
     expect(Object.keys(roleTools('explorer', tools)).sort()).toEqual([
       'background_tool_status',
       'browser_sessions',
@@ -93,12 +93,26 @@ describe('roleTools', () => {
       'grep',
       'list_scheduled_runs',
       'load_mcp_tools',
-      'mcp_deploy_rollback',
       'mcp_logs_query',
     ]);
   });
 
   it('gives workers every allowed tool', () => {
     expect(Object.keys(roleTools('worker', tools)).sort()).toEqual(Object.keys(tools).sort());
+  });
+});
+
+describe('subagent schedules', () => {
+  it('refuses after_tool_call_id, whose outcome is never recorded, and keeps time-based schedules', async () => {
+    const create = vi.fn(async (input: unknown) => ({ id: 'wake', input }));
+    const scheduleRun = tool({ description: 'schedule', inputSchema: jsonSchema<Record<string, unknown>>({ type: 'object', properties: {} }), execute: create });
+    const kept = workerTools({ schedule_run: scheduleRun });
+    const options = { toolCallId: 'c1', messages: [] } as never;
+
+    await expect(kept.schedule_run!.execute!({ prompt: 'Check', after_tool_call_id: 'c0' }, options)).rejects.toThrow('delay_seconds or run_at');
+    expect(create).not.toHaveBeenCalled();
+
+    await kept.schedule_run!.execute!({ prompt: 'Check', delay_seconds: 60 }, options);
+    expect(create).toHaveBeenCalledOnce();
   });
 });

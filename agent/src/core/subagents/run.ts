@@ -1,6 +1,7 @@
 import type { ModelMessage, ToolLoopAgent, ToolSet } from 'ai';
 
 import type { ContextStore } from '../context/store.js';
+import { callerScope } from '../background/context.js';
 import { errorMessage } from '../errors.js';
 import { roleLoop, type SubagentWorker } from './loop.js';
 import { progressScope, type ProgressSink } from './progress.js';
@@ -67,7 +68,8 @@ export async function sendToSession(
       const started = Date.now();
       progress?.start(started);
       const loop = roleLoop(runtime.loops, runtime.worker, session.type, runtime.tools);
-      const result = await progressScope.run(progress ?? silent, () => runStreamed(loop, session.messages, abortSignal));
+      const result = await progressScope.run(progress ?? silent, () =>
+        callerScope.run(session.id, () => runStreamed(loop, session.messages, abortSignal)));
 
       return { result, elapsed_ms: Date.now() - started };
     });
@@ -102,9 +104,14 @@ async function runStreamed(loop: ToolLoopAgent, messages: ModelMessage[], abortS
   const stream = await loop.stream({ messages, ...(abortSignal ? { abortSignal } : {}) });
 
   // Error parts carry the provider's own error; awaiting the results would only say no output was generated.
+  let aborted = false;
   for await (const part of stream.fullStream) {
     if (part.type === 'error') failure ??= part.error;
+    if (part.type === 'abort') aborted = true;
   }
+
+  // A stopped stream never settles some of its results, so stop here rather than await them.
+  if (aborted || abortSignal?.aborted) throw abortSignal?.reason ?? new Error('Subagent stopped.');
   if (failure !== undefined) throw failure;
 
   const [steps, text, totalUsage, responseMessages] = await Promise.all([

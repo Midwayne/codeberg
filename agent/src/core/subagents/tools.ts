@@ -22,8 +22,28 @@ export function workerTools(tools: ToolSet): ToolSet {
   for (const [name, definition] of Object.entries(tools)) {
     if (MAIN_ONLY.has(name) || definition.needsApproval) continue;
 
-    kept[name] = definition;
+    kept[name] = name === 'schedule_run' ? timeBasedSchedules(definition) : definition;
   }
 
   return kept;
+}
+
+type Execute = (input: unknown, options: unknown) => unknown;
+
+/**
+ * A subagent's tool calls are not recorded in the chat run, so a schedule
+ * waiting on one of them (`after_tool_call_id`) could never find its outcome.
+ */
+function timeBasedSchedules(definition: ToolSet[string]): ToolSet[string] {
+  const execute = definition.execute as Execute | undefined;
+  if (!execute) return definition;
+
+  return { ...definition, execute: async (input: unknown, options: unknown) => {
+    if ((input as { after_tool_call_id?: unknown } | undefined)?.after_tool_call_id !== undefined) {
+      throw new Error('after_tool_call_id is not available to subagents, whose tool calls are not recorded in the chat. ' +
+        'Use delay_seconds or run_at.');
+    }
+
+    return execute.call(definition, input, options);
+  } } as ToolSet[string];
 }

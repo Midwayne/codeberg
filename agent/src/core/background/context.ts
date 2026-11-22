@@ -12,20 +12,30 @@ export interface BackgroundContext extends BackgroundOwner {
   subagentCallsThisStep?: number;
   /** Wake-ups this turn saved, then refused but could not cancel; the run cancels them when it ends. */
   withdrawWakeIds?: string[];
+  /** A sleep withdrawn at the end of a step; the next step tells the model why it is still awake. */
+  sleepWithdrawn?: boolean;
 }
 
 export const backgroundContext = new AsyncLocalStorage<BackgroundContext>();
+
+/**
+ * The subagent making a tool call, if any. Subagents share the main run, and
+ * providers may reuse call ids (`call_0`), so background job ids include it.
+ */
+export const callerScope = new AsyncLocalStorage<string>();
+
+/** A tool call id that is unique within the run, whichever agent made the call. */
+export function runCallId(toolCallId: string): string {
+  const caller = callerScope.getStore();
+
+  return caller ? `${caller}:${toolCallId}` : toolCallId;
+}
 
 export function currentBackground(): BackgroundContext {
   const context = backgroundContext.getStore();
   if (!context) throw new Error('Background tools and agent sleep require a server-owned browser chat.');
 
   return context;
-}
-
-/** Evaluated after each tool step, without aborting the work the agent started. */
-export function agentIsSleeping(): boolean {
-  return backgroundContext.getStore()?.sleeping === true;
 }
 
 const DETACHED_SUFFIX = ':background';

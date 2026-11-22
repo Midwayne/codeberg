@@ -94,3 +94,58 @@ it('refuses to sleep in the step that ran subagents, even when they finish at on
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+it('withdraws a sleep when the same streamed step calls run_subagents after it, and continues to the reports', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'codeberg-sleep-streamed-'));
+  const daemon = new DaemonClient('http://unused.test');
+  vi.spyOn(daemon, 'listTools').mockResolvedValue([]);
+  const usage = { inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 1, text: 1, reasoning: 0 } };
+  let step = 0;
+
+  // The sleep call streams first; the run_subagents call arrives while its long brief is still streaming.
+  const chat = new MockLanguageModelV4({ doStream: async () => {
+    const first = ++step === 1;
+
+    return { stream: new ReadableStream({ async start(controller) {
+      controller.enqueue({ type: 'stream-start', warnings: [] });
+      if (first) {
+        controller.enqueue({ type: 'tool-call', toolCallId: 'sleep', toolName: 'sleep_agent', input: JSON.stringify({ delay_seconds: 600, prompt: 'Check later' }) });
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        controller.enqueue({ type: 'tool-call', toolCallId: 'fan', toolName: 'run_subagents',
+          input: JSON.stringify({ tasks: [{ description: 'Check', prompt: 'Check checkout' }] }) });
+      } else {
+        controller.enqueue({ type: 'text-start', id: 't' });
+        controller.enqueue({ type: 'text-delta', id: 't', delta: 'Checkout is fine.' });
+        controller.enqueue({ type: 'text-end', id: 't' });
+      }
+      controller.enqueue({ type: 'finish', finishReason: { unified: first ? 'tool-calls' : 'stop', raw: undefined }, usage });
+      controller.close();
+    } }) };
+  } });
+  const summary = generateMock(async () => ({ content: [{ type: 'text' as const, text: 'fine' }],
+    finishReason: { unified: 'stop' as const, raw: undefined }, usage, warnings: [] }));
+  const agent = new Agent({ model: chat, summaryModel: summary, daemon, decisionModel: null, learning: false, promptHooks: [],
+    env: { CODEBERG_HOME: directory }, context: ContextStore.open(join(directory, 'context')),
+    mcp: { enabled: false, servers: [], files: [], warnings: [] }, web: webConfigFromEnv({ CODEBERG_WEB_USE: 'false' }) });
+  const scheduler = { create: vi.fn(async () => ({ id: 'wake-1' })), list: vi.fn(), cancel: vi.fn(async () => ({})) };
+  const jobs = { start: vi.fn(), get: vi.fn(), list: vi.fn(), cancel: vi.fn() };
+  const owner = { chatId: 'chat', sourceRunId: 'turn' };
+  const scope = { ...owner, jobs, sleeping: false };
+
+  try {
+    const loop = await agent.toolLoopAgent();
+    await scheduleContext.run({ ...owner, scheduler }, () => backgroundContext.run(scope, async () => {
+      const result = await loop.stream({ prompt: 'Check' });
+      await result.consumeStream();
+    }));
+
+    expect(scheduler.cancel).toHaveBeenCalledExactlyOnceWith('chat', 'wake-1');
+    expect(scope.sleeping).toBe(false);
+    expect(chat.doStreamCalls).toHaveLength(2);
+    // The model learns why it is still awake, from the refused call or the withdrawal note.
+    expect(JSON.stringify(chat.doStreamCalls[1]!.prompt)).toMatch(/run_subagents ran in the foreground|sleep_agent was withdrawn/);
+  } finally {
+    await agent.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});

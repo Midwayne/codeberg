@@ -21,7 +21,7 @@ it('loads MCP tools for one subagent only, without touching the activation the m
   const tools = {
     grep: tool({ inputSchema: schema, execute: async () => 'ok' }),
     load_mcp_tools: tool({ inputSchema: jsonSchema<{ names: string[] }>({ type: 'object', properties: { names: { type: 'array' } } }), execute: shared }),
-    mcp_grafana_query: tool({ inputSchema: schema, execute: async () => 'p99 120ms' }),
+    mcp_grafana_query: { ...tool({ inputSchema: schema, execute: async () => 'p99 120ms' }), metadata: { annotations: { readOnlyHint: true } } },
   };
 
   let step = 0;
@@ -43,9 +43,38 @@ it('loads MCP tools for one subagent only, without touching the activation the m
 
   const offered = (call: number) => (model.doGenerateCalls[call]!.tools ?? []).map((entry) => entry.name);
 
+  expect(JSON.stringify(model.doGenerateCalls[0]!.prompt[0])).toContain('load_mcp_tools');
   expect(shared).not.toHaveBeenCalled();
   expect(offered(0)).not.toContain('mcp_grafana_query');
   expect(offered(1)).toContain('mcp_grafana_query');
   expect(JSON.stringify(model.doGenerateCalls[1]!.prompt)).toContain('mcp_missing_tool');
   expect(last.results[0].status).toBe('completed');
+});
+
+it('reports MCP tools an explorer may not call as missing, so it never loads a write', async () => {
+  const schema = jsonSchema<Record<string, unknown>>({ type: 'object', properties: {} });
+  const readOnly = { ...tool({ inputSchema: schema, execute: async () => 'rows' }), metadata: { annotations: { readOnlyHint: true } } };
+  const tools = {
+    load_mcp_tools: tool({ inputSchema: jsonSchema<{ names: string[] }>({ type: 'object', properties: { names: { type: 'array' } } }), execute: async () => ({}) }),
+    mcp_db_select: readOnly,
+    mcp_db_delete: tool({ inputSchema: schema, execute: async () => 'deleted' }),
+  };
+
+  let step = 0;
+  const model = generateMock(async () => {
+    if (++step === 1) return { content: [{ type: 'tool-call' as const, toolCallId: 'load', toolName: 'load_mcp_tools',
+      input: JSON.stringify({ names: ['mcp_db_select', 'mcp_db_delete'] }) }], finishReason: { unified: 'tool-calls' as const, raw: undefined }, usage, warnings: [] };
+
+    return { content: [{ type: 'text' as const, text: 'done' }], finishReason: { unified: 'stop' as const, raw: undefined }, usage, warnings: [] };
+  });
+  const worker = { model, profile: DEFAULT_PROFILE, activeTools: (all: readonly string[]) => selectActiveTools(all, []) };
+  const set = subagentTools(worker, tools, ContextStore.open(mkdtempSync(join(tmpdir(), 'codeberg-mcp-explorer-'))));
+
+  const output = await set[SUBAGENT_TOOL]!.execute!({ tasks: [{ description: 'Check', prompt: 'Read the rows' }] }, options);
+  for await (const _item of output as AsyncIterable<unknown>) { /* drain */ }
+
+  const offered = (model.doGenerateCalls[1]!.tools ?? []).map((entry) => entry.name);
+  expect(offered).toContain('mcp_db_select');
+  expect(offered).not.toContain('mcp_db_delete');
+  expect(JSON.stringify(model.doGenerateCalls[1]!.prompt)).toMatch(/missing[^\]]*mcp_db_delete/);
 });
