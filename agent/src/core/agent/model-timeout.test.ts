@@ -4,7 +4,10 @@ import { modelLiveness } from './liveness.js';
 import { modelTimeout } from './model-timeout.js';
 
 beforeEach(() => vi.useFakeTimers());
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 const liveness = { requestMs: 600_000, idleMs: 300_000, retries: 2 };
 
@@ -15,6 +18,7 @@ it.each(['generate', 'stream'] as const)('retries a %s request that never respon
 
     return new Promise<never>(() => undefined);
   };
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   const model = modelTimeout(new MockLanguageModelV4({ doGenerate: pending, doStream: pending }), liveness);
   const result = mode === 'generate' ? model.doGenerate({ prompt: [] }) : model.doStream({ prompt: [] });
   const rejected = expect(result).rejects.toThrow('timed out');
@@ -29,6 +33,10 @@ it.each(['generate', 'stream'] as const)('retries a %s request that never respon
 
   expect(signals).toHaveLength(3);
   expect(signals.every((signal) => signal.aborted)).toBe(true);
+
+  // Each retry is logged with the model and attempt, so a long silent wait is visible.
+  expect(warn).toHaveBeenCalledTimes(2);
+  expect(String(warn.mock.calls[0]![0])).toMatch(/mock-provider:mock-model-id.*no response in 600s.*retry 1 of 2/);
   expect(vi.getTimerCount()).toBe(0);
 });
 
@@ -57,9 +65,10 @@ it('never cuts off a stream that keeps producing output, however long it runs', 
       if (++pushed === 60) controller.close();
     } }),
   }) }), liveness);
-  const reader = (await model.doStream({ prompt: [] })).stream.getReader();
+  const opened = model.doStream({ prompt: [] });
 
   const read = (async () => {
+    const reader = (await opened).stream.getReader();
     let chunks = 0;
     while (!(await reader.read()).done) chunks++;
 
@@ -130,9 +139,10 @@ it('propagates explicit cancellation to the provider and closes its stream', asy
 
     return { stream: new ReadableStream({ cancel }) };
   } }));
-  const reader = (await model.doStream({ prompt: [], abortSignal: controller.signal })).stream.getReader();
-  const rejected = expect(reader.read()).rejects.toThrow('User stopped');
+  // The request has opened but produced nothing yet when the user stops it.
+  const rejected = expect(model.doStream({ prompt: [], abortSignal: controller.signal })).rejects.toThrow('User stopped');
 
+  await vi.advanceTimersByTimeAsync(1_000);
   controller.abort(new Error('User stopped'));
   await rejected;
 
@@ -144,7 +154,9 @@ it('propagates explicit cancellation to the provider and closes its stream', asy
 it('cleans up after the caller cancels consumption or a provider throws', async () => {
   const cancel = vi.fn();
   const model = modelTimeout(new MockLanguageModelV4({
-    doStream: async () => ({ stream: new ReadableStream({ cancel }) }),
+    doStream: async () => ({ stream: new ReadableStream({ start(controller) {
+      controller.enqueue({ type: 'text-start', id: 't' });
+    }, cancel }) }),
     doGenerate: async () => { throw new Error('Provider failed'); },
   }));
 
@@ -179,5 +191,28 @@ it('never retries a request the user stopped', async () => {
   await vi.advanceTimersByTimeAsync(10 * 600_000);
 
   expect(generate).toHaveBeenCalledOnce();
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it('retries a stream that opened but never produced output', async () => {
+  let calls = 0;
+  const model = modelTimeout(new MockLanguageModelV4({ doStream: async () => {
+    calls++;
+
+    return { stream: new ReadableStream({ start(controller) {
+      if (calls === 1) return;
+
+      controller.enqueue({ type: 'text-delta', id: 't', delta: 'answer' });
+      controller.close();
+    } }) };
+  } }), liveness);
+  const opened = model.doStream({ prompt: [] });
+
+  await vi.advanceTimersByTimeAsync(600_000 + 60_000);
+  const reader = (await opened).stream.getReader();
+
+  expect(await reader.read()).toEqual({ done: false, value: { type: 'text-delta', id: 't', delta: 'answer' } });
+  expect((await reader.read()).done).toBe(true);
+  expect(calls).toBe(2);
   expect(vi.getTimerCount()).toBe(0);
 });

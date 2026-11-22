@@ -2,7 +2,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { jsonSchema, tool, type ToolExecutionOptions } from 'ai';
-import { MockLanguageModelV4 } from 'ai/test';
+import { generateMock } from '../test-models.js';
 import { expect, it, vi } from 'vitest';
 
 import { DEFAULT_PROFILE } from '../../providers/profiles.js';
@@ -25,13 +25,13 @@ it('loads MCP tools for one subagent only, without touching the activation the m
   };
 
   let step = 0;
-  const model = new MockLanguageModelV4({ doGenerate: async () => {
+  const model = generateMock(async () => {
     step++;
     if (step === 1) return { content: [{ type: 'tool-call' as const, toolCallId: 'load', toolName: 'load_mcp_tools',
       input: JSON.stringify({ names: ['mcp_grafana_query', 'mcp_missing_tool'] }) }], finishReason: { unified: 'tool-calls' as const, raw: undefined }, usage, warnings: [] };
 
     return { content: [{ type: 'text' as const, text: 'done' }], finishReason: { unified: 'stop' as const, raw: undefined }, usage, warnings: [] };
-  } });
+  });
 
   // Like the main loop: deferred MCP tools stay hidden until something loads them.
   const worker = { model, profile: DEFAULT_PROFILE, activeTools: (all: readonly string[]) => selectActiveTools(all, []) };

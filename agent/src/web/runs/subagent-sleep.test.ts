@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { expect, it, vi } from 'vitest';
 import { MockLanguageModelV4 } from 'ai/test';
+import { generateMock } from '../../core/test-models.js';
 
 import { Agent } from '../../core/agent.js';
 import { DaemonClient } from '../../core/client.js';
@@ -37,8 +38,8 @@ async function harness(script: (prompt: string, step: number) => ReturnType<type
   vi.spyOn(daemon, 'listTools').mockResolvedValue([]);
   let step = 0;
   const chat = new MockLanguageModelV4({ doStream: async ({ prompt }) => script(JSON.stringify(prompt), step++) });
-  const summary = new MockLanguageModelV4({ doGenerate: async () => (await new Promise((resolve) => setTimeout(resolve, 1000)), { content: [{ type: 'text' as const, text: 'checkout: healthy' }],
-    finishReason: { unified: 'stop' as const, raw: undefined }, usage, warnings: [] }) });
+  const summary = generateMock(async () => (await new Promise((resolve) => setTimeout(resolve, 1000)), { content: [{ type: 'text' as const, text: 'checkout: healthy' }],
+    finishReason: { unified: 'stop' as const, raw: undefined }, usage, warnings: [] }));
   const agent = new Agent({ model: chat, summaryModel: summary, daemon, decisionModel: null, learning: false, promptHooks: [],
     env: { CODEBERG_HOME: directory }, context: ContextStore.open(join(directory, 'context')),
     mcp: { enabled: false, servers: [], files: [], warnings: [] }, web: webConfigFromEnv({ CODEBERG_WEB_USE: 'false' }) });

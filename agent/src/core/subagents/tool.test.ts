@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { jsonSchema, tool, type ToolExecutionOptions } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
+import { generateMock } from '../test-models.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_PROFILE } from '../../providers/profiles.js';
@@ -49,7 +50,7 @@ function setup(doGenerate: Generate, contextOf?: () => string, maxSteps?: number
     service_status: tool({ description: 'status', inputSchema: schema, execute: status }),
     run_script: tool({ description: 'script', inputSchema: schema, execute: async () => 'ran' }),
   };
-  const model = new MockLanguageModelV4({ doGenerate });
+  const model = generateMock(doGenerate);
   const store = ContextStore.open(mkdtempSync(join(tmpdir(), 'codeberg-subagent-tool-')));
   const set = subagentTools({ model, profile: DEFAULT_PROFILE, ...(contextOf ? { context: contextOf } : {}), ...(maxSteps ? { maxSteps } : {}) }, tools, store);
 

@@ -73,7 +73,9 @@ For catalog syntax, local server setup, and saved model choices, see [Models and
 | `CODEBERG_SUBAGENT_MAX_STEPS` | Whole number, at least `2`; unset | Model steps a subagent may take per message before it must write its report, marked `incomplete`. Unset, a subagent works until it answers or you press **Stop**. |
 | `CODEBERG_MODEL_REQUEST_TIMEOUT_MS` | Milliseconds; `600000` | How long one chat or subagent model request may wait for the provider to start responding (the whole response when not streaming). Turns and subagents have no overall time limit. |
 | `CODEBERG_MODEL_IDLE_TIMEOUT_MS` | Milliseconds; `300000` | How long a streamed response may go without new output before it counts as lost. A response that keeps producing output is never cut off. |
-| `CODEBERG_MODEL_TIMEOUT_RETRIES` | Whole number; `3` | Extra attempts, with backoff, for a model request that timed out before responding. Provider errors keep the provider SDK's own retries. |
+| `CODEBERG_MODEL_TIMEOUT_RETRIES` | Whole number; `3` | Extra attempts, with backoff, for a model request that timed out before producing any output, streamed or not. Each retry is logged. Provider errors keep the provider SDK's own retries. |
+| `CODEBERG_TOOL_TIMEOUT_MS` | Milliseconds; `600000`; `0` turns it off | How long one ordinary tool call in a chat turn or subagent (MCP, code search, web) may run before it is stopped and reported to the agent as a tool error. Scripts, Browser Use, subagents, and background jobs have no limit. For longer calls, the agent can use `start_background_tool`. |
+| `CODEBERG_MAX_TURN_STEPS` | Whole number, at least `2`; unset | Model steps one chat turn may take. On the last step the agent must answer without tools. Useful for scheduled wake-ups and scripts that nobody watches. Unset, a turn works until it answers or you press **Stop**. |
 | `CODEBERG_TOOL_BATCH` | Boolean; automatic by provider | Enable the `batch` tool for models that struggle to return several tool calls in one response. Local and unknown providers enable it by default. A model's `tool_batch` in `models.yml` wins. |
 
 ## Local services and ports

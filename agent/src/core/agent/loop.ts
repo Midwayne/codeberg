@@ -1,5 +1,5 @@
 import { recordToolExecutions } from '../runs/tools.js';
-import { isLoopFinished, ToolLoopAgent, type ToolSet } from 'ai';
+import { isLoopFinished, isStepCount, ToolLoopAgent, type ToolSet } from 'ai';
 import { cachedInstructions, deterministicTools, withConversationCache } from '../cache.js';
 import { wrapToolOutputs } from '../context/wrap.js';
 import { wrapToolLoopAgentWithPromptHooks } from '../hooks/index.js';
@@ -8,12 +8,13 @@ import { batchTool } from '../tools/batch.js';
 import { scriptConfig } from '../script/config.js';
 import { scriptMcpNames } from '../script/mcp.js';
 import { scriptTool } from '../script/tool.js';
-import { manageContextModel } from '../request-budget/model.js';
 import { summarize } from './history.js';
 import { HISTORY_SUMMARY_SYSTEM } from '../prompts/history-summary.js';
 import type { AgentState } from './state.js';
 import { buildTools, prepareSystem } from './tools.js';
-import { modelTimeout } from './model-timeout.js';
+import { liveContextModel } from './live-model.js';
+import { finalStep, turnMaxSteps } from './turn-budget.js';
+import { toolTimeoutMs, withToolTimeouts } from '../tools/timeout.js';
 import { modelLiveness } from './liveness.js';
 import { backgroundTools } from '../background/tools.js';
 import { agentIsSleeping, beginAgentStep } from '../background/context.js';
@@ -46,35 +47,39 @@ async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
   const tools = composedTools(state, base);
   const toolNames = Object.keys(tools);
   const providerOptions = await prepareSystem(state, tools);
-  const model = manageContextModel(state.model, {
+  // Only a silent provider request fails; a turn may run as long as it keeps working.
+  const model = liveContextModel(state.model, {
     profile: state.profile,
     context: state.context,
     summarize: (transcript, limit, signal) => summarize(state, transcript, limit, signal),
     checkpointPolicy: JSON.stringify([state.summaryProfile, HISTORY_SUMMARY_SYSTEM]),
     describeSystem: () => ({ stable: state.system, context: state.systemContext }),
-  });
+  }, modelLiveness(state.env));
+  const maxSteps = turnMaxSteps(state.env);
   const loop = new ToolLoopAgent({
-    // Only a silent provider request fails; a turn may run as long as it keeps working.
-    model: modelTimeout(model, modelLiveness(state.env)),
+    model,
     // Cache the large, frozen system prompt instead of re-billing it on
     // every tool round and every turn.
     instructions: cachedInstructions(state.system, state.profile, state.systemContext),
     tools,
     // Continue until the model answers instead of inheriting the SDK's
-    // default 20-step limit. There is no turn or step deadline; Stop ends a turn.
-    stopWhen: [isLoopFinished(), agentIsSleeping],
+    // default 20-step limit. There is no turn or step deadline; Stop ends a
+    // turn, and CODEBERG_MAX_TURN_STEPS can cap unattended ones.
+    stopWhen: [isLoopFinished(), agentIsSleeping, ...(maxSteps ? [isStepCount(maxSteps)] : [])],
     ...(providerOptions ? { providerOptions } : {}),
     ...(state.reasoning && state.reasoning !== 'max' ? { reasoning: state.reasoning } : {}),
     // The model boundary archives/compacts complete tool exchanges as needed.
     // Keep the transcript cacheable and activate only requested MCP schemas.
-    prepareStep: async ({ messages }) => {
+    prepareStep: async ({ messages, stepNumber }) => {
       beginAgentStep();
 
       // Light models get the key rules again at the end of the latest user message.
       const reminded = withTierReminder(messages, state.profile);
-      const next = withConversationCache(reminded, state.profile);
+      const final = finalStep(stepNumber, maxSteps, reminded);
+      const next = withConversationCache(final?.messages ?? reminded, state.profile);
+      const patch = prepareStepPatch(messages, next, state.mcpSource?.activeTools(toolNames, next));
 
-      return prepareStepPatch(messages, next, state.mcpSource?.activeTools(toolNames, next));
+      return final ? { ...patch, toolChoice: final.toolChoice } : patch;
     },
   });
 
@@ -89,6 +94,7 @@ async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
  * `batch` wraps the journaled tools. Both handle each inner result themselves.
  * The subagent tools sit beside them so `run_subagents` can also run as a background job;
  * subagents get their own background tools over the same set, without the subagent tools.
+ * Foreground calls are stopped after CODEBERG_TOOL_TIMEOUT_MS; background jobs run unbounded.
  */
 function composedTools(state: AgentState, base: ToolSet): ToolSet {
   const scripts = scriptConfig(state.env);
@@ -99,10 +105,13 @@ function composedTools(state: AgentState, base: ToolSet): ToolSet {
   const present = (name: string, args: unknown, output: unknown) =>
     presentToolOutput(state.context, name, args, output, limit);
 
+  const timed = withToolTimeouts(scripted, toolTimeoutMs(state.env));
+
   // Subagents may detach their own tools too; their jobs cannot start more subagents.
-  const forSubagents = toolsForTier({ ...scripted, ...backgroundTools(scripted, present) }, state.profile);
-  const local = { ...scripted, ...subagents(state, forSubagents) };
-  const recorded = recordToolExecutions({ ...local, ...backgroundTools(local, present) });
+  const forSubagents = toolsForTier({ ...timed, ...backgroundTools(scripted, present) }, state.profile);
+  const delegation = subagents(state, forSubagents);
+  const detachable = { ...scripted, ...delegation };
+  const recorded = recordToolExecutions({ ...timed, ...delegation, ...backgroundTools(detachable, present) });
 
   // Subagent and background tools are added here, so the tier filter runs again.
   const raw = toolsForTier(recorded, state.profile);

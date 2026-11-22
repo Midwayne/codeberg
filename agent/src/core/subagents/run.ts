@@ -1,4 +1,4 @@
-import type { ToolLoopAgent, ToolSet } from 'ai';
+import type { ModelMessage, ToolLoopAgent, ToolSet } from 'ai';
 
 import type { ContextStore } from '../context/store.js';
 import { errorMessage } from '../errors.js';
@@ -66,9 +66,8 @@ export async function sendToSession(
     const { result, elapsed_ms } = await runtime.gate.run(async () => {
       const started = Date.now();
       progress?.start(started);
-      const result = await progressScope.run(progress ?? silent, () =>
-        roleLoop(runtime.loops, runtime.worker, session.type, runtime.tools)
-          .generate({ messages: session.messages, ...(abortSignal ? { abortSignal } : {}) }));
+      const loop = roleLoop(runtime.loops, runtime.worker, session.type, runtime.tools);
+      const result = await progressScope.run(progress ?? silent, () => runStreamed(loop, session.messages, abortSignal));
 
       return { result, elapsed_ms: Date.now() - started };
     });
@@ -91,7 +90,29 @@ export async function sendToSession(
 
 const silent: ProgressSink = { step: () => undefined, tool: () => undefined };
 
-type LoopResult = Awaited<ReturnType<ToolLoopAgent['generate']>>;
+type LoopResult = Pick<Awaited<ReturnType<ToolLoopAgent['generate']>>, 'steps' | 'text' | 'totalUsage' | 'responseMessages'>;
+
+/**
+ * Run one subagent message as a stream and collect what `generate` would
+ * return. Streaming lets only a silent provider end a step; a non-streamed
+ * request can only be bounded as a whole, which would cut off long reasoning.
+ */
+async function runStreamed(loop: ToolLoopAgent, messages: ModelMessage[], abortSignal?: AbortSignal): Promise<LoopResult> {
+  let failure: unknown;
+  const stream = await loop.stream({ messages, ...(abortSignal ? { abortSignal } : {}) });
+
+  // Error parts carry the provider's own error; awaiting the results would only say no output was generated.
+  for await (const part of stream.fullStream) {
+    if (part.type === 'error') failure ??= part.error;
+  }
+  if (failure !== undefined) throw failure;
+
+  const [steps, text, totalUsage, responseMessages] = await Promise.all([
+    stream.steps, stream.text, stream.totalUsage, stream.responseMessages,
+  ]);
+
+  return { steps, text, totalUsage, responseMessages };
+}
 
 function outcome(result: LoopResult, transcript: string | undefined, maxSteps: number | undefined) {
   const tool_calls = result.steps.reduce((total, step) => total + step.toolCalls.length, 0);

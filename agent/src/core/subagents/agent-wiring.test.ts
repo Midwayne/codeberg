@@ -2,6 +2,7 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { MockLanguageModelV4 } from 'ai/test';
+import { generateMock } from '../test-models.js';
 import { expect, it, vi } from 'vitest';
 
 import { Agent } from '../agent.js';
@@ -31,7 +32,7 @@ async function agentWith(env: Record<string, string>, extra: Partial<Constructor
       input: JSON.stringify({ tasks: [{ description: 'Check checkout', prompt: 'Check checkout health', agent_type: agentType }] }) }],
     finishReason: { unified: 'tool-calls' as const, raw: undefined }, usage, warnings: [] };
   } });
-  const summary = new MockLanguageModelV4({ doGenerate: async () => text('checkout: healthy, p99 120ms') });
+  const summary = generateMock(async () => text('checkout: healthy, p99 120ms'));
 
   const agent = new Agent({ model: chat, summaryModel: summary, daemon, decisionModel: null, learning: false,
     promptHooks: [], env: { CODEBERG_HOME: directory, ...env }, context: ContextStore.open(join(directory, 'context')),
@@ -87,7 +88,7 @@ it('offers no run_subagents tool when CODEBERG_SUBAGENTS_USE is off', async () =
 });
 
 it('runs subagents on their own model when one is chosen in Models', async () => {
-  const own = new MockLanguageModelV4({ doGenerate: async () => text('checkout: healthy, p99 120ms') });
+  const own = generateMock(async () => text('checkout: healthy, p99 120ms'));
   const { agent, summary } = await agentWith({}, { subagents: { enabled: true, model: own } });
 
   try {

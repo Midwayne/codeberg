@@ -2,12 +2,11 @@ import type { LanguageModel } from 'ai';
 
 import type { ModelProfile } from '../../providers/profiles.js';
 import { HISTORY_SUMMARY_SYSTEM } from '../prompts/history-summary.js';
-import { manageContextModel } from '../request-budget/model.js';
 import type { SubagentWorker } from '../subagents/loop.js';
 import { subagentMaxSteps, subagentsEnabled } from '../subagents/config.js';
 import { summarize } from './history.js';
 import { modelLiveness } from './liveness.js';
-import { modelTimeout } from './model-timeout.js';
+import { liveContextModel } from './live-model.js';
 import type { AgentState } from './state.js';
 
 /**
@@ -44,12 +43,10 @@ export function subagentsOn(state: AgentState): boolean {
 }
 
 function longRunning(state: AgentState, model: LanguageModel, profile: ModelProfile) {
-  const managed = manageContextModel(model, {
+  return liveContextModel(model, {
     profile,
     context: state.context,
     summarize: (transcript, limit, signal) => summarize(state, transcript, limit, signal),
     checkpointPolicy: JSON.stringify(['subagent', state.summaryProfile, HISTORY_SUMMARY_SYSTEM]),
-  });
-
-  return modelTimeout(managed, modelLiveness(state.env));
+  }, modelLiveness(state.env));
 }

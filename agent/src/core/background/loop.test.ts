@@ -2,6 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { MockLanguageModelV4 } from 'ai/test';
+import { generateMock } from '../test-models.js';
 import { expect, it, vi } from 'vitest';
 import { Agent } from '../agent.js';
 import { DaemonClient } from '../client.js';
@@ -66,8 +67,8 @@ it('refuses to sleep in the step that ran subagents, even when they finish at on
 
     return { content, finishReason: { unified: 'tool-calls' as const, raw: undefined }, usage, warnings: [] };
   } });
-  const summary = new MockLanguageModelV4({ doGenerate: async () => ({ content: [{ type: 'text' as const, text: 'fine' }],
-    finishReason: { unified: 'stop' as const, raw: undefined }, usage, warnings: [] }) });
+  const summary = generateMock(async () => ({ content: [{ type: 'text' as const, text: 'fine' }],
+    finishReason: { unified: 'stop' as const, raw: undefined }, usage, warnings: [] }));
   const agent = new Agent({ model, summaryModel: summary, daemon, decisionModel: null, learning: false, promptHooks: [],
     env: { CODEBERG_HOME: directory }, context: ContextStore.open(join(directory, 'context')),
     mcp: { enabled: false, servers: [], files: [], warnings: [] }, web: webConfigFromEnv({ CODEBERG_WEB_USE: 'false' }) });
