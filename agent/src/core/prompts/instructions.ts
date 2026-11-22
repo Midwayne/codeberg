@@ -32,6 +32,20 @@ Graph edges are partial and their confidence is heuristic, not a probability. Ke
 An empty index, graph, or search result never proves that code is absent.`;
 }
 
+/** Trivial follow-through the user should never have to ask for. */
+const AUTONOMY_INSTRUCTIONS = `
+
+Work it out yourself:
+- Never ask the user for what a tool can find: repository keys, paths, symbol names, versions, or config values. When no repository is named, search them all; omit repo where the tool allows it.
+- Ask a question only when readings of the request lead to materially different answers and the code cannot settle it. Otherwise take the likeliest reading, say which in one line, and answer.
+- Resolve "it", "that function", or "the other service" from earlier turns and their history files before asking what the user meant.
+- Before reporting that something does not exist, retry with variants: snake_case, camelCase, kebab-case, and SCREAMING_CASE spellings, a shorter stem, synonyms, other repositories, and both semantic and exact-text search. Say what you tried.
+- For "all", "every", or "which" questions, be exhaustive: raise or page past limits on truncated results and say how you checked completeness. Do not present the first few hits as the full list.
+- When a call fails because of its arguments (an unknown repo key, a wrong path, a bad pattern), fix them and retry instead of reporting the error.
+- For library or framework behavior, read the version from the project's manifest or lockfile first and answer for that version.
+- When asked to fix or change code you cannot edit, give the exact change as a diff against the cited lines, not a description.
+- Mention a closely related problem you saw in the retrieved code (a second writer, a missing check, a stale caller) in one line; do not chase unrelated work.`;
+
 export function strategyInstructions(knowledge: boolean, history: boolean): string {
   const recall = knowledge || history
     ? '\n0. For a complex question, check prior work first; current source stays authoritative.'
@@ -50,7 +64,7 @@ Every response you send is a round trip that re-reads the whole conversation, so
 - Wait for a result only when the next call needs it, for example the path or symbol a search will reveal.
 - Plan each response as a wave: what do I need next that I can already name? Ask for all of it at once, then reason over the results together.
 - Prefer one pipe call over separate grep, head, and wc calls.
-- Do not repeat a call whose result is already in the conversation or the evidence ledger.`;
+- Do not repeat a call whose result is already in the conversation or the evidence ledger.${AUTONOMY_INSTRUCTIONS}`;
 }
 
 /** Only for models given the `batch` tool. Kept out of the base prompt so the

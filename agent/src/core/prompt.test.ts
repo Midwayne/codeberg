@@ -53,6 +53,20 @@ describe('agentSystemPrompt', () => {
     expect(sections.dynamic).toContain('review-diff');
   });
 
+  it.each([false, true])('tells the agent to resolve trivial gaps without asking (compact: %s)', (compact) => {
+    const prompt = agentSystemPrompt({ enabled: false, search: false, compact });
+
+    expect(prompt).toContain('repository keys, paths');
+    expect(prompt).toMatch(/search (them all|every repository)/);
+    expect(prompt).toContain('retry');
+  });
+
+  it('asks for exhaustive lists and versioned answers in the full prompt', () => {
+    expect(AGENT_SYSTEM).toContain('Work it out yourself:');
+    expect(AGENT_SYSTEM).toContain('page past limits on truncated results');
+    expect(AGENT_SYSTEM).toContain("read the version from the project's manifest or lockfile");
+  });
+
   it('asks every model to group independent tool calls into one response', () => {
     expect(AGENT_SYSTEM).toContain('Tool-call efficiency:');
     expect(AGENT_SYSTEM).toContain('Put every independent tool call in the same response');

@@ -7,6 +7,7 @@ import { REMEMBER_INSTRUCTIONS } from '../learning/profile/tools.js';
 import { mcpConfigFromEnv } from '../mcp/config.js';
 import { mcpToolSource } from '../mcp/tools.js';
 import { agentSystemSections } from '../prompt.js';
+import { clockContext } from '../prompts/clock.js';
 import { repositoryContext } from '../prompts/repositories.js';
 import { maxReasoningProviderOptions } from '../reasoning.js';
 import { mergeProviderOptions, parallelToolProviderOptions } from '../tool-calls.js';
@@ -20,6 +21,7 @@ import { configuredDecision } from '../decisions/catalog.js';
 import { decisionTools } from '../decisions/tool.js';
 import { BACKGROUND_INSTRUCTIONS } from '../background/tools.js';
 import { envEnabled } from '../env-flag.js';
+import { SCHEDULE_INSTRUCTIONS } from '../schedules/tools.js';
 import { SCRIPT_INSTRUCTIONS, SCRIPT_TOOL } from '../script/tool.js';
 import { insideScript } from '../script/scope.js';
 import { SUBAGENT_TOOL } from '../subagents/names.js';
@@ -30,6 +32,7 @@ const TOOL_FAMILY_INSTRUCTIONS: { offered: (name: string) => boolean; text: stri
   { offered: (name) => name === 'search_bundle', text: SEARCH_BUNDLE_INSTRUCTIONS },
   { offered: (name) => name.startsWith('canvas_'), text: CANVAS_INSTRUCTIONS },
   { offered: (name) => name === 'sleep_agent', text: BACKGROUND_INSTRUCTIONS },
+  { offered: (name) => name === 'schedule_run', text: SCHEDULE_INSTRUCTIONS },
   { offered: (name) => name === SCRIPT_TOOL, text: SCRIPT_INSTRUCTIONS },
   { offered: (name) => name === 'remember', text: REMEMBER_INSTRUCTIONS },
   { offered: (name) => name === SUBAGENT_TOOL, text: SUBAGENT_INSTRUCTIONS },
@@ -66,8 +69,10 @@ export async function prepareSystem(
     state.learning?.profileContext(),
   ]);
 
-  state.systemContext = contextBlocks([repositories, sections.dynamic, knowledgeIndex, profile]);
-  state.subagentContext = contextBlocks([repositories, sections.dynamic]);
+  const clock = clockContext();
+
+  state.systemContext = contextBlocks([clock, repositories, sections.dynamic, knowledgeIndex, profile]);
+  state.subagentContext = contextBlocks([clock, repositories, sections.dynamic]);
 
   return mergeProviderOptions(
     requestProviderOptions(state.system, toolNames, state.profile),

@@ -23,6 +23,8 @@ are in the git history.
 - Adding an MCP server or skill no longer resets cached instructions for Anthropic models.
 - The agent already knows the project's repositories, so it no longer spends a step listing them.
 - Long chats clear stale tool output before summarizing older messages, so summaries happen later.
+- The agent looks up repositories, paths, and versions itself instead of asking, retries other spellings before saying code is missing, and lists every match for "all" questions.
+- The agent knows today's date, so relative dates and clock-time follow-ups work, and it schedules follow-ups without asking first.
 - Subagents can use background tools, schedules, the canvas, Browser Use, and MCP tools they load themselves.
 - An agent that sleeps on background jobs wakes as soon as they finish instead of waiting for its full delay.
 - Chat turns and subagents no longer stop after a fixed time or number of steps; they work until they answer or you press **Stop**.

@@ -68,6 +68,8 @@ In 10 minutes, check this project again and summarize what changed.
 
 For recurring work, specify the first run and interval, for example: “Starting in one hour, check for changes every hour.”
 
+The agent knows today's date and the server's time zone, so clock times such as “tomorrow at 9” work. It sets up the schedule without asking for confirmation and tells you when it will run. If you ask for a recurring check without an interval, it picks one and says which.
+
 ### View and cancel schedules
 
 1. Open **Settings → Scheduled runs** from any chat. The view includes **all chats in the selected project**, including archived chats. No configured model is needed to inspect or cancel schedules.

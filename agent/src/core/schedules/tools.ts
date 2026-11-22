@@ -2,6 +2,11 @@ import { jsonSchema, tool } from 'ai';
 import type { ToolSource } from '../tools/source.js';
 import { currentScheduleContext, type ScheduleInput } from './context.js';
 
+/** System-prompt guidance added whenever schedule_run is offered. */
+export const SCHEDULE_INSTRUCTIONS = `
+
+Follow-ups: when the user says "remind me", "check again in", "every morning", "let me know when", or similar, call schedule_run in the same turn; do not ask whether to schedule it. Use delay_seconds for relative times and run_at with today's date and offset for clock times. When the user gives no time for a recurring check, pick a sensible interval and say so. Use list_scheduled_runs before adding one that may already exist. In your reply, state when it will run, in the user's time zone. To wait for your own background work in this turn, use sleep_agent instead.`;
+
 export function scheduleToolSource(): ToolSource {
   return { name: 'schedules', tools: () => ({
     schedule_run: tool({
