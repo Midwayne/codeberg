@@ -2,7 +2,7 @@ import type { ToolLoopAgent, ToolSet } from 'ai';
 
 import type { ContextStore } from '../context/store.js';
 import { errorMessage } from '../errors.js';
-import { MAX_SUBAGENT_STEPS, roleLoop, type SubagentWorker } from './loop.js';
+import { roleLoop, type SubagentWorker } from './loop.js';
 import { progressScope, type ProgressSink } from './progress.js';
 import type { SubagentType } from './roles.js';
 import type { Semaphore } from '../semaphore.js';
@@ -15,7 +15,7 @@ export interface SubagentReport {
   agent_id: string;
   description: string;
   agent_type: SubagentType;
-  /** `queued`/`running` only appear in live progress; `incomplete` means the step budget ran out. */
+  /** `queued`/`running` only appear in live progress; `incomplete` means a configured step budget ran out. */
   status: 'queued' | 'running' | 'completed' | 'incomplete' | 'failed';
   report?: string;
   /** Live progress only: `report` is a preview; the full text was sent in an earlier snapshot. */
@@ -78,7 +78,7 @@ export async function sendToSession(
     session.messages.push(...result.responseMessages);
     const transcript = await saveTranscript(runtime.context, session).catch(() => undefined);
 
-    return { ...base, ...outcome(result, transcript), elapsed_ms, ...(transcript ? { transcript } : {}) };
+    return { ...base, ...outcome(result, transcript, runtime.worker.maxSteps), elapsed_ms, ...(transcript ? { transcript } : {}) };
   } catch (error) {
     session.messages.length = history;
     if (abortSignal?.aborted) throw error;
@@ -93,12 +93,12 @@ const silent: ProgressSink = { step: () => undefined, tool: () => undefined };
 
 type LoopResult = Awaited<ReturnType<ToolLoopAgent['generate']>>;
 
-function outcome(result: LoopResult, transcript: string | undefined) {
+function outcome(result: LoopResult, transcript: string | undefined, maxSteps: number | undefined) {
   const tool_calls = result.steps.reduce((total, step) => total + step.toolCalls.length, 0);
   const { inputTokens, outputTokens } = result.totalUsage;
 
   return {
-    status: result.steps.length >= MAX_SUBAGENT_STEPS ? 'incomplete' as const : 'completed' as const,
+    status: maxSteps !== undefined && result.steps.length >= maxSteps ? 'incomplete' as const : 'completed' as const,
     report: bounded(result.text.trim(), transcript),
     tool_calls,
     steps: result.steps.length,

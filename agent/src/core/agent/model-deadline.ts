@@ -1,4 +1,8 @@
-/** Timers exist only while a provider request or its response stream is active. */
+/**
+ * Timers exist only while a provider request or its response stream is
+ * active. `duration` bounds the wait for a response to start; once a stream
+ * produces output, only the `chunkMs` gap between chunks is bounded.
+ */
 export class ModelDeadline {
   readonly signal: AbortSignal;
   private readonly controller = new AbortController();
@@ -82,6 +86,8 @@ export class ModelDeadline {
   }
 
   private touch() {
+    // The response is live: from here only silence ends it.
+    clearTimeout(this.total);
     if (this.chunkMs === undefined) return;
 
     clearTimeout(this.idle);

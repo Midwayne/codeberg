@@ -8,6 +8,7 @@ are in the git history.
 
 ### Added
 
+- Set `CODEBERG_SUBAGENT_MAX_STEPS` to cap subagent steps, and `CODEBERG_MODEL_REQUEST_TIMEOUT_MS`, `CODEBERG_MODEL_IDLE_TIMEOUT_MS`, and `CODEBERG_MODEL_TIMEOUT_RETRIES` to tune model timeouts.
 - A context ring beside **Send** opens a breakdown of what fills the chat's context, with counts of summaries and cleared tool results.
 - Set `tier: light` on a model in `models.yml` to give a smaller model shorter instructions, fewer tools, and a reminder of the evidence rules.
 - Set `tool_batch`, `tool_output_limit`, and `instructions` on a model in `models.yml`.
@@ -23,11 +24,14 @@ are in the git history.
 - Long chats clear stale tool output before summarizing older messages, so summaries happen later.
 - Subagents can use background tools, schedules, the canvas, Browser Use, and every MCP tool, which they load themselves; explorers still only investigate.
 - An agent that sleeps on background jobs wakes as soon as they finish instead of waiting for its full delay.
+- Chat turns and subagents no longer stop after a fixed time or number of steps; they work until they answer or you press **Stop**.
+- A model request now fails only when the provider stops responding, and is retried first.
 
 ### Fixed
 
 - Large reports from subagents running in the background are no longer cut down to a text preview.
 - The agent no longer sleeps past reports from subagents it is still running in the same turn.
+- Long streamed answers are no longer cut off after two minutes.
 
 ## [1.0.0] - 2026-11-21
 

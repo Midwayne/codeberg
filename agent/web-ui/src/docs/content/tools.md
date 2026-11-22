@@ -152,12 +152,12 @@ Each `run_subagents` call shows as a card in the chat, outside the folded tool-c
 | --- | --- |
 | Model | The model chosen under **Models → Subagents**. **Same as summary model** (the default) uses the **Summaries** model, then the chat model. Requests appear in Usage under that model. |
 | Types | `explorer` (default) only investigates and is told not to change anything. `worker` may also change things when the brief asks. Both can call every MCP tool; see **Tools** below. |
-| Limits | Up to 8 tasks per call and 8 running at once in each chat. Each subagent gets 16 model steps and 5 minutes per message. A chat turn that can start subagents allows 12 minutes per step and 30 minutes in total; each model request still times out after 2 minutes. |
+| Limits | Up to 8 tasks per call and 8 running at once in each chat. Subagents and chat turns have no time or step limit: they work until they answer or you press **Stop**. A model request fails only if the provider stays silent (10 minutes to start, 5 minutes between streamed output) and is retried first; see [model timeouts](/docs/environment#context-and-tool-calling). Older tool output in a long subagent run is summarized as its context fills. |
 | Tools | Both types can call every MCP tool from every connected server. They see the same server and tool list as the agent and load the MCP tools they need themselves. Explorers otherwise only read: code, files, Git, context, web pages, background job and schedule status, and the canvas, and are told not to change anything. Workers can also run scripts, start and cancel background tools, create and cancel schedules, edit the canvas, and use Browser Use. Background tools and schedules a subagent starts belong to the chat. |
 | Not available | Sleeping, saving or forgetting memories, starting more subagents, and tools that need approval. |
 | Context | A subagent sees only its brief, not the chat. The agent writes each brief to stand on its own. |
 | Follow-ups | Each report has an `agent_id`. The agent can ask that subagent a follow-up with `message_subagent`; it keeps its own history until Codeberg restarts. Each chat keeps its 16 most recently used subagents, and one chat cannot message another chat's subagents. |
-| Out of budget | A subagent that reaches its step limit writes a final report from what it found, marked `incomplete`. |
+| Step budget | Optional. With `CODEBERG_SUBAGENT_MAX_STEPS` set, a subagent that reaches it writes a final report from what it found, marked `incomplete`. |
 | Failures | A failed subagent is reported with its error; the others still return. **Stop** cancels all of them. |
 | Transcripts | Saved as `subagents/<agent_id>.json` in the project's context directory; the agent can open them with context tools. |
 

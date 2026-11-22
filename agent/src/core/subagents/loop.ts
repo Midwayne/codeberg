@@ -8,16 +8,16 @@ import { progressScope, reportingTools } from './progress.js';
 import { FINAL_REPORT_REQUEST, subagentSystem } from './prompt.js';
 import { roleTools, type SubagentType } from './roles.js';
 
-/** Model steps one subagent message may take; the last one must be the report. */
-export const MAX_SUBAGENT_STEPS = 16;
-
-const SUBAGENT_TIMEOUT = { totalMs: 300_000, stepMs: 120_000 } as const;
-
 /** The model subagents run on. */
 export interface SubagentWorker {
   model: LanguageModel;
   reasoning?: ReasoningEffort;
   profile: ModelProfile;
+  /**
+   * Model steps one message may take, the last being the report. Unset, the
+   * subagent works until it answers; there is no time limit either way.
+   */
+  maxSteps?: number;
   /** Repositories and the MCP server listing, so a subagent can load any MCP tool itself. */
   context?: () => string;
   /** MCP schemas to send each step, like the main loop; undefined sends every tool. */
@@ -49,13 +49,12 @@ function createLoop(worker: SubagentWorker, type: SubagentType, tools: ToolSet):
     model: worker.model,
     instructions: cachedInstructions(subagentSystem(type), worker.profile, worker.context?.() || undefined),
     tools,
-    stopWhen: [isLoopFinished(), isStepCount(MAX_SUBAGENT_STEPS)],
-    timeout: SUBAGENT_TIMEOUT,
+    stopWhen: [isLoopFinished(), ...(worker.maxSteps ? [isStepCount(worker.maxSteps)] : [])],
     ...reasoning,
     prepareStep: ({ stepNumber, messages }) => {
       progressScope.getStore()?.step(stepNumber + 1);
       const activeTools = withLocalLoads(worker.activeTools?.(names, messages), names, messages);
-      const final = stepNumber >= MAX_SUBAGENT_STEPS - 1;
+      const final = worker.maxSteps !== undefined && stepNumber >= worker.maxSteps - 1;
 
       return {
         ...(activeTools ? { activeTools } : {}),

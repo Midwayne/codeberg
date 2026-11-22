@@ -11,10 +11,10 @@ import { scriptTool } from '../script/tool.js';
 import { manageContextModel } from '../request-budget/model.js';
 import { summarize } from './history.js';
 import { HISTORY_SUMMARY_SYSTEM } from '../prompts/history-summary.js';
-import { turnTimeouts } from './turn-timeouts.js';
 import type { AgentState } from './state.js';
 import { buildTools, prepareSystem } from './tools.js';
 import { modelTimeout } from './model-timeout.js';
+import { modelLiveness } from './liveness.js';
 import { backgroundTools } from '../background/tools.js';
 import { agentIsSleeping, beginAgentStep } from '../background/context.js';
 import { presentToolOutput, SPILL_CHARS } from '../context/spill.js';
@@ -53,18 +53,16 @@ async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
     checkpointPolicy: JSON.stringify([state.summaryProfile, HISTORY_SUMMARY_SYSTEM]),
     describeSystem: () => ({ stable: state.system, context: state.systemContext }),
   });
-  const { perCallTimeout, timeout } = turnTimeouts(toolNames);
-
   const loop = new ToolLoopAgent({
-    model: perCallTimeout ? modelTimeout(model) : model,
+    // Only a silent provider request fails; a turn may run as long as it keeps working.
+    model: modelTimeout(model, modelLiveness(state.env)),
     // Cache the large, frozen system prompt instead of re-billing it on
     // every tool round and every turn.
     instructions: cachedInstructions(state.system, state.profile, state.systemContext),
     tools,
     // Continue until the model answers instead of inheriting the SDK's
-    // default 20-step limit. Deadlines follow the offered tools (turnTimeouts).
+    // default 20-step limit. There is no turn or step deadline; Stop ends a turn.
     stopWhen: [isLoopFinished(), agentIsSleeping],
-    ...(timeout ? { timeout } : {}),
     ...(providerOptions ? { providerOptions } : {}),
     ...(state.reasoning && state.reasoning !== 'max' ? { reasoning: state.reasoning } : {}),
     // The model boundary archives/compacts complete tool exchanges as needed.

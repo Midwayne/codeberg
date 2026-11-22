@@ -12,25 +12,6 @@ import type { DecisionModel, DecisionUsageSink } from '../decisions/types.js';
 
 export const DEFAULT_SEARCH_K = 8;
 
-// Timeout guards (ai-sdk v7 TimeoutConfiguration). They replace the old
-// "never stream tool calls" workaround: a wedged gateway now aborts the step
-// instead of hanging the whole tool loop. `chunkMs` only bites on the streaming
-// path (the browser UI); the CLI runs non-streaming `generate()`.
-export const DEFAULT_TIMEOUT = {
-  totalMs: 300_000,
-  stepMs: 120_000,
-  chunkMs: 60_000,
-} as const;
-
-// A step that runs subagents waits for every one of them (each bounded at 5
-// minutes per message, possibly queued behind the chat's other subagents),
-// so turns that offer them get room for two full rounds per step.
-export const SUBAGENT_TURN_TIMEOUT = {
-  totalMs: 1_800_000,
-  stepMs: 720_000,
-  chunkMs: DEFAULT_TIMEOUT.chunkMs,
-} as const;
-
 export interface AgentOptions {
   /** Optional decisions tool. Undefined loads the saved choice; null disables it. */
   decisionModel?: DecisionModel | null;

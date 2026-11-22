@@ -9,7 +9,6 @@ import { DEFAULT_PROFILE } from '../../providers/profiles.js';
 import { backgroundContext, beginAgentStep, subagentsThisStep } from '../background/context.js';
 import { chatScope } from '../chat-scope.js';
 import { ContextStore } from '../context/store.js';
-import { MAX_SUBAGENT_STEPS } from './loop.js';
 import { MESSAGE_TOOL, SUBAGENT_TOOL } from './names.js';
 import type { SubagentReport } from './run.js';
 import { subagentTools } from './tool.js';
@@ -43,7 +42,7 @@ function serviceOf(prompt: unknown): string {
 
 const options = { toolCallId: 'outer', messages: [] } as unknown as ToolExecutionOptions<unknown>;
 
-function setup(doGenerate: Generate, contextOf?: () => string) {
+function setup(doGenerate: Generate, contextOf?: () => string, maxSteps?: number) {
   const status = vi.fn(async ({ service }: { service: string }) => `${service}: 3 errors in 5m`);
   const schema = jsonSchema<{ service: string }>({ type: 'object', properties: { service: { type: 'string' } } });
   const tools = {
@@ -52,7 +51,7 @@ function setup(doGenerate: Generate, contextOf?: () => string) {
   };
   const model = new MockLanguageModelV4({ doGenerate });
   const store = ContextStore.open(mkdtempSync(join(tmpdir(), 'codeberg-subagent-tool-')));
-  const set = subagentTools({ model, profile: DEFAULT_PROFILE, ...(contextOf ? { context: contextOf } : {}) }, tools, store);
+  const set = subagentTools({ model, profile: DEFAULT_PROFILE, ...(contextOf ? { context: contextOf } : {}), ...(maxSteps ? { maxSteps } : {}) }, tools, store);
 
   const snapshots: SubagentReport[][] = [];
   const drain = async (output: unknown) => {
@@ -127,14 +126,25 @@ describe('run_subagents', () => {
     expect((tools ?? []).map((entry) => entry.name)).toEqual(['service_status']);
   });
 
-  it('forces a final report without tools when the step budget runs out', async () => {
+  it('forces a final report without tools when a configured step budget runs out', async () => {
     const { run, model } = setup(async ({ toolChoice }) =>
-      toolChoice?.type === 'none' ? answer('partial: checkout errors rising') : call('service_status', { service: 'checkout' }));
+      toolChoice?.type === 'none' ? answer('partial: checkout errors rising') : call('service_status', { service: 'checkout' }), undefined, 4);
 
     const [result] = await run([{ description: 'Check checkout', prompt: 'Check checkout health' }]);
 
-    expect(model.doGenerateCalls).toHaveLength(MAX_SUBAGENT_STEPS);
+    expect(model.doGenerateCalls).toHaveLength(4);
     expect(result).toMatchObject({ status: 'incomplete', report: 'partial: checkout errors rising' });
+  });
+
+  it('keeps working until it answers when no step budget is set', async () => {
+    let step = 0;
+    const { run, model } = setup(async () =>
+      ++step <= 30 ? call('service_status', { service: 'checkout' }, `s${step}`) : answer('checkout: 30 checks clean'));
+
+    const [result] = await run([{ description: 'Check checkout', prompt: 'Check checkout health' }]);
+
+    expect(model.doGenerateCalls).toHaveLength(31);
+    expect(result).toMatchObject({ status: 'completed', report: 'checkout: 30 checks clean', steps: 31 });
   });
 });
 

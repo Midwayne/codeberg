@@ -98,7 +98,7 @@ it('returns decisions failures as tool errors and lets the main agent continue',
   try {
     expect((await agent.ask('Find caching.')).answer).toContain('cache.ts');
     expect(JSON.stringify(model.doGenerateCalls[2]?.prompt)).toContain('HTTP 503');
-    expect(read).toHaveBeenCalledWith('read_file', { path: 'cache.ts' }, expect.any(AbortSignal));
+    expect(read.mock.calls.map(([name, args]) => [name, args])).toContainEqual(['read_file', { path: 'cache.ts' }]);
   } finally {
     await agent.close();
   }
