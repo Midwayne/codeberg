@@ -35,3 +35,20 @@ describe('sleepView', () => {
     expect(sleepView(part({ state: 'output-error', output: undefined }), undefined, now)).toBeUndefined();
   });
 });
+
+describe('sleepView without its schedule', () => {
+  const withCreated = (createdAt: number) => part({ output: { sleeping: true,
+    wake: { id: 'wake-1', status: 'scheduled', dueAt: now + 600_000, createdAt, backgroundJobIds: ['job-1'] } } });
+
+  it('reads as awake when a loaded list has long since dropped it, as after an early wake', () => {
+    expect(sleepView(withCreated(now - 120_000), [], now)?.phase).toBe('awake');
+  });
+
+  it('keeps sleeping when the wake-up is too new to be listed yet', () => {
+    expect(sleepView(withCreated(now - 2_000), [], now)?.phase).toBe('sleeping');
+  });
+
+  it('keeps sleeping when no schedule list is available', () => {
+    expect(sleepView(withCreated(now - 120_000), undefined, now)?.phase).toBe('sleeping');
+  });
+});

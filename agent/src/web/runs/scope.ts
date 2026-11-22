@@ -16,6 +16,16 @@ export function withRunScope(runs: SearchRuns, run: SearchRun, execute: () => Pr
         if (scope.sleepWakeId && ['stopped', 'failed'].includes(run.record.status)) {
           await runs.schedules.cancel(owner.chatId, scope.sleepWakeId);
         }
+
+        await withdrawWakeUps(runs, owner.chatId, scope.withdrawWakeIds ?? []);
       }
     })));
+}
+
+/** Wake-ups `sleep_agent` refused but could not cancel at the time; a failure here only logs. */
+async function withdrawWakeUps(runs: SearchRuns, chatId: string, ids: string[]): Promise<void> {
+  for (const id of ids) {
+    await runs.schedules.cancel(chatId, id)
+      .catch((error) => console.error(`Could not cancel a refused wake-up ${id}:`, error));
+  }
 }

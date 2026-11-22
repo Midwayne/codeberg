@@ -16,7 +16,7 @@ import type { AgentState } from './state.js';
 import { buildTools, prepareSystem } from './tools.js';
 import { modelTimeout } from './model-timeout.js';
 import { backgroundTools } from '../background/tools.js';
-import { agentIsSleeping } from '../background/context.js';
+import { agentIsSleeping, beginAgentStep } from '../background/context.js';
 import { presentToolOutput, SPILL_CHARS } from '../context/spill.js';
 import { subagentTools } from '../subagents/tool.js';
 import { subagentsOn, subagentWorker } from './worker.js';
@@ -70,6 +70,8 @@ async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
     // The model boundary archives/compacts complete tool exchanges as needed.
     // Keep the transcript cacheable and activate only requested MCP schemas.
     prepareStep: async ({ messages }) => {
+      beginAgentStep();
+
       // Light models get the key rules again at the end of the latest user message.
       const reminded = withTierReminder(messages, state.profile);
       const next = withConversationCache(reminded, state.profile);

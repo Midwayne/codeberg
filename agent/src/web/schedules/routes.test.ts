@@ -118,7 +118,7 @@ it('serves a detached subagent run\'s live rows and then its final reports', asy
       yield { results: [{ agent_id: 'a1', status: 'running', tool_calls: 1 }] };
       yield { results: [{ agent_id: 'a1', status: 'completed', report: await pending, tool_calls: 2 }] };
     })());
-  const url = `${f.base}/api/schedules/${job.id}/subagents`;
+  const url = `${f.base}/api/schedules/${job.id}/subagents?chat=second`;
 
   await vi.waitFor(async () => expect(await (await fetch(url)).json()).toMatchObject({
     id: job.id, status: 'running', results: [{ agent_id: 'a1', status: 'running' }],
@@ -133,6 +133,14 @@ it('serves a detached subagent run\'s live rows and then its final reports', asy
   const other = await runs.background.start({ chatId: 'second', sourceRunId: 'turn' },
     { tool: 'grep', callId: 'grep', args: {} }, async () => 'ok');
 
-  expect((await fetch(`${f.base}/api/schedules/${other.id}/subagents`)).status).toBe(404);
+  expect((await fetch(`${f.base}/api/schedules/${other.id}/subagents?chat=second`)).status).toBe(404);
+  expect((await fetch(`${f.base}/api/schedules/${job.id}/subagents?chat=first`)).status).toBe(404);
+  expect((await fetch(`${f.base}/api/schedules/${job.id}/subagents?chat=..%2Fx`)).status).toBe(404);
+  expect((await fetch(`${f.base}/api/schedules/${job.id}/subagents`)).status).toBe(400);
   expect((await fetch(url, { method: 'POST' })).status).toBe(405);
+
+  // Only the one job is read, not every record in the project.
+  const all = vi.spyOn(runs.background, 'listAll');
+  await fetch(url);
+  expect(all).not.toHaveBeenCalled();
 });

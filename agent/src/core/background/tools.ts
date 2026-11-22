@@ -2,6 +2,8 @@ import { jsonSchema, tool, type ToolSet } from 'ai';
 import { currentBackground } from './context.js';
 import { startTool, type PresentBackground } from './invoke.js';
 import { sleepAgent, type SleepInput } from './sleep.js';
+import { SUBAGENT_TOOL_NAMES } from '../subagents/names.js';
+import { boundedOutput } from '../tools/bounded.js';
 
 export function backgroundTools(tools: ToolSet, present?: PresentBackground): ToolSet {
   return {
@@ -19,8 +21,12 @@ export function backgroundTools(tools: ToolSet, present?: PresentBackground): To
       }, additionalProperties: false }),
       execute: async ({ job_id }): Promise<unknown> => {
         const { jobs, chatId } = currentBackground();
+        if (!job_id) return jobs.list(chatId);
 
-        return job_id ? jobs.get(chatId, job_id) : jobs.list(chatId);
+        const job = await jobs.get(chatId, job_id);
+
+        // Subagent reports bound their own size, as in the foreground; the chat shows them as a card.
+        return SUBAGENT_TOOL_NAMES.includes(job.tool) ? boundedOutput(job) : job;
       },
     }),
     cancel_background_tool: tool({

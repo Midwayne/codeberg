@@ -88,7 +88,7 @@ it('follows a detached subagent run through sleep, an early wake, and the subage
     const start = tool(h.browser.chat.messages, 'tool-start_background_tool');
     expect(tool(h.browser.chat.messages, 'tool-sleep_agent')?.state).toBe('output-available');
 
-    const live = await (await h.api(`/api/schedules/${start?.output?.id}/subagents`)).json();
+    const live = await (await h.api(`/api/schedules/${start?.output?.id}/subagents?chat=chat`)).json();
     expect(live).toMatchObject({ status: 'running', results: [{ description: 'Check checkout' }] });
 
     // The wake-up is an hour away; it runs once the subagents finish, and the browser follows it.
@@ -97,10 +97,15 @@ it('follows a detached subagent run through sleep, an early wake, and the subage
       expect(parts(h.browser.chat.messages).some((part) => part.text === 'all good')).toBe(true);
     }, { timeout: 15_000, interval: 300 });
 
-    const done = await (await h.api(`/api/schedules/${start?.output?.id}/subagents`)).json();
+    const done = await (await h.api(`/api/schedules/${start?.output?.id}/subagents?chat=chat`)).json();
     expect(done).toMatchObject({ status: 'completed', results: [{ status: 'completed', report: 'checkout: healthy' }] });
     expect(tool(h.browser.chat.messages, 'tool-run_subagents')?.state).toBe('output-available');
-    expect((await h.sessions.load('chat'))!.messages).toEqual(h.browser.chat.messages);
+
+    // The browser sees the last text before the server finishes saving the turn.
+    await vi.waitFor(async () => {
+      expect(h.browser.chat.status).toBe('ready');
+      expect((await h.sessions.load('chat'))!.messages).toEqual(h.browser.chat.messages);
+    }, { timeout: 5_000, interval: 100 });
   } finally {
     updates.close();
     await h.close();

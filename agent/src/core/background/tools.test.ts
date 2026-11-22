@@ -1,8 +1,13 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { jsonSchema, tool } from 'ai';
 import { expect, it, vi } from 'vitest';
 import { backgroundTools } from './tools.js';
-import { backgroundContext, detachedCallId, holdForeground, runningInForeground } from './context.js';
+import { backgroundContext, beginAgentStep, detachedCallId, noteForegroundSubagents, subagentsThisStep } from './context.js';
 import { scheduleContext } from '../schedules/context.js';
+import { ContextStore } from '../context/store.js';
+import { wrapToolOutputs } from '../context/wrap.js';
 
 const options = { toolCallId: 'start', messages: [], abortSignal: new AbortController().signal };
 
@@ -57,7 +62,7 @@ it('refuses to sleep past foreground subagent reports and withdraws the saved wa
   const scheduler = { create: vi.fn(async () => ({ id: 'wake' })), list: vi.fn(), cancel: vi.fn(async () => ({})) };
 
   await scheduleContext.run({ ...owner(), scheduler }, () => backgroundContext.run(scope, async () => {
-    const release = holdForeground('fan');
+    noteForegroundSubagents('fan');
 
     await expect((tools.sleep_agent.execute as any)({ delay_seconds: 60, prompt: 'Check later' }, options))
       .rejects.toThrow('start_background_tool');
@@ -65,7 +70,7 @@ it('refuses to sleep past foreground subagent reports and withdraws the saved wa
     expect(scope.sleeping).toBe(false);
     expect(scheduler.cancel).toHaveBeenCalledWith('chat', 'wake');
 
-    release();
+    beginAgentStep();
 
     await (tools.sleep_agent.execute as any)({ delay_seconds: 60, prompt: 'Check later' }, options);
 
@@ -77,11 +82,9 @@ it('does not count detached subagent runs as foreground work', async () => {
   const scope = { ...owner(), jobs: { start: vi.fn(), get: vi.fn(), cancel: vi.fn(), list: vi.fn() }, sleeping: false };
 
   await backgroundContext.run(scope, async () => {
-    const release = holdForeground(detachedCallId('turn', 'fan'));
+    noteForegroundSubagents(detachedCallId('turn', 'fan'));
 
-    expect(runningInForeground()).toBe(false);
-
-    release();
+    expect(subagentsThisStep()).toBe(false);
   });
 });
 
@@ -101,4 +104,37 @@ it('keeps detached subagent reports structured, as in the foreground, instead of
 
   expect(output).toBe(reports);
   expect(present).not.toHaveBeenCalled();
+});
+
+it('never spills a subagent job read with background_tool_status, but still spills other large jobs', async () => {
+  const store = ContextStore.open(mkdtempSync(join(tmpdir(), 'codeberg-status-spill-')));
+  const job = (tool: string) => ({ ...owner(), id: 'job', tool, args: {}, fingerprint: '', createdAt: 1, status: 'completed' as const,
+    output: { results: [{ agent_id: 'a1', report: 'x'.repeat(50_000) }] } });
+  let current = job('run_subagents');
+  const jobs = { start: vi.fn(), get: vi.fn(async () => current), cancel: vi.fn(), list: vi.fn() };
+  const tools = wrapToolOutputs(backgroundTools({}), store);
+  const status = () => backgroundContext.run({ ...owner(), jobs, sleeping: false }, () =>
+    (tools.background_tool_status.execute as any)({ job_id: 'job' }, options));
+
+  expect(await status()).toMatchObject({ tool: 'run_subagents', output: { results: [{ agent_id: 'a1' }] } });
+
+  current = job('grep');
+
+  expect(typeof await status()).toBe('string');
+});
+
+it('keeps a wake-up it could not withdraw for the turn to cancel, and still refuses to sleep', async () => {
+  const tools = backgroundTools({});
+  const scope: Record<string, unknown> = { ...owner(), jobs: { start: vi.fn(), get: vi.fn(), cancel: vi.fn(), list: vi.fn() }, sleeping: false };
+  const scheduler = { create: vi.fn(async () => ({ id: 'wake' })), list: vi.fn(), cancel: vi.fn(async () => { throw new Error('disk full'); }) };
+
+  await scheduleContext.run({ ...owner(), scheduler }, () => backgroundContext.run(scope as never, async () => {
+    noteForegroundSubagents('fan');
+
+    await expect((tools.sleep_agent.execute as any)({ delay_seconds: 60, prompt: 'Check later' }, options))
+      .rejects.toThrow('start_background_tool');
+  }));
+
+  expect(scope.sleeping).toBe(false);
+  expect(scope.withdrawWakeIds).toEqual(['wake']);
 });

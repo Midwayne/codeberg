@@ -37,8 +37,8 @@ export async function executeBackground(job: BackgroundJob, execute: BackgroundE
     await store.serial(async () => {
       if (closed()) return;
 
+      // The last progress stays, so work finished before the failure is still readable.
       delete job.output;
-      delete job.progress;
       job.status = signal.aborted ? 'cancelled' : 'failed';
       job.error = String(error);
       job.finishedAt = Date.now();

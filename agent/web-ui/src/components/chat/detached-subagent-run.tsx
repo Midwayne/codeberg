@@ -23,19 +23,19 @@ const RETRY_MS = 10_000;
  * the agent sleeps and shows the reports once the job settles.
  */
 export function DetachedSubagentRun({ detached }: { detached: DetachedSubagents }) {
-  const progress = useSubagentProgress(detached.jobId);
+  const progress = useSubagentProgress(detached.chatId, detached.jobId);
   const badge = settled(progress) ? 'Background' : 'In background';
 
   return <SubagentRun name={detached.name} part={progressPart(detached.args, progress) as ToolView} badge={badge} />;
 }
 
-function useSubagentProgress(jobId: string): SubagentProgress | undefined {
+function useSubagentProgress(chatId: string, jobId: string): SubagentProgress | undefined {
   const { fetch: api } = useProjectApi();
   const [progress, setProgress] = useState<SubagentProgress>();
 
   useEffect(() => {
     const poll = startPoll({
-      load: (signal) => loadSubagentProgress(api, jobId, signal),
+      load: (signal) => loadSubagentProgress(api, chatId, jobId, signal),
       done: (value) => {
         setProgress(value);
 
@@ -46,7 +46,7 @@ function useSubagentProgress(jobId: string): SubagentProgress | undefined {
     });
 
     return () => poll.stop();
-  }, [api, jobId]);
+  }, [api, chatId, jobId]);
 
   return progress;
 }

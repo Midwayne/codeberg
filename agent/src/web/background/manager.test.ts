@@ -111,6 +111,9 @@ it('saves yielded progress and a terminal error, without exposing execution cont
   pending.resolve(null);
   await vi.waitFor(async () => expect((await jobs.get('chat', job.id)).status).toBe('failed'));
   expect((await jobs.get('chat', job.id)).error).toContain('broker disconnected');
+
+  // The last progress stays readable, so work finished before the failure is not lost.
+  expect((await jobs.get('chat', job.id)).progress).toEqual({ scanned: 100 });
 });
 
 it('separates job identity across chats even with the same source and call IDs', async () => {

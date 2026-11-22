@@ -8,8 +8,10 @@ export interface BackgroundContext extends BackgroundOwner {
   signal?: AbortSignal;
   sleepWakeId?: string;
   sleepRequest?: Promise<unknown>;
-  /** Subagent calls running in this turn's foreground; their reports arrive before the next step. */
-  foregroundSubagents?: number;
+  /** Foreground subagent calls in the current step; their reports arrive before the next step. */
+  subagentCallsThisStep?: number;
+  /** Wake-ups this turn saved, then refused but could not cancel; the run cancels them when it ends. */
+  withdrawWakeIds?: string[];
 }
 
 export const backgroundContext = new AsyncLocalStorage<BackgroundContext>();
@@ -34,24 +36,23 @@ export function detachedCallId(sourceRunId: string, toolCallId: string): string 
 }
 
 /**
- * Count a subagent call as foreground work in this turn until the returned
- * release runs. Detached calls are not counted: they outlive the turn.
+ * Note a foreground subagent call in this step of the turn. Its reports
+ * arrive before the next step, so the turn must not sleep in this step,
+ * even if the subagents already finished. Detached calls outlive the turn.
  */
-export function holdForeground(toolCallId: string): () => void {
+export function noteForegroundSubagents(toolCallId: string): void {
   const context = backgroundContext.getStore();
-  if (!context || toolCallId.endsWith(DETACHED_SUFFIX)) return () => undefined;
+  if (!context || toolCallId.endsWith(DETACHED_SUFFIX)) return;
 
-  context.foregroundSubagents = (context.foregroundSubagents ?? 0) + 1;
-  let held = true;
-
-  return () => {
-    if (!held) return;
-
-    held = false;
-    context.foregroundSubagents = (context.foregroundSubagents ?? 1) - 1;
-  };
+  context.subagentCallsThisStep = (context.subagentCallsThisStep ?? 0) + 1;
 }
 
-export function runningInForeground(): boolean {
-  return (backgroundContext.getStore()?.foregroundSubagents ?? 0) > 0;
+/** Called before each model step of the main loop. */
+export function beginAgentStep(): void {
+  const context = backgroundContext.getStore();
+  if (context) context.subagentCallsThisStep = 0;
+}
+
+export function subagentsThisStep(): boolean {
+  return (backgroundContext.getStore()?.subagentCallsThisStep ?? 0) > 0;
 }

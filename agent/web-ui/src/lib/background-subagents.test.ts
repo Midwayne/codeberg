@@ -1,19 +1,19 @@
 import { describe, expect, it } from 'vitest';
 
-import { detachedSubagents, progressPart, staysVisible, statusSubagents } from './background-subagents';
+import { detachedSubagents, loadSubagentProgress, progressPart, settled, staysVisible, statusSubagents } from './background-subagents';
 
 const tasks = [{ description: 'Check checkout', prompt: 'p1' }, { description: 'Check billing', prompt: 'p2' }];
 
 describe('detachedSubagents', () => {
   it('finds a run_subagents call started with start_background_tool and its job id', () => {
     const part = { type: 'tool-start_background_tool', state: 'output-available',
-      input: { tool: 'run_subagents', args: { tasks } }, output: { id: 'job-1', tool: 'run_subagents', status: 'running' } };
+      input: { tool: 'run_subagents', args: { tasks } }, output: { id: 'job-1', chatId: 'chat-1', tool: 'run_subagents', status: 'running' } };
 
-    expect(detachedSubagents('start_background_tool', part)).toEqual({ name: 'run_subagents', jobId: 'job-1', args: { tasks } });
+    expect(detachedSubagents('start_background_tool', part)).toEqual({ name: 'run_subagents', jobId: 'job-1', chatId: 'chat-1', args: { tasks } });
   });
 
   it('ignores other detached tools, other tool names, and starts without a job yet', () => {
-    const grep = { type: 'tool-start_background_tool', state: 'output-available', input: { tool: 'grep', args: {} }, output: { id: 'j' } };
+    const grep = { type: 'tool-start_background_tool', state: 'output-available', input: { tool: 'grep', args: {} }, output: { id: 'j', chatId: 'c' } };
     const pending = { type: 'tool-start_background_tool', state: 'input-available', input: { tool: 'run_subagents', args: { tasks } } };
 
     expect(detachedSubagents('start_background_tool', grep)).toBeUndefined();
@@ -59,7 +59,7 @@ describe('statusSubagents', () => {
 
 describe('staysVisible', () => {
   it('keeps subagent runs, detached ones, their status, and sleeps out of the folded tool group', () => {
-    const detached = { type: 'tool-start_background_tool', state: 'output-available', input: { tool: 'run_subagents', args: { tasks } }, output: { id: 'j' } };
+    const detached = { type: 'tool-start_background_tool', state: 'output-available', input: { tool: 'run_subagents', args: { tasks } }, output: { id: 'j', chatId: 'c' } };
     const status = { type: 'tool-background_tool_status', state: 'output-available', output: { id: 'j', tool: 'run_subagents', status: 'running' } };
 
     expect(staysVisible('run_subagents', { type: 'tool-run_subagents' })).toBe(true);
@@ -71,5 +71,22 @@ describe('staysVisible', () => {
   it('folds ordinary tools and refused sleeps', () => {
     expect(staysVisible('grep', { type: 'tool-grep', state: 'output-available' })).toBe(false);
     expect(staysVisible('sleep_agent', { type: 'tool-sleep_agent', state: 'output-error' })).toBe(false);
+  });
+});
+
+describe('loadSubagentProgress', () => {
+  it('reads a job that no longer exists as settled and unavailable, so the card stops polling', async () => {
+    const api = (async () => new Response('not found', { status: 404 })) as typeof fetch;
+    const progress = await loadSubagentProgress(api, 'chat', 'job');
+
+    expect(progress).toEqual({ status: 'missing', results: [] });
+    expect(settled(progress)).toBe(true);
+    expect(progressPart({ tasks }, progress)).toMatchObject({ state: 'output-error', errorText: 'No longer available' });
+  });
+
+  it('still fails on other errors so the poll retries', async () => {
+    const api = (async () => new Response('busy', { status: 503 })) as typeof fetch;
+
+    await expect(loadSubagentProgress(api, 'chat', 'job')).rejects.toThrow();
   });
 });

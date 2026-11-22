@@ -17,7 +17,7 @@ export async function routeSchedules(req: IncomingMessage, res: ServerResponse, 
   }
 
   const progress = /^\/api\/schedules\/([A-Za-z0-9_-]{1,64})\/subagents$/.exec(url.pathname);
-  if (progress) return routeSubagentProgress(req, res, runs, progress[1]!);
+  if (progress) return routeSubagentProgress(req, res, runs, url.searchParams.get('chat'), progress[1]!);
 
   const match = /^\/api\/schedules\/([A-Za-z0-9_-]{1,64})\/cancel$/.exec(url.pathname);
   if (!match) return sendText(res, 404, 'not found');
@@ -51,10 +51,12 @@ async function summarize(runs: SearchRuns, job: ScheduledRun): Promise<ScheduleS
     activeRun: run && !run.settled ? { id: run.record.id, stopping: run.controller.signal.aborted } : undefined };
 }
 
-async function routeSubagentProgress(req: IncomingMessage, res: ServerResponse, runs: SearchRuns, id: string) {
+async function routeSubagentProgress(req: IncomingMessage, res: ServerResponse, runs: SearchRuns, chatId: string | null, id: string) {
   if (req.method !== 'GET') return sendText(res, 405, 'method not allowed');
 
-  const progress = await subagentProgress(runs, id);
+  if (!chatId) return sendText(res, 400, 'chat is required');
+
+  const progress = await subagentProgress(runs, chatId, id);
 
   return progress ? sendJson(res, 200, progress) : sendText(res, 404, 'Background subagent run not found in this project.');
 }

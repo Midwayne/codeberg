@@ -3,6 +3,7 @@ import { isLoopFinished, isStepCount, ToolLoopAgent, type LanguageModel, type Mo
 import type { ModelProfile } from '../../providers/profiles.js';
 import { cachedInstructions } from '../cache.js';
 import type { ReasoningEffort } from '../types.js';
+import { localMcpLoads, withLocalLoads } from './mcp-loads.js';
 import { progressScope, reportingTools } from './progress.js';
 import { FINAL_REPORT_REQUEST, subagentSystem } from './prompt.js';
 import { roleTools, type SubagentType } from './roles.js';
@@ -33,7 +34,7 @@ export function roleLoop(
   let loop = loops.get(type);
 
   if (!loop) {
-    loop = createLoop(worker, type, reportingTools(roleTools(type, tools)));
+    loop = createLoop(worker, type, reportingTools(roleTools(type, localMcpLoads(tools))));
     loops.set(type, loop);
   }
 
@@ -53,7 +54,7 @@ function createLoop(worker: SubagentWorker, type: SubagentType, tools: ToolSet):
     ...reasoning,
     prepareStep: ({ stepNumber, messages }) => {
       progressScope.getStore()?.step(stepNumber + 1);
-      const activeTools = worker.activeTools?.(names, messages);
+      const activeTools = withLocalLoads(worker.activeTools?.(names, messages), names, messages);
       const final = stepNumber >= MAX_SUBAGENT_STEPS - 1;
 
       return {

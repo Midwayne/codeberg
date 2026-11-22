@@ -6,7 +6,7 @@ import { MockLanguageModelV4 } from 'ai/test';
 import { describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_PROFILE } from '../../providers/profiles.js';
-import { backgroundContext, runningInForeground } from '../background/context.js';
+import { backgroundContext, beginAgentStep, subagentsThisStep } from '../background/context.js';
 import { chatScope } from '../chat-scope.js';
 import { ContextStore } from '../context/store.js';
 import { MAX_SUBAGENT_STEPS } from './loop.js';
@@ -68,7 +68,7 @@ function setup(doGenerate: Generate, contextOf?: () => string) {
   const message = async (agent_id: string, text: string) =>
     (await drain(await set[MESSAGE_TOOL]!.execute!({ agent_id, message: text }, options)))[0]!;
 
-  return { run, message, status, model, snapshots, context: store };
+  return { run, message, status, model, snapshots, context: store, set, drain };
 }
 
 describe('run_subagents', () => {
@@ -231,22 +231,19 @@ describe('report previews', () => {
 });
 
 describe('foreground subagents', () => {
-  it('count as foreground work in the turn only while they run', async () => {
-    const seen: boolean[] = [];
-    const { run } = setup(async () => {
-      seen.push(runningInForeground());
-
-      return answer('done');
-    });
+  it('count for the whole step that called them, even after they finish, until the next step', async () => {
+    const { run } = setup(async () => answer('done'));
     const scope = { chatId: 'chat', sourceRunId: 'turn', jobs: {} as never, sleeping: false };
 
     await backgroundContext.run(scope, async () => {
       await run([{ description: 'Check', prompt: 'Check checkout' }]);
 
-      expect(runningInForeground()).toBe(false);
-    });
+      expect(subagentsThisStep()).toBe(true);
 
-    expect(seen).toEqual([true]);
+      beginAgentStep();
+
+      expect(subagentsThisStep()).toBe(false);
+    });
   });
 });
 
@@ -258,5 +255,35 @@ describe('subagent context', () => {
     await run([{ description: 'Check', prompt: 'Check checkout' }]);
 
     expect(JSON.stringify(model.doGenerateCalls[0]!.prompt)).toContain('mcp_grafana_query');
+  });
+});
+
+describe('stopping subagents', () => {
+  it('yields every finished report in full before the stop error, so a background job keeps them', async () => {
+    const long = `checkout is fine. ${'detail '.repeat(80)}`;
+    const { set, snapshots } = setup(async ({ prompt, abortSignal }) => {
+      if (serviceOf(prompt) === 'checkout') return answer(long);
+
+      return new Promise((_resolve, reject) => abortSignal!.addEventListener('abort', () => reject(new Error('stopped'))));
+    });
+    const controller = new AbortController();
+    const output = await set[SUBAGENT_TOOL]!.execute!({ tasks: [
+      { description: 'Check checkout', prompt: 'Check checkout' },
+      { description: 'Check billing', prompt: 'Check billing' },
+    ] }, { ...options, abortSignal: controller.signal });
+
+    const seen: SubagentReport[][] = [];
+    const drained = (async () => {
+      for await (const item of output as AsyncIterable<{ results: SubagentReport[] }>) seen.push(item.results);
+    })();
+
+    await vi.waitFor(() => expect(seen.at(-1)?.[0]?.status).toBe('completed'));
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    controller.abort();
+
+    await expect(drained).rejects.toThrow();
+    expect(seen.at(-1)?.[0]).toMatchObject({ status: 'completed', report: long.trim() });
+    expect(seen.at(-1)?.[0]?.report_truncated).toBeUndefined();
+    expect(snapshots).toEqual([]);
   });
 });

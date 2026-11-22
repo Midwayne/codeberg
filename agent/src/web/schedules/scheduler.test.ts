@@ -330,3 +330,22 @@ it('keeps a sleeping agent asleep until its time while any waited-on job still r
 
   expect(f.generator).toHaveBeenCalledOnce();
 });
+
+it('keeps a sleeping wake-up scheduled when its jobs cannot be read before it is due', async () => {
+  const f = await fixture();
+  const owner = { chatId: 'chat', sourceRunId: 'origin' };
+  const background = await f.runs.background.start(owner, { callId: 'slow', tool: 'grep', args: {} }, () => new Promise(() => undefined));
+  const job = await f.scheduler.create(f.context, { prompt: 'Check', delay_seconds: 60, background_job_ids: [background.id] });
+
+  const read = vi.spyOn(f.runs.background, 'get').mockRejectedValue(new Error('EIO'));
+  vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  await f.scheduler.tick(job.dueAt! - 1);
+
+  expect((await f.scheduler.list('chat'))[0]).toMatchObject({ status: 'scheduled' });
+
+  read.mockRestore();
+  await f.scheduler.tick(job.dueAt!);
+  await (await f.runs.find('chat'))!.done;
+
+  expect(f.generator).toHaveBeenCalledOnce();
+});

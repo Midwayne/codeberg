@@ -167,7 +167,7 @@ Quick lookups and steps that depend on an earlier result stay with the chat mode
 
 For a long sweep, the agent can start `run_subagents` as a [background tool](#let-a-long-tool-work-while-the-agent-sleeps), then call `sleep_agent` with its job ID. The turn ends, and the agent wakes as soon as the subagents finish, or at the time it chose if that comes first.
 
-The subagent card stays in the chat with an **In background** tag and keeps updating while the agent sleeps, about every two seconds. Once the subagents finish, it shows their reports. When the agent reads the job with `background_tool_status`, that result shows as a subagent card too.
+The subagent card stays in the chat with an **In background** tag and keeps updating while the agent sleeps, about every two seconds. Once the subagents finish, it shows their reports. If you cancel the job or it fails, reports from subagents that already finished stay. When the agent reads the job with `background_tool_status`, that result shows as a subagent card too.
 
 The agent cannot sleep while `run_subagents` is still running in the same turn; it reads those reports first.
 

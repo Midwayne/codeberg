@@ -5,6 +5,7 @@ import { toolResultOutputText } from '../message.js';
 import { presentToolOutput, recordTerminal, SPILL_CHARS, spillText } from './spill.js';
 import type { ContextStore } from './store.js';
 import { errorMessage } from '../errors.js';
+import { isBoundedOutput } from '../tools/bounded.js';
 import { isStreamingTool } from '../tools/streaming.js';
 
 type Executable = {
@@ -61,6 +62,8 @@ export function wrapToolOutputs(tools: ToolSet, store: ContextStore, limit = SPI
       ...(def as object),
       execute: async (args: unknown, options: unknown) => {
         const result = await execute.call(def, args, options);
+
+        if (isBoundedOutput(result)) return result;
 
         return presentToolOutput(store, name, args, result, limit);
       },

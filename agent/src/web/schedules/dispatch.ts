@@ -56,15 +56,23 @@ export function settleSchedule(job: ScheduledRun, run: SearchRun, now: number): 
  * Time-based schedules are due at their time. A one-time wake-up that waits
  * on background jobs (sleep_agent with job_ids) is also due as soon as every
  * one of them has finished, so the agent never sleeps past its results.
+ * The jobs are only read while the wake-up is not yet due.
  */
 export async function isDue(runs: SearchRuns, job: ScheduledRun, now: number): Promise<boolean> {
   if (job.dueAt === undefined || job.dueAt <= now) return true;
 
   if (job.everySeconds || !job.backgroundJobIds?.length) return false;
 
-  const jobs = await Promise.all(job.backgroundJobIds.map((id) => runs.background.get(job.chatId, id)));
+  try {
+    const jobs = await Promise.all(job.backgroundJobIds.map((id) => runs.background.get(job.chatId, id)));
 
-  return jobs.every((item) => !UNFINISHED.has(item.status));
+    return jobs.every((item) => !UNFINISHED.has(item.status));
+  } catch (error) {
+    // Waking early is optional: on a read error, wait for the chosen time instead of failing the wake-up.
+    console.error(`Could not check background jobs for wake-up ${job.id}:`, error);
+
+    return false;
+  }
 }
 
 const UNFINISHED = new Set(['running', 'cancelling']);

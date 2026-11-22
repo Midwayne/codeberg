@@ -15,21 +15,27 @@ export interface SubagentProgress {
 export interface DetachedSubagents {
   name: string;
   jobId: string;
+  chatId: string;
   args: unknown;
 }
 
-const FAILED_LABEL: Record<string, string> = { failed: 'Failed', cancelled: 'Cancelled', interrupted: 'Interrupted' };
+/** `missing`: the job record is gone (for example after its chat was deleted), so there is nothing to poll. */
+const FAILED_LABEL: Record<string, string> = {
+  failed: 'Failed', cancelled: 'Cancelled', interrupted: 'Interrupted', missing: 'No longer available',
+};
 
 /** `start_background_tool` running run_subagents / message_subagent, once the job exists. */
 export function detachedSubagents(name: string, part: Part): DetachedSubagents | undefined {
   if (name !== 'start_background_tool' || part.state !== 'output-available') return undefined;
 
   const input = part.input as { tool?: unknown; args?: unknown } | undefined;
-  const jobId = (part.output as { id?: unknown } | undefined)?.id;
+  const { id: jobId, chatId } = (part.output ?? {}) as { id?: unknown; chatId?: unknown };
 
-  if (typeof input?.tool !== 'string' || !isSubagentTool(input.tool) || typeof jobId !== 'string') return undefined;
+  if (typeof input?.tool !== 'string' || !isSubagentTool(input.tool)) return undefined;
 
-  return { name: input.tool, jobId, args: input.args };
+  if (typeof jobId !== 'string' || typeof chatId !== 'string') return undefined;
+
+  return { name: input.tool, jobId, chatId, args: input.args };
 }
 
 /** `background_tool_status` for one subagent job, shown as the run it reports on. */
@@ -65,8 +71,11 @@ export function settled(progress: SubagentProgress | undefined): boolean {
   return Boolean(progress && progress.status !== 'running' && progress.status !== 'cancelling');
 }
 
-export async function loadSubagentProgress(api: typeof fetch, id: string, signal?: AbortSignal): Promise<SubagentProgress> {
-  const response = await api(`/api/schedules/${encodeURIComponent(id)}/subagents`, { signal, cache: 'no-store' });
+export async function loadSubagentProgress(api: typeof fetch, chatId: string, jobId: string, signal?: AbortSignal): Promise<SubagentProgress> {
+  const path = `/api/schedules/${encodeURIComponent(jobId)}/subagents?chat=${encodeURIComponent(chatId)}`;
+  const response = await api(path, { signal, cache: 'no-store' });
+  if (response.status === 404) return { status: 'missing', results: [] };
+
   await ensureOk(response, 'Could not load the background subagents.');
 
   const body = await response.json() as Partial<SubagentProgress>;

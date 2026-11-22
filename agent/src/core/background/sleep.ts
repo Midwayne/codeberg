@@ -1,5 +1,5 @@
 import { scheduleContext } from '../schedules/context.js';
-import { currentBackground, runningInForeground, type BackgroundContext } from './context.js';
+import { currentBackground, subagentsThisStep, type BackgroundContext } from './context.js';
 
 export interface SleepInput {
   delay_seconds?: number;
@@ -25,7 +25,7 @@ export async function sleepAgent(input: SleepInput): Promise<unknown> {
     const wakeId = wake && typeof wake === 'object' && 'id' in wake && typeof wake.id === 'string' ? wake.id : undefined;
 
     // Checked after saving, once every call in this step has started.
-    if (runningInForeground()) await refuseForeground(context, scheduling.scheduler, wakeId);
+    if (subagentsThisStep()) await refuseForeground(context, scheduling.scheduler, wakeId);
 
     if (wakeId) context.sleepWakeId = wakeId;
     context.sleeping = true;
@@ -41,14 +41,21 @@ export async function sleepAgent(input: SleepInput): Promise<unknown> {
   }
 }
 
-const FOREGROUND_SUBAGENTS = 'run_subagents is still running in the foreground of this turn, and its reports arrive ' +
+const FOREGROUND_SUBAGENTS = 'run_subagents ran in the foreground of this step, and its reports arrive ' +
   'before your next step. Read them first, or start run_subagents with start_background_tool and sleep with its job ID.';
 
 type Scheduler = { cancel(chatId: string, id: string): Promise<unknown> };
 
-/** Withdraw the wake-up just saved so the turn continues to the subagent reports. */
+/**
+ * Withdraw the wake-up just saved so the turn continues to the subagent
+ * reports. If cancelling fails, the run retries when the turn ends.
+ */
 async function refuseForeground(context: BackgroundContext, scheduler: Scheduler, wakeId: string | undefined): Promise<never> {
-  if (wakeId) await scheduler.cancel(context.chatId, wakeId);
+  if (wakeId) {
+    await scheduler.cancel(context.chatId, wakeId).catch(() => {
+      context.withdrawWakeIds = [...(context.withdrawWakeIds ?? []), wakeId];
+    });
+  }
 
   throw new Error(FOREGROUND_SUBAGENTS);
 }

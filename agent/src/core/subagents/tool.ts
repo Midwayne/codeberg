@@ -1,6 +1,6 @@
 import { jsonSchema, tool, type ToolSet } from 'ai';
 
-import { holdForeground } from '../background/context.js';
+import { noteForegroundSubagents } from '../background/context.js';
 import type { ContextStore } from '../context/store.js';
 import { MESSAGE_TOOL, SUBAGENT_TOOL } from './names.js';
 import { activityLabel, ProgressFeed } from './progress.js';
@@ -81,8 +81,9 @@ export function subagentTools(worker: SubagentWorker, tools: ToolSet, context: C
         const turns = tasks.map((brief) => ({
           session: store.create(brief.agent_type ?? 'explorer', brief.description), input: brief.prompt,
         }));
+        noteForegroundSubagents(toolCallId);
 
-        return runWithProgress(runtime, turns, toolCallId, abortSignal);
+        return runWithProgress(runtime, turns, abortSignal);
       },
     })),
     [MESSAGE_TOOL]: streamingTool(tool({
@@ -93,7 +94,9 @@ export function subagentTools(worker: SubagentWorker, tools: ToolSet, context: C
         const session = store.get(agent_id);
         if (!session) throw new Error(`Unknown subagent ${agent_id}; it may have expired. Start a new one.`);
 
-        return runWithProgress(runtime, [{ session, input: message }], toolCallId, abortSignal);
+        noteForegroundSubagents(toolCallId);
+
+        return runWithProgress(runtime, [{ session, input: message }], abortSignal);
       },
     })),
   };
@@ -104,24 +107,8 @@ type Turn = { session: SubagentSession; input: string };
 /**
  * Yields `{ results }` snapshots while subagents run, for the chat's live
  * view; the last value, with every finished report, is what the model reads.
- * While it runs in a turn's foreground, that turn cannot sleep past it.
  */
 async function* runWithProgress(
-  runtime: SubagentRuntime,
-  turns: Turn[],
-  toolCallId: string,
-  abortSignal?: AbortSignal,
-): AsyncGenerator<{ results: SubagentReport[] }> {
-  const release = holdForeground(toolCallId);
-
-  try {
-    yield* reportProgress(runtime, turns, abortSignal);
-  } finally {
-    release();
-  }
-}
-
-async function* reportProgress(
   runtime: SubagentRuntime,
   turns: Turn[],
   abortSignal?: AbortSignal,
@@ -140,7 +127,17 @@ async function* reportProgress(
   const sent = new Set<string>();
   for await (const items of feed.changes(done)) yield { results: items.map((item) => previewOnce(item, sent)) };
 
-  yield { results: await done };
+  let results: SubagentReport[];
+
+  try {
+    results = await done;
+  } catch (error) {
+    // Finished reports travel in full once more, so a stopped background job keeps them.
+    yield { results: [...feed.items] };
+    throw error;
+  }
+
+  yield { results };
 }
 
 /** Characters of a finished report repeated in later live snapshots; the full report arrives at the end. */

@@ -2,7 +2,10 @@ import type { ScheduleSummary } from '@agent/core/schedules/summary';
 
 type Part = { state?: string; input?: unknown; output?: unknown };
 
-type Wake = { id?: unknown; status?: unknown; dueAt?: unknown; backgroundJobIds?: unknown };
+type Wake = { id?: unknown; status?: unknown; dueAt?: unknown; createdAt?: unknown; backgroundJobIds?: unknown };
+
+/** Longer than the schedule list's refresh interval: a wake-up this old and still unlisted has ended. */
+const LISTED_WITHIN_MS = 60_000;
 
 export type SleepPhase = 'saving' | 'sleeping' | 'waking' | 'awake' | 'cancelled' | 'failed';
 
@@ -26,9 +29,22 @@ export function sleepView(part: Part, jobs: ScheduleSummary[] | undefined, now: 
   const wake = ((part.output as { wake?: Wake } | undefined)?.wake ?? {}) as Wake;
   const dueAt = typeof wake.dueAt === 'number' ? wake.dueAt : undefined;
   const live = jobs?.find((job) => job.id === wake.id);
-  const phase = phaseOf(live?.status ?? (typeof wake.status === 'string' ? wake.status : 'scheduled'), dueAt, now, Boolean(live));
+  const phase = phaseOf(live?.status ?? savedStatus(wake, jobs, now), dueAt, now, Boolean(live));
 
   return { phase, label: labelOf(phase, dueAt, now), detail: detailOf(phase, wake, live), prompt, dueAt };
+}
+
+/**
+ * The status the sleep saved, unless a loaded schedule list has had time to
+ * show its wake-up and no longer does: then it already ran (an early wake)
+ * or its history was pruned.
+ */
+function savedStatus(wake: Wake, jobs: ScheduleSummary[] | undefined, now: number): string {
+  const createdAt = typeof wake.createdAt === 'number' ? wake.createdAt : undefined;
+
+  if (jobs && createdAt !== undefined && now - createdAt > LISTED_WITHIN_MS) return 'completed';
+
+  return typeof wake.status === 'string' ? wake.status : 'scheduled';
 }
 
 function phaseOf(status: string, dueAt: number | undefined, now: number, live: boolean): SleepPhase {
