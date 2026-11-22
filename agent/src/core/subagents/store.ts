@@ -30,6 +30,17 @@ export class SubagentStore {
     return session;
   }
 
+  /** Keep a session rebuilt from its transcript, unless one with its id is already here. */
+  adopt(session: SubagentSession): SubagentSession {
+    const existing = this.sessions.get(session.id);
+    if (existing) return touch(this.sessions, session.id, existing);
+
+    this.sessions.set(session.id, session);
+    evictOldest(this.sessions, this.capacity);
+
+    return session;
+  }
+
   get(id: string): SubagentSession | undefined {
     const session = this.sessions.get(id);
 

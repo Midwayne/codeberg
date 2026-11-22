@@ -10,6 +10,7 @@ import { sendToSession, type SessionProgress, type SubagentReport, type Subagent
 import { SubagentScopes } from './scope.js';
 import type { SubagentSession, SubagentStore } from './store.js';
 import { workerTools } from './tools.js';
+import { restoreSession, unknownSubagent } from './transcript.js';
 import { streamingTool } from '../tools/streaming.js';
 
 /** Subagents one call may start, and how many may run at once in one chat. */
@@ -91,18 +92,31 @@ export function subagentTools(worker: SubagentWorker, tools: ToolSet, context: C
       inputSchema: MESSAGE_INPUT,
       execute: ({ agent_id, message }, { abortSignal, toolCallId }) => {
         const { runtime, store } = inChat();
-        const session = store.get(agent_id);
-        if (!session) throw new Error(`Unknown subagent ${agent_id}; it may have expired. Start a new one.`);
-
         noteForegroundSubagents(toolCallId);
 
-        return runWithProgress(runtime, [{ session, input: message }], abortSignal);
+        return followUp(runtime, store, agent_id, message, abortSignal);
       },
     })),
   };
 }
 
 type Turn = { session: SubagentSession; input: string };
+
+/** Continue a subagent, restoring it from its saved transcript when it is no longer in memory. */
+async function* followUp(
+  runtime: SubagentRuntime,
+  store: SubagentStore,
+  id: string,
+  input: string,
+  abortSignal?: AbortSignal,
+): AsyncGenerator<{ results: SubagentReport[] }> {
+  const restored = store.get(id) ?? await restoreSession(runtime.context, id);
+  if (!restored) throw unknownSubagent(id);
+
+  const session = store.adopt(restored);
+
+  yield* runWithProgress(runtime, [{ session, input }], abortSignal);
+}
 
 /**
  * Yields `{ results }` snapshots while subagents run, for the chat's live

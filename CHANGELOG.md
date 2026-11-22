@@ -28,12 +28,15 @@ are in the git history.
 - Chat turns and subagents no longer stop after a fixed time or number of steps; they work until they answer or you press **Stop**.
 - A model request now fails only when the provider stops responding, and is retried first.
 - A tool call that hangs for 10 minutes is stopped so the agent can carry on.
+- The agent splits independent checks across subagents on its own, without being asked.
 
 ### Fixed
 
 - Large reports from subagents running in the background are no longer cut down to a text preview.
 - The agent no longer sleeps past reports from subagents it is still running in the same turn.
 - Long streamed answers are no longer cut off after two minutes.
+- Subagents no longer appear twice after the agent wakes from sleep.
+- The agent can follow up with a subagent after a restart or model change instead of failing with "Unknown subagent".
 
 ## [1.0.0] - 2026-11-21
 

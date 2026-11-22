@@ -8,6 +8,7 @@ import { progressScope, type ProgressSink } from './progress.js';
 import type { SubagentType } from './roles.js';
 import type { Semaphore } from '../semaphore.js';
 import type { SubagentSession } from './store.js';
+import { saveTranscript } from './transcript.js';
 
 /** Longest report returned inline; the full text stays in the transcript. */
 const MAX_REPORT_CHARS = 8_000;
@@ -140,10 +141,4 @@ function bounded(report: string, transcript: string | undefined): string {
   const rest = transcript ? `the full text is in ${transcript}` : 'the transcript could not be saved';
 
   return `${report.slice(0, MAX_REPORT_CHARS)}\n… (report truncated; ${rest})`;
-}
-
-function saveTranscript(context: ContextStore, session: SubagentSession): Promise<string> {
-  const { id, type, description, messages } = session;
-
-  return context.writeRel(`subagents/${id}.json`, JSON.stringify({ id, type, description, messages }));
 }

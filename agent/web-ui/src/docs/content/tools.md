@@ -135,7 +135,7 @@ Native job lifetime depends on the MCP server. This Kafka MCP stores jobs in mem
 
 ## Split work across subagents
 
-When a request needs several independent checks, the agent can hand each one to a subagent with `run_subagents`. Subagents run at the same time on a smaller model, and each returns a short report, so the chat model reads conclusions instead of every log line or metric.
+When a request needs several independent checks, the agent hands each one to a subagent with `run_subagents`, without being asked. Subagents run at the same time on a smaller model, and each returns a short report, so the chat model reads conclusions instead of every log line or metric.
 
 ```text
 Check the health, error-rate metrics, and last hour of logs for checkout,
@@ -146,7 +146,7 @@ Reports go to the agent, which checks surprising claims and writes the answer.
 
 ### Watch subagents work
 
-Each `run_subagents` call shows as a card in the chat, outside the folded tool-call list. Every subagent has a row with its short description, type, and status: **Queued**, **Running**, **Done**, **Stopped at its step limit**, or **Failed**. A running row shows its current step, tool calls, elapsed time, and the tool it is calling now. Select a row to read its report, the brief it was given, its token use, and the path to its full transcript. Follow-ups sent with `message_subagent` show as their own card.
+Each `run_subagents` call shows as a card in the chat, outside the folded tool-call list. Every subagent has a row with its short description, type, and status: **Queued**, **Running**, **Done**, **Stopped at its step limit**, or **Failed**. A running row shows its current step, tool calls, elapsed time, and the tool it is calling now. Select a row to read its report, the brief it was given, its token use, and the path to its full transcript. Follow-ups sent with `message_subagent` show as their own card. A follow-up the agent sends to a subagent that no longer exists folds into the tool-call list; the agent starts a new one instead.
 
 | Behavior | Details |
 | --- | --- |
@@ -156,18 +156,18 @@ Each `run_subagents` call shows as a card in the chat, outside the folded tool-c
 | Tools | Both types can call every MCP tool from every connected server. They see the same server and tool list as the agent and load the MCP tools they need themselves. Explorers otherwise only read: code, files, Git, context, web pages, background job and schedule status, and the canvas, and are told not to change anything. Workers can also run scripts, start and cancel background tools, create time-based schedules, edit the canvas, and use Browser Use. Background tools and schedules a subagent starts belong to the chat. |
 | Not available | Sleeping, saving or forgetting memories, starting more subagents, and tools that need approval. |
 | Context | A subagent sees only its brief, not the chat. The agent writes each brief to stand on its own. |
-| Follow-ups | Each report has an `agent_id`. The agent can ask that subagent a follow-up with `message_subagent`; it keeps its own history until Codeberg restarts. Each chat keeps its 16 most recently used subagents, and one chat cannot message another chat's subagents. |
+| Follow-ups | Each report has an `agent_id`. The agent can ask that subagent a follow-up with `message_subagent`; it continues from its own history. A subagent no longer in memory, after a restart, a model change, or when a chat has used more than 16, is restored from its saved transcript. One chat cannot message another chat's subagents. |
 | Step budget | Optional. With `CODEBERG_SUBAGENT_MAX_STEPS` set, a subagent that reaches it writes a final report from what it found, marked `incomplete`. |
 | Failures | A failed subagent is reported with its error; the others still return. **Stop** cancels all of them. |
 | Transcripts | Saved as `subagents/<agent_id>.json` in the project's context directory; the agent can open them with context tools. |
 
-Quick lookups and steps that depend on an earlier result stay with the chat model. Each subagent makes its own model requests, so eight tasks cost roughly eight small investigations.
+Quick lookups and steps that depend on an earlier result stay with the chat model. To keep work in one agent, say so in your message, or turn subagents off. Each subagent makes its own model requests, so eight tasks cost roughly eight small investigations.
 
 ### Sleep while subagents work
 
 For a long sweep, the agent can start `run_subagents` as a [background tool](#let-a-long-tool-work-while-the-agent-sleeps), then call `sleep_agent` with its job ID. The turn ends, and the agent wakes as soon as the subagents finish, or at the time it chose if that comes first.
 
-The subagent card stays in the chat with an **In background** tag and keeps updating while the agent sleeps, about every two seconds. Once the subagents finish, it shows their reports. If you cancel the job or it fails, reports from subagents that already finished stay. When the agent reads the job with `background_tool_status`, that result shows as a subagent card too.
+The subagent card stays in the chat with an **In background** tag and keeps updating while the agent sleeps, about every two seconds. Once the subagents finish, it shows their reports. If you cancel the job or it fails, reports from subagents that already finished stay. When the agent reads the job with `background_tool_status`, that check shows as one line in the folded tool-call list, so each subagent appears once.
 
 The agent cannot sleep while `run_subagents` is still running in the same turn; it reads those reports first.
 

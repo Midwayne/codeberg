@@ -68,14 +68,26 @@ describe('statusSubagents', () => {
 });
 
 describe('staysVisible', () => {
-  it('keeps subagent runs, detached ones, their status, and sleeps out of the folded tool group', () => {
+  it('keeps subagent runs, detached ones, and sleeps out of the folded tool group', () => {
     const detached = { type: 'tool-start_background_tool', state: 'output-available', input: { tool: 'run_subagents', args: { tasks } }, output: { id: 'j', chatId: 'c' } };
-    const status = { type: 'tool-background_tool_status', state: 'output-available', output: { id: 'j', tool: 'run_subagents', status: 'running' } };
 
     expect(staysVisible('run_subagents', { type: 'tool-run_subagents' })).toBe(true);
     expect(staysVisible('sleep_agent', { type: 'tool-sleep_agent', state: 'output-available' })).toBe(true);
     expect(staysVisible('start_background_tool', detached)).toBe(true);
-    expect(staysVisible('background_tool_status', status)).toBe(true);
+  });
+
+  it('folds status checks, which the detached card already shows, so each subagent appears once', () => {
+    const status = { type: 'tool-background_tool_status', state: 'output-available', output: { id: 'j', tool: 'run_subagents', status: 'completed' } };
+
+    expect(staysVisible('background_tool_status', status)).toBe(false);
+  });
+
+  it('folds a follow-up refused before any subagent ran', () => {
+    const refused = { type: 'tool-message_subagent', state: 'output-error', errorText: 'Unknown subagent sa_x' };
+    const stopped = { ...refused, output: { results: [{ agent_id: 'sa_x', status: 'failed' }] } };
+
+    expect(staysVisible('message_subagent', refused)).toBe(false);
+    expect(staysVisible('message_subagent', stopped)).toBe(true);
   });
 
   it('folds ordinary tools and refused sleeps', () => {

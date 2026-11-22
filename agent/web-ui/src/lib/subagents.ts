@@ -37,6 +37,15 @@ export function isSubagentTool(name: string): boolean {
   return SUBAGENT_TOOL_NAMES.includes(name);
 }
 
+/**
+ * A follow-up refused before any subagent ran (for example, an unknown
+ * agent_id). The agent recovers on its own, so it folds with other tool calls
+ * instead of showing as a failed subagent card.
+ */
+export function isRejectedFollowUp(name: string, part: Part): boolean {
+  return name === MESSAGE_TOOL && part.state === 'output-error' && resultsOf(part.output).length === 0;
+}
+
 /** What a run_subagents / message_subagent call looks like right now. */
 export function subagentView(name: string, part: Part): SubagentView {
   const followUp = name === MESSAGE_TOOL;

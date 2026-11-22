@@ -53,3 +53,33 @@ it('keeps subagent runs out of the collapsed tool-call group', () => {
   expect(html).toContain('1 tool call');
   expect(html).toContain('Starting 2 subagents');
 });
+
+it('shows a status check of background subagents as one folded line, not a second card', () => {
+  const results = [
+    { agent_id: 'sa_1', description: 'Check checkout', agent_type: 'explorer', status: 'completed', tool_calls: 2, report: 'checkout is fine' },
+    { agent_id: 'sa_2', description: 'Check billing', agent_type: 'worker', status: 'completed', tool_calls: 1, report: 'billing is fine' },
+  ];
+  const message: UIMessage = { id: 'a2', role: 'assistant', parts: [
+    { type: 'tool-background_tool_status', toolCallId: 'b', state: 'output-available', input: { job_id: 'job' },
+      output: { id: 'job', tool: 'run_subagents', status: 'completed', tasks: input.tasks, results } },
+  ] as never };
+
+  const html = renderToStaticMarkup(<Message message={message} />);
+
+  expect(html).toContain('1 tool call');
+  expect(html).toContain('Read reports from 2 background subagents');
+  expect(html).not.toContain('checkout is fine');
+  expect(html).not.toContain('2 subagents finished');
+});
+
+it('folds a follow-up the agent sent to an unknown subagent with the other tool calls', () => {
+  const message: UIMessage = { id: 'a3', role: 'assistant', parts: [
+    { type: 'tool-message_subagent', toolCallId: 'm', state: 'output-error', input: { agent_id: 'sa_gone', message: 'More?' },
+      errorText: 'Unknown subagent sa_gone in this chat.' },
+  ] as never };
+
+  const html = renderToStaticMarkup(<Message message={message} />);
+
+  expect(html).toContain('1 tool call');
+  expect(html).not.toContain('Subagent follow-up');
+});

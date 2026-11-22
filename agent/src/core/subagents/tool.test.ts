@@ -43,7 +43,7 @@ function serviceOf(prompt: unknown): string {
 
 const options = { toolCallId: 'outer', messages: [] } as unknown as ToolExecutionOptions<unknown>;
 
-function setup(doGenerate: Generate, contextOf?: () => string, maxSteps?: number) {
+function setup(doGenerate: Generate, contextOf?: () => string, maxSteps?: number, contextStore?: ContextStore) {
   const status = vi.fn(async ({ service }: { service: string }) => `${service}: 3 errors in 5m`);
   const schema = jsonSchema<{ service: string }>({ type: 'object', properties: { service: { type: 'string' } } });
   const tools = {
@@ -51,7 +51,7 @@ function setup(doGenerate: Generate, contextOf?: () => string, maxSteps?: number
     run_script: tool({ description: 'script', inputSchema: schema, execute: async () => 'ran' }),
   };
   const model = generateMock(doGenerate);
-  const store = ContextStore.open(mkdtempSync(join(tmpdir(), 'codeberg-subagent-tool-')));
+  const store = contextStore ?? ContextStore.open(mkdtempSync(join(tmpdir(), 'codeberg-subagent-tool-')));
   const set = subagentTools({ model, profile: DEFAULT_PROFILE, ...(contextOf ? { context: contextOf } : {}), ...(maxSteps ? { maxSteps } : {}) }, tools, store);
 
   const snapshots: SubagentReport[][] = [];
@@ -189,6 +189,27 @@ describe('message_subagent', () => {
     const { message } = setup(async () => answer('unused'));
 
     await expect(message('sa_missing', 'hi')).rejects.toThrow(/unknown subagent/i);
+  });
+
+  it('points a background job ID passed as an agent_id at the reports', async () => {
+    const { message } = setup(async () => answer('unused'));
+
+    await expect(message('0123456789abcdef0123456789abcdef', 'hi')).rejects.toThrow(/background job ID, not an agent_id/);
+  });
+
+  it('continues a subagent from its saved transcript once it is no longer in memory', async () => {
+    let step = 0;
+    const first = setup(async () => answer(++step === 1 ? 'checkout p99 is 900ms' : 'p50 is 120ms'));
+    const [report] = await chatScope.run('chat-a', () => first.run([{ description: 'Check checkout', prompt: 'Check checkout latency' }]));
+
+    // A restarted or switched agent shares only the context directory.
+    const later = setup(async () => answer('p50 is 120ms'), undefined, undefined, first.context);
+    const followUp = await chatScope.run('chat-a', () => later.message(report!.agent_id, 'What is p50?'));
+    const prompt = JSON.stringify(later.model.doGenerateCalls[0]!.prompt);
+
+    expect(followUp).toMatchObject({ agent_id: report!.agent_id, description: 'Check checkout', status: 'completed' });
+    expect(prompt).toContain('checkout p99 is 900ms');
+    await expect(chatScope.run('chat-b', () => later.message(report!.agent_id, 'More?'))).rejects.toThrow(/unknown subagent/i);
   });
 });
 

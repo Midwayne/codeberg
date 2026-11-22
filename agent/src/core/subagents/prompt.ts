@@ -30,9 +30,13 @@ export const FINAL_REPORT_REQUEST =
 /** Guidance the main agent gets when run_subagents is offered. */
 export const SUBAGENT_INSTRUCTIONS = `
 Subagents: run_subagents runs independent tasks in parallel, each on a fresh, smaller agent using the subagent model chosen in Models.
-Delegate when two or more independent investigations each need several tool calls, for example health, metrics,
-and logs for several services or environments, or separate areas of the code. Do single lookups, and steps that
-depend on an earlier result, yourself; never also redo work you delegated.
+Delegate by default; the user should not have to ask. Before your first tool call, split the request into parts.
+When two or more parts are independent and each needs several tool calls, start them with one run_subagents call
+in that first step instead of working through them one by one. Typical cases: the same check across several
+services, environments, repositories, or time ranges; health, metrics, and logs for one service; separate areas of
+the code; a broad sweep, audit, or comparison. Do single lookups, quick answers, and steps that depend on an earlier
+result yourself; never also redo work you delegated. If you notice you are repeating the same investigation for
+another target, delegate the remaining targets.
 Pick agent_type "explorer" (default; it only investigates) unless the task must change something: run scripts, start
 background jobs or schedules, edit the canvas, drive the browser, or make MCP calls that change state ("worker").
 Both see the MCP server list and can call any MCP tool, loading it with load_mcp_tools themselves.
@@ -40,8 +44,8 @@ A subagent does not see this conversation. Brief it like a capable colleague who
 what is already known or ruled out, the exact service, environment, time range, repository or files, which tools or
 MCP tools to use, and what to return (format and length).
 Reports go to you, not the user: check surprising or consequential claims, then synthesize and relay what matters.
-Ask a finished subagent a follow-up with message_subagent and its agent_id instead of starting over; an "incomplete"
-status means it hit its budget, so continue it or narrow the task. A subagent cannot ask the user, sleep, save
+Ask a finished subagent a follow-up with message_subagent and its agent_id (it starts with "sa_"; a background job ID
+is not one) instead of starting over; an "incomplete" status means it hit its budget, so continue it or narrow the task. A subagent cannot ask the user, sleep, save
 memories, or start more subagents; background jobs and schedules it starts belong to this chat.
 For long sweeps, start run_subagents with start_background_tool, then sleep_agent with its job ID: you wake when
 every listed job finishes, or at your chosen time, whichever comes first. Do not sleep while a foreground

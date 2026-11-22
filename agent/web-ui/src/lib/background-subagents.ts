@@ -1,7 +1,7 @@
 import type { SubagentReport } from '@agent/core/subagents/run.js';
 
 import { ensureOk } from './http';
-import { isSubagentTool } from './subagents';
+import { isRejectedFollowUp, isSubagentTool } from './subagents';
 
 type Part = { type: string; state?: string; input?: unknown; output?: unknown };
 
@@ -93,11 +93,15 @@ function resultsOf(value: unknown): SubagentReport[] | undefined {
   return Array.isArray(results) ? results as SubagentReport[] : undefined;
 }
 
-/** Subagent runs (foreground, detached, or reported by status) and sleeps stay out of the folded tool group. */
+/**
+ * Subagent runs (foreground or detached) and sleeps stay out of the folded
+ * tool group. A status check folds: the detached card that started the job
+ * already shows its live rows and reports, so they appear once.
+ */
 export function staysVisible(name: string, part: Part): boolean {
-  if (isSubagentTool(name)) return true;
+  if (isSubagentTool(name)) return !isRejectedFollowUp(name, part);
 
   if (name === 'sleep_agent') return part.state !== 'output-error';
 
-  return Boolean(detachedSubagents(name, part) ?? statusSubagents(name, part));
+  return Boolean(detachedSubagents(name, part));
 }

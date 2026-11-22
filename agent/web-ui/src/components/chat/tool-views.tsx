@@ -4,9 +4,10 @@ import { SpilledOutput, ToolPending, ToolError, GenericTool } from './tool-statu
 import { FileContent, FileList, ReposList, TextOutput } from './tool-file-results';
 import { ScriptRun } from './tool-script';
 import { SubagentRun } from './subagent-run';
-import { isSubagentTool } from '../../lib/subagents';
+import { isRejectedFollowUp, isSubagentTool } from '../../lib/subagents';
 import { detachedSubagents, statusSubagents } from '../../lib/background-subagents';
 import { DetachedSubagentRun } from './detached-subagent-run';
+import { SubagentStatusNote } from './subagent-status-note';
 import { SleepMarker } from './sleep-marker';
 import type { DisplayHit } from './tool-source-cards';
 import {
@@ -32,7 +33,7 @@ export function ToolViewRouter({ part }: ToolViewRouterProps) {
   const name = getToolName(part as Parameters<typeof getToolName>[0]) || 'tool';
 
   // Subagents render their own live card from the first input to the last report.
-  if (isSubagentTool(name)) return <SubagentRun name={name} part={part} />;
+  if (isSubagentTool(name) && !isRejectedFollowUp(name, part)) return <SubagentRun name={name} part={part} />;
 
   // Sleeping, and subagents left running in the background, read as part of the timeline too.
   if (name === 'sleep_agent' && part.state !== 'output-error') return <SleepMarker part={part} />;
@@ -40,8 +41,9 @@ export function ToolViewRouter({ part }: ToolViewRouterProps) {
   const detached = detachedSubagents(name, part);
   if (detached) return <DetachedSubagentRun detached={detached} />;
 
+  // The detached card above already shows these subagents; a status check is one line.
   const status = statusSubagents(name, part);
-  if (status) return <SubagentRun name={status.name} part={status.part as ToolView} />;
+  if (status) return <SubagentStatusNote name={status.name} part={status.part as ToolView} />;
 
   if (part.state !== 'output-available' && part.state !== 'output-error') {
     return <ToolPending name={name} part={part} />;
