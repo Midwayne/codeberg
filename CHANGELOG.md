@@ -8,7 +8,6 @@ are in the git history.
 
 ### Added
 
-- The agent reads each repository's `AGENTS.md` (or `CLAUDE.md` and similar files) for layout and conventions.
 - The sidebar marks chats with a finished response you have not opened yet.
 - Optional step limits for chat turns and subagents.
 - Settings for model and tool timeouts.
