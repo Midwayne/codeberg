@@ -6,6 +6,8 @@ are in the git history.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-22
+
 ### Added
 
 - The sidebar marks chats with a finished response you have not opened yet.
