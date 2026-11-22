@@ -21,7 +21,7 @@ are in the git history.
 - Adding an MCP server or skill no longer resets cached instructions for Anthropic models.
 - The agent already knows the project's repositories, so it no longer spends a step listing them.
 - Long chats clear stale tool output before summarizing older messages, so summaries happen later.
-- Subagents can use background tools, schedules, the canvas, Browser Use, and load MCP tools; explorers keep read-only access.
+- Subagents can use background tools, schedules, the canvas, Browser Use, and every MCP tool, which they load themselves; explorers still only investigate.
 - An agent that sleeps on background jobs wakes as soon as they finish instead of waiting for its full delay.
 
 ### Fixed

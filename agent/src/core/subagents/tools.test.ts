@@ -85,7 +85,7 @@ describe('roleTools', () => {
     browser_task: noop(),
   };
 
-  it('gives explorers only tools that read: no scripts, starts, schedules, edits, or browsing', () => {
+  it('gives explorers every MCP tool but no scripts, starts, schedules, edits, or browsing', () => {
     expect(Object.keys(roleTools('explorer', tools)).sort()).toEqual([
       'background_tool_status',
       'browser_sessions',
@@ -93,6 +93,7 @@ describe('roleTools', () => {
       'grep',
       'list_scheduled_runs',
       'load_mcp_tools',
+      'mcp_deploy_rollback',
       'mcp_logs_query',
     ]);
   });

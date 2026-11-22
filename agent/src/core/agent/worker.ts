@@ -5,7 +5,8 @@ import { subagentsEnabled } from '../subagents/config.js';
 /**
  * Subagents run on their own model when one is chosen, else the summary
  * model, else the subagent model, else the chat model with its effort.
- * MCP schemas follow the same activation as the main loop.
+ * They see the repositories and MCP server listing, and MCP schemas follow
+ * the same activation as the main loop.
  */
 export function subagentWorker(state: AgentState): SubagentWorker {
   const { subagents, summaryModel, summaryReasoning, subagentModel } = state.options;
@@ -16,7 +17,11 @@ export function subagentWorker(state: AgentState): SubagentWorker {
   ];
   const chosen = candidates.find(Boolean) ?? { model: state.model, reasoning: state.reasoning, profile: state.profile };
 
-  return { ...chosen, activeTools: (all, messages) => state.mcpSource?.activeTools(all, messages) };
+  return {
+    ...chosen,
+    context: () => state.subagentContext,
+    activeTools: (all, messages) => state.mcpSource?.activeTools(all, messages),
+  };
 }
 
 /** The Models switch wins; without one, CODEBERG_SUBAGENTS_USE decides. */

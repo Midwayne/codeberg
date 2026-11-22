@@ -17,6 +17,8 @@ export interface SubagentWorker {
   model: LanguageModel;
   reasoning?: ReasoningEffort;
   profile: ModelProfile;
+  /** Repositories and the MCP server listing, so a subagent can load any MCP tool itself. */
+  context?: () => string;
   /** MCP schemas to send each step, like the main loop; undefined sends every tool. */
   activeTools?: (all: readonly string[], messages: ModelMessage[]) => string[] | undefined;
 }
@@ -44,7 +46,7 @@ function createLoop(worker: SubagentWorker, type: SubagentType, tools: ToolSet):
 
   return new ToolLoopAgent({
     model: worker.model,
-    instructions: cachedInstructions(subagentSystem(type), worker.profile),
+    instructions: cachedInstructions(subagentSystem(type), worker.profile, worker.context?.() || undefined),
     tools,
     stopWhen: [isLoopFinished(), isStepCount(MAX_SUBAGENT_STEPS)],
     timeout: SUBAGENT_TIMEOUT,

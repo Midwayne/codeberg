@@ -43,7 +43,7 @@ function serviceOf(prompt: unknown): string {
 
 const options = { toolCallId: 'outer', messages: [] } as unknown as ToolExecutionOptions<unknown>;
 
-function setup(doGenerate: Generate) {
+function setup(doGenerate: Generate, contextOf?: () => string) {
   const status = vi.fn(async ({ service }: { service: string }) => `${service}: 3 errors in 5m`);
   const schema = jsonSchema<{ service: string }>({ type: 'object', properties: { service: { type: 'string' } } });
   const tools = {
@@ -51,8 +51,8 @@ function setup(doGenerate: Generate) {
     run_script: tool({ description: 'script', inputSchema: schema, execute: async () => 'ran' }),
   };
   const model = new MockLanguageModelV4({ doGenerate });
-  const context = ContextStore.open(mkdtempSync(join(tmpdir(), 'codeberg-subagent-tool-')));
-  const set = subagentTools({ model, profile: DEFAULT_PROFILE }, tools, context);
+  const store = ContextStore.open(mkdtempSync(join(tmpdir(), 'codeberg-subagent-tool-')));
+  const set = subagentTools({ model, profile: DEFAULT_PROFILE, ...(contextOf ? { context: contextOf } : {}) }, tools, store);
 
   const snapshots: SubagentReport[][] = [];
   const drain = async (output: unknown) => {
@@ -68,7 +68,7 @@ function setup(doGenerate: Generate) {
   const message = async (agent_id: string, text: string) =>
     (await drain(await set[MESSAGE_TOOL]!.execute!({ agent_id, message: text }, options)))[0]!;
 
-  return { run, message, status, model, snapshots, context };
+  return { run, message, status, model, snapshots, context: store };
 }
 
 describe('run_subagents', () => {
@@ -247,5 +247,16 @@ describe('foreground subagents', () => {
     });
 
     expect(seen).toEqual([true]);
+  });
+});
+
+describe('subagent context', () => {
+  it('tells subagents which repositories and MCP servers exist so they can load MCP tools themselves', async () => {
+    const listing = 'MCP tools:\n- grafana: mcp_grafana_query';
+    const { run, model } = setup(async () => answer('done'), () => listing);
+
+    await run([{ description: 'Check', prompt: 'Check checkout' }]);
+
+    expect(JSON.stringify(model.doGenerateCalls[0]!.prompt)).toContain('mcp_grafana_query');
   });
 });

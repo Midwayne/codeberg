@@ -70,6 +70,9 @@ export class AgentState {
    *  knowledge index, and the user profile. Sent after the cached `system`. */
   systemContext = '';
 
+  /** The repositories and MCP/skills listing from `systemContext`, for subagents. */
+  subagentContext = '';
+
   // Built once on first use (tools require an async daemon round-trip), then
   // reused across every ask instead of reconstructing the loop each call.
   loop?: ToolLoopAgent;

@@ -66,10 +66,8 @@ export async function prepareSystem(
     state.learning?.profileContext(),
   ]);
 
-  state.systemContext = [repositories, sections.dynamic, knowledgeIndex, profile]
-    .filter((block): block is string => Boolean(block))
-    .map((block) => block.replace(/^\n+/, ''))
-    .join('\n\n');
+  state.systemContext = contextBlocks([repositories, sections.dynamic, knowledgeIndex, profile]);
+  state.subagentContext = contextBlocks([repositories, sections.dynamic]);
 
   return mergeProviderOptions(
     requestProviderOptions(state.system, toolNames, state.profile),
@@ -121,4 +119,11 @@ export async function buildTools(state: AgentState) {
   });
 
   return { ...tools, ...decisionTools(decisions, { env: state.env, daemon: state.daemon, onUsage: state.onDecisionUsage }) };
+}
+
+function contextBlocks(blocks: Array<string | undefined>): string {
+  return blocks
+    .filter((block): block is string => Boolean(block))
+    .map((block) => block.replace(/^\n+/, ''))
+    .join('\n\n');
 }
