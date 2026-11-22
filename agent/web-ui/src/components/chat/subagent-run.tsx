@@ -6,13 +6,18 @@ import type { ToolView } from './message';
 import { SubagentRowView } from './subagent-row';
 import { useNow } from './use-elapsed';
 
-type SubagentRunProps = { name: string; part: ToolView };
+type SubagentRunProps = {
+  name: string;
+  part: ToolView;
+  /** A short tag beside the title, e.g. that the run continues in the background. */
+  badge?: string;
+};
 
 /**
  * `run_subagents` / `message_subagent`: one card per call with a live row for
  * each subagent: what it is doing now, then its report.
  */
-export function SubagentRun({ name, part }: SubagentRunProps) {
+export function SubagentRun({ name, part, badge }: SubagentRunProps) {
   const view = subagentView(name, part);
   const now = useNow(view.running);
 
@@ -27,6 +32,11 @@ export function SubagentRun({ name, part }: SubagentRunProps) {
           ? <Loader2 aria-hidden className="size-3.5 shrink-0 animate-spin text-muted-foreground motion-reduce:animate-none" />
           : <Network aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />}
         <span className="min-w-0 flex-1 truncate font-medium text-foreground">{view.title}</span>
+        {badge && (
+          <span className="shrink-0 rounded border border-border px-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+            {badge}
+          </span>
+        )}
         <span className="shrink-0 tabular-nums text-muted-foreground" aria-live="polite">{view.summary}</span>
       </header>
       <ProgressBar rows={view.rows} running={view.running} />

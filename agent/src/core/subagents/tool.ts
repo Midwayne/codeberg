@@ -1,5 +1,6 @@
 import { jsonSchema, tool, type ToolSet } from 'ai';
 
+import { holdForeground } from '../background/context.js';
 import type { ContextStore } from '../context/store.js';
 import { MESSAGE_TOOL, SUBAGENT_TOOL } from './names.js';
 import { activityLabel, ProgressFeed } from './progress.js';
@@ -23,7 +24,7 @@ interface Brief {
 const RUN_DESCRIPTION = [
   `Run up to ${MAX_SUBAGENTS} independent tasks in parallel, each on a fresh subagent using the subagent model.`,
   'Subagents do not see this conversation, so each prompt must be a complete brief.',
-  'agent_type "explorer" (default) only reads; "worker" may also run scripts and any loaded MCP tool.',
+  'agent_type "explorer" (default) only reads; "worker" may also run scripts, background jobs, schedules, the canvas, the browser, and any loaded MCP tool.',
   'Returns one report per task, in order, with an agent_id for message_subagent.',
   'Use for independent multi-step checks (health, metrics, logs, separate code areas), not single lookups.',
 ].join(' ');
@@ -75,24 +76,24 @@ export function subagentTools(worker: SubagentWorker, tools: ToolSet, context: C
     [SUBAGENT_TOOL]: streamingTool(tool({
       description: RUN_DESCRIPTION,
       inputSchema: RUN_INPUT,
-      execute: ({ tasks }, { abortSignal }) => {
+      execute: ({ tasks }, { abortSignal, toolCallId }) => {
         const { runtime, store } = inChat();
         const turns = tasks.map((brief) => ({
           session: store.create(brief.agent_type ?? 'explorer', brief.description), input: brief.prompt,
         }));
 
-        return runWithProgress(runtime, turns, abortSignal);
+        return runWithProgress(runtime, turns, toolCallId, abortSignal);
       },
     })),
     [MESSAGE_TOOL]: streamingTool(tool({
       description: 'Send a follow-up to a finished subagent by agent_id. It keeps its own history and returns a new report.',
       inputSchema: MESSAGE_INPUT,
-      execute: ({ agent_id, message }, { abortSignal }) => {
+      execute: ({ agent_id, message }, { abortSignal, toolCallId }) => {
         const { runtime, store } = inChat();
         const session = store.get(agent_id);
         if (!session) throw new Error(`Unknown subagent ${agent_id}; it may have expired. Start a new one.`);
 
-        return runWithProgress(runtime, [{ session, input: message }], abortSignal);
+        return runWithProgress(runtime, [{ session, input: message }], toolCallId, abortSignal);
       },
     })),
   };
@@ -103,8 +104,24 @@ type Turn = { session: SubagentSession; input: string };
 /**
  * Yields `{ results }` snapshots while subagents run, for the chat's live
  * view; the last value, with every finished report, is what the model reads.
+ * While it runs in a turn's foreground, that turn cannot sleep past it.
  */
 async function* runWithProgress(
+  runtime: SubagentRuntime,
+  turns: Turn[],
+  toolCallId: string,
+  abortSignal?: AbortSignal,
+): AsyncGenerator<{ results: SubagentReport[] }> {
+  const release = holdForeground(toolCallId);
+
+  try {
+    yield* reportProgress(runtime, turns, abortSignal);
+  } finally {
+    release();
+  }
+}
+
+async function* reportProgress(
   runtime: SubagentRuntime,
   turns: Turn[],
   abortSignal?: AbortSignal,

@@ -7,7 +7,7 @@ import { ToolViewRouter } from './tool-views';
 import { Collapsible } from '../ui';
 import { userPromptText } from '../../lib/message-rail';
 import { cn } from '../../lib/utils';
-import { isSubagentTool } from '../../lib/subagents';
+import { staysVisible } from '../../lib/background-subagents';
 import type {
   AttachmentProps,
   AnyPart,
@@ -40,11 +40,11 @@ function isToolPart(part: AnyPart): boolean {
   return part.type === 'dynamic-tool' || part.type.startsWith('tool-');
 }
 
-/** Folded into the "N tool calls" group; canvas drawings and subagent runs stay visible. */
+/** Folded into the "N tool calls" group; canvas drawings, subagent runs, and sleeps stay visible. */
 export function isActivityPart(part: AnyPart): boolean {
   if (part.type === 'reasoning') return true;
 
-  return isToolPart(part) && !isCanvasDrawing(part as ToolView) && !isSubagentTool(getToolName(part as Parameters<typeof getToolName>[0]));
+  return isToolPart(part) && !isCanvasDrawing(part as ToolView) && !staysVisible(getToolName(part as Parameters<typeof getToolName>[0]), part as ToolView);
 }
 
 function ActivityGroup({ parts }: ActivityGroupProps) {

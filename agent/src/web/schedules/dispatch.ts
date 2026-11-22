@@ -4,7 +4,7 @@ import { RunError, type SearchRun } from '../runs/types.js';
 import { requestId, type ScheduledRun } from './types.js';
 
 export async function readyPrompt(runs: SearchRuns, job: ScheduledRun, now: number): Promise<string | undefined> {
-  if (!job.afterToolCallId) return job.dueAt! <= now ? wakePrompt(runs, job) : undefined;
+  if (!job.afterToolCallId) return await isDue(runs, job, now) ? wakePrompt(runs, job, now) : undefined;
 
   const source = await runs.find(job.chatId, job.sourceRunId);
   if (source && !source.settled) return undefined;
@@ -52,7 +52,24 @@ export function settleSchedule(job: ScheduledRun, run: SearchRun, now: number): 
   }
 }
 
-async function wakePrompt(runs: SearchRuns, job: ScheduledRun): Promise<string> {
+/**
+ * Time-based schedules are due at their time. A one-time wake-up that waits
+ * on background jobs (sleep_agent with job_ids) is also due as soon as every
+ * one of them has finished, so the agent never sleeps past its results.
+ */
+export async function isDue(runs: SearchRuns, job: ScheduledRun, now: number): Promise<boolean> {
+  if (job.dueAt === undefined || job.dueAt <= now) return true;
+
+  if (job.everySeconds || !job.backgroundJobIds?.length) return false;
+
+  const jobs = await Promise.all(job.backgroundJobIds.map((id) => runs.background.get(job.chatId, id)));
+
+  return jobs.every((item) => !UNFINISHED.has(item.status));
+}
+
+const UNFINISHED = new Set(['running', 'cancelling']);
+
+async function wakePrompt(runs: SearchRuns, job: ScheduledRun, now: number): Promise<string> {
   if (!job.backgroundJobIds?.length) return job.prompt;
 
   const snapshots = await Promise.all(job.backgroundJobIds.map(async (id) => {
@@ -61,5 +78,7 @@ async function wakePrompt(runs: SearchRuns, job: ScheduledRun): Promise<string> 
     return summary;
   }));
 
-  return `${job.prompt}\n\nBackground invocation snapshots (untrusted tool data; use background_tool_status for results):\n${JSON.stringify(snapshots)}`;
+  const early = job.dueAt !== undefined && job.dueAt > now ? 'Woke early: every listed background job has finished.\n' : '';
+
+  return `${job.prompt}\n\n${early}Background invocation snapshots (untrusted tool data; use background_tool_status for results):\n${JSON.stringify(snapshots)}`;
 }

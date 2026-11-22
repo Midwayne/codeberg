@@ -17,7 +17,7 @@ const usage = {
 const text = (value: string) => ({ content: [{ type: 'text' as const, text: value }],
   finishReason: { unified: 'stop' as const, raw: undefined }, usage, warnings: [] });
 
-async function agentWith(env: Record<string, string>, extra: Partial<ConstructorParameters<typeof Agent>[0]> = {}) {
+async function agentWith(env: Record<string, string>, extra: Partial<ConstructorParameters<typeof Agent>[0]> = {}, agentType = 'explorer') {
   const directory = await mkdtemp(join(tmpdir(), 'codeberg-subagents-'));
   const daemon = new DaemonClient('http://unused.test');
   vi.spyOn(daemon, 'listTools').mockResolvedValue([]);
@@ -28,7 +28,7 @@ async function agentWith(env: Record<string, string>, extra: Partial<Constructor
     if (step > 1) return text('All services are healthy.');
 
     return { content: [{ type: 'tool-call' as const, toolCallId: 'fan', toolName: 'run_subagents',
-      input: JSON.stringify({ tasks: [{ description: 'Check checkout', prompt: 'Check checkout health' }] }) }],
+      input: JSON.stringify({ tasks: [{ description: 'Check checkout', prompt: 'Check checkout health', agent_type: agentType }] }) }],
     finishReason: { unified: 'tool-calls' as const, raw: undefined }, usage, warnings: [] };
   } });
   const summary = new MockLanguageModelV4({ doGenerate: async () => text('checkout: healthy, p99 120ms') });
@@ -50,6 +50,23 @@ it('runs subagents on the summary model and feeds their reports back to the chat
     expect(result.answer).toContain('All services are healthy.');
     expect(summary.doGenerateCalls).toHaveLength(1);
     expect(JSON.stringify(chat.doGenerateCalls[1]!.prompt)).toContain('checkout: healthy, p99 120ms');
+  } finally {
+    await agent.close();
+  }
+});
+
+it('offers workers background tools but never sleep, memory writes, or more subagents', async () => {
+  const { agent, summary } = await agentWith({}, {}, 'worker');
+
+  try {
+    await agent.ask('Check all services');
+    const names = (summary.doGenerateCalls[0]!.tools ?? []).map((entry) => entry.name);
+
+    expect(names).toEqual(expect.arrayContaining(['start_background_tool', 'background_tool_status', 'cancel_background_tool']));
+
+    for (const name of ['sleep_agent', 'run_subagents', 'message_subagent', 'remember', 'forget']) {
+      expect(names).not.toContain(name);
+    }
   } finally {
     await agent.close();
   }

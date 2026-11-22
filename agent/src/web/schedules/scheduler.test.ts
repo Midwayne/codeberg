@@ -284,3 +284,49 @@ it.each([
   await expect(f.scheduler.create(f.context, input)).rejects.toThrow();
   expect(await f.scheduler.list('chat')).toEqual([]);
 });
+
+it('wakes a sleeping agent early once every background job it waits on has finished', async () => {
+  const f = await fixture();
+  let finish!: (value: unknown) => void;
+  const owner = { chatId: 'chat', sourceRunId: 'origin' };
+
+  const pending = new Promise((resolve) => { finish = resolve; });
+  const background = await f.runs.background.start(owner,
+    { callId: 'fan', tool: 'run_subagents', args: { tasks: [] } }, () => pending);
+
+  const now = Date.now();
+  const job = await f.scheduler.create(f.context, { prompt: 'Read the subagent reports',
+    delay_seconds: 3600, background_job_ids: [background.id] });
+
+  await f.scheduler.tick(now);
+
+  expect(f.generator).not.toHaveBeenCalled();
+
+  finish({ results: [] });
+  await vi.waitFor(async () => expect((await f.runs.background.get('chat', background.id)).status).toBe('completed'));
+  await f.scheduler.tick(now);
+  await (await f.runs.find('chat'))!.done;
+
+  expect(job.dueAt! - now).toBeGreaterThan(3_000_000);
+  expect(f.generator).toHaveBeenCalledOnce();
+  expect(JSON.stringify(f.generator.mock.calls[0]![0].messages.at(-1)?.parts)).toContain('Read the subagent reports');
+});
+
+it('keeps a sleeping agent asleep until its time while any waited-on job still runs', async () => {
+  const f = await fixture();
+  const owner = { chatId: 'chat', sourceRunId: 'origin' };
+
+  const running = await f.runs.background.start(owner, { callId: 'slow', tool: 'grep', args: {} }, () => new Promise(() => undefined));
+  const done = await f.runs.background.start(owner, { callId: 'fast', tool: 'grep', args: {} }, async () => 'ok');
+  await vi.waitFor(async () => expect((await f.runs.background.get('chat', done.id)).status).toBe('completed'));
+
+  const job = await f.scheduler.create(f.context, { prompt: 'Check', delay_seconds: 60, background_job_ids: [running.id, done.id] });
+  await f.scheduler.tick(job.dueAt! - 1);
+
+  expect(f.generator).not.toHaveBeenCalled();
+
+  await f.scheduler.tick(job.dueAt!);
+  await (await f.runs.find('chat'))!.done;
+
+  expect(f.generator).toHaveBeenCalledOnce();
+});

@@ -1,5 +1,5 @@
 import { scheduleContext } from '../schedules/context.js';
-import { currentBackground } from './context.js';
+import { currentBackground, runningInForeground, type BackgroundContext } from './context.js';
 
 export interface SleepInput {
   delay_seconds?: number;
@@ -22,7 +22,12 @@ export async function sleepAgent(input: SleepInput): Promise<unknown> {
     await Promise.all((input.job_ids ?? []).map((id) => context.jobs.get(context.chatId, id)));
     const wake = await scheduling.scheduler.create(scheduling, { prompt: input.prompt,
       delay_seconds: input.delay_seconds, run_at: input.run_at, background_job_ids: input.job_ids });
-    if (wake && typeof wake === 'object' && 'id' in wake && typeof wake.id === 'string') context.sleepWakeId = wake.id;
+    const wakeId = wake && typeof wake === 'object' && 'id' in wake && typeof wake.id === 'string' ? wake.id : undefined;
+
+    // Checked after saving, once every call in this step has started.
+    if (runningInForeground()) await refuseForeground(context, scheduling.scheduler, wakeId);
+
+    if (wakeId) context.sleepWakeId = wakeId;
     context.sleeping = true;
 
     return { sleeping: true, wake };
@@ -34,4 +39,16 @@ export async function sleepAgent(input: SleepInput): Promise<unknown> {
     context.sleepRequest = undefined;
     throw error;
   }
+}
+
+const FOREGROUND_SUBAGENTS = 'run_subagents is still running in the foreground of this turn, and its reports arrive ' +
+  'before your next step. Read them first, or start run_subagents with start_background_tool and sleep with its job ID.';
+
+type Scheduler = { cancel(chatId: string, id: string): Promise<unknown> };
+
+/** Withdraw the wake-up just saved so the turn continues to the subagent reports. */
+async function refuseForeground(context: BackgroundContext, scheduler: Scheduler, wakeId: string | undefined): Promise<never> {
+  if (wakeId) await scheduler.cancel(context.chatId, wakeId);
+
+  throw new Error(FOREGROUND_SUBAGENTS);
 }

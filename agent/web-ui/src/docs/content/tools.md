@@ -108,18 +108,20 @@ choose when to check again. Keep checking until it completes, then summarize.
 
 A scheduled turn can also call `sleep_agent` again to continue unfinished work. Each wake-up resumes in the original chat, can write a progress update or final answer, and can choose another wait without a new user message. Use a recurring schedule for fixed intervals; repeated sleeps let the agent adapt the delay to the task.
 
+While the agent sleeps, the chat shows a **Sleeping · wakes in 10m** divider that counts down. Select it to read the continuation prompt and the exact wake-up time. It changes to **Waking up…** and then **Woke up** on its own, or **Wake-up cancelled** if you cancel it from **Scheduled**.
+
 The chat marks each follow-up with a **Resuming scheduled task… · Task details** divider. Select it to show the continuation prompt; the agent’s progress update or answer appears normally below it.
 
 | Tool | What it does |
 | --- | --- |
 | `start_background_tool` | Calls an available tool with its original `tool` name and `args`; returns a Codeberg job ID immediately. |
 | `background_tool_status` | Reads that job's status, latest yielded progress, result or error. Omit `job_id` to list this chat's jobs. |
-| `sleep_agent` | Saves a continuation `prompt` with either `delay_seconds` or `run_at`, then ends the turn. Optional `job_ids` includes up to eight Codeberg job status snapshots at wake-up. |
+| `sleep_agent` | Saves a continuation `prompt` with either `delay_seconds` or `run_at`, then ends the turn. Optional `job_ids` lists up to eight Codeberg jobs: the agent wakes as soon as all of them finish, or at its chosen time if that comes first, and gets their status snapshots. |
 | `cancel_background_tool` | Requests cancellation of a Codeberg invocation by `job_id`. |
 
 The agent chooses each delay from the task and observed progress. A wake-up starts a new turn in the same chat, checks the existing job and may sleep again. There is no model request running during sleep; each wake-up incurs normal provider costs. A busy chat delays its wake-up. The scheduler uses an application timer, not OS cron.
 
-Background invocations have independent cancellation signals and retain their MCP connection after the creating turn ends. They have no agent-turn deadline; the tool, transport or external service can still impose its own timeout. Approval-required tools and agent/schedule control tools cannot be detached. Normal action permissions apply. Limits are eight live invocations per chat and 32 per project, with a 32 MiB record limit and normal large-output spilling.
+Background invocations have independent cancellation signals and retain their MCP connection after the creating turn ends. They have no agent-turn deadline; the tool, transport or external service can still impose its own timeout. Approval-required tools and agent/schedule control tools cannot be detached. Normal action permissions apply. Limits are eight live invocations per chat and 32 per project, with a 32 MiB record limit and normal large-output spilling. Subagent reports are kept whole, as in the chat.
 
 Keep Codeberg running and the computer awake for calls to keep working. Results and wake-ups are saved locally. After a Codeberg restart, unfinished invocations become **Interrupted**, with an uncertain outcome; Codeberg never repeats their start calls automatically. Inspect external state before retrying. A stopped or failed turn cancels the wake-up it just created through `sleep_agent`. Shutdown preserves saved wake-ups for recovery.
 
@@ -151,14 +153,23 @@ Each `run_subagents` call shows as a card in the chat, outside the folded tool-c
 | Model | The model chosen under **Models → Subagents**. **Same as summary model** (the default) uses the **Summaries** model, then the chat model. Requests appear in Usage under that model. |
 | Types | `explorer` (default) only reads: search, files, Git, saved context, web pages, and MCP tools their server marks read-only. `worker` can also run scripts and call any loaded MCP tool. |
 | Limits | Up to 8 tasks per call and 8 running at once in each chat. Each subagent gets 16 model steps and 5 minutes per message. A chat turn that can start subagents allows 12 minutes per step and 30 minutes in total; each model request still times out after 2 minutes. |
-| Not available | Scheduling or sleeping, background jobs, the browser or canvas, saving memories, starting more subagents, loading MCP tools, and tools that need approval. Subagents use the MCP tools the agent has already loaded in the chat. |
+| Tools | Explorers only read: code, files, Git, context, web pages, background job and schedule status, the canvas, and MCP tools their server marks read-only. Workers can also run scripts, start and cancel background tools, create and cancel schedules, edit the canvas, use Browser Use, and call any loaded MCP tool. Both can load MCP tools. Background tools and schedules a subagent starts belong to the chat. |
+| Not available | Sleeping, saving or forgetting memories, starting more subagents, and tools that need approval. |
 | Context | A subagent sees only its brief, not the chat. The agent writes each brief to stand on its own. |
 | Follow-ups | Each report has an `agent_id`. The agent can ask that subagent a follow-up with `message_subagent`; it keeps its own history until Codeberg restarts. Each chat keeps its 16 most recently used subagents, and one chat cannot message another chat's subagents. |
 | Out of budget | A subagent that reaches its step limit writes a final report from what it found, marked `incomplete`. |
 | Failures | A failed subagent is reported with its error; the others still return. **Stop** cancels all of them. |
 | Transcripts | Saved as `subagents/<agent_id>.json` in the project's context directory; the agent can open them with context tools. |
 
-Quick lookups and steps that depend on an earlier result stay with the chat model. Each subagent makes its own model requests, so eight tasks cost roughly eight small investigations. For a long sweep, the agent can start `run_subagents` as a [background tool](#let-a-long-tool-work-while-the-agent-sleeps) and check on it later.
+Quick lookups and steps that depend on an earlier result stay with the chat model. Each subagent makes its own model requests, so eight tasks cost roughly eight small investigations.
+
+### Sleep while subagents work
+
+For a long sweep, the agent can start `run_subagents` as a [background tool](#let-a-long-tool-work-while-the-agent-sleeps), then call `sleep_agent` with its job ID. The turn ends, and the agent wakes as soon as the subagents finish, or at the time it chose if that comes first.
+
+The subagent card stays in the chat with an **In background** tag and keeps updating while the agent sleeps, about every two seconds. Once the subagents finish, it shows their reports. When the agent reads the job with `background_tool_status`, that result shows as a subagent card too.
+
+The agent cannot sleep while `run_subagents` is still running in the same turn; it reads those reports first.
 
 ### Turn subagents on or off
 

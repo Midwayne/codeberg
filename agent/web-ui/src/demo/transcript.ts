@@ -1,5 +1,6 @@
 import type { UIMessage } from 'ai';
 
+import { sleepingDemo, sleepingDemoParts } from './sleeping';
 import { subagentDemoPart } from './subagents';
 
 /** A finished answer with tools, prose, and code so chat styling can be reviewed in the demo. */
@@ -68,7 +69,9 @@ function answer(): UIMessage {
   return {
     id: 'demo-transcript-answer',
     role: 'assistant',
-    parts: [searchTool, grepTool, subagentDemoPart(), { type: 'text', text: answerText }],
+    parts: sleepingDemo
+      ? [searchTool, ...sleepingDemoParts()]
+      : [searchTool, grepTool, subagentDemoPart(), { type: 'text', text: answerText }],
   } as unknown as UIMessage;
 }
 

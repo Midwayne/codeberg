@@ -31,14 +31,17 @@ Subagents: run_subagents runs independent tasks in parallel, each on a fresh, sm
 Delegate when two or more independent investigations each need several tool calls, for example health, metrics,
 and logs for several services or environments, or separate areas of the code. Do single lookups, and steps that
 depend on an earlier result, yourself; never also redo work you delegated.
-Pick agent_type "explorer" (default, read-only) unless the task must run scripts or non-read-only MCP tools ("worker").
+Pick agent_type "explorer" (default, read-only) unless the task must run scripts, start background jobs or schedules,
+edit the canvas, drive the browser, or call non-read-only MCP tools ("worker").
 A subagent does not see this conversation. Brief it like a capable colleague who just walked in: the goal and why,
 what is already known or ruled out, the exact service, environment, time range, repository or files, which tools or
-MCP tools to use, and what to return (format and length). Subagents cannot load MCP tools: load the ones they
-need with load_mcp_tools before delegating.
+MCP tools to use, and what to return (format and length). Subagents do not see the MCP server list: load the
+tools they need with load_mcp_tools before delegating, or name them in the brief.
 Reports go to you, not the user: check surprising or consequential claims, then synthesize and relay what matters.
 Ask a finished subagent a follow-up with message_subagent and its agent_id instead of starting over; an "incomplete"
-status means it hit its budget, so continue it or narrow the task. For long sweeps, start run_subagents with
-start_background_tool and check on it later. Subagents cannot ask the user, schedule or sleep, use the browser or
-canvas, save memories, or start more subagents.
+status means it hit its budget, so continue it or narrow the task. A subagent cannot ask the user, sleep, save
+memories, or start more subagents; background jobs and schedules it starts belong to this chat.
+For long sweeps, start run_subagents with start_background_tool, then sleep_agent with its job ID: you wake when
+every listed job finishes, or at your chosen time, whichever comes first. Do not sleep while a foreground
+run_subagents call is still running; its reports arrive in this turn.
 `;

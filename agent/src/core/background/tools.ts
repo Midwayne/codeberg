@@ -35,7 +35,7 @@ export function backgroundTools(tools: ToolSet, present?: PresentBackground): To
       },
     }),
     sleep_agent: tool({
-      description: 'End this agent turn and wake in the same chat at a time you choose to continue the user’s task. Supply a continuation prompt and exactly one of delay_seconds or run_at (ISO timestamp with timezone). Optional job_ids includes up to 8 background tool status snapshots at wake-up. Work keeps running while you sleep. If it is still unfinished when you wake, choose another delay and call sleep_agent again. Save external/native job IDs in the prompt and use their own status tool when you wake. Narrate what you are waiting for before this call; no further model step runs afterward. This is task continuation and needs no separate request from the user to schedule a check.',
+      description: 'End this agent turn and wake in the same chat at a time you choose to continue the user’s task. Supply a continuation prompt and exactly one of delay_seconds or run_at (ISO timestamp with timezone). Optional job_ids (up to 8 background jobs) wakes you as soon as all of them finish, or at your chosen time if that comes first, with their status snapshots. Work keeps running while you sleep; a foreground run_subagents call must finish first, so detach long subagent runs with start_background_tool. If it is still unfinished when you wake, choose another delay and call sleep_agent again. Save external/native job IDs in the prompt and use their own status tool when you wake. Narrate what you are waiting for before this call; no further model step runs afterward. This is task continuation and needs no separate request from the user to schedule a check.',
       inputSchema: jsonSchema<SleepInput>({ type: 'object', properties: {
         prompt: { type: 'string', minLength: 1, maxLength: 16_000 },
         delay_seconds: { type: 'number', exclusiveMinimum: 0 }, run_at: { type: 'string' },
@@ -48,7 +48,8 @@ export function backgroundTools(tools: ToolSet, present?: PresentBackground): To
 
 export const BACKGROUND_INSTRUCTIONS = `
 For work that may take a long time, start_background_tool returns a handle without keeping this turn busy.
-Inspect background_tool_status, then sleep_agent to save a continuation and end the turn while work continues.
+Inspect background_tool_status, then sleep_agent with the job IDs to save a continuation and end the turn while work
+continues; you wake as soon as every listed job finishes, or at the chosen time if that comes first.
 Choose each check time from the task, progress and previous checks; do not busy-poll or resubmit a running call.
 At wake-up, inspect results; if unfinished, choose a new delay and sleep again. Completed jobs remain readable.
 Native MCP background jobs already return handles: save those IDs in your sleep prompt and call the native status

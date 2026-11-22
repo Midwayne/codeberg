@@ -1,4 +1,4 @@
-import { backgroundSchedules, cancelBackground } from '../background/visibility.js';
+import { backgroundSchedules, cancelBackground, subagentProgress } from '../background/visibility.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { ScheduleSummary } from '../../core/schedules/summary.js';
 import { requireJsonMutation, sendJson, sendText } from '../http.js';
@@ -15,6 +15,9 @@ export async function routeSchedules(req: IncomingMessage, res: ServerResponse, 
 
     return sendJson(res, 200, [...await Promise.all(jobs.map((job) => summarize(runs, job))), ...await backgroundSchedules(runs)]);
   }
+
+  const progress = /^\/api\/schedules\/([A-Za-z0-9_-]{1,64})\/subagents$/.exec(url.pathname);
+  if (progress) return routeSubagentProgress(req, res, runs, progress[1]!);
 
   const match = /^\/api\/schedules\/([A-Za-z0-9_-]{1,64})\/cancel$/.exec(url.pathname);
   if (!match) return sendText(res, 404, 'not found');
@@ -46,4 +49,12 @@ async function summarize(runs: SearchRuns, job: ScheduledRun): Promise<ScheduleS
     afterToolCallId: job.afterToolCallId, backgroundJobIds: job.backgroundJobIds, model: job.selection?.model, createdAt: job.createdAt,
     lastRunId: job.lastRunId, error: job.error,
     activeRun: run && !run.settled ? { id: run.record.id, stopping: run.controller.signal.aborted } : undefined };
+}
+
+async function routeSubagentProgress(req: IncomingMessage, res: ServerResponse, runs: SearchRuns, id: string) {
+  if (req.method !== 'GET') return sendText(res, 405, 'method not allowed');
+
+  const progress = await subagentProgress(runs, id);
+
+  return progress ? sendJson(res, 200, progress) : sendText(res, 404, 'Background subagent run not found in this project.');
 }

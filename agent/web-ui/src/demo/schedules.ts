@@ -1,5 +1,6 @@
 import type { ScheduleSummary } from '@agent/core/schedules/summary';
 import { scheduledFollowUpMessage } from '@agent/core/schedules/messages';
+import { sleepingDemo, sleepingDemoJob, sleepingDemoProgress } from './sleeping';
 import { transcriptChat } from './transcript';
 
 const jobs: ScheduleSummary[] = [
@@ -15,11 +16,14 @@ const jobs: ScheduleSummary[] = [
   { id: 'demo-failed', chatId: 'demo-chat-three', chatTitle: 'Dependency audit', chatDeleted: false,
     prompt: 'Recheck the dependency audit after the external tool finishes.', status: 'failed',
     afterToolCallId: 'audit-check', createdAt: Date.now() - 600_000, error: 'Provider unavailable. Restore the connection and create a new schedule.' },
+  ...(sleepingDemo ? [sleepingDemoJob(transcriptChat.id, transcriptChat.title)] : []),
 ];
 
 /** Simulated schedules belong only to the demo transport. */
 export function scheduleDemoResponse(url: URL, init?: RequestInit): Response | undefined {
   if (url.pathname === '/api/schedules') return Response.json(jobs);
+  const progress = sleepingDemoProgress(url);
+  if (progress) return progress;
   if (url.pathname === '/api/sessions' && !init?.method) return Response.json([
     { ...transcriptChat, turns: 1, pinned: false, archived: false },
     ...jobs.filter((job, index) => jobs.findIndex((item) => item.chatId === job.chatId) === index).map((job) => ({

@@ -1,37 +1,29 @@
 import type { ToolSet } from 'ai';
 
-import { isBackgroundControl } from '../background/names.js';
 import { SUBAGENT_TOOL_NAMES } from './names.js';
 
-/** Tools that act for the user, drive shared UI, or start more agents. */
-const EXCLUDED = new Set([...SUBAGENT_TOOL_NAMES, 'remember', 'forget']);
-
-const EXCLUDED_PREFIXES = ['canvas_', 'browser_'];
+/**
+ * Tools only the main agent may call: more subagents (no nesting),
+ * `sleep_agent` (it ends the main agent's turn, which a subagent does not
+ * own), and memory writes, whose evidence must quote a user message that a
+ * subagent never sees.
+ */
+const MAIN_ONLY = new Set([...SUBAGENT_TOOL_NAMES, 'sleep_agent', 'remember', 'forget']);
 
 /**
- * The tools a subagent may call: everything the main agent investigates
- * with, minus agent controls (scheduling, sleeping, background jobs, more
- * subagents, and `load_mcp_tools`, whose activation is shared with the main
- * agent), the shared canvas and browser, memory writes that must quote the
- * user, and anything that needs foreground approval. Subagents call the MCP
- * tools the main agent has loaded that their role allows.
+ * The tools a subagent may call: every tool the main agent has, including
+ * background jobs, schedules, `load_mcp_tools`, the canvas, and the browser,
+ * minus the main agent's own controls and anything that needs foreground
+ * approval. Its role narrows this further (see `roleTools`).
  */
 export function workerTools(tools: ToolSet): ToolSet {
   const kept: ToolSet = {};
 
   for (const [name, definition] of Object.entries(tools)) {
-    if (!allowed(name) || definition.needsApproval) continue;
+    if (MAIN_ONLY.has(name) || definition.needsApproval) continue;
 
     kept[name] = definition;
   }
 
   return kept;
-}
-
-function allowed(name: string): boolean {
-  if (EXCLUDED.has(name)) return false;
-
-  if (EXCLUDED_PREFIXES.some((prefix) => name.startsWith(prefix))) return false;
-
-  return !isBackgroundControl(name);
 }

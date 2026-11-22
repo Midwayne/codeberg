@@ -11,6 +11,8 @@ are in the git history.
 - A context ring beside **Send** opens a breakdown of what fills the chat's context, with counts of summaries and cleared tool results.
 - Set `tier: light` on a model in `models.yml` to give a smaller model shorter instructions, fewer tools, and a reminder of the evidence rules.
 - Set `tool_batch`, `tool_output_limit`, and `instructions` on a model in `models.yml`.
+- While the agent sleeps, the chat shows when it will wake, and the divider updates when it wakes.
+- Subagents running in the background show live progress and their reports in the chat.
 
 ### Changed
 
@@ -19,6 +21,13 @@ are in the git history.
 - Adding an MCP server or skill no longer resets cached instructions for Anthropic models.
 - The agent already knows the project's repositories, so it no longer spends a step listing them.
 - Long chats clear stale tool output before summarizing older messages, so summaries happen later.
+- Subagents can use background tools, schedules, the canvas, Browser Use, and load MCP tools; explorers keep read-only access.
+- An agent that sleeps on background jobs wakes as soon as they finish instead of waiting for its full delay.
+
+### Fixed
+
+- Large reports from subagents running in the background are no longer cut down to a text preview.
+- The agent no longer sleeps past reports from subagents it is still running in the same turn.
 
 ## [1.0.0] - 2026-11-21
 

@@ -6,6 +6,7 @@ import { MockLanguageModelV4 } from 'ai/test';
 import { describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_PROFILE } from '../../providers/profiles.js';
+import { backgroundContext, runningInForeground } from '../background/context.js';
 import { chatScope } from '../chat-scope.js';
 import { ContextStore } from '../context/store.js';
 import { MAX_SUBAGENT_STEPS } from './loop.js';
@@ -226,5 +227,25 @@ describe('report previews', () => {
     expect(live[0]!.report_truncated).toBeUndefined();
     expect(live.at(-1)).toMatchObject({ report_truncated: true });
     expect(results[0]!.report).toBe(long);
+  });
+});
+
+describe('foreground subagents', () => {
+  it('count as foreground work in the turn only while they run', async () => {
+    const seen: boolean[] = [];
+    const { run } = setup(async () => {
+      seen.push(runningInForeground());
+
+      return answer('done');
+    });
+    const scope = { chatId: 'chat', sourceRunId: 'turn', jobs: {} as never, sleeping: false };
+
+    await backgroundContext.run(scope, async () => {
+      await run([{ description: 'Check', prompt: 'Check checkout' }]);
+
+      expect(runningInForeground()).toBe(false);
+    });
+
+    expect(seen).toEqual([true]);
   });
 });

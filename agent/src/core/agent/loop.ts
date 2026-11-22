@@ -87,17 +87,21 @@ async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
  * Its MCP calls, limited to loaded read-only or trusted-server tools, are
  * the exception and are journaled one by one.
  * `batch` wraps the journaled tools. Both handle each inner result themselves.
- * The subagent tools sit beside them so `run_subagents` can also run as a background job.
+ * The subagent tools sit beside them so `run_subagents` can also run as a background job;
+ * subagents get their own background tools over the same set, without the subagent tools.
  */
 function composedTools(state: AgentState, base: ToolSet): ToolSet {
   const scripts = scriptConfig(state.env);
   const mcpNames = () => scriptMcpNames({ tools: base, source: state.mcpSource, trusted: scripts?.mcpServers ?? [] });
   const scripted = { ...base, ...(scripts ? scriptTool(base, scripts, state.context, mcpNames) : {}) };
-  const local = { ...scripted, ...subagents(state, scripted) };
 
   const limit = outputLimit(state);
   const present = (name: string, args: unknown, output: unknown) =>
     presentToolOutput(state.context, name, args, output, limit);
+
+  // Subagents may detach their own tools too; their jobs cannot start more subagents.
+  const forSubagents = toolsForTier({ ...scripted, ...backgroundTools(scripted, present) }, state.profile);
+  const local = { ...scripted, ...subagents(state, forSubagents) };
   const recorded = recordToolExecutions({ ...local, ...backgroundTools(local, present) });
 
   // Subagent and background tools are added here, so the tier filter runs again.

@@ -1,7 +1,7 @@
 import { reserveSchedule } from './history.js';
 import type { ScheduleInput } from '../../core/schedules/context.js';
 import type { SearchRuns } from '../runs/manager.js';
-import { admitScheduled, readyPrompt, settleSchedule } from './dispatch.js';
+import { admitScheduled, isDue, readyPrompt, settleSchedule } from './dispatch.js';
 import { ScheduleStore } from './store.js';
 import { requestId, type ScheduledRun, type ScheduleOwner } from './types.js';
 import { newSchedule } from './validation.js';
@@ -97,10 +97,11 @@ export class RunScheduler {
       for (const job of jobs) {
         if (this.closed || !this.canDispatch()) break;
         if (!['scheduled', 'running'].includes(job.status)) continue;
-        if (job.status === 'scheduled' && job.dueAt !== undefined && job.dueAt > now) continue;
 
         const before = JSON.stringify(job);
         try {
+          if (job.status === 'scheduled' && !(await isDue(this.runs, job, now))) continue;
+
           await this.advance(job, jobs, now);
         } catch (error) {
           job.status = 'failed';

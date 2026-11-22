@@ -1,8 +1,9 @@
 import { validateTypes } from '@ai-sdk/provider-utils';
 import type { ToolExecutionOptions, ToolSet } from 'ai';
-import { currentBackground } from './context.js';
+import { currentBackground, detachedCallId } from './context.js';
 import { isBackgroundControl } from './names.js';
 import { isStreamingTool } from '../tools/streaming.js';
+import { SUBAGENT_TOOL_NAMES } from '../subagents/names.js';
 
 export type PresentBackground = (name: string, args: unknown, output: unknown) => Promise<unknown>;
 type Execute = (args: unknown, options: ToolExecutionOptions<unknown>) => unknown;
@@ -21,10 +22,13 @@ export async function startTool(tools: ToolSet, input: { tool: string; args: Rec
   return context.jobs.start(context, { callId: options.toolCallId, tool: input.tool, args: input.args }, async (signal) => {
     const args = await validateTypes({ value: input.args, schema: definition.inputSchema });
     const output = await execute.call(definition, args, { ...options,
-      toolCallId: `${context.sourceRunId}:${options.toolCallId}:background`, abortSignal: signal });
+      toolCallId: detachedCallId(context.sourceRunId, options.toolCallId), abortSignal: signal });
+
+    // Subagent reports bound their own size, as in the foreground; the chat reads them structured.
+    const shown = present && !SUBAGENT_TOOL_NAMES.includes(input.tool) ? present : undefined;
 
     return presentOutput(output, isStreamingTool(definition),
-      (value) => present ? present(input.tool, args, value) : Promise.resolve(value));
+      (value) => shown ? shown(input.tool, args, value) : Promise.resolve(value));
   }, context.retain);
 }
 

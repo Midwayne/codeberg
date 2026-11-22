@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Server } from 'node:http';
 import type { UIMessageChunk } from 'ai';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { SearchRuns } from '../runs/manager.js';
 import { createWebServer } from '../server.js';
 import { WebSessionStore } from '../sessions/store.js';
@@ -106,4 +106,33 @@ it('shows and cancels background tools across chats without a configured model',
   } finally {
     finish(null);
   }
+});
+
+it('serves a detached subagent run\'s live rows and then its final reports', async () => {
+  const f = await fixture();
+  let finish!: (value: unknown) => void;
+  const pending = new Promise((resolve) => { finish = resolve; });
+
+  const job = await runs.background.start({ chatId: 'second', sourceRunId: 'turn' },
+    { tool: 'run_subagents', callId: 'fan', args: { tasks: [] } }, () => (async function* () {
+      yield { results: [{ agent_id: 'a1', status: 'running', tool_calls: 1 }] };
+      yield { results: [{ agent_id: 'a1', status: 'completed', report: await pending, tool_calls: 2 }] };
+    })());
+  const url = `${f.base}/api/schedules/${job.id}/subagents`;
+
+  await vi.waitFor(async () => expect(await (await fetch(url)).json()).toMatchObject({
+    id: job.id, status: 'running', results: [{ agent_id: 'a1', status: 'running' }],
+  }));
+
+  finish('all healthy');
+
+  await vi.waitFor(async () => expect(await (await fetch(url)).json()).toMatchObject({
+    status: 'completed', results: [{ agent_id: 'a1', status: 'completed', report: 'all healthy' }],
+  }));
+
+  const other = await runs.background.start({ chatId: 'second', sourceRunId: 'turn' },
+    { tool: 'grep', callId: 'grep', args: {} }, async () => 'ok');
+
+  expect((await fetch(`${f.base}/api/schedules/${other.id}/subagents`)).status).toBe(404);
+  expect((await fetch(url, { method: 'POST' })).status).toBe(405);
 });

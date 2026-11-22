@@ -1,7 +1,7 @@
 import { jsonSchema, tool } from 'ai';
 import { expect, it, vi } from 'vitest';
 import { backgroundTools } from './tools.js';
-import { backgroundContext } from './context.js';
+import { backgroundContext, detachedCallId, holdForeground, runningInForeground } from './context.js';
 import { scheduleContext } from '../schedules/context.js';
 
 const options = { toolCallId: 'start', messages: [], abortSignal: new AbortController().signal };
@@ -49,4 +49,56 @@ it('does not stop the turn if saving the wake-up fails and blocks control-tool r
     expect(scope.sleeping).toBe(false);
     await expect((tools.start_background_tool.execute as any)({ tool: 'sleep_agent', args: {} }, options)).rejects.toThrow('control');
   }));
+});
+
+it('refuses to sleep past foreground subagent reports and withdraws the saved wake-up', async () => {
+  const tools = backgroundTools({});
+  const scope = { ...owner(), jobs: { start: vi.fn(), get: vi.fn(), cancel: vi.fn(), list: vi.fn() }, sleeping: false };
+  const scheduler = { create: vi.fn(async () => ({ id: 'wake' })), list: vi.fn(), cancel: vi.fn(async () => ({})) };
+
+  await scheduleContext.run({ ...owner(), scheduler }, () => backgroundContext.run(scope, async () => {
+    const release = holdForeground('fan');
+
+    await expect((tools.sleep_agent.execute as any)({ delay_seconds: 60, prompt: 'Check later' }, options))
+      .rejects.toThrow('start_background_tool');
+
+    expect(scope.sleeping).toBe(false);
+    expect(scheduler.cancel).toHaveBeenCalledWith('chat', 'wake');
+
+    release();
+
+    await (tools.sleep_agent.execute as any)({ delay_seconds: 60, prompt: 'Check later' }, options);
+
+    expect(scope.sleeping).toBe(true);
+  }));
+});
+
+it('does not count detached subagent runs as foreground work', async () => {
+  const scope = { ...owner(), jobs: { start: vi.fn(), get: vi.fn(), cancel: vi.fn(), list: vi.fn() }, sleeping: false };
+
+  await backgroundContext.run(scope, async () => {
+    const release = holdForeground(detachedCallId('turn', 'fan'));
+
+    expect(runningInForeground()).toBe(false);
+
+    release();
+  });
+});
+
+it('keeps detached subagent reports structured, as in the foreground, instead of spilling them', async () => {
+  const reports = { results: [{ agent_id: 'a1', report: 'x'.repeat(50_000) }] };
+  const execute = vi.fn(async () => reports);
+  const present = vi.fn(async () => 'spilled preview');
+  let output: unknown;
+  const jobs = { start: vi.fn(async (_owner, _input, run) => {
+    output = await run(new AbortController().signal);
+    return { ...owner(), id: 'job', tool: 'run_subagents', status: 'running' as const, createdAt: 1 };
+  }), get: vi.fn(), cancel: vi.fn(), list: vi.fn() };
+  const tools = backgroundTools({ run_subagents: tool({ inputSchema: jsonSchema({ type: 'object' }), execute }) }, present);
+
+  await backgroundContext.run({ ...owner(), jobs, sleeping: false }, () =>
+    (tools.start_background_tool.execute as any)({ tool: 'run_subagents', args: { tasks: [] } }, options));
+
+  expect(output).toBe(reports);
+  expect(present).not.toHaveBeenCalled();
 });

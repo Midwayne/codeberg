@@ -14,11 +14,10 @@ const noop = () =>
 const readOnly = () => ({ ...noop(), metadata: { annotations: { readOnlyHint: true } } });
 
 describe('workerTools', () => {
-  it('keeps investigation tools and drops agent controls, UI, browser, and memory writes', () => {
+  it('keeps every tool except the main agent\'s own controls and user-quoting memory writes', () => {
     const tools: ToolSet = {
       grep: noop(),
       read_file: noop(),
-      search_code: noop(),
       load_mcp_tools: noop(),
       mcp_grafana_query: noop(),
       run_script: noop(),
@@ -26,8 +25,13 @@ describe('workerTools', () => {
       message_subagent: noop(),
       sleep_agent: noop(),
       start_background_tool: noop(),
+      background_tool_status: noop(),
+      cancel_background_tool: noop(),
       schedule_run: noop(),
-      canvas_write: noop(),
+      list_scheduled_runs: noop(),
+      cancel_scheduled_run: noop(),
+      canvas_get: noop(),
+      canvas_update: noop(),
       browser_task: noop(),
       browser_close: noop(),
       remember: noop(),
@@ -37,11 +41,21 @@ describe('workerTools', () => {
     const kept = Object.keys(workerTools(tools)).sort();
 
     expect(kept).toEqual([
+      'background_tool_status',
+      'browser_close',
+      'browser_task',
+      'cancel_background_tool',
+      'cancel_scheduled_run',
+      'canvas_get',
+      'canvas_update',
       'grep',
+      'list_scheduled_runs',
+      'load_mcp_tools',
       'mcp_grafana_query',
       'read_file',
       'run_script',
-      'search_code',
+      'schedule_run',
+      'start_background_tool',
     ]);
   });
 
@@ -58,10 +72,29 @@ describe('roleTools', () => {
     run_script: noop(),
     mcp_logs_query: readOnly(),
     mcp_deploy_rollback: noop(),
+    load_mcp_tools: noop(),
+    start_background_tool: noop(),
+    background_tool_status: noop(),
+    cancel_background_tool: noop(),
+    schedule_run: noop(),
+    list_scheduled_runs: noop(),
+    cancel_scheduled_run: noop(),
+    canvas_get: noop(),
+    canvas_update: noop(),
+    browser_sessions: noop(),
+    browser_task: noop(),
   };
 
-  it('gives explorers only read-only tools: no scripts and only read-only-marked MCP tools', () => {
-    expect(Object.keys(roleTools('explorer', tools)).sort()).toEqual(['grep', 'mcp_logs_query']);
+  it('gives explorers only tools that read: no scripts, starts, schedules, edits, or browsing', () => {
+    expect(Object.keys(roleTools('explorer', tools)).sort()).toEqual([
+      'background_tool_status',
+      'browser_sessions',
+      'canvas_get',
+      'grep',
+      'list_scheduled_runs',
+      'load_mcp_tools',
+      'mcp_logs_query',
+    ]);
   });
 
   it('gives workers every allowed tool', () => {
