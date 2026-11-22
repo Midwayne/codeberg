@@ -82,6 +82,20 @@ describe('agentSystemPrompt', () => {
     expect(AGENT_SYSTEM).not.toContain('Leave out files and APIs that merely contain the search term.');
   });
 
+  it('gives light models the full prompt plus worked short answers', () => {
+    const light = agentSystemPrompt({ enabled: false, search: false, light: true });
+
+    expect(light.startsWith(AGENT_SYSTEM)).toBe(true);
+    expect(light).toContain('Examples of well-formed short answers:');
+    expect(light).toContain('Which file defines RetryPolicy?');
+    expect(AGENT_SYSTEM).not.toContain('Which file defines RetryPolicy?');
+  });
+
+  it('keeps small windows and custom instructions free of the light examples', () => {
+    expect(agentSystemPrompt({ enabled: false, search: false, light: true, compact: true })).not.toContain('RetryPolicy');
+    expect(agentSystemPrompt({ enabled: false, search: false, light: true, instructions: 'Custom.' })).not.toContain('RetryPolicy');
+  });
+
   it('scales answer length to the question', () => {
     expect(AGENT_SYSTEM).toContain('Match length to the question.');
   });

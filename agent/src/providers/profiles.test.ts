@@ -125,8 +125,14 @@ describe('capability tier', () => {
 });
 
 describe('usesCompactPrompt', () => {
-  it('compacts light models even with a large window', () => {
+  it('keeps the full prompt for light models with a large window', () => {
     const light = profileFor('anthropic:claude-haiku-4-5', { CODEBERG_MODEL_TIER: 'light' });
+
+    expect(usesCompactPrompt(light)).toBe(false);
+  });
+
+  it('compacts a light model whose working window is small', () => {
+    const light = profileFor('anthropic:claude-haiku-4-5', { CODEBERG_MODEL_TIER: 'light', CODEBERG_CONTEXT_BUDGET: '16384' });
 
     expect(usesCompactPrompt(light)).toBe(true);
   });

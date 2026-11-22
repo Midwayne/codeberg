@@ -134,8 +134,10 @@ export function budgetWindow(profile: ModelProfile): number {
 const COMPACT_PROMPT_WINDOW = 16_384;
 
 /** Light models and small working windows get the compact system prompt. */
+/** Only a small working window forces the short prompt. A `light` model keeps the
+ *  full one: weaker models need the explicit playbook and examples most. */
 export function usesCompactPrompt(profile: ModelProfile): boolean {
-  return profile.tier === 'light' || budgetWindow(profile) <= COMPACT_PROMPT_WINDOW;
+  return budgetWindow(profile) <= COMPACT_PROMPT_WINDOW;
 }
 
 /** A permissive profile for callers that don't resolve a spec (tests, the

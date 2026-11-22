@@ -12,7 +12,7 @@ are in the git history.
 - Optional step limits for chat turns and subagents.
 - Settings for model and tool timeouts.
 - A context ring beside **Send** opens a breakdown of what fills the chat's context, with counts of summaries and cleared tool results.
-- Set `tier: light` on a model in `models.yml` to give a smaller model shorter instructions, fewer tools, and a reminder of the evidence rules.
+- Set `tier: light` on a model in `models.yml` to give a smaller model extra worked examples, fewer tools, and a reminder of the evidence rules.
 - Set `tool_batch`, `tool_output_limit`, and `instructions` on a model in `models.yml`.
 - While the agent sleeps, the chat shows when it will wake, and the divider updates when it wakes.
 - Subagents running in the background show live progress and their reports in the chat.

@@ -4,6 +4,7 @@ import { AGENT_GUIDANCE } from './prompts/guidance.js';
 import { compactAgentSystem } from './prompts/compact.js';
 import { DECISION_INSTRUCTIONS } from './prompts/decisions.js';
 import { dynamicPromptLines } from './prompts/dynamic.js';
+import { LIGHT_EXAMPLES } from './prompts/examples.js';
 import {
   batchInstructions,
   strategyInstructions,
@@ -37,6 +38,8 @@ export interface AgentSystemPromptOptions {
   batch?: number;
   /** Keep operational rules concise for models with small working windows. */
   compact?: boolean;
+  /** Add worked short answers for `light` models; ignored with compact or custom instructions. */
+  light?: boolean;
   /** Encourage bounded judgments only when the decide tool is registered. */
   decisions?: boolean;
   /** Custom text from models.yml that replaces the built-in tool manual and strategy. */
@@ -100,6 +103,12 @@ export function agentSystemSections(web: AgentSystemPromptOptions): AgentSystemS
 function promptBase(web: AgentSystemPromptOptions): string {
   if (web.instructions) return web.instructions.trim();
 
+  if (web.light && !web.compact) return `${builtInSystem(web)}\n\nExamples of well-formed short answers:\n${LIGHT_EXAMPLES}`;
+
+  return builtInSystem(web);
+}
+
+function builtInSystem(web: AgentSystemPromptOptions): string {
   const learning = web.learning ?? true;
   const knowledge = typeof learning === 'boolean' ? learning : learning.knowledge;
   const history = typeof learning === 'boolean' ? learning : learning.history;

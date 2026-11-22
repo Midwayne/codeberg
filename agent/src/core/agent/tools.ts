@@ -53,6 +53,7 @@ export async function prepareSystem(
     contextRoot: state.context.root,
     batch: toolNames.includes(BATCH_TOOL) ? MAX_BATCH_CALLS : undefined,
     compact: usesCompactPrompt(state.profile),
+    light: state.profile.tier === 'light',
     decisions: toolNames.includes('decide'),
     vectors: toolNames.includes('search_code'),
     instructions: state.profile.instructions,

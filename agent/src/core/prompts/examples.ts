@@ -67,3 +67,18 @@ Source map:
 - Confidence: High
 </answer>
 </example>`;
+
+// Extra worked answers for `light` models, which copy examples more reliably
+// than they apply rules: a one-line lookup and a corrected premise.
+export const LIGHT_EXAMPLES = `<example>
+<question>Which file defines RetryPolicy?</question>
+<answer>
+\`RetryPolicy\` is defined in payments-api [payments-api/src/http/retry.ts:12-38].
+</answer>
+</example>
+<example>
+<question>Why does checkout read the cart from Redis before Postgres?</question>
+<answer>
+It does not: checkout reads the cart only from Postgres [checkout/src/cart/CartRepository.ts:20-34]. Redis holds sessions, not carts [checkout/src/session/store.ts:8-19].
+</answer>
+</example>`;

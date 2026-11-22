@@ -65,7 +65,7 @@ Inputs may include `vision`, `audio`, `video`, and `pdf`. Attachments are limite
 
 ## Tune a model for smaller budgets
 
-Smaller chat models often answer worse with the full agent setup: a long tool manual, worked examples, and about 25 tools. Codeberg does not guess which models these are. Set the fields yourself on the model's `models.yml` entry.
+Smaller chat models often pick the wrong tool from about 25 and drop rules as a chat grows. They also need the step-by-step instructions and worked examples most, so `light` keeps those and adds more. Codeberg does not guess which models these are. Set the fields yourself on the model's `models.yml` entry.
 
 ```yaml
 providers:
@@ -82,7 +82,7 @@ providers:
 | Tier | What the chat model gets |
 | --- | --- |
 | `standard` | Default. Full instructions with the tracing playbook and examples, and every enabled tool. |
-| `light` | Short instructions, a short reminder of the citation and evidence rules after each of your messages, and fewer tools. |
+| `light` | Full instructions plus extra worked examples of short answers, a short reminder of the citation and evidence rules after each of your messages, and fewer tools. |
 
 A `light` model does not see `decide`, subagents, schedules, background tools, `search_learning`, `detect_changes`, `get_architecture`, `git_log`, `git_blame`, `head`, `tail`, or `wc`. This holds even when a decisions model is chosen or **Models → Subagents** is on; use `standard` to keep them. Search, read, graph, context, web, and MCP tools stay, and so do scripts, canvas, and Browser Use when you turn them on.
 
@@ -100,7 +100,7 @@ providers:
         instructions: prompts/quick.md
 ```
 
-These settings apply to the chat model only. A model whose working context is 16,384 tokens or less always gets the short instructions. For terminal questions or a model without catalog settings, set `CODEBERG_MODEL_TIER` and `CODEBERG_TOOL_BATCH`. Changes to `models.yml` or an instructions file apply to the next turn; environment changes need a restart. Compare answers on your [Evaluations](/docs/evaluations) set before and after each change.
+These settings apply to the chat model only. A model whose working context is 16,384 tokens or less always gets short instructions without the examples, whatever its tier, so they leave room for code. For terminal questions or a model without catalog settings, set `CODEBERG_MODEL_TIER` and `CODEBERG_TOOL_BATCH`. Changes to `models.yml` or an instructions file apply to the next turn; environment changes need a restart. Compare answers on your [Evaluations](/docs/evaluations) set before and after each change.
 
 ## Select models in the app
 
