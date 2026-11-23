@@ -108,7 +108,7 @@ Start a message with a command to change how the agent handles that one message.
 | Command | What you get |
 | --- | --- |
 | `/enhance <request>` | A copy-pasteable brief for a coding agent, with the impacted files and checks. The agent does not make the change. |
-| `/dumb <question>` | A plain-language answer for someone who does not read code, such as a project manager: short answer, what it means, key facts, and next steps. |
+| `/dumb <question>` | A plain-language answer for someone who does not read code, such as a project manager: short answer, what it means, key facts, how sure it is, and next steps. |
 
 ```text
 /dumb why did sign-ups drop last week?

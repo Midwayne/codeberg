@@ -2,33 +2,51 @@ import type { PromptHook } from './types.js';
 
 const PLAIN_RE = /^\/dumb(?:\s+|$)([\s\S]*)$/i;
 
-const INSTRUCTIONS = [
+const GOAL = [
   "You are running Codeberg's /dumb prompt hook.",
   '',
-  'Goal: answer the question below for a project manager who does not read code.',
-  'Investigate as usual with the available tools: search the codebase, read docs, and, when a database',
-  'MCP server is connected, query it to get real numbers. Follow the usual database rules for those queries.',
-  'Only the final answer changes: write it in plain, everyday language.',
+  'Goal: answer the question below for a project manager who does not read code. They want to understand',
+  'what is happening, what it means for users and the plan, and what they could decide. Investigate with the',
+  'available tools first, then return only the plain-language answer. Do not change code or data.',
+].join('\n');
+
+const STEPS = [
+  'How to investigate:',
+  '1. Work out what the project manager needs to decide or know. If the question is vague, answer the most likely',
+  '   reading and say which one you chose.',
+  '2. Search the codebase and docs to learn how the feature works today, from the user\'s point of view.',
+  '3. If the question is about counts, trends, users, money, errors, or status and a database MCP server is connected,',
+  '   query it: read-only, aggregate queries with an explicit time range, compared with the previous period when',
+  '   that helps. Follow the usual database rules. If no database is connected, say what data would answer it.',
+  '4. Check each claim against what you found. Never guess or estimate a number; say it is unknown instead.',
+].join('\n');
+
+const STYLE = [
+  'How to write the answer:',
+  '- No code, file paths, function or table names, stack traces, SQL, or commands.',
+  '- Describe what the product does and what users see, not how the code is built.',
+  '- If a technical word is unavoidable, explain it in a few plain words the first time.',
+  '- Lead with the answer. Use short sentences, concrete numbers with dates, and user or business impact.',
+  '- Keep it to one screen.',
   '',
-  'Rules for the answer:',
-  '- No code, file paths, function names, stack traces, SQL, or commands. Describe what the product does instead.',
-  '- Explain any unavoidable technical word in a few plain words the first time you use it.',
-  '- Lead with the answer. Prefer short sentences, concrete numbers with dates, and user or business impact.',
-  '- Say how sure you are, and what you could not check.',
-  '- Keep it short: one screen at most.',
+  'Example of the translation:',
+  'Instead of: "The retry loop in the payment worker has no backoff, so the queue backs up."',
+  'Write: "When a payment fails, the system retries it too quickly, so other payments wait longer."',
 ].join('\n');
 
 const FORMAT = [
-  'Return this Markdown structure:',
+  'Return this exact Markdown structure:',
   '',
   '## Short answer',
-  'One or two sentences.',
+  'One or two sentences that directly answer the question.',
   '## What this means',
-  'Impact on users, the team, timelines, or risk, in plain words.',
-  '## Details',
-  'A few bullets or a small table with the key facts and numbers. Skip this section if there is nothing to add.',
+  'Impact on users, the team, timelines, cost, or risk, in plain words.',
+  '## Key facts',
+  'A few bullets or a small table with the numbers and their dates or time ranges. Skip if there is nothing to add.',
+  '## How sure we are',
+  'High, medium, or low, with one sentence on why and what could not be checked.',
   '## Next steps',
-  "Decisions or actions a project manager could take. Use 'None' if there are none.",
+  "Decisions or actions a project manager could take, and who could help. Use 'None' if there are none.",
 ].join('\n');
 
 /**
@@ -45,7 +63,7 @@ export const plainPromptHook: PromptHook = {
     description:
       'Investigates as usual, including connected databases, then replies in plain ' +
       'language for someone who does not read code: short answer, impact, key facts, ' +
-      'and next steps, with no code, file paths, or jargon.',
+      'how sure it is, and next steps, with no code, file paths, or jargon.',
     argHint: '<question>',
   },
   rewrite({ text }) {
@@ -62,6 +80,6 @@ export const plainPromptHook: PromptHook = {
       ].join('\n');
     }
 
-    return [INSTRUCTIONS, '', 'Question:', question, '', FORMAT].join('\n');
+    return [GOAL, '', 'Question:', question, '', STEPS, '', STYLE, '', FORMAT].join('\n');
   },
 };

@@ -17,6 +17,29 @@ describe('/dumb prompt hook', () => {
     expect(out).toContain('## What this means');
   });
 
+  it('gives numbered investigation steps before the answer is written', () => {
+    const out = applyPromptHooksToText('/dumb how many teams use exports?');
+
+    expect(out).toMatch(/1\. .*decide or know/);
+    expect(out).toMatch(/read-only/i);
+    expect(out).toMatch(/time range/i);
+    expect(out).toMatch(/never guess or estimate a number/i);
+  });
+
+  it('shows how to translate code findings into product language', () => {
+    const out = applyPromptHooksToText('/dumb is login slow?');
+
+    expect(out).toContain('Instead of:');
+    expect(out).toContain('Write:');
+  });
+
+  it('asks for an exact structure with a confidence line', () => {
+    const out = applyPromptHooksToText('/dumb status of billing?');
+
+    expect(out).toContain('Return this exact Markdown structure');
+    expect(out).toContain('## How sure we are');
+  });
+
   it('matches the trigger case-insensitively and only as a whole word', () => {
     expect(applyPromptHooksToText('/DUMB status?')).toContain('status?');
 
