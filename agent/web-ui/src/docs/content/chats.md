@@ -101,6 +101,21 @@ Restarting Codeberg interrupts active searches. Saved partial output and tool ou
 
 Automatic reconnection and saved-chat navigation require the normal built web UI; the minimal fallback page does not provide them.
 
+## Use slash commands
+
+Start a message with a command to change how the agent handles that one message. Type `/` in the composer to see the list; hover a row for details.
+
+| Command | What you get |
+| --- | --- |
+| `/enhance <request>` | A copy-pasteable brief for a coding agent, with the impacted files and checks. The agent does not make the change. |
+| `/dumb <question>` | A plain-language answer for someone who does not read code, such as a project manager: short answer, what it means, key facts, and next steps. |
+
+```text
+/dumb why did sign-ups drop last week?
+```
+
+With `/dumb`, the agent still searches the code and, when a [database MCP](/docs/mcps#database-mcp) is connected, can query it for real numbers under the usual database rules. Only the reply is simplified, so it leaves out code, file paths, and jargon. A command applies to its own message only; start each follow-up with it again to keep plain answers.
+
 ## Read answers
 
 - Expand tool results and check cited source. Hover or focus a numbered citation to see its path and lines; click to copy, or press Escape to dismiss.
