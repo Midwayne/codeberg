@@ -33,3 +33,17 @@ func TestStopKillsProcessGroup(t *testing.T) {
 		t.Fatalf("process group %d still alive after Stop (kill(0) = %v); it must be torn down", pid, err)
 	}
 }
+
+func TestStopIsIdempotent(t *testing.T) {
+	if _, err := exec.LookPath("sleep"); err != nil {
+		t.Skip("sleep not available")
+	}
+	cmd := exec.Command("sleep", "30")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("starting child: %v", err)
+	}
+	m := &Manager{cmd: cmd}
+	m.Stop()
+	m.Stop() // second call must not panic or block
+}

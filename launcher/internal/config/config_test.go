@@ -251,6 +251,25 @@ func TestReposSelectionParsing(t *testing.T) {
 	}
 }
 
+func TestValidateForRunAllowsAllOrReposWithoutRoot(t *testing.T) {
+	cases := map[string]Config{
+		"--all":   {All: true},
+		"--repos": {Repos: []string{"a"}},
+	}
+
+	for flag, c := range cases {
+		t.Run(flag, func(t *testing.T) {
+			dist := t.TempDir()
+			writeArtifacts(t, dist)
+
+			c.Dist, c.Model = dist, "anthropic:claude"
+			if err := c.ValidateForRun(); err != nil {
+				t.Fatalf("%s must not require a root: %v", flag, err)
+			}
+		})
+	}
+}
+
 func TestValidateForRunRejectsRootWithAllOrRepos(t *testing.T) {
 	cases := map[string]Config{
 		"--all":   {All: true},

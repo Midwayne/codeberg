@@ -2,6 +2,7 @@ package subprocess
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,8 +12,13 @@ import (
 func TestUnsafeSedPrograms(t *testing.T) {
 	for _, script := range []string{"", "{e id;}", "/x/{s/a/b/e;}", "/s/s/a/b/w out", "s;a;b;e", "s/a/b/;{e id}", "1{1{e id}}", "s/a/b/gee", "{r secret;}", "{W out;}", "s/a/b/\ne id"} {
 		t.Run(script, func(t *testing.T) {
-			if err := ValidateSedScript(script); err == nil {
-				t.Fatal("accepted command-capable sed program")
+			want := ErrUnsafeSed
+			if script == "" {
+				want = ErrInvalid
+			}
+
+			if err := ValidateSedScript(script); !errors.Is(err, want) {
+				t.Fatalf("got %v, want %v", err, want)
 			}
 		})
 	}
