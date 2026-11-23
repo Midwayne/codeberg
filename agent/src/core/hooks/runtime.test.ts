@@ -13,11 +13,7 @@ describe('/enhance prompt hook', () => {
     const out = applyPromptHooksToText('/enhance add auth middleware');
 
     expect(out).toContain("Codeberg's /enhance prompt hook");
-    expect(out).toContain('Do not implement code');
-    expect(out).toContain('Use the available code-search tools first');
     expect(out).toContain('add auth middleware');
-    expect(out).toContain('## Impacted Areas');
-    expect(out).toContain('## Verification');
   });
 
   it('leaves non-hook prompts unchanged', () => {

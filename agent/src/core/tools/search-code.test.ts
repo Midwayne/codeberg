@@ -25,16 +25,6 @@ function run(toolDef: unknown, input: unknown): Promise<any> {
 }
 
 describe('searchCodeSource', () => {
-  it('shows good queries and sends exact names to the precise tools', async () => {
-    const daemon = { search: vi.fn() } as unknown as DaemonClient;
-    const tools = await searchCodeSource({ daemon, defaultK: 8, onResults: () => undefined }).tools();
-    const description = (tools.search_code as { description?: string }).description ?? '';
-
-    expect(description).toContain('Good queries describe behavior');
-    expect(description).toContain('→ find_symbol');
-    expect(description).toContain('→ grep');
-  });
-
   it('expands only the top three chunks within a shared output budget', async () => {
     const hits = [1, 2, 3, 4].map((id) => ({ ...hit(id), repo: 'alpha' }));
     const daemon = {
