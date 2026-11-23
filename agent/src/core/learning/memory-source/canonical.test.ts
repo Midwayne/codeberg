@@ -18,6 +18,14 @@ afterEach(async () => {
   await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
+it('moves a citation into the repository that now holds the file', () => {
+  expect(canonicalRef({ repo: team, path: 'api/src/x.ts', symbol: 'x' }, repositories)).toEqual({
+    repo: `${team}/api`,
+    path: 'src/x.ts',
+    symbol: 'x',
+  });
+});
+
 it('keeps citations that already name the innermost repository', () => {
   const inRepo = { repo: `${team}/api`, path: 'src/x.ts' };
   const loose = { repo: team, path: 'README.md' };
