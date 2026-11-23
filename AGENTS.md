@@ -44,6 +44,13 @@ layer for local verification.
 ## Coding standards
 
 - **Test-driven workflow.** Write a failing test for the behavior, implement, refactor.
+- **Test value.** Add a test only when it can catch a regression no existing test
+  catches. Do not assert that fixed prompt, description, or help-text strings contain
+  copied phrases; test conditional assembly instead. Do not replay a behavior per
+  provider or through a mocked wrapper when a stronger test already exercises it for
+  real. A test's title must match what its assertions check. When removing or merging
+  a test, name the remaining test that proves the same behavior and confirm it by
+  breaking the production line.
 - **Readability and maintainability:** when writing or editing code, add blank
   lines between logical steps and declarations so humans can follow the flow.
   Group related statements, keep validation, setup, processing, and cleanup
