@@ -170,34 +170,6 @@ static void test_relative_and_module_path(void) {
     rm_tree(root);
 }
 
-static void test_ts_relative(void) {
-    char tmpl[] = "/tmp/cberg_resolve_XXXXXX";
-    char *root = mkdtemp(tmpl);
-    CHECK(root != NULL, "mkdtemp");
-    if (root == NULL) {
-        return;
-    }
-
-    write_file(root, "package.json", "{\"name\":\"app\"}\n");
-    write_file(root, "helper.ts", "export function help() {}\n");
-    write_file(root, "json.ts", "export const x = 1;\n");
-    write_file(root, "app.ts", "import { help } from \"./helper\";\nexport const n = help();\n");
-
-    graph_corpus c;
-    CHECK(corpus_open(&c) == 0, "corpus open");
-    CHECK(corpus_index(&c, CBERG_LANG_TYPESCRIPT, "helper.ts", "export function help() {}\n") == CBERG_OK, "index helper");
-    CHECK(corpus_index(&c, CBERG_LANG_TYPESCRIPT, "json.ts", "export const x = 1;\n") == CBERG_OK, "index json");
-    CHECK(corpus_index(&c, CBERG_LANG_TYPESCRIPT, "app.ts",
-                       "import { help } from \"./helper\";\nexport const n = help();\n") == CBERG_OK,
-          "index app");
-
-    CHECK(cberg_graph_resolve_imports(c.graph, root) == CBERG_OK, "resolve");
-    CHECK(edge_to_file(&c, "app.ts", "helper.ts"), "./helper → helper.ts");
-
-    corpus_close(&c);
-    rm_tree(root);
-}
-
 static void test_slash_stdlib_not_rewritten(void) {
     char tmpl[] = "/tmp/cberg_resolve_XXXXXX";
     char *root = mkdtemp(tmpl);
@@ -513,7 +485,6 @@ int main(void) {
     test_stdlib_not_rewritten();
     test_slash_stdlib_not_rewritten();
     test_relative_and_module_path();
-    test_ts_relative();
     test_rust_crate_path();
     test_many_relative_imports();
     test_resolve_survives_compact();

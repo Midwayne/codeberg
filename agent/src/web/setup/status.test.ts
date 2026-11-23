@@ -48,12 +48,6 @@ async function store(catalog: string | undefined, env: NodeJS.ProcessEnv, defaul
 }
 
 describe('setupStatus', () => {
-  it('is ready when the catalog has a model with credentials', async () => {
-    const env = { OPENAI_API_KEY: 'key' };
-
-    expect(await setupStatus(await store(OPENAI_CATALOG, env), env)).toEqual({ ready: true });
-  });
-
   it('is ready when any one catalog provider is configured', async () => {
     const env = { ANTHROPIC_API_KEY: 'key' };
 

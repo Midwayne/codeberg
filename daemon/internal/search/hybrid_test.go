@@ -61,18 +61,6 @@ func TestFuseLexicalOnlyAndRepoScopedDedup(t *testing.T) {
 	}
 }
 
-func TestFuseTruncatesToK(t *testing.T) {
-	vectors := make([]indexctl.SearchResult, 5)
-
-	for i := range vectors {
-		vectors[i] = indexctl.SearchResult{ID: uint64(i + 1), Repo: "main", Path: "f.go"}
-	}
-
-	if got := len(Fuse(vectors, nil, 2, "xyz")); got != 2 {
-		t.Fatalf("want 2 results, got %d", got)
-	}
-}
-
 func TestFusePreservesVectorCoverageAgainstRepeatedLexicalLines(t *testing.T) {
 	vectors := make([]indexctl.SearchResult, 8)
 

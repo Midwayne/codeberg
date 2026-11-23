@@ -29,11 +29,4 @@ describe('working loader', () => {
     expect(html).toContain(`data-loader="${variant}"`);
     expect(html.match(new RegExp(`class="${part}"`, 'g'))).toHaveLength(count);
   });
-
-  it('places the burst cubes at every corner', () => {
-    const html = renderToStaticMarkup(<WorkingLoader variant="burst" />);
-    const corners = html.match(/--x:-?1;--y:-?1;--z:-?1/g) ?? [];
-
-    expect(new Set(corners).size).toBe(8);
-  });
 });

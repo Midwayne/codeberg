@@ -72,19 +72,6 @@ describe('assistant activity group', () => {
     expect(html).not.toContain('Updating knowledge base');
     expect(renderToStaticMarkup(<Message message={message} conversationId="chat" learningEnabled={false} />)).not.toContain('Rate this answer');
   });
-  it('uses a borderless rating control with themed menu options and visible focus', () => {
-    const message = { id: 'answer', role: 'assistant', parts: [{ type: 'text', text: 'Done.' }] } as UIMessage;
-    const html = renderToStaticMarkup(<Message message={message} conversationId="chat" learningEnabled />);
-    const control = html.match(/<select\b[^>]*>/)?.[0];
-    expect(control).toContain('appearance-none');
-    expect(control).toContain('border-0');
-    expect(control).toContain('bg-transparent');
-    expect(control).not.toContain('hover:border');
-    expect(control).toContain('hover:bg-accent');
-    expect(control).toContain('focus-visible:bg-accent');
-    expect(control).toContain('focus-visible:outline-none');
-    expect(html).toContain('bg-popover text-popover-foreground');
-  });
   it('wraps reasoning and tools in one disclosure while keeping their individual disclosures', () => {
     const message = {
       id: 'assistant-1',

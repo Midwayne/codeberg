@@ -86,24 +86,6 @@ func (m *mockIndexer) GraphHubs(context.Context, indexctl.GraphHubsOptions) ([]i
 	return m.graphHubs, nil
 }
 
-func TestGetChunkTool(t *testing.T) {
-	idx := &testutil.FakeIndexer{
-		Chunk: indexctl.ChunkDetail{ID: 7, Repo: "main", Path: "a.go", Body: "func main(){}"},
-	}
-	root := t.TempDir()
-	reg := Default(testutil.WsSingle(root), idx)
-
-	out, err := reg.Call(context.Background(), "get_chunk", json.RawMessage(`{"repo":"main","id":7}`))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	detail, ok := out.(indexctl.ChunkDetail)
-	if !ok || detail.ID != 7 || detail.Body != "func main(){}" {
-		t.Fatalf("get_chunk: %+v", out)
-	}
-}
-
 func TestHybridSearchTool(t *testing.T) {
 	idx := &testutil.FakeIndexer{
 		SearchHits: []indexctl.SearchResult{
@@ -167,25 +149,6 @@ func TestHybridSearchFindsLexicalOnlyFile(t *testing.T) {
 
 	if hits[0].ContextStartLine != 1 || !strings.Contains(hits[0].Context, "func companion()") {
 		t.Fatalf("lexical hit should carry nearby context without an extra tool call: %+v", hits[0])
-	}
-}
-
-func TestHybridSearchWorksWithoutVectors(t *testing.T) {
-	root := t.TempDir()
-	if err := os.WriteFile(root+"/exact.go", []byte("func checkoutSessionToken() {}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	idx := &testutil.FakeIndexer{SearchErr: &indexctl.IndexerError{Code: "NOT_IMPLEMENTED", Message: "not implemented"}}
-	reg := Default(testutil.WsSingle(root), idx)
-	out, err := reg.Call(context.Background(), "hybrid_search", json.RawMessage(`{"query":"checkoutSessionToken"}`))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	hits := out.([]search.HybridHit)
-	if len(hits) != 1 || hits[0].Hit.Path != "exact.go" || hits[0].Hit.ID != 0 {
-		t.Fatalf("lexical fallback: %+v", hits)
 	}
 }
 

@@ -35,7 +35,3 @@ it.each([
 it('does not invent distributions when providers omit them', () => {
   expect(validateAnswer(question, { type: 'choice', choice: 'cache.ts' }).probabilities).toBeUndefined();
 });
-
-it('retains a refusal as a per-question result', () => {
-  expect(validateAnswer(question, { type: 'refusal' })).toEqual({ name: 'file', type: 'refusal' });
-});

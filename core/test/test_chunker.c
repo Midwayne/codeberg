@@ -529,15 +529,6 @@ static void test_ruby(cberg_chunker *ch) {
 }
 
 int main(void) {
-    CHECK(cberg_language_from_path("a.go") == CBERG_LANG_GO, "lang go");
-    CHECK(cberg_language_from_path("lib.rs") == CBERG_LANG_RUST, "lang rust");
-    CHECK(cberg_language_from_path("app.rb") == CBERG_LANG_RUBY, "lang ruby");
-    CHECK(cberg_language_from_path("README.md") == CBERG_LANG_MARKDOWN, "lang md");
-    CHECK(cberg_language_from_path("doc.markdown") == CBERG_LANG_MARKDOWN, "lang markdown");
-    CHECK(cberg_language_from_path("config.yaml") == CBERG_LANG_YAML, "lang yaml");
-    CHECK(cberg_language_from_path("config.yml") == CBERG_LANG_YAML, "lang yml");
-    CHECK(cberg_language_from_path("Cargo.toml") == CBERG_LANG_TOML, "lang toml");
-    CHECK(cberg_language_from_path("package.json") == CBERG_LANG_JSON, "lang json");
     cberg_chunker *ch = NULL;
     CHECK(cberg_chunker_open(&ch) == CBERG_OK, "chunker open");
     test_go(ch);

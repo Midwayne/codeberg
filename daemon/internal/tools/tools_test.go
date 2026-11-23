@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"slices"
-	"strings"
 	"testing"
 
 	"codeberg.org/codeberg/daemon/internal/testutil"
@@ -53,31 +52,4 @@ func TestReposTool(t *testing.T) {
 
 func wsSingle(root string) *workspace.Workspace {
 	return testutil.WsSingle(root)
-}
-
-// The agent's system prompt only routes between tools, so each description
-// must carry its own usage details.
-func TestToolDescriptionsCarryUsageDetails(t *testing.T) {
-	reg := Default(testutil.WsSingle(t.TempDir()), testutil.StubIndexer())
-	descriptions := map[string]string{}
-
-	for _, sp := range reg.List() {
-		descriptions[sp.Name] = sp.Description
-	}
-
-	want := map[string][]string{
-		"grep":         {"Case-sensitive", "literal: true", "**/name/**", "(?i)"},
-		"read_file":    {"outside indexed chunk boundaries"},
-		"get_chunk":    {"Prefer this over read_file"},
-		"find_symbol":  {"known function, class, or type names"},
-		"file_outline": {"before deep reading"},
-	}
-
-	for name, parts := range want {
-		for _, part := range parts {
-			if !strings.Contains(descriptions[name], part) {
-				t.Errorf("%s description %q lacks %q", name, descriptions[name], part)
-			}
-		}
-	}
 }

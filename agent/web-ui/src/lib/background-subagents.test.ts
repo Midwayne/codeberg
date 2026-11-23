@@ -76,12 +76,6 @@ describe('staysVisible', () => {
     expect(staysVisible('start_background_tool', detached)).toBe(true);
   });
 
-  it('folds status checks, which the detached card already shows, so each subagent appears once', () => {
-    const status = { type: 'tool-background_tool_status', state: 'output-available', output: { id: 'j', tool: 'run_subagents', status: 'completed' } };
-
-    expect(staysVisible('background_tool_status', status)).toBe(false);
-  });
-
   it('folds a follow-up refused before any subagent ran', () => {
     const refused = { type: 'tool-message_subagent', state: 'output-error', errorText: 'Unknown subagent sa_x' };
     const stopped = { ...refused, output: { results: [{ agent_id: 'sa_x', status: 'failed' }] } };

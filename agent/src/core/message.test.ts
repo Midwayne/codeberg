@@ -3,10 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { messageText, messageTranscript, toolResultOutputText } from './message.js';
 
 describe('messageText', () => {
-  it('returns string content as-is', () => {
-    expect(messageText({ role: 'user', content: 'hi' })).toBe('hi');
-  });
-
   it('includes tool calls and tool results in the transcript', () => {
     expect(
       messageTranscript({

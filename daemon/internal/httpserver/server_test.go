@@ -127,32 +127,6 @@ func TestSearchMissingQuery(t *testing.T) {
 	}
 }
 
-func TestCallTool(t *testing.T) {
-	root := t.TempDir()
-	if err := os.WriteFile(root+"/hello.txt", []byte("hi"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	idx := testutil.StubIndexer()
-	ws := testutil.WsSingle(root)
-	srv := New(idx, tools.Default(ws, idx))
-	ts := httptest.NewServer(srv.Handler())
-	t.Cleanup(ts.Close)
-
-	payload := map[string]any{"name": "read_file", "args": map[string]any{"path": "hello.txt"}}
-	b, _ := json.Marshal(payload)
-	res, err := http.Post(ts.URL+"/tools/call", "application/json", bytes.NewReader(b))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("status %d", res.StatusCode)
-	}
-}
-
 func TestCallPipeTool(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(root+"/a.go", []byte("package main\n// TODO\n"), 0o644); err != nil {

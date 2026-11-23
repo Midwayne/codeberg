@@ -12,7 +12,8 @@ import { writeAtomic } from '../fs.js';
 import { DurableJobQueue } from './queue.js';
 import { LearningService } from './service.js';
 import { LearningStore, serializeArtifact, stableId } from './store.js';
-import { KnowledgeWorker, parseExtractionResponse } from './worker.js';
+import { parseExtractionResponse } from './knowledge-response.js';
+import { KnowledgeWorker } from './worker.js';
 
 // These tests count knowledge model calls and jobs; profile and procedure learning have their own tests.
 beforeAll(() => {
@@ -620,6 +621,7 @@ describe('KnowledgeWorker', () => {
     expect(events.filter((event) => event === 'job_completed')).toHaveLength(2);
     service.stop();
   });
+
   it('accepts a JSON object wrapped in model commentary', () => {
     expect(
       parseExtractionResponse(

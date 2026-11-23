@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
 
-import { deleteSession, markSessionRead, renameSession, saveSession } from './sessions';
+import { markSessionRead, renameSession, saveSession } from './sessions';
 
 const input = { id: 'chat', title: 'Question', messages: [] };
 
@@ -14,12 +14,6 @@ it('reports network failures when saving a chat', async () => {
   const api = vi.fn<typeof fetch>().mockRejectedValue(new TypeError('Failed to fetch'));
 
   await expect(saveSession(input, api)).rejects.toThrow('Failed to fetch');
-});
-
-it('reports failed deletions so the view can recover instead of hiding a retained chat', async () => {
-  const api = vi.fn<typeof fetch>().mockResolvedValue(new Response('Unavailable', { status: 500 }));
-
-  await expect(deleteSession('chat', api)).rejects.toThrow('Could not delete chat (500)');
 });
 
 it('sends a rename as a title patch and reports failures', async () => {

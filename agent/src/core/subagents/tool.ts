@@ -24,7 +24,7 @@ interface Brief {
 
 const RUN_DESCRIPTION = [
   `Run up to ${MAX_SUBAGENTS} independent tasks in parallel, each on a fresh subagent using the subagent model.`,
-  'Subagents do not see this conversation, so each prompt must be a complete brief.',
+  'Subagents do not see this conversation, so each prompt must be a complete brief: a clear goal, known context, specific numbered steps when the method is known, and what to return.',
   'Both types can call any MCP tool. agent_type "explorer" (default) only investigates; "worker" may also change things: scripts, background jobs, schedules, the canvas, the browser, and MCP calls with side effects.',
   'Returns one report per task, in order, with an agent_id for message_subagent.',
   'Use for independent multi-step checks (health, metrics, logs, separate code areas), not single lookups.',
@@ -41,7 +41,7 @@ const RUN_INPUT = jsonSchema<{ tasks: Brief[] }>({
         type: 'object',
         properties: {
           description: { type: 'string', minLength: 1, maxLength: 80, description: 'A 3-8 word label shown in the chat.' },
-          prompt: { type: 'string', minLength: 1, maxLength: 16_000, description: 'The complete, self-contained brief.' },
+          prompt: { type: 'string', minLength: 1, maxLength: 16_000, description: 'The self-contained brief: goal, context, steps when known, and what to return.' },
           agent_type: { type: 'string', enum: [...SUBAGENT_TYPES] },
         },
         required: ['description', 'prompt'],

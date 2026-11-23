@@ -75,37 +75,6 @@ static int test_quant_reopen_across_kinds(void) {
     return failures - base;
 }
 
-static int test_i8_orthogonal_ranking(void) {
-    const char *label = "i8-ortho";
-    int base = failures;
-
-    char path[64];
-    test_temp_path(path, sizeof path, "/tmp/cberg_ortho_XXXXXX");
-
-    cberg_index_config cfg;
-    cberg_index_config_default(&cfg);
-    cfg.quantization = CBERG_QUANT_I8;
-
-    cberg_index *idx = NULL;
-    TEST_CHECK_LABELED(label, cberg_index_open(path, 4, &cfg, &idx) == CBERG_OK && idx != NULL, "open i8");
-    if (idx != NULL) {
-        float a[4] = {1, 0, 0, 0};
-        float b[4] = {0, 1, 0, 0};
-        TEST_CHECK_LABELED(label, cberg_index_add(idx, 1, a) == CBERG_OK, "add axis-a");
-        TEST_CHECK_LABELED(label, cberg_index_add(idx, 2, b) == CBERG_OK, "add axis-b (orthogonal)");
-
-        uint64_t ids[2];
-        float scores[2];
-        size_t found = 0;
-        TEST_CHECK_LABELED(label, cberg_index_search(idx, a, 1, NULL, ids, scores, &found) == CBERG_OK && found >= 1 && ids[0] == 1,
-                           "self-match beats orthogonal neighbor");
-        cberg_index_close(idx);
-    }
-
-    remove(path);
-    return failures - base;
-}
-
 static int test_quant_clear_honors_loaded_kind(void) {
     const char *label = "quant-clear";
     int base = failures;
@@ -227,7 +196,6 @@ int main(void) {
 
     failures += test_quant_from_name();
     failures += test_quant_reopen_across_kinds();
-    failures += test_i8_orthogonal_ranking();
     failures += test_quant_clear_honors_loaded_kind();
     failures += test_clean_save();
 

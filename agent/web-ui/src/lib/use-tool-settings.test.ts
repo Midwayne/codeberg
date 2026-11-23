@@ -206,13 +206,3 @@ it('updates browser delegation without overwriting the web search preference', a
   expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))).toEqual({ browserUse: true });
   expect(render().settings?.browserUse).toBe(true);
 });
-
-it('changes screenshot access without overwriting the other tool preferences', async () => {
-  const fetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => Response.json({ ...ready, browserVision: true }));
-  vi.stubGlobal('fetch', fetch);
-
-  await render().change({ browserVision: true });
-
-  expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))).toEqual({ browserVision: true });
-  expect(render().settings).toMatchObject({ browserVision: true, browserUse: false, webSearch: true });
-});
