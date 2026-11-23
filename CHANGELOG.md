@@ -6,6 +6,10 @@ are in the git history.
 
 ## [Unreleased]
 
+### Changed
+
+- Subagent briefs now state a clear goal and, when the method is known, specific numbered steps.
+
 ## [1.1.0] - 2026-11-22
 
 ### Added
