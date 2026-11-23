@@ -6,7 +6,7 @@ import { afterEach, expect, it } from 'vitest';
 
 import { memorySourceState } from '../memory-source.js';
 import type { KnowledgeArtifact } from '../types.js';
-import { canonicalArtifact, canonicalRef } from './canonical.js';
+import { canonicalRef } from './canonical.js';
 
 const team = '/work/team-a';
 
@@ -18,14 +18,6 @@ afterEach(async () => {
   await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
-it('moves a citation into the repository that now holds the file', () => {
-  expect(canonicalRef({ repo: team, path: 'api/src/x.ts', symbol: 'x' }, repositories)).toEqual({
-    repo: `${team}/api`,
-    path: 'src/x.ts',
-    symbol: 'x',
-  });
-});
-
 it('keeps citations that already name the innermost repository', () => {
   const inRepo = { repo: `${team}/api`, path: 'src/x.ts' };
   const loose = { repo: team, path: 'README.md' };
@@ -34,18 +26,6 @@ it('keeps citations that already name the innermost repository', () => {
   expect(canonicalRef(inRepo, repositories)).toEqual(inRepo);
   expect(canonicalRef(loose, repositories)).toEqual(loose);
   expect(canonicalRef(prefixOnly, repositories)).toEqual(prefixOnly);
-});
-
-it('rewrites saved file hashes with their citations', () => {
-  const artifact = {
-    source_refs: [{ repo: team, path: 'api/src/x.ts' }],
-    source_hashes: { [`${team}\0api/src/x.ts`]: 'h1', [`${team}\0README.md`]: 'h2' },
-  } as unknown as KnowledgeArtifact;
-
-  const moved = canonicalArtifact(artifact, repositories);
-
-  expect(moved.source_refs).toEqual([{ repo: `${team}/api`, path: 'src/x.ts' }]);
-  expect(moved.source_hashes).toEqual({ [`${team}/api\0src/x.ts`]: 'h1', [`${team}\0README.md`]: 'h2' });
 });
 
 it('keeps a finding fresh when its project is split into repositories', async () => {

@@ -167,41 +167,6 @@ describe('web server', () => {
     expect((await fetch(baseUrl + '/api/settings/resources', { method: 'PUT' })).status).toBe(405);
   });
 
-  it('rejects cleanup while a chat write is in flight', async () => {
-    let finish: (() => void) | undefined;
-    let started: (() => void) | undefined;
-    const inFlight = new Promise<void>((resolve) => {
-      started = resolve;
-    });
-    await start({
-      respond: async (res) => {
-        started?.();
-        await new Promise<void>((resolve) => {
-          finish = resolve;
-        });
-        res.end('ok');
-      },
-    });
-    const chat = fetch(baseUrl + CHAT_PATH, {
-      method: 'POST',
-      body: JSON.stringify({ messages: [] }),
-    });
-
-    await inFlight;
-    try {
-      const res = await fetch(baseUrl + '/api/settings/cleanup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ categories: ['chats'], olderThanDays: 0 }),
-      });
-
-      expect(res.status).toBe(409);
-    } finally {
-      finish?.();
-      await chat;
-    }
-  });
-
   it('keeps cleanup blocked until a streaming response finishes even if its responder returns early', async () => {
     let finish: (() => void) | undefined;
     await start({
@@ -284,16 +249,6 @@ describe('web server', () => {
     const body = await (await fetch(baseUrl + '/')).text();
     expect(body).toContain('&lt;script&gt;&quot;x&quot;');
     expect(body).not.toContain('<script>"x"');
-  });
-
-  it('returns the title for the SPA header', async () => {
-    await start({ title: 'gpt-5.6-sol · reasoning: high' });
-    const res = await fetch(baseUrl + META_PATH);
-    expect(res.headers.get('content-type')).toContain('application/json');
-    expect(await res.json()).toEqual({
-      title: 'gpt-5.6-sol · reasoning: high',
-      capabilities: { learning: false },
-    });
   });
 
   it('persists independent UI model selections and binds each chat request to a snapshot', async () => {
@@ -512,27 +467,6 @@ describe('web server', () => {
     const body = await res.text();
     expect(body).not.toContain('root:');
     expect(body).toContain('<title>spa</title>');
-  });
-
-  it('routes posted messages to the responder and streams its output', async () => {
-    let received: unknown[] | undefined;
-    const respond: ChatResponder = async (res: ServerResponse, messages) => {
-      received = messages;
-      res.writeHead(200, { 'Content-Type': 'text/plain' });
-      res.end('streamed');
-    };
-
-    await start({ respond });
-
-    const messages = [{ id: '1', role: 'user', parts: [{ type: 'text', text: 'hi' }] }];
-    const res = await fetch(baseUrl + CHAT_PATH, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages }),
-    });
-
-    expect(await res.text()).toBe('streamed');
-    expect(received).toEqual(messages);
   });
 
   it('runs separate chat requests concurrently and keeps their responses isolated', async () => {

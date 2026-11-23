@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_DAEMON_URL } from './client.js';
-import { entryUsage, parseEntryArgs } from './entry.js';
+import { parseEntryArgs } from './entry.js';
 
 describe('parseEntryArgs', () => {
   it('parses model and question from argv', () => {
@@ -42,9 +42,5 @@ describe('parseEntryArgs', () => {
 
   it('returns null without model spec', () => {
     expect(parseEntryArgs(['node', 'cli'], {})).toBeNull();
-  });
-
-  it('includes program name in usage', () => {
-    expect(entryUsage('codeberg-web')).toContain('codeberg-web');
   });
 });

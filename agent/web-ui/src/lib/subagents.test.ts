@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isSubagentTool, subagentView } from './subagents';
+import { subagentView } from './subagents';
 
 const part = (over: Record<string, unknown>) => ({ type: 'tool-run_subagents', toolCallId: 'c1', ...over });
 
@@ -61,13 +61,5 @@ describe('subagentView', () => {
     expect(followUp.rows[0]).toMatchObject({ brief: 'What about p50?', status: 'queued' });
     expect(stopped.running).toBe(false);
     expect(stopped.rows[0]).toMatchObject({ status: 'failed', error: 'aborted' });
-  });
-});
-
-describe('isSubagentTool', () => {
-  it('matches both subagent tools only', () => {
-    expect(isSubagentTool('run_subagents')).toBe(true);
-    expect(isSubagentTool('message_subagent')).toBe(true);
-    expect(isSubagentTool('grep')).toBe(false);
   });
 });

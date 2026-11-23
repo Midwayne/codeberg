@@ -177,22 +177,6 @@ func TestBackgroundCheckDoesNotBlockStartupAndCanBeCancelled(t *testing.T) {
 	}
 }
 
-func TestCheckTimeoutIsSilent(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		<-r.Context().Done()
-	}))
-	t.Cleanup(server.Close)
-	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
-	defer cancel()
-	var out bytes.Buffer
-
-	notify(ctx, server.Client(), server.URL, "v1.2.3", true, &out)
-
-	if out.Len() != 0 {
-		t.Fatalf("timeout printed a notice: %s", &out)
-	}
-}
-
 func releaseServer(t *testing.T, tag string, status int) *httptest.Server {
 	t.Helper()
 

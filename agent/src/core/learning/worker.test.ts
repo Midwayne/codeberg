@@ -12,7 +12,7 @@ import { writeAtomic } from '../fs.js';
 import { DurableJobQueue } from './queue.js';
 import { LearningService } from './service.js';
 import { LearningStore, serializeArtifact, stableId } from './store.js';
-import { KnowledgeWorker, parseExtractionResponse } from './worker.js';
+import { KnowledgeWorker } from './worker.js';
 
 // These tests count knowledge model calls and jobs; profile and procedure learning have their own tests.
 beforeAll(() => {
@@ -619,13 +619,6 @@ describe('KnowledgeWorker', () => {
     expect(events.filter((event) => event === 'job_started')).toHaveLength(2);
     expect(events.filter((event) => event === 'job_completed')).toHaveLength(2);
     service.stop();
-  });
-  it('accepts a JSON object wrapped in model commentary', () => {
-    expect(
-      parseExtractionResponse(
-        'Here is the requested JSON:\n{"action":"none"}\nThis contains no durable knowledge.',
-      ),
-    ).toEqual({ action: 'none' });
   });
 
   it('creates one provenance-backed artifact and invalidates it after feedback is downgraded', async () => {

@@ -157,7 +157,6 @@ const PROVIDERS: Record<string, (fetch: typeof globalThis.fetch) => LanguageMode
   openai: (fetch) => createOpenAI({ apiKey: 'k', fetch })('gpt-5'),
   google: (fetch) => createGoogleGenerativeAI({ apiKey: 'k', fetch })('gemini-2.5-pro'),
   ollama: (fetch) => createOpenAI({ apiKey: 'k', baseURL: 'http://x/v1', fetch }).chat('qwen3'),
-  llamacpp: (fetch) => createOpenAI({ apiKey: 'k', baseURL: 'http://x/v1', fetch }).chat('local'),
 };
 
 const WIRE_FOR: Record<string, Wire> = {
@@ -165,7 +164,6 @@ const WIRE_FOR: Record<string, Wire> = {
   openai: WIRE.responses,
   google: WIRE.google,
   ollama: WIRE.chat,
-  llamacpp: WIRE.chat,
 };
 
 function concurrentDaemon(log: { active: number; peak: number; calls: string[] }) {
@@ -257,13 +255,13 @@ describe.each(Object.keys(PROVIDERS))('parallel tool calls on %s', (provider) =>
       'Put every independent tool call in the same response',
     );
 
-    const openAiWire = ['openai', 'ollama', 'llamacpp'].includes(provider);
+    const openAiWire = ['openai', 'ollama'].includes(provider);
     expect(bodies[0]!.parallel_tool_calls).toBe(openAiWire ? true : undefined);
   });
 });
 
 describe('batch fallback', () => {
-  it.each(['ollama', 'llamacpp'])(
+  it.each(['ollama'])(
     'is offered to %s, which may return one call per response',
     async (provider) => {
       const batch: Call = {

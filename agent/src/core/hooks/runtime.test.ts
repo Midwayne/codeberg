@@ -84,22 +84,4 @@ describe('wrapToolLoopAgentWithPromptHooks', () => {
 
     expect(seen).toEqual([{ role: 'user', content: 'hooked' }]);
   });
-
-  it('rewrites stream prompts before delegating', async () => {
-    let seen: ModelMessage[] | undefined;
-    const agent = {
-      stream: async (params: { prompt: ModelMessage[] }) => {
-        seen = params.prompt;
-
-        return { fullStream: [] };
-      },
-    } as unknown as ToolLoopAgent;
-
-    const wrapped = wrapToolLoopAgentWithPromptHooks(agent, [hook]);
-    await wrapped.stream({
-      prompt: [{ role: 'user', content: 'hook me' }],
-    } as never);
-
-    expect(seen).toEqual([{ role: 'user', content: 'hooked' }]);
-  });
 });

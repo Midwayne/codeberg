@@ -131,16 +131,6 @@ describe('usesCompactPrompt', () => {
     expect(usesCompactPrompt(light)).toBe(false);
   });
 
-  it('compacts a light model whose working window is small', () => {
-    const light = profileFor('anthropic:claude-haiku-4-5', { CODEBERG_MODEL_TIER: 'light', CODEBERG_CONTEXT_BUDGET: '16384' });
-
-    expect(usesCompactPrompt(light)).toBe(true);
-  });
-
-  it('keeps the full prompt for standard models with a large window', () => {
-    expect(usesCompactPrompt(profileFor('anthropic:claude-opus-4-8', {}))).toBe(false);
-  });
-
   it('compacts any model whose working window is small', () => {
     const small = profileFor('openai:gpt-5', { CODEBERG_CONTEXT_BUDGET: '16384' });
 

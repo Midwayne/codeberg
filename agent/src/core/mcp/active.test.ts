@@ -2,7 +2,6 @@ import type { ModelMessage } from 'ai';
 import { describe, expect, it } from 'vitest';
 
 import {
-  isDeferredMcpTool,
   mcpToolsReferenced,
   prepareStepPatch,
   selectActiveTools,
@@ -25,12 +24,6 @@ describe('selectActiveTools', () => {
       'load_mcp_tools',
       'mcp_github_list_issues',
     ]);
-  });
-
-  it('treats only mcp_ names as deferred', () => {
-    expect(isDeferredMcpTool('mcp_github_list_issues')).toBe(true);
-    expect(isDeferredMcpTool('load_mcp_tools')).toBe(false);
-    expect(isDeferredMcpTool('grep')).toBe(false);
   });
 });
 

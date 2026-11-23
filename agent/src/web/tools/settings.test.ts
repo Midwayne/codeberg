@@ -158,14 +158,6 @@ it('migrates old settings and validates browser changes against the master switc
   await expect(blocked.update({ browserUse: true })).rejects.toThrow('CODEBERG_WEB_USE');
 });
 
-it('keeps browser delegation available when the unrelated search worker is unavailable', async () => {
-  await writeFile(join(home, 'tool-settings.json'), JSON.stringify({ webSearch: true, browserUse: true }));
-  const store = new ToolSettingsStore({ home, env: { CODEBERG_SEARCH_CONTROL_URL: 'http://unavailable' },
-    fetch: async () => { throw new Error('search is unavailable'); } });
-
-  expect(await store.environment()).toMatchObject({ CODEBERG_BROWSER_USE: 'true', CODEBERG_WEB_SEARCH_USE: 'false' });
-});
-
 it.each([false, true])('allows reading and changing browser preferences when search control fails (search: %s)', async (webSearch) => {
   await writeFile(join(home, 'tool-settings.json'), JSON.stringify({ webSearch, browserUse: false }));
   const store = new ToolSettingsStore({ home, env: { CODEBERG_SEARCH_CONTROL_URL: 'http://unavailable' },

@@ -16,6 +16,7 @@ import (
 func TestHybridSearchWhileIndexStarts(t *testing.T) {
 	for _, unavailable := range []error{
 		&indexctl.IndexerError{Code: "NOT_READY", Message: "index building"},
+		&indexctl.IndexerError{Code: "NOT_IMPLEMENTED", Message: "not implemented"},
 		syscall.ENOENT,
 		syscall.ECONNREFUSED,
 	} {

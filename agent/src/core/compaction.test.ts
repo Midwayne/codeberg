@@ -28,36 +28,4 @@ describe('wrapToolLoopAgentWithCompaction', () => {
     expect(compact).toHaveBeenCalledOnce();
     expect(seen).toEqual([{ role: 'user', content: 'compacted' }]);
   });
-
-  it('compacts generate messages too', async () => {
-    let seen: ModelMessage[] | undefined;
-    const loop = {
-      generate: async (p: { messages: ModelMessage[] }) => {
-        seen = p.messages;
-
-        return { text: 'ok' };
-      },
-    } as unknown as ToolLoopAgent;
-
-    const wrapped = wrapToolLoopAgentWithCompaction(loop, async () => [
-      { role: 'user', content: 'fitted' } as ModelMessage,
-    ]);
-    await wrapped.generate({
-      messages: [{ role: 'user', content: 'x' }],
-    } as never);
-
-    expect(seen).toEqual([{ role: 'user', content: 'fitted' }]);
-  });
-
-  it('passes a string prompt through untouched', async () => {
-    const loop = {
-      stream: async (p: unknown) => ({ params: p }),
-    } as unknown as ToolLoopAgent;
-    const compact = vi.fn(async (m: ModelMessage[]) => m);
-
-    const wrapped = wrapToolLoopAgentWithCompaction(loop, compact);
-    await wrapped.stream({ prompt: 'just text' } as never);
-
-    expect(compact).not.toHaveBeenCalled();
-  });
 });

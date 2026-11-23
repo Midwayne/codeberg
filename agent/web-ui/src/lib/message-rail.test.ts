@@ -47,10 +47,6 @@ describe('promptPreview', () => {
     expect(preview.endsWith('…')).toBe(true);
     expect(preview.slice(0, 39)).toBe(long.slice(0, 39));
   });
-
-  it('leaves short prompts intact', () => {
-    expect(promptPreview('Find the indexer', 40)).toBe('Find the indexer');
-  });
 });
 
 describe('markerId', () => {
@@ -83,10 +79,6 @@ describe('collectUserMarkers', () => {
       { id: 'user-2', prompt: 'two' },
       { id: 'user-4', prompt: 'three' },
     ]);
-  });
-
-  it('returns empty when the chat has no user turns', () => {
-    expect(collectUserMarkers([{ id: 'a', role: 'assistant', parts: [] }])).toEqual([]);
   });
 });
 

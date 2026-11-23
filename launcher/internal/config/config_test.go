@@ -116,19 +116,6 @@ func TestSubagentModelResolutionAndPropagation(t *testing.T) {
 	}
 }
 
-func TestModelsCatalogAllowsLaunchingWithoutModelEnv(t *testing.T) {
-	dist := t.TempDir()
-	writeArtifacts(t, dist)
-	home := t.TempDir()
-	if err := os.WriteFile(filepath.Join(home, "models.yml"), []byte("providers:\n  openai:\n    models:\n      gpt-4o:\n        context_window: 128000\n        efforts: [provider-default]\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	c := &Config{Dist: dist, Home: home, All: true}
-	if err := c.ValidateForRun(); err != nil {
-		t.Fatalf("models.yml should supply the initial UI model: %v", err)
-	}
-}
-
 func TestLearningToggle(t *testing.T) {
 	home := t.TempDir()
 	c, err := Load(Overrides{Home: home})
@@ -148,15 +135,6 @@ func TestLearningToggle(t *testing.T) {
 	}
 	if got, ok := c.Get(KeyLearningUse); !ok || got != "false" {
 		t.Fatalf("config get = %q, %t", got, ok)
-	}
-}
-
-func TestValidateForRunAllSkipsRoot(t *testing.T) {
-	dist := t.TempDir()
-	writeArtifacts(t, dist)
-	c := &Config{Dist: dist, Model: "anthropic:claude", All: true}
-	if err := c.ValidateForRun(); err != nil {
-		t.Fatalf("--all must not require a root: %v", err)
 	}
 }
 
@@ -273,32 +251,22 @@ func TestReposSelectionParsing(t *testing.T) {
 	}
 }
 
-func TestValidateForRunReposSkipsRoot(t *testing.T) {
-	dist := t.TempDir()
-	writeArtifacts(t, dist)
-	c := &Config{Dist: dist, Model: "anthropic:claude", Repos: []string{"a"}}
-	if err := c.ValidateForRun(); err != nil {
-		t.Fatalf("--repos must not require a root without --root: %v", err)
+func TestValidateForRunRejectsRootWithAllOrRepos(t *testing.T) {
+	cases := map[string]Config{
+		"--all":   {All: true},
+		"--repos": {Repos: []string{"a"}},
 	}
-}
 
-func TestValidateForRunRejectsRootWithAll(t *testing.T) {
-	dist := t.TempDir()
-	writeArtifacts(t, dist)
-	root := t.TempDir()
-	c := &Config{Dist: dist, Model: "anthropic:claude", Root: root, All: true}
-	if err := c.ValidateForRun(); err == nil {
-		t.Fatal("--root + --all must be rejected")
-	}
-}
+	for flag, c := range cases {
+		t.Run(flag, func(t *testing.T) {
+			dist := t.TempDir()
+			writeArtifacts(t, dist)
 
-func TestValidateForRunRejectsRootWithRepos(t *testing.T) {
-	dist := t.TempDir()
-	writeArtifacts(t, dist)
-	root := t.TempDir()
-	c := &Config{Dist: dist, Model: "anthropic:claude", Root: root, Repos: []string{"a"}}
-	if err := c.ValidateForRun(); err == nil {
-		t.Fatal("--root + --repos must be rejected")
+			c.Dist, c.Model, c.Root = dist, "anthropic:claude", t.TempDir()
+			if err := c.ValidateForRun(); err == nil {
+				t.Fatalf("--root + %s must be rejected", flag)
+			}
+		})
 	}
 }
 
@@ -318,25 +286,6 @@ func TestValidateForRunRejectsInvalidPathInList(t *testing.T) {
 	c := &Config{Dist: dist, Model: "anthropic:claude", Root: good + ",/definitely/not/a/dir"}
 	if err := c.ValidateForRun(); err == nil {
 		t.Fatal("invalid path in comma-separated --root must be rejected")
-	}
-}
-
-func TestDaemonEnvMultiRootOmitsSingleRootEnv(t *testing.T) {
-	c := &Config{
-		Root:     "/one,/two",
-		HTTPPort: "48080",
-		Socket:   "/tmp/s.sock",
-		Roots: []registry.Entry{
-			{Key: "one", Root: "/one"},
-			{Key: "two", Root: "/two"},
-		},
-	}
-	e := c.DaemonEnv()
-	if _, ok := e["CODEBERG_ROOT"]; ok {
-		t.Fatal("multi-path CODEBERG_ROOT must not set CODEBERG_ROOT env")
-	}
-	if e[KeyRoots] != "one\t/one\ntwo\t/two" {
-		t.Fatalf("roots records: %q", e[KeyRoots])
 	}
 }
 

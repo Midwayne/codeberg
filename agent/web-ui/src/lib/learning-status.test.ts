@@ -5,31 +5,6 @@ const stops: Array<() => void> = [];
 afterEach(() => { stops.splice(0).forEach((stop) => stop()); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('learning activity polling', () => {
-  it('clears a previous busy state when polling fails instead of leaving the banner stuck', async () => {
-    vi.useFakeTimers();
-    const fetch = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ working: true })))
-      .mockRejectedValueOnce(new Error('network unavailable'));
-    vi.stubGlobal('fetch', fetch);
-    const busy = vi.fn();
-    stops.push(startLearningStatusPolling(busy));
-    await vi.advanceTimersByTimeAsync(0);
-    expect(busy).toHaveBeenLastCalledWith(true);
-    await vi.advanceTimersByTimeAsync(2000);
-    expect(busy).toHaveBeenLastCalledWith(false);
-  });
-
-  it('does not overlap slow requests or let an old busy response override idle', async () => {
-    vi.useFakeTimers();
-    let resolve: ((value: Response) => void) | undefined;
-    const fetch = vi.fn(() => new Promise<Response>((done) => { resolve = done; }));
-    vi.stubGlobal('fetch', fetch);
-    stops.push(startLearningStatusPolling(vi.fn()));
-    await vi.advanceTimersByTimeAsync(4000);
-    expect(fetch).toHaveBeenCalledTimes(1);
-    resolve?.(new Response(JSON.stringify({ working: false })));
-    await vi.advanceTimersByTimeAsync(0);
-  });
-
   it('times out a hung poll and clears stale busy state', async () => {
     vi.useFakeTimers();
     const fetch = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ working: true })))

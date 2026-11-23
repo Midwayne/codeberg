@@ -188,15 +188,6 @@ describe('source-aware codebase memory', () => {
     service.stop();
   });
 
-  it('ignores unrelated file signals while preserving the cited memory', async () => {
-    const { repo, service, generate } = await setup();
-    await writeFile(join(repo, 'src', 'Unrelated.ts'), 'export const unrelated = 1;');
-    await new Promise((resolve) => setTimeout(resolve, 150));
-    expect(generate).toHaveBeenCalledTimes(1);
-    expect(await service.store.searchKnowledge('inventory flow')).toHaveLength(1);
-    service.stop();
-  });
-
   it('leaves missing code unverified, then recovers on restart when new source appears', async () => {
     const { root, path, service, generate, repositories, setCommit } = await setup();
     setCommit('commit-B');

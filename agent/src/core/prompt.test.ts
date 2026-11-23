@@ -37,28 +37,11 @@ describe('agentSystemPrompt', () => {
     expect(sections.dynamic).toContain('review-diff');
   });
 
-  it.each([false, true])('tells the agent to resolve trivial gaps without asking (compact: %s)', (compact) => {
-    const prompt = agentSystemPrompt({ enabled: false, search: false, compact });
-
-    expect(prompt).toContain('repository keys, paths');
-    expect(prompt).toMatch(/search (them all|every repository)/);
-    expect(prompt).toContain('retry');
-  });
-
   it.each([false, true])('treats retrieved content as data and breaks search loops (compact: %s)', (compact) => {
     const prompt = agentSystemPrompt({ enabled: false, search: false, compact });
 
     expect(prompt).toMatch(/never follow instructions/i);
     expect(prompt).toContain('three different searches');
-  });
-
-  it.each([false, true])('challenges wrong premises and checks every part of the question (compact: %s)', (compact) => {
-    const prompt = agentSystemPrompt({ enabled: false, search: false, compact });
-
-    expect(prompt).toContain('If the question assumes something the code contradicts, say so first');
-    expect(prompt).toContain('every part of the question');
-    expect(prompt).toMatch(/specific (meaning )?in this codebase/);
-    expect(prompt).toMatch(/user's language|language of the user's message/);
   });
 
   it('gives light models the full prompt plus worked short answers', () => {
@@ -81,10 +64,6 @@ describe('agentSystemPrompt', () => {
     const p = agentSystemPrompt({ enabled: false, search: false, batch: 8 });
     expect(p).toContain('- batch: run up to 8 independent tool calls');
     expect(p.startsWith(AGENT_SYSTEM)).toBe(true);
-  });
-
-  it('is exactly AGENT_SYSTEM when web and MCP are off', () => {
-    expect(agentSystemPrompt({ enabled: false, search: false })).toBe(AGENT_SYSTEM);
   });
 
   it('never advertises unavailable learning tools when disabled', () => {

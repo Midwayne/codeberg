@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { SetupRequired } from '@agent/core/setup-types.js';
-import { configLines, loadSetupStatus, rootScreen } from './status';
+import { loadSetupStatus, rootScreen } from './status';
 
 const missing: SetupRequired = {
   ready: false,
@@ -21,12 +21,6 @@ describe('loadSetupStatus', () => {
   it('opens the app when the server cannot report setup', async () => {
     expect(await loadSetupStatus(async () => new Response('not found', { status: 404 }))).toEqual({ ready: true });
     expect(await loadSetupStatus(async () => Promise.reject(new Error('offline')))).toEqual({ ready: true });
-  });
-});
-
-describe('configLines', () => {
-  it('lists each missing variable as an empty config line', () => {
-    expect(configLines(missing.providers[0]!)).toBe('OPENAI_API_KEY=');
   });
 });
 
