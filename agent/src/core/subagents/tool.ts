@@ -13,9 +13,6 @@ import { workerTools } from './tools.js';
 import { restoreSession, unknownSubagent } from './transcript.js';
 import { streamingTool } from '../tools/streaming.js';
 
-/** Subagents one call may start, and how many may run at once in one chat. */
-export const MAX_SUBAGENTS = 8;
-
 interface Brief {
   description: string;
   prompt: string;
@@ -23,7 +20,7 @@ interface Brief {
 }
 
 const RUN_DESCRIPTION = [
-  `Run up to ${MAX_SUBAGENTS} independent tasks in parallel, each on a fresh subagent using the subagent model.`,
+  'Run independent tasks in parallel, each on a fresh subagent using the subagent model. You decide how many to start; all of them run at once.',
   'Subagents do not see this conversation, so each prompt must be a complete brief: a clear goal, known context, specific numbered steps when the method is known, and what to return.',
   'Both types can call any MCP tool. agent_type "explorer" (default) only investigates; "worker" may also change things: scripts, background jobs, schedules, the canvas, the browser, and MCP calls with side effects.',
   'Returns one report per task, in order, with an agent_id for message_subagent.',
@@ -36,7 +33,6 @@ const RUN_INPUT = jsonSchema<{ tasks: Brief[] }>({
     tasks: {
       type: 'array',
       minItems: 1,
-      maxItems: MAX_SUBAGENTS,
       items: {
         type: 'object',
         properties: {
@@ -66,7 +62,7 @@ const MESSAGE_INPUT = jsonSchema<{ agent_id: string; message: string }>({
 /** `run_subagents` and `message_subagent`; subagents get `tools` minus agent controls. */
 export function subagentTools(worker: SubagentWorker, tools: ToolSet, context: ContextStore): ToolSet {
   const shared = { worker, tools: workerTools(tools), context, loops: new Map() };
-  const scopes = new SubagentScopes(MAX_SUBAGENTS);
+  const scopes = new SubagentScopes();
   const inChat = (): { runtime: SubagentRuntime; store: SubagentStore } => {
     const { store, gate } = scopes.current();
 

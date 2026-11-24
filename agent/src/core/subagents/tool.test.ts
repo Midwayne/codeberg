@@ -98,6 +98,31 @@ describe('run_subagents', () => {
     expect(readFileSync(results[0]!.transcript!, 'utf8')).toContain('checkout: 3 errors in 5m');
   });
 
+  it('starts as many subagents as the agent asks for and runs them all at once', async () => {
+    const count = 12;
+    let started = 0;
+    let releaseAll!: () => void;
+    const allStarted = new Promise<void>((resolve) => (releaseAll = resolve));
+
+    const { run, set } = setup(async () => {
+      if (++started === count) releaseAll();
+
+      // Each subagent waits until every one has started, so a concurrency cap would hang here.
+      await allStarted;
+
+      return answer('done');
+    });
+
+    const tasks = Array.from({ length: count }, (_, index) => ({ description: `Task ${index}`, prompt: `Check ${index}` }));
+    const schema = (set[SUBAGENT_TOOL]!.inputSchema as unknown as { jsonSchema: { properties: { tasks: { maxItems?: number } } } }).jsonSchema;
+
+    const results = await run(tasks);
+
+    expect(schema.properties.tasks.maxItems).toBeUndefined();
+    expect(results).toHaveLength(count);
+    expect(results.every(({ status }) => status === 'completed')).toBe(true);
+  });
+
   it('reports a failed subagent without failing the others', async () => {
     const { run } = setup(async ({ prompt }) => {
       if (serviceOf(prompt) === 'billing') throw new Error('rate limited');
