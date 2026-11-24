@@ -4,8 +4,14 @@ import type { ModelMessage } from 'ai';
 import { evictOldest, touch } from '../lru.js';
 import type { SubagentType } from './roles.js';
 
-/** Subagents kept in memory for follow-ups; the least recently used are dropped first. */
-const MAX_SUBAGENT_SESSIONS = 16;
+/** Subagents one call may start, and how many may run at once in one chat. */
+export const MAX_SUBAGENTS = 64;
+
+/**
+ * Subagents kept in memory for follow-ups; the least recently used are dropped
+ * first. It matches the per-call limit, so a full call never evicts its own sessions.
+ */
+const MAX_SUBAGENT_SESSIONS = MAX_SUBAGENTS;
 
 /** One subagent's identity and conversation, kept so it can be messaged again. */
 export interface SubagentSession {

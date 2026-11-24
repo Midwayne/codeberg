@@ -13,7 +13,7 @@ are in the git history.
 ### Changed
 
 - Subagent briefs now state a clear goal and, when the method is known, specific numbered steps.
-- The agent now decides how many subagents to start; the limit of 8 per request and 8 running at once is gone.
+- The agent now decides how many subagents to start, up to 64 per request and 64 running at once in a chat (was 8).
 
 ## [1.1.0] - 2026-11-22
 

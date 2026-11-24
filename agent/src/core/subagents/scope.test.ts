@@ -4,7 +4,7 @@ import { chatScope } from '../chat-scope.js';
 import { SubagentScopes } from './scope.js';
 
 it('never drops a chat whose subagents are still running', async () => {
-  const scopes = new SubagentScopes(1);
+  const scopes = new SubagentScopes(2, 1);
   let finish!: () => void;
   const busy = chatScope.run('busy', () => scopes.current());
   const running = busy.gate.run(() => new Promise<void>((resolve) => (finish = resolve)));

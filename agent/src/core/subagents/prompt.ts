@@ -1,4 +1,5 @@
 import type { SubagentType } from './roles.js';
+import { MAX_SUBAGENTS } from './store.js';
 
 const ROLE: Record<SubagentType, string> = {
   explorer: 'You are a Codeberg explorer subagent. Investigate and report; never use a tool to change anything, MCP tools included.',
@@ -34,10 +35,11 @@ export const SUBAGENT_INSTRUCTIONS = `
 Subagents: run_subagents runs independent tasks in parallel, each on a fresh, smaller agent using the subagent model chosen in Models.
 Delegate by default; the user should not have to ask. Before your first tool call, split the request into parts.
 When two or more parts are independent and each needs several tool calls, start them with one run_subagents call
-in that first step instead of working through them one by one. There is no fixed limit: start one subagent per
-independent part, as many as the work needs, since all of them run at once and each makes its own model requests. Typical cases: the same check across several
+in that first step instead of working through them one by one. Typical cases: the same check across several
 services, environments, repositories, or time ranges; health, metrics, and logs for one service; separate areas of
-the code; a broad sweep, audit, or comparison. Do single lookups, quick answers, and steps that depend on an earlier
+the code; a broad sweep, audit, or comparison.
+You choose how many subagents to start, up to ${MAX_SUBAGENTS} per call: one per independent part, as many as the work needs.
+Each makes its own model requests, so do not split work finer than it needs to be. Do single lookups, quick answers, and steps that depend on an earlier
 result yourself; never also redo work you delegated. If you notice you are repeating the same investigation for
 another target, delegate the remaining targets.
 Pick agent_type "explorer" (default; it only investigates) unless the task must change something: run scripts, start

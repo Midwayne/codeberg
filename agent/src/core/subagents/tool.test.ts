@@ -12,6 +12,7 @@ import { chatScope } from '../chat-scope.js';
 import { ContextStore } from '../context/store.js';
 import { MESSAGE_TOOL, SUBAGENT_TOOL } from './names.js';
 import type { SubagentReport } from './run.js';
+import { MAX_SUBAGENTS } from './store.js';
 import { subagentTools } from './tool.js';
 
 type Generate = NonNullable<ConstructorParameters<typeof MockLanguageModelV4>[0]>['doGenerate'];
@@ -98,8 +99,8 @@ describe('run_subagents', () => {
     expect(readFileSync(results[0]!.transcript!, 'utf8')).toContain('checkout: 3 errors in 5m');
   });
 
-  it('starts as many subagents as the agent asks for and runs them all at once', async () => {
-    const count = 12;
+  it('starts as many subagents as the limit allows and runs them all at once', async () => {
+    const count = MAX_SUBAGENTS;
     let started = 0;
     let releaseAll!: () => void;
     const allStarted = new Promise<void>((resolve) => (releaseAll = resolve));
@@ -118,7 +119,7 @@ describe('run_subagents', () => {
 
     const results = await run(tasks);
 
-    expect(schema.properties.tasks.maxItems).toBeUndefined();
+    expect(schema.properties.tasks.maxItems).toBe(MAX_SUBAGENTS);
     expect(results).toHaveLength(count);
     expect(results.every(({ status }) => status === 'completed')).toBe(true);
   });

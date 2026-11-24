@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { Semaphore } from '../semaphore.js';
-import { SubagentStore } from './store.js';
+import { MAX_SUBAGENTS, SubagentStore } from './store.js';
 
 describe('Semaphore', () => {
   it('never runs more than its limit at once', async () => {
@@ -33,5 +33,12 @@ describe('SubagentStore', () => {
     expect(store.get(b.id)).toBeUndefined();
     expect(store.get(a.id)?.description).toBe('a');
     expect(store.get(c.id)?.type).toBe('explorer');
+  });
+
+  it('keeps every session from a call that starts the most subagents allowed', () => {
+    const store = new SubagentStore();
+    const sessions = Array.from({ length: MAX_SUBAGENTS }, (_, index) => store.create('explorer', `task ${index}`));
+
+    expect(sessions.every(({ id }) => store.get(id))).toBe(true);
   });
 });
