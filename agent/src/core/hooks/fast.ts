@@ -11,17 +11,14 @@ const FAST_HEADER = "You are running Codeberg's /fast prompt hook.";
 const GOAL = [
   FAST_HEADER,
   '',
-  'Goal: answer the question below as quickly as possible. Speed matters more than completeness.',
-  'Subagents, decisions, background jobs, schedules, and sleeping are not available for this message.',
+  'Answer the question below yourself, in this conversation. Subagents, decisions, background jobs,',
+  'schedules, and sleeping are not available for this message, so do the investigation directly.',
 ].join('\n');
 
 const RULES = [
   'How to work:',
-  '- Use the fewest tool calls that can answer: usually one search, then read only what you must.',
+  '- Investigate as thoroughly as the question needs, and answer as fully as usual.',
   '- Run independent lookups in parallel in one step instead of one after another.',
-  '- Stop investigating as soon as the evidence answers the question.',
-  '- Reply briefly: lead with the answer and cite the key file and lines.',
-  '- If a full answer needs a deeper investigation, give the best short answer and say what is left unchecked.',
 ].join('\n');
 
 /**
@@ -42,17 +39,18 @@ export const FAST_HIDDEN_TOOLS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * `/fast <question>` asks for a quick, short answer. The rewrite asks for few
- * tool calls, and the tool loop hides the slow tools for that message only.
+ * `/fast <question>` runs the turn as a single agent, the way chats worked
+ * before subagents: the tool loop hides delegation and other slow tools for
+ * that message only. The investigation and the answer stay as complete as usual.
  */
 export const fastPromptHook: PromptHook = {
   name: 'fast',
   command: {
     trigger: '/fast',
     title: 'Fast answer',
-    summary: 'Answer quickly, without subagents',
+    summary: 'Answer directly, without subagents',
     description:
-      'Answers with as few tool calls as possible and replies briefly. Subagents, decisions, ' +
+      'The agent investigates and answers itself, as fully as usual. Subagents, decisions, ' +
       'background jobs, and schedules are turned off for this message.',
     argHint: '<question>',
   },

@@ -8,7 +8,7 @@ import { applyPromptHooksToMessages, applyPromptHooksToText } from './runtime.js
 const tools = ['search_code', 'grep', 'read_file', 'run_subagents', 'message_subagent', 'decide', 'start_background_tool', 'schedule_run', 'sleep_agent', 'mcp_db_query'];
 
 describe('/fast prompt hook', () => {
-  it('rewrites /fast into a quick-answer request with the question', () => {
+  it('rewrites /fast into a direct-answer request with the question', () => {
     const out = applyPromptHooksToText('/fast where is chunking?');
 
     expect(out).toContain('where is chunking?');

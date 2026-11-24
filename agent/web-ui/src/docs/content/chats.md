@@ -109,7 +109,7 @@ Start a message with a command to change how the agent handles that one message.
 | --- | --- |
 | `/enhance <request>` | A copy-pasteable brief for a coding agent, with the impacted files and checks. The agent does not make the change. |
 | `/dumb <question>` | A plain-language answer for someone who does not read code, such as a project manager: short answer, what it means, key facts, how sure it is, and next steps. |
-| `/fast <question>` | A quick, short answer from as few tool calls as possible. Subagents, decisions, background jobs, and schedules are off for that message. |
+| `/fast <question>` | A complete answer from the agent working on its own. Subagents, decisions, background jobs, and schedules are off for that message, which avoids their extra model calls and waits. |
 
 ```text
 /dumb why did sign-ups drop last week?
@@ -117,7 +117,7 @@ Start a message with a command to change how the agent handles that one message.
 
 With `/dumb`, the agent still searches the code and, when a [database MCP](/docs/mcps#database-mcp) is connected, can query it for real numbers under the usual database rules. Only the reply is simplified, so it leaves out code, file paths, and jargon. A command applies to its own message only; start each follow-up with it again to keep plain answers.
 
-Use `/fast` for lookups such as "where is X defined?". It trades depth for speed, so for broad or multi-part investigations send the message without it. The model's reasoning setting is unchanged; pick a faster model in **Models** for quicker turns overall.
+With `/fast`, the agent still searches, reads, and uses MCP tools as needed, and answers as fully as usual. It only skips delegating to subagents and waiting on background work. The model and its reasoning setting are unchanged; pick a faster model in **Models** for quicker turns overall.
 
 ## Read answers
 
