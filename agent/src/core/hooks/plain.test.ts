@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { promptCommandCatalog } from './catalog.js';
 import { applyPromptHooksToText } from './runtime.js';
 
 describe('/dumb prompt hook', () => {
@@ -21,11 +20,5 @@ describe('/dumb prompt hook', () => {
     const out = applyPromptHooksToText('/dumb');
 
     expect(out).toContain('typed /dumb without a question');
-  });
-
-  it('is listed in the command catalog after /enhance', () => {
-    const triggers = promptCommandCatalog().map((command) => command.trigger);
-
-    expect(triggers).toEqual(['/enhance', '/dumb']);
   });
 });

@@ -9,6 +9,7 @@ are in the git history.
 ### Added
 
 - Start a message with `/dumb` to get a plain-language answer for a non-technical reader such as a project manager.
+- Start a message with `/fast` for a quick, short answer without subagents or background work.
 
 ### Changed
 

@@ -2,7 +2,7 @@ import { recordToolExecutions } from '../runs/tools.js';
 import { isLoopFinished, isStepCount, ToolLoopAgent, type ToolSet } from 'ai';
 import { cachedInstructions, deterministicTools, withConversationCache } from '../cache.js';
 import { wrapToolOutputs } from '../context/wrap.js';
-import { wrapToolLoopAgentWithPromptHooks } from '../hooks/index.js';
+import { fastActiveTools, wrapToolLoopAgentWithPromptHooks } from '../hooks/index.js';
 import { prepareStepPatch } from '../mcp/active.js';
 import { batchTool } from '../tools/batch.js';
 import { scriptConfig } from '../script/config.js';
@@ -78,7 +78,9 @@ async function createLoop(state: AgentState): Promise<ToolLoopAgent> {
       const reminded = withSleepNote(withTierReminder(messages, state.profile));
       const final = finalStep(stepNumber, maxSteps, reminded);
       const next = withConversationCache(final?.messages ?? reminded, state.profile);
-      const patch = prepareStepPatch(messages, next, state.mcpSource?.activeTools(toolNames, next));
+      // A /fast message drops subagent, background, and scheduling tools for its turn.
+      const selected = state.mcpSource?.activeTools(toolNames, next);
+      const patch = prepareStepPatch(messages, next, fastActiveTools(next, toolNames, selected) ?? selected);
 
       return final ? { ...patch, toolChoice: final.toolChoice } : patch;
     },
