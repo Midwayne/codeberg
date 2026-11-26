@@ -2,7 +2,7 @@ import { useProjectApi } from './project-api';
 
 import { useEffect, useState } from 'react';
 
-import { loadModelSettings, type CatalogModel } from './models';
+import { loadModelSettings, type ChatModels } from './models';
 import { loadLearningSettings } from './learning-settings';
 import { startLearningStatusPolling } from './learning-status';
 
@@ -10,7 +10,7 @@ type WorkspaceMetaOptions = { loading: boolean };
 
 export function useWorkspaceMeta({ loading }: WorkspaceMetaOptions) {
   const { fetch: api } = useProjectApi();
-  const { title, chatInputs, learningEnabled, learningActive, trainingEnabled, refreshMeta } = useWorkspaceMetaState(api);
+  const { title, chatModels, learningEnabled, learningActive, trainingEnabled, refreshMeta } = useWorkspaceMetaState(api);
   const [learningBusy, setLearningBusy] = useState(false);
 
   useEffect(() => {
@@ -26,16 +26,16 @@ export function useWorkspaceMeta({ loading }: WorkspaceMetaOptions) {
     return startLearningStatusPolling(setLearningBusy, api);
   }, [learningActive, api]);
 
-  return { title, chatInputs, learningEnabled, trainingEnabled, learningBusy, refreshMeta };
+  return { title, chatModels, learningEnabled, trainingEnabled, learningBusy, refreshMeta };
 }
 
 type Meta = { title?: string; capabilities?: { learning?: boolean } };
 
-/** What the workspace shows about the server: its title, learning switches, and the chat model's inputs. */
+/** What the workspace shows about the server: its title, learning switches, and the chat models. */
 function useWorkspaceMetaState(api: typeof fetch) {
   // The server exposes the model and reasoning effort at /api/meta.
   const [title, setTitle] = useState('');
-  const [chatInputs, setChatInputs] = useState<CatalogModel['inputs']>(['text']);
+  const [chatModels, setChatModels] = useState<ChatModels>();
   const [learningEnabled, setLearningEnabled] = useState(false);
   const [learningActive, setLearningActive] = useState(false);
   const [trainingEnabled, setTrainingEnabled] = useState(false);
@@ -59,10 +59,10 @@ function useWorkspaceMetaState(api: typeof fetch) {
 
     loadModelSettings()
       .then((settings) => {
-        setChatInputs(settings.models.find((model) => model.key === settings.chat.key)?.inputs ?? ['text']);
+        setChatModels({ models: settings.models, chat: settings.chat });
       })
       .catch((err: unknown) => console.warn('failed to load /api/models', err));
   }
 
-  return { title, chatInputs, learningEnabled, learningActive, trainingEnabled, refreshMeta };
+  return { title, chatModels, learningEnabled, learningActive, trainingEnabled, refreshMeta };
 }

@@ -1,7 +1,6 @@
-import type { UIMessage } from 'ai';
 import { useCallback, useEffect } from 'react';
 import { newSessionId } from '../lib/sessions';
-import type { WorkspaceChat } from './workspace-chat';
+import type { CreateChat, WorkspaceChat } from './workspace-chat';
 import { createChatResume, type ChatLoad } from './chat-resume';
 import { restoreChatSelection } from './chat-activation';
 
@@ -13,7 +12,7 @@ export type ChatTransitionsOptions = {
   setLoad: React.Dispatch<React.SetStateAction<ChatLoad | undefined>>;
   api: typeof fetch;
   refresh: () => Promise<void>;
-  createChat: (id: string, messages: UIMessage[], parentId?: string, title?: string) => WorkspaceChat;
+  createChat: CreateChat;
   sessionId: string;
 };
 

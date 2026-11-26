@@ -1,6 +1,7 @@
 import type { UIMessage } from 'ai';
 import { codebergDataHome } from '../../core/paths.js';
 import type { MessageSearchHit } from '../../core/session-search.js';
+import type { ModelSelection } from '../../core/model-types.js';
 
 /** One persisted browser chat — UI messages verbatim, so a resume re-renders
  *  with full fidelity (tool cards, reasoning, citations). */
@@ -23,6 +24,8 @@ export interface WebSessionRecord {
   respondedAt?: number;
   /** When the user last viewed this chat. */
   readAt?: number;
+  /** This chat's own model; absent follows the default chat model from Models. */
+  model?: ModelSelection;
 }
 
 /** True when a finished reply arrived after the user last viewed the chat. */

@@ -17,6 +17,7 @@ export async function reloadWorkspaceChat(workspace: WorkspaceChat, record: Work
   reset();
   workspace.title = record.title;
   workspace.parentId = record.parentId;
+  workspace.model.set(record.model ?? null);
   workspace.chat.messages = record.messages;
 
   return true;

@@ -27,7 +27,7 @@ function view(workspace: WorkspaceChat) {
   let state!: ReturnType<typeof useChatView>;
   function Probe() {
     state = useChatView({ chat: workspace.chat as unknown as UseChatHelpers<UIMessage>, turns: workspace.turns,
-      sessionId: workspace.id, learningEnabled: false, chatInputs: ['text'] });
+      sessionId: workspace.id, learningEnabled: false });
     return null;
   }
   renderToStaticMarkup(<Probe />);

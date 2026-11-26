@@ -4,12 +4,14 @@ import { deriveTitle } from '../lib/sessions';
 import { ChatSaveState } from './chat-save-state';
 import { interruptedMessages } from './interrupted-messages';
 import type { WorkspaceChatSave } from './workspace-chat';
+import type { ModelSelection } from '../lib/models';
 
 type PersistenceOptions = {
   serverOwned?: boolean;
   id: string;
   title?: string;
   parentId?: string;
+  model?: ModelSelection | null;
   persist: (record: WorkspaceChatSave) => Promise<void>;
   onPersist?: () => void;
   disposed: () => boolean;
@@ -31,6 +33,7 @@ export function chatPersistence(options: PersistenceOptions) {
       title: options.title ?? deriveTitle(messages),
       messages,
       ...(options.parentId ? { parentId: options.parentId } : {}),
+      model: options.model ?? null,
     };
     saving = saving.catch(() => undefined).then(async () => {
       if (options.disposed()) return;

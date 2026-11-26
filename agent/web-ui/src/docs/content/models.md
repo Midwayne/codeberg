@@ -2,7 +2,7 @@ Codeberg uses five model roles:
 
 | Role | Purpose | Configure |
 | --- | --- | --- |
-| Chat | Answer questions and choose tools. | **Models** in the header. |
+| Chat | Answer questions and choose tools. | **Models** in the header; [override it for one chat](/docs/chats#choose-a-model-for-one-chat) in the composer. |
 | Learning | Background knowledge work and evaluations. | **Models**; defaults to the chat model. |
 | Summaries | Condense older chat history. | **Models**; defaults to the chat model. |
 | Subagents | Run [parallel checks](/docs/tools#split-work-across-subagents) for the chat agent. | **Models**; on by default and uses the summary model. |
@@ -101,6 +101,8 @@ These settings apply to the chat model only. For terminal questions or a model w
 ## Select models in the app
 
 Open **Models**, choose chat and learning models and efforts, then save. Changes apply to new turns and background jobs; running work keeps its selection. Choices persist across restarts and tabs.
+
+The chat model chosen here is the default. Chats left on **Default** in the composer follow it; a chat with its own model keeps that model. See [Choose a model for one chat](/docs/chats#choose-a-model-for-one-chat).
 
 **Subagents** has an on/off switch, a model, and an effort. The model starts as **Same as summary model**, and its effort follows that model until you pick one. Any model in your catalog can be chosen; add more in `models.yml`. Choose a small, fast model to keep [parallel checks](/docs/tools#split-work-across-subagents) cheap; the chat model still reviews every report.
 

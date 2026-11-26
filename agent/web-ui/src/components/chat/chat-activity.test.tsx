@@ -14,7 +14,7 @@ it.each(['submitted', 'streaming'] as const)('shows %s activity in the conversat
 
   const html = renderToStaticMarkup(
     <ProjectApiContext.Provider value={{ project: { id: 'demo', name: 'Demo', roots: [] }, fetch, ready: true }}>
-      <Chat chat={chat} sessionId="demo" learningEnabled={false} chatInputs={['text']} />
+      <Chat chat={chat} sessionId="demo" learningEnabled={false} />
     </ProjectApiContext.Provider>,
   );
   const [conversation = '', composer = ''] = html.split('<section aria-label="Message composer"');

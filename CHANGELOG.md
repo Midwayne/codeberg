@@ -8,6 +8,7 @@ are in the git history.
 
 ### Added
 
+- Choose a model and effort for one chat from the composer; other chats keep following the default from **Models**.
 - Choose the model that scores automatic evaluations under **Models → Evaluation judge**, or turn the judge off; results the chat model graded itself are marked self-graded.
 - The agent can check its context usage and limits, keep tool results it still needs, and drop ones it no longer does; it gets a short notice as the context fills.
 - The agent keeps a working list of findings and constraints in each chat that survives history summaries; it can search and correct the list.

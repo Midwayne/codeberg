@@ -225,3 +225,22 @@ describe('WebSessionStore', () => {
     expect(await store.load('missing')).toBeNull();
   });
 });
+
+describe('chat-specific model', () => {
+  it('survives message and server-run saves until it is cleared', async () => {
+    const store = tempStore();
+    const model = { key: 'openai:large', effort: 'high' } as const;
+
+    await store.upsert({ id: 's1', messages: [userMsg('u1', 'hi')], model });
+    await store.upsert({ id: 's1', messages: [userMsg('u1', 'hi')], serverRunId: 'run-1' });
+    expect((await store.load('s1'))?.model).toEqual(model);
+
+    await store.setModel('s1', null);
+    await store.upsert({ id: 's1', messages: [userMsg('u1', 'hi')], serverRunId: 'run-2' });
+    expect(await store.load('s1')).not.toHaveProperty('model');
+  });
+
+  it('cannot be set on a chat that was never saved', async () => {
+    expect(await tempStore().setModel('missing', { key: 'openai:large', effort: 'high' })).toBeNull();
+  });
+});

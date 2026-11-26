@@ -316,6 +316,42 @@ describe('web server', () => {
     expect((await (await fetch(`${baseUrl}/api/models`)).json()).chat.key).toBe('openai:large');
   });
 
+  it('runs a chat on its own model while it is listed and falls back to the default otherwise', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'codeberg-models-'));
+    tempDirs.push(dir);
+    writeFileSync(
+      join(dir, 'models.yml'),
+      'providers:\n  openai:\n    models:\n      small:\n        context_window: 50000\n        efforts: [low]\n      large:\n        context_window: 90000\n        efforts: [high]\n        inputs: [text, vision]\n',
+    );
+
+    const received: string[] = [];
+    await start({
+      modelSettings: new ModelSettingsStore({ home: dir, defaultChat: { key: 'openai:small', effort: 'low' }, defaultLearning: { key: 'openai:small', effort: 'low' } }),
+      respond: async (res, _messages, selected) => {
+        received.push(`${selected?.key}:${selected?.effort}:${selected?.contextWindow}`);
+        res.end('ok');
+      },
+    });
+
+    const send = (model?: unknown) => fetch(baseUrl + CHAT_PATH, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: [], ...(model === undefined ? {} : { model }) }),
+    });
+
+    await send({ key: 'openai:large', effort: 'high' });
+    await send();
+    await send({ key: 'openai:large', effort: 'low' });
+    await send({ key: 'openai:removed', effort: 'high' });
+
+    expect(received).toEqual([
+      'openai:large:high:90000',
+      'openai:small:low:50000',
+      'openai:small:low:50000',
+      'openai:small:low:50000',
+    ]);
+  });
+
   it('requests a canvas agent only for a message sent with the Diagram toggle on', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'codeberg-models-'));
     tempDirs.push(dir);
@@ -703,6 +739,21 @@ describe('web server', () => {
     const original = await sessions.load('branch');
     expect((await put('branch', 'missing')).status).toBe(404);
     expect(await sessions.load('branch')).toEqual(original);
+  });
+
+  it('saves, validates, and clears a chat-specific model through the session routes', async () => {
+    await start({ sessionStore: tempSessionStore() });
+    const url = `${baseUrl}${SESSIONS_PATH}/chat`;
+    const send = (method: string, body: unknown) =>
+      fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const model = { key: 'openai:large', effort: 'high' };
+
+    expect((await send('PUT', { title: 'Chat', messages: [], model })).status).toBe(200);
+    expect((await (await fetch(url)).json()).model).toEqual(model);
+
+    expect((await send('PATCH', { model: { key: 'openai:large', effort: 'loud' } })).status).toBe(400);
+    expect((await send('PATCH', { model: null })).status).toBe(200);
+    expect(await (await fetch(url)).json()).not.toHaveProperty('model');
   });
 
   it('pins, archives, searches message text across all chats, and preserves flags when prompting again', async () => {
