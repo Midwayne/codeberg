@@ -26,10 +26,3 @@ it('never hides the core search, read, context, or MCP tools', () => {
 
   for (const name of core) expect(LIGHT_HIDDEN_TOOLS.has(name)).toBe(false);
 });
-
-it('drops only the context-control tools for small working windows', () => {
-  const withControl = [...offered, 'context_status', 'context_keep', 'context_release'];
-
-  expect(Object.keys(toolsForTier(toolSet(withControl), { ...DEFAULT_PROFILE, contextWindow: 8_192 }))).toEqual(offered);
-  expect(Object.keys(toolsForTier(toolSet(withControl), { ...DEFAULT_PROFILE, contextWindow: 200_000 }))).toEqual(withControl);
-});

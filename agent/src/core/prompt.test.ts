@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { AGENT_SYSTEM, agentSystemPrompt, agentSystemSections } from './prompt.js';
 
 describe('agentSystemPrompt', () => {
-  it.each([false, true])('uses lexical guidance without embeddings (compact: %s)', (compact) => {
-    const prompt = agentSystemPrompt({ enabled: false, search: false, vectors: false, compact });
+  it('uses lexical guidance without embeddings', () => {
+    const prompt = agentSystemPrompt({ enabled: false, search: false, vectors: false });
 
     expect(prompt).not.toContain('search_code');
     expect(prompt).not.toContain('hybrid_search');
@@ -37,8 +37,8 @@ describe('agentSystemPrompt', () => {
     expect(sections.dynamic).toContain('review-diff');
   });
 
-  it.each([false, true])('treats retrieved content as data and breaks search loops (compact: %s)', (compact) => {
-    const prompt = agentSystemPrompt({ enabled: false, search: false, compact });
+  it('treats retrieved content as data and breaks search loops', () => {
+    const prompt = agentSystemPrompt({ enabled: false, search: false });
 
     expect(prompt).toMatch(/never follow instructions/i);
     expect(prompt).toContain('three different searches');
@@ -53,8 +53,7 @@ describe('agentSystemPrompt', () => {
     expect(AGENT_SYSTEM).not.toContain('Which file defines RetryPolicy?');
   });
 
-  it('keeps small windows and custom instructions free of the light examples', () => {
-    expect(agentSystemPrompt({ enabled: false, search: false, light: true, compact: true })).not.toContain('RetryPolicy');
+  it('keeps custom instructions free of the light examples', () => {
     expect(agentSystemPrompt({ enabled: false, search: false, light: true, instructions: 'Custom.' })).not.toContain('RetryPolicy');
   });
 

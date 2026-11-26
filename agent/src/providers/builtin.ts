@@ -57,52 +57,8 @@ export function googleProvider(): ModelProvider {
 }
 
 /**
- * ollama and llamacpp both serve an OpenAI-compatible Chat Completions API and
- * differ only in default endpoint and key. `.chat()` forces Chat Completions —
- * neither implements OpenAI's Responses API, which `createOpenAI()` would
- * otherwise default to. The key is unused by the servers, but the client
- * requires a non-empty value.
- */
-function openAICompatible(opts: {
-  name: string;
-  baseURLEnv: string;
-  baseURLDefault: string;
-  keyEnv: string;
-  keyDefault: string;
-}): ModelProvider {
-  const client = createOpenAI({
-    baseURL: env(opts.baseURLEnv) ?? opts.baseURLDefault,
-    apiKey: env(opts.keyEnv) ?? opts.keyDefault,
-  });
-
-  return { name: opts.name, model: (id) => client.chat(id) };
-}
-
-export function ollamaProvider(): ModelProvider {
-  return openAICompatible({
-    name: 'ollama',
-    baseURLEnv: 'OLLAMA_BASE_URL',
-    baseURLDefault: 'http://localhost:11434/v1',
-    keyEnv: 'OLLAMA_API_KEY',
-    keyDefault: 'ollama',
-  });
-}
-
-export function llamacppProvider(): ModelProvider {
-  // llama-server serves whichever model was loaded with `-m`, so the model id is
-  // a free-form label.
-  return openAICompatible({
-    name: 'llamacpp',
-    baseURLEnv: 'LLAMACPP_BASE_URL',
-    baseURLDefault: 'http://localhost:8080/v1',
-    keyEnv: 'LLAMACPP_API_KEY',
-    keyDefault: 'llama.cpp',
-  });
-}
-
-/**
- * Every built-in provider factory. The external ones (openai/anthropic/google)
- * throw without their API key and are skipped; the local ones always register.
+ * Every built-in provider factory. Each throws without its API key and is
+ * skipped.
  * Add a provider by writing its factory and appending it here — registration is
  * the single loop below.
  */
@@ -110,8 +66,6 @@ const BUILTIN: ReadonlyArray<() => ModelProvider> = [
   openaiProvider,
   anthropicProvider,
   googleProvider,
-  ollamaProvider,
-  llamacppProvider,
 ];
 
 export function registerBuiltinProviders(registry: { register(p: ModelProvider): unknown }): void {

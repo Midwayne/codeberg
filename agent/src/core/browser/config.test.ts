@@ -7,8 +7,8 @@ it('keeps browser use off by default and respects the web master switch', () => 
 });
 
 it('supports separate browser model configuration without changing the chat model', () => {
-  expect(browserConfig({ CODEBERG_BROWSER_USE: 'true', CODEBERG_BROWSER_MODEL: 'ollama:test' }, 'openai:chat'))
-    .toMatchObject({ enabled: true, model: 'test', provider: 'ollama' });
+  expect(browserConfig({ CODEBERG_BROWSER_USE: 'true', CODEBERG_BROWSER_MODEL: 'anthropic:test' }, 'openai:chat'))
+    .toMatchObject({ enabled: true, model: 'test', provider: 'anthropic' });
   expect(browserConfig({ CODEBERG_BROWSER_USE: 'true' }, 'google:chat')).toMatchObject({ provider: 'google', model: 'chat' });
 });
 

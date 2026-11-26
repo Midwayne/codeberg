@@ -1,6 +1,6 @@
 import type { SkillSummary } from '../context/skills.js';
 import type { McpServerReport } from '../mcp/catalog.js';
-import { COMPACT_DATABASE_INSTRUCTIONS, DATABASE_INSTRUCTIONS, offersDatabase } from './database.js';
+import { DATABASE_INSTRUCTIONS, offersDatabase } from './database.js';
 
 const MAX_MCP_TOOLS_LISTED = 40;
 const MAX_SKILLS_LISTED = 30;
@@ -10,7 +10,6 @@ export interface DynamicPromptOptions {
   mcp: readonly McpServerReport[];
   skills: readonly SkillSummary[];
   contextRoot?: string;
-  compact?: boolean;
   /** Custom models.yml instructions replace the built-in rules, database rules included. */
   custom?: boolean;
 }
@@ -35,7 +34,7 @@ function mcpLines(opts: DynamicPromptOptions): string[] {
   ];
 
   if (!opts.custom && offersDatabase(opts.mcp)) {
-    lines.push(opts.compact ? COMPACT_DATABASE_INSTRUCTIONS : DATABASE_INSTRUCTIONS);
+    lines.push(DATABASE_INSTRUCTIONS);
   }
 
   return lines;

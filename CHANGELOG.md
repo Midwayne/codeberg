@@ -18,6 +18,11 @@ are in the git history.
 - Subagent briefs now state a clear goal and, when the method is known, specific numbered steps.
 - The agent now decides how many subagents to start, up to 64 per request and 64 running at once in a chat (was 8).
 
+### Removed
+
+- Local chat models: the Ollama and llama.cpp providers, including for Browser Use. Local embedding models are unaffected.
+- The shorter system prompt for models with a context window of 16,384 tokens or less.
+
 ## [1.1.0] - 2026-11-22
 
 ### Added

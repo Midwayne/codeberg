@@ -51,7 +51,7 @@ The folder picker does not upload your project. Configured services receive the 
 | Web search / URL fetching | Network requests to configured services and destinations. |
 | Browser Use model provider | Task instructions, page content, screenshots when enabled. |
 
-Local models use the endpoints you configure. Browser Use's worker/browser run locally; screenshots default off, and its cloud sync and telemetry are disabled. Codeberg's HTTP services bind to loopback.
+Browser Use's worker/browser run locally; screenshots default off, and its cloud sync and telemetry are disabled. Codeberg's HTTP services bind to loopback.
 
 The docs are bundled locally and require no LLM, project, or external documentation service.
 

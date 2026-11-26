@@ -7,7 +7,6 @@ import {
   historyBudget,
   profileFor,
   pruneBudget,
-  usesCompactPrompt,
 } from './profiles.js';
 
 describe('profileFor', () => {
@@ -32,14 +31,14 @@ describe('profileFor', () => {
     expect(profileFor('openai:o3-mini', {}).contextWindow).toBe(1_000_000);
   });
 
-  it('treats local servers as small and openai-compatible for caching', () => {
-    const p = profileFor('ollama:llama3', {});
-    expect(p.contextWindow).toBe(8_192);
-    expect(p.cache).toBe('openai');
+  it('assumes a 32K window without caching for an unknown provider', () => {
+    const p = profileFor('thinktank:x', {});
+    expect(p.contextWindow).toBe(32_000);
+    expect(p.cache).toBe('none');
   });
 
   it('honours CODEBERG_CONTEXT_WINDOW for any provider', () => {
-    const p = profileFor('llamacpp:local', {
+    const p = profileFor('thinktank:x', {
       CODEBERG_CONTEXT_WINDOW: '32768',
     });
     expect(p.contextWindow).toBe(32_768);
@@ -59,16 +58,14 @@ describe('tool batching', () => {
     }
   });
 
-  it('offers batch to local and unknown servers', () => {
-    for (const spec of ['ollama:qwen3', 'llamacpp:local', 'thinktank:x']) {
-      expect(profileFor(spec, {}).toolBatch).toBe(true);
-    }
+  it('offers batch to providers an embedding application registers', () => {
+    expect(profileFor('thinktank:x', {}).toolBatch).toBe(true);
   });
 
   it('honours CODEBERG_TOOL_BATCH either way', () => {
     expect(profileFor('openai:gpt-5', { CODEBERG_TOOL_BATCH: 'on' }).toolBatch).toBe(true);
-    expect(profileFor('ollama:qwen3', { CODEBERG_TOOL_BATCH: 'off' }).toolBatch).toBe(false);
-    expect(profileFor('ollama:qwen3', { CODEBERG_TOOL_BATCH: 'maybe' }).toolBatch).toBe(true);
+    expect(profileFor('thinktank:x', { CODEBERG_TOOL_BATCH: 'off' }).toolBatch).toBe(false);
+    expect(profileFor('thinktank:x', { CODEBERG_TOOL_BATCH: 'maybe' }).toolBatch).toBe(true);
   });
 });
 
@@ -97,9 +94,9 @@ describe('budgets', () => {
   });
 
   it('never budgets past the model window', () => {
-    const p = profileFor('ollama:llama3', { CODEBERG_CONTEXT_BUDGET: '600000' });
+    const p = profileFor('openai:gpt-4o', { CODEBERG_CONTEXT_BUDGET: '600000' });
 
-    expect(budgetWindow(p)).toBe(8_192);
+    expect(budgetWindow(p)).toBe(128_000);
   });
 
   it('keeps the window uncapped for profiles without a working window', () => {
@@ -109,35 +106,17 @@ describe('budgets', () => {
 
 describe('capability tier', () => {
   it('leaves the tier unset for every model so saved checkpoint keys stay the same', () => {
-    for (const spec of ['anthropic:claude-opus-4-8', 'anthropic:claude-haiku-4-5', 'openai:gpt-4o-mini', 'ollama:qwen3', 'thinktank:x']) {
+    for (const spec of ['anthropic:claude-opus-4-8', 'anthropic:claude-haiku-4-5', 'openai:gpt-4o-mini', 'thinktank:x']) {
       expect(profileFor(spec, {})).not.toHaveProperty('tier');
     }
   });
 
   it('honours CODEBERG_MODEL_TIER', () => {
     expect(profileFor('anthropic:claude-opus-4-8', { CODEBERG_MODEL_TIER: 'LIGHT' }).tier).toBe('light');
-    expect(profileFor('ollama:qwen3', { CODEBERG_MODEL_TIER: 'standard' }).tier).toBe('standard');
+    expect(profileFor('openai:gpt-5', { CODEBERG_MODEL_TIER: 'standard' }).tier).toBe('standard');
   });
 
   it('ignores an unknown CODEBERG_MODEL_TIER', () => {
-    expect(profileFor('ollama:qwen3', { CODEBERG_MODEL_TIER: 'tiny' })).not.toHaveProperty('tier');
-  });
-});
-
-describe('usesCompactPrompt', () => {
-  it('keeps the full prompt for light models with a large window', () => {
-    const light = profileFor('anthropic:claude-haiku-4-5', { CODEBERG_MODEL_TIER: 'light' });
-
-    expect(usesCompactPrompt(light)).toBe(false);
-  });
-
-  it('compacts any model whose working window is small', () => {
-    const small = profileFor('openai:gpt-5', { CODEBERG_CONTEXT_BUDGET: '16384' });
-
-    expect(usesCompactPrompt(small)).toBe(true);
-  });
-
-  it('keeps the full prompt for profiles without a tier', () => {
-    expect(usesCompactPrompt(DEFAULT_PROFILE)).toBe(false);
+    expect(profileFor('openai:gpt-5', { CODEBERG_MODEL_TIER: 'tiny' })).not.toHaveProperty('tier');
   });
 });

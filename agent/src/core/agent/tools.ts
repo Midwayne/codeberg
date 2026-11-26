@@ -10,13 +10,12 @@ import { agentSystemSections } from '../prompt.js';
 import { clockContext } from '../prompts/clock.js';
 import { repositoryContext } from '../prompts/repositories.js';
 import { maxReasoningProviderOptions } from '../reasoning.js';
-import { mergeProviderOptions, parallelToolProviderOptions } from '../tool-calls.js';
+import { mergeProviderOptions } from '../tool-calls.js';
 import { createAgentTools } from '../tools/agent-tools.js';
 import { BATCH_TOOL, MAX_BATCH_CALLS } from '../tools/batch.js';
 import { SEARCH_BUNDLE_INSTRUCTIONS } from '../tools/search-bundle.js';
 import { DEFAULT_SEARCH_K } from './options.js';
 import type { AgentState } from './state.js';
-import { usesCompactPrompt } from '../../providers/profiles.js';
 import { configuredDecision } from '../decisions/catalog.js';
 import { decisionTools } from '../decisions/tool.js';
 import { BACKGROUND_INSTRUCTIONS } from '../background/tools.js';
@@ -56,7 +55,6 @@ export async function prepareSystem(
     skills,
     contextRoot: state.context.root,
     batch: toolNames.includes(BATCH_TOOL) ? MAX_BATCH_CALLS : undefined,
-    compact: usesCompactPrompt(state.profile),
     light: state.profile.tier === 'light',
     decisions: toolNames.includes('decide'),
     vectors: toolNames.includes('search_code'),
@@ -81,7 +79,6 @@ export async function prepareSystem(
 
   return mergeProviderOptions(
     requestProviderOptions(state.system, toolNames, state.profile),
-    parallelToolProviderOptions(state.profile),
     state.reasoning === 'max' ? maxReasoningProviderOptions(state.profile.provider) : undefined,
   );
 }

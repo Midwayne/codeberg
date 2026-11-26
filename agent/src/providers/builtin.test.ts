@@ -1,25 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  llamacppProvider,
   openaiProvider,
   ProviderConfigError,
   registerBuiltinProviders,
 } from './builtin.js';
-import { defaultProviders } from './index.js';
 import type { ModelProvider } from './registry.js';
-
-describe('llamacppProvider', () => {
-  it('registers by default without any API key', () => {
-    // Local providers are always available; external ones need their key.
-    expect(defaultProviders().list()).toContain('llamacpp');
-  });
-
-  it('resolves a free-form model id', () => {
-    const m = llamacppProvider().model('ornith-1.0-35b');
-    expect((m as { modelId: string }).modelId).toBe('ornith-1.0-35b');
-  });
-});
 
 describe('registerBuiltinProviders', () => {
   function withClearedProviderKeys(fn: () => void): void {
@@ -50,8 +36,7 @@ describe('registerBuiltinProviders', () => {
           registered.push(p.name);
         },
       });
-      expect(registered).toContain('ollama');
-      expect(registered).toContain('llamacpp');
+      expect(registered).toEqual([]);
       expect(registered).not.toContain('openai');
       expect(registered).not.toContain('anthropic');
       expect(registered).not.toContain('google');
@@ -60,6 +45,7 @@ describe('registerBuiltinProviders', () => {
 
   it('rethrows unexpected registration errors', () => {
     withClearedProviderKeys(() => {
+      process.env.OPENAI_API_KEY = 'sk-test';
       expect(() =>
         registerBuiltinProviders({
           register() {

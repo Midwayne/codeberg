@@ -97,7 +97,7 @@ pricing:
 `input` and `output` are required when `pricing` is present. `cache_read` and
 `cache_write` are optional, but cached calls need the matching rates to produce
 a cost estimate. All rates must be finite, non-negative numbers. Explicit zero
-rates are supported for free or local models. Omit `pricing` to track tokens
+rates are supported for free models. Omit `pricing` to track tokens
 without a cost estimate. Pricing is attached to the catalog key, so variants of
 the same API model can have different gateway or context-tier rates.
 

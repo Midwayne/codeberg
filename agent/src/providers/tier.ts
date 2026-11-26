@@ -1,5 +1,5 @@
-/** How much prompt scaffolding a model gets. `light` models get the compact
- *  system prompt whatever their window. Codeberg never guesses a tier: it is
+/** How much prompt scaffolding a model gets. `light` models get worked examples,
+ *  fewer tools, and an evidence reminder. Codeberg never guesses a tier: it is
  *  `standard` (unset) unless the user sets one in models.yml or CODEBERG_MODEL_TIER. */
 export const MODEL_TIERS = ['standard', 'light'] as const;
 

@@ -51,9 +51,9 @@ or from a checkout.
 | `CODEBERG_QUESTION` | CLI | the question, overrides the positional argument |
 | `CODEBERG_HOME` | web, MCP | state root for sessions and `~/.codeberg/mcp.json` (default `~/.codeberg`) |
 | `CODEBERG_REASONING` | all | reasoning effort: `provider-default`, `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` (Responses-compatible models only); anything else is ignored |
-| `CODEBERG_CONTEXT_WINDOW` | all | override the model's inferred context window (tokens) — mainly for local `ollama`/`llamacpp` servers, whose real window depends on how they were started |
+| `CODEBERG_CONTEXT_WINDOW` | all | override the model's inferred context window (tokens) when it cannot be inferred |
 | `CODEBERG_CONTEXT_BUDGET` | all | tokens the history (50%) and in-loop pruning (60%) budgets are computed from, capped by the window (default 200,000 — keeps requests under the long-context price tier of 1M-window models; the web UI's background learning input is bounded by the same ceiling) |
-| `CODEBERG_TOOL_BATCH` | all | register the `batch` tool (up to 8 independent calls in one tool call). Default on for `ollama`, `llamacpp`, and unknown providers, which may return one tool call per response; off for `anthropic`, `openai`, `google`, which call tools in parallel natively |
+| `CODEBERG_TOOL_BATCH` | all | register the `batch` tool (up to 8 independent calls in one tool call). Default off for `anthropic`, `openai`, and `google`, which call tools in parallel natively; on for a custom provider, which may return one tool call per response |
 | `CODEBERG_SUBAGENT_MODEL` | CLI | `provider:model` for background work: learning extraction and history-compaction summaries (default: `CODEBERG_MODEL`). A cheaper model here cuts compaction cost. In the web UI, choose the summarizer under **Models → Summaries** instead (default: the chat model) |
 | `CODEBERG_WEB_USE` | all | master switch for `fetch_url`/`web_search` (default on; `0`/`false`/`off`/`no` disables) |
 | `CODEBERG_WEB_SEARCH_USE` | all | search opt-in (default off); browser Settings → Tools saves its own global preference |
@@ -338,11 +338,10 @@ and description only until the agent reads the file. In-loop tool-result
 pruning still runs at 60%. Override the window with `CODEBERG_CONTEXT_WINDOW`.
 **Tool calling:** each model response is a round trip that re-reads the
 transcript, so the agent is told to put every independent call in the same
-response; they run concurrently in one step. OpenAI-wire providers (`openai`,
-`ollama`, `llamacpp`) are sent `parallel_tool_calls: true` — llama.cpp's server
-defaults it off. Models on local or unknown servers also get `batch`, which
-runs up to 8 calls inside one tool call for runtimes that return a single call
-per response; its results share one inline budget and spill beyond it.
+response; they run concurrently in one step. Models from a custom provider
+also get `batch`, which runs up to 8 calls inside one tool call for runtimes
+that return a single call per response; its results share one inline budget
+and spill beyond it.
 
 On Anthropic models the system prompt carries a 1h cache breakpoint and every
 tool step marks the transcript tail cacheable, so earlier tool results are
@@ -391,24 +390,8 @@ Built-in (when API keys are set):
 | `openai` | `OPENAI_API_KEY` | `openai:gpt-4o-mini` |
 | `anthropic` | `ANTHROPIC_API_KEY` | `anthropic:claude-sonnet-4-6` |
 | `google` | `GOOGLE_GENERATIVE_AI_API_KEY` | `google:gemini-2.0-flash` |
-| `ollama` | _(none)_ — local; `OLLAMA_BASE_URL` optional | `ollama:qwen3.5:9b` |
-| `llamacpp` | _(none)_ — local; `LLAMACPP_BASE_URL` optional | `llamacpp:ornith-1.0-35b` |
 
-`ollama` targets a local [Ollama](https://ollama.com) server (OpenAI-compatible
-API at `http://localhost:11434/v1`). No key needed; pull the model first
-(`ollama pull <model>`) and use the exact tag from `ollama list`. The model
-must support tool calling — `search_code` and the rest of the tool loop
-otherwise have no way to run. Local windows are usually small and not
-self-reported; set `CODEBERG_CONTEXT_WINDOW` to whatever you loaded the model
-with to avoid silent truncation (see [Environment variables](#environment-variables)).
-
-`llamacpp` targets a running [llama.cpp](https://github.com/ggml-org/llama.cpp)
-`llama-server` (OpenAI-compatible API, default `http://localhost:8080/v1`). No
-key needed. llama-server serves whichever model was loaded with `-m`, so the
-model id is a free-form label (`llamacpp:anything`). Set `LLAMACPP_BASE_URL` if
-you started the server on a different port (e.g. `--port 11434`). As with
-ollama, the model must support tool calling, and `CODEBERG_CONTEXT_WINDOW`
-should match how the server was started.
+Local chat servers (Ollama, llama.cpp) are not supported.
 
 ### Custom provider
 

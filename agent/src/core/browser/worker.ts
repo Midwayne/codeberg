@@ -25,12 +25,6 @@ def model_for(config):
         return ChatAnthropic(model=model)
     if provider == 'google':
         return ChatGoogle(model=model, api_key=os.environ.get('GOOGLE_GENERATIVE_AI_API_KEY'))
-    if provider in ('ollama', 'llamacpp'):
-        prefix = 'OLLAMA' if provider == 'ollama' else 'LLAMACPP'
-        default = 'http://localhost:11434/v1' if provider == 'ollama' else 'http://localhost:8080/v1'
-        return ChatOpenAI(model=model, base_url=os.environ.get(prefix + '_BASE_URL', default),
-                          api_key=os.environ.get(prefix + '_API_KEY', 'local'),
-                          temperature=None, frequency_penalty=None)
 
     raise ValueError('Unsupported browser model provider')
 

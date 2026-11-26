@@ -4,8 +4,6 @@ import { ProviderRegistry } from './registry.js';
 export {
   anthropicProvider,
   googleProvider,
-  llamacppProvider,
-  ollamaProvider,
   openaiProvider,
   registerBuiltinProviders,
 } from './builtin.js';

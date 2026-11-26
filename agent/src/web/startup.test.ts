@@ -14,7 +14,7 @@ it('allows the web shell to open before choosing a model', () => {
     daemonUrl: 'http://127.0.0.1:48080',
   });
 
-  expect(webEntry(['node', 'web'], { CODEBERG_MODEL: 'ollama:qwen3' }).modelSpec).toBe('ollama:qwen3');
+  expect(webEntry(['node', 'web'], { CODEBERG_MODEL: 'google:gemini-2.5-pro' }).modelSpec).toBe('google:gemini-2.5-pro');
 });
 
 it('keeps documentation reachable when model configuration is unavailable', async () => {

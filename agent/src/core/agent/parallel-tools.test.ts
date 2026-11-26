@@ -156,14 +156,15 @@ const PROVIDERS: Record<string, (fetch: typeof globalThis.fetch) => LanguageMode
   anthropic: (fetch) => createAnthropic({ apiKey: 'k', fetch })('claude-opus-4-8'),
   openai: (fetch) => createOpenAI({ apiKey: 'k', fetch })('gpt-5'),
   google: (fetch) => createGoogleGenerativeAI({ apiKey: 'k', fetch })('gemini-2.5-pro'),
-  ollama: (fetch) => createOpenAI({ apiKey: 'k', baseURL: 'http://x/v1', fetch }).chat('qwen3'),
+  // A Chat Completions provider an embedding application registers itself.
+  custom: (fetch) => createOpenAI({ apiKey: 'k', baseURL: 'http://x/v1', fetch }).chat('custom-model'),
 };
 
 const WIRE_FOR: Record<string, Wire> = {
   anthropic: WIRE.anthropic,
   openai: WIRE.responses,
   google: WIRE.google,
-  ollama: WIRE.chat,
+  custom: WIRE.chat,
 };
 
 function concurrentDaemon(log: { active: number; peak: number; calls: string[] }) {
@@ -248,20 +249,17 @@ describe.each(Object.keys(PROVIDERS))('parallel tool calls on %s', (provider) =>
     }
   });
 
-  it('asks for parallel calls in the prompt and on the wire', async () => {
+  it('asks for parallel calls in the prompt', async () => {
     const { bodies } = await askWith(provider, LOOKUPS);
 
     expect(JSON.stringify(bodies[0])).toContain(
       'Put every independent tool call in the same response',
     );
-
-    const openAiWire = ['openai', 'ollama'].includes(provider);
-    expect(bodies[0]!.parallel_tool_calls).toBe(openAiWire ? true : undefined);
   });
 });
 
 describe('batch fallback', () => {
-  it.each(['ollama'])(
+  it.each(['custom'])(
     'is offered to %s, which may return one call per response',
     async (provider) => {
       const batch: Call = {

@@ -10,24 +10,20 @@ Codeberg uses five model roles:
 
 ## Choose a provider
 
-Set `CODEBERG_MODEL` to `provider:model` and supply the matching credential or endpoint.
+Set `CODEBERG_MODEL` to `provider:model` and supply the matching credential. Codeberg supports hosted models only; local chat servers such as Ollama and llama.cpp are not supported.
 
 | Provider | Model setting | Credential or endpoint |
 | --- | --- | --- |
 | OpenAI | `openai:your-model-name` | `OPENAI_API_KEY` |
 | Anthropic | `anthropic:your-model-name` | `ANTHROPIC_API_KEY` |
 | Google | `google:your-model-name` | `GOOGLE_GENERATIVE_AI_API_KEY` |
-| Ollama | `ollama:your-model-name` | `OLLAMA_BASE_URL`; default `http://localhost:11434/v1` |
-| llama.cpp | `llamacpp:your-model-label` | `LLAMACPP_BASE_URL`; default `http://localhost:8080/v1` |
 
 ```sh
 codeberg config set CODEBERG_MODEL=openai:your-model-name
 codeberg config edit
 ```
 
-Enter credentials in the config editor, then restart. Cloud providers without a key are unavailable. Credentials belong in config or the environment, never in the model catalog.
-
-For local providers, start the server and load a tool-capable model yourself. Both use the OpenAI-compatible Chat Completions API. For llama.cpp, the loaded model determines the actual model; the label names the connection. Codeberg does not download local chat models.
+Enter credentials in the config editor, then restart. Providers without a key are unavailable. Credentials belong in config or the environment, never in the model catalog.
 
 ## Add a model catalog
 
@@ -53,7 +49,7 @@ providers:
 | `efforts` | Required nonempty list of supported reasoning efforts. |
 | `inputs` | Defaults to `[text]`. Add capabilities only when the model and API support them. |
 | `tier` | Optional: `standard` or `light`. Defaults to `standard`. See [Tune a model for smaller budgets](#tune-a-model-for-smaller-budgets). |
-| `tool_batch` | Optional `true` or `false`. Offers the `batch` tool to a model that returns one tool call at a time. Defaults to `CODEBERG_TOOL_BATCH`, then on for local and unknown providers. |
+| `tool_batch` | Optional `true` or `false`. Offers the `batch` tool to a model that returns one tool call at a time. Defaults to `CODEBERG_TOOL_BATCH`, then off. |
 | `tool_output_limit` | Optional integer of at least 4,000. Characters a tool result may carry before it becomes a preview. Defaults to 12,000. |
 | `instructions` | Optional path to a text file that replaces the built-in agent instructions. Relative paths start from the folder that holds `models.yml`. |
 
@@ -100,7 +96,7 @@ providers:
         instructions: prompts/quick.md
 ```
 
-These settings apply to the chat model only. A model whose working context is 16,384 tokens or less always gets short instructions without the examples, whatever its tier, so they leave room for code. For terminal questions or a model without catalog settings, set `CODEBERG_MODEL_TIER` and `CODEBERG_TOOL_BATCH`. Changes to `models.yml` or an instructions file apply to the next turn; environment changes need a restart. Compare answers on your [Evaluations](/docs/evaluations) set before and after each change.
+These settings apply to the chat model only. For terminal questions or a model without catalog settings, set `CODEBERG_MODEL_TIER` and `CODEBERG_TOOL_BATCH`. Changes to `models.yml` or an instructions file apply to the next turn; environment changes need a restart. Compare answers on your [Evaluations](/docs/evaluations) set before and after each change.
 
 ## Select models in the app
 
@@ -266,7 +262,7 @@ Automatic clearing goes by position and size. The agent knows which results it s
 
 When usage first passes half the ceiling, three quarters, or 90%, the agent gets one short notice at the end of its next request. The notice is not saved in the chat and does not change cached prompts.
 
-Choices are saved per chat, separately for each subagent, and deleted with the chat. Kept results can still be summarized once history reaches the ceiling. Models with `tier: light`, or with a working window of 16,384 tokens or less, do not get these tools or notices; automatic clearing still applies.
+Choices are saved per chat, separately for each subagent, and deleted with the chat. Kept results can still be summarized once history reaches the ceiling. Models with `tier: light` do not get these tools or notices; automatic clearing still applies.
 
 ## Track token usage
 

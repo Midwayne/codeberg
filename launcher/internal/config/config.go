@@ -78,7 +78,7 @@ const DefaultWebPort = "48088"
 // Empty in a plain `go build` — the launcher then builds from the source tree.
 var BuildDist string
 
-// passthroughKeys are provider secrets/endpoints copied straight through to the
+// passthroughKeys are provider secrets copied straight through to the
 // agent when present (in the config file or the environment). The daemon never
 // sees these — it has no LLM key.
 var passthroughKeys = []string{
@@ -88,8 +88,6 @@ var passthroughKeys = []string{
 	"OPENROUTER_API_KEY",
 	"CLOUDFLARE_API_TOKEN",
 	"GOOGLE_GENERATIVE_AI_API_KEY",
-	"OLLAMA_BASE_URL",
-	"LLAMACPP_BASE_URL",
 }
 
 // Overrides carries values from the command line. Empty string means "not set

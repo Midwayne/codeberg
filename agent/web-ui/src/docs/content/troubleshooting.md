@@ -15,7 +15,7 @@ Settings are read at startup, so **Check again** finds new credentials only afte
 2. Run `codeberg config edit`, save corrections, and restart.
 3. Remove stale shell overrides; environment values take precedence over config.
 
-For Ollama/llama.cpp, check the endpoint, running server, and loaded tool-capable model. Docs remain available before setup. See [Models and credentials](/docs/models); do not paste keys into a chat.
+Docs remain available before setup. See [Models and credentials](/docs/models); do not paste keys into a chat.
 
 ## Chat changes are not saved
 

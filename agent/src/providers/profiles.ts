@@ -10,9 +10,7 @@ export type { ModelOverrides } from './overrides.js';
  *  (history budgeting, in-loop pruning, cache hints) reasons in one model's
  *  terms instead of guessing. The context windows below are conservative
  *  defaults; override any of them with CODEBERG_CONTEXT_WINDOW when running a
- *  model whose window we can't infer — most importantly the local ollama /
- *  llamacpp servers, where the window is whatever was loaded (`-c`, modelfile)
- *  and a wrong guess means silent truncation. */
+ *  model whose window we can't infer. */
 
 export type CacheStrategy = 'anthropic' | 'openai' | 'none';
 
@@ -51,11 +49,6 @@ function windowFor(provider: string, modelId: string): number {
     case 'openai':
       // gpt-4.1 / gpt-5 / o-series are 1M; the 4o family sits at ~128K.
       return /gpt-4\.1|gpt-5|(^|[^a-z])o\d/.test(id) ? ONE_MILLION : 128_000;
-    case 'ollama':
-    case 'llamacpp':
-      // Local servers: the window is whatever was loaded. Assume a small
-      // default and rely on CODEBERG_CONTEXT_WINDOW to widen it.
-      return 8_192;
     default:
       return 32_000;
   }
@@ -65,11 +58,7 @@ function cacheFor(provider: string): CacheStrategy {
   switch (provider) {
     case 'anthropic':
       return 'anthropic';
-    // ollama / llamacpp speak the OpenAI wire format; the cache key is harmless
-    // to them and they reuse a matching prompt prefix on their own.
     case 'openai':
-    case 'ollama':
-    case 'llamacpp':
       return 'openai';
     default:
       return 'none';
@@ -111,9 +100,8 @@ export function profileFor(spec: string, env: NodeJS.ProcessEnv = process.env): 
   };
 }
 
-/** Hosted frontier APIs return several tool calls per response reliably.
- *  Local and unknown OpenAI-compatible servers depend on the loaded model's
- *  chat template, and many emit one call at most, so they get `batch`. */
+/** The built-in providers return several tool calls per response reliably.
+ *  A provider registered by an embedding application may not, so it gets `batch`. */
 function nativeParallelTools(provider: string): boolean {
   switch (provider) {
     case 'anthropic':
@@ -128,16 +116,6 @@ function nativeParallelTools(provider: string): boolean {
 /** Tokens the budgets below are fractions of: the window, capped by `workingWindow`. */
 export function budgetWindow(profile: ModelProfile): number {
   return Math.min(profile.contextWindow, profile.workingWindow ?? profile.contextWindow);
-}
-
-/** Working windows at or below this always get the compact prompt. */
-const COMPACT_PROMPT_WINDOW = 16_384;
-
-/** Light models and small working windows get the compact system prompt. */
-/** Only a small working window forces the short prompt. A `light` model keeps the
- *  full one: weaker models need the explicit playbook and examples most. */
-export function usesCompactPrompt(profile: ModelProfile): boolean {
-  return budgetWindow(profile) <= COMPACT_PROMPT_WINDOW;
 }
 
 /** A permissive profile for callers that don't resolve a spec (tests, the

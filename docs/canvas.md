@@ -164,8 +164,7 @@ local service; “multiplayer” here means shared scene editing, rather than cl
 rooms or cursor presence.
 
 Canvas tool inputs/outputs participate in the configured model conversation.
-A hosted model still receives that context and requires a network connection.
-To repeat the complete *agent* workflow offline, configure a local model provider;
+The hosted model receives that context and requires a network connection;
 the canvas itself does not make model calls or send drawings anywhere.
 
 Verification: `make agent-check` includes canvas storage/tool/HTTP/polling tests and
