@@ -92,6 +92,20 @@ it('automatically executes and persists a fresh candidate and separate scores af
   );
 });
 
+it('scores with only the model-free checks and makes no judge calls when the judge is off', async () => {
+  const { service, candidate, generate, example, configuration } = await fixture();
+  delete configuration.judge;
+  await approve(service, example.id);
+
+  const [report] = await service.evaluationReports.list();
+
+  expect(candidate).toHaveBeenCalledTimes(1);
+  expect(generate).not.toHaveBeenCalled();
+  expect(report).toMatchObject({ status: 'completed', report: { evaluated: 1 } });
+  expect(report!.report!.summary).toHaveProperty('exact_match');
+  expect(report!.report!.summary).not.toHaveProperty('factuality');
+});
+
 it('does not rerun unchanged evaluations after scans or restart, and reruns after model changes', async () => {
   const { service, candidate, example, runtime, configuration } = await fixture();
   await approve(service, example.id);

@@ -10,7 +10,7 @@ Approving a test example queues an evaluation. Codeberg also scans on startup an
 | --- | --- |
 | Retrieve | Search the current project's index for up to ten passages. |
 | Answer | Ask the selected chat model for a fresh answer. |
-| Judge | Score the output with the **Evaluation judge** model, which defaults to the chat model. |
+| Judge | Score the output with the **Evaluation judge** model, which defaults to the chat model. Skipped when the judge is off. |
 | Record | Save metrics and task, commit, model, effort, and rubric provenance. |
 
 This read-only baseline excludes historical answers, reviewed references, history recall, and knowledge recall from answer generation. It does not run the full interactive agent or an RL environment. Commit mismatches are skipped; Codeberg does not restore repositories or isolate uncommitted edits.
@@ -31,7 +31,9 @@ Turning off any required switch pauses new work; an in-flight request can finish
 
 The judge defaults to **Same as chat model**, so out of the box the chat model grades its own answers. Models tend to favor their own output, so the evaluation report marks those results `self_graded: true` (in `/api/learning/evaluations`), and **Models** shows a note. For a more independent check, choose a different model that is at least as capable as the chat model under **Models → Evaluation judge**. The learning model judges only if you choose it here. In the terminal, set `CODEBERG_JUDGE_MODEL=provider:model`.
 
-Changing the judge queues new comparisons, like any model change. The judge's calls count as learning usage.
+To skip model judging, turn **Evaluation judge** off in **Models**, or set `CODEBERG_JUDGE_USE=false` in the terminal. Evaluations still run the chat model's answer and score it with the checks that need no model: exact match against the reviewed `expected` value, and valid JSON when the example's `output_format` is `json`. An example with neither gets no score. To stop evaluations entirely, turn off **Evaluations** in **Settings → Learning**.
+
+Changing or turning off the judge queues new comparisons, like any model change. The judge's calls count as learning usage.
 
 ## Score retrieval runs
 

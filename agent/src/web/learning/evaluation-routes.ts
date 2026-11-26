@@ -46,7 +46,7 @@ export async function routeEvaluations(
  */
 function withSelfGrading<T>(report: T): T | (T & { self_graded: true }) {
   const configuration = (report as Partial<AutomaticEvalReport>).configuration;
-  const same = configuration !== undefined && configuration.candidate.model === configuration.judge.model;
+  const same = configuration?.judge !== undefined && configuration.candidate.model === configuration.judge.model;
 
   return same ? { ...report, self_graded: true as const } : report;
 }

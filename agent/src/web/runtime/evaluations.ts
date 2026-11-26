@@ -17,10 +17,13 @@ export function projectEvaluationRuntime(
     configuration: async () => {
       const values = await settings.current();
       const candidate = selection(values.chat, values);
-      // Unset, the chat model judges itself rather than a cheaper learning model judging it.
-      const judge = selection(values.judge ?? values.chat, values);
+      if (!candidate) return undefined;
+      if (!values.judge.enabled) return { candidate };
 
-      return candidate && judge ? { candidate, judge } : undefined;
+      // Unset, the chat model judges itself rather than a cheaper learning model judging it.
+      const judge = selection(values.judge.model ?? values.chat, values);
+
+      return judge ? { candidate, judge } : undefined;
     },
     resolveModel: (model) => track(resolve(model.model), model.key, model.model, 'learning'),
     search: (query, options, signal) => daemon.search(query, options, signal),

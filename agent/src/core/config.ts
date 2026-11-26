@@ -7,6 +7,7 @@ import type { EntryConfig } from './entry.js';
 import type { LearningService } from './learning/service.js';
 import { currentProjectEnvironment } from './projects.js';
 import { assertAgentRuntime } from './runtime.js';
+import { envToggle } from './env-flag.js';
 import { REASONING_EFFORTS, type ReasoningEffort } from './types.js';
 import { agentProfiles } from './model-profiles.js';
 import type { ModelInput } from './model-types.js';
@@ -75,7 +76,7 @@ export function createAgent(config: AgentConfig): Agent {
     env,
     context: ContextStore.open(defaultContextRoot(env)),
     subagentModel,
-    judgeModel: env.CODEBERG_JUDGE_MODEL ? registry.resolve(env.CODEBERG_JUDGE_MODEL) : undefined,
+    judgeModel: judgeModel(env, (spec) => registry.resolve(spec)),
     learning: learningEnabled ? config.learning : false,
     daemon: new DaemonClient(
       !config.env && env.CODEBERG_PROJECT_ID
@@ -92,6 +93,13 @@ export function createAgent(config: AgentConfig): Agent {
       config.overrides,
     ),
   });
+}
+
+/** CODEBERG_JUDGE_USE=false turns the judge off; CODEBERG_JUDGE_MODEL picks it; unset follows the chat model. */
+function judgeModel(env: NodeJS.ProcessEnv, resolve: (spec: string) => LanguageModel): LanguageModel | null | undefined {
+  if (envToggle(env.CODEBERG_JUDGE_USE) === false) return null;
+
+  return env.CODEBERG_JUDGE_MODEL ? resolve(env.CODEBERG_JUDGE_MODEL) : undefined;
 }
 
 export function learningEnabledFromEnv(env: NodeJS.ProcessEnv = process.env): boolean {

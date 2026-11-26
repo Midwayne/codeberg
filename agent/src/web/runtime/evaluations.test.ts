@@ -14,6 +14,7 @@ function runtime(choices: Partial<ModelSettings>) {
       chat: { key: 'openai:chat', effort: 'none' },
       learning: { key: 'openai:cheap', effort: 'none' },
       subagents: { enabled: true, model: null },
+      judge: { enabled: true, model: null },
       ...choices,
     }),
   } as unknown as ModelSettingsStore;
@@ -29,7 +30,13 @@ it('judges with the chat model when no judge is chosen, never the learning model
 });
 
 it('judges with the chosen judge model and effort', async () => {
-  const configuration = await runtime({ judge: { key: 'openai:strong', effort: 'high' } }).configuration();
+  const configuration = await runtime({ judge: { enabled: true, model: { key: 'openai:strong', effort: 'high' } } }).configuration();
 
   expect(configuration?.judge).toMatchObject({ key: 'openai:strong', effort: 'high', contextWindow: 400_000 });
+});
+
+it('leaves the judge out of the evaluation when it is off, whatever model was chosen', async () => {
+  const configuration = await runtime({ judge: { enabled: false, model: { key: 'openai:strong', effort: 'high' } } }).configuration();
+
+  expect(configuration).toEqual({ candidate: expect.objectContaining({ key: 'openai:chat' }) });
 });

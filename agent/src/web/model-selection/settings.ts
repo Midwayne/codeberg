@@ -2,7 +2,9 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { ifMissing, writeJsonAtomic } from '../../core/fs.js';
-import type { CatalogModel, ModelSelection, ModelSettings, SubagentSettings } from '../../core/model-types.js';
+import type { CatalogModel, JudgeSettings, ModelSelection, ModelSettings, SubagentSettings } from '../../core/model-types.js';
+
+type SwitchedRole = SubagentSettings & JudgeSettings;
 import { subagentsEnabled } from '../../core/subagents/config.js';
 import { codebergHome } from '../../core/paths.js';
 import { loadModelCatalog, object, validEffort, type ModelCatalogOptions } from './catalog.js';
@@ -63,8 +65,8 @@ export class ModelSettingsStore {
       chat: this.resolve(values?.chat, this.catalog.defaultChat, models),
       learning: this.resolve(values?.learning, this.catalog.defaultLearning, models),
       summary: this.resolveOptional(values?.summary, models),
-      judge: this.resolveOptional(values?.judge, models),
-      subagents: this.resolveSubagents(values?.subagents, models),
+      judge: this.resolveSwitched(values?.judge, models, true),
+      subagents: this.resolveSwitched(values?.subagents, models, subagentsEnabled(this.env)),
     };
   }
 
@@ -92,8 +94,8 @@ export class ModelSettingsStore {
       const learning = this.validate(values.learning, models);
       const current = await this.current();
       const summary = this.validateOptional(values.summary, current.summary ?? null, models);
-      const judge = this.validateOptional(values.judge, current.judge ?? null, models);
-      const subagents = values.subagents === undefined ? current.subagents : this.validateSubagents(values.subagents, models);
+      const judge = values.judge === undefined ? current.judge : this.validateSwitched(values.judge, models, 'judge');
+      const subagents = values.subagents === undefined ? current.subagents : this.validateSwitched(values.subagents, models, 'subagents');
       const decisions = values.decisions === undefined ? current.decisions : values.decisions;
       if (decisions !== null && !current.decisionModels?.some((model) => model.key === decisions)) {
         throw new ModelSelectionError('unknown or unavailable decision model');
@@ -145,24 +147,29 @@ export class ModelSettingsStore {
     return { key: item.key, effort };
   }
 
-  /** Unsaved, subagents follow CODEBERG_SUBAGENTS_USE; a removed model falls back to the summary model. */
-  private resolveSubagents(raw: unknown, models: CatalogModel[]): SubagentSettings {
+  /**
+   * A role with an on/off switch and an optional model (subagents, judge).
+   * Unsaved, it starts at `enabled`; a removed model falls back to the role's default.
+   */
+  private resolveSwitched(raw: unknown, models: CatalogModel[], enabled: boolean): SwitchedRole {
     const input = object(raw);
-    const enabled = typeof input?.enabled === 'boolean' ? input.enabled : subagentsEnabled(this.env);
 
-    return { enabled, model: this.resolveOptional(input?.model, models) };
+    return {
+      enabled: typeof input?.enabled === 'boolean' ? input.enabled : enabled,
+      model: this.resolveOptional(input?.model, models),
+    };
   }
 
-  private validateSubagents(raw: unknown, models: CatalogModel[]): SubagentSettings {
+  private validateSwitched(raw: unknown, models: CatalogModel[], role: string): SwitchedRole {
     const input = object(raw);
-    if (typeof input?.enabled !== 'boolean') throw new ModelSelectionError('subagents need an enabled switch');
+    if (typeof input?.enabled !== 'boolean') throw new ModelSelectionError(`${role} needs an enabled switch`);
 
     const model = input.model == null ? null : this.validate(input.model, models);
 
     return { enabled: input.enabled, model };
   }
 
-  /** Omitted keeps the saved choice; null returns the role (summaries, judge) to the chat model. */
+  /** Omitted keeps the saved choice; null returns summaries to the chat model. */
   private validateOptional(
     raw: unknown,
     saved: ModelSelection | null,

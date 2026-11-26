@@ -49,7 +49,11 @@ export function createAutomaticEvaluationRuntime(
         retrieved_tokens: Math.ceil(context.join('').length / 4),
       };
     },
-    judge: (configuration) => evaluationGenerator(options, configuration.judge),
+    judge: (configuration) => {
+      if (!configuration.judge) throw new Error('This evaluation has no judge model.');
+
+      return evaluationGenerator(options, configuration.judge);
+    },
   };
 }
 

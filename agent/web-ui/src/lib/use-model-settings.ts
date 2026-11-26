@@ -25,7 +25,7 @@ export function useModelSettingsPanel({ onClose, onSaved }: ModelSettingsPanelOp
           chat: value.chat,
           learning: value.learning,
           summary: value.summary ?? null,
-          judge: value.judge ?? null,
+          judge: value.judge,
           subagents: value.subagents,
           decisions: value.decisions ?? null,
         });
