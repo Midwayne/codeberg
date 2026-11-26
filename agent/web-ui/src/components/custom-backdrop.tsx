@@ -1,7 +1,7 @@
 import { layerStyle, skyStyle } from '../lib/backdrop-layers';
 import type { CustomBackdrop } from '../lib/theme-types';
 
-/* Draws a generated backdrop inside a positioned container. */
+/* Draws a layered backdrop inside a positioned container. */
 export function CustomBackdropLayers({ backdrop }: { backdrop: CustomBackdrop }) {
   const sky = skyStyle(backdrop);
 

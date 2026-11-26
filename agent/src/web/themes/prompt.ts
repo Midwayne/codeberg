@@ -41,6 +41,10 @@ Rules:
 - foreground and mutedForeground must be readable on background, surface, and raised (contrast 4.5:1 or more).
 - primary is buttons and links; primaryForeground is text on primary.
 - The backdrop sits behind the chat text, so keep it dim: layer opacity mostly 0.05-0.25.
+- Messages and the composer sit in a center column. The app fades every layer to a fifth of its strength
+  inside that column and shows it fully in the side margins, so design for the edges: place glows, bands,
+  and meteors near the sides, corners, or top (x below 20 or above 80, or y below 15), never as a bright
+  center piece behind the text. Patterns may fill the screen; they fade in the column on their own.
 - glow is a soft radial light at x, y with a size in percent; band is a soft diagonal ribbon at angle.
 - stars, flakes (snow), rain, orbs (fireflies, lanterns, bokeh), dots, grid, and lines are patterns;
   size sets their spacing. noise is a fine grain.

@@ -26,6 +26,40 @@
   inset: 0;
 }
 
+/*
+ * The quiet column: behind the conversation (messages and composer, 56rem wide)
+ * a still veil in the background color leaves a scene a fifth of its strength,
+ * and full strength in the side margins. A veil over the layers costs nothing
+ * per frame, where masking the moving layers cut the frame rate by a third.
+ * Narrow windows are all column, so the whole scene stays quiet there.
+ */
+.backdrop-quiet {
+  display: none;
+}
+
+:root[data-backdrop] .backdrop-quiet {
+  position: absolute;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+  --veil: color-mix(in srgb, var(--background) 80%, transparent);
+  background: linear-gradient(
+    to right,
+    transparent 0,
+    transparent calc(50% - 38rem),
+    var(--veil) calc(50% - 27rem),
+    var(--veil) calc(50% + 27rem),
+    transparent calc(50% + 38rem),
+    transparent 100%
+  );
+}
+
+/* Glows stay soft enough to sit behind text; the veil is for detail and motion. */
+:root[data-backdrop='halo'] .backdrop-quiet,
+:root[data-backdrop='dusk'] .backdrop-quiet {
+  display: none;
+}
+
 /* The composer floats over the scene as frosted glass. */
 :root[data-backdrop] .chat-composer {
   background-color: transparent;

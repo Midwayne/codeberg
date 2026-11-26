@@ -14,7 +14,7 @@ are in the git history.
 - Start a message with `/dumb` to get a plain-language answer for a non-technical reader such as a project manager.
 - New Graphite (now the default) and Porcelain themes: clean dark and light neutrals.
 - New Parchment, Ember, and Phosphor themes, with their own fonts and corner shapes.
-- Theme backdrops: animated scenes behind the conversation, including Midnight's twinkling and shooting stars, Aurora's northern lights, and the new Snowfall, Rainfall, Fireflies, and Lanterns themes. Turn them off with **Show backdrop** in **Settings → Appearance**.
+- Theme backdrops: animated scenes behind the conversation, including Midnight's twinkling and shooting stars, Aurora's northern lights, and the new Snowfall, Rainfall, Fireflies, and Lanterns themes. Scenes stay faint behind messages and the composer and show fully in the margins. Turn them off with **Show backdrop** in **Settings → Appearance**.
 - Create a theme by describing it: your chat model designs the colors, fonts, and a still or animated backdrop. Edit a theme you created by describing a change, with undo.
 
 ### Changed

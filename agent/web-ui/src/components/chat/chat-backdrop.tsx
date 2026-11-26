@@ -12,6 +12,7 @@ export function ChatBackdrop() {
   return (
     <div aria-hidden="true" className="chat-backdrop">
       {typeof backdrop === 'object' && <CustomBackdropLayers backdrop={backdrop} />}
+      <span className="backdrop-quiet" />
     </div>
   );
 }

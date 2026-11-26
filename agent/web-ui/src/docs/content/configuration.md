@@ -115,7 +115,7 @@ Choose **Settings → Appearance**. Graphite is the default.
 | Ember | Serif headings and a warm glow behind the composer |
 | Phosphor | Monospace text, square corners, and terminal scanlines |
 
-A backdrop is the scene drawn behind the conversation; the composer floats over it as frosted glass. Turn off **Show backdrop** under the theme list to keep a theme's colors without its scene. Backdrops stop moving, and shooting stars are hidden, when your system asks for reduced motion.
+A backdrop is the scene drawn behind the conversation; the composer floats over it as frosted glass. Behind messages and the composer, moving scenes fade to a faint trace so they never compete with text; they show fully in the margins on either side. On narrow windows the whole scene stays faint. Turn off **Show backdrop** under the theme list to keep a theme's colors without its scene. Backdrops stop moving, and shooting stars are hidden, when your system asks for reduced motion.
 
 Themes use fonts already on your device, so they look slightly different between operating systems.
 
@@ -140,7 +140,7 @@ Describe a look and your chat model designs a theme: colors, fonts, corner shape
 
 Each theme uses a few thousand tokens on your chat model and is recorded in **Usage**. **Cancel** stops a request that is still running.
 
-Codeberg checks every generated theme before using it: text and button labels are made readable, and anything it cannot use is replaced with a default. Up to 12 themes are kept in this browser; delete one with its trash button. Generated themes are not shared between browsers.
+Codeberg checks every generated theme before using it: text and button labels are made readable, and anything it cannot use is replaced with a default. Generated backdrops get the same quiet area behind messages as built-in ones. Up to 12 themes are kept in this browser; delete one with its trash button. Generated themes are not shared between browsers.
 
 If creation fails, check the chat model under **Models** and try again, or reword the description.
 
