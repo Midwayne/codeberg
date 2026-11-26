@@ -48,9 +48,10 @@ There is no extra server or command to start.
 
 Settings apply per project and persist across restarts. Web agents load the new
 tool set on their next turn. Tools already running check the switch again before
-writing. CLI agents pick up availability at startup; restart a running CLI agent
-after enabling canvas. `CODEBERG_CANVAS_USE=true` supplies the initial default
-when no saved settings exist. A saved user setting takes precedence.
+writing. The agent gets the canvas tools only for a browser message sent with
+**Diagram** on; it never draws unasked, and terminal questions never use the
+canvas. `CODEBERG_CANVAS_USE=true` supplies the initial default when no saved
+settings exist. A saved user setting takes precedence.
 
 Files live in `<project-data-dir>/canvas/`, using Codeberg's `CODEBERG_PROJECT_HOME`
 and project resolution conventions. For an unmigrated installation this is
@@ -164,8 +165,7 @@ local service; “multiplayer” here means shared scene editing, rather than cl
 rooms or cursor presence.
 
 Canvas tool inputs/outputs participate in the configured model conversation.
-A hosted model still receives that context and requires a network connection.
-To repeat the complete *agent* workflow offline, configure a local model provider;
+The hosted model receives that context and requires a network connection;
 the canvas itself does not make model calls or send drawings anywhere.
 
 Verification: `make agent-check` includes canvas storage/tool/HTTP/polling tests and

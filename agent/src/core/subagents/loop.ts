@@ -48,7 +48,7 @@ function createLoop(worker: SubagentWorker, type: SubagentType, tools: ToolSet):
 
   return new ToolLoopAgent({
     model: worker.model,
-    instructions: cachedInstructions(subagentSystem(type, names.includes('load_mcp_tools')), worker.profile, worker.context?.() || undefined),
+    instructions: cachedInstructions(subagentSystem(type, { loadsMcp: names.includes('load_mcp_tools'), worklist: names.includes('worklist_add') }), worker.profile, worker.context?.() || undefined),
     tools,
     stopWhen: [isLoopFinished(), ...(worker.maxSteps ? [isStepCount(worker.maxSteps)] : [])],
     ...reasoning,

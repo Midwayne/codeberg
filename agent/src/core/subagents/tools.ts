@@ -1,14 +1,16 @@
 import type { ToolSet } from 'ai';
 
+import { CONTEXT_CONTROL_TOOLS } from '../request-budget/tools.js';
 import { SUBAGENT_TOOL_NAMES } from './names.js';
 
 /**
  * Tools only the main agent may call: more subagents (no nesting),
  * `sleep_agent` (it ends the main agent's turn, which a subagent does not
- * own), and memory writes, whose evidence must quote a user message that a
- * subagent never sees.
+ * own), memory writes, whose evidence must quote a user message that a
+ * subagent never sees, and context control: a short-lived subagent relies on
+ * automatic clearing, so it also gets no usage notices.
  */
-const MAIN_ONLY = new Set([...SUBAGENT_TOOL_NAMES, 'sleep_agent', 'remember', 'forget']);
+const MAIN_ONLY = new Set([...SUBAGENT_TOOL_NAMES, ...CONTEXT_CONTROL_TOOLS, 'sleep_agent', 'remember', 'forget']);
 
 /**
  * The tools a subagent may call: every tool the main agent has, including

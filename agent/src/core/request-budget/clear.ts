@@ -5,19 +5,19 @@ import type { LanguageModelV4CallOptions, LanguageModelV4Message, LanguageModelV
 
 import { isSpillPreview } from '../context/spill-preview.js';
 import type { ContextStore } from '../context/store.js';
+import { clearPlan, type ClearOptions } from './plan.js';
 
-/** Clear once a request passes this share of the compaction ceiling. */
+/** Clear results from earlier turns once a request passes this share of the compaction ceiling. */
 export const CLEAR_TRIGGER = 0.5;
 
-/** The newest tool results always stay verbatim. */
-const KEEP_RESULTS = 4;
-
-/** The cleared boundary moves in whole blocks, so the cached prefix changes
- *  once per block of tool results instead of on every step. */
-const CLEAR_BLOCK = 8;
+/**
+ * Clear results from the turn in progress only past this share, measured
+ * after earlier turns were cleared. The agent is still working from them.
+ */
+export const CURRENT_TURN_TRIGGER = 0.75;
 
 /** Smaller results cost less than the pointer that would replace them. */
-const MIN_CLEAR_CHARS = 1_000;
+export const MIN_CLEAR_CHARS = 1_000;
 
 const SPILLED_FILE = /^\[spilled to (.+?) — /;
 
@@ -26,50 +26,48 @@ export const CLEARED_PREFIX = '[cleared ';
 
 type ToolMessage = Extract<LanguageModelV4Message, { role: 'tool' }>;
 
+export type { ClearOptions } from './plan.js';
+
 /**
  * Replace older, large tool results with a pointer to their full text in the
  * context store, the way frontier harnesses clear stale tool output before
  * they summarize. Nothing is lost: the agent reads the file again with
  * context_read or context_grep. The result for a given prompt is
  * deterministic, so repeated steps keep the same cacheable prefix.
+ *
+ * Results from earlier turns go first. The turn in progress keeps its results
+ * unless `currentTurn` is set; even then its newest results and its reads of
+ * saved context stay, and the rest are cleared in whole blocks. Results the
+ * agent kept are never cleared; results it released always are.
  */
 export async function clearOldToolResults(
   request: LanguageModelV4CallOptions,
   store: ContextStore,
+  options: ClearOptions = {},
 ): Promise<LanguageModelV4CallOptions> {
-  const total = countToolResults(request.prompt);
-  const clearable = Math.floor((total - KEEP_RESULTS) / CLEAR_BLOCK) * CLEAR_BLOCK;
-  if (clearable <= 0) return request;
+  const clears = clearPlan(request.prompt, options);
+  if (!clears.some(Boolean)) return request;
 
-  let seen = 0;
+  let index = 0;
   const prompt: LanguageModelV4Message[] = [];
 
   for (const message of request.prompt) {
-    if (message.role !== 'tool' || seen >= clearable) {
+    if (message.role !== 'tool') {
       prompt.push(message);
       continue;
     }
 
     const content: ToolMessage['content'] = [];
     for (const part of message.content) {
-      if (part.type !== 'tool-result' || seen++ >= clearable) {
-        content.push(part);
-        continue;
-      }
+      const clear = part.type === 'tool-result' && clears[index++] === true;
 
-      content.push({ ...part, output: await clearedOutput(part.toolName, part.output, store) });
+      content.push(clear ? { ...part, output: await clearedOutput(part.toolName, part.output, store) } : part);
     }
 
     prompt.push({ ...message, content });
   }
 
   return { ...request, prompt };
-}
-
-function countToolResults(prompt: readonly LanguageModelV4Message[]): number {
-  return prompt.reduce((sum, message) => message.role === 'tool'
-    ? sum + message.content.filter((part) => part.type === 'tool-result').length
-    : sum, 0);
 }
 
 async function clearedOutput(
@@ -118,7 +116,7 @@ async function exists(file: string): Promise<boolean> {
 }
 
 /** Text and JSON results only; errors and file content are left alone. */
-function outputText(output: LanguageModelV4ToolResultOutput): string | undefined {
+export function outputText(output: LanguageModelV4ToolResultOutput): string | undefined {
   switch (output.type) {
     case 'text':
       return output.value;

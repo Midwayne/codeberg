@@ -10,24 +10,20 @@ Codeberg uses five model roles:
 
 ## Choose a provider
 
-Set `CODEBERG_MODEL` to `provider:model` and supply the matching credential or endpoint.
+Set `CODEBERG_MODEL` to `provider:model` and supply the matching credential. Codeberg supports hosted models only; local chat servers such as Ollama and llama.cpp are not supported.
 
 | Provider | Model setting | Credential or endpoint |
 | --- | --- | --- |
 | OpenAI | `openai:your-model-name` | `OPENAI_API_KEY` |
 | Anthropic | `anthropic:your-model-name` | `ANTHROPIC_API_KEY` |
 | Google | `google:your-model-name` | `GOOGLE_GENERATIVE_AI_API_KEY` |
-| Ollama | `ollama:your-model-name` | `OLLAMA_BASE_URL`; default `http://localhost:11434/v1` |
-| llama.cpp | `llamacpp:your-model-label` | `LLAMACPP_BASE_URL`; default `http://localhost:8080/v1` |
 
 ```sh
 codeberg config set CODEBERG_MODEL=openai:your-model-name
 codeberg config edit
 ```
 
-Enter credentials in the config editor, then restart. Cloud providers without a key are unavailable. Credentials belong in config or the environment, never in the model catalog.
-
-For local providers, start the server and load a tool-capable model yourself. Both use the OpenAI-compatible Chat Completions API. For llama.cpp, the loaded model determines the actual model; the label names the connection. Codeberg does not download local chat models.
+Enter credentials in the config editor, then restart. Providers without a key are unavailable. Credentials belong in config or the environment, never in the model catalog.
 
 ## Add a model catalog
 
@@ -53,7 +49,7 @@ providers:
 | `efforts` | Required nonempty list of supported reasoning efforts. |
 | `inputs` | Defaults to `[text]`. Add capabilities only when the model and API support them. |
 | `tier` | Optional: `standard` or `light`. Defaults to `standard`. See [Tune a model for smaller budgets](#tune-a-model-for-smaller-budgets). |
-| `tool_batch` | Optional `true` or `false`. Offers the `batch` tool to a model that returns one tool call at a time. Defaults to `CODEBERG_TOOL_BATCH`, then on for local and unknown providers. |
+| `tool_batch` | Optional `true` or `false`. Offers the `batch` tool to a model that returns one tool call at a time. Defaults to `CODEBERG_TOOL_BATCH`, then off. |
 | `tool_output_limit` | Optional integer of at least 4,000. Characters a tool result may carry before it becomes a preview. Defaults to 12,000. |
 | `instructions` | Optional path to a text file that replaces the built-in agent instructions. Relative paths start from the folder that holds `models.yml`. |
 
@@ -100,7 +96,7 @@ providers:
         instructions: prompts/quick.md
 ```
 
-These settings apply to the chat model only. A model whose working context is 16,384 tokens or less always gets short instructions without the examples, whatever its tier, so they leave room for code. For terminal questions or a model without catalog settings, set `CODEBERG_MODEL_TIER` and `CODEBERG_TOOL_BATCH`. Changes to `models.yml` or an instructions file apply to the next turn; environment changes need a restart. Compare answers on your [Evaluations](/docs/evaluations) set before and after each change.
+These settings apply to the chat model only. For terminal questions or a model without catalog settings, set `CODEBERG_MODEL_TIER` and `CODEBERG_TOOL_BATCH`. Changes to `models.yml` or an instructions file apply to the next turn; environment changes need a restart. Compare answers on your [Evaluations](/docs/evaluations) set before and after each change.
 
 ## Select models in the app
 
@@ -109,6 +105,8 @@ Open **Models**, choose chat and learning models and efforts, then save. Changes
 **Subagents** has an on/off switch, a model, and an effort. The model starts as **Same as summary model**, and its effort follows that model until you pick one. Any model in your catalog can be chosen; add more in `models.yml`. Choose a small, fast model to keep [parallel checks](/docs/tools#split-work-across-subagents) cheap; the chat model still reviews every report.
 
 **Summaries** starts as **Same as chat model**. Pick a smaller model there to lower the cost of condensing long chats; see [How chat context stays bounded](#how-chat-context-stays-bounded).
+
+**Evaluation judge** has an on/off switch, a model, and an effort. It starts on, as **Same as chat model**. It scores [automatic evaluations](/docs/evaluations#choose-the-judge); pick a different model at least as capable as the chat model so it does not grade its own answers, or turn it off to score with model-free checks only.
 
 | Setup | Available choices |
 | --- | --- |
@@ -236,7 +234,9 @@ Decision calls add provider charges and a chat tool round trip. They may reduce 
 Codeberg archives large tool results locally, clears stale tool output, and summarizes older exchanges only when history still approaches the model's budget. Recent exchanges and the current request stay available; the agent can recover omitted details from saved context.
 
 - Tool results over **12,000 characters** become previews with paths to full output, including results in a reopened chat. Change this per model with `tool_output_limit`.
-- Once a chat's full history passes half the working ceiling, older tool results over 1,000 characters are replaced with a short note naming the saved file. The newest four results always stay, and older ones are cleared eight at a time so cached prompts stay reusable. The agent reads a cleared result again when it needs it.
+- Once a chat's full history passes half the working ceiling, tool results over 1,000 characters from earlier turns are replaced with a short note naming the saved file. The four newest results from earlier turns stay for the whole turn, so this happens once per turn and cached prompts stay reusable. The agent reads a cleared result again when it needs it.
+- Results from the turn the agent is working on stay in full until the request passes three quarters of the ceiling with earlier turns already cleared. Then that turn's older results are cleared eight at a time so cached prompts stay reusable; its newest four results and anything it re-read with `context_read`, `context_tail`, or `context_grep` stay.
+- The agent can manage its own context with `context_status`, `context_keep`, and `context_release`. See [Let the agent manage its context](#let-the-agent-manage-its-context).
 - Summaries run on the chat model unless you choose another under **Models → Summaries**. The chat model still writes every answer; a summary is at most **2,000 tokens**, so a smaller model usually suffices.
 - A summary model's requests appear under **Chat** in Usage, attributed to that model.
 - Changing the summary model writes new summaries the next time history is condensed; earlier ones are not reused.
@@ -250,6 +250,21 @@ A context-limit error can trigger up to three smaller retries. Completed local t
 To watch this in a chat, select the context ring beside **Send**; see [See what fills the context](/docs/chats#see-what-fills-the-context).
 
 If the current request still cannot fit, narrow attachments, reduce integrations, lower effort, or use a larger window. Estimates for text and media are approximate. See [Environment variables](/docs/environment#context-and-tool-calling) for window overrides and [Data and maintenance](/docs/storage) for saved context.
+
+
+## Let the agent manage its context
+
+Automatic clearing goes by position and size. The agent knows which results it still needs, so it can steer clearing:
+
+| Tool | What it does |
+| --- | --- |
+| `context_status` | Reports the working window, where history is summarized, where earlier-turn and current-turn results are cleared, the last request's estimated size, and the largest results still in context with their ids. |
+| `context_release` | Replaces results the agent no longer needs with a pointer to the saved file, from the next step on and at any context size. Results under 1,000 characters are left alone. |
+| `context_keep` | Keeps results in full while clearing would otherwise replace them. Up to 8 results and 15% of the working ceiling; only results still in full can be kept. |
+
+When automatic clearing starts on earlier turns, then on the current turn, or usage passes 90% of the ceiling, the agent gets one short notice at the end of that request. A request that was just summarized is not warned about a coming summary. The notice is not saved in the chat and does not change cached prompts.
+
+Choices are saved per chat and deleted with the chat; terminal questions keep them for that question only. Subagents do not get these tools or notices; automatic clearing covers them. Kept results can still be summarized once history reaches the ceiling. Models with `tier: light` do not get these tools or notices; automatic clearing still applies.
 
 ## Track token usage
 

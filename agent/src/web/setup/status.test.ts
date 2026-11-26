@@ -34,7 +34,6 @@ async function store(catalog: string | undefined, env: NodeJS.ProcessEnv, defaul
   if (catalog !== undefined) await writeFile(join(home, 'models.yml'), catalog);
 
   const available = (provider: string) =>
-    ['ollama', 'llamacpp'].includes(provider) ||
     (provider === 'openai' && Boolean(env.OPENAI_API_KEY)) ||
     (provider === 'anthropic' && Boolean(env.ANTHROPIC_API_KEY));
 

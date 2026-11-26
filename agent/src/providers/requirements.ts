@@ -8,8 +8,6 @@ const PROVIDER_REQUIREMENTS: Readonly<Record<string, ProviderRequirement>> = {
   openai: { label: 'OpenAI', env: ['OPENAI_API_KEY'] },
   anthropic: { label: 'Anthropic', env: ['ANTHROPIC_API_KEY'] },
   google: { label: 'Google', env: ['GOOGLE_GENERATIVE_AI_API_KEY'] },
-  ollama: { label: 'Ollama', env: [] },
-  llamacpp: { label: 'llama.cpp', env: [] },
 };
 
 /** Required variables for provider that are unset or empty in env. */

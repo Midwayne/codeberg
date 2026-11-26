@@ -7,7 +7,7 @@ import { ifMissing } from '../../core/fs.js';
 export async function sessionRunBytes(directory: string, id: string): Promise<number> {
   if (!isValidSessionId(id)) return 0;
 
-  const paths = [join('.runs', id), join('.jobs', id), join('.context', `${id}.json`)];
+  const paths = [join('.runs', id), join('.jobs', id), join('.context', `${id}.json`), join('.worklists', `${id}.json`), join('.context-keeps', `${id}.json`)];
   const sizes = await Promise.all(paths.map((path) => directoryBytes(join(directory, path))));
 
   return sizes.reduce((sum, size) => sum + size, 0);

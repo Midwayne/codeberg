@@ -30,13 +30,16 @@ function setup(profile = small) {
   return { context, options, checkpoints: new RequestCheckpoints(context, 'policy'), usage: new RequestUsage() };
 }
 
-function request(results: string[]): LanguageModelV4CallOptions {
+/** One turn of tool steps; `followUp` asks a new question after them, ending that turn. */
+function request(results: string[], followUp = false): LanguageModelV4CallOptions {
   const steps = results.flatMap((value, index): LanguageModelV4Message[] => [
     { role: 'assistant', content: [{ type: 'tool-call', toolCallId: `c${index}`, toolName: 'grep', input: { index } }] },
     { role: 'tool', content: [{ type: 'tool-result', toolCallId: `c${index}`, toolName: 'grep', output: { type: 'text', value } }] },
   ]);
 
-  return { prompt: [{ role: 'system', content: 'SYS' }, { role: 'user', content: [{ type: 'text', text: 'where?' }] }, ...steps] };
+  const next: LanguageModelV4Message[] = followUp ? [{ role: 'user', content: [{ type: 'text', text: 'and its callers?' }] }] : [];
+
+  return { prompt: [{ role: 'system', content: 'SYS' }, { role: 'user', content: [{ type: 'text', text: 'where?' }] }, ...steps, ...next] };
 }
 
 function results(call: LanguageModelV4CallOptions): string[] {
@@ -50,13 +53,26 @@ function texts(call: LanguageModelV4CallOptions): string {
 }
 
 describe('prepareRequest', () => {
-  it('clears old tool results once the full prompt passes half the compaction ceiling', async () => {
+  it('clears earlier turns once the full prompt passes half the compaction ceiling', async () => {
     const deps = setup();
     const outputs = Array.from({ length: 13 }, (_, index) => big(index));
 
+    const { request: sent } = await prepareRequest(request(outputs, true), deps);
+
+    for (const text of results(sent).slice(0, 9)) expect(text).toMatch(/^\[cleared grep result/);
+    expect(results(sent).slice(9)).toEqual(outputs.slice(9));
+  });
+
+  it('keeps the turn in progress verbatim until it alone passes the higher trigger', async () => {
+    const deps = setup();
+    const outputs = Array.from({ length: 16 }, (_, index) => big(index));
+
+    const working = request(outputs.slice(0, 13));
+    expect((await prepareRequest(working, deps)).request.prompt).toEqual(working.prompt);
+
     const { request: sent } = await prepareRequest(request(outputs), deps);
 
-    expect(results(sent)[0]).toMatch(/^\[cleared grep result/);
+    for (const text of results(sent).slice(0, 8)) expect(text).toMatch(/^\[cleared grep result/);
     expect(results(sent).slice(8)).toEqual(outputs.slice(8));
   });
 
@@ -69,9 +85,9 @@ describe('prepareRequest', () => {
 
   it('finds a summary saved for a cleared prompt on the next step', async () => {
     const deps = setup();
-    const outputs = Array.from({ length: 14 }, (_, index) => big(index));
+    const outputs = Array.from({ length: 17 }, (_, index) => big(index));
 
-    const first = await prepareRequest(request(outputs.slice(0, 13)), deps);
+    const first = await prepareRequest(request(outputs.slice(0, 16)), deps);
     await compactRequest(first.request, 2_000, first.budget);
     expect(deps.options.summarize).toHaveBeenCalledTimes(1);
 
@@ -82,7 +98,7 @@ describe('prepareRequest', () => {
 
   it('keeps results cleared when a restored summary hides older messages', async () => {
     const deps = setup();
-    const outputs = Array.from({ length: 13 }, (_, index) => big(index));
+    const outputs = Array.from({ length: 16 }, (_, index) => big(index));
     const input = request(outputs);
 
     const file = await deps.context.writeHistory('older work');
@@ -93,7 +109,7 @@ describe('prepareRequest', () => {
     const remaining = results(sent);
 
     expect(texts(sent)).toContain('<conversation_summary>');
-    expect(remaining).toHaveLength(12);
+    expect(remaining).toHaveLength(15);
     for (const text of remaining.slice(0, 7)) expect(text).toMatch(/^\[cleared grep result/);
     expect(remaining.slice(7)).toEqual(outputs.slice(8));
   });

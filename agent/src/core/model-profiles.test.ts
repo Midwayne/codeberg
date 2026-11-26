@@ -2,8 +2,8 @@ import { expect, it } from 'vitest';
 
 import { agentProfiles } from './model-profiles.js';
 
-it('keeps separate local chat and summary windows and respects request-bound settings', () => {
-  const result = agentProfiles('ollama:chat', 'ollama:summary', {
+it('keeps separate chat and summary windows and respects request-bound settings', () => {
+  const result = agentProfiles('openai:chat', 'anthropic:summary', {
     CODEBERG_CONTEXT_WINDOW: '131072',
     CODEBERG_CONTEXT_BUDGET: '64000',
     CODEBERG_SUMMARY_CONTEXT_WINDOW: '4096',
@@ -15,8 +15,8 @@ it('keeps separate local chat and summary windows and respects request-bound set
 });
 
 it('infers the separate summary window or shares a catalog window for the same model', () => {
-  expect(agentProfiles('openai:chat', 'ollama:summary', {}).summaryProfile.contextWindow).toBe(8192);
-  expect(agentProfiles('ollama:chat', 'ollama:chat', {}, 16384).summaryProfile.contextWindow).toBe(16384);
+  expect(agentProfiles('openai:chat', 'anthropic:claude-haiku-4-5', {}).summaryProfile.contextWindow).toBe(200_000);
+  expect(agentProfiles('openai:chat', 'openai:chat', {}, 16384).summaryProfile.contextWindow).toBe(16384);
 });
 
 it('uses the catalog window of a separately chosen summary model', () => {

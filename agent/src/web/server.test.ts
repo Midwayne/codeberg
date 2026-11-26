@@ -316,6 +316,32 @@ describe('web server', () => {
     expect((await (await fetch(`${baseUrl}/api/models`)).json()).chat.key).toBe('openai:large');
   });
 
+  it('requests a canvas agent only for a message sent with the Diagram toggle on', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'codeberg-models-'));
+    tempDirs.push(dir);
+    writeFileSync(join(dir, 'models.yml'), 'providers:\n  openai:\n    models:\n      small:\n        context_window: 50000\n        efforts: [low]\n');
+
+    const received: Array<boolean | undefined> = [];
+    await start({
+      modelSettings: new ModelSettingsStore({ home: dir, defaultChat: { key: 'openai:small', effort: 'low' }, defaultLearning: { key: 'openai:small', effort: 'low' } }),
+      respond: async (res, _messages, selected) => {
+        received.push(selected?.diagrams);
+        res.end('ok');
+      },
+    });
+
+    const send = (metadata?: unknown) => fetch(baseUrl + CHAT_PATH, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: [{ id: 'u1', role: 'user', parts: [{ type: 'text', text: 'Explain' }], ...(metadata ? { metadata } : {}) }] }),
+    });
+
+    await send({ codeberg: { diagram: true } });
+    await send();
+
+    expect(received).toEqual([true, undefined]);
+  });
+
   it('passes supported files through and rejects unsupported inputs before running the agent', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'codeberg-models-'));
     tempDirs.push(dir);

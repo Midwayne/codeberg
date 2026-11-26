@@ -62,13 +62,7 @@ async function execute(store: CanvasStore, operation: string, input: Mutation & 
   return issues.length ? { ...store.summary(scene), issues } : store.summary(scene);
 }
 
-export const CANVAS_INSTRUCTIONS = `
-The local canvas is enabled. When explaining a complex topic, automatically draw a
-diagram alongside your written explanation whenever relationships, structure or steps would
-be easier to understand visually. Default to using it for architecture, dependencies,
-request/data flows, multi-step debugging paths, modules, database relationships and implementation plans.
-Do not wait for the user to ask for a diagram or ask permission to use the enabled canvas.
-Honor requests for text only. Skip diagrams for simple answers or when they add no clarity.
+const CANVAS_GUIDE = `
 Use the canvas tools to make the actual drawing before replying; do not merely offer to draw it.
 Each chat has exactly one canvas, created automatically when you use these tools.
 Inspect canvas_get first to understand this chat's current drawing and the user's changes.
@@ -127,3 +121,14 @@ Keep later edits on the same canvas. Never ask the user to name, create, select 
 If canvas tools fail or become unavailable, continue the explanation in text and briefly mention the limitation.
 Canvas tools persist only locally. Diagram content in tool calls is still part of the configured model conversation.
 `;
+
+/**
+ * The drawing guide, sent only with a message the user sent with Diagram on:
+ * the agent never draws unasked.
+ */
+export const CANVAS_INSTRUCTIONS = `
+The user asked for a diagram with this message, so the local canvas tools are available.
+Draw one alongside your written explanation, showing the relationships, structure or steps that
+matter most for the question: architecture, dependencies, request/data flows, multi-step
+debugging paths, modules, database relationships or implementation plans.
+Do not ask permission first. Honor an explicit request for text only.` + CANVAS_GUIDE;

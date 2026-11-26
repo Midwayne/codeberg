@@ -44,6 +44,8 @@ Browser projects and the launcher's repository registry are separate catalogs. *
 | --- | --- | --- |
 | `CODEBERG_MODEL` | Optional `provider:model` | Initial chat model. A usable `models.yml` catalog can supply the available choices instead. |
 | `CODEBERG_SUBAGENT_MODEL` | Defaults to the chat model | Initial model for background extraction and learning work. |
+| `CODEBERG_JUDGE_MODEL` | Defaults to the chat model | Terminal only: `provider:model` that scores automatic evaluations. In the app, choose **Models → Evaluation judge**. |
+| `CODEBERG_JUDGE_USE` | Boolean; `true` | Terminal only: `false` scores automatic evaluations without a model judge. In the app, use the **Models → Evaluation judge** switch. |
 | `CODEBERG_REASONING` | Provider default when unset | `provider-default`, `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. Actual support depends on the selected provider and model. |
 | `OPENAI_API_KEY` | Secret | Credential for the `openai` provider. |
 | `TYPESAFE_API_KEY` | Secret | Credential for TypeSafe decision models. |
@@ -51,12 +53,8 @@ Browser projects and the launcher's repository registry are separate catalogs. *
 | `CLOUDFLARE_API_TOKEN` | Secret | Workers AI credential for a configured Cloudflare decisions endpoint. |
 | `ANTHROPIC_API_KEY` | Secret | Credential for the `anthropic` provider. |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | Secret | Credential for the `google` provider. |
-| `OLLAMA_BASE_URL` | `http://localhost:11434/v1` | OpenAI-compatible chat endpoint for the `ollama` provider. Include `/v1`. |
-| `LLAMACPP_BASE_URL` | `http://localhost:8080/v1` | Chat endpoint for a separately running llama.cpp server. Include `/v1`. |
 
-**Environment only:** `OLLAMA_API_KEY` and `LLAMACPP_API_KEY` override the local providers' placeholder keys when your endpoint requires authentication. They are not loaded from the launcher's config file. Local servers normally need no real key.
-
-For catalog syntax, local server setup, and saved model choices, see [Models and credentials](/docs/models).
+For catalog syntax and saved model choices, see [Models and credentials](/docs/models).
 
 ## Context and tool calling
 
@@ -64,7 +62,7 @@ For catalog syntax, local server setup, and saved model choices, see [Models and
 
 | Variable | Value or default | What it changes |
 | --- | --- | --- |
-| `CODEBERG_CONTEXT_WINDOW` | Positive token count; inferred from the model otherwise | Override the model's hard context window. Use the capacity actually loaded by your local server. |
+| `CODEBERG_CONTEXT_WINDOW` | Positive token count; inferred from the model otherwise | Override the model's hard context window when Codeberg cannot infer it. |
 | `CODEBERG_SUMMARY_CONTEXT_WINDOW` | Positive token count; inferred separately when a different summarizer is configured | Window of the different `CODEBERG_SUBAGENT_MODEL` used for CLI/history summarization. A summarizer using the chat model shares its window, including a catalog override. A summary model chosen under **Models → Summaries** in the browser uses its catalog `context_window` instead. |
 | `CODEBERG_CONTEXT_BUDGET` | Positive token count; `200000` | Working context ceiling, capped by each model's hard window. History, complete-request, summary, and background learning-input budgets use this ceiling. |
 | `CODEBERG_MODEL_TIER` | `standard` or `light`; `standard` | Tier for a chat model that has no `tier` in `models.yml`, including terminal questions. `light` gives the agent extra worked examples, fewer tools, and a per-message reminder. A catalog `tier` wins. See [Tune a model for smaller budgets](/docs/models#tune-a-model-for-smaller-budgets). |
@@ -76,7 +74,7 @@ For catalog syntax, local server setup, and saved model choices, see [Models and
 | `CODEBERG_MODEL_TIMEOUT_RETRIES` | Whole number; `3` | Extra attempts, with backoff, for a model request that timed out before producing any output, streamed or not. Each retry is logged. Provider errors keep the provider SDK's own retries. |
 | `CODEBERG_TOOL_TIMEOUT_MS` | Milliseconds; `600000`; `0` turns it off | How long one ordinary tool call in a chat turn or subagent (MCP, code search, web) may run before it is stopped and reported to the agent as a tool error. Scripts, Browser Use, subagents, and background jobs have no limit. For longer calls, the agent can use `start_background_tool`. |
 | `CODEBERG_MAX_TURN_STEPS` | Whole number, at least `2`; unset | Model steps one chat turn may take. On the last step the agent must answer without tools. Useful for scheduled wake-ups and scripts that nobody watches. Unset, a turn works until it answers or you press **Stop**. |
-| `CODEBERG_TOOL_BATCH` | Boolean; automatic by provider | Enable the `batch` tool for models that struggle to return several tool calls in one response. Local and unknown providers enable it by default. A model's `tool_batch` in `models.yml` wins. |
+| `CODEBERG_TOOL_BATCH` | Boolean; automatic by provider | Enable the `batch` tool for models that struggle to return several tool calls in one response. Off by default. A model's `tool_batch` in `models.yml` wins. |
 
 ## Local services and ports
 
@@ -152,7 +150,7 @@ Remote vector storage still needs the local sidecars and an embedding model. Cha
 | --- | --- | --- |
 | `CODEBERG_BROWSER_USE` | Boolean; `false` | Initial browser-delegation preference and terminal opt-in. The saved web setting takes precedence. |
 | `CODEBERG_BROWSER_VISION` | Boolean; `false` | Initial screenshot-access preference and terminal opt-in. Settings → Tools → Browser vision takes precedence in the web app. |
-| `CODEBERG_BROWSER_MODEL` | `provider:model`; current chat model | Separate Browser Use model. Supports openai, anthropic, google, ollama, and llamacpp with their existing provider credentials/endpoints. |
+| `CODEBERG_BROWSER_MODEL` | `provider:model`; current chat model | Separate Browser Use model. Supports openai, anthropic, and google with their existing provider credentials. |
 | `CODEBERG_BROWSER_UV` | Executable path; `uv` on PATH | uv used to run the pinned Browser Use package with Python >=3.11 and <4.0; downloads Python only if no compatible interpreter is available. |
 | `CODEBERG_BROWSER_HEADLESS` | Boolean; `false` | Run the task browser without a visible window. Useful on Linux without a desktop. |
 
@@ -178,7 +176,7 @@ Browser sessions require a model declared with `inputs: [text, vision]` in `mode
 
 > **Extension credentials come from the process environment.** For `${env:MCP_TOKEN}` in `mcp.json`, or `${POSTGRES_URI}` in a database spec, export that variable before starting Codeberg. Arbitrary secret names in the saved launcher config are not forwarded automatically.
 
-**Environment only:** `CODEBERG_CANVAS_USE=true` enables the initial canvas capability. The project's canvas setting in the app can subsequently change it.
+**Environment only:** `CODEBERG_CANVAS_USE=true` enables the initial canvas capability. The project's canvas setting in the app can subsequently change it. The agent gets the canvas only for browser messages sent with **Diagram** on; terminal questions never use it.
 
 ## Advanced component and developer settings
 
@@ -197,7 +195,7 @@ Browser sessions require a model declared with `inputs: [text, vision]` in `mode
 | `CBERG_EMBED_BACKEND` | Direct daemon/indexer | `onnx`, `mlx` (Qwen), `gemma-mlx`, `llama`, or `sentence-transformers`. The launcher selects this from `CODEBERG_EMBEDDING_MODEL`. |
 | `CBERG_EMBED_WORKER` | Direct non-ONNX indexer | Python worker script. The launcher supplies its bundled worker. |
 | `CBERG_EMBED_PYTHON` | Direct non-ONNX indexer | Python executable for that worker. The launcher supplies its separate MLX or EmbeddingGemma environment when applicable. |
-| `CBERG_LLAMA_SERVER` | llama.cpp embedding worker | Override the `llama-server` executable. This is separate from `LLAMACPP_BASE_URL` for chat. |
+| `CBERG_LLAMA_SERVER` | llama.cpp embedding worker | Override the `llama-server` executable used for embeddings. |
 | `EDITOR`, `VISUAL` | Launcher config editor | Editor command for `codeberg config edit`; `VISUAL` wins, then `EDITOR`, then `vi`. |
 
 `CODEBERG_PROJECT_ID`, `CODEBERG_PROJECT_HOME`, `CODEBERG_RESOURCE_ROOT_PID`, `CODEBERG_PICKER_START`, and `CODEBERG_CONFIG_DIRECTORY` are runtime plumbing supplied by the app. Use the project selector and Settings to manage these values instead of adding them to your config.

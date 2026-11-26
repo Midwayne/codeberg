@@ -10,13 +10,12 @@ import { agentSystemSections } from '../prompt.js';
 import { clockContext } from '../prompts/clock.js';
 import { repositoryContext } from '../prompts/repositories.js';
 import { maxReasoningProviderOptions } from '../reasoning.js';
-import { mergeProviderOptions, parallelToolProviderOptions } from '../tool-calls.js';
+import { mergeProviderOptions } from '../tool-calls.js';
 import { createAgentTools } from '../tools/agent-tools.js';
 import { BATCH_TOOL, MAX_BATCH_CALLS } from '../tools/batch.js';
 import { SEARCH_BUNDLE_INSTRUCTIONS } from '../tools/search-bundle.js';
 import { DEFAULT_SEARCH_K } from './options.js';
 import type { AgentState } from './state.js';
-import { usesCompactPrompt } from '../../providers/profiles.js';
 import { configuredDecision } from '../decisions/catalog.js';
 import { decisionTools } from '../decisions/tool.js';
 import { BACKGROUND_INSTRUCTIONS } from '../background/tools.js';
@@ -26,6 +25,8 @@ import { SCRIPT_INSTRUCTIONS, SCRIPT_TOOL } from '../script/tool.js';
 import { insideScript } from '../script/scope.js';
 import { SUBAGENT_TOOL } from '../subagents/names.js';
 import { SUBAGENT_INSTRUCTIONS } from '../subagents/prompt.js';
+import { WORKLIST_INSTRUCTIONS } from '../worklist/tools.js';
+import { CONTEXT_CONTROL_INSTRUCTIONS } from '../request-budget/tools.js';
 
 /** Guidance each tool family adds to the system prompt when any of its tools is offered. */
 const TOOL_FAMILY_INSTRUCTIONS: { offered: (name: string) => boolean; text: string }[] = [
@@ -36,6 +37,8 @@ const TOOL_FAMILY_INSTRUCTIONS: { offered: (name: string) => boolean; text: stri
   { offered: (name) => name === SCRIPT_TOOL, text: SCRIPT_INSTRUCTIONS },
   { offered: (name) => name === 'remember', text: REMEMBER_INSTRUCTIONS },
   { offered: (name) => name === SUBAGENT_TOOL, text: SUBAGENT_INSTRUCTIONS },
+  { offered: (name) => name === 'worklist_add', text: WORKLIST_INSTRUCTIONS },
+  { offered: (name) => name === 'context_status', text: CONTEXT_CONTROL_INSTRUCTIONS },
 ];
 
 export async function prepareSystem(
@@ -52,7 +55,6 @@ export async function prepareSystem(
     skills,
     contextRoot: state.context.root,
     batch: toolNames.includes(BATCH_TOOL) ? MAX_BATCH_CALLS : undefined,
-    compact: usesCompactPrompt(state.profile),
     light: state.profile.tier === 'light',
     decisions: toolNames.includes('decide'),
     vectors: toolNames.includes('search_code'),
@@ -77,7 +79,6 @@ export async function prepareSystem(
 
   return mergeProviderOptions(
     requestProviderOptions(state.system, toolNames, state.profile),
-    parallelToolProviderOptions(state.profile),
     state.reasoning === 'max' ? maxReasoningProviderOptions(state.profile.provider) : undefined,
   );
 }
@@ -103,7 +104,8 @@ export async function buildTools(state: AgentState) {
     browserModel: state.profile.provider && state.profile.modelId
       ? `${state.profile.provider}:${state.profile.modelId}` : undefined,
     daemon: state.daemon,
-    canvas: canvasFromEnv(state.env),
+    // The canvas is offered only to a turn the user sent with Diagram on, never by default.
+    canvas: state.options.canvas === true ? canvasFromEnv(state.env) : undefined,
     context: state.context,
     learning: state.learning?.store,
     learningSettings: state.learning ? () => state.learning!.settings : undefined,

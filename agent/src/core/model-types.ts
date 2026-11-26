@@ -36,11 +36,21 @@ export interface SubagentSettings {
   model: ModelSelection | null;
 }
 
+/** Whether automatic evaluations are scored by a model judge, and which one. */
+export interface JudgeSettings {
+  /** Off, evaluations run only the scorers that need no model. */
+  enabled: boolean;
+  /** Null judges with the chat model, never a weaker learning model. */
+  model: ModelSelection | null;
+}
+
 export interface ModelSelections {
   chat: ModelSelection;
   learning: ModelSelection;
   /** History summarizer. Null or absent summarizes on the chat model. */
   summary?: ModelSelection | null;
+  /** Model judge for automatic evaluations. Absent keeps the saved choice. */
+  judge?: JudgeSettings;
   subagents?: SubagentSettings;
   decisions?: string | null;
 }
@@ -48,6 +58,8 @@ export interface ModelSelections {
 export interface ModelSettings extends ModelSelections {
   /** Always resolved by the server, falling back to CODEBERG_SUBAGENTS_USE. */
   subagents: SubagentSettings;
+  /** Always resolved by the server: on, following the chat model, until changed. */
+  judge: JudgeSettings;
   models: CatalogModel[];
   decisionModels?: DecisionModel[];
 }

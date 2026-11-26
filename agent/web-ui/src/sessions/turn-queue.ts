@@ -2,7 +2,8 @@ import type { Chat } from '@ai-sdk/react';
 import type { UIMessage } from 'ai';
 import { errorMessage } from '@agent/core/errors.js';
 
-type TurnInput = { text: string; files?: FileList };
+/** `metadata` rides on the user message, e.g. the Diagram toggle's request. */
+type TurnInput = { text: string; files?: FileList; metadata?: UIMessage['metadata'] };
 export type QueuedTurn = TurnInput & { id: string };
 type QueueSnapshot = { items: QueuedTurn[]; paused: boolean; steering: boolean; error?: string };
 

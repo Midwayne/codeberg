@@ -7,6 +7,7 @@ import type { WebSessionStoreState } from './state.js';
 import { serial } from './writing.js';
 import { ifMissing } from '../../core/fs.js';
 import { contextStatsPath } from './context-stats.js';
+import { contextKeepsPath, forgetChatSelections } from '../../core/request-budget/selection.js';
 
 export async function remove(state: WebSessionStoreState, id: string): Promise<void> {
   await serial(state, id, async () => {
@@ -18,10 +19,11 @@ export async function remove(state: WebSessionStoreState, id: string): Promise<v
   });
 }
 
-/** Run journals, background jobs, and context stats stored beside a chat. */
+/** Run journals, background jobs, context stats, the working list, and kept results stored beside a chat. */
 async function removeChatFiles(dir: string, id: string): Promise<void> {
-  const paths = [join(dir, '.runs', id), join(dir, '.jobs', id), contextStatsPath(dir, id)];
+  const paths = [join(dir, '.runs', id), join(dir, '.jobs', id), contextStatsPath(dir, id), join(dir, '.worklists', `${id}.json`), contextKeepsPath(dir, id)];
 
+  forgetChatSelections(join(dir, id));
   await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true }).catch(() => undefined)));
 }
 

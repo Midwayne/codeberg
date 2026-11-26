@@ -12,7 +12,7 @@ describe('ModelSettingsForm', () => {
     ];
     const html = renderToStaticMarkup(<ModelSettingsForm
       models={models}
-      value={{ chat: { key: 'openai:alpha', effort: 'high' }, learning: { key: 'openai:beta', effort: 'none' }, subagents: { enabled: true, model: null } }}
+      value={{ chat: { key: 'openai:alpha', effort: 'high' }, learning: { key: 'openai:beta', effort: 'none' }, judge: { enabled: true, model: null }, subagents: { enabled: true, model: null } }}
       onChange={() => undefined}
     />);
     expect(html).toContain('id="chat-model"');
@@ -34,7 +34,7 @@ describe('ModelSettingsForm', () => {
     const choice = { key: 'openai:alpha', effort: 'high' as const };
     const render = (summary?: typeof choice | null) => renderToStaticMarkup(<ModelSettingsForm
       models={models}
-      value={{ chat: choice, learning: choice, summary, subagents: { enabled: true, model: null } }}
+      value={{ chat: choice, learning: choice, summary, judge: { enabled: true, model: null }, subagents: { enabled: true, model: null } }}
       onChange={() => undefined}
     />);
 
@@ -49,8 +49,29 @@ describe('ModelSettingsForm', () => {
     expect(chosen).toContain('id="summary-model"');
     expect(chosen).toContain('id="summary-effort"');
     expect(chosen).toContain('<option value="high" selected="">high</option>');
-    // Only the still-unset Subagents section keeps its hint.
-    expect(chosen.match(/Pick a model above/g)).toHaveLength(1);
+    // Only the still-unset Judge and Subagents sections keep their hints.
+    expect(chosen.match(/Pick a model above/g)).toHaveLength(2);
+  });
+
+  it('marks the judge as self-grading while it is the chat model under any catalog key, unless it is off', () => {
+    const models: CatalogModel[] = [
+      { key: 'openai:alpha', model: 'openai:alpha', provider: 'openai', label: 'Alpha', contextWindow: 50000, efforts: ['low'], inputs: ['text'] },
+      { key: 'openai:alias', model: 'openai:alpha', provider: 'openai', label: 'Alias', contextWindow: 50000, efforts: ['low'], inputs: ['text'] },
+      { key: 'openai:strong', model: 'openai:strong', provider: 'openai', label: 'Strong', contextWindow: 90000, efforts: ['low'], inputs: ['text'] },
+    ];
+    const chat = { key: 'openai:alpha', effort: 'low' as const };
+    const render = (model: typeof chat | null, enabled = true) => renderToStaticMarkup(<ModelSettingsForm
+      models={models}
+      value={{ chat, learning: chat, judge: { enabled, model }, subagents: { enabled: true, model: null } }}
+      onChange={() => undefined}
+    />);
+
+    expect(render(null)).toContain('id="judge-model"');
+    expect(render(null)).toContain('self-graded');
+    expect(render({ key: 'openai:alias', effort: 'low' })).toContain('self-graded');
+    expect(render({ key: 'openai:strong', effort: 'low' })).not.toContain('self-graded');
+    expect(render(null, false)).not.toContain('self-graded');
+    expect(render(null, false)).toMatch(/id="judge-model"[^>]*disabled=""|disabled=""[^>]*id="judge-model"/);
   });
 
   it('shows the subagent switch on by default, following the summary model', () => {
@@ -60,7 +81,7 @@ describe('ModelSettingsForm', () => {
     const choice = { key: 'openai:alpha', effort: 'high' as const };
     const render = (subagents: { enabled: boolean; model: typeof choice | null } = { enabled: true, model: null }) => renderToStaticMarkup(<ModelSettingsForm
       models={models}
-      value={{ chat: choice, learning: choice, subagents }}
+      value={{ chat: choice, learning: choice, judge: { enabled: true, model: null }, subagents }}
       onChange={() => undefined}
     />);
 
@@ -81,7 +102,7 @@ describe('ModelSettingsForm', () => {
       models={[{ key: 'openai:chat', model: 'openai:chat', provider: 'openai', label: 'Chat', contextWindow: 32000, efforts: ['none'], inputs: ['text'] }]}
       decisionModels={[{ key: 'typesafe:fast', provider: 'typesafe', model: 'jev-latest', label: 'Jev',
         api: 'system-one', endpoint: 'https://api.typesafe.ai/v1/systemone', apiKeyEnv: 'TYPESAFE_API_KEY' }]}
-      value={{ chat: { key: 'openai:chat', effort: 'none' }, learning: { key: 'openai:chat', effort: 'none' }, decisions: 'typesafe:fast', subagents: { enabled: true, model: null } }}
+      value={{ chat: { key: 'openai:chat', effort: 'none' }, learning: { key: 'openai:chat', effort: 'none' }, decisions: 'typesafe:fast', judge: { enabled: true, model: null }, subagents: { enabled: true, model: null } }}
       onChange={() => undefined}
     />);
 

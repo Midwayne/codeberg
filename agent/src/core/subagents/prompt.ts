@@ -20,9 +20,11 @@ const SHARED = [
 
 const MCP_LOADS = 'Call load_mcp_tools with the MCP tool names you need before calling them; they join your tools on the next step.';
 
-/** System prompt for a subagent of `type`; MCP guidance only when it can load MCP tools. */
-export function subagentSystem(type: SubagentType, loadsMcp = false): string {
-  return [ROLE[type], SHARED, ...(loadsMcp ? [MCP_LOADS] : [])].join('\n');
+const WORKLIST = 'This chat keeps a shared working list of facts. Call worklist_read before redoing work that may be recorded there, and worklist_add for confirmed findings, with their citations, that the main agent must not lose. Entries are notes, not evidence.';
+
+/** System prompt for a subagent of `type`; MCP and working-list guidance only when it has those tools. */
+export function subagentSystem(type: SubagentType, offered: { loadsMcp?: boolean; worklist?: boolean } = {}): string {
+  return [ROLE[type], SHARED, ...(offered.loadsMcp ? [MCP_LOADS] : []), ...(offered.worklist ? [WORKLIST] : [])].join('\n');
 }
 
 /** Sent as the last step's only instruction when the tool budget runs out. */

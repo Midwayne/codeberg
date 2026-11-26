@@ -11,6 +11,8 @@ Source files stay in the directory you add. Codeberg stores configuration and de
       .runs/              # Search status, tool outcomes, response events
       .schedules/         # Durable scheduled follow-ups and their status
       .jobs/              # Background invocation status, progress and results
+      .worklists/         # Each chat's working list of findings
+      .context-keeps/     # Tool results the agent chose to keep or release
     context/              # Retrieved text, archives, checkpoints
       scripts/            # Script output saved with output_to_file
     learning/             # History, knowledge, datasets, evaluations
@@ -25,7 +27,7 @@ Source files stay in the directory you add. Codeberg stores configuration and de
 
 Context checkpoints reuse summaries only while saved messages and model policy match. Original messages remain in `web-sessions/`.
 
-Search journals retain request identity, tool starts/outcomes, and ordered events. Each has a **32 MiB** limit; reaching it stops the run with an error. Narrow the investigation. Deleting a chat, including age-based cleanup, removes its journals; active runs block deletion.
+Search journals retain request identity, tool starts/outcomes, and ordered events. Each has a **32 MiB** limit; reaching it stops the run with an error. Narrow the investigation. Deleting a chat, including age-based cleanup, removes its journals, working list, and kept-result choices; active runs block deletion.
 
 After restart, saved tool outcomes remain but interrupted generation does not resume automatically. A start without an outcome is uncertain. Separately, [scheduled follow-ups](/docs/tools#schedule-a-follow-up) survive restarts and can start new turns when due. Deleted chats are never recreated by their schedules. See [Chats](/docs/chats#recover-a-connection).
 
@@ -49,7 +51,7 @@ The folder picker does not upload your project. Configured services receive the 
 | Web search / URL fetching | Network requests to configured services and destinations. |
 | Browser Use model provider | Task instructions, page content, screenshots when enabled. |
 
-Local models use the endpoints you configure. Browser Use's worker/browser run locally; screenshots default off, and its cloud sync and telemetry are disabled. Codeberg's HTTP services bind to loopback.
+Browser Use's worker/browser run locally; screenshots default off, and its cloud sync and telemetry are disabled. Codeberg's HTTP services bind to loopback.
 
 The docs are bundled locally and require no LLM, project, or external documentation service.
 

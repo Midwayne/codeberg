@@ -26,9 +26,9 @@ By default, Browser Use uses the selected chat model and provider credentials. T
 CODEBERG_BROWSER_MODEL=openai:your-model-name codeberg
 ```
 
-Supported providers are `openai`, `anthropic`, `google`, `ollama`, and `llamacpp`. The override must match a vision-capable provider/model declared in the catalog. Unknown and text-only models cannot start sessions, even with screenshots off. A text-only main chat can delegate to an eligible override.
+Supported providers are `openai`, `anthropic`, and `google`. The override must match a vision-capable provider/model declared in the catalog. Unknown and text-only models cannot start sessions, even with screenshots off. A text-only main chat can delegate to an eligible override.
 
-Local models must handle structured responses and screenshots. If uv is outside PATH, export `CODEBERG_BROWSER_UV=/absolute/path/to/uv`. Browser variables are **environment only**, not saved launcher-config keys.
+If uv is outside PATH, export `CODEBERG_BROWSER_UV=/absolute/path/to/uv`. Browser variables are **environment only**, not saved launcher-config keys.
 
 ## Screenshots
 

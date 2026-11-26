@@ -167,7 +167,7 @@ func searxngManagedNote(c *Config) string {
 
 // mask shows only the last 4 chars of a secret-ish value.
 func mask(v string) string {
-	if strings.HasPrefix(v, "http") { // OLLAMA_BASE_URL etc. are not secret
+	if strings.HasPrefix(v, "http") { // URLs are not secret
 		return v
 	}
 	if len(v) <= 4 {

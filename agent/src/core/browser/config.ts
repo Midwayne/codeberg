@@ -31,8 +31,8 @@ export function browserConfig(env: NodeJS.ProcessEnv, fallback = '', validateMod
   const provider = parsed?.provider ?? '';
   const model = parsed?.modelId ?? spec;
   if (enabled && validateModel && (!parsed || !model.trim())) throw new Error('Choose a browser model as provider:model.');
-  if (enabled && validateModel && !['openai', 'anthropic', 'google', 'ollama', 'llamacpp'].includes(provider))
-    throw new Error('Unsupported browser model provider. Use openai, anthropic, google, ollama, or llamacpp.');
+  if (enabled && validateModel && !['openai', 'anthropic', 'google'].includes(provider))
+    throw new Error('Unsupported browser model provider. Use openai, anthropic, or google.');
 
   const selectedInputs = (!env.CODEBERG_BROWSER_MODEL?.trim() || spec === fallback) ? inputs : undefined;
   const supportsVision = enabled && validateModel && (selectedInputs
@@ -49,7 +49,6 @@ export function workerEnvironment(env: NodeJS.ProcessEnv, provider: string): Nod
     'HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY', 'SSL_CERT_FILE', 'SSL_CERT_DIR', 'UV_CACHE_DIR'];
   const credentials: Record<string, string[]> = {
     openai: ['OPENAI_API_KEY'], anthropic: ['ANTHROPIC_API_KEY'], google: ['GOOGLE_GENERATIVE_AI_API_KEY'],
-    ollama: ['OLLAMA_API_KEY', 'OLLAMA_BASE_URL'], llamacpp: ['LLAMACPP_API_KEY', 'LLAMACPP_BASE_URL'],
   };
   const allowed = [...names, ...(credentials[provider] ?? [])];
 

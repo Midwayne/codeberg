@@ -19,6 +19,7 @@ export const models: ModelSettings = {
   learning: { key: 'demo:model', effort: 'low' },
   summary: null,
   subagents: { enabled: true, model: null },
+  judge: { enabled: true, model: null },
   decisions: null,
   decisionModels: [{ key: 'demo:decisions', provider: 'demo', model: 'decisions', label: 'Demo decisions',
     api: 'openai', endpoint: 'https://example.invalid/decisions', apiKeyEnv: 'DEMO_DECISIONS_KEY' }],

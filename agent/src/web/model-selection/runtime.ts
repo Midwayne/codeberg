@@ -70,9 +70,14 @@ interface AgentDeps {
 
 /** One agent for a chat selection: its models, effort, window, summarizer, and subagents. */
 function selectionAgent(selection: ResolvedModelSelection, deps: AgentDeps) {
+  return createAgent(selectionAgentConfig(selection, deps));
+}
+
+/** What a selection builds; the canvas tools come only with a diagram request. */
+export function selectionAgentConfig(selection: ResolvedModelSelection, deps: AgentDeps) {
   const { transformModel } = deps;
 
-  return createAgent({
+  return {
     daemonUrl: deps.daemonUrl,
     env: deps.env,
     modelSpec: selection.model,
@@ -85,8 +90,9 @@ function selectionAgent(selection: ResolvedModelSelection, deps: AgentDeps) {
     summary: summaryConfig(selection, transformModel),
     subagents: subagentConfig(selection, transformModel),
     learning: deps.learning,
-    transformModel: transformModel ? (model) => transformModel(model, selection) : undefined,
-  });
+    canvas: selection.diagrams === true,
+    transformModel: transformModel ? (model: LanguageModel) => transformModel(model, selection) : undefined,
+  };
 }
 
 /** Picks the current learning choice at job execution time, including recovered jobs. */

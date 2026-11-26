@@ -25,7 +25,7 @@
 # See docs/multi-repo.md for the terminal registry.
 
 # LLM the agent uses, as provider:model.
-# Providers: anthropic, openai, google, ollama (local), llamacpp (local).
+# Providers: anthropic, openai, google. Local chat servers are not supported.
 CODEBERG_MODEL=anthropic:claude-haiku-4-5
 
 # Model used by background knowledge extraction/subagents. Defaults to
@@ -41,7 +41,7 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # recording new data; existing learning files remain available to export.
 # CODEBERG_LEARNING_USE=true
 
-# API key matching CODEBERG_MODEL (ollama and llamacpp need none).
+# API key matching CODEBERG_MODEL.
 # ANTHROPIC_API_KEY=
 # OPENAI_API_KEY=
 # TYPESAFE_API_KEY=
@@ -168,20 +168,13 @@ CODEBERG_MODEL=anthropic:claude-haiku-4-5
 # provider-default | none | minimal | low | medium | high | xhigh | max (Responses-compatible only)
 # CODEBERG_REASONING=medium
 
-# Override context window tokens for local ollama / llamacpp servers.
+# Override the model's context window in tokens when Codeberg cannot infer it.
 # env only:
 # CODEBERG_CONTEXT_WINDOW=32768
 
 # One-shot question for codeberg-ask (CLI only).
 # env only:
 # CODEBERG_QUESTION=where is chunking implemented?
-
-# --- Local LLM endpoints (no API key) ---------------------------------------
-# CODEBERG_MODEL=ollama:qwen3.5:9b
-# OLLAMA_BASE_URL=http://localhost:11434/v1
-#
-# CODEBERG_MODEL=llamacpp:my-model
-# LLAMACPP_BASE_URL=http://localhost:8080/v1
 
 # =============================================================================
 # Web tools — web_search + fetch_url (agent scope)

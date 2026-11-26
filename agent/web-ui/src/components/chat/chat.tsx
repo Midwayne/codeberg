@@ -1,6 +1,7 @@
 import { ChatError } from './chat-error';
 import { ChatCanvasActions } from '../../canvas/chat-actions';
 import { canvasAnchor } from '../../canvas/conversation';
+import { useCanvasSettings } from '../../canvas/use-settings';
 import { useChatScroll } from './use-chat-scroll';
 import { useProjectApi } from '../../lib/project-api';
 import type { UseChatHelpers } from '@ai-sdk/react';
@@ -131,6 +132,8 @@ export function ChatView(state: ChatViewProps) {
 type ChatComposerProps = { state: Parameters<typeof ChatView>[0] };
 
 function ChatComposer({ state }: ChatComposerProps) {
+  const { enabled: canvasEnabled } = useCanvasSettings();
+
   return (
     <section aria-label="Message composer" className="shrink-0 bg-background">
       <div className="mx-auto max-w-4xl px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-8">
@@ -143,6 +146,7 @@ function ChatComposer({ state }: ChatComposerProps) {
           busy={state.busy}
           disabled={!state.ready}
           inputs={state.chatInputs}
+          diagrams={canvasEnabled === true}
           onSend={state.queue.send}
           onSteer={state.queue.steer}
           onStop={state.queue.stop}

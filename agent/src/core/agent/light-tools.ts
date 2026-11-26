@@ -1,6 +1,7 @@
 import type { ToolSet } from 'ai';
 
 import type { ModelProfile } from '../../providers/profiles.js';
+import { CONTEXT_CONTROL_TOOLS } from '../request-budget/tools.js';
 
 /**
  * Built-in tools a `light` model does not see. Small models choose worse from
@@ -28,6 +29,7 @@ export const LIGHT_HIDDEN_TOOLS: ReadonlySet<string> = new Set([
   'head',
   'tail',
   'wc',
+  ...CONTEXT_CONTROL_TOOLS,
 ]);
 
 /** The tools offered to this profile's model, in their original order. */

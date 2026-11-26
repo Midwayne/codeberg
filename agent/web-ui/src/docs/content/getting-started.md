@@ -47,7 +47,7 @@ Add your credential to the opened config file, save, and restart Codeberg:
 OPENAI_API_KEY=replace-with-your-key
 ```
 
-Keep real keys out of repositories and screenshots. Anthropic, Google, Ollama, and llama.cpp are also supported. See [Models and credentials](/docs/models) for provider setup and local endpoints.
+Keep real keys out of repositories and screenshots. Anthropic and Google are also supported. See [Models and credentials](/docs/models) for provider setup.
 
 ## Add a project
 

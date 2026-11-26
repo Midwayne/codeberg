@@ -14,6 +14,7 @@ import type { ModelOverrides } from '../providers/overrides.js';
 import { resolveOverrides } from './model-selection/overrides.js';
 import { errorMessage } from '../core/errors.js';
 import { summaryModel, type SummaryModel } from './model-selection/summary.js';
+import { diagramRequested } from '../core/canvas/request.js';
 import { subagentChoice, type SubagentChoice } from './model-selection/subagents.js';
 
 /** A model choice bound to one chat request. */
@@ -25,6 +26,8 @@ export type ResolvedModelSelection = ModelSelection & {
   subagents?: SubagentChoice;
   /** The chat model's rates, resolved with the selection so usage need not reload the catalog. */
   pricing?: ModelPricing;
+  /** The newest message asked for a diagram; only then does the agent get the canvas tools. */
+  diagrams?: true;
 };
 
 export type ChatResponder = (
@@ -69,7 +72,8 @@ export async function routeChat(
       ...overrides,
       ...(selected.pricing ? { pricing: selected.pricing } : {}),
       decisionModel: settings.decisionModels?.find((item) => item.key === settings.decisions) ?? null,
-      ...summaryChoice(settings), subagents: subagentChoice(settings) }
+      ...summaryChoice(settings), subagents: subagentChoice(settings),
+      ...(diagramRequested(messages) ? { diagrams: true as const } : {}) }
     : undefined;
 
   await withCanvasChat(body?.id, () => runs

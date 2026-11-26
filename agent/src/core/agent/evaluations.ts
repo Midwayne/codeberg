@@ -6,14 +6,14 @@ import type { AgentOptions } from './options.js';
 export function agentEvaluationRuntime(options: AgentOptions) {
   const contextWindow = options.profile?.contextWindow ?? DEFAULT_PROFILE.contextWindow;
   const effort = options.reasoning ?? 'provider-default';
-  const judge = options.subagentModel ?? options.model;
+  const judge = options.judgeModel === null ? undefined : options.judgeModel ?? options.model;
 
   return createAutomaticEvaluationRuntime({
     configuration: async () => ({
       candidate: { key: 'chat', model: modelId(options.model), effort, contextWindow },
-      judge: { key: 'learning', model: modelId(judge), effort, contextWindow },
+      ...(judge ? { judge: { key: 'judge', model: modelId(judge), effort, contextWindow } } : {}),
     }),
-    resolveModel: (selection) => (selection.key === 'chat' ? options.model : judge),
+    resolveModel: (selection) => (selection.key === 'chat' || !judge ? options.model : judge),
     search: (query, search, signal) => options.daemon.search(query, search, signal),
   });
 }

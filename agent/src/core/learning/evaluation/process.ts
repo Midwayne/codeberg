@@ -108,9 +108,10 @@ async function gradeEvaluation(
     await state.reports.checkpoint(task.id, checkpoint);
   }
 
+  const judge = task.configuration.judge;
   const scorers = [
     ...outputScorers(),
-    ...judgeScorers(state.runtime.judge(task.configuration), task.configuration.judge.model),
+    ...(judge ? judgeScorers(state.runtime.judge(task.configuration), judge.model) : []),
   ];
   const run = {
     ...checkpoint.candidate,

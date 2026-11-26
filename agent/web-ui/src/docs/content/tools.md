@@ -12,6 +12,8 @@ Describe the outcome you want. The agent chooses tools to search your selected p
 | `list_dir`, `tree` | Browse the source tree. |
 | `git_log`, `git_blame` | Inspect Git history; requires Git. |
 | Context and knowledge tools | Reuse evidence and [saved findings](/docs/knowledge). |
+| `context_status`, `context_keep`, `context_release` | Check context usage and choose which tool results to keep or drop; see [Let the agent manage its context](/docs/models#let-the-agent-manage-its-context). |
+| `worklist_add`, `worklist_read`, `worklist_retire` | Keep this chat's [working list](#keep-a-working-list) of findings and constraints. |
 
 Built-in daemon source tools are read-only and scoped to configured roots. [MCP servers](/docs/mcps) can add operations, including writes to external services. [Skills](/docs/skills) add instructions rather than callable tools.
 
@@ -135,6 +137,33 @@ For example, the Kafka MCP's `scan_messages` and `count_messages` can return a n
 
 Native job lifetime depends on the MCP server. This Kafka MCP stores jobs in memory with retention and scan time limits; restarting its process loses those jobs. Saving a wake-up does not make an external job durable.
 
+## Keep a working list
+
+In a long chat, older messages are summarized to fit the model's context, and a summary can drop detail. The agent keeps a working list for the facts it must not lose: confirmed findings with their citations, constraints you gave, decisions, and plan steps. Entries are kept in full, whatever happens to the transcript.
+
+The agent records and reads the list on its own. It re-reads the list after history is summarized, when a scheduled or woken turn starts, and before answering a long task. You can also ask for it:
+
+```text
+Add to your working list that releases must not change codeberg.h.
+Show your working list.
+What does your working list say about the daemon port?
+```
+
+| Tool | What it does |
+| --- | --- |
+| `worklist_add` | Records up to 20 entries per call, each under 2,000 characters, with optional `tags`. Text already on the list is not added again. |
+| `worklist_read` | Lists entries in the order they were recorded. `pattern` searches text and tags, case-insensitively; `regex: true` treats it as a regular expression; `tag` keeps one tag. |
+| `worklist_retire` | Marks an entry wrong or outdated, with an optional `reason` and a `correction` saved as a new entry. Retired entries stay readable with `include_retired`. |
+
+| Scope | Behavior |
+| --- | --- |
+| Browser chat | One list per chat, shared by the chat's subagents; each entry notes which subagent added it. Saved on disk and kept across restarts. Deleting the chat deletes its list. |
+| Branched chat | Starts with an empty list. |
+| Terminal question | Kept in memory until the process exits. |
+| Size | Up to 500 entries per chat, retired entries included. When the list is full, the agent is told which items were not saved, and a retirement cannot add a correction. |
+
+The list is the agent's notes, not evidence: it re-reads the code before citing a finding that may have changed. To keep something across chats, use [Knowledge](/docs/knowledge) instead. The tools make no model calls; entries the agent reads back add to the chat's context.
+
 ## Split work across subagents
 
 When a request needs several independent checks, the agent hands each one to a subagent with `run_subagents`, without being asked. Subagents run at the same time on a smaller model, and each returns a short report, so the chat model reads conclusions instead of every log line or metric.
@@ -241,7 +270,15 @@ See [Browser Use](/docs/browser-use) for setup, screenshots, retained sessions, 
 
 ## Optional canvas
 
-Enable **Settings → Canvas** for a drawing canvas attached to each chat. When the agent draws, the chat shows a **Canvas** card; select **Open canvas** to view and edit the drawing in a new browser tab. Chats do not embed the drawing, so switching between chats with canvases stays fast. Open copies of the same chat's canvas share scene updates.
+Enable **Settings → Canvas** for a drawing canvas attached to each chat. Then turn on **Diagram**, the icon beside the attach button in the composer, when you want a drawing with a message:
+
+1. Select the **Diagram** icon; it stays highlighted.
+2. Send the message. The agent draws on the chat's canvas alongside its written answer.
+3. **Diagram** turns off after sending. Turn it on again for each message that should draw or change the drawing.
+
+Diagram is off by default. Without it, the request carries no canvas tools or drawing instructions, so most messages cost fewer tokens, and the agent cannot read or change the chat's canvas in that turn. Retries and regenerated answers keep the choice of the message they answer. The agent never draws unasked. Terminal questions have no toggle, so they never use the canvas.
+
+When the agent draws, the chat shows a **Canvas** card; select **Open canvas** to view and edit the drawing in a new browser tab. Chats do not embed the drawing, so switching between chats with canvases stays fast. Open copies of the same chat's canvas share scene updates.
 
 An open canvas tab checks for changes about once a second, so agent edits appear within a second. A canvas in a background tab pauses and catches up when you return to it.
 

@@ -10,6 +10,7 @@ import { ensureLoop } from './loop.js';
 import { dedupe, toPerformance } from './results.js';
 import type { AgentState } from './state.js';
 import { withDecisionScope } from '../decisions/cache.js';
+import { withContextSelectionScope } from '../request-budget/selection.js';
 
 export async function close(state: AgentState): Promise<void> {
   if (state.ownsLearning) state.learning?.stop();
@@ -31,7 +32,7 @@ export async function ask(
   const started = Date.now();
   writeModuleLog('agent', 'turn_started', { id, interface: 'cli' });
   try {
-    const result = await withDecisionScope(() => askTurn(state, question, opts));
+    const result = await withDecisionScope(() => withContextSelectionScope(() => askTurn(state, question, opts)));
     writeModuleLog('agent', 'turn_completed', {
       id,
       interface: 'cli',

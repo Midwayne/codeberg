@@ -41,9 +41,3 @@ When the user asks you to come up with a query, learn that database from the ind
 A connected database server's tool names, arguments, and descriptions are the ones that server advertised. Use those tools for the live step. Do not assume a fixed catalog.
 
 ${DATABASE_QUERY_EXAMPLES}`;
-
-/** The same consent rules, short enough for small-window models. */
-export const COMPACT_DATABASE_INSTRUCTIONS = `
-Database queries: first find the statement, object, or key and its executing call site in indexed code, unless the user explicitly supplied the live-query path. An unrelated name or repository is not a path. A query you compose is not authorized until the user agrees to run it.
-
-When asked to invent a query, inspect source statements, schemas, and indexes, then show the query and explain what it reads or changes. Ask whether to execute it; execute only after agreement. For an explicit user-supplied path, follow it and cite matching code when available. Use connected server schemas; never assume a fixed database-tool catalog.`;

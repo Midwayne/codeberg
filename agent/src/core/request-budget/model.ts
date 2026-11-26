@@ -44,7 +44,8 @@ export function manageContextModel(model: LanguageModel, options: ManagedModelOp
     wrapGenerate: async ({ model: provider, params }) => {
       const prepared = await prepare(params);
 
-      return withBudgetRetry(prepared.request, prepared.budget, usage, async (request) => {
+      return withBudgetRetry(prepared.request, prepared.budget, usage, async (compacted) => {
+        const request = await prepared.finish(compacted);
         const result = await provider.doGenerate(request);
         record(request, result.usage);
 
@@ -54,7 +55,8 @@ export function manageContextModel(model: LanguageModel, options: ManagedModelOp
     wrapStream: async ({ model: provider, params }) => {
       const prepared = await prepare(params);
 
-      return withBudgetRetry(prepared.request, prepared.budget, usage, async (request) => {
+      return withBudgetRetry(prepared.request, prepared.budget, usage, async (compacted) => {
+        const request = await prepared.finish(compacted);
         const result = await preflightStream(await provider.doStream(request));
 
         return { ...result, stream: result.stream.pipeThrough(recordFinish(request, record)) };

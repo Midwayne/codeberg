@@ -1,7 +1,6 @@
 import type { SkillSummary } from './context/skills.js';
 import type { McpServerReport } from './mcp/catalog.js';
 import { AGENT_GUIDANCE } from './prompts/guidance.js';
-import { compactAgentSystem } from './prompts/compact.js';
 import { DECISION_INSTRUCTIONS } from './prompts/decisions.js';
 import { dynamicPromptLines } from './prompts/dynamic.js';
 import { LIGHT_EXAMPLES } from './prompts/examples.js';
@@ -36,9 +35,7 @@ export interface AgentSystemPromptOptions {
   contextRoot?: string;
   /** Max calls when the `batch` tool is registered; omit when it is not. */
   batch?: number;
-  /** Keep operational rules concise for models with small working windows. */
-  compact?: boolean;
-  /** Add worked short answers for `light` models; ignored with compact or custom instructions. */
+  /** Add worked short answers for `light` models; ignored with custom instructions. */
   light?: boolean;
   /** Encourage bounded judgments only when the decide tool is registered. */
   decisions?: boolean;
@@ -93,7 +90,6 @@ export function agentSystemSections(web: AgentSystemPromptOptions): AgentSystemS
     mcp: web.mcp ?? [],
     skills: web.skills ?? [],
     contextRoot,
-    compact: web.compact,
     custom: Boolean(web.instructions),
   });
 
@@ -103,18 +99,13 @@ export function agentSystemSections(web: AgentSystemPromptOptions): AgentSystemS
 function promptBase(web: AgentSystemPromptOptions): string {
   if (web.instructions) return web.instructions.trim();
 
-  if (web.light && !web.compact) return `${builtInSystem(web)}\n\nExamples of well-formed short answers:\n${LIGHT_EXAMPLES}`;
+  if (web.light) return `${builtInSystem(web)}\n\nExamples of well-formed short answers:\n${LIGHT_EXAMPLES}`;
 
   return builtInSystem(web);
 }
 
 function builtInSystem(web: AgentSystemPromptOptions): string {
-  const learning = web.learning ?? true;
-  const knowledge = typeof learning === 'boolean' ? learning : learning.knowledge;
-  const history = typeof learning === 'boolean' ? learning : learning.history;
-
-  return web.compact ? compactAgentSystem(knowledge, history, web.vectors) :
-    baseAgentSystem(learning, web.vectors);
+  return baseAgentSystem(web.learning ?? true, web.vectors);
 }
 
 function webInstructions(web: AgentSystemPromptOptions): string[] {

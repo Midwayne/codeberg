@@ -12,7 +12,8 @@ export interface EvaluationModel {
 
 export interface EvaluationConfiguration {
   candidate: EvaluationModel;
-  judge: EvaluationModel;
+  /** Absent when the judge is off: only the scorers that need no model run. */
+  judge?: EvaluationModel;
 }
 
 type CandidateOutput = Omit<OutputRun, 'eval_id'> & Omit<RetrievalRun, 'eval_id'>;

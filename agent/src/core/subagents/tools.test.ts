@@ -14,7 +14,7 @@ const noop = () =>
 const readOnly = () => ({ ...noop(), metadata: { annotations: { readOnlyHint: true } } });
 
 describe('workerTools', () => {
-  it('keeps every tool except the main agent\'s own controls and user-quoting memory writes', () => {
+  it('keeps every tool except the main agent\'s own controls, context control, and user-quoting memory writes', () => {
     const tools: ToolSet = {
       grep: noop(),
       read_file: noop(),
@@ -36,6 +36,10 @@ describe('workerTools', () => {
       browser_close: noop(),
       remember: noop(),
       forget: noop(),
+      context_status: noop(),
+      context_keep: noop(),
+      context_release: noop(),
+      worklist_add: noop(),
     };
 
     const kept = Object.keys(workerTools(tools)).sort();
@@ -56,6 +60,7 @@ describe('workerTools', () => {
       'run_script',
       'schedule_run',
       'start_background_tool',
+      'worklist_add',
     ]);
   });
 
