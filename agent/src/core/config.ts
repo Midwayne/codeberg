@@ -75,6 +75,7 @@ export function createAgent(config: AgentConfig): Agent {
     env,
     context: ContextStore.open(defaultContextRoot(env)),
     subagentModel,
+    judgeModel: env.CODEBERG_JUDGE_MODEL ? registry.resolve(env.CODEBERG_JUDGE_MODEL) : undefined,
     learning: learningEnabled ? config.learning : false,
     daemon: new DaemonClient(
       !config.env && env.CODEBERG_PROJECT_ID

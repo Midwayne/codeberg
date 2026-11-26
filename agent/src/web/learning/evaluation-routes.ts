@@ -25,7 +25,7 @@ export async function routeEvaluations(
     ]);
 
     return sendJson(res, 200, {
-      reports: reports.slice(0, 50),
+      reports: reports.slice(0, 50).map(withSelfGrading),
       jobs: [...pending, ...processing, ...failed]
         .filter((job) => job.type === 'evaluate_output')
         .map((job) => ({ ...job, last_error: redactSecrets(job.last_error) })),
@@ -37,5 +37,16 @@ export async function routeEvaluations(
 
   const report = await learning.evaluationReports.read<AutomaticEvalReport>('reports', id);
 
-  return report ? sendJson(res, 200, report) : sendText(res, 404, 'evaluation report not found');
+  return report ? sendJson(res, 200, withSelfGrading(report)) : sendText(res, 404, 'evaluation report not found');
+}
+
+/**
+ * Mark reports whose judge is the model that wrote the answer. Models tend to
+ * prefer their own output, so those scores deserve less trust.
+ */
+function withSelfGrading<T>(report: T): T | (T & { self_graded: true }) {
+  const configuration = (report as Partial<AutomaticEvalReport>).configuration;
+  const same = configuration !== undefined && configuration.candidate.model === configuration.judge.model;
+
+  return same ? { ...report, self_graded: true as const } : report;
 }

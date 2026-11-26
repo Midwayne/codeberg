@@ -34,6 +34,13 @@ it('exposes saved automatic reports and pending jobs through read-only learning 
     updated_at: new Date().toISOString(),
     status: 'completed',
   });
+  const selfGraded = `evaluation-${'d'.repeat(24)}`;
+  const chat = { key: 'chat', model: 'test:chat', effort: 'none' as const, contextWindow: 32_000 };
+  await learning.evaluationReports.save({
+    id: selfGraded, harness_version: 1, example_id: 'other-example', source_revision: 'revision', repositories: [],
+    configuration: { candidate: chat, judge: { ...chat, effort: 'high' } },
+    updated_at: new Date().toISOString(), status: 'completed',
+  });
   await learning.queue.enqueueEvaluation(`evaluation-${'b'.repeat(24)}`);
   server = createServer((req, res) => {
     void routeLearning(
@@ -53,7 +60,9 @@ it('exposes saved automatic reports and pending jobs through read-only learning 
   const dashboard = await response.json();
 
   expect(response.headers.get('Cache-Control')).toBe('no-store');
-  expect(dashboard.reports).toMatchObject([{ id, status: 'completed' }]);
+  const flags = Object.fromEntries((dashboard.reports as Array<{ id: string; self_graded?: boolean }>).map((report) => [report.id, report.self_graded]));
+  expect(flags).toEqual({ [id]: undefined, [selfGraded]: true });
+  expect((await (await fetch(`${url}/${selfGraded}`)).json()).self_graded).toBe(true);
   expect(dashboard.jobs).toMatchObject([{ type: 'evaluate_output' }]);
   expect((await fetch(`${url}/${id}`)).status).toBe(200);
   expect((await fetch(`${url}/evaluation-${'c'.repeat(24)}`)).status).toBe(404);

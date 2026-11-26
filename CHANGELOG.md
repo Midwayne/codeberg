@@ -8,12 +8,14 @@ are in the git history.
 
 ### Added
 
+- Choose the model that scores automatic evaluations under **Models → Evaluation judge**; results the chat model graded itself are marked self-graded.
 - The agent can check its context usage and limits, keep tool results it still needs, and drop ones it no longer does; it gets a short notice as the context fills.
 - The agent keeps a working list of findings and constraints in each chat that survives history summaries; it can search and correct the list.
 - Start a message with `/dumb` to get a plain-language answer for a non-technical reader such as a project manager.
 
 ### Changed
 
+- Automatic evaluations are scored by the chat model unless you choose a judge, instead of by the learning model.
 - Tool results from the task the agent is working on now stay in its context longer; results from earlier turns are cleared first.
 - Subagent briefs now state a clear goal and, when the method is known, specific numbered steps.
 - The agent now decides how many subagents to start, up to 64 per request and 64 running at once in a chat (was 8).

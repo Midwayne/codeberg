@@ -1,6 +1,7 @@
 import { LoadingBoundary } from './loading';
 import { useModelSettingsPanel, type Choices } from '../lib/use-model-settings';
 import { DecisionSettings } from './decision-settings';
+import { JudgeSettings } from './judge-settings';
 import { SummarySettings } from './summary-settings';
 import { SubagentSettings } from './subagent-settings';
 import type { DecisionModel } from '@agent/core/decisions/types.js';
@@ -93,6 +94,8 @@ export function ModelSettingsForm({ models, decisionModels = [], value, onChange
       </p>
       <SummarySettings models={models} value={value.summary}
         onChange={(summary) => onChange({ ...value, summary })} />
+      <JudgeSettings models={models} value={value.judge} chat={value.chat.key}
+        onChange={(judge) => onChange({ ...value, judge })} />
       <SubagentSettings models={models} value={value.subagents}
         onChange={(subagents) => onChange({ ...value, subagents })} />
       <DecisionSettings models={decisionModels} value={value.decisions}

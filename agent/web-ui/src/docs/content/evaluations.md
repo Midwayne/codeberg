@@ -2,7 +2,7 @@ Start with [Learning](/docs/learning) to capture candidates and approve **Test t
 
 ## Automatic evaluations
 
-Enable **Enable learning**, **Dataset capture**, and **Evaluations** in **Settings → Learning**. Configure both chat and learning models in **Models**.
+Enable **Enable learning**, **Dataset capture**, and **Evaluations** in **Settings → Learning**. Configure the chat model, and optionally the **Evaluation judge**, in **Models**.
 
 Approving a test example queues an evaluation. Codeberg also scans on startup and every two minutes. Model changes queue new comparisons; matching completed runs are reused across scans and restarts.
 
@@ -10,7 +10,7 @@ Approving a test example queues an evaluation. Codeberg also scans on startup an
 | --- | --- |
 | Retrieve | Search the current project's index for up to ten passages. |
 | Answer | Ask the selected chat model for a fresh answer. |
-| Judge | Use the learning model to score the output independently. |
+| Judge | Score the output with the **Evaluation judge** model, which defaults to the chat model. |
 | Record | Save metrics and task, commit, model, effort, and rubric provenance. |
 
 This read-only baseline excludes historical answers, reviewed references, history recall, and knowledge recall from answer generation. It does not run the full interactive agent or an RL environment. Commit mismatches are skipped; Codeberg does not restore repositories or isolate uncommitted edits.
@@ -26,6 +26,12 @@ The project API also exposes `/api/learning/evaluations`. Statuses include compl
 One task runs at a time. Each model request is limited to **2,048 output tokens** and **two minutes**. Oversized judge evidence fails explicitly. Transient errors retry with backoff for at most five attempts.
 
 Turning off any required switch pauses new work; an in-flight request can finish. Automatic calls cost provider tokens and appear under learning usage. Calibrate judge scores against human review before using them as release gates.
+
+## Choose the judge
+
+The judge defaults to **Same as chat model**, so out of the box the chat model grades its own answers. Models tend to favor their own output, so the evaluation report marks those results `self_graded: true` (in `/api/learning/evaluations`), and **Models** shows a note. For a more independent check, choose a different model that is at least as capable as the chat model under **Models → Evaluation judge**. The learning model judges only if you choose it here. In the terminal, set `CODEBERG_JUDGE_MODEL=provider:model`.
+
+Changing the judge queues new comparisons, like any model change. The judge's calls count as learning usage.
 
 ## Score retrieval runs
 

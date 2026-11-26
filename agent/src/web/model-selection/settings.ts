@@ -63,6 +63,7 @@ export class ModelSettingsStore {
       chat: this.resolve(values?.chat, this.catalog.defaultChat, models),
       learning: this.resolve(values?.learning, this.catalog.defaultLearning, models),
       summary: this.resolveOptional(values?.summary, models),
+      judge: this.resolveOptional(values?.judge, models),
       subagents: this.resolveSubagents(values?.subagents, models),
     };
   }
@@ -90,14 +91,15 @@ export class ModelSettingsStore {
       const chat = this.validate(values.chat, models);
       const learning = this.validate(values.learning, models);
       const current = await this.current();
-      const summary = this.validateSummary(values.summary, current.summary ?? null, models);
+      const summary = this.validateOptional(values.summary, current.summary ?? null, models);
+      const judge = this.validateOptional(values.judge, current.judge ?? null, models);
       const subagents = values.subagents === undefined ? current.subagents : this.validateSubagents(values.subagents, models);
       const decisions = values.decisions === undefined ? current.decisions : values.decisions;
       if (decisions !== null && !current.decisionModels?.some((model) => model.key === decisions)) {
         throw new ModelSelectionError('unknown or unavailable decision model');
       }
 
-      await writeJsonAtomic(this.settingsPath, { chat, learning, summary, subagents, decisions });
+      await writeJsonAtomic(this.settingsPath, { chat, learning, summary, judge, subagents, decisions });
     });
 
     this.writing = update.catch(() => undefined);
@@ -133,7 +135,7 @@ export class ModelSettingsStore {
     return { key: first.key, effort: first.efforts[0] };
   }
 
-  /** An optional model choice (summaries, subagents); null follows another model, including when a saved choice is gone. */
+  /** An optional model choice (summaries, judge, subagents); null follows another model, including when a saved choice is gone. */
   private resolveOptional(raw: unknown, models: CatalogModel[]): ModelSelection | null {
     const input = object(raw);
     const effort = input?.effort;
@@ -160,8 +162,8 @@ export class ModelSettingsStore {
     return { enabled: input.enabled, model };
   }
 
-  /** Omitted keeps the saved choice; null returns summaries to the chat model. */
-  private validateSummary(
+  /** Omitted keeps the saved choice; null returns the role (summaries, judge) to the chat model. */
+  private validateOptional(
     raw: unknown,
     saved: ModelSelection | null,
     models: CatalogModel[],

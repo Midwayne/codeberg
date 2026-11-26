@@ -22,7 +22,7 @@ export async function loadModelSettings(): Promise<ModelSettings> {
   return readJson<ModelSettings>(response);
 }
 
-export async function saveModelSettings(input: Pick<ModelSettings, 'chat' | 'learning' | 'summary' | 'subagents' | 'decisions'>): Promise<ModelSettings> {
+export async function saveModelSettings(input: Pick<ModelSettings, 'chat' | 'learning' | 'summary' | 'judge' | 'subagents' | 'decisions'>): Promise<ModelSettings> {
   const response = await fetch('/api/models', jsonInit('PUT', input));
   return readJson<ModelSettings>(response);
 }

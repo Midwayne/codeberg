@@ -17,7 +17,8 @@ export function projectEvaluationRuntime(
     configuration: async () => {
       const values = await settings.current();
       const candidate = selection(values.chat, values);
-      const judge = selection(values.learning, values);
+      // Unset, the chat model judges itself rather than a cheaper learning model judging it.
+      const judge = selection(values.judge ?? values.chat, values);
 
       return candidate && judge ? { candidate, judge } : undefined;
     },

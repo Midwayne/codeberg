@@ -44,6 +44,7 @@ Browser projects and the launcher's repository registry are separate catalogs. *
 | --- | --- | --- |
 | `CODEBERG_MODEL` | Optional `provider:model` | Initial chat model. A usable `models.yml` catalog can supply the available choices instead. |
 | `CODEBERG_SUBAGENT_MODEL` | Defaults to the chat model | Initial model for background extraction and learning work. |
+| `CODEBERG_JUDGE_MODEL` | Defaults to the chat model | Terminal only: `provider:model` that scores automatic evaluations. In the app, choose **Models → Evaluation judge**. |
 | `CODEBERG_REASONING` | Provider default when unset | `provider-default`, `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. Actual support depends on the selected provider and model. |
 | `OPENAI_API_KEY` | Secret | Credential for the `openai` provider. |
 | `TYPESAFE_API_KEY` | Secret | Credential for TypeSafe decision models. |

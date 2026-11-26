@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { loadModelSettings, saveModelSettings, type ModelSettings } from './models';
 
-export type Choices = Pick<ModelSettings, 'chat' | 'learning' | 'summary' | 'subagents' | 'decisions'>;
+export type Choices = Pick<ModelSettings, 'chat' | 'learning' | 'summary' | 'judge' | 'subagents' | 'decisions'>;
 
 type ModelSettingsPanelOptions = { onClose: () => void; onSaved: () => void };
 
@@ -25,6 +25,7 @@ export function useModelSettingsPanel({ onClose, onSaved }: ModelSettingsPanelOp
           chat: value.chat,
           learning: value.learning,
           summary: value.summary ?? null,
+          judge: value.judge ?? null,
           subagents: value.subagents,
           decisions: value.decisions ?? null,
         });

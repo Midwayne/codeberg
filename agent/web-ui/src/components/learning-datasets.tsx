@@ -77,7 +77,7 @@ export function DatasetSettings({ settings, locked, set, onChange }: DatasetSett
         />
         <Toggle
           label="Evaluations"
-          description="Save independently checked test cases and run them automatically with the chat and learning models. Uses model tokens."
+          description="Save independently checked test cases and run them automatically with the chat model, scored by the evaluation judge in Models. Uses model tokens."
           checked={settings.evals}
           disabled={locked || !settings.datasets}
           onChange={(value) => set('evals', value)}

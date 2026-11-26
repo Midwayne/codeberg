@@ -24,6 +24,8 @@ export interface AgentOptions {
   /** Model for background work: knowledge extraction and history-compaction
    *  summaries. Defaults to the main model. */
   subagentModel?: LanguageModel;
+  /** Scores automatic evaluations. Defaults to the main model, never the subagent model. */
+  judgeModel?: LanguageModel;
   /** Model chosen for history summaries. Subagents started with
    *  `run_subagents` run on it, falling back to the subagent, then chat, model. */
   summaryModel?: LanguageModel;

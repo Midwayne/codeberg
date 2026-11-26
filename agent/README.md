@@ -55,6 +55,7 @@ or from a checkout.
 | `CODEBERG_CONTEXT_BUDGET` | all | tokens the history (50%) and in-loop pruning (60%) budgets are computed from, capped by the window (default 200,000 — keeps requests under the long-context price tier of 1M-window models; the web UI's background learning input is bounded by the same ceiling) |
 | `CODEBERG_TOOL_BATCH` | all | register the `batch` tool (up to 8 independent calls in one tool call). Default off for `anthropic`, `openai`, and `google`, which call tools in parallel natively; on for a custom provider, which may return one tool call per response |
 | `CODEBERG_SUBAGENT_MODEL` | CLI | `provider:model` for background work: learning extraction and history-compaction summaries (default: `CODEBERG_MODEL`). A cheaper model here cuts compaction cost. In the web UI, choose the summarizer under **Models → Summaries** instead (default: the chat model) |
+| `CODEBERG_JUDGE_MODEL` | CLI | `provider:model` that scores automatic evaluations (default: `CODEBERG_MODEL`, never `CODEBERG_SUBAGENT_MODEL`). In the web UI, choose **Models → Evaluation judge** |
 | `CODEBERG_WEB_USE` | all | master switch for `fetch_url`/`web_search` (default on; `0`/`false`/`off`/`no` disables) |
 | `CODEBERG_WEB_SEARCH_USE` | all | search opt-in (default off); browser Settings → Tools saves its own global preference |
 | `CODEBERG_SEARXNG_URL` | all | SearXNG endpoint backing `web_search` |

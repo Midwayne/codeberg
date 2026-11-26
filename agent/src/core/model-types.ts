@@ -41,6 +41,8 @@ export interface ModelSelections {
   learning: ModelSelection;
   /** History summarizer. Null or absent summarizes on the chat model. */
   summary?: ModelSelection | null;
+  /** Scores automatic evaluations. Null or absent judges with the chat model, never a weaker learning model. */
+  judge?: ModelSelection | null;
   subagents?: SubagentSettings;
   decisions?: string | null;
 }

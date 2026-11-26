@@ -106,6 +106,8 @@ Open **Models**, choose chat and learning models and efforts, then save. Changes
 
 **Summaries** starts as **Same as chat model**. Pick a smaller model there to lower the cost of condensing long chats; see [How chat context stays bounded](#how-chat-context-stays-bounded).
 
+**Evaluation judge** starts as **Same as chat model**. It scores [automatic evaluations](/docs/evaluations#choose-the-judge); pick a different model at least as capable as the chat model so it does not grade its own answers.
+
 | Setup | Available choices |
 | --- | --- |
 | No catalog | `CODEBERG_MODEL` and optional `CODEBERG_SUBAGENT_MODEL`. |

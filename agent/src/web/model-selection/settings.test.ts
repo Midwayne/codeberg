@@ -258,6 +258,21 @@ describe('ModelSettingsStore', () => {
     expect(reset.summary).toBeNull();
   });
 
+  it('saves the evaluation judge apart from summaries and keeps it when a client omits it', async () => {
+    const home = await fixture();
+    const defaults = { key: 'openai:gpt-5.6-luna', effort: 'none' as const };
+    const store = new ModelSettingsStore({ home, defaultChat: defaults, defaultLearning: defaults });
+    const judge = { key: 'openai:gpt-5.6-sol', effort: 'high' as const };
+
+    expect((await store.current()).judge).toBeNull();
+
+    const chosen = await store.update({ chat: defaults, learning: defaults, judge });
+
+    expect(chosen).toMatchObject({ judge, summary: null });
+    expect((await store.update({ chat: defaults, learning: defaults })).judge).toEqual(judge);
+    expect((await store.update({ chat: defaults, learning: defaults, judge: null })).judge).toBeNull();
+  });
+
   it('falls back to the chat model when the saved summary model leaves the catalog', async () => {
     const home = await fixture();
     const defaults = { key: 'openai:gpt-5.6-sol', effort: 'low' as const };

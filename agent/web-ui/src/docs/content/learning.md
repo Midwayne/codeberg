@@ -86,6 +86,6 @@ There is no dedicated `--type rlvr` export or built-in RL trainer. Candidates an
 
 ## Costs and cleanup
 
-Recording history and deriving candidates use no model calls. Training approval starts no training. Automatic evaluations use chat/learning models and appear under learning usage; external training has its own compute costs.
+Recording history and deriving candidates use no model calls. Training approval starts no training. Automatic evaluations use the chat model and the evaluation judge and appear under learning usage; external training has its own compute costs.
 
 To disable the subsystem, save `CODEBERG_LEARNING_USE=false` and restart. Existing data remains. Index-only deletion retains it; full project-history deletion removes learning and knowledge. See [Data and maintenance](/docs/storage).
