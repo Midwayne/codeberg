@@ -27,6 +27,7 @@ import { insideScript } from '../script/scope.js';
 import { SUBAGENT_TOOL } from '../subagents/names.js';
 import { SUBAGENT_INSTRUCTIONS } from '../subagents/prompt.js';
 import { WORKLIST_INSTRUCTIONS } from '../worklist/tools.js';
+import { CONTEXT_CONTROL_INSTRUCTIONS } from '../request-budget/tools.js';
 
 /** Guidance each tool family adds to the system prompt when any of its tools is offered. */
 const TOOL_FAMILY_INSTRUCTIONS: { offered: (name: string) => boolean; text: string }[] = [
@@ -38,6 +39,7 @@ const TOOL_FAMILY_INSTRUCTIONS: { offered: (name: string) => boolean; text: stri
   { offered: (name) => name === 'remember', text: REMEMBER_INSTRUCTIONS },
   { offered: (name) => name === SUBAGENT_TOOL, text: SUBAGENT_INSTRUCTIONS },
   { offered: (name) => name === 'worklist_add', text: WORKLIST_INSTRUCTIONS },
+  { offered: (name) => name === 'context_status', text: CONTEXT_CONTROL_INSTRUCTIONS },
 ];
 
 export async function prepareSystem(

@@ -8,6 +8,7 @@ are in the git history.
 
 ### Added
 
+- The agent can check its context usage and limits, keep tool results it still needs, and drop ones it no longer does; it gets a short notice as the context fills.
 - The agent keeps a working list of findings and constraints in each chat that survives history summaries; it can search and correct the list.
 - Start a message with `/dumb` to get a plain-language answer for a non-technical reader such as a project manager.
 

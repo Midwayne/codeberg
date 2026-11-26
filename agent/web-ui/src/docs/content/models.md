@@ -238,6 +238,7 @@ Codeberg archives large tool results locally, clears stale tool output, and summ
 - Tool results over **12,000 characters** become previews with paths to full output, including results in a reopened chat. Change this per model with `tool_output_limit`.
 - Once a chat's full history passes half the working ceiling, tool results over 1,000 characters from earlier turns are replaced with a short note naming the saved file. The newest four results always stay. The agent reads a cleared result again when it needs it.
 - Results from the turn the agent is working on stay in full until the request passes three quarters of the ceiling with earlier turns already cleared. Then that turn's older results are cleared eight at a time so cached prompts stay reusable; its newest four results and anything it re-read with `context_read`, `context_tail`, or `context_grep` stay.
+- The agent can manage its own context with `context_status`, `context_keep`, and `context_release`. See [Let the agent manage its context](#let-the-agent-manage-its-context).
 - Summaries run on the chat model unless you choose another under **Models → Summaries**. The chat model still writes every answer; a summary is at most **2,000 tokens**, so a smaller model usually suffices.
 - A summary model's requests appear under **Chat** in Usage, attributed to that model.
 - Changing the summary model writes new summaries the next time history is condensed; earlier ones are not reused.
@@ -251,6 +252,21 @@ A context-limit error can trigger up to three smaller retries. Completed local t
 To watch this in a chat, select the context ring beside **Send**; see [See what fills the context](/docs/chats#see-what-fills-the-context).
 
 If the current request still cannot fit, narrow attachments, reduce integrations, lower effort, or use a larger window. Estimates for text and media are approximate. See [Environment variables](/docs/environment#context-and-tool-calling) for window overrides and [Data and maintenance](/docs/storage) for saved context.
+
+
+## Let the agent manage its context
+
+Automatic clearing goes by position and size. The agent knows which results it still needs, so it can steer clearing:
+
+| Tool | What it does |
+| --- | --- |
+| `context_status` | Reports the working window, where history is summarized, where earlier-turn and current-turn results are cleared, the last request's estimated size, and the largest results still in context with their ids. |
+| `context_release` | Replaces results the agent no longer needs with a pointer to the saved file, from the next step on and at any context size. Results under 1,000 characters are left alone. |
+| `context_keep` | Keeps results in full while clearing would otherwise replace them. Up to 8 results and 15% of the working ceiling; only results still in full can be kept. |
+
+When usage first passes half the ceiling, three quarters, or 90%, the agent gets one short notice at the end of its next request. The notice is not saved in the chat and does not change cached prompts.
+
+Choices are saved per chat, separately for each subagent, and deleted with the chat. Kept results can still be summarized once history reaches the ceiling. Models with `tier: light`, or with a working window of 16,384 tokens or less, do not get these tools or notices; automatic clearing still applies.
 
 ## Track token usage
 

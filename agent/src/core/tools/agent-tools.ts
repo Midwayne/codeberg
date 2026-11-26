@@ -18,6 +18,7 @@ import { collectTools, daemonToolSource, searchCodeSource, webToolSource } from 
 import type { ModelInput } from '../model-types.js';
 import { scheduleToolSource } from '../schedules/tools.js';
 import { worklistToolSource } from '../worklist/tools.js';
+import { contextControlToolSource } from '../request-budget/tools.js';
 
 interface AgentToolOptions {
   env?: NodeJS.ProcessEnv;
@@ -51,6 +52,7 @@ export async function createAgentTools(opts: AgentToolOptions): Promise<ToolSet>
     ...(vectors && opts.searchBundle ? [searchBundleSource(opts)] : []),
     scheduleToolSource(),
     worklistToolSource(),
+    contextControlToolSource(),
     ...(opts.learning ? [learningToolSource(opts.learning, opts.learningSettings)] : []),
     contextToolSource(opts.context),
     ...(opts.canvas ? [canvasToolSource(opts.canvas)] : []),

@@ -12,6 +12,7 @@ Describe the outcome you want. The agent chooses tools to search your selected p
 | `list_dir`, `tree` | Browse the source tree. |
 | `git_log`, `git_blame` | Inspect Git history; requires Git. |
 | Context and knowledge tools | Reuse evidence and [saved findings](/docs/knowledge). |
+| `context_status`, `context_keep`, `context_release` | Check context usage and choose which tool results to keep or drop; see [Let the agent manage its context](/docs/models#let-the-agent-manage-its-context). |
 | `worklist_add`, `worklist_read`, `worklist_retire` | Keep this chat's [working list](#keep-a-working-list) of findings and constraints. |
 
 Built-in daemon source tools are read-only and scoped to configured roots. [MCP servers](/docs/mcps) can add operations, including writes to external services. [Skills](/docs/skills) add instructions rather than callable tools.
