@@ -1,10 +1,9 @@
 import { RunTransport } from './run-transport';
 
-import type { UIMessage } from 'ai';
 import { useCallback, useEffect, useState } from 'react';
 
-import { newSessionId, saveSession } from '../lib/sessions';
-import { createWorkspaceChat, type WorkspaceChat } from './workspace-chat';
+import { newSessionId, saveSession, setSessionModel } from '../lib/sessions';
+import { createWorkspaceChat, type CreateChat, type WorkspaceChat } from './workspace-chat';
 import type { ProjectChats } from './project-chat-registry';
 import { useChatReadiness } from './use-chat-readiness';
 
@@ -16,24 +15,33 @@ type ChatRegistryOptions = {
   seededRailPreview: React.RefObject<boolean>;
 };
 
-export function useChatRegistry({ api, registry, refreshRef, chats, seededRailPreview }: ChatRegistryOptions) {
-  const createChat = useCallback(
-    (id: string, messages: UIMessage[], parentId?: string, title?: string) => {
+/** Opens chats that save to this project's sessions and run on the server. */
+function useCreateChat(api: typeof fetch, registry: ProjectChats, chats: React.RefObject<Map<string, WorkspaceChat>>): CreateChat {
+  return useCallback(
+    (id, messages, parentId, title, origin) => {
       const next = createWorkspaceChat({
         id,
         messages,
         parentId,
         title,
+        origin,
         persist: (record) => saveSession(record, api),
+        persistModel: (choice) => setSessionModel(id, choice, api),
         transport: new RunTransport(api),
         serverOwned: true,
         onPersist: registry.persisted,
       });
       chats.current.set(id, next);
+
       return next;
     },
-    [api, registry],
+    [api, registry, chats],
   );
+}
+
+export function useChatRegistry({ api, registry, refreshRef, chats, seededRailPreview }: ChatRegistryOptions) {
+  const createChat = useCreateChat(api, registry, chats);
+
   const [active, updateActive] = useState(() => {
     const initial = registry.active ?? createChat(newSessionId(), []);
     registry.active = initial;

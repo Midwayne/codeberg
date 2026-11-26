@@ -25,12 +25,7 @@ export function WorkspaceHeader({ state }: WorkspaceHeaderProps) {
           </IconButton>
         )}
         <span className="shrink-0 px-1 font-semibold max-[359px]:text-xs">Codeberg</span>
-        <span
-          className="ml-2 hidden min-w-0 flex-1 truncate border-l border-border pl-4 text-xs text-muted-foreground md:block"
-          title={state.title}
-        >
-          {state.settingsOpen ? 'Settings' : state.trainingOpen ? 'Training review' : state.title}
-        </span>
+        <ScreenLabel state={state} />
         {state.learningBusy && (
           <span
             role="status"
@@ -48,6 +43,19 @@ export function WorkspaceHeader({ state }: WorkspaceHeaderProps) {
         <DocsLink />
       </div>
     </header>
+  );
+}
+
+type ScreenLabelProps = { state: ReturnType<typeof useProjectWorkspace> };
+
+/** Names Settings and Training review; chats show their model in the composer instead. */
+function ScreenLabel({ state }: ScreenLabelProps) {
+  const label = state.settingsOpen ? 'Settings' : state.trainingOpen ? 'Training review' : '';
+
+  return (
+    <span className={`ml-2 hidden min-w-0 flex-1 truncate pl-4 text-xs text-muted-foreground md:block ${label ? 'border-l border-border' : ''}`}>
+      {label}
+    </span>
   );
 }
 

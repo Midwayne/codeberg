@@ -8,6 +8,7 @@ are in the git history.
 
 ### Added
 
+- Choose a model and effort for one chat from the composer; other chats keep following the default from **Models**.
 - Choose the model that scores automatic evaluations under **Models → Evaluation judge**, or turn the judge off; results the chat model graded itself are marked self-graded.
 - The agent can check its context usage and limits, keep tool results it still needs, and drop ones it no longer does; it gets a short notice as the context fills.
 - The agent keeps a working list of findings and constraints in each chat that survives history summaries; it can search and correct the list.
@@ -15,6 +16,7 @@ are in the git history.
 
 ### Changed
 
+- The header no longer shows the chat model; each chat shows its model in the composer.
 - The agent draws on the canvas only for messages you send with **Diagram** turned on in the composer, which saves tokens on every other message.
 - Automatic evaluations are scored by the chat model unless you choose a judge, instead of by the learning model.
 - Tool results from the task the agent is working on now stay in its context longer; results from earlier turns are cleared first.

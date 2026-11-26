@@ -17,6 +17,18 @@ export function modelOptionLabel(model: CatalogModel): string {
   return `${model.provider} · ${model.label}${suffix}`;
 }
 
+/** The catalog and the default chat choice that chats without their own model follow. */
+export type ChatModels = Pick<ModelSettings, 'models' | 'chat'>;
+
+/** The catalog entry a chat runs on: its own listed choice, else the default. */
+export function chatModelEntry(models: ChatModels | undefined, own: ModelSelection | null): CatalogModel | undefined {
+  if (!models) return undefined;
+
+  const listed = own && models.models.find((model) => model.key === own.key && model.efforts.includes(own.effort));
+
+  return listed || models.models.find((model) => model.key === models.chat.key);
+}
+
 export async function loadModelSettings(): Promise<ModelSettings> {
   const response = await fetch('/api/models');
   return readJson<ModelSettings>(response);

@@ -7,7 +7,7 @@ import { Chat, type ChatProps } from '../chat/chat';
 import { ChatSaveNotice } from '../chat/chat-save-notice';
 import { usePauseMedia } from '../chat/use-pause-media';
 
-type ChatViewsProps = Pick<ChatProps, 'learningEnabled' | 'chatInputs' | 'onBranch' | 'jump'> & {
+type ChatViewsProps = Pick<ChatProps, 'learningEnabled' | 'chatModels' | 'onBranch' | 'jump'> & {
   active: WorkspaceChat;
   renderedViews: React.RefObject<ReadonlySet<WorkspaceChat>>;
   hidden?: boolean;
@@ -45,7 +45,7 @@ function RetainedChat({ active, ...props }: Omit<ChatViewsProps, 'renderedViews'
   return (
     <div ref={mediaRef} data-branch-arrival={arrival} className="flex min-h-0 min-w-0 flex-1 flex-col">
       <ChatSaveNotice state={active.persistence} />
-      <Chat {...props} chat={chat} turns={active.turns} sessionId={active.id} draftStore={active.draft} branch={active.branch} />
+      <Chat {...props} chat={chat} model={active.model} onModelChange={active.setModel} turns={active.turns} sessionId={active.id} draftStore={active.draft} branch={active.branch} />
     </div>
   );
 }

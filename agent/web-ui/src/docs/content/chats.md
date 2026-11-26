@@ -44,6 +44,27 @@ Codeberg opens the branch immediately. A **Branched from** line marks where the 
 
 Both controls are unavailable while a response is running. If the branch cannot be saved, it stays open with a **Retry save** notice; keep the tab open until the save succeeds.
 
+## Choose a model for one chat
+
+Each chat starts on **Default**, the chat model and effort saved in **Models**. To use a different model in one chat without changing others:
+
+1. Open the model menu in the composer, beside **Send**.
+2. Choose a model from your catalog. An effort menu appears when that model offers more than one.
+3. Send your message. To follow the default again, choose **Default**.
+
+| Behavior | Detail |
+| --- | --- |
+| When it applies | From the next message. A response already running keeps its model. |
+| Other chats | Unchanged. Changing **Models** later moves only chats on **Default**. |
+| Saving | Kept with the chat and restored when you reopen it. A new chat saves its choice with the first message. |
+| Branches | Start with the original chat's model. |
+| Attachments | Follow the chat's model; images or files are offered only when it accepts them. |
+| Earlier files | Every message resends the chat's earlier images and files, so models that cannot read them are marked **can't read this chat's files** and cannot be chosen. |
+| Removed models | If the model or effort leaves `models.yml`, the menu marks the choice as unavailable or its effort as no longer offered, and the chat runs on the default. It returns to that model if the model comes back; choose **Default** to stop that. |
+| Failed saves | On a saved chat, a change that cannot be saved goes back to the previous model and shows **Not saved**. A new chat's choice is saved with its first message: if that save fails, use **Retry save**; if the choice alone fails, the menu shows **Not saved** and the next message saves it again. |
+
+Summaries and subagents set to **Same as …** follow the chat's model. Scheduled follow-ups run on the model of the turn that scheduled them. Learning and evaluations use the models from **Models**.
+
 ## Stop, retry, or regenerate
 
 | Action | What happens |

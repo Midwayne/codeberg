@@ -27,7 +27,7 @@ function renderChat(messages: UIMessage[], sessionId = 'current-chat', projectId
 
   return renderToStaticMarkup(
     <ProjectApiContext.Provider value={{ project: { id: projectId, name: 'Demo', roots: [] }, fetch, ready: true }}>
-      <Chat chat={chat} sessionId={sessionId} learningEnabled={false} chatInputs={['text']} />
+      <Chat chat={chat} sessionId={sessionId} learningEnabled={false} />
     </ProjectApiContext.Provider>,
   );
 }

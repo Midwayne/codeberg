@@ -55,7 +55,7 @@ async function loadSavedChat(id: string, intent: number, existing: WorkspaceChat
       return;
     }
 
-    const next = existing ?? createChat(record.id, record.messages, record.parentId, record.title);
+    const next = existing ?? createChat(record.id, record.messages, record.parentId, record.title, { model: record.model, saved: true });
     if (intent !== transitionIntent.current) return;
 
     if (record.serverRunId) next.turns.reconnect(next.chat.resumeStream);

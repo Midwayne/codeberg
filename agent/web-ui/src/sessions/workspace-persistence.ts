@@ -4,12 +4,15 @@ import { deriveTitle } from '../lib/sessions';
 import { ChatSaveState } from './chat-save-state';
 import { interruptedMessages } from './interrupted-messages';
 import type { WorkspaceChatSave } from './workspace-chat';
+import type { ChatModelChoice } from './chat-model';
 
 type PersistenceOptions = {
   serverOwned?: boolean;
   id: string;
   title?: string;
   parentId?: string;
+  /** Message saves carry only a choice the server has not stored yet. */
+  model?: ChatModelChoice;
   persist: (record: WorkspaceChatSave) => Promise<void>;
   onPersist?: () => void;
   disposed: () => boolean;
@@ -26,17 +29,23 @@ export function chatPersistence(options: PersistenceOptions) {
     if (options.disposed() || !messages.length) return Promise.resolve();
 
     latest = messages;
-    const record = {
+    const record: WorkspaceChatSave = {
       id: options.id,
       title: options.title ?? deriveTitle(messages),
       messages,
       ...(options.parentId ? { parentId: options.parentId } : {}),
     };
+
     saving = saving.catch(() => undefined).then(async () => {
       if (options.disposed()) return;
 
+      // Read when this save runs: an earlier save may already have stored the choice.
+      const model = options.model?.forMessageSave();
+      if (model !== undefined) record.model = model;
+
       try {
         await options.persist(record);
+        options.model?.messageSaved(record.model);
         state.saved();
         options.onPersist?.();
       } catch (error) {

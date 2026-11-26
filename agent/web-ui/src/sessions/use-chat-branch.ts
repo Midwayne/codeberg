@@ -1,9 +1,8 @@
-import type { UIMessage } from 'ai';
 import { useCallback } from 'react';
 
 import { createChatBranch } from '../lib/branch';
 import { deriveTitle } from '../lib/sessions';
-import type { WorkspaceChat } from './workspace-chat';
+import type { CreateChat, WorkspaceChat } from './workspace-chat';
 import { errorMessage } from '@agent/core/errors.js';
 
 export type ChatBranchOptions = {
@@ -12,7 +11,7 @@ export type ChatBranchOptions = {
   api: typeof fetch;
   refresh: () => Promise<void>;
   setActive: React.Dispatch<React.SetStateAction<WorkspaceChat>>;
-  createChat: (id: string, messages: UIMessage[], parentId?: string, title?: string) => WorkspaceChat;
+  createChat: CreateChat;
   setSessionError: (error: string) => void;
 };
 
@@ -35,7 +34,7 @@ export function useChatBranch({
       transitionIntent.current++;
 
       const next = createChatBranch(chat.messages, throughIndex, active.id);
-      const branch = createChat(next.id, next.messages, next.parentId, next.title);
+      const branch = createChat(next.id, next.messages, next.parentId, next.title, { model: active.model.current });
       branch.branch = {
         parentTitle: active.title ?? deriveTitle(chat.messages),
         messageCount: next.messages.length,
