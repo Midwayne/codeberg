@@ -24,7 +24,7 @@ export interface AgentOptions {
   /** Model for background work: knowledge extraction and history-compaction
    *  summaries. Defaults to the main model. */
   subagentModel?: LanguageModel;
-  /** Offer the canvas tools and instructions. False leaves them out; unset offers them whenever the canvas is enabled. */
+  /** Offer the canvas tools and instructions, for a message sent with Diagram on. Unset or false leaves them out. */
   canvas?: boolean;
   /** Scores automatic evaluations. Defaults to the main model, never the subagent model; null turns the judge off. */
   judgeModel?: LanguageModel | null;

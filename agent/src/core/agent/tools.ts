@@ -1,5 +1,5 @@
 import { canvasFromEnv } from '../canvas/config.js';
-import { canvasInstructions } from '../canvas/tools.js';
+import { CANVAS_INSTRUCTIONS } from '../canvas/tools.js';
 import { requestProviderOptions } from '../cache.js';
 import { publishSkills } from '../context/skills.js';
 import { learningRecall } from '../learning/preferences.js';
@@ -29,10 +29,9 @@ import { WORKLIST_INSTRUCTIONS } from '../worklist/tools.js';
 import { CONTEXT_CONTROL_INSTRUCTIONS } from '../request-budget/tools.js';
 
 /** Guidance each tool family adds to the system prompt when any of its tools is offered. */
-const TOOL_FAMILY_INSTRUCTIONS: { offered: (name: string) => boolean; text: string | ((state: AgentState) => string) }[] = [
+const TOOL_FAMILY_INSTRUCTIONS: { offered: (name: string) => boolean; text: string }[] = [
   { offered: (name) => name === 'search_bundle', text: SEARCH_BUNDLE_INSTRUCTIONS },
-  // Only an agent built for a Diagram request is told the user asked for one.
-  { offered: (name) => name.startsWith('canvas_'), text: (state) => canvasInstructions(state.options.canvas === true) },
+  { offered: (name) => name.startsWith('canvas_'), text: CANVAS_INSTRUCTIONS },
   { offered: (name) => name === 'sleep_agent', text: BACKGROUND_INSTRUCTIONS },
   { offered: (name) => name === 'schedule_run', text: SCHEDULE_INSTRUCTIONS },
   { offered: (name) => name === SCRIPT_TOOL, text: SCRIPT_INSTRUCTIONS },
@@ -64,7 +63,7 @@ export async function prepareSystem(
 
   state.system = sections.stable;
   for (const family of TOOL_FAMILY_INSTRUCTIONS) {
-    if (toolNames.some(family.offered)) state.system += typeof family.text === 'string' ? family.text : family.text(state);
+    if (toolNames.some(family.offered)) state.system += family.text;
   }
 
   const [repositories, knowledgeIndex, profile] = await Promise.all([
@@ -105,8 +104,8 @@ export async function buildTools(state: AgentState) {
     browserModel: state.profile.provider && state.profile.modelId
       ? `${state.profile.provider}:${state.profile.modelId}` : undefined,
     daemon: state.daemon,
-    // A browser chat offers the canvas only to a turn that asked for a diagram.
-    canvas: state.options.canvas === false ? undefined : canvasFromEnv(state.env),
+    // The canvas is offered only to a turn the user sent with Diagram on, never by default.
+    canvas: state.options.canvas === true ? canvasFromEnv(state.env) : undefined,
     context: state.context,
     learning: state.learning?.store,
     learningSettings: state.learning ? () => state.learning!.settings : undefined,

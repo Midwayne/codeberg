@@ -176,7 +176,7 @@ Browser sessions require a model declared with `inputs: [text, vision]` in `mode
 
 > **Extension credentials come from the process environment.** For `${env:MCP_TOKEN}` in `mcp.json`, or `${POSTGRES_URI}` in a database spec, export that variable before starting Codeberg. Arbitrary secret names in the saved launcher config are not forwarded automatically.
 
-**Environment only:** `CODEBERG_CANVAS_USE=true` enables the initial canvas capability. The project's canvas setting in the app can subsequently change it. In the browser, the agent gets the canvas only for messages sent with **Diagram** on.
+**Environment only:** `CODEBERG_CANVAS_USE=true` enables the initial canvas capability. The project's canvas setting in the app can subsequently change it. The agent gets the canvas only for browser messages sent with **Diagram** on; terminal questions never use it.
 
 ## Advanced component and developer settings
 

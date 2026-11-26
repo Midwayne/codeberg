@@ -35,7 +35,7 @@ interface AgentConfig {
   /** Catalog settings for the chat model; unset fields follow the environment. */
   overrides?: ModelOverrides;
   learning?: LearningService | false;
-  /** False leaves the canvas tools out; unset offers them whenever the canvas is enabled. */
+  /** True offers the canvas tools for a message sent with Diagram on; unset or false leaves them out. */
   canvas?: boolean;
 }
 
