@@ -53,6 +53,16 @@ function keepRefusal(selection: ContextSelection, results: Map<string, ResultInf
   return undefined;
 }
 
+/** Kept ids the last request no longer carried (summarized away) hold no slot. */
+export function pruneKept(selection: ContextSelection): boolean {
+  const present = new Set((selection.snapshot?.results ?? []).map((result) => result.id));
+  const gone = [...selection.keep].filter((id) => !present.has(id));
+
+  for (const id of gone) selection.keep.delete(id);
+
+  return gone.length > 0;
+}
+
 /** Release results: they are cleared from the next request on and stay cleared. */
 export async function releaseResults(selection: ContextSelection, ids: readonly string[]) {
   const results = resultsById(selection);
@@ -61,13 +71,22 @@ export async function releaseResults(selection: ContextSelection, ids: readonly 
   const refused: Refusal[] = [];
 
   for (const id of new Set(ids)) {
+    // Un-keep first: a kept result that has left the prompt must still free its slot.
+    const wasKept = selection.keep.delete(id);
     const result = results.get(id);
     if (!result) {
-      refused.push({ id, reason: 'Unknown id. Use an id from context_status; results of this step appear on the next one.' });
+      if (wasKept) released.push(id);
+      else refused.push({ id, reason: 'Unknown id. Use an id from context_status; results of this step appear on the next one.' });
       continue;
     }
 
-    selection.keep.delete(id);
+    // Already cleared: its note is short, but releasing keeps it cleared.
+    if (result.state === 'cleared') {
+      remember(selection.release, id);
+      released.push(id);
+      continue;
+    }
+
     if (result.chars < MIN_CLEAR_CHARS) {
       refused.push({ id, reason: `Under ${MIN_CLEAR_CHARS} characters; it already costs less than the note that would replace it.` });
       continue;
@@ -79,7 +98,9 @@ export async function releaseResults(selection: ContextSelection, ids: readonly 
 
   await selection.save();
 
-  return { released, refused, freedTokens: released.reduce((sum, id) => sum + (results.get(id)?.state === 'cleared' ? 0 : results.get(id)!.tokens), 0) };
+  const freed = released.map((id) => results.get(id)).filter((result) => result !== undefined && result.state !== 'cleared');
+
+  return { released, refused, freedTokens: freed.reduce((sum, result) => sum + result!.tokens, 0) };
 }
 
 function resultsById(selection: ContextSelection): Map<string, ResultInfo> {

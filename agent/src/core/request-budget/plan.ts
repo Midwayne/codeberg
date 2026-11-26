@@ -33,10 +33,9 @@ export function clearPlan(prompt: readonly LanguageModelV4Message[], options: Cl
   const earlier = toolResults(prompt.slice(0, turnStart));
   const current = toolResults(prompt.slice(turnStart));
 
-  // The newest results stay, even when the turn in progress has fewer of them.
-  const earlierClearable = options.earlier === false
-    ? 0
-    : Math.max(0, earlier.length - Math.max(0, KEEP_RESULTS - current.length));
+  // Earlier turns keep their newest results for the whole turn in progress, so the
+  // boundary moves once when a turn starts, not on each of its first steps.
+  const earlierClearable = options.earlier === false ? 0 : Math.max(0, earlier.length - KEEP_RESULTS);
   const currentClearable = options.currentTurn
     ? Math.max(0, Math.floor((current.length - KEEP_RESULTS) / CLEAR_BLOCK) * CLEAR_BLOCK)
     : 0;

@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 
 import { callerScope } from '../background/context.js';
-import { chatScope } from '../chat-scope.js';
+import { chatRecordExists, chatScope } from '../chat-scope.js';
 import { evictOldest, touch } from '../lru.js';
 import { writeAtomic } from '../fs.js';
 import { isValidSessionId } from '../session-id.js';
@@ -35,6 +35,11 @@ const chats = new Map<string, Promise<ChatSelections>>();
 /** Where a chat's keep/release choices are saved, beside its run journals. */
 export function contextKeepsPath(sessionsDir: string, chatId: string): string {
   return join(sessionsDir, '.context-keeps', `${chatId}.json`);
+}
+
+/** Forget a deleted chat's cached choices; its file is removed with the chat. */
+export function forgetChatSelections(chatDir: string): void {
+  chats.delete(chatDir);
 }
 
 /** A fresh, unsaved selection (tests and helpers outside any chat). */
@@ -95,7 +100,10 @@ function saveChat(chat: ChatSelections): Promise<void> {
   if (!chat.file) return Promise.resolve();
 
   const file = chat.file;
-  const next = chat.writes.catch(() => undefined).then(() => {
+  const next = chat.writes.catch(() => undefined).then(async () => {
+    // A deleted chat keeps no choices, even if a late tool call changes them.
+    if (!await chatRecordExists(file)) return;
+
     const agents = Object.fromEntries([...chat.agents].map(([agent, selection]) =>
       [agent, { keep: [...selection.keep], release: [...selection.release] }]));
 

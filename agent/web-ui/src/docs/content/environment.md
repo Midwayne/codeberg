@@ -195,7 +195,7 @@ Browser sessions require a model declared with `inputs: [text, vision]` in `mode
 | `CBERG_EMBED_BACKEND` | Direct daemon/indexer | `onnx`, `mlx` (Qwen), `gemma-mlx`, `llama`, or `sentence-transformers`. The launcher selects this from `CODEBERG_EMBEDDING_MODEL`. |
 | `CBERG_EMBED_WORKER` | Direct non-ONNX indexer | Python worker script. The launcher supplies its bundled worker. |
 | `CBERG_EMBED_PYTHON` | Direct non-ONNX indexer | Python executable for that worker. The launcher supplies its separate MLX or EmbeddingGemma environment when applicable. |
-| `CBERG_LLAMA_SERVER` | llama.cpp embedding worker | Override the `llama-server` executable. This is separate from `LLAMACPP_BASE_URL` for chat. |
+| `CBERG_LLAMA_SERVER` | llama.cpp embedding worker | Override the `llama-server` executable used for embeddings. |
 | `EDITOR`, `VISUAL` | Launcher config editor | Editor command for `codeberg config edit`; `VISUAL` wins, then `EDITOR`, then `vi`. |
 
 `CODEBERG_PROJECT_ID`, `CODEBERG_PROJECT_HOME`, `CODEBERG_RESOURCE_ROOT_PID`, `CODEBERG_PICKER_START`, and `CODEBERG_CONFIG_DIRECTORY` are runtime plumbing supplied by the app. Use the project selector and Settings to manage these values instead of adding them to your config.

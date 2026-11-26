@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
@@ -21,6 +21,13 @@ function sessionsDir(): string {
   return dir;
 }
 
+/** A saved chat's directory key; its record must exist for the list to be saved. */
+function chatIn(dir: string, id: string): string {
+  writeFileSync(join(dir, `${id}.json`), '{}');
+
+  return join(dir, id);
+}
+
 type Result = Record<string, unknown> & { entries?: WorklistEntry[] };
 
 /** Run a working-list tool the way a browser chat run does: inside its chat scope. */
@@ -35,7 +42,7 @@ const texts = (result: Result) => result.entries!.map((entry) => entry.text);
 
 it('keeps entries for later calls in the same chat and saves them beside the chat', async () => {
   const dir = sessionsDir();
-  const chat = join(dir, 'chat-a');
+  const chat = chatIn(dir, 'chat-a');
 
   await call(chat, 'worklist_add', { items: [{ text: 'Chunker entry point is core/src/chunk.c:12-40', tags: ['Finding'] }] });
   await call(chat, 'worklist_add', { items: [{ text: 'User wants answers in British English', tags: ['constraint'] }] });
@@ -51,7 +58,7 @@ it('keeps entries for later calls in the same chat and saves them beside the cha
 });
 
 it('returns the existing id instead of recording the same active text twice', async () => {
-  const chat = join(sessionsDir(), 'chat-a');
+  const chat = chatIn(sessionsDir(), 'chat-a');
 
   await call(chat, 'worklist_add', { items: [{ text: 'Index path comes from CBERG_INDEX_PATH' }] });
   const again = await call(chat, 'worklist_add', { items: [{ text: '  Index path comes from CBERG_INDEX_PATH ' }] });
@@ -61,7 +68,7 @@ it('returns the existing id instead of recording the same active text twice', as
 });
 
 it('greps entries by substring, regular expression, and tag', async () => {
-  const chat = join(sessionsDir(), 'chat-a');
+  const chat = chatIn(sessionsDir(), 'chat-a');
   await call(chat, 'worklist_add', { items: [
     { text: 'Daemon listens on port 8080', tags: ['config'] },
     { text: 'Embedding model is jina v2', tags: ['finding'] },
@@ -77,7 +84,7 @@ it('greps entries by substring, regular expression, and tag', async () => {
 });
 
 it('keeps the most recent matches when a limit cuts the list', async () => {
-  const chat = join(sessionsDir(), 'chat-a');
+  const chat = chatIn(sessionsDir(), 'chat-a');
   await call(chat, 'worklist_add', { items: [{ text: 'one' }, { text: 'two' }, { text: 'three' }] });
 
   const read = await call(chat, 'worklist_read', { limit: 2 });
@@ -87,7 +94,7 @@ it('keeps the most recent matches when a limit cuts the list', async () => {
 });
 
 it('hides a retired entry by default and links it to its correction', async () => {
-  const chat = join(sessionsDir(), 'chat-a');
+  const chat = chatIn(sessionsDir(), 'chat-a');
   await call(chat, 'worklist_add', { items: [{ text: 'Default port is 9090', tags: ['config'] }] });
 
   const retired = await call(chat, 'worklist_retire', { id: 'w1', reason: 'read config.go', correction: 'Default port is 8080' });
@@ -100,7 +107,7 @@ it('hides a retired entry by default and links it to its correction', async () =
 });
 
 it('loses no entry when parallel tool calls record at once', async () => {
-  const chat = join(sessionsDir(), 'chat-a');
+  const chat = chatIn(sessionsDir(), 'chat-a');
 
   await Promise.all(Array.from({ length: 12 }, (_, index) =>
     call(chat, 'worklist_add', { items: [{ text: `fact ${index}` }] })));
@@ -114,6 +121,8 @@ it('loses no entry when parallel tool calls record at once', async () => {
 it('keeps each chat’s list separate and records which subagent added an entry', async () => {
   const dir = sessionsDir();
 
+  chatIn(dir, 'chat-a');
+  chatIn(dir, 'chat-b');
   await callerScope.run('agent-3', () => call(join(dir, 'chat-a'), 'worklist_add', { items: [{ text: 'from a subagent' }] }));
   await call(join(dir, 'chat-b'), 'worklist_add', { items: [{ text: 'from chat b' }] });
 
@@ -131,10 +140,47 @@ it('keeps a terminal run’s list in memory across calls', async () => {
 });
 
 it('refuses empty, oversized, and too many items', async () => {
-  const chat = join(sessionsDir(), 'chat-a');
+  const chat = chatIn(sessionsDir(), 'chat-a');
 
   await expect(call(chat, 'worklist_add', { items: [{ text: '   ' }] })).rejects.toThrow('non-empty');
   await expect(call(chat, 'worklist_add', { items: [{ text: 'x'.repeat(2_001) }] })).rejects.toThrow('under 2000');
   await expect(call(chat, 'worklist_add', { items: Array.from({ length: 21 }, (_, i) => ({ text: `${i}` })) })).rejects.toThrow('at most 20');
   expect((await call(chat, 'worklist_read', {})).matched).toBe(0);
+});
+
+it('reads the list even when a parallel update fails', async () => {
+  const chat = chatIn(sessionsDir(), 'chat-a');
+  await call(chat, 'worklist_add', { items: [{ text: 'kept fact' }] });
+
+  const [retire, read] = await Promise.allSettled([
+    call(chat, 'worklist_retire', { id: 'w99' }),
+    call(chat, 'worklist_read', {}),
+  ]);
+
+  expect(retire.status).toBe('rejected');
+  expect(read.status === 'fulfilled' && texts(read.value)).toEqual(['kept fact']);
+});
+
+it('saves the items that fit when the list fills mid-call and refuses a correction past the limit', async () => {
+  const chat = chatIn(sessionsDir(), 'chat-a');
+  for (let batch = 0; batch < 24; batch++) {
+    await call(chat, 'worklist_add', { items: Array.from({ length: 20 }, (_, i) => ({ text: `fact ${batch}-${i}` })) });
+  }
+  await call(chat, 'worklist_add', { items: Array.from({ length: 18 }, (_, i) => ({ text: `last ${i}` })) });
+
+  const full = await call(chat, 'worklist_add', { items: [{ text: 'fits 1' }, { text: 'fits 2' }, { text: 'too many' }] });
+
+  expect(full).toMatchObject({ notAdded: ['too many'], note: expect.stringContaining('full') });
+  expect((await call(chat, 'worklist_read', { pattern: 'fits' })).matched).toBe(2);
+  await expect(call(chat, 'worklist_retire', { id: 'w1', correction: 'better fact' })).rejects.toThrow('full');
+  expect((await call(chat, 'worklist_retire', { id: 'w1' })).retired).toMatchObject({ id: 'w1' });
+});
+
+it('does not recreate the list of a deleted chat', async () => {
+  const dir = sessionsDir();
+  const chat = chatIn(dir, 'chat-a');
+  rmSync(join(dir, 'chat-a.json'));
+
+  await expect(call(chat, 'worklist_add', { items: [{ text: 'late fact' }] })).rejects.toThrow('deleted');
+  expect(() => readFileSync(join(dir, '.worklists', 'chat-a.json'))).toThrow();
 });

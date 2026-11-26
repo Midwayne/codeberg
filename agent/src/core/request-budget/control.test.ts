@@ -38,7 +38,12 @@ function setup(scoped = false) {
   const options = { profile: small, context, summarize: vi.fn(async () => 'Earlier work') };
   const deps = { options, checkpoints: new RequestCheckpoints(context, 'policy'), usage: new RequestUsage(), selection: scoped ? undefined : selection };
 
-  return { deps, selection, prepare: async (input: LanguageModelV4CallOptions) => (await prepareRequest(input, deps)).request };
+  return {
+    deps,
+    selection,
+    prepare: async (input: LanguageModelV4CallOptions) => (await prepareRequest(input, deps)).request,
+    notices: async (input: LanguageModelV4CallOptions) => ((await prepareRequest(input, deps)).notice ? 1 : 0),
+  };
 }
 
 /** One turn of `count` grep steps, optionally offering context_status. */
@@ -61,8 +66,7 @@ function clearedFlags(call: LanguageModelV4CallOptions): boolean[] {
     : []);
 }
 
-const notices = (call: LanguageModelV4CallOptions) => call.prompt.filter((message) =>
-  message.role === 'user' && message.content.some((part) => part.type === 'text' && part.text.startsWith('<context_notice>'))).length;
+
 
 describe('releasing and keeping tool results', () => {
   it('clears a released result from the next request, even while the context is small', async () => {
@@ -124,23 +128,56 @@ describe('releasing and keeping tool results', () => {
   });
 });
 
+describe('kept slots and already-cleared results', () => {
+  it('frees kept slots once their results leave the prompt', async () => {
+    const { prepare, selection } = setup();
+    await prepare(request(13));
+    await keepResults(selection, ['c10', 'c11']);
+
+    // A later prompt without those results, as after older history is summarized.
+    await prepare(request(5));
+
+    expect(selection.keep.size).toBe(0);
+  });
+
+  it('lets a kept result that left the prompt be released, freeing its slot', async () => {
+    const { prepare, selection } = setup();
+    await prepare(request(13));
+    await keepResults(selection, ['c10']);
+    selection.snapshot = { ...selection.snapshot!, results: [] };
+
+    expect(await releaseResults(selection, ['c10'])).toMatchObject({ released: ['c10'], refused: [] });
+    expect(selection.keep.has('c10')).toBe(false);
+  });
+
+  it('accepts releasing a result that was already cleared, without calling it small', async () => {
+    const { prepare, selection } = setup();
+    await prepare(request(16));
+
+    expect(await releaseResults(selection, ['c0'])).toEqual({ released: ['c0'], refused: [], freedTokens: 0 });
+    expect(selection.release.has('c0')).toBe(true);
+  });
+});
+
 describe('context notices', () => {
   it('tells the agent once when usage crosses a higher level, only when it can check its context', async () => {
-    const { prepare } = setup();
+    const { notices } = setup();
 
-    expect(notices(await prepare(request(3, true)))).toBe(0);
-    expect(notices(await prepare(request(13, true)))).toBe(1);
-    expect(notices(await prepare(request(13, true)))).toBe(0);
-    expect(notices(await prepare(request(16, true)))).toBe(1);
+    expect(await notices(request(3, true))).toBe(0);
+    expect(await notices(request(13, true))).toBe(1);
+    expect(await notices(request(13, true))).toBe(0);
+    expect(await notices(request(16, true))).toBe(1);
 
     const other = setup();
-    expect(notices(await other.prepare(request(16)))).toBe(0);
+    expect(await other.notices(request(16))).toBe(0);
   });
 });
 
 describe('context selections', () => {
   it('reports the last request through context_status and releases through the tools', async () => {
-    const chat = join(tempDir(), 'chat-a');
+    const sessions = tempDir();
+    writeFileSync(join(sessions, 'chat-a.json'), '{}');
+    const chat = join(sessions, 'chat-a');
     const { prepare } = setup(true);
     const tools = contextControlTools();
     const run = (name: string, args: unknown) => chatScope.run(chat, () =>
@@ -170,4 +207,15 @@ describe('context selections', () => {
     expect(subagent.keep.size).toBe(0);
     expect(existsSync(contextKeepsPath(sessions, 'other'))).toBe(false);
   });
+});
+
+it('does not recreate keep/release choices for a deleted chat', async () => {
+  const sessions = tempDir();
+  const chat = join(sessions, 'gone');
+
+  const selection = await chatScope.run(chat, () => currentSelection());
+  selection.keep.add('c1');
+  await selection.save();
+
+  expect(existsSync(contextKeepsPath(sessions, 'gone'))).toBe(false);
 });

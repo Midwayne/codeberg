@@ -16,25 +16,33 @@ const NOTICES: Record<Exclude<ContextLevel, 0>, string> = {
 };
 
 /**
- * When usage crosses a higher level than the agent's previous request, tell
- * it once, at the end of this request. The note is not part of the saved
- * history, so later requests carry only the conversation and keep their
- * cached prefix. Only agents offered context_status get notes.
+ * When usage crosses a higher level than the agent's previous request, the
+ * text to tell it once. Only agents offered context_status get notes.
  */
-export function withContextNotice(
+export function contextNotice(
   request: LanguageModelV4CallOptions,
   level: ContextLevel,
   snapshot: ContextSnapshot,
   selection: ContextSelection,
-): LanguageModelV4CallOptions {
+): string | undefined {
   const previous = selection.level;
   selection.level = level;
 
-  if (level === 0 || level <= previous) return request;
-  if (!request.tools?.some((tool) => tool.name === 'context_status')) return request;
+  if (level === 0 || level <= previous) return undefined;
+  if (!request.tools?.some((tool) => tool.name === 'context_status')) return undefined;
 
   const percent = Math.round((snapshot.estimated / snapshot.ceiling) * 100);
-  const text = `<context_notice>Context is about ${percent}% of the working limit (${snapshot.estimated} of ${snapshot.ceiling} tokens). ${NOTICES[level]} Call context_status to see what remains.</context_notice>`;
 
-  return { ...request, prompt: [...request.prompt, { role: 'user', content: [{ type: 'text', text }] }] };
+  return `<context_notice>Context is about ${percent}% of the working limit (${snapshot.estimated} of ${snapshot.ceiling} tokens). ${NOTICES[level]} Call context_status to see what remains.</context_notice>`;
+}
+
+/**
+ * Append a notice at the very end of the request actually sent, after any
+ * compaction. It is not part of the saved history, so later requests carry
+ * only the conversation and keep their cached prefix.
+ */
+export function withNotice(request: LanguageModelV4CallOptions, notice: string | undefined): LanguageModelV4CallOptions {
+  if (!notice) return request;
+
+  return { ...request, prompt: [...request.prompt, { role: 'user', content: [{ type: 'text', text: notice }] }] };
 }

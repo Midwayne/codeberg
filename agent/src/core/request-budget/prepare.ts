@@ -2,7 +2,8 @@ import type { LanguageModelV4CallOptions, LanguageModelV4Message } from '@ai-sdk
 
 import type { RequestCheckpoints } from './checkpoints.js';
 import { CLEAR_TRIGGER, clearOldToolResults, CURRENT_TURN_TRIGGER } from './clear.js';
-import { SUMMARY_SOON, withContextNotice, type ContextLevel } from './notice.js';
+import { pruneKept } from './choices.js';
+import { contextNotice, SUMMARY_SOON, type ContextLevel } from './notice.js';
 import { requestLimits, type BudgetOptions } from './retry.js';
 import { currentSelection, type ContextSelection } from './selection.js';
 import { contextSnapshot } from './snapshot.js';
@@ -29,12 +30,14 @@ interface PrepareDependencies {
  *
  * Returns the request to send and budget options whose `saveCheckpoint`
  * translates cleared messages back to the originals. The agent's selection
- * records what the request carried, for context_status.
+ * records what the request carried, for context_status. A usage `notice`,
+ * when due, is for the caller to append after any compaction, so the
+ * summarizer never mistakes it for the turn's question.
  */
 export async function prepareRequest(
   params: LanguageModelV4CallOptions,
   deps: PrepareDependencies,
-): Promise<{ request: LanguageModelV4CallOptions; budget: BudgetOptions }> {
+): Promise<{ request: LanguageModelV4CallOptions; budget: BudgetOptions; notice?: string }> {
   const selection = deps.selection ?? await currentSelection();
   const { cleared, level } = await clearedRequest(params, deps, selection);
   const prepared = await withCheckpoints(params, cleared, deps);
@@ -43,10 +46,12 @@ export async function prepareRequest(
   const estimated = deps.usage.estimate(prepared.request);
   const snapshot = contextSnapshot({ prompt: prepared.request.prompt, window, ceiling, estimated, keep: selection.keep });
   selection.snapshot = snapshot;
+  if (pruneKept(selection)) await selection.save();
 
   const reached: ContextLevel = estimated > ceiling * SUMMARY_SOON ? 3 : level;
+  const notice = contextNotice(prepared.request, reached, snapshot, selection);
 
-  return { ...prepared, request: withContextNotice(prepared.request, reached, snapshot, selection) };
+  return { ...prepared, ...(notice ? { notice } : {}) };
 }
 
 async function withCheckpoints(

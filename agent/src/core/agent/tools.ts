@@ -1,5 +1,5 @@
 import { canvasFromEnv } from '../canvas/config.js';
-import { CANVAS_INSTRUCTIONS } from '../canvas/tools.js';
+import { canvasInstructions } from '../canvas/tools.js';
 import { requestProviderOptions } from '../cache.js';
 import { publishSkills } from '../context/skills.js';
 import { learningRecall } from '../learning/preferences.js';
@@ -29,9 +29,10 @@ import { WORKLIST_INSTRUCTIONS } from '../worklist/tools.js';
 import { CONTEXT_CONTROL_INSTRUCTIONS } from '../request-budget/tools.js';
 
 /** Guidance each tool family adds to the system prompt when any of its tools is offered. */
-const TOOL_FAMILY_INSTRUCTIONS: { offered: (name: string) => boolean; text: string }[] = [
+const TOOL_FAMILY_INSTRUCTIONS: { offered: (name: string) => boolean; text: string | ((state: AgentState) => string) }[] = [
   { offered: (name) => name === 'search_bundle', text: SEARCH_BUNDLE_INSTRUCTIONS },
-  { offered: (name) => name.startsWith('canvas_'), text: CANVAS_INSTRUCTIONS },
+  // Only an agent built for a Diagram request is told the user asked for one.
+  { offered: (name) => name.startsWith('canvas_'), text: (state) => canvasInstructions(state.options.canvas === true) },
   { offered: (name) => name === 'sleep_agent', text: BACKGROUND_INSTRUCTIONS },
   { offered: (name) => name === 'schedule_run', text: SCHEDULE_INSTRUCTIONS },
   { offered: (name) => name === SCRIPT_TOOL, text: SCRIPT_INSTRUCTIONS },
@@ -63,7 +64,7 @@ export async function prepareSystem(
 
   state.system = sections.stable;
   for (const family of TOOL_FAMILY_INSTRUCTIONS) {
-    if (toolNames.some(family.offered)) state.system += family.text;
+    if (toolNames.some(family.offered)) state.system += typeof family.text === 'string' ? family.text : family.text(state);
   }
 
   const [repositories, knowledgeIndex, profile] = await Promise.all([

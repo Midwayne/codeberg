@@ -141,17 +141,23 @@ describe('clearOldToolResults', () => {
 
     const texts = resultTexts(await clearOldToolResults(twoTurns(earlier, current), store()));
 
-    expect(texts.slice(0, 6).every(cleared)).toBe(true);
+    // Earlier turns keep their newest four; the turn in progress keeps everything.
+    expect(texts.slice(0, 6).map(cleared)).toEqual([true, true, false, false, false, false]);
     expect(texts.slice(6).some(cleared)).toBe(false);
   });
 
-  it('keeps the newest earlier results while the turn in progress has fewer than four', async () => {
+  it('keeps one earlier-turn boundary for every step of the turn in progress', async () => {
+    const context = store();
     const earlier = Array.from({ length: 10 }, (_, index) => toolStep(index, big(index)));
-    const current = [toolStep(10, big(10))];
+    const steps = Array.from({ length: 5 }, (_, index) => toolStep(10 + index, big(10 + index)));
 
-    const texts = resultTexts(await clearOldToolResults(twoTurns(earlier, current), store()));
+    const boundaries = [];
+    for (let made = 0; made <= steps.length; made++) {
+      const texts = resultTexts(await clearOldToolResults(twoTurns(earlier, steps.slice(0, made)), context));
+      boundaries.push(texts.slice(0, 10).map(cleared));
+    }
 
-    expect(texts.map(cleared)).toEqual([...Array(7).fill(true), false, false, false, false]);
+    for (const boundary of boundaries) expect(boundary).toEqual([...Array(6).fill(true), ...Array(4).fill(false)]);
   });
 
   it('keeps reads of saved context in the turn in progress when clearing it', async () => {

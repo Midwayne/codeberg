@@ -6,6 +6,7 @@ import { RequestUsage } from './usage.js';
 import { RequestCheckpoints } from './checkpoints.js';
 import { contextReport, type SystemDescription } from './breakdown.js';
 import { prepareRequest } from './prepare.js';
+import { withNotice } from './notice.js';
 import { emitContextEvent, hasContextListeners } from './report.js';
 import type { LanguageModelV4CallOptions, LanguageModelV4StreamPart, LanguageModelV4Usage } from '@ai-sdk/provider';
 
@@ -44,7 +45,8 @@ export function manageContextModel(model: LanguageModel, options: ManagedModelOp
     wrapGenerate: async ({ model: provider, params }) => {
       const prepared = await prepare(params);
 
-      return withBudgetRetry(prepared.request, prepared.budget, usage, async (request) => {
+      return withBudgetRetry(prepared.request, prepared.budget, usage, async (compacted) => {
+        const request = withNotice(compacted, prepared.notice);
         const result = await provider.doGenerate(request);
         record(request, result.usage);
 
@@ -54,7 +56,8 @@ export function manageContextModel(model: LanguageModel, options: ManagedModelOp
     wrapStream: async ({ model: provider, params }) => {
       const prepared = await prepare(params);
 
-      return withBudgetRetry(prepared.request, prepared.budget, usage, async (request) => {
+      return withBudgetRetry(prepared.request, prepared.budget, usage, async (compacted) => {
+        const request = withNotice(compacted, prepared.notice);
         const result = await preflightStream(await provider.doStream(request));
 
         return { ...result, stream: result.stream.pipeThrough(recordFinish(request, record)) };

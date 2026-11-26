@@ -11,6 +11,9 @@ export interface AddResult {
   added: WorklistEntry[];
   /** Items already on the list as active entries, with the id they have. */
   duplicates: Array<{ text: string; id: string }>;
+  /** Items not recorded because the list is full; everything in `added` was saved. */
+  notAdded?: string[];
+  note?: string;
 }
 
 /**
@@ -29,12 +32,17 @@ export function addEntries(data: WorklistData, items: readonly NewEntry[], by: s
     }
 
     if (data.entries.length >= MAX_WORKLIST_ENTRIES) {
-      throw new WorklistError(`The working list is full (${MAX_WORKLIST_ENTRIES} entries). Nothing more was added after ${result.added.length} item(s).`);
+      (result.notAdded ??= []).push(item.text);
+      continue;
     }
 
     const entry = newEntry(data, item, by, now);
     data.entries.push(entry);
     result.added.push(entry);
+  }
+
+  if (result.notAdded) {
+    result.note = `The working list is full (${MAX_WORKLIST_ENTRIES} entries). The entries in added were saved; the ones in notAdded were not.`;
   }
 
   return result;
@@ -56,6 +64,9 @@ export function retireEntry(
   if (entry.retired) throw new WorklistError(`Entry ${input.id} is already retired.`);
 
   const reason = input.reason?.trim().slice(0, MAX_REASON_CHARS);
+  if (input.correction !== undefined && data.entries.length >= MAX_WORKLIST_ENTRIES) {
+    throw new WorklistError(`The working list is full (${MAX_WORKLIST_ENTRIES} entries). Retire without a correction to keep it within the limit.`);
+  }
 
   let correction: WorklistEntry | undefined;
   if (input.correction !== undefined) {

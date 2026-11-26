@@ -160,7 +160,7 @@ What does your working list say about the daemon port?
 | Browser chat | One list per chat, shared by the chat's subagents; each entry notes which subagent added it. Saved on disk and kept across restarts. Deleting the chat deletes its list. |
 | Branched chat | Starts with an empty list. |
 | Terminal question | Kept in memory until the process exits. |
-| Size | Up to 500 entries per chat, retired entries included. |
+| Size | Up to 500 entries per chat, retired entries included. When the list is full, the agent is told which items were not saved, and a retirement cannot add a correction. |
 
 The list is the agent's notes, not evidence: it re-reads the code before citing a finding that may have changed. To keep something across chats, use [Knowledge](/docs/knowledge) instead. The tools make no model calls; entries the agent reads back add to the chat's context.
 

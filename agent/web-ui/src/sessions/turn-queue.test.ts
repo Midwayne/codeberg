@@ -1,18 +1,20 @@
 import type { ChatTransport, UIMessage, UIMessageChunk } from 'ai';
 import { expect, it, vi } from 'vitest';
 
+import { DIAGRAM_REQUEST, diagramRequested } from '@agent/core/canvas/request.js';
+
 import { createWorkspaceChat } from './workspace-chat';
 import { TurnQueue } from './turn-queue';
 
 class Transport implements ChatTransport<UIMessage> {
-  requests: { text: string; signal?: AbortSignal; controller: ReadableStreamDefaultController<UIMessageChunk> }[] = [];
+  requests: { text: string; diagram: boolean; signal?: AbortSignal; controller: ReadableStreamDefaultController<UIMessageChunk> }[] = [];
 
   sendMessages: ChatTransport<UIMessage>['sendMessages'] = async ({ messages, abortSignal }) => {
     const last = messages.at(-1)!;
     const text = last.parts.filter((part) => part.type === 'text').map((part) => part.text).join('');
 
     return new ReadableStream<UIMessageChunk>({ start: (controller) => {
-      this.requests.push({ text, signal: abortSignal, controller });
+      this.requests.push({ text, diagram: diagramRequested(messages), signal: abortSignal, controller });
       abortSignal?.addEventListener('abort', () => controller.error(new DOMException('Stopped', 'AbortError')));
       controller.enqueue({ type: 'start', messageId: `answer-${this.requests.length}` });
       controller.enqueue({ type: 'text-start', id: 'text' });
@@ -73,6 +75,18 @@ it('steers by aborting the current response, retaining partial text, and keeping
   transport.finish(1);
   await expect.poll(() => transport.requests.length).toBe(3);
   transport.finish(2);
+});
+
+it('sends a steered diagram request as its own chat request, so the server can route it to a canvas agent', async () => {
+  const { transport, turns, workspace } = fixture();
+  turns.submit({ text: 'First' });
+  await expect.poll(() => workspace.chat.status).toBe('streaming');
+
+  await turns.steer({ text: 'Also draw the flow', metadata: DIAGRAM_REQUEST });
+  await expect.poll(() => transport.requests.length).toBe(2);
+
+  expect(transport.requests.map((request) => [request.text, request.diagram])).toEqual([['First', false], ['Also draw the flow', true]]);
+  transport.finish(1);
 });
 
 it('pauses queued questions on Stop, allows removal, and resumes only on request', async () => {

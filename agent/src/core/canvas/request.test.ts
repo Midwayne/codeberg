@@ -72,3 +72,13 @@ it('sends the canvas tools and instructions only to a turn that asked for a diag
   expect(plain.tools).toEqual([]);
   expect(plain.prompt).not.toContain('local canvas');
 });
+
+it('tells only a Diagram turn that the user asked for one; terminal runs draw only when it helps', async () => {
+  const asked = await firstRequest(true);
+  const terminal = await firstRequest(undefined);
+
+  expect(asked.prompt).toContain('The user asked for a diagram');
+  expect(terminal.tools).toContain('canvas_add');
+  expect(terminal.prompt).not.toContain('The user asked for a diagram');
+  expect(terminal.prompt).toContain('Skip diagrams for simple answers');
+});
