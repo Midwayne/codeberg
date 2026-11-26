@@ -1,4 +1,4 @@
-import { Check, Trash2 } from 'lucide-react';
+import { Check, Pencil, Trash2 } from 'lucide-react';
 import type { CSSProperties } from 'react';
 
 import { CustomBackdropLayers } from './custom-backdrop';
@@ -11,10 +11,11 @@ type ThemePickerProps = {
   onChange: (id: ThemeId) => void;
   custom?: CustomTheme[];
   onDelete?: (id: CustomThemeId) => void;
+  onEdit?: (id: CustomThemeId) => void;
 };
 
 /** One native radio group across saved and built-in themes. */
-export function ThemePicker({ value, onChange, custom = [], onDelete }: ThemePickerProps) {
+export function ThemePicker({ value, onChange, custom = [], onDelete, onEdit }: ThemePickerProps) {
   return (
     <fieldset className="space-y-5">
       <legend className="mb-3 text-sm font-medium">Theme</legend>
@@ -22,7 +23,7 @@ export function ThemePicker({ value, onChange, custom = [], onDelete }: ThemePic
       {custom.length > 0 && (
         <div>
           <p className="mb-2 text-xs font-medium text-muted-foreground">Your themes</p>
-          <ThemeGrid themes={custom} value={value} onChange={onChange} onDelete={onDelete} />
+          <ThemeGrid themes={custom} value={value} onChange={onChange} onDelete={onDelete} onEdit={onEdit} />
         </div>
       )}
 
@@ -33,24 +34,39 @@ export function ThemePicker({ value, onChange, custom = [], onDelete }: ThemePic
 
 type ThemeGridProps = Omit<ThemePickerProps, 'custom'> & { themes: readonly Theme[] };
 
-function ThemeGrid({ themes, value, onChange, onDelete }: ThemeGridProps) {
+function ThemeGrid({ themes, value, onChange, onDelete, onEdit }: ThemeGridProps) {
   return (
     <div className="grid grid-cols-1 gap-4 min-[360px]:grid-cols-2 xl:grid-cols-3">
       {themes.map((theme) => (
         <div key={theme.id} className="relative">
           <ThemeCard theme={theme} checked={value === theme.id} onChange={onChange} />
-          {onDelete && (
-            <button
-              type="button"
-              aria-label={`Delete ${theme.label}`}
-              onClick={() => onDelete(theme.id as CustomThemeId)}
-              className="absolute top-2 right-2 rounded-md bg-background/80 p-1.5 text-muted-foreground backdrop-blur hover:text-destructive"
-            >
-              <Trash2 aria-hidden="true" className="size-3.5" />
-            </button>
+          {(onEdit || onDelete) && (
+            <SavedThemeActions id={theme.id as CustomThemeId} label={theme.label} onEdit={onEdit} onDelete={onDelete} />
           )}
         </div>
       ))}
+    </div>
+  );
+}
+
+const actionButton = 'rounded-md bg-background/80 p-1.5 text-muted-foreground backdrop-blur transition-colors';
+
+type SavedThemeActionsProps = Pick<ThemePickerProps, 'onEdit' | 'onDelete'> & { id: CustomThemeId; label: string };
+
+/* Edit and delete sit beside the radio, not inside its label, so each stays its own control. */
+function SavedThemeActions({ id, label, onEdit, onDelete }: SavedThemeActionsProps) {
+  return (
+    <div className="absolute top-2 right-2 flex gap-1">
+      {onEdit && (
+        <button type="button" aria-label={`Edit ${label}`} onClick={() => onEdit(id)} className={`${actionButton} hover:text-foreground`}>
+          <Pencil aria-hidden="true" className="size-3.5" />
+        </button>
+      )}
+      {onDelete && (
+        <button type="button" aria-label={`Delete ${label}`} onClick={() => onDelete(id)} className={`${actionButton} hover:text-destructive`}>
+          <Trash2 aria-hidden="true" className="size-3.5" />
+        </button>
+      )}
     </div>
   );
 }

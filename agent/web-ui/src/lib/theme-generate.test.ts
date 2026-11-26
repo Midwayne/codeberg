@@ -9,21 +9,29 @@ function reply(theme: unknown) {
 
 describe('theme generation request', () => {
   it('sends the theme to change only when asked, without its id, and returns a new validated theme', async () => {
-    const fetcher = reply({ label: 'Warmer Nord', palette: { background: '#2e3440' } });
+    const fetcher = reply({ label: 'Warmer Ember', palette: { background: '#262624' } });
 
     const fresh = await generateTheme(fetcher, { prompt: 'forest', animated: true });
-    const edited = await generateTheme(fetcher, { prompt: 'warmer', animated: false, base: findTheme('nord') });
+    const edited = await generateTheme(fetcher, { prompt: 'warmer', animated: false, base: findTheme('ember') });
 
     const [freshBody, editBody] = fetcher.mock.calls.map(([, init]) => JSON.parse(String(init?.body)));
 
     expect(fetcher.mock.calls[0]![0]).toBe(THEME_GENERATE_PATH);
     expect(freshBody).toEqual({ prompt: 'forest', animated: true });
-    expect(editBody.base).toMatchObject({ label: 'Nord', palette: { background: '#2e3440' } });
+    expect(editBody.base).toMatchObject({ label: 'Ember', palette: { background: '#262624' } });
     expect(editBody.base.id).toBeUndefined();
 
-    expect(edited.label).toBe('Warmer Nord');
+    expect(edited.label).toBe('Warmer Ember');
     expect(edited.id).toMatch(/^custom-/);
     expect(edited.id).not.toBe(fresh.id);
+  });
+
+  it('keeps a saved theme’s id when changing it, so the change replaces it in place', async () => {
+    const fetcher = reply({ label: 'Calmer', palette: { background: '#101010' } });
+
+    const changed = await generateTheme(fetcher, { prompt: 'calmer', animated: true, id: 'custom-mine' });
+
+    expect(changed.id).toBe('custom-mine');
   });
 
   it('surfaces the server’s message when the model fails', async () => {

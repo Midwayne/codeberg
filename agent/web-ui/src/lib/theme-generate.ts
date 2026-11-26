@@ -1,11 +1,18 @@
 import { newCustomThemeId } from './custom-themes';
 import { jsonInit, readJson } from './http';
 import { normalizeTheme } from './theme-normalize';
-import type { CustomTheme, Theme } from './theme-types';
+import type { CustomTheme, CustomThemeId, Theme } from './theme-types';
 
 export const THEME_GENERATE_PATH = '/api/themes/generate';
 
-export type ThemeRequest = { prompt: string; animated: boolean; base?: Theme };
+export type ThemeRequest = {
+  prompt: string;
+  animated: boolean;
+  /** The theme to change instead of designing from scratch. */
+  base?: Theme;
+  /** Replace this saved theme instead of adding a new one. */
+  id?: CustomThemeId;
+};
 
 /** The parts of a theme the model can change; built-in scene names are left out. */
 export function themeForPrompt(theme: Theme) {
@@ -22,7 +29,7 @@ export function themeForPrompt(theme: Theme) {
   };
 }
 
-/** Asks the chat model for a theme and returns it validated, under a new id. */
+/** Asks the chat model for a theme and returns it validated, under the given or a new id. */
 export async function generateTheme(
   fetcher: typeof fetch,
   request: ThemeRequest,
@@ -37,5 +44,5 @@ export async function generateTheme(
   const response = await fetcher(THEME_GENERATE_PATH, jsonInit('POST', body, signal ? { signal } : {}));
   const { theme } = await readJson<{ theme: unknown }>(response, 'Could not create a theme.');
 
-  return normalizeTheme(theme, { id: newCustomThemeId(), prompt: request.prompt, animated: request.animated });
+  return normalizeTheme(theme, { id: request.id ?? newCustomThemeId(), prompt: request.prompt, animated: request.animated });
 }

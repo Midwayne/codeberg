@@ -104,11 +104,9 @@ Choose **Settings → Appearance**. Dark is the default.
 
 | Themes | Style |
 |--------|-------|
-| Dark, Light, Kanagawa, Tokyo Night, Catppuccin Mocha, Dracula, Nord, Gruvbox | Colors only |
+| Dark, Light | Plain neutral colors |
 | Parchment | Serif headings and a faint paper grain behind the chat |
 | Ember | Serif headings and a warm glow behind the composer |
-| Rosé Pine | Serif headings and rounder corners |
-| Everforest, Solarized Light | Softer colors and corners |
 | Phosphor | Monospace text, square corners, and terminal scanlines |
 | Midnight | A night sky with slowly twinkling stars |
 | Aurora | Northern lights drifting across the top of the chat |
@@ -126,8 +124,15 @@ Describe a look and your chat model designs a theme: colors, fonts, corner shape
 1. Add a project and choose a chat model.
 2. Open **Settings → Appearance** and type a description under **Create a theme**, or choose an idea such as **Synthwave sunset**.
 3. Leave **Animated** on for a moving backdrop, or turn it off for a still one.
-4. To adjust the theme you are using instead of starting over, turn on **Start from** *theme name* and describe the change, for example `warmer, with less glow`.
+4. To base a new theme on the one you are using, turn on **Start from** *theme name*.
 5. Choose **Create theme**. It applies as soon as it is ready and appears under **Your themes**.
+
+### Change a theme you created
+
+1. Under **Your themes**, choose the pencil (**Edit**) on the theme.
+2. Describe the change, for example `warmer colors, slower stars`, or choose an idea such as **More contrast**.
+3. Choose **Apply change**. The theme updates in place; the rest stays as it was.
+4. Keep describing changes, or choose **undo** to restore the previous version. Choose **Done** to stop editing.
 
 Each theme uses a few thousand tokens on your chat model and is recorded in **Usage**. **Cancel** stops a request that is still running.
 

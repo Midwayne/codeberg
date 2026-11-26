@@ -30,8 +30,22 @@ const synthwave = {
   },
 };
 
+/* An edit comes back bluer and stiller, so the demo shows the change applying in place. */
+const calmer = {
+  ...synthwave,
+  label: 'Neon Sunset',
+  description: 'Cooler dusk · still grid',
+  palette: { ...synthwave.palette, primary: '#4fd6ff', background: '#0b1228', surface: '#101a33', raised: '#1a2547' },
+  backdrop: {
+    sky: { from: '#102047', to: '#0b1228', angle: 180 },
+    layers: synthwave.backdrop.layers.map((layer) => ({ ...layer, color: layer.kind === 'stars' ? '#ffffff' : '#4fd6ff', animation: 'none' })),
+  },
+};
+
 export function themeDemoResponse(url: URL, init?: RequestInit): Response | undefined {
   if (url.pathname !== '/api/themes/generate' || init?.method !== 'POST') return;
 
-  return Response.json({ theme: synthwave });
+  const body = JSON.parse(String(init.body ?? '{}')) as { base?: unknown };
+
+  return Response.json({ theme: body.base ? calmer : synthwave });
 }

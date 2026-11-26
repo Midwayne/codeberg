@@ -28,24 +28,24 @@ describe('themes', () => {
     expect(loadTheme()).toBe('dark');
     saved = 'removed-theme';
     expect(loadTheme()).toBe('dark');
-    saved = 'tokyo-night';
-    expect(loadTheme()).toBe('tokyo-night');
+    saved = 'midnight';
+    expect(loadTheme()).toBe('midnight');
     expect(localStorage.getItem).toHaveBeenCalledWith(THEME_STORAGE_KEY);
   });
 
   it('applies and persists a selection, then restores it on reload', () => {
-    setTheme('kanagawa');
-    expect(root.dataset.theme).toBe('kanagawa');
+    setTheme('ember');
+    expect(root.dataset.theme).toBe('ember');
     expect(root.style.colorScheme).toBe('dark');
-    expect(properties.get('--background')).toBe('#1f1f28');
-    expect(localStorage.setItem).toHaveBeenCalledWith(THEME_STORAGE_KEY, 'kanagawa');
+    expect(properties.get('--background')).toBe('#262624');
+    expect(localStorage.setItem).toHaveBeenCalledWith(THEME_STORAGE_KEY, 'ember');
     applyTheme('light');
     applyTheme(loadTheme());
-    expect(root.dataset.theme).toBe('kanagawa');
+    expect(root.dataset.theme).toBe('ember');
   });
 
   it('replaces every token when switching between a named theme and light', () => {
-    applyTheme('tokyo-night');
+    applyTheme('midnight');
     const tokens = [...properties.keys()];
     properties.clear();
     applyTheme('light');
@@ -70,7 +70,7 @@ describe('themes', () => {
     expect(properties.get('--card')).toBe('#ededed');
     expect(properties.get('--popover')).toBe('#ffffff');
 
-    applyTheme('kanagawa');
+    applyTheme('phosphor');
 
     expect(properties.get('--popover')).toBe(properties.get('--card'));
   });
@@ -99,12 +99,12 @@ describe('themes', () => {
       setItem: () => { throw new Error('storage blocked'); },
     });
     expect(loadTheme()).toBe('dark');
-    expect(() => setTheme('nord')).not.toThrow();
-    expect(root.dataset.theme).toBe('nord');
+    expect(() => setTheme('aurora')).not.toThrow();
+    expect(root.dataset.theme).toBe('aurora');
   });
 
   it('keeps destructive button labels readable on each theme’s error color', () => {
-    applyTheme('kanagawa');
+    applyTheme('ember');
     expect(properties.get('--destructive-foreground')).toBe('#000000');
     applyTheme('light');
     expect(properties.get('--destructive-foreground')).toBe('#ffffff');

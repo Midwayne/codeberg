@@ -1,57 +1,52 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { saveCustomTheme } from '../lib/custom-themes';
 import { useProjectApi } from '../lib/project-api';
 import { generateTheme } from '../lib/theme-generate';
 import { changeTheme } from '../lib/theme-transition';
-import type { Theme } from '../lib/theme-types';
+import type { CustomTheme, Theme } from '../lib/theme-types';
+import { useThemeRequest } from './use-theme-request';
 
-/** Form state for describing a theme and having the chat model design it. */
-export function useThemeStudio(selected: Theme) {
+/**
+ * Form state for the theme studio. With `editing`, the chat model changes that
+ * saved theme in place and the previous version can be restored with Undo.
+ */
+export function useThemeStudio(selected: Theme, editing?: CustomTheme) {
   const { fetch } = useProjectApi();
   const [prompt, setPrompt] = useState('');
   const [animated, setAnimated] = useState(true);
   const [refine, setRefine] = useState(false);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string>();
-  const request = useRef<AbortController | null>(null);
+  const [previous, setPrevious] = useState<CustomTheme>();
+  const { pending, error, setError, run, cancel } = useThemeRequest();
 
-  useEffect(() => () => request.current?.abort(), []);
+  // A different theme starts a fresh edit with nothing to undo.
+  useEffect(() => {
+    setPrevious(undefined);
+    setError(undefined);
+  }, [editing?.id]);
 
   async function create() {
     const text = prompt.trim();
     if (!text || pending) return;
 
-    const abort = new AbortController();
-    request.current = abort;
-    setPending(true);
-    setError(undefined);
+    await run(async (signal) => {
+      const base = editing ?? (refine ? selected : undefined);
+      const theme = await generateTheme(fetch, { prompt: text, animated, base, id: editing?.id }, signal);
 
-    try {
-      const theme = await generateTheme(fetch, { prompt: text, animated, base: refine ? selected : undefined }, abort.signal);
-
+      setPrevious(editing);
       saveCustomTheme(theme);
       changeTheme(theme.id);
       setPrompt('');
-    } catch (failure) {
-      if (!abort.signal.aborted) setError(failure instanceof Error ? failure.message : 'Could not create a theme.');
-    } finally {
-      if (request.current === abort) request.current = null;
-
-      setPending(false);
-    }
+    });
   }
 
-  return {
-    prompt,
-    setPrompt,
-    animated,
-    setAnimated,
-    refine,
-    setRefine,
-    pending,
-    error,
-    create,
-    cancel: () => request.current?.abort(),
-  };
+  function undo() {
+    if (!previous) return;
+
+    saveCustomTheme(previous);
+    changeTheme(previous.id);
+    setPrevious(undefined);
+  }
+
+  return { prompt, setPrompt, animated, setAnimated, refine, setRefine, pending, error, previous, create, undo, cancel };
 }

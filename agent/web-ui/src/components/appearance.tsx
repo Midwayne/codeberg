@@ -14,9 +14,18 @@ export { ThemePicker } from './theme-picker';
 export function AppearancePanel() {
   const theme = useActiveTheme();
   const custom = useCustomThemes();
+  const [editingId, setEditingId] = useState<CustomThemeId>();
+  const editing = custom.find((entry) => entry.id === editingId);
+
+  function editTheme(id: CustomThemeId) {
+    if (activeThemeId() !== id) changeTheme(id);
+
+    setEditingId(id);
+  }
 
   function deleteTheme(id: CustomThemeId) {
     if (activeThemeId() === id) changeTheme('dark');
+    if (editingId === id) setEditingId(undefined);
 
     removeCustomTheme(id);
   }
@@ -29,8 +38,14 @@ export function AppearancePanel() {
           Choose a theme or create your own. Changes apply immediately and are saved in this browser.
         </p>
       </div>
-      <ThemeStudio selected={theme} />
-      <ThemePicker value={theme.id} onChange={(id) => changeTheme(id)} custom={custom} onDelete={deleteTheme} />
+      <ThemeStudio selected={theme} editing={editing} onDoneEditing={() => setEditingId(undefined)} />
+      <ThemePicker
+        value={theme.id}
+        onChange={(id) => changeTheme(id)}
+        custom={custom}
+        onDelete={deleteTheme}
+        onEdit={editTheme}
+      />
       <BackdropToggle />
     </section>
   );

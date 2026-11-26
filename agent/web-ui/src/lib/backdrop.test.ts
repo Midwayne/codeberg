@@ -27,7 +27,7 @@ describe('theme backdrops', () => {
 
     expect(root.dataset.backdrop).toBe('night-sky');
 
-    applyTheme('nord');
+    applyTheme('light');
 
     expect(root.dataset.backdrop).toBeUndefined();
   });

@@ -50,15 +50,15 @@ describe('theme transitions', () => {
   it('fades colors without view transitions and switches instantly under reduced motion', () => {
     vi.stubGlobal('document', { documentElement: root });
 
-    changeTheme('nord');
+    changeTheme('ember');
 
     expect(root.classList.add).toHaveBeenCalledWith('theme-fading');
 
     reduce = true;
     root.classList.add.mockClear();
-    changeTheme('dracula');
+    changeTheme('midnight');
 
     expect(root.classList.add).not.toHaveBeenCalled();
-    expect(root.dataset.theme).toBe('dracula');
+    expect(root.dataset.theme).toBe('midnight');
   });
 });

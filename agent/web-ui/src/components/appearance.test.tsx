@@ -2,18 +2,19 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { BackdropToggle, ThemePicker } from './appearance';
+import { normalizeTheme } from '../lib/theme-normalize';
 
 describe('theme picker', () => {
   it('offers standard themes as a labeled native radio group with one selected theme', () => {
-    const html = renderToStaticMarkup(<ThemePicker value="kanagawa" onChange={() => undefined} />);
+    const html = renderToStaticMarkup(<ThemePicker value="ember" onChange={() => undefined} />);
     expect(html).toContain('<fieldset');
     expect(html).toContain('<legend');
-    for (const name of ['Dark', 'Light', 'Kanagawa', 'Tokyo Night', 'Catppuccin Mocha', 'Dracula', 'Nord', 'Gruvbox', 'Parchment', 'Ember', 'Rosé Pine', 'Everforest', 'Solarized Light', 'Phosphor', 'Midnight', 'Aurora']) {
+    for (const name of ['Dark', 'Light', 'Parchment', 'Ember', 'Phosphor', 'Midnight', 'Aurora']) {
       expect(html).toContain(`aria-label="${name}"`);
     }
-    expect(html.match(/type="radio"/g)).toHaveLength(16);
+    expect(html.match(/type="radio"/g)).toHaveLength(7);
     expect(html.match(/checked=""/g)).toHaveLength(1);
-    expect(html).toMatch(/aria-label="Kanagawa"[^>]*checked=""/);
+    expect(html).toMatch(/aria-label="Ember"[^>]*checked=""/);
   });
 
   it('previews a scene only on themes that have a backdrop', () => {
@@ -27,5 +28,17 @@ describe('theme picker', () => {
     const html = renderToStaticMarkup(<BackdropToggle />);
 
     expect(html).toMatch(/type="checkbox"[^>]*checked=""/);
+  });
+
+  it('offers edit and delete only on saved themes', () => {
+    const saved = normalizeTheme({ label: 'Mine', palette: { background: '#101010' } }, { id: 'custom-mine', prompt: 'x', animated: true });
+    const html = renderToStaticMarkup(
+      <ThemePicker value="dark" onChange={() => undefined} custom={[saved]} onEdit={() => undefined} onDelete={() => undefined} />,
+    );
+
+    expect(html).toContain('Your themes');
+    expect(html.match(/aria-label="Edit [^"]+"/g)).toEqual(['aria-label="Edit Mine"']);
+    expect(html.match(/aria-label="Delete [^"]+"/g)).toEqual(['aria-label="Delete Mine"']);
+    expect(html.match(/type="radio"/g)).toHaveLength(8);
   });
 });
