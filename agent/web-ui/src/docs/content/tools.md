@@ -270,9 +270,9 @@ See [Browser Use](/docs/browser-use) for setup, screenshots, retained sessions, 
 
 ## Optional canvas
 
-Enable **Settings → Canvas** for a drawing canvas attached to each chat. Then turn on **Diagram** beside the attach button in the composer when you want a drawing with a message:
+Enable **Settings → Canvas** for a drawing canvas attached to each chat. Then turn on **Diagram**, the icon beside the attach button in the composer, when you want a drawing with a message:
 
-1. Select **Diagram**; it stays highlighted.
+1. Select the **Diagram** icon; it stays highlighted.
 2. Send the message. The agent draws on the chat's canvas alongside its written answer.
 3. **Diagram** turns off after sending. Turn it on again for each message that should draw or change the drawing.
 
