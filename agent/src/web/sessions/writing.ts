@@ -25,7 +25,8 @@ export async function upsert(
 ): Promise<WebSessionRecord> {
   return serial(state, input.id, async () => {
     const existing = await load(state, input.id);
-    if (existing?.serverRunId && !input.serverRunId) return existing;
+    // A server run owns the messages; a model the browser has not stored yet still applies.
+    if (existing?.serverRunId && !input.serverRunId) return keepModel(state, existing, model);
 
     const now = Date.now();
     const record: WebSessionRecord = {
@@ -77,13 +78,23 @@ export async function setModel(
     const record = await load(state, id);
     if (!record) return null;
 
-    const updated: WebSessionRecord = { ...record, model: model ?? undefined };
-    if (!model) delete updated.model;
-
-    await write(state, updated);
-
-    return updated;
+    return keepModel(state, record, model);
   });
+}
+
+async function keepModel(
+  state: WebSessionStoreState,
+  existing: WebSessionRecord,
+  model?: ModelSelection | null,
+): Promise<WebSessionRecord> {
+  if (model === undefined) return existing;
+
+  const updated: WebSessionRecord = { ...existing, model: model ?? undefined };
+  if (!model) delete updated.model;
+
+  await write(state, updated);
+
+  return updated;
 }
 
 function chatModel(existing: WebSessionRecord | null, model?: ModelSelection | null): Pick<WebSessionRecord, 'model'> {

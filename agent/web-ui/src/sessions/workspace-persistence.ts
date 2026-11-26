@@ -35,10 +35,13 @@ export function chatPersistence(options: PersistenceOptions) {
       messages,
       ...(options.parentId ? { parentId: options.parentId } : {}),
     };
-    const model = options.model?.forMessageSave();
-    if (model !== undefined) record.model = model;
+
     saving = saving.catch(() => undefined).then(async () => {
       if (options.disposed()) return;
+
+      // Read when this save runs: an earlier save may already have stored the choice.
+      const model = options.model?.forMessageSave();
+      if (model !== undefined) record.model = model;
 
       try {
         await options.persist(record);

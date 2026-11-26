@@ -12,13 +12,15 @@ type ChatModelPickerProps = {
   /** This chat's own model; `null` follows the default from Models. */
   value: ModelSelection | null;
   onChange: (value: ModelSelection | null) => Promise<void>;
+  /** A background save of the choice that failed; the next message save retries it. */
+  saveError?: string;
   /** Inputs the chat's earlier files need; models without them cannot continue it. */
   required?: readonly CatalogModel['inputs'][number][];
   disabled?: boolean;
 };
 
 /** Composer control choosing the model for this chat only. */
-export function ChatModelPicker({ models, value, onChange, required = [], disabled }: ChatModelPickerProps) {
+export function ChatModelPicker({ models, value, onChange, saveError, required = [], disabled }: ChatModelPickerProps) {
   const id = useId();
   const [error, setError] = useState('');
 
@@ -45,7 +47,9 @@ export function ChatModelPicker({ models, value, onChange, required = [], disabl
       {own && entry && entry.efforts.length > 1 && (
         <EffortSelect id={`${id}-effort`} efforts={entry.efforts} value={own} disabled={disabled} onChange={choose} />
       )}
-      {error && <span role="alert" title={error} className="px-1 text-xs text-destructive">Not saved</span>}
+      {(error || saveError) && (
+        <span role="alert" title={error || saveError} className="px-1 text-xs text-destructive">Not saved</span>
+      )}
     </div>
   );
 }
@@ -61,7 +65,7 @@ function ModelOptions({ models, value, listed, required }: ModelOptionsProps) {
     <>
       <option value={DEFAULT_OPTION} disabled={value !== null && !fits(fallback)}>{defaultLabel(models)}</option>
       {value && !listed && (
-        <option value={UNAVAILABLE_OPTION} disabled>{`${value.key} · unavailable, using default`}</option>
+        <option value={UNAVAILABLE_OPTION} disabled>{unavailableLabel(models, value)}</option>
       )}
       {models.models.map((model) => (
         <option key={model.key} value={model.key} disabled={model.key !== value?.key && !fits(model)}>
@@ -91,6 +95,15 @@ function EffortSelect({ id, efforts, value, disabled, onChange }: EffortSelectPr
       </Select>
     </>
   );
+}
+
+/** Says whether the model or only its saved effort left the catalog. */
+function unavailableLabel(models: ChatModels, value: ModelSelection): string {
+  const listed = models.models.some((model) => model.key === value.key);
+
+  return listed
+    ? `${value.key} · ${value.effort} effort no longer offered, using default`
+    : `${value.key} · unavailable, using default`;
 }
 
 function defaultLabel(models: ChatModels): string {

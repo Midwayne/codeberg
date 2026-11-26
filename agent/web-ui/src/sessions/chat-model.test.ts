@@ -72,6 +72,27 @@ describe('chat-specific models', () => {
     expect(changes).toEqual([null]);
   });
 
+  it('lets a queued message save carry a choice only while the server lacks it', async () => {
+    const first = deferred();
+    const saves: WorkspaceChatSave[] = [];
+    const workspace = createWorkspaceChat({
+      id: 'chat', origin: { model: large }, transport: new RecordingTransport(),
+      messages: [{ id: 'u', role: 'user', parts: [{ type: 'text', text: 'hi' }] }],
+      persist: async (record) => {
+        saves.push(record);
+        if (saves.length === 1) await first.promise;
+      },
+      persistModel: async () => undefined,
+    });
+
+    const saved = workspace.save();
+    const queued = workspace.save();
+    first.resolve();
+    await Promise.all([saved, queued]);
+
+    expect(saves.map((record) => 'model' in record ? record.model : 'kept')).toEqual([large, 'kept']);
+  });
+
   it('never lets message saves of a saved chat touch its model', async () => {
     const saves: WorkspaceChatSave[] = [];
     const workspace = createWorkspaceChat({
@@ -90,6 +111,34 @@ describe('chat-specific models', () => {
 });
 
 describe('ChatModelChoice', () => {
+  it('saves quick changes in order so the server ends with the latest one', async () => {
+    const first = deferred();
+    const stored: Array<ModelSelection | null> = [];
+    const choice = new ChatModelChoice(null, true, async (model) => {
+      if (stored.length === 0 && model === large) await first.promise;
+
+      stored.push(model);
+    });
+
+    const a = choice.choose(large);
+    const b = choice.choose(small);
+    first.resolve();
+    await Promise.all([a, b]);
+
+    expect(stored).toEqual([large, small]);
+  });
+
+  it('reports a failed background save and retries it with the next message save', async () => {
+    const choice = new ChatModelChoice(null, false, () => Promise.reject(new Error('offline')));
+
+    const carried = choice.forMessageSave();
+    await choice.choose(large);
+    choice.messageSaved(carried);
+    await expect.poll(() => choice.error).toBe('offline');
+
+    expect(choice.forMessageSave()).toEqual(large);
+  });
+
   it('keeps a change being saved when a reload brings the older record', async () => {
     const saving = deferred();
     const choice = new ChatModelChoice(small, true, () => saving.promise);

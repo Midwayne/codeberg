@@ -25,12 +25,11 @@ describe('ChatModelPicker', () => {
     expect(render({ key: 'openai:large', effort: 'high' })).not.toContain('Effort for this chat');
   });
 
-  it('marks a chat whose model or effort left the catalog as unavailable instead of as Default', () => {
-    for (const value of [{ key: 'openai:removed', effort: 'high' }, { key: 'openai:large', effort: 'low' }] as const) {
-      const html = render(value);
-
-      expect(html).toContain(`<option value="__unavailable__" disabled="" selected="">${value.key} · unavailable, using default</option>`);
-    }
+  it("says whether a chat's model or only its effort left the catalog instead of showing Default", () => {
+    expect(render({ key: 'openai:removed', effort: 'high' }))
+      .toContain('<option value="__unavailable__" disabled="" selected="">openai:removed · unavailable, using default</option>');
+    expect(render({ key: 'openai:large', effort: 'low' }))
+      .toContain('<option value="__unavailable__" disabled="" selected="">openai:large · low effort no longer offered, using default</option>');
   });
 
   it('blocks models that cannot read files already in the chat', () => {

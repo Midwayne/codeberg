@@ -6,7 +6,7 @@ import { useChatScroll } from './use-chat-scroll';
 import { useProjectApi } from '../../lib/project-api';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import type { UIMessage } from 'ai';
-import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { TurnQueue } from '../../sessions/turn-queue';
 import { useTurnQueue } from './use-turn-queue';
 import { WorkingStatus } from './working-status';
@@ -21,6 +21,7 @@ import { ContextMeter } from './context-meter';
 import { chatModelEntry, type ChatModels, type ModelSelection } from '../../lib/models';
 import type { ChatModelChoice } from '../../sessions/chat-model';
 import { ChatModelPicker } from './chat-model-picker';
+import { useChatModel } from './use-chat-model';
 import { historyInputs } from '../../lib/prompt-files';
 
 // Each retained workspace view subscribes to its own session with `useChat`.
@@ -67,7 +68,7 @@ export function useChatView({ chat, turns, onBranch, sessionId, learningEnabled,
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const { scrollRef, holdScroll } = useChatScroll({ jump, messages, status });
   const hasCanvas = useMemo(() => Boolean(canvasAnchor(messages)), [messages]);
-  const ownModel = useOwnModel(model);
+  const { ownModel, modelError } = useChatModel(model);
   const fileInputs = useMemo(() => historyInputs(messages), [messages]);
 
   return {
@@ -89,19 +90,12 @@ export function useChatView({ chat, turns, onBranch, sessionId, learningEnabled,
     draft,
     chatModels,
     ownModel,
+    modelError,
     onModelChange,
     fileInputs,
     chatInputs: chatModelEntry(chatModels, ownModel)?.inputs ?? ['text'],
     queue,
   };
-}
-
-const noModel = () => () => undefined;
-
-function useOwnModel(model?: ChatModelChoice): ModelSelection | null {
-  const read = () => model?.current ?? null;
-
-  return useSyncExternalStore(model?.subscribe ?? noModel, read, read);
 }
 
 type ChatViewProps = ReturnType<typeof useChatView>;
@@ -174,7 +168,7 @@ function ChatComposer({ state }: ChatComposerProps) {
           accessory={(
             <>
               {state.onModelChange && (
-                <ChatModelPicker models={state.chatModels} value={state.ownModel} required={state.fileInputs}
+                <ChatModelPicker models={state.chatModels} value={state.ownModel} saveError={state.modelError} required={state.fileInputs}
                   onChange={state.onModelChange} disabled={!state.ready} />
               )}
               <ContextMeter sessionId={state.sessionId} busy={state.busy} />

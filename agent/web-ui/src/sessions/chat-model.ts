@@ -17,6 +17,8 @@ export class ChatModelChoice {
   private onServer: boolean;
   private unsaved: boolean;
   private saving = 0;
+  private queue: Promise<void> = Promise.resolve();
+  private failure = '';
 
   constructor(value: ModelSelection | null = null, onServer = false, private readonly persist?: PersistModel) {
     this.value = value;
@@ -26,6 +28,11 @@ export class ChatModelChoice {
 
   get current(): ModelSelection | null {
     return this.value;
+  }
+
+  /** Why the last background save of the choice failed; empty once one succeeds. */
+  get error(): string {
+    return this.failure;
   }
 
   subscribe = (listener: () => void) => {
@@ -67,9 +74,11 @@ export class ChatModelChoice {
       return;
     }
 
+    // A failed save keeps the choice for the next message save and says so in the composer.
     this.unsaved = false;
-    void this.store(this.value, this.value).catch(() => {
+    void this.store(this.value, this.value).catch((error: unknown) => {
       this.unsaved = true;
+      this.fail(error instanceof Error ? error.message : "Could not save the chat's model.");
     });
   }
 
@@ -80,17 +89,32 @@ export class ChatModelChoice {
     this.set(saved);
   }
 
-  private async store(next: ModelSelection | null, previous: ModelSelection | null): Promise<void> {
+  /** Saves run one at a time, so the server always ends with the latest choice. */
+  private store(next: ModelSelection | null, previous: ModelSelection | null): Promise<void> {
     this.saving++;
-    try {
-      await this.persist?.(next);
-    } catch (error) {
-      if (sameChoice(this.value, next)) this.set(previous);
 
-      throw error;
-    } finally {
-      this.saving--;
-    }
+    const stored = this.queue.then(() => this.persist?.(next));
+    this.queue = stored.then(() => undefined, () => undefined);
+
+    return stored.then(
+      () => {
+        this.saving--;
+        this.fail('');
+      },
+      (error: unknown) => {
+        this.saving--;
+        if (sameChoice(this.value, next)) this.set(previous);
+
+        throw error;
+      },
+    );
+  }
+
+  private fail(message: string): void {
+    if (this.failure === message) return;
+
+    this.failure = message;
+    this.listeners.forEach((listener) => listener());
   }
 
   private set(value: ModelSelection | null): void {
