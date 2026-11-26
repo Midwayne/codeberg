@@ -1,10 +1,10 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 
 import { callerScope } from '../background/context.js';
-import { chatRecordExists, chatScope } from '../chat-scope.js';
+import { chatScope, writeChatSideFile } from '../chat-scope.js';
 import { evictOldest, touch } from '../lru.js';
-import { writeAtomic } from '../fs.js';
 import { isValidSessionId } from '../session-id.js';
 import type { ContextSnapshot } from './snapshot.js';
 
@@ -47,10 +47,23 @@ export function emptySelection(): ContextSelection {
   return { keep: new Set(), release: new Set(), level: 0, save: async () => undefined };
 }
 
-/** The selection of the agent making this call, in the chat it runs in. */
+/** Runs outside a chat (terminal questions) get selections for their own run only. */
+const runScope = new AsyncLocalStorage<Map<string, ContextSelection>>();
+
+/** Give a run outside any chat its own context choices, shared by its requests and tools. */
+export function withContextSelectionScope<T>(action: () => T): T {
+  return runScope.run(new Map(), action);
+}
+
+/**
+ * The selection of the agent making this call, in the chat it runs in. Outside
+ * a chat it belongs to the current run, and without a run scope it is fresh, so
+ * concurrent runs never read each other's snapshot or notice level.
+ */
 export async function currentSelection(): Promise<ContextSelection> {
-  const chatDir = chatScope.getStore() ?? '';
+  const chatDir = chatScope.getStore();
   const agent = callerScope.getStore() ?? '';
+  if (chatDir === undefined) return runSelection(agent);
 
   const loading = touch(chats, chatDir, chats.get(chatDir) ?? loadChat(chatDir));
   evictOldest(chats, MAX_CHATS, (_, key) => key !== chatDir);
@@ -61,6 +74,16 @@ export async function currentSelection(): Promise<ContextSelection> {
     selection = { ...emptySelection(), save: () => saveChat(chat) };
     chat.agents.set(agent, selection);
   }
+
+  return selection;
+}
+
+function runSelection(agent: string): ContextSelection {
+  const run = runScope.getStore();
+  if (!run) return emptySelection();
+
+  const selection = run.get(agent) ?? emptySelection();
+  run.set(agent, selection);
 
   return selection;
 }
@@ -101,13 +124,11 @@ function saveChat(chat: ChatSelections): Promise<void> {
 
   const file = chat.file;
   const next = chat.writes.catch(() => undefined).then(async () => {
-    // A deleted chat keeps no choices, even if a late tool call changes them.
-    if (!await chatRecordExists(file)) return;
-
     const agents = Object.fromEntries([...chat.agents].map(([agent, selection]) =>
       [agent, { keep: [...selection.keep], release: [...selection.release] }]));
 
-    return writeAtomic(file, JSON.stringify({ version: 1, agents }), { dirMode: 0o700 });
+    // A deleted chat keeps no choices, even if a late tool call changes them.
+    await writeChatSideFile(file, JSON.stringify({ version: 1, agents }));
   });
 
   chat.writes = next;

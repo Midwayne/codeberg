@@ -9,8 +9,8 @@ import { chatScope } from '../chat-scope.js';
 import { ContextStore } from '../context/store.js';
 import { RequestCheckpoints } from './checkpoints.js';
 import { keepResults, releaseResults } from './choices.js';
-import { prepareRequest } from './prepare.js';
-import { contextKeepsPath, currentSelection, emptySelection } from './selection.js';
+import { prepareRequest, type PreparedRequest } from './prepare.js';
+import { contextKeepsPath, currentSelection, emptySelection, withContextSelectionScope } from './selection.js';
 import { contextControlTools } from './tools.js';
 import { RequestUsage } from './usage.js';
 
@@ -41,9 +41,19 @@ function setup(scoped = false) {
   return {
     deps,
     selection,
-    prepare: async (input: LanguageModelV4CallOptions) => (await prepareRequest(input, deps)).request,
-    notices: async (input: LanguageModelV4CallOptions) => ((await prepareRequest(input, deps)).notice ? 1 : 0),
+    prepare: async (input: LanguageModelV4CallOptions) => sent(await prepareRequest(input, deps)),
+    notices: async (input: LanguageModelV4CallOptions) => noticeCount(await sent(await prepareRequest(input, deps))),
   };
+}
+
+/** What the model wrapper sends when no compaction is needed: the request, finished with any notice. */
+function sent(prepared: PreparedRequest): Promise<LanguageModelV4CallOptions> {
+  return prepared.finish(prepared.request);
+}
+
+function noticeCount(call: LanguageModelV4CallOptions): number {
+  return call.prompt.filter((message) => message.role === 'user'
+    && message.content.some((part) => part.type === 'text' && part.text.startsWith('<context_notice>'))).length;
 }
 
 /** One turn of `count` grep steps, optionally offering context_status. */
@@ -159,17 +169,53 @@ describe('kept slots and already-cleared results', () => {
   });
 });
 
+describe('refused releases and runs outside a chat', () => {
+  it('keeps a kept result whose release is refused', async () => {
+    const { prepare, selection } = setup();
+    await prepare(request(13));
+    await keepResults(selection, ['c12']);
+    selection.snapshot!.results[12]!.chars = 600;
+
+    expect((await releaseResults(selection, ['c12'])).refused).toHaveLength(1);
+    expect(selection.keep.has('c12')).toBe(true);
+  });
+
+  it('never shares a selection between runs outside a chat', async () => {
+    const [first, second] = await Promise.all([
+      withContextSelectionScope(async () => [await currentSelection(), await currentSelection()]),
+      withContextSelectionScope(() => currentSelection()),
+    ]);
+
+    expect(first[0]).toBe(first[1]);
+    expect(first[0]).not.toBe(second);
+    expect(await currentSelection()).not.toBe(await currentSelection());
+  });
+});
+
 describe('context notices', () => {
   it('tells the agent once when usage crosses a higher level, only when it can check its context', async () => {
     const { notices } = setup();
 
     expect(await notices(request(3, true))).toBe(0);
-    expect(await notices(request(13, true))).toBe(1);
+    // Past half the limit, but a single turn has no earlier results to clear: nothing to report.
     expect(await notices(request(13, true))).toBe(0);
     expect(await notices(request(16, true))).toBe(1);
+    expect(await notices(request(16, true))).toBe(0);
 
     const other = setup();
     expect(await other.notices(request(16))).toBe(0);
+  });
+
+  it('does not warn a request it just summarized that a summary is coming', async () => {
+    const { deps } = setup();
+    const prepared = await prepareRequest(request(20, true), deps);
+
+    // A compacted request: a new prompt that is still past 90% of the limit.
+    const finished = await prepared.finish({ ...prepared.request, prompt: [...request(20, true).prompt] });
+    const notice = JSON.stringify(finished.prompt.at(-1));
+
+    expect(notice).toContain('<context_notice>');
+    expect(notice).not.toContain('summarized soon');
   });
 });
 

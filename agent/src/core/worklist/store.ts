@@ -1,8 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 
-import { chatRecordExists, chatScope } from '../chat-scope.js';
-import { isMissing, writeAtomic } from '../fs.js';
+import { chatScope, writeChatSideFile } from '../chat-scope.js';
+import { isMissing } from '../fs.js';
 import { isValidSessionId } from '../session-id.js';
 import { emptyWorklist, WorklistError, type WorklistData } from './types.js';
 
@@ -96,8 +96,7 @@ async function save(path: string | undefined, data: WorklistData): Promise<void>
     return;
   }
 
-  if (!await chatRecordExists(path)) throw new WorklistError('This chat was deleted; its working list is gone.');
-
-  // Lists can quote private source, so new directories are private too.
-  await writeAtomic(path, JSON.stringify(data), { dirMode: 0o700 });
+  if (!await writeChatSideFile(path, JSON.stringify(data))) {
+    throw new WorklistError('This chat was deleted; its working list is gone.');
+  }
 }

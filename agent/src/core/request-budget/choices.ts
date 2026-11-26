@@ -71,29 +71,9 @@ export async function releaseResults(selection: ContextSelection, ids: readonly 
   const refused: Refusal[] = [];
 
   for (const id of new Set(ids)) {
-    // Un-keep first: a kept result that has left the prompt must still free its slot.
-    const wasKept = selection.keep.delete(id);
-    const result = results.get(id);
-    if (!result) {
-      if (wasKept) released.push(id);
-      else refused.push({ id, reason: 'Unknown id. Use an id from context_status; results of this step appear on the next one.' });
-      continue;
-    }
-
-    // Already cleared: its note is short, but releasing keeps it cleared.
-    if (result.state === 'cleared') {
-      remember(selection.release, id);
-      released.push(id);
-      continue;
-    }
-
-    if (result.chars < MIN_CLEAR_CHARS) {
-      refused.push({ id, reason: `Under ${MIN_CLEAR_CHARS} characters; it already costs less than the note that would replace it.` });
-      continue;
-    }
-
-    remember(selection.release, id);
-    released.push(id);
+    const outcome = releaseOne(selection, results.get(id), id);
+    if (outcome === true) released.push(id);
+    else refused.push({ id, reason: outcome });
   }
 
   await selection.save();
@@ -101,6 +81,26 @@ export async function releaseResults(selection: ContextSelection, ids: readonly 
   const freed = released.map((id) => results.get(id)).filter((result) => result !== undefined && result.state !== 'cleared');
 
   return { released, refused, freedTokens: freed.reduce((sum, result) => sum + result!.tokens, 0) };
+}
+
+/**
+ * Release one id, or say why not. A refused id keeps its keep. A kept id
+ * whose result has left the prompt is released, freeing its slot.
+ */
+function releaseOne(selection: ContextSelection, result: ResultInfo | undefined, id: string): true | string {
+  if (!result) {
+    return selection.keep.delete(id) ? true : 'Unknown id. Use an id from context_status; results of this step appear on the next one.';
+  }
+
+  // An already cleared result has a short note, but releasing keeps it cleared.
+  if (result.state !== 'cleared' && result.chars < MIN_CLEAR_CHARS) {
+    return `Under ${MIN_CLEAR_CHARS} characters; it already costs less than the note that would replace it.`;
+  }
+
+  selection.keep.delete(id);
+  remember(selection.release, id);
+
+  return true;
 }
 
 function resultsById(selection: ContextSelection): Map<string, ResultInfo> {

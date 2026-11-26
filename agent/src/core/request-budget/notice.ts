@@ -2,6 +2,8 @@ import type { LanguageModelV4CallOptions } from '@ai-sdk/provider';
 
 import type { ContextSelection } from './selection.js';
 import type { ContextSnapshot } from './snapshot.js';
+import { CLEARED_PREFIX } from './clear.js';
+import { lastUserIndex, toolResults, type ToolResultPart } from './plan.js';
 
 /** Share of the ceiling past which older history is about to be summarized. */
 export const SUMMARY_SOON = 0.9;
@@ -22,7 +24,7 @@ const NOTICES: Record<Exclude<ContextLevel, 0>, string> = {
 export function contextNotice(
   request: LanguageModelV4CallOptions,
   level: ContextLevel,
-  snapshot: ContextSnapshot,
+  snapshot: Pick<ContextSnapshot, 'estimated' | 'ceiling'>,
   selection: ContextSelection,
 ): string | undefined {
   const previous = selection.level;
@@ -34,6 +36,27 @@ export function contextNotice(
   const percent = Math.round((snapshot.estimated / snapshot.ceiling) * 100);
 
   return `<context_notice>Context is about ${percent}% of the working limit (${snapshot.estimated} of ${snapshot.ceiling} tokens). ${NOTICES[level]} Call context_status to see what remains.</context_notice>`;
+}
+
+/** Tool results `after` sends as cleared pointers that `before` sent in full, by turn. */
+export function newlyCleared(before: LanguageModelV4CallOptions, after: LanguageModelV4CallOptions): { earlier: number; current: number } {
+  const start = lastUserIndex(after.prompt);
+  const was = toolResults(before.prompt).map(isCleared);
+  const count = { earlier: 0, current: 0 };
+
+  let index = 0;
+  after.prompt.forEach((message, position) => {
+    for (const part of toolResults([message])) {
+      if (isCleared(part) && !was[index]) count[position < start ? 'earlier' : 'current']++;
+      index++;
+    }
+  });
+
+  return count;
+}
+
+function isCleared(part: ToolResultPart): boolean {
+  return part.output.type === 'text' && part.output.value.startsWith(CLEARED_PREFIX);
 }
 
 /**

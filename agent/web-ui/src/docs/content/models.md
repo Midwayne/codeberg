@@ -262,9 +262,9 @@ Automatic clearing goes by position and size. The agent knows which results it s
 | `context_release` | Replaces results the agent no longer needs with a pointer to the saved file, from the next step on and at any context size. Results under 1,000 characters are left alone. |
 | `context_keep` | Keeps results in full while clearing would otherwise replace them. Up to 8 results and 15% of the working ceiling; only results still in full can be kept. |
 
-When usage first passes half the ceiling, three quarters, or 90%, the agent gets one short notice at the end of its next request. The notice is not saved in the chat and does not change cached prompts.
+When automatic clearing starts on earlier turns, then on the current turn, or usage passes 90% of the ceiling, the agent gets one short notice at the end of that request. A request that was just summarized is not warned about a coming summary. The notice is not saved in the chat and does not change cached prompts.
 
-Choices are saved per chat, separately for each subagent, and deleted with the chat. Kept results can still be summarized once history reaches the ceiling. Models with `tier: light` do not get these tools or notices; automatic clearing still applies.
+Choices are saved per chat and deleted with the chat; terminal questions keep them for that question only. Subagents do not get these tools or notices; automatic clearing covers them. Kept results can still be summarized once history reaches the ceiling. Models with `tier: light` do not get these tools or notices; automatic clearing still applies.
 
 ## Track token usage
 

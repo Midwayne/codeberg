@@ -3,8 +3,6 @@ import { join } from 'node:path';
 
 import { ifMissing, writeJsonAtomic } from '../../core/fs.js';
 import type { CatalogModel, JudgeSettings, ModelSelection, ModelSettings, SubagentSettings } from '../../core/model-types.js';
-
-type SwitchedRole = SubagentSettings & JudgeSettings;
 import { subagentsEnabled } from '../../core/subagents/config.js';
 import { codebergHome } from '../../core/paths.js';
 import { loadModelCatalog, object, validEffort, type ModelCatalogOptions } from './catalog.js';
@@ -19,6 +17,8 @@ export type {
 } from '../../core/model-types.js';
 import { HttpError } from '../../core/http-error.js';
 import { readModelsFile } from '../../core/models-file.js';
+
+type SwitchedRole = SubagentSettings & JudgeSettings;
 
 export class ModelSelectionError extends HttpError {
   constructor(message: string) {

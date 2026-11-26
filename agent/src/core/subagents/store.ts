@@ -8,10 +8,11 @@ import type { SubagentType } from './roles.js';
 export const MAX_SUBAGENTS = 64;
 
 /**
- * Subagents kept in memory for follow-ups; the least recently used are dropped
- * first. It matches the per-call limit, so a full call never evicts its own sessions.
+ * Subagents kept in memory for follow-ups; the least recently used idle ones
+ * are dropped first, and a running one never is. Room for two full calls, so
+ * parallel run_subagents calls in one step do not evict each other's sessions.
  */
-const MAX_SUBAGENT_SESSIONS = MAX_SUBAGENTS;
+const MAX_SUBAGENT_SESSIONS = 2 * MAX_SUBAGENTS;
 
 /** One subagent's identity and conversation, kept so it can be messaged again. */
 export interface SubagentSession {
@@ -31,7 +32,7 @@ export class SubagentStore {
   create(type: SubagentType, description: string): SubagentSession {
     const session = { id: `sa_${randomBytes(8).toString('hex')}`, type, description, messages: [], busy: false };
     this.sessions.set(session.id, session);
-    evictOldest(this.sessions, this.capacity);
+    this.evictIdle();
 
     return session;
   }
@@ -42,9 +43,14 @@ export class SubagentStore {
     if (existing) return touch(this.sessions, session.id, existing);
 
     this.sessions.set(session.id, session);
-    evictOldest(this.sessions, this.capacity);
+    this.evictIdle();
 
     return session;
+  }
+
+  /** A transcript can restore an evicted session; a running one cannot be dropped at all. */
+  private evictIdle(): void {
+    evictOldest(this.sessions, this.capacity, (session) => !session.busy);
   }
 
   get(id: string): SubagentSession | undefined {

@@ -79,14 +79,16 @@ it('keeps the turn’s question verbatim when a usage notice and history compact
     summarize: vi.fn(async () => 'Checkpoint'),
   });
 
-  // Results under 1,000 characters are never cleared, so only a summary can make room.
-  const step = (id: string): LanguageModelV4Message[] => [
+  // Large earlier results are cleared (so a notice is due); the many results under
+  // 1,000 characters are never cleared, so only a summary can make enough room.
+  const step = (id: string, size = 950): LanguageModelV4Message[] => [
     { role: 'assistant', content: [{ type: 'tool-call', toolCallId: id, toolName: 'grep', input: {} }] },
-    { role: 'tool', content: [{ type: 'tool-result', toolCallId: id, toolName: 'grep', output: { type: 'text', value: `${id} ${'x'.repeat(950)}` } }] },
+    { role: 'tool', content: [{ type: 'tool-result', toolCallId: id, toolName: 'grep', output: { type: 'text', value: `${id} ${'x'.repeat(size)}` } }] },
   ];
   const prompt: LanguageModelV4Message[] = [
     { role: 'system', content: 'SYS' },
     { role: 'user', content: [{ type: 'text', text: 'Earlier question' }] },
+    ...Array.from({ length: 10 }, (_, i) => step(`big${i}`, 3_000)).flat(),
     ...Array.from({ length: 40 }, (_, i) => step(`old${i}`)).flat(),
     { role: 'assistant', content: [{ type: 'text', text: 'Earlier answer' }] },
     { role: 'user', content: [{ type: 'text', text: 'QUESTION-NOW' }] },
@@ -104,6 +106,8 @@ it('keeps the turn’s question verbatim when a usage notice and history compact
     : []);
 
   expect(texts.at(-1)).toMatch(/^<context_notice>/);
+  // This request was just summarized, so it is not warned that a summary is coming.
+  expect(texts.at(-1)).not.toContain('summarized soon');
   expect(texts).toContain('QUESTION-NOW');
   expect(texts.some((text) => text.includes('<history_file>'))).toBe(true);
 });

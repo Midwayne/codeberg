@@ -8,6 +8,7 @@ import type { LearningService } from './learning/service.js';
 import { currentProjectEnvironment } from './projects.js';
 import { assertAgentRuntime } from './runtime.js';
 import { envToggle } from './env-flag.js';
+import { writeModuleLog } from './module-log.js';
 import { REASONING_EFFORTS, type ReasoningEffort } from './types.js';
 import { agentProfiles } from './model-profiles.js';
 import type { ModelInput } from './model-types.js';
@@ -78,7 +79,8 @@ export function createAgent(config: AgentConfig): Agent {
     env,
     context: ContextStore.open(defaultContextRoot(env)),
     subagentModel,
-    judgeModel: judgeModel(env, (spec) => registry.resolve(spec)),
+    // Only an agent that runs its own learning (terminal) evaluates with this judge.
+    judgeModel: learningEnabled && config.learning === undefined ? judgeModel(env, (spec) => registry.resolve(spec)) : undefined,
     canvas: config.canvas,
     learning: learningEnabled ? config.learning : false,
     daemon: new DaemonClient(
@@ -98,11 +100,22 @@ export function createAgent(config: AgentConfig): Agent {
   });
 }
 
-/** CODEBERG_JUDGE_USE=false turns the judge off; CODEBERG_JUDGE_MODEL picks it; unset follows the chat model. */
-function judgeModel(env: NodeJS.ProcessEnv, resolve: (spec: string) => LanguageModel): LanguageModel | null | undefined {
+/**
+ * CODEBERG_JUDGE_USE=false turns the judge off; CODEBERG_JUDGE_MODEL picks it;
+ * unset follows the chat model. A judge that cannot be resolved (a typo, or a
+ * provider without its key) turns judging off instead of failing the agent.
+ */
+export function judgeModel(env: NodeJS.ProcessEnv, resolve: (spec: string) => LanguageModel): LanguageModel | null | undefined {
   if (envToggle(env.CODEBERG_JUDGE_USE) === false) return null;
+  if (!env.CODEBERG_JUDGE_MODEL) return undefined;
 
-  return env.CODEBERG_JUDGE_MODEL ? resolve(env.CODEBERG_JUDGE_MODEL) : undefined;
+  try {
+    return resolve(env.CODEBERG_JUDGE_MODEL);
+  } catch (error) {
+    writeModuleLog('agent', 'judge_model_unavailable', { model: env.CODEBERG_JUDGE_MODEL, error: String(error) });
+
+    return null;
+  }
 }
 
 export function learningEnabledFromEnv(env: NodeJS.ProcessEnv = process.env): boolean {
