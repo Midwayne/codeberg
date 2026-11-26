@@ -9,16 +9,26 @@ describe('theme transitions', () => {
     style: { setProperty: vi.fn(), removeProperty: vi.fn(), colorScheme: '' },
   };
   let reduce = false;
+  const timers = new Map<number, () => void>();
+  let nextTimer = 0;
 
   beforeEach(() => {
     root.dataset = {};
     root.classList.add.mockClear();
+    root.classList.remove.mockClear();
+    timers.clear();
     vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => undefined });
     vi.stubGlobal('window', {
       innerWidth: 1000,
       innerHeight: 800,
       matchMedia: () => ({ matches: reduce }),
-      setTimeout: () => 0,
+      setTimeout: (callback: () => void) => {
+        nextTimer += 1;
+        timers.set(nextTimer, callback);
+
+        return nextTimer;
+      },
+      clearTimeout: (id: number) => timers.delete(id),
     });
   });
   afterEach(() => {
@@ -86,4 +96,20 @@ describe('theme transitions', () => {
     expect(root.classList.add).not.toHaveBeenCalled();
     expect(root.dataset.theme).toBe('midnight');
   });
+
+  it('restarts the color fade on a quick second change instead of cutting it short', () => {
+    vi.stubGlobal('document', { documentElement: root });
+
+    changeTheme('ember');
+    changeTheme('aurora');
+
+    // Only the second fade's timer is left; the first was cleared, not left to cut it short.
+    expect(timers.size).toBe(1);
+
+    for (const finish of timers.values()) finish();
+
+    expect(root.classList.remove).toHaveBeenCalledTimes(1);
+    expect(root.classList.remove).toHaveBeenCalledWith('theme-fading');
+  });
 });
+

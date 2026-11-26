@@ -135,7 +135,8 @@ function StudioStatus({ studio, editing }: { studio: Studio; editing?: CustomThe
     return <p role="alert" className="text-xs text-destructive">{studio.error}</p>;
   }
 
-  if (!editing || !studio.previous) return null;
+  // Hidden while a request runs: the change it brings would replace the undone version.
+  if (!editing || !studio.previous || studio.pending) return null;
 
   return (
     <p aria-live="polite" className="flex items-center gap-2 text-xs text-muted-foreground">

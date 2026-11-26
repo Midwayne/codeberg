@@ -6,6 +6,7 @@ export const CUSTOM_THEMES_STORAGE_KEY = 'codeberg.custom-themes';
 export const MAX_CUSTOM_THEMES = 12;
 
 const listeners = new Set<() => void>();
+const otherTabListeners = new Set<() => void>();
 let cache: CustomTheme[] | undefined;
 
 export function isCustomThemeId(id: unknown): id is CustomThemeId {
@@ -18,17 +19,18 @@ export function newCustomThemeId(): CustomThemeId {
 
 /** Saved themes, newest first. Entries that no longer validate are skipped. */
 export function customThemes(): CustomTheme[] {
-  cache ??= readStored();
+  cache ??= readStored() ?? [];
 
   return cache;
 }
 
 /*
  * Writes start from what storage holds now, not this page's cache, so a theme
- * another tab saved since is kept rather than overwritten.
+ * another tab saved since is kept rather than overwritten. When storage cannot
+ * be read, this page's own list is all there is, so it is kept.
  */
 function latest(): CustomTheme[] {
-  cache = readStored();
+  cache = readStored() ?? cache ?? [];
 
   return cache;
 }
@@ -61,9 +63,17 @@ function watchOtherTabs(): void {
   window.addEventListener('storage', (event) => {
     if (event.key !== CUSTOM_THEMES_STORAGE_KEY && event.key !== null) return;
 
-    cache = readStored();
-    for (const listener of listeners) listener();
+    cache = readStored() ?? cache;
+    for (const listener of [...listeners, ...otherTabListeners]) listener();
   });
+}
+
+/** Called only when another tab changes the saved themes, so the active one can be re-applied. */
+export function subscribeOtherTabThemes(listener: () => void): () => void {
+  otherTabListeners.add(listener);
+  watchOtherTabs();
+
+  return () => otherTabListeners.delete(listener);
 }
 
 function write(themes: CustomTheme[]): void {
@@ -78,9 +88,18 @@ function write(themes: CustomTheme[]): void {
   for (const listener of listeners) listener();
 }
 
-function readStored(): CustomTheme[] {
+/* Undefined when storage cannot be read, so callers keep what they have. */
+function readStored(): CustomTheme[] | undefined {
+  let text: string | null;
+
   try {
-    const stored: unknown = JSON.parse(localStorage.getItem(CUSTOM_THEMES_STORAGE_KEY) ?? '[]');
+    text = localStorage.getItem(CUSTOM_THEMES_STORAGE_KEY);
+  } catch {
+    return undefined;
+  }
+
+  try {
+    const stored: unknown = JSON.parse(text ?? '[]');
 
     return Array.isArray(stored) ? stored.flatMap(restore) : [];
   } catch {

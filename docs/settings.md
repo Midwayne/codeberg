@@ -95,25 +95,34 @@ rows. Add `format=csv` to export the whole filtered range. Responses use `no-sto
 
 ## Appearance
 
-Dark and Light use Codex-inspired neutrals: soft charcoal with off-white text,
-or soft grey with charcoal text. Subtle separators keep the workspace calm;
-keyboard focus remains visible. The named color themes retain their palettes.
+Built-in themes: **Graphite** (default) and **Porcelain** (clean dark and light
+neutrals with a faint halo), **Midnight**, **Aurora**, **Snowfall**,
+**Rainfall**, **Fireflies**, **Lanterns** (animated backdrops), and
+**Parchment**, **Ember**, **Phosphor** (still textures with their own fonts).
+Each option shows a preview; the radio group supports Tab and arrow-key navigation.
 
-Choose **Dark**, **Light**, **Kanagawa** (Wave), **Tokyo Night** (Night),
-**Catppuccin Mocha**, **Dracula**, **Nord**, or **Gruvbox**. Each option shows a
-palette preview; the radio group supports Tab and arrow-key navigation.
-The selection applies immediately across the UI and is saved in this browser's
-local storage under `codeberg.theme`. It is restored before React renders on
-reload. New browsers and invalid saved selections use the original **Dark**
-theme. If local storage is unavailable, switching still works for the current page.
+The selection applies immediately and is saved in this browser's local storage
+under `codeberg.theme`; it is restored before React renders on reload. New
+browsers and saved selections that no longer exist, including the removed Dark,
+Light, and named palette themes, use **Graphite**. If local storage is
+unavailable, switching still works for the current page.
 
-Named palettes adapt the upstream colors to Codeberg's shared semantic tokens:
-[Kanagawa](https://github.com/rebelot/kanagawa.nvim/blob/master/lua/kanagawa/colors.lua),
-[Tokyo Night](https://github.com/folke/tokyonight.nvim/tree/main/lua/tokyonight/colors),
-[Catppuccin](https://github.com/catppuccin/catppuccin#-palette),
-[Dracula](https://draculatheme.com/spec),
-[Nord](https://www.nordtheme.com/docs/colors-and-palettes/), and
-[Gruvbox](https://github.com/morhetz/gruvbox#palette).
+**Create a theme** sends a description to `POST /api/themes/generate`, which asks
+the current chat model for a theme as JSON. The web UI validates every field
+before use (`lib/theme-normalize.ts`): unknown fields are dropped, numbers are
+clamped, and text is moved to 4.5:1 contrast. Generated themes are kept under
+`codeberg.custom-themes` (up to 12) and can be edited in place with undo.
+
+A theme sets the palette (including `link`), heading, body, and code fonts,
+text scale, corner radius, transition, a backdrop, and per-part styles for the
+header, sidebar, composer, user message bubbles, and code blocks. Parts read
+their own CSS tokens (`--header-bg`, `--sidebar-glass`, `--bubble-radius`, and
+so on; see `lib/theme-tokens.ts` and `parts.css`).
+
+Backdrops draw behind the header, sidebar, and chat. A still veil keeps the
+56rem conversation column quiet, and glass parts are tinted rather than blurred
+over moving scenes to hold the frame rate. **Show backdrop** (`codeberg.backdrop`)
+turns scenes off; reduced motion stops them.
 
 ## Learning
 

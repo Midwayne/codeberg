@@ -12,9 +12,18 @@ export function trackThemeOrigin(): () => void {
     origin = { x: event.clientX, y: event.clientY };
   };
 
-  window.addEventListener('pointerdown', remember, { capture: true, passive: true });
+  // A keyboard choice has no click point, so its reveal grows from the center.
+  const forget = () => {
+    origin = undefined;
+  };
 
-  return () => window.removeEventListener('pointerdown', remember, { capture: true });
+  window.addEventListener('pointerdown', remember, { capture: true, passive: true });
+  window.addEventListener('keydown', forget, { capture: true, passive: true });
+
+  return () => {
+    window.removeEventListener('pointerdown', remember, { capture: true });
+    window.removeEventListener('keydown', forget, { capture: true });
+  };
 }
 
 function reducedMotion(): boolean {
@@ -59,9 +68,17 @@ export function changeTheme(id: ThemeId, onApplied?: () => void): void {
   });
 }
 
+let fadeTimer: number | undefined;
+
+/* A quick second change restarts the fade instead of having the first one end it. */
 function fadeColors(root: HTMLElement, apply: () => void): void {
+  if (fadeTimer !== undefined) window.clearTimeout(fadeTimer);
+
   root.classList.add('theme-fading');
   apply();
 
-  window.setTimeout(() => root.classList.remove('theme-fading'), 450);
+  fadeTimer = window.setTimeout(() => {
+    root.classList.remove('theme-fading');
+    fadeTimer = undefined;
+  }, 450);
 }

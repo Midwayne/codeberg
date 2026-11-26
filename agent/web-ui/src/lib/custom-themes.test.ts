@@ -8,6 +8,7 @@ import {
   resetCustomThemeCache,
   saveCustomTheme,
   subscribeCustomThemes,
+  subscribeOtherTabThemes,
 } from './custom-themes';
 import { normalizeTheme } from './theme-normalize';
 import { findTheme } from './themes';
@@ -75,6 +76,37 @@ describe('saved custom themes', () => {
     saveCustomTheme(theme('custom-c'));
 
     expect(customThemes().map((entry) => entry.id)).toEqual(['custom-c', 'custom-b', 'custom-a']);
+  });
+
+  it('keeps every theme saved on the page when browser storage is blocked', () => {
+    vi.stubGlobal('localStorage', {
+      getItem: () => { throw new Error('storage blocked'); },
+      setItem: () => { throw new Error('storage blocked'); },
+    });
+
+    saveCustomTheme(theme('custom-a'));
+    saveCustomTheme(theme('custom-b'));
+    removeCustomTheme('custom-a');
+    saveCustomTheme(theme('custom-c'));
+
+    expect(customThemes().map((entry) => entry.id)).toEqual(['custom-c', 'custom-b']);
+  });
+
+  it('reports another tab’s change so the theme in use can be re-applied', () => {
+    let onStorage: ((event: { key: string | null }) => void) | undefined;
+    vi.stubGlobal('window', { addEventListener: (_type: string, handler: typeof onStorage) => { onStorage = handler; } });
+    const reapply = vi.fn();
+    subscribeOtherTabThemes(reapply);
+
+    saveCustomTheme(theme('custom-a'));
+
+    expect(reapply).not.toHaveBeenCalled();
+
+    stored = '[]';
+    onStorage?.({ key: CUSTOM_THEMES_STORAGE_KEY });
+
+    expect(reapply).toHaveBeenCalledTimes(1);
+    expect(customThemes()).toEqual([]);
   });
 });
 

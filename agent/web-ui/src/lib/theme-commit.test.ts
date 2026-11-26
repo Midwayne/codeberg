@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { customThemes, removeCustomTheme, resetCustomThemeCache, saveCustomTheme } from './custom-themes';
-import { commitTheme } from './theme-commit';
+import { commitTheme, restoreTheme } from './theme-commit';
 import { normalizeTheme } from './theme-normalize';
 
 const theme = (label: string) =>
@@ -32,4 +32,13 @@ describe('committing a generated theme', () => {
     expect(commitTheme(theme('After'), theme('Before'))).toBe(false);
     expect(customThemes()).toEqual([]);
   });
+
+  it('does not bring back a deleted theme on undo', () => {
+    saveCustomTheme(theme('Before'));
+    removeCustomTheme('custom-a');
+
+    expect(restoreTheme(theme('Before'))).toBe(false);
+    expect(customThemes()).toEqual([]);
+  });
 });
+

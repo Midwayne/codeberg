@@ -1,5 +1,5 @@
 import { applyBackdrop } from './backdrop';
-import { customThemes } from './custom-themes';
+import { customThemes, isCustomThemeId, subscribeOtherTabThemes } from './custom-themes';
 import { DEFAULT_THEME_ID, type Theme, THEMES, type ThemeId } from './theme-palettes';
 import { paletteTokens, partTokens, radiusParts, styleTokens } from './theme-tokens';
 import { THEME_PARTS } from './theme-types';
@@ -20,6 +20,14 @@ let activeId: ThemeId = DEFAULT_THEME_ID;
 export function activeThemeId(): ThemeId {
   return activeId;
 }
+
+/*
+ * Another tab edited or deleted the theme in use: re-apply it, so the page shows
+ * the edit, or falls back to the default when it is gone.
+ */
+subscribeOtherTabThemes(() => {
+  if (isCustomThemeId(activeId)) applyTheme(activeId);
+});
 
 export function subscribeTheme(listener: () => void): () => void {
   themeListeners.add(listener);

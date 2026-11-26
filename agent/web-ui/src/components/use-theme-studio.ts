@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { saveCustomTheme } from '../lib/custom-themes';
-import { commitTheme } from '../lib/theme-commit';
+import { commitTheme, restoreTheme } from '../lib/theme-commit';
 import { useProjectApi } from '../lib/project-api';
 import { generateTheme } from '../lib/theme-generate';
-import { changeTheme } from '../lib/theme-transition';
 import type { CustomTheme, Theme } from '../lib/theme-types';
 import { useThemeRequest } from './use-theme-request';
 
@@ -50,10 +48,9 @@ export function useThemeStudio(selected: Theme, editing?: CustomTheme) {
   }
 
   function undo() {
-    if (!previous) return;
+    if (!previous || pending) return;
 
-    saveCustomTheme(previous);
-    changeTheme(previous.id);
+    restoreTheme(previous);
     setPrevious(undefined);
   }
 
