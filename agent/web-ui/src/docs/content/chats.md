@@ -63,7 +63,7 @@ Each chat starts on **Default**, the chat model and effort saved in **Models**. 
 | Removed models | If the model or effort leaves `models.yml`, the menu shows it as **unavailable, using default** and the chat runs on the default. It returns to that model if the model comes back; choose **Default** to stop that. |
 | Failed saves | If the choice cannot be saved, the menu goes back to the previous model and shows **Not saved**. |
 
-Summaries and subagents set to **Same as …** follow the chat's model. Scheduled follow-ups run on the model of the turn that scheduled them. Learning, evaluations, and the header title use the models from **Models**.
+Summaries and subagents set to **Same as …** follow the chat's model. Scheduled follow-ups run on the model of the turn that scheduled them. Learning and evaluations use the models from **Models**.
 
 ## Stop, retry, or regenerate
 

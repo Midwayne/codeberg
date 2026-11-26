@@ -10,7 +10,7 @@ type WorkspaceMetaOptions = { loading: boolean };
 
 export function useWorkspaceMeta({ loading }: WorkspaceMetaOptions) {
   const { fetch: api } = useProjectApi();
-  const { title, chatModels, learningEnabled, learningActive, trainingEnabled, refreshMeta } = useWorkspaceMetaState(api);
+  const { chatModels, learningEnabled, learningActive, trainingEnabled, refreshMeta } = useWorkspaceMetaState(api);
   const [learningBusy, setLearningBusy] = useState(false);
 
   useEffect(() => {
@@ -26,15 +26,13 @@ export function useWorkspaceMeta({ loading }: WorkspaceMetaOptions) {
     return startLearningStatusPolling(setLearningBusy, api);
   }, [learningActive, api]);
 
-  return { title, chatModels, learningEnabled, trainingEnabled, learningBusy, refreshMeta };
+  return { chatModels, learningEnabled, trainingEnabled, learningBusy, refreshMeta };
 }
 
-type Meta = { title?: string; capabilities?: { learning?: boolean } };
+type Meta = { capabilities?: { learning?: boolean } };
 
-/** What the workspace shows about the server: its title, learning switches, and the chat models. */
+/** What the workspace shows about the server: learning switches and the chat models. */
 function useWorkspaceMetaState(api: typeof fetch) {
-  // The server exposes the model and reasoning effort at /api/meta.
-  const [title, setTitle] = useState('');
   const [chatModels, setChatModels] = useState<ChatModels>();
   const [learningEnabled, setLearningEnabled] = useState(false);
   const [learningActive, setLearningActive] = useState(false);
@@ -45,7 +43,6 @@ function useWorkspaceMetaState(api: typeof fetch) {
     api('/api/meta')
       .then((response) => (response.ok ? response.json() : null))
       .then((meta: Meta | null) => {
-        if (meta?.title) setTitle(meta.title);
         setLearningEnabled(meta?.capabilities?.learning === true);
       })
       .catch((err: unknown) => console.warn('failed to load /api/meta', err));
@@ -64,5 +61,5 @@ function useWorkspaceMetaState(api: typeof fetch) {
       .catch((err: unknown) => console.warn('failed to load /api/models', err));
   }
 
-  return { title, chatModels, learningEnabled, learningActive, trainingEnabled, refreshMeta };
+  return { chatModels, learningEnabled, learningActive, trainingEnabled, refreshMeta };
 }
