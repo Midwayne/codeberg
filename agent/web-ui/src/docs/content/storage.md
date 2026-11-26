@@ -11,6 +11,7 @@ Source files stay in the directory you add. Codeberg stores configuration and de
       .runs/              # Search status, tool outcomes, response events
       .schedules/         # Durable scheduled follow-ups and their status
       .jobs/              # Background invocation status, progress and results
+      .worklists/         # Each chat's working list of findings
     context/              # Retrieved text, archives, checkpoints
       scripts/            # Script output saved with output_to_file
     learning/             # History, knowledge, datasets, evaluations
@@ -25,7 +26,7 @@ Source files stay in the directory you add. Codeberg stores configuration and de
 
 Context checkpoints reuse summaries only while saved messages and model policy match. Original messages remain in `web-sessions/`.
 
-Search journals retain request identity, tool starts/outcomes, and ordered events. Each has a **32 MiB** limit; reaching it stops the run with an error. Narrow the investigation. Deleting a chat, including age-based cleanup, removes its journals; active runs block deletion.
+Search journals retain request identity, tool starts/outcomes, and ordered events. Each has a **32 MiB** limit; reaching it stops the run with an error. Narrow the investigation. Deleting a chat, including age-based cleanup, removes its journals and working list; active runs block deletion.
 
 After restart, saved tool outcomes remain but interrupted generation does not resume automatically. A start without an outcome is uncertain. Separately, [scheduled follow-ups](/docs/tools#schedule-a-follow-up) survive restarts and can start new turns when due. Deleted chats are never recreated by their schedules. See [Chats](/docs/chats#recover-a-connection).
 

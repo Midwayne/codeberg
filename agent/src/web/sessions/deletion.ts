@@ -18,9 +18,9 @@ export async function remove(state: WebSessionStoreState, id: string): Promise<v
   });
 }
 
-/** Run journals, background jobs, and context stats stored beside a chat. */
+/** Run journals, background jobs, context stats, and the working list stored beside a chat. */
 async function removeChatFiles(dir: string, id: string): Promise<void> {
-  const paths = [join(dir, '.runs', id), join(dir, '.jobs', id), contextStatsPath(dir, id)];
+  const paths = [join(dir, '.runs', id), join(dir, '.jobs', id), contextStatsPath(dir, id), join(dir, '.worklists', `${id}.json`)];
 
   await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true }).catch(() => undefined)));
 }

@@ -1,9 +1,11 @@
 import type { UIMessage } from 'ai';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { chatScope } from '../../core/chat-scope.js';
+import { worklistTools } from '../../core/worklist/tools.js';
 import { WebSessionStore, isValidSessionId } from './store.js';
 
 const dirs: string[] = [];
@@ -117,6 +119,22 @@ describe('WebSessionStore', () => {
     await store.remove('gone');
     expect(await store.load('gone')).toBeNull();
     await expect(store.remove('gone')).resolves.toBeUndefined();
+  });
+
+  it('removes the working list saved beside a deleted chat', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'codeberg-sessions-'));
+    dirs.push(dir);
+    const store = new WebSessionStore(dir);
+    await store.save({ id: 'noted', title: 'x', createdAt: 1, updatedAt: 1, messages: [] });
+
+    const add = worklistTools().worklist_add!.execute!;
+    await chatScope.run(join(dir, 'noted'), () =>
+      add({ items: [{ text: 'a fact' }] } as never, { toolCallId: 'call_0', messages: [], context: undefined }));
+    expect(existsSync(join(dir, '.worklists', 'noted.json'))).toBe(true);
+
+    await store.remove('noted');
+
+    expect(existsSync(join(dir, '.worklists', 'noted.json'))).toBe(false);
   });
 
   it('keeps pin/archive metadata when a new turn saves concurrently with a toggle', async () => {

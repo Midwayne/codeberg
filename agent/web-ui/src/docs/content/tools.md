@@ -12,6 +12,7 @@ Describe the outcome you want. The agent chooses tools to search your selected p
 | `list_dir`, `tree` | Browse the source tree. |
 | `git_log`, `git_blame` | Inspect Git history; requires Git. |
 | Context and knowledge tools | Reuse evidence and [saved findings](/docs/knowledge). |
+| `worklist_add`, `worklist_read`, `worklist_retire` | Keep this chat's [working list](#keep-a-working-list) of findings and constraints. |
 
 Built-in daemon source tools are read-only and scoped to configured roots. [MCP servers](/docs/mcps) can add operations, including writes to external services. [Skills](/docs/skills) add instructions rather than callable tools.
 
@@ -134,6 +135,33 @@ Prefer an MCP's native job API when available. A completed invocation can return
 For example, the Kafka MCP's `scan_messages` and `count_messages` can return a native `job_id` after their initial wait. The agent can start once with `wait_seconds: 0`, call `sleep_agent`, then use `get_job` after waking. If unfinished, it chooses another delay and sleeps again; if finished, it reads results, including additional pages when needed. Use Kafka's `cancel_job` to stop that native job. No change to the Kafka MCP is required.
 
 Native job lifetime depends on the MCP server. This Kafka MCP stores jobs in memory with retention and scan time limits; restarting its process loses those jobs. Saving a wake-up does not make an external job durable.
+
+## Keep a working list
+
+In a long chat, older messages are summarized to fit the model's context, and a summary can drop detail. The agent keeps a working list for the facts it must not lose: confirmed findings with their citations, constraints you gave, decisions, and plan steps. Entries are kept in full, whatever happens to the transcript.
+
+The agent records and reads the list on its own. It re-reads the list after history is summarized, when a scheduled or woken turn starts, and before answering a long task. You can also ask for it:
+
+```text
+Add to your working list that releases must not change codeberg.h.
+Show your working list.
+What does your working list say about the daemon port?
+```
+
+| Tool | What it does |
+| --- | --- |
+| `worklist_add` | Records up to 20 entries per call, each under 2,000 characters, with optional `tags`. Text already on the list is not added again. |
+| `worklist_read` | Lists entries in the order they were recorded. `pattern` searches text and tags, case-insensitively; `regex: true` treats it as a regular expression; `tag` keeps one tag. |
+| `worklist_retire` | Marks an entry wrong or outdated, with an optional `reason` and a `correction` saved as a new entry. Retired entries stay readable with `include_retired`. |
+
+| Scope | Behavior |
+| --- | --- |
+| Browser chat | One list per chat, shared by the chat's subagents; each entry notes which subagent added it. Saved on disk and kept across restarts. Deleting the chat deletes its list. |
+| Branched chat | Starts with an empty list. |
+| Terminal question | Kept in memory until the process exits. |
+| Size | Up to 500 entries per chat, retired entries included. |
+
+The list is the agent's notes, not evidence: it re-reads the code before citing a finding that may have changed. To keep something across chats, use [Knowledge](/docs/knowledge) instead. The tools make no model calls; entries the agent reads back add to the chat's context.
 
 ## Split work across subagents
 
