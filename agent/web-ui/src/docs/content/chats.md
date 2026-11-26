@@ -67,7 +67,7 @@ Once the agent sends its first request in a chat, a ring beside **Send** shows h
 | Part | What it shows |
 | --- | --- |
 | Breakdown | Estimated tokens for instructions, project context (repositories, MCP servers, skills, knowledge), tool schemas, conversation, tool results, cleared results, summary, and attachments. |
-| Marks on the bar | Where older tool output starts to be cleared, and where older messages are summarized. |
+| Marks on the bar | Where tool output from earlier turns starts to be cleared, and where older messages are summarized. |
 | Counters | Model requests, summaries, clearing passes, results cleared now, the largest request, and the share of input read from the provider's prompt cache. |
 
 The numbers update every few seconds while the agent works. Breakdown values are estimates; cache figures come from the provider and appear only when it reports them. Subagents and summary requests are not included. Codeberg saves these numbers with the chat and deletes them with it. See [How chat context stays bounded](/docs/models#how-chat-context-stays-bounded) for what clearing and summaries do.

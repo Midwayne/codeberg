@@ -22,7 +22,7 @@ export function ContextPanel({ stats }: { stats: Reported }) {
       <ContextCounters stats={stats} />
 
       <p className="leading-5 text-muted-foreground">
-        Estimated from the last request to {last.model}. Older tool output is cleared at{' '}
+        Estimated from the last request to {last.model}. Tool output from earlier turns is cleared at{' '}
         {formatTokens(last.clearAt)} tokens (thin mark); older messages are summarized at {formatTokens(last.ceiling)} (thick mark).
       </p>
     </div>

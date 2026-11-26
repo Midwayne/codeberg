@@ -6,8 +6,14 @@ import type { LanguageModelV4CallOptions, LanguageModelV4Message, LanguageModelV
 import { isSpillPreview } from '../context/spill-preview.js';
 import type { ContextStore } from '../context/store.js';
 
-/** Clear once a request passes this share of the compaction ceiling. */
+/** Clear results from earlier turns once a request passes this share of the compaction ceiling. */
 export const CLEAR_TRIGGER = 0.5;
+
+/**
+ * Clear results from the turn in progress only past this share, measured
+ * after earlier turns were cleared. The agent is still working from them.
+ */
+export const CURRENT_TURN_TRIGGER = 0.75;
 
 /** The newest tool results always stay verbatim. */
 const KEEP_RESULTS = 4;
@@ -19,12 +25,24 @@ const CLEAR_BLOCK = 8;
 /** Smaller results cost less than the pointer that would replace them. */
 const MIN_CLEAR_CHARS = 1_000;
 
+/**
+ * Reads of saved context, usually a cleared result the agent asked for
+ * again. Clearing them in the same turn would send it back for a third read.
+ */
+const RECOVERY_TOOLS: ReadonlySet<string> = new Set(['context_read', 'context_tail', 'context_grep']);
+
 const SPILLED_FILE = /^\[spilled to (.+?) — /;
 
 /** Start of the pointer that replaces a cleared result. */
 export const CLEARED_PREFIX = '[cleared ';
 
 type ToolMessage = Extract<LanguageModelV4Message, { role: 'tool' }>;
+type ToolResultPart = Extract<ToolMessage['content'][number], { type: 'tool-result' }>;
+
+export interface ClearOptions {
+  /** Also clear older results of the turn in progress (after the last user message). */
+  currentTurn?: boolean;
+}
 
 /**
  * Replace older, large tool results with a pointer to their full text in the
@@ -32,32 +50,33 @@ type ToolMessage = Extract<LanguageModelV4Message, { role: 'tool' }>;
  * they summarize. Nothing is lost: the agent reads the file again with
  * context_read or context_grep. The result for a given prompt is
  * deterministic, so repeated steps keep the same cacheable prefix.
+ *
+ * Results from earlier turns go first. The turn in progress keeps its results
+ * unless `currentTurn` is set; even then its newest results and its reads of
+ * saved context stay, and the rest are cleared in whole blocks.
  */
 export async function clearOldToolResults(
   request: LanguageModelV4CallOptions,
   store: ContextStore,
+  options: ClearOptions = {},
 ): Promise<LanguageModelV4CallOptions> {
-  const total = countToolResults(request.prompt);
-  const clearable = Math.floor((total - KEEP_RESULTS) / CLEAR_BLOCK) * CLEAR_BLOCK;
-  if (clearable <= 0) return request;
+  const clears = clearPlan(request.prompt, options);
+  if (!clears.some(Boolean)) return request;
 
-  let seen = 0;
+  let index = 0;
   const prompt: LanguageModelV4Message[] = [];
 
   for (const message of request.prompt) {
-    if (message.role !== 'tool' || seen >= clearable) {
+    if (message.role !== 'tool') {
       prompt.push(message);
       continue;
     }
 
     const content: ToolMessage['content'] = [];
     for (const part of message.content) {
-      if (part.type !== 'tool-result' || seen++ >= clearable) {
-        content.push(part);
-        continue;
-      }
+      const clear = part.type === 'tool-result' && clears[index++] === true;
 
-      content.push({ ...part, output: await clearedOutput(part.toolName, part.output, store) });
+      content.push(clear ? { ...part, output: await clearedOutput(part.toolName, part.output, store) } : part);
     }
 
     prompt.push({ ...message, content });
@@ -66,10 +85,37 @@ export async function clearOldToolResults(
   return { ...request, prompt };
 }
 
-function countToolResults(prompt: readonly LanguageModelV4Message[]): number {
-  return prompt.reduce((sum, message) => message.role === 'tool'
-    ? sum + message.content.filter((part) => part.type === 'tool-result').length
-    : sum, 0);
+/** Whether each tool result, in prompt order, may be cleared. */
+function clearPlan(prompt: readonly LanguageModelV4Message[], options: ClearOptions): boolean[] {
+  const turnStart = lastUserIndex(prompt);
+  const earlier = toolResults(prompt.slice(0, turnStart));
+  const current = toolResults(prompt.slice(turnStart));
+
+  // The newest results stay, even when the turn in progress has fewer of them.
+  const earlierClearable = Math.max(0, earlier.length - Math.max(0, KEEP_RESULTS - current.length));
+  const currentClearable = options.currentTurn
+    ? Math.max(0, Math.floor((current.length - KEEP_RESULTS) / CLEAR_BLOCK) * CLEAR_BLOCK)
+    : 0;
+
+  return [
+    ...earlier.map((_, index) => index < earlierClearable),
+    ...current.map((part, index) => index < currentClearable && !RECOVERY_TOOLS.has(part.toolName)),
+  ];
+}
+
+/** Where the turn in progress starts: its user message, or the start of the prompt. */
+function lastUserIndex(prompt: readonly LanguageModelV4Message[]): number {
+  for (let index = prompt.length - 1; index >= 0; index--) {
+    if (prompt[index]!.role === 'user') return index;
+  }
+
+  return 0;
+}
+
+function toolResults(prompt: readonly LanguageModelV4Message[]): ToolResultPart[] {
+  return prompt.flatMap((message) => message.role === 'tool'
+    ? message.content.filter((part): part is ToolResultPart => part.type === 'tool-result')
+    : []);
 }
 
 async function clearedOutput(
