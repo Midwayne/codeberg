@@ -36,6 +36,12 @@
   backdrop-filter: blur(14px);
 }
 
+/* Halo: a faint wash of light at the top of the conversation, for the clean themes. */
+:root[data-backdrop='halo'] .chat-backdrop,
+.backdrop-preview[data-scene='halo'] {
+  background: radial-gradient(ellipse 70% 45% at 50% -8%, color-mix(in srgb, var(--foreground) 7%, transparent), transparent 72%);
+}
+
 /* Night sky: a deep gradient with two layers of slowly twinkling stars. */
 :root[data-backdrop='night-sky'] .chat-backdrop,
 .backdrop-preview[data-scene='night-sky'] {

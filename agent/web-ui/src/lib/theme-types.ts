@@ -19,7 +19,7 @@ export interface Palette {
 export type ThemeFont = 'sans' | 'serif' | 'mono';
 
 /** Built-in scenes drawn by backdrop.css. */
-export type BackdropScene = 'night-sky' | 'aurora' | 'dusk' | 'paper' | 'scanlines';
+export type BackdropScene = 'halo' | 'night-sky' | 'aurora' | 'dusk' | 'paper' | 'scanlines';
 
 /** How the app changes into a theme. */
 export const THEME_TRANSITIONS = ['reveal', 'fade', 'wipe', 'blur'] as const;

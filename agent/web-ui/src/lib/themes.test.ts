@@ -24,10 +24,10 @@ describe('themes', () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it('keeps dark as the default and rejects unknown stored themes', () => {
-    expect(loadTheme()).toBe('dark');
-    saved = 'removed-theme';
-    expect(loadTheme()).toBe('dark');
+  it('keeps Graphite as the default and rejects unknown stored themes', () => {
+    expect(loadTheme()).toBe('graphite');
+    saved = 'dark';
+    expect(loadTheme()).toBe('graphite');
     saved = 'midnight';
     expect(loadTheme()).toBe('midnight');
     expect(localStorage.getItem).toHaveBeenCalledWith(THEME_STORAGE_KEY);
@@ -39,35 +39,33 @@ describe('themes', () => {
     expect(root.style.colorScheme).toBe('dark');
     expect(properties.get('--background')).toBe('#262624');
     expect(localStorage.setItem).toHaveBeenCalledWith(THEME_STORAGE_KEY, 'ember');
-    applyTheme('light');
+    applyTheme('porcelain');
     applyTheme(loadTheme());
     expect(root.dataset.theme).toBe('ember');
   });
 
-  it('replaces every token when switching between a named theme and light', () => {
+  it('replaces every token when switching between a dark and a light theme', () => {
     applyTheme('midnight');
     const tokens = [...properties.keys()];
     properties.clear();
-    applyTheme('light');
+    applyTheme('porcelain');
     expect([...properties.keys()]).toEqual(tokens);
-    expect(properties.get('--background')).toBe('#f5f5f5');
-    expect(properties.get('--foreground')).toBe('#282828');
-    expect(properties.get('--accent-foreground')).toBe('#282828');
+    expect(properties.get('--background')).toBe('#ffffff');
+    expect(properties.get('--foreground')).toBe('#18181b');
+    expect(properties.get('--accent-foreground')).toBe('#18181b');
     expect(root.style.colorScheme).toBe('light');
     expect(root.classList.toggle).toHaveBeenLastCalledWith('dark', false);
   });
 
-  it('uses soft Codex neutrals with separate supporting and floating surfaces', () => {
-    applyTheme('dark');
+  it('gives the clean themes separate supporting and floating surfaces', () => {
+    applyTheme('graphite');
 
-    expect(properties.get('--background')).toBe('#212121');
-    expect(properties.get('--foreground')).toBe('#dcdcdc');
-    expect(properties.get('--card')).toBe('#181818');
-    expect(properties.get('--popover')).toBe('#303030');
+    expect(properties.get('--card')).toBe('#0b0b0c');
+    expect(properties.get('--popover')).toBe('#1c1c1f');
 
-    applyTheme('light');
+    applyTheme('porcelain');
 
-    expect(properties.get('--card')).toBe('#ededed');
+    expect(properties.get('--card')).toBe('#f7f7f8');
     expect(properties.get('--popover')).toBe('#ffffff');
 
     applyTheme('phosphor');
@@ -75,7 +73,7 @@ describe('themes', () => {
     expect(properties.get('--popover')).toBe(properties.get('--card'));
   });
 
-  it('applies each theme’s typefaces and corner radius, resetting them for plain themes', () => {
+  it('applies each theme’s typefaces and corner radius, resetting fonts it does not set', () => {
     applyTheme('phosphor');
 
     expect(properties.get('--font-body')).toBe(FONT_STACKS.mono);
@@ -87,10 +85,10 @@ describe('themes', () => {
     expect(properties.get('--font-body')).toBe(FONT_STACKS.sans);
     expect(properties.get('--font-heading')).toBe(FONT_STACKS.serif);
 
-    applyTheme('dark');
+    applyTheme('graphite');
 
     expect(properties.get('--font-heading')).toBe(FONT_STACKS.sans);
-    expect(properties.get('--radius')).toBe('0.625rem');
+    expect(properties.get('--radius')).toBe('0.75rem');
   });
 
   it('still applies selections when browser storage is blocked', () => {
@@ -98,7 +96,7 @@ describe('themes', () => {
       getItem: () => { throw new Error('storage blocked'); },
       setItem: () => { throw new Error('storage blocked'); },
     });
-    expect(loadTheme()).toBe('dark');
+    expect(loadTheme()).toBe('graphite');
     expect(() => setTheme('aurora')).not.toThrow();
     expect(root.dataset.theme).toBe('aurora');
   });
@@ -106,7 +104,7 @@ describe('themes', () => {
   it('keeps destructive button labels readable on each theme’s error color', () => {
     applyTheme('ember');
     expect(properties.get('--destructive-foreground')).toBe('#000000');
-    applyTheme('light');
+    applyTheme('porcelain');
     expect(properties.get('--destructive-foreground')).toBe('#ffffff');
   });
 

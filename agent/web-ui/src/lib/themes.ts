@@ -1,6 +1,6 @@
 import { applyBackdrop } from './backdrop';
 import { customThemes } from './custom-themes';
-import { type Palette, type Theme, type ThemeFont, THEMES, type ThemeId } from './theme-palettes';
+import { DEFAULT_THEME_ID, type Palette, type Theme, type ThemeFont, THEMES, type ThemeId } from './theme-palettes';
 
 export const THEME_STORAGE_KEY = 'codeberg.theme';
 
@@ -12,13 +12,13 @@ export const FONT_STACKS: Record<ThemeFont, string> = {
 
 const DEFAULT_RADIUS = '0.625rem';
 
-/** A built-in or saved theme by id; unknown ids fall back to Dark. */
+/** A built-in or saved theme by id; unknown ids fall back to the default. */
 export function findTheme(id: string | null | undefined): Theme & { id: ThemeId } {
   return THEMES.find((theme) => theme.id === id) ?? customThemes().find((theme) => theme.id === id) ?? THEMES[0];
 }
 
 const themeListeners = new Set<() => void>();
-let activeId: ThemeId = 'dark';
+let activeId: ThemeId = DEFAULT_THEME_ID;
 
 /** The applied theme's id, for components that draw per-theme content such as the backdrop. */
 export function activeThemeId(): ThemeId {
@@ -43,7 +43,7 @@ export function loadTheme(): ThemeId {
   try {
     return findTheme(localStorage.getItem(THEME_STORAGE_KEY)).id;
   } catch {
-    return 'dark';
+    return DEFAULT_THEME_ID;
   }
 }
 

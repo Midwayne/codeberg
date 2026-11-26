@@ -5,47 +5,54 @@ import type { CustomThemeId, Theme } from './theme-types';
 
 export type { BackdropScene, Palette, Theme, ThemeFont } from './theme-types';
 
+/* Minimal neutrals: crisp contrast, quiet surfaces, and only a faint halo of light. */
 const BASE_THEMES = [
   {
-    id: 'dark',
-    label: 'Dark',
-    description: 'Codex · soft charcoal',
+    id: 'graphite',
+    label: 'Graphite',
+    description: 'Clean dark · soft halo',
     colorScheme: 'dark',
+    radius: '0.75rem',
+    backdrop: 'halo',
+    transition: 'fade',
     palette: {
-      background: '#212121',
-      foreground: '#dcdcdc',
-      surface: '#181818',
-      popover: '#303030',
-      raised: '#303030',
-      mutedForeground: '#afafaf',
-      primary: '#dcdcdc',
-      primaryForeground: '#212121',
-      destructive: 'oklch(0.704 0.191 22.216)',
-      border: '#ffffff14',
-      input: '#ffffff26',
-      ring: '#8f8f8f',
+      background: '#111113',
+      foreground: '#ededef',
+      surface: '#0b0b0c',
+      popover: '#1c1c1f',
+      raised: '#1c1c1f',
+      mutedForeground: '#a1a1aa',
+      primary: '#ededef',
+      primaryForeground: '#111113',
+      destructive: '#f87171',
+      border: '#ffffff12',
+      input: '#ffffff1f',
+      ring: '#8b8b94',
     },
   },
   {
-    id: 'light',
-    label: 'Light',
-    description: 'Codex · soft grey',
+    id: 'porcelain',
+    label: 'Porcelain',
+    description: 'Clean light · soft halo',
     colorScheme: 'light',
+    radius: '0.75rem',
+    backdrop: 'halo',
+    transition: 'fade',
     palette: {
-      background: '#f5f5f5',
-      foreground: '#282828',
-      surface: '#ededed',
+      background: '#ffffff',
+      foreground: '#18181b',
+      surface: '#f7f7f8',
       popover: '#ffffff',
-      raised: '#e8e8e8',
-      mutedForeground: '#5d5d5d',
-      primary: '#303030',
-      primaryForeground: '#f5f5f5',
-      destructive: 'oklch(0.577 0.245 27.325)',
-      secondaryForeground: '#282828',
+      raised: '#f0f0f2',
+      mutedForeground: '#5f5f68',
+      primary: '#18181b',
+      primaryForeground: '#ffffff',
+      destructive: '#dc2626',
+      secondaryForeground: '#18181b',
       destructiveForeground: '#ffffff',
-      border: '#0d0d0d14',
-      input: '#0d0d0d26',
-      ring: '#767676',
+      border: '#18181b14',
+      input: '#18181b24',
+      ring: '#71717a',
     },
   },
 ] as const satisfies readonly Theme[];
@@ -53,5 +60,8 @@ const BASE_THEMES = [
 export const THEMES = [...BASE_THEMES, ...EXPRESSIVE_THEMES, ...SCENE_THEMES] as const;
 
 export type BuiltinThemeId = (typeof THEMES)[number]['id'];
+
+/** Applied on first visit and whenever a saved choice no longer exists. */
+export const DEFAULT_THEME_ID = 'graphite' satisfies BuiltinThemeId;
 
 export type ThemeId = BuiltinThemeId | CustomThemeId;

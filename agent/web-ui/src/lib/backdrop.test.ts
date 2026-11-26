@@ -22,12 +22,12 @@ describe('theme backdrops', () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it('names the theme’s scene on the root and clears it for themes without one', () => {
+  it('names the theme’s scene on the root and clears it when there is none', () => {
     applyTheme('midnight');
 
     expect(root.dataset.backdrop).toBe('night-sky');
 
-    applyTheme('light');
+    applyBackdrop(undefined);
 
     expect(root.dataset.backdrop).toBeUndefined();
   });

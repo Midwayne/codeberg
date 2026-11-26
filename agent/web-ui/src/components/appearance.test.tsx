@@ -9,7 +9,7 @@ describe('theme picker', () => {
     const html = renderToStaticMarkup(<ThemePicker value="ember" onChange={() => undefined} />);
     expect(html).toContain('<fieldset');
     expect(html).toContain('<legend');
-    for (const name of ['Dark', 'Light', 'Parchment', 'Ember', 'Phosphor', 'Midnight', 'Aurora']) {
+    for (const name of ['Graphite', 'Porcelain', 'Parchment', 'Ember', 'Phosphor', 'Midnight', 'Aurora']) {
       expect(html).toContain(`aria-label="${name}"`);
     }
     expect(html.match(/type="radio"/g)).toHaveLength(7);
@@ -17,10 +17,10 @@ describe('theme picker', () => {
     expect(html).toMatch(/aria-label="Ember"[^>]*checked=""/);
   });
 
-  it('previews a scene only on themes that have a backdrop', () => {
-    const html = renderToStaticMarkup(<ThemePicker value="dark" onChange={() => undefined} />);
+  it('previews each built-in theme’s scene', () => {
+    const html = renderToStaticMarkup(<ThemePicker value="graphite" onChange={() => undefined} />);
 
-    expect(html.match(/class="backdrop-preview"/g)).toHaveLength(5);
+    expect(html.match(/class="backdrop-preview"/g)).toHaveLength(7);
     expect(html).toContain('data-scene="night-sky"');
   });
 
@@ -33,7 +33,7 @@ describe('theme picker', () => {
   it('offers edit and delete only on saved themes', () => {
     const saved = normalizeTheme({ label: 'Mine', palette: { background: '#101010' } }, { id: 'custom-mine', prompt: 'x', animated: true });
     const html = renderToStaticMarkup(
-      <ThemePicker value="dark" onChange={() => undefined} custom={[saved]} onEdit={() => undefined} onDelete={() => undefined} />,
+      <ThemePicker value="graphite" onChange={() => undefined} custom={[saved]} onEdit={() => undefined} onDelete={() => undefined} />,
     );
 
     expect(html).toContain('Your themes');

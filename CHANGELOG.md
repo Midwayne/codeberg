@@ -12,6 +12,7 @@ are in the git history.
 - The agent can check its context usage and limits, keep tool results it still needs, and drop ones it no longer does; it gets a short notice as the context fills.
 - The agent keeps a working list of findings and constraints in each chat that survives history summaries; it can search and correct the list.
 - Start a message with `/dumb` to get a plain-language answer for a non-technical reader such as a project manager.
+- New Graphite (now the default) and Porcelain themes: clean dark and light neutrals.
 - New Parchment, Ember, and Phosphor themes, with their own fonts and corner shapes.
 - Theme backdrops: scenes behind the conversation, such as the night sky in the new Midnight theme and northern lights in Aurora. Turn them off with **Show backdrop** in **Settings → Appearance**.
 - Create a theme by describing it: your chat model designs the colors, fonts, and a still or animated backdrop. Edit a theme you created by describing a change, with undo.
@@ -28,7 +29,7 @@ are in the git history.
 
 ### Removed
 
-- The Kanagawa, Tokyo Night, Catppuccin Mocha, Dracula, Nord, and Gruvbox themes. If one was selected, Codeberg switches to Dark; create a similar theme by describing it.
+- The Dark, Light, Kanagawa, Tokyo Night, Catppuccin Mocha, Dracula, Nord, and Gruvbox themes. If one was selected, Codeberg switches to Graphite; create a similar theme by describing it.
 - Local chat models: the Ollama and llama.cpp providers, including for Browser Use. Local embedding models are unaffected.
 - The shorter system prompt for models with a context window of 16,384 tokens or less.
 

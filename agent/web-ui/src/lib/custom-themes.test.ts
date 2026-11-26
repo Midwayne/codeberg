@@ -43,7 +43,7 @@ describe('saved custom themes', () => {
 
     removeCustomTheme('custom-a');
 
-    expect(findTheme('custom-a').id).toBe('dark');
+    expect(findTheme('custom-a').id).toBe('graphite');
   });
 
   it('keeps the newest twelve and restores them after a reload', () => {

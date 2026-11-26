@@ -7,51 +7,51 @@
 
 :root {
   color-scheme: light;
-  --radius: 0.625rem;
+  --radius: 0.75rem;
   --font-body: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
   --font-heading: var(--font-body);
-  --background: #f5f5f5;
-  --foreground: #282828;
-  --card: #ededed;
-  --card-foreground: #282828;
+  --background: #ffffff;
+  --foreground: #18181b;
+  --card: #f7f7f8;
+  --card-foreground: #18181b;
   --popover: #ffffff;
-  --popover-foreground: #282828;
-  --primary: #303030;
-  --primary-foreground: #f5f5f5;
-  --secondary: #e8e8e8;
-  --secondary-foreground: #282828;
-  --muted: #e8e8e8;
-  --muted-foreground: #5d5d5d;
-  --accent: #e8e8e8;
-  --accent-foreground: #282828;
-  --destructive: oklch(0.577 0.245 27.325);
+  --popover-foreground: #18181b;
+  --primary: #18181b;
+  --primary-foreground: #ffffff;
+  --secondary: #f0f0f2;
+  --secondary-foreground: #18181b;
+  --muted: #f0f0f2;
+  --muted-foreground: #5f5f68;
+  --accent: #f0f0f2;
+  --accent-foreground: #18181b;
+  --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --border: #0d0d0d14;
-  --input: #0d0d0d26;
-  --ring: #767676;
+  --border: #18181b14;
+  --input: #18181b24;
+  --ring: #71717a;
 }
 
 .dark {
   color-scheme: dark;
-  --background: #212121;
-  --foreground: #dcdcdc;
-  --card: #181818;
-  --card-foreground: #dcdcdc;
-  --popover: #303030;
-  --popover-foreground: #dcdcdc;
-  --primary: #dcdcdc;
-  --primary-foreground: #212121;
-  --secondary: #303030;
-  --secondary-foreground: #dcdcdc;
-  --muted: #303030;
-  --muted-foreground: #afafaf;
-  --accent: #303030;
-  --accent-foreground: #dcdcdc;
-  --destructive: oklch(0.704 0.191 22.216);
+  --background: #111113;
+  --foreground: #ededef;
+  --card: #0b0b0c;
+  --card-foreground: #ededef;
+  --popover: #1c1c1f;
+  --popover-foreground: #ededef;
+  --primary: #ededef;
+  --primary-foreground: #111113;
+  --secondary: #1c1c1f;
+  --secondary-foreground: #ededef;
+  --muted: #1c1c1f;
+  --muted-foreground: #a1a1aa;
+  --accent: #1c1c1f;
+  --accent-foreground: #ededef;
+  --destructive: #f87171;
   --destructive-foreground: #000000;
-  --border: #ffffff14;
-  --input: #ffffff26;
-  --ring: #8f8f8f;
+  --border: #ffffff12;
+  --input: #ffffff1f;
+  --ring: #8b8b94;
 }
 
 @theme inline {

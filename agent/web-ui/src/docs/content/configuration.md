@@ -100,11 +100,11 @@ Upgraded workspaces may retain home-level data until migration completes. Use Se
 
 ## Appearance
 
-Choose **Settings → Appearance**. Dark is the default.
+Choose **Settings → Appearance**. Graphite is the default.
 
 | Themes | Style |
 |--------|-------|
-| Dark, Light | Plain neutral colors |
+| Graphite, Porcelain | Clean dark and light neutrals with a faint halo of light |
 | Parchment | Serif headings and a faint paper grain behind the chat |
 | Ember | Serif headings and a warm glow behind the composer |
 | Phosphor | Monospace text, square corners, and terminal scanlines |
@@ -146,10 +146,10 @@ Changing themes animates the whole app. Each theme picks its own effect:
 
 | Effect | Looks like | Used by |
 |--------|------------|---------|
-| Reveal | A circle grows from where you clicked | Most themes |
+| Reveal | A circle grows from where you clicked | Parchment, Ember |
 | Blur | The old theme dissolves through a blur | Midnight, Aurora |
 | Wipe | The new theme scans in from the top | Phosphor |
-| Fade | A crossfade | Generated themes that choose it |
+| Fade | A crossfade | Graphite, Porcelain |
 
 Browsers without view transitions fade the colors instead. When your system asks for reduced motion, themes change instantly.
 

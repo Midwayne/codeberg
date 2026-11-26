@@ -1,3 +1,4 @@
+import { DEFAULT_THEME_ID } from '../lib/theme-palettes';
 import { useState } from 'react';
 
 import { applyBackdrop, loadBackdropEnabled, saveBackdropEnabled } from '../lib/backdrop';
@@ -24,7 +25,7 @@ export function AppearancePanel() {
   }
 
   function deleteTheme(id: CustomThemeId) {
-    if (activeThemeId() === id) changeTheme('dark');
+    if (activeThemeId() === id) changeTheme(DEFAULT_THEME_ID);
     if (editingId === id) setEditingId(undefined);
 
     removeCustomTheme(id);
