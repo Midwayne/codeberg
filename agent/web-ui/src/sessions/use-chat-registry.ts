@@ -18,13 +18,13 @@ type ChatRegistryOptions = {
 /** Opens chats that save to this project's sessions and run on the server. */
 function useCreateChat(api: typeof fetch, registry: ProjectChats, chats: React.RefObject<Map<string, WorkspaceChat>>): CreateChat {
   return useCallback(
-    (id, messages, parentId, title, model) => {
+    (id, messages, parentId, title, origin) => {
       const next = createWorkspaceChat({
         id,
         messages,
         parentId,
         title,
-        model,
+        origin,
         persist: (record) => saveSession(record, api),
         persistModel: (choice) => setSessionModel(id, choice, api),
         transport: new RunTransport(api),

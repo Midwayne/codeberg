@@ -751,7 +751,9 @@ describe('web server', () => {
     expect((await send('PUT', { title: 'Chat', messages: [], model })).status).toBe(200);
     expect((await (await fetch(url)).json()).model).toEqual(model);
 
+    expect((await send('PUT', { title: 'Chat', messages: [], model: { key: 'openai:large', effort: 'loud' } })).status).toBe(400);
     expect((await send('PATCH', { model: { key: 'openai:large', effort: 'loud' } })).status).toBe(400);
+    expect((await (await fetch(url)).json()).model).toEqual(model);
     expect((await send('PATCH', { model: null })).status).toBe(200);
     expect(await (await fetch(url)).json()).not.toHaveProperty('model');
   });

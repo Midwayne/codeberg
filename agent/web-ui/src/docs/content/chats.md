@@ -59,7 +59,9 @@ Each chat starts on **Default**, the chat model and effort saved in **Models**. 
 | Saving | Kept with the chat and restored when you reopen it. A new chat saves its choice with the first message. |
 | Branches | Start with the original chat's model. |
 | Attachments | Follow the chat's model; images or files are offered only when it accepts them. |
-| Removed models | If the model or effort leaves `models.yml`, the chat uses the default and the menu shows **Default**. |
+| Earlier files | Every message resends the chat's earlier images and files, so models that cannot read them are marked **can't read this chat's files** and cannot be chosen. |
+| Removed models | If the model or effort leaves `models.yml`, the menu shows it as **unavailable, using default** and the chat runs on the default. It returns to that model if the model comes back; choose **Default** to stop that. |
+| Failed saves | If the choice cannot be saved, the menu goes back to the previous model and shows **Not saved**. |
 
 Summaries and subagents set to **Same as …** follow the chat's model. Scheduled follow-ups run on the model of the turn that scheduled them. Learning, evaluations, and the header title use the models from **Models**.
 

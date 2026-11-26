@@ -71,6 +71,10 @@ async function saveSession(
   const rawTitle = typeof body?.title === 'string' ? body.title.trim() : '';
   const parentId = readParentId(body?.parentId, id);
   const model = readChatModel(body?.model);
+  if (body?.model !== undefined && model === undefined) {
+    return sendText(res, 400, 'model must have a key and a known effort, or be null');
+  }
+
   if (parentId) {
     const existing = await store.load(id);
     // A deleted parent must not prevent subsequent saves of its branch.
@@ -155,8 +159,11 @@ function readSessionPatch(body: unknown): SessionPatch | undefined {
       patch.flags[key] = value;
     } else if (key === 'read' && value === true) {
       patch.read = true;
-    } else if (key === 'model' && readChatModel(value) !== undefined) {
-      patch.model = readChatModel(value);
+    } else if (key === 'model') {
+      const model = readChatModel(value);
+      if (model === undefined) return undefined;
+
+      patch.model = model;
     } else {
       return undefined;
     }

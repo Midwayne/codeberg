@@ -21,6 +21,7 @@ import { ContextMeter } from './context-meter';
 import { chatModelEntry, type ChatModels, type ModelSelection } from '../../lib/models';
 import type { ChatModelChoice } from '../../sessions/chat-model';
 import { ChatModelPicker } from './chat-model-picker';
+import { historyInputs } from '../../lib/prompt-files';
 
 // Each retained workspace view subscribes to its own session with `useChat`.
 // `Chat` presents those helpers. Branching is a session
@@ -67,6 +68,7 @@ export function useChatView({ chat, turns, onBranch, sessionId, learningEnabled,
   const { scrollRef, holdScroll } = useChatScroll({ jump, messages, status });
   const hasCanvas = useMemo(() => Boolean(canvasAnchor(messages)), [messages]);
   const ownModel = useOwnModel(model);
+  const fileInputs = useMemo(() => historyInputs(messages), [messages]);
 
   return {
     scrollRef,
@@ -88,6 +90,7 @@ export function useChatView({ chat, turns, onBranch, sessionId, learningEnabled,
     chatModels,
     ownModel,
     onModelChange,
+    fileInputs,
     chatInputs: chatModelEntry(chatModels, ownModel)?.inputs ?? ['text'],
     queue,
   };
@@ -171,7 +174,7 @@ function ChatComposer({ state }: ChatComposerProps) {
           accessory={(
             <>
               {state.onModelChange && (
-                <ChatModelPicker models={state.chatModels} value={state.ownModel}
+                <ChatModelPicker models={state.chatModels} value={state.ownModel} required={state.fileInputs}
                   onChange={state.onModelChange} disabled={!state.ready} />
               )}
               <ContextMeter sessionId={state.sessionId} busy={state.busy} />

@@ -50,15 +50,18 @@ export type CreateChat = (
   messages: UIMessage[],
   parentId?: string,
   title?: string,
-  model?: ModelSelection | null,
+  origin?: ChatOrigin,
 ) => WorkspaceChat;
+
+/** A chat's own model, and whether it came from a record the server already has. */
+export type ChatOrigin = { model?: ModelSelection | null; saved?: boolean };
 
 interface CreateWorkspaceChatOptions {
   id: string;
   messages: UIMessage[];
   title?: string;
   parentId?: string;
-  model?: ModelSelection | null;
+  origin?: ChatOrigin;
   transport?: ChatTransport<UIMessage>;
   persist: (record: WorkspaceChatSave) => Promise<void>;
   /** Save a model change on a chat the server already has. */
@@ -72,13 +75,13 @@ export function createWorkspaceChat(options: CreateWorkspaceChatOptions): Worksp
   const { id, messages, title, parentId, transport, persist, onPersist, serverOwned = transport === undefined } = options;
   let disposed = false;
   const runTransport = transport instanceof RunTransport ? transport : transport ? undefined : new RunTransport();
-  const model = new ChatModelChoice(options.model ?? null);
+  const model = new ChatModelChoice(options.origin?.model ?? null, options.origin?.saved === true, options.persistModel);
   const persistence = chatPersistence({
     serverOwned,
     id,
     get title() { return workspace.title; },
     get parentId() { return workspace.parentId; },
-    get model() { return model.current; },
+    model,
     persist,
     onPersist,
     disposed: () => disposed,
@@ -101,7 +104,7 @@ export function createWorkspaceChat(options: CreateWorkspaceChatOptions): Worksp
     parentId,
     chat,
     model,
-    setModel: modelSetter(model, () => chat.messages.length > 0 && !disposed, persistence.settled, options.persistModel),
+    setModel: (next) => model.choose(next),
     turns,
     persistence: persistence.state,
     draft: { text: '' },
@@ -117,21 +120,6 @@ export function createWorkspaceChat(options: CreateWorkspaceChatOptions): Worksp
   };
 
   return workspace;
-}
-
-/** A chat without messages is not on the server yet; its first save carries the model. */
-function modelSetter(
-  model: ChatModelChoice,
-  saved: () => boolean,
-  settled: () => Promise<void>,
-  persistModel?: (model: ModelSelection | null) => Promise<void>,
-): WorkspaceChat['setModel'] {
-  return async (next) => {
-    model.set(next);
-
-    await settled();
-    if (saved()) await persistModel?.(next);
-  };
 }
 
 function createTurnQueue(chat: Chat<UIMessage>, isPending: () => boolean, transport?: RunTransport) {

@@ -34,7 +34,7 @@ export function useChatBranch({
       transitionIntent.current++;
 
       const next = createChatBranch(chat.messages, throughIndex, active.id);
-      const branch = createChat(next.id, next.messages, next.parentId, next.title, active.model.current);
+      const branch = createChat(next.id, next.messages, next.parentId, next.title, { model: active.model.current });
       branch.branch = {
         parentTitle: active.title ?? deriveTitle(chat.messages),
         messageCount: next.messages.length,
