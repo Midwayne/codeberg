@@ -1,43 +1,9 @@
 import { EXPRESSIVE_THEMES } from './theme-palettes-expressive';
 import { SCENE_THEMES } from './theme-palettes-scenes';
 
-export interface Palette {
-  background: string;
-  foreground: string;
-  surface: string;
-  popover?: string;
-  raised: string;
-  mutedForeground: string;
-  primary: string;
-  destructive: string;
-  border: string;
-  primaryForeground?: string;
-  secondaryForeground?: string;
-  destructiveForeground?: string;
-  accent?: string;
-  input?: string;
-  ring?: string;
-}
+import type { CustomThemeId, Theme } from './theme-types';
 
-export type ThemeFont = 'sans' | 'serif' | 'mono';
-
-export type BackdropScene = 'night-sky' | 'aurora' | 'dusk' | 'paper' | 'scanlines';
-
-export interface Theme {
-  id: string;
-  label: string;
-  description: string;
-  colorScheme: 'dark' | 'light';
-  palette: Palette;
-  /** Typeface for headings; defaults to sans. */
-  heading?: ThemeFont;
-  /** Typeface for body text; defaults to sans. */
-  body?: ThemeFont;
-  /** Base corner radius; defaults to 0.625rem. */
-  radius?: string;
-  /** Scene drawn behind the conversation; none when omitted. */
-  backdrop?: BackdropScene;
-}
+export type { BackdropScene, Palette, Theme, ThemeFont } from './theme-types';
 
 const BASE_THEMES = [
   {
@@ -184,4 +150,6 @@ const BASE_THEMES = [
 
 export const THEMES = [...BASE_THEMES, ...EXPRESSIVE_THEMES, ...SCENE_THEMES] as const;
 
-export type ThemeId = (typeof THEMES)[number]['id'];
+export type BuiltinThemeId = (typeof THEMES)[number]['id'];
+
+export type ThemeId = BuiltinThemeId | CustomThemeId;

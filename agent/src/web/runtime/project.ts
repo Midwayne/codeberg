@@ -1,3 +1,4 @@
+import { createThemeService } from '../themes/service.js';
 import { backgroundContext } from '../../core/background/context.js';
 import { canvasFromEnv } from '../../core/canvas/config.js';
 import { SearchRuns } from '../runs/manager.js';
@@ -77,11 +78,22 @@ export async function buildProjectHandler(project: Project, options: ProjectRunt
     resources,
     learning,
     modelSettings,
+    themes: projectThemes(modelSettings, providers, track),
     usage,
     runs,
     title,
     staticRoot: process.env.CODEBERG_WEB_ROOT ?? defaultStaticRoot(),
   });
+}
+
+/** Theme design runs on the chat model and counts as chat usage. */
+function projectThemes(
+  modelSettings: ProjectRuntimeOptions['modelSettings'],
+  providers: ProjectRuntimeOptions['providers'],
+  track: ReturnType<typeof projectUsageTracker>,
+) {
+  return createThemeService(modelSettings, (spec) => providers.resolve(spec),
+    (model, key, spec) => track(model, key, spec, 'chat'));
 }
 
 async function initializeRuntime(runtime: OwnedRuntime, owned: OwnedRuntime[]) {

@@ -1,4 +1,4 @@
-import type { Theme } from './theme-palettes';
+import type { Theme } from './theme-types';
 
 /* Themes with their own typography and corner shape, not only colors. */
 export const EXPRESSIVE_THEMES = [
@@ -114,6 +114,7 @@ export const EXPRESSIVE_THEMES = [
     body: 'mono',
     radius: '0.125rem',
     backdrop: 'scanlines',
+    transition: 'wipe',
     palette: {
       background: '#0c0f0c',
       foreground: '#b8f5b0',

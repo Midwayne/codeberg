@@ -117,7 +117,36 @@ A backdrop is the scene drawn behind the conversation; the composer floats over 
 
 Themes use fonts already on your device, so they look slightly different between operating systems.
 
-Themes apply immediately to chat, settings, and docs. They are saved in this browser's local storage. If storage is blocked, changes may last only until reload. Appearance works before model or project setup.
+Themes apply immediately to chat, settings, and docs. They are saved in this browser's local storage. If storage is blocked, changes may last only until reload. Built-in themes work before model or project setup.
+
+### Create a theme
+
+Describe a look and your chat model designs a theme: colors, fonts, corner shape, an optional backdrop, and how the app changes into it.
+
+1. Add a project and choose a chat model.
+2. Open **Settings → Appearance** and type a description under **Create a theme**, or choose an idea such as **Synthwave sunset**.
+3. Leave **Animated** on for a moving backdrop, or turn it off for a still one.
+4. To adjust the theme you are using instead of starting over, turn on **Start from** *theme name* and describe the change, for example `warmer, with less glow`.
+5. Choose **Create theme**. It applies as soon as it is ready and appears under **Your themes**.
+
+Each theme uses a few thousand tokens on your chat model and is recorded in **Usage**. **Cancel** stops a request that is still running.
+
+Codeberg checks every generated theme before using it: text and button labels are made readable, and anything it cannot use is replaced with a default. Up to 12 themes are kept in this browser; delete one with its trash button. Generated themes are not shared between browsers.
+
+If creation fails, check the chat model under **Models** and try again, or reword the description.
+
+### Theme transitions
+
+Changing themes animates the whole app. Each theme picks its own effect:
+
+| Effect | Looks like | Used by |
+|--------|------------|---------|
+| Reveal | A circle grows from where you clicked | Most themes |
+| Blur | The old theme dissolves through a blur | Midnight, Aurora |
+| Wipe | The new theme scans in from the top | Phosphor |
+| Fade | A crossfade | Generated themes that choose it |
+
+Browsers without view transitions fade the colors instead. When your system asks for reduced motion, themes change instantly.
 
 ## Development env files
 

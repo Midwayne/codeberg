@@ -15,6 +15,7 @@ import { WebSessionStore } from '../sessions/store.js';
 import { serveStatic } from '../static.js';
 import { routeResources } from './resources.js';
 import { routeUsage } from '../usage/routes.js';
+import { routeThemes, THEME_GENERATE_PATH } from '../themes/service.js';
 import type { LearningService } from '../../core/learning/service.js';
 import {
   CHAT_PATH,
@@ -52,6 +53,8 @@ export async function route(
   if ((path.startsWith('/api/canvas/') || path === '/api/settings/canvas') && opts.canvas) {
     return routeCanvas(req, res, opts.canvas, url);
   }
+
+  if (path === THEME_GENERATE_PATH && opts.themes) return routeThemes(req, res, opts.themes);
 
   if (path === MODELS_PATH && opts.modelSettings) return routeModels(req, res, opts.modelSettings, opts.learning);
 

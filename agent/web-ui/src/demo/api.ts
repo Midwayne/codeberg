@@ -2,6 +2,7 @@ import { contextDemoResponse } from './context';
 import { canvas, example, extensions, learning, models, projects, review } from './fixtures';
 import { resourceReport, usageReport } from './reports';
 import { scheduleDemoResponse } from './schedules';
+import { themeDemoResponse } from './themes';
 import { transcriptChat, transcriptSession } from './transcript';
 
 /** Only the demo entry installs this transport; real UI builds use the server. */
@@ -31,6 +32,9 @@ function demoResponse(url: URL, init?: RequestInit): Response {
 
   const schedule = scheduleDemoResponse(url, init);
   if (schedule) return schedule;
+
+  const theme = themeDemoResponse(url, init);
+  if (theme) return theme;
 
   const body = typeof init?.body === 'string' ? JSON.parse(init.body) : {};
   const routes: Record<string, unknown> = {

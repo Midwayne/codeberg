@@ -81,7 +81,7 @@
     radial-gradient(ellipse 35% 45% at 65% 30%, rgb(167 139 250 / 18%), transparent 70%),
     radial-gradient(ellipse 30% 40% at 85% 55%, rgb(74 222 128 / 14%), transparent 70%);
   filter: blur(30px);
-  animation: backdrop-drift 40s ease-in-out infinite alternate;
+  animation: backdrop-aurora 40s ease-in-out infinite alternate;
 }
 
 /* Dusk: a low warm glow rising from behind the composer. */
@@ -110,16 +110,7 @@
   background: radial-gradient(ellipse at center, transparent 55%, rgb(0 0 0 / 55%));
 }
 
-@keyframes backdrop-twinkle {
-  from {
-    opacity: 0.55;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes backdrop-drift {
+@keyframes backdrop-aurora {
   from {
     transform: translateX(-6%) scaleY(1);
   }
@@ -134,5 +125,78 @@
   .backdrop-preview::before,
   .backdrop-preview::after {
     animation: none;
+  }
+}
+
+/* Generated backdrops: ChatBackdrop draws each layer with inline styles from a validated spec. */
+.backdrop-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.backdrop-layer[data-kind='glow'],
+.backdrop-layer[data-kind='band'] {
+  inset: -20%;
+}
+
+.backdrop-layer[data-animation='spin'] {
+  inset: -50%;
+}
+
+@keyframes backdrop-drift {
+  from {
+    transform: translateX(-6%);
+  }
+  to {
+    transform: translateX(6%);
+  }
+}
+
+@keyframes backdrop-float {
+  from {
+    transform: translateY(-5%);
+  }
+  to {
+    transform: translateY(5%);
+  }
+}
+
+@keyframes backdrop-pulse {
+  from {
+    opacity: calc(var(--layer-opacity) * 0.35);
+  }
+  to {
+    opacity: var(--layer-opacity);
+  }
+}
+
+@keyframes backdrop-twinkle {
+  from {
+    opacity: calc(var(--layer-opacity, 1) * 0.55);
+  }
+  to {
+    opacity: var(--layer-opacity, 1);
+  }
+}
+
+@keyframes backdrop-pan {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: var(--layer-pan) var(--layer-pan);
+  }
+}
+
+@keyframes backdrop-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop-layer {
+    animation: none !important;
   }
 }

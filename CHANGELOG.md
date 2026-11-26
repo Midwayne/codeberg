@@ -14,9 +14,11 @@ are in the git history.
 - Start a message with `/dumb` to get a plain-language answer for a non-technical reader such as a project manager.
 - New Parchment, Ember, Rosé Pine, Everforest, Solarized Light, and Phosphor themes, with their own fonts and corner shapes.
 - Theme backdrops: scenes behind the conversation, such as the night sky in the new Midnight theme and northern lights in Aurora. Turn them off with **Show backdrop** in **Settings → Appearance**.
+- Create a theme by describing it: your chat model designs the colors, fonts, and a still or animated backdrop.
 
 ### Changed
 
+- Changing themes now animates, with a reveal from your click, a blur, a wipe, or a fade.
 - A new chat now shows just a greeting and the composer, centered, without starter prompts.
 - The agent draws on the canvas only for messages you send with **Diagram** turned on in the composer, which saves tokens on every other message.
 - Automatic evaluations are scored by the chat model unless you choose a judge, instead of by the learning model.

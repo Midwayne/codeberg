@@ -1,4 +1,4 @@
-import type { Theme } from './theme-palettes';
+import type { Theme } from './theme-types';
 
 /* Themes built around a scene drawn behind the conversation. */
 export const SCENE_THEMES = [
@@ -10,6 +10,7 @@ export const SCENE_THEMES = [
     heading: 'serif',
     radius: '1rem',
     backdrop: 'night-sky',
+    transition: 'blur',
     palette: {
       background: '#0b1020',
       foreground: '#e6e9f5',
@@ -32,6 +33,7 @@ export const SCENE_THEMES = [
     colorScheme: 'dark',
     radius: '1rem',
     backdrop: 'aurora',
+    transition: 'blur',
     palette: {
       background: '#0a1416',
       foreground: '#dcefe9',

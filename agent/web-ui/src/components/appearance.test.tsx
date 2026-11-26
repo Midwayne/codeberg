@@ -24,7 +24,7 @@ describe('theme picker', () => {
   });
 
   it('shows the backdrop switch on by default', () => {
-    const html = renderToStaticMarkup(<BackdropToggle theme="midnight" />);
+    const html = renderToStaticMarkup(<BackdropToggle />);
 
     expect(html).toMatch(/type="checkbox"[^>]*checked=""/);
   });

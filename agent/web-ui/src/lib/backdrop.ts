@@ -1,4 +1,4 @@
-import type { BackdropScene } from './theme-palettes';
+import type { Theme } from './theme-types';
 
 export const BACKDROP_STORAGE_KEY = 'codeberg.backdrop';
 
@@ -11,12 +11,15 @@ export function loadBackdropEnabled(): boolean {
   }
 }
 
-/* CSS draws the scene named on the root element; no attribute means no backdrop. */
-export function applyBackdrop(scene: BackdropScene | undefined, enabled = loadBackdropEnabled()): void {
+/*
+ * CSS draws the scene named on the root element; no attribute means no backdrop.
+ * A generated backdrop is named `custom` and its layers are drawn by ChatBackdrop.
+ */
+export function applyBackdrop(backdrop: Theme['backdrop'], enabled = loadBackdropEnabled()): void {
   const root = document.documentElement;
 
-  if (scene && enabled) {
-    root.dataset.backdrop = scene;
+  if (backdrop && enabled) {
+    root.dataset.backdrop = typeof backdrop === 'string' ? backdrop : 'custom';
   } else {
     delete root.dataset.backdrop;
   }
