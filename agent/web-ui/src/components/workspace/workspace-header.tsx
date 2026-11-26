@@ -10,7 +10,7 @@ type WorkspaceHeaderProps = { state: Parameters<typeof ProjectWorkspaceView>[0] 
 
 export function WorkspaceHeader({ state }: WorkspaceHeaderProps) {
   return (
-    <header className="shrink-0 border-b border-border">
+    <header className="app-header relative z-10 shrink-0 border-b border-border">
       <div className="flex min-h-16 flex-wrap items-center gap-1 px-2 text-sm sm:gap-2 sm:px-4 md:min-h-11 md:gap-0.5 md:px-3">
         {!state.trainingOpen && !state.settingsOpen && (
           <IconButton

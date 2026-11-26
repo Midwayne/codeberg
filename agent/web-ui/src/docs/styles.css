@@ -1,15 +1,10 @@
 .docs-prose {
-  --docs-link: oklch(0.43 0.13 250);
+  --docs-link: var(--link);
   font-size: 1rem;
   line-height: 1.75;
   overflow-wrap: anywhere;
 }
 
-.dark .docs-prose { --docs-link: oklch(0.78 0.11 230); }
-
-:root[data-theme]:not([data-theme='dark']):not([data-theme='light']) .docs-prose {
-  --docs-link: var(--primary);
-}
 
 .docs-prose h2 {
   margin-top: 2.5rem;

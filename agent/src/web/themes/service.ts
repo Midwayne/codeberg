@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { LanguageModel } from 'ai';
 
 import { fromAiSdk } from '../../core/generator.js';
+import type { ReasoningEffort } from '../../core/types.js';
 import { HttpError } from '../../core/http-error.js';
 import { errorMessage } from '../../core/errors.js';
 import type { ModelSettingsStore } from '../model-selection/settings.js';
@@ -10,6 +11,23 @@ import { THEME_SYSTEM_PROMPT, themePrompt } from './prompt.js';
 import { readThemeRequest, themeFromReply, type ThemeRequest } from './request.js';
 
 export const THEME_GENERATE_PATH = '/api/themes/generate';
+
+/*
+ * Room for a full theme (about 2,000 tokens) plus the little reasoning a low
+ * effort allows, while staying under every current model's output limit.
+ */
+const THEME_OUTPUT_TOKENS = 8_000;
+
+/*
+ * A theme is a small structured answer, so it runs at the least reasoning the
+ * model supports. The chat's own effort could spend the whole output budget on
+ * reasoning and leave no JSON, on providers that count reasoning as output.
+ */
+export function themeEffort(efforts: readonly ReasoningEffort[] | undefined): ReasoningEffort {
+  return LOW_EFFORTS.find((effort) => efforts?.includes(effort)) ?? 'provider-default';
+}
+
+const LOW_EFFORTS: ReasoningEffort[] = ['none', 'minimal', 'low'];
 
 export interface ThemeService {
   generate(request: ThemeRequest, signal?: AbortSignal): Promise<Record<string, unknown>>;
@@ -24,14 +42,15 @@ export function createThemeService(
   return {
     async generate(request, signal) {
       const { chat, models } = await settings.current();
-      const spec = models.find((entry) => entry.key === chat.key)?.model ?? chat.key;
+      const entry = models.find((candidate) => candidate.key === chat.key);
+      const spec = entry?.model ?? chat.key;
       const model = resolveModel(spec);
       const tracked = transformModel ? transformModel(model, chat.key, spec) : model;
 
-      const text = await fromAiSdk(tracked, chat.effort, spec).generate({
+      const text = await fromAiSdk(tracked, themeEffort(entry?.efforts), spec).generate({
         system: THEME_SYSTEM_PROMPT,
         prompt: themePrompt(request),
-        maxOutputTokens: 4000,
+        maxOutputTokens: THEME_OUTPUT_TOKENS,
         ...(signal ? { abortSignal: signal } : {}),
       });
 

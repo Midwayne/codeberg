@@ -10,6 +10,28 @@
   --radius: 0.75rem;
   --font-body: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
   --font-heading: var(--font-body);
+  --font-code: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  --text-scale: 1;
+  --link: #1d5fd1;
+  /* Per-part defaults before a theme applies; see lib/theme-tokens.ts. */
+  --header-bg: var(--background);
+  --header-fg: var(--foreground);
+  --header-border: var(--border);
+  --header-glass: 72%;
+  --sidebar-bg: color-mix(in srgb, var(--card) 30%, var(--background));
+  --sidebar-fg: var(--foreground);
+  --sidebar-border: var(--border);
+  --sidebar-glass: 78%;
+  --composer-bg: var(--card);
+  --composer-fg: var(--foreground);
+  --composer-border: var(--input);
+  --composer-glass: 90%;
+  --bubble-bg: var(--muted);
+  --bubble-fg: var(--foreground);
+  --bubble-border: transparent;
+  --code-bg: color-mix(in srgb, var(--background) 60%, var(--card));
+  --code-fg: var(--foreground);
+  --code-border: var(--border);
   --background: #ffffff;
   --foreground: #18181b;
   --card: #f7f7f8;
@@ -52,6 +74,7 @@
   --border: #ffffff12;
   --input: #ffffff1f;
   --ring: #8b8b94;
+  --link: #7cb7ff;
 }
 
 @theme inline {
@@ -75,6 +98,7 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --font-sans: var(--font-body);
+  --font-mono: var(--font-code);
   --font-display: var(--font-heading);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -85,6 +109,9 @@
 @layer base {
   * {
     border-color: var(--color-border);
+  }
+  html {
+    font-size: calc(100% * var(--text-scale));
   }
   body {
     background-color: var(--color-background);

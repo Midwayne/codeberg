@@ -1,14 +1,14 @@
 import { choice, clamp, normalizeBackdrop } from './backdrop-normalize';
 import { contrast, ensureContrast, hexColor, luminance, opaque, readableOn } from './color';
+import { normalizeParts } from './parts-normalize';
 import {
+  CODE_FONTS,
+  THEME_FONTS,
   THEME_TRANSITIONS,
   type CustomTheme,
   type CustomThemeId,
   type Palette,
-  type ThemeFont,
 } from './theme-types';
-
-const FONTS: readonly ThemeFont[] = ['sans', 'serif', 'mono'];
 
 export class ThemeShapeError extends Error {}
 
@@ -23,6 +23,7 @@ export function normalizeTheme(value: unknown, options: NormalizeOptions): Custo
   const palette = normalizePalette(raw.palette);
   const dark = luminance(palette.background) < 0.18;
   const backdrop = normalizeBackdrop(raw.backdrop, options.animated);
+  const parts = normalizeParts(raw.parts, palette);
 
   return {
     id: options.id,
@@ -30,12 +31,15 @@ export function normalizeTheme(value: unknown, options: NormalizeOptions): Custo
     label: text(raw.label, 24) || 'My theme',
     description: text(raw.description, 48) || text(options.prompt, 48),
     colorScheme: dark ? 'dark' : 'light',
-    heading: choice(raw.heading, FONTS, 'sans'),
-    body: choice(raw.body, FONTS, 'sans'),
+    heading: choice(raw.heading, THEME_FONTS, 'sans'),
+    body: choice(raw.body, THEME_FONTS, 'sans'),
+    code: choice(raw.code, CODE_FONTS, 'mono'),
+    textScale: clamp(raw.textScale, 0.9, 1.15, 1),
     radius: `${clamp(raw.radius, 0, 1.5, 0.625)}rem`,
     transition: choice(raw.transition, THEME_TRANSITIONS, 'reveal'),
     palette,
     ...(backdrop ? { backdrop } : {}),
+    ...(parts ? { parts } : {}),
   };
 }
 
@@ -94,6 +98,7 @@ function actionColors(raw: Record<string, unknown>, background: string) {
     destructive,
     destructiveForeground: readableOn(destructive),
     ring: ensureContrast(primary, [background], 3, readableOn(background)),
+    link: ensureContrast(opaque(hexColor(raw.link) ?? primary), [background], 4.5, readableOn(background)),
   };
 }
 

@@ -1,5 +1,4 @@
 import { WorkspaceSidebar, WorkspaceSearch } from './workspace-controls';
-import { ChatBackdrop } from '../chat/chat-backdrop';
 
 import { WorkspaceConversation } from './workspace-conversation';
 
@@ -71,9 +70,7 @@ export type WorkspaceViewProps = ReturnType<typeof useWorkspaceView>;
 
 export function WorkspaceView(state: WorkspaceViewProps) {
   return (
-    <div className="relative isolate flex min-h-0 min-w-0 flex-1">
-      {/* One scene behind the sidebar and the chat, so both sit in the same room. */}
-      <ChatBackdrop />
+    <div className="flex min-h-0 min-w-0 flex-1">
       {state.desktop && state.sidebarOpen && state.sidebar}
       {!state.desktop && (
         <Dialog

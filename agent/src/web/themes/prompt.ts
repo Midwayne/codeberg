@@ -12,13 +12,22 @@ Shape:
   "label": "2-3 word name, at most 24 characters",
   "description": "short tagline, at most 48 characters",
   "colorScheme": "dark" | "light",
-  "heading": "sans" | "serif" | "mono",
-  "body": "sans" | "serif" | "mono",
+  "heading": "sans" | "serif" | "mono" | "rounded" | "slab",
+  "body": "sans" | "serif" | "mono" | "rounded" | "slab",
+  "code": "mono" | "typewriter" | "narrow",
+  "textScale": number from 0.9 to 1.15 (1 is the default size),
   "radius": number of rem from 0 to 1.5,
   "transition": "reveal" | "fade" | "wipe" | "blur",
   "palette": {
     "background", "foreground", "surface", "raised", "popover",
-    "mutedForeground", "primary", "primaryForeground", "destructive", "border"
+    "mutedForeground", "primary", "primaryForeground", "destructive", "border", "link"
+  },
+  "parts": null | {
+    "header" | "sidebar" | "composer" | "bubble" | "code": {
+      "background": color, "text": color, "border": color,
+      "glass": 0.3-1, how solid the part is over the backdrop (header, sidebar, composer),
+      "radius": rem from 0 to 2 (composer, bubble, code)
+    }
   },
   "backdrop": null | {
     "sky": null | { "from": color, "to": color, "angle": 0-360 },
@@ -39,7 +48,10 @@ Rules:
 - Every color is a hex string such as "#1a2b3c".
 - surface is the sidebar and code block color, raised is hover and user message bubbles, popover is menus.
 - foreground and mutedForeground must be readable on background, surface, and raised (contrast 4.5:1 or more).
-- primary is buttons and links; primaryForeground is text on primary.
+- primary is buttons; primaryForeground is text on primary; link is link text.
+- parts restyle one area on its own: header is the top bar, sidebar the chat list, composer the message box,
+  bubble the user's messages, code the code blocks. Leave a part out to follow the palette; only set what
+  the request asks for or what gives the theme character.
 - The backdrop sits behind the chat text, so keep it dim: layer opacity mostly 0.05-0.25.
 - Messages and the composer sit in a center column. The app fades every layer to a fifth of its strength
   inside that column and shows it fully in the side margins, so design for the edges: place glows, bands,

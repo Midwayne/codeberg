@@ -22,7 +22,7 @@ export async function readThemeRequest(req: IncomingMessage): Promise<ThemeReque
   if (!prompt) throw new HttpError(400, 'Describe the theme you want.');
 
   if (prompt.length > MAX_THEME_PROMPT) {
-    throw new HttpError(400, `Keep the description under ${MAX_THEME_PROMPT} characters.`);
+    throw new HttpError(400, `Keep the description to at most ${MAX_THEME_PROMPT} characters.`);
   }
 
   return {
@@ -32,17 +32,50 @@ export async function readThemeRequest(req: IncomingMessage): Promise<ThemeReque
   };
 }
 
-/** The first JSON object in a model reply, which may wrap it in prose or a fence. */
+/**
+ * The theme object in a model reply, which may wrap it in prose, braces of its
+ * own, or a fence. A fenced block wins; otherwise each `{` is tried in turn and
+ * the first balanced span that parses to an object is used.
+ */
 export function themeFromReply(text: string): Record<string, unknown> {
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text)?.[1];
+  const found = (fenced && firstObject(fenced)) || firstObject(text);
+  if (found) return found;
 
-  if (start !== -1 && end > start) {
-    const value = parseJson(text.slice(start, end + 1));
+  throw new HttpError(502, 'The chat model did not return a theme. Try again or reword the description.');
+}
+
+function firstObject(text: string): Record<string, unknown> | undefined {
+  for (let start = text.indexOf('{'); start !== -1; start = text.indexOf('{', start + 1)) {
+    const end = balancedEnd(text, start);
+    const value = end === -1 ? undefined : parseJson(text.slice(start, end + 1));
+
     if (isObject(value)) return value;
   }
 
-  throw new HttpError(502, 'The chat model did not return a theme. Try again or reword the description.');
+  return undefined;
+}
+
+/** Index of the brace closing the one at `start`, skipping braces inside strings. */
+function balancedEnd(text: string, start: number): number {
+  let depth = 0;
+  let quoted = false;
+
+  for (let index = start; index < text.length; index += 1) {
+    const char = text[index];
+
+    if (quoted) {
+      if (char === '\\') index += 1;
+      else if (char === '"') quoted = false;
+    } else if (char === '"') {
+      quoted = true;
+    } else if (char === '{' || char === '}') {
+      depth += char === '{' ? 1 : -1;
+      if (depth === 0) return index;
+    }
+  }
+
+  return -1;
 }
 
 function parseObject(text: string): Record<string, unknown> {

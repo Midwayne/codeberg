@@ -85,22 +85,20 @@
   background-color: transparent;
 }
 
+:root[data-backdrop] .app-header {
+  background-color: color-mix(in srgb, var(--header-bg) var(--header-glass), transparent);
+}
+
 :root[data-backdrop] #chat-sidebar {
-  background-color: color-mix(in srgb, var(--card) 78%, transparent);
+  background-color: color-mix(in srgb, var(--sidebar-bg) var(--sidebar-glass), transparent);
 }
 
 :root[data-backdrop] .prompt-card {
-  background-color: color-mix(in srgb, var(--card) 90%, transparent);
+  background-color: color-mix(in srgb, var(--composer-bg) var(--composer-glass), transparent);
 }
 
-:root[data-backdrop]:not([data-backdrop='custom']) #chat-sidebar {
-  background-color: color-mix(in srgb, var(--card) 62%, transparent);
-  backdrop-filter: blur(18px) saturate(1.2);
-}
-
-:root[data-backdrop]:not([data-backdrop='custom']) .prompt-card {
-  background-color: color-mix(in srgb, var(--card) 80%, transparent);
-  backdrop-filter: blur(14px);
+:root[data-backdrop]:not([data-backdrop='custom']) :is(.app-header, #chat-sidebar, .prompt-card) {
+  backdrop-filter: blur(16px) saturate(1.2);
 }
 
 /* Halo: a faint wash of light at the top of the conversation, for the clean themes. */

@@ -29,6 +29,7 @@ const BASE_THEMES = [
       border: '#ffffff12',
       input: '#ffffff1f',
       ring: '#8b8b94',
+      link: '#7cb7ff',
     },
   },
   {
@@ -54,6 +55,7 @@ const BASE_THEMES = [
       border: '#18181b14',
       input: '#18181b24',
       ring: '#71717a',
+      link: '#1d5fd1',
     },
   },
 ] as const satisfies readonly Theme[];

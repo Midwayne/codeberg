@@ -4,7 +4,8 @@ import { MockLanguageModelV4 } from 'ai/test';
 
 import { createWebServer } from '../server.js';
 import { themePrompt } from './prompt.js';
-import { createThemeService, THEME_GENERATE_PATH } from './service.js';
+import { themeFromReply } from './request.js';
+import { createThemeService, THEME_GENERATE_PATH, themeEffort } from './service.js';
 
 const cleanups: (() => Promise<void>)[] = [];
 
@@ -31,7 +32,7 @@ async function serve(model: MockLanguageModelV4) {
   const settings = {
     current: async () => ({
       chat: { key: 'test:fast', effort: 'provider-default' as const },
-      models: [{ key: 'test:fast', model: 'test:actual-model' }],
+      models: [{ key: 'test:fast', model: 'test:actual-model', efforts: ['provider-default', 'low', 'high'] }],
     }),
   };
   const themes = createThemeService(settings as never, (spec) => {
@@ -65,6 +66,7 @@ describe('theme generation API', () => {
     expect(await response.json()).toEqual({ theme: { label: 'Deep Sea', palette: { background: '#001122' } } });
     expect(resolved).toEqual(['test:actual-model']);
     expect(JSON.stringify(model.doGenerateCalls[0]?.prompt)).toContain('deep sea at night');
+    expect(model.doGenerateCalls[0]?.reasoning).toBe('low');
   });
 
   it('reports a reply without a theme as a model failure', async () => {
@@ -100,3 +102,22 @@ describe('theme prompt', () => {
     expect(edit).toContain('{"label":"Forest"}');
   });
 });
+
+describe('theme reply parsing', () => {
+  it('finds the theme past braces in prose, inside strings, or after a fence', () => {
+    expect(themeFromReply('Using {mood} as a guide:\n{"label":"Calm"} and a {note}.')).toEqual({ label: 'Calm' });
+    expect(themeFromReply('{"label":"Brace } inside","palette":{"background":"#000000"}}')).toEqual({
+      label: 'Brace } inside', palette: { background: '#000000' },
+    });
+    expect(themeFromReply('Draft {"label":"Old"}\n```json\n{"label":"Final"}\n```')).toEqual({ label: 'Final' });
+  });
+});
+
+describe('theme reasoning effort', () => {
+  it('uses the least effort the model offers, or the provider default when it offers none', () => {
+    expect(themeEffort(['provider-default', 'minimal', 'low', 'high'])).toBe('minimal');
+    expect(themeEffort(['provider-default', 'high'])).toBe('provider-default');
+    expect(themeEffort(undefined)).toBe('provider-default');
+  });
+});
+

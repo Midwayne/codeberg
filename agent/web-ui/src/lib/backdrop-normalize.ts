@@ -15,7 +15,7 @@ export function choice<T extends string>(value: unknown, options: readonly T[], 
   return options.includes(value as T) ? (value as T) : fallback;
 }
 
-function record(value: unknown): Record<string, unknown> | undefined {
+export function record(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined;
@@ -26,10 +26,11 @@ function layer(value: unknown, animated: boolean): BackdropLayer | undefined {
   const color = hexColor(raw?.color);
   if (!raw || !color) return undefined;
 
-  const animation = choice(raw.animation, LAYER_ANIMATIONS, 'none');
+  const kind = choice(raw.kind, LAYER_KINDS, 'glow');
+  const animation = fitAnimation(kind, choice(raw.animation, LAYER_ANIMATIONS, 'none'));
 
   return {
-    kind: choice(raw.kind, LAYER_KINDS, 'glow'),
+    kind,
     color,
     opacity: clamp(raw.opacity, 0, 0.5, 0.15),
     x: clamp(raw.x, 0, 100, 50),
@@ -39,6 +40,17 @@ function layer(value: unknown, animated: boolean): BackdropLayer | undefined {
     animation: animated ? animation : 'none',
     duration: clamp(raw.duration, 4, 120, 30),
   };
+}
+
+/*
+ * A shooting star only streaks (`shoot`) or stays still; any other motion would
+ * replace its rotation. `shoot` hides a layer between streaks, so it is for
+ * shooting stars only: elsewhere it would leave a pattern invisible.
+ */
+function fitAnimation(kind: BackdropLayer['kind'], animation: BackdropLayer['animation']): BackdropLayer['animation'] {
+  if (kind === 'meteor') return animation === 'shoot' ? 'shoot' : 'none';
+
+  return animation === 'shoot' ? 'none' : animation;
 }
 
 function sky(value: unknown): CustomBackdrop['sky'] {

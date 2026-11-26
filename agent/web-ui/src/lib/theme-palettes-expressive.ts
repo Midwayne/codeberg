@@ -10,6 +10,9 @@ export const EXPRESSIVE_THEMES = [
     heading: 'serif',
     radius: '0.75rem',
     backdrop: 'paper',
+    parts: {
+      bubble: { background: '#efe6d6', border: '#1f1e1d14' },
+    },
     palette: {
       background: '#faf9f5',
       foreground: '#29261b',
@@ -59,6 +62,12 @@ export const EXPRESSIVE_THEMES = [
     radius: '0.125rem',
     backdrop: 'scanlines',
     transition: 'wipe',
+    code: 'mono',
+    parts: {
+      bubble: { background: '#0f2a14', text: '#b8f5b0', border: '#2a5a2a', radius: 0.125 },
+      code: { background: '#050805', border: '#1f3a1f', radius: 0.125 },
+      composer: { border: '#2a5a2a', radius: 0.125 },
+    },
     palette: {
       background: '#0c0f0c',
       foreground: '#b8f5b0',

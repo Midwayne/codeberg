@@ -14,9 +14,33 @@ export interface Palette {
   accent?: string;
   input?: string;
   ring?: string;
+  /** Link text; defaults to primary. */
+  link?: string;
 }
 
-export type ThemeFont = 'sans' | 'serif' | 'mono';
+export const THEME_FONTS = ['sans', 'serif', 'mono', 'rounded', 'slab'] as const;
+
+export type ThemeFont = (typeof THEME_FONTS)[number];
+
+export const CODE_FONTS = ['mono', 'typewriter', 'narrow'] as const;
+
+export type CodeFont = (typeof CODE_FONTS)[number];
+
+/** The parts of the app a theme can style on their own. */
+export const THEME_PARTS = ['header', 'sidebar', 'composer', 'bubble', 'code'] as const;
+
+export type ThemePart = (typeof THEME_PARTS)[number];
+
+/** One part's look; anything left out follows the palette. */
+export interface PartStyle {
+  background?: string;
+  text?: string;
+  border?: string;
+  /** How solid the part is over a backdrop, 0.3 (glassy) to 1 (solid). */
+  glass?: number;
+  /** Corner radius in rem, for the composer, bubble, and code parts. */
+  radius?: number;
+}
 
 /** Built-in scenes drawn by backdrop.css. */
 export type BackdropScene = 'halo' | 'dusk' | 'paper' | 'scanlines';
@@ -64,6 +88,12 @@ export interface Theme {
   heading?: ThemeFont;
   /** Typeface for body text; defaults to sans. */
   body?: ThemeFont;
+  /** Typeface for code; defaults to mono. */
+  code?: CodeFont;
+  /** Text size relative to the default, 0.9 to 1.15. */
+  textScale?: number;
+  /** Per-part styles for the header, sidebar, composer, message bubbles, and code blocks. */
+  parts?: Partial<Record<ThemePart, PartStyle>>;
   /** Base corner radius; defaults to 0.625rem. */
   radius?: string;
   /** Scene drawn behind the conversation; none when omitted. */

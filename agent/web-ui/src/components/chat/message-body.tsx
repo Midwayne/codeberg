@@ -116,7 +116,7 @@ export function MessageBody({ isUser, message, firstActivityIndex, activityParts
     <div
       className={cn(
         'min-w-0 max-w-full',
-        isUser ? 'rounded-2xl bg-muted px-4 py-2.5 text-sm whitespace-pre-wrap [overflow-wrap:anywhere]' : 'w-full space-y-2',
+        isUser ? 'user-bubble rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap [overflow-wrap:anywhere]' : 'w-full space-y-2',
       )}
     >
       {isUser ? (

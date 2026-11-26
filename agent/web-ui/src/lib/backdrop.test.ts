@@ -1,19 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { applyBackdrop, BACKDROP_STORAGE_KEY, loadBackdropEnabled, saveBackdropEnabled } from './backdrop';
+import { applyBackdrop, BACKDROP_STORAGE_KEY, loadBackdropEnabled, resetBackdropChoice, saveBackdropEnabled } from './backdrop';
 import { applyTheme } from './themes';
 
 describe('theme backdrops', () => {
   const root = {
     dataset: {} as Record<string, string>,
     classList: { toggle: vi.fn() },
-    style: { setProperty: vi.fn(), colorScheme: '' },
+    style: { setProperty: vi.fn(), removeProperty: vi.fn(), colorScheme: '' },
   };
   let saved: string | null;
 
   beforeEach(() => {
     saved = null;
     root.dataset = {};
+    resetBackdropChoice();
     vi.stubGlobal('document', { documentElement: root });
     vi.stubGlobal('localStorage', {
       getItem: vi.fn(() => saved),
@@ -49,17 +50,21 @@ describe('theme backdrops', () => {
     expect(root.dataset.backdrop).toBe('halo');
   });
 
-  it('shows backdrops when browser storage is blocked', () => {
+  it('shows backdrops when browser storage is blocked, and keeps turning them off for the page', () => {
     vi.stubGlobal('localStorage', {
       getItem: () => { throw new Error('storage blocked'); },
       setItem: () => { throw new Error('storage blocked'); },
     });
 
     expect(loadBackdropEnabled()).toBe(true);
-    expect(() => saveBackdropEnabled(false)).not.toThrow();
 
     applyTheme('midnight');
 
     expect(root.dataset.backdrop).toBe('custom');
+    expect(() => saveBackdropEnabled(false)).not.toThrow();
+
+    applyTheme('aurora');
+
+    expect(root.dataset.backdrop).toBeUndefined();
   });
 });

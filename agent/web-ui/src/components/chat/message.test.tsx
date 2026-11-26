@@ -20,7 +20,7 @@ it('shows scheduled continuations as neutral markers with collapsed task details
 
   expect(html).toContain(message.parts[0]!.type === 'text' ? message.parts[0]!.text : '');
   expect(html).not.toMatch(/<details[^>]*\bopen(?:=|\s|>)/);
-  expect(html).not.toContain('bg-muted');
+  expect(html).not.toContain('user-bubble');
   expect(html).not.toContain('items-end');
   expect(html).not.toContain('Branch from here');
 });
@@ -29,7 +29,7 @@ it('keeps human-authored messages as user bubbles even when they mention resumin
   const message: UIMessage = { id: 'human', role: 'user', parts: [{ type: 'text', text: 'Resuming scheduled task…' }] };
   const html = renderToStaticMarkup(<Message message={message} onBranch={() => undefined} />);
 
-  expect(html).toContain('bg-muted');
+  expect(html).toContain('user-bubble');
   expect(html).toContain('items-end');
   expect(html).toContain('Branch from here');
   expect(html).not.toContain('Task details');

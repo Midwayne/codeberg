@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { saveCustomTheme } from '../lib/custom-themes';
+import { commitTheme } from '../lib/theme-commit';
 import { useProjectApi } from '../lib/project-api';
 import { generateTheme } from '../lib/theme-generate';
 import { changeTheme } from '../lib/theme-transition';
@@ -19,8 +20,10 @@ export function useThemeStudio(selected: Theme, editing?: CustomTheme) {
   const [previous, setPrevious] = useState<CustomTheme>();
   const { pending, error, setError, run, cancel } = useThemeRequest();
 
-  // A different theme starts a fresh edit with nothing to undo.
+  // A different theme (or none, after a delete) starts fresh: the running
+  // request belonged to the old one, and there is nothing to undo.
   useEffect(() => {
+    cancel();
     setPrevious(undefined);
     setError(undefined);
   }, [editing?.id]);
@@ -33,9 +36,9 @@ export function useThemeStudio(selected: Theme, editing?: CustomTheme) {
       const base = editing ?? (refine ? selected : undefined);
       const theme = await generateTheme(fetch, { prompt: text, animated, base, id: editing?.id }, signal);
 
+      if (!commitTheme(theme, editing)) return;
+
       setPrevious(editing);
-      saveCustomTheme(theme);
-      changeTheme(theme.id);
       setPrompt('');
     });
   }

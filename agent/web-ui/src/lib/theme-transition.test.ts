@@ -6,7 +6,7 @@ describe('theme transitions', () => {
   const root = {
     dataset: {} as Record<string, string>,
     classList: { add: vi.fn(), remove: vi.fn(), toggle: vi.fn() },
-    style: { setProperty: vi.fn(), colorScheme: '' },
+    style: { setProperty: vi.fn(), removeProperty: vi.fn(), colorScheme: '' },
   };
   let reduce = false;
 

@@ -22,10 +22,13 @@ export function themeForPrompt(theme: Theme) {
     colorScheme: theme.colorScheme,
     heading: theme.heading ?? 'sans',
     body: theme.body ?? 'sans',
+    code: theme.code ?? 'mono',
+    textScale: theme.textScale ?? 1,
     radius: Number.parseFloat(theme.radius ?? '0.625'),
     transition: theme.transition ?? 'reveal',
     palette: theme.palette,
     backdrop: typeof theme.backdrop === 'object' ? theme.backdrop : null,
+    parts: theme.parts ?? null,
   };
 }
 

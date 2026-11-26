@@ -7,7 +7,7 @@ describe('themes', () => {
   const root = {
     dataset: {} as Record<string, string>,
     classList: { toggle: vi.fn() },
-    style: { setProperty: (name: string, value: string) => properties.set(name, value), colorScheme: '' },
+    style: { setProperty: (name: string, value: string) => properties.set(name, value), removeProperty: (name: string) => properties.delete(name), colorScheme: '' },
   };
   let saved: string | null;
 
@@ -112,9 +112,30 @@ describe('themes', () => {
     for (const theme of THEMES) {
       properties.clear();
       applyTheme(theme.id);
-      expect(properties.size).toBe(22);
+      // 20 palette, 5 style, and 4 per part; a part radius adds one more each.
+      const radii = [...properties.keys()].filter((key) => key.endsWith('-radius') && key !== '--radius');
+      expect(properties.size - radii.length).toBe(45);
       expect([...properties.values()].every(Boolean)).toBe(true);
       expect(root.style.colorScheme).toBe(theme.colorScheme);
     }
   });
+
+  it('applies part styles and opts in to part radii only when a theme sets them', () => {
+    applyTheme('graphite');
+
+    expect(properties.get('--bubble-bg')).toBe('var(--muted)');
+    expect(properties.get('--header-glass')).toBe('72%');
+    expect(root.dataset.partRadius).toBe('');
+
+    applyTheme('phosphor');
+
+    expect(properties.get('--bubble-radius')).toBe('0.125rem');
+    expect(root.dataset.partRadius).toBe('bubble code composer');
+
+    applyTheme('midnight');
+
+    expect(properties.has('--bubble-radius')).toBe(false);
+    expect(root.dataset.partRadius).toBe('');
+  });
 });
+

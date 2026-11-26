@@ -115,11 +115,25 @@ Choose **Settings → Appearance**. Graphite is the default.
 | Ember | Serif headings and a warm glow behind the composer |
 | Phosphor | Monospace text, square corners, and terminal scanlines |
 
-A backdrop is the scene drawn behind the sidebar and the conversation; the sidebar and composer sit over it as glass. Behind messages and the composer, moving scenes fade to a faint trace so they never compete with text; they show fully in the margins on either side. On narrow windows the whole scene stays faint. Turn off **Show backdrop** under the theme list to keep a theme's colors without its scene. Backdrops stop moving, and shooting stars are hidden, when your system asks for reduced motion.
+A backdrop is the scene drawn behind the header, sidebar, and conversation; they sit over it as glass. Behind messages and the composer, moving scenes fade to a faint trace so they never compete with text; they show fully in the margins on either side. On narrow windows the whole scene stays faint. Turn off **Show backdrop** under the theme list to keep a theme's colors without its scene. Backdrops stop moving, and shooting stars are hidden, when your system asks for reduced motion.
 
 Themes use fonts already on your device, so they look slightly different between operating systems.
 
 Themes apply immediately to chat, settings, and docs. They are saved in this browser's local storage. If storage is blocked, changes may last only until reload. Built-in themes work before model or project setup.
+
+### What a theme can change
+
+| Area | What changes |
+|------|--------------|
+| Colors | Background, text, buttons, links, borders, and errors |
+| Fonts | Headings, body text, and code, from fonts already on your device |
+| Text size | 90% to 115% of the default |
+| Header, sidebar, composer | Color, text, border, and how much of the backdrop shows through |
+| Your messages, code blocks | Color, text, border, and corner shape |
+| Backdrop | A scene behind the app, still or animated |
+| Transition | How the app changes into the theme |
+
+Describe any of these when you create or change a theme, for example `square code blocks and a glassier sidebar`.
 
 ### Create a theme
 

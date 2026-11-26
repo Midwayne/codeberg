@@ -2,12 +2,17 @@ import type { Theme } from './theme-types';
 
 export const BACKDROP_STORAGE_KEY = 'codeberg.backdrop';
 
-/* Backdrops are on unless this browser turned them off. */
+/* The choice made on this page, used when browser storage cannot keep it. */
+let pageChoice: boolean | undefined;
+
+/* Backdrops are on unless this browser, or this page, turned them off. */
 export function loadBackdropEnabled(): boolean {
   try {
-    return localStorage.getItem(BACKDROP_STORAGE_KEY) !== 'off';
+    const stored = localStorage.getItem(BACKDROP_STORAGE_KEY);
+
+    return stored === null ? (pageChoice ?? true) : stored !== 'off';
   } catch {
-    return true;
+    return pageChoice ?? true;
   }
 }
 
@@ -26,9 +31,16 @@ export function applyBackdrop(backdrop: Theme['backdrop'], enabled = loadBackdro
 }
 
 export function saveBackdropEnabled(enabled: boolean): void {
+  pageChoice = enabled;
+
   try {
     localStorage.setItem(BACKDROP_STORAGE_KEY, enabled ? 'on' : 'off');
   } catch {
-    /* Keep the choice for this page when browser storage is unavailable. */
+    /* pageChoice keeps the choice for this page when browser storage is unavailable. */
   }
+}
+
+/** Test hook: forget this page's choice. */
+export function resetBackdropChoice(): void {
+  pageChoice = undefined;
 }

@@ -1,16 +1,12 @@
 import { applyBackdrop } from './backdrop';
 import { customThemes } from './custom-themes';
-import { DEFAULT_THEME_ID, type Palette, type Theme, type ThemeFont, THEMES, type ThemeId } from './theme-palettes';
+import { DEFAULT_THEME_ID, type Theme, THEMES, type ThemeId } from './theme-palettes';
+import { paletteTokens, partTokens, radiusParts, styleTokens } from './theme-tokens';
+import { THEME_PARTS } from './theme-types';
+
+export { FONT_STACKS } from './theme-fonts';
 
 export const THEME_STORAGE_KEY = 'codeberg.theme';
-
-export const FONT_STACKS: Record<ThemeFont, string> = {
-  sans: 'ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"',
-  serif: 'ui-serif, "Iowan Old Style", "Palatino Linotype", Georgia, Cambria, serif',
-  mono: 'ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace',
-};
-
-const DEFAULT_RADIUS = '0.625rem';
 
 /** A built-in or saved theme by id; unknown ids fall back to the default. */
 export function findTheme(id: string | null | undefined): Theme & { id: ThemeId } {
@@ -31,44 +27,12 @@ export function subscribeTheme(listener: () => void): () => void {
   return () => themeListeners.delete(listener);
 }
 
-function styleTokens(theme: Theme) {
-  return {
-    radius: theme.radius ?? DEFAULT_RADIUS,
-    'font-body': FONT_STACKS[theme.body ?? 'sans'],
-    'font-heading': FONT_STACKS[theme.heading ?? 'sans'],
-  };
-}
-
 export function loadTheme(): ThemeId {
   try {
     return findTheme(localStorage.getItem(THEME_STORAGE_KEY)).id;
   } catch {
     return DEFAULT_THEME_ID;
   }
-}
-
-function themeTokens(palette: Palette) {
-  return {
-    background: palette.background,
-    foreground: palette.foreground,
-    card: palette.surface,
-    'card-foreground': palette.foreground,
-    popover: palette.popover ?? palette.surface,
-    'popover-foreground': palette.foreground,
-    primary: palette.primary,
-    'primary-foreground': palette.primaryForeground ?? palette.background,
-    secondary: palette.raised,
-    'secondary-foreground': palette.secondaryForeground ?? palette.foreground,
-    muted: palette.raised,
-    'muted-foreground': palette.mutedForeground,
-    accent: palette.accent ?? palette.raised,
-    'accent-foreground': palette.secondaryForeground ?? palette.foreground,
-    destructive: palette.destructive,
-    'destructive-foreground': palette.destructiveForeground ?? '#000000',
-    border: palette.border,
-    input: palette.input ?? palette.border,
-    ring: palette.ring ?? palette.primary,
-  };
 }
 
 export function applyTheme(id: ThemeId): void {
@@ -78,15 +42,25 @@ export function applyTheme(id: ThemeId): void {
   root.classList.toggle('dark', theme.colorScheme === 'dark');
   root.style.colorScheme = theme.colorScheme;
   applyBackdrop(theme.backdrop);
+  applyTokens(root, theme);
 
-  const tokens = { ...themeTokens(theme.palette), ...styleTokens(theme) };
+  activeId = theme.id;
+  for (const listener of themeListeners) listener();
+}
+
+/* Sets every token a theme defines and clears part radii it no longer sets. */
+function applyTokens(root: HTMLElement, theme: Theme): void {
+  const tokens = { ...paletteTokens(theme.palette), ...styleTokens(theme), ...partTokens(theme) };
+
+  for (const part of THEME_PARTS) {
+    if (!(`${part}-radius` in tokens)) root.style.removeProperty(`--${part}-radius`);
+  }
 
   for (const [token, value] of Object.entries(tokens)) {
     root.style.setProperty(`--${token}`, value);
   }
 
-  activeId = theme.id;
-  for (const listener of themeListeners) listener();
+  root.dataset.partRadius = radiusParts(theme);
 }
 
 export function setTheme(id: ThemeId): void {

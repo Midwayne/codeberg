@@ -56,4 +56,39 @@ describe('generated theme validation', () => {
     expect(typeof animated === 'object' && animated.layers[0]).toMatchObject({ opacity: 0.5, size: 150, duration: 4, animation: 'drift' });
     expect(typeof still === 'object' && still.layers.every((layer) => layer.animation === 'none')).toBe(true);
   });
+
+  it('keeps shooting-star motion on shooting stars only', () => {
+    const backdrop = normalizeTheme({
+      palette: { background: '#000000' },
+      backdrop: { layers: [
+        { kind: 'stars', color: '#ffffff', animation: 'shoot' },
+        { kind: 'meteor', color: '#ffffff', animation: 'drift' },
+        { kind: 'meteor', color: '#ffffff', animation: 'shoot' },
+      ] },
+    }, options).backdrop;
+
+    expect(typeof backdrop === 'object' && backdrop.layers.map((layer) => layer.animation)).toEqual(['none', 'none', 'shoot']);
+  });
+
+  it('styles parts on their own with readable text, and drops what does not apply', () => {
+    const theme = normalizeTheme({
+      code: 'typewriter',
+      textScale: 3,
+      palette: { background: '#101010', foreground: '#eeeeee' },
+      parts: {
+        header: { background: '#f5f5f5', glass: 0.1, radius: 1 },
+        bubble: { background: '#2244aa', text: '#2a4ab0', radius: 1.25 },
+        footer: { background: '#ff0000' },
+      },
+    }, options);
+
+    expect(theme).toMatchObject({ code: 'typewriter', textScale: 1.15 });
+    expect(Object.keys(theme.parts ?? {})).toEqual(['header', 'bubble']);
+    expect(theme.parts?.header).toMatchObject({ glass: 0.3 });
+    expect(theme.parts?.header?.radius).toBeUndefined();
+    expect(contrast(theme.parts!.header!.text!, '#f5f5f5')).toBeGreaterThanOrEqual(4.5);
+    expect(theme.parts?.bubble?.radius).toBe(1.25);
+    expect(contrast(theme.parts!.bubble!.text!, '#2244aa')).toBeGreaterThanOrEqual(4.5);
+  });
 });
+
