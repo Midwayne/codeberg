@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { applyTheme, loadTheme, setTheme, THEMES, THEME_STORAGE_KEY } from './themes';
+import { applyTheme, FONT_STACKS, loadTheme, setTheme, THEMES, THEME_STORAGE_KEY } from './themes';
 
 describe('themes', () => {
   const properties = new Map<string, string>();
@@ -75,6 +75,24 @@ describe('themes', () => {
     expect(properties.get('--popover')).toBe(properties.get('--card'));
   });
 
+  it('applies each theme’s typefaces and corner radius, resetting them for plain themes', () => {
+    applyTheme('phosphor');
+
+    expect(properties.get('--font-body')).toBe(FONT_STACKS.mono);
+    expect(properties.get('--font-heading')).toBe(FONT_STACKS.mono);
+    expect(properties.get('--radius')).toBe('0.125rem');
+
+    applyTheme('parchment');
+
+    expect(properties.get('--font-body')).toBe(FONT_STACKS.sans);
+    expect(properties.get('--font-heading')).toBe(FONT_STACKS.serif);
+
+    applyTheme('dark');
+
+    expect(properties.get('--font-heading')).toBe(FONT_STACKS.sans);
+    expect(properties.get('--radius')).toBe('0.625rem');
+  });
+
   it('still applies selections when browser storage is blocked', () => {
     vi.stubGlobal('localStorage', {
       getItem: () => { throw new Error('storage blocked'); },
@@ -96,7 +114,7 @@ describe('themes', () => {
     for (const theme of THEMES) {
       properties.clear();
       applyTheme(theme.id);
-      expect(properties.size).toBe(19);
+      expect(properties.size).toBe(22);
       expect([...properties.values()].every(Boolean)).toBe(true);
       expect(root.style.colorScheme).toBe(theme.colorScheme);
     }

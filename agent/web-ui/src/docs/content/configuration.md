@@ -100,7 +100,16 @@ Upgraded workspaces may retain home-level data until migration completes. Use Se
 
 ## Appearance
 
-Choose **Settings → Appearance**. Dark is the default; Light, Kanagawa, Tokyo Night, Catppuccin Mocha, Dracula, Nord, and Gruvbox are available.
+Choose **Settings → Appearance**. Dark is the default.
+
+| Themes | Style |
+|--------|-------|
+| Dark, Light, Kanagawa, Tokyo Night, Catppuccin Mocha, Dracula, Nord, Gruvbox | Colors only |
+| Parchment, Ember, Rosé Pine | Serif headings and rounder corners |
+| Everforest, Solarized Light | Softer colors and corners |
+| Phosphor | Monospace text and square corners |
+
+Themes use fonts already on your device, so they look slightly different between operating systems.
 
 Themes apply immediately to chat, settings, and docs. They are saved in this browser's local storage. If storage is blocked, changes may last only until reload. Appearance works before model or project setup.
 

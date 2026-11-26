@@ -8,10 +8,10 @@ describe('theme picker', () => {
     const html = renderToStaticMarkup(<ThemePicker value="kanagawa" onChange={() => undefined} />);
     expect(html).toContain('<fieldset');
     expect(html).toContain('<legend');
-    for (const name of ['Dark', 'Light', 'Kanagawa', 'Tokyo Night', 'Catppuccin Mocha', 'Dracula', 'Nord', 'Gruvbox']) {
+    for (const name of ['Dark', 'Light', 'Kanagawa', 'Tokyo Night', 'Catppuccin Mocha', 'Dracula', 'Nord', 'Gruvbox', 'Parchment', 'Ember', 'Rosé Pine', 'Everforest', 'Solarized Light', 'Phosphor']) {
       expect(html).toContain(`aria-label="${name}"`);
     }
-    expect(html.match(/type="radio"/g)).toHaveLength(8);
+    expect(html.match(/type="radio"/g)).toHaveLength(14);
     expect(html.match(/checked=""/g)).toHaveLength(1);
     expect(html).toMatch(/aria-label="Kanagawa"[^>]*checked=""/);
   });

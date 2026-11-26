@@ -12,9 +12,11 @@ are in the git history.
 - The agent can check its context usage and limits, keep tool results it still needs, and drop ones it no longer does; it gets a short notice as the context fills.
 - The agent keeps a working list of findings and constraints in each chat that survives history summaries; it can search and correct the list.
 - Start a message with `/dumb` to get a plain-language answer for a non-technical reader such as a project manager.
+- New Parchment, Ember, Rosé Pine, Everforest, Solarized Light, and Phosphor themes, with their own fonts and corner shapes.
 
 ### Changed
 
+- A new chat now shows just a greeting and the composer, centered, without starter prompts.
 - The agent draws on the canvas only for messages you send with **Diagram** turned on in the composer, which saves tokens on every other message.
 - Automatic evaluations are scored by the chat model unless you choose a judge, instead of by the learning model.
 - Tool results from the task the agent is working on now stay in its context longer; results from earlier turns are cleared first.

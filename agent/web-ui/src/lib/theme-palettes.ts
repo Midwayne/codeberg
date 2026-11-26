@@ -1,3 +1,5 @@
+import { EXPRESSIVE_THEMES } from './theme-palettes-expressive';
+
 export interface Palette {
   background: string;
   foreground: string;
@@ -16,15 +18,23 @@ export interface Palette {
   ring?: string;
 }
 
+export type ThemeFont = 'sans' | 'serif' | 'mono';
+
 export interface Theme {
   id: string;
   label: string;
   description: string;
   colorScheme: 'dark' | 'light';
   palette: Palette;
+  /** Typeface for headings; defaults to sans. */
+  heading?: ThemeFont;
+  /** Typeface for body text; defaults to sans. */
+  body?: ThemeFont;
+  /** Base corner radius; defaults to 0.625rem. */
+  radius?: string;
 }
 
-export const THEMES = [
+const BASE_THEMES = [
   {
     id: 'dark',
     label: 'Dark',
@@ -166,5 +176,7 @@ export const THEMES = [
     },
   },
 ] as const satisfies readonly Theme[];
+
+export const THEMES = [...BASE_THEMES, ...EXPRESSIVE_THEMES] as const;
 
 export type ThemeId = (typeof THEMES)[number]['id'];

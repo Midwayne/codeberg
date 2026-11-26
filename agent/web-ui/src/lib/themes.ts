@@ -1,9 +1,25 @@
-import { type Palette, THEMES, type ThemeId } from './theme-palettes';
+import { type Palette, type Theme, type ThemeFont, THEMES, type ThemeId } from './theme-palettes';
 
 export const THEME_STORAGE_KEY = 'codeberg.theme';
 
-export function findTheme(id: string | null | undefined) {
+export const FONT_STACKS: Record<ThemeFont, string> = {
+  sans: 'ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"',
+  serif: 'ui-serif, "Iowan Old Style", "Palatino Linotype", Georgia, Cambria, serif',
+  mono: 'ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace',
+};
+
+const DEFAULT_RADIUS = '0.625rem';
+
+export function findTheme(id: string | null | undefined): Theme & { id: ThemeId } {
   return THEMES.find((theme) => theme.id === id) ?? THEMES[0];
+}
+
+function styleTokens(theme: Theme) {
+  return {
+    radius: theme.radius ?? DEFAULT_RADIUS,
+    'font-body': FONT_STACKS[theme.body ?? 'sans'],
+    'font-heading': FONT_STACKS[theme.heading ?? 'sans'],
+  };
 }
 
 export function loadTheme(): ThemeId {
@@ -44,7 +60,9 @@ export function applyTheme(id: ThemeId): void {
   root.dataset.theme = theme.id;
   root.classList.toggle('dark', theme.colorScheme === 'dark');
   root.style.colorScheme = theme.colorScheme;
-  for (const [token, value] of Object.entries(themeTokens(theme.palette))) {
+  const tokens = { ...themeTokens(theme.palette), ...styleTokens(theme) };
+
+  for (const [token, value] of Object.entries(tokens)) {
     root.style.setProperty(`--${token}`, value);
   }
 }
