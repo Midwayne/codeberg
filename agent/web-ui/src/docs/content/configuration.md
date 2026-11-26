@@ -105,9 +105,15 @@ Choose **Settings → Appearance**. Dark is the default.
 | Themes | Style |
 |--------|-------|
 | Dark, Light, Kanagawa, Tokyo Night, Catppuccin Mocha, Dracula, Nord, Gruvbox | Colors only |
-| Parchment, Ember, Rosé Pine | Serif headings and rounder corners |
+| Parchment | Serif headings and a faint paper grain behind the chat |
+| Ember | Serif headings and a warm glow behind the composer |
+| Rosé Pine | Serif headings and rounder corners |
 | Everforest, Solarized Light | Softer colors and corners |
-| Phosphor | Monospace text and square corners |
+| Phosphor | Monospace text, square corners, and terminal scanlines |
+| Midnight | A night sky with slowly twinkling stars |
+| Aurora | Northern lights drifting across the top of the chat |
+
+A backdrop is the scene drawn behind the conversation; the composer floats over it as frosted glass. Turn off **Show backdrop** under the theme list to keep a theme's colors without its scene. Backdrops stop moving when your system asks for reduced motion.
 
 Themes use fonts already on your device, so they look slightly different between operating systems.
 

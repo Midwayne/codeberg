@@ -36,7 +36,7 @@ export function PromptInputView(state: PromptInputViewProps) {
   return (
     <div>
       <PromptFilePreviews files={state.files} />
-      <div className="relative rounded-[1.75rem] border border-input bg-card px-4 py-2 shadow-sm transition-colors focus-within:border-ring sm:rounded-[2rem] sm:px-5 sm:py-3 md:rounded-2xl md:px-3 md:py-2">
+      <div className="prompt-card relative rounded-[1.75rem] border border-input bg-card px-4 py-2 shadow-sm transition-colors focus-within:border-ring sm:rounded-[2rem] sm:px-5 sm:py-3 md:rounded-2xl md:px-3 md:py-2">
         {state.fileError && (
           <p role="alert" className="px-2 pb-2 text-xs text-destructive">
             {state.fileError}

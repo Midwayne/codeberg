@@ -1,0 +1,50 @@
+import type { Theme } from './theme-palettes';
+
+/* Themes built around a scene drawn behind the conversation. */
+export const SCENE_THEMES = [
+  {
+    id: 'midnight',
+    label: 'Midnight',
+    description: 'Night sky · twinkling stars',
+    colorScheme: 'dark',
+    heading: 'serif',
+    radius: '1rem',
+    backdrop: 'night-sky',
+    palette: {
+      background: '#0b1020',
+      foreground: '#e6e9f5',
+      surface: '#0f1528',
+      popover: '#161d36',
+      raised: '#1a2140',
+      mutedForeground: '#9aa3c7',
+      primary: '#8fb4ff',
+      primaryForeground: '#0b1020',
+      destructive: '#ff7a8a',
+      border: '#ffffff14',
+      input: '#ffffff24',
+      ring: '#7d89b8',
+    },
+  },
+  {
+    id: 'aurora',
+    label: 'Aurora',
+    description: 'Northern lights · slow drift',
+    colorScheme: 'dark',
+    radius: '1rem',
+    backdrop: 'aurora',
+    palette: {
+      background: '#0a1416',
+      foreground: '#dcefe9',
+      surface: '#0d1a1c',
+      popover: '#132426',
+      raised: '#16292b',
+      mutedForeground: '#8fb5ab',
+      primary: '#5eead4',
+      primaryForeground: '#062521',
+      destructive: '#fb7185',
+      border: '#ffffff14',
+      input: '#ffffff24',
+      ring: '#6fa79b',
+    },
+  },
+] as const satisfies readonly Theme[];

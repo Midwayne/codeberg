@@ -1,6 +1,7 @@
 import { Check } from 'lucide-react';
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 
+import { applyBackdrop, loadBackdropEnabled, saveBackdropEnabled } from '../lib/backdrop';
 import { FONT_STACKS, findTheme, setTheme } from '../lib/themes';
 import { THEMES, type Theme, type ThemeId } from '../lib/theme-palettes';
 
@@ -23,7 +24,36 @@ export function AppearancePanel() {
         </p>
       </div>
       <ThemePicker value={theme} onChange={changeTheme} />
+      <BackdropToggle theme={theme} />
     </section>
+  );
+}
+
+/* Turns theme scenes off for readability or focus; the colors stay. */
+export function BackdropToggle({ theme }: { theme: ThemeId }) {
+  const [enabled, setEnabled] = useState(loadBackdropEnabled);
+
+  function change(next: boolean) {
+    saveBackdropEnabled(next);
+    applyBackdrop(findTheme(theme).backdrop, next);
+    setEnabled(next);
+  }
+
+  return (
+    <label className="flex items-start gap-3 text-sm">
+      <input
+        type="checkbox"
+        checked={enabled}
+        onChange={(event) => change(event.currentTarget.checked)}
+        className="mt-0.5 size-4 accent-primary"
+      />
+      <span>
+        <span className="font-medium">Show backdrop</span>
+        <span className="mt-0.5 block text-xs text-muted-foreground">
+          Draw the theme's scene behind the conversation, such as stars or northern lights.
+        </span>
+      </span>
+    </label>
   );
 }
 
@@ -70,9 +100,16 @@ function ThemePreview({ theme }: { theme: Theme }) {
   return (
     <span
       aria-hidden="true"
-      className="flex h-24 border-b p-3"
+      className="relative isolate flex h-24 border-b p-3"
       style={{ backgroundColor: palette.background, borderColor: palette.border }}
     >
+      {theme.backdrop && (
+        <span
+          className="backdrop-preview"
+          data-scene={theme.backdrop}
+          style={{ '--background': palette.background } as CSSProperties}
+        />
+      )}
       <span className="mr-3 w-5 shrink-0 rounded" style={{ backgroundColor: palette.surface }} />
       <span className="flex flex-1 flex-col justify-center gap-2">
         <span

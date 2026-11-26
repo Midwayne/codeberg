@@ -8,6 +8,7 @@ import '@/index.css';
 import '@/motion.css';
 import '@/loading.css';
 import '@/markdown.css';
+import '@/backdrop.css';
 
 applyTheme(loadTheme());
 

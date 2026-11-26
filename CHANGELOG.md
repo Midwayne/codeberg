@@ -13,6 +13,7 @@ are in the git history.
 - The agent keeps a working list of findings and constraints in each chat that survives history summaries; it can search and correct the list.
 - Start a message with `/dumb` to get a plain-language answer for a non-technical reader such as a project manager.
 - New Parchment, Ember, Rosé Pine, Everforest, Solarized Light, and Phosphor themes, with their own fonts and corner shapes.
+- Theme backdrops: scenes behind the conversation, such as the night sky in the new Midnight theme and northern lights in Aurora. Turn them off with **Show backdrop** in **Settings → Appearance**.
 
 ### Changed
 

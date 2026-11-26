@@ -138,7 +138,7 @@ function ChatComposer({ state }: ChatComposerProps) {
   const { enabled: canvasEnabled } = useCanvasSettings();
 
   return (
-    <section aria-label="Message composer" className="shrink-0 bg-background">
+    <section aria-label="Message composer" className="chat-composer shrink-0 bg-background">
       <div className="mx-auto max-w-4xl px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-8">
         <QueuedFollowUps queue={state.queue} busy={state.busy} failed={state.status === 'error'} />
         <PromptInput

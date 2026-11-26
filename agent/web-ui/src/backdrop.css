@@ -1,0 +1,138 @@
+/*
+ * Theme backdrops: a scene drawn behind the conversation. The root element's
+ * data-backdrop names the scene; previews in Settings name it with data-scene.
+ * Scenes stay dim so message text keeps its contrast.
+ */
+.chat-backdrop {
+  display: none;
+}
+
+:root[data-backdrop] .chat-backdrop,
+.backdrop-preview {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  display: block;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.chat-backdrop::before,
+.chat-backdrop::after,
+.backdrop-preview::before,
+.backdrop-preview::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+/* The composer floats over the scene as frosted glass. */
+:root[data-backdrop] .chat-composer {
+  background-color: transparent;
+}
+
+:root[data-backdrop] .prompt-card {
+  background-color: color-mix(in srgb, var(--card) 80%, transparent);
+  backdrop-filter: blur(14px);
+}
+
+/* Night sky: a deep gradient with two layers of slowly twinkling stars. */
+:root[data-backdrop='night-sky'] .chat-backdrop,
+.backdrop-preview[data-scene='night-sky'] {
+  background:
+    radial-gradient(ellipse 60% 40% at 85% 0%, rgb(143 180 255 / 16%), transparent 70%),
+    linear-gradient(to bottom, #060a18, var(--background) 85%);
+}
+
+:root[data-backdrop='night-sky'] .chat-backdrop::before,
+.backdrop-preview[data-scene='night-sky']::before {
+  background-image:
+    radial-gradient(1px 1px at 20px 30px, #ffffffcc, transparent),
+    radial-gradient(1px 1px at 140px 80px, #ffffffaa, transparent),
+    radial-gradient(1.5px 1.5px at 90px 160px, #ffffffbb, transparent),
+    radial-gradient(1px 1px at 210px 210px, #ffffff99, transparent);
+  background-size: 263px 241px;
+  mask-image: linear-gradient(to bottom, black 30%, transparent 90%);
+  animation: backdrop-twinkle 7s ease-in-out infinite alternate;
+}
+
+:root[data-backdrop='night-sky'] .chat-backdrop::after,
+.backdrop-preview[data-scene='night-sky']::after {
+  background-image:
+    radial-gradient(1px 1px at 60px 110px, #cdd9ffaa, transparent),
+    radial-gradient(1px 1px at 300px 40px, #ffffff88, transparent),
+    radial-gradient(1.5px 1.5px at 240px 300px, #ffffffaa, transparent);
+  background-size: 397px 353px;
+  mask-image: linear-gradient(to bottom, black 20%, transparent 80%);
+  animation: backdrop-twinkle 11s ease-in-out -4s infinite alternate;
+}
+
+/* Aurora: soft bands of green and violet light drifting across the top. */
+:root[data-backdrop='aurora'] .chat-backdrop,
+.backdrop-preview[data-scene='aurora'] {
+  background: linear-gradient(to bottom, #061012, var(--background) 70%);
+}
+
+:root[data-backdrop='aurora'] .chat-backdrop::before,
+.backdrop-preview[data-scene='aurora']::before {
+  inset: -20% -10% 40%;
+  background:
+    radial-gradient(ellipse 40% 50% at 30% 40%, rgb(94 234 212 / 22%), transparent 70%),
+    radial-gradient(ellipse 35% 45% at 65% 30%, rgb(167 139 250 / 18%), transparent 70%),
+    radial-gradient(ellipse 30% 40% at 85% 55%, rgb(74 222 128 / 14%), transparent 70%);
+  filter: blur(30px);
+  animation: backdrop-drift 40s ease-in-out infinite alternate;
+}
+
+/* Dusk: a low warm glow rising from behind the composer. */
+:root[data-backdrop='dusk'] .chat-backdrop,
+.backdrop-preview[data-scene='dusk'] {
+  background:
+    radial-gradient(ellipse 70% 45% at 50% 105%, rgb(217 119 87 / 20%), transparent 70%),
+    radial-gradient(ellipse 50% 30% at 20% 0%, rgb(242 239 230 / 4%), transparent 70%);
+}
+
+/* Paper: a faint fibrous grain. */
+:root[data-backdrop='paper'] .chat-backdrop::before,
+.backdrop-preview[data-scene='paper']::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.28 0 0 0 0 0.18 0 0 0 0.5 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.35;
+}
+
+/* Scanlines: a CRT screen with fine lines and darkened edges. */
+:root[data-backdrop='scanlines'] .chat-backdrop::before,
+.backdrop-preview[data-scene='scanlines']::before {
+  background: repeating-linear-gradient(to bottom, rgb(78 240 138 / 4%) 0 1px, transparent 1px 3px);
+}
+
+:root[data-backdrop='scanlines'] .chat-backdrop::after,
+.backdrop-preview[data-scene='scanlines']::after {
+  background: radial-gradient(ellipse at center, transparent 55%, rgb(0 0 0 / 55%));
+}
+
+@keyframes backdrop-twinkle {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes backdrop-drift {
+  from {
+    transform: translateX(-6%) scaleY(1);
+  }
+  to {
+    transform: translateX(6%) scaleY(1.15);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-backdrop::before,
+  .chat-backdrop::after,
+  .backdrop-preview::before,
+  .backdrop-preview::after {
+    animation: none;
+  }
+}

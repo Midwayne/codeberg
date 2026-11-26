@@ -1,4 +1,5 @@
 import { EXPRESSIVE_THEMES } from './theme-palettes-expressive';
+import { SCENE_THEMES } from './theme-palettes-scenes';
 
 export interface Palette {
   background: string;
@@ -20,6 +21,8 @@ export interface Palette {
 
 export type ThemeFont = 'sans' | 'serif' | 'mono';
 
+export type BackdropScene = 'night-sky' | 'aurora' | 'dusk' | 'paper' | 'scanlines';
+
 export interface Theme {
   id: string;
   label: string;
@@ -32,6 +35,8 @@ export interface Theme {
   body?: ThemeFont;
   /** Base corner radius; defaults to 0.625rem. */
   radius?: string;
+  /** Scene drawn behind the conversation; none when omitted. */
+  backdrop?: BackdropScene;
 }
 
 const BASE_THEMES = [
@@ -177,6 +182,6 @@ const BASE_THEMES = [
   },
 ] as const satisfies readonly Theme[];
 
-export const THEMES = [...BASE_THEMES, ...EXPRESSIVE_THEMES] as const;
+export const THEMES = [...BASE_THEMES, ...EXPRESSIVE_THEMES, ...SCENE_THEMES] as const;
 
 export type ThemeId = (typeof THEMES)[number]['id'];

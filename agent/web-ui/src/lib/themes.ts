@@ -1,3 +1,4 @@
+import { applyBackdrop } from './backdrop';
 import { type Palette, type Theme, type ThemeFont, THEMES, type ThemeId } from './theme-palettes';
 
 export const THEME_STORAGE_KEY = 'codeberg.theme';
@@ -60,6 +61,8 @@ export function applyTheme(id: ThemeId): void {
   root.dataset.theme = theme.id;
   root.classList.toggle('dark', theme.colorScheme === 'dark');
   root.style.colorScheme = theme.colorScheme;
+  applyBackdrop(theme.backdrop);
+
   const tokens = { ...themeTokens(theme.palette), ...styleTokens(theme) };
 
   for (const [token, value] of Object.entries(tokens)) {

@@ -9,6 +9,7 @@ export const EXPRESSIVE_THEMES = [
     colorScheme: 'light',
     heading: 'serif',
     radius: '0.75rem',
+    backdrop: 'paper',
     palette: {
       background: '#faf9f5',
       foreground: '#29261b',
@@ -32,6 +33,7 @@ export const EXPRESSIVE_THEMES = [
     colorScheme: 'dark',
     heading: 'serif',
     radius: '0.75rem',
+    backdrop: 'dusk',
     palette: {
       background: '#262624',
       foreground: '#f2efe6',
@@ -111,6 +113,7 @@ export const EXPRESSIVE_THEMES = [
     heading: 'mono',
     body: 'mono',
     radius: '0.125rem',
+    backdrop: 'scanlines',
     palette: {
       background: '#0c0f0c',
       foreground: '#b8f5b0',

@@ -43,7 +43,8 @@ function RetainedChat({ active, ...props }: Omit<ChatViewsProps, 'renderedViews'
   const arrival = useBranchArrival(active);
 
   return (
-    <div ref={mediaRef} data-branch-arrival={arrival} className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <div ref={mediaRef} data-branch-arrival={arrival} className="relative isolate flex min-h-0 min-w-0 flex-1 flex-col">
+      <div aria-hidden="true" className="chat-backdrop" />
       <ChatSaveNotice state={active.persistence} />
       <Chat {...props} chat={chat} turns={active.turns} sessionId={active.id} draftStore={active.draft} branch={active.branch} />
     </div>
