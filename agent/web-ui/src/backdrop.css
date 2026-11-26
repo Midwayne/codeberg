@@ -37,21 +37,35 @@
   display: none;
 }
 
+/* Behind the conversation's content, above the shared scene. */
 :root[data-backdrop] .backdrop-quiet {
   position: absolute;
   inset: 0;
+  z-index: -1;
   display: block;
   pointer-events: none;
   --veil: color-mix(in srgb, var(--background) 80%, transparent);
-  background: linear-gradient(
-    to right,
-    transparent 0,
-    transparent calc(50% - 38rem),
-    var(--veil) calc(50% - 27rem),
-    var(--veil) calc(50% + 27rem),
-    transparent calc(50% + 38rem),
-    transparent 100%
-  );
+  --veil-mid: color-mix(in srgb, var(--background) 50%, transparent);
+  --veil-low: color-mix(in srgb, var(--background) 18%, transparent);
+  /*
+   * A static grain first, then an eased ramp. Over dark skies the ramp spans
+   * only a few color steps, which band into stripes; the grain dithers them.
+   */
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0.06 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+    linear-gradient(
+      to right,
+      transparent 0,
+      transparent calc(50% - 44rem),
+      var(--veil-low) calc(50% - 38rem),
+      var(--veil-mid) calc(50% - 32rem),
+      var(--veil) calc(50% - 26rem),
+      var(--veil) calc(50% + 26rem),
+      var(--veil-mid) calc(50% + 32rem),
+      var(--veil-low) calc(50% + 38rem),
+      transparent calc(50% + 44rem),
+      transparent 100%
+    );
 }
 
 /* Glows stay soft enough to sit behind text; the veil is for detail and motion. */
@@ -60,12 +74,31 @@
   display: none;
 }
 
-/* The composer floats over the scene as frosted glass. */
+/*
+ * The sidebar and composer are glass over the scene, so the whole workspace
+ * shares one backdrop. Over moving (layered) scenes they are tinted, not
+ * blurred: a backdrop blur re-renders every frame the scene moves, which cost
+ * Fireflies 48-52 fps down to 35-39 and Snowfall 46 down to 30-32 in headless
+ * Chromium. Still scenes never repaint underneath, so they keep a real frost.
+ */
 :root[data-backdrop] .chat-composer {
   background-color: transparent;
 }
 
+:root[data-backdrop] #chat-sidebar {
+  background-color: color-mix(in srgb, var(--card) 78%, transparent);
+}
+
 :root[data-backdrop] .prompt-card {
+  background-color: color-mix(in srgb, var(--card) 90%, transparent);
+}
+
+:root[data-backdrop]:not([data-backdrop='custom']) #chat-sidebar {
+  background-color: color-mix(in srgb, var(--card) 62%, transparent);
+  backdrop-filter: blur(18px) saturate(1.2);
+}
+
+:root[data-backdrop]:not([data-backdrop='custom']) .prompt-card {
   background-color: color-mix(in srgb, var(--card) 80%, transparent);
   backdrop-filter: blur(14px);
 }

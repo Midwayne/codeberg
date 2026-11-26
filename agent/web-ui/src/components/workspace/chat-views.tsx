@@ -6,7 +6,6 @@ import type { WorkspaceChat } from '../../sessions/workspace-chat';
 import { Chat, type ChatProps } from '../chat/chat';
 import { ChatSaveNotice } from '../chat/chat-save-notice';
 import { usePauseMedia } from '../chat/use-pause-media';
-import { ChatBackdrop } from '../chat/chat-backdrop';
 
 type ChatViewsProps = Pick<ChatProps, 'learningEnabled' | 'chatInputs' | 'onBranch' | 'jump'> & {
   active: WorkspaceChat;
@@ -44,8 +43,7 @@ function RetainedChat({ active, ...props }: Omit<ChatViewsProps, 'renderedViews'
   const arrival = useBranchArrival(active);
 
   return (
-    <div ref={mediaRef} data-branch-arrival={arrival} className="relative isolate flex min-h-0 min-w-0 flex-1 flex-col">
-      <ChatBackdrop />
+    <div ref={mediaRef} data-branch-arrival={arrival} className="flex min-h-0 min-w-0 flex-1 flex-col">
       <ChatSaveNotice state={active.persistence} />
       <Chat {...props} chat={chat} turns={active.turns} sessionId={active.id} draftStore={active.draft} branch={active.branch} />
     </div>
