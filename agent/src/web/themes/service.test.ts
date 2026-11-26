@@ -13,11 +13,11 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0)) await cleanup();
 });
 
-function replyModel(text: string) {
+function replyModel(text: string, finish: 'stop' | 'length' = 'stop') {
   return new MockLanguageModelV4({
     doGenerate: async () => ({
       content: [{ type: 'text', text }],
-      finishReason: { unified: 'stop', raw: undefined },
+      finishReason: { unified: finish, raw: undefined },
       usage: {
         inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
         outputTokens: { total: 1, text: 1, reasoning: 0 },
@@ -78,6 +78,15 @@ describe('theme generation API', () => {
     expect(await response.text()).toContain('did not return a theme');
   });
 
+  it('explains a reply that was cut off instead of reporting a fragment of it', async () => {
+    const { post } = await serve(replyModel('{"label":"Long","palette":{"background":"#000000"},"backdrop":{"sky":{"from":"#000000"}', 'length'));
+
+    const response = await post({ prompt: 'a very detailed theme' });
+
+    expect(response.status).toBe(502);
+    expect(await response.text()).toContain('stopped before finishing');
+  });
+
   it('refuses an empty description before calling the model', async () => {
     const model = replyModel('{}');
     const { post } = await serve(model);
@@ -105,11 +114,15 @@ describe('theme prompt', () => {
 
 describe('theme reply parsing', () => {
   it('finds the theme past braces in prose, inside strings, or after a fence', () => {
-    expect(themeFromReply('Using {mood} as a guide:\n{"label":"Calm"} and a {note}.')).toEqual({ label: 'Calm' });
-    expect(themeFromReply('{"label":"Brace } inside","palette":{"background":"#000000"}}')).toEqual({
-      label: 'Brace } inside', palette: { background: '#000000' },
-    });
-    expect(themeFromReply('Draft {"label":"Old"}\n```json\n{"label":"Final"}\n```')).toEqual({ label: 'Final' });
+    const palette = { background: '#000000' };
+
+    expect(themeFromReply(`Using {mood} as a guide:\n${JSON.stringify({ label: 'Calm', palette })} and a {note}.`)).toEqual({ label: 'Calm', palette });
+    expect(themeFromReply(JSON.stringify({ label: 'Brace } inside', palette }))).toEqual({ label: 'Brace } inside', palette });
+    expect(themeFromReply(`Draft {"label":"Old"}\n\`\`\`json\n${JSON.stringify({ label: 'Final', palette })}\n\`\`\``)).toEqual({ label: 'Final', palette });
+  });
+
+  it('does not mistake a complete inner fragment of a broken theme for the theme', () => {
+    expect(() => themeFromReply('{"label":"Cut","backdrop":{"sky":{"from":"#000000","to":"#111111"}')).toThrow('did not return a theme');
   });
 });
 

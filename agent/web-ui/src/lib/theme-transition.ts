@@ -3,6 +3,9 @@ import type { ThemeId } from './theme-palettes';
 
 let origin: { x: number; y: number } | undefined;
 
+/* Counts transitions so an interrupted one cannot clear the newer one's effect. */
+let latestTransition = 0;
+
 /** Remembers where the user last pressed, so a reveal grows from the click. */
 export function trackThemeOrigin(): () => void {
   const remember = (event: PointerEvent) => {
@@ -48,8 +51,12 @@ export function changeTheme(id: ThemeId, onApplied?: () => void): void {
   root.dataset.themeTransition = findTheme(id).transition ?? 'reveal';
   placeReveal(root);
 
+  const current = ++latestTransition;
   const transition = document.startViewTransition(apply);
-  void transition.finished.finally(() => delete root.dataset.themeTransition);
+
+  void transition.finished.finally(() => {
+    if (current === latestTransition) delete root.dataset.themeTransition;
+  });
 }
 
 function fadeColors(root: HTMLElement, apply: () => void): void {

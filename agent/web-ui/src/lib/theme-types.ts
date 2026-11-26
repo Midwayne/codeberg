@@ -36,7 +36,7 @@ export interface PartStyle {
   background?: string;
   text?: string;
   border?: string;
-  /** How solid the part is over a backdrop, 0.3 (glassy) to 1 (solid). */
+  /** How solid the part is over a backdrop, 0.5 (glassy) to 1 (solid). */
   glass?: number;
   /** Corner radius in rem, for the composer, bubble, and code parts. */
   radius?: number;

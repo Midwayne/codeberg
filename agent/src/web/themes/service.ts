@@ -5,6 +5,7 @@ import { fromAiSdk } from '../../core/generator.js';
 import type { ReasoningEffort } from '../../core/types.js';
 import { HttpError } from '../../core/http-error.js';
 import { errorMessage } from '../../core/errors.js';
+import { IncompleteSummaryError } from '../../core/context-errors.js';
 import type { ModelSettingsStore } from '../model-selection/settings.js';
 import { requireJsonMutation, sendJson, sendText } from '../http.js';
 import { THEME_SYSTEM_PROMPT, themePrompt } from './prompt.js';
@@ -14,9 +15,9 @@ export const THEME_GENERATE_PATH = '/api/themes/generate';
 
 /*
  * Room for a full theme (about 2,000 tokens) plus the little reasoning a low
- * effort allows, while staying under every current model's output limit.
+ * effort allows, within the 4,096-token output limit of the smallest models.
  */
-const THEME_OUTPUT_TOKENS = 8_000;
+const THEME_OUTPUT_TOKENS = 4_096;
 
 /*
  * A theme is a small structured answer, so it runs at the least reasoning the
@@ -47,16 +48,35 @@ export function createThemeService(
       const model = resolveModel(spec);
       const tracked = transformModel ? transformModel(model, chat.key, spec) : model;
 
+      // requireComplete adds a 120-second limit and rejects a reply that stopped early.
       const text = await fromAiSdk(tracked, themeEffort(entry?.efforts), spec).generate({
         system: THEME_SYSTEM_PROMPT,
         prompt: themePrompt(request),
         maxOutputTokens: THEME_OUTPUT_TOKENS,
+        requireComplete: true,
         ...(signal ? { abortSignal: signal } : {}),
+      }).catch((error: unknown) => {
+        throw themeFailure(error, signal);
       });
 
       return themeFromReply(text);
     },
   };
+}
+
+/** Plain messages for a model that stalled or stopped mid-theme; anything else passes through. */
+function themeFailure(error: unknown, signal?: AbortSignal): unknown {
+  if (signal?.aborted) return error;
+
+  if (error instanceof IncompleteSummaryError) {
+    return new HttpError(502, 'The chat model stopped before finishing the theme. Try again or ask for something simpler.');
+  }
+
+  if (error instanceof Error && error.name === 'TimeoutError') {
+    return new HttpError(504, 'The chat model took too long to design the theme. Try again.');
+  }
+
+  return error;
 }
 
 export async function routeThemes(req: IncomingMessage, res: ServerResponse, service: ThemeService): Promise<void> {

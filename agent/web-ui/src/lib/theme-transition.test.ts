@@ -47,6 +47,31 @@ describe('theme transitions', () => {
     expect(root.dataset.themeTransition).toBeUndefined();
   });
 
+  it('keeps the newer effect when a second change interrupts the first', async () => {
+    const finishes: (() => void)[] = [];
+    const startViewTransition = vi.fn((update: () => void) => {
+      update();
+
+      return { finished: new Promise<void>((resolve) => finishes.push(resolve)) };
+    });
+    vi.stubGlobal('document', { documentElement: root, startViewTransition });
+
+    changeTheme('midnight');
+    changeTheme('phosphor');
+
+    finishes[0]!();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(root.dataset.themeTransition).toBe('wipe');
+
+    finishes[1]!();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(root.dataset.themeTransition).toBeUndefined();
+  });
+
   it('fades colors without view transitions and switches instantly under reduced motion', () => {
     vi.stubGlobal('document', { documentElement: root });
 

@@ -3,6 +3,11 @@ import { LAYER_ANIMATIONS, LAYER_KINDS, type BackdropLayer, type CustomBackdrop 
 
 export const MAX_BACKDROP_LAYERS = 6;
 
+/** What a layer gets for anything it leaves out, built-in or generated. */
+export const LAYER_DEFAULTS = {
+  opacity: 0.15, x: 50, y: 30, size: 50, angle: 135, animation: 'none', duration: 30,
+} as const satisfies Omit<BackdropLayer, 'kind' | 'color'>;
+
 /** A number clamped to a range, or the fallback when it is not a number. */
 export function clamp(value: unknown, min: number, max: number, fallback: number): number {
   const number = typeof value === 'string' ? Number.parseFloat(value) : value;
@@ -32,13 +37,13 @@ function layer(value: unknown, animated: boolean): BackdropLayer | undefined {
   return {
     kind,
     color,
-    opacity: clamp(raw.opacity, 0, 0.5, 0.15),
-    x: clamp(raw.x, 0, 100, 50),
-    y: clamp(raw.y, 0, 100, 30),
-    size: clamp(raw.size, 5, 150, 50),
-    angle: clamp(raw.angle, 0, 360, 135),
+    opacity: clamp(raw.opacity, 0, 0.5, LAYER_DEFAULTS.opacity),
+    x: clamp(raw.x, 0, 100, LAYER_DEFAULTS.x),
+    y: clamp(raw.y, 0, 100, LAYER_DEFAULTS.y),
+    size: clamp(raw.size, 5, 150, LAYER_DEFAULTS.size),
+    angle: clamp(raw.angle, 0, 360, LAYER_DEFAULTS.angle),
     animation: animated ? animation : 'none',
-    duration: clamp(raw.duration, 4, 120, 30),
+    duration: clamp(raw.duration, 4, 120, LAYER_DEFAULTS.duration),
   };
 }
 

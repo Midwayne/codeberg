@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { saveCustomTheme } from '../lib/custom-themes';
 import { commitTheme } from '../lib/theme-commit';
@@ -19,11 +19,13 @@ export function useThemeStudio(selected: Theme, editing?: CustomTheme) {
   const [refine, setRefine] = useState(false);
   const [previous, setPrevious] = useState<CustomTheme>();
   const { pending, error, setError, run, cancel } = useThemeRequest();
+  const runningEdit = useRef<string | undefined>(undefined);
 
-  // A different theme (or none, after a delete) starts fresh: the running
-  // request belonged to the old one, and there is nothing to undo.
+  // Editing a different theme (or none, after a delete) starts fresh. A running
+  // edit belonged to the old theme, so it stops; a new theme being designed goes on.
   useEffect(() => {
-    cancel();
+    if (runningEdit.current && runningEdit.current !== editing?.id) cancel();
+
     setPrevious(undefined);
     setError(undefined);
   }, [editing?.id]);
@@ -31,6 +33,8 @@ export function useThemeStudio(selected: Theme, editing?: CustomTheme) {
   async function create() {
     const text = prompt.trim();
     if (!text || pending) return;
+
+    runningEdit.current = editing?.id;
 
     await run(async (signal) => {
       const base = editing ?? (refine ? selected : undefined);
@@ -41,6 +45,8 @@ export function useThemeStudio(selected: Theme, editing?: CustomTheme) {
       setPrevious(editing);
       setPrompt('');
     });
+
+    runningEdit.current = undefined;
   }
 
   function undo() {

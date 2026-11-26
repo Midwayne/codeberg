@@ -35,7 +35,8 @@ export async function readThemeRequest(req: IncomingMessage): Promise<ThemeReque
 /**
  * The theme object in a model reply, which may wrap it in prose, braces of its
  * own, or a fence. A fenced block wins; otherwise each `{` is tried in turn and
- * the first balanced span that parses to an object is used.
+ * the first balanced span that parses to an object with a palette is used, so
+ * a fragment such as a lone layer is never mistaken for the theme.
  */
 export function themeFromReply(text: string): Record<string, unknown> {
   const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text)?.[1];
@@ -50,7 +51,7 @@ function firstObject(text: string): Record<string, unknown> | undefined {
     const end = balancedEnd(text, start);
     const value = end === -1 ? undefined : parseJson(text.slice(start, end + 1));
 
-    if (isObject(value)) return value;
+    if (isObject(value) && 'palette' in value) return value;
   }
 
   return undefined;

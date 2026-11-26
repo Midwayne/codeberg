@@ -65,4 +65,16 @@ describe('saved custom themes', () => {
     expect(customThemes().map((entry) => entry.label)).toEqual(['Fine']);
     expect(localStorage.getItem(CUSTOM_THEMES_STORAGE_KEY)).toBe(stored);
   });
+
+  it('keeps a theme another tab saved when this tab saves its own', () => {
+    saveCustomTheme(theme('custom-a'));
+
+    const otherTab = JSON.parse(stored!) as unknown[];
+    stored = JSON.stringify([{ ...(otherTab[0] as object), id: 'custom-b', label: 'From another tab' }, ...otherTab]);
+
+    saveCustomTheme(theme('custom-c'));
+
+    expect(customThemes().map((entry) => entry.id)).toEqual(['custom-c', 'custom-b', 'custom-a']);
+  });
 });
+

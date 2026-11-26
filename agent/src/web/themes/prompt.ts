@@ -25,7 +25,7 @@ Shape:
   "parts": null | {
     "header" | "sidebar" | "composer" | "bubble" | "code": {
       "background": color, "text": color, "border": color,
-      "glass": 0.3-1, how solid the part is over the backdrop (header, sidebar, composer),
+      "glass": 0.5-1, how solid the part is over the backdrop (header, sidebar, composer),
       "radius": rem from 0 to 2 (composer, bubble, code)
     }
   },

@@ -23,21 +23,47 @@ export function customThemes(): CustomTheme[] {
   return cache;
 }
 
+/*
+ * Writes start from what storage holds now, not this page's cache, so a theme
+ * another tab saved since is kept rather than overwritten.
+ */
+function latest(): CustomTheme[] {
+  cache = readStored();
+
+  return cache;
+}
+
 /** Adds a theme, or replaces the one with the same id, keeping the newest twelve. */
 export function saveCustomTheme(theme: CustomTheme): void {
-  const others = customThemes().filter((entry) => entry.id !== theme.id);
+  const others = latest().filter((entry) => entry.id !== theme.id);
 
   write([theme, ...others].slice(0, MAX_CUSTOM_THEMES));
 }
 
 export function removeCustomTheme(id: CustomThemeId): void {
-  write(customThemes().filter((entry) => entry.id !== id));
+  write(latest().filter((entry) => entry.id !== id));
 }
 
 export function subscribeCustomThemes(listener: () => void): () => void {
   listeners.add(listener);
+  watchOtherTabs();
 
   return () => listeners.delete(listener);
+}
+
+let watching = false;
+
+/* Another tab saving or deleting a theme refreshes this tab's list. */
+function watchOtherTabs(): void {
+  if (watching || typeof window === 'undefined' || typeof window.addEventListener !== 'function') return;
+
+  watching = true;
+  window.addEventListener('storage', (event) => {
+    if (event.key !== CUSTOM_THEMES_STORAGE_KEY && event.key !== null) return;
+
+    cache = readStored();
+    for (const listener of listeners) listener();
+  });
 }
 
 function write(themes: CustomTheme[]): void {

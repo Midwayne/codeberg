@@ -84,11 +84,20 @@ describe('generated theme validation', () => {
 
     expect(theme).toMatchObject({ code: 'typewriter', textScale: 1.15 });
     expect(Object.keys(theme.parts ?? {})).toEqual(['header', 'bubble']);
-    expect(theme.parts?.header).toMatchObject({ glass: 0.3 });
+    expect(theme.parts?.header).toMatchObject({ glass: 0.5 });
     expect(theme.parts?.header?.radius).toBeUndefined();
     expect(contrast(theme.parts!.header!.text!, '#f5f5f5')).toBeGreaterThanOrEqual(4.5);
     expect(theme.parts?.bubble?.radius).toBe(1.25);
     expect(contrast(theme.parts!.bubble!.text!, '#2244aa')).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('drops a code block background of the opposite lightness, which would hide highlighted code', () => {
+    const dark = normalizeTheme({
+      palette: { background: '#101010' },
+      parts: { code: { background: '#f4ecd8', border: '#333333', radius: 0.25 } },
+    }, options);
+
+    expect(dark.parts?.code).toEqual({ border: '#333333', radius: 0.25 });
   });
 });
 
