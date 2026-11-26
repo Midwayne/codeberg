@@ -5,6 +5,9 @@ import type { CatalogModel } from '../../lib/models';
 import { usePromptCommands, usePromptKeyboard } from './use-prompt-commands';
 import { inputFor } from '../../lib/prompt-files';
 
+/** Per-message choices sent with the text, such as the Diagram toggle. */
+export type PromptSendOptions = { diagram?: boolean };
+
 export type PromptInputOptions = {
   value: string;
   onValueChange: (value: string) => void;
@@ -12,8 +15,10 @@ export type PromptInputOptions = {
   busy: boolean;
   disabled?: boolean;
   inputs: CatalogModel['inputs'];
-  onSend: (text: string, files: FileList) => void;
-  onSteer?: (text: string, files: FileList) => void;
+  /** Offer the Diagram toggle: the canvas is enabled for this project. */
+  diagrams?: boolean;
+  onSend: (text: string, files: FileList, options?: PromptSendOptions) => void;
+  onSteer?: (text: string, files: FileList, options?: PromptSendOptions) => void;
   onStop: () => void;
 };
 
@@ -24,15 +29,20 @@ export function usePromptInput({
   busy,
   disabled = false,
   inputs,
+  diagrams = false,
   onSend,
   onSteer,
   onStop,
 }: PromptInputOptions) {
   const files = usePromptFiles({ inputs });
+  // Off by default and after every send, so only the turns that ask pay for the canvas.
+  const [diagram, setDiagram] = useState(false);
   const commands = usePromptCommands({ inputRef, value });
   const { submit, steer } = createPromptSubmit({
     ...files,
     value,
+    diagram: diagrams && diagram,
+    setDiagram,
     disabled,
     onSend,
     onSteer,
@@ -42,7 +52,8 @@ export function usePromptInput({
   });
   const keyboard = usePromptKeyboard({ ...commands, setValue, submit });
 
-  return { ...files, ...commands, ...keyboard, value, setValue, inputs, busy, disabled, onStop, submit, steer };
+  return { ...files, ...commands, ...keyboard, value, setValue, inputs, busy, disabled, onStop, submit, steer,
+    diagrams, diagram, setDiagram };
 }
 
 type PromptFilesOptions = Pick<Parameters<typeof usePromptInput>[0], 'inputs'>;
@@ -79,6 +90,8 @@ type PromptSubmitOptions = Pick<
   'value' | 'disabled' | 'onSend' | 'onSteer'
 > & {
   files: File[];
+  diagram: boolean;
+  setDiagram: (value: boolean) => void;
   setValue: Parameters<typeof usePromptInput>[0]['onValueChange'];
   setFiles: React.Dispatch<React.SetStateAction<File[]>>;
   setFileError: React.Dispatch<React.SetStateAction<string>>;
@@ -89,6 +102,8 @@ type PromptSubmitOptions = Pick<
 export function createPromptSubmit({
   value,
   files,
+  diagram,
+  setDiagram,
   disabled,
   onSend,
   onSteer,
@@ -103,9 +118,10 @@ export function createPromptSubmit({
     if ((!text && !files.length) || disabled) return;
     const transfer = new DataTransfer();
     for (const file of files) transfer.items.add(file);
-    send(text, transfer.files);
+    send(text, transfer.files, { diagram });
     setValue('');
     setFiles([]);
+    setDiagram(false);
     setFileError('');
     if (fileRef.current) fileRef.current.value = '';
     setDismissed(false);

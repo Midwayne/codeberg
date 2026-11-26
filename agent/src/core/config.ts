@@ -34,6 +34,8 @@ interface AgentConfig {
   /** Catalog settings for the chat model; unset fields follow the environment. */
   overrides?: ModelOverrides;
   learning?: LearningService | false;
+  /** False leaves the canvas tools out; unset offers them whenever the canvas is enabled. */
+  canvas?: boolean;
 }
 
 /** Read CODEBERG_REASONING, including Responses-compatible max. */
@@ -77,6 +79,7 @@ export function createAgent(config: AgentConfig): Agent {
     context: ContextStore.open(defaultContextRoot(env)),
     subagentModel,
     judgeModel: judgeModel(env, (spec) => registry.resolve(spec)),
+    canvas: config.canvas,
     learning: learningEnabled ? config.learning : false,
     daemon: new DaemonClient(
       !config.env && env.CODEBERG_PROJECT_ID

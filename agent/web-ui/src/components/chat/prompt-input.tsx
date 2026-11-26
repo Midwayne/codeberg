@@ -2,6 +2,7 @@ import { usePromptInput, type PromptInputOptions } from './use-prompt-input';
 import { PromptTextarea } from './prompt-textarea';
 import { PromptAttachments, PromptFiles, PromptAction } from './prompt-files';
 import { PromptSteer } from './prompt-actions';
+import { PromptDiagram } from './prompt-diagram';
 import { PromptFilePreviews } from './prompt-file-previews';
 
 import { CommandMenu } from './command-menu';
@@ -57,6 +58,7 @@ export function PromptInputView(state: PromptInputViewProps) {
         <div className="mt-1 flex items-center justify-between gap-2">
           <div className="flex items-center">
             <PromptAttachments state={state} />
+            <PromptDiagram state={state} />
           </div>
           <div className="flex items-center gap-2">
             {state.accessory}

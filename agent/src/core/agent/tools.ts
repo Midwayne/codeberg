@@ -104,7 +104,8 @@ export async function buildTools(state: AgentState) {
     browserModel: state.profile.provider && state.profile.modelId
       ? `${state.profile.provider}:${state.profile.modelId}` : undefined,
     daemon: state.daemon,
-    canvas: canvasFromEnv(state.env),
+    // A browser chat offers the canvas only to a turn that asked for a diagram.
+    canvas: state.options.canvas === false ? undefined : canvasFromEnv(state.env),
     context: state.context,
     learning: state.learning?.store,
     learningSettings: state.learning ? () => state.learning!.settings : undefined,

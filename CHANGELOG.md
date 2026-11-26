@@ -15,6 +15,7 @@ are in the git history.
 
 ### Changed
 
+- The agent draws on the canvas only for messages you send with **Diagram** turned on in the composer, which saves tokens on every other message.
 - Automatic evaluations are scored by the chat model unless you choose a judge, instead of by the learning model.
 - Tool results from the task the agent is working on now stay in its context longer; results from earlier turns are cleared first.
 - Subagent briefs now state a clear goal and, when the method is known, specific numbered steps.

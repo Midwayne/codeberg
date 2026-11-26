@@ -10,6 +10,7 @@ import {
   ReloadableAgentPool,
   boundLearningContext,
   createLearningGenerator,
+  selectionAgentConfig,
 } from './runtime.js';
 import type { ModelSelection, ModelSettingsStore } from './settings.js';
 
@@ -432,4 +433,12 @@ it('releases the generation even when closing an evicted agent fails', async () 
 
   expect(closeLoop).toHaveBeenCalled();
   expect(close).toHaveBeenCalledTimes(1);
+});
+
+it('builds a canvas agent only for a selection that asked for a diagram', () => {
+  const choice = { key: 'test', model: 'openai:test', effort: 'low' as const, contextWindow: 50000 };
+  const deps = { daemonUrl: 'http://127.0.0.1:1', learning: false as const };
+
+  expect(selectionAgentConfig(choice, deps).canvas).toBe(false);
+  expect(selectionAgentConfig({ ...choice, diagrams: true }, deps).canvas).toBe(true);
 });

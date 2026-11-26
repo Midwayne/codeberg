@@ -270,7 +270,15 @@ See [Browser Use](/docs/browser-use) for setup, screenshots, retained sessions, 
 
 ## Optional canvas
 
-Enable **Settings → Canvas** for a drawing canvas attached to each chat. When the agent draws, the chat shows a **Canvas** card; select **Open canvas** to view and edit the drawing in a new browser tab. Chats do not embed the drawing, so switching between chats with canvases stays fast. Open copies of the same chat's canvas share scene updates.
+Enable **Settings → Canvas** for a drawing canvas attached to each chat. Then turn on **Diagram** beside the attach button in the composer when you want a drawing with a message:
+
+1. Select **Diagram**; it stays highlighted.
+2. Send the message. The agent draws on the chat's canvas alongside its written answer.
+3. **Diagram** turns off after sending. Turn it on again for each message that should draw or change the drawing.
+
+Diagram is off by default. Without it, the request carries no canvas tools or drawing instructions, so most messages cost fewer tokens, and the agent cannot read or change the chat's canvas in that turn. Retries and regenerated answers keep the choice of the message they answer. Terminal questions have no toggle; with `CODEBERG_CANVAS_USE=true` the agent may draw on any question.
+
+When the agent draws, the chat shows a **Canvas** card; select **Open canvas** to view and edit the drawing in a new browser tab. Chats do not embed the drawing, so switching between chats with canvases stays fast. Open copies of the same chat's canvas share scene updates.
 
 An open canvas tab checks for changes about once a second, so agent edits appear within a second. A canvas in a background tab pauses and catches up when you return to it.
 

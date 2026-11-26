@@ -74,19 +74,25 @@ describe('PromptInput attachments', () => {
     const steer = vi.fn();
     const clear = vi.fn();
     const state = { value: '  Follow up  ', files: [file], disabled: false, onSend: send, onSteer: steer,
-      setValue: clear, setFiles: vi.fn(), setFileError: vi.fn(), fileRef: { current: null }, setDismissed: vi.fn() };
+      diagram: false, setDiagram: vi.fn(), setValue: clear, setFiles: vi.fn(), setFileError: vi.fn(), fileRef: { current: null }, setDismissed: vi.fn() };
 
     try {
       const actions = createPromptSubmit(state);
       actions.submit();
       actions.steer?.();
 
-      expect(send).toHaveBeenCalledWith('Follow up', [file]);
-      expect(steer).toHaveBeenCalledWith('Follow up', [file]);
+      expect(send).toHaveBeenCalledWith('Follow up', [file], { diagram: false });
+      expect(steer).toHaveBeenCalledWith('Follow up', [file], { diagram: false });
       expect(clear).toHaveBeenCalledWith('');
 
       createPromptSubmit({ ...state, disabled: true }).submit();
       expect(send).toHaveBeenCalledTimes(1);
+
+      // A diagram request goes with this message only; the toggle turns off once it is sent.
+      const setDiagram = vi.fn();
+      createPromptSubmit({ ...state, diagram: true, setDiagram }).submit();
+      expect(send).toHaveBeenLastCalledWith('Follow up', [file], { diagram: true });
+      expect(setDiagram).toHaveBeenCalledWith(false);
     } finally {
       vi.unstubAllGlobals();
     }
