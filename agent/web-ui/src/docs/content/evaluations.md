@@ -29,6 +29,8 @@ Turning off any required switch pauses new work; an in-flight request can finish
 
 ## Choose the judge
 
+The judge scores only the main agent's answers: the chat model's fresh answer, compared with the answer you reviewed. Subagent reports are never judged, and recorded answers never include them.
+
 The judge defaults to **Same as chat model**, so out of the box the chat model grades its own answers. Models tend to favor their own output, so the evaluation report marks those results `self_graded: true` (in `/api/learning/evaluations`), and **Models** shows a note. For a more independent check, choose a different model that is at least as capable as the chat model under **Models → Evaluation judge**. The learning model judges only if you choose it here. In the terminal, set `CODEBERG_JUDGE_MODEL=provider:model`.
 
 To skip model judging, turn **Evaluation judge** off in **Models**, or set `CODEBERG_JUDGE_USE=false` in the terminal. Evaluations still run the chat model's answer and score it with the checks that need no model: exact match against the reviewed `expected` value, and valid JSON when the example's `output_format` is `json`. An example with neither gets no score. To stop evaluations entirely, turn off **Evaluations** in **Settings → Learning**.
