@@ -42,54 +42,6 @@
   background: radial-gradient(ellipse 70% 45% at 50% -8%, color-mix(in srgb, var(--foreground) 7%, transparent), transparent 72%);
 }
 
-/* Night sky: a deep gradient with two layers of slowly twinkling stars. */
-:root[data-backdrop='night-sky'] .chat-backdrop,
-.backdrop-preview[data-scene='night-sky'] {
-  background:
-    radial-gradient(ellipse 60% 40% at 85% 0%, rgb(143 180 255 / 16%), transparent 70%),
-    linear-gradient(to bottom, #060a18, var(--background) 85%);
-}
-
-:root[data-backdrop='night-sky'] .chat-backdrop::before,
-.backdrop-preview[data-scene='night-sky']::before {
-  background-image:
-    radial-gradient(1px 1px at 20px 30px, #ffffffcc, transparent),
-    radial-gradient(1px 1px at 140px 80px, #ffffffaa, transparent),
-    radial-gradient(1.5px 1.5px at 90px 160px, #ffffffbb, transparent),
-    radial-gradient(1px 1px at 210px 210px, #ffffff99, transparent);
-  background-size: 263px 241px;
-  mask-image: linear-gradient(to bottom, black 30%, transparent 90%);
-  animation: backdrop-twinkle 7s ease-in-out infinite alternate;
-}
-
-:root[data-backdrop='night-sky'] .chat-backdrop::after,
-.backdrop-preview[data-scene='night-sky']::after {
-  background-image:
-    radial-gradient(1px 1px at 60px 110px, #cdd9ffaa, transparent),
-    radial-gradient(1px 1px at 300px 40px, #ffffff88, transparent),
-    radial-gradient(1.5px 1.5px at 240px 300px, #ffffffaa, transparent);
-  background-size: 397px 353px;
-  mask-image: linear-gradient(to bottom, black 20%, transparent 80%);
-  animation: backdrop-twinkle 11s ease-in-out -4s infinite alternate;
-}
-
-/* Aurora: soft bands of green and violet light drifting across the top. */
-:root[data-backdrop='aurora'] .chat-backdrop,
-.backdrop-preview[data-scene='aurora'] {
-  background: linear-gradient(to bottom, #061012, var(--background) 70%);
-}
-
-:root[data-backdrop='aurora'] .chat-backdrop::before,
-.backdrop-preview[data-scene='aurora']::before {
-  inset: -20% -10% 40%;
-  background:
-    radial-gradient(ellipse 40% 50% at 30% 40%, rgb(94 234 212 / 22%), transparent 70%),
-    radial-gradient(ellipse 35% 45% at 65% 30%, rgb(167 139 250 / 18%), transparent 70%),
-    radial-gradient(ellipse 30% 40% at 85% 55%, rgb(74 222 128 / 14%), transparent 70%);
-  filter: blur(30px);
-  animation: backdrop-aurora 40s ease-in-out infinite alternate;
-}
-
 /* Dusk: a low warm glow rising from behind the composer. */
 :root[data-backdrop='dusk'] .chat-backdrop,
 .backdrop-preview[data-scene='dusk'] {
@@ -116,15 +68,6 @@
   background: radial-gradient(ellipse at center, transparent 55%, rgb(0 0 0 / 55%));
 }
 
-@keyframes backdrop-aurora {
-  from {
-    transform: translateX(-6%) scaleY(1);
-  }
-  to {
-    transform: translateX(6%) scaleY(1.15);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .chat-backdrop::before,
   .chat-backdrop::after,
@@ -134,7 +77,12 @@
   }
 }
 
-/* Generated backdrops: ChatBackdrop draws each layer with inline styles from a validated spec. */
+/*
+ * Layered backdrops (animated built-in themes and generated ones): ChatBackdrop
+ * draws each layer with inline styles from a validated spec. Moving layers use
+ * transforms on an oversized element, so the browser composites instead of
+ * repainting; --layer-pan is one pattern tile, so each loop is seamless.
+ */
 .backdrop-layer {
   position: absolute;
   inset: 0;
@@ -148,6 +96,29 @@
 
 .backdrop-layer[data-animation='spin'] {
   inset: -50%;
+}
+
+.backdrop-layer[data-animation='pan'] {
+  inset: calc(var(--layer-pan) * -1) 0 0 calc(var(--layer-pan) * -1);
+}
+
+.backdrop-layer[data-animation='fall'] {
+  inset: calc(var(--layer-pan) * -1) 0 0;
+}
+
+.backdrop-layer[data-animation='rise'] {
+  inset: 0 0 calc(var(--layer-pan) * -1);
+}
+
+.backdrop-layer[data-animation]:not([data-animation='none']) {
+  will-change: transform, opacity;
+}
+
+/* A shooting star is a short streak placed by its own inline position and size. */
+.backdrop-layer[data-kind='meteor'] {
+  inset: auto;
+  border-radius: 999px;
+  transform-origin: left center;
 }
 
 @keyframes backdrop-drift {
@@ -179,19 +150,28 @@
 
 @keyframes backdrop-twinkle {
   from {
-    opacity: calc(var(--layer-opacity, 1) * 0.55);
+    opacity: calc(var(--layer-opacity) * 0.45);
   }
   to {
-    opacity: var(--layer-opacity, 1);
+    opacity: var(--layer-opacity);
   }
 }
 
 @keyframes backdrop-pan {
-  from {
-    background-position: 0 0;
-  }
   to {
-    background-position: var(--layer-pan) var(--layer-pan);
+    transform: translate(var(--layer-pan), var(--layer-pan));
+  }
+}
+
+@keyframes backdrop-fall {
+  to {
+    transform: translateY(var(--layer-pan));
+  }
+}
+
+@keyframes backdrop-rise {
+  to {
+    transform: translateY(calc(var(--layer-pan) * -1));
   }
 }
 
@@ -201,8 +181,31 @@
   }
 }
 
+/* Visible for a short streak across the sky, then dark until the next cycle. */
+@keyframes backdrop-shoot {
+  0% {
+    opacity: 0;
+    transform: rotate(var(--layer-angle)) translateX(0);
+  }
+  2% {
+    opacity: var(--layer-opacity);
+  }
+  10% {
+    opacity: 0;
+    transform: rotate(var(--layer-angle)) translateX(45vmax);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--layer-angle)) translateX(45vmax);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .backdrop-layer {
     animation: none !important;
+  }
+
+  .backdrop-layer[data-kind='meteor'] {
+    display: none;
   }
 }

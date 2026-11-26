@@ -20,4 +20,15 @@ describe('generated backdrop layers', () => {
 
     expect(style.backgroundSize).toBe(`${style['--layer-pan']} ${style['--layer-pan']}`);
   });
+
+  it('scrolls falling particles a whole tile per loop and hides shooting stars until their streak', () => {
+    const snow = layerStyle({ ...base, kind: 'flakes', animation: 'fall', duration: 12 });
+
+    expect(snow.animation).toBe('backdrop-fall 12s linear infinite normal');
+    expect(snow.backgroundSize).toBe(`${snow['--layer-pan']} ${snow['--layer-pan']}`);
+
+    const meteor = layerStyle({ ...base, kind: 'meteor', x: 20, y: 5, angle: 30, animation: 'shoot', duration: 9 });
+
+    expect(meteor).toMatchObject({ left: '20%', top: '5%', opacity: 0, '--layer-angle': '30deg', '--layer-opacity': '0.3' });
+  });
 });

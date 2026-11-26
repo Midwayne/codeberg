@@ -25,7 +25,7 @@ describe('theme backdrops', () => {
   it('names the theme’s scene on the root and clears it when there is none', () => {
     applyTheme('midnight');
 
-    expect(root.dataset.backdrop).toBe('night-sky');
+    expect(root.dataset.backdrop).toBe('custom');
 
     applyBackdrop(undefined);
 
@@ -44,9 +44,9 @@ describe('theme backdrops', () => {
 
     expect(root.dataset.backdrop).toBeUndefined();
 
-    applyBackdrop('aurora', true);
+    applyBackdrop('halo', true);
 
-    expect(root.dataset.backdrop).toBe('aurora');
+    expect(root.dataset.backdrop).toBe('halo');
   });
 
   it('shows backdrops when browser storage is blocked', () => {
@@ -60,6 +60,6 @@ describe('theme backdrops', () => {
 
     applyTheme('midnight');
 
-    expect(root.dataset.backdrop).toBe('night-sky');
+    expect(root.dataset.backdrop).toBe('custom');
   });
 });

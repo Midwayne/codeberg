@@ -1,16 +1,27 @@
+import { layer } from './theme-scene-layer';
 import type { Theme } from './theme-types';
 
-/* Themes built around a scene drawn behind the conversation. */
+/* Night scenes: parallax stars, shooting stars, northern lights, and snow. */
 export const SCENE_THEMES = [
   {
     id: 'midnight',
     label: 'Midnight',
-    description: 'Night sky · twinkling stars',
+    description: 'Twinkling stars · shooting stars',
     colorScheme: 'dark',
     heading: 'serif',
     radius: '1rem',
-    backdrop: 'night-sky',
     transition: 'blur',
+    backdrop: {
+      sky: { from: '#060a18', to: '#0b1020', angle: 180 },
+      layers: [
+        layer({ kind: 'glow', color: '#8fb4ff', opacity: 0.14, x: 85, y: 0, size: 60 }),
+        layer({ kind: 'stars', color: '#ffffff', opacity: 0.9, size: 70, animation: 'twinkle', duration: 7 }),
+        layer({ kind: 'stars', color: '#cdd9ff', opacity: 0.7, size: 120, animation: 'twinkle', duration: 11 }),
+        layer({ kind: 'stars', color: '#ffffff', opacity: 0.45, size: 38, animation: 'twinkle', duration: 5 }),
+        layer({ kind: 'meteor', color: '#ffffff', opacity: 0.9, x: 18, y: 6, size: 60, angle: 28, animation: 'shoot', duration: 9 }),
+        layer({ kind: 'meteor', color: '#cdd9ff', opacity: 0.75, x: 52, y: 2, size: 45, angle: 34, animation: 'shoot', duration: 14 }),
+      ],
+    },
     palette: {
       background: '#0b1020',
       foreground: '#e6e9f5',
@@ -29,11 +40,19 @@ export const SCENE_THEMES = [
   {
     id: 'aurora',
     label: 'Aurora',
-    description: 'Northern lights · slow drift',
+    description: 'Northern lights · drifting bands',
     colorScheme: 'dark',
     radius: '1rem',
-    backdrop: 'aurora',
     transition: 'blur',
+    backdrop: {
+      sky: { from: '#061012', to: '#0a1416', angle: 180 },
+      layers: [
+        layer({ kind: 'band', color: '#5eead4', opacity: 0.24, y: 30, angle: 170, animation: 'drift', duration: 38 }),
+        layer({ kind: 'band', color: '#a78bfa', opacity: 0.16, y: 20, angle: 160, animation: 'float', duration: 52 }),
+        layer({ kind: 'glow', color: '#4ade80', opacity: 0.14, x: 78, y: 18, size: 55, animation: 'drift', duration: 70 }),
+        layer({ kind: 'stars', color: '#ffffff', opacity: 0.5, size: 120, animation: 'twinkle', duration: 9 }),
+      ],
+    },
     palette: {
       background: '#0a1416',
       foreground: '#dcefe9',
@@ -47,6 +66,37 @@ export const SCENE_THEMES = [
       border: '#ffffff14',
       input: '#ffffff24',
       ring: '#6fa79b',
+    },
+  },
+  {
+    id: 'snowfall',
+    label: 'Snowfall',
+    description: 'Quiet night · falling snow',
+    colorScheme: 'dark',
+    radius: '1rem',
+    transition: 'blur',
+    backdrop: {
+      sky: { from: '#16243a', to: '#0e1621', angle: 180 },
+      layers: [
+        layer({ kind: 'glow', color: '#b9d7ff', opacity: 0.1, x: 50, y: 0, size: 80 }),
+        layer({ kind: 'flakes', color: '#ffffff', opacity: 0.25, size: 130, animation: 'fall', duration: 34 }),
+        layer({ kind: 'flakes', color: '#ffffff', opacity: 0.4, size: 90, animation: 'fall', duration: 18 }),
+        layer({ kind: 'flakes', color: '#e8f1ff', opacity: 0.6, size: 60, animation: 'fall', duration: 10 }),
+      ],
+    },
+    palette: {
+      background: '#0e1621',
+      foreground: '#e8eef6',
+      surface: '#0b121b',
+      popover: '#18222f',
+      raised: '#18222f',
+      mutedForeground: '#9fb0c3',
+      primary: '#b9d7ff',
+      primaryForeground: '#0e1621',
+      destructive: '#ff8a8a',
+      border: '#ffffff14',
+      input: '#ffffff22',
+      ring: '#7f93aa',
     },
   },
 ] as const satisfies readonly Theme[];

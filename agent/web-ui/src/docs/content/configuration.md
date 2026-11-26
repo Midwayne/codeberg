@@ -105,13 +105,17 @@ Choose **Settings → Appearance**. Graphite is the default.
 | Themes | Style |
 |--------|-------|
 | Graphite, Porcelain | Clean dark and light neutrals with a faint halo of light |
-| Parchment | Serif headings and a faint paper grain behind the chat |
+| Midnight | Twinkling stars at three depths, with an occasional shooting star |
+| Aurora | Drifting bands of northern light under faint stars |
+| Snowfall | Snow falling at three speeds |
+| Rainfall | Steady rain over a dim city glow |
+| Fireflies | Glowing fireflies that float and blink |
+| Lanterns | Warm lanterns rising slowly |
+| Parchment | Serif headings and a faint paper grain |
 | Ember | Serif headings and a warm glow behind the composer |
 | Phosphor | Monospace text, square corners, and terminal scanlines |
-| Midnight | A night sky with slowly twinkling stars |
-| Aurora | Northern lights drifting across the top of the chat |
 
-A backdrop is the scene drawn behind the conversation; the composer floats over it as frosted glass. Turn off **Show backdrop** under the theme list to keep a theme's colors without its scene. Backdrops stop moving when your system asks for reduced motion.
+A backdrop is the scene drawn behind the conversation; the composer floats over it as frosted glass. Turn off **Show backdrop** under the theme list to keep a theme's colors without its scene. Backdrops stop moving, and shooting stars are hidden, when your system asks for reduced motion.
 
 Themes use fonts already on your device, so they look slightly different between operating systems.
 
@@ -146,10 +150,10 @@ Changing themes animates the whole app. Each theme picks its own effect:
 
 | Effect | Looks like | Used by |
 |--------|------------|---------|
-| Reveal | A circle grows from where you clicked | Parchment, Ember |
-| Blur | The old theme dissolves through a blur | Midnight, Aurora |
-| Wipe | The new theme scans in from the top | Phosphor |
-| Fade | A crossfade | Graphite, Porcelain |
+| Reveal | A circle grows from where you clicked | Parchment, Ember, Lanterns |
+| Blur | The old theme dissolves through a blur | Midnight, Aurora, Snowfall |
+| Wipe | The new theme scans in from the top | Phosphor, Rainfall |
+| Fade | A crossfade | Graphite, Porcelain, Fireflies |
 
 Browsers without view transitions fade the colors instead. When your system asks for reduced motion, themes change instantly.
 

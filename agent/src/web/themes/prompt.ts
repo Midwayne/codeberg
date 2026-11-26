@@ -23,13 +23,13 @@ Shape:
   "backdrop": null | {
     "sky": null | { "from": color, "to": color, "angle": 0-360 },
     "layers": [ at most 6 of {
-      "kind": "glow" | "band" | "stars" | "dots" | "grid" | "lines" | "noise",
+      "kind": "glow" | "band" | "stars" | "flakes" | "rain" | "orbs" | "meteor" | "dots" | "grid" | "lines" | "noise",
       "color": color,
       "opacity": 0-0.5,
       "x": 0-100, "y": 0-100,
       "size": 5-150,
       "angle": 0-360,
-      "animation": "none" | "drift" | "float" | "pulse" | "twinkle" | "pan" | "spin",
+      "animation": "none" | "drift" | "float" | "pulse" | "twinkle" | "pan" | "fall" | "rise" | "spin" | "shoot",
       "duration": seconds from 4 to 120
     } ]
   }
@@ -42,7 +42,11 @@ Rules:
 - primary is buttons and links; primaryForeground is text on primary.
 - The backdrop sits behind the chat text, so keep it dim: layer opacity mostly 0.05-0.25.
 - glow is a soft radial light at x, y with a size in percent; band is a soft diagonal ribbon at angle.
-- stars, dots, grid, and lines are patterns; size sets their spacing. noise is a fine grain.
+- stars, flakes (snow), rain, orbs (fireflies, lanterns, bokeh), dots, grid, and lines are patterns;
+  size sets their spacing. noise is a fine grain.
+- meteor is one shooting star at x, y, angled by angle; pair it with "shoot" so it streaks once per duration.
+- fall moves a pattern down (snow, rain), rise moves it up (lanterns, bubbles), pan scrolls it diagonally,
+  twinkle and pulse fade it in and out. Layer several patterns at different sizes and speeds for depth.
 - Prefer slow animations (20 seconds or more) that suit the mood.
 - transition is how the app changes into this theme: reveal is a circle from the click, fade is a crossfade,
   wipe scans from top to bottom, blur dissolves through a blur.`;

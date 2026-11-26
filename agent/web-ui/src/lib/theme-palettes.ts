@@ -1,4 +1,5 @@
 import { EXPRESSIVE_THEMES } from './theme-palettes-expressive';
+import { GLOW_THEMES } from './theme-palettes-glow';
 import { SCENE_THEMES } from './theme-palettes-scenes';
 
 import type { CustomThemeId, Theme } from './theme-types';
@@ -57,7 +58,7 @@ const BASE_THEMES = [
   },
 ] as const satisfies readonly Theme[];
 
-export const THEMES = [...BASE_THEMES, ...EXPRESSIVE_THEMES, ...SCENE_THEMES] as const;
+export const THEMES = [...BASE_THEMES, ...SCENE_THEMES, ...GLOW_THEMES, ...EXPRESSIVE_THEMES] as const;
 
 export type BuiltinThemeId = (typeof THEMES)[number]['id'];
 

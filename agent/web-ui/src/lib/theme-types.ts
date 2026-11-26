@@ -19,16 +19,16 @@ export interface Palette {
 export type ThemeFont = 'sans' | 'serif' | 'mono';
 
 /** Built-in scenes drawn by backdrop.css. */
-export type BackdropScene = 'halo' | 'night-sky' | 'aurora' | 'dusk' | 'paper' | 'scanlines';
+export type BackdropScene = 'halo' | 'dusk' | 'paper' | 'scanlines';
 
 /** How the app changes into a theme. */
 export const THEME_TRANSITIONS = ['reveal', 'fade', 'wipe', 'blur'] as const;
 
 export type ThemeTransition = (typeof THEME_TRANSITIONS)[number];
 
-export const LAYER_KINDS = ['glow', 'band', 'stars', 'dots', 'grid', 'lines', 'noise'] as const;
+export const LAYER_KINDS = ['glow', 'band', 'stars', 'flakes', 'rain', 'orbs', 'meteor', 'dots', 'grid', 'lines', 'noise'] as const;
 
-export const LAYER_ANIMATIONS = ['none', 'drift', 'float', 'pulse', 'twinkle', 'pan', 'spin'] as const;
+export const LAYER_ANIMATIONS = ['none', 'drift', 'float', 'pulse', 'twinkle', 'pan', 'fall', 'rise', 'spin', 'shoot'] as const;
 
 /** One validated layer of a generated backdrop; the UI turns it into styles. */
 export interface BackdropLayer {
@@ -44,7 +44,7 @@ export interface BackdropLayer {
   /** Degrees, for bands and lines. */
   angle: number;
   animation: (typeof LAYER_ANIMATIONS)[number];
-  /** Seconds per cycle, 4 to 120. */
+  /** Seconds per cycle: 4 to 120 for generated themes; built-in rain may be faster. */
   duration: number;
 }
 
