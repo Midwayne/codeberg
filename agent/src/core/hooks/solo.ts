@@ -21,10 +21,24 @@ const STEPS = [
   '5. Answer in full, citing the files, symbols, and lines you relied on. Prefer completeness over brevity.',
 ].join('\n');
 
+const AUTONOMY = [
+  'Work without stopping to ask:',
+  '- Do not pause mid-investigation to ask the user anything. When the request could mean several things,',
+  '  pick the most likely reading, say which one you chose, and carry on.',
+  '- Collect anything you still need from the user and list it at the end under "Open questions".',
+  '- For this message, you may run read-only, aggregate database queries with an explicit time range without',
+  '  asking first. This overrides the usual rule to ask before running a query you wrote. Still look for the',
+  '  query in the indexed code first, and show each query you ran with a plain description of what it read.',
+  '- Anything that changes data (insert, update, delete, schema changes, or any other write) still needs the',
+  "  user's explicit yes before you run it. Show the statement and ask, as usual.",
+].join('\n');
+
 /**
  * `/solo <request>` keeps the whole turn on the main agent: it asks the model
- * not to delegate to subagents and to investigate and answer thoroughly itself.
- * It only rewrites the message; the normal tool loop and tools are unchanged.
+ * not to delegate to subagents and to investigate and answer thoroughly itself,
+ * without stopping to ask. Read-only database queries run without a prompt;
+ * writes still need a yes. It only rewrites the message; the normal tool loop
+ * and tools are unchanged.
  */
 export const soloPromptHook: PromptHook = {
   name: 'solo',
@@ -34,7 +48,9 @@ export const soloPromptHook: PromptHook = {
     summary: 'Answer thoroughly without subagents',
     description:
       'Keeps the whole answer on the main agent: it does every search and check itself ' +
-      'instead of handing work to subagents, then gives a thorough, fully cited response.',
+      'instead of handing work to subagents, then gives a thorough, fully cited response. ' +
+      'It does not stop to ask: it states the reading it chose, lists open questions at the end, ' +
+      'and runs read-only database queries without asking. Changes to data still need your yes.',
     argHint: '<request>',
   },
   rewrite({ text }) {
@@ -51,6 +67,6 @@ export const soloPromptHook: PromptHook = {
       ].join('\n');
     }
 
-    return [GOAL, '', 'Request:', request, '', STEPS].join('\n');
+    return [GOAL, '', 'Request:', request, '', STEPS, '', AUTONOMY].join('\n');
   },
 };

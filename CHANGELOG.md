@@ -13,7 +13,7 @@ are in the git history.
 - The agent can check its context usage and limits, keep tool results it still needs, and drop ones it no longer does; it gets a short notice as the context fills.
 - The agent keeps a working list of findings and constraints in each chat that survives history summaries; it can search and correct the list.
 - Start a message with `/dumb` to get a plain-language answer for a non-technical reader such as a project manager.
-- Start a message with `/solo` to get a thorough answer from the main agent without subagents.
+- Start a message with `/solo` to get a thorough answer from the main agent without subagents or mid-way questions; it runs read-only database queries without asking.
 - New Graphite (now the default) and Porcelain themes: clean dark and light neutrals.
 - New Parchment, Ember, and Phosphor themes, with their own fonts and corner shapes.
 - Animated theme backdrops behind the header, sidebar, and chat; turn them off in **Settings → Appearance**.
