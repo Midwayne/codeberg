@@ -187,5 +187,38 @@ describe('saved custom themes', () => {
     expect(hasUnsavedThemes()).toBe(false);
     expect((JSON.parse(stored!) as { id: string }[]).map((entry) => entry.id)).toEqual(['custom-later', 'custom-new']);
   });
+
+  it('copies an unreadable saved value aside before a save replaces it', () => {
+    const backup = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => (key === CUSTOM_THEMES_STORAGE_KEY ? stored : backup.get(key) ?? null),
+      setItem: (key: string, value: string) => {
+        if (key === CUSTOM_THEMES_STORAGE_KEY) stored = value;
+        else backup.set(key, value);
+      },
+    });
+    stored = '{"themes": "from another version"}';
+
+    saveCustomTheme(theme('custom-a'));
+
+    expect([...backup.values()]).toEqual(['{"themes": "from another version"}']);
+  });
+
+  it('drops entries it cannot show before giving up on storing the user’s own themes', () => {
+    stored = JSON.stringify([{ id: 'other-format', note: 'x'.repeat(100) }]);
+    vi.stubGlobal('localStorage', {
+      getItem: () => stored,
+      setItem: (_key: string, value: string) => {
+        if (value.includes('other-format')) throw new Error('quota exceeded');
+
+        stored = value;
+      },
+    });
+
+    saveCustomTheme(theme('custom-a'));
+
+    expect(hasUnsavedThemes()).toBe(false);
+    expect((JSON.parse(stored!) as { id: string }[]).map((entry) => entry.id)).toEqual(['custom-a']);
+  });
 });
 

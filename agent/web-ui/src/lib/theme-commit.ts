@@ -1,4 +1,4 @@
-import { saveCustomTheme, savedVersion } from './custom-themes';
+import { saveCustomTheme, savedVersion, ThemeLimitError } from './custom-themes';
 import { activeThemeId } from './themes';
 import { changeTheme } from './theme-transition';
 import type { CustomTheme } from './theme-types';
@@ -55,7 +55,14 @@ export function commitTheme(theme: CustomTheme, { editing, activeAtStart }: Comm
 
   if (editing && !unchanged(editing)) throw new ThemeConflictError(editing.label);
 
-  saveCustomTheme(theme);
+  try {
+    saveCustomTheme(theme);
+  } catch (error) {
+    // Another tab filled the last slot while this was designed.
+    if (error instanceof ThemeLimitError) throw new Error(`${error.message} This design could not be saved; create it again after.`);
+
+    throw error;
+  }
 
   if (stillWanted(editing, activeAtStart)) changeTheme(theme.id);
 

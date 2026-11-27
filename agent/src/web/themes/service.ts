@@ -113,8 +113,14 @@ function themeFailure(error: unknown, signal?: AbortSignal): unknown {
 
 /* The SDK may pass the timeout through or wrap it (in a retry error, say). */
 export function isTimeout(error: unknown): boolean {
-  for (let current = error, depth = 0; current instanceof Error && depth < 4; current = current.cause, depth += 1) {
+  let current = error;
+
+  for (let depth = 0; depth < 4; depth += 1) {
+    if (!(current instanceof Error)) return false;
+
     if (current.name === 'TimeoutError') return true;
+
+    current = current.cause;
   }
 
   return false;

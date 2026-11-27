@@ -75,5 +75,11 @@ describe('committing a generated theme', () => {
     expect(restoreTheme(theme('Forest'), theme('Warm forest'))).toBe(false);
     expect(customThemes()[0]!.label).toBe('Serif forest');
   });
+
+  it('says a finished design could not be saved when another tab filled the last slot', () => {
+    for (let index = 0; index < 12; index += 1) saveCustomTheme({ ...theme(`T${index}`), id: `custom-t${index}` });
+
+    expect(() => commitTheme({ ...theme('Late'), id: 'custom-late' })).toThrow('This design could not be saved');
+  });
 });
 

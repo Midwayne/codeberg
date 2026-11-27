@@ -15,19 +15,17 @@ import { useThemeRequest } from './use-theme-request';
 export function useThemeStudio(selected: Theme, editing?: CustomTheme) {
   const { fetch } = useProjectApi();
   const [prompt, setPrompt] = useState('');
-  const [animated, setAnimated] = useState(true);
   const [refine, setRefine] = useState(false);
+  const [animated, setAnimated] = useAnimatedSetting(selected, refine, editing);
   // The version before the last change, and that change, so undo can tell if it still applies.
   const [previous, setPrevious] = useState<{ before: CustomTheme; after: CustomTheme }>();
   const { pending, error, setError, run, cancel } = useThemeRequest();
   const editRequest = useEditRequest(editing?.id, cancel);
 
-  // A different theme (or none, after a delete) starts fresh, with nothing to
-  // undo, and Animated matching the theme so an edit never adds motion unasked.
+  // A different theme (or none, after a delete) starts fresh, with nothing to undo.
   useEffect(() => {
     setPrevious(undefined);
     setError(undefined);
-    setAnimated(editing ? hasMotion(editing) : true);
   }, [editing?.id]);
 
   async function create() {
@@ -86,10 +84,26 @@ function useEditRequest(editingId: string | undefined, cancel: () => void) {
   };
 }
 
-function hasMotion(theme: CustomTheme): boolean {
+function hasMotion(theme: Theme): boolean {
   return typeof theme.backdrop === 'object' && theme.backdrop.layers.some((layer) => layer.animation !== 'none');
 }
 
 function cannotUndo(theme: CustomTheme): string {
   return `${theme.label} changed in another tab or was deleted, so this change cannot be undone.`;
+}
+
+/*
+ * Animated starts matching the theme the change starts from (the one being
+ * edited, or the selected one with Start from on), so a request like "make it
+ * bluer" never adds motion unasked. A fresh theme starts animated.
+ */
+function useAnimatedSetting(selected: Theme, refine: boolean, editing?: CustomTheme) {
+  const [animated, setAnimated] = useState(true);
+  const base = editing ?? (refine ? selected : undefined);
+
+  useEffect(() => {
+    setAnimated(base ? hasMotion(base) : true);
+  }, [base?.id]);
+
+  return [animated, setAnimated] as const;
 }
