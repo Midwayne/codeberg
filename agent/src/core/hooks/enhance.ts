@@ -12,11 +12,8 @@ export const enhancePromptHook: PromptHook = {
   command: {
     trigger: '/enhance',
     title: 'Enhance prompt',
-    summary: 'Turn a request into an agent-ready brief',
-    description:
-      'Searches the codebase for the impacted files, symbols, and tests, then ' +
-      'returns a copy-pasteable brief (objective, impacted areas, guidance, ' +
-      'verification) for a coding agent — instead of implementing the change itself.',
+    summary: 'Turn a request into an agent brief',
+    description: 'Maps the impacted code and returns a brief for a coding agent, without making the change.',
     argHint: '<request>',
   },
   rewrite({ text }) {
