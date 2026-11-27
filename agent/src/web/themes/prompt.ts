@@ -87,8 +87,9 @@ Rules:
 - fall moves a pattern down (snow, rain), rise moves it up (lanterns, bubbles), pan scrolls it diagonally,
   twinkle and pulse fade it in and out. Layer several patterns at different sizes and speeds for depth.
 - Prefer slow animations (20 seconds or more) that suit the mood.
-- Every moving layer covers the whole window and costs frame rate, so beside art, sprites, or a scene
-  use at most two layers, and keep them still unless the motion matters.
+- Every moving layer covers the whole window and costs frame rate. When you choose the effects yourself,
+  keep to one or two mostly still layers beside art, sprites, or a scene. This is a default, not a limit:
+  add every effect the request asks for, and keep the layers of a theme being changed.
 - art is your own illustration. Whenever the request names imagery (flowers, a painting, trees, mountains,
   waves, koi, a skyline, a creature), draw it as art instead of approximating it with layers. Make it rich:
   layered shapes, gradients for washes of paint, overlapping petals and leaves, branches with varied
