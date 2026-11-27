@@ -2,6 +2,7 @@ export { promptCommandCatalog } from './catalog.js';
 export { DEFAULT_PROMPT_HOOKS } from './defaults.js';
 export { enhancePromptHook } from './enhance.js';
 export { plainPromptHook } from './plain.js';
+export { soloPromptHook } from './solo.js';
 export {
   applyPromptHooksToMessages,
   applyPromptHooksToText,

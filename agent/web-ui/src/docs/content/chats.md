@@ -130,12 +130,15 @@ Start a message with a command to change how the agent handles that one message.
 | --- | --- |
 | `/enhance <request>` | A copy-pasteable brief for a coding agent, with the impacted files and checks. The agent does not make the change. |
 | `/dumb <question>` | A plain-language answer for someone who does not read code, such as a project manager: short answer, what it means, key facts, how sure it is, and next steps. |
+| `/solo <request>` | A thorough answer from the main agent alone. It does every search and check itself instead of handing parts to subagents. |
 
 ```text
 /dumb why did sign-ups drop last week?
 ```
 
 With `/dumb`, the agent still searches the code and, when a [database MCP](/docs/mcps#database-mcp) is connected, can query it for real numbers under the usual database rules. Only the reply is simplified, so it leaves out code, file paths, and jargon. A command applies to its own message only; start each follow-up with it again to keep plain answers.
+
+Use `/solo` when an answer built from subagent reports feels thin. The agent keeps the investigation in one place, so it can take longer on broad questions. It is an instruction to the agent, not a switch: to turn subagents off for every chat, turn off **Models → Subagents**.
 
 ## Read answers
 
