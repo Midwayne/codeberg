@@ -28,12 +28,12 @@ function replyModel(text: string, finish: 'stop' | 'length' = 'stop') {
   });
 }
 
-async function serve(model: MockLanguageModelV4) {
+async function serve(model: MockLanguageModelV4, efforts: string[] = ['provider-default', 'low', 'high']) {
   const resolved: string[] = [];
   const settings = {
     current: async () => ({
       chat: { key: 'test:fast', effort: 'provider-default' as const },
-      models: [{ key: 'test:fast', model: 'test:actual-model', efforts: ['provider-default', 'low', 'high'] }],
+      models: [{ key: 'test:fast', model: 'test:actual-model', efforts }],
     }),
   };
   const themes = createThemeService(settings as never, (spec) => {
@@ -77,6 +77,29 @@ describe('theme generation API', () => {
 
     expect(response.status).toBe(502);
     expect(await response.text()).toContain('did not return a theme');
+  });
+
+  it('retries once with room to think when a model stops early on the small budget', async () => {
+    const theme = JSON.stringify({ label: 'Thought', palette: { background: '#000000' } });
+    let calls = 0;
+    const model = new MockLanguageModelV4({
+      doGenerate: async () => {
+        calls += 1;
+
+        return {
+          content: [{ type: 'text', text: calls === 1 ? '' : theme }],
+          finishReason: { unified: calls === 1 ? 'length' : 'stop', raw: undefined },
+          usage: { inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 1, text: 1, reasoning: 0 } },
+          warnings: [],
+        };
+      },
+    });
+    const { post } = await serve(model, []);
+
+    const response = await post({ prompt: 'thoughtful' });
+
+    expect(response.status).toBe(200);
+    expect(model.doGenerateCalls.map((call) => call.maxOutputTokens)).toEqual([4_096, 16_000]);
   });
 
   it('explains a reply that was cut off instead of reporting a fragment of it', async () => {
@@ -138,10 +161,9 @@ describe('theme reply parsing', () => {
 
     expect(themeFromReply(`Note { unfinished ${JSON.stringify({ label: 'Inner', palette })}`)).toEqual({ label: 'Inner', palette });
 
-    const started = performance.now();
-
-    expect(() => themeFromReply('{'.repeat(50_000))).toThrow('did not return a theme');
-    expect(performance.now() - started).toBeLessThan(2_000);
+    // Within the bounded number of tries the theme is found; past it, the scan gives up.
+    expect(themeFromReply(`${'{a} '.repeat(10)}${JSON.stringify({ label: 'Found', palette })}`)).toEqual({ label: 'Found', palette });
+    expect(() => themeFromReply(`${'{a} '.repeat(70)}${JSON.stringify({ label: 'Lost', palette })}`)).toThrow('did not return a theme');
   });
 
   it('does not mistake a complete inner fragment of a broken theme for the theme', () => {

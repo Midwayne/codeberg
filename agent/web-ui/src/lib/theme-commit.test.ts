@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { customThemes, removeCustomTheme, resetCustomThemeCache, saveCustomTheme } from './custom-themes';
-import { commitTheme, restoreTheme } from './theme-commit';
+import { commitTheme, restoreTheme, ThemeConflictError } from './theme-commit';
 import { normalizeTheme } from './theme-normalize';
 import { activeThemeId, applyTheme } from './themes';
 
@@ -10,7 +10,11 @@ const theme = (label: string) =>
 
 describe('committing a generated theme', () => {
   beforeEach(() => {
-    vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => undefined });
+    const store = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => store.set(key, value),
+    });
     vi.stubGlobal('window', { matchMedia: () => ({ matches: true }) });
     vi.stubGlobal('document', {
       documentElement: { dataset: {}, classList: { toggle: vi.fn() }, style: { setProperty: vi.fn(), removeProperty: vi.fn() } },
@@ -38,7 +42,7 @@ describe('committing a generated theme', () => {
     saveCustomTheme(theme('Before'));
     removeCustomTheme('custom-a');
 
-    expect(restoreTheme(theme('Before'))).toBe(false);
+    expect(restoreTheme(theme('Before'), theme('After'))).toBe(false);
     expect(customThemes()).toEqual([]);
   });
 
@@ -46,7 +50,7 @@ describe('committing a generated theme', () => {
     saveCustomTheme(theme('After'));
     applyTheme('graphite');
 
-    expect(restoreTheme(theme('Before'))).toBe(true);
+    expect(restoreTheme(theme('Before'), theme('After'))).toBe(true);
     expect(customThemes()[0]!.label).toBe('Before');
     expect(activeThemeId()).toBe('graphite');
   });
@@ -61,6 +65,15 @@ describe('committing a generated theme', () => {
 
     expect(commitTheme({ ...theme('New'), id: 'custom-new' }, { activeAtStart: 'porcelain' })).toBe(true);
     expect(activeThemeId()).toBe('graphite');
+  });
+
+  it('refuses an edit or undo built on a version another tab has changed since', () => {
+    saveCustomTheme(theme('Forest'));
+    saveCustomTheme(theme('Serif forest'));
+
+    expect(() => commitTheme(theme('Warm forest'), { editing: theme('Forest') })).toThrow(ThemeConflictError);
+    expect(restoreTheme(theme('Forest'), theme('Warm forest'))).toBe(false);
+    expect(customThemes()[0]!.label).toBe('Serif forest');
   });
 });
 

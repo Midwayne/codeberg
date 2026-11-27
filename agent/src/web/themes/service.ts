@@ -57,20 +57,39 @@ export function createThemeService(
       const model = resolveModel(spec);
       const tracked = transformModel ? transformModel(model, chat.key, spec) : model;
 
-      // requireComplete adds a 120-second limit and rejects a reply that stopped early.
-      const text = await fromAiSdk(tracked, themeEffort(entry?.efforts), spec).generate({
+      const generator = fromAiSdk(tracked, themeEffort(entry?.efforts), spec);
+      const ask = (maxOutputTokens: number) => generator.generate({
         system: THEME_SYSTEM_PROMPT,
         prompt: themePrompt(request),
-        maxOutputTokens: themeOutputTokens(entry?.efforts),
+        maxOutputTokens,
+        // Adds a 120-second limit and rejects a reply that stopped early.
         requireComplete: true,
         ...(signal ? { abortSignal: signal } : {}),
-      }).catch((error: unknown) => {
+      });
+
+      const text = await withRoomToThink(ask, themeOutputTokens(entry?.efforts)).catch((error: unknown) => {
         throw themeFailure(error, signal);
       });
 
       return themeFromReply(text);
     },
   };
+}
+
+/*
+ * A model that reasons without saying so (no effort levels listed, or not in
+ * the catalog) can spend the small budget thinking and stop before the theme.
+ * One retry with room to think recovers that, without sending a large limit to
+ * small models up front, which some providers reject.
+ */
+async function withRoomToThink(ask: (tokens: number) => Promise<string>, budget: number): Promise<string> {
+  try {
+    return await ask(budget);
+  } catch (error) {
+    if (!(error instanceof IncompleteSummaryError) || budget >= REASONING_THEME_OUTPUT_TOKENS) throw error;
+
+    return ask(REASONING_THEME_OUTPUT_TOKENS);
+  }
 }
 
 /** Plain messages for a model that stalled or stopped mid-theme; anything else passes through. */

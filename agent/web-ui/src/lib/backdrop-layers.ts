@@ -21,7 +21,8 @@ function spacing(layer: BackdropLayer): number {
  * re-rasterizes every frame and drops the frame rate badly.
  */
 function paint(layer: BackdropLayer): Pick<CSSProperties, 'backgroundImage' | 'backgroundSize'> {
-  const { color, x, y, size, angle } = layer;
+  const { color, angle } = layer;
+  const { x, y, size } = inViewport(layer);
   const tile = spacing(layer);
 
   switch (layer.kind) {
@@ -54,6 +55,21 @@ function paint(layer: BackdropLayer): Pick<CSSProperties, 'backgroundImage' | 'b
 
 function never(value: never): never {
   throw new Error(`Unknown backdrop layer: ${String(value)}`);
+}
+
+/*
+ * Soft lights sit on a box larger than the window (backdrop-layers.css: 20%
+ * past each edge, 50% when spinning) so their fade never shows an edge. The
+ * theme's x, y, and size describe the window, so they are mapped into that
+ * box: x = 5 in a 1.4x box lands 5% into the window, not off it.
+ */
+function inViewport(layer: BackdropLayer): Pick<BackdropLayer, 'x' | 'y' | 'size'> {
+  const soft = layer.kind === 'glow' || layer.kind === 'band';
+  const overhang = layer.animation === 'spin' ? 50 : soft ? 20 : 0;
+  const scale = 1 + (2 * overhang) / 100;
+  const place = (value: number) => Math.round(((value + overhang) / scale) * 10) / 10;
+
+  return { x: place(layer.x), y: place(layer.y), size: Math.round((layer.size / scale) * 10) / 10 };
 }
 
 /** Inline styles for one layer; backdrop.css supplies the shared keyframes. */

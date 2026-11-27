@@ -7,17 +7,8 @@ export const CUSTOM_THEMES_STORAGE_KEY = 'codeberg.custom-themes';
 /* Saved entries this version cannot use, written back untouched so they are never lost. */
 let unrestorable: unknown[] = [];
 
-/* After a failed write (a full quota, say), storage is older than this page's list. */
-let lastWriteFailed = false;
-
-/**
- * The saved themes, or undefined when this page's own list should be trusted
- * instead: storage is blocked, its value is unreadable, or the last write
- * failed so storage still holds an older list.
- */
+/** The saved themes, or undefined when storage is blocked or its value is unreadable. */
 export function readStoredThemes(): CustomTheme[] | undefined {
-  if (lastWriteFailed) return undefined;
-
   const text = storedText();
   if (text === undefined) return undefined;
 
@@ -37,13 +28,14 @@ export function readStoredThemes(): CustomTheme[] | undefined {
   return themes;
 }
 
-export function writeStoredThemes(themes: CustomTheme[]): void {
+/** Whether the browser stored the list; false for a full quota or blocked storage. */
+export function writeStoredThemes(themes: CustomTheme[]): boolean {
   try {
     localStorage.setItem(CUSTOM_THEMES_STORAGE_KEY, JSON.stringify([...themes, ...unrestorable]));
-    lastWriteFailed = false;
+
+    return true;
   } catch {
-    // Themes still work for this page; reads trust its list until a write succeeds.
-    lastWriteFailed = true;
+    return false;
   }
 }
 
@@ -76,13 +68,7 @@ function restore(entry: unknown): CustomTheme | undefined {
   }
 }
 
-/** Storage was written successfully elsewhere (another tab), so it is current again. */
-export function forgetWriteFailure(): void {
-  lastWriteFailed = false;
-}
-
-/** Test hook: forget write failures and unreadable entries. */
+/** Test hook: forget unreadable entries. */
 export function resetThemeStorage(): void {
   unrestorable = [];
-  lastWriteFailed = false;
 }

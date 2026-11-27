@@ -10,6 +10,7 @@ import {
   subscribeCustomThemes,
   subscribeOtherTabThemes,
   hasRoomForTheme,
+  hasUnsavedThemes,
   ThemeLimitError,
 } from './custom-themes';
 import { normalizeTheme } from './theme-normalize';
@@ -153,6 +154,38 @@ describe('saved custom themes', () => {
 
     expect(JSON.parse(stored!)).toContainEqual(foreign);
     expect(customThemes().map((entry) => entry.id)).toEqual(['custom-a']);
+  });
+
+  it('keeps a theme the browser could not store when another tab writes', () => {
+    let onStorage: ((event: { key: string | null }) => void) | undefined;
+    vi.stubGlobal('window', { addEventListener: (_type: string, handler: typeof onStorage) => { onStorage = handler; } });
+    subscribeCustomThemes(() => undefined);
+    saveCustomTheme(theme('custom-old'));
+
+    let full = true;
+    vi.stubGlobal('localStorage', {
+      getItem: () => stored,
+      setItem: (_key: string, value: string) => {
+        if (full) throw new Error('quota exceeded');
+
+        stored = value;
+      },
+    });
+
+    saveCustomTheme(theme('custom-new'));
+
+    expect(hasUnsavedThemes()).toBe(true);
+
+    stored = '[]';
+    onStorage?.({ key: CUSTOM_THEMES_STORAGE_KEY });
+
+    expect(customThemes().map((entry) => entry.id)).toEqual(['custom-new']);
+
+    full = false;
+    saveCustomTheme(theme('custom-later'));
+
+    expect(hasUnsavedThemes()).toBe(false);
+    expect((JSON.parse(stored!) as { id: string }[]).map((entry) => entry.id)).toEqual(['custom-later', 'custom-new']);
   });
 });
 

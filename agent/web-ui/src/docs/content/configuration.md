@@ -149,7 +149,7 @@ Describe a look and your chat model designs a theme: colors, fonts, corner shape
 
 1. Under **Your themes**, choose the pencil (**Edit**) on the theme.
 2. Describe the change, for example `warmer colors, slower stars`, or choose an idea such as **More contrast**.
-3. Choose **Apply change**. The theme updates in place; the rest stays as it was.
+3. Choose **Apply change**. The theme updates in place; the rest stays as it was. **Animated** starts matching the theme; turn it on to add motion to a still theme, or off to stop it.
 4. Keep describing changes, or choose **undo** to restore the previous version. Choose **Done** to stop editing.
 
 Each theme uses a few thousand tokens on your chat model and is recorded in **Usage**. **Cancel** stops a request that is still running.

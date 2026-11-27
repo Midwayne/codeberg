@@ -3,6 +3,7 @@ import { useEffect, useRef, type FormEvent } from 'react';
 
 import { actionClass } from './button-styles';
 import { useThemeStudio } from './use-theme-studio';
+import { hasUnsavedThemes } from '../lib/custom-themes';
 import { THEME_PROMPT_LIMIT } from '../lib/theme-generate';
 import type { CustomTheme, Theme } from '../lib/theme-types';
 
@@ -52,6 +53,7 @@ export function ThemeStudio({ selected, editing, onDoneEditing }: ThemeStudioPro
         <ThemeIdeas ideas={editing ? EDIT_IDEAS : IDEAS} onPick={studio.setPrompt} disabled={studio.pending} />
         <StudioOptions studio={studio} selected={selected} editing={editing} onDoneEditing={onDoneEditing} />
         <StudioStatus studio={studio} editing={editing} />
+        <UnsavedNotice />
       </form>
     </section>
   );
@@ -128,6 +130,18 @@ function StudioOptions({ studio, selected, editing, onDoneEditing }: StudioOptio
         </button>
       </div>
     </div>
+  );
+}
+
+/* Re-rendered with the theme list (the panel subscribes to it), so it appears and clears with saves. */
+function UnsavedNotice() {
+  if (!hasUnsavedThemes()) return null;
+
+  return (
+    <p role="status" className="text-xs text-muted-foreground">
+      Some theme changes are saved for this page only: the browser could not store them, so a reload would lose
+      them. Free up browser storage, or delete a theme, to save them.
+    </p>
   );
 }
 

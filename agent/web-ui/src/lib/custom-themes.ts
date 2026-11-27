@@ -1,4 +1,5 @@
-import { CUSTOM_THEMES_STORAGE_KEY, forgetWriteFailure, readStoredThemes, resetThemeStorage, writeStoredThemes } from './custom-theme-storage';
+import { CUSTOM_THEMES_STORAGE_KEY, readStoredThemes, resetThemeStorage, writeStoredThemes } from './custom-theme-storage';
+import { clearUnsaved, overlayUnsaved, recordUnsaved, type ThemeChange } from './unsaved-themes';
 import type { CustomTheme, CustomThemeId } from './theme-types';
 
 export const MAX_CUSTOM_THEMES = 12;
@@ -11,18 +12,18 @@ export { isCustomThemeId, newCustomThemeId } from './custom-theme-id';
 
 /** Saved themes, newest first. Entries that no longer validate are skipped. */
 export function customThemes(): CustomTheme[] {
-  cache ??= readStoredThemes() ?? [];
+  cache ??= overlayUnsaved(readStoredThemes() ?? []);
 
   return cache;
 }
 
 /*
  * Writes start from what storage holds now, not this page's cache, so a theme
- * another tab saved since is kept rather than overwritten. When storage cannot
- * be trusted (see readStoredThemes), this page's own list is kept.
+ * another tab saved since is kept rather than overwritten. Changes the browser
+ * refused to store are laid on top; unreadable storage keeps this page's list.
  */
 function latest(): CustomTheme[] {
-  cache = readStoredThemes() ?? cache ?? [];
+  cache = overlayUnsaved(readStoredThemes() ?? cache ?? []);
 
   return cache;
 }
@@ -48,16 +49,21 @@ export function saveCustomTheme(theme: CustomTheme): void {
   const themes = latest();
 
   if (themes.some((entry) => entry.id === theme.id)) {
-    return write(themes.map((entry) => (entry.id === theme.id ? theme : entry)));
+    return write(themes.map((entry) => (entry.id === theme.id ? theme : entry)), { save: theme });
   }
 
   if (themes.length >= MAX_CUSTOM_THEMES) throw new ThemeLimitError();
 
-  write([theme, ...themes]);
+  write([theme, ...themes], { save: theme });
 }
 
 export function removeCustomTheme(id: CustomThemeId): void {
-  write(latest().filter((entry) => entry.id !== id));
+  write(latest().filter((entry) => entry.id !== id), { remove: id });
+}
+
+/** The saved version of a theme as storage holds it now, or undefined if it is gone. */
+export function savedVersion(id: string): CustomTheme | undefined {
+  return latest().find((entry) => entry.id === id);
 }
 
 export function subscribeCustomThemes(listener: () => void): () => void {
@@ -77,9 +83,7 @@ function watchOtherTabs(): void {
   window.addEventListener('storage', (event) => {
     if (event.key !== CUSTOM_THEMES_STORAGE_KEY && event.key !== null) return;
 
-    // Another tab wrote successfully, so storage is newer even after a failed write here.
-    forgetWriteFailure();
-    cache = readStoredThemes() ?? cache;
+    cache = overlayUnsaved(readStoredThemes() ?? cache ?? []);
     for (const listener of [...listeners, ...otherTabListeners]) listener();
   });
 }
@@ -92,9 +96,11 @@ export function subscribeOtherTabThemes(listener: () => void): () => void {
   return () => otherTabListeners.delete(listener);
 }
 
-function write(themes: CustomTheme[]): void {
+function write(themes: CustomTheme[], change: ThemeChange): void {
   cache = themes;
-  writeStoredThemes(themes);
+
+  if (writeStoredThemes(themes)) clearUnsaved();
+  else recordUnsaved(change);
 
   for (const listener of listeners) listener();
 }
@@ -102,7 +108,11 @@ function write(themes: CustomTheme[]): void {
 /** Test hook: forget the cached list so the next read comes from storage. */
 export function resetCustomThemeCache(): void {
   cache = undefined;
+  watching = false;
   resetThemeStorage();
+  clearUnsaved();
 }
+
+export { hasUnsavedThemes } from './unsaved-themes';
 
 export { CUSTOM_THEMES_STORAGE_KEY } from './custom-theme-storage';

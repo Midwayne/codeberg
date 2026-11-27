@@ -17,7 +17,8 @@ export function useThemeStudio(selected: Theme, editing?: CustomTheme) {
   const [prompt, setPrompt] = useState('');
   const [animated, setAnimated] = useState(true);
   const [refine, setRefine] = useState(false);
-  const [previous, setPrevious] = useState<CustomTheme>();
+  // The version before the last change, and that change, so undo can tell if it still applies.
+  const [previous, setPrevious] = useState<{ before: CustomTheme; after: CustomTheme }>();
   const { pending, error, setError, run, cancel } = useThemeRequest();
   const editRequest = useEditRequest(editing?.id, cancel);
 
@@ -45,7 +46,7 @@ export function useThemeStudio(selected: Theme, editing?: CustomTheme) {
       // Cancelled after the reply was read: the user moved on, so nothing is saved.
       if (signal.aborted || !commitTheme(theme, { editing, activeAtStart })) return;
 
-      setPrevious(editing);
+      setPrevious(editing ? { before: editing, after: theme } : undefined);
       setPrompt('');
     });
   }
@@ -53,7 +54,7 @@ export function useThemeStudio(selected: Theme, editing?: CustomTheme) {
   function undo() {
     if (!previous || pending) return;
 
-    restoreTheme(previous);
+    restoreTheme(previous.before, previous.after);
     setPrevious(undefined);
   }
 

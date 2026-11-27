@@ -1,19 +1,31 @@
-import { customThemes, saveCustomTheme } from './custom-themes';
+import { saveCustomTheme, savedVersion } from './custom-themes';
 import { activeThemeId } from './themes';
 import { changeTheme } from './theme-transition';
 import type { CustomTheme } from './theme-types';
 
-function isSaved(theme: CustomTheme): boolean {
-  return customThemes().some((entry) => entry.id === theme.id);
+export class ThemeConflictError extends Error {
+  constructor(label: string) {
+    super(`${label} changed in another tab. Choose Edit on it again to change the latest version.`);
+  }
+}
+
+/*
+ * Whether storage still holds exactly `expected`. A save made from an older
+ * snapshot would silently overwrite a version another tab saved since.
+ */
+function unchanged(expected: CustomTheme): boolean {
+  const current = savedVersion(expected.id);
+
+  return current !== undefined && JSON.stringify(current) === JSON.stringify(expected);
 }
 
 /**
- * Restores an earlier version of a saved theme, unless it was deleted since. It
- * is shown again only if it is still the theme in use; picking another theme
- * in the meantime is respected.
+ * Restores the version before the last change, if the theme still holds that
+ * change: not after a delete, or after another tab changed it again. It is
+ * shown again only if it is still the theme in use.
  */
-export function restoreTheme(previous: CustomTheme): boolean {
-  if (!isSaved(previous)) return false;
+export function restoreTheme(previous: CustomTheme, changed: CustomTheme): boolean {
+  if (!unchanged(changed)) return false;
 
   saveCustomTheme(previous);
   if (activeThemeId() === previous.id) changeTheme(previous.id);
@@ -34,11 +46,14 @@ function stillWanted(editing: CustomTheme | undefined, activeAtStart: string | u
 
 /**
  * Saves a generated theme and shows it, unless the user moved on while it was
- * designed: a change to a deleted theme is dropped, so deleting stays final,
+ * designed: a change to a deleted theme is dropped, so deleting stays final; a
+ * change to a theme another tab changed since is refused, not merged over it;
  * and a theme picked in the meantime stays in use.
  */
 export function commitTheme(theme: CustomTheme, { editing, activeAtStart }: CommitContext = {}): boolean {
-  if (editing && !isSaved(editing)) return false;
+  if (editing && !savedVersion(editing.id)) return false;
+
+  if (editing && !unchanged(editing)) throw new ThemeConflictError(editing.label);
 
   saveCustomTheme(theme);
 
