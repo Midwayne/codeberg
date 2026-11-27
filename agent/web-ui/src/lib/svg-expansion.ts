@@ -1,18 +1,33 @@
-import { readTags } from './svg-tags';
+import { MAX_OCTAVES } from './svg-allowlist';
+import { readTags, type Tag } from './svg-tags';
 
 /*
  * A drawing may reference its own parts: <use href="#id">, and url(#id) for
  * paint, masks, clips, and filters. Each reference draws its target again, so
  * a few dozen groups that each draw the previous one twice ask the browser
- * for billions of shapes and hang the page on every load. This counts the
- * shapes a drawing really asks for, with each reference expanded.
+ * for billions of shapes and hang the page on every load. Filters cost far
+ * more than a shape: each pass runs over the whole filtered area. This counts
+ * the work a drawing really asks for, with each reference expanded.
  */
 
-/** Most shapes, references expanded, that a drawing may ask the browser to draw. */
-export const MAX_DRAWN_SHAPES = 5_000;
+/** Most work, in shapes, that a drawing may ask the browser for, with references expanded. */
+export const MAX_DRAWING_COST = 5_000;
 
-/* Elements that draw; paint servers, filters, and groups only shape what these draw. */
+/* Elements that draw; paint servers and groups only shape what these draw. */
 const DRAWN = new Set(['path', 'circle', 'ellipse', 'rect', 'line', 'polyline', 'polygon', 'use']);
+
+/* One filter pass over an element's area, counted as this many shapes; turbulence runs one per octave. */
+const FILTER_PASS = 20;
+
+function costOf(tag: Tag): number {
+  if (DRAWN.has(tag.name)) return 1;
+
+  if (!tag.name.startsWith('fe') || tag.name === 'feMergeNode') return 0;
+
+  const octaves = tag.name === 'feTurbulence' ? Number(tag.attributes.get('numOctaves') ?? 1) : 1;
+
+  return FILTER_PASS * Math.min(MAX_OCTAVES, Math.max(1, octaves || 1));
+}
 
 interface Part {
   shapes: number;
@@ -60,7 +75,7 @@ function readParts(svg: string): { root: Part; parts: Map<string, Part> } {
       continue;
     }
 
-    const part = { shapes: DRAWN.has(tag.name) ? 1 : 0, references: referencesOf(tag.attributes), id: tag.attributes.get('id'), order: opened++ };
+    const part = { shapes: costOf(tag), references: referencesOf(tag.attributes), id: tag.attributes.get('id'), order: opened++ };
 
     if (tag.empty) close(part);
     else open.push(part);
@@ -69,8 +84,8 @@ function readParts(svg: string): { root: Part; parts: Map<string, Part> } {
   return { root: open[0]!, parts };
 }
 
-/** Shapes drawn with every reference expanded; Infinity for a reference cycle. */
-export function expandedShapes(svg: string): number {
+/** Work a drawing asks for, in shapes, with every reference expanded; Infinity for a reference cycle. */
+export function drawingCost(svg: string): number {
   const { root, parts } = readParts(svg);
   const known = new Map<string, number>();
   const visiting = new Set<string>();
@@ -80,7 +95,7 @@ export function expandedShapes(svg: string): number {
 
     for (const id of part.references) {
       total += drawn(id);
-      if (total > MAX_DRAWN_SHAPES) return Infinity;
+      if (total > MAX_DRAWING_COST) return Infinity;
     }
 
     return total;

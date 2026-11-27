@@ -1,6 +1,7 @@
 import {
   ANIMATED_ATTRIBUTES,
   clockSeconds,
+  FILTER_REGION,
   MAX_SVG_CHARS,
   MIN_MOTION_SECONDS,
   MIN_STEP_SECONDS,
@@ -11,7 +12,7 @@ import {
   SVG_ATTRIBUTES,
   SVG_ELEMENTS,
 } from './svg-allowlist';
-import { expandedShapes, MAX_DRAWN_SHAPES } from './svg-expansion';
+import { drawingCost, MAX_DRAWING_COST } from './svg-expansion';
 import { readTags, type Tag } from './svg-tags';
 
 export { MAX_SVG_CHARS };
@@ -44,8 +45,8 @@ export function sanitizeSvg(source: unknown, animated: boolean): string | undefi
   const svg = writeSvg(tags, animated);
   if (!svg || svg.length > MAX_SVG_CHARS) return undefined;
 
-  // Small source can still draw a huge number of shapes through nested references.
-  return expandedShapes(svg) <= MAX_DRAWN_SHAPES ? svg : undefined;
+  // Small source can still ask for a huge number of shapes or filter passes through references.
+  return drawingCost(svg) <= MAX_DRAWING_COST ? svg : undefined;
 }
 
 /* Rebuilds the document: the root svg, then each allowed element; a dropped element drops its children. */
@@ -71,7 +72,7 @@ function writeSvg(tags: Tag[], animated: boolean): string | undefined {
     }
 
     const kept = dropped === 0 && keepElement(tag, animated);
-    if (kept) out.push(`<${tag.name}${writeAttributes(tag.attributes)}${tag.empty ? '/' : ''}>`);
+    if (kept) out.push(`<${tag.name}${writeAttributes(tag.name, tag.attributes)}${tag.empty ? '/' : ''}>`);
 
     if (!tag.empty) {
       open.push({ name: tag.name, kept });
@@ -113,10 +114,12 @@ function keepMotion(tag: Tag): boolean {
   return aimed && slow;
 }
 
-function writeAttributes(attributes: Map<string, string>): string {
+function writeAttributes(element: string, attributes: Map<string, string>): string {
   let text = '';
 
   for (const [name, value] of attributes) {
+    if (element === 'filter' && FILTER_REGION.has(name)) continue;
+
     if (SVG_ATTRIBUTES.has(name) && safeValue(name, value)) text += ` ${name}="${value}"`;
   }
 

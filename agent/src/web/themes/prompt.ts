@@ -103,7 +103,8 @@ Rules:
 - Each svg needs a viewBox, uses single quotes for attributes, and stays under 8000 characters. Use
   only path, circle, ellipse, rect, line, polyline, polygon, g, defs, use, symbol, clipPath, mask,
   linearGradient, radialGradient, stop, pattern, filter with fe* blur, offset, merge, blend, color matrix,
-  turbulence, or displacement, and animate, animateTransform, or animateMotion. Set colors with
+  turbulence (numOctaves 4 at most), or displacement, blur stdDeviation 50 at most, filters on their default
+  region and never animated, and animate, animateTransform, or animateMotion. Set colors with
   attributes such as fill and stroke. No text, style, CSS, script, images, or links; refer only to ids in
   the same drawing with url(#id) or href='#id'. Animations inside a drawing (a petal turning, a lantern
   glowing) move evenly through their values: at least 2s per cycle and 1s per step between values, one

@@ -44,8 +44,28 @@ export const SVG_ATTRIBUTES = new Set([...GEOMETRY, ...PRESENTATION, ...REFERENC
 export const ANIMATED_ATTRIBUTES = new Set([
   'transform', 'opacity', 'fill', 'stroke', 'fill-opacity', 'stroke-opacity', 'stroke-width',
   'stroke-dashoffset', 'stop-color', 'stop-opacity', 'offset', 'd', 'points', 'x', 'y', 'cx', 'cy',
-  'r', 'rx', 'ry', 'width', 'height', 'stdDeviation', 'baseFrequency',
+  'r', 'rx', 'ry', 'width', 'height',
 ]);
+
+/*
+ * Filters re-run over their whole region on every repaint, so their cost is
+ * bounded: a few turbulence octaves, a moderate blur, the default region, and
+ * no animation of filter values, which would re-run them every frame.
+ */
+export const MAX_OCTAVES = 4;
+
+const MAX_BLUR = 50;
+
+/** Region and unit attributes a <filter> loses, so it covers only the default area around its element. */
+export const FILTER_REGION = new Set(['x', 'y', 'width', 'height', 'filterUnits', 'primitiveUnits']);
+
+function boundedFilterValue(name: string, value: string): boolean {
+  if (name === 'numOctaves') return new RegExp(`^[1-${MAX_OCTAVES}]$`).test(value.trim());
+
+  const blur = value.trim().split(/[\s,]+/).map(Number);
+
+  return blur.length <= 2 && blur.every((sigma) => Number.isFinite(sigma) && sigma >= 0 && sigma <= MAX_BLUR);
+}
 
 /* Numbers, colors, paths, transforms, and local url(#id) references; no quotes, angle brackets, or escapes. */
 const SAFE_VALUE = /^[\w\s#.,%()+\-:;/]*$/;
@@ -63,6 +83,8 @@ export function safeValue(name: string, value: string): boolean {
   if (name === 'href') return /^#[\w-]+$/.test(value);
 
   if (name === 'attributeName') return ANIMATED_ATTRIBUTES.has(value);
+
+  if (name === 'numOctaves' || name === 'stdDeviation') return boundedFilterValue(name, value);
 
   // One start time; a list of them could restart an animation in quick bursts.
   if (name === 'begin') return Number.isFinite(clockSeconds(value));

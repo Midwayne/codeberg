@@ -122,4 +122,25 @@ describe('svg art sanitizing', () => {
     expect(sanitizeSvg(decoyed, true)).toBeUndefined();
     expect(sanitizeSvg(nested, true)).toBeUndefined();
   });
+
+  it('bounds what each filter costs: octaves, blur, region, and animated filter values', () => {
+    const svg = sanitizeSvg(wrap(
+      "<filter id='f' x='-5000%' y='-5000%' width='10000%' height='10000%' filterUnits='userSpaceOnUse' primitiveUnits='objectBoundingBox'>"
+      + "<feTurbulence numOctaves='1000' baseFrequency='0.9'><animate attributeName='baseFrequency' values='0.1;9;0.1' dur='8s'/></feTurbulence>"
+      + "<feGaussianBlur stdDeviation='100000'><animate attributeName='stdDeviation' values='1;100000;1' dur='8s'/></feGaussianBlur>"
+      + "<feGaussianBlur stdDeviation='4 8'/></filter><rect width='100' height='200' filter='url(#f)'/>",
+    ), true) ?? '';
+
+    expect(svg).toContain('<filter id="f"><feTurbulence baseFrequency="0.9"></feTurbulence><feGaussianBlur></feGaussianBlur><feGaussianBlur stdDeviation="4 8"/></filter>');
+    expect(sanitizeSvg(wrap("<filter id='f'><feTurbulence numOctaves='4'/></filter>"), true)).toContain('numOctaves="4"');
+  });
+
+  it('refuses drawings that run more filter passes than a backdrop can afford, and keeps ordinary filtered art', () => {
+    const heavy = "<filter id='f'><feTurbulence numOctaves='4'/><feDisplacementMap in='SourceGraphic' scale='9'/><feGaussianBlur stdDeviation='3'/></filter>";
+    const crowded = wrap(`<defs>${heavy}</defs>${"<rect width='9' height='9' filter='url(#f)'/>".repeat(60)}`);
+    const painted = wrap(`<defs>${heavy}</defs><g filter='url(#f)'>${"<path d='M0 0q5 5 0 10z'/>".repeat(40)}</g>`);
+
+    expect(sanitizeSvg(crowded, true)).toBeUndefined();
+    expect(sanitizeSvg(painted, true)).toContain('<g filter="url(#f)">');
+  });
 });
