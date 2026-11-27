@@ -128,9 +128,9 @@ Start a message with a command to change how the agent handles that one message.
 
 | Command | What you get |
 | --- | --- |
-| `/enhance <request>` | A copy-pasteable brief for a coding agent, with the impacted files and checks. The agent does not make the change. |
-| `/dumb <question>` | A plain-language answer for someone who does not read code, such as a project manager: short answer, what it means, key facts, how sure it is, and next steps. |
-| `/solo <request>` | A thorough answer from the main agent alone, without stopping to ask. It does every search and check itself instead of handing parts to subagents. |
+| `/enhance <request>` | A brief for a coding agent, with the impacted files and checks. Nothing is changed. |
+| `/dumb <question>` | A plain-language answer for someone who does not read code. |
+| `/solo <request>` | A thorough answer from the main agent alone, without subagents or mid-way questions. |
 
 ```text
 /dumb why did sign-ups drop last week?

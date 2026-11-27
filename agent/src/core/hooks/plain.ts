@@ -59,11 +59,8 @@ export const plainPromptHook: PromptHook = {
   command: {
     trigger: '/dumb',
     title: 'Plain-language answer',
-    summary: 'Answer for a project manager, without code',
-    description:
-      'Investigates as usual, including connected databases, then replies in plain ' +
-      'language for someone who does not read code: short answer, impact, key facts, ' +
-      'how sure it is, and next steps, with no code, file paths, or jargon.',
+    summary: 'Answer without code or jargon',
+    description: 'Investigates as usual, then answers in plain language for someone who does not read code.',
     argHint: '<question>',
   },
   rewrite({ text }) {

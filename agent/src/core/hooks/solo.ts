@@ -45,12 +45,8 @@ export const soloPromptHook: PromptHook = {
   command: {
     trigger: '/solo',
     title: 'Main agent only',
-    summary: 'Answer thoroughly without subagents',
-    description:
-      'Keeps the whole answer on the main agent: it does every search and check itself ' +
-      'instead of handing work to subagents, then gives a thorough, fully cited response. ' +
-      'It does not stop to ask: it states the reading it chose, lists open questions at the end, ' +
-      'and runs read-only database queries without asking. Changes to data still need your yes.',
+    summary: 'Thorough answer, no subagents',
+    description: 'Answers thoroughly on its own, without subagents or mid-way questions. Data changes still ask first.',
     argHint: '<request>',
   },
   rewrite({ text }) {
