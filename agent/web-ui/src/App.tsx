@@ -125,7 +125,7 @@ export function ProjectWorkspaceView(state: ProjectWorkspaceViewProps) {
             sidebarOpen={state.sidebarOpen && !state.settingsOpen && !state.trainingOpen}
             onSidebarClose={() => state.setSidebarOpen(false)}
             learningEnabled={state.learningEnabled}
-            chatInputs={state.chatInputs}
+            chatModels={state.chatModels}
             searchOpen={state.searchOpen}
             onSearchClose={() => {
               state.setSearchOpen(false);

@@ -8,6 +8,8 @@ import { persistingTransport } from './persisting-transport';
 import type { ChatSaveState } from './chat-save-state';
 import { reloadWorkspaceChat } from './chat-reload';
 import type { SaveSessionInput } from '../lib/sessions';
+import type { ModelSelection } from '../lib/models';
+import { ChatModelChoice, chatModelTransport } from './chat-model';
 
 export type WorkspaceChatSave = SaveSessionInput;
 
@@ -26,6 +28,10 @@ export interface WorkspaceChat {
   /** Present only on a chat branched during this page session. */
   branch?: ChatBranchOrigin;
   chat: Chat<UIMessage>;
+  /** This chat's own model; the next message runs on it. */
+  model: ChatModelChoice;
+  /** Choose this chat's model, or `null` to follow the default, and save it with the chat. */
+  setModel: (model: ModelSelection | null) => Promise<void>;
   turns: TurnQueue;
   persistence: ChatSaveState;
   /** Unsent text belongs to this tab's session, independently of retained DOM. */
@@ -38,13 +44,28 @@ export interface WorkspaceChat {
   reload: (record: WorkspaceChatSave) => Promise<boolean>;
 }
 
+/** Opens a chat in the project registry; `model` restores its own model choice. */
+export type CreateChat = (
+  id: string,
+  messages: UIMessage[],
+  parentId?: string,
+  title?: string,
+  origin?: ChatOrigin,
+) => WorkspaceChat;
+
+/** A chat's own model, and whether it came from a record the server already has. */
+export type ChatOrigin = { model?: ModelSelection | null; saved?: boolean };
+
 interface CreateWorkspaceChatOptions {
   id: string;
   messages: UIMessage[];
   title?: string;
   parentId?: string;
+  origin?: ChatOrigin;
   transport?: ChatTransport<UIMessage>;
   persist: (record: WorkspaceChatSave) => Promise<void>;
+  /** Save a model change on a chat the server already has. */
+  persistModel?: (model: ModelSelection | null) => Promise<void>;
   onPersist?: () => void;
   serverOwned?: boolean;
 }
@@ -54,11 +75,13 @@ export function createWorkspaceChat(options: CreateWorkspaceChatOptions): Worksp
   const { id, messages, title, parentId, transport, persist, onPersist, serverOwned = transport === undefined } = options;
   let disposed = false;
   const runTransport = transport instanceof RunTransport ? transport : transport ? undefined : new RunTransport();
+  const model = new ChatModelChoice(options.origin?.model ?? null, options.origin?.saved === true, options.persistModel);
   const persistence = chatPersistence({
     serverOwned,
     id,
     get title() { return workspace.title; },
     get parentId() { return workspace.parentId; },
+    model,
     persist,
     onPersist,
     disposed: () => disposed,
@@ -66,7 +89,7 @@ export function createWorkspaceChat(options: CreateWorkspaceChatOptions): Worksp
       chat.messages = next;
     },
   });
-  const savedTransport = persistingTransport(transport ?? runTransport!, persistence.save);
+  const savedTransport = persistingTransport(chatModelTransport(transport ?? runTransport!, model), persistence.save);
   const chat = new Chat<UIMessage>({
     id,
     messages,
@@ -80,6 +103,8 @@ export function createWorkspaceChat(options: CreateWorkspaceChatOptions): Worksp
     title,
     parentId,
     chat,
+    model,
+    setModel: (next) => model.choose(next),
     turns,
     persistence: persistence.state,
     draft: { text: '' },

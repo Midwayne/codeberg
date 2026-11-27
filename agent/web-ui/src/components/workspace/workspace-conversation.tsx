@@ -6,7 +6,7 @@ import type { WorkspaceViewProps } from './workspace';
 import { VisibleScheduleChat } from './chat-scheduled-runs';
 
 type WorkspaceConversationProps = Pick<WorkspaceViewProps,
-  'active' | 'renderedViews' | 'load' | 'sessions' | 'resume' | 'cancelResume' | 'learningEnabled' | 'chatInputs' | 'branchFrom' | 'jump' | 'sessionId'>;
+  'active' | 'renderedViews' | 'load' | 'sessions' | 'resume' | 'cancelResume' | 'learningEnabled' | 'chatModels' | 'branchFrom' | 'jump' | 'sessionId'>;
 
 export function WorkspaceConversation(state: WorkspaceConversationProps) {
   const onBranch = useBranchAction(state.branchFrom);
@@ -21,7 +21,7 @@ export function WorkspaceConversation(state: WorkspaceConversationProps) {
         renderedViews={state.renderedViews}
         hidden={Boolean(state.load)}
         learningEnabled={state.learningEnabled}
-        chatInputs={state.chatInputs}
+        chatModels={state.chatModels}
         onBranch={onBranch}
         jump={state.jump?.sessionId === state.sessionId ? state.jump : undefined}
       />

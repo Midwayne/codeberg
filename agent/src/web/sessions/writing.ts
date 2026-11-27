@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { writeJsonAtomic } from '../../core/fs.js';
 import { load } from './reading.js';
 import type { WebSessionRecord } from './records.js';
+import type { ModelSelection } from '../../core/model-types.js';
 import type { WebSessionStoreState } from './state.js';
 
 export async function save(state: WebSessionStoreState, record: WebSessionRecord): Promise<void> {
@@ -14,20 +15,24 @@ export type UpsertInput = Pick<WebSessionRecord, 'id' | 'messages'> & {
   serverRunId?: string;
   /** A server run just finished with this reply, so the chat becomes unread. */
   responded?: boolean;
+  /** The chat's own model; `null` follows the default again, absent keeps the saved one. */
+  model?: ModelSelection | null;
 };
 
 export async function upsert(
   state: WebSessionStoreState,
-  { responded, ...input }: UpsertInput,
+  { responded, model, ...input }: UpsertInput,
 ): Promise<WebSessionRecord> {
   return serial(state, input.id, async () => {
     const existing = await load(state, input.id);
-    if (existing?.serverRunId && !input.serverRunId) return existing;
+    // A server run owns the messages; a model the browser has not stored yet still applies.
+    if (existing?.serverRunId && !input.serverRunId) return keepModel(state, existing, model);
 
     const now = Date.now();
     const record: WebSessionRecord = {
       ...input,
       ...readState(existing, responded ? now : undefined),
+      ...chatModel(existing, model),
       // Without a title, keep the saved one; a new chat starts untitled.
       title: input.title ?? existing?.title ?? 'New chat',
       createdAt: existing?.createdAt ?? now,
@@ -61,6 +66,43 @@ export async function setFlags(
 
     return updated;
   });
+}
+
+/** Sets or clears the chat's own model without moving it in the sidebar. */
+export async function setModel(
+  state: WebSessionStoreState,
+  id: string,
+  model: ModelSelection | null,
+): Promise<WebSessionRecord | null> {
+  return serial(state, id, async () => {
+    const record = await load(state, id);
+    if (!record) return null;
+
+    return keepModel(state, record, model);
+  });
+}
+
+async function keepModel(
+  state: WebSessionStoreState,
+  existing: WebSessionRecord,
+  model?: ModelSelection | null,
+): Promise<WebSessionRecord> {
+  if (model === undefined) return existing;
+
+  const updated: WebSessionRecord = { ...existing, model: model ?? undefined };
+  if (!model) delete updated.model;
+
+  await write(state, updated);
+
+  return updated;
+}
+
+function chatModel(existing: WebSessionRecord | null, model?: ModelSelection | null): Pick<WebSessionRecord, 'model'> {
+  if (model === null) return {};
+
+  const chosen = model ?? existing?.model;
+
+  return chosen ? { model: chosen } : {};
 }
 
 /** Read and reply times carry over every message save; a finished run sets a new reply time. */

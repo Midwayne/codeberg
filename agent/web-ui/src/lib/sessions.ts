@@ -2,6 +2,7 @@ import type { UIMessage } from 'ai';
 
 import { titleFromMessages } from '@agent/core/title.js';
 import { jsonInit } from './http';
+import type { ModelSelection } from './models';
 
 /** Sidebar row — mirrors the server's WebSessionSummary. */
 export interface SessionSummary {
@@ -27,6 +28,8 @@ interface SessionRecord {
   parentId?: string;
   pinned?: boolean;
   archived?: boolean;
+  /** This chat's own model; absent follows the default from Models. */
+  model?: ModelSelection;
 }
 
 const BASE = '/api/sessions';
@@ -55,6 +58,12 @@ export async function renameSession(id: string, title: string, fetcher: typeof f
   if (!response.ok) throw new Error(`Could not rename chat (${response.status})`);
 }
 
+/** Saves the chat's own model, or `null` to follow the default again. */
+export async function setSessionModel(id: string, model: ModelSelection | null, fetcher: typeof fetch = fetch): Promise<void> {
+  const response = await fetcher(`${BASE}/${encodeURIComponent(id)}`, jsonInit('PATCH', { model }));
+  if (!response.ok) throw new Error(`Could not save the chat's model (${response.status})`);
+}
+
 /** Clears the chat's unread mark without reordering the sidebar. */
 export async function markSessionRead(id: string, fetcher: typeof fetch = fetch): Promise<void> {
   const response = await fetcher(`${BASE}/${encodeURIComponent(id)}`, jsonInit('PATCH', { read: true }));
@@ -75,6 +84,8 @@ export type SaveSessionInput = {
   title: string;
   messages: UIMessage[];
   parentId?: string;
+  /** `null` follows the default model; absent leaves the saved choice alone. */
+  model?: ModelSelection | null;
 };
 
 export async function saveSession(input: SaveSessionInput, fetcher: typeof fetch = fetch): Promise<void> {
@@ -82,6 +93,7 @@ export async function saveSession(input: SaveSessionInput, fetcher: typeof fetch
       title: input.title,
       messages: input.messages,
       ...(input.parentId ? { parentId: input.parentId } : {}),
+      ...(input.model === undefined ? {} : { model: input.model }),
     }));
   if (!response.ok) throw new Error(`Could not save chat (${response.status})`);
 }

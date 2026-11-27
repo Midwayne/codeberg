@@ -2,7 +2,8 @@ import { remove, removeOlder } from './deletion.js';
 import { list, load, search } from './reading.js';
 import type { WebSessionRecord, WebSessionSearchResult, WebSessionSummary } from './records.js';
 import { WebSessionStoreState } from './state.js';
-import { markRead, rename, save, setFlags, upsert } from './writing.js';
+import { markRead, rename, save, setFlags, setModel, upsert } from './writing.js';
+import type { ModelSelection } from '../../core/model-types.js';
 
 /**
  * File-backed store of browser chat sessions under `<CODEBERG_HOME>/web-sessions/`,
@@ -37,6 +38,11 @@ export class WebSessionStore {
     flags: { pinned?: boolean; archived?: boolean },
   ): Promise<WebSessionRecord | null> {
     return setFlags(this.state, id, flags);
+  }
+
+  /** A chat-specific model, or `null` to follow the default again. */
+  setModel(id: string, model: ModelSelection | null): Promise<WebSessionRecord | null> {
+    return setModel(this.state, id, model);
   }
 
   /** The user has seen the latest reply; the sidebar stops marking the chat unread. */

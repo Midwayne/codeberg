@@ -16,6 +16,7 @@ import { errorMessage } from '../core/errors.js';
 import { summaryModel, type SummaryModel } from './model-selection/summary.js';
 import { diagramRequested } from '../core/canvas/request.js';
 import { subagentChoice, type SubagentChoice } from './model-selection/subagents.js';
+import { chatModelChoice } from './model-selection/chat-model.js';
 
 /** A model choice bound to one chat request. */
 export type ResolvedModelSelection = ModelSelection & {
@@ -56,7 +57,10 @@ export async function routeChat(
 
   const messages = Array.isArray(body?.messages) ? body.messages : [];
   const settings = await modelSettings?.current();
-  const selected = settings?.models.find((entry) => entry.key === settings.chat.key);
+
+  // A chat's own model choice wins over the default from Models.
+  const chat = settings && chatModelChoice(body?.model, settings.chat, settings.models);
+  const selected = chat && settings?.models.find((entry) => entry.key === chat.key);
   const error = validateChatFiles(messages, selected?.inputs ?? ['text']);
   if (error) return sendText(res, 400, error);
 
@@ -67,8 +71,8 @@ export async function routeChat(
     return sendText(res, 400, errorMessage(failure));
   }
 
-  const selection = selected && settings
-    ? { ...settings.chat, model: selected.model, contextWindow: selected.contextWindow, inputs: selected.inputs,
+  const selection = selected && settings && chat
+    ? { ...chat, model: selected.model, contextWindow: selected.contextWindow, inputs: selected.inputs,
       ...overrides,
       ...(selected.pricing ? { pricing: selected.pricing } : {}),
       decisionModel: settings.decisionModels?.find((item) => item.key === settings.decisions) ?? null,

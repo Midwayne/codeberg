@@ -7,6 +7,8 @@ import { writeModuleLog } from '../../core/module-log.js';
 import { readJson, sendJson, sendText } from '../http.js';
 import { WebSessionStore, isValidSessionId, normalizeSessionTitle } from './store.js';
 import { readContextStats } from './context-stats.js';
+import { readChatModel } from '../model-selection/chat-model.js';
+import type { ModelSelection } from '../../core/model-types.js';
 
 const SESSIONS_PATH = '/api/sessions';
 const CONTEXT_SUFFIX = '/context';
@@ -68,6 +70,11 @@ async function saveSession(
   const messages = Array.isArray(body?.messages) ? body.messages : [];
   const rawTitle = typeof body?.title === 'string' ? body.title.trim() : '';
   const parentId = readParentId(body?.parentId, id);
+  const model = readChatModel(body?.model);
+  if (body?.model !== undefined && model === undefined) {
+    return sendText(res, 400, 'model must have a key and a known effort, or be null');
+  }
+
   if (parentId) {
     const existing = await store.load(id);
     // A deleted parent must not prevent subsequent saves of its branch.
@@ -81,6 +88,7 @@ async function saveSession(
     title: rawTitle || 'New chat',
     messages,
     ...(parentId ? { parentId } : {}),
+    ...(model === undefined ? {} : { model }),
   });
 
   await forkChatCanvas(canvas, id, record.parentId);
@@ -98,7 +106,12 @@ async function saveSession(
   return sendJson(res, 200, { ok: true });
 }
 
-type SessionPatch = { title?: string; read?: true; flags: { pinned?: boolean; archived?: boolean } };
+type SessionPatch = {
+  title?: string;
+  read?: true;
+  model?: ModelSelection | null;
+  flags: { pinned?: boolean; archived?: boolean };
+};
 
 async function updateSession(
   req: IncomingMessage,
@@ -108,13 +121,17 @@ async function updateSession(
 ): Promise<void> {
   const patch = readSessionPatch(await readJson(req));
   if (!patch) {
-    return sendText(res, 400, 'expected a title, pinned and archived booleans, and/or read: true');
+    return sendText(res, 400, 'expected a title, pinned and archived booleans, a model, and/or read: true');
   }
 
   let record = patch.title === undefined ? undefined : await store.rename(id, patch.title);
 
   if (record !== null && Object.keys(patch.flags).length > 0) {
     record = await store.setFlags(id, patch.flags);
+  }
+
+  if (record !== null && patch.model !== undefined) {
+    record = await store.setModel(id, patch.model);
   }
 
   if (record !== null && patch.read) {
@@ -142,6 +159,11 @@ function readSessionPatch(body: unknown): SessionPatch | undefined {
       patch.flags[key] = value;
     } else if (key === 'read' && value === true) {
       patch.read = true;
+    } else if (key === 'model') {
+      const model = readChatModel(value);
+      if (model === undefined) return undefined;
+
+      patch.model = model;
     } else {
       return undefined;
     }
