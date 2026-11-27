@@ -58,8 +58,16 @@ export function themeFromReply(text: string): Record<string, unknown> {
   throw new HttpError(502, 'The chat model did not return a theme. Try again or reword the description.');
 }
 
+/* Real replies hold a few braces before the theme; this bounds the scan on pathological ones. */
+const MAX_STARTS = 64;
+
 function firstObject(text: string): Record<string, unknown> | undefined {
-  for (let start = text.indexOf('{'); start !== -1; start = text.indexOf('{', start + 1)) {
+  let tried = 0;
+
+  // Each try scans ahead, so a reply full of stray braces is cut off after a bounded number.
+  for (let start = text.indexOf('{'); start !== -1 && tried < MAX_STARTS; start = text.indexOf('{', start + 1)) {
+    tried += 1;
+
     const end = balancedEnd(text, start);
     const value = end === -1 ? undefined : parseJson(text.slice(start, end + 1));
 

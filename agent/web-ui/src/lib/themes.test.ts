@@ -28,6 +28,10 @@ describe('themes', () => {
     expect(loadTheme()).toBe('graphite');
     saved = 'dark';
     expect(loadTheme()).toBe('graphite');
+    saved = 'light';
+    expect(loadTheme()).toBe('porcelain');
+    saved = 'kanagawa';
+    expect(loadTheme()).toBe('graphite');
     saved = 'midnight';
     expect(loadTheme()).toBe('midnight');
     expect(localStorage.getItem).toHaveBeenCalledWith(THEME_STORAGE_KEY);

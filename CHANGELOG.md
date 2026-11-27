@@ -30,7 +30,7 @@ are in the git history.
 
 ### Removed
 
-- The Dark, Light, Kanagawa, Tokyo Night, Catppuccin Mocha, Dracula, Nord, and Gruvbox themes. If one was selected, Codeberg switches to Graphite; create a similar theme by describing it.
+- The Dark, Light, Kanagawa, Tokyo Night, Catppuccin Mocha, Dracula, Nord, and Gruvbox themes. Light switches to Porcelain and the others to Graphite.
 - Local chat models: the Ollama and llama.cpp providers, including for Browser Use. Local embedding models are unaffected.
 - The shorter system prompt for models with a context window of 16,384 tokens or less.
 

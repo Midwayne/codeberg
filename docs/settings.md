@@ -103,8 +103,8 @@ Each option shows a preview; the radio group supports Tab and arrow-key navigati
 
 The selection applies immediately and is saved in this browser's local storage
 under `codeberg.theme`; it is restored before React renders on reload. New
-browsers and saved selections that no longer exist, including the removed Dark,
-Light, and named palette themes, use **Graphite**. If local storage is
+browsers and saved selections that no longer exist use **Graphite**; the removed
+Light theme maps to **Porcelain** and Dark to **Graphite**. If local storage is
 unavailable, switching still works for the current page.
 
 **Create a theme** sends a description to `POST /api/themes/generate`, which asks

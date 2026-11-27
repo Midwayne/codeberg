@@ -1,6 +1,5 @@
-import { CUSTOM_THEMES_STORAGE_KEY, readStoredThemes, resetThemeStorage, writeStoredThemes } from './custom-theme-storage';
+import { CUSTOM_THEMES_STORAGE_KEY, forgetWriteFailure, readStoredThemes, resetThemeStorage, writeStoredThemes } from './custom-theme-storage';
 import type { CustomTheme, CustomThemeId } from './theme-types';
-
 
 export const MAX_CUSTOM_THEMES = 12;
 
@@ -36,7 +35,8 @@ export class ThemeLimitError extends Error {
 
 /** Whether a new theme fits; edits always do. Checked before paying for a design. */
 export function hasRoomForTheme(): boolean {
-  return customThemes().length < MAX_CUSTOM_THEMES;
+  // Fresh from storage, so a slot another tab just filled is counted before paying.
+  return latest().length < MAX_CUSTOM_THEMES;
 }
 
 /**
@@ -77,6 +77,8 @@ function watchOtherTabs(): void {
   window.addEventListener('storage', (event) => {
     if (event.key !== CUSTOM_THEMES_STORAGE_KEY && event.key !== null) return;
 
+    // Another tab wrote successfully, so storage is newer even after a failed write here.
+    forgetWriteFailure();
     cache = readStoredThemes() ?? cache;
     for (const listener of [...listeners, ...otherTabListeners]) listener();
   });

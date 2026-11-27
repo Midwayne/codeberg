@@ -76,6 +76,11 @@ function restore(entry: unknown): CustomTheme | undefined {
   }
 }
 
+/** Storage was written successfully elsewhere (another tab), so it is current again. */
+export function forgetWriteFailure(): void {
+  lastWriteFailed = false;
+}
+
 /** Test hook: forget write failures and unreadable entries. */
 export function resetThemeStorage(): void {
   unrestorable = [];

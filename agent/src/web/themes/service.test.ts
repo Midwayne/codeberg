@@ -85,7 +85,7 @@ describe('theme generation API', () => {
     const response = await post({ prompt: 'a very detailed theme' });
 
     expect(response.status).toBe(502);
-    expect(await response.text()).toContain('stopped before finishing');
+    expect(await response.text()).toContain('did not finish a theme');
   });
 
   it('refuses a theme to change that is not a theme-sized object, before calling the model', async () => {
@@ -131,6 +131,17 @@ describe('theme reply parsing', () => {
     expect(themeFromReply(`Using {mood} as a guide:\n${JSON.stringify({ label: 'Calm', palette })} and a {note}.`)).toEqual({ label: 'Calm', palette });
     expect(themeFromReply(JSON.stringify({ label: 'Brace } inside', palette }))).toEqual({ label: 'Brace } inside', palette });
     expect(themeFromReply(`Draft {"label":"Old"}\n\`\`\`json\n${JSON.stringify({ label: 'Final', palette })}\n\`\`\``)).toEqual({ label: 'Final', palette });
+  });
+
+  it('finds a theme nested after a brace that never closes, and gives up quickly on stray braces', () => {
+    const palette = { background: '#000000' };
+
+    expect(themeFromReply(`Note { unfinished ${JSON.stringify({ label: 'Inner', palette })}`)).toEqual({ label: 'Inner', palette });
+
+    const started = performance.now();
+
+    expect(() => themeFromReply('{'.repeat(50_000))).toThrow('did not return a theme');
+    expect(performance.now() - started).toBeLessThan(2_000);
   });
 
   it('does not mistake a complete inner fragment of a broken theme for the theme', () => {

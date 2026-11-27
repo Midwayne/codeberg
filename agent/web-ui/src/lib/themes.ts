@@ -40,9 +40,14 @@ export function subscribeTheme(listener: () => void): () => void {
   return () => themeListeners.delete(listener);
 }
 
+/* Removed default themes map to their replacements: Light users stay on a light theme. */
+const RENAMED: Record<string, ThemeId> = { dark: 'graphite', light: 'porcelain' };
+
 export function loadTheme(): ThemeId {
   try {
-    return findTheme(localStorage.getItem(THEME_STORAGE_KEY)).id;
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+
+    return findTheme(stored && RENAMED[stored] ? RENAMED[stored] : stored).id;
   } catch {
     return DEFAULT_THEME_ID;
   }

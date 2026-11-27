@@ -78,7 +78,8 @@ function themeFailure(error: unknown, signal?: AbortSignal): unknown {
   if (signal?.aborted) return error;
 
   if (error instanceof IncompleteSummaryError) {
-    return new HttpError(502, 'The chat model stopped before finishing the theme. Try again or ask for something simpler.');
+    // Raised for an empty reply and for one cut off early; both mean no usable theme.
+    return new HttpError(502, 'The chat model did not finish a theme. Try again or reword the description.');
   }
 
   if (isTimeout(error)) {
