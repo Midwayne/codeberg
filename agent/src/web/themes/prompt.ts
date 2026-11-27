@@ -39,7 +39,7 @@ Shape:
       "size": 5-150,
       "angle": 0-360,
       "animation": "none" | "drift" | "float" | "pulse" | "twinkle" | "pan" | "fall" | "rise" | "spin" | "shoot",
-      "duration": seconds from 4 to 120
+      "duration": seconds, 4 to 120 for pulse, twinkle, and shoot; 0.5 to 120 for motion
     } ]
   }
 }

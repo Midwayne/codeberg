@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { contrast } from './color';
+import { contrast, mix } from './color';
 import { normalizeTheme, ThemeShapeError } from './theme-normalize';
 
 const options = { id: 'custom-test' as const, prompt: 'deep sea', animated: true };
@@ -76,8 +76,8 @@ describe('generated theme validation', () => {
       textScale: 3,
       palette: { background: '#101010', foreground: '#eeeeee' },
       parts: {
-        header: { background: '#f5f5f5', glass: 0.1, radius: 1 },
-        bubble: { background: '#2244aa', text: '#2a4ab0', radius: 1.25 },
+        header: { background: '#1c1c1c', text: '#333333', glass: 0.1, radius: 1 },
+        bubble: { background: '#1a2a55', text: '#2a4ab0', radius: 1.25 },
         footer: { background: '#ff0000' },
       },
     }, options);
@@ -86,9 +86,9 @@ describe('generated theme validation', () => {
     expect(Object.keys(theme.parts ?? {})).toEqual(['header', 'bubble']);
     expect(theme.parts?.header).toMatchObject({ glass: 0.5 });
     expect(theme.parts?.header?.radius).toBeUndefined();
-    expect(contrast(theme.parts!.header!.text!, '#f5f5f5')).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(theme.parts!.header!.text!, theme.parts!.header!.background!)).toBeGreaterThanOrEqual(4.5);
     expect(theme.parts?.bubble?.radius).toBe(1.25);
-    expect(contrast(theme.parts!.bubble!.text!, '#2244aa')).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(theme.parts!.bubble!.text!, theme.parts!.bubble!.background!)).toBeGreaterThanOrEqual(4.5);
   });
 
   it('drops a code block background of the opposite lightness, which would hide highlighted code', () => {
@@ -104,11 +104,11 @@ describe('generated theme validation', () => {
     const theme = normalizeTheme({
       palette: { background: '#000000' },
       backdrop: { layers: [{ kind: 'glow', color: '#ffffff', animation: 'rise' }] },
-      parts: { composer: { background: '#ffffff20' } },
+      parts: { composer: { background: '#22222240' } },
     }, options);
 
     expect(typeof theme.backdrop === 'object' && theme.backdrop.layers[0]!.animation).toBe('drift');
-    expect(theme.parts?.composer?.background).toBe('#ffffff');
+    expect(theme.parts?.composer?.background).toBe('#222222');
     expect(normalizeTheme({ palette: { background: '#000000' }, backdrop: 'paper' }, options).backdrop).toBe('paper');
   });
 
@@ -138,6 +138,37 @@ describe('generated theme validation', () => {
 
     for (const surface of ['#101010', '#3a6df0']) expect(contrast(theme.palette.link!, surface)).toBeGreaterThanOrEqual(4.5);
     expect(typeof theme.backdrop === 'object' && theme.backdrop.layers.map((layer) => layer.opacity)).toEqual([0.5, 1]);
+  });
+
+  it('never ships text that fails on a surface, part, or sky of the opposite lightness', () => {
+    const theme = normalizeTheme({
+      palette: { background: '#101010', foreground: '#eeeeee', mutedForeground: '#a1a1aa', raised: '#f5f5f5', popover: '#f5f5f5' },
+      parts: { header: { background: '#f4f4f4' }, sidebar: { background: '#3a3a3a' } },
+      backdrop: { sky: { from: '#ffffff', to: '#ffe0a0', angle: 180 }, layers: [] },
+    }, options);
+    const { palette, parts, backdrop } = theme;
+
+    for (const surface of [palette.surface, palette.raised, palette.popover!]) {
+      expect(contrast(palette.foreground, surface)).toBeGreaterThanOrEqual(4.5);
+    }
+
+    expect(parts?.header).toBeUndefined();
+    expect(contrast(palette.mutedForeground, parts!.sidebar!.background!)).toBeGreaterThanOrEqual(4.5);
+
+    const sky = typeof backdrop === 'object' ? backdrop.sky! : undefined;
+
+    for (const end of [sky!.from, sky!.to]) expect(contrast(palette.foreground, end)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('checks part text at the part’s default glass when the theme sets none', () => {
+    const theme = normalizeTheme({
+      palette: { background: '#000000', foreground: '#ffffff' },
+      parts: { header: { background: '#303030', text: '#9a9a9a' } },
+    }, options);
+    const header = theme.parts!.header!;
+    const seenThrough = mix(header.background!, '#000000', 1 - 0.72);
+
+    expect(contrast(header.text!, seenThrough)).toBeGreaterThanOrEqual(4.5);
   });
 });
 

@@ -6,7 +6,7 @@ import { MockLanguageModelV4 } from 'ai/test';
 import { createWebServer } from '../server.js';
 import { themePrompt } from './prompt.js';
 import { MAX_THEME_PROMPT, themeFromReply } from './request.js';
-import { createThemeService, THEME_GENERATE_PATH, themeEffort } from './service.js';
+import { createThemeService, isTimeout, THEME_GENERATE_PATH, themeEffort } from './service.js';
 
 const cleanups: (() => Promise<void>)[] = [];
 
@@ -153,3 +153,14 @@ describe('theme description limit', () => {
     expect(Number(/THEME_PROMPT_LIMIT = (\d+)/.exec(source)?.[1])).toBe(MAX_THEME_PROMPT);
   });
 });
+
+describe('theme timeouts', () => {
+  it('recognizes a timeout passed through or wrapped by the SDK', () => {
+    const timeout = new DOMException('timed out', 'TimeoutError');
+
+    expect(isTimeout(timeout)).toBe(true);
+    expect(isTimeout(new Error('retry failed', { cause: timeout }))).toBe(true);
+    expect(isTimeout(new Error('rate limited'))).toBe(false);
+  });
+});
+

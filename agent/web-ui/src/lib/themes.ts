@@ -26,7 +26,12 @@ export function activeThemeId(): ThemeId {
  * the edit, or falls back to the default when it is gone.
  */
 subscribeOtherTabThemes(() => {
-  if (isCustomThemeId(activeId)) applyTheme(activeId);
+  if (!isCustomThemeId(activeId)) return;
+
+  const stillSaved = customThemes().some((theme) => theme.id === activeId);
+
+  if (stillSaved) applyTheme(activeId);
+  else setTheme(DEFAULT_THEME_ID);
 });
 
 export function subscribeTheme(listener: () => void): () => void {

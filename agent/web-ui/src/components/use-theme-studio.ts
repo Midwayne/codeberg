@@ -21,10 +21,12 @@ export function useThemeStudio(selected: Theme, editing?: CustomTheme) {
   const { pending, error, setError, run, cancel } = useThemeRequest();
   const editRequest = useEditRequest(editing?.id, cancel);
 
-  // A different theme (or none, after a delete) starts fresh, with nothing to undo.
+  // A different theme (or none, after a delete) starts fresh, with nothing to
+  // undo, and Animated matching the theme so an edit never adds motion unasked.
   useEffect(() => {
     setPrevious(undefined);
     setError(undefined);
+    setAnimated(editing ? hasMotion(editing) : true);
   }, [editing?.id]);
 
   async function create() {
@@ -80,4 +82,8 @@ function useEditRequest(editingId: string | undefined, cancel: () => void) {
       runningEdit.current = undefined;
     }
   };
+}
+
+function hasMotion(theme: CustomTheme): boolean {
+  return typeof theme.backdrop === 'object' && theme.backdrop.layers.some((layer) => layer.animation !== 'none');
 }

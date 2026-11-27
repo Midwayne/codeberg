@@ -40,13 +40,16 @@ export function styleTokens(theme: Theme): Record<string, string> {
   };
 }
 
+/** How solid each part is over a backdrop when a theme does not say. */
+export const PART_GLASS: Record<ThemePart, number> = { header: 0.72, sidebar: 0.78, composer: 0.9, bubble: 1, code: 1 };
+
 /* What each part looks like before a theme says otherwise: today's app. */
 const PART_DEFAULTS: Record<ThemePart, Required<Omit<PartStyle, 'radius'>> & { background: string }> = {
-  header: { background: 'var(--background)', text: 'var(--foreground)', border: 'var(--border)', glass: 0.72 },
-  sidebar: { background: 'color-mix(in srgb, var(--card) 30%, var(--background))', text: 'var(--foreground)', border: 'var(--border)', glass: 0.78 },
-  composer: { background: 'var(--card)', text: 'var(--foreground)', border: 'var(--input)', glass: 0.9 },
-  bubble: { background: 'var(--muted)', text: 'var(--foreground)', border: 'transparent', glass: 1 },
-  code: { background: 'color-mix(in srgb, var(--background) 60%, var(--card))', text: 'var(--foreground)', border: 'var(--border)', glass: 1 },
+  header: { background: 'var(--background)', text: 'var(--foreground)', border: 'var(--border)', glass: PART_GLASS.header },
+  sidebar: { background: 'color-mix(in srgb, var(--card) 30%, var(--background))', text: 'var(--foreground)', border: 'var(--border)', glass: PART_GLASS.sidebar },
+  composer: { background: 'var(--card)', text: 'var(--foreground)', border: 'var(--input)', glass: PART_GLASS.composer },
+  bubble: { background: 'var(--muted)', text: 'var(--foreground)', border: 'transparent', glass: PART_GLASS.bubble },
+  code: { background: 'color-mix(in srgb, var(--background) 60%, var(--card))', text: 'var(--foreground)', border: 'var(--border)', glass: PART_GLASS.code },
 };
 
 /** Per-part colors and glass, defaulting to the palette; radii only when a theme sets them. */

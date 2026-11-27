@@ -122,4 +122,14 @@ describe('saved custom themes', () => {
 
     expect(customThemes().map((entry) => entry.label)).toEqual(['custom-b', 'Edited']);
   });
+
+  it('does not overwrite a saved list it cannot read', () => {
+    saveCustomTheme(theme('custom-a'));
+    stored = '[{"id":"custom-a",';
+
+    saveCustomTheme(theme('custom-b'));
+
+    expect(customThemes().map((entry) => entry.id)).toEqual(['custom-b', 'custom-a']);
+  });
 });
+

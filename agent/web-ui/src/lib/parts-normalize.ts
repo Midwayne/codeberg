@@ -1,5 +1,6 @@
 import { clamp, record } from './backdrop-normalize';
-import { ensureContrast, hexColor, mix, opaque, readableOn } from './color';
+import { contrast, easeToward, ensureContrast, hexColor, mix, opaque, readableOn, sameKind } from './color';
+import { PART_GLASS } from './theme-tokens';
 import { THEME_PARTS, type Palette, type PartStyle, type ThemePart } from './theme-types';
 
 /* Radii only shape these parts; the header and sidebar are full-width bars. */
@@ -33,30 +34,37 @@ function defaultSurface(name: ThemePart, palette: Palette): string {
   return name === 'composer' || name === 'code' ? palette.surface : palette.background;
 }
 
-const isDark = (color: string) => readableOn(opaque(color)) === '#ffffff';
-
 /*
- * Code highlighting follows the theme's light or dark mode, so a code block
- * background of the opposite kind would leave highlighted code unreadable.
- * Such a background (and its text color) is dropped; border and radius stay.
+ * A part's own text is set below, but secondary text inside it (labels, the
+ * composer placeholder, muted rows) keeps the palette's muted color. So a part
+ * background must be the page's kind and close enough for that to read: one
+ * of the opposite kind is dropped (for code it would also clash with syntax
+ * highlighting), and one of the same kind eases toward the page until it fits.
  */
-function fitCode(style: PartStyle, palette: Palette): PartStyle {
-  if (!style.background || isDark(style.background) === isDark(palette.background)) return style;
+function fitBackground(style: PartStyle, palette: Palette): PartStyle {
+  if (!style.background) return style;
 
-  const { background: _background, text: _text, ...rest } = style;
+  if (!sameKind(style.background, palette.background)) {
+    const { background: _background, text: _text, ...rest } = style;
 
-  return rest;
+    return rest;
+  }
+
+  const background = easeToward(style.background, palette.background,
+    (candidate) => contrast(palette.mutedForeground, candidate) >= 4.5);
+
+  return { ...style, background };
 }
 
 /*
  * Each part's text reaches 4.5:1 on that part's own background, and on that
- * background seen through its glass over the theme's background.
+ * background seen through its glass (the theme's, or the part's default).
  */
 function readable(name: ThemePart, style: PartStyle, palette: Palette): PartStyle {
   if (!style.background && !style.text) return style;
 
   const surface = opaque(style.background ?? defaultSurface(name, palette));
-  const seenThrough = mix(surface, palette.background, 1 - (style.glass ?? 1));
+  const seenThrough = mix(surface, palette.background, 1 - (style.glass ?? PART_GLASS[name]));
   const text = ensureContrast(opaque(style.text ?? palette.foreground), [surface, seenThrough], 4.5, readableOn(surface));
 
   return { ...style, text };
@@ -71,7 +79,7 @@ export function normalizeParts(value: unknown, palette: Palette): Parts | undefi
 
   for (const name of THEME_PARTS) {
     const style = part(name, raw[name]);
-    const fitted = style && name === 'code' ? fitCode(style, palette) : style;
+    const fitted = style && fitBackground(style, palette);
 
     if (fitted && Object.keys(fitted).length > 0) parts[name] = readable(name, fitted, palette);
   }

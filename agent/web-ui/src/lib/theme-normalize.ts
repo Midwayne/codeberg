@@ -1,5 +1,5 @@
 import { choice, clamp, normalizeBackdrop } from './backdrop-normalize';
-import { contrast, ensureContrast, hexColor, opaque, readableOn } from './color';
+import { contrast, easeToward, ensureContrast, hexColor, mix, opaque, readableOn, sameKind } from './color';
 import { normalizeParts } from './parts-normalize';
 import {
   CODE_FONTS,
@@ -31,7 +31,7 @@ export function normalizeTheme(value: unknown, options: NormalizeOptions): Custo
   // Dark exactly when text on it is white, so highlighting matches the text.
   const dark = readableOn(palette.background) === '#ffffff';
   // A kept backdrop is validated like any other, so Animated off still stills it.
-  const backdrop = normalizeBackdrop(raw.backdrop === 'keep' ? options.keep : raw.backdrop, options.animated);
+  const backdrop = readableSky(normalizeBackdrop(raw.backdrop === 'keep' ? options.keep : raw.backdrop, options.animated), palette);
   const parts = normalizeParts(raw.parts, palette);
 
   return {
@@ -52,14 +52,30 @@ export function normalizeTheme(value: unknown, options: NormalizeOptions): Custo
   };
 }
 
+/* Margins and glass parts show the sky directly, so it eases toward the page until text reads on it. */
+function readableSky(backdrop: Theme['backdrop'], palette: Palette): Theme['backdrop'] {
+  if (typeof backdrop !== 'object' || !backdrop.sky) return backdrop;
+
+  const reads = (color: string) =>
+    contrast(palette.foreground, color) >= 4.5 && contrast(palette.mutedForeground, color) >= 4.5;
+  const { from, to, angle } = backdrop.sky;
+
+  return { ...backdrop, sky: { from: easeToward(from, palette.background, reads), to: easeToward(to, palette.background, reads), angle } };
+}
+
 function text(value: unknown, limit: number): string {
   return typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, limit) : '';
 }
 
-function surfaceColor(value: unknown, fallback: string): string {
+/*
+ * Surfaces sit under the same text as the page, so one of the opposite kind
+ * (a light menu in a dark theme) is replaced by a slight lift of the page.
+ */
+function surfaceColor(value: unknown, fallback: string, base: string): string {
   const color = hexColor(value);
+  if (!color) return fallback;
 
-  return color ? opaque(color) : fallback;
+  return sameKind(opaque(color), base) ? opaque(color) : mix(base, readableOn(base), 0.08);
 }
 
 function normalizePalette(value: unknown): Palette {
@@ -68,9 +84,9 @@ function normalizePalette(value: unknown): Palette {
   if (!background) throw new ThemeShapeError('The chat model’s theme had no background color. Try again.');
 
   const base = opaque(background);
-  const surface = surfaceColor(raw.surface, base);
-  const raised = surfaceColor(raw.raised, surface);
-  const popover = surfaceColor(raw.popover, surface);
+  const surface = surfaceColor(raw.surface, base, base);
+  const raised = surfaceColor(raw.raised, surface, base);
+  const popover = surfaceColor(raw.popover, surface, base);
   const surfaces = [base, surface, raised, popover];
 
   return {

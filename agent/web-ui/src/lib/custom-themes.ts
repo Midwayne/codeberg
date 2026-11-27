@@ -119,12 +119,14 @@ function readStored(): CustomTheme[] | undefined {
     return undefined;
   }
 
+  // An unreadable list (say, a cut-off write) is treated like blocked storage,
+  // so a later save keeps this page's themes instead of replacing it with one.
   try {
     const stored: unknown = JSON.parse(text ?? '[]');
 
-    return Array.isArray(stored) ? stored.flatMap(restore) : [];
+    return Array.isArray(stored) ? stored.flatMap(restore) : undefined;
   } catch {
-    return [];
+    return undefined;
   }
 }
 

@@ -127,7 +127,7 @@ export function ChatView(state: ChatViewProps) {
 }
 
 function contentSpacing(hasCanvas: boolean, empty: boolean): string {
-  if (empty) return 'min-h-full justify-center py-6 sm:justify-end sm:pb-4';
+  if (empty) return `min-h-full justify-center pb-6 sm:justify-end sm:pb-4 ${hasCanvas ? 'pt-16 lg:pt-6' : 'pt-6'}`;
 
   return hasCanvas ? 'pt-16 pb-6 lg:pt-6' : 'py-6';
 }

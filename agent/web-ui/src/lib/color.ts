@@ -63,3 +63,22 @@ export function ensureContrast(text: string, surfaces: string[], minimum: number
 
   return target;
 }
+
+/** Whether two colors are both dark or both light, judged by the text each takes. */
+export function sameKind(first: string, second: string): boolean {
+  return readableOn(first) === readableOn(second);
+}
+
+/**
+ * Moves `color` toward `target` in tenths until `ok` holds, for colors that
+ * must stay close enough to a background for its text to read on them.
+ */
+export function easeToward(color: string, target: string, ok: (candidate: string) => boolean): string {
+  for (let step = 0; step <= 10; step += 1) {
+    const candidate = mix(color, target, step / 10);
+
+    if (ok(candidate)) return candidate;
+  }
+
+  return target;
+}

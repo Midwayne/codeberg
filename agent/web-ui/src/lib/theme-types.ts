@@ -70,7 +70,7 @@ export interface BackdropLayer {
   /** Degrees, for bands and lines. */
   angle: number;
   animation: (typeof LAYER_ANIMATIONS)[number];
-  /** Seconds per cycle: 4 to 120 for generated themes; built-in rain may be faster. */
+  /** Seconds per cycle, to 120: brightness changes (pulse, twinkle, shoot) 4 or more, motion 0.5 or more. */
   duration: number;
 }
 

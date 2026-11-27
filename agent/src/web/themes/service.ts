@@ -72,11 +72,20 @@ function themeFailure(error: unknown, signal?: AbortSignal): unknown {
     return new HttpError(502, 'The chat model stopped before finishing the theme. Try again or ask for something simpler.');
   }
 
-  if (error instanceof Error && error.name === 'TimeoutError') {
+  if (isTimeout(error)) {
     return new HttpError(504, 'The chat model took too long to design the theme. Try again.');
   }
 
   return error;
+}
+
+/* The SDK may pass the timeout through or wrap it (in a retry error, say). */
+export function isTimeout(error: unknown): boolean {
+  for (let current = error, depth = 0; current instanceof Error && depth < 4; current = current.cause, depth += 1) {
+    if (current.name === 'TimeoutError') return true;
+  }
+
+  return false;
 }
 
 export async function routeThemes(req: IncomingMessage, res: ServerResponse, service: ThemeService): Promise<void> {
