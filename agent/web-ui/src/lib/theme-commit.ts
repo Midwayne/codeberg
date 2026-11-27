@@ -16,7 +16,16 @@ export class ThemeConflictError extends Error {
 function unchanged(expected: CustomTheme): boolean {
   const current = savedVersion(expected.id);
 
-  return current !== undefined && JSON.stringify(current) === JSON.stringify(expected);
+  return current !== undefined && stable(current) === stable(expected);
+}
+
+/* JSON with keys sorted at every level, so two equal themes compare equal whatever order built them. */
+function stable(value: unknown): string {
+  return JSON.stringify(value, (_key, field: unknown) => {
+    if (typeof field !== 'object' || field === null || Array.isArray(field)) return field;
+
+    return Object.fromEntries(Object.entries(field).sort(([a], [b]) => a.localeCompare(b)));
+  });
 }
 
 /**

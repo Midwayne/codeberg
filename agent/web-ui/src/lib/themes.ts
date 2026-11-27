@@ -30,8 +30,12 @@ subscribeOtherTabThemes(() => {
 
   const stillSaved = customThemes().some((theme) => theme.id === activeId);
 
-  if (stillSaved) applyTheme(activeId);
-  else setTheme(DEFAULT_THEME_ID);
+  if (stillSaved) return applyTheme(activeId);
+
+  // Save the fallback only if the saved choice is still the deleted theme: another
+  // tab may have picked a new theme before deleting this one, and that choice wins.
+  if (savedChoice() === activeId) setTheme(DEFAULT_THEME_ID);
+  else applyTheme(loadTheme());
 });
 
 export function subscribeTheme(listener: () => void): () => void {
@@ -42,6 +46,14 @@ export function subscribeTheme(listener: () => void): () => void {
 
 /* Removed default themes map to their replacements: Light users stay on a light theme. */
 const RENAMED: Record<string, ThemeId> = { dark: 'graphite', light: 'porcelain' };
+
+function savedChoice(): string | null {
+  try {
+    return localStorage.getItem(THEME_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
 
 export function loadTheme(): ThemeId {
   try {

@@ -69,7 +69,16 @@ function readable(name: ThemePart, style: PartStyle, palette: Palette, behind: s
   const seenThrough = behind.map((color) => mix(surface, opaque(color), see));
   const text = ensureContrast(opaque(style.text ?? palette.foreground), [surface, ...seenThrough], 4.5, readableOn(surface));
 
-  return { ...style, text };
+  // A fixed key order keeps a second validation of a stored theme identical to the first.
+  return ordered({ ...style, text });
+}
+
+function ordered(style: PartStyle): PartStyle {
+  const { background, text, border, glass, radius } = style;
+
+  return Object.fromEntries(
+    Object.entries({ background, text, border, glass, radius }).filter(([, value]) => value !== undefined),
+  ) as PartStyle;
 }
 
 /** Valid per-part styles only, each with readable text; `sky` is the backdrop's gradient ends. */
