@@ -176,7 +176,7 @@ describe('theme prompt', () => {
     expect(themePrompt({ prompt: 'warmer', animated: true, base: moving })).not.toContain('Motion is on');
   });
 
-  it('counts swaying art and drawings that animate inside as motion already on', () => {
+  it('counts a moving scene, swaying art, and drawings that animate inside as motion already on', () => {
     const swaying = { backdrop: { layers: [], art: [{ svg: '<svg/>', animation: 'sway' }] } };
     const drawn = { backdrop: { layers: [], sprites: [{ svg: '<svg><animate dur="4s"/></svg>', animation: 'none' }] } };
     const still = { backdrop: { layers: [], art: [{ svg: '<svg/>', animation: 'none' }] } };
@@ -184,6 +184,11 @@ describe('theme prompt', () => {
     expect(themePrompt({ prompt: 'warmer', animated: true, base: swaying })).not.toContain('Motion is on');
     expect(themePrompt({ prompt: 'warmer', animated: true, base: drawn })).not.toContain('Motion is on');
     expect(themePrompt({ prompt: 'warmer', animated: true, base: still })).toContain('Motion is on');
+
+    const scene = (motion: boolean) => ({ backdrop: { layers: [], scene: { script: 'scene({})', motion } } });
+
+    expect(themePrompt({ prompt: 'warmer', animated: true, base: scene(true) })).not.toContain('Motion is on');
+    expect(themePrompt({ prompt: 'warmer', animated: true, base: scene(false) })).toContain('Motion is on');
   });
 });
 

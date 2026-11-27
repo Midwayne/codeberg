@@ -23,6 +23,7 @@ import type { ChatModelChoice } from '../../sessions/chat-model';
 import { ChatModelPicker } from './chat-model-picker';
 import { useChatModel } from './use-chat-model';
 import { historyInputs } from '../../lib/prompt-files';
+import { useSceneEvents } from './use-scene-events';
 
 // Each retained workspace view subscribes to its own session with `useChat`.
 // `Chat` presents those helpers. Branching is a session
@@ -67,6 +68,7 @@ export function useChatView({ chat, turns, onBranch, sessionId, learningEnabled,
 
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const { scrollRef, holdScroll } = useChatScroll({ jump, messages, status });
+  useSceneEvents(status);
   const hasCanvas = useMemo(() => Boolean(canvasAnchor(messages)), [messages]);
   const { ownModel, modelError } = useChatModel(model);
   const fileInputs = useMemo(() => historyInputs(messages), [messages]);

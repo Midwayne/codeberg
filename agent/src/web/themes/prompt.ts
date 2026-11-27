@@ -1,4 +1,5 @@
 import type { ThemeRequest } from './request.js';
+import { SCENE_PROMPT } from './prompt-scene.js';
 
 /*
  * The model returns a structured theme, never CSS. The web UI validates every
@@ -105,13 +106,17 @@ Rules:
   glowing) need dur of 2s or more, 4s or more for anything that changes brightness, and repeatCount
   'indefinite'.
 - transition is how the app changes into this theme: reveal is a circle from the click, fade is a crossfade,
-  wipe scans from top to bottom, blur dissolves through a blur.`;
+  wipe scans from top to bottom, blur dissolves through a blur.
 
-type Backdrop = { layers?: unknown; art?: unknown; sprites?: unknown };
+${SCENE_PROMPT}`;
 
-/* Whether a theme sent to change has any moving layer, art, or particles. */
+type Backdrop = { layers?: unknown; art?: unknown; sprites?: unknown; scene?: { motion?: unknown } | null };
+
+/* Whether a theme sent to change has a moving scene, layer, art, or particles. */
 function hasMotion(base: unknown): boolean {
   const backdrop = (base as { backdrop?: Backdrop } | null)?.backdrop;
+  if (backdrop?.scene && backdrop.scene.motion !== false) return true;
+
   const items = [backdrop?.layers, backdrop?.art, backdrop?.sprites].flatMap((list) => (Array.isArray(list) ? list : []));
 
   return items.some((item) => {
@@ -125,7 +130,7 @@ export function themePrompt(request: ThemeRequest): string {
   const parts = [`Theme request: ${request.prompt}`];
 
   if (!request.animated) {
-    parts.push('Make it static: every layer, art, and sprite animation must be "none", and no drawing may animate.');
+    parts.push('Make it static: every layer, art, and sprite animation must be "none", no drawing may animate, and a scene draws one still picture.');
   }
 
   if (request.animated && request.base !== undefined && !hasMotion(request.base)) {

@@ -84,10 +84,12 @@ function useEditRequest(editingId: string | undefined, cancel: () => void) {
   };
 }
 
-/* Moving layers, particles, or art, including art that animates inside its drawing. */
+/* A moving scene, layers, particles, or art, including art that animates inside its drawing. */
 function hasMotion(theme: Theme): boolean {
   const backdrop = theme.backdrop;
   if (typeof backdrop !== 'object') return false;
+
+  if (backdrop.scene?.motion) return true;
 
   const moves = (item: { animation: string; svg?: string }) => item.animation !== 'none' || /<animate/.test(item.svg ?? '');
 

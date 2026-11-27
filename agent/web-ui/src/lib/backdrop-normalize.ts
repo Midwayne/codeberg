@@ -1,5 +1,6 @@
 import { normalizeArt, normalizeSprites } from './backdrop-art-normalize';
 import { choice, clamp, record } from './normalize-values';
+import { normalizeScene } from './scene/scene-normalize';
 import { hexColor } from './color';
 import { BACKDROP_SCENES, LAYER_ANIMATIONS, LAYER_KINDS, type BackdropLayer, type BackdropScene, type CustomBackdrop } from './theme-types';
 
@@ -69,7 +70,7 @@ function sky(value: unknown): CustomBackdrop['sky'] {
 
 /**
  * A built-in scene name (kept by themes made from a built-in one), or valid
- * layers, art, and sprites with every value clamped; undefined when nothing is left to draw.
+ * layers, art, sprites, and a scene with every value clamped; undefined when nothing is left to draw.
  */
 export function normalizeBackdrop(value: unknown, animated: boolean): BackdropScene | CustomBackdrop | undefined {
   if (BACKDROP_SCENES.includes(value as BackdropScene)) return value as BackdropScene;
@@ -84,13 +85,15 @@ export function normalizeBackdrop(value: unknown, animated: boolean): BackdropSc
   const base = sky(raw.sky);
   const art = normalizeArt(raw.art, animated);
   const sprites = normalizeSprites(raw.sprites, animated);
+  const scene = normalizeScene(raw.scene, animated);
 
-  if (layers.length === 0 && !base && !art && !sprites) return undefined;
+  if (layers.length === 0 && !base && !art && !sprites && !scene) return undefined;
 
   return {
     ...(base ? { sky: base } : {}),
     layers,
     ...(art ? { art } : {}),
     ...(sprites ? { sprites } : {}),
+    ...(scene ? { scene } : {}),
   };
 }

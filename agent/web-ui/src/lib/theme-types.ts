@@ -115,12 +115,29 @@ export interface BackdropSprite {
   spin: boolean;
 }
 
-/** A backdrop designed by the chat model: an optional sky, up to six layers, and its own art. */
+/** App moments a scene can react to, such as fireworks when a reply finishes. */
+export const SCENE_EVENTS = ['send', 'reply', 'error', 'new-chat'] as const;
+
+export type SceneEvent = (typeof SCENE_EVENTS)[number];
+
+/** A canvas script the chat model wrote, run in a sandbox behind the conversation. */
+export interface SceneScript {
+  script: string;
+  /** False draws one still frame and ignores events. */
+  motion: boolean;
+}
+
+/**
+ * A backdrop designed by the chat model: an optional sky, up to six layers, and
+ * its own art. A scene, when it runs, replaces the layers, art, and particles,
+ * which remain its preview and its fallback.
+ */
 export interface CustomBackdrop {
   sky?: { from: string; to: string; angle: number };
   layers: BackdropLayer[];
   art?: BackdropArt[];
   sprites?: BackdropSprite[];
+  scene?: SceneScript;
 }
 
 export interface Theme {

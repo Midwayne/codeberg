@@ -19,6 +19,7 @@ are in the git history.
 - Themes can restyle the header, sidebar, composer, message bubbles, code blocks, fonts, and text size.
 - Create or edit a theme by describing it; your chat model designs it.
 - Generated themes can include art and particles your chat model draws, such as blossom branches along the edges and drifting petals.
+- Generated themes can include an animated scene your chat model programs, such as swimming koi or a neon grid, with effects like fireworks when a reply finishes.
 
 ### Changed
 
