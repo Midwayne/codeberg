@@ -114,7 +114,7 @@ function ThemePreview({ theme }: { theme: Theme }) {
         <span
           className="backdrop-preview"
           data-scene={typeof backdrop === 'string' ? backdrop : undefined}
-          style={{ '--background': palette.background } as CSSProperties}
+          style={{ '--background': palette.background, '--foreground': palette.foreground } as CSSProperties}
         >
           {typeof backdrop === 'object' && <CustomBackdropLayers backdrop={backdrop} />}
         </span>

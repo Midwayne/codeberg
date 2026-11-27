@@ -170,5 +170,12 @@ describe('generated theme validation', () => {
 
     expect(contrast(header.text!, seenThrough)).toBeGreaterThanOrEqual(4.5);
   });
+
+  it('keeps error text readable on every surface', () => {
+    const { palette } = normalizeTheme({ palette: { background: '#101010', destructive: '#5a0000' } }, options);
+
+    expect(contrast(palette.destructive, palette.background)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(palette.destructiveForeground!, palette.destructive)).toBeGreaterThanOrEqual(4.5);
+  });
 });
 

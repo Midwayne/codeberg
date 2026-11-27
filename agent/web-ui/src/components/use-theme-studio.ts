@@ -54,7 +54,8 @@ export function useThemeStudio(selected: Theme, editing?: CustomTheme) {
   function undo() {
     if (!previous || pending) return;
 
-    restoreTheme(previous.before, previous.after);
+    if (!restoreTheme(previous.before, previous.after)) setError(cannotUndo(previous.before));
+
     setPrevious(undefined);
   }
 
@@ -87,4 +88,8 @@ function useEditRequest(editingId: string | undefined, cancel: () => void) {
 
 function hasMotion(theme: CustomTheme): boolean {
   return typeof theme.backdrop === 'object' && theme.backdrop.layers.some((layer) => layer.animation !== 'none');
+}
+
+function cannotUndo(theme: CustomTheme): string {
+  return `${theme.label} changed in another tab or was deleted, so this change cannot be undone.`;
 }

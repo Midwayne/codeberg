@@ -125,7 +125,8 @@ function readableText(raw: Record<string, unknown>, surfaces: string[]) {
 function actionColors(raw: Record<string, unknown>, surfaces: string[]) {
   const background = surfaces[0]!;
   const primary = opaque(hexColor(raw.primary) ?? readableOn(background));
-  const destructive = opaque(hexColor(raw.destructive) ?? '#e5484d');
+  // Errors are text too (alerts, form errors), so they read on every surface.
+  const destructive = ensureContrast(opaque(hexColor(raw.destructive) ?? '#e5484d'), surfaces, 4.5, readableOn(background));
 
   return {
     primary,

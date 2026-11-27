@@ -80,12 +80,13 @@
   }
 }
 
-/* Browsers without view transitions still ease between the two palettes. */
+/*
+ * Browsers without view transitions still ease between the two palettes. The
+ * list keeps transform and opacity, so hovers and menus still animate meanwhile.
+ */
 .theme-fading,
 .theme-fading * {
-  transition:
-    background-color 400ms ease,
-    color 400ms ease,
-    border-color 400ms ease,
-    fill 400ms ease !important;
+  transition-property: background-color, color, border-color, fill, transform, opacity;
+  transition-duration: 400ms;
+  transition-timing-function: ease;
 }

@@ -70,6 +70,17 @@ Rules:
 - transition is how the app changes into this theme: reveal is a circle from the click, fade is a crossfade,
   wipe scans from top to bottom, blur dissolves through a blur.`;
 
+/* Whether a theme sent to change has any moving backdrop layer. */
+function hasMotion(base: unknown): boolean {
+  const layers = (base as { backdrop?: { layers?: unknown } } | null)?.backdrop?.layers;
+
+  return Array.isArray(layers) && layers.some((layer) => {
+    const animation = (layer as { animation?: unknown } | null)?.animation;
+
+    return typeof animation === 'string' && animation !== 'none';
+  });
+}
+
 export function themePrompt(request: ThemeRequest): string {
   const parts = [`Theme request: ${request.prompt}`];
 
@@ -77,10 +88,14 @@ export function themePrompt(request: ThemeRequest): string {
     parts.push('Make it static: every layer animation must be "none".');
   }
 
+  if (request.animated && request.base !== undefined && !hasMotion(request.base)) {
+    parts.push('Motion is on for this change: give the backdrop slow animation, even if the theme was still.');
+  }
+
   if (request.base !== undefined) {
     parts.push(
       'Change this existing theme as the request asks, keeping what it does not mention.',
-      'If the request does not change the backdrop, reply with "backdrop": "keep" to keep it exactly as it is.',
+      'If the request does not change the backdrop (and motion is not asked for), reply with "backdrop": "keep" to keep it exactly as it is.',
       JSON.stringify(request.base),
     );
   }

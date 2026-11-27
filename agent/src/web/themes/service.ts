@@ -88,7 +88,10 @@ async function withRoomToThink(ask: (tokens: number) => Promise<string>, budget:
   } catch (error) {
     if (!(error instanceof IncompleteSummaryError) || budget >= REASONING_THEME_OUTPUT_TOKENS) throw error;
 
-    return ask(REASONING_THEME_OUTPUT_TOKENS);
+    // A small model may reject the larger limit; its first, clearer failure is the one to report.
+    return ask(REASONING_THEME_OUTPUT_TOKENS).catch((retry: unknown) => {
+      throw retry instanceof IncompleteSummaryError || isTimeout(retry) ? retry : error;
+    });
   }
 }
 

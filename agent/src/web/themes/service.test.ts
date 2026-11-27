@@ -102,6 +102,29 @@ describe('theme generation API', () => {
     expect(model.doGenerateCalls.map((call) => call.maxOutputTokens)).toEqual([4_096, 16_000]);
   });
 
+  it('reports the first, clear failure when the larger retry is rejected', async () => {
+    let calls = 0;
+    const model = new MockLanguageModelV4({
+      doGenerate: async () => {
+        calls += 1;
+        if (calls === 2) throw new Error('max_tokens: 16000 > 4096');
+
+        return {
+          content: [{ type: 'text', text: '' }],
+          finishReason: { unified: 'length', raw: undefined },
+          usage: { inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 1, text: 1, reasoning: 0 } },
+          warnings: [],
+        };
+      },
+    });
+    const { post } = await serve(model, []);
+
+    const response = await post({ prompt: 'verbose' });
+
+    expect(response.status).toBe(502);
+    expect(await response.text()).toContain('did not finish a theme');
+  });
+
   it('explains a reply that was cut off instead of reporting a fragment of it', async () => {
     const { post } = await serve(replyModel('{"label":"Long","palette":{"background":"#000000"},"backdrop":{"sky":{"from":"#000000"}', 'length'));
 
@@ -144,6 +167,13 @@ describe('theme prompt', () => {
     expect(edit).toContain('"none"');
     expect(edit).toContain('{"label":"Forest"}');
     expect(edit).toContain('"backdrop": "keep"');
+    expect(edit).not.toContain('Motion is on');
+
+    const still = { backdrop: { layers: [{ kind: 'stars', animation: 'none' }] } };
+    const moving = { backdrop: { layers: [{ kind: 'stars', animation: 'twinkle' }] } };
+
+    expect(themePrompt({ prompt: 'warmer', animated: true, base: still })).toContain('Motion is on');
+    expect(themePrompt({ prompt: 'warmer', animated: true, base: moving })).not.toContain('Motion is on');
   });
 });
 
