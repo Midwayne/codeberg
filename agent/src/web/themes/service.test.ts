@@ -139,8 +139,23 @@ describe('theme generation API', () => {
     const { post } = await serve(model);
 
     expect((await post({ prompt: 'warmer', base: 'make it warm' })).status).toBe(400);
-    expect((await post({ prompt: 'warmer', base: { label: 'x'.repeat(100_000) } })).status).toBe(400);
+    expect((await post({ prompt: 'warmer', base: { label: 'x'.repeat(170_000) } })).status).toBe(400);
     expect(model.doGenerateCalls).toHaveLength(0);
+  });
+
+  it('sends the largest theme the web UI keeps on to the model when changing it', async () => {
+    const model = replyModel('{}');
+    const { post } = await serve(model);
+
+    // Seven 12,000-character drawings dense with quoted attributes, and a 16,000-character scene full of quotes.
+    const drawing = `<svg viewBox="0 0 9 9">${'<g a="b"/>'.repeat(1_198)}</svg>`.slice(0, 12_000);
+    const script = 'scene({ s: "x" });'.repeat(888);
+    const art = Array.from({ length: 4 }, () => ({ svg: drawing }));
+    const sprites = Array.from({ length: 3 }, () => ({ svg: drawing }));
+
+    await post({ prompt: 'warmer', base: { label: 'Big', palette: { background: '#000000' }, backdrop: { layers: [], art, sprites, scene: { script } } } });
+
+    expect(model.doGenerateCalls).toHaveLength(1);
   });
 
   it('refuses an empty description before calling the model', async () => {

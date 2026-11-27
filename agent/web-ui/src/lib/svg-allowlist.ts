@@ -32,7 +32,11 @@ const REFERENCES = [
 
 const FILTERS = ['in', 'in2', 'result', 'stdDeviation', 'dx', 'dy', 'mode', 'type', 'values', 'baseFrequency', 'numOctaves', 'seed', 'stitchTiles', 'scale', 'xChannelSelector', 'yChannelSelector'];
 
-const MOTION = ['attributeName', 'from', 'to', 'by', 'dur', 'begin', 'repeatCount', 'keyTimes', 'keySplines', 'keyPoints', 'calcMode', 'additive', 'accumulate', 'fill', 'path', 'rotate'];
+/*
+ * Timing that can bunch changes together (keyTimes, keySplines, keyPoints) or
+ * make them jump (calcMode) is left out: every animation runs evenly through its values.
+ */
+const MOTION = ['attributeName', 'from', 'to', 'by', 'dur', 'begin', 'repeatCount', 'additive', 'accumulate', 'fill', 'path', 'rotate'];
 
 export const SVG_ATTRIBUTES = new Set([...GEOMETRY, ...PRESENTATION, ...REFERENCES, ...FILTERS, ...MOTION]);
 
@@ -46,11 +50,12 @@ export const ANIMATED_ATTRIBUTES = new Set([
 /* Numbers, colors, paths, transforms, and local url(#id) references; no quotes, angle brackets, or escapes. */
 const SAFE_VALUE = /^[\w\s#.,%()+\-:;/]*$/;
 
-const MAX_VALUE_CHARS = 6_000;
+/** Longest drawing accepted, in characters, once rebuilt; a single path may use all of it. */
+export const MAX_SVG_CHARS = 12_000;
 
 /** Whether an attribute value can be written back as is. */
 export function safeValue(name: string, value: string): boolean {
-  if (value.length > MAX_VALUE_CHARS || !SAFE_VALUE.test(value)) return false;
+  if (value.length > MAX_SVG_CHARS || !SAFE_VALUE.test(value)) return false;
 
   // Only same-document references: url(#id), and #id for <use>.
   if (/url\(/i.test(value.replace(/url\(#[\w-]+\)/g, ''))) return false;
@@ -59,14 +64,31 @@ export function safeValue(name: string, value: string): boolean {
 
   if (name === 'attributeName') return ANIMATED_ATTRIBUTES.has(value);
 
+  // One start time; a list of them could restart an animation in quick bursts.
+  if (name === 'begin') return Number.isFinite(clockSeconds(value));
+
   return !/javascript|data:|expression/i.test(value);
 }
 
 /*
- * Animations that change brightness faster than this could flash, so every
- * animation runs at least this long per cycle, far from three flashes a second.
+ * Every animation takes at least this long per cycle, and at least a second
+ * for each step between its values. Steps are spread evenly (no keyTimes or
+ * calcMode), so nothing in a drawing changes faster than once a second, far
+ * from the three flashes a second that can trigger photosensitive reactions.
  */
 export const MIN_MOTION_SECONDS = 2;
+
+export const MIN_STEP_SECONDS = 1;
+
+/** Steps an animation moves through in one cycle: from one value to the next. */
+export function motionSteps(values: string | undefined): number {
+  const count = (values ?? '').split(';').filter((value) => value.trim()).length;
+
+  return Math.max(1, count - 1);
+}
+
+/** Shapes that draw nothing without their geometry. */
+export const REQUIRED_GEOMETRY: Record<string, string> = { path: 'd', polyline: 'points', polygon: 'points' };
 
 /** Seconds in a SMIL clock value such as `6s`, `1.5min`, or `800ms`; NaN when it is not one. */
 export function clockSeconds(value: string | undefined): number {

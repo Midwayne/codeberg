@@ -106,8 +106,8 @@ Rules:
   turbulence, or displacement, and animate, animateTransform, or animateMotion. Set colors with
   attributes such as fill and stroke. No text, style, CSS, script, images, or links; refer only to ids in
   the same drawing with url(#id) or href='#id'. Animations inside a drawing (a petal turning, a lantern
-  glowing) need dur of 2s or more, 4s or more for anything that changes brightness, and repeatCount
-  'indefinite'.
+  glowing) move evenly through their values: at least 2s per cycle and 1s per step between values, one
+  begin time, and repeatCount 'indefinite'; keyTimes, keySplines, and calcMode are removed.
 - transition is how the app changes into this theme: reveal is a circle from the click, fade is a crossfade,
   wipe scans from top to bottom, blur dissolves through a blur.
 

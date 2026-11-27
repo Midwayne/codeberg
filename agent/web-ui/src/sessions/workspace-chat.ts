@@ -10,6 +10,7 @@ import { reloadWorkspaceChat } from './chat-reload';
 import type { SaveSessionInput } from '../lib/sessions';
 import type { ModelSelection } from '../lib/models';
 import { ChatModelChoice, chatModelTransport } from './chat-model';
+import { emitSceneEvent, sceneEventForFinish } from '../lib/scene/scene-events';
 
 export type WorkspaceChatSave = SaveSessionInput;
 
@@ -94,7 +95,12 @@ export function createWorkspaceChat(options: CreateWorkspaceChatOptions): Worksp
     id,
     messages,
     transport: savedTransport,
-    onFinish: persistence.onFinish,
+    onFinish: (finish) => {
+      persistence.onFinish(finish);
+
+      const event = sceneEventForFinish(finish);
+      if (event) emitSceneEvent(event);
+    },
   });
   const turns = createTurnQueue(chat, savedTransport.isPending, runTransport);
 

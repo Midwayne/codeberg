@@ -1,4 +1,18 @@
-import { ANIMATED_ATTRIBUTES, clockSeconds, MIN_MOTION_SECONDS, MOTION_ELEMENTS, safeValue, SVG_ATTRIBUTES, SVG_ELEMENTS } from './svg-allowlist';
+import {
+  ANIMATED_ATTRIBUTES,
+  clockSeconds,
+  MAX_SVG_CHARS,
+  MIN_MOTION_SECONDS,
+  MIN_STEP_SECONDS,
+  MOTION_ELEMENTS,
+  motionSteps,
+  REQUIRED_GEOMETRY,
+  safeValue,
+  SVG_ATTRIBUTES,
+  SVG_ELEMENTS,
+} from './svg-allowlist';
+
+export { MAX_SVG_CHARS };
 
 /*
  * Model-drawn SVG is never used as written. It is read into tags, and a new
@@ -7,8 +21,8 @@ import { ANIMATED_ATTRIBUTES, clockSeconds, MIN_MOTION_SECONDS, MOTION_ELEMENTS,
  * external links, styles, text) cannot reach the page, however it is spelled.
  */
 
-/** Longest art source accepted, in characters. */
-export const MAX_SVG_CHARS = 12_000;
+/* Sources may carry comments and markup that is dropped; this only bounds the work of reading them. */
+const MAX_SOURCE_CHARS = MAX_SVG_CHARS * 2;
 
 const MAX_ELEMENTS = 600;
 
@@ -26,14 +40,19 @@ interface Tag {
 /**
  * A safe copy of an SVG drawing with a viewBox, or undefined when it is not
  * one. Still art (`animated: false`) also loses its animation elements.
+ *
+ * The size limit applies to the copy, and a copy rebuilds to itself, so a
+ * drawing accepted once is accepted again when a saved theme is read back.
  */
 export function sanitizeSvg(source: unknown, animated: boolean): string | undefined {
-  if (typeof source !== 'string' || source.length > MAX_SVG_CHARS) return undefined;
+  if (typeof source !== 'string' || source.length > MAX_SOURCE_CHARS) return undefined;
 
   const tags = readTags(source);
   if (!tags || tags.length > MAX_ELEMENTS * 2) return undefined;
 
-  return writeSvg(tags, animated);
+  const svg = writeSvg(tags, animated);
+
+  return svg && svg.length <= MAX_SVG_CHARS ? svg : undefined;
 }
 
 /* Every tag in order, skipping comments and declarations; undefined for anything else that is not a tag. */
@@ -124,15 +143,24 @@ function readViewBox(value: string | undefined): number[] | undefined {
 function keepElement(tag: Tag, animated: boolean): boolean {
   if (!SVG_ELEMENTS.has(tag.name) || tag.name === 'svg') return false;
 
-  if (!MOTION_ELEMENTS.has(tag.name)) return true;
+  // A shape whose geometry is refused would draw nothing, so it goes too.
+  const geometry = REQUIRED_GEOMETRY[tag.name];
+  const shape = geometry === undefined ? undefined : tag.attributes.get(geometry);
+  if (geometry && (!shape || !safeValue(geometry, shape))) return false;
 
+  return !MOTION_ELEMENTS.has(tag.name) || (animated && keepMotion(tag));
+}
+
+function keepMotion(tag: Tag): boolean {
   const seconds = clockSeconds(tag.attributes.get('dur'));
   const target = tag.attributes.get('attributeName');
+  const steps = tag.name === 'animateMotion' ? 1 : motionSteps(tag.attributes.get('values'));
 
   // animateMotion moves along a path; the others must name an attribute they may change.
   const aimed = tag.name === 'animateMotion' || (target !== undefined && ANIMATED_ATTRIBUTES.has(target));
+  const slow = seconds >= MIN_MOTION_SECONDS && seconds / steps >= MIN_STEP_SECONDS && seconds <= 600;
 
-  return animated && aimed && seconds >= MIN_MOTION_SECONDS && seconds <= 600;
+  return aimed && slow;
 }
 
 function writeAttributes(attributes: Map<string, string>): string {

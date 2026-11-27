@@ -17,16 +17,16 @@ export function subscribeSceneEvents(listener: Listener): () => void {
 
 type ChatStatus = 'submitted' | 'streaming' | 'ready' | 'error';
 
-/** The event a chat status change means: a message sent, a reply finished, or a reply failed. */
+/** A message was sent when a chat starts submitting. */
 export function sceneEventFor(previous: ChatStatus, next: ChatStatus): SceneEvent | undefined {
-  if (previous === next) return undefined;
+  return next === 'submitted' && previous !== 'submitted' ? 'send' : undefined;
+}
 
-  if (next === 'submitted') return 'send';
+type Finish = { isAbort: boolean; isError: boolean; isDisconnect: boolean };
 
-  const answering = previous === 'submitted' || previous === 'streaming';
-  if (!answering) return undefined;
+/** How a reply ended: finished, or failed; a reply the user stopped is not an event. */
+export function sceneEventForFinish(finish: Finish): SceneEvent | undefined {
+  if (finish.isAbort) return undefined;
 
-  if (next === 'ready') return 'reply';
-
-  return next === 'error' ? 'error' : undefined;
+  return finish.isError || finish.isDisconnect ? 'error' : 'reply';
 }

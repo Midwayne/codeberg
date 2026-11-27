@@ -137,7 +137,7 @@ Themes apply immediately to chat, settings, and docs. They are saved in this bro
 | Art | Illustrations your chat model draws, such as flowering branches along the edges, still or gently moving |
 | Particles | Small drawings scattered across the window, such as falling petals, leaves, or embers |
 | Scene | An animated picture your chat model programs, such as swimming koi, a scrolling neon grid, or a halftone sun |
-| Moments | Short effects a scene plays when you send a message, a reply finishes or fails, or you start a new chat, such as fireworks |
+| Moments | Short effects a scene plays when you send a message, a reply finishes or fails, or you start a new chat, such as fireworks; a reply you stop plays nothing |
 | Transition | How the app changes into the theme |
 
 Describe any of these when you create or change a theme, for example `square code blocks and a glassier sidebar`, or `Koganei blossom: cherry branches painted along the right edge, petals drifting down`, or `synthwave sunset with a striped sun, a scrolling neon grid, and fireworks when a reply finishes`.

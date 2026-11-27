@@ -16,8 +16,12 @@ export function SceneFrame(props: SceneFrameProps) {
   const reduced = useReducedMotion();
   const motion = props.scene.motion && !reduced;
 
-  // A changed scene or motion setting starts a fresh frame, with a fresh page nonce.
-  return <SceneDocument key={`${motion}:${props.scene.script}`} {...props} motion={motion} />;
+  return <SceneDocument key={sceneFrameKey(props, motion)} {...props} motion={motion} />;
+}
+
+/** The frame gets its page, colors, and motion once, at start, so changing any of them starts a fresh one. */
+export function sceneFrameKey({ scene, colors, colorScheme }: Pick<SceneFrameProps, 'scene' | 'colors' | 'colorScheme'>, motion: boolean): string {
+  return [motion, colorScheme, JSON.stringify(colors), scene.script].join('\n');
 }
 
 function SceneDocument({ scene, colors, colorScheme, onFail, motion }: SceneFrameProps & { motion: boolean }) {
