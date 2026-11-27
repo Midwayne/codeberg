@@ -33,13 +33,21 @@ function referencesOf(attributes: Map<string, string>): string[] {
   return ids;
 }
 
-/* Each element, and what it and its children draw and reference, by id. */
-function readParts(svg: string): { root: Part; parts: Map<string, Part> } {
-  const parts = new Map<string, Part>();
-  const open: (Part & { id?: string })[] = [{ shapes: 0, references: [] }];
+type OpenPart = Part & { id?: string; order: number };
 
-  const close = (part: Part & { id?: string }) => {
-    if (part.id) parts.set(part.id, part);
+/*
+ * Each element, and what it and its children draw and reference, by id. When
+ * ids repeat, the browser resolves #id to the first element by its opening
+ * tag, so that one is kept, even when a nested duplicate closes before it.
+ */
+function readParts(svg: string): { root: Part; parts: Map<string, Part> } {
+  const parts = new Map<string, OpenPart>();
+  const open: OpenPart[] = [{ shapes: 0, references: [], order: -1 }];
+  let opened = 0;
+
+  const close = (part: OpenPart) => {
+    const earlier = part.id ? parts.get(part.id) : undefined;
+    if (part.id && (!earlier || part.order < earlier.order)) parts.set(part.id, part);
 
     const parent = open[open.length - 1]!;
     parent.shapes += part.shapes;
@@ -52,7 +60,7 @@ function readParts(svg: string): { root: Part; parts: Map<string, Part> } {
       continue;
     }
 
-    const part = { shapes: DRAWN.has(tag.name) ? 1 : 0, references: referencesOf(tag.attributes), id: tag.attributes.get('id') };
+    const part = { shapes: DRAWN.has(tag.name) ? 1 : 0, references: referencesOf(tag.attributes), id: tag.attributes.get('id'), order: opened++ };
 
     if (tag.empty) close(part);
     else open.push(part);

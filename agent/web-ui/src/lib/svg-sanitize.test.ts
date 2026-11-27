@@ -110,4 +110,16 @@ describe('svg art sanitizing', () => {
     expect(sanitizeSvg(loop, true)).toBeUndefined();
     expect(sanitizeSvg(petals, true)).toContain('<use href="#petal"/>');
   });
+
+  it('counts the element the browser draws when ids repeat: the first one by its opening tag', () => {
+    // Each layer draws the one before it ten times; a later empty decoy shares its id.
+    const layers = Array.from({ length: 8 }, (_, i) => `<g id='a${i + 1}'>${`<use href='#a${i}'/>`.repeat(10)}</g><g id='a${i + 1}'/>`).join('');
+    const decoyed = wrap(`<defs><g id='a0'><path d='M0 0h1v1z'/></g>${layers}</defs><use href='#a8'/>`);
+
+    // A nested duplicate closes first, but the browser still resolves the outer element.
+    const nested = wrap(`<defs><g id='b0'><path d='M0 0h1v1z'/></g><g id='b1'>${"<use href='#b0'/>".repeat(80)}<g id='b1'/></g><g id='b2'>${"<use href='#b1'/>".repeat(80)}</g></defs><use href='#b2'/>`);
+
+    expect(sanitizeSvg(decoyed, true)).toBeUndefined();
+    expect(sanitizeSvg(nested, true)).toBeUndefined();
+  });
 });
