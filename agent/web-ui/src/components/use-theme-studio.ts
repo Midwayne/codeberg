@@ -1,0 +1,109 @@
+import { useEffect, useRef, useState } from 'react';
+
+import { hasRoomForTheme, ThemeLimitError } from '../lib/custom-themes';
+import { commitTheme, restoreTheme } from '../lib/theme-commit';
+import { activeThemeId } from '../lib/themes';
+import { useProjectApi } from '../lib/project-api';
+import { generateTheme } from '../lib/theme-generate';
+import type { CustomTheme, Theme } from '../lib/theme-types';
+import { useThemeRequest } from './use-theme-request';
+
+/**
+ * Form state for the theme studio. With `editing`, the chat model changes that
+ * saved theme in place and the previous version can be restored with Undo.
+ */
+export function useThemeStudio(selected: Theme, editing?: CustomTheme) {
+  const { fetch } = useProjectApi();
+  const [prompt, setPrompt] = useState('');
+  const [refine, setRefine] = useState(false);
+  const [animated, setAnimated] = useAnimatedSetting(selected, refine, editing);
+  // The version before the last change, and that change, so undo can tell if it still applies.
+  const [previous, setPrevious] = useState<{ before: CustomTheme; after: CustomTheme }>();
+  const { pending, error, setError, run, cancel } = useThemeRequest();
+  const editRequest = useEditRequest(editing?.id, cancel);
+
+  // A different theme (or none, after a delete) starts fresh, with nothing to undo.
+  useEffect(() => {
+    setPrevious(undefined);
+    setError(undefined);
+  }, [editing?.id]);
+
+  async function create() {
+    const text = prompt.trim();
+    if (!text || pending) return;
+
+    if (!editing && !hasRoomForTheme()) return setError(new ThemeLimitError().message);
+
+    const activeAtStart = activeThemeId();
+
+    await run(async (signal) => {
+      const base = editing ?? (refine ? selected : undefined);
+      const theme = await editRequest(editing?.id, () =>
+        generateTheme(fetch, { prompt: text, animated, base, id: editing?.id }, signal));
+
+      // Cancelled after the reply was read: the user moved on, so nothing is saved.
+      if (signal.aborted || !commitTheme(theme, { editing, activeAtStart })) return;
+
+      setPrevious(editing ? { before: editing, after: theme } : undefined);
+      setPrompt('');
+    });
+  }
+
+  function undo() {
+    if (!previous || pending) return;
+
+    if (!restoreTheme(previous.before, previous.after)) setError(cannotUndo(previous.before));
+
+    setPrevious(undefined);
+  }
+
+  return { prompt, setPrompt, animated, setAnimated, refine, setRefine, pending, error, previous, create, undo, cancel };
+}
+
+/**
+ * Tracks which theme a running request edits. Editing a different theme (or
+ * none, after a delete) cancels that edit, since it belonged to the old theme;
+ * a new theme being designed carries on. The mark is set only while a request
+ * runs, so a refused double submit cannot clear the mark of the one in flight.
+ */
+function useEditRequest(editingId: string | undefined, cancel: () => void) {
+  const runningEdit = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (runningEdit.current && runningEdit.current !== editingId) cancel();
+  }, [editingId]);
+
+  return async function editRequest<T>(id: string | undefined, request: () => Promise<T>): Promise<T> {
+    runningEdit.current = id;
+
+    try {
+      return await request();
+    } finally {
+      runningEdit.current = undefined;
+    }
+  };
+}
+
+function hasMotion(theme: Theme): boolean {
+  return typeof theme.backdrop === 'object' && theme.backdrop.layers.some((layer) => layer.animation !== 'none');
+}
+
+function cannotUndo(theme: CustomTheme): string {
+  return `${theme.label} changed in another tab or was deleted, so this change cannot be undone.`;
+}
+
+/*
+ * Animated starts matching the theme the change starts from (the one being
+ * edited, or the selected one with Start from on), so a request like "make it
+ * bluer" never adds motion unasked. A fresh theme starts animated.
+ */
+function useAnimatedSetting(selected: Theme, refine: boolean, editing?: CustomTheme) {
+  const [animated, setAnimated] = useState(true);
+  const base = editing ?? (refine ? selected : undefined);
+
+  useEffect(() => {
+    setAnimated(base ? hasMotion(base) : true);
+  }, [base?.id]);
+
+  return [animated, setAnimated] as const;
+}

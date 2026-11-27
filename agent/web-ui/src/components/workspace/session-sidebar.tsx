@@ -21,7 +21,7 @@ function SessionSidebarView(state: SessionSidebarViewProps) {
   return (
     <aside
       id="chat-sidebar"
-      className="flex min-h-0 w-full flex-1 flex-col bg-card/30 md:w-64 md:flex-none md:border-r md:border-border"
+      className="flex min-h-0 w-full flex-1 flex-col md:w-64 md:flex-none md:border-r"
       aria-label="Chats"
     >
       <SidebarHeader state={state} />

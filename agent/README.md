@@ -168,6 +168,7 @@ not built, the server falls back to a dependency-free single-file page, so
 |---|---|---|
 | `POST` | `/api/chat` | send `{ messages }`, stream the agent's reply (ai-sdk UI-message SSE) |
 | `GET` | `/api/meta` | `{ title }` for the browser tab / header |
+| `POST` | `/api/themes/generate` | send `{ prompt, animated?, base? }`; the chat model designs a theme → `{ theme }` (the web UI validates it before use) |
 | `GET` | `/api/commands` | the prompt-hook catalog that drives the `/` autocomplete (see [Commands](#commands)) |
 | `GET` | `/api/sessions` | list saved chats, newest first |
 | `GET` | `/api/sessions/<id>` | load one saved chat, or 404 |

@@ -1,170 +1,70 @@
-export interface Palette {
-  background: string;
-  foreground: string;
-  surface: string;
-  popover?: string;
-  raised: string;
-  mutedForeground: string;
-  primary: string;
-  destructive: string;
-  border: string;
-  primaryForeground?: string;
-  secondaryForeground?: string;
-  destructiveForeground?: string;
-  accent?: string;
-  input?: string;
-  ring?: string;
-}
+import { EXPRESSIVE_THEMES } from './theme-palettes-expressive';
+import { GLOW_THEMES } from './theme-palettes-glow';
+import { SCENE_THEMES } from './theme-palettes-scenes';
 
-export interface Theme {
-  id: string;
-  label: string;
-  description: string;
-  colorScheme: 'dark' | 'light';
-  palette: Palette;
-}
+import type { CustomThemeId, Theme } from './theme-types';
 
-export const THEMES = [
+export type { BackdropScene, Palette, Theme, ThemeFont } from './theme-types';
+
+/* Minimal neutrals: crisp contrast, quiet surfaces, and only a faint halo of light. */
+const BASE_THEMES = [
   {
-    id: 'dark',
-    label: 'Dark',
-    description: 'Codex · soft charcoal',
+    id: 'graphite',
+    label: 'Graphite',
+    description: 'Clean dark · soft halo',
     colorScheme: 'dark',
+    radius: '0.75rem',
+    backdrop: 'halo',
+    transition: 'fade',
     palette: {
-      background: '#212121',
-      foreground: '#dcdcdc',
-      surface: '#181818',
-      popover: '#303030',
-      raised: '#303030',
-      mutedForeground: '#afafaf',
-      primary: '#dcdcdc',
-      primaryForeground: '#212121',
-      destructive: 'oklch(0.704 0.191 22.216)',
-      border: '#ffffff14',
-      input: '#ffffff26',
-      ring: '#8f8f8f',
+      background: '#111113',
+      foreground: '#ededef',
+      surface: '#0b0b0c',
+      popover: '#1c1c1f',
+      raised: '#1c1c1f',
+      mutedForeground: '#a1a1aa',
+      primary: '#ededef',
+      primaryForeground: '#111113',
+      destructive: '#f87171',
+      border: '#ffffff12',
+      input: '#ffffff1f',
+      ring: '#8b8b94',
+      link: '#7cb7ff',
     },
   },
   {
-    id: 'light',
-    label: 'Light',
-    description: 'Codex · soft grey',
+    id: 'porcelain',
+    label: 'Porcelain',
+    description: 'Clean light · soft halo',
     colorScheme: 'light',
+    radius: '0.75rem',
+    backdrop: 'halo',
+    transition: 'fade',
     palette: {
-      background: '#f5f5f5',
-      foreground: '#282828',
-      surface: '#ededed',
+      background: '#ffffff',
+      foreground: '#18181b',
+      surface: '#f7f7f8',
       popover: '#ffffff',
-      raised: '#e8e8e8',
-      mutedForeground: '#5d5d5d',
-      primary: '#303030',
-      primaryForeground: '#f5f5f5',
-      destructive: 'oklch(0.577 0.245 27.325)',
-      secondaryForeground: '#282828',
+      raised: '#f0f0f2',
+      mutedForeground: '#5f5f68',
+      primary: '#18181b',
+      primaryForeground: '#ffffff',
+      destructive: '#dc2626',
+      secondaryForeground: '#18181b',
       destructiveForeground: '#ffffff',
-      border: '#0d0d0d14',
-      input: '#0d0d0d26',
-      ring: '#767676',
-    },
-  },
-  {
-    id: 'kanagawa',
-    label: 'Kanagawa',
-    description: 'Warm ink · Wave',
-    colorScheme: 'dark',
-    palette: {
-      background: '#1f1f28',
-      foreground: '#dcd7ba',
-      surface: '#2a2a37',
-      raised: '#363646',
-      mutedForeground: '#c8c093',
-      primary: '#7e9cd8',
-      destructive: '#e46876',
-      border: '#54546d',
-      accent: '#223249',
-    },
-  },
-  {
-    id: 'tokyo-night',
-    label: 'Tokyo Night',
-    description: 'Deep blue · Night',
-    colorScheme: 'dark',
-    palette: {
-      background: '#1a1b26',
-      foreground: '#c0caf5',
-      surface: '#16161e',
-      raised: '#292e42',
-      mutedForeground: '#a9b1d6',
-      primary: '#7aa2f7',
-      destructive: '#f7768e',
-      border: '#414868',
-      accent: '#283457',
-    },
-  },
-  {
-    id: 'catppuccin-mocha',
-    label: 'Catppuccin Mocha',
-    description: 'Soft pastel tones',
-    colorScheme: 'dark',
-    palette: {
-      background: '#1e1e2e',
-      foreground: '#cdd6f4',
-      surface: '#181825',
-      raised: '#313244',
-      mutedForeground: '#a6adc8',
-      primary: '#cba6f7',
-      destructive: '#f38ba8',
-      border: '#45475a',
-    },
-  },
-  {
-    id: 'dracula',
-    label: 'Dracula',
-    description: 'Purple and vivid',
-    colorScheme: 'dark',
-    palette: {
-      background: '#282a36',
-      foreground: '#f8f8f2',
-      surface: '#21222c',
-      raised: '#44475a',
-      mutedForeground: 'color-mix(in srgb, #6272a4 70%, #f8f8f2)',
-      primary: '#bd93f9',
-      destructive: '#ff5555',
-      border: '#6272a4',
-    },
-  },
-  {
-    id: 'nord',
-    label: 'Nord',
-    description: 'Cool arctic blues',
-    colorScheme: 'dark',
-    palette: {
-      background: '#2e3440',
-      foreground: '#eceff4',
-      surface: '#3b4252',
-      raised: '#434c5e',
-      mutedForeground: '#d8dee9',
-      primary: '#88c0d0',
-      destructive: '#bf616a',
-      border: '#4c566a',
-    },
-  },
-  {
-    id: 'gruvbox',
-    label: 'Gruvbox',
-    description: 'Warm retro colors',
-    colorScheme: 'dark',
-    palette: {
-      background: '#282828',
-      foreground: '#ebdbb2',
-      surface: '#32302f',
-      raised: '#3c3836',
-      mutedForeground: '#bdae93',
-      primary: '#fabd2f',
-      destructive: '#fb4934',
-      border: '#665c54',
+      border: '#18181b14',
+      input: '#18181b24',
+      ring: '#71717a',
+      link: '#1d5fd1',
     },
   },
 ] as const satisfies readonly Theme[];
 
-export type ThemeId = (typeof THEMES)[number]['id'];
+export const THEMES = [...BASE_THEMES, ...SCENE_THEMES, ...GLOW_THEMES, ...EXPRESSIVE_THEMES] as const;
+
+export type BuiltinThemeId = (typeof THEMES)[number]['id'];
+
+/** Applied on first visit and whenever a saved choice no longer exists. */
+export const DEFAULT_THEME_ID = 'graphite' satisfies BuiltinThemeId;
+
+export type ThemeId = BuiltinThemeId | CustomThemeId;

@@ -1,17 +1,34 @@
-import { Check } from 'lucide-react';
+import { DEFAULT_THEME_ID } from '../lib/theme-palettes';
 import { useState } from 'react';
 
-import { findTheme, setTheme } from '../lib/themes';
-import { THEMES, type ThemeId } from '../lib/theme-palettes';
+import { applyBackdrop, loadBackdropEnabled, saveBackdropEnabled } from '../lib/backdrop';
+import { removeCustomTheme } from '../lib/custom-themes';
+import { activeThemeId, findTheme } from '../lib/themes';
+import { changeTheme } from '../lib/theme-transition';
+import type { CustomThemeId } from '../lib/theme-types';
+import { useActiveTheme, useCustomThemes } from '../lib/use-active-theme';
+import { ThemePicker } from './theme-picker';
+import { ThemeStudio } from './theme-studio';
+
+export { ThemePicker } from './theme-picker';
 
 export function AppearancePanel() {
-  const [theme, selectTheme] = useState(
-    () => findTheme(typeof document === 'undefined' ? undefined : document.documentElement.dataset.theme).id,
-  );
+  const theme = useActiveTheme();
+  const custom = useCustomThemes();
+  const [editingId, setEditingId] = useState<CustomThemeId>();
+  const editing = custom.find((entry) => entry.id === editingId);
 
-  function changeTheme(id: ThemeId) {
-    setTheme(id);
-    selectTheme(id);
+  function editTheme(id: CustomThemeId) {
+    if (activeThemeId() !== id) changeTheme(id);
+
+    setEditingId(id);
+  }
+
+  function deleteTheme(id: CustomThemeId) {
+    if (activeThemeId() === id) changeTheme(DEFAULT_THEME_ID);
+    if (editingId === id) setEditingId(undefined);
+
+    removeCustomTheme(id);
   }
 
   return (
@@ -19,56 +36,46 @@ export function AppearancePanel() {
       <div>
         <h2 className="text-lg font-semibold">Appearance</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Choose a theme. Changes apply immediately and are saved in this browser.
+          Choose a theme or create your own. Changes apply immediately and are saved in this browser.
         </p>
       </div>
-      <ThemePicker value={theme} onChange={changeTheme} />
+      <ThemeStudio selected={theme} editing={editing} onDoneEditing={() => setEditingId(undefined)} />
+      <ThemePicker
+        value={theme.id}
+        onChange={(id) => changeTheme(id)}
+        custom={custom}
+        onDelete={deleteTheme}
+        onEdit={editTheme}
+      />
+      <BackdropToggle />
     </section>
   );
 }
 
-type ThemePickerProps = { value: ThemeId; onChange: (id: ThemeId) => void };
+/* Turns theme scenes off for readability or focus; the colors stay. */
+export function BackdropToggle() {
+  const [enabled, setEnabled] = useState(loadBackdropEnabled);
 
-export function ThemePicker({ value, onChange }: ThemePickerProps) {
+  function change(next: boolean) {
+    saveBackdropEnabled(next);
+    applyBackdrop(findTheme(activeThemeId()).backdrop, next);
+    setEnabled(next);
+  }
+
   return (
-    <fieldset>
-      <legend className="mb-3 text-sm font-medium">Theme</legend>
-      <div className="grid grid-cols-1 gap-4 min-[360px]:grid-cols-2 xl:grid-cols-3">
-        {THEMES.map((theme) => (
-          <label key={theme.id} className="cursor-pointer">
-            <input
-              type="radio"
-              name="theme"
-              value={theme.id}
-              aria-label={theme.label}
-              checked={value === theme.id}
-              onChange={() => onChange(theme.id)}
-              className="peer sr-only"
-            />
-            <span className="block overflow-hidden rounded-xl border border-border peer-checked:border-ring peer-checked:ring-1 peer-checked:ring-ring peer-focus-visible:outline-2 peer-focus-visible:outline-offset-4 peer-focus-visible:outline-ring">
-              <span
-                aria-hidden="true"
-                className="flex h-24 border-b p-3"
-                style={{ backgroundColor: theme.palette.background, borderColor: theme.palette.border }}
-              >
-                <span className="mr-3 w-5 shrink-0 rounded" style={{ backgroundColor: theme.palette.surface }} />
-                <span className="flex flex-1 flex-col justify-center gap-2">
-                  <span className="ml-auto h-4 w-2/3 rounded" style={{ backgroundColor: theme.palette.raised }} />
-                  <span className="h-1.5 w-3/4 rounded" style={{ backgroundColor: theme.palette.foreground }} />
-                  <span className="h-1.5 w-1/2 rounded" style={{ backgroundColor: theme.palette.primary }} />
-                </span>
-              </span>
-              <span className="block bg-card p-3 text-card-foreground">
-                <span className="flex items-center justify-between gap-2 text-sm font-medium">
-                  {theme.label}
-                  {value === theme.id && <Check aria-hidden="true" className="size-4 shrink-0 text-primary" />}
-                </span>
-                <span className="mt-1 block text-xs text-muted-foreground">{theme.description}</span>
-              </span>
-            </span>
-          </label>
-        ))}
-      </div>
-    </fieldset>
+    <label className="flex items-start gap-3 text-sm">
+      <input
+        type="checkbox"
+        checked={enabled}
+        onChange={(event) => change(event.currentTarget.checked)}
+        className="mt-0.5 size-4 accent-primary"
+      />
+      <span>
+        <span className="font-medium">Show backdrop</span>
+        <span className="mt-0.5 block text-xs text-muted-foreground">
+          Draw the theme's scene behind the conversation, such as stars or northern lights.
+        </span>
+      </span>
+    </label>
   );
 }

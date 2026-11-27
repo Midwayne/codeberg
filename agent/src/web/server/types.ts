@@ -9,6 +9,7 @@ import { type ModelSettingsStore } from '../model-selection/settings.js';
 import { ResourceSettings } from '../resources.js';
 import { WebSessionStore } from '../sessions/store.js';
 import type { UsageStore } from '../usage/store.js';
+import type { ThemeService } from '../themes/service.js';
 
 /** The endpoint the browser chat client posts its message history to. */
 export const CHAT_PATH = '/api/chat';
@@ -57,6 +58,8 @@ export interface WebServerOptions {
   sessionStore?: WebSessionStore;
   /** Durable interaction/feedback/knowledge subsystem. */
   learning?: LearningService;
+  /** Designs themes from a description on the chat model. */
+  themes?: ThemeService;
   /** Persistent catalog and UI choices. Omitted for servers without model selection. */
   modelSettings?: ModelSettingsStore;
   /** Resolve and cache a model-bound agent for this request's selection. */

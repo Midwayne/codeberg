@@ -1,0 +1,45 @@
+/*
+ * Themeable parts. Each part reads its own tokens (set per theme by
+ * lib/theme-tokens.ts, with defaults in index.css), so a theme can restyle the
+ * header, sidebar, composer, message bubbles, and code blocks on their own.
+ * Radii apply only when a theme sets them, so default corners stay as designed.
+ */
+.app-header {
+  background-color: var(--header-bg);
+  color: var(--header-fg);
+  border-color: var(--header-border);
+}
+
+#chat-sidebar {
+  background-color: var(--sidebar-bg);
+  color: var(--sidebar-fg);
+  border-color: var(--sidebar-border);
+}
+
+.prompt-card {
+  background-color: var(--composer-bg);
+  color: var(--composer-fg);
+}
+
+/* Focus keeps the ring color, so only the resting border is themeable. */
+.prompt-card:not(:focus-within) {
+  border-color: var(--composer-border);
+}
+
+.user-bubble {
+  background-color: var(--bubble-bg);
+  color: var(--bubble-fg);
+  box-shadow: inset 0 0 0 1px var(--bubble-border);
+}
+
+:root[data-part-radius~='composer'] .prompt-card {
+  border-radius: var(--composer-radius);
+}
+
+:root[data-part-radius~='bubble'] .user-bubble {
+  border-radius: var(--bubble-radius);
+}
+
+:root[data-part-radius~='code'] [data-streamdown='code-block'] {
+  border-radius: var(--code-radius);
+}

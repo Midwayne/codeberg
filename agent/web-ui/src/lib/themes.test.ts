@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { applyTheme, loadTheme, setTheme, THEMES, THEME_STORAGE_KEY } from './themes';
+import { applyTheme, FONT_STACKS, loadTheme, setTheme, THEMES, THEME_STORAGE_KEY } from './themes';
 
 describe('themes', () => {
   const properties = new Map<string, string>();
   const root = {
     dataset: {} as Record<string, string>,
     classList: { toggle: vi.fn() },
-    style: { setProperty: (name: string, value: string) => properties.set(name, value), colorScheme: '' },
+    style: { setProperty: (name: string, value: string) => properties.set(name, value), removeProperty: (name: string) => properties.delete(name), colorScheme: '' },
   };
   let saved: string | null;
 
@@ -24,55 +24,75 @@ describe('themes', () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it('keeps dark as the default and rejects unknown stored themes', () => {
-    expect(loadTheme()).toBe('dark');
-    saved = 'removed-theme';
-    expect(loadTheme()).toBe('dark');
-    saved = 'tokyo-night';
-    expect(loadTheme()).toBe('tokyo-night');
+  it('keeps Graphite as the default and rejects unknown stored themes', () => {
+    expect(loadTheme()).toBe('graphite');
+    saved = 'dark';
+    expect(loadTheme()).toBe('graphite');
+    saved = 'light';
+    expect(loadTheme()).toBe('porcelain');
+    saved = 'kanagawa';
+    expect(loadTheme()).toBe('graphite');
+    saved = 'midnight';
+    expect(loadTheme()).toBe('midnight');
     expect(localStorage.getItem).toHaveBeenCalledWith(THEME_STORAGE_KEY);
   });
 
   it('applies and persists a selection, then restores it on reload', () => {
-    setTheme('kanagawa');
-    expect(root.dataset.theme).toBe('kanagawa');
+    setTheme('ember');
+    expect(root.dataset.theme).toBe('ember');
     expect(root.style.colorScheme).toBe('dark');
-    expect(properties.get('--background')).toBe('#1f1f28');
-    expect(localStorage.setItem).toHaveBeenCalledWith(THEME_STORAGE_KEY, 'kanagawa');
-    applyTheme('light');
+    expect(properties.get('--background')).toBe('#262624');
+    expect(localStorage.setItem).toHaveBeenCalledWith(THEME_STORAGE_KEY, 'ember');
+    applyTheme('porcelain');
     applyTheme(loadTheme());
-    expect(root.dataset.theme).toBe('kanagawa');
+    expect(root.dataset.theme).toBe('ember');
   });
 
-  it('replaces every token when switching between a named theme and light', () => {
-    applyTheme('tokyo-night');
+  it('replaces every token when switching between a dark and a light theme', () => {
+    applyTheme('midnight');
     const tokens = [...properties.keys()];
     properties.clear();
-    applyTheme('light');
+    applyTheme('porcelain');
     expect([...properties.keys()]).toEqual(tokens);
-    expect(properties.get('--background')).toBe('#f5f5f5');
-    expect(properties.get('--foreground')).toBe('#282828');
-    expect(properties.get('--accent-foreground')).toBe('#282828');
+    expect(properties.get('--background')).toBe('#ffffff');
+    expect(properties.get('--foreground')).toBe('#18181b');
+    expect(properties.get('--accent-foreground')).toBe('#18181b');
     expect(root.style.colorScheme).toBe('light');
     expect(root.classList.toggle).toHaveBeenLastCalledWith('dark', false);
   });
 
-  it('uses soft Codex neutrals with separate supporting and floating surfaces', () => {
-    applyTheme('dark');
+  it('gives the clean themes separate supporting and floating surfaces', () => {
+    applyTheme('graphite');
 
-    expect(properties.get('--background')).toBe('#212121');
-    expect(properties.get('--foreground')).toBe('#dcdcdc');
-    expect(properties.get('--card')).toBe('#181818');
-    expect(properties.get('--popover')).toBe('#303030');
+    expect(properties.get('--card')).toBe('#0b0b0c');
+    expect(properties.get('--popover')).toBe('#1c1c1f');
 
-    applyTheme('light');
+    applyTheme('porcelain');
 
-    expect(properties.get('--card')).toBe('#ededed');
+    expect(properties.get('--card')).toBe('#f7f7f8');
     expect(properties.get('--popover')).toBe('#ffffff');
 
-    applyTheme('kanagawa');
+    applyTheme('phosphor');
 
     expect(properties.get('--popover')).toBe(properties.get('--card'));
+  });
+
+  it('applies each theme’s typefaces and corner radius, resetting fonts it does not set', () => {
+    applyTheme('phosphor');
+
+    expect(properties.get('--font-body')).toBe(FONT_STACKS.mono);
+    expect(properties.get('--font-heading')).toBe(FONT_STACKS.mono);
+    expect(properties.get('--radius')).toBe('0.125rem');
+
+    applyTheme('parchment');
+
+    expect(properties.get('--font-body')).toBe(FONT_STACKS.sans);
+    expect(properties.get('--font-heading')).toBe(FONT_STACKS.serif);
+
+    applyTheme('graphite');
+
+    expect(properties.get('--font-heading')).toBe(FONT_STACKS.sans);
+    expect(properties.get('--radius')).toBe('0.75rem');
   });
 
   it('still applies selections when browser storage is blocked', () => {
@@ -80,15 +100,15 @@ describe('themes', () => {
       getItem: () => { throw new Error('storage blocked'); },
       setItem: () => { throw new Error('storage blocked'); },
     });
-    expect(loadTheme()).toBe('dark');
-    expect(() => setTheme('nord')).not.toThrow();
-    expect(root.dataset.theme).toBe('nord');
+    expect(loadTheme()).toBe('graphite');
+    expect(() => setTheme('aurora')).not.toThrow();
+    expect(root.dataset.theme).toBe('aurora');
   });
 
   it('keeps destructive button labels readable on each theme’s error color', () => {
-    applyTheme('kanagawa');
+    applyTheme('ember');
     expect(properties.get('--destructive-foreground')).toBe('#000000');
-    applyTheme('light');
+    applyTheme('porcelain');
     expect(properties.get('--destructive-foreground')).toBe('#ffffff');
   });
 
@@ -96,9 +116,30 @@ describe('themes', () => {
     for (const theme of THEMES) {
       properties.clear();
       applyTheme(theme.id);
-      expect(properties.size).toBe(19);
+      // 20 palette, 5 style, and 4 per part; a part radius adds one more each.
+      const radii = [...properties.keys()].filter((key) => key.endsWith('-radius') && key !== '--radius');
+      expect(properties.size - radii.length).toBe(45);
       expect([...properties.values()].every(Boolean)).toBe(true);
       expect(root.style.colorScheme).toBe(theme.colorScheme);
     }
   });
+
+  it('applies part styles and opts in to part radii only when a theme sets them', () => {
+    applyTheme('graphite');
+
+    expect(properties.get('--bubble-bg')).toBe('var(--muted)');
+    expect(properties.get('--header-glass')).toBe('72%');
+    expect(root.dataset.partRadius).toBe('');
+
+    applyTheme('phosphor');
+
+    expect(properties.get('--bubble-radius')).toBe('0.125rem');
+    expect(root.dataset.partRadius).toBe('bubble code composer');
+
+    applyTheme('midnight');
+
+    expect(properties.has('--bubble-radius')).toBe(false);
+    expect(root.dataset.partRadius).toBe('');
+  });
 });
+

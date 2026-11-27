@@ -102,6 +102,7 @@ type ChatViewProps = ReturnType<typeof useChatView>;
 
 export function ChatView(state: ChatViewProps) {
   const { ready, regenerate } = state;
+  const empty = state.messages.length === 0;
   const onRegenerate = useCallback(() => {
     if (ready) void regenerate();
   }, [ready, regenerate]);
@@ -111,15 +112,8 @@ export function ChatView(state: ChatViewProps) {
       <div className="relative flex min-h-0 flex-1 flex-col">
         <ChatCanvasActions messages={state.messages} sessionId={state.sessionId} />
         <div ref={state.scrollRef} className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
-          <div className={`mx-auto flex max-w-4xl flex-col gap-6 px-4 sm:px-8 ${state.hasCanvas ? 'pt-16 pb-6 lg:pt-6' : 'py-6'}`}>
-            {state.messages.length === 0 && (
-              <ChatEmptyState
-                onChoose={(question) => {
-                  state.setDraft(question);
-                  state.promptRef.current?.focus();
-                }}
-              />
-            )}
+          <div className={`mx-auto flex max-w-4xl flex-col gap-6 px-4 sm:px-8 ${contentSpacing(state.hasCanvas, empty)}`}>
+            {empty && <ChatEmptyState />}
 
             <MessageList
               messages={state.messages}
@@ -140,8 +134,17 @@ export function ChatView(state: ChatViewProps) {
       </div>
 
       <ChatComposer state={state} />
+
+      {/* Equal space below the composer centers a new chat's greeting and composer. */}
+      {empty && <div aria-hidden="true" className="hidden flex-1 sm:block" />}
     </>
   );
+}
+
+function contentSpacing(hasCanvas: boolean, empty: boolean): string {
+  if (empty) return `min-h-full justify-center pb-6 sm:justify-end sm:pb-4 ${hasCanvas ? 'pt-16 lg:pt-6' : 'pt-6'}`;
+
+  return hasCanvas ? 'pt-16 pb-6 lg:pt-6' : 'py-6';
 }
 
 type ChatComposerProps = { state: Parameters<typeof ChatView>[0] };
@@ -150,7 +153,7 @@ function ChatComposer({ state }: ChatComposerProps) {
   const { enabled: canvasEnabled } = useCanvasSettings();
 
   return (
-    <section aria-label="Message composer" className="shrink-0 bg-background">
+    <section aria-label="Message composer" className="chat-composer shrink-0 bg-background">
       <div className="mx-auto max-w-4xl px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-8">
         <QueuedFollowUps queue={state.queue} busy={state.busy} failed={state.status === 'error'} />
         <PromptInput

@@ -1,0 +1,139 @@
+/*
+ * Layered backdrops (animated built-in themes and generated ones): ChatBackdrop
+ * draws each layer with inline styles from a validated spec. Moving layers use
+ * transforms on an oversized element, so the browser composites instead of
+ * repainting; --layer-pan is one pattern tile, so each loop is seamless.
+ */
+.backdrop-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Sideways motion would slide a pattern's edge into view, so the layer is oversized. */
+.backdrop-layer[data-animation='drift'],
+.backdrop-layer[data-animation='float'] {
+  inset: -10%;
+}
+
+/* Soft lights are larger still, so their fade-out edge never shows. */
+.backdrop-layer[data-kind='glow'],
+.backdrop-layer[data-kind='band'] {
+  inset: -20%;
+}
+
+.backdrop-layer[data-animation='spin'] {
+  inset: -50%;
+}
+
+.backdrop-layer[data-animation='pan'] {
+  inset: calc(var(--layer-pan) * -1) 0 0 calc(var(--layer-pan) * -1);
+}
+
+.backdrop-layer[data-animation='fall'] {
+  inset: calc(var(--layer-pan) * -1) 0 0;
+}
+
+.backdrop-layer[data-animation='rise'] {
+  inset: 0 0 calc(var(--layer-pan) * -1);
+}
+
+.backdrop-layer[data-animation]:not([data-animation='none']) {
+  will-change: transform, opacity;
+}
+
+/* A shooting star is a short streak placed by its own inline position and size. */
+.backdrop-layer[data-kind='meteor'] {
+  inset: auto;
+  border-radius: 999px;
+  transform-origin: left center;
+}
+
+@keyframes backdrop-drift {
+  from {
+    transform: translateX(-6%);
+  }
+  to {
+    transform: translateX(6%);
+  }
+}
+
+@keyframes backdrop-float {
+  from {
+    transform: translateY(-5%);
+  }
+  to {
+    transform: translateY(5%);
+  }
+}
+
+@keyframes backdrop-pulse {
+  from {
+    opacity: calc(var(--layer-opacity) * 0.35);
+  }
+  to {
+    opacity: var(--layer-opacity);
+  }
+}
+
+@keyframes backdrop-twinkle {
+  from {
+    opacity: calc(var(--layer-opacity) * 0.45);
+  }
+  to {
+    opacity: var(--layer-opacity);
+  }
+}
+
+@keyframes backdrop-pan {
+  to {
+    transform: translate(var(--layer-pan), var(--layer-pan));
+  }
+}
+
+@keyframes backdrop-fall {
+  to {
+    transform: translateY(var(--layer-pan));
+  }
+}
+
+@keyframes backdrop-rise {
+  to {
+    transform: translateY(calc(var(--layer-pan) * -1));
+  }
+}
+
+@keyframes backdrop-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/* Visible for a short streak across the sky, then dark until the next cycle. */
+@keyframes backdrop-shoot {
+  0% {
+    opacity: 0;
+    transform: rotate(var(--layer-angle)) translateX(0);
+  }
+  2% {
+    opacity: var(--layer-opacity);
+  }
+  10% {
+    opacity: 0;
+    transform: rotate(var(--layer-angle)) translateX(45vmax);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--layer-angle)) translateX(45vmax);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop-layer {
+    animation: none !important;
+  }
+
+  .backdrop-layer[data-kind='meteor'] {
+    display: none;
+  }
+}

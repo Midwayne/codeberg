@@ -24,9 +24,9 @@ function contrast(first: string, second: string): number {
   return (values[0]! + 0.05) / (values[1]! + 0.05);
 }
 
-describe.each(THEMES.filter(({ id }) => id === 'dark' || id === 'light'))('$label neutrals', (theme) => {
+describe.each(THEMES.filter(({ id }) => id === 'graphite' || id === 'porcelain'))('$label neutrals', (theme) => {
   it('matches the CSS fallback before JavaScript loads', () => {
-    const selector = theme.id === 'dark' ? '.dark' : ':root';
+    const selector = theme.id === 'graphite' ? '.dark' : ':root';
     const block = css.slice(css.indexOf(`${selector} {`)).split('}')[0]!;
     const tokens = Object.fromEntries([...block.matchAll(/--([\w-]+):\s*([^;]+);/g)]
       .map(([, name, value]) => [name, value]));

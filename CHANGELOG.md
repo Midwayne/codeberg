@@ -13,9 +13,16 @@ are in the git history.
 - The agent can check its context usage and limits, keep tool results it still needs, and drop ones it no longer does; it gets a short notice as the context fills.
 - The agent keeps a working list of findings and constraints in each chat that survives history summaries; it can search and correct the list.
 - Start a message with `/dumb` to get a plain-language answer for a non-technical reader such as a project manager.
+- New Graphite (now the default) and Porcelain themes: clean dark and light neutrals.
+- New Parchment, Ember, and Phosphor themes, with their own fonts and corner shapes.
+- Animated theme backdrops behind the header, sidebar, and chat; turn them off in **Settings → Appearance**.
+- Themes can restyle the header, sidebar, composer, message bubbles, code blocks, fonts, and text size.
+- Create or edit a theme by describing it; your chat model designs it.
 
 ### Changed
 
+- Changing themes now animates, with a reveal from your click, a blur, a wipe, or a fade.
+- A new chat now shows just a greeting and the composer, centered, without starter prompts.
 - The header no longer shows the chat model; each chat shows its model in the composer.
 - The agent draws on the canvas only for messages you send with **Diagram** turned on in the composer, which saves tokens on every other message.
 - Automatic evaluations are scored by the chat model unless you choose a judge, instead of by the learning model.
@@ -25,6 +32,7 @@ are in the git history.
 
 ### Removed
 
+- The Dark, Light, Kanagawa, Tokyo Night, Catppuccin Mocha, Dracula, Nord, and Gruvbox themes. Light switches to Porcelain and the others to Graphite.
 - Local chat models: the Ollama and llama.cpp providers, including for Browser Use. Local embedding models are unaffected.
 - The shorter system prompt for models with a context window of 16,384 tokens or less.
 

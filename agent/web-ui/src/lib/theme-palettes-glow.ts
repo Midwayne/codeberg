@@ -1,0 +1,97 @@
+import { layer } from './theme-scene-layer';
+import type { Theme } from './theme-types';
+
+/* Living light: fireflies, rain on glass, and rising lanterns. */
+export const GLOW_THEMES = [
+  {
+    id: 'fireflies',
+    label: 'Fireflies',
+    description: 'Summer forest · glowing fireflies',
+    colorScheme: 'dark',
+    radius: '1rem',
+    transition: 'fade',
+    backdrop: {
+      layers: [
+        layer({ kind: 'glow', color: '#3d6b3f', opacity: 0.22, x: 50, y: 105, size: 90 }),
+        layer({ kind: 'orbs', color: '#e8ff7a', opacity: 0.45, size: 100, animation: 'float', duration: 16 }),
+        layer({ kind: 'orbs', color: '#ffe27a', opacity: 0.4, size: 140, animation: 'pulse', duration: 6 }),
+        layer({ kind: 'orbs', color: '#d9f27a', opacity: 0.25, size: 75, animation: 'rise', duration: 48 }),
+      ],
+    },
+    palette: {
+      background: '#0b120e',
+      foreground: '#e7f0e4',
+      surface: '#08100b',
+      popover: '#15211a',
+      raised: '#15211a',
+      mutedForeground: '#9db5a3',
+      primary: '#d9f27a',
+      primaryForeground: '#0b120e',
+      destructive: '#ff8a7a',
+      border: '#ffffff14',
+      input: '#ffffff22',
+      ring: '#8aa392',
+    },
+  },
+  {
+    id: 'rainfall',
+    label: 'Rainfall',
+    description: 'Steady rain · city glow',
+    colorScheme: 'dark',
+    radius: '0.875rem',
+    transition: 'wipe',
+    backdrop: {
+      sky: { from: '#121c28', to: '#0c1117', angle: 180 },
+      layers: [
+        layer({ kind: 'glow', color: '#7cc4ff', opacity: 0.08, x: 80, y: 0, size: 60 }),
+        layer({ kind: 'rain', color: '#9fc8ff', opacity: 0.22, size: 95, animation: 'fall', duration: 1.1 }),
+        layer({ kind: 'rain', color: '#cfe4ff', opacity: 0.35, size: 60, animation: 'fall', duration: 0.7 }),
+      ],
+    },
+    palette: {
+      background: '#0c1117',
+      foreground: '#e3e9f0',
+      surface: '#090d12',
+      popover: '#161e28',
+      raised: '#161e28',
+      mutedForeground: '#9aa8b8',
+      primary: '#7cc4ff',
+      primaryForeground: '#0c1117',
+      destructive: '#ff7b7b',
+      border: '#ffffff14',
+      input: '#ffffff22',
+      ring: '#7d8fa3',
+    },
+  },
+  {
+    id: 'lanterns',
+    label: 'Lanterns',
+    description: 'Warm evening · rising lanterns',
+    colorScheme: 'dark',
+    heading: 'serif',
+    radius: '1rem',
+    transition: 'reveal',
+    backdrop: {
+      layers: [
+        layer({ kind: 'glow', color: '#ff8a3d', opacity: 0.14, x: 50, y: 100, size: 90, animation: 'pulse', duration: 12 }),
+        layer({ kind: 'orbs', color: '#ffb36b', opacity: 0.35, size: 150, animation: 'rise', duration: 60 }),
+        layer({ kind: 'orbs', color: '#ff8a5c', opacity: 0.25, size: 110, animation: 'rise', duration: 38 }),
+        layer({ kind: 'orbs', color: '#ffd59a', opacity: 0.18, size: 130, animation: 'float', duration: 26 }),
+      ],
+    },
+    palette: {
+      background: '#160f16',
+      foreground: '#f6eadf',
+      surface: '#110b11',
+      popover: '#241a22',
+      raised: '#241a22',
+      mutedForeground: '#c2ab9e',
+      primary: '#ffb36b',
+      primaryForeground: '#160f16',
+      destructive: '#ff7b7b',
+      border: '#ffffff14',
+      input: '#ffffff22',
+      ring: '#a8907f',
+    },
+  },
+] as const satisfies readonly Theme[];

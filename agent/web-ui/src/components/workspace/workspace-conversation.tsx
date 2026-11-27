@@ -12,7 +12,9 @@ export function WorkspaceConversation(state: WorkspaceConversationProps) {
   const onBranch = useBranchAction(state.branchFrom);
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+      {/* Centered on the conversation, not the window, so it sits behind the messages. */}
+      <span aria-hidden="true" className="backdrop-quiet" />
       <VisibleScheduleChat chatId={state.sessionId} />
       <ChatViews
         active={state.active}

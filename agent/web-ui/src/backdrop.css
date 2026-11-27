@@ -1,0 +1,102 @@
+/*
+ * Theme backdrops: a scene drawn behind the conversation. The root element's
+ * data-backdrop names the scene; previews in Settings name it with data-scene.
+ * Scenes stay dim so message text keeps its contrast.
+ */
+.chat-backdrop {
+  display: none;
+}
+
+:root[data-backdrop] .chat-backdrop,
+.backdrop-preview {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  display: block;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.chat-backdrop::before,
+.chat-backdrop::after,
+.backdrop-preview::before,
+.backdrop-preview::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+/*
+ * The quiet column: behind the conversation (messages and composer, 56rem wide)
+ * a still veil in the background color leaves a scene a fifth of its strength,
+ * and full strength in the side margins. A veil over the layers costs nothing
+ * per frame, where masking the moving layers cut the frame rate by a third.
+ * Narrow windows are all column, so the whole scene stays quiet there.
+ */
+.backdrop-quiet {
+  display: none;
+}
+
+/* Behind the conversation's content, above the shared scene. */
+:root[data-backdrop] .backdrop-quiet {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  display: block;
+  pointer-events: none;
+  --veil: color-mix(in srgb, var(--background) 80%, transparent);
+  --veil-mid: color-mix(in srgb, var(--background) 50%, transparent);
+  --veil-low: color-mix(in srgb, var(--background) 18%, transparent);
+  /*
+   * A static grain first, then an eased ramp. Over dark skies the ramp spans
+   * only a few color steps, which band into stripes; the grain dithers them.
+   */
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0.06 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+    linear-gradient(
+      to right,
+      transparent 0,
+      transparent calc(50% - 44rem),
+      var(--veil-low) calc(50% - 38rem),
+      var(--veil-mid) calc(50% - 32rem),
+      var(--veil) calc(50% - 26rem),
+      var(--veil) calc(50% + 26rem),
+      var(--veil-mid) calc(50% + 32rem),
+      var(--veil-low) calc(50% + 38rem),
+      transparent calc(50% + 44rem),
+      transparent 100%
+    );
+}
+
+/* Glows stay soft enough to sit behind text; the veil is for detail and motion. */
+:root[data-backdrop='halo'] .backdrop-quiet,
+:root[data-backdrop='dusk'] .backdrop-quiet {
+  display: none;
+}
+
+/*
+ * The sidebar and composer are glass over the scene, so the whole workspace
+ * shares one backdrop. Over moving (layered) scenes they are tinted, not
+ * blurred: a backdrop blur re-renders every frame the scene moves, which cost
+ * Fireflies 48-52 fps down to 35-39 and Snowfall 46 down to 30-32 in headless
+ * Chromium. Still scenes never repaint underneath, so they keep a real frost.
+ */
+:root[data-backdrop] .chat-composer {
+  background-color: transparent;
+}
+
+:root[data-backdrop] .app-header {
+  background-color: color-mix(in srgb, var(--header-bg) var(--header-glass), transparent);
+}
+
+:root[data-backdrop] #chat-sidebar {
+  background-color: color-mix(in srgb, var(--sidebar-bg) var(--sidebar-glass), transparent);
+}
+
+:root[data-backdrop] .prompt-card {
+  background-color: color-mix(in srgb, var(--composer-bg) var(--composer-glass), transparent);
+}
+
+:root[data-backdrop]:not([data-backdrop='custom']) :is(.app-header, #chat-sidebar, .prompt-card) {
+  backdrop-filter: blur(16px) saturate(1.2);
+}

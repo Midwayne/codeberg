@@ -1,5 +1,6 @@
 import { ProjectChatsProvider } from './sessions/project-chats';
 import { WorkspaceHeader } from './components/workspace/workspace-header';
+import { ChatBackdrop } from './components/chat/chat-backdrop';
 import { useWorkspaceMeta } from './lib/use-workspace-meta';
 import { ProjectShell } from './components/projects';
 
@@ -112,7 +113,9 @@ type ProjectWorkspaceViewProps = ReturnType<typeof useProjectWorkspace>;
 
 export function ProjectWorkspaceView(state: ProjectWorkspaceViewProps) {
   return (
-    <div className="flex h-dvh min-w-0 flex-col bg-background text-foreground">
+    <div className="relative isolate flex h-dvh min-w-0 flex-col bg-background text-foreground">
+      {/* One scene behind the header, sidebar, and chat; settings and training stay plain. */}
+      {!state.trainingOpen && !state.settingsOpen && <ChatBackdrop />}
       <WorkspaceHeader state={state} />
       {state.notice}
       <div className={state.trainingOpen || state.settingsOpen ? 'hidden' : 'flex min-h-0 flex-1'}>

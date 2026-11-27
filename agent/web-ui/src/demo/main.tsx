@@ -2,17 +2,25 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from '../App';
 import { applyTheme, loadTheme } from '../lib/themes';
+import { trackThemeOrigin } from '../lib/theme-transition';
 import { trackMotionInput } from '../lib/motion-input';
 import { installDemoApi } from './api';
 import '@/index.css';
 import '@/motion.css';
 import '@/loading.css';
 import '@/markdown.css';
+import '@/parts.css';
+import '@/backdrop.css';
+import '@/backdrop-scenes.css';
+import '@/backdrop-layers.css';
+import '@/theme-transition.css';
 import './style.css';
 
 const delay = Number(new URL(location.href).searchParams.get('delay') ?? 1500);
 installDemoApi(Number.isFinite(delay) ? Math.max(0, Math.min(5000, delay)) : 1500);
 applyTheme(loadTheme());
+const stopThemeOrigin = trackThemeOrigin();
+import.meta.hot?.dispose(stopThemeOrigin);
 import.meta.hot?.dispose(trackMotionInput());
 
 function Demo() {

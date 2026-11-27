@@ -1,0 +1,42 @@
+/* Built-in still scenes, drawn on the backdrop and its preview by name. */
+
+/* Halo: a faint wash of light at the top of the conversation, for the clean themes. */
+:root[data-backdrop='halo'] .chat-backdrop,
+.backdrop-preview[data-scene='halo'] {
+  background: radial-gradient(ellipse 70% 45% at 50% -8%, color-mix(in srgb, var(--foreground) 7%, transparent), transparent 72%);
+}
+
+/* Dusk: a low warm glow rising from behind the composer. */
+:root[data-backdrop='dusk'] .chat-backdrop,
+.backdrop-preview[data-scene='dusk'] {
+  background:
+    radial-gradient(ellipse 70% 45% at 50% 105%, rgb(217 119 87 / 20%), transparent 70%),
+    radial-gradient(ellipse 50% 30% at 20% 0%, rgb(242 239 230 / 4%), transparent 70%);
+}
+
+/* Paper: a faint fibrous grain. */
+:root[data-backdrop='paper'] .chat-backdrop::before,
+.backdrop-preview[data-scene='paper']::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.28 0 0 0 0 0.18 0 0 0 0.5 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.35;
+}
+
+/* Scanlines: a CRT screen with fine lines and darkened edges. */
+:root[data-backdrop='scanlines'] .chat-backdrop::before,
+.backdrop-preview[data-scene='scanlines']::before {
+  background: repeating-linear-gradient(to bottom, rgb(78 240 138 / 4%) 0 1px, transparent 1px 3px);
+}
+
+:root[data-backdrop='scanlines'] .chat-backdrop::after,
+.backdrop-preview[data-scene='scanlines']::after {
+  background: radial-gradient(ellipse at center, transparent 55%, rgb(0 0 0 / 55%));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-backdrop::before,
+  .chat-backdrop::after,
+  .backdrop-preview::before,
+  .backdrop-preview::after {
+    animation: none;
+  }
+}

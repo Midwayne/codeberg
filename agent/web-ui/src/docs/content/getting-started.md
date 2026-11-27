@@ -65,7 +65,7 @@ Name a file, symbol, or service when you can. For example:
 Trace this HTTP route to its database query. Cite each file and symbol.
 ```
 
-A new chat offers starter prompts; choose one to place it in the composer, edit it, then send. Choose **More ideas** to see others.
+A new chat shows a greeting and the composer. Type your question, or type `/` to see commands such as `/enhance`.
 
 While the agent works, a status line under your message shows what it is doing, such as **Searching the code** or **Reading files**, and how long the step has taken.
 
