@@ -47,7 +47,20 @@ const BOOTSTRAP = String.raw`(() => {
     const offscreen = canvas.transferControlToOffscreen();
     worker.postMessage(Object.assign({ type: 'init', canvas: offscreen, colors: data.colors, motion: data.motion }, dims()), [offscreen]);
     setInterval(watch, 1000);
-    addEventListener('resize', () => worker && worker.postMessage(Object.assign({ type: 'resize' }, dims())));
+    addEventListener('resize', resized);
+    watchDensity();
+  };
+
+  /* A drag fires many resizes; the scene sets up again once the size settles, stretching until then. */
+  let settle = 0;
+  const resized = () => {
+    clearTimeout(settle);
+    settle = setTimeout(() => worker && worker.postMessage(Object.assign({ type: 'resize' }, dims())), 150);
+  };
+
+  /* Moving to a screen of another density fires no resize, so the density is watched on its own. */
+  const watchDensity = () => {
+    matchMedia('(resolution: ' + devicePixelRatio + 'dppx)').addEventListener('change', () => { resized(); watchDensity(); }, { once: true });
   };
 
   addEventListener('message', (message) => {
