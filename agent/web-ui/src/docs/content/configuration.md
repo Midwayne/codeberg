@@ -114,6 +114,9 @@ Choose **Settings → Appearance**. Graphite is the default.
 | Parchment | Serif headings and a faint paper grain |
 | Ember | Serif headings and a warm glow behind the composer |
 | Phosphor | Monospace text, square corners, and terminal scanlines |
+| Watercolor | A hibiscus painted in watercolor washes on paper; a drop of paint blooms when you send a message or a reply finishes |
+| Koi Pond | Mosaic koi swimming around lily pads; a ripple rises when you send a message or a reply finishes |
+| Neon Horizon | A striped sun over a scrolling neon grid; fireworks when a reply finishes |
 
 A backdrop is the scene drawn behind the header, sidebar, and conversation; they sit over it as glass. Behind messages and the composer, moving scenes fade to a faint trace so they never compete with text; they show fully in the margins on either side. On narrow windows the whole scene stays faint. Turn off **Show backdrop** under the theme list to keep a theme's colors without its scene. Backdrops stop moving, and shooting stars are hidden, when your system asks for reduced motion.
 
@@ -164,7 +167,7 @@ Codeberg checks every generated theme before using it: text and button labels ar
 
 For things a picture alone cannot do, the chat model writes a short program that draws the backdrop: creatures moving along paths, perspective grids, procedural patterns, weather, or effects for app moments. Ask for the motion or the moment you want, for example `fireworks when a reply finishes`.
 
-A scene runs in an isolated frame behind the app. It cannot read your chats, settings, or browser storage, and it cannot reach the network. Codeberg stops a scene that errors, freezes, or slows the app, and shows the theme's still backdrop instead; your browser's developer console notes why. When **Animated** is off or your system asks for reduced motion, a scene draws one still picture and plays no moments. Settings previews show the still backdrop, not the scene.
+A scene runs in an isolated frame behind the app. It cannot read your chats, settings, or browser storage, and it cannot reach the network. Codeberg stops a scene that errors, freezes, or slows the app, and shows the theme's still backdrop instead; your browser's developer console notes why. When **Animated** is off or your system asks for reduced motion, a scene draws one still picture and plays no moments. Settings previews show the still backdrop, not the scene. Watercolor, Koi Pond, and Neon Horizon are built-in themes that run scenes, so they follow the same rules.
 
 Scenes need a current browser that supports workers drawing on a canvas (`OffscreenCanvas`); elsewhere the still backdrop is shown.
 

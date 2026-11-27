@@ -9,10 +9,10 @@ describe('theme picker', () => {
     const html = renderToStaticMarkup(<ThemePicker value="ember" onChange={() => undefined} />);
     expect(html).toContain('<fieldset');
     expect(html).toContain('<legend');
-    for (const name of ['Graphite', 'Porcelain', 'Midnight', 'Aurora', 'Snowfall', 'Fireflies', 'Rainfall', 'Lanterns', 'Parchment', 'Ember', 'Phosphor']) {
+    for (const name of ['Graphite', 'Porcelain', 'Midnight', 'Aurora', 'Snowfall', 'Fireflies', 'Rainfall', 'Lanterns', 'Parchment', 'Ember', 'Phosphor', 'Watercolor', 'Koi Pond', 'Neon Horizon']) {
       expect(html).toContain(`aria-label="${name}"`);
     }
-    expect(html.match(/type="radio"/g)).toHaveLength(11);
+    expect(html.match(/type="radio"/g)).toHaveLength(14);
     expect(html.match(/checked=""/g)).toHaveLength(1);
     expect(html).toMatch(/aria-label="Ember"[^>]*checked=""/);
   });
@@ -20,7 +20,7 @@ describe('theme picker', () => {
   it('previews each built-in theme’s scene', () => {
     const html = renderToStaticMarkup(<ThemePicker value="graphite" onChange={() => undefined} />);
 
-    expect(html.match(/class="backdrop-preview"/g)).toHaveLength(11);
+    expect(html.match(/class="backdrop-preview"/g)).toHaveLength(14);
     expect(html).toContain('data-scene="halo"');
     expect(html).toContain('data-kind="meteor"');
   });
@@ -40,6 +40,6 @@ describe('theme picker', () => {
     expect(html).toContain('Your themes');
     expect(html.match(/aria-label="Edit [^"]+"/g)).toEqual(['aria-label="Edit Mine"']);
     expect(html.match(/aria-label="Delete [^"]+"/g)).toEqual(['aria-label="Delete Mine"']);
-    expect(html.match(/type="radio"/g)).toHaveLength(12);
+    expect(html.match(/type="radio"/g)).toHaveLength(15);
   });
 });

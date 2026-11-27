@@ -20,6 +20,7 @@ are in the git history.
 - Create or edit a theme by describing it; your chat model designs it.
 - Generated themes can include art and particles your chat model draws, such as blossom branches along the edges and drifting petals.
 - Generated themes can include an animated scene your chat model programs, such as swimming koi or a neon grid, with effects like fireworks when a reply finishes.
+- New Watercolor, Koi Pond, and Neon Horizon themes, with scenes that react when you send a message or a reply finishes.
 
 ### Changed
 
