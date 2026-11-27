@@ -1,10 +1,11 @@
+import { readFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 import { MockLanguageModelV4 } from 'ai/test';
 
 import { createWebServer } from '../server.js';
 import { themePrompt } from './prompt.js';
-import { themeFromReply } from './request.js';
+import { MAX_THEME_PROMPT, themeFromReply } from './request.js';
 import { createThemeService, THEME_GENERATE_PATH, themeEffort } from './service.js';
 
 const cleanups: (() => Promise<void>)[] = [];
@@ -136,3 +137,10 @@ describe('theme reasoning effort', () => {
   });
 });
 
+describe('theme description limit', () => {
+  it('matches the limit the web UI form enforces', () => {
+    const source = readFileSync(new URL('../../../web-ui/src/lib/theme-generate.ts', import.meta.url), 'utf8');
+
+    expect(Number(/THEME_PROMPT_LIMIT = (\d+)/.exec(source)?.[1])).toBe(MAX_THEME_PROMPT);
+  });
+});

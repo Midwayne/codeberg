@@ -22,7 +22,7 @@ describe('committing a generated theme', () => {
   it('replaces the edited theme in place while it still exists', () => {
     saveCustomTheme(theme('Before'));
 
-    expect(commitTheme(theme('After'), theme('Before'))).toBe(true);
+    expect(commitTheme(theme('After'), { editing: theme('Before') })).toBe(true);
     expect(customThemes().map((entry) => entry.label)).toEqual(['After']);
   });
 
@@ -30,7 +30,7 @@ describe('committing a generated theme', () => {
     saveCustomTheme(theme('Before'));
     removeCustomTheme('custom-a');
 
-    expect(commitTheme(theme('After'), theme('Before'))).toBe(false);
+    expect(commitTheme(theme('After'), { editing: theme('Before') })).toBe(false);
     expect(customThemes()).toEqual([]);
   });
 
@@ -50,4 +50,17 @@ describe('committing a generated theme', () => {
     expect(customThemes()[0]!.label).toBe('Before');
     expect(activeThemeId()).toBe('graphite');
   });
+
+  it('saves a late result without switching away from a theme picked meanwhile', () => {
+    applyTheme('graphite');
+    saveCustomTheme(theme('Before'));
+
+    expect(commitTheme(theme('After'), { editing: theme('Before') })).toBe(true);
+    expect(customThemes()[0]!.label).toBe('After');
+    expect(activeThemeId()).toBe('graphite');
+
+    expect(commitTheme({ ...theme('New'), id: 'custom-new' }, { activeAtStart: 'porcelain' })).toBe(true);
+    expect(activeThemeId()).toBe('graphite');
+  });
 });
+

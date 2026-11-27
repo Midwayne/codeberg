@@ -1,5 +1,5 @@
 import { clamp, record } from './backdrop-normalize';
-import { ensureContrast, hexColor, luminance, mix, opaque, readableOn } from './color';
+import { ensureContrast, hexColor, mix, opaque, readableOn } from './color';
 import { THEME_PARTS, type Palette, type PartStyle, type ThemePart } from './theme-types';
 
 /* Radii only shape these parts; the header and sidebar are full-width bars. */
@@ -33,7 +33,7 @@ function defaultSurface(name: ThemePart, palette: Palette): string {
   return name === 'composer' || name === 'code' ? palette.surface : palette.background;
 }
 
-const isDark = (color: string) => luminance(opaque(color)) < 0.18;
+const isDark = (color: string) => readableOn(opaque(color)) === '#ffffff';
 
 /*
  * Code highlighting follows the theme's light or dark mode, so a code block

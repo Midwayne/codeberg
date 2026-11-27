@@ -47,7 +47,7 @@ describe('theme generation request', () => {
     const changed = await generateTheme(fetcher, { prompt: 'darker ink', animated: true, base, id: 'custom-paper' });
     const body = JSON.parse(String(fetcher.mock.calls[0]![1]?.body));
 
-    expect(body.base.backdrop).toBe('built-in paper scene');
+    expect(body.base.backdrop).toBe('paper');
     expect(changed.backdrop).toBe('paper');
     expect(changed.prompt).toBe('old paper');
   });

@@ -37,14 +37,23 @@ function layer(value: unknown, animated: boolean): BackdropLayer | undefined {
   return {
     kind,
     color,
-    opacity: clamp(raw.opacity, 0, 0.5, LAYER_DEFAULTS.opacity),
+    opacity: clamp(raw.opacity, 0, 1, LAYER_DEFAULTS.opacity),
     x: clamp(raw.x, 0, 100, LAYER_DEFAULTS.x),
     y: clamp(raw.y, 0, 100, LAYER_DEFAULTS.y),
     size: clamp(raw.size, 5, 150, LAYER_DEFAULTS.size),
     angle: clamp(raw.angle, 0, 360, LAYER_DEFAULTS.angle),
     animation: animated ? animation : 'none',
-    duration: clamp(raw.duration, 4, 120, LAYER_DEFAULTS.duration),
+    duration: clamp(raw.duration, minimumDuration(animation), 120, LAYER_DEFAULTS.duration),
   };
+}
+
+/*
+ * Motion may be quick (built-in rain loops in under a second), but anything
+ * that changes brightness stays at 4 seconds or slower, far from the three
+ * flashes a second that can trigger photosensitive reactions.
+ */
+function minimumDuration(animation: BackdropLayer['animation']): number {
+  return animation === 'pulse' || animation === 'twinkle' || animation === 'shoot' ? 4 : 0.5;
 }
 
 /* Loops that travel one pattern tile; they suit patterns, not soft lights. */

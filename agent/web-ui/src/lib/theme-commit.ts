@@ -21,15 +21,20 @@ export function restoreTheme(previous: CustomTheme): boolean {
   return true;
 }
 
+type CommitContext = { editing?: CustomTheme; activeAtStart?: string };
+
 /**
- * Saves and applies a generated theme. A change to a theme that was deleted
- * while the request ran is dropped, so deleting it stays final.
+ * Saves a generated theme and shows it, unless the user moved on while it was
+ * designed: a change to a deleted theme is dropped, so deleting stays final,
+ * and a theme picked in the meantime stays in use.
  */
-export function commitTheme(theme: CustomTheme, editing?: CustomTheme): boolean {
+export function commitTheme(theme: CustomTheme, { editing, activeAtStart }: CommitContext = {}): boolean {
   if (editing && !isSaved(editing)) return false;
 
   saveCustomTheme(theme);
-  changeTheme(theme.id);
+
+  const stillWanted = editing ? activeThemeId() === editing.id : activeThemeId() === (activeAtStart ?? activeThemeId());
+  if (stillWanted) changeTheme(theme.id);
 
   return true;
 }

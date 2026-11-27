@@ -1,5 +1,5 @@
 import { choice, clamp, normalizeBackdrop } from './backdrop-normalize';
-import { contrast, ensureContrast, hexColor, luminance, opaque, readableOn } from './color';
+import { contrast, ensureContrast, hexColor, opaque, readableOn } from './color';
 import { normalizeParts } from './parts-normalize';
 import {
   CODE_FONTS,
@@ -28,8 +28,10 @@ type NormalizeOptions = {
 export function normalizeTheme(value: unknown, options: NormalizeOptions): CustomTheme {
   const raw = (typeof value === 'object' && value !== null ? value : {}) as Record<string, unknown>;
   const palette = normalizePalette(raw.palette);
-  const dark = luminance(palette.background) < 0.18;
-  const backdrop = raw.backdrop === 'keep' ? options.keep : normalizeBackdrop(raw.backdrop, options.animated);
+  // Dark exactly when text on it is white, so highlighting matches the text.
+  const dark = readableOn(palette.background) === '#ffffff';
+  // A kept backdrop is validated like any other, so Animated off still stills it.
+  const backdrop = normalizeBackdrop(raw.backdrop === 'keep' ? options.keep : raw.backdrop, options.animated);
   const parts = normalizeParts(raw.parts, palette);
 
   return {

@@ -3,6 +3,7 @@ import { useEffect, useRef, type FormEvent } from 'react';
 
 import { actionClass } from './button-styles';
 import { useThemeStudio } from './use-theme-studio';
+import { THEME_PROMPT_LIMIT } from '../lib/theme-generate';
 import type { CustomTheme, Theme } from '../lib/theme-types';
 
 const IDEAS = ['Synthwave sunset', 'Cozy library at night', 'Deep ocean glow', 'Minimal Japanese paper'];
@@ -41,7 +42,7 @@ export function ThemeStudio({ selected, editing, onDoneEditing }: ThemeStudioPro
           aria-label={editing ? `Describe a change to ${editing.label}` : 'Describe a theme'}
           value={studio.prompt}
           onChange={(event) => studio.setPrompt(event.currentTarget.value)}
-          maxLength={600}
+          maxLength={THEME_PROMPT_LIMIT}
           rows={2}
           disabled={studio.pending}
           placeholder={editing ? 'Warmer colors, slower stars, and serif headings' : 'A rainy neon city at night, with slow drifting lights'}

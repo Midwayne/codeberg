@@ -53,7 +53,7 @@ describe('generated theme validation', () => {
 
     expect(animated).toMatchObject({ layers: expect.any(Array) });
     expect(typeof animated === 'object' && animated.layers).toHaveLength(5);
-    expect(typeof animated === 'object' && animated.layers[0]).toMatchObject({ opacity: 0.5, size: 150, duration: 4, animation: 'drift' });
+    expect(typeof animated === 'object' && animated.layers[0]).toMatchObject({ opacity: 1, size: 150, duration: 1, animation: 'drift' });
     expect(typeof still === 'object' && still.layers.every((layer) => layer.animation === 'none')).toBe(true);
   });
 
@@ -112,9 +112,21 @@ describe('generated theme validation', () => {
     expect(normalizeTheme({ palette: { background: '#000000' }, backdrop: 'paper' }, options).backdrop).toBe('paper');
   });
 
-  it('keeps the base backdrop exactly when the reply asks to keep it', () => {
-    const keep = { layers: [{ kind: 'rain' as const, color: '#ffffff', opacity: 0.3, x: 0, y: 0, size: 60, angle: 0, animation: 'fall' as const, duration: 0.7 }] };
+  it('keeps the base backdrop when the reply asks to, built-in speeds included, and stills it when Animated is off', () => {
+    const rain = { kind: 'rain' as const, color: '#ffffff', opacity: 0.9, x: 0, y: 0, size: 60, angle: 0, animation: 'fall' as const, duration: 0.7 };
+    const keep = { layers: [rain, { ...rain, animation: 'twinkle' as const, duration: 1 }] };
+    const reply = { palette: { background: '#000000' }, backdrop: 'keep' };
 
-    expect(normalizeTheme({ palette: { background: '#000000' }, backdrop: 'keep' }, { ...options, keep }).backdrop).toBe(keep);
+    const kept = normalizeTheme(reply, { ...options, keep }).backdrop;
+    const still = normalizeTheme(reply, { ...options, keep, animated: false }).backdrop;
+
+    expect(kept).toEqual({ layers: [rain, { ...rain, animation: 'twinkle', duration: 4 }] });
+    expect(typeof still === 'object' && still.layers.map((layer) => layer.animation)).toEqual(['none', 'none']);
+  });
+
+  it('calls a background dark exactly when its text turns white', () => {
+    const grey = normalizeTheme({ palette: { background: '#777777' } }, options);
+
+    expect(grey.colorScheme).toBe(grey.palette.foreground === '#ffffff' ? 'dark' : 'light');
   });
 });

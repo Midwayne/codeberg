@@ -29,7 +29,7 @@ Shape:
       "radius": rem from 0 to 2 (composer, bubble, code)
     }
   },
-  "backdrop": null | {
+  "backdrop": null | "halo" | "dusk" | "paper" | "scanlines" | {
     "sky": null | { "from": color, "to": color, "angle": 0-360 },
     "layers": [ at most 6 of {
       "kind": "glow" | "band" | "stars" | "flakes" | "rain" | "orbs" | "meteor" | "dots" | "grid" | "lines" | "noise",
@@ -57,6 +57,8 @@ Rules:
   inside that column and shows it fully in the side margins, so design for the edges: place glows, bands,
   and meteors near the sides, corners, or top (x below 20 or above 80, or y below 15), never as a bright
   center piece behind the text. Patterns may fill the screen; they fade in the column on their own.
+- "halo", "dusk", "paper", and "scanlines" are ready-made still scenes: a faint top light, a warm low
+  glow, paper grain, and terminal scanlines. Use one instead of layers when it fits.
 - glow is a soft radial light at x, y with a size in percent; band is a soft diagonal ribbon at angle.
 - stars, flakes (snow), rain, orbs (fireflies, lanterns, bokeh), dots, grid, and lines are patterns;
   size sets their spacing. noise is a fine grain.

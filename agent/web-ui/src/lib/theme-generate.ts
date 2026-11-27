@@ -5,6 +5,9 @@ import type { CustomTheme, CustomThemeId, Theme } from './theme-types';
 
 export const THEME_GENERATE_PATH = '/api/themes/generate';
 
+/** The longest description the server accepts (MAX_THEME_PROMPT); a test keeps them equal. */
+export const THEME_PROMPT_LIMIT = 600;
+
 export type ThemeRequest = {
   prompt: string;
   animated: boolean;
@@ -27,7 +30,7 @@ export function themeForPrompt(theme: Theme) {
     radius: Number.parseFloat(theme.radius ?? '0.625'),
     transition: theme.transition ?? 'reveal',
     palette: theme.palette,
-    backdrop: typeof theme.backdrop === 'string' ? `built-in ${theme.backdrop} scene` : theme.backdrop ?? null,
+    backdrop: theme.backdrop ?? null,
     parts: theme.parts ?? null,
   };
 }
