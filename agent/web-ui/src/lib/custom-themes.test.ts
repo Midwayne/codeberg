@@ -131,5 +131,28 @@ describe('saved custom themes', () => {
 
     expect(customThemes().map((entry) => entry.id)).toEqual(['custom-b', 'custom-a']);
   });
+
+  it('keeps a theme the browser could not write, when storage still reads (a full quota)', () => {
+    saveCustomTheme(theme('custom-a'));
+    vi.stubGlobal('localStorage', {
+      getItem: () => stored,
+      setItem: () => { throw new Error('quota exceeded'); },
+    });
+
+    saveCustomTheme(theme('custom-b'));
+    saveCustomTheme(theme('custom-c'));
+
+    expect(customThemes().map((entry) => entry.id)).toEqual(['custom-c', 'custom-b', 'custom-a']);
+  });
+
+  it('writes back saved entries this version cannot use instead of deleting them', () => {
+    const foreign = { id: 'other-format', palette: { background: '#000000' } };
+    stored = JSON.stringify([foreign]);
+
+    saveCustomTheme(theme('custom-a'));
+
+    expect(JSON.parse(stored!)).toContainEqual(foreign);
+    expect(customThemes().map((entry) => entry.id)).toEqual(['custom-a']);
+  });
 });
 

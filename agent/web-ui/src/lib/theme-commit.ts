@@ -23,6 +23,15 @@ export function restoreTheme(previous: CustomTheme): boolean {
 
 type CommitContext = { editing?: CustomTheme; activeAtStart?: string };
 
+/* An edit shows if its theme is still in use; a new theme if nothing else was picked meanwhile. */
+function stillWanted(editing: CustomTheme | undefined, activeAtStart: string | undefined): boolean {
+  const active = activeThemeId();
+
+  if (editing) return active === editing.id;
+
+  return activeAtStart === undefined || active === activeAtStart;
+}
+
 /**
  * Saves a generated theme and shows it, unless the user moved on while it was
  * designed: a change to a deleted theme is dropped, so deleting stays final,
@@ -33,8 +42,7 @@ export function commitTheme(theme: CustomTheme, { editing, activeAtStart }: Comm
 
   saveCustomTheme(theme);
 
-  const stillWanted = editing ? activeThemeId() === editing.id : activeThemeId() === (activeAtStart ?? activeThemeId());
-  if (stillWanted) changeTheme(theme.id);
+  if (stillWanted(editing, activeAtStart)) changeTheme(theme.id);
 
   return true;
 }

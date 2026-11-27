@@ -11,6 +11,8 @@ import '@/loading.css';
 import '@/markdown.css';
 import '@/parts.css';
 import '@/backdrop.css';
+import '@/backdrop-scenes.css';
+import '@/backdrop-layers.css';
 import '@/theme-transition.css';
 import './style.css';
 

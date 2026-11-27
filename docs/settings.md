@@ -117,7 +117,7 @@ A theme sets the palette (including `link`), heading, body, and code fonts,
 text scale, corner radius, transition, a backdrop, and per-part styles for the
 header, sidebar, composer, user message bubbles, and code blocks. Parts read
 their own CSS tokens (`--header-bg`, `--sidebar-glass`, `--bubble-radius`, and
-so on; see `lib/theme-tokens.ts` and `parts.css`).
+so on; see `lib/theme-tokens.ts` and `parts.css`; backdrops are in `backdrop.css`, `backdrop-scenes.css`, and `backdrop-layers.css`).
 
 Backdrops draw behind the header, sidebar, and chat. A still veil keeps the
 56rem conversation column quiet, and glass parts are tinted rather than blurred

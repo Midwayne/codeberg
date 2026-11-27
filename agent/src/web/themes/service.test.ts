@@ -6,7 +6,7 @@ import { MockLanguageModelV4 } from 'ai/test';
 import { createWebServer } from '../server.js';
 import { themePrompt } from './prompt.js';
 import { MAX_THEME_PROMPT, themeFromReply } from './request.js';
-import { createThemeService, isTimeout, THEME_GENERATE_PATH, themeEffort } from './service.js';
+import { createThemeService, isTimeout, THEME_GENERATE_PATH, themeEffort, themeOutputTokens } from './service.js';
 
 const cleanups: (() => Promise<void>)[] = [];
 
@@ -143,6 +143,12 @@ describe('theme reasoning effort', () => {
     expect(themeEffort(['provider-default', 'minimal', 'low', 'high'])).toBe('minimal');
     expect(themeEffort(['provider-default', 'high'])).toBe('provider-default');
     expect(themeEffort(undefined)).toBe('provider-default');
+  });
+
+  it('gives reasoning models room to think before the theme, and others a small budget', () => {
+    expect(themeOutputTokens(['provider-default', 'high'])).toBeGreaterThan(8_000);
+    expect(themeOutputTokens(['provider-default'])).toBe(4_096);
+    expect(themeOutputTokens(undefined)).toBe(4_096);
   });
 });
 

@@ -14,10 +14,19 @@ import { readThemeRequest, themeFromReply, type ThemeRequest } from './request.j
 export const THEME_GENERATE_PATH = '/api/themes/generate';
 
 /*
- * Room for a full theme (about 2,000 tokens) plus the little reasoning a low
- * effort allows, within the 4,096-token output limit of the smallest models.
+ * A theme is about 2,000 tokens. Models without reasoning get 4,096, within the
+ * smallest output limits. Reasoning models (any that offer effort levels) also
+ * think first, possibly by default when no low effort exists, and support far
+ * larger outputs, so they get room for that thinking too.
  */
 const THEME_OUTPUT_TOKENS = 4_096;
+const REASONING_THEME_OUTPUT_TOKENS = 16_000;
+
+export function themeOutputTokens(efforts: readonly ReasoningEffort[] | undefined): number {
+  const reasons = efforts?.some((effort) => effort !== 'provider-default') ?? false;
+
+  return reasons ? REASONING_THEME_OUTPUT_TOKENS : THEME_OUTPUT_TOKENS;
+}
 
 /*
  * A theme is a small structured answer, so it runs at the least reasoning the
@@ -52,7 +61,7 @@ export function createThemeService(
       const text = await fromAiSdk(tracked, themeEffort(entry?.efforts), spec).generate({
         system: THEME_SYSTEM_PROMPT,
         prompt: themePrompt(request),
-        maxOutputTokens: THEME_OUTPUT_TOKENS,
+        maxOutputTokens: themeOutputTokens(entry?.efforts),
         requireComplete: true,
         ...(signal ? { abortSignal: signal } : {}),
       }).catch((error: unknown) => {

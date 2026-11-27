@@ -40,6 +40,6 @@
   border-radius: var(--bubble-radius);
 }
 
-:root[data-part-radius~='code'] :is([data-streamdown='code-block'], [data-streamdown='table-wrapper']) {
+:root[data-part-radius~='code'] [data-streamdown='code-block'] {
   border-radius: var(--code-radius);
 }

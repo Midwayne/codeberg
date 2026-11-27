@@ -1,7 +1,6 @@
-import { normalizeTheme } from './theme-normalize';
+import { CUSTOM_THEMES_STORAGE_KEY, readStoredThemes, resetThemeStorage, writeStoredThemes } from './custom-theme-storage';
 import type { CustomTheme, CustomThemeId } from './theme-types';
 
-export const CUSTOM_THEMES_STORAGE_KEY = 'codeberg.custom-themes';
 
 export const MAX_CUSTOM_THEMES = 12;
 
@@ -9,17 +8,11 @@ const listeners = new Set<() => void>();
 const otherTabListeners = new Set<() => void>();
 let cache: CustomTheme[] | undefined;
 
-export function isCustomThemeId(id: unknown): id is CustomThemeId {
-  return typeof id === 'string' && /^custom-[a-z0-9-]{1,40}$/.test(id);
-}
-
-export function newCustomThemeId(): CustomThemeId {
-  return `custom-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-}
+export { isCustomThemeId, newCustomThemeId } from './custom-theme-id';
 
 /** Saved themes, newest first. Entries that no longer validate are skipped. */
 export function customThemes(): CustomTheme[] {
-  cache ??= readStored() ?? [];
+  cache ??= readStoredThemes() ?? [];
 
   return cache;
 }
@@ -27,10 +20,10 @@ export function customThemes(): CustomTheme[] {
 /*
  * Writes start from what storage holds now, not this page's cache, so a theme
  * another tab saved since is kept rather than overwritten. When storage cannot
- * be read, this page's own list is all there is, so it is kept.
+ * be trusted (see readStoredThemes), this page's own list is kept.
  */
 function latest(): CustomTheme[] {
-  cache = readStored() ?? cache ?? [];
+  cache = readStoredThemes() ?? cache ?? [];
 
   return cache;
 }
@@ -84,7 +77,7 @@ function watchOtherTabs(): void {
   window.addEventListener('storage', (event) => {
     if (event.key !== CUSTOM_THEMES_STORAGE_KEY && event.key !== null) return;
 
-    cache = readStored() ?? cache;
+    cache = readStoredThemes() ?? cache;
     for (const listener of [...listeners, ...otherTabListeners]) listener();
   });
 }
@@ -99,51 +92,15 @@ export function subscribeOtherTabThemes(listener: () => void): () => void {
 
 function write(themes: CustomTheme[]): void {
   cache = themes;
-
-  try {
-    localStorage.setItem(CUSTOM_THEMES_STORAGE_KEY, JSON.stringify(themes));
-  } catch {
-    /* Themes still work for this page when browser storage is unavailable. */
-  }
+  writeStoredThemes(themes);
 
   for (const listener of listeners) listener();
-}
-
-/* Undefined when storage cannot be read, so callers keep what they have. */
-function readStored(): CustomTheme[] | undefined {
-  let text: string | null;
-
-  try {
-    text = localStorage.getItem(CUSTOM_THEMES_STORAGE_KEY);
-  } catch {
-    return undefined;
-  }
-
-  // An unreadable list (say, a cut-off write) is treated like blocked storage,
-  // so a later save keeps this page's themes instead of replacing it with one.
-  try {
-    const stored: unknown = JSON.parse(text ?? '[]');
-
-    return Array.isArray(stored) ? stored.flatMap(restore) : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function restore(entry: unknown): CustomTheme[] {
-  const raw = entry as Partial<CustomTheme> | null;
-  if (!isCustomThemeId(raw?.id)) return [];
-
-  try {
-    const prompt = typeof raw.prompt === 'string' ? raw.prompt : '';
-
-    return [normalizeTheme(raw, { id: raw.id, prompt, animated: true })];
-  } catch {
-    return [];
-  }
 }
 
 /** Test hook: forget the cached list so the next read comes from storage. */
 export function resetCustomThemeCache(): void {
   cache = undefined;
+  resetThemeStorage();
 }
+
+export { CUSTOM_THEMES_STORAGE_KEY } from './custom-theme-storage';

@@ -28,11 +28,17 @@ type NormalizeOptions = {
 export function normalizeTheme(value: unknown, options: NormalizeOptions): CustomTheme {
   const raw = (typeof value === 'object' && value !== null ? value : {}) as Record<string, unknown>;
   const palette = normalizePalette(raw.palette);
+
   // Dark exactly when text on it is white, so highlighting matches the text.
   const dark = readableOn(palette.background) === '#ffffff';
+  const kept = raw.backdrop === 'keep' ? options.keep : raw.backdrop;
+
   // A kept backdrop is validated like any other, so Animated off still stills it.
-  const backdrop = readableSky(normalizeBackdrop(raw.backdrop === 'keep' ? options.keep : raw.backdrop, options.animated), palette);
-  const parts = normalizeParts(raw.parts, palette);
+  const validated = normalizeBackdrop(kept, options.animated);
+  const backdrop = readableSky(validated, palette);
+  const sky = typeof backdrop === 'object' && backdrop.sky ? [backdrop.sky.from, backdrop.sky.to] : [];
+
+  const parts = normalizeParts(raw.parts, palette, sky);
 
   return {
     id: options.id,
@@ -59,8 +65,10 @@ function readableSky(backdrop: Theme['backdrop'], palette: Palette): Theme['back
   const reads = (color: string) =>
     contrast(palette.foreground, color) >= 4.5 && contrast(palette.mutedForeground, color) >= 4.5;
   const { from, to, angle } = backdrop.sky;
+  const easedFrom = easeToward(from, palette.background, reads);
+  const easedTo = easeToward(to, palette.background, reads);
 
-  return { ...backdrop, sky: { from: easeToward(from, palette.background, reads), to: easeToward(to, palette.background, reads), angle } };
+  return { ...backdrop, sky: { from: easedFrom, to: easedTo, angle } };
 }
 
 function text(value: unknown, limit: number): string {

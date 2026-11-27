@@ -10,9 +10,15 @@
   gap: 0;
   padding: 0;
   overflow: hidden;
-  border: 1px solid var(--code-border);
   border-radius: var(--radius);
   background-color: var(--card);
+}
+
+/* A themed code block is one surface, header strip included. */
+[data-streamdown='code-block'] {
+  border: 1px solid var(--code-border);
+  background-color: var(--code-bg);
+  color: var(--code-fg);
 }
 
 [data-streamdown='code-block-header'] {

@@ -58,20 +58,22 @@ function fitBackground(style: PartStyle, palette: Palette): PartStyle {
 
 /*
  * Each part's text reaches 4.5:1 on that part's own background, and on that
- * background seen through its glass (the theme's, or the part's default).
+ * background seen through its glass (the theme's, or the part's default) over
+ * whatever is behind it: the page, or the backdrop's sky.
  */
-function readable(name: ThemePart, style: PartStyle, palette: Palette): PartStyle {
+function readable(name: ThemePart, style: PartStyle, palette: Palette, behind: string[]): PartStyle {
   if (!style.background && !style.text) return style;
 
   const surface = opaque(style.background ?? defaultSurface(name, palette));
-  const seenThrough = mix(surface, palette.background, 1 - (style.glass ?? PART_GLASS[name]));
-  const text = ensureContrast(opaque(style.text ?? palette.foreground), [surface, seenThrough], 4.5, readableOn(surface));
+  const see = 1 - (style.glass ?? PART_GLASS[name]);
+  const seenThrough = behind.map((color) => mix(surface, opaque(color), see));
+  const text = ensureContrast(opaque(style.text ?? palette.foreground), [surface, ...seenThrough], 4.5, readableOn(surface));
 
   return { ...style, text };
 }
 
-/** Valid per-part styles only, each with readable text. */
-export function normalizeParts(value: unknown, palette: Palette): Parts | undefined {
+/** Valid per-part styles only, each with readable text; `sky` is the backdrop's gradient ends. */
+export function normalizeParts(value: unknown, palette: Palette, sky: string[] = []): Parts | undefined {
   const raw = record(value);
   if (!raw) return undefined;
 
@@ -81,7 +83,7 @@ export function normalizeParts(value: unknown, palette: Palette): Parts | undefi
     const style = part(name, raw[name]);
     const fitted = style && fitBackground(style, palette);
 
-    if (fitted && Object.keys(fitted).length > 0) parts[name] = readable(name, fitted, palette);
+    if (fitted && Object.keys(fitted).length > 0) parts[name] = readable(name, fitted, palette, [palette.background, ...sky]);
   }
 
   return Object.keys(parts).length > 0 ? parts : undefined;
