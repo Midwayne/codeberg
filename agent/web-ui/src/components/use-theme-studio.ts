@@ -84,8 +84,14 @@ function useEditRequest(editingId: string | undefined, cancel: () => void) {
   };
 }
 
+/* Moving layers, particles, or art, including art that animates inside its drawing. */
 function hasMotion(theme: Theme): boolean {
-  return typeof theme.backdrop === 'object' && theme.backdrop.layers.some((layer) => layer.animation !== 'none');
+  const backdrop = theme.backdrop;
+  if (typeof backdrop !== 'object') return false;
+
+  const moves = (item: { animation: string; svg?: string }) => item.animation !== 'none' || /<animate/.test(item.svg ?? '');
+
+  return [...backdrop.layers, ...(backdrop.art ?? []), ...(backdrop.sprites ?? [])].some(moves);
 }
 
 function cannotUndo(theme: CustomTheme): string {

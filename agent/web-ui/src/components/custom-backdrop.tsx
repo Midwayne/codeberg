@@ -1,7 +1,8 @@
 import { layerStyle, skyStyle } from '../lib/backdrop-layers';
+import { BackdropArtPieces, BackdropSprites } from './backdrop-art';
 import type { CustomBackdrop } from '../lib/theme-types';
 
-/* Draws a layered backdrop inside a positioned container. */
+/* Draws a layered backdrop, then its particles and art, inside a positioned container. */
 export function CustomBackdropLayers({ backdrop }: { backdrop: CustomBackdrop }) {
   const sky = skyStyle(backdrop);
 
@@ -17,6 +18,8 @@ export function CustomBackdropLayers({ backdrop }: { backdrop: CustomBackdrop })
           style={layerStyle(layer)}
         />
       ))}
+      {backdrop.sprites && <BackdropSprites sprites={backdrop.sprites} />}
+      {backdrop.art && <BackdropArtPieces art={backdrop.art} />}
     </>
   );
 }

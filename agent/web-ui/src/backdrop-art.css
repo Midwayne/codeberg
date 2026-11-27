@@ -1,0 +1,182 @@
+/*
+ * Model-drawn art and particles (backdrop-art.tsx). Art fills a box at an edge
+ * or corner and keeps its proportions inside it; particles are small images
+ * moved with transforms, so the browser composites them instead of repainting.
+ */
+.backdrop-art {
+  position: absolute;
+  width: var(--art-size);
+  height: 100%;
+  pointer-events: none;
+}
+
+.backdrop-art[data-anchor='left'],
+.backdrop-art[data-anchor='right'] {
+  top: 0;
+}
+
+.backdrop-art[data-anchor='left'],
+.backdrop-art[data-anchor^='top-left'],
+.backdrop-art[data-anchor^='bottom-left'] {
+  left: 0;
+}
+
+.backdrop-art[data-anchor='right'],
+.backdrop-art[data-anchor$='-right'] {
+  right: 0;
+}
+
+.backdrop-art[data-anchor^='top'] {
+  top: 0;
+}
+
+.backdrop-art[data-anchor^='bottom'] {
+  bottom: 0;
+}
+
+/* Along the top or bottom edge, art is centered and takes up to half the height. */
+.backdrop-art[data-anchor='top'],
+.backdrop-art[data-anchor='bottom'] {
+  left: calc(50% - var(--art-size) / 2);
+  height: 50%;
+}
+
+.backdrop-art-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+}
+
+.backdrop-art-image[style*='animation'] {
+  will-change: transform;
+}
+
+@keyframes art-sway {
+  from {
+    transform: rotate(-1.5deg);
+  }
+  to {
+    transform: rotate(1.5deg);
+  }
+}
+
+@keyframes art-float {
+  from {
+    transform: translateY(-1.5%);
+  }
+  to {
+    transform: translateY(1.5%);
+  }
+}
+
+@keyframes art-breathe {
+  from {
+    transform: scale(0.98);
+  }
+  to {
+    transform: scale(1.02);
+  }
+}
+
+@keyframes art-drift {
+  from {
+    transform: translateX(-2%);
+  }
+  to {
+    transform: translateX(2%);
+  }
+}
+
+/* Container units let particles cross a small preview as well as the whole window. */
+.backdrop-sprites {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  container-type: size;
+  pointer-events: none;
+}
+
+.backdrop-sprite {
+  position: absolute;
+  top: var(--sprite-y);
+  will-change: transform;
+}
+
+.backdrop-sprite[data-animation='fall'],
+.backdrop-sprite[data-animation='rise'] {
+  top: 0;
+}
+
+.backdrop-sprite[data-animation='drift'] {
+  left: 0 !important;
+}
+
+.backdrop-sprite-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+}
+
+@keyframes sprite-fall {
+  from {
+    transform: translate3d(0, -12cqh, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(var(--sprite-sway), 50cqh, 0) rotate(calc(var(--sprite-turn) / 2));
+  }
+  to {
+    transform: translate3d(0, 112cqh, 0) rotate(var(--sprite-turn));
+  }
+}
+
+@keyframes sprite-rise {
+  from {
+    transform: translate3d(0, 112cqh, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(var(--sprite-sway), 50cqh, 0) rotate(calc(var(--sprite-turn) / 2));
+  }
+  to {
+    transform: translate3d(0, -12cqh, 0) rotate(var(--sprite-turn));
+  }
+}
+
+@keyframes sprite-drift {
+  from {
+    transform: translate3d(-10cqw, 0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(50cqw, calc(var(--sprite-sway) / 2), 0) rotate(calc(var(--sprite-turn) / 2));
+  }
+  to {
+    transform: translate3d(110cqw, 0, 0) rotate(var(--sprite-turn));
+  }
+}
+
+@keyframes sprite-float {
+  from {
+    transform: translateY(-10px) rotate(calc(var(--sprite-turn) / -16));
+  }
+  to {
+    transform: translateY(10px) rotate(calc(var(--sprite-turn) / 16));
+  }
+}
+
+/* Still for reduced motion, with each particle left where it is scattered. */
+@media (prefers-reduced-motion: reduce) {
+  .backdrop-art-image,
+  .backdrop-sprite {
+    animation: none !important;
+  }
+
+  .backdrop-sprite[data-animation] {
+    top: var(--sprite-y);
+  }
+
+  .backdrop-sprite[data-animation='drift'] {
+    left: auto !important;
+  }
+}

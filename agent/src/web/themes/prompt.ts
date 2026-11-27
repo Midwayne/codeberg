@@ -2,9 +2,11 @@ import type { ThemeRequest } from './request.js';
 
 /*
  * The model returns a structured theme, never CSS. The web UI validates every
- * value and renders the backdrop itself, so a reply cannot inject styles.
+ * value and renders the backdrop itself, so a reply cannot inject styles. Its
+ * drawings are rebuilt from an SVG allowlist and shown only as images, where
+ * they can run no script and load nothing.
  */
-export const THEME_SYSTEM_PROMPT = `You design color themes for Codeberg, a code search chat app.
+export const THEME_SYSTEM_PROMPT = `You design themes for Codeberg, a code search chat app.
 Reply with one JSON object and nothing else: no prose, no code fence.
 
 Shape:
@@ -40,6 +42,23 @@ Shape:
       "angle": 0-360,
       "animation": "none" | "drift" | "float" | "pulse" | "twinkle" | "pan" | "fall" | "rise" | "spin" | "shoot",
       "duration": seconds, 4 to 120 for pulse, twinkle, and shoot; 0.5 to 120 for motion
+    } ],
+    "art": [ at most 4 of {
+      "svg": an SVG drawing you make, as a string,
+      "anchor": "left" | "right" | "top" | "bottom" | "top-left" | "top-right" | "bottom-left" | "bottom-right",
+      "size": width in percent of the window, 10-60,
+      "opacity": 0.05-1,
+      "flip": true to mirror it left to right,
+      "animation": "none" | "sway" | "float" | "breathe" | "drift",
+      "duration": seconds per cycle, 4-120
+    } ],
+    "sprites": [ at most 3 of {
+      "svg": a small SVG drawing repeated as particles, as a string,
+      "count": 1-24 copies, "size": pixels wide, 6-72,
+      "opacity": 0.05-1,
+      "animation": "fall" | "rise" | "drift" | "float" | "none",
+      "duration": seconds to cross the window, 4-120,
+      "spin": true to turn copies as they move
     } ]
   }
 }
@@ -67,17 +86,38 @@ Rules:
 - fall moves a pattern down (snow, rain), rise moves it up (lanterns, bubbles), pan scrolls it diagonally,
   twinkle and pulse fade it in and out. Layer several patterns at different sizes and speeds for depth.
 - Prefer slow animations (20 seconds or more) that suit the mood.
+- art is your own illustration. Whenever the request names imagery (flowers, a painting, trees, mountains,
+  waves, koi, a skyline, a creature), draw it as art instead of approximating it with layers. Make it rich:
+  layered shapes, gradients for washes of paint, overlapping petals and leaves, branches with varied
+  stroke widths, a few highlights. Anchor it to an edge or corner, growing in toward the window, and keep
+  the middle of the drawing light so it frames the conversation. The sidebar may cover the left edge, so
+  put the main piece on the right or in a corner; a flipped, smaller copy on the left balances it.
+  sway pivots art where it is anchored, like a branch in a breeze.
+- sprites are particles you draw once: petals, leaves, embers, feathers, bubbles. Copies are scattered
+  across the window at varied sizes; fall drifts them down, rise floats them up, drift carries them
+  sideways, float bobs them in place.
+- Each svg needs a viewBox, uses single quotes for attributes, and stays under 8000 characters. Use
+  only path, circle, ellipse, rect, line, polyline, polygon, g, defs, use, symbol, clipPath, mask,
+  linearGradient, radialGradient, stop, pattern, filter with fe* blur, offset, merge, blend, color matrix,
+  turbulence, or displacement, and animate, animateTransform, or animateMotion. Set colors with
+  attributes such as fill and stroke. No text, style, CSS, script, images, or links; refer only to ids in
+  the same drawing with url(#id) or href='#id'. Animations inside a drawing (a petal turning, a lantern
+  glowing) need dur of 2s or more, 4s or more for anything that changes brightness, and repeatCount
+  'indefinite'.
 - transition is how the app changes into this theme: reveal is a circle from the click, fade is a crossfade,
   wipe scans from top to bottom, blur dissolves through a blur.`;
 
-/* Whether a theme sent to change has any moving backdrop layer. */
+type Backdrop = { layers?: unknown; art?: unknown; sprites?: unknown };
+
+/* Whether a theme sent to change has any moving layer, art, or particles. */
 function hasMotion(base: unknown): boolean {
-  const layers = (base as { backdrop?: { layers?: unknown } } | null)?.backdrop?.layers;
+  const backdrop = (base as { backdrop?: Backdrop } | null)?.backdrop;
+  const items = [backdrop?.layers, backdrop?.art, backdrop?.sprites].flatMap((list) => (Array.isArray(list) ? list : []));
 
-  return Array.isArray(layers) && layers.some((layer) => {
-    const animation = (layer as { animation?: unknown } | null)?.animation;
+  return items.some((item) => {
+    const { animation, svg } = (item ?? {}) as { animation?: unknown; svg?: unknown };
 
-    return typeof animation === 'string' && animation !== 'none';
+    return (typeof animation === 'string' && animation !== 'none') || (typeof svg === 'string' && svg.includes('<animate'));
   });
 }
 
@@ -85,7 +125,7 @@ export function themePrompt(request: ThemeRequest): string {
   const parts = [`Theme request: ${request.prompt}`];
 
   if (!request.animated) {
-    parts.push('Make it static: every layer animation must be "none".');
+    parts.push('Make it static: every layer, art, and sprite animation must be "none", and no drawing may animate.');
   }
 
   if (request.animated && request.base !== undefined && !hasMotion(request.base)) {

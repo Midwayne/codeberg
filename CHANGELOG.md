@@ -18,6 +18,7 @@ are in the git history.
 - Animated theme backdrops behind the header, sidebar, and chat; turn them off in **Settings → Appearance**.
 - Themes can restyle the header, sidebar, composer, message bubbles, code blocks, fonts, and text size.
 - Create or edit a theme by describing it; your chat model designs it.
+- Generated themes can include art and particles your chat model draws, such as blossom branches along the edges and drifting petals.
 
 ### Changed
 

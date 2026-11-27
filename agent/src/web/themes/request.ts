@@ -12,7 +12,7 @@ export interface ThemeRequest {
 
 export const MAX_THEME_PROMPT = 600;
 
-const MAX_BODY_BYTES = 32 * 1024;
+const MAX_BODY_BYTES = 128 * 1024;
 
 export async function readThemeRequest(req: IncomingMessage): Promise<ThemeRequest> {
   const body = await readBody(req, MAX_BODY_BYTES, 'The theme request is too large.');
@@ -32,8 +32,12 @@ export async function readThemeRequest(req: IncomingMessage): Promise<ThemeReque
   };
 }
 
-/* A full theme serializes to a few kilobytes; more is not a theme and would only cost tokens. */
-const MAX_BASE_CHARS = 12_000;
+/*
+ * A theme serializes to a few kilobytes, and its drawn art (at most 4 pieces
+ * and 3 particles, 12,000 characters each) to a few dozen more; anything
+ * larger is not a theme and would only cost tokens.
+ */
+const MAX_BASE_CHARS = 96_000;
 
 /** The theme to change: an object of theme size, which goes into the model prompt. */
 function readBase(base: unknown): Record<string, unknown> {

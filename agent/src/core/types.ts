@@ -49,6 +49,8 @@ export interface Prompt {
   maxOutputTokens?: number;
   /** Checkpoints must not silently accept an empty or truncated generation. */
   requireComplete?: boolean;
+  /** Total time a complete generation may take, in milliseconds; defaults to two minutes. */
+  completeWithinMs?: number;
   abortSignal?: AbortSignal;
 }
 
