@@ -5,6 +5,7 @@ import { afterEach, expect, it } from 'vitest';
 
 import { callerScope } from '../background/context.js';
 import { chatScope } from '../chat-scope.js';
+import { withWorklistScope } from './store.js';
 import { worklistTools } from './tools.js';
 import type { WorklistEntry } from './types.js';
 
@@ -81,6 +82,28 @@ it('greps entries by substring, regular expression, and tag', async () => {
   expect(texts(await call(chat, 'worklist_read', { tag: 'finding' }))).toEqual(['Embedding model is jina v2']);
   expect(texts(await call(chat, 'worklist_read', { pattern: 'config' }))).toEqual(['Daemon listens on port 8080']);
   await expect(call(chat, 'worklist_read', { pattern: '(', regex: true })).rejects.toThrow('Invalid regular expression');
+});
+
+it('stops a regular expression that backtracks without end instead of freezing the server', async () => {
+  const chat = chatIn(sessionsDir(), 'chat-a');
+  await call(chat, 'worklist_add', { items: [{ text: `${'a'.repeat(40)}b` }] });
+
+  const started = performance.now();
+
+  await expect(call(chat, 'worklist_read', { pattern: '(a|aa)+$', regex: true })).rejects.toThrow('took too long');
+  expect(performance.now() - started).toBeLessThan(2_000);
+});
+
+it('gives each terminal conversation its own list, kept across its turns', async () => {
+  const first = {};
+  const second = {};
+  const turn = <T>(list: object, action: () => Promise<T>) => withWorklistScope(list, action);
+
+  await turn(first, () => call(undefined, 'worklist_add', { items: [{ text: 'First conversation finding' }] }));
+  await turn(second, () => call(undefined, 'worklist_add', { items: [{ text: 'Second conversation finding' }] }));
+
+  expect(texts(await turn(first, () => call(undefined, 'worklist_read', {})))).toEqual(['First conversation finding']);
+  expect(texts(await turn(second, () => call(undefined, 'worklist_read', {})))).toEqual(['Second conversation finding']);
 });
 
 it('keeps the most recent matches when a limit cuts the list', async () => {

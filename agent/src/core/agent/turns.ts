@@ -11,6 +11,7 @@ import { dedupe, toPerformance } from './results.js';
 import type { AgentState } from './state.js';
 import { withDecisionScope } from '../decisions/cache.js';
 import { withContextSelectionScope } from '../request-budget/selection.js';
+import { withWorklistScope, type MemoryWorklist } from '../worklist/store.js';
 
 export async function close(state: AgentState): Promise<void> {
   if (state.ownsLearning) state.learning?.stop();
@@ -32,7 +33,8 @@ export async function ask(
   const started = Date.now();
   writeModuleLog('agent', 'turn_started', { id, interface: 'cli' });
   try {
-    const result = await withDecisionScope(() => withContextSelectionScope(() => askTurn(state, question, opts)));
+    const result = await withWorklistScope(worklistOf(state), () =>
+      withDecisionScope(() => withContextSelectionScope(() => askTurn(state, question, opts))));
     writeModuleLog('agent', 'turn_completed', {
       id,
       interface: 'cli',
@@ -49,6 +51,16 @@ export async function ask(
     });
     throw error;
   }
+}
+
+/* Each agent keeps one working list across its turns, freed with the agent. */
+const worklists = new WeakMap<AgentState, MemoryWorklist>();
+
+function worklistOf(state: AgentState): MemoryWorklist {
+  const list = worklists.get(state) ?? {};
+  worklists.set(state, list);
+
+  return list;
 }
 
 async function askTurn(

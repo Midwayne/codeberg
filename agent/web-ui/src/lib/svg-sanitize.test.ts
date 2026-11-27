@@ -90,4 +90,24 @@ describe('svg art sanitizing', () => {
     expect(sanitizeSvg(first, true)).toBe(first);
     expect(sanitizeSvg(wrap(body(count + 50)), true)).toBeUndefined();
   });
+
+  it('refuses drawings whose references would draw far more shapes than they hold, or loop', () => {
+    // Each group draws the one before it twice: 40 levels would be 2^40 paths.
+    const levels = Array.from({ length: 40 }, (_, i) => `<g id='a${i + 1}'><use href='#a${i}'/><use href='#a${i}'/></g>`).join('');
+    const doubling = wrap(`<defs><g id='a0'><path d='M0 0h1v1z'/></g>${levels}</defs><use href='#a40'/>`);
+
+    // The same growth through masks instead of <use>.
+    const masks = Array.from({ length: 30 }, (_, i) => `<mask id='m${i + 1}'><rect width='9' height='9' mask='url(#m${i})'/><rect width='9' height='9' mask='url(#m${i})'/></mask>`).join('');
+    const masked = wrap(`<defs><mask id='m0'><rect width='9' height='9'/></mask>${masks}</defs><rect width='9' height='9' mask='url(#m30)'/>`);
+
+    const loop = wrap("<defs><g id='x'><use href='#y'/></g><g id='y'><use href='#x'/></g></defs><use href='#x'/>");
+
+    // A petal drawn twelve times, each filled with a gradient, is ordinary art.
+    const petals = wrap(`<defs><radialGradient id='p'><stop offset='0' stop-color='#fff'/></radialGradient><path id='petal' d='M0 0q5 5 0 10z' fill='url(#p)'/></defs>${"<use href='#petal'/>".repeat(12)}`);
+
+    expect(sanitizeSvg(doubling, true)).toBeUndefined();
+    expect(sanitizeSvg(masked, true)).toBeUndefined();
+    expect(sanitizeSvg(loop, true)).toBeUndefined();
+    expect(sanitizeSvg(petals, true)).toContain('<use href="#petal"/>');
+  });
 });

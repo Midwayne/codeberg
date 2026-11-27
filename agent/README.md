@@ -167,7 +167,7 @@ not built, the server falls back to a dependency-free single-file page, so
 | Method | Path | Does |
 |---|---|---|
 | `POST` | `/api/chat` | send `{ messages }`, stream the agent's reply (ai-sdk UI-message SSE) |
-| `GET` | `/api/meta` | `{ title }` for the browser tab / header |
+| `GET` | `/api/meta` | `{ title, capabilities }`: `title` names the default chat model (each chat may choose its own); `capabilities.learning` says whether learning history is on |
 | `POST` | `/api/themes/generate` | send `{ prompt, animated?, base? }`; the chat model designs a theme → `{ theme }` (the web UI validates it before use) |
 | `GET` | `/api/commands` | the prompt-hook catalog that drives the `/` autocomplete (see [Commands](#commands)) |
 | `GET` | `/api/sessions` | list saved chats, newest first |

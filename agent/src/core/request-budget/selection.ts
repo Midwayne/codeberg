@@ -30,6 +30,13 @@ interface ChatSelections {
 }
 
 const MAX_CHATS = 64;
+
+/*
+ * Subagents a chat remembers. Each run_subagents call can start 64, and an
+ * agent touches its entry on every request, so the ones dropped are finished
+ * subagents, and only those with nothing kept or released, which lose nothing.
+ */
+const MAX_AGENTS = 256;
 const chats = new Map<string, Promise<ChatSelections>>();
 
 /** Where a chat's keep/release choices are saved, beside its run journals. */
@@ -69,13 +76,14 @@ export async function currentSelection(): Promise<ContextSelection> {
   evictOldest(chats, MAX_CHATS, (_, key) => key !== chatDir);
 
   const chat = await loading;
-  let selection = chat.agents.get(agent);
-  if (!selection) {
-    selection = { ...emptySelection(), save: () => saveChat(chat) };
-    chat.agents.set(agent, selection);
-  }
+  const selection = touch(chat.agents, agent, chat.agents.get(agent) ?? { ...emptySelection(), save: () => saveChat(chat) });
+  evictOldest(chat.agents, MAX_AGENTS, (other, key) => key !== '' && key !== agent && !hasChoices(other));
 
   return selection;
+}
+
+function hasChoices(selection: ContextSelection): boolean {
+  return selection.keep.size > 0 || selection.release.size > 0;
 }
 
 function runSelection(agent: string): ContextSelection {
@@ -124,7 +132,8 @@ function saveChat(chat: ChatSelections): Promise<void> {
 
   const file = chat.file;
   const next = chat.writes.catch(() => undefined).then(async () => {
-    const agents = Object.fromEntries([...chat.agents].map(([agent, selection]) =>
+    // Agents that chose nothing would only grow the file; leaving them out loses nothing.
+    const agents = Object.fromEntries([...chat.agents].filter(([, selection]) => hasChoices(selection)).map(([agent, selection]) =>
       [agent, { keep: [...selection.keep], release: [...selection.release] }]));
 
     // A deleted chat keeps no choices, even if a late tool call changes them.

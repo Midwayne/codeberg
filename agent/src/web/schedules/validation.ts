@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { ScheduleInput } from '../../core/schedules/context.js';
 import { isValidSessionId } from '../sessions/records.js';
-import type { ScheduledRun, ScheduleOwner } from './types.js';
+import { scheduledSelection, type ScheduledRun, type ScheduleOwner } from './types.js';
 
 /** Largest timestamp a Date can hold, in milliseconds. */
 const MAX_DATE_MS = 8.64e15;
@@ -32,7 +32,7 @@ export function newSchedule(owner: ScheduleOwner, input: ScheduleInput, now = Da
   return {
     chatId: owner.chatId,
     sourceRunId: owner.sourceRunId,
-    selection: owner.selection,
+    selection: scheduledSelection(owner.selection),
     id: randomUUID(),
     prompt: input.prompt.trim(),
     dueAt,

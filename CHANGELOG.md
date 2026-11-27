@@ -33,6 +33,12 @@ are in the git history.
 - Subagent briefs now state a clear goal and, when the method is known, specific numbered steps.
 - The agent now decides how many subagents to start, up to 64 per request and 64 running at once in a chat (was 8).
 
+### Fixed
+
+- Scheduled and repeating runs no longer draw diagrams because the message that scheduled them had **Diagram** on.
+- A search pattern the agent gives its working list can no longer freeze Codeberg.
+- Generated theme art that would freeze the page when drawn is refused.
+
 ### Removed
 
 - The Dark, Light, Kanagawa, Tokyo Night, Catppuccin Mocha, Dracula, Nord, and Gruvbox themes. Light switches to Porcelain and the others to Graphite.

@@ -11,6 +11,8 @@ import {
   SVG_ATTRIBUTES,
   SVG_ELEMENTS,
 } from './svg-allowlist';
+import { expandedShapes, MAX_DRAWN_SHAPES } from './svg-expansion';
+import { readTags, type Tag } from './svg-tags';
 
 export { MAX_SVG_CHARS };
 
@@ -26,22 +28,11 @@ const MAX_SOURCE_CHARS = MAX_SVG_CHARS * 2;
 
 const MAX_ELEMENTS = 600;
 
-const TAG = /<(\/?)([A-Za-z][\w:-]*)((?:\s+[A-Za-z_:][\w:.-]*\s*=\s*(?:"[^"<]*"|'[^'<]*'))*)\s*(\/?)>/y;
-
-const ATTRIBUTE = /([A-Za-z_:][\w:.-]*)\s*=\s*(?:"([^"<]*)"|'([^'<]*)')/g;
-
-interface Tag {
-  close: boolean;
-  name: string;
-  attributes: Map<string, string>;
-  empty: boolean;
-}
-
 /**
  * A safe copy of an SVG drawing with a viewBox, or undefined when it is not
  * one. Still art (`animated: false`) also loses its animation elements.
  *
- * The size limit applies to the copy, and a copy rebuilds to itself, so a
+ * The size limits apply to the copy, and a copy rebuilds to itself, so a
  * drawing accepted once is accepted again when a saved theme is read back.
  */
 export function sanitizeSvg(source: unknown, animated: boolean): string | undefined {
@@ -51,51 +42,10 @@ export function sanitizeSvg(source: unknown, animated: boolean): string | undefi
   if (!tags || tags.length > MAX_ELEMENTS * 2) return undefined;
 
   const svg = writeSvg(tags, animated);
+  if (!svg || svg.length > MAX_SVG_CHARS) return undefined;
 
-  return svg && svg.length <= MAX_SVG_CHARS ? svg : undefined;
-}
-
-/* Every tag in order, skipping comments and declarations; undefined for anything else that is not a tag. */
-function readTags(source: string): Tag[] | undefined {
-  const tags: Tag[] = [];
-
-  for (let index = source.indexOf('<'); index !== -1; index = source.indexOf('<', index)) {
-    if (source.startsWith('<!--', index)) {
-      const end = source.indexOf('-->', index);
-      if (end === -1) return undefined;
-
-      index = end + 3;
-      continue;
-    }
-
-    // An XML declaration or doctype carries nothing art needs; CDATA could hide markup.
-    if (source.startsWith('<?', index) || /^<!doctype/i.test(source.slice(index, index + 9))) {
-      index = source.indexOf('>', index) + 1;
-      if (index === 0) return undefined;
-      continue;
-    }
-
-    TAG.lastIndex = index;
-    const match = TAG.exec(source);
-    if (!match) return undefined;
-
-    tags.push({ close: match[1] === '/', name: match[2]!, attributes: readAttributes(match[3]!), empty: match[4] === '/' });
-    index = TAG.lastIndex;
-  }
-
-  return tags;
-}
-
-function readAttributes(text: string): Map<string, string> {
-  const attributes = new Map<string, string>();
-
-  for (const match of text.matchAll(ATTRIBUTE)) {
-    const name = match[1] === 'xlink:href' ? 'href' : match[1]!;
-
-    if (!attributes.has(name)) attributes.set(name, (match[2] ?? match[3] ?? '').trim());
-  }
-
-  return attributes;
+  // Small source can still draw a huge number of shapes through nested references.
+  return expandedShapes(svg) <= MAX_DRAWN_SHAPES ? svg : undefined;
 }
 
 /* Rebuilds the document: the root svg, then each allowed element; a dropped element drops its children. */

@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 
@@ -6,12 +7,29 @@ import { isMissing } from '../fs.js';
 import { isValidSessionId } from '../session-id.js';
 import { emptyWorklist, WorklistError, type WorklistData } from './types.js';
 
-/** Terminal runs have no saved chat; their list lives as long as the process. */
-const TERMINAL_KEY = '';
-const memory = new Map<string, WorklistData>();
+/** A list kept in memory: a terminal conversation's, which has no saved chat. */
+export interface MemoryWorklist {
+  data?: WorklistData;
+}
+
+/*
+ * Each terminal conversation keeps its own list across its turns, and it goes
+ * with the conversation. Calls outside any conversation share one fallback.
+ */
+const conversation = new AsyncLocalStorage<MemoryWorklist>();
+const fallback: MemoryWorklist = {};
+
+/** Run `action` with `list` as the working list of calls that have no chat. */
+export function withWorklistScope<T>(list: MemoryWorklist, action: () => T): T {
+  return conversation.run(list, action);
+}
+
+function memoryList(): MemoryWorklist {
+  return conversation.getStore() ?? fallback;
+}
 
 /** One update at a time per list, so parallel tool calls never lose an entry. */
-const queues = new Map<string, Promise<unknown>>();
+const queues = new Map<string | MemoryWorklist, Promise<unknown>>();
 
 /**
  * Where a chat's working list is saved: beside its run journals, at
@@ -34,14 +52,14 @@ export function currentWorklistPath(): string | undefined {
 
 export async function readWorklist(path: string | undefined): Promise<WorklistData> {
   // Wait for pending writes, but not for their errors: those belong to the call that made them.
-  await queues.get(path ?? TERMINAL_KEY)?.catch(() => undefined);
+  await queues.get(path ?? memoryList())?.catch(() => undefined);
 
   return load(path);
 }
 
 /** Apply `change` to the saved list and save the result; returns what `change` returns. */
 export async function updateWorklist<T>(path: string | undefined, change: (data: WorklistData) => T): Promise<T> {
-  const key = path ?? TERMINAL_KEY;
+  const key = path ?? memoryList();
   const previous = queues.get(key) ?? Promise.resolve();
 
   const next = previous.catch(() => undefined).then(async () => {
@@ -62,7 +80,7 @@ export async function updateWorklist<T>(path: string | undefined, change: (data:
 }
 
 async function load(path: string | undefined): Promise<WorklistData> {
-  if (path === undefined) return structuredClone(memory.get(TERMINAL_KEY) ?? emptyWorklist());
+  if (path === undefined) return structuredClone(memoryList().data ?? emptyWorklist());
 
   try {
     return parse(await readFile(path, 'utf8'));
@@ -91,7 +109,7 @@ function parse(raw: string): WorklistData {
 
 async function save(path: string | undefined, data: WorklistData): Promise<void> {
   if (path === undefined) {
-    memory.set(TERMINAL_KEY, structuredClone(data));
+    memoryList().data = structuredClone(data);
 
     return;
   }

@@ -1,5 +1,5 @@
 import { Chat } from '@ai-sdk/react';
-import type { ChatTransport, UIMessage } from 'ai';
+import type { ChatInit, ChatTransport, UIMessage } from 'ai';
 
 import { RunTransport } from './run-transport';
 import { TurnQueue } from './turn-queue';
@@ -95,12 +95,7 @@ export function createWorkspaceChat(options: CreateWorkspaceChatOptions): Worksp
     id,
     messages,
     transport: savedTransport,
-    onFinish: (finish) => {
-      persistence.onFinish(finish);
-
-      const event = sceneEventForFinish(finish);
-      if (event) emitSceneEvent(event);
-    },
+    onFinish: withSceneEvent(persistence.onFinish),
   });
   const turns = createTurnQueue(chat, savedTransport.isPending, runTransport);
 
@@ -126,6 +121,18 @@ export function createWorkspaceChat(options: CreateWorkspaceChatOptions): Worksp
   };
 
   return workspace;
+}
+
+type FinishHandler = NonNullable<ChatInit<UIMessage>['onFinish']>;
+
+/* Saves the finished turn, then tells the theme's scene how the reply ended. */
+function withSceneEvent(persist: FinishHandler): FinishHandler {
+  return (finish) => {
+    persist(finish);
+
+    const event = sceneEventForFinish(finish);
+    if (event) emitSceneEvent(event);
+  };
 }
 
 function createTurnQueue(chat: Chat<UIMessage>, isPending: () => boolean, transport?: RunTransport) {

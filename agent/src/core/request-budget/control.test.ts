@@ -255,6 +255,29 @@ describe('context selections', () => {
   });
 });
 
+it('saves only agents that kept or released something, and bounds the subagents it remembers', async () => {
+  const sessions = tempDir();
+  mkdirSync(join(sessions, '.context-keeps'));
+  writeFileSync(join(sessions, 'busy.json'), '{}');
+  const chat = join(sessions, 'busy');
+
+  // Twenty run_subagents calls of 64 tasks: every subagent request looks up a selection.
+  const subagents = await Promise.all(Array.from({ length: 1_280 }, (_, i) =>
+    chatScope.run(chat, () => callerScope.run(`sa_${i}`, () => currentSelection()))));
+  const main = await chatScope.run(chat, () => currentSelection());
+  main.keep.add('c1');
+  await main.save();
+
+  const saved = JSON.parse(readFileSync(contextKeepsPath(sessions, 'busy'), 'utf8')).agents;
+
+  expect(Object.keys(saved)).toEqual(['']);
+  expect(saved[''].keep).toEqual(['c1']);
+
+  // The most recent subagent is still remembered; the oldest, with nothing kept, is not.
+  expect(await chatScope.run(chat, () => callerScope.run('sa_1279', () => currentSelection()))).toBe(subagents[1_279]);
+  expect(await chatScope.run(chat, () => callerScope.run('sa_0', () => currentSelection()))).not.toBe(subagents[0]);
+});
+
 it('does not recreate keep/release choices for a deleted chat', async () => {
   const sessions = tempDir();
   const chat = join(sessions, 'gone');
