@@ -74,10 +74,70 @@ export interface BackdropLayer {
   duration: number;
 }
 
-/** A backdrop designed by the chat model: an optional sky and up to six layers. */
+/** Where a piece of art sits: an edge or corner of the window. */
+export const ART_ANCHORS = ['left', 'right', 'top', 'bottom', 'top-left', 'top-right', 'bottom-left', 'bottom-right'] as const;
+
+export type ArtAnchor = (typeof ART_ANCHORS)[number];
+
+/** How a whole piece of art moves; the drawing may also animate inside. */
+export const ART_ANIMATIONS = ['none', 'sway', 'float', 'breathe', 'drift'] as const;
+
+/** An illustration the chat model drew, such as a flowering branch along one side. */
+export interface BackdropArt {
+  /** Sanitized SVG with a viewBox. */
+  svg: string;
+  anchor: ArtAnchor;
+  /** Width as a percent of the window, 10 to 60. */
+  size: number;
+  opacity: number;
+  /** Mirrored left to right, so one drawing can face in from either side. */
+  flip: boolean;
+  animation: (typeof ART_ANIMATIONS)[number];
+  /** Seconds per cycle, 4 to 120. */
+  duration: number;
+}
+
+export const SPRITE_ANIMATIONS = ['none', 'fall', 'rise', 'drift', 'float'] as const;
+
+/** A small drawing repeated as scattered particles, such as petals or leaves. */
+export interface BackdropSprite {
+  /** Sanitized SVG with a viewBox. */
+  svg: string;
+  /** Copies scattered across the window, 1 to 24. */
+  count: number;
+  /** Width of each copy in pixels, 6 to 72; copies vary around it. */
+  size: number;
+  opacity: number;
+  animation: (typeof SPRITE_ANIMATIONS)[number];
+  /** Seconds for one copy to cross the window, 4 to 120. */
+  duration: number;
+  /** Whether copies turn as they move. */
+  spin: boolean;
+}
+
+/** App moments a scene can react to, such as fireworks when a reply finishes. */
+export const SCENE_EVENTS = ['send', 'reply', 'error', 'new-chat'] as const;
+
+export type SceneEvent = (typeof SCENE_EVENTS)[number];
+
+/** A canvas script the chat model wrote, run in a sandbox behind the conversation. */
+export interface SceneScript {
+  script: string;
+  /** False draws one still frame and ignores events. */
+  motion: boolean;
+}
+
+/**
+ * A backdrop designed by the chat model: an optional sky, up to six layers, and
+ * its own art. A scene, when it runs, replaces the layers, art, and particles,
+ * which remain its preview and its fallback.
+ */
 export interface CustomBackdrop {
   sky?: { from: string; to: string; angle: number };
   layers: BackdropLayer[];
+  art?: BackdropArt[];
+  sprites?: BackdropSprite[];
+  scene?: SceneScript;
 }
 
 export interface Theme {

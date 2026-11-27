@@ -13,6 +13,7 @@ import '@/parts.css';
 import '@/backdrop.css';
 import '@/backdrop-scenes.css';
 import '@/backdrop-layers.css';
+import '@/backdrop-art.css';
 import '@/theme-transition.css';
 
 applyTheme(loadTheme());

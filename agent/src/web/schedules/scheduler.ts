@@ -3,7 +3,7 @@ import type { ScheduleInput } from '../../core/schedules/context.js';
 import type { SearchRuns } from '../runs/manager.js';
 import { admitScheduled, isDue, readyPrompt, settleSchedule } from './dispatch.js';
 import { ScheduleStore } from './store.js';
-import { requestId, type ScheduledRun, type ScheduleOwner } from './types.js';
+import { requestId, scheduledSelection, type ScheduledRun, type ScheduleOwner } from './types.js';
 import { newSchedule } from './validation.js';
 
 /** Durable wake-ups owned by one project runtime, independent of browser subscriptions. */
@@ -48,7 +48,7 @@ export class RunScheduler {
       await Promise.all((job.backgroundJobIds ?? []).map((id) => this.runs.background.get(owner.chatId, id)));
 
       const source = await this.runs.find(owner.chatId, owner.sourceRunId);
-      job.selection ??= source?.record.selection;
+      job.selection ??= scheduledSelection(source?.record.selection);
       jobs.push(job);
       await this.store.write(jobs);
 

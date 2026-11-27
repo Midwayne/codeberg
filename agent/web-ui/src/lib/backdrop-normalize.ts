@@ -1,5 +1,10 @@
+import { normalizeArt, normalizeSprites } from './backdrop-art-normalize';
+import { choice, clamp, record } from './normalize-values';
+import { normalizeScene } from './scene/scene-normalize';
 import { hexColor } from './color';
 import { BACKDROP_SCENES, LAYER_ANIMATIONS, LAYER_KINDS, type BackdropLayer, type BackdropScene, type CustomBackdrop } from './theme-types';
+
+export { choice, clamp, record };
 
 export const MAX_BACKDROP_LAYERS = 6;
 
@@ -7,24 +12,6 @@ export const MAX_BACKDROP_LAYERS = 6;
 export const LAYER_DEFAULTS = {
   opacity: 0.15, x: 50, y: 30, size: 50, angle: 135, animation: 'none', duration: 30,
 } as const satisfies Omit<BackdropLayer, 'kind' | 'color'>;
-
-/** A number clamped to a range, or the fallback when it is not a number. */
-export function clamp(value: unknown, min: number, max: number, fallback: number): number {
-  const number = typeof value === 'string' ? Number.parseFloat(value) : value;
-  if (typeof number !== 'number' || !Number.isFinite(number)) return fallback;
-
-  return Math.min(max, Math.max(min, number));
-}
-
-export function choice<T extends string>(value: unknown, options: readonly T[], fallback: T): T {
-  return options.includes(value as T) ? (value as T) : fallback;
-}
-
-export function record(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
 
 function layer(value: unknown, animated: boolean): BackdropLayer | undefined {
   const raw = record(value);
@@ -83,7 +70,7 @@ function sky(value: unknown): CustomBackdrop['sky'] {
 
 /**
  * A built-in scene name (kept by themes made from a built-in one), or valid
- * layers with every value clamped; undefined when nothing is left to draw.
+ * layers, art, sprites, and a scene with every value clamped; undefined when nothing is left to draw.
  */
 export function normalizeBackdrop(value: unknown, animated: boolean): BackdropScene | CustomBackdrop | undefined {
   if (BACKDROP_SCENES.includes(value as BackdropScene)) return value as BackdropScene;
@@ -96,8 +83,17 @@ export function normalizeBackdrop(value: unknown, animated: boolean): BackdropSc
     .map((entry) => layer(entry, animated))
     .filter((entry): entry is BackdropLayer => entry !== undefined);
   const base = sky(raw.sky);
+  const art = normalizeArt(raw.art, animated);
+  const sprites = normalizeSprites(raw.sprites, animated);
+  const scene = normalizeScene(raw.scene, animated);
 
-  if (layers.length === 0 && !base) return undefined;
+  if (layers.length === 0 && !base && !art && !sprites && !scene) return undefined;
 
-  return base ? { sky: base, layers } : { layers };
+  return {
+    ...(base ? { sky: base } : {}),
+    layers,
+    ...(art ? { art } : {}),
+    ...(sprites ? { sprites } : {}),
+    ...(scene ? { scene } : {}),
+  };
 }

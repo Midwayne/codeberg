@@ -12,7 +12,7 @@ export interface ThemeRequest {
 
 export const MAX_THEME_PROMPT = 600;
 
-const MAX_BODY_BYTES = 32 * 1024;
+const MAX_BODY_BYTES = 256 * 1024;
 
 export async function readThemeRequest(req: IncomingMessage): Promise<ThemeRequest> {
   const body = await readBody(req, MAX_BODY_BYTES, 'The theme request is too large.');
@@ -32,8 +32,14 @@ export async function readThemeRequest(req: IncomingMessage): Promise<ThemeReque
   };
 }
 
-/* A full theme serializes to a few kilobytes; more is not a theme and would only cost tokens. */
-const MAX_BASE_CHARS = 12_000;
+/*
+ * The largest theme the web UI keeps, as JSON: 7 drawings (4 art, 3 sprites)
+ * of 12,000 characters, whose only escaped characters are the quotes around
+ * attribute values (at most 40% more), a 16,000-character scene that escaping
+ * can at most double, and about 10,000 for everything else: under 160,000.
+ * Anything larger is not a theme and would only cost tokens.
+ */
+const MAX_BASE_CHARS = 160_000;
 
 /** The theme to change: an object of theme size, which goes into the model prompt. */
 function readBase(base: unknown): Record<string, unknown> {

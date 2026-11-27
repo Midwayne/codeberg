@@ -296,7 +296,7 @@ describe('web server', () => {
     });
 
     expect(saved.status).toBe(200);
-    expect((await (await fetch(baseUrl + META_PATH)).json()).title).toContain('large');
+    expect((await (await fetch(baseUrl + META_PATH)).json()).title).toMatch(/^Default: .*large/);
     expect((await send()).status).toBe(200);
     expect(received).toEqual([
       'openai:small:openai:alpha:low:50000:text',

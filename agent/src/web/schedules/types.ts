@@ -20,6 +20,18 @@ export interface ScheduledRun extends ScheduleOwner {
   error?: string;
 }
 
+/**
+ * The selection a scheduled turn runs with. Diagram applies only to the message
+ * it was sent with, so later turns never inherit the canvas tools.
+ */
+export function scheduledSelection(selection: ResolvedModelSelection | undefined): ResolvedModelSelection | undefined {
+  if (!selection?.diagrams) return selection;
+
+  const { diagrams: _diagram, ...rest } = selection;
+
+  return rest;
+}
+
 export function requestId(job: ScheduledRun): string {
   return `${job.id}-${job.occurrence}`;
 }

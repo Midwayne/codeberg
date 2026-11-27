@@ -14,13 +14,17 @@ import { readThemeRequest, themeFromReply, type ThemeRequest } from './request.j
 export const THEME_GENERATE_PATH = '/api/themes/generate';
 
 /*
- * A theme is about 2,000 tokens. Models without reasoning get 4,096, within the
- * smallest output limits. Reasoning models (any that offer effort levels) also
- * think first, possibly by default when no low effort exists, and support far
- * larger outputs, so they get room for that thinking too.
+ * A theme is about 2,000 tokens, and drawn art and particles add a few thousand
+ * more. Models without reasoning get 8,192, within the output limits of current
+ * chat models. Reasoning models (any that offer effort levels) also think
+ * first, possibly by default when no low effort exists, and support far larger
+ * outputs, so they get room for that thinking too.
  */
-const THEME_OUTPUT_TOKENS = 4_096;
-const REASONING_THEME_OUTPUT_TOKENS = 16_000;
+const THEME_OUTPUT_TOKENS = 8_192;
+const REASONING_THEME_OUTPUT_TOKENS = 24_000;
+
+/* Drawing art takes longer than picking colors, so a theme gets four minutes, not the usual two. */
+const THEME_TIMEOUT_MS = 240_000;
 
 export function themeOutputTokens(efforts: readonly ReasoningEffort[] | undefined): number {
   const reasons = efforts?.some((effort) => effort !== 'provider-default') ?? false;
@@ -62,8 +66,9 @@ export function createThemeService(
         system: THEME_SYSTEM_PROMPT,
         prompt: themePrompt(request),
         maxOutputTokens,
-        // Adds a 120-second limit and rejects a reply that stopped early.
+        // Adds a time limit and rejects a reply that stopped early.
         requireComplete: true,
+        completeWithinMs: THEME_TIMEOUT_MS,
         ...(signal ? { abortSignal: signal } : {}),
       });
 

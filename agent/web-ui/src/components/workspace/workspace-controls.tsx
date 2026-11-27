@@ -8,6 +8,7 @@ import { ChatSearch } from './chat-search';
 import { SessionSidebar } from './session-sidebar';
 
 import { deriveTitle } from '../../lib/sessions';
+import { emitSceneEvent } from '../../lib/scene/scene-events';
 
 import { IconButton } from '../ui';
 import { X } from 'lucide-react';
@@ -69,6 +70,7 @@ export function WorkspaceSidebar({
       }}
       onNew={() => {
         startNew();
+        emitSceneEvent('new-chat');
         if (!desktop) onSidebarClose();
       }}
       onBranch={() => {

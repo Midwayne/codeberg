@@ -106,9 +106,10 @@ export async function routeMeta(
   res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(
     JSON.stringify({
+      // Each chat may choose its own model, so this names only the default.
       title:
         settings && selected
-          ? `${formatWebTitle(selected.model, settings.chat.effort)}${selected.key !== selected.model ? ` · ${selected.key.slice(selected.provider.length + 1)}` : ''}`
+          ? `Default: ${formatWebTitle(selected.model, settings.chat.effort)}${selected.key !== selected.model ? ` · ${selected.key.slice(selected.provider.length + 1)}` : ''}`
           : options.title,
       capabilities: { learning: options.learningEnabled },
     }),

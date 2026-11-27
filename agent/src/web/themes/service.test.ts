@@ -99,7 +99,7 @@ describe('theme generation API', () => {
     const response = await post({ prompt: 'thoughtful' });
 
     expect(response.status).toBe(200);
-    expect(model.doGenerateCalls.map((call) => call.maxOutputTokens)).toEqual([4_096, 16_000]);
+    expect(model.doGenerateCalls.map((call) => call.maxOutputTokens)).toEqual([8_192, 24_000]);
   });
 
   it('reports the first, clear failure when the larger retry is rejected', async () => {
@@ -107,7 +107,7 @@ describe('theme generation API', () => {
     const model = new MockLanguageModelV4({
       doGenerate: async () => {
         calls += 1;
-        if (calls === 2) throw new Error('max_tokens: 16000 > 4096');
+        if (calls === 2) throw new Error('max_tokens: 24000 > 8192');
 
         return {
           content: [{ type: 'text', text: '' }],
@@ -139,8 +139,23 @@ describe('theme generation API', () => {
     const { post } = await serve(model);
 
     expect((await post({ prompt: 'warmer', base: 'make it warm' })).status).toBe(400);
-    expect((await post({ prompt: 'warmer', base: { label: 'x'.repeat(20_000) } })).status).toBe(400);
+    expect((await post({ prompt: 'warmer', base: { label: 'x'.repeat(170_000) } })).status).toBe(400);
     expect(model.doGenerateCalls).toHaveLength(0);
+  });
+
+  it('sends the largest theme the web UI keeps on to the model when changing it', async () => {
+    const model = replyModel('{}');
+    const { post } = await serve(model);
+
+    // Seven 12,000-character drawings dense with quoted attributes, and a 16,000-character scene full of quotes.
+    const drawing = `<svg viewBox="0 0 9 9">${'<g a="b"/>'.repeat(1_198)}</svg>`.slice(0, 12_000);
+    const script = 'scene({ s: "x" });'.repeat(888);
+    const art = Array.from({ length: 4 }, () => ({ svg: drawing }));
+    const sprites = Array.from({ length: 3 }, () => ({ svg: drawing }));
+
+    await post({ prompt: 'warmer', base: { label: 'Big', palette: { background: '#000000' }, backdrop: { layers: [], art, sprites, scene: { script } } } });
+
+    expect(model.doGenerateCalls).toHaveLength(1);
   });
 
   it('refuses an empty description before calling the model', async () => {
@@ -174,6 +189,21 @@ describe('theme prompt', () => {
 
     expect(themePrompt({ prompt: 'warmer', animated: true, base: still })).toContain('Motion is on');
     expect(themePrompt({ prompt: 'warmer', animated: true, base: moving })).not.toContain('Motion is on');
+  });
+
+  it('counts a moving scene, swaying art, and drawings that animate inside as motion already on', () => {
+    const swaying = { backdrop: { layers: [], art: [{ svg: '<svg/>', animation: 'sway' }] } };
+    const drawn = { backdrop: { layers: [], sprites: [{ svg: '<svg><animate dur="4s"/></svg>', animation: 'none' }] } };
+    const still = { backdrop: { layers: [], art: [{ svg: '<svg/>', animation: 'none' }] } };
+
+    expect(themePrompt({ prompt: 'warmer', animated: true, base: swaying })).not.toContain('Motion is on');
+    expect(themePrompt({ prompt: 'warmer', animated: true, base: drawn })).not.toContain('Motion is on');
+    expect(themePrompt({ prompt: 'warmer', animated: true, base: still })).toContain('Motion is on');
+
+    const scene = (motion: boolean) => ({ backdrop: { layers: [], scene: { script: 'scene({})', motion } } });
+
+    expect(themePrompt({ prompt: 'warmer', animated: true, base: scene(true) })).not.toContain('Motion is on');
+    expect(themePrompt({ prompt: 'warmer', animated: true, base: scene(false) })).toContain('Motion is on');
   });
 });
 
@@ -210,8 +240,8 @@ describe('theme reasoning effort', () => {
 
   it('gives reasoning models room to think before the theme, and others a small budget', () => {
     expect(themeOutputTokens(['provider-default', 'high'])).toBeGreaterThan(8_000);
-    expect(themeOutputTokens(['provider-default'])).toBe(4_096);
-    expect(themeOutputTokens(undefined)).toBe(4_096);
+    expect(themeOutputTokens(['provider-default'])).toBe(8_192);
+    expect(themeOutputTokens(undefined)).toBe(8_192);
   });
 });
 

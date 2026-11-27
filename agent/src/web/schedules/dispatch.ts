@@ -1,7 +1,7 @@
 import type { SearchRuns } from '../runs/manager.js';
 import { scheduledFollowUpMessage } from '../../core/schedules/messages.js';
 import { RunError, type SearchRun } from '../runs/types.js';
-import { requestId, type ScheduledRun } from './types.js';
+import { requestId, scheduledSelection, type ScheduledRun } from './types.js';
 import { BackgroundError } from '../background/store.js';
 
 export async function readyPrompt(runs: SearchRuns, job: ScheduledRun, now: number): Promise<string | undefined> {
@@ -27,7 +27,8 @@ export async function admitScheduled(runs: SearchRuns, job: ScheduledRun, prompt
   }
 
   try {
-    const run = await runs.admit({ chatId: job.chatId, requestId: requestId(job), selection: job.selection,
+    // Schedules saved before diagrams were dropped from them may still carry the flag.
+    const run = await runs.admit({ chatId: job.chatId, requestId: requestId(job), selection: scheduledSelection(job.selection),
       messages: [...session.messages, scheduledFollowUpMessage(requestId(job), job.id, prompt)] });
     job.lastRunId = run.record.id;
   } catch (error) {

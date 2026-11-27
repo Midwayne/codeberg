@@ -221,6 +221,19 @@ it('preserves the selected model and stops recurring schedules after a failed tu
   expect((await f.scheduler.list('chat'))[0]).toMatchObject({ status: 'failed', error: expect.stringContaining('Provider unavailable') });
 });
 
+it('keeps the model but not the canvas when a turn sent with Diagram on schedules follow-ups', async () => {
+  const f = await fixture(async () => { throw new Error('Only the selection matters here'); });
+  const selection = { key: 'test:model', model: 'test:model', effort: 'provider-default' as const, contextWindow: 8192 };
+  const job = await f.scheduler.create({ ...f.context, selection: { ...selection, diagrams: true } }, { prompt: 'Check the deploy', delay_seconds: 1, every_seconds: 3600 });
+
+  expect((await f.scheduler.list('chat'))[0]!.selection).toEqual(selection);
+
+  await f.scheduler.tick(job.dueAt!);
+  await (await f.runs.find('chat'))!.done;
+
+  expect(f.generator.mock.calls[0]![0].selection).toEqual(selection);
+});
+
 it('allows generation to schedule and cancel follow-ups through tools without locking the worker', async () => {
   let first = true;
   const f = await fixture(async () => {

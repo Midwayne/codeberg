@@ -17,7 +17,7 @@ export function fromAiSdk(
         system: p.system,
         prompt: p.prompt,
         ...(p.abortSignal ? { abortSignal: p.abortSignal } : {}),
-        ...(p.requireComplete ? { timeout: { totalMs: 120_000 } } : {}),
+        ...(p.requireComplete ? { timeout: { totalMs: p.completeWithinMs ?? 120_000 } } : {}),
         ...(p.maxOutputTokens !== undefined ? { maxOutputTokens: p.maxOutputTokens } : {}),
         ...reasoningCallOptions(specProvider(modelSpec), effort),
       });

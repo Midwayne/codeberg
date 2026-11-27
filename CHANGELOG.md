@@ -18,6 +18,9 @@ are in the git history.
 - Animated theme backdrops behind the header, sidebar, and chat; turn them off in **Settings → Appearance**.
 - Themes can restyle the header, sidebar, composer, message bubbles, code blocks, fonts, and text size.
 - Create or edit a theme by describing it; your chat model designs it.
+- Generated themes can include art and particles your chat model draws, such as blossom branches along the edges and drifting petals.
+- Generated themes can include an animated scene your chat model programs, such as swimming koi or a neon grid, with effects like fireworks when a reply finishes.
+- New Watercolor, Koi Pond, and Neon Horizon themes, with scenes that react when you send a message or a reply finishes.
 
 ### Changed
 
@@ -29,6 +32,12 @@ are in the git history.
 - Tool results from the task the agent is working on now stay in its context longer; results from earlier turns are cleared first.
 - Subagent briefs now state a clear goal and, when the method is known, specific numbered steps.
 - The agent now decides how many subagents to start, up to 64 per request and 64 running at once in a chat (was 8).
+
+### Fixed
+
+- Scheduled and repeating runs no longer draw diagrams because the message that scheduled them had **Diagram** on.
+- A search pattern the agent gives its working list can no longer freeze Codeberg.
+- Generated theme art that would freeze the page when drawn is refused.
 
 ### Removed
 

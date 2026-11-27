@@ -1,4 +1,5 @@
 import { exceedsRegexGroupDepth } from '../context/grep-regex.js';
+import { matchWithin } from './regex.js';
 import { MAX_WORKLIST_ENTRIES, WorklistError, type WorklistData, type WorklistEntry } from './types.js';
 
 export const DEFAULT_READ_LIMIT = 100;
@@ -31,10 +32,11 @@ export function queryWorklist(data: WorklistData, input: ReadInput = {}): ReadRe
   const tag = input.tag?.trim().toLowerCase();
   const limit = readLimit(input.limit);
 
-  const matched = data.entries.filter((entry) =>
+  const candidates = data.entries.filter((entry) =>
     (input.include_retired === true || !entry.retired) &&
-    (!tag || entry.tags?.includes(tag) === true) &&
-    matches(searchable(entry)));
+    (!tag || entry.tags?.includes(tag) === true));
+  const hits = matches(candidates.map(searchable));
+  const matched = candidates.filter((_, index) => hits[index]);
 
   const retired = data.entries.filter((entry) => entry.retired).length;
   const entries = matched.slice(-limit);
@@ -48,15 +50,16 @@ export function queryWorklist(data: WorklistData, input: ReadInput = {}): ReadRe
   };
 }
 
-function matcher(input: ReadInput): (text: string) => boolean {
+/* Whether each text matches the pattern; a regular expression runs under a time limit. */
+function matcher(input: ReadInput): (texts: string[]) => boolean[] {
   const pattern = input.pattern ?? '';
-  if (!pattern) return () => true;
+  if (!pattern) return (texts) => texts.map(() => true);
   if (pattern.length > MAX_PATTERN_CHARS) throw new WorklistError(`Keep pattern under ${MAX_PATTERN_CHARS} characters.`);
 
   if (input.regex !== true) {
     const needle = pattern.toLowerCase();
 
-    return (text) => text.toLowerCase().includes(needle);
+    return (texts) => texts.map((text) => text.toLowerCase().includes(needle));
   }
 
   if (exceedsRegexGroupDepth(pattern)) throw new WorklistError('The regular expression nests too many groups.');
@@ -68,7 +71,7 @@ function matcher(input: ReadInput): (text: string) => boolean {
     throw new WorklistError(`Invalid regular expression: ${(error as Error).message}`);
   }
 
-  return (text) => regex.test(text);
+  return (texts) => matchWithin(regex, texts);
 }
 
 function searchable(entry: WorklistEntry): string {
