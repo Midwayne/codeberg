@@ -8,11 +8,18 @@ import {
   type CustomTheme,
   type CustomThemeId,
   type Palette,
+  type Theme,
 } from './theme-types';
 
 export class ThemeShapeError extends Error {}
 
-type NormalizeOptions = { id: CustomThemeId; prompt: string; animated: boolean };
+type NormalizeOptions = {
+  id: CustomThemeId;
+  prompt: string;
+  animated: boolean;
+  /** The backdrop a reply of `"backdrop": "keep"` keeps, when changing a theme. */
+  keep?: Theme['backdrop'];
+};
 
 /**
  * Turns a model-designed (or stored) theme into one the app can apply safely:
@@ -22,7 +29,7 @@ export function normalizeTheme(value: unknown, options: NormalizeOptions): Custo
   const raw = (typeof value === 'object' && value !== null ? value : {}) as Record<string, unknown>;
   const palette = normalizePalette(raw.palette);
   const dark = luminance(palette.background) < 0.18;
-  const backdrop = normalizeBackdrop(raw.backdrop, options.animated);
+  const backdrop = raw.backdrop === 'keep' ? options.keep : normalizeBackdrop(raw.backdrop, options.animated);
   const parts = normalizeParts(raw.parts, palette);
 
   return {

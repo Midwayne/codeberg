@@ -1,5 +1,5 @@
 import { hexColor } from './color';
-import { LAYER_ANIMATIONS, LAYER_KINDS, type BackdropLayer, type CustomBackdrop } from './theme-types';
+import { BACKDROP_SCENES, LAYER_ANIMATIONS, LAYER_KINDS, type BackdropLayer, type BackdropScene, type CustomBackdrop } from './theme-types';
 
 export const MAX_BACKDROP_LAYERS = 6;
 
@@ -47,15 +47,21 @@ function layer(value: unknown, animated: boolean): BackdropLayer | undefined {
   };
 }
 
+/* Loops that travel one pattern tile; they suit patterns, not soft lights. */
+const TILE_LOOPS = new Set<BackdropLayer['animation']>(['pan', 'fall', 'rise']);
+
 /*
  * A shooting star only streaks (`shoot`) or stays still; any other motion would
  * replace its rotation. `shoot` hides a layer between streaks, so it is for
- * shooting stars only: elsewhere it would leave a pattern invisible.
+ * shooting stars only. Glows and bands have no tile to loop over, so they drift
+ * or pulse instead of panning, falling, or rising.
  */
 function fitAnimation(kind: BackdropLayer['kind'], animation: BackdropLayer['animation']): BackdropLayer['animation'] {
   if (kind === 'meteor') return animation === 'shoot' ? 'shoot' : 'none';
 
-  return animation === 'shoot' ? 'none' : animation;
+  if (animation === 'shoot') return 'none';
+
+  return (kind === 'glow' || kind === 'band') && TILE_LOOPS.has(animation) ? 'drift' : animation;
 }
 
 function sky(value: unknown): CustomBackdrop['sky'] {
@@ -66,8 +72,13 @@ function sky(value: unknown): CustomBackdrop['sky'] {
   return from && to ? { from, to, angle: clamp(raw?.angle, 0, 360, 180) } : undefined;
 }
 
-/** Keeps only valid layers, with every value clamped; undefined when nothing is left to draw. */
-export function normalizeBackdrop(value: unknown, animated: boolean): CustomBackdrop | undefined {
+/**
+ * A built-in scene name (kept by themes made from a built-in one), or valid
+ * layers with every value clamped; undefined when nothing is left to draw.
+ */
+export function normalizeBackdrop(value: unknown, animated: boolean): BackdropScene | CustomBackdrop | undefined {
+  if (BACKDROP_SCENES.includes(value as BackdropScene)) return value as BackdropScene;
+
   const raw = record(value);
   if (!raw) return undefined;
 

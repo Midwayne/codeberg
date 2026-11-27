@@ -14,7 +14,8 @@ function part(name: ThemePart, value: unknown): PartStyle | undefined {
   const text = hexColor(raw.text);
   const border = hexColor(raw.border);
 
-  if (background) style.background = background;
+  // Glass sets how see-through a part is, so a background's own alpha is dropped.
+  if (background) style.background = opaque(background);
   if (text) style.text = text;
   if (border) style.border = border;
   if (raw.glass !== undefined) style.glass = clamp(raw.glass, 0.5, 1, 0.8);

@@ -99,5 +99,22 @@ describe('generated theme validation', () => {
 
     expect(dark.parts?.code).toEqual({ border: '#333333', radius: 0.25 });
   });
-});
 
+  it('turns tile loops on soft lights into drift, drops part background alpha, and keeps built-in scene names', () => {
+    const theme = normalizeTheme({
+      palette: { background: '#000000' },
+      backdrop: { layers: [{ kind: 'glow', color: '#ffffff', animation: 'rise' }] },
+      parts: { composer: { background: '#ffffff20' } },
+    }, options);
+
+    expect(typeof theme.backdrop === 'object' && theme.backdrop.layers[0]!.animation).toBe('drift');
+    expect(theme.parts?.composer?.background).toBe('#ffffff');
+    expect(normalizeTheme({ palette: { background: '#000000' }, backdrop: 'paper' }, options).backdrop).toBe('paper');
+  });
+
+  it('keeps the base backdrop exactly when the reply asks to keep it', () => {
+    const keep = { layers: [{ kind: 'rain' as const, color: '#ffffff', opacity: 0.3, x: 0, y: 0, size: 60, angle: 0, animation: 'fall' as const, duration: 0.7 }] };
+
+    expect(normalizeTheme({ palette: { background: '#000000' }, backdrop: 'keep' }, { ...options, keep }).backdrop).toBe(keep);
+  });
+});

@@ -35,11 +35,15 @@ function latest(): CustomTheme[] {
   return cache;
 }
 
-/** Adds a theme, or replaces the one with the same id, keeping the newest twelve. */
+/** Replaces the theme with the same id in place, or adds a new one first, keeping twelve. */
 export function saveCustomTheme(theme: CustomTheme): void {
-  const others = latest().filter((entry) => entry.id !== theme.id);
+  const themes = latest();
 
-  write([theme, ...others].slice(0, MAX_CUSTOM_THEMES));
+  if (themes.some((entry) => entry.id === theme.id)) {
+    return write(themes.map((entry) => (entry.id === theme.id ? theme : entry)));
+  }
+
+  write([theme, ...themes].slice(0, MAX_CUSTOM_THEMES));
 }
 
 export function removeCustomTheme(id: CustomThemeId): void {

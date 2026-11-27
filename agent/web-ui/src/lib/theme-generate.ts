@@ -27,7 +27,7 @@ export function themeForPrompt(theme: Theme) {
     radius: Number.parseFloat(theme.radius ?? '0.625'),
     transition: theme.transition ?? 'reveal',
     palette: theme.palette,
-    backdrop: typeof theme.backdrop === 'object' ? theme.backdrop : null,
+    backdrop: typeof theme.backdrop === 'string' ? `built-in ${theme.backdrop} scene` : theme.backdrop ?? null,
     parts: theme.parts ?? null,
   };
 }
@@ -47,5 +47,17 @@ export async function generateTheme(
   const response = await fetcher(THEME_GENERATE_PATH, jsonInit('POST', body, signal ? { signal } : {}));
   const { theme } = await readJson<{ theme: unknown }>(response, 'Could not create a theme.');
 
-  return normalizeTheme(theme, { id: request.id ?? newCustomThemeId(), prompt: request.prompt, animated: request.animated });
+  return normalizeTheme(theme, {
+    id: request.id ?? newCustomThemeId(),
+    prompt: originalPrompt(request),
+    animated: request.animated,
+    keep: request.base?.backdrop,
+  });
+}
+
+/* An edit keeps the description the theme was created from; the change is not a new one. */
+function originalPrompt(request: ThemeRequest): string {
+  const base = request.base as Partial<CustomTheme> | undefined;
+
+  return request.id && typeof base?.prompt === 'string' && base.prompt ? base.prompt : request.prompt;
 }

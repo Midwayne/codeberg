@@ -10,6 +10,9 @@ export function useThemeRequest() {
   useEffect(() => () => request.current?.abort(), []);
 
   async function run(task: (signal: AbortSignal) => Promise<void>) {
+    // A ref, not `pending`: two quick submits can both see the old render's state.
+    if (request.current) return;
+
     const abort = new AbortController();
     request.current = abort;
     setPending(true);

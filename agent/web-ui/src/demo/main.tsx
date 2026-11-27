@@ -17,7 +17,8 @@ import './style.css';
 const delay = Number(new URL(location.href).searchParams.get('delay') ?? 1500);
 installDemoApi(Number.isFinite(delay) ? Math.max(0, Math.min(5000, delay)) : 1500);
 applyTheme(loadTheme());
-import.meta.hot?.dispose(trackThemeOrigin());
+const stopThemeOrigin = trackThemeOrigin();
+import.meta.hot?.dispose(stopThemeOrigin);
 import.meta.hot?.dispose(trackMotionInput());
 
 function Demo() {

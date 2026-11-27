@@ -43,7 +43,9 @@ export interface PartStyle {
 }
 
 /** Built-in scenes drawn by backdrop.css. */
-export type BackdropScene = 'halo' | 'dusk' | 'paper' | 'scanlines';
+export const BACKDROP_SCENES = ['halo', 'dusk', 'paper', 'scanlines'] as const;
+
+export type BackdropScene = (typeof BACKDROP_SCENES)[number];
 
 /** How the app changes into a theme. */
 export const THEME_TRANSITIONS = ['reveal', 'fade', 'wipe', 'blur'] as const;

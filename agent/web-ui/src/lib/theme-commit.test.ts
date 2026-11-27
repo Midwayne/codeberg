@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { customThemes, removeCustomTheme, resetCustomThemeCache, saveCustomTheme } from './custom-themes';
 import { commitTheme, restoreTheme } from './theme-commit';
 import { normalizeTheme } from './theme-normalize';
+import { activeThemeId, applyTheme } from './themes';
 
 const theme = (label: string) =>
   normalizeTheme({ label, palette: { background: '#101010' } }, { id: 'custom-a', prompt: 'x', animated: true });
@@ -40,5 +41,13 @@ describe('committing a generated theme', () => {
     expect(restoreTheme(theme('Before'))).toBe(false);
     expect(customThemes()).toEqual([]);
   });
-});
 
+  it('restores the earlier version without switching back when another theme is in use', () => {
+    saveCustomTheme(theme('After'));
+    applyTheme('graphite');
+
+    expect(restoreTheme(theme('Before'))).toBe(true);
+    expect(customThemes()[0]!.label).toBe('Before');
+    expect(activeThemeId()).toBe('graphite');
+  });
+});

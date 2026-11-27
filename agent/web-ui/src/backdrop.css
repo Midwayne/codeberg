@@ -154,6 +154,13 @@
   pointer-events: none;
 }
 
+/* Sideways motion would slide a pattern's edge into view, so the layer is oversized. */
+.backdrop-layer[data-animation='drift'],
+.backdrop-layer[data-animation='float'] {
+  inset: -10%;
+}
+
+/* Soft lights are larger still, so their fade-out edge never shows. */
 .backdrop-layer[data-kind='glow'],
 .backdrop-layer[data-kind='band'] {
   inset: -20%;

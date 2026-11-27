@@ -39,4 +39,16 @@ describe('theme generation request', () => {
 
     await expect(generateTheme(fetcher, { prompt: 'x', animated: true })).rejects.toThrow('Choose a chat model first.');
   });
+
+  it('keeps the original description and a built-in scene when changing a theme', async () => {
+    const fetcher = reply({ label: 'Darker', palette: { background: '#1a1a1a' }, backdrop: 'keep' });
+    const base = { ...findTheme('parchment'), id: 'custom-paper' as const, prompt: 'old paper' };
+
+    const changed = await generateTheme(fetcher, { prompt: 'darker ink', animated: true, base, id: 'custom-paper' });
+    const body = JSON.parse(String(fetcher.mock.calls[0]![1]?.body));
+
+    expect(body.base.backdrop).toBe('built-in paper scene');
+    expect(changed.backdrop).toBe('paper');
+    expect(changed.prompt).toBe('old paper');
+  });
 });

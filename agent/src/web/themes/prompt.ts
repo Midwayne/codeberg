@@ -76,7 +76,8 @@ export function themePrompt(request: ThemeRequest): string {
 
   if (request.base !== undefined) {
     parts.push(
-      'Change this existing theme as the request asks, keeping what it does not mention:',
+      'Change this existing theme as the request asks, keeping what it does not mention.',
+      'If the request does not change the backdrop, reply with "backdrop": "keep" to keep it exactly as it is.',
       JSON.stringify(request.base),
     );
   }

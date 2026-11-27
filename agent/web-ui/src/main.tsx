@@ -14,7 +14,8 @@ import '@/backdrop.css';
 import '@/theme-transition.css';
 
 applyTheme(loadTheme());
-import.meta.hot?.dispose(trackThemeOrigin());
+const stopThemeOrigin = trackThemeOrigin();
+import.meta.hot?.dispose(stopThemeOrigin);
 
 const stopMotionInput = trackMotionInput();
 import.meta.hot?.dispose(stopMotionInput);

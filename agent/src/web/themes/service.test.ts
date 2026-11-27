@@ -104,11 +104,13 @@ describe('theme prompt', () => {
 
     expect(fresh).not.toContain('"none"');
     expect(fresh).not.toContain('existing theme');
+    expect(fresh).not.toContain('"keep"');
 
     const edit = themePrompt({ prompt: 'warmer', animated: false, base: { label: 'Forest' } });
 
     expect(edit).toContain('"none"');
     expect(edit).toContain('{"label":"Forest"}');
+    expect(edit).toContain('"backdrop": "keep"');
   });
 });
 

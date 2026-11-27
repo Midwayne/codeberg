@@ -108,5 +108,12 @@ describe('saved custom themes', () => {
     expect(reapply).toHaveBeenCalledTimes(1);
     expect(customThemes()).toEqual([]);
   });
-});
 
+  it('keeps an edited theme in its place in the list', () => {
+    saveCustomTheme(theme('custom-a'));
+    saveCustomTheme(theme('custom-b'));
+    saveCustomTheme({ ...theme('custom-a'), label: 'Edited' });
+
+    expect(customThemes().map((entry) => entry.label)).toEqual(['custom-b', 'Edited']);
+  });
+});
