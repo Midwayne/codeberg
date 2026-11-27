@@ -37,7 +37,7 @@ function layer(value: unknown, animated: boolean): BackdropLayer | undefined {
   return {
     kind,
     color,
-    opacity: clamp(raw.opacity, 0, 1, LAYER_DEFAULTS.opacity),
+    opacity: clamp(raw.opacity, 0, kind === 'glow' || kind === 'band' ? 0.5 : 1, LAYER_DEFAULTS.opacity),
     x: clamp(raw.x, 0, 100, LAYER_DEFAULTS.x),
     y: clamp(raw.y, 0, 100, LAYER_DEFAULTS.y),
     size: clamp(raw.size, 5, 150, LAYER_DEFAULTS.size),

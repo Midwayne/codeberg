@@ -35,7 +35,22 @@ function latest(): CustomTheme[] {
   return cache;
 }
 
-/** Replaces the theme with the same id in place, or adds a new one first, keeping twelve. */
+export class ThemeLimitError extends Error {
+  constructor() {
+    super(`You have ${MAX_CUSTOM_THEMES} themes. Delete one to create another.`);
+  }
+}
+
+/** Whether a new theme fits; edits always do. Checked before paying for a design. */
+export function hasRoomForTheme(): boolean {
+  return customThemes().length < MAX_CUSTOM_THEMES;
+}
+
+/**
+ * Replaces the theme with the same id in place, or adds a new one first. A new
+ * theme past the limit is refused rather than deleting an older one, which may
+ * be in use or being edited (possibly in another tab).
+ */
 export function saveCustomTheme(theme: CustomTheme): void {
   const themes = latest();
 
@@ -43,7 +58,9 @@ export function saveCustomTheme(theme: CustomTheme): void {
     return write(themes.map((entry) => (entry.id === theme.id ? theme : entry)));
   }
 
-  write([theme, ...themes].slice(0, MAX_CUSTOM_THEMES));
+  if (themes.length >= MAX_CUSTOM_THEMES) throw new ThemeLimitError();
+
+  write([theme, ...themes]);
 }
 
 export function removeCustomTheme(id: CustomThemeId): void {

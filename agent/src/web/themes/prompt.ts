@@ -34,7 +34,7 @@ Shape:
     "layers": [ at most 6 of {
       "kind": "glow" | "band" | "stars" | "flakes" | "rain" | "orbs" | "meteor" | "dots" | "grid" | "lines" | "noise",
       "color": color,
-      "opacity": 0-0.5,
+      "opacity": 0-1 (glow and band at most 0.5),
       "x": 0-100, "y": 0-100,
       "size": 5-150,
       "angle": 0-360,
@@ -52,7 +52,8 @@ Rules:
 - parts restyle one area on its own: header is the top bar, sidebar the chat list, composer the message box,
   bubble the user's messages, code the code blocks. Leave a part out to follow the palette; only set what
   the request asks for or what gives the theme character.
-- The backdrop sits behind the chat text, so keep it dim: layer opacity mostly 0.05-0.25.
+- The backdrop sits behind the chat text, so keep it dim: glows and bands mostly 0.05-0.25; small
+  particles such as stars or snow may be brighter.
 - Messages and the composer sit in a center column. The app fades every layer to a fifth of its strength
   inside that column and shows it fully in the side margins, so design for the edges: place glows, bands,
   and meteors near the sides, corners, or top (x below 20 or above 80, or y below 15), never as a bright

@@ -154,7 +154,7 @@ Describe a look and your chat model designs a theme: colors, fonts, corner shape
 
 Each theme uses a few thousand tokens on your chat model and is recorded in **Usage**. **Cancel** stops a request that is still running.
 
-Codeberg checks every generated theme before using it: text and button labels are made readable, and anything it cannot use is replaced with a default. Generated backdrops get the same quiet area behind messages as built-in ones. Up to 12 themes are kept in this browser; delete one with its trash button. Generated themes are not shared between browsers.
+Codeberg checks every generated theme before using it: text and button labels are made readable, and anything it cannot use is replaced with a default. Generated backdrops get the same quiet area behind messages as built-in ones. You can save up to 12 themes in this browser; delete one with its trash button to make room for another. Generated themes are not shared between browsers.
 
 If creation fails, check the chat model under **Models** and try again, or reword the description.
 

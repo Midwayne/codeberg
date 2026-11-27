@@ -28,8 +28,20 @@ export async function readThemeRequest(req: IncomingMessage): Promise<ThemeReque
   return {
     prompt,
     animated: value.animated !== false,
-    ...(value.base !== undefined && value.base !== null ? { base: value.base } : {}),
+    ...(value.base !== undefined && value.base !== null ? { base: readBase(value.base) } : {}),
   };
+}
+
+/* A full theme serializes to a few kilobytes; more is not a theme and would only cost tokens. */
+const MAX_BASE_CHARS = 12_000;
+
+/** The theme to change: an object of theme size, which goes into the model prompt. */
+function readBase(base: unknown): Record<string, unknown> {
+  if (!isObject(base)) throw new HttpError(400, 'Send the theme to change as an object.');
+
+  if (JSON.stringify(base).length > MAX_BASE_CHARS) throw new HttpError(400, 'The theme to change is too large.');
+
+  return base;
 }
 
 /**

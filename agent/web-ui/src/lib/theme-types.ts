@@ -60,7 +60,7 @@ export const LAYER_ANIMATIONS = ['none', 'drift', 'float', 'pulse', 'twinkle', '
 export interface BackdropLayer {
   kind: (typeof LAYER_KINDS)[number];
   color: string;
-  /** 0 to 0.5. */
+  /** 0 to 1; glows and bands, which sit behind text as broad light, at most 0.5. */
   opacity: number;
   /** Position in percent, 0 to 100. */
   x: number;

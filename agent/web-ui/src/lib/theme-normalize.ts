@@ -79,7 +79,7 @@ function normalizePalette(value: unknown): Palette {
     raised,
     popover,
     ...readableText(raw, surfaces),
-    ...actionColors(raw, base),
+    ...actionColors(raw, surfaces),
     border: hexColor(raw.border) ?? `${readableOn(base)}1f`,
   };
 }
@@ -97,7 +97,9 @@ function readableText(raw: Record<string, unknown>, surfaces: string[]) {
   };
 }
 
-function actionColors(raw: Record<string, unknown>, background: string) {
+/* Buttons, and links and focus rings that read on every surface, not only the page. */
+function actionColors(raw: Record<string, unknown>, surfaces: string[]) {
+  const background = surfaces[0]!;
   const primary = opaque(hexColor(raw.primary) ?? readableOn(background));
   const destructive = opaque(hexColor(raw.destructive) ?? '#e5484d');
 
@@ -106,8 +108,8 @@ function actionColors(raw: Record<string, unknown>, background: string) {
     primaryForeground: labelOn(primary, hexColor(raw.primaryForeground)),
     destructive,
     destructiveForeground: readableOn(destructive),
-    ring: ensureContrast(primary, [background], 3, readableOn(background)),
-    link: ensureContrast(opaque(hexColor(raw.link) ?? primary), [background], 4.5, readableOn(background)),
+    ring: ensureContrast(primary, surfaces, 3, readableOn(background)),
+    link: ensureContrast(opaque(hexColor(raw.link) ?? primary), surfaces, 4.5, readableOn(background)),
   };
 }
 

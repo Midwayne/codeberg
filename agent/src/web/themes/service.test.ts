@@ -88,6 +88,15 @@ describe('theme generation API', () => {
     expect(await response.text()).toContain('stopped before finishing');
   });
 
+  it('refuses a theme to change that is not a theme-sized object, before calling the model', async () => {
+    const model = replyModel('{}');
+    const { post } = await serve(model);
+
+    expect((await post({ prompt: 'warmer', base: 'make it warm' })).status).toBe(400);
+    expect((await post({ prompt: 'warmer', base: { label: 'x'.repeat(20_000) } })).status).toBe(400);
+    expect(model.doGenerateCalls).toHaveLength(0);
+  });
+
   it('refuses an empty description before calling the model', async () => {
     const model = replyModel('{}');
     const { post } = await serve(model);

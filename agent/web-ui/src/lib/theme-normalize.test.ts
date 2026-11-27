@@ -53,7 +53,7 @@ describe('generated theme validation', () => {
 
     expect(animated).toMatchObject({ layers: expect.any(Array) });
     expect(typeof animated === 'object' && animated.layers).toHaveLength(5);
-    expect(typeof animated === 'object' && animated.layers[0]).toMatchObject({ opacity: 1, size: 150, duration: 1, animation: 'drift' });
+    expect(typeof animated === 'object' && animated.layers[0]).toMatchObject({ opacity: 0.5, size: 150, duration: 1, animation: 'drift' });
     expect(typeof still === 'object' && still.layers.every((layer) => layer.animation === 'none')).toBe(true);
   });
 
@@ -129,4 +129,15 @@ describe('generated theme validation', () => {
 
     expect(grey.colorScheme).toBe(grey.palette.foreground === '#ffffff' ? 'dark' : 'light');
   });
+
+  it('keeps links readable on every surface and caps broad light at half strength', () => {
+    const theme = normalizeTheme({
+      palette: { background: '#101010', raised: '#3a6df0', link: '#4a7dff' },
+      backdrop: { layers: [{ kind: 'glow', color: '#ffffff', opacity: 1 }, { kind: 'stars', color: '#ffffff', opacity: 1 }] },
+    }, options);
+
+    for (const surface of ['#101010', '#3a6df0']) expect(contrast(theme.palette.link!, surface)).toBeGreaterThanOrEqual(4.5);
+    expect(typeof theme.backdrop === 'object' && theme.backdrop.layers.map((layer) => layer.opacity)).toEqual([0.5, 1]);
+  });
 });
+

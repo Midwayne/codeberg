@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
+import { hasRoomForTheme, ThemeLimitError } from '../lib/custom-themes';
 import { commitTheme, restoreTheme } from '../lib/theme-commit';
 import { activeThemeId } from '../lib/themes';
 import { useProjectApi } from '../lib/project-api';
@@ -30,6 +31,8 @@ export function useThemeStudio(selected: Theme, editing?: CustomTheme) {
     const text = prompt.trim();
     if (!text || pending) return;
 
+    if (!editing && !hasRoomForTheme()) return setError(new ThemeLimitError().message);
+
     const activeAtStart = activeThemeId();
 
     await run(async (signal) => {
@@ -37,7 +40,8 @@ export function useThemeStudio(selected: Theme, editing?: CustomTheme) {
       const theme = await editRequest(editing?.id, () =>
         generateTheme(fetch, { prompt: text, animated, base, id: editing?.id }, signal));
 
-      if (!commitTheme(theme, { editing, activeAtStart })) return;
+      // Cancelled after the reply was read: the user moved on, so nothing is saved.
+      if (signal.aborted || !commitTheme(theme, { editing, activeAtStart })) return;
 
       setPrevious(editing);
       setPrompt('');

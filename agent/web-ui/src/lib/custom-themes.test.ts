@@ -9,6 +9,8 @@ import {
   saveCustomTheme,
   subscribeCustomThemes,
   subscribeOtherTabThemes,
+  hasRoomForTheme,
+  ThemeLimitError,
 } from './custom-themes';
 import { normalizeTheme } from './theme-normalize';
 import { findTheme } from './themes';
@@ -47,13 +49,17 @@ describe('saved custom themes', () => {
     expect(findTheme('custom-a').id).toBe('graphite');
   });
 
-  it('keeps the newest twelve and restores them after a reload', () => {
-    for (let index = 0; index < MAX_CUSTOM_THEMES + 2; index += 1) saveCustomTheme(theme(`custom-${index}`));
+  it('refuses a new theme past the limit instead of deleting one, still allows edits, and restores after reload', () => {
+    for (let index = 0; index < MAX_CUSTOM_THEMES; index += 1) saveCustomTheme(theme(`custom-${index}`));
+
+    expect(hasRoomForTheme()).toBe(false);
+    expect(() => saveCustomTheme(theme('custom-extra'))).toThrow(ThemeLimitError);
+    expect(() => saveCustomTheme({ ...theme('custom-0'), label: 'Edited' })).not.toThrow();
 
     resetCustomThemeCache();
 
     expect(customThemes()).toHaveLength(MAX_CUSTOM_THEMES);
-    expect(customThemes()[0]!.id).toBe(`custom-${MAX_CUSTOM_THEMES + 1}`);
+    expect(customThemes().find((entry) => entry.id === 'custom-0')?.label).toBe('Edited');
   });
 
   it('skips stored entries that no longer validate', () => {

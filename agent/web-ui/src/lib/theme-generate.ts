@@ -17,7 +17,7 @@ export type ThemeRequest = {
   id?: CustomThemeId;
 };
 
-/** The parts of a theme the model can change; built-in scene names are left out. */
+/** The parts of a theme the model can change, including a built-in scene name as its backdrop. */
 export function themeForPrompt(theme: Theme) {
   return {
     label: theme.label,

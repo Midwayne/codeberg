@@ -111,7 +111,7 @@ unavailable, switching still works for the current page.
 the current chat model for a theme as JSON. The web UI validates every field
 before use (`lib/theme-normalize.ts`): unknown fields are dropped, numbers are
 clamped, and text is moved to 4.5:1 contrast. Generated themes are kept under
-`codeberg.custom-themes` (up to 12) and can be edited in place with undo.
+`codeberg.custom-themes` (at most 12; a 13th is refused, never evicting one) and can be edited in place with undo.
 
 A theme sets the palette (including `link`), heading, body, and code fonts,
 text scale, corner radius, transition, a backdrop, and per-part styles for the
