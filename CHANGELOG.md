@@ -36,6 +36,8 @@ are in the git history.
 
 ### Fixed
 
+- Chats no longer risk a server crash from a search log left open after a run ends.
+- Automatic evaluations no longer fail when semantic search is off (`--no-vector`); they answer without retrieved passages.
 - Scheduled and repeating runs no longer draw diagrams because the message that scheduled them had **Diagram** on.
 - A search pattern the agent gives its working list can no longer freeze Codeberg.
 - Generated theme art that would freeze the page when drawn is refused.

@@ -17,6 +17,9 @@ export class RunJournal {
   private flushing: Promise<void> | undefined;
   private file: FileHandle | undefined;
   private bytes = 0;
+  // After close(), appends still land but never keep a handle open: nothing
+  // would close it again, and Node errors on handles closed by GC.
+  private closed = false;
 
   constructor(readonly directory: string) {}
 
@@ -35,9 +38,10 @@ export class RunJournal {
     await rm(this.directory, { recursive: true, force: true });
   }
 
-  /** Finishes pending appends and releases the events file; a later append reopens it. */
+  /** Finishes pending appends and releases the events file; a later append writes and closes it again. */
   async close(): Promise<void> {
-    await this.flushing;
+    this.closed = true;
+    while (this.flushing) await this.flushing;
 
     const file = this.file;
     this.file = undefined;
@@ -85,6 +89,7 @@ export class RunJournal {
       this.file ??= await open(join(this.directory, 'events.jsonl'), 'a', 0o600);
       await this.file.writeFile(batch.map((entry) => entry.line).join(''));
       await this.file.sync();
+      if (this.closed) await this.release();
     } catch (error) {
       await this.file?.close().catch(() => undefined);
       this.file = undefined;
@@ -97,6 +102,12 @@ export class RunJournal {
       this.bytes += entry.bytes;
       entry.resolve();
     }
+  }
+
+  private async release(): Promise<void> {
+    const file = this.file;
+    this.file = undefined;
+    await file?.close();
   }
 
   async read(): Promise<{ record: RunRecord; entries: JournalEntry[] } | undefined> {

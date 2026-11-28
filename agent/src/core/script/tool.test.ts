@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -168,7 +168,8 @@ describe.skipIf(!hasPython)('run_script', () => {
     const lines = readFileSync(file, 'utf8').split('\n');
 
     expect(result).not.toHaveProperty('output');
-    expect(store.resolve(file)).toBe(file);
+    // tmpdir() can be a symlink (macOS /var -> /private/var); compare real paths.
+    expect(store.resolve(file)).toBe(realpathSync(file));
     expect(file).toContain(join('scripts', 'run_script-'));
     expect(lines).toHaveLength(20_001);
     expect(lines[19_999]).toBe('n19999.ts');
