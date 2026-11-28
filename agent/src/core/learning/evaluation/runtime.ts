@@ -24,10 +24,7 @@ export function createAutomaticEvaluationRuntime(
     configuration: options.configuration,
     candidate: async (question, configuration) => {
       const started = Date.now();
-      const hits = (await options.search(question, { k: 10 }, AbortSignal.timeout(30_000))).slice(
-        0,
-        10,
-      );
+      const hits = (await retrieve(options, question)).slice(0, 10);
       const budget = Math.max(
         0,
         Math.min(24_000, promptBudget(configuration.candidate) - question.length - 2_000),
@@ -55,6 +52,18 @@ export function createAutomaticEvaluationRuntime(
       return evaluationGenerator(options, configuration.judge);
     },
   };
+}
+
+/**
+ * Without embeddings (--no-vector) the indexer reports search as not
+ * implemented; evaluate as a model-only baseline instead of failing.
+ */
+async function retrieve(options: EvaluationRuntimeOptions, question: string): Promise<SearchResult[]> {
+  try {
+    return await options.search(question, { k: 10 }, AbortSignal.timeout(30_000));
+  } catch {
+    return [];
+  }
 }
 
 function candidateContext(hits: SearchResult[], budget: number): string[] {

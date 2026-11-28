@@ -34,7 +34,14 @@ func touch(t *testing.T, root string, rels ...string) {
 func teamDir(t *testing.T) string {
 	t.Helper()
 
-	team := filepath.Join(t.TempDir(), "team-a")
+	// Projects store canonical paths; t.TempDir() can sit behind a symlink
+	// (macOS /var -> /private/var), so compare against the resolved directory.
+	base, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	team := filepath.Join(base, "team-a")
 	touch(t, team,
 		"README.md",
 		"api/.git/HEAD",

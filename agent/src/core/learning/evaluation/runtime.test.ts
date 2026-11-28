@@ -76,3 +76,20 @@ it('fails oversized judge inputs explicitly without truncating evidence or calli
   ).rejects.toThrow('PERMANENT_ERROR');
   expect(resolveModel).not.toHaveBeenCalled();
 });
+
+it('answers without retrieved context when search is unavailable (no embeddings)', async () => {
+  const candidate = model('No evidence was supplied.');
+  const runtime = createAutomaticEvaluationRuntime({
+    configuration: async () => configuration,
+    search: vi.fn(async () => {
+      throw new Error('not implemented');
+    }),
+    resolveModel: () => candidate,
+  });
+
+  const result = await runtime.candidate('What does count return?', configuration);
+
+  expect(result.output).toBe('No evidence was supplied.');
+  expect(result.hits).toEqual([]);
+  expect(result.context).toEqual([]);
+});
