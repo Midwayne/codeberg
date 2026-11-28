@@ -15,7 +15,7 @@ type ExtensionsOptions = { project: Project; api: typeof fetch; kind: 'mcp' | 's
 
 export function useExtensions({ project, api, kind }: ExtensionsOptions) {
   const { catalog, catalogError, setRevision } = useExtensionCatalog(api);
-  const [scope, setScope] = useState('project');
+  const [scope, setScope] = useState(kind === 'skill' ? 'global' : 'project');
   const [importing, setImporting] = useState(false);
   const title = kind === 'mcp' ? 'MCP servers' : 'Skills';
   const entries = kind === 'mcp' ? catalog?.mcps : catalog?.skills;

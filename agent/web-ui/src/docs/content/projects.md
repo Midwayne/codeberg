@@ -26,7 +26,7 @@ Codeberg looks up to three folders deep and does not split a repository it has f
 
 Codeberg looks again each time it starts, so a repository cloned into the directory is picked up after the next restart, and a removed one is dropped. Projects added before Codeberg found repositories are split the same way on their next start; their repositories are indexed once, and chats and knowledge stay with the project. **Settings → Projects** lists the project directory and the repositories found.
 
-Each repository's MCP servers and skills are loaded alongside the project directory's.
+Each repository's MCP servers are loaded alongside the project directory's. Skills come only from `~/.agents/skills` and `~/.codeberg/skills`.
 
 Each directory belongs to one project. Adding a directory that is already a project opens that project instead of creating a second one. Directories inside another project's directory can be their own projects; each project keeps its own index, chats, and knowledge.
 
@@ -54,7 +54,7 @@ Responses and queued follow-ups keep running in their original chats when you sw
 | Source roots, watcher, indexes | Provider credentials and model choices |
 | Chats, branches, feedback | Global MCP servers and skills |
 | Knowledge, learning history, datasets | Usage accounting |
-| Project MCP servers, skills, database spec | Appearance within the same browser |
+| Project MCP servers, database spec | Appearance within the same browser |
 
 IDs follow the canonical source path. Symlinks to the same directory share a project. Renaming its display label keeps history; moving the directory changes its identity. Do not merge histories by moving catalog files.
 

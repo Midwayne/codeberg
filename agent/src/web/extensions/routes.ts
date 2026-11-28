@@ -60,17 +60,7 @@ async function listExtensions(state: ExtensionStoreState, env: NodeJS.ProcessEnv
         return { name, kind, scope: await mcpScope(name, mcp.files, state.home, env) };
       }),
     ),
-    skills: skills.map(({ name, description, file }) => ({
-      name,
-      description,
-      scope: file.startsWith(`${env.CODEBERG_PROJECT_HOME}/`)
-        ? 'project'
-        : (env.CODEBERG_ROOTS ?? '')
-              .split('\n')
-              .some((line) => file.startsWith(`${line.slice(line.indexOf('\t') + 1)}/`))
-          ? 'repository'
-          : 'global',
-    })),
+    skills: skills.map(({ name, description }) => ({ name, description, scope: 'global' })),
     warnings: mcp.warnings,
   };
 }
