@@ -72,13 +72,12 @@ Paths below are relative to Codeberg home. **Settings → Projects** shows the e
 | `config` | Startup settings and supported provider credentials. | After restart. |
 | `models.yml` | [Models](/docs/models), context windows, capabilities, efforts, optional prices. | When settings refresh. |
 | `mcp.json` | Shared servers inside `mcpServers`. | Next chat turn. |
-| `skills/<name>/SKILL.md` | Shared instructions; flat Markdown files also work. | Next chat turn. |
+| `skills/<name>/SKILL.md` | Skills for every project; flat Markdown files also work. `~/.agents/skills` is also read, and this folder wins on a name clash. | Next chat turn. |
 | `projects/<id>/mcp.json` | Project servers; override matching earlier definitions. | Next chat turn. |
-| `projects/<id>/skills/` | Project skills; override matching earlier skills. | Next chat turn. |
 | `projects/<id>/spec.yml` or `spec.yaml` | Database connections and access levels. | After restart; database MCP must be enabled. |
 | `spec.yml` or `spec.yaml` | Global/legacy database spec, if selected by the effective scope or `CODEBERG_DBMCP_SPEC`. | After restart. |
 
-Use **Settings → MCP servers** or **Skills** to choose the current project or **All projects**. For repository-local files and discovery order, see [MCP servers](/docs/mcps) and [Skills](/docs/skills).
+Use **Settings → MCP servers** to choose the current project or **All projects**; skills are always added for all projects. For repository-local files and discovery order, see [MCP servers](/docs/mcps) and [Skills](/docs/skills).
 
 ## App-managed files
 

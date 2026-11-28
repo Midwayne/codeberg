@@ -10,7 +10,7 @@ const dirs: string[] = [];
 afterEach(async () => {
   await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
-it('adds global and project MCPs and skills with project precedence and no sibling discovery', async () => {
+it('adds global and project MCPs with project precedence, and skills only globally', async () => {
   const home = await mkdtemp(join(tmpdir(), 'extensions-'));
   dirs.push(home);
   const a = join(home, 'projects', 'a');
@@ -28,12 +28,14 @@ it('adds global and project MCPs and skills with project precedence and no sibli
     name: 'search',
     config: { command: 'project' },
   });
-  await store.add(a, {
-    scope: 'project',
-    kind: 'skill',
-    name: 'review',
-    content: '---\nname: review\ndescription: Project review\n---\nReview this project.',
-  });
+  await expect(
+    store.add(a, {
+      scope: 'project',
+      kind: 'skill',
+      name: 'review',
+      content: '---\nname: review\ndescription: Project review\n---\nReview this project.',
+    }),
+  ).rejects.toThrow('~/.codeberg/skills');
   await store.add(a, {
     scope: 'global',
     kind: 'skill',
@@ -55,10 +57,10 @@ it('adds global and project MCPs and skills with project precedence and no sibli
         userRoots: [join(home, 'skills')],
       })
     )[0]?.description,
-  ).toBe('Project review');
+  ).toBe('Global review');
   expect(await readFile(join(a, 'mcp.json'), 'utf8')).toContain('project');
   await expect(
-    store.add(a, { scope: 'project', kind: 'skill', name: '../escape', content: 'no' }),
+    store.add(a, { scope: 'global', kind: 'skill', name: '../escape', content: 'no' }),
   ).rejects.toThrow();
   await expect(
     store.add(a, { scope: 'project', kind: 'mcp', name: 'bad', config: {} }),
@@ -109,18 +111,17 @@ it('preserves imported skill contents and rejects overwrites and oversized UTF-8
   const home = await mkdtemp(join(tmpdir(), 'skill-import-'));
   dirs.push(home);
   const a = join(home, 'projects', 'a');
-  const b = join(home, 'projects', 'b');
   const store = new ExtensionStore(home);
   const content =
     '---\nname: imported\ndescription: Imported review\nallowed-tools: Read\n---\n\nKeep every instruction.\n';
-  await store.add(a, { scope: 'project', kind: 'skill', name: 'imported', content });
-  expect(await readFile(join(a, 'skills', 'imported', 'SKILL.md'), 'utf8')).toBe(content);
-  await expect(readFile(join(b, 'skills', 'imported', 'SKILL.md'), 'utf8')).rejects.toMatchObject({
+  await store.add(a, { scope: 'global', kind: 'skill', name: 'imported', content });
+  expect(await readFile(join(home, 'skills', 'imported', 'SKILL.md'), 'utf8')).toBe(content);
+  await expect(readFile(join(a, 'skills', 'imported', 'SKILL.md'), 'utf8')).rejects.toMatchObject({
     code: 'ENOENT',
   });
   await expect(
     store.add(a, {
-      scope: 'project',
+      scope: 'global',
       kind: 'skill',
       name: 'imported',
       content: content + 'overwrite',

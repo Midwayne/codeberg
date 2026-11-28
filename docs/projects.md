@@ -109,8 +109,8 @@ the directory path so it can be opened manually.
 Discovery merges global configuration, the selected repository's existing
 configuration, then project storage. Entries with the same name in project
 storage take precedence. Existing `CODEBERG_MCP_CONFIG` files remain available.
-Repository skills and MCP files stay in their repositories. Global skills under
-`~/.agents/skills` and `$CODEBERG_HOME/skills` remain available in all projects.
+Repository MCP files stay in their repositories. Skills are read only from
+`~/.agents/skills` and `$CODEBERG_HOME/skills`, and apply to all projects.
 
 ## Storage and upgrades
 

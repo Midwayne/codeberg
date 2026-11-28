@@ -34,7 +34,9 @@ export function ExtensionsView(state: ExtensionsViewProps) {
       <div>
         <h2 className="text-lg font-semibold">{state.title}</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          {state.project.name} inherits global tools and skills. Project entries take precedence.
+          {state.kind === 'skill'
+            ? 'Skills come from ~/.agents/skills and ~/.codeberg/skills and apply to every project. A skill in ~/.codeberg/skills wins over one of the same name.'
+            : `${state.project.name} inherits global tools. Project entries take precedence.`}
         </p>
       </div>
       {state.catalogError && (
@@ -51,22 +53,24 @@ export function ExtensionsView(state: ExtensionsViewProps) {
             {warning}
           </p>
         ))}
-      <label className="block space-y-2 text-sm">
-        <span className="block">Available in</span>
-        <Select
-          disabled={state.busy || state.importing}
-          value={state.scope}
-          onChange={(event) => state.setScope(event.target.value)}
-        >
-          <option value="project">{state.project.name}</option>
-          <option value="global">All projects</option>
-        </Select>
-      </label>
+      {state.kind === 'mcp' && (
+        <label className="block space-y-2 text-sm">
+          <span className="block">Available in</span>
+          <Select
+            disabled={state.busy || state.importing}
+            value={state.scope}
+            onChange={(event) => state.setScope(event.target.value)}
+          >
+            <option value="project">{state.project.name}</option>
+            <option value="global">All projects</option>
+          </Select>
+        </label>
+      )}
       {state.kind === 'skill' && (
         <SkillImport
           api={state.api}
           scope={state.scope}
-          scopeLabel={state.scope === 'global' ? 'All projects' : state.project.name}
+          scopeLabel="All projects (~/.codeberg/skills)"
           onImported={() => state.setRevision((value) => value + 1)}
           onBusyChange={state.setImporting}
         />
@@ -81,8 +85,14 @@ type ExtensionCatalogViewProps = { state: Parameters<typeof ExtensionsView>[0] }
 function ExtensionCatalogView({ state }: ExtensionCatalogViewProps) {
   return (
     <section aria-label={`Available ${state.title}`}>
-      <h3 className="mb-2 text-sm font-medium">Available {state.title === 'Skills' ? 'skills' : 'MCP servers'}</h3>
-      <LoadingBoundary loading={!state.catalog && !state.catalogError} label={`Loading ${state.title.toLowerCase()}…`} kind="list">
+      <h3 className="mb-2 text-sm font-medium">
+        Available {state.title === 'Skills' ? 'skills' : 'MCP servers'}
+      </h3>
+      <LoadingBoundary
+        loading={!state.catalog && !state.catalogError}
+        label={`Loading ${state.title.toLowerCase()}…`}
+        kind="list"
+      >
         {state.catalogError && !state.catalog ? (
           <p className="text-xs text-muted-foreground">Catalog unavailable.</p>
         ) : !state.entries?.length ? (

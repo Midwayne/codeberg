@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { parseSkillDocument } from './skill-document.js';
 
-import { codebergHome, projectRoots } from '../paths.js';
+import { codebergHome } from '../paths.js';
 import type { ContextStore } from './store.js';
 
 /** A discovered Agent Skill (SKILL.md). The prompt receives name and
@@ -19,9 +19,8 @@ export interface SkillSummary {
 
 interface DiscoverSkillsOptions {
   env?: NodeJS.ProcessEnv;
-  cwd?: string;
-  /** User-level skill roots, searched before project roots. Defaults to
-   *  ~/.agents/skills, ~/.cursor/skills, and $CODEBERG_HOME/skills. */
+  /** Skill roots, later ones overriding the same name. Defaults to
+   *  ~/.agents/skills, then $CODEBERG_HOME/skills (~/.codeberg/skills). */
   userRoots?: readonly string[];
 }
 
@@ -29,26 +28,16 @@ const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build']);
 const MAX_DEPTH = 5;
 
 /**
- * Find SKILL.md files. Later roots override the same skill name, and project
- * roots override user roots, so a repo skill wins over a global one.
+ * Find SKILL.md files in ~/.agents/skills and ~/.codeberg/skills only. A
+ * skill in ~/.codeberg/skills overrides one of the same name in
+ * ~/.agents/skills. Repositories and projects are not searched.
  */
 export async function discoverSkills(opts: DiscoverSkillsOptions = {}): Promise<SkillSummary[]> {
   const env = opts.env ?? process.env;
-  const cwd = opts.cwd ?? process.cwd();
-  const userRoots = opts.userRoots ?? defaultUserSkillRoots(env);
-  const projects = projectRoots(env, cwd);
-  const projectDirs = projects.flatMap((root) => [
-    join(root, '.agents', 'skills'),
-    join(root, '.cursor', 'skills'),
-    join(root, '.codeberg', 'skills'),
-  ]);
+  const roots = opts.userRoots ?? defaultUserSkillRoots(env);
 
   const byName = new Map<string, SkillSummary>();
-  for (const root of [
-    ...userRoots,
-    ...projectDirs,
-    ...(env.CODEBERG_PROJECT_HOME ? [join(env.CODEBERG_PROJECT_HOME, 'skills')] : []),
-  ]) {
+  for (const root of roots) {
     const files = await findSkillFiles(root);
     for (const file of files) {
       let text: string;
@@ -94,11 +83,7 @@ export async function publishSkills(
 }
 
 function defaultUserSkillRoots(env: NodeJS.ProcessEnv): string[] {
-  return [
-    join(homedir(), '.agents', 'skills'),
-    join(homedir(), '.cursor', 'skills'),
-    join(codebergHome(env), 'skills'),
-  ];
+  return [join(env.HOME?.trim() || homedir(), '.agents', 'skills'), join(codebergHome(env), 'skills')];
 }
 
 async function findSkillFiles(root: string): Promise<string[]> {

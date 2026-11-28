@@ -25,6 +25,7 @@ are in the git history.
 
 ### Changed
 
+- Skills are read only from `~/.agents/skills` and `~/.codeberg/skills` (which wins on a name clash). `~/.cursor/skills`, repository skill folders, and project skill storage are no longer searched, and **Settings → Skills** adds skills for all projects.
 - Changing themes now animates, with a reveal from your click, a blur, a wipe, or a fade.
 - A new chat now shows just a greeting and the composer, centered, without starter prompts.
 - The header no longer shows the chat model; each chat shows its model in the composer.
@@ -45,6 +46,7 @@ are in the git history.
 - The Dark, Light, Kanagawa, Tokyo Night, Catppuccin Mocha, Dracula, Nord, and Gruvbox themes. Light switches to Porcelain and the others to Graphite.
 - Local chat models: the Ollama and llama.cpp providers, including for Browser Use. Local embedding models are unaffected.
 - The shorter system prompt for models with a context window of 16,384 tokens or less.
+
 
 ## [1.1.0] - 2026-11-22
 

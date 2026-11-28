@@ -3,10 +3,9 @@ Skills give the agent reusable instructions for tasks such as API review or arch
 ## Write a skill
 
 1. Open **Settings → Skills**.
-2. Choose the current project or **All projects**.
-3. Enter a name, description, and instructions, then **Add skill**.
+2. Enter a name, description, and instructions, then **Add skill**.
 
-Names use letters, numbers, dashes, or underscores and must be unique in that scope. Describe when the skill should run, what to check, expected output, and boundaries.
+The skill is saved in `~/.codeberg/skills/<name>/SKILL.md` and applies to every project. Names use letters, numbers, dashes, or underscores and must be unique. Describe when the skill should run, what to check, expected output, and boundaries.
 
 ## Import Markdown
 
@@ -36,15 +35,14 @@ Other filenames can supply a derived name in the preview. Invalid files show ind
 
 ## Discovery and scope
 
-Later locations override the same skill name:
+Skills are read from exactly two folders, in this order:
 
-| Order | Locations |
-| --- | --- |
-| Global | `~/.agents/skills`, `~/.cursor/skills`, Codeberg home's `skills/`. |
-| Project directory and each repository | `.agents/skills`, `.cursor/skills`, `.codeberg/skills`. |
-| Stored project | `projects/<id>/skills/` in Codeberg home. |
+1. `~/.agents/skills`
+2. `~/.codeberg/skills` (Codeberg home's `skills/`), which overrides a skill of the same name in the first
 
-Each location accepts Markdown files or directories containing `SKILL.md`. Inspect effective skills and scopes in Settings. Changes apply to the next chat turn; active streams retain their current context.
+No other folder is searched: not `~/.cursor/skills`, not `.agents`, `.cursor`, or `.codeberg` folders inside a repository, and not project storage. Every skill applies to every project.
+
+Each folder accepts Markdown files or directories containing `SKILL.md`. Inspect effective skills and scopes in Settings. Changes apply to the next chat turn; active streams retain their current context.
 
 ## Use a skill
 

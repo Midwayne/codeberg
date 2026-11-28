@@ -46,6 +46,9 @@ export async function write(
       'Choose a scope, kind and a name containing letters, numbers, dashes or underscores.',
     );
 
+  if (body.kind === 'skill' && body.scope !== 'global')
+    throw new Error('Skills are added to ~/.codeberg/skills, for all projects.');
+
   const extension = { ...body, name: body.name };
   const root = body.scope === 'global' ? state.home : projectHome;
   if (body.kind === 'mcp') {

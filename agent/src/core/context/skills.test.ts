@@ -61,33 +61,36 @@ Check callers before editing.
 });
 
 describe('discoverSkills', () => {
-  it('lets a project skill override a user skill with the same name', async () => {
-    const home = mkdtempSync(join(tmpdir(), 'cberg-skills-user-'));
+  it('reads only ~/.agents/skills and ~/.codeberg/skills, codeberg winning a name clash', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'cberg-skills-home-'));
     const project = mkdtempSync(join(tmpdir(), 'cberg-skills-proj-'));
-    writeSkill(join(home, 'review'), 'review', 'from user');
-    writeSkill(join(project, '.codeberg', 'skills', 'review'), 'review', 'from project');
-    writeSkill(join(project, '.agents', 'skills', 'notes'), 'notes', 'take notes');
+    const projectHome = mkdtempSync(join(tmpdir(), 'cberg-skills-phome-'));
+    writeSkill(join(home, '.agents', 'skills', 'review'), 'review', 'from agents');
+    writeSkill(join(home, '.agents', 'skills', 'notes'), 'notes', 'take notes');
+    writeSkill(join(home, '.codeberg', 'skills', 'review'), 'review', 'from codeberg');
+    writeSkill(join(home, '.cursor', 'skills', 'cursor-only'), 'cursor-only', 'not read');
+    writeSkill(join(project, '.codeberg', 'skills', 'repo-only'), 'repo-only', 'not read');
+    writeSkill(join(project, '.agents', 'skills', 'repo-agents'), 'repo-agents', 'not read');
+    writeSkill(join(projectHome, 'skills', 'project-only'), 'project-only', 'not read');
 
     const found = await discoverSkills({
-      env: { CODEBERG_ROOTS: `repo\t${project}` },
-      cwd: project,
-      userRoots: [home],
+      env: {
+        HOME: home,
+        CODEBERG_HOME: join(home, '.codeberg'),
+        CODEBERG_ROOTS: `repo\t${project}`,
+        CODEBERG_PROJECT_HOME: projectHome,
+      },
     });
 
     expect(found.map((skill) => skill.name)).toEqual(['notes', 'review']);
-    expect(found.find((skill) => skill.name === 'review')?.description).toBe('from project');
-    expect(found.find((skill) => skill.name === 'review')?.file).toContain('.codeberg');
+    expect(found.find((skill) => skill.name === 'review')?.description).toBe('from codeberg');
   });
 
   it('publishes an index and allows the skill directory', async () => {
-    const project = mkdtempSync(join(tmpdir(), 'cberg-skills-pub-'));
-    writeSkill(join(project, '.agents', 'skills', 'review'), 'review', 'from project');
+    const home = mkdtempSync(join(tmpdir(), 'cberg-skills-pub-'));
+    writeSkill(join(home, 'review'), 'review', 'from user');
     const store = ContextStore.open(mkdtempSync(join(tmpdir(), 'cberg-skills-ctx-')));
-    const skills = await publishSkills(store, {
-      env: { CODEBERG_ROOTS: `repo\t${project}` },
-      cwd: project,
-      userRoots: [],
-    });
+    const skills = await publishSkills(store, { env: {}, userRoots: [home] });
 
     expect(skills.map((skill) => skill.name)).toEqual(['review']);
     const index = readFileSync(join(store.root, 'skills', 'INDEX.md'), 'utf8');
